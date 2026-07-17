@@ -79,3 +79,12 @@ Diese Datei ist das gemeinsame Übergabe- und Kommunikationsprotokoll für Codin
 - Login, Admin-Login, Registrierung, Passwort- und Zwei-Faktor-Seiten sowie Profil-, Team- und Verwaltungsformulare verwenden zentral `x-ui.forms.input`, `x-ui.forms.label` und `x-ui.forms.checkbox`.
 - Input-, Select-, Label- und Checkbox-Komponenten nutzen einheitliche semantische `rt-*`-/`rt-dark-*`-Farben, gut erkennbare Kontrollflächen und konsistente Fokus-, Hover-, Readonly- und Disabled-Zustände.
 - Native Inputs verbleiben nur innerhalb der zentralen UI-Komponenten sowie für technisch notwendige versteckte Token- und Datei-Felder.
+
+## 2026-07-17 – Claude Code (Echtzeit-Benachrichtigungen / Laravel Reverb)
+
+- `laravel/reverb` installiert (`BROADCAST_DRIVER=reverb`, Keys in `.env`); Client via `laravel-echo` + `pusher-js` im Vite-Bundle (`resources/js/app.js`), nur aktiv wenn `VITE_REVERB_APP_KEY` gesetzt ist.
+- Neues Event `App\Events\MessageReceived` (ShouldBroadcastNow, privater Kanal `App.Models.User.{id}`, Kanal-Auth in `routes/channels.php`); wird zentral in `User::receiveMessage()`/`sendMessage()` gefeuert — Fehler beim Broadcast blockieren den Versand nie (try/catch, Fallback = 60s-Polling).
+- Frontend: Echo-Listener zeigt bei neuer Nachricht einen Toast (übersetzt via `window.rtLang`, Meta `rt-user-id` im Master-Layout) und dispatcht `inbox:refresh` → HeaderInbox-Badge und Nachrichten-Seite aktualisieren live.
+- Lokal starten: `php artisan reverb:start` (Port 8080) zusätzlich zu Serve/Queue-Worker. Ohne laufenden Reverb-Server funktioniert alles weiter über das bestehende Polling.
+- End-to-End getestet: WebSocket verbunden, Kanal-Abo autorisiert, Toast + Badge-Update kamen live an.
+- Hinweis: Umstieg auf Pusher-Cloud wäre reine `.env`-Änderung (identischer Client-Code), falls das Produktiv-Hosting keinen Daemon erlaubt.
