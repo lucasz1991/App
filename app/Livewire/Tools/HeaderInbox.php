@@ -20,6 +20,7 @@ class HeaderInbox extends Component
         $this->loadInbox();
     }
 
+    #[\Livewire\Attributes\On('inbox:refresh')]
     public function loadInbox(): void
     {
         $user = Auth::user();

@@ -272,4 +272,5 @@ return [
     'online' => 'Online',
     'offline' => 'Offline',
     'never' => 'Never',
+    'new_message' => 'New message',
 ];

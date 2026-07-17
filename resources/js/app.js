@@ -8,8 +8,29 @@ import collapse from '@alpinejs/collapse';
 import mask from '@alpinejs/mask';
 import resize from '@alpinejs/resize';
 import intersect from '@alpinejs/intersect';
+import Echo from 'laravel-echo';
+import Pusher from 'pusher-js';
 import Swiper from 'swiper';
 import 'swiper/css';
+
+// ---------------------------------------------------------------
+// Echtzeit (Laravel Reverb, Pusher-Protokoll). Nur aktiv, wenn ein
+// Reverb-Key konfiguriert ist — ohne laufenden Reverb-Server faellt
+// die App auf das 60s-Polling des Posteingangs zurueck.
+// ---------------------------------------------------------------
+window.Pusher = Pusher;
+
+if (import.meta.env.VITE_REVERB_APP_KEY) {
+    window.Echo = new Echo({
+        broadcaster: 'reverb',
+        key: import.meta.env.VITE_REVERB_APP_KEY,
+        wsHost: import.meta.env.VITE_REVERB_HOST,
+        wsPort: import.meta.env.VITE_REVERB_PORT ?? 80,
+        wssPort: import.meta.env.VITE_REVERB_PORT ?? 443,
+        forceTLS: (import.meta.env.VITE_REVERB_SCHEME ?? 'https') === 'https',
+        enabledTransports: ['ws', 'wss'],
+    });
+}
 
 // ACHTUNG: persist, sort und anchor bringt Livewires Alpine-Bundle bereits
 // selbst mit — eine erneute Registrierung wirft "Cannot redefine property"
@@ -52,6 +73,33 @@ window.Alpine = Alpine;
 Livewire.start();
 
 rtApplyTheme();
+
+// ---------------------------------------------------------------
+// Live-Benachrichtigungen: privaten User-Channel abonnieren.
+// Bei neuer Nachricht: Toast anzeigen + Posteingang aktualisieren.
+// Das Abo ueberlebt wire:navigate (Modul laeuft nur einmal).
+// ---------------------------------------------------------------
+(function () {
+    const userId = document.querySelector('meta[name="rt-user-id"]')?.content;
+    if (!window.Echo || !userId) {
+        return;
+    }
+
+    const lang = window.rtLang || {};
+
+    window.Echo.private(`App.Models.User.${userId}`)
+        .listen('.message.received', (event) => {
+            const title = lang.newMessage || 'Neue Nachricht';
+            const from = event.from ? `${lang.from || 'Von'}: ${event.from}` : '';
+            const text = [from, event.subject].filter(Boolean).join(' — ');
+
+            window.dispatchEvent(new CustomEvent('swal:toast', {
+                detail: { type: 'info', title, text },
+            }));
+
+            Livewire.dispatch('inbox:refresh');
+        });
+})();
 
 window.Swiper = Swiper;
 let sidebarCollapseTimer = null;

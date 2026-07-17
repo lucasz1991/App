@@ -11,6 +11,15 @@
 <head>
     @include('layouts.metahead')
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    @auth
+        <meta name="rt-user-id" content="{{ auth()->id() }}">
+        <script>
+            window.rtLang = {
+                newMessage: @json(__('app.new_message')),
+                from: @json(__('app.from')),
+            };
+        </script>
+    @endauth
     <title>@yield('title') | {{ config('app.name', 'RailTime') }}{{ $area === 'admin' ? ' Admin' : '' }}</title>
     {{-- FOUC-Schutz: Theme vor dem ersten Paint anwenden. Die eigentliche
          Verwaltung uebernimmt der Alpine-Persist-Store ($store.theme),

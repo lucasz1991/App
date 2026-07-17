@@ -20,6 +20,7 @@ class MessageBox extends Component
 
     protected $listeners = [
         'refreshComponent' => '$refresh',
+        'inbox:refresh' => '$refresh',
     ];
 
     public function updatingSearch(): void

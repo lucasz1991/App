@@ -154,13 +154,15 @@ class User extends Authenticatable
      */
     public function sendMessage(int $toUserId, string $subject, string $message): void
     {
-        Message::create([
+        $sent = Message::create([
             'subject' => $subject,
             'message' => $message,
             'from_user' => $this->id,
             'to_user' => $toUserId,
             'status' => '1',
         ]);
+
+        $this->broadcastMessageReceived($sent);
     }
 
     /**
@@ -191,6 +193,26 @@ class User extends Authenticatable
             }
         }
 
+        $this->broadcastMessageReceived($receivedMessage);
+
         return $receivedMessage;
+    }
+
+    /**
+     * Echtzeit-Benachrichtigung ueber Reverb ausloesen. Fehler (z. B. wenn
+     * der Reverb-Server nicht laeuft) duerfen den Nachrichtenversand nie
+     * blockieren — der Empfaenger sieht die Nachricht dann beim naechsten
+     * Polling des Posteingangs.
+     */
+    protected function broadcastMessageReceived(Message $message): void
+    {
+        try {
+            event(new \App\Events\MessageReceived($message));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::notice('Broadcast der Nachricht fehlgeschlagen', [
+                'message_id' => $message->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }
