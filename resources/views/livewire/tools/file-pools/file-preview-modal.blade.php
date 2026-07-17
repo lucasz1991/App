@@ -22,13 +22,13 @@
           @endphp
           {{-- Linke Spalte: Infos, darf schrumpfen & ellipsen --}}
           <div class="min-w-0 flex-1">
-            <div class="text-sm text-slate-800 dark:text-slate-200 mb-1" title="{{ $file->name }}">
+            <div class="mb-1 text-sm text-rt-text dark:text-white" title="{{ $file->name }}">
               {{ $file->name }}
             </div>
-            <div class="text-xs text-slate-500 dark:text-slate-400 mb-1 truncate" title="{{ $file->getMimeTypeForHumans() }}">
+            <div class="mb-1 truncate text-xs text-rt-muted dark:text-rt-dark-muted" title="{{ $file->getMimeTypeForHumans() }}">
               <span class="block truncate">{{ $file->getMimeTypeForHumans() }}</span>
             </div>
-            <div class="text-xs text-slate-500 dark:text-slate-400">
+            <div class="text-xs text-rt-muted dark:text-rt-dark-muted">
               <span>{{ $file?->sizeFormatted ?? '' }}</span>
             </div>
           </div>
@@ -38,7 +38,7 @@
             {{-- Download --}}
             <button
               wire:click="downloadFile({{ $file->id }})"
-              class="inline-flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-rt-red dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-300 dark:hover:text-rt-red rounded-full p-2 transition focus:outline-none focus:ring-2 focus:ring-rt-red/40"
+              class="inline-flex items-center justify-center rounded-full bg-rt-surface-muted p-2 text-rt-muted transition hover:text-rt-accent dark:bg-rt-dark-surface-muted dark:text-white dark:hover:text-rt-dark-accent focus:outline-none focus:ring-2 focus:ring-rt-accent/40"
               title="{{ __('app.download') }}"
             >
               <i class="fas fa-download w-4 h-4 leading-none"></i>
@@ -50,7 +50,7 @@
               <a
                 href="{{ $printUrl }}"
                 target="_blank" rel="noopener"
-                class="inline-flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-rt-red dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-300 dark:hover:text-rt-red rounded-full p-2 transition focus:outline-none focus:ring-2 focus:ring-rt-red/40"
+                class="inline-flex items-center justify-center rounded-full bg-rt-surface-muted p-2 text-rt-muted transition hover:text-rt-accent dark:bg-rt-dark-surface-muted dark:text-white dark:hover:text-rt-dark-accent focus:outline-none focus:ring-2 focus:ring-rt-accent/40"
                 title="{{ __('app.print') }}"
               >
                 <i class="fas fa-print w-4 h-4 leading-none"></i>
@@ -61,7 +61,7 @@
             {{-- Schliessen --}}
             <button
               wire:click="close"
-              class="inline-flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-rt-red dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-300 dark:hover:text-rt-red rounded-full p-2 transition focus:outline-none focus:ring-2 focus:ring-rt-red/40"
+              class="inline-flex items-center justify-center rounded-full bg-rt-surface-muted p-2 text-rt-muted transition hover:text-rt-accent dark:bg-rt-dark-surface-muted dark:text-white dark:hover:text-rt-dark-accent focus:outline-none focus:ring-2 focus:ring-rt-accent/40"
               title="{{ __('app.close') }}"
             >
               <i class="fas fa-times w-4 h-4 leading-none"></i>
@@ -75,7 +75,7 @@
           <div class="shrink-0">
             <button
               wire:click="close"
-              class="inline-flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-rt-red dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-300 dark:hover:text-rt-red rounded-full p-2 transition focus:outline-none focus:ring-2 focus:ring-rt-red/40"
+              class="inline-flex items-center justify-center rounded-full bg-rt-surface-muted p-2 text-rt-muted transition hover:text-rt-accent dark:bg-rt-dark-surface-muted dark:text-white dark:hover:text-rt-dark-accent focus:outline-none focus:ring-2 focus:ring-rt-accent/40"
               title="{{ __('app.close') }}"
             >
               <i class="fas fa-times w-4 h-4 leading-none"></i>
@@ -88,10 +88,10 @@
 
     <x-slot name="content">
       @if($file && $open)
-        <div class="rounded-xl border border-slate-200 overflow-hidden bg-white dark:bg-slate-800 dark:border-slate-700">
+        <div class="overflow-hidden rounded-xl border border-rt-border bg-rt-surface dark:border-rt-dark-border dark:bg-rt-dark-surface">
           {{-- Bilder --}}
           @if($isImage)
-            <div class="img-container flex justify-center items-center bg-slate-100 dark:bg-slate-900 min-h-[200px]">
+            <div class="img-container flex min-h-[200px] items-center justify-center bg-rt-surface-muted dark:bg-rt-dark-canvas">
                 <img
                   class="block w-auto h-auto"
                   src="{{ $tempUrl }}"
@@ -134,13 +134,13 @@
                      src="{{ $file->icon_or_thumbnail }}"
                      alt="{{ __('app.file_preview') }}">
                 <div class="min-w-0">
-                  <div class="font-medium text-slate-900 dark:text-white truncate">
+                  <div class="truncate font-medium text-rt-text dark:text-white">
                     {{ $file->name_with_extension ?? $file->name }}
                   </div>
                   @if($mime)
-                    <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{ $mime }}</div>
+                    <div class="mt-0.5 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $mime }}</div>
                   @endif
-                  <div class="text-xs text-slate-500 dark:text-slate-400">
+                  <div class="text-xs text-rt-muted dark:text-rt-dark-muted">
                     {{ __('app.no_inline_preview') }}
                   </div>
                 </div>
@@ -149,7 +149,7 @@
           @endif
         </div>
       @else
-        <p class="text-sm text-slate-600 dark:text-slate-400">{{ __('app.no_file_selected') }}</p>
+        <p class="text-sm text-rt-muted dark:text-rt-dark-muted">{{ __('app.no_file_selected') }}</p>
       @endif
     </x-slot>
 

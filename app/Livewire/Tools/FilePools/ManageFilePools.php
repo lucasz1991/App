@@ -51,6 +51,10 @@ class ManageFilePools extends Component
         bool $allowRoleSharing = false,
         ?string $roleFilter = null,
     ): void {
+        if ($modelType === \App\Models\Team::class && $modelId !== null) {
+            abort_unless(Auth::user()?->belongsToTeam(\App\Models\Team::findOrFail($modelId)), 403);
+        }
+
         if ($poolId !== null) {
             $this->filePool = FilePool::findOrFail($poolId);
         } else {

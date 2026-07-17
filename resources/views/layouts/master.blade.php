@@ -40,15 +40,7 @@
                 <div class="main-content group-data-[sidebar-size=sm]:ml-[70px]">
                     <div class="min-h-screen page-content px-1" style="box-shadow: inset 0px 80px 30px -10px rgba(0, 0, 0, 0.2);">
                         <div class="container-fluid px-0 md:px-5">
-                            @php
-                                $excludedUrls = [
-                                    'administrator',
-                                ];
-                                $useBox = !request()->is($excludedUrls);
-                            @endphp
-                            <div class="{{ $useBox ? 'rounded-md border border-rt-border bg-rt-surface p-4 text-rt-text dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text' : '' }}">
-                                {{ $slot }}
-                            </div>
+                            {{ $slot }}
                             {{-- Dezente Versionsanzeige --}}
                             <div class="py-4 text-center text-xs text-rt-soft dark:text-rt-dark-soft">
                                 {{ config('app.name') }} v{{ config('app.version') }}

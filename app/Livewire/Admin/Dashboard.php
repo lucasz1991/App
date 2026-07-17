@@ -32,6 +32,6 @@ class Dashboard extends Component
             ->get(['id', 'name', 'email', 'role', 'status', 'created_at']);
 
         return view('livewire.admin.dashboard', compact('recentUsers'))
-            ->layout('layouts.master');
+            ->layout('layouts.master', ['area' => 'admin']);
     }
 }

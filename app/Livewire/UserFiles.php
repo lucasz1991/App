@@ -8,7 +8,13 @@ class UserFiles extends Component
 {
     public function render()
     {
-        return view('livewire.user-files')
+        $teams = auth()->user()
+            ->teams()
+            ->where('personal_team', false)
+            ->orderBy('name')
+            ->get(['teams.id', 'teams.name']);
+
+        return view('livewire.user-files', compact('teams'))
             ->layout('layouts.master', ['area' => 'user']);
     }
 }

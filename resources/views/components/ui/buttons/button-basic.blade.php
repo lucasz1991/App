@@ -3,7 +3,7 @@
 
 $modeClasses = match ($mode) {
     'primary', 'blue' => ' text-white bg-rt-red hover:bg-rt-red-dark focus:ring-rt-red/40 border-rt-red',
-    'basic', 'secondary', 'light', 'white' => ' text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 focus:ring-rt-red/40 border-slate-300 dark:border-slate-600',
+    'basic', 'secondary', 'light', 'white' => ' text-rt-text dark:text-white bg-rt-surface dark:bg-rt-dark-surface hover:bg-rt-surface-muted dark:hover:bg-rt-dark-surface-muted focus:ring-rt-accent/40 border-rt-border dark:border-rt-dark-border',
     'danger' => ' text-white bg-red-600 hover:bg-red-700 focus:ring-red-300 border-red-600',
     'success' => ' text-white bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-300 border-emerald-600',
     'warning' => ' text-white bg-amber-500 hover:bg-amber-600 focus:ring-amber-300 border-amber-500',

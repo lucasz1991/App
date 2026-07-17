@@ -1,7 +1,7 @@
 @props(['file', 'readOnly' => false])
 
 <div    x-data="{ isHovered: false }"
-        class="relative border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden bg-white dark:bg-slate-800 shadow mb-2 cardgroup"
+        class="relative overflow-hidden rounded-xl border border-rt-border bg-rt-surface text-rt-text shadow-sm dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white mb-2 cardgroup"
         @mouseenter="isHovered = true"
         @mouseleave="isHovered = false"
         @touchstart="isHovered = true"
@@ -9,12 +9,12 @@
     <div class="transition" :class="{ 'blur-sm': isHovered }">
         <img src="{{ $file->icon_or_thumbnail }}" alt="{{ $file->name }}" class="w-full !aspect-square @if($file->is_image) object-cover @else object-contain p-6 @endif">
     </div>
-    <div class="p-2 space-y-2 bg-slate-50 dark:bg-slate-700 transition" :class="{ 'blur-sm': isHovered }">
-        <div class="text-sm text-slate-800 dark:text-slate-200 truncate" title="{{ $file->name }}">{{ $file->name }}</div>
-        <div class="text-xs text-slate-500 dark:text-slate-400 truncate w-full mb-1" title="{{ $file->getMimeTypeForHumans() }}">
+    <div class="p-2 space-y-2 bg-rt-surface-muted dark:bg-rt-dark-surface-muted transition" :class="{ 'blur-sm': isHovered }">
+        <div class="truncate text-sm" title="{{ $file->name }}">{{ $file->name }}</div>
+        <div class="text-xs text-rt-muted dark:text-rt-dark-muted truncate w-full mb-1" title="{{ $file->getMimeTypeForHumans() }}">
             <span>{{ $file->getMimeTypeForHumans() }}</span>
         </div>
-        <div class="text-xs text-slate-500 dark:text-slate-400">
+        <div class="text-xs text-rt-muted dark:text-rt-dark-muted">
             <span>{{ $file->size_formatted }}</span>
         </div>
         @if($file->expires_at)
@@ -25,7 +25,7 @@
             @endif
         @endif
     </div>
-    <div class="absolute inset-0 flex items-center justify-center flex-wrap bg-white bg-opacity-65 dark:bg-slate-900 dark:bg-opacity-65 rounded-xl" x-show="isHovered" x-collapse>
+    <div class="absolute inset-0 flex items-center justify-center flex-wrap bg-rt-surface/70 dark:bg-rt-dark-canvas/75 rounded-xl" x-show="isHovered" x-collapse>
         <button
                 type="button"
                 @click="window.dispatchEvent(new CustomEvent('filepool-preview', { detail: { id: {{ $file->id }} } }))"

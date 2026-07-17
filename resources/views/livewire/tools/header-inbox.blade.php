@@ -1,4 +1,9 @@
 <div class="relative" wire:poll.60s="loadInbox">
+    @php
+        $messageRoute = in_array(auth()->user()?->role, ['admin', 'staff'], true)
+            ? route('admin.messages')
+            : route('messages');
+    @endphp
     <x-dropdown align="right" width="w-96">
         {{-- Trigger --}}
         <x-slot name="trigger">
@@ -56,7 +61,7 @@
                 @endforelse
 
                 <div class="p-3">
-                    <a href="{{ route('messages') }}"
+                    <a href="{{ $messageRoute }}"
                        class="block rounded-lg px-4 py-2 text-center font-medium text-rt-text ring-1 ring-rt-border transition hover:bg-rt-surface-muted hover:text-rt-accent dark:text-white dark:ring-rt-dark-border dark:hover:bg-rt-dark-surface-muted dark:hover:text-white">
                         {{ __('app.view_all_messages') }}
                     </a>

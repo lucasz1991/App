@@ -10,6 +10,8 @@
     // Optionale Partials für Zeilen und Aktionen
     'rowView' => null,       // z.B. 'components.tables.rows.user-messages.row'
     'actionsView' => null,   // z.B. 'components.tables.rows.user-messages.actions'
+    'detailsView' => null,
+    'expandedId' => null,
 ])
 
 @php
@@ -54,9 +56,9 @@
     };
 @endphp
 
-<div {{ $attributes->merge(['class' => 'w-full mt-4 relative rounded-xl border border-slate-200 dark:border-slate-700 '.$class]) }}>
+<div {{ $attributes->merge(['class' => 'w-full mt-4 relative overflow-hidden rounded-xl border border-rt-border bg-rt-surface text-rt-text dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text '.$class]) }}>
     {{-- Header (nur md+) --}}
-    <div class="hidden md:grid rounded-t-xl bg-slate-50 dark:bg-slate-900/50 p-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700 text-left"
+    <div class="hidden md:grid bg-rt-surface-muted p-2 text-xs font-semibold uppercase tracking-wide text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted border-b border-rt-border dark:border-rt-dark-border text-left"
          style="grid-template-columns: {{ $gridTemplate }};">
         @foreach($columns as $col)
             @php $hidden = $hideClass($col['hideOn']); @endphp
@@ -86,7 +88,7 @@
     @php
         $isSelected = in_array($item->id, (array) $selectedItems);
     @endphp
-    <div class="relative border-b border-slate-100 dark:border-slate-700 last:border-b-0 last:rounded-b-xl py-2 text-sm md:px-2 hover:bg-slate-50 dark:hover:bg-slate-700/40">
+    <div class="relative border-b border-rt-border/60 dark:border-rt-dark-border last:border-b-0 py-2 text-sm md:px-2 hover:bg-rt-nav-hover dark:hover:bg-rt-dark-nav-hover">
         <div class="grid items-center" style="grid-template-columns: {{ $gridTemplate }} min-content;">
         {{-- Zellen --}}
         @if($rowView)
@@ -104,9 +106,12 @@
             </div>
         @endif
         </div>
+        @if ($detailsView && (int) $expandedId === (int) $item->id)
+            @include($detailsView, ['item' => $item])
+        @endif
     </div>
     @empty
-    <div class="p-4 text-sm text-slate-500 dark:text-slate-400">{{ $empty }}</div>
+    <div class="p-4 text-sm text-rt-muted dark:text-rt-dark-muted">{{ $empty }}</div>
     @endforelse
 
 </div>

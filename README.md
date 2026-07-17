@@ -44,3 +44,31 @@ Diese Datei ist das gemeinsame Übergabe- und Kommunikationsprotokoll für Codin
 - Sidebar-Navigation nutzt im Dark Mode durchgehend weiße Schrift.
 - Das Textlogo sowie das Monogramm werden im Dark Mode weiß dargestellt.
 - Nachrichten-Dropdown nutzt nun zentrale Dark-Mode-Flächen, weiße Texte und passende Hover-/Unread-Zustände.
+- Theme-Icon in der Topbar wird über den Alpine-Theme-Store mit `x-show` gerendert; dadurch gibt es keinen Konflikt zwischen `hidden` und Tailwind-Display-Klassen.
+
+## 2026-07-17 – Codex (Admin-Navigation und Downloads)
+
+- Admin- und Nutzer-Nachrichten verwenden nun dieselbe stabile MessageBox; die Rolle bestimmt explizit das passende Layout.
+- Der Header-Link „Alle Nachrichten“ führt für Admins und Mitarbeiter zur Admin-Route.
+- Dark-Mode-Navigation verwendet eigene Blauflächen für Hover und aktive Links.
+- Admin-Dashboard: Begrüßungsband entfernt, Übersicht und Kennzahlen für Light/Dark vereinheitlicht.
+- Nutzer-Dateien: persönliche, rollenbasierte und Team-Standard-Downloadbereiche ergänzt; Team-Dateipools prüfen die Mitgliedschaft serverseitig.
+
+## 2026-07-17 – Codex (UI-Komponenten)
+
+- Neue wiederverwendbare Komponenten: `x-ui.surface.card`, `x-ui.feedback.alert` und `x-ui.dashboard.stat-card`.
+- Dashboard-Kennzahlen, Mitarbeiter-Hinweis und Mitarbeiter-Filter verwenden diese zentralen Bausteine.
+- Kernkomponenten für Tabellen, Inputs, Selects, Labels, Buttons, Badges, Dropdowns, Modals und Datei-Karten auf die zentrale RailTime-Light-/Dark-Palette umgestellt.
+
+## 2026-07-17 – Codex (Content und Tabellen)
+
+- Der globale Content-Rahmen mit Hintergrund und Padding wurde aus `layouts.master` entfernt; jede Seite kann ihre benötigten Bereiche selbst als Komponenten setzen.
+- Nachrichten und Mailverwaltung nutzen `x-tables.table`.
+- Tabellenzeilen sind getrennt organisiert: `rows/employees`, `rows/messages` und `rows/mails`, jeweils mit eigener Row- und Action-Komponente; Mails besitzen zusätzlich eine Detail-Komponente.
+
+## 2026-07-17 – Codex (Seitenstruktur und FilePool)
+
+- Gemeinsame `x-ui.page-header`-Komponente ergänzt und in Nachrichten, Nutzer-Dateien sowie Dateimanager verwendet.
+- Obere Tipp-/Hinweisblöcke aus den zentralen Nutzer- und Verwaltungsseiten entfernt.
+- Selects nutzen die neue erhöhte `rt-control`-Fläche und heben sich damit in Light und Dark Mode sichtbar vom Seitenhintergrund, der Topbar und Sidebar ab.
+- FilePool-Formulare, Dateimanager, FileCards und Dateivorschau auf die zentrale Dark-Mode-Palette umgestellt.

@@ -1,7 +1,7 @@
 @props([
   'align'             => 'right',
   'width'             => '48',
-  'contentClasses'    => 'py-1 bg-white',
+  'contentClasses'    => 'py-1 bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-white',
   'dropdownClasses'   => 'mx-4',
   'offset'            => 0,
   'overlay'           => false,
@@ -116,7 +116,7 @@
     @if($trap) x-trap.inert.noscroll="open" @endif
     x-ref="panel"
   >
-    <div x-ref="panelScroll" class="rounded-md ring-1 ring-black ring-opacity-5 overflow-hidden {{ $contentClasses }}">
+    <div x-ref="panelScroll" class="overflow-hidden rounded-md border border-rt-border shadow-lg dark:border-rt-dark-border {{ $contentClasses }}">
       {{ $content }}
     </div>
   </div>

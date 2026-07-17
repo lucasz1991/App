@@ -45,7 +45,7 @@
     <label for="month" class="block text-sm font-medium text-gray-700">Monat auswählen:</label>
     <div class="flex space-x-2 mb-5">
         <!-- Monat Dropdown -->
-        <select id="month" class="border rounded p-2 pr-8" wire:model.live="selectedMonthMonth">
+        <x-ui.forms.select id="month" class="w-52" wire:model.live="selectedMonthMonth">
                 <option value="">
                     Bitte Monat auswählen...
                 </option>
@@ -54,17 +54,17 @@
                     {{ date('F', mktime(0, 0, 0, $month, 1)) }}
                 </option>
             @endforeach
-        </select>
+        </x-ui.forms.select>
 
         <!-- Jahr Dropdown -->
-        <select id="year" class="border rounded p-2 pr-8" wire:model.live="selectedMonthYear">
+        <x-ui.forms.select id="year" class="w-40" wire:model.live="selectedMonthYear">
                 <option value="">
                     Bitte Jahr auswählen...
                 </option>
             @foreach(range(date('Y') - 3, date('Y')) as $year)
                 <option value="{{ $year }}">{{ $year }}</option>
             @endforeach
-        </select>
+        </x-ui.forms.select>
     </div>
 
         <!-- Export Buttons -->

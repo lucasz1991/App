@@ -4,7 +4,6 @@ use App\Livewire\Admin\Dashboard;
 use App\Livewire\Admin\Employees;
 use App\Livewire\Admin\MailManagement;
 use App\Livewire\Admin\UserProfile;
-use App\Livewire\AdminMessageBox;
 use App\Livewire\MessageBox;
 use App\Livewire\UserDashboard;
 use App\Livewire\UserFiles;
@@ -76,5 +75,7 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
         Route::get('/user/{userId}', UserProfile::class)->name('user-profile');
         Route::get('/files', App\Livewire\Admin\FileManager::class)->name('files');
         Route::get('/mails', MailManagement::class)->name('mail-management');
-        Route::get('/messages', AdminMessageBox::class)->name('messages');
+        // Admins verwenden dieselbe robuste Nachrichtenoberfläche, erhalten
+        // aber weiterhin über die Komponente das Admin-Layout.
+        Route::get('/messages', MessageBox::class)->name('messages');
 });

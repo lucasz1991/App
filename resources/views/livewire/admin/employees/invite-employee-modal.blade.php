@@ -17,13 +17,12 @@
 
             <div>
                 <x-label for="invite-role" :value="__('app.role')" />
-                <select id="invite-role" wire:model="role"
-                        class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-rt-red focus:ring focus:ring-rt-red/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200">
+                <x-ui.forms.select id="invite-role" wire:model="role" class="mt-1 block">
                     <option value="staff">{{ __('app.role_staff') }}</option>
                     @if (auth()->user()->isAdmin())
                         <option value="admin">{{ __('app.role_admin') }}</option>
                     @endif
-                </select>
+                </x-ui.forms.select>
                 <x-input-error for="role" class="mt-1" />
             </div>
         </div>

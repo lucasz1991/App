@@ -20,6 +20,6 @@ class FileManager extends Component
     public function render()
     {
         return view('livewire.admin.file-manager')
-            ->layout('layouts.master');
+            ->layout('layouts.master', ['area' => 'admin']);
     }
 }

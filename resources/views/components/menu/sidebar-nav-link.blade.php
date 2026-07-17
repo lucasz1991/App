@@ -7,8 +7,8 @@
 
 @php
     $classes = 'sidebar-nav-link flex rounded-xl px-6 py-3 text-sm font-medium transition-all duration-150 ease-linear ' . ($active
-        ? 'bg-rt-accent-soft text-rt-accent shadow-sm dark:bg-rt-dark-accent-soft dark:text-white'
-        : 'text-rt-muted dark:text-white hover:bg-rt-surface hover:text-rt-accent dark:hover:bg-rt-dark-surface-muted dark:hover:text-white');
+        ? 'bg-rt-accent-soft text-rt-accent shadow-sm dark:bg-rt-dark-nav-active dark:text-white dark:shadow-black/20'
+        : 'text-rt-muted dark:text-white hover:bg-rt-nav-hover hover:text-rt-accent dark:hover:bg-rt-dark-nav-hover dark:hover:text-white');
 @endphp
 
 <li>

@@ -7,12 +7,12 @@
 
 @php
     // Grundstil für alle Inputs
-    $baseClasses = 'w-full rounded-lg border-slate-300 shadow-sm focus:border-rt-red focus:ring focus:ring-rt-red/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200';
+    $baseClasses = 'w-full rounded-lg border-rt-border bg-rt-surface text-rt-text shadow-sm placeholder:text-rt-soft focus:border-rt-accent focus:ring focus:ring-rt-accent/30 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white dark:placeholder:text-rt-dark-soft';
 
     // Typ-spezifische Klassen (optional)
     $typeClasses = match($type) {
         'date', 'time', 'datetime-local' => 'px-2 py-1.5',
-        'file'  => 'text-sm text-slate-700 border border-slate-300 bg-white dark:text-slate-200 dark:border-slate-600 dark:bg-slate-800',
+        'file'  => 'border text-sm',
         'number' => 'text-right',
         default => 'px-2 py-1.5',
     };

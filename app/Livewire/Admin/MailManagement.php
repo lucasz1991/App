@@ -11,8 +11,17 @@ class MailManagement extends Component
 {
     use WithPagination;
 
+    protected $listeners = ['table-sort' => 'tableSort'];
+
     public string $sortBy = 'id';
     public string $sortDirection = 'desc';
+
+    public ?int $expandedMailId = null;
+
+    public function toggleMailDetails(int $id): void
+    {
+        $this->expandedMailId = $this->expandedMailId === $id ? null : $id;
+    }
 
     public function sortByField(string $field): void
     {
@@ -27,6 +36,17 @@ class MailManagement extends Component
             $this->sortDirection = 'asc';
         }
 
+        $this->resetPage();
+    }
+
+    public function tableSort(string $key, ?string $dir = null): void
+    {
+        if (! in_array($key, ['id', 'created_at', 'status'], true)) {
+            return;
+        }
+
+        $this->sortBy = $key;
+        $this->sortDirection = $dir === 'asc' ? 'asc' : 'desc';
         $this->resetPage();
     }
 
@@ -115,6 +135,6 @@ class MailManagement extends Component
         return view('livewire.admin.mail-management', [
             'mails' => $mails,
             'recipientUsers' => $recipientUsers,
-        ])->layout('layouts.master');
+        ])->layout('layouts.master', ['area' => 'admin']);
     }
 }

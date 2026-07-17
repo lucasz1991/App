@@ -1,64 +1,34 @@
 <div class="space-y-6 py-6">
-    {{-- Begruessungs-Band im RailTime-Look --}}
-    <div class="relative overflow-hidden rounded-2xl bg-[#080b10] px-6 py-8 text-white shadow-lg sm:px-8">
-        <div class="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-[#e4002b]/20 blur-3xl"></div>
-        <div class="pointer-events-none absolute -bottom-24 right-24 h-48 w-48 rounded-full bg-white/5 blur-2xl"></div>
-
-        <div class="relative flex flex-wrap items-center gap-6">
-            <img src="{{ asset('rt-brand/rt-logo.svg') }}" alt="" class="h-16 w-16 drop-shadow-lg">
-            <div>
-                <p class="text-xs font-bold uppercase tracking-[0.2em] text-[#e4002b]">RT Rail Time GmbH</p>
-                <h1 class="mt-1 text-2xl font-semibold sm:text-3xl">
-                    {{ __('app.welcome_name', ['name' => auth()->user()->name]) }}
-                </h1>
-                <p class="mt-1 text-sm text-slate-300">
-                    {{ now()->translatedFormat('l, d. F Y') }} &middot; {{ __('app.admin_area_of', ['app' => config('app.name')]) }}
-                </p>
-            </div>
+    {{-- Kompakte Uebersicht statt Begruessungsband --}}
+    <div class="flex flex-wrap items-end justify-between gap-4">
+        <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-rt-accent dark:text-rt-dark-accent">Administration</p>
+            <h1 class="mt-1 text-2xl font-semibold tracking-tight text-rt-text dark:text-rt-dark-text">{{ __('app.dashboard') }}</h1>
+            <p class="mt-1 text-sm text-rt-muted dark:text-rt-dark-muted">Überblick über Benutzer, Teams und aktuelle Verwaltungsaufgaben.</p>
+        </div>
+        <div class="rounded-xl border border-rt-border bg-rt-surface px-4 py-3 text-right shadow-sm dark:border-rt-dark-border dark:bg-rt-dark-surface">
+            <p class="text-xs text-rt-soft dark:text-rt-dark-soft">{{ now()->translatedFormat('l, d. F Y') }}</p>
+            <p class="mt-0.5 text-sm font-medium text-rt-text dark:text-rt-dark-text">{{ config('app.name') }}</p>
         </div>
     </div>
 
     {{-- Kennzahlen --}}
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div class="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-            <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-600 dark:bg-sky-500/10">
-                <i data-feather="users" class="h-6 w-6"></i>
-            </div>
-            <div>
-                <p class="text-sm text-slate-500 dark:text-slate-400">{{ __('app.total_users') }}</p>
-                <p class="text-2xl font-semibold text-slate-900 dark:text-white">{{ number_format($totalUsers, 0, ',', '.') }}</p>
-            </div>
-        </div>
+        <x-ui.dashboard.stat-card :label="__('app.total_users')" :value="number_format($totalUsers, 0, ',', '.')">
+            <i data-feather="users" class="h-6 w-6"></i>
+        </x-ui.dashboard.stat-card>
 
-        <div class="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-            <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10">
-                <i data-feather="user-check" class="h-6 w-6"></i>
-            </div>
-            <div>
-                <p class="text-sm text-slate-500 dark:text-slate-400">{{ __('app.active_users') }}</p>
-                <p class="text-2xl font-semibold text-slate-900 dark:text-white">{{ number_format($activeUsers, 0, ',', '.') }}</p>
-            </div>
-        </div>
+        <x-ui.dashboard.stat-card tone="emerald" :label="__('app.active_users')" :value="number_format($activeUsers, 0, ',', '.')">
+            <i data-feather="user-check" class="h-6 w-6"></i>
+        </x-ui.dashboard.stat-card>
 
-        <div class="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-            <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-[#e4002b]/10 text-[#e4002b]">
-                <i data-feather="briefcase" class="h-6 w-6"></i>
-            </div>
-            <div>
-                <p class="text-sm text-slate-500 dark:text-slate-400">{{ __('app.employees') }}</p>
-                <p class="text-2xl font-semibold text-slate-900 dark:text-white">{{ number_format($totalEmployees, 0, ',', '.') }}</p>
-            </div>
-        </div>
+        <x-ui.dashboard.stat-card tone="red" :label="__('app.employees')" :value="number_format($totalEmployees, 0, ',', '.')">
+            <i data-feather="briefcase" class="h-6 w-6"></i>
+        </x-ui.dashboard.stat-card>
 
-        <div class="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-            <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-violet-50 text-violet-600 dark:bg-violet-500/10">
-                <i data-feather="shield" class="h-6 w-6"></i>
-            </div>
-            <div>
-                <p class="text-sm text-slate-500 dark:text-slate-400">{{ __('app.teams_rbac') }}</p>
-                <p class="text-2xl font-semibold text-slate-900 dark:text-white">{{ number_format($totalTeams, 0, ',', '.') }}</p>
-            </div>
-        </div>
+        <x-ui.dashboard.stat-card tone="violet" :label="__('app.teams_rbac')" :value="number_format($totalTeams, 0, ',', '.')">
+            <i data-feather="shield" class="h-6 w-6"></i>
+        </x-ui.dashboard.stat-card>
     </div>
 
     <div class="grid gap-6 lg:grid-cols-3">

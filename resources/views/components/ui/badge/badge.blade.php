@@ -12,13 +12,13 @@
     ];
 
     $colors = [
-        'gray'   => 'bg-gray-100 text-gray-800',
-        'blue'   => 'bg-blue-100 text-blue-800',
-        'yellow' => 'bg-yellow-100 text-yellow-800',
-        'green'  => 'bg-green-100 text-green-800',
-        'red'    => 'bg-red-100 text-red-800',
-        'purple' => 'bg-purple-100 text-purple-800',
-        'primary'=> 'bg-primary-100 text-primary-800',
+        'gray'   => 'bg-rt-surface-muted text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted',
+        'blue'   => 'bg-sky-100 text-sky-800 dark:bg-sky-500/15 dark:text-sky-200',
+        'yellow' => 'bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-200',
+        'green'  => 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-200',
+        'red'    => 'bg-rose-100 text-rose-800 dark:bg-rose-500/15 dark:text-rose-200',
+        'purple' => 'bg-violet-100 text-violet-800 dark:bg-violet-500/15 dark:text-violet-200',
+        'primary'=> 'bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent',
     ];
 @endphp
 

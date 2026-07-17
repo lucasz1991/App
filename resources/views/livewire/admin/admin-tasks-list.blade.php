@@ -2,7 +2,7 @@
 <div class="space-y-8">
 
 {{-- Hinweisbox --}}
-<div class="bg-blue-50 border-l-4 border-blue-500 text-blue-700 p-4 rounded-md shadow-sm">
+<div class="hidden">
     <div class="flex">
         <div class="flex-shrink-0">
             <svg class="h-6 w-6 text-blue-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 23.625 23.625" fill="currentColor" aria-hidden="true">
@@ -58,22 +58,20 @@
                 wire:model.live="search"
             />
             {{-- Status-Filter --}}
-            <select wire:model.live="filterStatus"
-                    class="text-base border border-gray-300 rounded-lg px-2 py-1.5 bg-white shadow-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500">
+            <x-ui.forms.select wire:model.live="filterStatus" class="w-40">
                 <option value="">Status: Alle</option>
                 <option value="{{ \App\Models\AdminTask::STATUS_OPEN }}">Offen</option>
                 <option value="{{ \App\Models\AdminTask::STATUS_IN_PROGRESS }}">In Bearbeitung</option>
                 <option value="{{ \App\Models\AdminTask::STATUS_COMPLETED }}">Erledigt</option>
-            </select>
+            </x-ui.forms.select>
 
             {{-- Priority-Filter --}}
-            <select wire:model.live="filterPriority"
-                    class="text-base border border-gray-300 rounded-lg px-2 py-1.5 bg-white shadow-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500">
+            <x-ui.forms.select wire:model.live="filterPriority" class="w-40">
                 <option value="">Prio: Alle</option>
                 <option value="{{ \App\Models\AdminTask::PRIORITY_HIGH }}">Hoch</option>
                 <option value="{{ \App\Models\AdminTask::PRIORITY_NORMAL }}">Normal</option>
                 <option value="{{ \App\Models\AdminTask::PRIORITY_LOW }}">Niedrig</option>
-            </select>
+            </x-ui.forms.select>
 
             {{-- Nur meine Aufgaben --}}
             <label class="inline-flex items-center gap-1">

@@ -12,7 +12,7 @@
       @if($filePool && $poolFiles->count() > 0)
       <x-dropdown class="" :width="'w-max'">
         <x-slot name="trigger">
-            <button type="button" class="inline-flex items-center px-2 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-rt-red/40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
+            <button type="button" class="inline-flex items-center px-2 py-2 rounded-lg border border-rt-border bg-rt-control text-rt-text shadow-sm transition hover:bg-rt-surface-muted focus:outline-none focus:ring-2 focus:ring-rt-accent/40 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:hover:bg-rt-dark-surface-muted">
                 <i class="fad fa-download fa-lg h-5 w-5"></i>
             </button>
         </x-slot>
@@ -44,7 +44,7 @@
         @endif
       </div>
     @empty
-      <div class="text-sm text-slate-500 dark:text-slate-400">{{ __('app.no_files_available') }}</div>
+      <div class="text-sm text-rt-muted dark:text-rt-dark-muted">{{ __('app.no_files_available') }}</div>
     @endforelse
   </div>
 
@@ -58,8 +58,8 @@
             <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
           @enderror
         <div class="mt-4">
-          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">{{ __('app.expires_date') }}</label>
-          <input type="date" wire:model="expires.{{ $filePool->id }}" class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-rt-red focus:ring focus:ring-rt-red/30 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200">
+          <x-label :value="__('app.expires_date')" />
+          <x-ui.forms.input type="date" wire:model="expires.{{ $filePool->id }}" class="mt-1 block" />
           @error('expires.'.$filePool->id)
             <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
           @enderror
@@ -82,26 +82,25 @@
       <x-slot name="title">{{ __('app.edit_file') }}</x-slot>
       <x-slot name="content">
         <div class="mt-4">
-          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">{{ __('app.file_name') }}</label>
-          <input type="text" wire:model="selectedFileName" class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-rt-red focus:ring focus:ring-rt-red/30 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200">
+          <x-label :value="__('app.file_name')" />
+          <x-ui.forms.input type="text" wire:model="selectedFileName" class="mt-1 block" />
           @error('selectedFileName')
             <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
           @enderror
         </div>
         <div class="mt-4">
-          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">{{ __('app.expires_date') }}</label>
-          <input type="date" wire:model="selectedFileExpiresDate" class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-rt-red focus:ring focus:ring-rt-red/30 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200">
+          <x-label :value="__('app.expires_date')" />
+          <x-ui.forms.input type="date" wire:model="selectedFileExpiresDate" class="mt-1 block" />
           @error('selectedFileExpiresDate')
             <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
           @enderror
         </div>
         @if($allowRoleSharing)
           <div class="mt-4">
-            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">{{ __('app.shared_for_roles') }}</label>
-            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ __('app.shared_for_roles_hint') }}</p>
+            <x-label :value="__('app.shared_for_roles')" />
             <div class="mt-2 space-y-2">
               @foreach(\App\Models\File::shareableRoles() as $roleKey => $roleLabel)
-                <label class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                <label class="flex items-center gap-2 text-sm text-rt-text dark:text-white">
                   <input type="checkbox" value="{{ $roleKey }}" wire:model="selectedFileShareRoles"
                          class="rounded border-slate-300 text-rt-red shadow-sm focus:ring-rt-red/40 dark:border-slate-600 dark:bg-slate-800">
                   {{ $roleLabel }}
