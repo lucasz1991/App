@@ -1,0 +1,248 @@
+/* ============================================================
+   RailTime Auth-Seiten (Login/Register)
+   Einspaltig: animiertes Logo oben, Formular-Karte darunter.
+   Logo + Animation uebernommen aus der Website (Layout 3 /
+   Signal Atlas): 3D-Logo mit Orbits, Radar-Scan, Puls-Kern und
+   Fade/Scale-Reveal. Farben: Signalrot #e4002b, Anthrazit #080b10.
+   ============================================================ */
+
+:root {
+    --rt-red: #e4002b;
+    --rt-black: #080b10;
+    --rt-ink: #151b24;
+    --rt-panel: #10161e;
+    --rt-paper: #f3f1ec;
+    --rt-line: rgba(255, 255, 255, .16);
+    --rt-ease: cubic-bezier(.18, .72, .2, 1);
+}
+
+/* ---------- Seitenaufbau: eine zentrierte Spalte ---------- */
+.rt-auth {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    min-height: 100svh;
+    padding: clamp(24px, 4vh, 48px) 16px 48px;
+    background:
+        radial-gradient(circle at 50% 18%, rgba(228, 0, 43, .16), transparent 52%),
+        linear-gradient(160deg, #0b0f15, var(--rt-black) 55%, #05070a);
+}
+
+.rt-auth__brand {
+    display: grid;
+    justify-items: center;
+    gap: clamp(2px, .6vw, 8px);
+}
+
+.rt-auth__card {
+    width: 100%;
+    max-width: 440px;
+    margin-top: clamp(18px, 3vh, 32px);
+}
+
+.rt-auth__status {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 28px;
+    color: rgba(255, 255, 255, .75);
+    font: 700 .58rem/1 "Space Mono", ui-monospace, monospace;
+    letter-spacing: .14em;
+}
+
+.rt-auth__status i {
+    width: 34px;
+    height: 1px;
+    background: rgba(255, 255, 255, .35);
+}
+
+/* Reveal wie im Layout-3-Hero: Fade + Scale nach kurzem Delay */
+.rt-auth-brand__logo {
+    display: grid;
+    justify-items: center;
+    gap: clamp(2px, .6vw, 8px);
+    opacity: 0;
+    transform: scale(.86);
+    transition: opacity 1.15s ease, transform 1.45s cubic-bezier(.16, 1, .3, 1);
+}
+
+.rt-auth-brand__logo.is-visible {
+    opacity: 1;
+    transform: scale(1);
+}
+
+/* ---------- Logo-Buehne (aus Signal Atlas / Layout 3) ---------- */
+.rt-logo-stage {
+    position: relative;
+    display: grid;
+    width: clamp(190px, 26vw, 260px);
+    aspect-ratio: 1;
+    place-items: center;
+    isolation: isolate;
+}
+
+.rt-logo-stage::before,
+.rt-logo-stage::after {
+    position: absolute;
+    z-index: -2;
+    border-radius: 50%;
+    content: "";
+}
+
+/* Pulsierender roter Kern */
+.rt-logo-stage::before {
+    inset: 20%;
+    background: rgba(228, 0, 43, .22);
+    box-shadow: 0 0 90px 34px rgba(228, 0, 43, .18);
+    animation: rtLogoCore 2.8s ease-in-out infinite;
+}
+
+/* Rotierende Skalen-Scheibe */
+.rt-logo-stage::after {
+    inset: 7%;
+    border: 1px solid rgba(255, 255, 255, .1);
+    background: repeating-conic-gradient(from 0deg, rgba(255, 255, 255, .24) 0 1deg, transparent 1deg 18deg);
+    -webkit-mask: radial-gradient(circle, transparent 67%, #000 68% 70%, transparent 71%);
+    mask: radial-gradient(circle, transparent 67%, #000 68% 70%, transparent 71%);
+    animation: rtLogoDial 18s linear infinite;
+}
+
+.rt-logo-orbit {
+    position: absolute;
+    z-index: 1;
+    border: 1px solid rgba(255, 255, 255, .2);
+    border-radius: 50%;
+    transform: rotateX(68deg) rotateZ(10deg);
+}
+
+.rt-logo-orbit::before {
+    position: absolute;
+    top: 50%;
+    left: -5px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 18px 5px rgba(228, 0, 43, .8);
+    content: "";
+}
+
+.rt-logo-orbit--outer {
+    inset: 8%;
+    animation: rtLogoOrbit 7s linear infinite;
+}
+
+.rt-logo-orbit--inner {
+    inset: 19%;
+    border-color: rgba(228, 0, 43, .55);
+    transform: rotateX(72deg) rotateZ(-28deg);
+    animation: rtLogoOrbitReverse 5.5s linear infinite;
+}
+
+.rt-logo-scan {
+    position: absolute;
+    z-index: 5;
+    top: 14%;
+    bottom: 14%;
+    left: 14%;
+    width: 1px;
+    pointer-events: none;
+    background: linear-gradient(transparent, #fff 34%, #e4002b 50%, #fff 66%, transparent);
+    box-shadow: 0 0 25px 5px rgba(228, 0, 43, .42);
+    opacity: .7;
+    animation: rtLogoScan 3.8s cubic-bezier(.65, 0, .35, 1) infinite;
+}
+
+/* ---------- 3D-Logo (three.js) mit SVG-Fallback ---------- */
+.rt-logo-3d {
+    position: relative;
+    z-index: 3;
+    width: 68%;
+    aspect-ratio: 1;
+    pointer-events: auto;
+    filter: drop-shadow(0 26px 42px rgba(0, 0, 0, .68));
+}
+
+.rt-logo-3d::before {
+    position: absolute;
+    z-index: -1;
+    inset: 18%;
+    content: '';
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(228, 0, 43, .3), rgba(228, 0, 43, 0) 70%);
+    filter: blur(18px);
+    transform: scale(.88);
+    opacity: .62;
+    transition: opacity .7s ease, transform .9s cubic-bezier(.16, 1, .3, 1);
+}
+
+.rt-logo-3d canvas,
+.rt-logo-3d__fallback {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.rt-logo-3d canvas {
+    z-index: 2;
+    opacity: 0;
+    transition: opacity .45s ease;
+}
+
+.rt-logo-3d__fallback {
+    z-index: 1;
+    object-fit: contain;
+    opacity: 1;
+    transition: opacity .35s ease;
+}
+
+.rt-logo-3d.is-ready canvas { opacity: 1; }
+.rt-logo-3d.is-ready .rt-logo-3d__fallback { opacity: 0; }
+
+/* ---------- Wortmarke ---------- */
+.rt-logo-wordmark {
+    position: relative;
+    z-index: 3;
+    display: block;
+    width: clamp(210px, 28vw, 280px);
+    max-width: 100%;
+    height: auto;
+    margin-top: clamp(-26px, -2vw, -14px);
+    filter: drop-shadow(0 15px 28px rgba(0, 0, 0, .72));
+}
+
+/* ---------- Keyframes ---------- */
+@keyframes rtLogoCore {
+    50% { opacity: .65; transform: scale(1.18); }
+}
+
+@keyframes rtLogoDial {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes rtLogoOrbit {
+    to { transform: rotateX(68deg) rotateZ(370deg); }
+}
+
+@keyframes rtLogoOrbitReverse {
+    to { transform: rotateX(72deg) rotateZ(-388deg); }
+}
+
+@keyframes rtLogoScan {
+    0%, 100% { left: 14%; opacity: 0; transform: scaleY(.65); }
+    15%, 85% { opacity: .75; }
+    50% { left: 86%; opacity: 1; transform: scaleY(1); }
+}
+
+/* ---------- Reduzierte Bewegung ---------- */
+@media (prefers-reduced-motion: reduce) {
+    .rt-auth-brand__logo { transition: none; opacity: 1; transform: none; }
+    .rt-logo-stage::before,
+    .rt-logo-stage::after,
+    .rt-logo-orbit,
+    .rt-logo-scan { animation: none; }
+    .rt-logo-scan { display: none; }
+}

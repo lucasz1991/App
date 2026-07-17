@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 1000 1000"
+     width="2000"
+     height="2000"
+     role="img"
+     aria-labelledby="title description"
+     shape-rendering="geometricPrecision"
+     color-interpolation="sRGB">
+  <title id="title">RailTime RT Logo D2</title>
+  <desc id="description">Orthogonale 2D-Frontansicht des RailTime-Monogramms mit signalrotem R und dezenterem, schlankerem anthrazitfarbenem T bei vergroessertem Abstand.</desc>
+
+  <defs>
+    <!-- Schmale, orthogonale Fasen: keine Perspektive, keine Schattenverschiebung. -->
+    <linearGradient id="red-bevel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff667a"/>
+      <stop offset="0.32" stop-color="#f01a3a"/>
+      <stop offset="0.7" stop-color="#b30022"/>
+      <stop offset="1" stop-color="#850018"/>
+    </linearGradient>
+    <linearGradient id="red-face" x1="0.08" y1="0" x2="0.82" y2="1">
+      <stop offset="0" stop-color="#f51b3b"/>
+      <stop offset="0.46" stop-color="#e4002b"/>
+      <stop offset="1" stop-color="#c90026"/>
+    </linearGradient>
+
+    <linearGradient id="dark-bevel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8a949e"/>
+      <stop offset="0.34" stop-color="#4d555e"/>
+      <stop offset="0.76" stop-color="#171c22"/>
+      <stop offset="1" stop-color="#0d1115"/>
+    </linearGradient>
+    <linearGradient id="dark-face" x1="0.08" y1="0" x2="0.88" y2="1">
+      <stop offset="0" stop-color="#424850"/>
+      <stop offset="0.5" stop-color="#30353b"/>
+      <stop offset="1" stop-color="#23282e"/>
+    </linearGradient>
+  </defs>
+
+  <!--
+    D2: T-Innenkanten um 16 Einheiten vom R zurueckgenommen.
+    Abstand R/T: 40 Einheiten (D1: 24). Fasenbreite: 9 Einheiten.
+    Aussensilhouette (linke Kante x=0, Grundlinie y=1000) bleibt buendig.
+  -->
+  <g id="RT_Logo">
+    <g id="R_Red" aria-label="R, Signalrot">
+      <path id="R_Red_Bevel"
+            d="M0 0H738L862 152V462L755 583H617L1000 1000H731L460 658V410H675L715 364V206L673 160H0Z"
+            fill="url(#red-bevel)"/>
+      <path id="R_Red_Face"
+            d="M9 9H733.73L853 155.21V458.59L750.94 574H596.51L979.51 991H735.35L469 654.87V419H679.1L724 367.37V202.51L676.97 151H9Z"
+            fill="url(#red-face)"/>
+
+      <path id="R_Red_Stem_Bevel" d="M0 410H205V1000H0Z" fill="url(#red-bevel)"/>
+      <path id="R_Red_Stem_Face" d="M9 419H196V991H9Z" fill="url(#red-face)"/>
+
+      <path d="M10 10H733L851.5 155.5M10 10V150M10 420H195M10 420V990"
+            fill="none" stroke="#ffffff" stroke-opacity="0.22" stroke-width="1.6"
+            stroke-linecap="square" stroke-linejoin="miter"/>
+    </g>
+
+    <g id="T_Dark" aria-label="T, Anthrazit">
+      <path id="T_Dark_Bevel" d="M0 200H670V370H420V1000H245V370H0Z" fill="url(#dark-bevel)"/>
+      <path id="T_Dark_Face" d="M9 209H661V361H411V991H254V361H9Z" fill="url(#dark-face)"/>
+
+      <path d="M10 210H660M10 210V360M255 362V990"
+            fill="none" stroke="#ffffff" stroke-opacity="0.18" stroke-width="1.5"
+            stroke-linecap="square" stroke-linejoin="miter"/>
+    </g>
+  </g>
+</svg>

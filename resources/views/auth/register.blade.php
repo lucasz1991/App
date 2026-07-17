@@ -1,0 +1,40 @@
+<x-guest-layout>
+    <x-auth-brand-layout :title="__('app.register_title')" :description="__('app.invited_registration_description')">
+        <x-validation-errors class="mt-4 mb-4" />
+
+        <form method="POST" action="{{ route('invitation.register.store', $invitation->token) }}" class="mt-6 space-y-4">
+            @csrf
+
+            <div>
+                <x-label for="email" :value="__('app.email')" />
+                <x-input id="email" class="mt-1 block w-full bg-slate-100 text-slate-500" type="email" :value="$invitation->email" readonly />
+            </div>
+
+            <div>
+                <x-label for="name" :value="__('app.name')" />
+                <x-input id="name" class="mt-1 block w-full" type="text" name="name" :value="old('name')" required autofocus autocomplete="name" />
+            </div>
+
+            <div>
+                <x-label for="password" :value="__('app.password')" />
+                <x-input id="password" class="mt-1 block w-full" type="password" name="password" required autocomplete="new-password" />
+            </div>
+
+            <div>
+                <x-label for="password_confirmation" :value="__('app.confirm_password')" />
+                <x-input id="password_confirmation" class="mt-1 block w-full" type="password" name="password_confirmation" required autocomplete="new-password" />
+            </div>
+
+            <x-button class="w-full justify-center">
+                {{ __('app.register_button') }}
+            </x-button>
+        </form>
+
+        <p class="mt-6 text-center text-sm text-slate-600">
+            {{ __('app.already_registered') }}
+            <a href="{{ route('login') }}" class="font-medium text-slate-900 underline hover:text-slate-700">
+                {{ __('app.to_login') }}
+            </a>
+        </p>
+    </x-auth-brand-layout>
+</x-guest-layout>

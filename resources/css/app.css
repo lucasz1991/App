@@ -1,0 +1,170 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+[x-cloak] {
+    display: none !important;
+}
+
+body {
+    @apply bg-gray-50 text-gray-900;
+}
+
+:root {
+    --webreach-sidebar-collapsed-width: 72px;
+    --webreach-sidebar-expanded-width: 272px;
+    --webreach-sidebar-icon-size: 1rem;
+    --webreach-sidebar-collapsed-padding: calc((var(--webreach-sidebar-collapsed-width) - var(--webreach-sidebar-icon-size)) / 2);
+    --webreach-sidebar-expanded-padding: 1.5rem;
+    --webreach-sidebar-transition: 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (min-width: 1140px) {
+    body[data-sidebar-collapsible="true"] .main-content {
+        margin-left: var(--webreach-sidebar-collapsed-width) !important;
+        transition: margin-left var(--webreach-sidebar-transition);
+    }
+
+    body[data-sidebar-collapsible="true"][data-sidebar-expanded="true"] .main-content {
+        margin-left: var(--webreach-sidebar-expanded-width) !important;
+    }
+
+    body[data-sidebar-collapsible="true"] .vertical-menu,
+    body[data-sidebar-collapsible="true"] .topbar-brand .navbar-brand {
+        width: var(--webreach-sidebar-collapsed-width) !important;
+        transition:
+            width var(--webreach-sidebar-transition),
+            box-shadow var(--webreach-sidebar-transition),
+            background-color var(--webreach-sidebar-transition);
+    }
+
+    body[data-sidebar-collapsible="true"] .vertical-menu {
+        overflow: hidden;
+        box-shadow: 0 0 0 rgba(15, 23, 42, 0);
+    }
+
+    body[data-sidebar-collapsible="true"] .vertical-menu .simplebar-mask,
+    body[data-sidebar-collapsible="true"] .vertical-menu .simplebar-content-wrapper {
+        overflow-x: hidden !important;
+    }
+
+    body[data-sidebar-collapsible="true"] .topbar-brand .navbar-brand {
+        position: relative;
+        z-index: 12;
+        overflow: hidden;
+    }
+
+    body[data-sidebar-collapsible="true"] .topbar-brand .navbar-brand a span {
+        display: block !important;
+        max-width: 0;
+        opacity: 0;
+        overflow: hidden;
+        transform: translateX(-8px);
+        transition:
+            max-width var(--webreach-sidebar-transition),
+            opacity 160ms ease,
+            transform var(--webreach-sidebar-transition);
+        white-space: nowrap;
+    }
+
+    body[data-sidebar-collapsible="true"] .vertical-menu [data-key="t-menu"] {
+        max-height: 0;
+        opacity: 0;
+        overflow: hidden;
+        padding-top: 0;
+        padding-bottom: 0;
+        transition:
+            max-height var(--webreach-sidebar-transition),
+            opacity 120ms ease,
+            padding var(--webreach-sidebar-transition);
+    }
+
+    body[data-sidebar-collapsible="true"] .vertical-menu .sidebar-nav-link {
+        display: flex;
+        align-items: center;
+        white-space: nowrap;
+        overflow: hidden;
+        border-radius: 0.75rem;
+        padding-left: var(--webreach-sidebar-collapsed-padding);
+        padding-right: var(--webreach-sidebar-collapsed-padding);
+        transition:
+            padding var(--webreach-sidebar-transition),
+            background-color 160ms ease,
+            color 160ms ease;
+    }
+
+    body[data-sidebar-collapsible="true"] .vertical-menu .sidebar-nav-link__icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: var(--webreach-sidebar-icon-size);
+        min-width: var(--webreach-sidebar-icon-size);
+        flex-shrink: 0;
+    }
+
+    body[data-sidebar-collapsible="true"] .vertical-menu .sidebar-nav-link__icon svg {
+        width: var(--webreach-sidebar-icon-size) !important;
+        height: var(--webreach-sidebar-icon-size) !important;
+        margin: 0 !important;
+        transition: transform var(--webreach-sidebar-transition);
+    }
+
+    body[data-sidebar-collapsible="true"] .vertical-menu .sidebar-nav-link__label {
+        display: block;
+        max-width: 0;
+        opacity: 0;
+        overflow: hidden;
+        transform: translateX(-8px);
+        margin-left: 0;
+        flex: 0 0 auto;
+        transition:
+            max-width var(--webreach-sidebar-transition),
+            opacity 160ms ease,
+            transform var(--webreach-sidebar-transition),
+            margin-left var(--webreach-sidebar-transition);
+        white-space: nowrap;
+    }
+
+    body[data-sidebar-collapsible="true"][data-sidebar-expanded="true"] .vertical-menu,
+    body[data-sidebar-collapsible="true"][data-sidebar-expanded="true"] .topbar-brand .navbar-brand {
+        width: var(--webreach-sidebar-expanded-width) !important;
+    }
+
+    body[data-sidebar-collapsible="true"][data-sidebar-expanded="true"] .vertical-menu {
+        box-shadow: 18px 0 48px rgba(15, 23, 42, 0.12);
+    }
+
+    body[data-sidebar-collapsible="true"][data-sidebar-expanded="true"] .topbar-brand .navbar-brand {
+        box-shadow: 10px 0 30px rgba(15, 23, 42, 0.08);
+    }
+
+    body[data-sidebar-collapsible="true"][data-sidebar-expanded="true"] .topbar-brand .navbar-brand a span {
+        max-width: 180px;
+        opacity: 1;
+        transform: translateX(0);
+    }
+
+    body[data-sidebar-collapsible="true"][data-sidebar-expanded="true"] .vertical-menu [data-key="t-menu"] {
+        max-height: 40px;
+        opacity: 1;
+        padding-top: 0.75rem;
+        padding-bottom: 0.75rem;
+    }
+
+    body[data-sidebar-collapsible="true"][data-sidebar-expanded="true"] .vertical-menu .sidebar-nav-link {
+        padding-left: var(--webreach-sidebar-expanded-padding);
+        padding-right: var(--webreach-sidebar-expanded-padding);
+    }
+
+    body[data-sidebar-collapsible="true"][data-sidebar-expanded="true"] .vertical-menu .sidebar-nav-link__label {
+        max-width: 180px;
+        margin-left: 0.75rem;
+        opacity: 1;
+        transform: translateX(0);
+    }
+
+    body[data-sidebar-collapsible="true"] .vertical-menu .sidebar-nav-link.active,
+    body[data-sidebar-collapsible="true"] .vertical-menu #sidebar-menu > ul > li.mm-active > .sidebar-nav-link {
+        background: rgba(59, 130, 246, 0.08);
+    }
+}
