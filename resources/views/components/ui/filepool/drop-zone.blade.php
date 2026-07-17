@@ -200,12 +200,12 @@
 >
   <!-- Dropzone-UI (vor Livewire geschützt) -->
   <div x-ref="dzForm"
-        class="dropzone pointer-events-auto min-h-[140px] rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 dark:border-slate-600 dark:bg-slate-800"
+        class="dropzone pointer-events-auto min-h-[140px] rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 transition hover:border-rt-red dark:border-slate-600 dark:bg-slate-800 dark:hover:border-rt-red"
         wire:ignore>
     <div class="dz-message needsclick">
-      <h5 class="text-gray-600 dark:text-slate-200">{{ $label }}</h5>
+      <h5 class="text-slate-600 dark:text-slate-200">{{ $label }}</h5>
       @if($isSingle)
-        <p class="text-xs text-gray-400 dark:text-slate-500">{{ __('app.max_one_file') }}</p>
+        <p class="text-xs text-slate-400 dark:text-slate-500">{{ __('app.max_one_file') }}</p>
       @endif
     </div>
     <div class="dz-previews flex items-center flex-wrap justify-around gap-2"></div>

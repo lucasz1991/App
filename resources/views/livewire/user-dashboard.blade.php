@@ -49,7 +49,7 @@
             <h2 class="text-base font-semibold text-slate-900 dark:text-white">{{ __('app.quick_access') }}</h2>
             <div class="mt-4 space-y-2">
                 <a href="{{ route('profile.show') }}"
-                   class="flex items-center gap-3 rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700 dark:border-slate-700 dark:text-slate-300 dark:hover:border-sky-800 dark:hover:bg-slate-700 dark:hover:text-sky-300">
+                   class="flex items-center gap-3 rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-rt-red/40 hover:bg-rt-red/5 hover:text-rt-red dark:border-slate-700 dark:text-slate-300 dark:hover:border-rt-red/40 dark:hover:bg-slate-700 dark:hover:text-rt-red">
                     <i data-feather="user" class="h-4 w-4"></i>
                     {{ __('app.edit_profile') }}
                 </a>

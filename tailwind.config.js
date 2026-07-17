@@ -25,6 +25,16 @@ export default {
             fontFamily: {
                 sans: ['Quicksand', ...defaultTheme.fontFamily.sans],
             },
+            colors: {
+                // RailTime CI (siehe Website Layout 3 / rt-brand)
+                'rt-red': {
+                    DEFAULT: '#e4002b',
+                    dark: '#c90026',
+                    light: '#f51b3b',
+                },
+                'rt-anthracite': '#080b10',
+                'rt-ink': '#151b24',
+            },
         },
     },
 

@@ -10,7 +10,7 @@
             wire:model="noteBody"
             rows="3"
             placeholder="{{ __('app.note_placeholder') }}"
-            class="block w-full rounded-lg border-gray-300 text-sm shadow-sm focus:border-blue-400 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200 dark:placeholder-slate-500"
+            class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-rt-red focus:ring focus:ring-rt-red/30 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200 dark:placeholder-slate-500"
         ></textarea>
         <x-input-error for="noteBody" class="mt-2" />
 

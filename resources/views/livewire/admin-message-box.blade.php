@@ -1,23 +1,23 @@
 <div  wire:loading.class="cursor-wait">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <h1 class="text-2xl font-semibold text-gray-800 dark:text-white mb-6">{{ __('app.messages') }}</h1>
+        <h1 class="text-2xl font-semibold text-slate-900 dark:text-white mb-6">{{ __('app.messages') }}</h1>
         <div class="overflow-x-auto">
-            <table class="min-w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700">
-                <thead class="bg-gray-100 dark:bg-slate-900/50">
+            <table class="min-w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                <thead class="bg-slate-50 dark:bg-slate-900/50">
                     <tr>
-                        <th class="text-left px-6 py-3 border-b border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 font-medium">{{ __('app.subject') }}</th>
-                        <th class="text-left px-6 py-3 border-b border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 font-medium">{{ __('app.message') }}</th>
-                        <th class="text-left px-6 py-3 border-b border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 font-medium">{{ __('app.from') }}</th>
-                        <th class="text-left px-6 py-3 border-b border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 font-medium">{{ __('app.status') }}</th>
+                        <th class="text-left px-6 py-3 border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 font-medium">{{ __('app.subject') }}</th>
+                        <th class="text-left px-6 py-3 border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 font-medium">{{ __('app.message') }}</th>
+                        <th class="text-left px-6 py-3 border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 font-medium">{{ __('app.from') }}</th>
+                        <th class="text-left px-6 py-3 border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 font-medium">{{ __('app.status') }}</th>
                     </tr>
                 </thead>
-                <tbody class="text-gray-700 dark:text-slate-300">
+                <tbody class="text-slate-700 dark:text-slate-300">
                     @foreach($messages as $message)
-                        <tr class="hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer" wire:click="showMessage({{ $message->id }})"  wire:key="{{ $message->id }}">
-                            <td class="border-b border-gray-200 dark:border-slate-700 px-6 py-4">{{ $message->subject }}</td>
-                            <td class="border-b border-gray-200 dark:border-slate-700 px-6 py-4 truncate max-w-xs">{{ $message->message }}</td>
-                            <td class="border-b border-gray-200 dark:border-slate-700 px-6 py-4">{{ $message->sender->name }}</td>
-                            <td class="border-b border-gray-200 dark:border-slate-700 px-6 py-4">
+                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/40 cursor-pointer" wire:click="showMessage({{ $message->id }})"  wire:key="{{ $message->id }}">
+                            <td class="border-b border-slate-100 dark:border-slate-700 px-6 py-4">{{ $message->subject }}</td>
+                            <td class="border-b border-slate-100 dark:border-slate-700 px-6 py-4 truncate max-w-xs">{{ $message->message }}</td>
+                            <td class="border-b border-slate-100 dark:border-slate-700 px-6 py-4">{{ $message->sender->name }}</td>
+                            <td class="border-b border-slate-100 dark:border-slate-700 px-6 py-4">
                                 @if($message->status == 1)
                                     <span class="text-red-500">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline" viewBox="0 0 20 20" fill="currentColor">
@@ -52,32 +52,32 @@
         class="fixed inset-0 p-6 flex items-center justify-center z-50 modal-container ">
 
         <div x-show="showMessageModal" class="fixed inset-0 transform" x-on:click="showMessageModal = false">
-            <div class="absolute inset-0 bg-gray-900 opacity-75"></div>
+            <div class="absolute inset-0 bg-slate-900 opacity-60"></div>
         </div>
 
-        <div x-show="showMessageModal" class="bg-white dark:bg-slate-800 rounded-lg overflow-hidden transform sm:w-full sm:mx-auto max-w-2xl ">
-            <div class="border border-gray-300 dark:border-slate-700 rounded-lg p-4 relative">
-                <button type="button" @click="showMessageModal = false; $selectedMessage = null;" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300">
+        <div x-show="showMessageModal" class="bg-white dark:bg-slate-800 rounded-xl shadow-xl overflow-hidden transform sm:w-full sm:mx-auto max-w-2xl ">
+            <div class="border border-slate-200 dark:border-slate-700 rounded-xl p-4 relative">
+                <button type="button" @click="showMessageModal = false; $selectedMessage = null;" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                 </button>
                 <div>
                     <div class="flex">
-                        <span class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">{{ __('app.from') }}: {{ $selectedMessage ? $selectedMessage->sender->name : '' }}</span>
-                        <span class="inline-block ml-3 text-xs font-medium text-gray-700 dark:text-green-300 mb-2 bg-green-100 dark:bg-green-500/10 px-2 py-1 rounded-full">{{ $selectedMessage ? $selectedMessage->created_at->diffForHumans() : '' }}</span>
+                        <span class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ __('app.from') }}: {{ $selectedMessage ? $selectedMessage->sender->name : '' }}</span>
+                        <span class="inline-block ml-3 text-xs font-medium text-emerald-700 dark:text-emerald-300 mb-2 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded-full">{{ $selectedMessage ? $selectedMessage->created_at->diffForHumans() : '' }}</span>
                     </div>
 
                 </div>
                 <h3 class="text-xl font-semibold mb-4 border-b dark:border-slate-700 dark:text-white pb-2">{{ $selectedMessage ? $selectedMessage->subject : '' }}</h3>
                 <div class="mt-4">
-                    <p class="text-gray-800 dark:text-slate-200">{{ $selectedMessage ? $selectedMessage->message : '' }}</p>
+                    <p class="text-slate-800 dark:text-slate-200">{{ $selectedMessage ? $selectedMessage->message : '' }}</p>
                 </div>
             </div>
 
             <div class="flex justify-end mt-4 mb-2">
-                <button type="button" class="bg-blue-300 text-white px-4 py-2 rounded-lg hover:bg-blue-400 mr-2">{{ __('app.reply') }}</button>
-                <button type="button" @click="showMessageModal = false; $selectedMessage = null;" class="bg-green-300 hover:bg-green-400 text-white px-4 py-2 rounded-lg mr-2">{{ __('app.close') }}</button>
+                <button type="button" class="inline-flex items-center justify-center gap-2 rounded-lg bg-rt-red px-4 py-2 text-sm font-semibold text-white transition hover:bg-rt-red-dark focus:outline-none focus:ring-2 focus:ring-rt-red/40 mr-2">{{ __('app.reply') }}</button>
+                <button type="button" @click="showMessageModal = false; $selectedMessage = null;" class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-rt-red/40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 mr-2">{{ __('app.close') }}</button>
             </div>
         </div>
     </div>

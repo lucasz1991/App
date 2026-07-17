@@ -11,9 +11,9 @@
 <div
     {{ $attributes->class([
         // Outer frame carries border & rounded
-        "inline-flex items-stretch overflow-hidden rounded-md border border-gray-200 bg-white",
+        "inline-flex items-stretch overflow-hidden rounded-lg border border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-800",
         // Optional dividers between buttons (purely visual; no double borders)
-        "divide-x divide-gray-200" => $divide,
+        "divide-x divide-slate-200 dark:divide-slate-600" => $divide,
         // Make all children flex equally when desired
         "w-full" => $full,
     ]) }}

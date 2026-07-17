@@ -6,7 +6,7 @@
 ])
 
 @php
-    $classes = 'sidebar-nav-link flex px-6 py-3 text-sm font-medium text-gray-600 dark:text-slate-300 transition-all duration-150 ease-linear hover:text-blue-500 dark:hover:text-sky-400';
+    $classes = 'sidebar-nav-link flex px-6 py-3 text-sm font-medium text-slate-600 dark:text-slate-300 transition-all duration-150 ease-linear hover:text-rt-red dark:hover:text-rt-red';
 @endphp
 
 <li>

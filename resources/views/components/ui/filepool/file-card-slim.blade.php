@@ -19,7 +19,7 @@
     $previewUrl  = $previewUrl  ?? (method_exists($file, 'getEphemeralPublicUrl') ? $file->getEphemeralPublicUrl() : null);
 @endphp
 
-<div class="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm">
+<div class="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-800">
 
     {{-- Linke Seite: Icon + Infos --}}
     <div class="flex items-center gap-3 min-w-0">
@@ -31,23 +31,23 @@
                     alt="Datei-Icon"
                 >
             @else
-                <div class="w-8 h-8 rounded bg-slate-100 flex items-center justify-center text-slate-400">
+                <div class="w-8 h-8 rounded bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-400 dark:text-slate-500">
                     <i class="fal fa-file"></i>
                 </div>
             @endif
         </div>
 
         <div class="flex-1 min-w-0">
-            <div class="font-medium truncate">
+            <div class="font-medium truncate text-slate-900 dark:text-white">
                 {{ $name }}
             </div>
 
-            <div class="flex items-center gap-2 text-[11px] text-slate-500">
+            <div class="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
                 @if($size)
                     <span>{{ $size }}</span>
                 @endif
                 @if($mime)
-                    <span class="inline-block w-1 h-1 rounded-full bg-slate-300"></span>
+                    <span class="inline-block w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-600"></span>
                     <span>{{ strtoupper($mime) }}</span>
                 @endif
             </div>
@@ -62,7 +62,7 @@
             <a
                 href="{{ $previewUrl }}"
                 target="_blank"
-                class="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                class="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-rt-red/40 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
                 title="Datei in neuem Tab öffnen"
             >
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">

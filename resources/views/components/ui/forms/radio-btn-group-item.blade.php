@@ -30,10 +30,10 @@
     <label
         for="{{ $inputId }}"
         class="inline-flex items-center gap-2 select-none
-               text-sm font-medium text-gray-700 bg-white
-               hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500
+               text-sm font-medium text-slate-700 bg-white dark:text-slate-200 dark:bg-slate-800
+               hover:bg-slate-50 dark:hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40
                transition-colors
-               peer-checked:bg-blue-50 peer-checked:text-blue-700
+               peer-checked:bg-rt-red/10 peer-checked:text-rt-red
 
                {{-- padding via CSS vars from group --}}
                px-[var(--rbg-pad-x,1rem)] py-[var(--rbg-pad-y,0.5rem)]

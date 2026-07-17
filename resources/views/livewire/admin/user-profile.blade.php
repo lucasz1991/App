@@ -38,7 +38,7 @@
         </div>
 
         <div class="relative">
-            <div class="h-24 bg-gradient-to-r from-sky-100 via-blue-50 to-indigo-100 dark:from-sky-500/20 dark:via-slate-800 dark:to-indigo-500/20"></div>
+            <div class="h-24 bg-gradient-to-r from-rt-red/10 via-slate-50 to-slate-200 dark:from-rt-red/20 dark:via-slate-800 dark:to-slate-900"></div>
 
             <div class="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold text-white {{ $user->isActive() ? 'bg-emerald-500/90' : 'bg-rose-500/90' }}">
                 <span class="h-1.5 w-1.5 rounded-full bg-white"></span>
@@ -62,7 +62,7 @@
 
         <div class="px-4 pb-5 pt-16 md:px-6 md:pt-20">
             <div class="text-center">
-                <h2 class="text-xl font-semibold text-slate-700 dark:text-white">{{ $user->name }}</h2>
+                <h2 class="text-xl font-semibold text-slate-900 dark:text-white">{{ $user->name }}</h2>
                 <div class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ $user->email }}</div>
 
                 @php
@@ -118,7 +118,7 @@
         class="mt-6"
     >
         {{-- TAB: Details --}}
-        <x-ui.accordion.tab-panel for="userDetails" panelClass="space-y-4 bg-white p-4 rounded-b-lg rounded-se-lg border border-blue-300 z-10 dark:bg-slate-800 dark:border-slate-700">
+        <x-ui.accordion.tab-panel for="userDetails" panelClass="space-y-4 bg-white p-4 rounded-b-lg rounded-se-lg border border-slate-200 z-10 dark:bg-slate-800 dark:border-slate-700">
             <div class="w-full">
                 <section>
                     <div class="mb-3">
@@ -201,12 +201,12 @@
         </x-ui.accordion.tab-panel>
 
         {{-- TAB: Bemerkungen --}}
-        <x-ui.accordion.tab-panel for="userNotes" panelClass="space-y-4 bg-white p-4 rounded-b-lg rounded-se-lg border border-blue-300 z-10 dark:bg-slate-800 dark:border-slate-700">
+        <x-ui.accordion.tab-panel for="userNotes" panelClass="space-y-4 bg-white p-4 rounded-b-lg rounded-se-lg border border-slate-200 z-10 dark:bg-slate-800 dark:border-slate-700">
             <livewire:admin.user-profile.user-notes :user-id="$user->id" :key="'user-notes-'.$user->id" />
         </x-ui.accordion.tab-panel>
 
         {{-- TAB: Dateien --}}
-        <x-ui.accordion.tab-panel for="userFiles" panelClass="space-y-4 bg-white p-4 rounded-b-lg rounded-se-lg border border-blue-300 z-10 dark:bg-slate-800 dark:border-slate-700">
+        <x-ui.accordion.tab-panel for="userFiles" panelClass="space-y-4 bg-white p-4 rounded-b-lg rounded-se-lg border border-slate-200 z-10 dark:bg-slate-800 dark:border-slate-700">
             <livewire:tools.file-pools.manage-file-pools
                 :model-type="\App\Models\User::class"
                 :model-id="$user->id"
@@ -216,7 +216,7 @@
         </x-ui.accordion.tab-panel>
 
         {{-- TAB: Nachrichten --}}
-        <x-ui.accordion.tab-panel for="userMessages" panelClass="space-y-4 bg-white p-4 rounded-b-lg rounded-se-lg border border-blue-300 z-10 dark:bg-slate-800 dark:border-slate-700">
+        <x-ui.accordion.tab-panel for="userMessages" panelClass="space-y-4 bg-white p-4 rounded-b-lg rounded-se-lg border border-slate-200 z-10 dark:bg-slate-800 dark:border-slate-700">
             @if (class_exists(\App\Livewire\Admin\UserProfile\UserMessages::class))
                 <livewire:admin.user-profile.user-messages :user-id="$user->id" :key="'user-messages-'.$user->id" />
             @else

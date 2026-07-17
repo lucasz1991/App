@@ -8,7 +8,7 @@
             }
     })}">
     @error($for)
-        <span {{ $attributes->merge(['class' => 'text-red-500 text-sm invalid-feedback']) }} role="alert" >
+        <span {{ $attributes->merge(['class' => 'text-red-500 dark:text-red-400 text-sm invalid-feedback']) }} role="alert" >
             {{ $message }}
         </span>
     @enderror

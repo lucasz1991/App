@@ -67,7 +67,7 @@
             <div class="flex items-center justify-between border-b border-slate-100 px-6 py-4 dark:border-slate-700">
                 <h2 class="text-base font-semibold text-slate-900 dark:text-white">{{ __('app.recent_users') }}</h2>
                 @can('employees.view')
-                    <a href="{{ route('admin.employees') }}" class="text-sm font-medium text-sky-600 hover:text-sky-800 dark:text-sky-400 dark:hover:text-sky-300">
+                    <a href="{{ route('admin.employees') }}" class="text-sm font-medium text-rt-red hover:text-rt-red-dark dark:text-rt-red dark:hover:text-rt-red-dark">
                         {{ __('app.show_all') }}
                     </a>
                 @endcan
@@ -110,14 +110,14 @@
                 <div class="mt-4 space-y-2">
                     @can('employees.view')
                         <a href="{{ route('admin.employees') }}"
-                           class="flex items-center gap-3 rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700 dark:border-slate-700 dark:text-slate-300 dark:hover:border-sky-800 dark:hover:bg-slate-700 dark:hover:text-sky-300">
+                           class="flex items-center gap-3 rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-rt-red/40 hover:bg-rt-red/5 hover:text-rt-red dark:border-slate-700 dark:text-slate-300 dark:hover:border-rt-red/40 dark:hover:bg-slate-700 dark:hover:text-rt-red">
                             <i data-feather="users" class="h-4 w-4"></i>
                             {{ __('app.manage_employees') }}
                         </a>
                     @endcan
                     @can('roles.manage')
                         <a href="{{ route('admin.employees') }}"
-                           class="flex items-center gap-3 rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700 dark:border-slate-700 dark:text-slate-300 dark:hover:border-violet-800 dark:hover:bg-slate-700 dark:hover:text-violet-300">
+                           class="flex items-center gap-3 rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-rt-red/40 hover:bg-rt-red/5 hover:text-rt-red dark:border-slate-700 dark:text-slate-300 dark:hover:border-rt-red/40 dark:hover:bg-slate-700 dark:hover:text-rt-red">
                             <i data-feather="shield" class="h-4 w-4"></i>
                             {{ __('app.teams_permissions') }}
                         </a>

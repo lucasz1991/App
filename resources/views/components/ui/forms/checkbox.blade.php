@@ -17,7 +17,7 @@
         : 'w-9 h-5 after:h-4 after:w-4 after:top-[2px] after:start-[2px]';
 
     // Basis-Input-Klassen
-    $baseCheckbox = 'rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500';
+    $baseCheckbox = 'rounded border-slate-300 text-rt-red shadow-sm focus:ring-rt-red/40 dark:border-slate-600 dark:bg-slate-800';
 @endphp
 
 @if(!$isToggle)
@@ -30,12 +30,12 @@
             {!! $attributes->merge(['class' => $baseCheckbox]) !!}
         />
         @if($label)
-            <span class="text-sm text-gray-900">{{ $label }}</span>
+            <span class="text-sm text-slate-900 dark:text-slate-200">{{ $label }}</span>
         @endif
     </label>
 
     @if($help)
-        <p class="mt-1 text-xs text-gray-500">{{ $help }}</p>
+        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ $help }}</p>
     @endif
 @else
     {{-- Toggle-Switch --}}
@@ -53,24 +53,24 @@
 
         {{-- Track + Knob (peer styles) --}}
         <div class="relative {{ $track }}
-                    bg-gray-200 rounded-full
+                    bg-slate-200 dark:bg-slate-700 rounded-full
                     transition
-                    peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300
-                    peer-checked:bg-blue-600
-                    after:content-[''] after:absolute after:bg-white after:border after:border-gray-300
+                    peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-rt-red/30
+                    peer-checked:bg-rt-red
+                    after:content-[''] after:absolute after:bg-white after:border after:border-slate-300
                     after:rounded-full after:transition-all
                     peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full
                     {{ $disabled ? 'opacity-50 pointer-events-none' : '' }}">
         </div>
 
         @if($label)
-            <span class="ms-3 text-sm font-medium text-gray-500">
+            <span class="ms-3 text-sm font-medium text-slate-500 dark:text-slate-400">
                 {{ $label }}
             </span>
         @endif
     </label>
 
     @if($help)
-        <p class="mt-1 text-xs text-gray-500">{{ $help }}</p>
+        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ $help }}</p>
     @endif
 @endif

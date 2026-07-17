@@ -2,7 +2,7 @@
   <div class="flex items-center justify-between mb-4">
     <div class="flex items-stretch space-x-3">
         @if(!$readOnly)
-          <button wire:click="$toggle('openFileForm')" class="flex items-center space-x-3 px-2 py-1 text-sm bg-gray-200 text-gray-600 rounded hover:bg-blue-500 hover:text-white dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-blue-600 dark:hover:text-white">
+          <button wire:click="$toggle('openFileForm')" class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-semibold bg-rt-red text-white rounded-lg transition hover:bg-rt-red-dark focus:outline-none focus:ring-2 focus:ring-rt-red/40 focus:ring-offset-2 dark:focus:ring-offset-slate-900">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 3a1 1 0 011 1v4h4a1 1 0 110 2h-4v4a1 1 0 11-2 0v-4H6a1 1 0 110-2h4V4a1 1 0 011-1z"/></svg>
             {{ __('app.add') }}
           </button>
@@ -12,7 +12,7 @@
       @if($filePool && $poolFiles->count() > 0)
       <x-dropdown class="" :width="'w-max'">
         <x-slot name="trigger">
-            <button type="button" class="inline-flex items-center px-2 py-2 bg-gray-200 text-gray-600 rounded hover:bg-gray-300 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600">
+            <button type="button" class="inline-flex items-center px-2 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-rt-red/40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
                 <i class="fad fa-download fa-lg h-5 w-5"></i>
             </button>
         </x-slot>
@@ -44,7 +44,7 @@
         @endif
       </div>
     @empty
-      <div class="text-sm text-gray-500 dark:text-slate-400">{{ __('app.no_files_available') }}</div>
+      <div class="text-sm text-slate-500 dark:text-slate-400">{{ __('app.no_files_available') }}</div>
     @endforelse
   </div>
 
@@ -58,8 +58,8 @@
             <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
           @enderror
         <div class="mt-4">
-          <label class="block text-sm font-medium text-gray-700 dark:text-slate-300">{{ __('app.expires_date') }}</label>
-          <input type="date" wire:model="expires.{{ $filePool->id }}" class="mt-1 block w-full rounded border-gray-300 shadow-sm dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200">
+          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">{{ __('app.expires_date') }}</label>
+          <input type="date" wire:model="expires.{{ $filePool->id }}" class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-rt-red focus:ring focus:ring-rt-red/30 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200">
           @error('expires.'.$filePool->id)
             <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
           @enderror
@@ -82,28 +82,28 @@
       <x-slot name="title">{{ __('app.edit_file') }}</x-slot>
       <x-slot name="content">
         <div class="mt-4">
-          <label class="block text-sm font-medium text-gray-700 dark:text-slate-300">{{ __('app.file_name') }}</label>
-          <input type="text" wire:model="selectedFileName" class="mt-1 block w-full rounded border-gray-300 shadow-sm dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200">
+          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">{{ __('app.file_name') }}</label>
+          <input type="text" wire:model="selectedFileName" class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-rt-red focus:ring focus:ring-rt-red/30 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200">
           @error('selectedFileName')
             <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
           @enderror
         </div>
         <div class="mt-4">
-          <label class="block text-sm font-medium text-gray-700 dark:text-slate-300">{{ __('app.expires_date') }}</label>
-          <input type="date" wire:model="selectedFileExpiresDate" class="mt-1 block w-full rounded border-gray-300 shadow-sm dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200">
+          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">{{ __('app.expires_date') }}</label>
+          <input type="date" wire:model="selectedFileExpiresDate" class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-rt-red focus:ring focus:ring-rt-red/30 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200">
           @error('selectedFileExpiresDate')
             <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
           @enderror
         </div>
         @if($allowRoleSharing)
           <div class="mt-4">
-            <label class="block text-sm font-medium text-gray-700 dark:text-slate-300">{{ __('app.shared_for_roles') }}</label>
-            <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">{{ __('app.shared_for_roles_hint') }}</p>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">{{ __('app.shared_for_roles') }}</label>
+            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ __('app.shared_for_roles_hint') }}</p>
             <div class="mt-2 space-y-2">
               @foreach(\App\Models\File::shareableRoles() as $roleKey => $roleLabel)
-                <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-300">
+                <label class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
                   <input type="checkbox" value="{{ $roleKey }}" wire:model="selectedFileShareRoles"
-                         class="rounded border-gray-300 text-sky-600 shadow-sm focus:ring-sky-500 dark:border-slate-600 dark:bg-slate-800">
+                         class="rounded border-slate-300 text-rt-red shadow-sm focus:ring-rt-red/40 dark:border-slate-600 dark:bg-slate-800">
                   {{ $roleLabel }}
                 </label>
               @endforeach

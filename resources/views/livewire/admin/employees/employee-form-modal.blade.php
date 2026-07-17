@@ -5,12 +5,12 @@
 
     <x-slot name="content">
         <div class="space-y-4">
-            <div class="text-sm text-gray-600 dark:text-slate-400">
+            <div class="text-sm text-slate-600 dark:text-slate-400">
                 {{ __('app.employee_form_intro') }}
             </div>
 
-            <div class="border border-gray-200 rounded-lg p-4 bg-white dark:bg-slate-800 dark:border-slate-700">
-                <div class="text-sm font-semibold text-gray-800 mb-3 dark:text-slate-100">{{ __('app.basic_data') }}</div>
+            <div class="border border-slate-200 rounded-xl p-4 bg-white dark:bg-slate-800 dark:border-slate-700">
+                <div class="text-sm font-semibold text-slate-800 mb-3 dark:text-slate-100">{{ __('app.basic_data') }}</div>
 
                 <div class="grid md:grid-cols-2 gap-4">
                     <div>
@@ -27,8 +27,8 @@
                 </div>
             </div>
 
-            <div class="border border-gray-200 rounded-lg p-4 bg-white space-y-4 dark:bg-slate-800 dark:border-slate-700">
-                <div class="text-sm font-semibold text-gray-800 dark:text-slate-100">{{ __('app.team_and_security') }}</div>
+            <div class="border border-slate-200 rounded-xl p-4 bg-white space-y-4 dark:bg-slate-800 dark:border-slate-700">
+                <div class="text-sm font-semibold text-slate-800 dark:text-slate-100">{{ __('app.team_and_security') }}</div>
 
                 <div class="space-y-1">
                     <x-ui.forms.label :value="__('app.team')"/>
@@ -62,7 +62,7 @@
         </x-ui.buttons.button-basic>
         <x-ui.buttons.button-basic wire:click="save" wire:loading.attr="disabled" size="sm">
             <i class="fal fa-save mr-2" wire:loading.remove wire:target="save"></i>
-            <i class="fal fa-spinner fa-spin mr-2 text-blue-500" wire:loading wire:target="save"></i>
+            <i class="fal fa-spinner fa-spin mr-2 text-rt-red" wire:loading wire:target="save"></i>
             {{ __('app.save') }}
         </x-ui.buttons.button-basic>
     </x-slot>

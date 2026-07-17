@@ -1,14 +1,14 @@
 <div class="space-y-5">
-    <div class="overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-r from-white to-slate-50 shadow-sm dark:border-slate-700 dark:from-slate-800 dark:to-slate-900">
+    <div class="overflow-hidden rounded-2xl border border-rt-ink bg-gradient-to-r from-rt-anthracite to-rt-ink shadow-sm dark:border-slate-700">
         <div class="flex flex-wrap items-center justify-between gap-4 px-5 py-5">
             <div>
-                <h1 class="text-2xl font-semibold tracking-tight text-slate-800 dark:text-white">{{ __('app.messages_and_emails') }}</h1>
-                <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">{{ __('app.entries_in_mail_log', ['count' => $mails->total()]) }}</p>
+                <h1 class="text-2xl font-semibold tracking-tight text-white">{{ __('app.messages_and_emails') }}</h1>
+                <p class="mt-1 text-sm text-slate-300">{{ __('app.entries_in_mail_log', ['count' => $mails->total()]) }}</p>
             </div>
             @if(Auth::user()->isAdmin())
-            <div class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                <p class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Super Admin</p>
-                <p class="font-semibold">{{ config('mail.super_admin') ?: __('app.not_set') }}</p>
+            <div class="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 shadow-sm">
+                <p class="text-xs font-semibold uppercase tracking-wide text-rt-red">Super Admin</p>
+                <p class="font-semibold text-white">{{ config('mail.super_admin') ?: __('app.not_set') }}</p>
             </div>
             @endif
         </div>
@@ -105,14 +105,14 @@
                         <div class="flex flex-wrap gap-2 md:col-span-3 md:justify-end">
                             <button
                                 wire:click.stop="resendMail({{ $mail->id }})"
-                                class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+                                class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-rt-red/40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                             >
                                 {{ __('app.resend') }}
                             </button>
                             @if(Auth::user()->isAdmin())
                             <button
                                 wire:click.stop="sendMessageToSuperAdmin({{ $mail->id }})"
-                                class="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue-700"
+                                class="rounded-lg bg-rt-red px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-rt-red-dark focus:outline-none focus:ring-2 focus:ring-rt-red/40"
                             >
                                 SuperAdmin Test
                             </button>
@@ -139,7 +139,7 @@
                                 @if (str_contains($linkRaw, '<'))
                                     <div class="prose prose-sm mt-1 max-w-none text-slate-700 dark:prose-invert dark:text-slate-300">{!! $linkRaw !!}</div>
                                 @elseif (filter_var($linkRaw, FILTER_VALIDATE_URL))
-                                    <a href="{{ $linkRaw }}" target="_blank" rel="noopener noreferrer" class="mt-1 inline-block truncate text-sm text-blue-600 underline dark:text-blue-400">{{ $linkRaw }}</a>
+                                    <a href="{{ $linkRaw }}" target="_blank" rel="noopener noreferrer" class="mt-1 inline-block truncate text-sm text-rt-red underline hover:text-rt-red-dark">{{ $linkRaw }}</a>
                                 @else
                                     <p class="mt-1 text-sm text-slate-700 dark:text-slate-300">{{ $linkRaw }}</p>
                                 @endif

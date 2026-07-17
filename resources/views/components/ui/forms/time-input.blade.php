@@ -57,7 +57,7 @@
     }
 }">
     @if($label)
-        <label for="{{ $inputId }}" class="block text-sm font-medium text-gray-700 dark:text-gray-200">
+        <label for="{{ $inputId }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300">
             {{ $label }} @if($required)<span class="text-red-600">*</span>@endif
         </label>
     @endif
@@ -74,22 +74,22 @@
             @if($required) required @endif
             pattern="^\d{2}:\d{2}$"
             {{ $attributes->merge([
-                'class' => 'block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 disabled:bg-gray-100 disabled:text-gray-500',
+                'class' => 'block w-full rounded-lg border-slate-300 shadow-sm focus:border-rt-red focus:ring focus:ring-rt-red/30 disabled:bg-slate-100 disabled:text-slate-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200',
                 // Hinweis: min/max bei Flatpickr werden via JS gesetzt; HTML-Attribute sind optional
                 'autocomplete' => 'off',
             ]) }}
         />
 
         <div class="pointer-events-none absolute inset-y-0 right-3 flex items-center">
-            <i class="fal fa-clock text-gray-500 fa-lg"></i>
+            <i class="fal fa-clock text-slate-500 dark:text-slate-400 fa-lg"></i>
         </div>
     </div>
 
     @if($hint)
-        <p class="text-xs text-gray-500">{{ $hint }}</p>
+        <p class="text-xs text-slate-500 dark:text-slate-400">{{ $hint }}</p>
     @endif
 
     @error($name)
-        <p class="text-sm text-red-600">{{ $message }}</p>
+        <p class="text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
     @enderror
 </div>

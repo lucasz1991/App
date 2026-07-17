@@ -54,9 +54,9 @@
     };
 @endphp
 
-<div {{ $attributes->merge(['class' => 'w-full mt-4 relative '.$class]) }}>
+<div {{ $attributes->merge(['class' => 'w-full mt-4 relative rounded-xl border border-slate-200 dark:border-slate-700 '.$class]) }}>
     {{-- Header (nur md+) --}}
-    <div class="hidden md:grid bg-gray-100 dark:bg-slate-800 p-2 font-semibold text-gray-700 dark:text-slate-100 border-b dark:border-slate-700 text-left text-sm"
+    <div class="hidden md:grid rounded-t-xl bg-slate-50 dark:bg-slate-900/50 p-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700 text-left"
          style="grid-template-columns: {{ $gridTemplate }};">
         @foreach($columns as $col)
             @php $hidden = $hideClass($col['hideOn']); @endphp
@@ -64,7 +64,7 @@
             @if($col['sortable'])
                 <button
                     type="button"
-                    class="px-2 py-2 text-left flex items-center gap-1 {{ $hidden }}"
+                    class="px-2 py-2 text-left flex items-center gap-1 transition hover:text-rt-red {{ $hidden }}"
                     @click="$dispatch('table-sort', {
                         key: '{{ $col['key'] }}',
                         dir: '{{ ($sortBy == $col['key'] && $sortDir == 'asc') ? 'desc' : 'asc' }}'
@@ -86,7 +86,7 @@
     @php
         $isSelected = in_array($item->id, (array) $selectedItems);
     @endphp
-    <div class="relative border-b dark:border-slate-700 py-2 text-sm md:px-2 hover:bg-blue-50 dark:hover:bg-slate-700/50">
+    <div class="relative border-b border-slate-100 dark:border-slate-700 last:border-b-0 last:rounded-b-xl py-2 text-sm md:px-2 hover:bg-slate-50 dark:hover:bg-slate-700/40">
         <div class="grid items-center" style="grid-template-columns: {{ $gridTemplate }} min-content;">
         {{-- Zellen --}}
         @if($rowView)
@@ -106,7 +106,7 @@
         </div>
     </div>
     @empty
-    <div class="p-4 text-sm text-gray-500 dark:text-slate-400">{{ $empty }}</div>
+    <div class="p-4 text-sm text-slate-500 dark:text-slate-400">{{ $empty }}</div>
     @endforelse
 
 </div>

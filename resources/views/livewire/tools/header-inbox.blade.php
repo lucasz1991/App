@@ -5,11 +5,11 @@
             <button type="button"
                     title="{{ __('app.messages') }}"
                     aria-haspopup="true"
-                    class="relative flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-600 shadow-sm transition hover:bg-gray-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
+                    class="relative flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-rt-red focus:outline-none focus:ring-2 focus:ring-rt-red/40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-rt-red">
                 <i class="far fa-envelope text-base" aria-hidden="true"></i>
 
                 @if ($unreadMessagesCount >= 1)
-                    <span class="absolute -right-1.5 -top-1.5 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                    <span class="absolute -right-1.5 -top-1.5 rounded-full bg-rt-red px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
                         {{ $unreadMessagesCount }}
                     </span>
                 @endif
@@ -31,7 +31,7 @@
 
                     <button
                         type="button"
-                        class="flex w-full items-center gap-3 p-3 text-left hover:bg-slate-50 dark:hover:bg-slate-700 {{ $isUnread ? 'bg-blue-50 dark:bg-slate-700/60' : '' }}"
+                        class="flex w-full items-center gap-3 p-3 text-left hover:bg-slate-50 dark:hover:bg-slate-700 {{ $isUnread ? 'bg-rt-red/5 dark:bg-slate-700/60' : '' }}"
                         x-on:click="$wire.showMessage({{ $message->id }})"
                     >
                         <img src="{{ $senderAvatar }}" class="h-8 w-8 rounded-full object-cover" alt="">
@@ -45,7 +45,7 @@
                             <div class="truncate text-slate-900 dark:text-slate-100 {{ $isUnread ? 'font-medium' : '' }}">{{ $message->subject }}</div>
                             <div class="mt-0.5 flex items-center gap-2 text-slate-700 dark:text-slate-300">
                                 @if ($message->files_count > 0)
-                                    <i class="far fa-paperclip shrink-0 text-gray-500 dark:text-slate-400" aria-hidden="true"></i>
+                                    <i class="far fa-paperclip shrink-0 text-slate-500 dark:text-slate-400" aria-hidden="true"></i>
                                 @endif
                                 <span class="truncate">{{ \Illuminate\Support\Str::limit(strip_tags($message->message), 60) }}</span>
                             </div>
@@ -57,7 +57,7 @@
 
                 <div class="p-3">
                     <a href="{{ route('messages') }}"
-                       class="block rounded-md px-4 py-2 text-center font-medium ring-1 ring-slate-700/10 hover:bg-slate-50 dark:ring-slate-600 dark:hover:bg-slate-700">
+                       class="block rounded-lg px-4 py-2 text-center font-medium ring-1 ring-slate-700/10 transition hover:bg-slate-50 hover:text-rt-red dark:ring-slate-600 dark:hover:bg-slate-700 dark:hover:text-rt-red">
                         {{ __('app.view_all_messages') }}
                     </a>
                 </div>
