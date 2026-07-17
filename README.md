@@ -1,45 +1,33 @@
-# RailTime App
+# RailTime – AI-Protokoll
 
-Laravel-Grundinstallation für die RailTime-App: Admin-Oberfläche (Dashboard,
-Mitarbeiter- und Berechtigungsverwaltung) und Nutzerbereich (Login, Registrierung,
-Dashboard) im Look der RailTime-Website (Layout 3).
+Diese Datei ist das gemeinsame Übergabe- und Kommunikationsprotokoll für Coding-Agents (z. B. Codex und Claude Code).
 
-## Enthalten
+## Aktueller Stand
 
-- Laravel 10 + Jetstream (Livewire 3) + Fortify
-- Admin-Bereich unter `/administrator` (Rollen `admin` und `staff`)
-  - Dashboard
-  - Mitarbeiterverwaltung mit Team-basiertem Berechtigungssystem (RBAC)
-    – portiert aus dem CBW-Schulnetz-Admin: `RbacCatalog`, Team-Rechte-Matrix,
-    Mitarbeiter-Formular-Modal
-- Nutzerbereich unter `/dashboard` mit Login (`/login`) und Registrierung (`/register`)
-- Login-/Register-Seiten mit dem animierten RailTime-Logo aus der Website
-  (3D-Logo mit Orbits/Scan, SVG-Fallback; Assets unter `public/rt-brand/`)
+- Laravel-App unter `App/` mit Admin-Bereich (`/administrator`) und Nutzerbereich.
+- Migrationen für eine Neuinstallation bereinigt: nachträgliche `add_...`-Migrationen wurden in die jeweiligen `create_...`-Migrationen integriert.
+- Teams: `Mitarbeiter`, `Verwaltung`, `Administration`.
+- Lucas (`lucas@zacharias-net.de`) ist der einzige globale und Team-Administrator.
+- Alle Benutzer mit Rolle `staff` werden beim Seeding jedem Default-Team zugeordnet.
+- `php artisan migrate:status` und PHP-Lint der geänderten Dateien waren erfolgreich.
 
-## Berechtigungssystem (RBAC)
+## Letzter Verlauf
 
-- Berechtigungen sind in `app/Support/Rbac/RbacCatalog.php` im Code definiert.
-- Gespeichert werden sie pro **Team** als JSON in `teams.rbac_permissions`.
-- `AuthServiceProvider` registriert pro Berechtigung ein Gate; Admins haben
-  über `Gate::before` immer alle Rechte.
-- Mitarbeiter (`role = staff`) erhalten die Rechte ihres aktuellen Teams.
-- Verwaltung über *Mitarbeiter → Teams & Rechte* im Adminbereich.
+1. Migrationen und Seeder geprüft.
+2. Foreign Keys für Teams, Team-Mitglieder und `current_team_id` ergänzt.
+3. `current_team_id`, `shared_roles`, `event` und `batch_uuid` in die Basismigrationen verschoben; die separaten `add_...`-Dateien entfernt.
+4. `AdminUserSeeder` auf Lucas als einzigen Admin reduziert.
+5. `TeamSeeder` so angepasst, dass Mitarbeitende in allen Default-Teams landen.
+6. Topbar, Sidebar und Logo erhalten konsistente Tailwind-Light-/Dark-Mode-Klassen.
 
-## Lokale Nutzung
+## Zusammenarbeit
 
-```bash
-composer install
-cp .env.example .env
-php artisan key:generate
-php artisan migrate --seed
-npm install
-npm run build
-```
+- Änderungen immer hier mit Datum, Agent und kurzer Begründung ergänzen.
+- Vor Änderungen die betroffenen Dateien und den aktuellen Laufzeitfehler prüfen.
+- Bei Datenbankänderungen beachten: Die Migrationen sind auf eine frische Installation ausgelegt. Für einen kompletten Neuaufbau ist `php artisan migrate:fresh --seed` erforderlich.
+- Keine bestehenden, nicht zum Task gehörenden Änderungen zurücksetzen.
 
-Der Seeder legt einen Admin-Benutzer und das Team „RailTime Team" an.
+## 2026-07-17 – Codex
 
-## Build
-
-```bash
-npm run build
-```
+- Migrationen, Seeder und Admin-Navigation angepasst (siehe letzter Verlauf).
+- UI-Anpassung: helle Flächen nutzen `bg-white`/`bg-slate-50`, dunkle Flächen `dark:bg-slate-900`/`dark:bg-slate-950`; Rahmen, Text und Hover-Zustände sind ebenfalls mit `dark:`-Varianten versehen.

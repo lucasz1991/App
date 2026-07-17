@@ -29,6 +29,7 @@ return new class extends Migration
             $table->string('disk', 50)->default('private');
             $table->string('mime_type')->nullable();
             $table->string('type', 50)->default('default')->index();
+            $table->json('shared_roles')->nullable();
             $table->unsignedBigInteger('size')->nullable();
 
             $table->dateTime('expires_at')->nullable();

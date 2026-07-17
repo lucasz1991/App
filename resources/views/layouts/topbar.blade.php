@@ -2,19 +2,23 @@
     $area = $area ?? (auth()->check() && in_array(auth()->user()->role, ['admin', 'staff'], true) ? 'admin' : 'user');
     $brandHref = $area === 'admin' ? route('admin.dashboard') : route('dashboard');
 @endphp
-<nav class="fixed top-0 left-0 right-0 z-10 flex items-center bg-white dark:bg-slate-900 print:hidden">
+<nav class="fixed top-0 left-0 right-0 z-10 flex items-center border-b border-slate-200/80 bg-white/95 text-slate-900 shadow-sm backdrop-blur dark:border-slate-800/80 dark:bg-slate-950/95 dark:text-slate-100 print:hidden">
     <div class="flex justify-between w-full">
         <div class="flex items-center topbar-brand">
             <div
-                class="hidden lg:flex navbar-brand items-center justify-between shrink px-3 h-[70px]  ltr:border-r rtl:border-l bg-[#080b10] border-gray-50 dark:border-slate-800 shadow-none">
+                class="hidden lg:flex navbar-brand items-center justify-between shrink px-3 h-[70px] ltr:border-r rtl:border-l border-slate-200 bg-white shadow-none dark:border-slate-800 dark:bg-slate-900">
                 <a href="{{ $brandHref }}"
                     class="flex items-center gap-2 text-lg flex-shrink-0 font-bold leading-[69px]">
-                        <img class="inline-block w-10 aspect-square align-middle"
+                        <img class="inline-block w-10 aspect-square align-middle dark:brightness-0 dark:invert"
                             src="{{ asset('rt-brand/rt-logo.svg') }}"
                             alt="RailTime Logo">
                     <span class="hidden align-middle xl:block">
                         <img
-                            class="w-full max-w-44"
+                            class="w-full max-w-44 dark:hidden"
+                            src="{{ asset('rt-brand/img/logo-txt.png') }}"
+                            alt="RT Rail Time GmbH">
+                        <img
+                            class="hidden w-full max-w-44 brightness-0 invert dark:block"
                             src="{{ asset('rt-brand/img/logo-txt.png') }}"
                             alt="RT Rail Time GmbH">
                     </span>
@@ -22,7 +26,7 @@
             </div>
             <!-- Toggle Button (relativ zur Sidebar positioniert, sichtbar bei kleineren Bildschirmen) -->
             <button type="button"
-                class=" border-b border-gray-300 dark:border-slate-700   group-data-[sidebar-size=sm]:border-[#e9e9ef] group-data-[sidebar-size=sm]:dark:border-slate-700 text-gray-800 dark:text-slate-200 h-[70px] px-4  rtl:-mr-14 py-1 vertical-menu-btn text-16"
+                class="border-b border-slate-200 text-slate-800 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800/70 group-data-[sidebar-size=sm]:border-slate-200 group-data-[sidebar-size=sm]:dark:border-slate-700 h-[70px] px-4 rtl:-mr-14 py-1 vertical-menu-btn text-16"
                 id="vertical-menu-btn">
                 <div class=" z-50 text-gray-600 dark:text-slate-300 burger-container group-data-[sidebar-size=lg]:open">
                     <div class="burger-bar bar1"></div>

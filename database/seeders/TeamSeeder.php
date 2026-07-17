@@ -18,6 +18,12 @@ class TeamSeeder extends Seeder
      */
     public function run(): void
     {
+        // Lucas bleibt der einzige globale Administrator.
+        User::query()
+            ->where('email', '!=', 'lucas@zacharias-net.de')
+            ->where('role', 'admin')
+            ->update(['role' => 'staff']);
+
         $all = RbacCatalog::allPermissions();
 
         $teams = [
@@ -50,16 +56,29 @@ class TeamSeeder extends Seeder
                 $permissions[$permission] = in_array($permission, $granted, true);
             }
 
-            Team::firstOrCreate(
+            $team = Team::firstOrCreate(
                 ['name' => $name, 'personal_team' => false],
                 [
                     'user_id' => $owner->id,
                     'rbac_permissions' => $permissions,
                 ]
             );
+
+            // Jeder Mitarbeiter ist Mitglied in jedem Default-Team. Nur Lucas
+            // erhält auch auf Teamebene die Admin-Rolle.
+            $employees = User::query()->whereIn('role', ['admin', 'staff'])->get();
+            $team->users()->syncWithoutDetaching(
+                $employees->mapWithKeys(fn (User $employee) => [
+                    $employee->id => ['role' => $employee->email === 'lucas@zacharias-net.de' ? 'admin' : 'staff'],
+                ])->all()
+            );
+
+            if ($team->wasRecentlyCreated === false && $team->rbac_permissions !== $permissions) {
+                $team->forceFill(['rbac_permissions' => $permissions])->save();
+            }
         }
 
-        // Admin dem Team "Administration" zuordnen, falls noch ohne Team
+        // Administration als aktives Team für Lucas setzen.
         $administration = Team::where('name', 'Administration')->where('personal_team', false)->first();
         if ($administration) {
             $owner->teams()->syncWithoutDetaching([$administration->id]);

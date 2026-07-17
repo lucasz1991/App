@@ -13,11 +13,17 @@ return new class extends Migration
     {
         Schema::create('teams', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->index();
+            $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
             $table->string('name');
             $table->boolean('personal_team');
             $table->json('rbac_permissions')->nullable();
             $table->timestamps();
+        });
+
+        // users wird vor teams angelegt; der Foreign Key kann daher erst hier
+        // nach dem Erstellen beider Tabellen definiert werden.
+        Schema::table('users', function (Blueprint $table) {
+            $table->foreign('current_team_id')->references('id')->on('teams')->nullOnDelete();
         });
     }
 
@@ -26,6 +32,9 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::table('users', function (Blueprint $table) {
+            $table->dropForeign(['current_team_id']);
+        });
         Schema::dropIfExists('teams');
     }
 };

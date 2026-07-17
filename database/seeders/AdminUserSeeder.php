@@ -2,16 +2,14 @@
 
 namespace Database\Seeders;
 
-use App\Models\Team;
 use App\Models\User;
-use App\Support\Rbac\RbacCatalog;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
 class AdminUserSeeder extends Seeder
 {
     /**
-     * Seed the application's database with a default admin user and team.
+     * Seed the application's database with the single system administrator.
      */
     public function run(): void
     {
@@ -27,18 +25,6 @@ class AdminUserSeeder extends Seeder
             ]
         );
 
-        $team = Team::firstOrCreate(
-            ['name' => 'RailTime Team', 'personal_team' => false],
-            [
-                'user_id' => $admin->id,
-                'rbac_permissions' => RbacCatalog::defaultTeamPermissions(),
-            ]
-        );
-
-        $admin->teams()->syncWithoutDetaching([$team->id]);
-
-        if (! $admin->current_team_id) {
-            $admin->forceFill(['current_team_id' => $team->id])->save();
-        }
+        // Die Zuordnung zu den drei Default-Teams erfolgt zentral im TeamSeeder.
     }
 }
