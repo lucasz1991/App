@@ -27,7 +27,7 @@
     @livewireStyles
     @yield('css')
 </head>
-    <body x-bind:data-mode="$store.theme?.dark ? 'dark' : 'light'" data-mode="light" data-sidebar-size="lg" data-sidebar-collapsible="true" data-sidebar-expanded="false" class="group font-notosans dark:bg-slate-950">
+    <body x-bind:data-mode="$store.theme?.dark ? 'dark' : 'light'" data-mode="light" data-sidebar-size="lg" data-sidebar-collapsible="true" data-sidebar-expanded="false" class="group font-notosans bg-rt-canvas text-rt-text dark:bg-rt-dark-canvas dark:text-rt-dark-text">
         <!-- sidebar -->
         @include('layouts.sidebar', ['area' => $area])
         <!-- topbar -->
@@ -36,7 +36,7 @@
         @yield('content')
         <!-- Page Content -->
         @if(isset($slot))
-            <main class="bg-gradient-to-br from-slate-100 via-sky-50 to-slate-200 dark:from-slate-950 dark:via-[#0d1420] dark:to-[#160b10]">
+            <main class="bg-gradient-to-br from-rt-canvas via-rt-surface-muted to-rt-sidebar dark:from-rt-dark-canvas dark:via-rt-dark-surface dark:to-rt-dark-sidebar">
                 <div class="main-content group-data-[sidebar-size=sm]:ml-[70px]">
                     <div class="min-h-screen page-content px-1" style="box-shadow: inset 0px 80px 30px -10px rgba(0, 0, 0, 0.2);">
                         <div class="container-fluid px-0 md:px-5">
@@ -46,11 +46,11 @@
                                 ];
                                 $useBox = !request()->is($excludedUrls);
                             @endphp
-                            <div class="{{ $useBox ? 'bg-white rounded-md border border-gray-200 p-4 dark:bg-slate-900 dark:border-slate-700' : '' }}">
+                            <div class="{{ $useBox ? 'rounded-md border border-rt-border bg-rt-surface p-4 text-rt-text dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text' : '' }}">
                                 {{ $slot }}
                             </div>
                             {{-- Dezente Versionsanzeige --}}
-                            <div class="py-4 text-center text-xs text-slate-400 dark:text-slate-600">
+                            <div class="py-4 text-center text-xs text-rt-soft dark:text-rt-dark-soft">
                                 {{ config('app.name') }} v{{ config('app.version') }}
                             </div>
                         </div>

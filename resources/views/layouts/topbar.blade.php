@@ -2,11 +2,11 @@
     $area = $area ?? (auth()->check() && in_array(auth()->user()->role, ['admin', 'staff'], true) ? 'admin' : 'user');
     $brandHref = $area === 'admin' ? route('admin.dashboard') : route('dashboard');
 @endphp
-<nav class="fixed top-0 left-0 right-0 z-10 flex items-center border-b border-slate-200/80 bg-white/95 text-slate-900 shadow-sm backdrop-blur dark:border-slate-800/80 dark:bg-slate-950/95 dark:text-slate-100 print:hidden">
+<nav class="fixed top-0 left-0 right-0 z-10 flex items-center border-b border-rt-border bg-rt-topbar/95 text-rt-text shadow-sm backdrop-blur dark:border-rt-dark-border dark:bg-rt-dark-topbar/95 dark:text-rt-dark-text print:hidden">
     <div class="flex justify-between w-full">
         <div class="flex items-center topbar-brand">
             <div
-                class="hidden lg:flex navbar-brand items-center justify-between shrink px-3 h-[70px] ltr:border-r rtl:border-l border-slate-200 bg-white shadow-none dark:border-slate-800 dark:bg-slate-900">
+                class="hidden lg:flex navbar-brand items-center justify-between shrink px-3 h-[70px] ltr:border-r rtl:border-l border-rt-border bg-rt-topbar shadow-none dark:border-rt-dark-border dark:bg-rt-dark-topbar">
                 <a href="{{ $brandHref }}"
                     class="flex items-center gap-2 text-lg flex-shrink-0 font-bold leading-[69px]">
                         <img class="inline-block w-10 aspect-square align-middle dark:brightness-0 dark:invert"
@@ -14,11 +14,7 @@
                             alt="RailTime Logo">
                     <span class="hidden align-middle xl:block">
                         <img
-                            class="w-full max-w-44 dark:hidden"
-                            src="{{ asset('rt-brand/img/logo-txt.png') }}"
-                            alt="RT Rail Time GmbH">
-                        <img
-                            class="hidden w-full max-w-44 brightness-0 invert dark:block"
+                            class="w-full max-w-44 transition dark:brightness-0 dark:invert"
                             src="{{ asset('rt-brand/img/logo-txt.png') }}"
                             alt="RT Rail Time GmbH">
                     </span>
@@ -26,16 +22,16 @@
             </div>
             <!-- Toggle Button (relativ zur Sidebar positioniert, sichtbar bei kleineren Bildschirmen) -->
             <button type="button"
-                class="border-b border-slate-200 text-slate-800 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800/70 group-data-[sidebar-size=sm]:border-slate-200 group-data-[sidebar-size=sm]:dark:border-slate-700 h-[70px] px-4 rtl:-mr-14 py-1 vertical-menu-btn text-16"
+                class="border-b border-rt-border text-rt-text transition hover:bg-rt-surface-muted dark:border-rt-dark-border dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted group-data-[sidebar-size=sm]:border-rt-border group-data-[sidebar-size=sm]:dark:border-rt-dark-border h-[70px] px-4 rtl:-mr-14 py-1 vertical-menu-btn text-16"
                 id="vertical-menu-btn">
-                <div class=" z-50 text-gray-600 dark:text-slate-300 burger-container group-data-[sidebar-size=lg]:open">
+                <div class="z-50 text-rt-muted dark:text-rt-dark-muted burger-container group-data-[sidebar-size=lg]:open">
                     <div class="burger-bar bar1"></div>
                     <div class="burger-bar bar2"></div>
                     <div class="burger-bar bar3"></div>
                 </div>
             </button>
         </div>
-        <div class="flex justify-between w-full items-center  ltr:pl-6 rtl:pr-6 ltr:pr-6 rtl:pl-6 border-b border-gray-300 dark:border-slate-700">
+        <div class="flex justify-between w-full items-center ltr:pl-6 rtl:pr-6 ltr:pr-6 rtl:pl-6 border-b border-rt-border dark:border-rt-dark-border">
             <div>
 
 
@@ -50,21 +46,21 @@
                         $rtCurrentLocale = $rtLocales[app()->getLocale()] ?? $rtLocales['de'];
                     @endphp
                     <div x-data="{ open: false }" class="relative">
-                        <button type="button"
+                        <x-topbar.control-button
                             @click="open = !open"
                             @click.outside="open = false"
                             aria-label="{{ __('app.language') }}"
-                            class="flex h-9 items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-2 shadow-sm transition hover:bg-gray-50 dark:border-slate-600 dark:bg-slate-800 dark:hover:bg-slate-700">
+                            class="gap-1.5">
                             <img src="{{ asset($rtCurrentLocale['flag']) }}" alt="" class="h-4 w-6 rounded-sm object-cover">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-500 dark:text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-rt-muted dark:text-rt-dark-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
                             </svg>
-                        </button>
+                        </x-topbar.control-button>
                         <div x-show="open" x-transition.opacity x-cloak
-                             class="absolute right-0 z-50 mt-1 w-44 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800">
+                             class="absolute right-0 z-50 mt-1 w-44 overflow-hidden rounded-lg border border-rt-border bg-rt-surface py-1 text-rt-text shadow-lg dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text">
                             @foreach ($rtLocales as $localeKey => $localeMeta)
                                 <a href="{{ route('locale.switch', $localeKey) }}"
-                                   class="flex items-center gap-2.5 px-3 py-2 text-sm transition {{ app()->getLocale() === $localeKey ? 'bg-gray-50 font-medium text-gray-900 dark:bg-slate-700 dark:text-white' : 'text-gray-700 hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-700' }}">
+                                   class="flex items-center gap-2.5 px-3 py-2 text-sm transition {{ app()->getLocale() === $localeKey ? 'bg-rt-accent-soft font-medium text-rt-text dark:bg-rt-dark-accent-soft dark:text-rt-dark-text' : 'text-rt-muted hover:bg-rt-surface-muted dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted' }}">
                                     <img src="{{ asset($localeMeta['flag']) }}" alt="" class="h-4 w-6 rounded-sm object-cover">
                                     {{ $localeMeta['label'] }}
                                 </a>
@@ -73,18 +69,18 @@
                     </div>
 
                     {{-- Hell/Dunkel umschalten --}}
-                    <button type="button"
+                    <x-topbar.control-button
                         x-data
                         @click="$store.theme?.toggle()"
                         title="{{ __('app.toggle_theme') }}"
-                        class="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-600 shadow-sm transition hover:bg-gray-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
+                        class="w-9 px-0">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 dark:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
                         </svg>
-                        <svg xmlns="http://www.w3.org/2000/svg" class="hidden h-4 w-4 dark:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="hidden h-4 w-4 text-white dark:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
                         </svg>
-                    </button>
+                    </x-topbar.control-button>
 
                     @auth
                         {{-- Posteingang (Umschlag-Dropdown mit Ungelesen-Badge) --}}
@@ -97,15 +93,15 @@
                             <x-dropdown align="" width="48">
                                 <x-slot name="trigger">
                                     <button
-                                        class="flex items-center space-x-2 text-sm border-2 border-transparent rounded-full focus:outline-none focus:border-gray-300 dark:focus:border-slate-600 transition">
+                                        class="flex items-center space-x-2 text-sm border-2 border-transparent rounded-full text-rt-text focus:outline-none focus:border-rt-border dark:text-white dark:focus:border-rt-dark-border transition">
                                         <img class="h-8 w-8 rounded-full object-cover"
                                             src="{{ Auth::user()->profile_photo_url }}" alt="{{ Auth::user()->name }}" />
-                                            <span class="hidden font-medium xl:block dark:text-slate-200">{{ Auth::user()->name }}</span>
-                                            <i class="hidden align-bottom mdi mdi-chevron-down xl:block dark:text-slate-300"></i>
+                                            <span class="hidden font-medium xl:block">{{ Auth::user()->name }}</span>
+                                            <i class="hidden align-bottom mdi mdi-chevron-down xl:block text-rt-muted dark:text-white/80"></i>
                                     </button>
                                 </x-slot>
                                 <x-slot name="content">
-                                    <div class="block px-4 py-2 text-xs text-gray-400 dark:text-slate-400">
+                                    <div class="block px-4 py-2 text-xs text-rt-soft dark:text-white/70">
                                         {{ __('app.manage_account') }}
                                     </div>
                                     <x-dropdown-link href="{{ route('profile.show') }}">
@@ -116,7 +112,7 @@
                                         {{ __('app.profile') }}
                                     </x-dropdown-link>
 
-                                    <div class="border-t border-gray-200 dark:border-slate-700"></div>
+                                    <div class="border-t border-rt-border dark:border-rt-dark-border"></div>
                                     <form method="POST" action="{{ route('logout') }}" x-data>
                                         @csrf
                                         <x-dropdown-link href="{{ route('logout') }}" @click.prevent="$root.submit();">

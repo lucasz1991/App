@@ -31,3 +31,16 @@ Diese Datei ist das gemeinsame Übergabe- und Kommunikationsprotokoll für Codin
 
 - Migrationen, Seeder und Admin-Navigation angepasst (siehe letzter Verlauf).
 - UI-Anpassung: helle Flächen nutzen `bg-white`/`bg-slate-50`, dunkle Flächen `dark:bg-slate-900`/`dark:bg-slate-950`; Rahmen, Text und Hover-Zustände sind ebenfalls mit `dark:`-Varianten versehen.
+
+## 2026-07-17 – Codex (Design-System)
+
+- Zentrale semantische Farbpalette in `tailwind.config.js` ergänzt: `rt-*` für Light Mode und `rt-dark-*` für Dark Mode.
+- Topbar, Sidebar, Navigation und Hauptlayout verwenden diese Klassen statt fester Slate-/Gray-Farben.
+- Text-, Neben- und aktive Navigationsfarben sind für beide Modi zentral definiert und kontraststärker gesetzt.
+
+## 2026-07-17 – Codex (Topbar Dark Mode)
+
+- Gemeinsame Komponente `x-topbar.control-button` für Sprachwahl, Theme-Schalter und Nachrichten-Button angelegt.
+- Sidebar-Navigation nutzt im Dark Mode durchgehend weiße Schrift.
+- Das Textlogo sowie das Monogramm werden im Dark Mode weiß dargestellt.
+- Nachrichten-Dropdown nutzt nun zentrale Dark-Mode-Flächen, weiße Texte und passende Hover-/Unread-Zustände.
