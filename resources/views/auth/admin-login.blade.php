@@ -13,21 +13,18 @@
             <input type="hidden" name="admin_login" value="1">
 
             <div>
-                <x-label for="email" :value="__('app.email')" />
-                <x-input id="email" class="mt-1 block w-full" type="email" name="email" :value="old('email')" required autofocus autocomplete="username" />
+                <x-ui.forms.label for="email" :value="__('app.email')" />
+                <x-ui.forms.input id="email" class="mt-1 block" type="email" name="email" :value="old('email')" required autofocus autocomplete="username" />
             </div>
 
             <div>
-                <x-label for="password" :value="__('app.password')" />
-                <x-input id="password" class="mt-1 block w-full" type="password" name="password" required autocomplete="current-password" />
+                <x-ui.forms.label for="password" :value="__('app.password')" />
+                <x-ui.forms.input id="password" class="mt-1 block" type="password" name="password" required autocomplete="current-password" />
             </div>
 
             <div class="flex items-center justify-between">
-                <label for="remember" class="inline-flex items-center gap-2 text-sm text-slate-600">
-                    <x-checkbox id="remember" name="remember" />
-                    {{ __('app.remember_me') }}
-                </label>
-                <a href="{{ route('password.request') }}" class="text-sm text-slate-600 underline hover:text-slate-900">
+                <x-ui.forms.checkbox id="remember" name="remember" :label="__('app.remember_me')" />
+                <a href="{{ route('password.request') }}" class="text-sm text-rt-muted underline transition hover:text-rt-accent dark:text-rt-dark-muted dark:hover:text-rt-dark-accent">
                     {{ __('app.forgot_password') }}
                 </a>
             </div>

@@ -6,23 +6,23 @@
             @csrf
 
             <div>
-                <x-label for="email" :value="__('app.email')" />
-                <x-input id="email" class="mt-1 block w-full bg-slate-100 text-slate-500" type="email" :value="$invitation->email" readonly />
+                <x-ui.forms.label for="email" :value="__('app.email')" />
+                <x-ui.forms.input id="email" class="mt-1 block" type="email" :value="$invitation->email" readonly />
             </div>
 
             <div>
-                <x-label for="name" :value="__('app.name')" />
-                <x-input id="name" class="mt-1 block w-full" type="text" name="name" :value="old('name')" required autofocus autocomplete="name" />
+                <x-ui.forms.label for="name" :value="__('app.name')" />
+                <x-ui.forms.input id="name" class="mt-1 block" type="text" name="name" :value="old('name')" required autofocus autocomplete="name" />
             </div>
 
             <div>
-                <x-label for="password" :value="__('app.password')" />
-                <x-input id="password" class="mt-1 block w-full" type="password" name="password" required autocomplete="new-password" />
+                <x-ui.forms.label for="password" :value="__('app.password')" />
+                <x-ui.forms.input id="password" class="mt-1 block" type="password" name="password" required autocomplete="new-password" />
             </div>
 
             <div>
-                <x-label for="password_confirmation" :value="__('app.confirm_password')" />
-                <x-input id="password_confirmation" class="mt-1 block w-full" type="password" name="password_confirmation" required autocomplete="new-password" />
+                <x-ui.forms.label for="password_confirmation" :value="__('app.confirm_password')" />
+                <x-ui.forms.input id="password_confirmation" class="mt-1 block" type="password" name="password_confirmation" required autocomplete="new-password" />
             </div>
 
             <x-button class="w-full justify-center">

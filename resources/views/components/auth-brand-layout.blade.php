@@ -32,12 +32,12 @@
 
     {{-- Formular-Karte darunter --}}
     <div class="rt-auth__card">
-        <div class="w-full rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="w-full rounded-xl border border-rt-border bg-rt-surface p-6 text-rt-text shadow-sm dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text">
             @if ($title)
-                <h1 class="text-2xl font-semibold text-slate-900">{{ $title }}</h1>
+                <h1 class="text-2xl font-semibold text-rt-text dark:text-rt-dark-text">{{ $title }}</h1>
             @endif
             @if ($description)
-                <p class="mt-1 text-sm text-slate-600">{{ $description }}</p>
+                <p class="mt-1 text-sm text-rt-muted dark:text-rt-dark-muted">{{ $description }}</p>
             @endif
 
             {{ $slot }}

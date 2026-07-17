@@ -9,16 +9,16 @@
 
 
     @if ($showForm)
-        <div class="mt-4 p-4 bg-gray-100 rounded">
-            <input type="text" wire:model="name" placeholder="Name" class="w-full p-2 border rounded">
-            <input type="text" wire:model="company" placeholder="Firma" class="w-full p-2 border rounded mt-2">
-            <input type="email" wire:model="email" placeholder="E-Mail" class="w-full p-2 border rounded mt-2">
-            <input type="text" wire:model="phone" placeholder="Telefon" class="w-full p-2 border rounded mt-2">
-            <input type="text" wire:model="address" placeholder="Adresse" class="w-full p-2 border rounded mt-2">
-            <input type="text" wire:model="city" placeholder="Stadt" class="w-full p-2 border rounded mt-2">
-            <input type="text" wire:model="postal_code" placeholder="PLZ" class="w-full p-2 border rounded mt-2">
-            <input type="text" wire:model="country" placeholder="Land" class="w-full p-2 border rounded mt-2">
-            <input type="text" wire:model="category" placeholder="Kategorie" class="w-full p-2 border rounded mt-2">
+        <div class="mt-4 space-y-2 rounded-lg border border-rt-border bg-rt-surface-muted p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted">
+            <x-ui.forms.input type="text" wire:model="name" placeholder="Name" />
+            <x-ui.forms.input type="text" wire:model="company" placeholder="Firma" />
+            <x-ui.forms.input type="email" wire:model="email" placeholder="E-Mail" />
+            <x-ui.forms.input type="text" wire:model="phone" placeholder="Telefon" />
+            <x-ui.forms.input type="text" wire:model="address" placeholder="Adresse" />
+            <x-ui.forms.input type="text" wire:model="city" placeholder="Stadt" />
+            <x-ui.forms.input type="text" wire:model="postal_code" placeholder="PLZ" />
+            <x-ui.forms.input type="text" wire:model="country" placeholder="Land" />
+            <x-ui.forms.input type="text" wire:model="category" placeholder="Kategorie" />
             
             <div class="mt-2">
                 <button wire:click="{{ $contactId ? 'update' : 'store' }}" class="bg-green-500 text-white px-4 py-2 rounded">Speichern</button>

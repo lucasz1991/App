@@ -71,7 +71,7 @@
                 {{ __('Bitte gib dein Passwort ein, um zu bestätigen, dass du dich von deinen anderen Browsersitzungen auf allen Geräten abmelden möchtest.') }}
 
                 <div class="mt-4" x-data="{}" x-on:confirming-logout-other-browser-sessions.window="setTimeout(() => $refs.password.focus(), 250)">
-                    <x-input type="password" class="mt-1 block w-3/4"
+                    <x-ui.forms.input type="password" class="mt-1 block w-3/4"
                                 autocomplete="current-password"
                                 placeholder="{{ __('Passwort') }}"
                                 x-ref="password"

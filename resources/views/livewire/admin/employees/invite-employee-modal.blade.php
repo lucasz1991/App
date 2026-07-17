@@ -10,13 +10,13 @@
             </p>
 
             <div>
-                <x-label for="invite-email" :value="__('app.email')" />
-                <x-input id="invite-email" class="mt-1 block w-full" type="email" wire:model="email" />
+                <x-ui.forms.label for="invite-email" :value="__('app.email')" />
+                <x-ui.forms.input id="invite-email" class="mt-1 block" type="email" wire:model="email" />
                 <x-input-error for="email" class="mt-1" />
             </div>
 
             <div>
-                <x-label for="invite-role" :value="__('app.role')" />
+                <x-ui.forms.label for="invite-role" :value="__('app.role')" />
                 <x-ui.forms.select id="invite-role" wire:model="role" class="mt-1 block">
                     <option value="staff">{{ __('app.role_staff') }}</option>
                     @if (auth()->user()->isAdmin())

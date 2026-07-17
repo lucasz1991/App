@@ -58,7 +58,7 @@
             <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
           @enderror
         <div class="mt-4">
-          <x-label :value="__('app.expires_date')" />
+          <x-ui.forms.label :value="__('app.expires_date')" />
           <x-ui.forms.input type="date" wire:model="expires.{{ $filePool->id }}" class="mt-1 block" />
           @error('expires.'.$filePool->id)
             <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
@@ -82,14 +82,14 @@
       <x-slot name="title">{{ __('app.edit_file') }}</x-slot>
       <x-slot name="content">
         <div class="mt-4">
-          <x-label :value="__('app.file_name')" />
+          <x-ui.forms.label :value="__('app.file_name')" />
           <x-ui.forms.input type="text" wire:model="selectedFileName" class="mt-1 block" />
           @error('selectedFileName')
             <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
           @enderror
         </div>
         <div class="mt-4">
-          <x-label :value="__('app.expires_date')" />
+          <x-ui.forms.label :value="__('app.expires_date')" />
           <x-ui.forms.input type="date" wire:model="selectedFileExpiresDate" class="mt-1 block" />
           @error('selectedFileExpiresDate')
             <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
@@ -97,14 +97,15 @@
         </div>
         @if($allowRoleSharing)
           <div class="mt-4">
-            <x-label :value="__('app.shared_for_roles')" />
+            <x-ui.forms.label :value="__('app.shared_for_roles')" />
             <div class="mt-2 space-y-2">
               @foreach(\App\Models\File::shareableRoles() as $roleKey => $roleLabel)
-                <label class="flex items-center gap-2 text-sm text-rt-text dark:text-white">
-                  <input type="checkbox" value="{{ $roleKey }}" wire:model="selectedFileShareRoles"
-                         class="rounded border-slate-300 text-rt-red shadow-sm focus:ring-rt-red/40 dark:border-slate-600 dark:bg-slate-800">
-                  {{ $roleLabel }}
-                </label>
+                <x-ui.forms.checkbox
+                  :id="'share-role-'.$roleKey"
+                  value="{{ $roleKey }}"
+                  wire:model="selectedFileShareRoles"
+                  :label="$roleLabel"
+                />
               @endforeach
             </div>
           </div>

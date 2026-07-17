@@ -72,3 +72,10 @@ Diese Datei ist das gemeinsame Übergabe- und Kommunikationsprotokoll für Codin
 - Obere Tipp-/Hinweisblöcke aus den zentralen Nutzer- und Verwaltungsseiten entfernt.
 - Selects nutzen die neue erhöhte `rt-control`-Fläche und heben sich damit in Light und Dark Mode sichtbar vom Seitenhintergrund, der Topbar und Sidebar ab.
 - FilePool-Formulare, Dateimanager, FileCards und Dateivorschau auf die zentrale Dark-Mode-Palette umgestellt.
+
+## 2026-07-17 – Codex (Formular-Komponenten)
+
+- Sämtliche sichtbaren nativen Selects in Filtern und Formularen verwenden jetzt `x-ui.forms.select`.
+- Login, Admin-Login, Registrierung, Passwort- und Zwei-Faktor-Seiten sowie Profil-, Team- und Verwaltungsformulare verwenden zentral `x-ui.forms.input`, `x-ui.forms.label` und `x-ui.forms.checkbox`.
+- Input-, Select-, Label- und Checkbox-Komponenten nutzen einheitliche semantische `rt-*`-/`rt-dark-*`-Farben, gut erkennbare Kontrollflächen und konsistente Fokus-, Hover-, Readonly- und Disabled-Zustände.
+- Native Inputs verbleiben nur innerhalb der zentralen UI-Komponenten sowie für technisch notwendige versteckte Token- und Datei-Felder.

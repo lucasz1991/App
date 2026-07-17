@@ -64,7 +64,7 @@
                                     reader.readAsDataURL($refs.photo.files[0]);
                             " />
 
-                <x-label for="photo" value="{{ __('Foto') }}" />
+                <x-ui.forms.label for="photo" value="{{ __('Foto') }}" />
 
                 <!-- Aktuelles Profilfoto -->
                 <div class="mt-2" x-show="! photoPreview">
@@ -94,15 +94,15 @@
 
         <!-- Name -->
         <div class="col-span-6 sm:col-span-4">
-            <x-label for="name" value="{{ __('Benutzername') }}" />
-            <x-input id="name" type="text" class="mt-1 block w-full" wire:model="state.name" required autocomplete="name" />
+            <x-ui.forms.label for="name" value="{{ __('Benutzername') }}" />
+            <x-ui.forms.input id="name" type="text" class="mt-1 block" wire:model="state.name" required autocomplete="name" />
             <x-input-error for="name" class="mt-2" />
         </div>
 
         <!-- E-Mail -->
         <div class="col-span-6 sm:col-span-4">
-            <x-label for="email" value="{{ __('E-Mail') }}" />
-            <x-input id="email" type="email" class="mt-1 block w-full" wire:model="state.email" required autocomplete="username" />
+            <x-ui.forms.label for="email" value="{{ __('E-Mail') }}" />
+            <x-ui.forms.input id="email" type="email" class="mt-1 block" wire:model="state.email" required autocomplete="username" />
             <x-input-error for="email" class="mt-2" />
 
             @if (Laravel\Fortify\Features::enabled(Laravel\Fortify\Features::emailVerification()) && ! $this->user->hasVerifiedEmail())
