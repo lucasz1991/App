@@ -23,7 +23,19 @@ export default {
     theme: {
         extend: {
             fontFamily: {
-                sans: ['Quicksand', ...defaultTheme.fontFamily.sans],
+                sans: ['"Plus Jakarta Sans Variable"', ...defaultTheme.fontFamily.sans],
+            },
+            // Weiche, getoente Schatten (statt hartem shadow-md/schwarz)
+            boxShadow: {
+                'rt-xs': '0 1px 2px rgba(15, 23, 42, 0.05)',
+                'rt-sm': '0 1px 2px rgba(15, 23, 42, 0.05), 0 8px 24px -12px rgba(15, 23, 42, 0.12)',
+                'rt-md': '0 2px 4px rgba(15, 23, 42, 0.05), 0 16px 40px -16px rgba(15, 23, 42, 0.18)',
+                'rt-lg': '0 4px 8px rgba(15, 23, 42, 0.06), 0 24px 64px -24px rgba(15, 23, 42, 0.28)',
+                'rt-glow': '0 0 0 1px rgba(228, 0, 43, 0.08), 0 8px 32px -12px rgba(228, 0, 43, 0.35)',
+            },
+            // Federnde Motion-Kurve fuer alle Interaktionen
+            transitionTimingFunction: {
+                'rt-spring': 'cubic-bezier(0.32, 0.72, 0, 1)',
             },
             colors: {
                 // RailTime CI (siehe Website Layout 3 / rt-brand)

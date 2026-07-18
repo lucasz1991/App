@@ -1,19 +1,21 @@
 <div class="space-y-6">
     {{-- Begruessungs-Band im RailTime-Look --}}
-    <div class="relative overflow-hidden rounded-2xl bg-[#080b10] px-6 py-8 text-white shadow-lg sm:px-8">
-        <div class="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-[#e4002b]/20 blur-3xl"></div>
-        <div class="pointer-events-none absolute -bottom-24 right-24 h-48 w-48 rounded-full bg-white/5 blur-2xl"></div>
+    <div class="rounded-2xl bg-rt-surface-muted p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60" data-anim="fade-up">
+        <div class="relative overflow-hidden rounded-[calc(1rem-2px)] bg-[#080b10] px-6 py-8 text-white sm:px-8">
+            <div class="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-rt-red/20 blur-3xl"></div>
+            <div class="pointer-events-none absolute -bottom-24 right-24 h-48 w-48 rounded-full bg-white/5 blur-2xl"></div>
 
-        <div class="relative flex flex-wrap items-center gap-6">
-            <img src="{{ asset('rt-brand/rt-logo.svg') }}" alt="" class="h-16 w-16 drop-shadow-lg">
-            <div>
-                <p class="text-xs font-bold uppercase tracking-[0.2em] text-[#e4002b]">RT Rail Time GmbH</p>
-                <h1 class="mt-1 text-2xl font-semibold sm:text-3xl">
-                    {{ __('app.welcome_name', ['name' => auth()->user()->name]) }}
-                </h1>
-                <p class="mt-1 text-sm text-slate-300">
-                    {{ now()->translatedFormat('l, d. F Y') }} &middot; {{ __('app.user_area_of', ['app' => config('app.name')]) }}
-                </p>
+            <div class="relative flex flex-wrap items-center gap-6">
+                <img src="{{ asset('rt-brand/rt-logo.svg') }}" alt="" class="h-16 w-16 drop-shadow-lg">
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-[0.2em] text-rt-red">RT Rail Time GmbH</p>
+                    <h1 class="mt-1 text-2xl font-semibold sm:text-3xl">
+                        {{ __('app.welcome_name', ['name' => auth()->user()->name]) }}
+                    </h1>
+                    <p class="mt-1 text-sm text-slate-300">
+                        {{ now()->translatedFormat('l, d. F Y') }} &middot; {{ __('app.user_area_of', ['app' => config('app.name')]) }}
+                    </p>
+                </div>
             </div>
         </div>
     </div>

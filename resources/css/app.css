@@ -1,3 +1,6 @@
+/* RailTime Designsprache v2 — Premium-Grotesk, ein Akzent, weiche Tiefe */
+@import '@fontsource-variable/plus-jakarta-sans';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -7,7 +10,37 @@
 }
 
 body {
-    @apply bg-rt-canvas text-rt-text dark:bg-rt-dark-canvas dark:text-rt-dark-text;
+    @apply bg-rt-canvas text-rt-text antialiased dark:bg-rt-dark-canvas dark:text-rt-dark-text;
+    font-family: 'Plus Jakarta Sans Variable', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Ueberschriften: eng, schwer, praesent */
+h1, h2, h3 {
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+}
+
+/* Zahlen in Tabellen/Statistiken buendig */
+table, .tabular-nums, [data-stat] {
+    font-variant-numeric: tabular-nums;
+}
+
+/* Markenfarbene Text-Selektion */
+::selection {
+    background: rgba(228, 0, 43, 0.18);
+}
+
+/* Dezente, thematisierte Scrollbars */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(100, 116, 139, 0.35) transparent;
+}
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, 0.35); border-radius: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+
+html {
+    scroll-behavior: smooth;
 }
 
 :root {

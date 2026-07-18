@@ -12,6 +12,8 @@ import Echo from 'laravel-echo';
 import Pusher from 'pusher-js';
 import Swiper from 'swiper';
 import 'swiper/css';
+// GSAP-Setup (window.gsap/ScrollTrigger + deklarative data-anim-Reveals)
+import './gsap';
 
 // ---------------------------------------------------------------
 // Echtzeit (Laravel Reverb, Pusher-Protokoll). Nur aktiv, wenn ein
