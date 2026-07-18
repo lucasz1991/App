@@ -95,3 +95,12 @@ Diese Datei ist das gemeinsame Übergabe- und Kommunikationsprotokoll für Codin
 - Lokal starten: `php artisan reverb:start` (Port 8080) zusätzlich zu Serve/Queue-Worker. Ohne laufenden Reverb-Server funktioniert alles weiter über das bestehende Polling.
 - End-to-End getestet: WebSocket verbunden, Kanal-Abo autorisiert, Toast + Badge-Update kamen live an.
 - Hinweis: Umstieg auf Pusher-Cloud wäre reine `.env`-Änderung (identischer Client-Code), falls das Produktiv-Hosting keinen Daemon erlaubt.
+
+## 2026-07-18 - Claude Code (Explorer-Dateiverwaltung, Nachrichten-Verdrahtung, Fixes)
+
+- NEU Ordnerstruktur im Dateipool: Tabelle `file_folders` (Baum via parent_id, Rechte-JSON je Rolle: view/download/delete) + `files.folder_id`; Model `FileFolder` (allowsForRole, breadcrumb, deleteRecursive). `ManageFilePools` ist jetzt ein Explorer: Breadcrumbs, Ordner anlegen/umbenennen/loeschen (rekursiv inkl. Datei-Blobs), Rechte-Matrix pro Ordner (nur im allowRoleSharing-Modus), Upload in aktuellen Ordner. Rollenmodus: Ordner nur sichtbar mit view-Recht; Dateien in Ordnern erben Ordner-Rechte, Wurzeldateien nutzen weiterhin shared_roles; ZIP/Download serverseitig geprueft.
+- Nachrichten verdrahtet: Mitarbeiterliste hat "Nachricht verfassen" fuer Mehrfachauswahl UND je Zeile (dispatch openMailModal an MessageForm, payload int|int[]|{emails}); neue Komponente Admin\UserProfile\UserMessages aktiviert den Nachrichten-Tab im Benutzerprofil (Liste + Detail-Modal + Loeschen + Compose); MessageForm-Modal auf Profilseite gemountet; neues Recht `users.messages.delete`.
+- Super-Admin (#1): aus Mitarbeiterliste ausgeschlossen und vom Activity-Logging ausgenommen (`User::isSuperAdmin()`).
+- Fix Profilseite: doppelte Anfuehrungszeichen im x-data von `ui/accordion/tabs.blade.php` (querySelector-Template) zerrissen das HTML-Attribut, JS wurde als Text gerendert. Auf einfache Quotes umgestellt.
+- Fix Tabellen-Dropdowns: `overflow-hidden` vom Tabellen-Wrapper entfernt (Aktionsmenues wurden abgeschnitten).
+- `Team::filePool()` MorphOne ergaenzt (wird vom neuen "Team-Dateien"-Bereich der /files-Seite benoetigt).

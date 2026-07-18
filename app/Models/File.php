@@ -18,6 +18,7 @@ class File extends Model
 {
     protected $fillable = [
         'filepool_id',
+        'folder_id',
         'user_id',
         'name',
         'path',
@@ -540,6 +541,11 @@ class File extends Model
             'expires_at' => now()->addMinutes($minutes)->toIso8601String(),
         ], now()->addMinutes($minutes));
         return Storage::disk($publicDisk)->url($tmpPath);
+    }
+
+    public function folder(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(FileFolder::class, 'folder_id');
     }
 
     public function user()

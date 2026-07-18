@@ -11,6 +11,11 @@
             {{ __('app.view_profile') }}
         </x-dropdown-link>
 
+        <x-dropdown-link wire:click.prevent="openMessage({{ $item->id }})" :can="'users.messages.create'">
+            <i class="far fa-paper-plane mr-2"></i>
+            {{ __('app.compose_message') }}
+        </x-dropdown-link>
+
         {{-- Details: normale Navigation --}}
         <x-dropdown-link wire:click.prevent="openEdit({{ $item->id }})" :can="'employees.create'">
             <i class="far fa-pen mr-2"></i>

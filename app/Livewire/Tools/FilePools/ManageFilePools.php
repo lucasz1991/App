@@ -5,6 +5,7 @@ namespace App\Livewire\Tools\FilePools;
 use Livewire\Component;
 use App\Models\FilePool;
 use App\Models\File;
+use App\Models\FileFolder;
 use Livewire\WithPagination;
 use Livewire\WithFileUploads;
 use Illuminate\Support\Facades\Storage;
@@ -43,6 +44,19 @@ class ManageFilePools extends Component
     /** Nur Dateien anzeigen, die fuer diese Rolle freigegeben sind */
     public ?string $roleFilter = null;
 
+    /** Explorer: aktuell geoeffneter Ordner (null = Wurzel) */
+    public ?int $currentFolderId = null;
+
+    /** Ordner anlegen/umbenennen */
+    public bool $openFolderForm = false;
+    public ?int $editFolderId = null;
+    public string $folderName = '';
+
+    /** Ordner-Rechte (Rolle => Aktion => bool) */
+    public bool $openFolderPermissions = false;
+    public ?int $permissionsFolderId = null;
+    public array $folderPermissions = [];
+
     public function mount(
         ?string $modelType = null,
         ?int $modelId = null,
@@ -78,6 +92,126 @@ class ManageFilePools extends Component
         $this->roleFilter = $roleFilter;
     }
 
+    /* ------------------------------------------------------------------
+     * Explorer: Navigation & Ordnerverwaltung
+     * ----------------------------------------------------------------*/
+
+    /**
+     * In einen Ordner wechseln (null = Wurzel). Prueft Pool-Zugehoerigkeit
+     * und — im Rollenmodus — das Ansehen-Recht des Ordners.
+     */
+    public function enterFolder(?int $folderId = null): void
+    {
+        if ($folderId === null) {
+            $this->currentFolderId = null;
+            return;
+        }
+
+        $folder = FileFolder::where('file_pool_id', $this->filePoolId)->findOrFail($folderId);
+
+        if ($this->roleFilter !== null && ! $folder->allowsForRole($this->roleFilter, 'view')) {
+            abort(403);
+        }
+
+        $this->currentFolderId = $folder->id;
+    }
+
+    public function openCreateFolder(): void
+    {
+        abort_if($this->readOnly, 403);
+
+        $this->reset(['editFolderId', 'folderName']);
+        $this->resetValidation();
+        $this->openFolderForm = true;
+    }
+
+    public function openRenameFolder(int $folderId): void
+    {
+        abort_if($this->readOnly, 403);
+
+        $folder = FileFolder::where('file_pool_id', $this->filePoolId)->findOrFail($folderId);
+        $this->editFolderId = $folder->id;
+        $this->folderName = $folder->name;
+        $this->resetValidation();
+        $this->openFolderForm = true;
+    }
+
+    public function saveFolder(): void
+    {
+        abort_if($this->readOnly, 403);
+
+        $this->validate([
+            'folderName' => ['required', 'string', 'max:255'],
+        ]);
+
+        if ($this->editFolderId) {
+            FileFolder::where('file_pool_id', $this->filePoolId)
+                ->findOrFail($this->editFolderId)
+                ->update(['name' => $this->folderName]);
+        } else {
+            FileFolder::create([
+                'file_pool_id' => $this->filePoolId,
+                'parent_id' => $this->currentFolderId,
+                'name' => $this->folderName,
+            ]);
+        }
+
+        $this->reset(['editFolderId', 'folderName', 'openFolderForm']);
+        $this->dispatch('swal:toast', type: 'success', text: __('app.folder_saved'));
+    }
+
+    public function deleteFolder(int $folderId): void
+    {
+        abort_if($this->readOnly, 403);
+
+        $folder = FileFolder::where('file_pool_id', $this->filePoolId)->findOrFail($folderId);
+        $folder->deleteRecursive();
+
+        if ($this->currentFolderId === $folderId) {
+            $this->currentFolderId = $folder->parent_id;
+        }
+
+        $this->dispatch('swal:toast', type: 'success', text: __('app.folder_deleted'));
+    }
+
+    public function openPermissions(int $folderId): void
+    {
+        abort_if($this->readOnly || ! $this->allowRoleSharing, 403);
+
+        $folder = FileFolder::where('file_pool_id', $this->filePoolId)->findOrFail($folderId);
+        $this->permissionsFolderId = $folder->id;
+
+        $stored = is_array($folder->permissions) ? $folder->permissions : [];
+        $this->folderPermissions = [];
+
+        foreach (array_keys(File::shareableRoles()) as $role) {
+            foreach (array_keys(FileFolder::permissionActions()) as $action) {
+                $this->folderPermissions[$role][$action] = (bool) ($stored[$role][$action] ?? false);
+            }
+        }
+
+        $this->openFolderPermissions = true;
+    }
+
+    public function savePermissions(): void
+    {
+        abort_if($this->readOnly || ! $this->allowRoleSharing, 403);
+
+        $folder = FileFolder::where('file_pool_id', $this->filePoolId)->findOrFail($this->permissionsFolderId);
+
+        $payload = [];
+        foreach (array_keys(File::shareableRoles()) as $role) {
+            foreach (array_keys(FileFolder::permissionActions()) as $action) {
+                $payload[$role][$action] = (bool) ($this->folderPermissions[$role][$action] ?? false);
+            }
+        }
+
+        $folder->update(['permissions' => $payload]);
+
+        $this->reset(['permissionsFolderId', 'folderPermissions', 'openFolderPermissions']);
+        $this->dispatch('swal:toast', type: 'success', text: __('app.folder_permissions_saved'));
+    }
+
     public function uploadFile(int $filePoolId)
     {
         abort_if($this->readOnly, 403);
@@ -94,6 +228,7 @@ class ManageFilePools extends Component
             $mime     = Storage::disk('private')->mimeType($path) ?? $uploadedFile->getClientMimeType();
 
             $this->filePool->files()->create([
+                'folder_id'  => $this->currentFolderId,
                 'user_id'    => Auth::user()->id ?? null,
                 'name'       => $filename,
                 'path'       => $path,
@@ -118,9 +253,25 @@ class ManageFilePools extends Component
 
         // Nur Dateien dieses Pools; bei Rollenfilter nur freigegebene
         abort_if((int) $file->fileable_id !== (int) $this->filePoolId, 403);
-        abort_if($this->roleFilter !== null && ! $file->isSharedWithRole($this->roleFilter), 403);
+        abort_if($this->roleFilter !== null && ! $this->fileVisibleForRole($file, 'download'), 403);
 
         return $file->download(); // zentral im Model
+    }
+
+    /**
+     * Sichtbarkeit/Downloadrecht einer Datei im Rollenmodus:
+     * Dateien in Ordnern erben das Ordner-Recht, Wurzeldateien
+     * nutzen weiterhin die dateibezogene Freigabe (shared_roles).
+     */
+    protected function fileVisibleForRole(File $file, string $action = 'view'): bool
+    {
+        if ($file->folder_id) {
+            $folder = $file->folder;
+
+            return $folder ? $folder->allowsForRole($this->roleFilter, $action) : false;
+        }
+
+        return $file->isSharedWithRole($this->roleFilter);
     }
 
     public function editFile($id)
@@ -235,15 +386,21 @@ class ManageFilePools extends Component
     }
 
     /**
-     * Dateien des Pools unter Beruecksichtigung des Rollenfilters.
+     * Dateien der aktuellen Explorer-Ebene unter Beruecksichtigung des
+     * Rollenfilters (Ordnerrechte bzw. shared_roles auf Wurzelebene).
      */
     protected function visibleFiles()
     {
-        $files = $this->filePool->files()->get();
+        $files = $this->filePool->files()
+            ->where(fn ($q) => $this->currentFolderId === null
+                ? $q->whereNull('folder_id')
+                : $q->where('folder_id', $this->currentFolderId))
+            ->latest()
+            ->get();
 
         if ($this->roleFilter !== null) {
             $files = $files->filter(
-                fn (File $file) => $file->isSharedWithRole($this->roleFilter)
+                fn (File $file) => $this->fileVisibleForRole($file, 'download')
             )->values();
         }
 
@@ -296,17 +453,53 @@ class ManageFilePools extends Component
     {
         $filePool = FilePool::find($this->filePoolId);
 
-        $poolFiles = $filePool ? $filePool->files()->latest()->get() : collect();
+        $currentFolder = $this->currentFolderId
+            ? FileFolder::where('file_pool_id', $this->filePoolId)->find($this->currentFolderId)
+            : null;
+
+        // Zustand heilen, falls der Ordner inzwischen geloescht wurde
+        if ($this->currentFolderId && ! $currentFolder) {
+            $this->currentFolderId = null;
+        }
+
+        // Unterordner der aktuellen Ebene (im Rollenmodus nur sichtbare)
+        $folders = $filePool
+            ? FileFolder::where('file_pool_id', $this->filePoolId)
+                ->where(fn ($q) => $this->currentFolderId === null
+                    ? $q->whereNull('parent_id')
+                    : $q->where('parent_id', $this->currentFolderId))
+                ->orderBy('name')
+                ->get()
+            : collect();
+
+        if ($this->roleFilter !== null) {
+            $folders = $folders->filter(
+                fn (FileFolder $folder) => $folder->allowsForRole($this->roleFilter, 'view')
+            )->values();
+        }
+
+        // Dateien der aktuellen Ebene (im Rollenmodus: Ordnerrecht bzw. shared_roles)
+        $poolFiles = $filePool
+            ? $filePool->files()
+                ->where(fn ($q) => $this->currentFolderId === null
+                    ? $q->whereNull('folder_id')
+                    : $q->where('folder_id', $this->currentFolderId))
+                ->latest()
+                ->get()
+            : collect();
 
         if ($this->roleFilter !== null) {
             $poolFiles = $poolFiles->filter(
-                fn (File $file) => $file->isSharedWithRole($this->roleFilter)
+                fn (File $file) => $this->fileVisibleForRole($file, 'view')
             )->values();
         }
 
         return view('livewire.tools.file-pools.manage-file-pools', [
             'filePool' => $filePool,
             'poolFiles' => $poolFiles,
+            'folders' => $folders,
+            'currentFolder' => $currentFolder,
+            'breadcrumb' => $currentFolder ? $currentFolder->breadcrumb() : [],
         ]);
     }
 }

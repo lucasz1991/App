@@ -48,6 +48,10 @@
                             <i class="far fa-align-slash mr-2"></i>
                             {{ __('app.clear_selection') }}
                         </x-dropdown-link>
+                        <x-dropdown-link href="#" wire:click.prevent="messageSelected" :can="'users.messages.create'">
+                            <i class="far fa-paper-plane mr-2"></i>
+                            {{ __('app.compose_message') }}
+                        </x-dropdown-link>
                         <x-dropdown-link href="#" wire:click.prevent="exportSelected" class="hover:bg-green-100 dark:hover:bg-green-500/20">
                             <i class="far fa-download mr-2"></i>
                             {{ __('app.export') }}

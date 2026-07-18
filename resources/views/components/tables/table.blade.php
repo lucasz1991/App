@@ -56,7 +56,10 @@
     };
 @endphp
 
-<div {{ $attributes->merge(['class' => 'w-full mt-4 relative overflow-hidden rounded-xl border border-rt-border bg-rt-surface text-rt-text dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text '.$class]) }}>
+{{-- Kein overflow-hidden: die Aktions-Dropdowns der Zeilen ragen ueber den
+     Rahmen hinaus und wuerden sonst abgeschnitten. Die runden Ecken werden
+     stattdessen ueber rounded-t/b auf Kopf- und letzter Zeile gehalten. --}}
+<div {{ $attributes->merge(['class' => 'w-full mt-4 relative rounded-xl border border-rt-border bg-rt-surface text-rt-text dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text '.$class]) }}>
     {{-- Header (nur md+) --}}
     <div class="hidden md:grid bg-rt-surface-muted p-2 text-xs font-semibold uppercase tracking-wide text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted border-b border-rt-border dark:border-rt-dark-border text-left"
          style="grid-template-columns: {{ $gridTemplate }};">

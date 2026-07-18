@@ -130,6 +130,36 @@ class Employees extends Component
         $this->dispatch('open-invite-employee')->to(\App\Livewire\Admin\Employees\InviteEmployeeModal::class);
     }
 
+    /**
+     * Nachricht/Mail an die aktuelle Mehrfachauswahl verfassen.
+     */
+    public function messageSelected(): void
+    {
+        Gate::authorize('users.messages.create');
+
+        $ids = array_values(array_filter(array_map('intval', $this->selectedEmployees)));
+
+        if (empty($ids)) {
+            $this->dispatch('swal:toast', type: 'info', text: __('app.select_recipient_hint'));
+
+            return;
+        }
+
+        $this->dispatch('openMailModal', payload: $ids)
+            ->to(\App\Livewire\Admin\Users\Messages\MessageForm::class);
+    }
+
+    /**
+     * Nachricht/Mail an einen einzelnen Mitarbeiter verfassen.
+     */
+    public function openMessage(int $id): void
+    {
+        Gate::authorize('users.messages.create');
+
+        $this->dispatch('openMailModal', payload: $id)
+            ->to(\App\Livewire\Admin\Users\Messages\MessageForm::class);
+    }
+
     // Beispiel-Bulk-Aktionen (Platzhalter)
     public function exportSelected(): void
     {
@@ -188,6 +218,8 @@ class Employees extends Component
         $base = User::query()
             ->with('currentTeam')
             ->whereIn('role', $allowedRoles)
+            // Super-Admin (#1) wird nicht als Mitarbeiter gefuehrt
+            ->where('id', '!=', 1)
             ->when($this->search, fn ($q) => $q->where(function ($qq) {
                 $s = '%' . $this->search . '%';
                 $qq->where('name', 'like', $s)

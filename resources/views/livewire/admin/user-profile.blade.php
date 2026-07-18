@@ -227,4 +227,9 @@
             @endif
         </x-ui.accordion.tab-panel>
     </x-ui.accordion.tabs>
+
+    {{-- Compose-Modal fuer den Nachrichten-Tab --}}
+    @can('users.messages.create')
+        <livewire:admin.users.messages.message-form :key="'profile-message-form'" />
+    @endcan
 </div>

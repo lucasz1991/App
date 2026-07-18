@@ -43,4 +43,12 @@ class Team extends JetstreamTeam
         'updated' => TeamUpdated::class,
         'deleted' => TeamDeleted::class,
     ];
+
+    /**
+     * Dateipool des Teams (Standard-Downloadbereich fuer Teammitglieder).
+     */
+    public function filePool(): \Illuminate\Database\Eloquent\Relations\MorphOne
+    {
+        return $this->morphOne(FilePool::class, 'filepoolable');
+    }
 }

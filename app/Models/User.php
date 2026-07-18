@@ -73,6 +73,15 @@ class User extends Authenticatable
         return $this->role === 'admin';
     }
 
+    /**
+     * Benutzer #1 ist der Super-Admin: erscheint nicht in der
+     * Mitarbeiterliste und wird nicht im Activity-Log erfasst.
+     */
+    public function isSuperAdmin(): bool
+    {
+        return (int) $this->id === 1;
+    }
+
     public function hasRbacPermission(string $permission): bool
     {
         if ($this->isAdmin()) {

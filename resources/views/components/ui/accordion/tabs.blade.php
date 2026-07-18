@@ -49,7 +49,8 @@
             const index = this.items.findIndex(item => item.id === this.openTab);
             const nextIndex = (index + direction + this.items.length) % this.items.length;
             this.openTab = this.items[nextIndex].id;
-            this.$nextTick(() => this.$root.querySelector(`[data-tab-id="${this.openTab}"]`)?.focus());
+            {{-- Wichtig: KEINE doppelten Anfuehrungszeichen innerhalb von x-data="…" --}}
+            this.$nextTick(() => this.$root.querySelector(`[data-tab-id='${this.openTab}']`)?.focus());
         },
         mq: null,
         setupMQ(bp) {

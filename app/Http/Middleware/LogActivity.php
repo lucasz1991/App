@@ -18,7 +18,10 @@ class LogActivity
         $pathSlug = Str::slug($request->path());
         $isLivewireUpdate = ($pathSlug === 'livewireupdate');
 
-        if (config('activitylog.enabled', true) && ! $isLivewireUpdate) {
+        // Super-Admin (#1) wird grundsaetzlich nicht protokolliert
+        $isSuperAdmin = $request->user()?->isSuperAdmin() ?? false;
+
+        if (config('activitylog.enabled', true) && ! $isLivewireUpdate && ! $isSuperAdmin) {
             dispatch(new LogActivityJob($request->user(), [
                 'method' => $request->method(),
                 'path' => $request->path(),

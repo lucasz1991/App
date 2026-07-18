@@ -40,6 +40,7 @@ class RbacCatalog
                 ['key' => 'manage.messages', 'label' => 'Nachrichten & Mails verwalten'],
                 ['key' => 'users.messages.view', 'label' => 'Benutzer-Nachrichten anzeigen'],
                 ['key' => 'users.messages.create', 'label' => 'Benutzer-Nachrichten erstellen'],
+                ['key' => 'users.messages.delete', 'label' => 'Benutzer-Nachrichten löschen'],
             ],
         ];
     }
