@@ -17,7 +17,7 @@
         : 'w-9 h-5 after:h-4 after:w-4 after:top-[2px] after:start-[2px]';
 
     // Basis-Input-Klassen
-    $baseCheckbox = 'rounded border-rt-border bg-rt-control text-rt-accent shadow-sm focus:ring-rt-accent/40 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-accent';
+    $baseCheckbox = 'rounded border-rt-border bg-rt-control text-rt-accent shadow-rt-xs transition-all duration-300 ease-rt-spring focus:ring-rt-accent/40 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-accent';
 @endphp
 
 @if(!$isToggle)
@@ -54,7 +54,7 @@
         {{-- Track + Knob (peer styles) --}}
         <div class="relative {{ $track }}
                     bg-rt-surface-muted dark:bg-rt-dark-surface-muted rounded-full
-                    transition
+                    transition-all duration-300 ease-rt-spring
                     peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-rt-accent/30
                     peer-checked:bg-rt-accent dark:peer-checked:bg-rt-dark-accent
                     after:content-[''] after:absolute after:bg-white after:border after:border-rt-border

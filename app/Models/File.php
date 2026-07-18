@@ -28,6 +28,9 @@ class File extends Model
         'shared_roles',
         'size',
         'expires_at',
+        'visible_from',
+        'auto_delete',
+        'visible_teams',
         'created_at',
         'updated_at',
     ];
@@ -35,6 +38,9 @@ class File extends Model
     protected $casts = [
         'expires_at' => 'datetime',
         'shared_roles' => 'array',
+        'visible_from' => 'date',
+        'auto_delete' => 'boolean',
+        'visible_teams' => 'array',
     ];
 
     /**
@@ -635,5 +641,62 @@ class File extends Model
     public function isExpired(): bool
     {
         return $this->expires_at && $this->expires_at->isPast();
+    }
+
+    /* ------------------------------------------------------------------
+     * Sichtbarkeit: Zeitfenster (visible_from .. expires_at) + Team-Freigabe.
+     * Ergaenzt die bestehende Rollen-Freigabe (shared_roles) und wirkt nur im
+     * nutzerseitigen Rollenmodus; im Management sehen Admins/Verwaltung alles.
+     * ----------------------------------------------------------------*/
+
+    /** Liegt "jetzt" im Sichtbarkeitsfenster (ab visible_from, bis expires_at)? */
+    public function isWithinVisibilityWindow(): bool
+    {
+        $now = now();
+
+        if ($this->visible_from && $now->lt($this->visible_from->copy()->startOfDay())) {
+            return false;
+        }
+
+        if ($this->expires_at && $now->gt($this->expires_at)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Ist die Datei fuer die Teams des Nutzers freigegeben? Ohne gesetzte
+     * Teams (null/[]) ist sie fuer alle sichtbar. Admins sehen immer alles.
+     */
+    public function isVisibleForTeams(?User $user): bool
+    {
+        $teamIds = collect($this->visible_teams ?? [])->map(fn ($id) => (int) $id)->filter()->values();
+
+        if ($teamIds->isEmpty()) {
+            return true;
+        }
+
+        if (! $user) {
+            return false;
+        }
+
+        if (method_exists($user, 'isAdmin') && $user->isAdmin()) {
+            return true;
+        }
+
+        return $user->allTeams()->pluck('id')->intersect($teamIds)->isNotEmpty();
+    }
+
+    /** Gesamtsichtbarkeit fuer einen Nutzer (Zeitfenster UND Team-Freigabe). */
+    public function isPubliclyVisible(?User $user): bool
+    {
+        return $this->isWithinVisibilityWindow() && $this->isVisibleForTeams($user);
+    }
+
+    /** Zum automatischen Loeschen faellig (auto_delete aktiv und abgelaufen)? */
+    public function isExpiredForDeletion(): bool
+    {
+        return $this->auto_delete && $this->isExpired();
     }
 }

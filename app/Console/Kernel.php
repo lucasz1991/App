@@ -19,6 +19,12 @@ class Kernel extends ConsoleKernel
         $schedule->command('queue:work --stop-when-empty --tries=3')
             ->everyMinute()
             ->withoutOverlapping();
+
+        // Entfernt stuendlich abgelaufene Dateien/Ordner, die auf
+        // automatisches Loeschen gesetzt sind.
+        $schedule->command('files:purge-expired')
+            ->hourly()
+            ->withoutOverlapping();
     }
 
     /**

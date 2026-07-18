@@ -15,7 +15,7 @@
 
                 <x-slot name="form">
                     <div class="col-span-6">
-                        <div class="max-w-xl text-sm text-gray-600 dark:text-slate-400">
+                        <div class="max-w-xl text-sm text-rt-muted dark:text-rt-dark-muted">
                             {{ __('Please provide the email address of the person you would like to add to this team.') }}
                         </div>
                     </div>
@@ -33,26 +33,26 @@
                             <x-ui.forms.label for="role" value="{{ __('Role') }}" />
                             <x-input-error for="role" class="mt-2" />
 
-                            <div class="relative z-0 mt-1 border border-gray-200 dark:border-slate-700 rounded-lg cursor-pointer">
+                            <div class="relative z-0 mt-1 border border-rt-border dark:border-rt-dark-border rounded-lg cursor-pointer">
                                 @foreach ($this->roles as $index => $role)
-                                    <button type="button" class="relative px-4 py-3 inline-flex w-full rounded-lg focus:z-10 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 {{ $index > 0 ? 'border-t border-gray-200 dark:border-slate-700 focus:border-none rounded-t-none' : '' }} {{ ! $loop->last ? 'rounded-b-none' : '' }}"
+                                    <button type="button" class="relative px-4 py-3 inline-flex w-full rounded-lg focus:z-10 focus:outline-none focus:border-rt-red/40 focus:ring-2 focus:ring-rt-red/40 {{ $index > 0 ? 'border-t border-rt-border dark:border-rt-dark-border focus:border-none rounded-t-none' : '' }} {{ ! $loop->last ? 'rounded-b-none' : '' }}"
                                                     wire:click="$set('addTeamMemberForm.role', '{{ $role->key }}')">
                                         <div class="{{ isset($addTeamMemberForm['role']) && $addTeamMemberForm['role'] !== $role->key ? 'opacity-50' : '' }}">
                                             <!-- Role Name -->
                                             <div class="flex items-center">
-                                                <div class="text-sm text-gray-600 dark:text-slate-400 {{ $addTeamMemberForm['role'] == $role->key ? 'font-semibold' : '' }}">
+                                                <div class="text-sm text-rt-muted dark:text-rt-dark-muted {{ $addTeamMemberForm['role'] == $role->key ? 'font-semibold' : '' }}">
                                                     {{ $role->name }}
                                                 </div>
 
                                                 @if ($addTeamMemberForm['role'] == $role->key)
-                                                    <svg class="ms-2 h-5 w-5 text-green-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                    <svg class="ms-2 h-5 w-5 text-emerald-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                                         <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                                     </svg>
                                                 @endif
                                             </div>
 
                                             <!-- Role Description -->
-                                            <div class="mt-2 text-xs text-gray-600 dark:text-slate-400 text-start">
+                                            <div class="mt-2 text-xs text-rt-muted dark:text-rt-dark-muted text-start">
                                                 {{ $role->description }}
                                             </div>
                                         </div>
@@ -94,12 +94,12 @@
                     <div class="space-y-6">
                         @foreach ($team->teamInvitations as $invitation)
                             <div class="flex items-center justify-between">
-                                <div class="text-gray-600 dark:text-slate-400">{{ $invitation->email }}</div>
+                                <div class="text-rt-muted dark:text-rt-dark-muted">{{ $invitation->email }}</div>
 
                                 <div class="flex items-center">
                                     @if (Gate::check('removeTeamMember', $team))
                                         <!-- Cancel Team Invitation -->
-                                        <button class="cursor-pointer ms-6 text-sm text-red-500 dark:text-red-400 focus:outline-none"
+                                        <button class="cursor-pointer ms-6 text-sm text-red-500 transition-colors duration-300 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 focus:outline-none"
                                                             wire:click="cancelTeamInvitation({{ $invitation->id }})">
                                             {{ __('Cancel') }}
                                         </button>
@@ -134,30 +134,30 @@
                             <div class="flex items-center justify-between">
                                 <div class="flex items-center">
                                     <img class="w-8 h-8 rounded-full object-cover" src="{{ $user->profile_photo_url }}" alt="{{ $user->name }}">
-                                    <div class="ms-4 dark:text-slate-200">{{ $user->name }}</div>
+                                    <div class="ms-4 text-rt-text dark:text-rt-dark-text">{{ $user->name }}</div>
                                 </div>
 
                                 <div class="flex items-center">
                                     <!-- Manage Team Member Role -->
                                     @if (Gate::check('updateTeamMember', $team) && Laravel\Jetstream\Jetstream::hasRoles())
-                                        <button class="ms-2 text-sm text-gray-400 dark:text-slate-500 underline" wire:click="manageRole('{{ $user->id }}')">
+                                        <button class="ms-2 text-sm text-rt-soft dark:text-rt-dark-soft underline" wire:click="manageRole('{{ $user->id }}')">
                                             {{ Laravel\Jetstream\Jetstream::findRole($user->membership->role)->name }}
                                         </button>
                                     @elseif (Laravel\Jetstream\Jetstream::hasRoles())
-                                        <div class="ms-2 text-sm text-gray-400 dark:text-slate-500">
+                                        <div class="ms-2 text-sm text-rt-soft dark:text-rt-dark-soft">
                                             {{ Laravel\Jetstream\Jetstream::findRole($user->membership->role)->name }}
                                         </div>
                                     @endif
 
                                     <!-- Leave Team -->
                                     @if ($this->user->id === $user->id)
-                                        <button class="cursor-pointer ms-6 text-sm text-red-500 dark:text-red-400" wire:click="$toggle('confirmingLeavingTeam')">
+                                        <button class="cursor-pointer ms-6 text-sm text-red-500 transition-colors duration-300 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300" wire:click="$toggle('confirmingLeavingTeam')">
                                             {{ __('Leave') }}
                                         </button>
 
                                     <!-- Remove Team Member -->
                                     @elseif (Gate::check('removeTeamMember', $team))
-                                        <button class="cursor-pointer ms-6 text-sm text-red-500 dark:text-red-400" wire:click="confirmTeamMemberRemoval('{{ $user->id }}')">
+                                        <button class="cursor-pointer ms-6 text-sm text-red-500 transition-colors duration-300 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300" wire:click="confirmTeamMemberRemoval('{{ $user->id }}')">
                                             {{ __('Remove') }}
                                         </button>
                                     @endif
@@ -177,26 +177,26 @@
         </x-slot>
 
         <x-slot name="content">
-            <div class="relative z-0 mt-1 border border-gray-200 dark:border-slate-700 rounded-lg cursor-pointer">
+            <div class="relative z-0 mt-1 border border-rt-border dark:border-rt-dark-border rounded-lg cursor-pointer">
                 @foreach ($this->roles as $index => $role)
-                    <button type="button" class="relative px-4 py-3 inline-flex w-full rounded-lg focus:z-10 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 {{ $index > 0 ? 'border-t border-gray-200 dark:border-slate-700 focus:border-none rounded-t-none' : '' }} {{ ! $loop->last ? 'rounded-b-none' : '' }}"
+                    <button type="button" class="relative px-4 py-3 inline-flex w-full rounded-lg focus:z-10 focus:outline-none focus:border-rt-red/40 focus:ring-2 focus:ring-rt-red/40 {{ $index > 0 ? 'border-t border-rt-border dark:border-rt-dark-border focus:border-none rounded-t-none' : '' }} {{ ! $loop->last ? 'rounded-b-none' : '' }}"
                                     wire:click="$set('currentRole', '{{ $role->key }}')">
                         <div class="{{ $currentRole !== $role->key ? 'opacity-50' : '' }}">
                             <!-- Role Name -->
                             <div class="flex items-center">
-                                <div class="text-sm text-gray-600 dark:text-slate-400 {{ $currentRole == $role->key ? 'font-semibold' : '' }}">
+                                <div class="text-sm text-rt-muted dark:text-rt-dark-muted {{ $currentRole == $role->key ? 'font-semibold' : '' }}">
                                     {{ $role->name }}
                                 </div>
 
                                 @if ($currentRole == $role->key)
-                                    <svg class="ms-2 h-5 w-5 text-green-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <svg class="ms-2 h-5 w-5 text-emerald-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
                                 @endif
                             </div>
 
                             <!-- Role Description -->
-                            <div class="mt-2 text-xs text-gray-600 dark:text-slate-400">
+                            <div class="mt-2 text-xs text-rt-muted dark:text-rt-dark-muted">
                                 {{ $role->description }}
                             </div>
                         </div>

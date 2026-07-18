@@ -10,7 +10,7 @@ if (is_string($can) && $can !== '') {
 $isDeniedByCan = ! $isAllowed;
 $isDisabled = isset($attributes['disabled']) || $isDeniedByCan;
 
-$classes = 'inline-flex items-center w-full px-4 py-2 text-start text-sm leading-5 text-slate-700 dark:text-slate-200 focus:outline-none transition duration-150 ease-in-out';
+$classes = 'inline-flex items-center w-full px-4 py-2 text-start text-sm leading-5 text-slate-700 dark:text-slate-200 focus:outline-none transition-all duration-300 ease-rt-spring';
 if ($isDisabled) {
     $classes .= ' opacity-80 cursor-not-allowed';
 } else {

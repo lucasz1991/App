@@ -30,9 +30,9 @@
     <label
         for="{{ $inputId }}"
         class="inline-flex items-center gap-2 select-none
-               text-sm font-medium text-slate-700 bg-white dark:text-slate-200 dark:bg-slate-800
-               hover:bg-slate-50 dark:hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40
-               transition-colors
+               text-sm font-medium text-rt-text bg-rt-surface dark:text-rt-dark-text dark:bg-rt-dark-surface
+               hover:bg-rt-surface-muted dark:hover:bg-rt-dark-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40
+               transition-all duration-300 ease-rt-spring
                peer-checked:bg-rt-red/10 peer-checked:text-rt-red
 
                {{-- padding via CSS vars from group --}}

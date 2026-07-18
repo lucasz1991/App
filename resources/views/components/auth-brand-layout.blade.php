@@ -32,9 +32,9 @@
 
     {{-- Formular-Karte darunter --}}
     <div class="rt-auth__card">
-        <div class="w-full rounded-xl border border-rt-border bg-rt-surface p-6 text-rt-text shadow-sm dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text">
+        <div class="w-full rounded-2xl bg-rt-surface p-6 text-rt-text shadow-rt-lg ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60">
             @if ($title)
-                <h1 class="text-2xl font-semibold text-rt-text dark:text-rt-dark-text">{{ $title }}</h1>
+                <h1 class="text-2xl font-semibold tracking-tight text-rt-text dark:text-rt-dark-text">{{ $title }}</h1>
             @endif
             @if ($description)
                 <p class="mt-1 text-sm text-rt-muted dark:text-rt-dark-muted">{{ $description }}</p>
@@ -48,7 +48,7 @@
         <span>RT / 01</span><i></i><span>DE / BUNDESWEIT</span><i></i><span>24 / 7</span>
     </div>
 
-    <div style="margin-top:14px;font-size:11px;color:rgba(255,255,255,.4);text-align:center;">
+    <div class="mt-3.5 text-center text-[11px] font-medium tracking-wide text-white/40">
         {{ config('app.name') }} v{{ config('app.version') }}
     </div>
 </div>

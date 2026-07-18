@@ -1,42 +1,44 @@
 <div>
-    <div class="mb-10 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
-        <div class="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800">
-            <x-back-button :href="route('admin.employees')" />
+  <x-ui.page :title="$user->name" :eyebrow="__('app.employees')" :description="$user->email">
+    <x-slot:actions>
+        <x-back-button :href="route('admin.employees')" />
 
-            <x-dropdown align="right" width="48">
-                <x-slot name="trigger">
-                    <x-ui.buttons.button-basic :size="'sm'" :mode="'basic'">
-                        <i class="far fa-ellipsis-v mr-2"></i>
-                        {{ __('app.options') }}
-                    </x-ui.buttons.button-basic>
-                </x-slot>
+        <x-dropdown align="right" width="48">
+            <x-slot name="trigger">
+                <x-ui.buttons.button-basic :size="'sm'" :mode="'basic'">
+                    <i class="far fa-ellipsis-v mr-2"></i>
+                    {{ __('app.options') }}
+                </x-ui.buttons.button-basic>
+            </x-slot>
 
-                <x-slot name="content">
-                    @if ($user->status)
-                        <x-dropdown-link wire:click.prevent="deactivateUser()" :can="'users.edit'" class="hover:bg-yellow-100 dark:hover:bg-yellow-500/10">
-                            <i class="far fa-times-circle mr-2"></i>
-                            {{ __('app.deactivate') }}
-                        </x-dropdown-link>
-                    @else
-                        <x-dropdown-link wire:click.prevent="activateUser()" :can="'users.edit'" class="hover:bg-green-100 dark:hover:bg-green-500/10">
-                            <i class="far fa-check-circle mr-2"></i>
-                            {{ __('app.activate') }}
-                        </x-dropdown-link>
-                    @endif
-
-                    <x-dropdown-link
-                        wire:click.prevent="deleteUser()"
-                        wire:confirm="{{ __('app.delete_user_confirm') }}"
-                        :can="'users.edit'"
-                        class="text-red-700 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-500/10"
-                    >
-                        <i class="far fa-trash-alt mr-2"></i>
-                        {{ __('app.delete_user') }}
+            <x-slot name="content">
+                @if ($user->status)
+                    <x-dropdown-link wire:click.prevent="deactivateUser()" :can="'users.edit'" class="hover:bg-yellow-100 dark:hover:bg-yellow-500/10">
+                        <i class="far fa-times-circle mr-2"></i>
+                        {{ __('app.deactivate') }}
                     </x-dropdown-link>
-                </x-slot>
-            </x-dropdown>
-        </div>
+                @else
+                    <x-dropdown-link wire:click.prevent="activateUser()" :can="'users.edit'" class="hover:bg-green-100 dark:hover:bg-green-500/10">
+                        <i class="far fa-check-circle mr-2"></i>
+                        {{ __('app.activate') }}
+                    </x-dropdown-link>
+                @endif
 
+                <x-dropdown-link
+                    wire:click.prevent="deleteUser()"
+                    wire:confirm="{{ __('app.delete_user_confirm') }}"
+                    :can="'users.edit'"
+                    class="text-red-700 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-500/10"
+                >
+                    <i class="far fa-trash-alt mr-2"></i>
+                    {{ __('app.delete_user') }}
+                </x-dropdown-link>
+            </x-slot>
+        </x-dropdown>
+    </x-slot:actions>
+
+    <div class="rounded-2xl bg-rt-surface-muted p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60" data-anim="fade-up">
+      <div class="overflow-hidden rounded-[calc(1rem-2px)] bg-rt-surface dark:bg-rt-dark-surface">
         <div class="relative">
             <div class="h-24 bg-gradient-to-r from-rt-red/10 via-slate-50 to-slate-200 dark:from-rt-red/20 dark:via-slate-800 dark:to-slate-900"></div>
 
@@ -50,7 +52,7 @@
             </div>
 
             <div class="absolute left-1/2 top-full -translate-x-1/2 -translate-y-1/2">
-                <div class="h-28 w-28 overflow-hidden rounded-2xl border-4 border-white bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800 md:h-32 md:w-32">
+                <div class="h-28 w-28 overflow-hidden rounded-2xl border-4 border-white bg-white shadow-rt-md dark:border-slate-700 dark:bg-slate-800 md:h-32 md:w-32">
                     <img
                         class="h-full w-full object-cover object-center"
                         src="{{ $user->profile_photo_url }}"
@@ -93,7 +95,7 @@
                             {{ __('app.online') }}
                         </span>
                     @endif
-                    <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
+                    <span class="inline-flex items-center gap-1.5 rounded-full bg-rt-surface-muted px-3 py-1 text-xs text-slate-500 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:text-slate-400 dark:ring-rt-dark-border/60">
                         <i class="far fa-clock"></i>
                         {{ __('app.last_online') }}:
                         <span class="font-semibold text-slate-700 dark:text-slate-300">
@@ -103,6 +105,7 @@
                 </div>
             </div>
         </div>
+      </div>
     </div>
 
     <x-ui.accordion.tabs
@@ -115,10 +118,9 @@
         :collapse-at="'md'"
         default="userDetails"
         persist-key="admin.user.{{ $user->id }}.tabs"
-        class="mt-6"
     >
         {{-- TAB: Details --}}
-        <x-ui.accordion.tab-panel for="userDetails" panelClass="space-y-4 bg-white p-4 rounded-b-lg rounded-se-lg border border-slate-200 z-10 dark:bg-slate-800 dark:border-slate-700">
+        <x-ui.accordion.tab-panel for="userDetails" panelClass="space-y-4 rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 z-10 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
             <div class="w-full">
                 <section>
                     <div class="mb-3">
@@ -130,7 +132,7 @@
                                 <span>{{ __('app.user_details') }}</span>
                             </h3>
                             <div class="flex flex-wrap items-center gap-2">
-                                <span class="inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                                <span class="inline-flex items-center rounded-full bg-rt-surface-muted px-2.5 py-1 text-xs font-medium text-slate-700 shadow-rt-xs ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:text-slate-300 dark:ring-rt-dark-border/60">
                                     {{ __('app.user_id') }}: {{ $user->id }}
                                 </span>
                             </div>
@@ -139,7 +141,7 @@
 
                     <div class="pt-4">
                         <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                            <article class="rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-4 shadow-sm dark:border-slate-700 dark:from-slate-800 dark:to-slate-800">
+                            <article class="rounded-xl bg-gradient-to-b from-rt-surface-muted to-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 dark:from-rt-dark-surface-muted dark:to-rt-dark-surface dark:ring-rt-dark-border/60">
                                 <div class="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ __('app.username') }}</div>
                                 <div class="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-200">{{ $user->name }}</div>
 
@@ -155,7 +157,7 @@
                                 @endif
                             </article>
 
-                            <article class="rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-4 shadow-sm dark:border-slate-700 dark:from-slate-800 dark:to-slate-800">
+                            <article class="rounded-xl bg-gradient-to-b from-rt-surface-muted to-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 dark:from-rt-dark-surface-muted dark:to-rt-dark-surface dark:ring-rt-dark-border/60">
                                 <div class="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ __('app.registered_at') }}</div>
                                 <div class="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-200">{{ $user->created_at->format('d.m.Y') }}</div>
 
@@ -176,7 +178,7 @@
                                 </div>
                             </article>
 
-                            <article class="rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-4 shadow-sm dark:border-slate-700 dark:from-slate-800 dark:to-slate-800">
+                            <article class="rounded-xl bg-gradient-to-b from-rt-surface-muted to-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 dark:from-rt-dark-surface-muted dark:to-rt-dark-surface dark:ring-rt-dark-border/60">
                                 <div class="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ __('app.address') }}</div>
                                 @if ($profile && ($profile->street || $profile->postal_code || $profile->city || $profile->country))
                                     <div class="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-200">{{ $profile->street ?: '-' }}</div>
@@ -201,12 +203,12 @@
         </x-ui.accordion.tab-panel>
 
         {{-- TAB: Bemerkungen --}}
-        <x-ui.accordion.tab-panel for="userNotes" panelClass="space-y-4 bg-white p-4 rounded-b-lg rounded-se-lg border border-slate-200 z-10 dark:bg-slate-800 dark:border-slate-700">
+        <x-ui.accordion.tab-panel for="userNotes" panelClass="space-y-4 rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 z-10 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
             <livewire:admin.user-profile.user-notes :user-id="$user->id" :key="'user-notes-'.$user->id" />
         </x-ui.accordion.tab-panel>
 
         {{-- TAB: Dateien --}}
-        <x-ui.accordion.tab-panel for="userFiles" panelClass="space-y-4 bg-white p-4 rounded-b-lg rounded-se-lg border border-slate-200 z-10 dark:bg-slate-800 dark:border-slate-700">
+        <x-ui.accordion.tab-panel for="userFiles" panelClass="space-y-4 rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 z-10 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
             <livewire:tools.file-pools.manage-file-pools
                 :model-type="\App\Models\User::class"
                 :model-id="$user->id"
@@ -216,7 +218,7 @@
         </x-ui.accordion.tab-panel>
 
         {{-- TAB: Nachrichten --}}
-        <x-ui.accordion.tab-panel for="userMessages" panelClass="space-y-4 bg-white p-4 rounded-b-lg rounded-se-lg border border-slate-200 z-10 dark:bg-slate-800 dark:border-slate-700">
+        <x-ui.accordion.tab-panel for="userMessages" panelClass="space-y-4 rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 z-10 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
             @if (class_exists(\App\Livewire\Admin\UserProfile\UserMessages::class))
                 <livewire:admin.user-profile.user-messages :user-id="$user->id" :key="'user-messages-'.$user->id" />
             @else
@@ -227,6 +229,7 @@
             @endif
         </x-ui.accordion.tab-panel>
     </x-ui.accordion.tabs>
+  </x-ui.page>
 
     {{-- Compose-Modal fuer den Nachrichten-Tab --}}
     @can('users.messages.create')

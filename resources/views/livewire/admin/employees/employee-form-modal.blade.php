@@ -5,12 +5,12 @@
 
     <x-slot name="content">
         <div class="space-y-4">
-            <div class="text-sm text-slate-600 dark:text-slate-400">
+            <div class="text-sm text-rt-muted dark:text-rt-dark-muted">
                 {{ __('app.employee_form_intro') }}
             </div>
 
-            <div class="border border-slate-200 rounded-xl p-4 bg-white dark:bg-slate-800 dark:border-slate-700">
-                <div class="text-sm font-semibold text-slate-800 mb-3 dark:text-slate-100">{{ __('app.basic_data') }}</div>
+            <div class="rounded-xl bg-rt-surface-muted p-4 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60">
+                <div class="text-sm font-semibold text-rt-text mb-3 dark:text-rt-dark-text">{{ __('app.basic_data') }}</div>
 
                 <div class="grid md:grid-cols-2 gap-4">
                     <div>
@@ -27,8 +27,8 @@
                 </div>
             </div>
 
-            <div class="border border-slate-200 rounded-xl p-4 bg-white space-y-4 dark:bg-slate-800 dark:border-slate-700">
-                <div class="text-sm font-semibold text-slate-800 dark:text-slate-100">{{ __('app.team_and_security') }}</div>
+            <div class="rounded-xl bg-rt-surface-muted p-4 space-y-4 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60">
+                <div class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ __('app.team_and_security') }}</div>
 
                 <div class="space-y-1">
                     <x-ui.forms.label :value="__('app.team')"/>

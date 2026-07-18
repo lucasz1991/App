@@ -7,12 +7,12 @@
         </x-ui.buttons.button-basic>
     </div>
 
-    <div class="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
-        <div class="divide-y divide-slate-100 dark:divide-slate-700">
+    <div class="rounded-xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+        <div class="divide-y divide-rt-border/60 dark:divide-rt-dark-border/60">
             @forelse ($messages as $message)
                 <button type="button"
                         wire:click="showMessage({{ $message->id }})"
-                        class="flex w-full items-center justify-between gap-4 px-5 py-3 text-left transition hover:bg-slate-50 dark:hover:bg-slate-700/40">
+                        class="flex w-full items-center justify-between gap-4 px-5 py-3 text-left transition-colors duration-300 ease-rt-spring first:rounded-t-xl last:rounded-b-xl hover:bg-rt-surface-muted dark:hover:bg-rt-dark-surface-muted/60">
                     <div class="min-w-0">
                         <p class="truncate text-sm font-medium text-slate-900 dark:text-white">
                             @if ((int) $message->status === 1)

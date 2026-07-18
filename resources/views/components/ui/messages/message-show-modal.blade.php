@@ -40,9 +40,9 @@
     {{-- Inhalt --}}
     <x-slot name="content">
         @if ($message)
-            <div class="mb-4 mt-6 space-y-6 rounded-xl border border-slate-200 bg-slate-50 p-6 dark:border-slate-700 dark:bg-slate-800">
+            <div class="mb-4 mt-6 space-y-6 rounded-xl bg-rt-surface-muted p-6 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60">
                 {{-- Betreff --}}
-                <h3 class="mb-1 border-b border-slate-200 pb-2 text-xl font-semibold text-slate-900 dark:border-slate-700 dark:text-white">
+                <h3 class="mb-1 border-b border-rt-border pb-2 text-xl font-semibold tracking-tight text-rt-text dark:border-rt-dark-border dark:text-white">
                     {{ $subject }}
                 </h3>
 
@@ -63,7 +63,7 @@
                     <div class="mx-2 my-6">
                         <ul class="space-y-2">
                             @foreach ($message->files as $f)
-                                <li class="items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 md:flex">
+                                <li class="items-center justify-between gap-3 rounded-lg px-3 py-2 ring-1 ring-rt-border/60 dark:ring-rt-dark-border/60 md:flex">
                                     <div class="flex min-w-0 items-center gap-3">
                                         <img src="{{ $f->icon_or_thumbnail }}" class="h-8 w-8 rounded border border-slate-200 object-cover dark:border-slate-600" alt="">
                                         <div class="min-w-0">
@@ -78,7 +78,7 @@
                                             target="_blank"
                                             rel="noopener"
                                             title="{{ __('app.open_in_new_tab') }}"
-                                            class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-rt-red/40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                                            class="inline-flex items-center gap-2 rounded-lg border border-rt-border bg-rt-surface px-3 py-1.5 text-sm text-rt-text shadow-rt-xs transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-rt-red/40 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted"
                                         >
                                             <i class="fal fa-external-link-alt" aria-hidden="true"></i>
                                             <span>{{ __('app.open') }}</span>
@@ -89,7 +89,7 @@
                                             type="button"
                                             title="{{ __('app.download') }}"
                                             wire:click="downloadFile({{ $f->id }})"
-                                            class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-rt-red/40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                                            class="inline-flex items-center gap-2 rounded-lg border border-rt-border bg-rt-surface px-3 py-1.5 text-sm text-rt-text shadow-rt-xs transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-rt-red/40 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted"
                                         >
                                             <i class="fal fa-download" aria-hidden="true"></i>
                                             <span>{{ __('app.download') }}</span>
@@ -112,7 +112,7 @@
     <x-slot name="footer">
         <button
             type="button"
-            class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-rt-red/40 focus:ring-offset-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:focus:ring-offset-slate-900"
+            class="inline-flex items-center justify-center gap-2 rounded-lg border border-rt-border bg-rt-surface px-4 py-2 text-sm font-semibold text-rt-text shadow-rt-xs transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-rt-red/40 focus:ring-offset-2 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted dark:focus:ring-offset-slate-900"
             wire:click="$set('{{ $model }}', false)"
         >
             {{ __('app.close') }}

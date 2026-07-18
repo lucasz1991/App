@@ -4,7 +4,7 @@
 ])
 
 @php
-    $baseClasses = 'w-full rounded-lg border border-rt-border bg-rt-control py-1.5 pl-3 pr-10 text-sm text-rt-text shadow-[0_4px_14px_rgba(15,23,42,0.08)] transition hover:border-rt-accent/40 focus:border-rt-accent focus:ring focus:ring-rt-accent/30 disabled:cursor-not-allowed disabled:bg-rt-surface-muted dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:shadow-[0_4px_18px_rgba(0,0,0,0.28)] dark:hover:border-rt-dark-accent dark:disabled:bg-rt-dark-canvas';
+    $baseClasses = 'w-full rounded-lg border border-rt-border bg-rt-control py-1.5 pl-3 pr-10 text-sm text-rt-text shadow-rt-xs transition-all duration-300 ease-rt-spring hover:border-rt-accent/40 focus:border-rt-accent focus:ring focus:ring-rt-accent/30 disabled:cursor-not-allowed disabled:bg-rt-surface-muted dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:hover:border-rt-dark-accent dark:disabled:bg-rt-dark-canvas';
 @endphp
 
 <div class="relative">

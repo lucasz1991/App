@@ -200,7 +200,7 @@
 >
   <!-- Dropzone-UI (vor Livewire geschützt) -->
   <div x-ref="dzForm"
-        class="dropzone pointer-events-auto min-h-[140px] rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 transition hover:border-rt-red dark:border-slate-600 dark:bg-slate-800 dark:hover:border-rt-red"
+        class="dropzone pointer-events-auto min-h-[140px] rounded-xl border-2 border-dashed border-rt-border bg-rt-surface-muted transition-all duration-300 ease-rt-spring hover:border-rt-red/60 hover:bg-rt-red/[0.03] dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:hover:border-rt-red/60 dark:hover:bg-rt-red/[0.06]"
         wire:ignore>
     <div class="dz-message needsclick">
       <h5 class="text-slate-600 dark:text-slate-200">{{ $label }}</h5>

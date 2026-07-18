@@ -75,7 +75,7 @@
     wire:key="{{ \Illuminate\Support\Str::slug($key) }}"
 >
     <div
-        class="rounded-xl border border-rt-border bg-rt-surface p-1.5 shadow-sm dark:border-rt-dark-border dark:bg-rt-dark-surface"
+        class="rounded-xl bg-rt-surface p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60"
         role="tablist"
         aria-label="{{ __('app.profile') }}"
         @keydown.right.prevent="moveTab(1)"
@@ -92,9 +92,9 @@
                     type="button"
                     @click.prevent="selectTab(t.id)"
                     :class="openTab === t.id
-                        ? 'border-rt-accent/30 bg-rt-accent-soft text-rt-accent shadow-sm dark:border-rt-dark-accent/40 dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent'
+                        ? 'border-rt-accent/30 bg-rt-accent-soft text-rt-accent shadow-rt-xs dark:border-rt-dark-accent/40 dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent'
                         : 'border-transparent text-rt-muted hover:bg-rt-surface-muted hover:text-rt-text dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted dark:hover:text-rt-dark-text'"
-                    class="inline-flex min-h-10 items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition"
+                    class="inline-flex min-h-10 items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition-all duration-300 ease-rt-spring"
                     role="tab"
                     :id="`tab-${t.id}`"
                     :data-tab-id="t.id"
@@ -115,7 +115,7 @@
             <div class="contents">
                 <button
                     type="button"
-                    class="inline-flex min-h-10 items-center gap-2 rounded-lg border border-rt-accent/30 bg-rt-accent-soft px-4 py-2 text-sm font-semibold text-rt-accent shadow-sm dark:border-rt-dark-accent/40 dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent"
+                    class="inline-flex min-h-10 items-center gap-2 rounded-lg border border-rt-accent/30 bg-rt-accent-soft px-4 py-2 text-sm font-semibold text-rt-accent shadow-rt-xs dark:border-rt-dark-accent/40 dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent"
                     role="tab" aria-selected="true" tabindex="0"
                 >
                     <template x-if="active?.icon">
@@ -129,7 +129,7 @@
                         type="button"
                         @click="open=!open"
                         @keydown.escape.window="open=false"
-                        class="inline-flex min-h-10 items-center gap-2 rounded-lg border border-transparent px-4 py-2 text-sm font-semibold text-rt-muted transition hover:bg-rt-surface-muted hover:text-rt-text dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted dark:hover:text-rt-dark-text"
+                        class="inline-flex min-h-10 items-center gap-2 rounded-lg border border-transparent px-4 py-2 text-sm font-semibold text-rt-muted transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted hover:text-rt-text dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted dark:hover:text-rt-dark-text"
                         :aria-expanded="open" aria-haspopup="menu" title="Weitere Tabs"
                     >
                         <i class="fad fa-bars fa-lg" aria-hidden="true"></i>
@@ -140,7 +140,7 @@
                         x-cloak
                         x-show="open"
                         @click.outside="open=false"
-                        class="absolute z-20 mt-2 w-60 rounded-lg border border-rt-border bg-rt-surface p-1.5 shadow-xl dark:border-rt-dark-border dark:bg-rt-dark-surface"
+                        class="absolute z-20 mt-2 w-60 rounded-xl bg-rt-surface p-1.5 shadow-rt-md ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60"
                         role="menu"
                     >
                         <ul class="py-1 max-h-[60vh] overflow-auto">
@@ -148,7 +148,7 @@
                                 <li>
                                     <button
                                         type="button"
-                                        class="inline-flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium text-rt-text transition hover:bg-rt-surface-muted dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted"
+                                        class="inline-flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium text-rt-text transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted"
                                         role="menuitem"
                                         @click="open=false; selectTab(t.id)"
                                     >

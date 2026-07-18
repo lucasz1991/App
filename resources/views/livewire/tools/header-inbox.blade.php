@@ -4,7 +4,9 @@
             ? route('admin.messages')
             : route('messages');
     @endphp
-    <x-dropdown align="right" width="w-96">
+    <x-dropdown align="right" width="w-96"
+                dropdown-classes="!rounded-xl !shadow-rt-md"
+                content-classes="!rounded-xl !border-rt-border/60 py-1 bg-rt-surface text-rt-text dark:!border-rt-dark-border/60 dark:bg-rt-dark-surface dark:text-white">
         {{-- Trigger --}}
         <x-slot name="trigger">
             <x-topbar.control-button
@@ -36,7 +38,7 @@
 
                     <button
                         type="button"
-                        class="flex w-full items-center gap-3 p-3 text-left transition hover:bg-rt-surface-muted dark:hover:bg-rt-dark-surface-muted {{ $isUnread ? 'bg-rt-accent-soft dark:bg-rt-dark-accent-soft' : '' }}"
+                        class="flex w-full items-center gap-3 p-3 text-left transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted dark:hover:bg-rt-dark-surface-muted {{ $isUnread ? 'bg-rt-accent-soft dark:bg-rt-dark-accent-soft' : '' }}"
                         x-on:click="$wire.showMessage({{ $message->id }})"
                     >
                         <img src="{{ $senderAvatar }}" class="h-8 w-8 rounded-full object-cover" alt="">
@@ -62,7 +64,7 @@
 
                 <div class="p-3">
                     <a href="{{ $messageRoute }}"
-                       class="block rounded-lg px-4 py-2 text-center font-medium text-rt-text ring-1 ring-rt-border transition hover:bg-rt-surface-muted hover:text-rt-accent dark:text-white dark:ring-rt-dark-border dark:hover:bg-rt-dark-surface-muted dark:hover:text-white">
+                       class="block rounded-lg px-4 py-2 text-center font-medium text-rt-text shadow-rt-xs ring-1 ring-rt-border transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted hover:text-rt-accent active:scale-[0.98] dark:text-white dark:ring-rt-dark-border dark:hover:bg-rt-dark-surface-muted dark:hover:text-white">
                         {{ __('app.view_all_messages') }}
                     </a>
                 </div>

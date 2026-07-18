@@ -9,7 +9,7 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
         @livewireStyles
     </head>
-    <body class="bg-gray-50 dark:bg-slate-950 text-gray-900 dark:text-slate-200 antialiased">
+    <body class="font-sans bg-rt-canvas text-rt-text antialiased dark:bg-rt-dark-canvas dark:text-rt-dark-text">
         <main>
             {{ $slot }}
         </main>

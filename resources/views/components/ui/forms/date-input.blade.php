@@ -29,7 +29,7 @@
         id="{{ $inputId }}"
         type="text"
         placeholder="{{ $placeholder }}"
-        class="mt-1 block w-full rounded-lg border-slate-300 shadow-sm focus:border-rt-red focus:ring focus:ring-rt-red/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+        class="mt-1 block w-full rounded-lg border-rt-border bg-rt-control text-rt-text shadow-rt-xs transition-all duration-300 ease-rt-spring focus:border-rt-red focus:ring focus:ring-rt-red/30 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-text"
         :class="inline ? 'hidden' : ''"
         @if($required) required @endif
 

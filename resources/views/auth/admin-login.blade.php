@@ -3,12 +3,12 @@
         <x-validation-errors class="mt-4 mb-4" />
 
         @if (session('status'))
-            <div class="mt-4 mb-4 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+            <div class="mt-4 mb-4 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-700 ring-1 ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/30">
                 {{ session('status') }}
             </div>
         @endif
 
-        <form method="POST" action="{{ route('login') }}" class="mt-6 space-y-4">
+        <form method="POST" action="{{ route('login') }}" class="mt-6 space-y-5">
             @csrf
             <input type="hidden" name="admin_login" value="1">
 
@@ -24,7 +24,7 @@
 
             <div class="flex items-center justify-between">
                 <x-ui.forms.checkbox id="remember" name="remember" :label="__('app.remember_me')" />
-                <a href="{{ route('password.request') }}" class="text-sm text-rt-muted underline transition hover:text-rt-accent dark:text-rt-dark-muted dark:hover:text-rt-dark-accent">
+                <a href="{{ route('password.request') }}" class="text-sm text-rt-muted underline transition-colors duration-300 hover:text-rt-red dark:text-rt-dark-muted dark:hover:text-rt-dark-accent">
                     {{ __('app.forgot_password') }}
                 </a>
             </div>

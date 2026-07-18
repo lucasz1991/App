@@ -3,6 +3,7 @@
 use App\Livewire\Admin\Dashboard;
 use App\Livewire\Admin\Employees;
 use App\Livewire\Admin\MailManagement;
+use App\Livewire\Admin\Settings;
 use App\Livewire\Admin\UserProfile;
 use App\Livewire\MessageBox;
 use App\Livewire\UserDashboard;
@@ -71,6 +72,7 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
     ->group(function () {
         Route::get('/', Dashboard::class)->name('dashboard');
         Route::get('/index', Dashboard::class)->name('index');
+        Route::get('/settings', Settings::class)->name('settings');
         Route::get('/employees', Employees::class)->name('employees');
         Route::get('/user/{userId}', UserProfile::class)->name('user-profile');
         Route::get('/files', App\Livewire\Admin\FileManager::class)->name('files');

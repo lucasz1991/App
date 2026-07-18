@@ -10,7 +10,17 @@
             </x-menu.sidebar-nav-link>
         </x-menu.sidebar-nav>
 
-        <x-menu.sidebar-nav :label="__('app.system_administration')">
+        <x-menu.sidebar-nav :label="__('app.administration')">
+            @can('settings.manage')
+                <x-menu.sidebar-nav-link
+                    :href="route('admin.settings')"
+                    icon="settings"
+                    :active="request()->routeIs('admin.settings')"
+                >
+                    {{ __('app.settings') }}
+                </x-menu.sidebar-nav-link>
+            @endcan
+
             @can('employees.view')
                 <x-menu.sidebar-nav-link
                     :href="route('admin.employees')"
@@ -40,7 +50,9 @@
                     {{ __('app.mail_management') }}
                 </x-menu.sidebar-nav-link>
             @endcan
+        </x-menu.sidebar-nav>
 
+        <x-menu.sidebar-nav :label="__('app.personal_data')">
             <x-menu.sidebar-nav-link
                 :href="route('admin.messages')"
                 icon="mail"
@@ -49,6 +61,14 @@
                 {{ __('app.messages') }}
             </x-menu.sidebar-nav-link>
 
+            <x-menu.sidebar-nav-link
+                :href="route('profile.show')"
+                icon="user"
+                :active="request()->routeIs('profile.show')"
+                :navigate="false"
+            >
+                {{ __('app.profile') }}
+            </x-menu.sidebar-nav-link>
         </x-menu.sidebar-nav>
     </ul>
 </div>

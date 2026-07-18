@@ -2,7 +2,7 @@
     <x-auth-brand-layout :title="__('app.register_title')" :description="__('app.invited_registration_description')">
         <x-validation-errors class="mt-4 mb-4" />
 
-        <form method="POST" action="{{ route('invitation.register.store', $invitation->token) }}" class="mt-6 space-y-4">
+        <form method="POST" action="{{ route('invitation.register.store', $invitation->token) }}" class="mt-6 space-y-5">
             @csrf
 
             <div>
@@ -30,9 +30,9 @@
             </x-button>
         </form>
 
-        <p class="mt-6 text-center text-sm text-slate-600">
+        <p class="mt-6 text-center text-sm text-rt-muted dark:text-rt-dark-muted">
             {{ __('app.already_registered') }}
-            <a href="{{ route('login') }}" class="font-medium text-slate-900 underline hover:text-slate-700">
+            <a href="{{ route('login') }}" class="font-medium text-rt-text underline transition-colors duration-300 hover:text-rt-red dark:text-rt-dark-text dark:hover:text-rt-dark-accent">
                 {{ __('app.to_login') }}
             </a>
         </p>

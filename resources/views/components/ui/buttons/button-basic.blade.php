@@ -30,7 +30,11 @@ $isDeniedByCan = ! $isAllowed;
 $isDisabled = isset($attributes['disabled']) || $isDeniedByCan;
 
 $classes = $modeClasses . ' ' . $sizeClasses;
-$classes .= ' transition-all duration-100 inline-flex items-center justify-center gap-2 text-center font-semibold border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-slate-900 disabled:opacity-50';
+$classes .= ' transition-all duration-300 ease-rt-spring inline-flex items-center justify-center gap-2 text-center font-semibold border rounded-lg shadow-rt-xs active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-slate-900 disabled:opacity-50';
+
+if ($mode === 'primary' || $mode === 'blue') {
+    $classes .= ' hover:shadow-rt-glow hover:-translate-y-px';
+}
 
 if ($isDisabled) {
     $classes .= ' opacity-80 cursor-not-allowed';

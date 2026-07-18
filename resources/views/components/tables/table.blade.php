@@ -59,9 +59,9 @@
 {{-- Kein overflow-hidden: die Aktions-Dropdowns der Zeilen ragen ueber den
      Rahmen hinaus und wuerden sonst abgeschnitten. Die runden Ecken werden
      stattdessen ueber rounded-t/b auf Kopf- und letzter Zeile gehalten. --}}
-<div {{ $attributes->merge(['class' => 'w-full mt-4 relative rounded-xl border border-rt-border bg-rt-surface text-rt-text dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text '.$class]) }}>
+<div {{ $attributes->merge(['class' => 'w-full mt-4 relative rounded-xl bg-rt-surface text-rt-text shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60 '.$class]) }}>
     {{-- Header (nur md+) --}}
-    <div class="hidden md:grid bg-rt-surface-muted p-2 text-xs font-semibold uppercase tracking-wide text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted border-b border-rt-border dark:border-rt-dark-border text-left"
+    <div class="hidden md:grid rounded-t-xl bg-rt-surface-muted p-2 text-xs font-semibold uppercase tracking-wide text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted border-b border-rt-border dark:border-rt-dark-border text-left"
          style="grid-template-columns: {{ $gridTemplate }};">
         @foreach($columns as $col)
             @php $hidden = $hideClass($col['hideOn']); @endphp
@@ -91,7 +91,7 @@
     @php
         $isSelected = in_array($item->id, (array) $selectedItems);
     @endphp
-    <div class="relative border-b border-rt-border/60 dark:border-rt-dark-border last:border-b-0 py-2 text-sm md:px-2 hover:bg-rt-nav-hover dark:hover:bg-rt-dark-nav-hover">
+    <div class="relative border-b border-rt-border/60 dark:border-rt-dark-border last:border-b-0 last:rounded-b-xl py-2 text-sm md:px-2 transition-colors duration-300 ease-rt-spring hover:bg-rt-nav-hover dark:hover:bg-rt-dark-nav-hover">
         <div class="grid items-center" style="grid-template-columns: {{ $gridTemplate }} min-content;">
         {{-- Zellen --}}
         @if($rowView)

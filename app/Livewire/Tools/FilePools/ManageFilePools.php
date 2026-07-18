@@ -6,6 +6,7 @@ use Livewire\Component;
 use App\Models\FilePool;
 use App\Models\File;
 use App\Models\FileFolder;
+use App\Models\Team;
 use Livewire\WithPagination;
 use Livewire\WithFileUploads;
 use Illuminate\Support\Facades\Storage;
@@ -33,6 +34,16 @@ class ManageFilePools extends Component
     public string $selectedFileExpiresDate;
     public array $selectedFileShareRoles = [];
 
+    /** Datei-Sichtbarkeit (Zeitfenster ab / Auto-Loeschung / Teams) */
+    public string $selectedFileVisibleFrom = '';
+    public bool $selectedFileAutoDelete = false;
+    public array $selectedFileVisibleTeams = [];
+
+    /** Upload-Sichtbarkeit (Zeitfenster ab / Auto-Loeschung / Teams) */
+    public string $uploadVisibleFrom = '';
+    public bool $uploadAutoDelete = false;
+    public array $uploadVisibleTeams = [];
+
     public bool $openFileForm = false;
     public bool $openEditFileForm = false;
 
@@ -51,6 +62,12 @@ class ManageFilePools extends Component
     public bool $openFolderForm = false;
     public ?int $editFolderId = null;
     public string $folderName = '';
+
+    /** Ordner-Sichtbarkeit (Zeitfenster / Auto-Loeschung / Teams) */
+    public string $folderVisibleFrom = '';
+    public string $folderVisibleUntil = '';
+    public bool $folderAutoDelete = false;
+    public array $folderVisibleTeams = [];
 
     /** Ordner-Rechte (Rolle => Aktion => bool) */
     public bool $openFolderPermissions = false;
@@ -113,6 +130,10 @@ class ManageFilePools extends Component
             abort(403);
         }
 
+        if ($this->roleFilter !== null && ! $folder->isPubliclyVisible(Auth::user())) {
+            abort(403);
+        }
+
         $this->currentFolderId = $folder->id;
     }
 
@@ -120,7 +141,10 @@ class ManageFilePools extends Component
     {
         abort_if($this->readOnly, 403);
 
-        $this->reset(['editFolderId', 'folderName']);
+        $this->reset([
+            'editFolderId', 'folderName',
+            'folderVisibleFrom', 'folderVisibleUntil', 'folderAutoDelete', 'folderVisibleTeams',
+        ]);
         $this->resetValidation();
         $this->openFolderForm = true;
     }
@@ -132,6 +156,10 @@ class ManageFilePools extends Component
         $folder = FileFolder::where('file_pool_id', $this->filePoolId)->findOrFail($folderId);
         $this->editFolderId = $folder->id;
         $this->folderName = $folder->name;
+        $this->folderVisibleFrom = $folder->visible_from?->format('Y-m-d') ?? '';
+        $this->folderVisibleUntil = $folder->visible_until?->format('Y-m-d') ?? '';
+        $this->folderAutoDelete = (bool) $folder->auto_delete;
+        $this->folderVisibleTeams = array_map('intval', (array) ($folder->visible_teams ?? []));
         $this->resetValidation();
         $this->openFolderForm = true;
     }
@@ -142,21 +170,36 @@ class ManageFilePools extends Component
 
         $this->validate([
             'folderName' => ['required', 'string', 'max:255'],
+            'folderVisibleFrom' => ['nullable', 'date'],
+            'folderVisibleUntil' => ['nullable', 'date', 'after_or_equal:folderVisibleFrom'],
         ]);
+
+        $payload = [
+            'name' => $this->folderName,
+            'visible_from' => $this->folderVisibleFrom ?: null,
+            'visible_until' => $this->folderVisibleUntil ?: null,
+            'auto_delete' => (bool) $this->folderAutoDelete,
+            'visible_teams' => array_values(array_intersect(
+                array_map('intval', $this->folderVisibleTeams),
+                Team::where('personal_team', false)->pluck('id')->all()
+            )),
+        ];
 
         if ($this->editFolderId) {
             FileFolder::where('file_pool_id', $this->filePoolId)
                 ->findOrFail($this->editFolderId)
-                ->update(['name' => $this->folderName]);
+                ->update($payload);
         } else {
-            FileFolder::create([
+            FileFolder::create(array_merge($payload, [
                 'file_pool_id' => $this->filePoolId,
                 'parent_id' => $this->currentFolderId,
-                'name' => $this->folderName,
-            ]);
+            ]));
         }
 
-        $this->reset(['editFolderId', 'folderName', 'openFolderForm']);
+        $this->reset([
+            'editFolderId', 'folderName', 'openFolderForm',
+            'folderVisibleFrom', 'folderVisibleUntil', 'folderAutoDelete', 'folderVisibleTeams',
+        ]);
         $this->dispatch('swal:toast', type: 'success', text: __('app.folder_saved'));
     }
 
@@ -228,16 +271,23 @@ class ManageFilePools extends Component
             $mime     = Storage::disk('private')->mimeType($path) ?? $uploadedFile->getClientMimeType();
 
             $this->filePool->files()->create([
-                'folder_id'  => $this->currentFolderId,
-                'user_id'    => Auth::user()->id ?? null,
-                'name'       => $filename,
-                'path'       => $path,
-                'mime_type'  => $mime,
-                'size'       => $uploadedFile->getSize(),
-                'expires_at' => $this->expires[$filePoolId] ?? null,
+                'folder_id'    => $this->currentFolderId,
+                'user_id'      => Auth::user()->id ?? null,
+                'name'         => $filename,
+                'path'         => $path,
+                'mime_type'    => $mime,
+                'size'         => $uploadedFile->getSize(),
+                'expires_at'   => $this->expires[$filePoolId] ?? null,
+                'visible_from' => $this->uploadVisibleFrom ?: null,
+                'auto_delete'  => (bool) $this->uploadAutoDelete,
+                'visible_teams' => array_values(array_intersect(
+                    array_map('intval', $this->uploadVisibleTeams),
+                    Team::where('personal_team', false)->pluck('id')->all()
+                )),
             ]);
         }
         unset($this->fileUploads[$filePoolId], $this->expires[$filePoolId]);
+        $this->reset(['uploadVisibleFrom', 'uploadAutoDelete', 'uploadVisibleTeams']);
         $this->openFileForm = false;
         $this->filePool->refresh();
         $this->resetErrorBag();
@@ -254,6 +304,7 @@ class ManageFilePools extends Component
         // Nur Dateien dieses Pools; bei Rollenfilter nur freigegebene
         abort_if((int) $file->fileable_id !== (int) $this->filePoolId, 403);
         abort_if($this->roleFilter !== null && ! $this->fileVisibleForRole($file, 'download'), 403);
+        abort_if($this->roleFilter !== null && ! $file->isPubliclyVisible(Auth::user()), 403);
 
         return $file->download(); // zentral im Model
     }
@@ -282,6 +333,9 @@ class ManageFilePools extends Component
         $this->selectedFileName = $this->file->name;
         $this->selectedFileExpiresDate = $this->file->expires_at?->format('Y-m-d') ?? '';
         $this->selectedFileShareRoles = is_array($this->file->shared_roles) ? $this->file->shared_roles : [];
+        $this->selectedFileVisibleFrom = $this->file->visible_from?->format('Y-m-d') ?? '';
+        $this->selectedFileAutoDelete = (bool) $this->file->auto_delete;
+        $this->selectedFileVisibleTeams = array_map('intval', (array) ($this->file->visible_teams ?? []));
         $this->openEditFileForm = true;
     }
 
@@ -292,6 +346,7 @@ class ManageFilePools extends Component
         $this->validate([
             'selectedFileName' => 'required|string|max:255',
             'selectedFileExpiresDate' => 'nullable|date|after_or_equal:today',
+            'selectedFileVisibleFrom' => ['nullable', 'date'],
         ]);
 
         if (!$this->file) {
@@ -302,6 +357,12 @@ class ManageFilePools extends Component
         $payload = [
             'name' => $this->selectedFileName,
             'expires_at' => $this->selectedFileExpiresDate ?: null,
+            'visible_from' => $this->selectedFileVisibleFrom ?: null,
+            'auto_delete' => (bool) $this->selectedFileAutoDelete,
+            'visible_teams' => array_values(array_intersect(
+                array_map('intval', $this->selectedFileVisibleTeams),
+                Team::where('personal_team', false)->pluck('id')->all()
+            )),
         ];
 
         if ($this->allowRoleSharing) {
@@ -313,7 +374,10 @@ class ManageFilePools extends Component
 
         $this->file->update($payload);
 
-        $this->reset(['file', 'selectedFileName', 'selectedFileExpiresDate', 'selectedFileShareRoles', 'openEditFileForm']);
+        $this->reset([
+            'file', 'selectedFileName', 'selectedFileExpiresDate', 'selectedFileShareRoles', 'openEditFileForm',
+            'selectedFileVisibleFrom', 'selectedFileAutoDelete', 'selectedFileVisibleTeams',
+        ]);
         $this->filePool->refresh();
         $this->dispatch('swal:toast', type: 'success', text: __('app.file_saved'));
     }
@@ -401,6 +465,7 @@ class ManageFilePools extends Component
         if ($this->roleFilter !== null) {
             $files = $files->filter(
                 fn (File $file) => $this->fileVisibleForRole($file, 'download')
+                    && $file->isPubliclyVisible(Auth::user())
             )->values();
         }
 
@@ -475,6 +540,7 @@ class ManageFilePools extends Component
         if ($this->roleFilter !== null) {
             $folders = $folders->filter(
                 fn (FileFolder $folder) => $folder->allowsForRole($this->roleFilter, 'view')
+                    && $folder->isPubliclyVisible(Auth::user())
             )->values();
         }
 
@@ -491,6 +557,7 @@ class ManageFilePools extends Component
         if ($this->roleFilter !== null) {
             $poolFiles = $poolFiles->filter(
                 fn (File $file) => $this->fileVisibleForRole($file, 'view')
+                    && $file->isPubliclyVisible(Auth::user())
             )->values();
         }
 
@@ -500,6 +567,9 @@ class ManageFilePools extends Component
             'folders' => $folders,
             'currentFolder' => $currentFolder,
             'breadcrumb' => $currentFolder ? $currentFolder->breadcrumb() : [],
+            'teams' => $this->readOnly
+                ? collect()
+                : Team::where('personal_team', false)->orderBy('name')->get(),
         ]);
     }
 }

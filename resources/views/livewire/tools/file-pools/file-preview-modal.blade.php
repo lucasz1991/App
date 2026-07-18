@@ -38,7 +38,7 @@
             {{-- Download --}}
             <button
               wire:click="downloadFile({{ $file->id }})"
-              class="inline-flex items-center justify-center rounded-full bg-rt-surface-muted p-2 text-rt-muted transition hover:text-rt-accent dark:bg-rt-dark-surface-muted dark:text-white dark:hover:text-rt-dark-accent focus:outline-none focus:ring-2 focus:ring-rt-accent/40"
+              class="inline-flex items-center justify-center rounded-full bg-rt-surface-muted p-2 text-rt-muted transition-all duration-300 ease-rt-spring hover:text-rt-accent active:scale-[0.98] dark:bg-rt-dark-surface-muted dark:text-white dark:hover:text-rt-dark-accent focus:outline-none focus:ring-2 focus:ring-rt-accent/40"
               title="{{ __('app.download') }}"
             >
               <i class="fas fa-download w-4 h-4 leading-none"></i>
@@ -50,7 +50,7 @@
               <a
                 href="{{ $printUrl }}"
                 target="_blank" rel="noopener"
-                class="inline-flex items-center justify-center rounded-full bg-rt-surface-muted p-2 text-rt-muted transition hover:text-rt-accent dark:bg-rt-dark-surface-muted dark:text-white dark:hover:text-rt-dark-accent focus:outline-none focus:ring-2 focus:ring-rt-accent/40"
+                class="inline-flex items-center justify-center rounded-full bg-rt-surface-muted p-2 text-rt-muted transition-all duration-300 ease-rt-spring hover:text-rt-accent active:scale-[0.98] dark:bg-rt-dark-surface-muted dark:text-white dark:hover:text-rt-dark-accent focus:outline-none focus:ring-2 focus:ring-rt-accent/40"
                 title="{{ __('app.print') }}"
               >
                 <i class="fas fa-print w-4 h-4 leading-none"></i>
@@ -61,7 +61,7 @@
             {{-- Schliessen --}}
             <button
               wire:click="close"
-              class="inline-flex items-center justify-center rounded-full bg-rt-surface-muted p-2 text-rt-muted transition hover:text-rt-accent dark:bg-rt-dark-surface-muted dark:text-white dark:hover:text-rt-dark-accent focus:outline-none focus:ring-2 focus:ring-rt-accent/40"
+              class="inline-flex items-center justify-center rounded-full bg-rt-surface-muted p-2 text-rt-muted transition-all duration-300 ease-rt-spring hover:text-rt-accent active:scale-[0.98] dark:bg-rt-dark-surface-muted dark:text-white dark:hover:text-rt-dark-accent focus:outline-none focus:ring-2 focus:ring-rt-accent/40"
               title="{{ __('app.close') }}"
             >
               <i class="fas fa-times w-4 h-4 leading-none"></i>
@@ -75,7 +75,7 @@
           <div class="shrink-0">
             <button
               wire:click="close"
-              class="inline-flex items-center justify-center rounded-full bg-rt-surface-muted p-2 text-rt-muted transition hover:text-rt-accent dark:bg-rt-dark-surface-muted dark:text-white dark:hover:text-rt-dark-accent focus:outline-none focus:ring-2 focus:ring-rt-accent/40"
+              class="inline-flex items-center justify-center rounded-full bg-rt-surface-muted p-2 text-rt-muted transition-all duration-300 ease-rt-spring hover:text-rt-accent active:scale-[0.98] dark:bg-rt-dark-surface-muted dark:text-white dark:hover:text-rt-dark-accent focus:outline-none focus:ring-2 focus:ring-rt-accent/40"
               title="{{ __('app.close') }}"
             >
               <i class="fas fa-times w-4 h-4 leading-none"></i>
@@ -88,7 +88,7 @@
 
     <x-slot name="content">
       @if($file && $open)
-        <div class="overflow-hidden rounded-xl border border-rt-border bg-rt-surface dark:border-rt-dark-border dark:bg-rt-dark-surface">
+        <div class="overflow-hidden rounded-2xl bg-rt-surface shadow-rt-lg ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
           {{-- Bilder --}}
           @if($isImage)
             <div class="img-container flex min-h-[200px] items-center justify-center bg-rt-surface-muted dark:bg-rt-dark-canvas">

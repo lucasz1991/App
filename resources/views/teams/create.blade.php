@@ -1,6 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-white leading-tight">
+        <h2 class="text-xl font-semibold tracking-tight text-rt-text dark:text-rt-dark-text leading-tight">
             {{ __('Create Team') }}
         </h2>
     </x-slot>

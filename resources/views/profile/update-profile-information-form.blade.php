@@ -115,7 +115,7 @@
                 </p>
 
                 @if ($this->verificationLinkSent)
-                    <p class="mt-2 font-medium text-sm text-green-600 dark:text-green-400">
+                    <p class="mt-2 font-medium text-sm text-emerald-600 dark:text-emerald-400">
                         {{ __('Ein neuer Verifizierungslink wurde an deine E-Mail-Adresse gesendet.') }}
                     </p>
                 @endif

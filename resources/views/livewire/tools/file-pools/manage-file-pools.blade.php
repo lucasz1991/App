@@ -2,9 +2,9 @@
   {{-- Toolbar: Breadcrumbs + Aktionen --}}
   <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
     {{-- Breadcrumbs (Explorer-Pfad) --}}
-    <nav class="flex min-w-0 items-center gap-1 text-sm" aria-label="Breadcrumb">
+    <nav class="flex min-w-0 items-center gap-1 rounded-xl bg-rt-surface-muted px-2 py-1.5 text-sm dark:bg-rt-dark-surface-muted" aria-label="Breadcrumb">
       <button type="button" wire:click="enterFolder"
-              class="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 font-medium transition {{ $currentFolder ? 'text-rt-muted hover:bg-rt-surface-muted hover:text-rt-accent dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted dark:hover:text-rt-dark-accent' : 'text-rt-text dark:text-rt-dark-text' }}">
+              class="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 font-medium transition-all duration-300 ease-rt-spring {{ $currentFolder ? 'text-rt-muted hover:bg-rt-surface hover:text-rt-accent hover:shadow-rt-xs dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface dark:hover:text-rt-dark-accent' : 'text-rt-text dark:text-rt-dark-text' }}">
         <i class="fad fa-home fa-sm"></i>
         {{ __('app.root_folder') }}
       </button>
@@ -14,7 +14,7 @@
           <span class="truncate rounded-lg px-2 py-1 font-semibold text-rt-text dark:text-rt-dark-text">{{ $crumb->name }}</span>
         @else
           <button type="button" wire:click="enterFolder({{ $crumb->id }})"
-                  class="truncate rounded-lg px-2 py-1 font-medium text-rt-muted transition hover:bg-rt-surface-muted hover:text-rt-accent dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted dark:hover:text-rt-dark-accent">
+                  class="truncate rounded-lg px-2 py-1 font-medium text-rt-muted transition-all duration-300 ease-rt-spring hover:bg-rt-surface hover:text-rt-accent hover:shadow-rt-xs dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface dark:hover:text-rt-dark-accent">
             {{ $crumb->name }}
           </button>
         @endif
@@ -23,11 +23,11 @@
 
     <div class="flex items-center gap-2">
       @if(!$readOnly)
-        <button wire:click="openCreateFolder" class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-semibold rounded-lg border border-rt-border bg-rt-control text-rt-text transition hover:bg-rt-surface-muted focus:outline-none focus:ring-2 focus:ring-rt-accent/40 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:hover:bg-rt-dark-surface-muted">
+        <button wire:click="openCreateFolder" class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-semibold rounded-lg border border-rt-border bg-rt-control text-rt-text shadow-rt-xs transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-rt-accent/40 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:hover:bg-rt-dark-surface-muted">
           <i class="fad fa-folder-plus"></i>
           {{ __('app.new_folder') }}
         </button>
-        <button wire:click="$toggle('openFileForm')" class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-semibold bg-rt-red text-white rounded-lg transition hover:bg-rt-red-dark focus:outline-none focus:ring-2 focus:ring-rt-red/40 focus:ring-offset-2 dark:focus:ring-offset-slate-900">
+        <button wire:click="$toggle('openFileForm')" class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-semibold bg-rt-red text-white rounded-lg shadow-rt-xs transition-all duration-300 ease-rt-spring hover:bg-rt-red-dark hover:shadow-rt-glow active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-rt-red/40 focus:ring-offset-2 dark:focus:ring-offset-slate-900">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 3a1 1 0 011 1v4h4a1 1 0 110 2h-4v4a1 1 0 11-2 0v-4H6a1 1 0 110-2h4V4a1 1 0 011-1z"/></svg>
           {{ __('app.add') }}
         </button>
@@ -35,7 +35,7 @@
       @if($filePool && $poolFiles->count() > 0)
         <x-dropdown class="" :width="'w-max'">
           <x-slot name="trigger">
-              <button type="button" class="inline-flex items-center px-2 py-2 rounded-lg border border-rt-border bg-rt-control text-rt-text shadow-sm transition hover:bg-rt-surface-muted focus:outline-none focus:ring-2 focus:ring-rt-accent/40 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:hover:bg-rt-dark-surface-muted">
+              <button type="button" class="inline-flex items-center px-2 py-2 rounded-lg border border-rt-border bg-rt-control text-rt-text shadow-rt-xs transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-rt-accent/40 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:hover:bg-rt-dark-surface-muted">
                   <i class="fad fa-download fa-lg h-5 w-5"></i>
               </button>
           </x-slot>
@@ -53,7 +53,12 @@
   @if($folders->count() > 0)
     <div class="mb-2 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
       @foreach($folders as $folder)
-        <div class="group relative rounded-xl border border-rt-border bg-rt-surface p-3 shadow-sm transition hover:border-rt-accent/40 hover:shadow dark:border-rt-dark-border dark:bg-rt-dark-surface" wire:key="folder-{{ $folder->id }}">
+        <div class="group relative rounded-xl bg-rt-surface p-3 shadow-rt-sm ring-1 ring-rt-border/60 transition-all duration-300 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md hover:ring-rt-accent/40 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60 dark:hover:ring-rt-accent/40" wire:key="folder-{{ $folder->id }}">
+          @if($folder->auto_delete || $folder->visible_until)
+            <div class="absolute left-1.5 top-1.5 text-rt-muted dark:text-rt-dark-muted" title="{{ $folder->visible_until ? __('app.visible_until').': '.$folder->visible_until->format('d.m.Y').($folder->auto_delete ? ' · '.__('app.auto_delete') : '') : __('app.auto_delete') }}">
+              <i class="fad fa-clock text-[11px]"></i>
+            </div>
+          @endif
           <button type="button" wire:click="enterFolder({{ $folder->id }})" class="flex w-full flex-col items-center gap-1 text-center focus:outline-none">
             <i class="fad fa-folder text-4xl text-amber-400 transition group-hover:text-amber-500"></i>
             <span class="w-full truncate text-xs font-medium text-rt-text dark:text-rt-dark-text" title="{{ $folder->name }}">{{ $folder->name }}</span>
@@ -91,7 +96,7 @@
   @endif
 
   {{-- Datei-Raster --}}
-  <div class="my-6 mx-2 flex flex-wrap">
+  <div class="my-6 mx-2 flex flex-wrap" data-anim-stagger>
     @forelse($poolFiles as $file)
       <div class="w-32 mb-4 mr-4" wire:key="file-{{ $file->id }}">
         <x-ui.filepool.file-card :file="$file" :read-only="$readOnly" />
@@ -111,7 +116,7 @@
       </div>
     @empty
       @if($folders->count() === 0)
-        <div class="flex w-full flex-col items-center gap-2 rounded-xl border border-dashed border-rt-border py-10 text-center dark:border-rt-dark-border">
+        <div class="flex w-full flex-col items-center gap-2 rounded-xl border border-dashed border-rt-border bg-rt-surface-muted/60 py-12 text-center dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/40">
           <i class="fad fa-folder-open text-3xl text-rt-soft dark:text-rt-dark-soft"></i>
           <span class="text-sm text-rt-muted dark:text-rt-dark-muted">{{ __('app.no_files_available') }}</span>
         </div>
@@ -133,12 +138,45 @@
           @error('fileUploads.'.$filePool->id)
             <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
           @enderror
-        <div class="mt-4">
-          <x-ui.forms.label :value="__('app.expires_date')" />
-          <x-ui.forms.input type="date" wire:model="expires.{{ $filePool->id }}" class="mt-1 block" />
-          @error('expires.'.$filePool->id)
-            <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
-          @enderror
+        <div class="mt-4 grid gap-4 sm:grid-cols-2">
+          <div>
+            <x-ui.forms.label :value="__('app.expires_date')" />
+            <x-ui.forms.input type="date" wire:model="expires.{{ $filePool->id }}" class="mt-1 block" />
+            @error('expires.'.$filePool->id)
+              <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
+            @enderror
+          </div>
+          <div>
+            <x-ui.forms.label :value="__('app.visible_from')" />
+            <x-ui.forms.input type="date" wire:model="uploadVisibleFrom" class="mt-1 block" />
+          </div>
+        </div>
+
+        {{-- Sichtbarkeit / Team-Freigabe --}}
+        <div class="mt-4 space-y-4 rounded-xl border border-rt-border bg-rt-surface-muted/40 p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/30">
+          <div>
+            <x-ui.forms.toggle-button model="uploadAutoDelete" :label="__('app.auto_delete')" />
+            <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.auto_delete_hint') }}</p>
+          </div>
+
+          <div>
+            <x-ui.forms.label :value="__('app.team_visibility')" />
+            <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.team_visibility_hint') }}</p>
+            @if($teams->isEmpty())
+              <p class="mt-2 text-sm text-rt-muted dark:text-rt-dark-muted">{{ __('app.no_teams_available') }}</p>
+            @else
+              <div class="mt-2 max-h-40 space-y-2 overflow-y-auto rounded-lg border border-rt-border bg-rt-surface p-3 dark:border-rt-dark-border dark:bg-rt-dark-surface">
+                @foreach($teams as $team)
+                  <x-ui.forms.checkbox
+                    :id="'upload-team-'.$team->id"
+                    :value="$team->id"
+                    wire:model="uploadVisibleTeams"
+                    :label="$team->name"
+                  />
+                @endforeach
+              </div>
+            @endif
+          </div>
         </div>
       </x-slot>
       <x-slot name="footer">
@@ -171,6 +209,45 @@
             <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
           @enderror
         </div>
+
+        {{-- Sichtbarkeit / Ablauf / Team-Freigabe --}}
+        <div class="mt-6 space-y-4 rounded-xl border border-rt-border bg-rt-surface-muted/40 p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/30">
+          <p class="text-xs font-semibold uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.visibility') }}</p>
+
+          <div>
+            <x-ui.forms.label :value="__('app.visible_from')" />
+            <x-ui.forms.input type="date" wire:model="selectedFileVisibleFrom" class="mt-1 block" />
+            <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.visible_from_hint') }}</p>
+            @error('selectedFileVisibleFrom')
+              <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
+            @enderror
+          </div>
+
+          <div>
+            <x-ui.forms.toggle-button model="selectedFileAutoDelete" :label="__('app.auto_delete')" />
+            <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.auto_delete_hint') }}</p>
+          </div>
+
+          <div>
+            <x-ui.forms.label :value="__('app.team_visibility')" />
+            <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.team_visibility_hint') }}</p>
+            @if($teams->isEmpty())
+              <p class="mt-2 text-sm text-rt-muted dark:text-rt-dark-muted">{{ __('app.no_teams_available') }}</p>
+            @else
+              <div class="mt-2 max-h-40 space-y-2 overflow-y-auto rounded-lg border border-rt-border bg-rt-surface p-3 dark:border-rt-dark-border dark:bg-rt-dark-surface">
+                @foreach($teams as $team)
+                  <x-ui.forms.checkbox
+                    :id="'file-team-'.$team->id"
+                    :value="$team->id"
+                    wire:model="selectedFileVisibleTeams"
+                    :label="$team->name"
+                  />
+                @endforeach
+              </div>
+            @endif
+          </div>
+        </div>
+
         @if($allowRoleSharing && ! $currentFolder)
           <div class="mt-4">
             <x-ui.forms.label :value="__('app.shared_for_roles')" />
@@ -201,7 +278,7 @@
     </x-dialog-modal>
 
     {{-- Ordner anlegen/umbenennen --}}
-    <x-dialog-modal wire:model="openFolderForm" maxWidth="md">
+    <x-dialog-modal wire:model="openFolderForm" maxWidth="lg">
       <x-slot name="title">{{ $editFolderId ? __('app.rename_folder') : __('app.new_folder') }}</x-slot>
       <x-slot name="content">
         <x-ui.forms.label :value="__('app.folder_name')" />
@@ -209,6 +286,53 @@
         @error('folderName')
           <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
         @enderror
+
+        {{-- Sichtbarkeit / Ablauf / Team-Freigabe --}}
+        <div class="mt-6 space-y-4 rounded-xl border border-rt-border bg-rt-surface-muted/40 p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/30">
+          <p class="text-xs font-semibold uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.visibility') }}</p>
+
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div>
+              <x-ui.forms.label :value="__('app.visible_from')" />
+              <x-ui.forms.input type="date" wire:model="folderVisibleFrom" class="mt-1 block" />
+              <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.visible_from_hint') }}</p>
+              @error('folderVisibleFrom')
+                <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
+              @enderror
+            </div>
+            <div>
+              <x-ui.forms.label :value="__('app.visible_until')" />
+              <x-ui.forms.input type="date" wire:model="folderVisibleUntil" class="mt-1 block" />
+              @error('folderVisibleUntil')
+                <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
+              @enderror
+            </div>
+          </div>
+
+          <div>
+            <x-ui.forms.toggle-button model="folderAutoDelete" :label="__('app.auto_delete')" />
+            <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.auto_delete_hint') }}</p>
+          </div>
+
+          <div>
+            <x-ui.forms.label :value="__('app.team_visibility')" />
+            <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.team_visibility_hint') }}</p>
+            @if($teams->isEmpty())
+              <p class="mt-2 text-sm text-rt-muted dark:text-rt-dark-muted">{{ __('app.no_teams_available') }}</p>
+            @else
+              <div class="mt-2 max-h-40 space-y-2 overflow-y-auto rounded-lg border border-rt-border bg-rt-surface p-3 dark:border-rt-dark-border dark:bg-rt-dark-surface">
+                @foreach($teams as $team)
+                  <x-ui.forms.checkbox
+                    :id="'folder-team-'.$team->id"
+                    :value="$team->id"
+                    wire:model="folderVisibleTeams"
+                    :label="$team->name"
+                  />
+                @endforeach
+              </div>
+            @endif
+          </div>
+        </div>
       </x-slot>
       <x-slot name="footer">
           <div class="flex justify-end space-x-2">

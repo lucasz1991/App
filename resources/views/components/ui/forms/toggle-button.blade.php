@@ -15,15 +15,16 @@
     />
 
     {{-- Slider --}}
-    <div class="relative w-9 h-5 bg-slate-200 peer-focus:outline-none peer-focus:ring-4
+    <div class="relative w-9 h-5 bg-rt-surface-muted peer-focus:outline-none peer-focus:ring-4
                 peer-focus:ring-rt-red/30 dark:peer-focus:ring-rt-red/40 rounded-full peer
-                dark:bg-slate-700
+                dark:bg-rt-dark-surface-muted
+                transition-all duration-300 ease-rt-spring
                 peer-checked:after:translate-x-full
                 rtl:peer-checked:after:-translate-x-full
                 peer-checked:after:border-white
                 after:content-[''] after:absolute after:top-[2px] after:start-[2px]
-                after:bg-white after:border-slate-300 after:border after:rounded-full
-                after:h-4 after:w-4 after:transition-all dark:border-slate-600
+                after:bg-white after:border-rt-border after:border after:rounded-full
+                after:h-4 after:w-4 after:transition-all after:ease-rt-spring dark:border-rt-dark-border
                 peer-checked:bg-rt-red">
     </div>
 

@@ -19,7 +19,7 @@
 <div class="flex items-center gap-2 px-2 py-2 pr-4 {{ $hc(0) }}">
     <img src="{{ $senderAvatar }}" class="h-6 w-6 rounded-full object-cover" alt="">
     <div class="truncate">
-        <span class="text-slate-900 dark:text-slate-100 {{ $isUnread ? 'font-semibold' : 'font-medium' }}">{{ $senderName }}</span>
+        <span class="text-rt-text dark:text-rt-dark-text {{ $isUnread ? 'font-semibold' : 'font-medium' }}">{{ $senderName }}</span>
         @if ($isUnread)
             <span class="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-rt-red align-middle" aria-hidden="true"></span>
         @endif
@@ -28,15 +28,15 @@
 
 {{-- 1: Betreff --}}
 <div class="flex min-w-0 flex-col px-2 py-2 {{ $hc(1) }}">
-    <div class="truncate text-slate-900 dark:text-slate-100 {{ $isUnread ? 'font-semibold' : 'font-medium' }}">
+    <div class="truncate text-rt-text dark:text-rt-dark-text {{ $isUnread ? 'font-semibold' : 'font-medium' }}">
         {{ $item->subject }}
     </div>
 </div>
 
 {{-- 2: Nachricht (Snippet + ggf. Anhang) --}}
-<div class="grid min-w-0 grid-cols-[auto_1fr] items-center gap-2 px-2 py-2 text-slate-700 dark:text-slate-300 {{ $hc(2) }}">
+<div class="grid min-w-0 grid-cols-[auto_1fr] items-center gap-2 px-2 py-2 text-rt-muted dark:text-rt-dark-muted {{ $hc(2) }}">
     @if (($item->files_count ?? 0) > 0)
-        <i class="far fa-paperclip text-slate-500 dark:text-slate-400" aria-hidden="true"></i>
+        <i class="far fa-paperclip text-rt-soft dark:text-rt-dark-soft" aria-hidden="true"></i>
     @endif
     <div class="flex min-w-0 flex-col">
         <span class="truncate">{{ $snippet }}</span>
@@ -44,7 +44,7 @@
 </div>
 
 {{-- 3: Datum --}}
-<div class="px-2 py-2 text-xs text-slate-600 dark:text-slate-400 {{ $hc(3) }}" title="{{ $createdAbs }}">
+<div class="px-2 py-2 text-xs text-rt-muted dark:text-rt-dark-muted {{ $hc(3) }}" title="{{ $createdAbs }}">
     <div>
         {{ $createdRel }}
     </div>

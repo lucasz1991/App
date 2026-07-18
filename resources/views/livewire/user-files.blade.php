@@ -1,16 +1,13 @@
-<div class="space-y-6">
-    {{-- Kopfbereich --}}
-    <x-ui.page-header :title="__('app.my_files')" />
-
+<x-ui.page :title="__('app.my_files')" :eyebrow="__('app.personal_data')">
     {{-- Persoenlicher Standard-Downloadbereich --}}
-    <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+    <div class="rounded-xl bg-rt-surface p-6 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
         <div class="mb-5 flex items-start gap-3">
-            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-600 dark:bg-sky-500/10 dark:text-sky-300">
+            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent">
                 <i data-feather="user" class="h-5 w-5"></i>
             </span>
             <div>
-                <h2 class="font-semibold text-slate-900 dark:text-white">{{ __('app.my_files') }}</h2>
-                <p class="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Eigene, direkt für Sie bereitgestellte Downloads.</p>
+                <h2 class="font-semibold tracking-tight text-rt-text dark:text-rt-dark-text">{{ __('app.my_files') }}</h2>
+                <p class="mt-0.5 text-sm text-rt-muted dark:text-rt-dark-muted">Eigene, direkt für Sie bereitgestellte Downloads.</p>
             </div>
         </div>
         <livewire:tools.file-pools.manage-file-pools
@@ -22,9 +19,12 @@
     </div>
 
     {{-- Fuer die eigene Rolle freigegebene Firmendateien --}}
-    <h2 class="text-xl font-semibold text-rt-text dark:text-rt-dark-text">{{ __('app.shared_files') }}</h2>
+    <div data-anim="fade-up">
+        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-rt-accent dark:text-rt-dark-accent">Freigaben</p>
+        <h2 class="mt-1 text-xl font-semibold tracking-tight text-rt-text dark:text-rt-dark-text">{{ __('app.shared_files') }}</h2>
+    </div>
 
-    <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+    <div class="rounded-xl bg-rt-surface p-6 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
         <livewire:tools.file-pools.manage-file-pools
             :pool-id="\App\Models\FilePool::company()->id"
             :read-only="true"
@@ -35,21 +35,22 @@
 
     {{-- Standard-Downloadbereiche der Teams --}}
     @if ($teams->isNotEmpty())
-        <div>
-            <h2 class="text-xl font-semibold text-slate-900 dark:text-white">Team-Dateien</h2>
-            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Dokumente, die in Ihren Teams standardmäßig bereitgestellt werden.</p>
+        <div data-anim="fade-up">
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-rt-accent dark:text-rt-dark-accent">Teams</p>
+            <h2 class="mt-1 text-xl font-semibold tracking-tight text-rt-text dark:text-rt-dark-text">Team-Dateien</h2>
+            <p class="mt-1 text-sm text-rt-muted dark:text-rt-dark-muted">Dokumente, die in Ihren Teams standardmäßig bereitgestellt werden.</p>
         </div>
 
         <div class="grid gap-6 xl:grid-cols-2">
             @foreach ($teams as $team)
-                <section class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+                <section class="rounded-xl bg-rt-surface p-6 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
                     <div class="mb-5 flex items-center gap-3">
-                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-violet-50 text-violet-600 dark:bg-violet-500/10 dark:text-violet-300">
+                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent">
                             <i data-feather="users" class="h-5 w-5"></i>
                         </span>
                         <div>
-                            <h3 class="font-semibold text-slate-900 dark:text-white">{{ $team->name }}</h3>
-                            <p class="text-sm text-slate-500 dark:text-slate-400">Standard-Downloads dieses Teams</p>
+                            <h3 class="font-semibold tracking-tight text-rt-text dark:text-rt-dark-text">{{ $team->name }}</h3>
+                            <p class="text-sm text-rt-muted dark:text-rt-dark-muted">Standard-Downloads dieses Teams</p>
                         </div>
                     </div>
                     <livewire:tools.file-pools.manage-file-pools
@@ -62,4 +63,4 @@
             @endforeach
         </div>
     @endif
-</div>
+</x-ui.page>

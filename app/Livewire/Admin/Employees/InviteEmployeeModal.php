@@ -57,12 +57,16 @@ class InviteEmployeeModal extends Component
             ->whereNull('accepted_at')
             ->delete();
 
+        // Gueltigkeitsdauer aus den Einstellungen (Fallback 7 Tage)
+        $expiryDays = (int) (\App\Models\Setting::getValue('invitations', 'expiry_days') ?? 7);
+        $expiryDays = $expiryDays > 0 ? $expiryDays : 7;
+
         $invitation = StaffInvitation::create([
             'email' => $this->email,
             'role' => $this->role,
             'token' => Str::random(64),
             'invited_by' => auth()->id(),
-            'expires_at' => now()->addDays(7),
+            'expires_at' => now()->addDays($expiryDays),
         ]);
 
         try {

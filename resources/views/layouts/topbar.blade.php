@@ -2,11 +2,11 @@
     $area = $area ?? (auth()->check() && in_array(auth()->user()->role, ['admin', 'staff'], true) ? 'admin' : 'user');
     $brandHref = $area === 'admin' ? route('admin.dashboard') : route('dashboard');
 @endphp
-<nav class="fixed top-0 left-0 right-0 z-10 flex items-center border-b border-rt-border bg-rt-topbar/95 text-rt-text shadow-sm backdrop-blur dark:border-rt-dark-border dark:bg-rt-dark-topbar/95 dark:text-rt-dark-text print:hidden">
+<nav class="fixed top-0 left-0 right-0 z-10 flex items-center border-b border-rt-border/60 bg-white/85 text-rt-text shadow-rt-xs backdrop-blur-xl dark:border-rt-dark-border/60 dark:bg-slate-900/85 dark:text-rt-dark-text print:hidden">
     <div class="flex justify-between w-full">
         <div class="flex items-center topbar-brand">
             <div
-                class="hidden lg:flex navbar-brand items-center justify-between shrink px-3 h-[70px] ltr:border-r rtl:border-l border-rt-border bg-rt-topbar shadow-none dark:border-rt-dark-border dark:bg-rt-dark-topbar">
+                class="hidden lg:flex navbar-brand items-center justify-between shrink px-3 h-[70px] ltr:border-r rtl:border-l border-rt-border/60 bg-rt-topbar shadow-none dark:border-rt-dark-border/60 dark:bg-rt-dark-topbar">
                 <a href="{{ $brandHref }}"
                     class="flex items-center gap-2 text-lg flex-shrink-0 font-bold leading-[69px]">
                         <img class="inline-block w-10 aspect-square align-middle dark:brightness-0 dark:invert"
@@ -22,7 +22,7 @@
             </div>
             <!-- Toggle Button (relativ zur Sidebar positioniert, sichtbar bei kleineren Bildschirmen) -->
             <button type="button"
-                class="border-b border-rt-border text-rt-text transition hover:bg-rt-surface-muted dark:border-rt-dark-border dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted group-data-[sidebar-size=sm]:border-rt-border group-data-[sidebar-size=sm]:dark:border-rt-dark-border h-[70px] px-4 rtl:-mr-14 py-1 vertical-menu-btn text-16"
+                class="border-b border-rt-border/60 text-rt-text transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted/70 dark:border-rt-dark-border/60 dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted/70 group-data-[sidebar-size=sm]:border-rt-border/60 group-data-[sidebar-size=sm]:dark:border-rt-dark-border/60 h-[70px] px-4 rtl:-mr-14 py-1 vertical-menu-btn text-16"
                 id="vertical-menu-btn">
                 <div class="z-50 text-rt-muted dark:text-rt-dark-muted burger-container group-data-[sidebar-size=lg]:open">
                     <div class="burger-bar bar1"></div>
@@ -31,7 +31,7 @@
                 </div>
             </button>
         </div>
-        <div class="flex justify-between w-full items-center ltr:pl-6 rtl:pr-6 ltr:pr-6 rtl:pl-6 border-b border-rt-border dark:border-rt-dark-border">
+        <div class="flex justify-between w-full items-center ltr:pl-6 rtl:pr-6 ltr:pr-6 rtl:pl-6 border-b border-rt-border/60 dark:border-rt-dark-border/60">
             <div>
 
 
@@ -50,17 +50,17 @@
                             @click="open = !open"
                             @click.outside="open = false"
                             aria-label="{{ __('app.language') }}"
-                            class="gap-1.5">
+                            class="gap-1.5 shadow-rt-xs transition-all duration-300 ease-rt-spring active:scale-[0.98]">
                             <img src="{{ asset($rtCurrentLocale['flag']) }}" alt="" class="h-4 w-6 rounded-sm object-cover">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-rt-muted dark:text-rt-dark-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
                             </svg>
                         </x-topbar.control-button>
                         <div x-show="open" x-transition.opacity x-cloak
-                             class="absolute right-0 z-50 mt-1 w-44 overflow-hidden rounded-lg border border-rt-border bg-rt-surface py-1 text-rt-text shadow-lg dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text">
+                             class="absolute right-0 z-50 mt-1.5 w-44 overflow-hidden rounded-xl bg-rt-surface py-1 text-rt-text shadow-rt-md ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60">
                             @foreach ($rtLocales as $localeKey => $localeMeta)
                                 <a href="{{ route('locale.switch', $localeKey) }}"
-                                   class="flex items-center gap-2.5 px-3 py-2 text-sm transition {{ app()->getLocale() === $localeKey ? 'bg-rt-accent-soft font-medium text-rt-text dark:bg-rt-dark-accent-soft dark:text-rt-dark-text' : 'text-rt-muted hover:bg-rt-surface-muted dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted' }}">
+                                   class="flex items-center gap-2.5 px-3 py-2 text-sm transition-colors duration-300 ease-rt-spring {{ app()->getLocale() === $localeKey ? 'bg-rt-accent-soft font-medium text-rt-text dark:bg-rt-dark-accent-soft dark:text-rt-dark-text' : 'text-rt-muted hover:bg-rt-surface-muted dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted' }}">
                                     <img src="{{ asset($localeMeta['flag']) }}" alt="" class="h-4 w-6 rounded-sm object-cover">
                                     {{ $localeMeta['label'] }}
                                 </a>
@@ -73,7 +73,7 @@
                         x-data
                         @click="$store.theme?.toggle()"
                         title="{{ __('app.toggle_theme') }}"
-                        class="w-9 px-0">
+                        class="w-9 px-0 shadow-rt-xs transition-all duration-300 ease-rt-spring active:scale-[0.98]">
                         <svg x-show="!$store.theme?.dark" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
                         </svg>
@@ -93,7 +93,7 @@
                             <x-dropdown align="" width="48">
                                 <x-slot name="trigger">
                                     <button
-                                        class="flex items-center space-x-2 text-sm border-2 border-transparent rounded-full text-rt-text focus:outline-none focus:border-rt-border dark:text-white dark:focus:border-rt-dark-border transition">
+                                        class="flex items-center space-x-2 text-sm border-2 border-transparent rounded-full text-rt-text focus:outline-none focus:border-rt-border dark:text-white dark:focus:border-rt-dark-border transition-all duration-300 ease-rt-spring active:scale-[0.98]">
                                         <img class="h-8 w-8 rounded-full object-cover"
                                             src="{{ Auth::user()->profile_photo_url }}" alt="{{ Auth::user()->name }}" />
                                             <span class="hidden font-medium xl:block">{{ Auth::user()->name }}</span>
@@ -132,7 +132,7 @@
                             <x-dropdown align="" width="48">
                                 <x-slot name="trigger">
                                     <button
-                                        class="flex items-center justify-center w-10 h-10 bg-gray-100 text-gray-700 rounded-full hover:bg-gray-400 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
+                                        class="flex items-center justify-center w-10 h-10 bg-rt-surface-muted text-rt-muted rounded-full shadow-rt-xs transition-all duration-300 ease-rt-spring hover:bg-rt-nav-hover hover:text-rt-accent active:scale-[0.98] dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted dark:hover:bg-rt-dark-nav-hover dark:hover:text-rt-dark-text">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="w-5 h-5" viewBox="0 0 512 512">
                                             <path
                                             d="M337.711 241.3a16 16 0 0 0-11.461 3.988c-18.739 16.561-43.688 25.682-70.25 25.682s-51.511-9.121-70.25-25.683a16.007 16.007 0 0 0-11.461-3.988c-78.926 4.274-140.752 63.672-140.752 135.224v107.152C33.537 499.293 46.9 512 63.332 512h385.336c16.429 0 29.8-12.707 29.8-28.325V376.523c-.005-71.552-61.831-130.95-140.757-135.223zM446.463 480H65.537V376.523c0-52.739 45.359-96.888 104.351-102.8C193.75 292.63 224.055 302.97 256 302.97s62.25-10.34 86.112-29.245c58.992 5.91 104.351 50.059 104.351 102.8zM256 234.375a117.188 117.188 0 1 0-117.188-117.187A117.32 117.32 0 0 0 256 234.375zM256 32a85.188 85.188 0 1 1-85.188 85.188A85.284 85.284 0 0 1 256 32z"

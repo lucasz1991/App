@@ -8,7 +8,9 @@
             >
                 {{ __('app.dashboard') }}
             </x-menu.sidebar-nav-link>
+        </x-menu.sidebar-nav>
 
+        <x-menu.sidebar-nav :label="__('app.personal_data')">
             <x-menu.sidebar-nav-link
                 :href="route('files')"
                 icon="folder"
@@ -24,9 +26,7 @@
             >
                 {{ __('app.messages') }}
             </x-menu.sidebar-nav-link>
-        </x-menu.sidebar-nav>
 
-        <x-menu.sidebar-nav :label="__('app.account')">
             <x-menu.sidebar-nav-link
                 :href="route('profile.show')"
                 icon="user"

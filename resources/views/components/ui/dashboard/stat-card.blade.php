@@ -9,14 +9,17 @@
     };
 @endphp
 
-<x-ui.surface.card padding="p-5" {{ $attributes }}>
-    <div class="flex items-center gap-4">
-        <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg {{ $toneClasses }}">
-            {{ $slot }}
-        </span>
-        <div>
-            <p class="text-sm text-rt-muted dark:text-rt-dark-muted">{{ $label }}</p>
-            <p class="text-2xl font-semibold text-rt-text dark:text-rt-dark-text">{{ $value }}</p>
+{{-- Double-bezel: aeussere Schale + innerer Kern (Designsprache v2) --}}
+<div {{ $attributes->merge(['class' => 'rounded-2xl bg-rt-surface-muted p-1.5 ring-1 ring-rt-border/60 shadow-rt-sm dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60']) }}>
+    <div class="rounded-[calc(1rem-2px)] bg-rt-surface p-5 dark:bg-rt-dark-surface">
+        <div class="flex items-center gap-4">
+            <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg {{ $toneClasses }}">
+                {{ $slot }}
+            </span>
+            <div>
+                <p class="text-sm text-rt-muted dark:text-rt-dark-muted">{{ $label }}</p>
+                <p class="text-3xl font-semibold tracking-tight tabular-nums text-rt-text dark:text-rt-dark-text">{{ $value }}</p>
+            </div>
         </div>
     </div>
-</x-ui.surface.card>
+</div>

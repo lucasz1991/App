@@ -17,7 +17,7 @@
     <div class="grid grid-cols-[auto_1fr] gap-2 items-center">
         <div class="flex items-center">
             <div
-                class="w-4 h-4 rounded-full border cursor-pointer transition
+                class="w-4 h-4 rounded-full border cursor-pointer transition-all duration-300 ease-rt-spring
                 {{ $isSelected ? 'ring-4 ring-rt-red/40 bg-rt-red/10 border-rt-red' : 'border-slate-400 dark:border-slate-500' }}">
             </div>
         </div>
@@ -39,14 +39,14 @@
 </div>
 
 {{-- 1: E-Mail --}}
-<div class="px-2 py-2 text-slate-700 dark:text-slate-300 truncate {{ $hc(1) }}">
+<div class="px-2 py-2 text-rt-muted dark:text-rt-dark-muted truncate {{ $hc(1) }}">
     <a href="mailto:{{ $email }}" class="hover:underline">{{ $email }}</a>
 </div>
 
 {{-- 2: Team (Badge) --}}
 <div class="flex items-center px-2 py-2 text-xs {{ $hc(2) }}">
     <div class="flex items-center">
-        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300 mr-2">
+        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-rt-surface-muted text-rt-muted ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted dark:ring-rt-dark-border/60 mr-2">
             {{ $team }}
         </span>
                                 <span title="{{ $item->status ? __('app.active') : __('app.inactive') }}" class="h-4 w-4 rounded-full flex items-center justify-center {{ $item->status ? 'bg-green-400' : 'bg-red-400' }}" >    
@@ -89,7 +89,7 @@
 </div>
 
 {{-- 3: Erstellt am --}}
-<div class="px-2 py-2 text-slate-600 dark:text-slate-400 {{ $hc(3) }} ">
+<div class="px-2 py-2 text-rt-muted dark:text-rt-dark-muted {{ $hc(3) }} ">
     <div class="pr-8">
         {{ $created ?? '—' }}
     </div>

@@ -6,7 +6,7 @@
 
         <x-validation-errors class="mb-4" />
 
-        <form method="POST" action="{{ route('password.update') }}">
+        <form method="POST" action="{{ route('password.update') }}" class="space-y-5">
             @csrf
 
             <input type="hidden" name="token" value="{{ $request->route('token') }}">
@@ -16,17 +16,17 @@
                 <x-ui.forms.input id="email" class="mt-1 block" type="email" name="email" :value="old('email', $request->email)" required autofocus autocomplete="username" />
             </div>
 
-            <div class="mt-4">
+            <div>
                 <x-ui.forms.label for="password" value="{{ __('Password') }}" />
                 <x-ui.forms.input id="password" class="mt-1 block" type="password" name="password" required autocomplete="new-password" />
             </div>
 
-            <div class="mt-4">
+            <div>
                 <x-ui.forms.label for="password_confirmation" value="{{ __('Confirm Password') }}" />
                 <x-ui.forms.input id="password_confirmation" class="mt-1 block" type="password" name="password_confirmation" required autocomplete="new-password" />
             </div>
 
-            <div class="flex items-center justify-end mt-4">
+            <div class="flex items-center justify-end">
                 <x-button>
                     {{ __('Reset Password') }}
                 </x-button>

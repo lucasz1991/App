@@ -11,7 +11,7 @@
     class="relative"
     @click.away="focused = false"
 >
-    <div class="flex items-center rounded-lg border border-rt-border bg-rt-control text-rt-text shadow-sm ring ring-offset-4 ring-offset-rt-canvas transition-all duration-300 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-text dark:ring-offset-rt-dark-canvas"
+    <div class="flex items-center rounded-lg border border-rt-border bg-rt-control text-rt-text shadow-rt-xs ring ring-offset-4 ring-offset-rt-canvas transition-all duration-300 ease-rt-spring dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-text dark:ring-offset-rt-dark-canvas"
         :class="{
             'w-[300px]': focused || value.length > 0,
             'w-[30px]': !(focused || value.length > 0),
