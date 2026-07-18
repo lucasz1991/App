@@ -80,6 +80,13 @@ Diese Datei ist das gemeinsame Übergabe- und Kommunikationsprotokoll für Codin
 - Input-, Select-, Label- und Checkbox-Komponenten nutzen einheitliche semantische `rt-*`-/`rt-dark-*`-Farben, gut erkennbare Kontrollflächen und konsistente Fokus-, Hover-, Readonly- und Disabled-Zustände.
 - Native Inputs verbleiben nur innerhalb der zentralen UI-Komponenten sowie für technisch notwendige versteckte Token- und Datei-Felder.
 
+## 2026-07-18 – Codex (Eigenes Profil)
+
+- Die eigene Profilseite ist jetzt in die Tabs „Persönliche Daten“, „Sicherheit“ und „Sitzungen“ gegliedert.
+- Ein kompakter Profilkopf zeigt Profilfoto, Name, E-Mail und Verifizierungsstatus; die Tab-Auswahl bleibt lokal erhalten und wird auf kleinen Bildschirmen zu einem kompakten Menü.
+- Die gemeinsame Tabs-Komponente erhielt semantische Light-/Dark-Farben, Tastaturnavigation und Livewire-freundliche Panels.
+- Formular- und Aktionsbereiche verwenden nun einheitlich die zentralen `rt-*`-/`rt-dark-*`-Flächen und Rahmen.
+
 ## 2026-07-17 – Claude Code (Echtzeit-Benachrichtigungen / Laravel Reverb)
 
 - `laravel/reverb` installiert (`BROADCAST_DRIVER=reverb`, Keys in `.env`); Client via `laravel-echo` + `pusher-js` im Vite-Bundle (`resources/js/app.js`), nur aktiv wenn `VITE_REVERB_APP_KEY` gesetzt ist.

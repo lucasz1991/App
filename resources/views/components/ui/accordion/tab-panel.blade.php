@@ -1,13 +1,15 @@
 @props([
     'for' => null,
-    'panelClass' => 'space-y-4 bg-white p-4 rounded-b-lg rounded-se-lg border border-blue-300 z-10',
+    'panelClass' => 'space-y-6',
 ])
 
 <div
     x-show="openTab === '{{ $for }}'"
     x-cloak
-    wire:ignore
+    x-transition.opacity.duration.150ms
     role="tabpanel"
+    id="panel-{{ $for }}"
+    aria-labelledby="tab-{{ $for }}"
     :aria-hidden="openTab !== '{{ $for }}'"
     class="{{ $panelClass }}"
 >

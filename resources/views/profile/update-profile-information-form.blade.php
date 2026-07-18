@@ -50,7 +50,7 @@
                     reader.readAsDataURL(file);
                 }
             }" 
-            class="col-span-6 sm:col-span-4">
+            class="col-span-6">
                 <!-- Profilfoto-Dateieingabe -->
                 <input type="file" id="photo" class="hidden"
                             wire:model.live="photo"
@@ -93,23 +93,23 @@
         @endif
 
         <!-- Name -->
-        <div class="col-span-6 sm:col-span-4">
+        <div class="col-span-6 lg:col-span-3">
             <x-ui.forms.label for="name" value="{{ __('Benutzername') }}" />
             <x-ui.forms.input id="name" type="text" class="mt-1 block" wire:model="state.name" required autocomplete="name" />
             <x-input-error for="name" class="mt-2" />
         </div>
 
         <!-- E-Mail -->
-        <div class="col-span-6 sm:col-span-4">
+        <div class="col-span-6 lg:col-span-3">
             <x-ui.forms.label for="email" value="{{ __('E-Mail') }}" />
             <x-ui.forms.input id="email" type="email" class="mt-1 block" wire:model="state.email" required autocomplete="username" />
             <x-input-error for="email" class="mt-2" />
 
             @if (Laravel\Fortify\Features::enabled(Laravel\Fortify\Features::emailVerification()) && ! $this->user->hasVerifiedEmail())
-                <p class="text-sm mt-2 dark:text-slate-300">
+                <p class="mt-2 text-sm text-rt-muted dark:text-rt-dark-muted">
                     {{ __('Deine E-Mail-Adresse ist nicht verifiziert.') }}
 
-                    <button type="button" class="underline text-sm text-gray-600 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500" wire:click.prevent="sendEmailVerification">
+                    <button type="button" class="rounded-md text-sm text-rt-accent underline transition hover:text-rt-text focus:outline-none focus:ring-2 focus:ring-rt-accent/40 dark:text-rt-dark-accent dark:hover:text-rt-dark-text" wire:click.prevent="sendEmailVerification">
                         {{ __('Klicke hier, um die Verifizierungs-E-Mail erneut zu senden.') }}
                     </button>
                 </p>

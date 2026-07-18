@@ -8,8 +8,6 @@
 ])
 
 @php
-    use Illuminate\Support\Str;
-
     $firstKey   = array_key_first($tabs);
     $initial    = $default ?? $firstKey ?? 'tab-1';
 
@@ -30,7 +28,7 @@
             @foreach($tabs as $k => $tab)
                 @php
                     $isArray   = is_array($tab);
-                    $label     = $isArray ? ($tab['label'] ?? Str::title($k)) : $tab;
+                    $label     = $isArray ? ($tab['label'] ?? \Illuminate\Support\Str::title($k)) : $tab;
                     $iconClass = $isArray ? ($tab['icon']  ?? null) : null;
                 @endphp
                 out.push({ id: '{{ $k }}', label: @js($label), icon: @js($iconClass) });
@@ -39,6 +37,20 @@
         })(),
         get active() { return this.items.find(t => t.id === this.openTab) ?? this.items[0]; },
         get others() { return this.items.filter(t => t.id !== this.openTab); },
+        ensureActiveTab() {
+            if (!this.items.some(item => item.id === this.openTab)) {
+                this.openTab = this.items[0]?.id ?? null;
+            }
+        },
+        selectTab(id) {
+            this.openTab = id;
+        },
+        moveTab(direction) {
+            const index = this.items.findIndex(item => item.id === this.openTab);
+            const nextIndex = (index + direction + this.items.length) % this.items.length;
+            this.openTab = this.items[nextIndex].id;
+            this.$nextTick(() => this.$root.querySelector(`[data-tab-id="${this.openTab}"]`)?.focus());
+        },
         mq: null,
         setupMQ(bp) {
             if (!bp) return;
@@ -57,24 +69,35 @@
             this.collapsed = false;
         }
     }"
-    x-init="setupMQ(@js($collapseAt)); onResize(); $watch('openTab', () => onResize())"
+    x-init="ensureActiveTab(); setupMQ(@js($collapseAt)); onResize(); $watch('openTab', () => onResize())"
     class="w-full"
-    role="tablist"
-    wire:key="tutor-course-tabs"
-    wire:ignore
+    wire:key="{{ \Illuminate\Support\Str::slug($key) }}"
 >
-    <div class="flex -mb-[1px]" x-ref="row" x-resize.debounce.150ms="onResize()">
+    <div
+        class="rounded-xl border border-rt-border bg-rt-surface p-1.5 shadow-sm dark:border-rt-dark-border dark:bg-rt-dark-surface"
+        role="tablist"
+        aria-label="{{ __('app.profile') }}"
+        @keydown.right.prevent="moveTab(1)"
+        @keydown.left.prevent="moveTab(-1)"
+        @keydown.home.prevent="selectTab(items[0].id)"
+        @keydown.end.prevent="selectTab(items[items.length - 1].id)"
+        wire:ignore
+    >
+    <div class="flex gap-1" x-ref="row" x-resize.debounce.150ms="onResize()">
         <!-- Normalmodus: alle Tabs (Layout unverändert) -->
         <template x-if="!collapsed">
             <template x-for="t in items" :key="t.id">
                 <button
                     type="button"
-                    @click.prevent="openTab = t.id"
+                    @click.prevent="selectTab(t.id)"
                     :class="openTab === t.id
-                        ? 'text-blue-600 font-bold border-blue-300 bg-white border-b-0'
-                        : 'text-gray-500 font-medium bg-white border-gray-300 border-b-blue-300'"
-                    class="mr-2 px-4 py-2 text-sm transition-all border border-blue-300 border-b-blue-300 rounded-t-lg inline-flex items-center gap-2"
+                        ? 'border-rt-accent/30 bg-rt-accent-soft text-rt-accent shadow-sm dark:border-rt-dark-accent/40 dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent'
+                        : 'border-transparent text-rt-muted hover:bg-rt-surface-muted hover:text-rt-text dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted dark:hover:text-rt-dark-text'"
+                    class="inline-flex min-h-10 items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition"
                     role="tab"
+                    :id="`tab-${t.id}`"
+                    :data-tab-id="t.id"
+                    :aria-controls="`panel-${t.id}`"
                     :aria-selected="openTab === t.id"
                     :tabindex="openTab === t.id ? 0 : -1"
                 >
@@ -91,7 +114,7 @@
             <div class="contents">
                 <button
                     type="button"
-                    class="mr-2 px-4 py-2 text-sm transition-all border border-blue-300 border-b-blue-300 rounded-t-lg inline-flex items-center gap-2 text-blue-600 font-bold bg-white border-b-0"
+                    class="inline-flex min-h-10 items-center gap-2 rounded-lg border border-rt-accent/30 bg-rt-accent-soft px-4 py-2 text-sm font-semibold text-rt-accent shadow-sm dark:border-rt-dark-accent/40 dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent"
                     role="tab" aria-selected="true" tabindex="0"
                 >
                     <template x-if="active?.icon">
@@ -105,7 +128,7 @@
                         type="button"
                         @click="open=!open"
                         @keydown.escape.window="open=false"
-                        class="px-4 py-2 text-sm transition-all border border-blue-300 border-b-blue-300 rounded-t-lg inline-flex items-center gap-2 text-gray-500 font-medium bg-white border-b-blue-300"
+                        class="inline-flex min-h-10 items-center gap-2 rounded-lg border border-transparent px-4 py-2 text-sm font-semibold text-rt-muted transition hover:bg-rt-surface-muted hover:text-rt-text dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted dark:hover:text-rt-dark-text"
                         :aria-expanded="open" aria-haspopup="menu" title="Weitere Tabs"
                     >
                         <i class="fad fa-bars fa-lg" aria-hidden="true"></i>
@@ -116,7 +139,7 @@
                         x-cloak
                         x-show="open"
                         @click.outside="open=false"
-                        class="absolute z-20 mt-1 w-56 rounded-md border border-gray-200 bg-white shadow"
+                        class="absolute z-20 mt-2 w-60 rounded-lg border border-rt-border bg-rt-surface p-1.5 shadow-xl dark:border-rt-dark-border dark:bg-rt-dark-surface"
                         role="menu"
                     >
                         <ul class="py-1 max-h-[60vh] overflow-auto">
@@ -124,9 +147,9 @@
                                 <li>
                                     <button
                                         type="button"
-                                        class="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 inline-flex items-center gap-2"
+                                        class="inline-flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium text-rt-text transition hover:bg-rt-surface-muted dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted"
                                         role="menuitem"
-                                        @click="open=false; openTab = t.id"
+                                        @click="open=false; selectTab(t.id)"
                                     >
                                         <template x-if="t.icon">
                                             <i :class="t.icon + ' fa-lg'" aria-hidden="true"></i>
@@ -141,8 +164,9 @@
             </div>
         </template>
     </div>
+    </div>
 
-    <div>
+    <div class="mt-6">
         {{ $slot }}
     </div>
 </div>

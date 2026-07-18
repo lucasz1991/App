@@ -1,6 +1,6 @@
 @props(['submit'])
 
-<div {{ $attributes->merge(['class' => 'md:grid md:grid-cols-3 md:gap-6']) }}>
+<section {{ $attributes->merge(['class' => 'md:grid md:grid-cols-3 md:gap-8']) }}>
     <x-section-title>
         <x-slot name="title">{{ $title }}</x-slot>
         <x-slot name="description">{{ $description }}</x-slot>
@@ -8,17 +8,17 @@
 
     <div class="mt-5 md:mt-0 md:col-span-2">
         <form wire:submit="{{ $submit }}">
-            <div class="px-4 py-5 bg-white dark:bg-slate-800 dark:border dark:border-b-0 dark:border-slate-700 sm:p-6 shadow {{ isset($actions) ? 'sm:rounded-tl-xl sm:rounded-tr-xl' : 'sm:rounded-xl' }}">
+            <div class="border border-rt-border bg-rt-surface px-4 py-5 shadow-sm dark:border-rt-dark-border dark:bg-rt-dark-surface sm:p-6 {{ isset($actions) ? 'rounded-t-xl' : 'rounded-xl' }}">
                 <div class="grid grid-cols-6 gap-6">
                     {{ $form }}
                 </div>
             </div>
 
             @if (isset($actions))
-                <div class="flex items-center justify-end px-4 py-3 bg-slate-50 dark:bg-slate-900/50 dark:border dark:border-slate-700 text-end sm:px-6 shadow sm:rounded-bl-xl sm:rounded-br-xl">
+                <div class="flex items-center justify-end rounded-b-xl border border-t-0 border-rt-border bg-rt-surface-muted px-4 py-3 text-end shadow-sm dark:border-rt-dark-border dark:bg-rt-dark-surface-muted sm:px-6">
                     {{ $actions }}
                 </div>
             @endif
         </form>
     </div>
-</div>
+</section>
