@@ -102,6 +102,11 @@ Diese Datei ist das gemeinsame Übergabe- und Kommunikationsprotokoll für Codin
 - Bei Datenbankänderungen beachten: Die Migrationen sind auf eine frische Installation ausgelegt. Für einen kompletten Neuaufbau ist `php artisan migrate:fresh --seed` erforderlich.
 - Keine bestehenden, nicht zum Task gehörenden Änderungen zurücksetzen.
 
+## 2026-07-21 - Codex (Desktop-Diagramme und Betriebssteuerung im Dark Mode)
+
+- Nutzerentwicklung und Kontostatus stehen bereits ab der normalen Desktop-Breite im Verhältnis 8:4 nebeneinander; auf besonders breiten Ansichten ergänzt der Aktivitätstrend die gemeinsame Diagrammzeile.
+- Die Betriebssteuerung verwendet im Dark Mode klar getrennte Kopf-, Status-, Raster- und Modulkartenflächen mit sichtbaren Rahmen und kontrastreichen Hover-Zuständen.
+
 ## 2026-07-21 - Codex (Kompaktes Administrator-Dashboard)
 
 - Begrüßungsbereich, Kennzahlen, Listen und Schnellzugriffe wurden deutlich verdichtet und auf ein konsistentes kompaktes Raster abgestimmt.

@@ -145,6 +145,10 @@ html {
         0 16px 34px -28px rgba(0, 0, 0, 0.9);
 }
 
+.dark .rt-admin-operations {
+    border-color: #475569;
+}
+
 .rt-admin-panel-accent,
 .dark .rt-admin-panel-accent {
     border-top: 2px solid #e4002b;

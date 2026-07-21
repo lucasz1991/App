@@ -188,7 +188,12 @@ class AdminDashboardRedesignTest extends TestCase
         $this->assertIsInt($operationalPreviewPosition);
         $this->assertLessThan($operationalPreviewPosition, $growthChartPosition);
         $this->assertStringContainsString('h-[210px] sm:h-[225px]', $dashboard);
-        $this->assertStringContainsString('grid gap-3 lg:grid-cols-2 xl:grid-cols-12', $dashboard);
+        $this->assertStringContainsString('grid gap-3 lg:grid-cols-12', $dashboard);
+        $this->assertStringContainsString('lg:col-span-8 xl:col-span-6', $dashboard);
+        $this->assertStringContainsString('lg:col-span-4 xl:col-span-3', $dashboard);
+        $this->assertStringContainsString('rt-admin-operations', $dashboard);
+        $this->assertStringContainsString('dark:bg-slate-900', $dashboard);
+        $this->assertStringContainsString('dark:bg-slate-800 dark:hover:bg-slate-700', $dashboard);
         $this->assertStringNotContainsString('lg:min-h-[25rem]', $dashboard);
         $this->assertStringNotContainsString('h-[270px] sm:h-[300px]', $dashboard);
         $this->assertStringNotContainsString('bg-[#111827] p-5 text-white', $dashboard);
