@@ -168,6 +168,13 @@ class AdminDashboardRedesignTest extends TestCase
         $this->assertStringNotContainsString('bg-white/[0.07]', $dashboard);
         $this->assertStringContainsString('.rt-admin-panel', $styles);
         $this->assertStringContainsString('border: 1px solid #d5dee9', $styles);
+        $this->assertStringContainsString('data-dashboard-progress', $dashboard);
+        $this->assertStringNotContainsString('data-dashboard-delay', $dashboard);
+        $this->assertStringNotContainsString('transition-[width]', $dashboard);
+        $this->assertStringContainsString('window.gsap.matchMedia()', $applicationScript);
+        $this->assertStringContainsString('scaleX: progressTarget', $applicationScript);
+        $this->assertStringContainsString('.dark .rt-admin-hero::before', $styles);
+        $this->assertStringContainsString('dark:text-white', $dashboard);
     }
 
     private function createTeam(User $owner, string $name): Team

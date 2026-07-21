@@ -78,6 +78,12 @@ Diese Datei ist das gemeinsame Übergabe- und Kommunikationsprotokoll für Codin
 - Nutzerentwicklung, Kontostatus und Aktivität verwenden nun feine Linien, schmale Marker, einen reduzierten Statusring und kompaktere Beschriftungen.
 - Kaum erkennbare `opacity-10`-Glasflächen wurden durch solide RailTime-Panels, sichtbare Rahmen und kontrastreiche Dark-Mode-Flächen ersetzt.
 
+## 2026-07-21 - Codex (KPI-Animation und themefähiger Dashboard-Banner)
+
+- KPI-Zähler starten nun stabil bei null, zählen koordiniert bis zum echten Wert und springen nicht mehr nachträglich vom bereits sichtbaren Endwert zurück.
+- Die Aktivquote wird per GPU-beschleunigtem `scaleX` animiert; reduzierte Bewegung, Cleanup und `wire:navigate` werden über `gsap.matchMedia()` berücksichtigt.
+- Das KPI-Raster nutzt lückenlose 2-/3-/5-Spaltenstufen. Der Dashboard-Banner besitzt jetzt getrennte helle und dunkle Oberflächen statt eines fest verdrahteten Dark-Designs.
+
 ## 2026-07-21 - Codex (Automatische teambezogene Willkommensnachrichten)
 
 - Neu angelegte Mitarbeiter erhalten automatisch eine interne RailTime-Willkommensnachricht und dieselbe Kommunikation als E-Mail mit zentraler Firmensignatur.

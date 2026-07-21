@@ -12,7 +12,7 @@ class MobileAdminCommunicationUiTest extends TestCase
         $managementDashboard = file_get_contents(resource_path('views/livewire/management-dashboard.blade.php'));
 
         $this->assertStringContainsString('rt-admin-hero', $adminDashboard);
-        $this->assertStringContainsString('grid grid-cols-2 gap-3 xl:grid-cols-5', $adminDashboard);
+        $this->assertStringContainsString('grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5', $adminDashboard);
         $this->assertGreaterThanOrEqual(4, substr_count($adminDashboard, 'data-dashboard-count'));
 
         $this->assertStringContainsString('grid grid-cols-4 gap-1.5', $managementDashboard);

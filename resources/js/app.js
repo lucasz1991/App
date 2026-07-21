@@ -396,15 +396,16 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
 
 Alpine.data('adminDashboardCharts', (config = {}) => ({
     charts: [],
-    counterTweens: [],
+    kpiMotion: null,
     themeObserver: null,
     resizeObserver: null,
     renderTimer: null,
     renderRequest: null,
 
     init() {
+        this.animateCounters();
+
         this.$nextTick(() => {
-            this.animateCounters();
             this.renderCharts();
         });
 
@@ -423,34 +424,90 @@ Alpine.data('adminDashboardCharts', (config = {}) => ({
         window.clearTimeout(this.renderTimer);
         this.themeObserver?.disconnect();
         this.resizeObserver?.disconnect();
-        this.counterTweens.forEach((tween) => tween.kill());
+        this.kpiMotion?.revert();
         this.destroyCharts();
     },
 
     animateCounters() {
         const formatter = new Intl.NumberFormat(document.documentElement.lang || 'de-DE');
-        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const counters = Array.from(this.$root.querySelectorAll('[data-dashboard-count]'))
+            .map((element) => ({
+                element,
+                target: Number(element.dataset.dashboardCount),
+                value: 0,
+                rendered: null,
+            }))
+            .filter((counter) => Number.isFinite(counter.target));
+        const progress = this.$root.querySelector('[data-dashboard-progress]');
+        const progressTarget = Math.min(100, Math.max(0, Number(progress?.dataset.dashboardProgress || 0))) / 100;
 
-        this.$root.querySelectorAll('[data-dashboard-count]').forEach((element) => {
-            const target = Number(element.dataset.dashboardCount || 0);
-
-            if (!window.gsap || reduceMotion) {
-                element.textContent = formatter.format(target);
-                return;
-            }
-
-            const state = { value: 0 };
-            const tween = window.gsap.to(state, {
-                value: target,
-                duration: 1.15,
-                delay: Number(element.dataset.dashboardDelay || 0),
-                ease: 'power3.out',
-                onUpdate: () => {
-                    element.textContent = formatter.format(Math.round(state.value));
-                },
+        const renderFinalState = () => {
+            counters.forEach((counter) => {
+                counter.element.textContent = formatter.format(counter.target);
             });
-            this.counterTweens.push(tween);
-        });
+
+            if (progress) {
+                window.gsap?.set(progress, { scaleX: progressTarget, transformOrigin: 'left center' });
+            }
+        };
+
+        this.kpiMotion?.revert();
+
+        if (!window.gsap) {
+            renderFinalState();
+            return;
+        }
+
+        this.kpiMotion = window.gsap.matchMedia();
+        this.kpiMotion.add(
+            {
+                reduceMotion: '(prefers-reduced-motion: reduce)',
+                animateMotion: '(prefers-reduced-motion: no-preference)',
+            },
+            ({ conditions }) => {
+                if (conditions.reduceMotion) {
+                    renderFinalState();
+                    return;
+                }
+
+                counters.forEach((counter) => {
+                    counter.value = 0;
+                    counter.rendered = 0;
+                    counter.element.textContent = formatter.format(0);
+                });
+
+                window.gsap.to(counters, {
+                    value: (index) => counters[index].target,
+                    duration: 0.82,
+                    ease: 'power2.out',
+                    overwrite: true,
+                    onUpdate: () => {
+                        counters.forEach((counter) => {
+                            const nextValue = Math.round(counter.value);
+                            if (nextValue === counter.rendered) return;
+
+                            counter.rendered = nextValue;
+                            counter.element.textContent = formatter.format(nextValue);
+                        });
+                    },
+                    onComplete: renderFinalState,
+                });
+
+                if (progress) {
+                    window.gsap.fromTo(
+                        progress,
+                        { scaleX: 0, transformOrigin: 'left center' },
+                        {
+                            scaleX: progressTarget,
+                            duration: 0.95,
+                            ease: 'power3.out',
+                            overwrite: 'auto',
+                        },
+                    );
+                }
+            },
+            this.$root,
+        );
     },
 
     destroyCharts() {
