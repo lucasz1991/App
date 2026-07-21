@@ -21,6 +21,7 @@ return [
     'german' => 'Deutsch',
     'english' => 'Englisch',
     'toggle_theme' => 'Hell/Dunkel umschalten',
+    'toggle_sound' => 'Töne ein-/ausschalten',
     'select_section' => 'Bereich wählen',
 
     // Dashboards

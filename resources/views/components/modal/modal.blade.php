@@ -32,12 +32,15 @@
     x-on:keydown.escape.window="close()"
     x-show="show"
     id="{{ $id }}"
-    class="rt-ui-modal jetstream-modal fixed inset-0 overflow-y-auto px-4 py-6 z-50"
-    style="display: none; z-index: 9999 !important;"
+    class="rt-ui-modal jetstream-modal fixed inset-0 z-[130] overflow-y-auto px-4 py-6"
+    style="display: none;"
 >
     {{-- Overlay --}}
     <div
         x-show="show"
+        role="dialog"
+        aria-modal="true"
+        aria-label="{{ $attributes->get('aria-label', config('app.name') . ' Dialog') }}"
         class="fixed inset-0 transform transition-all"
         x-on:click="close()"
         x-transition:enter="ease-out duration-300"
@@ -72,6 +75,7 @@
                 @if(!$trapClose)
                     <button
                         type="button"
+                        aria-label="{{ __('app.close') }}"
                         class="rt-ui-button rt-ui-button-secondary absolute right-2 top-2 rounded-lg p-2 text-rt-muted transition hover:bg-rt-nav-hover hover:text-rt-text dark:text-rt-dark-muted dark:hover:bg-rt-dark-nav-hover dark:hover:text-white"
                         @click="close()"
                     >

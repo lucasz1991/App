@@ -17,12 +17,17 @@ class HeaderInbox extends Component
 
     public function mount(): void
     {
-        $this->loadInbox();
+        // Beim ersten Laden keinen Benachrichtigungston ausloesen — nur
+        // wenn die Zaehler im laufenden Betrieb (Polling/Refresh) steigen.
+        $this->loadInbox(notify: false);
     }
 
     #[On('inbox:refresh')]
-    public function loadInbox(): void
+    public function loadInbox(bool $notify = true): void
     {
+        $previousUnreadMessages = $this->unreadMessagesCount;
+        $previousUnreadChatMessages = $this->unreadChatMessagesCount;
+
         $user = Auth::user();
 
         if (! $user) {
@@ -56,6 +61,16 @@ class HeaderInbox extends Component
                     ->orWhereColumn('chat_messages.created_at', '>', 'chat_user.last_read_at');
             })
             ->count();
+
+        // Polling-Fallback ohne Reverb: Steigt ein Ungelesen-Zaehler, den
+        // Nachrichtenton anstossen (app.js spielt ihn nur, wenn kein Echo
+        // laeuft — sonst klingelt bereits der Echtzeit-Toast).
+        if ($notify && (
+            $this->unreadMessagesCount > $previousUnreadMessages
+            || $this->unreadChatMessagesCount > $previousUnreadChatMessages
+        )) {
+            $this->dispatch('rt:inbox-increased');
+        }
     }
 
     public function render()

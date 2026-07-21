@@ -21,12 +21,12 @@
         </x-dropdown-link>
 
         @if ($item->status)
-            <x-dropdown-link wire:click.prevent="deactivateUser({{ $item->id }})" :can="'employees.create'" class="hover:bg-amber-50 dark:hover:bg-amber-500/10">
+            <x-dropdown-link wire:click.prevent="deactivateUser({{ $item->id }})" :can="'employees.create'" tone="warning">
                 <i class="far fa-pause-circle mr-2"></i>
                 {{ __('app.deactivate') }}
             </x-dropdown-link>
         @else
-            <x-dropdown-link wire:click.prevent="activateUser({{ $item->id }})" :can="'employees.create'" class="hover:bg-emerald-50 dark:hover:bg-emerald-500/10">
+            <x-dropdown-link wire:click.prevent="activateUser({{ $item->id }})" :can="'employees.create'" tone="success">
                 <i class="far fa-play-circle mr-2"></i>
                 {{ __('app.activate') }}
             </x-dropdown-link>
@@ -37,7 +37,7 @@
                 <x-dropdown-link
                     wire:click.prevent="deleteUser({{ $item->id }})"
                     wire:confirm="{{ __('app.delete_user_confirm') }}"
-                    class="text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
+                    tone="danger"
                 >
                     <i class="far fa-trash-alt mr-2"></i>
                     {{ __('app.delete_user') }}

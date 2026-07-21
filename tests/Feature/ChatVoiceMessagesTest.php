@@ -45,7 +45,9 @@ class ChatVoiceMessagesTest extends TestCase
 
         Livewire::actingAs($sender)
             ->test(ChatBox::class)
+            ->assertSet('selectedChatId', $chat->id)
             ->set('voiceUpload', UploadedFile::fake()->create('aufnahme.webm', 128, 'audio/webm'))
+            ->assertSet('voiceUpload', fn ($upload) => $upload !== null)
             ->call('sendVoice', true)
             ->assertHasNoErrors();
 

@@ -26,7 +26,9 @@
         if (!container) {
             container = document.createElement('div');
             container.id = 'rt-toast-container';
-            container.style.cssText = 'position:fixed;top:16px;right:16px;z-index:99999;display:flex;flex-direction:column;gap:8px;max-width:340px;';
+            container.setAttribute('aria-live', 'polite');
+            container.setAttribute('aria-relevant', 'additions');
+            container.style.cssText = 'position:fixed;top:16px;right:16px;z-index:99999;display:flex;flex-direction:column;gap:8px;width:340px;max-width:calc(100vw - 32px);';
             document.body.appendChild(container);
         }
         return container;
@@ -85,6 +87,8 @@
 
         var toast = document.createElement('div');
         toast.className = 'rt-toast';
+        toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+        toast.setAttribute('aria-atomic', 'true');
         toast.style.borderLeftColor = COLORS[type] || COLORS.info;
 
         var titleElement = document.createElement('strong');

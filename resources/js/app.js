@@ -58,6 +58,21 @@ Alpine.store('theme', {
     },
 });
 
+// Zentraler Sound-Store: spiegelt die RTSound-Einstellung (rt-sounds.js,
+// localStorage 'rt-sound') fuer den Topbar-Schalter. Beim Einschalten gibt
+// ein kurzer Bestaetigungston direkt hoerbares Feedback.
+Alpine.store('sound', {
+    enabled: localStorage.getItem('rt-sound') !== 'false',
+
+    toggle() {
+        this.enabled = !this.enabled;
+        localStorage.setItem('rt-sound', this.enabled ? 'true' : 'false');
+        if (this.enabled) {
+            window.RTSound?.play('success');
+        }
+    },
+});
+
 // Theme auf <html>/<body> anwenden. Noetig nach jeder wire:navigate-
 // Navigation, weil Livewire dabei das <html>-Element (inkl. dark-Klasse)
 // durch die serverseitig gerenderte Version ersetzt — dokumentiertes
@@ -149,7 +164,7 @@ Alpine.data('chatRealtime', (config) => ({
     chunks: [],
 
     init() {
-        this.recordingLabel = config.recordingText || 'Aufnahme';
+        this.recordingLabel = '0:00';
 
         if (!window.Echo || !config.chatId) {
             return;
@@ -183,6 +198,10 @@ Alpine.data('chatRealtime', (config) => ({
     destroy() {
         window.clearTimeout(this.typingTimer);
         window.clearInterval(this.recordingTimer);
+        if (this.recorder?.state === 'recording') {
+            this.recordingIntent = 'cancel';
+            this.recorder.stop();
+        }
         this.stopRecordingTracks();
 
         if (window.Echo && config.chatId) {
@@ -329,7 +348,7 @@ Alpine.data('chatRealtime', (config) => ({
         this.sendingVoice = false;
         this.recordingIntent = null;
         this.recordingSeconds = 0;
-        this.recordingLabel = config.recordingText || 'Aufnahme';
+        this.recordingLabel = '0:00';
         this.chunks = [];
         this.recorder = null;
         this.viewOnce = false;
@@ -343,7 +362,7 @@ Alpine.data('chatRealtime', (config) => ({
     updateRecordingLabel() {
         const minutes = Math.floor(this.recordingSeconds / 60);
         const seconds = String(this.recordingSeconds % 60).padStart(2, '0');
-        this.recordingLabel = `${config.recordingText || 'Aufnahme'} ${minutes}:${seconds}`;
+        this.recordingLabel = `${minutes}:${seconds}`;
     },
 }));
 
@@ -721,6 +740,51 @@ Alpine.data('adminDashboardCharts', (config = {}) => ({
     },
 }));
 
+// ---------------------------------------------------------------
+// Fehlerton bei Validierungsfehlern: Livewire fuehrt den Fehler-Bag im
+// Snapshot-memo mit. Nach jedem Commit mit echtem Action-Aufruf (Button/
+// Submit, kein reines wire:model-Sync und kein Event-Dispatch) wird der
+// Fehler-Bag mit dem Stand vor dem Request verglichen — tauchen neue oder
+// geaenderte Fehler auf, spielt rt-sounds.js den Error-Ton. Der Vergleich
+// verhindert Fehltoene, wenn alte Fehler nur unveraendert weitergereicht
+// werden (z.B. beim Schliessen eines Modals nach fehlgeschlagenem Save).
+// ---------------------------------------------------------------
+function rtErrorSignature(snapshot) {
+    try {
+        const parsed = typeof snapshot === 'string' ? JSON.parse(snapshot) : snapshot;
+        const errors = parsed?.memo?.errors || {};
+        const keys = Object.keys(errors).sort();
+
+        if (keys.length === 0) {
+            return '';
+        }
+
+        return JSON.stringify(keys.map((key) => [key, errors[key]]));
+    } catch (_) {
+        return '';
+    }
+}
+
+Livewire.hook('commit', ({ component, commit, succeed }) => {
+    const hasUserCall = (commit?.calls || []).some(
+        (call) => call?.method && call.method !== '__dispatch' && call.method !== '$refresh',
+    );
+
+    if (!hasUserCall) {
+        return;
+    }
+
+    const previousSignature = rtErrorSignature(component?.snapshot ?? component?.snapshotEncoded);
+
+    succeed(({ snapshot }) => {
+        const nextSignature = rtErrorSignature(snapshot);
+
+        if (nextSignature !== '' && nextSignature !== previousSignature) {
+            window.RTSound?.play('error');
+        }
+    });
+});
+
 Livewire.start();
 
 rtApplyTheme();
@@ -745,7 +809,7 @@ rtApplyTheme();
             const text = [from, event.subject].filter(Boolean).join(' — ');
 
             window.dispatchEvent(new CustomEvent('swal:toast', {
-                detail: { type: 'info', title, text },
+                detail: { type: 'info', title, text, sound: 'message' },
             }));
 
             Livewire.dispatch('inbox:refresh');
@@ -755,13 +819,33 @@ rtApplyTheme();
             const text = event.from ? `${lang.from || 'Von'}: ${event.from}` : '';
 
             window.dispatchEvent(new CustomEvent('swal:toast', {
-                detail: { type: 'info', title, text },
+                detail: { type: 'info', title, text, sound: 'message' },
             }));
 
             Livewire.dispatch('chat:refresh', { chatId: Number(event.chatId) });
             Livewire.dispatch('inbox:refresh');
         });
 })();
+
+// ---------------------------------------------------------------
+// Weitere Sound-Ausloeser (Modul laeuft nur einmal, Listener ueberleben
+// wire:navigate):
+// - 'saved': Jetstream-Profilformulare melden Erfolg ohne Toast.
+// - 'rt:inbox-increased': HeaderInbox meldet neue Nachrichten ueber das
+//   60s-Polling. Nur relevant, wenn kein Echo/Reverb laeuft — mit Echtzeit-
+//   Verbindung klingelt bereits der Toast des User-Channels.
+// ---------------------------------------------------------------
+window.addEventListener('saved', () => {
+    window.RTSound?.play('success');
+});
+
+window.addEventListener('rt:inbox-increased', () => {
+    if (window.Echo) {
+        return;
+    }
+
+    window.RTSound?.play('message');
+});
 
 window.Swiper = Swiper;
 let sidebarCollapseTimer = null;

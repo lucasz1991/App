@@ -125,7 +125,13 @@ class ChatBox extends Component
         }
 
         $clientMime = strtolower((string) $this->voiceUpload->getClientMimeType());
-        abort_unless(str_starts_with($clientMime, 'audio/'), 422, __('app.voice_message_invalid'));
+        $extension = strtolower((string) $this->voiceUpload->getClientOriginalExtension());
+        abort_unless(
+            str_starts_with($clientMime, 'audio/')
+                || in_array($extension, ['webm', 'ogg', 'm4a', 'mp3', 'wav', 'aac'], true),
+            422,
+            __('app.voice_message_invalid')
+        );
 
         $chat = $this->myChat($this->selectedChatId);
         $message = ChatMessage::create([
@@ -247,6 +253,17 @@ class ChatBox extends Component
         $mime = ($isDeclaredMedia || ! $detectedMime || $detectedMime === 'application/octet-stream')
             ? $clientMime
             : $detectedMime;
+
+        if ($forcedType === 'voice' && ! str_starts_with((string) $mime, 'audio/')) {
+            $mime = match (strtolower((string) $uploadedFile->getClientOriginalExtension())) {
+                'ogg' => 'audio/ogg',
+                'm4a', 'mp4' => 'audio/mp4',
+                'mp3' => 'audio/mpeg',
+                'wav' => 'audio/wav',
+                'aac' => 'audio/aac',
+                default => 'audio/webm',
+            };
+        }
 
         $message->files()->create([
             'name' => $uploadedFile->getClientOriginalName(),

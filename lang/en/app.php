@@ -21,6 +21,7 @@ return [
     'german' => 'German',
     'english' => 'English',
     'toggle_theme' => 'Toggle light/dark mode',
+    'toggle_sound' => 'Toggle sounds',
     'select_section' => 'Choose section',
 
     // Dashboards

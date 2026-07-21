@@ -40,13 +40,27 @@ $cls = implode(' ', [
     $disabledCls,
     $class,
 ]);
+
+$interactiveAttributes = $attributes->filter(function ($value, $key) use ($disabled) {
+    if (! $disabled) {
+        return true;
+    }
+
+    foreach (['wire:click', '@click', 'x-on:click', 'onclick'] as $prefix) {
+        if ($key === $prefix || str_starts_with($key, $prefix . '.')) {
+            return false;
+        }
+    }
+
+    return true;
+});
 @endphp
 
 @if($href)
     <a
-        href="{{ $href }}"
-        {{ $attributes->merge(['class' => $cls]) }}
-        @if($disabled) aria-disabled="true" tabindex="-1" @endif
+        @unless($disabled) href="{{ $href }}" @endunless
+        {{ $interactiveAttributes->merge(['class' => $cls]) }}
+        @if($disabled) aria-disabled="true" tabindex="-1" x-on:click.prevent.stop @endif
     >
         {{ $slot }}
     </a>

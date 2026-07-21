@@ -48,7 +48,7 @@
     {{-- Kopfzeile + Filter --}}
     <div class="flex flex-wrap items-center justify-between gap-4">
         <div>
-            <h1 class="text-2xl font-bold text-gray-800">Job's</h1>
+            <h1 class="text-2xl font-bold text-rt-text dark:text-rt-dark-text">Job's</h1>
         </div>
 
         <div class="flex flex-wrap items-center gap-3 text-sm">

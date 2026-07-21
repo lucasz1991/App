@@ -69,7 +69,8 @@
             @if($col['sortable'])
                 <button
                     type="button"
-                    class="px-2 py-2 text-left flex items-center gap-1 transition hover:text-rt-red {{ $hidden }}"
+                    aria-sort="{{ $sortBy === $col['key'] ? ($sortDir === 'asc' ? 'ascending' : 'descending') : 'none' }}"
+                    class="flex items-center gap-1 rounded-lg px-2 py-2 text-left transition hover:text-rt-red focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40 {{ $hidden }}"
                     @click="$dispatch('table-sort', {
                         key: '{{ $col['key'] }}',
                         dir: '{{ ($sortBy == $col['key'] && $sortDir == 'asc') ? 'desc' : 'asc' }}'

@@ -51,13 +51,30 @@ $title = $isDeniedByCan
     : $attributes->get('title');
 
 $attributesWithoutTitle = $attributes->except('title');
+$interactiveAttributes = $attributesWithoutTitle->filter(function ($value, $key) use ($isDisabled) {
+    if (! $isDisabled) {
+        return true;
+    }
+
+    if ($key === 'href') {
+        return false;
+    }
+
+    foreach (['wire:click', '@click', 'x-on:click', 'onclick'] as $prefix) {
+        if ($key === $prefix || str_starts_with($key, $prefix . '.')) {
+            return false;
+        }
+    }
+
+    return true;
+});
 
 @endphp
 
 @if (isset($attributes['href']))
-    <a {!! $attributesWithoutTitle->merge(['class' => $classes]) !!}
+    <a {!! $interactiveAttributes->merge(['class' => $classes]) !!}
         @if($title) title="{{ $title }}" @endif
-        @if($isDisabled) aria-disabled="true" tabindex="-1" @endif
+        @if($isDisabled) aria-disabled="true" tabindex="-1" x-on:click.prevent.stop @endif
         x-data="{ isClicked: false }" 
         @click="isClicked = true; setTimeout(() => isClicked = false, 100)"
         style="transform:scale(1);"

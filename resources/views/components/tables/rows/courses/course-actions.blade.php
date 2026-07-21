@@ -10,7 +10,7 @@
             Details
         </x-dropdown-link>
         <x-dropdown-link href="#" 
-        wire:click.prevent="$dispatch('openCourseExportModal',[ [ {{ $item->id }} ]])" class="hover:bg-green-100" :can="'courses.export'">
+        wire:click.prevent="$dispatch('openCourseExportModal',[ [ {{ $item->id }} ]])" tone="success" :can="'courses.export'">
             <i class="far fa-download mr-2"></i>
             Exportieren
         </x-dropdown-link>

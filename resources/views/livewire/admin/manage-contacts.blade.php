@@ -9,7 +9,7 @@
 
 
     @if ($showForm)
-        <div class="mt-4 space-y-2 rounded-lg border border-rt-border bg-rt-surface-muted p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted">
+        <div class="rt-ui-surface-muted mt-4 space-y-2 rounded-lg border border-rt-border bg-rt-surface-muted p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted">
             <x-ui.forms.input type="text" wire:model="name" placeholder="Name" />
             <x-ui.forms.input type="text" wire:model="company" placeholder="Firma" />
             <x-ui.forms.input type="email" wire:model="email" placeholder="E-Mail" />
@@ -20,45 +20,47 @@
             <x-ui.forms.input type="text" wire:model="country" placeholder="Land" />
             <x-ui.forms.input type="text" wire:model="category" placeholder="Kategorie" />
             
-            <div class="mt-2">
-                <button wire:click="{{ $contactId ? 'update' : 'store' }}" class="bg-green-500 text-white px-4 py-2 rounded">Speichern</button>
-                <button wire:click="$set('showForm', false)" class="bg-gray-500 text-white px-4 py-2 rounded">Abbrechen</button>
+            <div class="mt-2 flex flex-wrap gap-2">
+                <x-ui.buttons.button-basic wire:click="{{ $contactId ? 'update' : 'store' }}" mode="success">Speichern</x-ui.buttons.button-basic>
+                <x-ui.buttons.button-basic wire:click="$set('showForm', false)" mode="secondary">Abbrechen</x-ui.buttons.button-basic>
             </div>
         </div>
     @endif
 
-    <table class="w-full mt-4 border text-left mb-3">
+    <div class="rt-ui-surface mt-4 mb-3 overflow-x-auto rounded-xl border border-rt-border bg-rt-surface dark:border-rt-dark-border dark:bg-rt-dark-surface">
+    <table class="min-w-[56rem] w-full text-left text-rt-text dark:text-rt-dark-text">
         <thead>
-            <tr class="bg-gray-200">
-                <th class="p-2 border">Branche</th>
-                <th class="p-2 border">Name</th>
-                <th class="p-2 border">Anschrift</th>
-                <th class="p-2 border">E-Mail</th>
-                <th class="p-2 border">Telefon</th>
-                <th class="p-2 border">Website</th>
-                <th class="p-2 border"></th>
+            <tr class="rt-ui-surface-muted bg-rt-surface-muted dark:bg-rt-dark-surface-muted">
+                <th class="border border-rt-border p-2 dark:border-rt-dark-border">Branche</th>
+                <th class="border border-rt-border p-2 dark:border-rt-dark-border">Name</th>
+                <th class="border border-rt-border p-2 dark:border-rt-dark-border">Anschrift</th>
+                <th class="border border-rt-border p-2 dark:border-rt-dark-border">E-Mail</th>
+                <th class="border border-rt-border p-2 dark:border-rt-dark-border">Telefon</th>
+                <th class="border border-rt-border p-2 dark:border-rt-dark-border">Website</th>
+                <th class="border border-rt-border p-2 dark:border-rt-dark-border"></th>
             </tr>
         </thead>
         <tbody>
             @foreach($contacts as $contact)
                 <tr>
-                    <td class="p-2 border">{{ $contact->category }}</td>
-                    <td class="p-2 border font-semibold">{{ $contact->name }}</td>
-                    <td class="p-2 border">{{ $contact->address }}</td>
-                    <td class="p-2 border font-semibold">{{ $contact->email }}</td>
-                    <td class="p-2 border">{{ $contact->phone }}</td>
-                    <td class="p-2 border">{{ $contact->website }}</td>
-                    <td class="p-2 border">
+                    <td class="border border-rt-border p-2 dark:border-rt-dark-border">{{ $contact->category }}</td>
+                    <td class="border border-rt-border p-2 font-semibold dark:border-rt-dark-border">{{ $contact->name }}</td>
+                    <td class="border border-rt-border p-2 dark:border-rt-dark-border">{{ $contact->address }}</td>
+                    <td class="border border-rt-border p-2 font-semibold dark:border-rt-dark-border">{{ $contact->email }}</td>
+                    <td class="border border-rt-border p-2 dark:border-rt-dark-border">{{ $contact->phone }}</td>
+                    <td class="border border-rt-border p-2 dark:border-rt-dark-border">{{ $contact->website }}</td>
+                    <td class="border border-rt-border p-2 dark:border-rt-dark-border">
                         @if(is_null($contact->additional_data) || empty($contact->additional_data))
-                            <span class="px-2 py-1 text-gray-700 bg-gray-200 rounded text-xs">unkontaktiert</span>
+                            <x-ui.badge color="slate">unkontaktiert</x-ui.badge>
                         @else
-                            <span class="px-2 py-1 text-green-700 bg-green-200 rounded text-xs">kontaktiert</span>
+                            <x-ui.badge color="green">kontaktiert</x-ui.badge>
                         @endif
                     </td>                
                 </tr>
             @endforeach
         </tbody>
     </table>
+    </div>
 
     {{ $contacts->links() }}
 </div>

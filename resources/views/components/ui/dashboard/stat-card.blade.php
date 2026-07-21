@@ -20,17 +20,23 @@
     $innerClasses = $compactMobile
         ? 'flex min-h-[5.5rem] items-center justify-center rounded-[calc(.75rem-2px)] bg-rt-surface px-1 py-2 sm:min-h-0 sm:justify-start sm:rounded-[calc(1rem-2px)] sm:p-5 dark:bg-rt-dark-surface'
         : 'rounded-[calc(1rem-2px)] bg-rt-surface p-5 dark:bg-rt-dark-surface';
+
+    $themeTone = match ($tone) {
+        'emerald' => 'green',
+        'violet' => 'purple',
+        default => $tone,
+    };
 @endphp
 
 {{-- Double-bezel: aeussere Schale + innerer Kern (Designsprache v2) --}}
-<div {{ $attributes->merge(['class' => $shellClasses]) }}>
-    <div class="{{ $innerClasses }}">
+<div {{ $attributes->merge(['class' => 'rt-ui-surface-muted ' . $shellClasses]) }}>
+    <div class="rt-ui-surface {{ $innerClasses }}">
         <div @class([
             'flex items-center gap-4',
             'w-full min-w-0 flex-col gap-1 text-center sm:flex-row sm:gap-4 sm:text-left' => $compactMobile,
         ])>
-            <span @class([
-                'flex shrink-0 items-center justify-center rounded-lg',
+            <span data-rt-tone="{{ $themeTone }}" @class([
+                'rt-ui-badge flex shrink-0 items-center justify-center rounded-lg',
                 'h-12 w-12' => ! $compactMobile,
                 'h-7 w-7 sm:h-12 sm:w-12' => $compactMobile,
                 $toneClasses,

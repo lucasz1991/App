@@ -225,7 +225,7 @@
                                             ?? $message->files->first(fn ($file) => str_starts_with(strtolower((string) $file->mime_type), 'audio/')))
                                         : null;
                                     $voiceConsumed = $message->view_once
-                                        && ($own || $message->hasBeenViewedBy($me));
+                                        && ($own || ($message->hasBeenViewedBy($me) && ! $message->hasActiveVoicePlaybackFor($me)));
                                 @endphp
 
                                 <div wire:key="chat-msg-{{ $message->id }}" class="flex flex-col">
@@ -449,7 +449,8 @@
 
                                     <div class="flex min-w-0 flex-1 items-center gap-2">
                                         <span class="rt-recording-dot h-2.5 w-2.5 shrink-0 rounded-full bg-rt-red" aria-hidden="true"></span>
-                                        <span class="w-[4.75rem] shrink-0 text-xs font-semibold tabular-nums text-rt-text dark:text-white" x-text="sendingVoice ? @js(__('app.voice_sending')) : recordingLabel"></span>
+                                        <span class="sr-only">{{ __('app.recording') }}</span>
+                                        <span class="w-[4.75rem] shrink-0 truncate text-xs font-semibold tabular-nums text-rt-text dark:text-white" x-text="sendingVoice ? @js(__('app.voice_sending')) : recordingLabel"></span>
                                         <div class="rt-recording-wave flex h-7 min-w-0 flex-1 items-center justify-center gap-[3px] overflow-hidden" aria-hidden="true">
                                             <template x-for="index in 18" :key="index">
                                                 <span :style="`--rt-wave-index: ${index}`"></span>

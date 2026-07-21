@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Support\Facades\Cache;
 
 class ChatMessage extends Model
 {
@@ -56,5 +57,10 @@ class ChatMessage extends Model
     public static function voicePlaybackCacheKey(int $messageId, int $userId): string
     {
         return "chat-voice-playback:{$messageId}:{$userId}";
+    }
+
+    public function hasActiveVoicePlaybackFor(User $user): bool
+    {
+        return Cache::has(static::voicePlaybackCacheKey($this->id, $user->id));
     }
 }

@@ -24,7 +24,7 @@
 
         {{-- Loeschen --}}
         <x-dropdown-link href="javascript:void(0)"
-                         class="!text-red-600 dark:!text-red-400"
+                         tone="danger"
                          wire:click="deleteMessage({{ $item->id }})">
             <i class="far fa-trash-alt mr-2" aria-hidden="true"></i>
             {{ __('app.delete') }}
