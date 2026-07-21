@@ -124,7 +124,18 @@ trait BuildsMinimalRailTimeSchema
             $table->unsignedBigInteger('chat_id');
             $table->unsignedBigInteger('user_id');
             $table->text('body');
+            $table->string('message_type', 24)->default('text');
+            $table->boolean('view_once')->default(false);
             $table->timestamps();
+        });
+
+        Schema::create('chat_message_views', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('chat_message_id');
+            $table->unsignedBigInteger('user_id');
+            $table->timestamp('viewed_at');
+            $table->timestamps();
+            $table->unique(['chat_message_id', 'user_id']);
         });
     }
 }

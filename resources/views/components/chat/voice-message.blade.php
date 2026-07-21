@@ -89,6 +89,6 @@
             </div>
         </div>
 
-        <i class="far fa-microphone-lines shrink-0 text-xs opacity-55" aria-hidden="true"></i>
+        <i class="far fa-microphone shrink-0 text-xs opacity-55" aria-hidden="true"></i>
     </div>
 </div>

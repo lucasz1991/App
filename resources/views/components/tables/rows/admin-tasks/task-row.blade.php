@@ -13,6 +13,11 @@
     $assignedName  = $task->assignedAdmin?->name ?? 'Niemand';
     $createdAtLbl  = $task->created_at?->format('d.m.Y H:i');
     $dueAtLbl      = $task->due_at?->format('d.m.Y H:i');
+    $statusTone    = match ($task->status) {
+        \App\Models\AdminTask::STATUS_OPEN => 'red',
+        \App\Models\AdminTask::STATUS_IN_PROGRESS => 'amber',
+        default => 'green',
+    };
 @endphp
 
 {{-- 0: ID --}}
@@ -20,7 +25,7 @@
     class="px-2 py-2 {{ $hc(0) }} cursor-pointer"
     wire:click="$dispatch('openAdminTaskDetail',[ { taskId: {{ $task->id }}  }])"
 >
-    <div class="flex items-center gap-2 text-xs text-slate-600">
+    <div class="flex items-center gap-2 text-xs text-rt-muted dark:text-rt-dark-muted">
         <span class="h-2.5 w-2.5 rounded-full
             @if($task->status === \App\Models\AdminTask::STATUS_OPEN)
                 bg-red-400
@@ -31,7 +36,7 @@
             @endif
         "></span>
 
-        <span class="font-mono text-[11px] text-slate-500">
+        <span class="font-mono text-[11px] text-rt-muted dark:text-rt-dark-muted">
             #{{ $id }}
         </span>
     </div>
@@ -45,10 +50,10 @@
     <div class="flex flex-col min-w-0 space-y-1" title="{{ $typeText }}">
         <div class="flex items-center gap-2 min-w-0">
             <div class="flex-1 min-w-0">
-                <div class="font-semibold text-[12px] text-gray-500 truncate">
+                <div class="truncate text-[12px] font-semibold text-rt-muted dark:text-rt-dark-muted">
                     {{ $typeText }}
                 </div>
-                  <div class="font-semibold text-[13px] text-slate-800 truncate">
+                  <div class="truncate text-[13px] font-semibold text-rt-text dark:text-rt-dark-text">
                     {{ $contextText }}
                 </div>
             </div>
@@ -64,7 +69,7 @@
     <div class="flex flex-col gap-0.5">
         <x-user.public-info :person="$task->creator->person" />
         @if($createdAtLbl)
-            <span class="text-[11px] text-slate-400">
+            <span class="text-[11px] text-rt-soft dark:text-rt-dark-soft">
                 {{ $createdAtLbl }}
             </span>
         @endif
@@ -76,13 +81,13 @@
     class="px-2 py-2 flex items-center justify-end gap-2 {{ $hc(6) }} cursor-pointer"
     wire:click="$dispatch('openAdminTaskDetail',[ { taskId: {{ $task->id }}  }])"
 >
-    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium
+    <span data-rt-tone="{{ $statusTone }}" class="rt-ui-badge inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium
         @if($task->status === \App\Models\AdminTask::STATUS_OPEN)
-            bg-red-50 text-red-700
+            bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300
         @elseif($task->status === \App\Models\AdminTask::STATUS_IN_PROGRESS)
-            bg-amber-50 text-amber-700
+            bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300
         @else
-            bg-emerald-50 text-emerald-700
+            bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300
         @endif
     ">
         <span class="mr-1 text-xs">{{ $task->status_icon }}</span>

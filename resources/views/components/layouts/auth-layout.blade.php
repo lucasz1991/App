@@ -30,10 +30,10 @@
             <x-authentication-card-logo  />
           </div>
         </a>
-        <h2 class="mt-6 text-2xl font-bold  sm:text-3xl md:text-4xl text-gray-700">
+        <h2 class="mt-6 text-2xl font-bold text-rt-text dark:text-rt-dark-text sm:text-3xl md:text-4xl">
           {{ $title }}
         </h2>
-        <p class="mt-4 text-xl font-bold leading-relaxed text-gray-700">
+        <p class="mt-4 text-xl font-bold leading-relaxed text-rt-text dark:text-rt-dark-text">
             {{ $description }}
         </p>
       </div>
@@ -49,10 +49,10 @@
                   <x-authentication-card-logo  />
                 </div>
             </a>
-            <h1 class="mt-2 text-2xl font-bold text-gray-700 sm:text-3xl md:text-4xl">
+            <h1 class="mt-2 text-2xl font-bold text-rt-text dark:text-rt-dark-text sm:text-3xl md:text-4xl">
               {{ $title }}
             </h1>
-            <p class="mt-4 text-xl font-bold leading-relaxed text-gray-700">
+            <p class="mt-4 text-xl font-bold leading-relaxed text-rt-text dark:text-rt-dark-text">
             {{ $description }}                
             </p>
         </div>

@@ -72,6 +72,13 @@
         if (isDuplicate(detail)) return;
 
         var type = detail.type || 'info';
+
+        // Passender Ton zum Toast (rt-sounds.js). detail.sound erlaubt einen
+        // abweichenden Ton (z.B. 'message' bei Chat-Toasts) oder false zum
+        // Unterdruecken.
+        if (detail.sound !== false && window.RTSound) {
+            window.RTSound.play(typeof detail.sound === 'string' ? detail.sound : type);
+        }
         var titles = { success: 'Erfolg', warning: 'Warnung', error: 'Fehler', info: 'Hinweis' };
         var title = detail.title || titles[type] || 'Hinweis';
         var text = detail.text || '';

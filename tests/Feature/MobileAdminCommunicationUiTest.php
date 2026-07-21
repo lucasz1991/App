@@ -55,6 +55,11 @@ class MobileAdminCommunicationUiTest extends TestCase
         $this->assertStringContainsString("new CustomEvent('filepool-preview'", $view);
         $this->assertStringContainsString('x-data="chatAudioPlayer()"', $view);
         $this->assertStringContainsString("Alpine.data('chatAudioPlayer'", $script);
+        $this->assertStringContainsString("message_type' => 'voice'", $component);
+        $this->assertStringContainsString('wire:click="deleteMessage(', $view);
+        $this->assertStringContainsString('@click="startRecording()"', $view);
+        $this->assertStringContainsString('@click="toggleViewOnce()"', $view);
+        $this->assertStringContainsString('x-data="chatAudioPlayer({', file_get_contents(resource_path('views/components/chat/voice-message.blade.php')));
     }
 
     public function test_active_mobile_sidebar_group_is_forced_open(): void

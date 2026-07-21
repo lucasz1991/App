@@ -47,13 +47,13 @@
             >
     @endif
 
-    <span class="inline-flex items-center gap-1.5 text-sm font-medium text-gray-800">
+    <span class="inline-flex items-center gap-1.5 text-sm font-medium text-rt-text dark:text-rt-dark-text">
         <span>{{ $displayName }}</span>
         @if($hasUser)
             @if($resolvedUser?->isOnline())
                 <span class="h-2 w-2 rounded-full bg-green-300" title="Online"></span>
             @else
-                <span class="h-2 w-2 rounded-full bg-gray-300" title="Offline"></span>
+                <span class="h-2 w-2 rounded-full bg-rt-soft dark:bg-rt-dark-soft" title="Offline"></span>
             @endif
         @endif
     </span>

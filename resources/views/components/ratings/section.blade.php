@@ -1,6 +1,6 @@
 @props(['title'])
 
-<div class="bg-slate-50 border border-slate-200 rounded shadow-sm p-4 space-y-2">
-    <h2 class="text-lg font-semibold text-gray-800 mb-2">{{ $title }}</h2>
+<div class="rt-ui-surface-muted space-y-2 rounded border border-rt-border bg-rt-surface-muted p-4 text-rt-text shadow-rt-xs dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-rt-dark-text">
+    <h2 class="mb-2 text-lg font-semibold text-rt-text dark:text-rt-dark-text">{{ $title }}</h2>
     {{ $slot }}
 </div>

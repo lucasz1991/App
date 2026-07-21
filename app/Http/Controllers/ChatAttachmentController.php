@@ -23,6 +23,8 @@ class ChatAttachmentController extends Controller
         );
 
         if ($message->isVoice() && $message->view_once) {
+            abort_if($request->boolean('download'), 403);
+
             $providedToken = (string) $request->query('voice_token', '');
             $activeToken = Cache::get(ChatMessage::voicePlaybackCacheKey($message->id, $request->user()->id));
 
