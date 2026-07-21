@@ -2,8 +2,8 @@
   'align'             => 'right',
   'width'             => '48',
   'contentClasses'    => 'py-1 bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-white',
-  'dropdownClasses'   => 'mx-4',
-  'offset'            => 0,
+  'dropdownClasses'   => '',
+  'offset'            => 8,
   'overlay'           => false,
   'trap'              => false,
   'scrollOnOpen'      => false,
@@ -13,18 +13,41 @@
 ])
 
 @php
-  $widthClass = match($width){ 'auto'=>'w-auto','min'=>'w-min','max'=>'w-max', default=>'w-48' };
+  $widthClass = match((string) $width) {
+    '40', 'w-40' => 'w-40',
+    '48', 'w-48' => 'w-48',
+    '56', 'w-56' => 'w-56',
+    '64', 'w-64' => 'w-64',
+    '72', 'w-72' => 'w-72',
+    '80', 'w-80' => 'w-80',
+    '96', 'w-96' => 'w-96',
+    'auto', 'w-auto' => 'w-auto',
+    'min', 'w-min' => 'w-min',
+    'max', 'w-max' => 'w-max',
+    'full', 'w-full' => 'w-full',
+    default => 'w-48',
+  };
   $anchorPos  = match($align){ 'left'=>'bottom-start','top'=>'top-end','none','false'=>'bottom-end', default=>'bottom-end' };
 @endphp
 
 <div
-  class="relative"
+  {{ $attributes->class('relative inline-flex') }}
   x-data="{
     open: false,
+    resizeHandler: null,
     scrollOnOpen: @js((bool)$scrollOnOpen),
     scrollOnTrigger: @js((bool)$scrollOnTrigger),
     headerOffset: @js((int)$headerOffset),
     matchTriggerWidth: @js((bool)$matchTriggerWidth),
+
+    init(){
+      this.resizeHandler = () => { if (this.open) this.setPanelWidth() };
+      window.addEventListener('resize', this.resizeHandler, { passive: true });
+    },
+
+    destroy(){
+      if (this.resizeHandler) window.removeEventListener('resize', this.resizeHandler);
+    },
 
     setPanelWidth(){
       if (!this.matchTriggerWidth) return;
@@ -71,9 +94,6 @@
         });
       }
     });
-
-    // Bei Resize Breite nachziehen, solange offen
-    window.addEventListener('resize', () => { if (open) setPanelWidth() }, { passive:true });
   "
   x-cloak
   @keydown.escape.window="open=false"
@@ -82,7 +102,7 @@
 
 
   {{-- Trigger --}}
-<div x-ref="trigger" @click="
+<div class="inline-flex" x-ref="trigger" @click="
     open = !open;
     if (open) {
       $nextTick(() => {
@@ -110,13 +130,18 @@
     x-transition:leave-start="transform opacity-100 scale-100"
     x-transition:leave-end="transform opacity-0 scale-95"
     x-anchor.{{ $anchorPos }}.offset.{{ $offset }}.flip.shift="$refs.trigger"
-    class="z-40 {{ $widthClass }} rounded-md shadow-lg {{ $dropdownClasses }}"
+    class="z-[120] {{ $widthClass }} rounded-xl shadow-rt-md {{ $dropdownClasses }}"
     style="display:none; max-width:calc(100vw - 16px); max-height:calc(100vh - 16px);"
     @click.outside="open=false"
     @if($trap) x-trap.inert.noscroll="open" @endif
     x-ref="panel"
   >
-    <div x-ref="panelScroll" class="overflow-hidden rounded-md border border-rt-border shadow-lg dark:border-rt-dark-border {{ $contentClasses }}">
+    <div
+      x-ref="panelScroll"
+      role="menu"
+      class="max-h-[min(28rem,calc(100vh-2rem))] overflow-y-auto rounded-xl border border-rt-border shadow-rt-md dark:border-rt-dark-border {{ $contentClasses }}"
+      @click="if ($event.target.closest('a, button, [role=menuitem]')) open=false"
+    >
       {{ $content }}
     </div>
   </div>

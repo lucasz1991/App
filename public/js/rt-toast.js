@@ -3,6 +3,17 @@
 (function () {
     'use strict';
 
+    // Dieses Script kann bei wire:navigate erneut ausgewertet werden. Alte
+    // globale Listener muessen deshalb vor jeder Registrierung entfernt
+    // werden, sonst erzeugt ein einziges Livewire-Event mehrere Toasts.
+    if (window.__rtToastAbortController) {
+        window.__rtToastAbortController.abort();
+    }
+
+    var listenerController = new AbortController();
+    window.__rtToastAbortController = listenerController;
+    var recentlyShown = new Map();
+
     var COLORS = {
         success: '#16a34a',
         info: '#0284c7',
@@ -21,16 +32,64 @@
         return container;
     }
 
-    function showToast(detail) {
-        detail = detail || {};
+    function normalizeDetail(detail) {
+        if (Array.isArray(detail)) {
+            if (typeof detail[0] === 'string') {
+                return { text: detail[0], type: detail[1] || 'info' };
+            }
+
+            return detail[0] || {};
+        }
+
+        if (detail && typeof detail[0] === 'string') {
+            return { text: detail[0], type: detail[1] || 'info' };
+        }
+
+        return detail || {};
+    }
+
+    function isDuplicate(detail) {
+        var signature = JSON.stringify([
+            detail.type || 'info',
+            detail.title || '',
+            detail.text || '',
+            detail.redirectTo || ''
+        ]);
+        var now = Date.now();
+        var lastShownAt = recentlyShown.get(signature) || 0;
+
+        recentlyShown.set(signature, now);
+
+        recentlyShown.forEach(function (shownAt, key) {
+            if (now - shownAt > 2000) recentlyShown.delete(key);
+        });
+
+        return now - lastShownAt < 500;
+    }
+
+    function showToast(rawDetail) {
+        var detail = normalizeDetail(rawDetail);
+        if (isDuplicate(detail)) return;
+
         var type = detail.type || 'info';
-        var titles = { success: 'Erfolg!', warning: 'Warnung!', error: 'Fehler!', info: 'Hinweis!' };
-        var title = detail.title || titles[type] || 'Hinweis!';
+        var titles = { success: 'Erfolg', warning: 'Warnung', error: 'Fehler', info: 'Hinweis' };
+        var title = detail.title || titles[type] || 'Hinweis';
         var text = detail.text || '';
 
         var toast = document.createElement('div');
         toast.style.cssText = 'background:#fff;border:1px solid #e2e8f0;border-left:4px solid ' + (COLORS[type] || COLORS.info) + ';border-radius:8px;box-shadow:0 10px 24px rgba(15,23,42,.14);padding:10px 14px;font-family:inherit;font-size:14px;color:#0f172a;opacity:0;transform:translateY(-6px);transition:opacity .25s ease,transform .25s ease;';
-        toast.innerHTML = '<strong style="display:block;font-size:13px;margin-bottom:2px;">' + title + '</strong>' + (text ? '<span style="color:#475569;">' + text + '</span>' : '');
+
+        var titleElement = document.createElement('strong');
+        titleElement.style.cssText = 'display:block;font-size:13px;margin-bottom:2px;';
+        titleElement.textContent = title;
+        toast.appendChild(titleElement);
+
+        if (text) {
+            var textElement = document.createElement('span');
+            textElement.style.color = '#475569';
+            textElement.textContent = text;
+            toast.appendChild(textElement);
+        }
 
         ensureContainer().appendChild(toast);
         requestAnimationFrame(function () {
@@ -50,6 +109,8 @@
         }
     }
 
-    window.addEventListener('swal:toast', function (event) { showToast(event.detail); });
-    window.addEventListener('swal:alert', function (event) { showToast(event.detail); });
+    var listenerOptions = { signal: listenerController.signal };
+    window.addEventListener('swal:toast', function (event) { showToast(event.detail); }, listenerOptions);
+    window.addEventListener('swal:alert', function (event) { showToast(event.detail); }, listenerOptions);
+    window.addEventListener('showAlert', function (event) { showToast(event.detail); }, listenerOptions);
 })();
