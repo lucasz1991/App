@@ -63,6 +63,7 @@ class MobileAdminCommunicationUiTest extends TestCase
         $this->assertStringContainsString('x-show.important="recording || sendingVoice"', $view);
         $this->assertSame(2, substr_count($view, 'data-chat-composer-mode='));
         $this->assertStringContainsString('x-data="chatAudioPlayer({', file_get_contents(resource_path('views/components/chat/voice-message.blade.php')));
+        $this->assertStringContainsString('$voiceFile = $message->voiceFile();', $view);
     }
 
     public function test_active_mobile_sidebar_group_is_forced_open(): void

@@ -185,8 +185,7 @@ class ChatBox extends Component
         $message = $chat->messages()->with(['files', 'views'])->findOrFail($messageId);
         abort_unless($message->isVoice(), 422);
 
-        $file = $message->files->firstWhere('type', 'voice')
-            ?? $message->files->first(fn ($item) => str_starts_with(strtolower((string) $item->mime_type), 'audio/'));
+        $file = $message->voiceFile();
         abort_unless($file, 404);
 
         if (! $message->view_once) {

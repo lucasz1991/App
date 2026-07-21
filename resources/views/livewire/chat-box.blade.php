@@ -220,10 +220,7 @@
                                         && ! $own
                                         && ($newDay || ! $prev || (int) $prev->user_id !== (int) $message->user_id);
                                     $isRead = $own && $selectedChat->messageReadByAllRecipients($message, $me);
-                                    $voiceFile = $message->isVoice()
-                                        ? ($message->files->firstWhere('type', 'voice')
-                                            ?? $message->files->first(fn ($file) => str_starts_with(strtolower((string) $file->mime_type), 'audio/')))
-                                        : null;
+                                    $voiceFile = $message->voiceFile();
                                     $voiceConsumed = $message->view_once
                                         && ($own || ($message->hasBeenViewedBy($me) && ! $message->hasActiveVoicePlaybackFor($me)));
                                 @endphp

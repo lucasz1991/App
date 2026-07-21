@@ -129,6 +129,39 @@ class ChatVoiceMessagesTest extends TestCase
             ->assertDispatched('chat:voice-consumed');
     }
 
+    public function test_browser_mislabeled_webm_recording_is_rendered_and_served_as_audio(): void
+    {
+        [$sender, $recipient, $chat] = $this->directChatFixture();
+        $message = ChatMessage::create([
+            'chat_id' => $chat->id,
+            'user_id' => $sender->id,
+            'body' => '',
+            'message_type' => 'attachment',
+            'view_once' => false,
+        ]);
+        $path = "uploads/chat/{$chat->id}/sprachnachricht-legacy.webm";
+        Storage::disk('private')->put($path, 'webm-audio-content');
+        $file = $message->files()->create([
+            'name' => 'sprachnachricht-1700000000000.webm',
+            'path' => $path,
+            'disk' => 'private',
+            'mime_type' => 'video/webm',
+            'type' => 'video',
+            'size' => 18,
+            'user_id' => $sender->id,
+        ]);
+
+        $message = $message->fresh()->load('files');
+
+        $this->assertTrue($message->isVoice());
+        $this->assertSame($file->id, $message->voiceFile()?->id);
+
+        $this->actingAs($recipient)
+            ->get(route('chat.attachments', ['file' => $file]))
+            ->assertOk()
+            ->assertHeader('content-type', 'audio/webm');
+    }
+
     /** @return array{0: User, 1: User, 2: Chat} */
     protected function directChatFixture(): array
     {

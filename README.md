@@ -3,6 +3,7 @@
 ## 2026-07-21 - Codex (Sprachnachrichten und eigene Nachrichten löschen)
 
 - Der Eingabebereich zeigt Textmodus und Sprachaufnahmemodus jetzt strikt abwechselnd. Die Alpine-Ausblendung verwendet eine priorisierte Display-Regel, damit globale Flex-Utilities nicht mehr beide Bereiche nebeneinander sichtbar machen können.
+- Mikrofonaufnahmen mit dem browsertypischen Fehltyp `video/webm` werden als `audio/webm` normalisiert und ausschließlich im eigenen Sprachnachrichten-Player dargestellt; der schwarze native Video-Player wird dafür nicht mehr verwendet. Eine Datenmigration korrigiert auch vorhandene Recorder-Aufnahmen.
 - Eigene Chatnachrichten können direkt in der Sprechblase gelöscht werden. Die Berechtigung wird serverseitig auf Absender und Chatmitgliedschaft geprüft; zugehörige private Dateien werden mit entfernt.
 - Aufgenommene Sprachnachrichten werden als eigener Nachrichtentyp ohne Text und ohne normalen Anhangs-Chip gesendet. Die mobile Aufnahmeleiste ersetzt während der Aufnahme die Texteingabe und bietet animierte Pegel, Abbrechen, Senden und `Einmal anhören`.
 - Die Wiedergabe verwendet einen eigenen responsiven Player mit Wellenform, Fortschritt, Zeit und Play/Pause statt nativer Browser-Steuerelemente. Einmal-Sprachnachrichten erhalten pro Empfänger nur einen kurzlebigen serverseitigen Wiedergabezugang und lassen sich nicht über Vorschau oder Download umgehen.

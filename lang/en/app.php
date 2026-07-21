@@ -22,6 +22,13 @@ return [
     'english' => 'English',
     'toggle_theme' => 'Toggle light/dark mode',
     'toggle_sound' => 'Toggle sounds',
+    'preferences_description' => 'Language, appearance and sounds',
+    'appearance' => 'Appearance',
+    'dark_mode' => 'Dark',
+    'light_mode' => 'Light',
+    'sound' => 'Sounds',
+    'sound_on' => 'Enabled',
+    'sound_off' => 'Disabled',
     'select_section' => 'Choose section',
 
     // Dashboards

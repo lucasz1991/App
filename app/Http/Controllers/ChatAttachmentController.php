@@ -37,6 +37,12 @@ class ChatAttachmentController extends Controller
         }
 
         $mime = strtolower((string) $file->mime_type);
+
+        // Manche Browser deklarieren reine MediaRecorder-Audioaufnahmen als
+        // video/webm. Voice-Nachrichten werden trotzdem immer als Audio ausgeliefert.
+        if ($message->isVoice() && in_array($mime, ['video/webm', 'application/octet-stream', ''], true)) {
+            $mime = 'audio/webm';
+        }
         $canRenderInline = str_starts_with($mime, 'image/')
             || str_starts_with($mime, 'audio/')
             || str_starts_with($mime, 'video/');

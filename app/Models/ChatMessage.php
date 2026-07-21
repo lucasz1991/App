@@ -42,7 +42,35 @@ class ChatMessage extends Model
 
     public function isVoice(): bool
     {
-        return $this->message_type === 'voice';
+        return $this->message_type === 'voice' || $this->voiceFile() !== null;
+    }
+
+    public function voiceFile(): ?File
+    {
+        $files = $this->relationLoaded('files') ? $this->files : $this->files()->get();
+
+        return $files->first(function (File $file): bool {
+            if ($file->type === 'voice') {
+                return true;
+            }
+
+            $name = strtolower((string) $file->name);
+            $isRecorderFile = preg_match('/^sprachnachricht(?:[-_.])/', $name) === 1;
+
+            if ($isRecorderFile) {
+                return true;
+            }
+
+            if ($this->message_type !== 'voice') {
+                return false;
+            }
+
+            $mime = strtolower((string) $file->mime_type);
+            $extension = strtolower((string) pathinfo($name, PATHINFO_EXTENSION));
+
+            return str_starts_with($mime, 'audio/')
+                || in_array($extension, ['webm', 'ogg', 'm4a', 'mp3', 'wav', 'aac'], true);
+        });
     }
 
     public function hasBeenViewedBy(User $user): bool

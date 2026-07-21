@@ -22,6 +22,13 @@ return [
     'english' => 'Englisch',
     'toggle_theme' => 'Hell/Dunkel umschalten',
     'toggle_sound' => 'Töne ein-/ausschalten',
+    'preferences_description' => 'Sprache, Darstellung und Töne',
+    'appearance' => 'Darstellung',
+    'dark_mode' => 'Dunkel',
+    'light_mode' => 'Hell',
+    'sound' => 'Töne',
+    'sound_on' => 'Eingeschaltet',
+    'sound_off' => 'Ausgeschaltet',
     'select_section' => 'Bereich wählen',
 
     // Dashboards

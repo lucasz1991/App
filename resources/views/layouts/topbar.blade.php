@@ -53,7 +53,7 @@
 
             </div>
             <div class="flex items-center gap-1.5 sm:gap-3">
-                    {{-- Sprache umschalten (Flaggen-Dropdown) --}}
+                    {{-- Sprache, Darstellung und Toene in einem gemeinsamen Menue. --}}
                     @php
                         $rtLocales = [
                             'de' => ['flag' => 'rt-brand/flags/de.svg', 'label' => __('app.german')],
@@ -61,56 +61,98 @@
                         ];
                         $rtCurrentLocale = $rtLocales[app()->getLocale()] ?? $rtLocales['de'];
                     @endphp
-                    <div x-data="{ open: false }" class="relative">
-                        <x-topbar.control-button
-                            @click="open = !open"
-                            @click.outside="open = false"
-                            aria-label="{{ __('app.language') }}"
-                            class="gap-1.5 shadow-rt-xs transition-all duration-300 ease-rt-spring active:scale-[0.98]">
-                            <img src="{{ asset($rtCurrentLocale['flag']) }}" alt="" class="h-4 w-6 rounded-sm object-cover">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-rt-muted dark:text-rt-dark-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
-                            </svg>
-                        </x-topbar.control-button>
-                        <div x-show="open" x-transition.opacity x-cloak
-                             class="absolute right-0 z-50 mt-1.5 w-44 overflow-hidden rounded-xl bg-rt-surface py-1 text-rt-text shadow-rt-md ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60">
-                            @foreach ($rtLocales as $localeKey => $localeMeta)
-                                <a href="{{ route('locale.switch', $localeKey) }}"
-                                   class="flex items-center gap-2.5 px-3 py-2 text-sm transition-colors duration-300 ease-rt-spring {{ app()->getLocale() === $localeKey ? 'bg-rt-accent-soft font-medium text-rt-text dark:bg-rt-dark-accent-soft dark:text-rt-dark-text' : 'text-rt-muted hover:bg-rt-surface-muted dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted' }}">
-                                    <img src="{{ asset($localeMeta['flag']) }}" alt="" class="h-4 w-6 rounded-sm object-cover">
-                                    {{ $localeMeta['label'] }}
-                                </a>
-                            @endforeach
-                        </div>
-                    </div>
+                    <x-ui.dropdown.anchor-dropdown
+                        align="right"
+                        width="72"
+                        :offset="10"
+                        content-classes="bg-rt-surface p-2 text-rt-text dark:bg-rt-dark-surface dark:text-white"
+                        data-topbar-preferences
+                    >
+                        <x-slot:trigger>
+                            <x-topbar.control-button
+                                data-topbar-preferences-trigger
+                                aria-label="{{ __('app.settings') }}"
+                                title="{{ __('app.settings') }}"
+                                aria-haspopup="menu"
+                                x-bind:aria-expanded="open.toString()"
+                                class="w-9 px-0 shadow-rt-xs transition-all duration-300 ease-rt-spring active:scale-[0.98]"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.592c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.041.147.084.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.245a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a6.76 6.76 0 010 .255c-.008.378.137.75.43.992l1.003.827c.424.35.534.955.26 1.43l-1.296 2.247a1.125 1.125 0 01-1.37.489l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.592c-.55 0-1.02-.397-1.11-.94l-.213-1.281c-.063-.374-.313-.686-.645-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.075-.124l-1.217.456a1.125 1.125 0 01-1.37-.49l-1.296-2.245a1.125 1.125 0 01.26-1.431l1.003-.827c.293-.241.438-.613.43-.992a6.76 6.76 0 010-.255c.008-.378-.137-.75-.43-.992l-1.003-.827a1.125 1.125 0 01-.26-1.43l1.296-2.247a1.125 1.125 0 011.37-.489l1.217.456c.355.133.75.072 1.076-.124.072-.044.146-.086.22-.128.331-.183.581-.495.644-.869l.213-1.281z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                            </x-topbar.control-button>
+                        </x-slot:trigger>
 
-                    {{-- Hell/Dunkel umschalten --}}
-                    <x-topbar.control-button
-                        x-data
-                        @click="$store.theme?.toggle()"
-                        title="{{ __('app.toggle_theme') }}"
-                        class="w-9 px-0 shadow-rt-xs transition-all duration-300 ease-rt-spring active:scale-[0.98]">
-                        <svg x-show="!$store.theme?.dark" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
-                        </svg>
-                        <svg x-show="$store.theme?.dark" x-cloak xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
-                        </svg>
-                    </x-topbar.control-button>
+                        <x-slot:content>
+                            <div class="px-2 pb-2 pt-1">
+                                <p class="text-sm font-semibold text-rt-text dark:text-white">{{ __('app.settings') }}</p>
+                                <p class="mt-0.5 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.preferences_description') }}</p>
+                            </div>
 
-                    {{-- Toene ein-/ausschalten (Sound-Repertoire, rt-sounds.js) --}}
-                    <x-topbar.control-button
-                        x-data
-                        @click="$store.sound?.toggle()"
-                        title="{{ __('app.toggle_sound') }}"
-                        class="w-9 px-0 shadow-rt-xs transition-all duration-300 ease-rt-spring active:scale-[0.98]">
-                        <svg x-show="$store.sound?.enabled" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z"/>
-                        </svg>
-                        <svg x-show="!$store.sound?.enabled" x-cloak xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-rt-muted dark:text-rt-dark-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M17.25 9.75L19.5 12m0 0l2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z"/>
-                        </svg>
-                    </x-topbar.control-button>
+                            <div class="border-t border-rt-border/70 px-1 pt-2 dark:border-rt-dark-border/70">
+                                <p class="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-rt-soft dark:text-rt-dark-soft">{{ __('app.language') }}</p>
+                                <div class="grid grid-cols-2 gap-1.5">
+                                    @foreach ($rtLocales as $localeKey => $localeMeta)
+                                        <a
+                                            href="{{ route('locale.switch', $localeKey) }}"
+                                            role="menuitemradio"
+                                            aria-checked="{{ app()->getLocale() === $localeKey ? 'true' : 'false' }}"
+                                            @if (app()->getLocale() === $localeKey) aria-current="true" @endif
+                                            class="flex min-h-11 items-center gap-2 rounded-lg border px-2.5 py-2 text-sm transition {{ app()->getLocale() === $localeKey ? 'border-rt-red/30 bg-rt-accent-soft font-semibold text-rt-text dark:border-rt-red/50 dark:bg-rt-dark-accent-soft dark:text-white' : 'border-transparent text-rt-muted hover:border-rt-border hover:bg-rt-surface-muted dark:text-rt-dark-muted dark:hover:border-rt-dark-border dark:hover:bg-rt-dark-surface-muted' }}"
+                                        >
+                                            <img src="{{ asset($localeMeta['flag']) }}" alt="" class="h-4 w-6 rounded-sm object-cover">
+                                            <span class="truncate">{{ $localeMeta['label'] }}</span>
+                                        </a>
+                                    @endforeach
+                                </div>
+                            </div>
+
+                            <div class="mt-2 space-y-1 border-t border-rt-border/70 px-1 pt-2 dark:border-rt-dark-border/70">
+                                <button
+                                    type="button"
+                                    role="menuitemcheckbox"
+                                    x-bind:aria-checked="Boolean($store.theme?.dark).toString()"
+                                    @click.stop="$store.theme?.toggle()"
+                                    class="flex min-h-12 w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left transition hover:bg-rt-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent/40 dark:hover:bg-rt-dark-surface-muted"
+                                >
+                                    <span class="flex min-w-0 items-center gap-3">
+                                        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rt-surface-muted text-rt-muted dark:bg-rt-dark-surface-muted dark:text-white">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+                                        </span>
+                                        <span class="min-w-0">
+                                            <span class="block text-sm font-medium text-rt-text dark:text-white">{{ __('app.appearance') }}</span>
+                                            <span class="block text-xs text-rt-muted dark:text-rt-dark-muted" x-text="$store.theme?.dark ? @js(__('app.dark_mode')) : @js(__('app.light_mode'))"></span>
+                                        </span>
+                                    </span>
+                                    <span class="relative inline-flex h-6 w-11 shrink-0 rounded-full bg-slate-300 transition dark:bg-slate-600" x-bind:class="$store.theme?.dark ? '!bg-rt-red' : ''" aria-hidden="true">
+                                        <span class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform" x-bind:class="$store.theme?.dark ? 'translate-x-5' : 'translate-x-0'"></span>
+                                    </span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    role="menuitemcheckbox"
+                                    x-bind:aria-checked="Boolean($store.sound?.enabled).toString()"
+                                    @click.stop="$store.sound?.toggle()"
+                                    class="flex min-h-12 w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left transition hover:bg-rt-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent/40 dark:hover:bg-rt-dark-surface-muted"
+                                >
+                                    <span class="flex min-w-0 items-center gap-3">
+                                        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rt-surface-muted text-rt-muted dark:bg-rt-dark-surface-muted dark:text-white">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" /></svg>
+                                        </span>
+                                        <span class="min-w-0">
+                                            <span class="block text-sm font-medium text-rt-text dark:text-white">{{ __('app.sound') }}</span>
+                                            <span class="block text-xs text-rt-muted dark:text-rt-dark-muted" x-text="$store.sound?.enabled ? @js(__('app.sound_on')) : @js(__('app.sound_off'))"></span>
+                                        </span>
+                                    </span>
+                                    <span class="relative inline-flex h-6 w-11 shrink-0 rounded-full bg-slate-300 transition dark:bg-slate-600" x-bind:class="$store.sound?.enabled ? '!bg-rt-red' : ''" aria-hidden="true">
+                                        <span class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform" x-bind:class="$store.sound?.enabled ? 'translate-x-5' : 'translate-x-0'"></span>
+                                    </span>
+                                </button>
+                            </div>
+                        </x-slot:content>
+                    </x-ui.dropdown.anchor-dropdown>
 
                     @auth
                         {{-- Posteingang (Umschlag-Dropdown mit Ungelesen-Badge) --}}
