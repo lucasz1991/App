@@ -119,6 +119,9 @@ class SharedUiDarkModeTest extends TestCase
         $this->assertStringContainsString('.rt-ui-button-secondary', $compiled);
         $this->assertStringContainsString('.rt-ui-control', $compiled);
         $this->assertStringContainsString('.rt-pagination', $compiled);
+        $this->assertStringContainsString('.rt-admin-hero-secondary', $compiled);
+        $this->assertStringContainsString('.rt-operational-page .rt-operational-stat', $compiled);
+        $this->assertStringContainsString('.rt-operational-page .rt-operational-nav-link', $compiled);
         $this->assertStringContainsString('body[data-mode=dark]', $compiled);
     }
 }

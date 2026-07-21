@@ -40,12 +40,23 @@ class AdminOperationalPreviewTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
 
         foreach (OperationalPreviewCatalog::slugs() as $slug) {
-            Livewire::actingAs($admin)
+            $module = app(OperationalPreviewCatalog::class)->find($slug);
+            $component = Livewire::actingAs($admin)
                 ->test(OperationalPreview::class, ['module' => $slug])
                 ->assertOk()
+                ->assertSee('data-operational-module="' . $slug . '"', escape: false)
+                ->assertSee($module['title'])
+                ->assertSee($module['metric'])
+                ->assertSee($module['badge'])
                 ->assertSee('data-preview-notice', escape: false)
                 ->assertSee(__('app.preview_not_productive'))
                 ->assertSee(__('app.preview_no_database'));
+
+            $html = $component->html();
+            $this->assertSame(3, substr_count($html, 'data-operational-stat'));
+            $this->assertSame(3, substr_count($html, 'data-operational-item'));
+            $this->assertSame(4, substr_count($html, 'data-operational-nav-link'));
+            $this->assertSame(1, substr_count($html, 'aria-current="page"'));
         }
     }
 
@@ -111,6 +122,17 @@ class AdminOperationalPreviewTest extends TestCase
         $this->assertStringContainsString("start: 'clamp(top 90%)'", $revealScript);
         $this->assertStringContainsString("clearProps: 'transform,opacity,visibility'", $revealScript);
         $this->assertStringContainsString('isInitiallyVisible(trigger)', $revealScript);
+        $this->assertStringContainsString("root.querySelectorAll('[data-admin-dashboard] [data-dashboard-segment]')", $revealScript);
+        $this->assertStringContainsString("!element.closest('[data-dashboard-segment]')", $revealScript);
+        $this->assertGreaterThanOrEqual(2, substr_count($revealScript, 'gsap.timeline('));
+        $this->assertStringContainsString('timeline.addLabel(label, position)', $revealScript);
+        $this->assertStringContainsString('timeline.call(() => markComplete(targets))', $revealScript);
+        $this->assertMatchesRegularExpression('/if \(conditions\.reduceMotion\) \{\s*showImmediately\(allTargets\);\s*return;\s*\}/s', $revealScript);
+        $this->assertSame(1, substr_count($revealScript, "document.addEventListener('livewire:navigating'"));
+        $this->assertSame(1, substr_count($revealScript, "document.addEventListener('livewire:navigated'"));
+        $this->assertStringContainsString('activeMedia?.revert()', $revealScript);
+        $this->assertStringContainsString('revealGeneration += 1', $revealScript);
+        $this->assertStringContainsString('generation === revealGeneration', $revealScript);
         $this->assertStringNotContainsString("querySelectorAll('[data-anim][data-anim-done]')", $revealScript);
     }
 
@@ -124,9 +146,27 @@ class AdminOperationalPreviewTest extends TestCase
         $this->assertStringContainsString('rt-operational-stats', $preview);
         $this->assertStringContainsString('rt-operational-stat', $preview);
         $this->assertStringContainsString('rt-operational-nav-link-active', $preview);
+        $this->assertStringContainsString('rt-operational-notice-copy', $preview);
+        $this->assertStringContainsString('data-operational-tone=', $preview);
         $this->assertStringContainsString('.dark .rt-operational-notice', $styles);
         $this->assertStringContainsString('.dark .rt-operational-stat', $styles);
         $this->assertStringContainsString('.dark .rt-operational-nav-link-active', $styles);
+        foreach ([
+            'rt-admin-panel',
+            'rt-operational-notice',
+            'rt-operational-tone',
+            'rt-operational-stat',
+            'rt-operational-item-status',
+            'rt-operational-schema',
+            'rt-operational-nav-link',
+            'rt-operational-nav-link-active',
+            'rt-operational-nav-icon',
+        ] as $hook) {
+            $this->assertStringContainsString("html.dark .rt-operational-page .{$hook}", $styles);
+            $this->assertStringContainsString("body[data-mode=\"dark\"] .rt-operational-page .{$hook}", $styles);
+        }
+        $this->assertStringContainsString('html.dark .rt-operational-page .rt-operational-notice-copy', $styles);
+        $this->assertStringContainsString('background-color: #172033 !important', $styles);
         $this->assertStringContainsString('html.dark body[data-sidebar-collapsible="true"]', $styles);
     }
 }

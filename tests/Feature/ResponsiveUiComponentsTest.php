@@ -26,14 +26,27 @@ class ResponsiveUiComponentsTest extends TestCase
         $view = file_get_contents(resource_path('views/layouts/topbar.blade.php'));
         $html = view('layouts.topbar', ['area' => 'user'])->render();
 
+        $this->assertSame(1, substr_count($view, 'data-topbar-preferences-dropdown'));
         $this->assertSame(1, substr_count($view, 'data-topbar-preferences-trigger'));
+        $this->assertSame(1, substr_count($view, 'data-topbar-preferences-icon'));
         $this->assertStringContainsString('<x-ui.dropdown.anchor-dropdown', $view);
+        $this->assertSame(1, substr_count($view, '<x-topbar.control-button'));
+
+        preg_match_all('/data-topbar-preference="([^"]+)"/', $view, $preferences);
+        $this->assertSame(['language', 'theme', 'sound'], $preferences[1]);
 
         $this->assertStringContainsString('href="' . route('locale.switch', 'de') . '"', $html);
         $this->assertStringContainsString('href="' . route('locale.switch', 'en') . '"', $html);
 
-        $this->assertStringContainsString('$store.theme?.toggle()', $view);
-        $this->assertStringContainsString('$store.sound?.toggle()', $view);
+        $this->assertSame(1, substr_count($view, '$store.theme?.toggle()'));
+        $this->assertSame(1, substr_count($view, '$store.sound?.toggle()'));
+        $this->assertSame(1, substr_count($html, 'data-topbar-preferences-dropdown'));
+        $this->assertSame(1, substr_count($html, 'data-topbar-preferences-trigger'));
+        $this->assertSame(2, substr_count($html, 'role="menuitemradio"'));
+        $this->assertSame(2, substr_count($html, 'role="menuitemcheckbox"'));
+        $this->assertStringContainsString('aria-label="' . __('app.settings') . '"', $html);
+        $this->assertStringContainsString('aria-haspopup="menu"', $html);
+        $this->assertStringContainsString('x-bind:aria-expanded="open.toString()"', $html);
 
         $this->assertDoesNotMatchRegularExpression(
             '/data-topbar-(?:language|locale|theme|sound)-(?:trigger|toggle)/',

@@ -177,6 +177,34 @@ class AdminDashboardRedesignTest extends TestCase
         $this->assertStringContainsString('dark:text-white', $dashboard);
     }
 
+    public function test_every_dashboard_section_has_a_named_timeline_segment_and_dark_safe_secondary_action(): void
+    {
+        $dashboard = file_get_contents(resource_path('views/livewire/admin/dashboard.blade.php'));
+        $revealScript = file_get_contents(resource_path('js/gsap.js'));
+        $styles = file_get_contents(resource_path('css/app.css'));
+
+        preg_match_all('/data-dashboard-segment="([^"]+)"/', $dashboard, $segments);
+
+        $this->assertSame(
+            ['hero', 'kpis', 'charts', 'operations', 'accounts', 'system'],
+            $segments[1],
+        );
+        $this->assertSame(substr_count($dashboard, '<section'), count($segments[1]));
+        $this->assertGreaterThanOrEqual(6, substr_count($dashboard, 'data-dashboard-items'));
+        $this->assertSame(1, substr_count($dashboard, 'data-dashboard-hero-secondary'));
+        $this->assertStringContainsString('rt-ui-button-secondary rt-admin-hero-secondary', $dashboard);
+        $this->assertStringNotContainsString('rt-admin-hero-secondary inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white', $dashboard);
+        $this->assertStringContainsString('rt-admin-demo-badge', $dashboard);
+        $this->assertSame(1, substr_count($dashboard, 'data-preview-tone='));
+
+        $this->assertGreaterThanOrEqual(2, substr_count($revealScript, 'gsap.timeline('));
+        $this->assertStringContainsString('timeline.addLabel(label, position)', $revealScript);
+        $this->assertStringContainsString('setupDashboardSegments(dashboardSegments)', $revealScript);
+        $this->assertStringContainsString('html.dark [data-admin-dashboard] .rt-admin-hero-secondary', $styles);
+        $this->assertStringContainsString('body[data-mode="dark"] [data-admin-dashboard] .rt-admin-hero-secondary', $styles);
+        $this->assertStringContainsString('html.dark [data-admin-dashboard] .rt-admin-demo-badge', $styles);
+    }
+
     public function test_admin_dashboard_is_compact_theme_aware_and_places_charts_first(): void
     {
         $dashboard = file_get_contents(resource_path('views/livewire/admin/dashboard.blade.php'));

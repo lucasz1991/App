@@ -73,7 +73,7 @@ class HeaderInboxSoundTest extends TestCase
 
         $component->call('loadInbox')
             ->assertSet('unreadMessagesCount', 1)
-            ->assertDispatched('rt:inbox-increased');
+            ->assertDispatched('rt:inbox-increased', source: 'inbox');
     }
 
     public function test_polling_without_new_messages_stays_silent(): void
@@ -112,6 +112,6 @@ class HeaderInboxSoundTest extends TestCase
 
         $component->call('loadInbox')
             ->assertSet('unreadChatMessagesCount', 1)
-            ->assertDispatched('rt:inbox-increased');
+            ->assertDispatched('rt:inbox-increased', source: 'chat');
     }
 }

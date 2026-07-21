@@ -58,15 +58,16 @@ Alpine.store('theme', {
     },
 });
 
-// Zentraler Sound-Store: spiegelt die RTSound-Einstellung (rt-sounds.js,
-// localStorage 'rt-sound') fuer den Topbar-Schalter. Beim Einschalten gibt
-// ein kurzer Bestaetigungston direkt hoerbares Feedback.
+// Zentraler Sound-Store: spiegelt die RTSound-Einstellung (rt-sounds.js)
+// fuer den Topbar-Schalter. RTSound ist die fuehrende Quelle und kuemmert
+// sich um die Best-Effort-Persistenz — so koennen Icon-Zustand und echtes
+// Abspielverhalten auch bei blockiertem Storage nie auseinanderlaufen.
+// Beim Einschalten gibt ein kurzer Bestaetigungston hoerbares Feedback.
 Alpine.store('sound', {
-    enabled: localStorage.getItem('rt-sound') !== 'false',
+    enabled: window.RTSound ? window.RTSound.enabled : true,
 
     toggle() {
-        this.enabled = !this.enabled;
-        localStorage.setItem('rt-sound', this.enabled ? 'true' : 'false');
+        this.enabled = window.RTSound ? window.RTSound.toggle() : !this.enabled;
         if (this.enabled) {
             window.RTSound?.play('success');
         }
@@ -166,6 +167,11 @@ Alpine.data('chatRealtime', (config) => ({
     init() {
         this.recordingLabel = '0:00';
 
+        // Aktiven Chat global markieren: der User-Channel-Listener und der
+        // Polling-Fallback unterdruecken damit den Nachrichtenton fuer den
+        // gerade sichtbaren Chat (die Nachricht erscheint dort ohnehin sofort).
+        window.__rtOpenChatId = config.chatId ? Number(config.chatId) : null;
+
         if (!window.Echo || !config.chatId) {
             return;
         }
@@ -203,6 +209,12 @@ Alpine.data('chatRealtime', (config) => ({
             this.recorder.stop();
         }
         this.stopRecordingTracks();
+
+        // Marker nur zuruecksetzen, wenn nicht schon ein neuer Chat-Wechsel
+        // (init der Folge-Instanz) ihn ueberschrieben hat.
+        if (window.__rtOpenChatId === (config.chatId ? Number(config.chatId) : null)) {
+            window.__rtOpenChatId = null;
+        }
 
         if (window.Echo && config.chatId) {
             window.Echo.leave(`chat.${config.chatId}`);
@@ -744,24 +756,35 @@ Alpine.data('adminDashboardCharts', (config = {}) => ({
 // Fehlerton bei Validierungsfehlern: Livewire fuehrt den Fehler-Bag im
 // Snapshot-memo mit. Nach jedem Commit mit echtem Action-Aufruf (Button/
 // Submit, kein reines wire:model-Sync und kein Event-Dispatch) wird der
-// Fehler-Bag mit dem Stand vor dem Request verglichen — tauchen neue oder
-// geaenderte Fehler auf, spielt rt-sounds.js den Error-Ton. Der Vergleich
-// verhindert Fehltoene, wenn alte Fehler nur unveraendert weitergereicht
-// werden (z.B. beim Schliessen eines Modals nach fehlgeschlagenem Save).
+// Fehler-Bag mit dem Stand vor dem Request verglichen. Der Ton spielt nur,
+// wenn ein Fehler-Key hinzukommt oder sich seine Messages aendern — nicht,
+// wenn alte Fehler unveraendert weitergereicht werden (z.B. Modal schliessen
+// nach fehlgeschlagenem Save) oder der Bag nur schrumpft (partielles
+// resetValidation).
+// Bekannte Grenze: Die Signatur unterscheidet nicht zwischen "Fehler
+// unveraendert weitergereicht" und "identische Fehler neu erhoben" — ein
+// unveraendert wiederholter fehlschlagender Submit bleibt daher lautlos,
+// solange der persistierte Fehler-Bag der neuen Signatur gleicht. Bewusst
+// akzeptiert: Die Inline-Fehler bleiben sichtbar, der erste Fehlschlag war
+// hoerbar, und jede Teil-Korrektur mit anderem Fehlerbild toent wieder.
 // ---------------------------------------------------------------
-function rtErrorSignature(snapshot) {
+function rtErrorBag(snapshot) {
     try {
         const parsed = typeof snapshot === 'string' ? JSON.parse(snapshot) : snapshot;
-        const errors = parsed?.memo?.errors || {};
-        const keys = Object.keys(errors).sort();
+        const errors = parsed?.memo?.errors;
 
-        if (keys.length === 0) {
-            return '';
+        if (!errors || typeof errors !== 'object') {
+            return {};
         }
 
-        return JSON.stringify(keys.map((key) => [key, errors[key]]));
+        const bag = {};
+        Object.keys(errors).forEach((key) => {
+            bag[key] = JSON.stringify(errors[key]);
+        });
+
+        return bag;
     } catch (_) {
-        return '';
+        return {};
     }
 }
 
@@ -774,12 +797,15 @@ Livewire.hook('commit', ({ component, commit, succeed }) => {
         return;
     }
 
-    const previousSignature = rtErrorSignature(component?.snapshot ?? component?.snapshotEncoded);
+    const previousErrors = rtErrorBag(component?.snapshot ?? component?.snapshotEncoded);
 
     succeed(({ snapshot }) => {
-        const nextSignature = rtErrorSignature(snapshot);
+        const nextErrors = rtErrorBag(snapshot);
+        const grew = Object.keys(nextErrors).some(
+            (key) => previousErrors[key] === undefined || previousErrors[key] !== nextErrors[key],
+        );
 
-        if (nextSignature !== '' && nextSignature !== previousSignature) {
+        if (grew) {
             window.RTSound?.play('error');
         }
     });
@@ -818,8 +844,14 @@ rtApplyTheme();
             const title = lang.newChatMessage || 'Neue Chatnachricht';
             const text = event.from ? `${lang.from || 'Von'}: ${event.from}` : '';
 
+            // Der aktiv sichtbare Chat zeigt die Nachricht sofort selbst an —
+            // dafuer keinen Ton spielen (der Toast bleibt als dezenter Hinweis).
+            const isOpenChat = Number(event.chatId) === window.__rtOpenChatId
+                && document.hasFocus()
+                && !document.hidden;
+
             window.dispatchEvent(new CustomEvent('swal:toast', {
-                detail: { type: 'info', title, text, sound: 'message' },
+                detail: { type: 'info', title, text, sound: isOpenChat ? false : 'message' },
             }));
 
             Livewire.dispatch('chat:refresh', { chatId: Number(event.chatId) });
@@ -839,11 +871,24 @@ window.addEventListener('saved', () => {
     window.RTSound?.play('success');
 });
 
-window.addEventListener('rt:inbox-increased', () => {
+window.addEventListener('rt:inbox-increased', (event) => {
     // Nur der tatsaechlich verbundene Echtzeit-Kanal ersetzt den Polling-Ton —
     // ein konfigurierter, aber nicht erreichbarer Reverb-Server darf die
     // Benachrichtigung nicht verschlucken.
     if (window.Echo?.connector?.pusher?.connection?.state === 'connected') {
+        return;
+    }
+
+    // Reiner Chat-Anstieg, waehrend die Chat-Seite sichtbar im Fokus ist:
+    // Der 5s-pollTick zeigt die Nachricht dort gerade selbst an — der 60s-
+    // Posteingangs-Poll darf dann nicht nachtraeglich klingeln.
+    const source = event.detail?.source || 'both';
+    if (
+        source === 'chat'
+        && window.__rtOpenChatId != null
+        && document.hasFocus()
+        && !document.hidden
+    ) {
         return;
     }
 

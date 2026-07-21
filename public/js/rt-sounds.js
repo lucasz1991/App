@@ -2,9 +2,11 @@
    Audio-Dateien noetig). Stellt window.RTSound bereit:
      RTSound.play('success' | 'message' | 'error' | 'warning' | 'info')
      RTSound.setEnabled(true|false) / RTSound.toggle()
-   Einstellung wird in localStorage ('rt-sound') gemerkt, Standard: an.
-   Verwendung: rt-toast.js spielt pro Toast-Typ automatisch den passenden
-   Ton, app.js meldet Chat-/Nachrichteneingaenge und Validierungsfehler. */
+   Einstellung lebt in window.__rtSoundEnabled (funktioniert auch bei
+   blockiertem Storage) und wird best-effort in localStorage ('rt-sound')
+   persistiert, Standard: an. Verwendung: rt-toast.js spielt pro Toast-Typ
+   automatisch den passenden Ton, app.js meldet Chat-/Nachrichteneingaenge
+   und Validierungsfehler. */
 (function () {
     'use strict';
 
@@ -26,7 +28,7 @@
         return window.__rtSoundContext;
     }
 
-    function readEnabled() {
+    function readStoredEnabled() {
         try {
             return localStorage.getItem(STORAGE_KEY) !== 'false';
         } catch (_) {
@@ -34,12 +36,17 @@
         }
     }
 
-    function writeEnabled(value) {
+    function persistEnabled(value) {
         try {
             localStorage.setItem(STORAGE_KEY, value ? 'true' : 'false');
         } catch (_) {
-            // Sound funktioniert auch ohne persistente Einstellung.
+            // Persistenz ist Best-Effort — der In-Memory-Zustand bleibt fuehrend,
+            // damit Sound auch bei blockiertem Storage abschaltbar ist.
         }
+    }
+
+    if (window.__rtSoundEnabled === undefined) {
+        window.__rtSoundEnabled = readStoredEnabled();
     }
 
     // Einzelnen Ton (Oszillator + Lautstaerke-Huellkurve) einplanen.
@@ -107,25 +114,36 @@
     var lastPlayedAt = window.__rtSoundLastPlayedAt || {};
     window.__rtSoundLastPlayedAt = lastPlayedAt;
 
+    function startPreset(name, preset, ctx) {
+        // Erst hier stempeln: verworfene Toene sollen die Drossel nicht belegen.
+        lastPlayedAt[name] = Date.now();
+
+        try {
+            preset(ctx);
+        } catch (_) {
+            // Ein fehlgeschlagener Ton darf die App nie beeintraechtigen.
+        }
+    }
+
     var api = {
         get enabled() {
-            return readEnabled();
+            return window.__rtSoundEnabled;
         },
 
         setEnabled: function (value) {
-            writeEnabled(Boolean(value));
+            window.__rtSoundEnabled = Boolean(value);
+            persistEnabled(window.__rtSoundEnabled);
         },
 
         toggle: function () {
-            var next = !readEnabled();
-            writeEnabled(next);
-            return next;
+            api.setEnabled(!window.__rtSoundEnabled);
+            return window.__rtSoundEnabled;
         },
 
         names: Object.keys(PRESETS),
 
         play: function (name) {
-            if (!readEnabled()) {
+            if (!window.__rtSoundEnabled) {
                 return;
             }
 
@@ -134,8 +152,7 @@
                 return;
             }
 
-            var now = Date.now();
-            if (now - (lastPlayedAt[name] || 0) < MIN_INTERVAL_MS) {
+            if (Date.now() - (lastPlayedAt[name] || 0) < MIN_INTERVAL_MS) {
                 return;
             }
 
@@ -144,51 +161,52 @@
                 return;
             }
 
-            // Autoplay-Policy: ohne vorherige Nutzer-Interaktion bleibt der
-            // Context "suspended" — dann den Ton still verwerfen statt ihn
-            // spaeter unpassend nachzuholen.
-            if (ctx.state === 'suspended') {
-                ctx.resume().catch(function () {});
-                if (ctx.state === 'suspended') {
-                    return;
-                }
+            // 'running' ist der einzige abspielbereite Zustand ('suspended'
+            // vor der ersten Nutzergeste, 'interrupted' auf iOS nach Anruf/
+            // Siri). resume() anstossen und den Ton nur spielen, wenn der
+            // Context prompt aufwacht — ein bei Autoplay-Sperre haengendes
+            // resume()-Promise loest erst bei einer spaeteren Geste auf, und
+            // dann waere der Ton kontextlos; solche Toene verfallen still.
+            if (ctx.state !== 'running') {
+                var requestedAt = Date.now();
+                ctx.resume().then(function () {
+                    if (Date.now() - requestedAt > 250) {
+                        return;
+                    }
+                    if (Date.now() - (lastPlayedAt[name] || 0) < MIN_INTERVAL_MS) {
+                        return;
+                    }
+                    startPreset(name, preset, ctx);
+                }).catch(function () {});
+
+                return;
             }
 
-            lastPlayedAt[name] = now;
-
-            try {
-                preset(ctx);
-            } catch (_) {
-                // Ein fehlgeschlagener Ton darf die App nie beeintraechtigen.
-            }
+            startPreset(name, preset, ctx);
         }
     };
 
     window.RTSound = api;
 
-    // Den Context bei der ersten Interaktion aufwecken, damit auch spaetere
-    // programmgesteuerte Toene (z.B. eintreffende Chatnachricht ohne Klick)
-    // abgespielt werden duerfen. Listener-Neuregistrierung bei wire:navigate
-    // wie in rt-toast.js ueber AbortController entkoppeln.
-    if (window.__rtSoundAbortController) {
-        window.__rtSoundAbortController.abort();
-    }
+    // Den Context bei der ersten Interaktion anlegen/aufwecken, damit auch
+    // spaetere programmgesteuerte Toene (z.B. eintreffende Chatnachricht ohne
+    // Klick) abgespielt werden duerfen. Einmal pro Seitenleben registrieren
+    // (window-Flag statt AbortController: die signal-Option ignorieren aeltere
+    // Browser stillschweigend, und die Listener wuerden bei jeder
+    // wire:navigate-Neuauswertung akkumulieren; unlock haelt keinerlei
+    // per-Auswertung-Zustand, die Erstregistrierung bleibt daher gueltig).
+    if (!window.__rtSoundUnlockBound) {
+        window.__rtSoundUnlockBound = true;
 
-    var listenerController = new AbortController();
-    window.__rtSoundAbortController = listenerController;
+        var unlock = function () {
+            var ctx = getContext();
+            if (ctx && ctx.state !== 'running') {
+                ctx.resume().catch(function () {});
+            }
+        };
 
-    function unlock() {
-        var ctx = getContext();
-        if (ctx && ctx.state === 'suspended') {
-            ctx.resume().catch(function () {});
-        }
-    }
-
-    ['pointerdown', 'keydown', 'touchstart'].forEach(function (eventName) {
-        window.addEventListener(eventName, unlock, {
-            signal: listenerController.signal,
-            passive: true,
-            capture: true
+        ['pointerdown', 'keydown', 'touchstart'].forEach(function (eventName) {
+            window.addEventListener(eventName, unlock, { passive: true, capture: true });
         });
-    });
+    }
 })();
