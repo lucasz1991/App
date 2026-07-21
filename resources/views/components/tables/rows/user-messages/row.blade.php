@@ -16,7 +16,7 @@
 @endphp
 
 {{-- 0: Von --}}
-<div class="flex items-center gap-2 px-2 py-2 pr-4 {{ $hc(0) }}">
+<div class="col-span-2 flex min-w-0 items-center gap-2 px-2 pb-1 pt-2 pr-10 md:col-span-1 md:py-2 md:pr-4 {{ $hc(0) }}">
     <img src="{{ $senderAvatar }}" class="h-6 w-6 rounded-full object-cover" alt="">
     <div class="truncate">
         <span class="text-rt-text dark:text-rt-dark-text {{ $isUnread ? 'font-semibold' : 'font-medium' }}">{{ $senderName }}</span>
@@ -27,7 +27,7 @@
 </div>
 
 {{-- 1: Betreff --}}
-<div class="flex min-w-0 flex-col px-2 py-2 {{ $hc(1) }}">
+<div class="col-span-2 flex min-w-0 flex-col px-2 py-1 md:col-span-1 md:py-2 {{ $hc(1) }}">
     <button
         type="button"
         wire:click="$dispatch('message-viewer:open', { messageId: {{ $item->id }} })"
@@ -38,7 +38,7 @@
 </div>
 
 {{-- 2: Nachricht (Snippet + ggf. Anhang) --}}
-<div class="grid min-w-0 grid-cols-[auto_1fr] items-center gap-2 px-2 py-2 text-rt-muted dark:text-rt-dark-muted {{ $hc(2) }}">
+<div class="col-span-2 grid min-w-0 grid-cols-[auto_1fr] items-center gap-2 px-2 pb-2 pt-1 text-xs text-rt-muted md:col-span-1 md:py-2 md:text-sm dark:text-rt-dark-muted {{ $hc(2) }}">
     @if (($item->files_count ?? 0) > 0)
         <i class="far fa-paperclip text-rt-soft dark:text-rt-dark-soft" aria-hidden="true"></i>
     @endif
@@ -48,7 +48,7 @@
 </div>
 
 {{-- 3: Datum --}}
-<div class="px-2 py-2 text-xs text-rt-muted dark:text-rt-dark-muted {{ $hc(3) }}" title="{{ $createdAbs }}">
+<div class="col-span-2 px-2 py-2 text-xs text-rt-muted md:col-span-1 dark:text-rt-dark-muted {{ $hc(3) }}" title="{{ $createdAbs }}">
     <div>
         {{ $createdRel }}
     </div>

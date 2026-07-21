@@ -22,7 +22,9 @@ class ChatAttachmentController extends Controller
         );
 
         $mime = strtolower((string) $file->mime_type);
-        $canRenderInline = str_starts_with($mime, 'audio/') || str_starts_with($mime, 'video/');
+        $canRenderInline = str_starts_with($mime, 'image/')
+            || str_starts_with($mime, 'audio/')
+            || str_starts_with($mime, 'video/');
 
         if ($request->boolean('download') || ! $canRenderInline) {
             return $file->download($file->disk ?: 'private', denyExpired: false);

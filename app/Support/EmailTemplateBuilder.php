@@ -203,11 +203,9 @@ class EmailTemplateBuilder
         return $this->substitute($html, $inlineImages
             ? [
                 'LOGO_SRC' => $this->inlineImage('logo-mail-dark.png', 'image/png'),
-                'HERO_SRC' => $this->inlineImage('hero-railtime.jpg', 'image/jpeg'),
             ]
             : [
                 'LOGO_SRC' => 'cid:railtime-logo',
-                'HERO_SRC' => 'cid:railtime-hero',
             ]);
     }
 
@@ -313,7 +311,6 @@ TEXT;
         $plain = chunk_split(base64_encode($this->buildPlainBody()), 76, "\r\n");
         $html = chunk_split(base64_encode($this->buildEmailHtml(inlineImages: false)), 76, "\r\n");
         $logo = chunk_split(base64_encode(file_get_contents($this->masterPath('assets/logo-mail-dark.png'))), 76, "\r\n");
-        $hero = chunk_split(base64_encode(file_get_contents($this->masterPath('assets/hero-railtime.jpg'))), 76, "\r\n");
 
         $lines = [
             'MIME-Version: 1.0',
@@ -343,13 +340,6 @@ TEXT;
             'Content-Disposition: inline; filename="logo-mail-dark.png"',
             '',
             rtrim($logo, "\r\n"),
-            "--{$relBoundary}",
-            'Content-Type: image/jpeg; name="hero-railtime.jpg"',
-            'Content-Transfer-Encoding: base64',
-            'Content-ID: <railtime-hero>',
-            'Content-Disposition: inline; filename="hero-railtime.jpg"',
-            '',
-            rtrim($hero, "\r\n"),
             "--{$relBoundary}--",
             "--{$altBoundary}--",
             '',

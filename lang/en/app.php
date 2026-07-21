@@ -220,6 +220,7 @@ return [
     'user_deactivated' => 'User deactivated successfully.',
     'user_already_inactive' => 'User is already inactive.',
     'cannot_delete_self' => 'You cannot delete your own account.',
+    'cannot_delete_super_admin' => 'The primary system administrator cannot be deleted.',
     'user_delete_failed' => 'User could not be deleted.',
     'user_deleted' => 'User has been deleted.',
     'contact_information' => 'Contact details & address',

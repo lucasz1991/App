@@ -1,8 +1,8 @@
 <div class="relative" wire:loading.class="cursor-wait">
     <x-ui.page :title="__('app.messages')" :eyebrow="__('app.personal_data')" :count="$messages->total()">
-        <div class="space-y-5">
+        <div class="space-y-3 sm:space-y-5">
             {{-- Suche --}}
-            <div class="rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+            <div class="rounded-xl bg-rt-surface p-3 shadow-rt-sm ring-1 ring-rt-border/60 sm:p-4 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
                 <div class="flex flex-col items-center justify-between space-y-3 md:flex-row md:space-y-0">
                     <div class="w-full md:w-1/2">
                         <label for="message-search" class="sr-only">{{ __('app.search') }}</label>
@@ -30,6 +30,7 @@
                 :items="$messages"
                 row-view="components.tables.rows.messages.row"
                 actions-view="components.tables.rows.messages.actions"
+                class="mt-3 sm:mt-4"
             />
 
             @if ($messages->hasMorePages())

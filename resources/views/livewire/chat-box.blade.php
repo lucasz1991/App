@@ -215,7 +215,22 @@
                                                         $mime = strtolower((string) $file->mime_type);
                                                     @endphp
 
-                                                    @if (str_starts_with($mime, 'audio/'))
+                                                    @if (str_starts_with($mime, 'image/'))
+                                                        <button type="button"
+                                                                @click="window.dispatchEvent(new CustomEvent('filepool-preview', { detail: { id: {{ $file->id }} } }))"
+                                                                class="group/image relative block max-w-[72vw] overflow-hidden rounded-xl bg-black/10 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/50 sm:max-w-full"
+                                                                title="{{ __('app.preview') }}"
+                                                                aria-label="{{ __('app.preview') }}: {{ $file->name }}">
+                                                            <img src="{{ $inlineUrl }}"
+                                                                 alt="{{ $file->name }}"
+                                                                 loading="lazy"
+                                                                 class="max-h-72 w-auto max-w-full object-contain transition duration-300 group-hover/image:scale-[1.02]">
+                                                            <span class="absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 bg-gradient-to-t from-black/75 to-transparent px-3 pb-2 pt-8 text-[10px] text-white">
+                                                                <span class="truncate">{{ $file->name }}</span>
+                                                                <i class="far fa-expand shrink-0" aria-hidden="true"></i>
+                                                            </span>
+                                                        </button>
+                                                    @elseif (str_starts_with($mime, 'audio/'))
                                                         <div x-data="chatAudioPlayer()" class="w-[min(17rem,72vw)] max-w-full py-0.5">
                                                             <audio x-ref="audio"
                                                                    preload="metadata"

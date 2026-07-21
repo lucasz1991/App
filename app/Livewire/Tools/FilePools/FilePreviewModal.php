@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Tools\FilePools;
 
+use App\Models\ChatMessage;
 use Livewire\Component;
 use App\Models\File;
 use Livewire\Attributes\Computed;
@@ -23,8 +24,9 @@ class FilePreviewModal extends Component
     public function downloadFile(int $fileId): StreamedResponse
     {
         $file = File::findOrFail($fileId);
+        $this->ensureCanAccess($file);
 
-        return $file->download(); // zentral im Model
+        return $file->download($file->disk ?: 'private', denyExpired: $file->fileable_type !== ChatMessage::class);
     }
 
     public function openWith(int $id): void
@@ -37,6 +39,8 @@ class FilePreviewModal extends Component
             return;
         }
 
+        $this->ensureCanAccess($this->file);
+
         $this->open = true;
     }
 
@@ -48,7 +52,32 @@ class FilePreviewModal extends Component
     #[Computed]
     public function url(): ?string
     {
-        return $this->file ? $this->file->getEphemeralPublicUrl() : null;
+        if (! $this->file) {
+            return null;
+        }
+
+        if ($this->file->fileable_type === ChatMessage::class) {
+            return route('chat.attachments', ['file' => $this->file]);
+        }
+
+        return $this->file->getEphemeralPublicUrl();
+    }
+
+    protected function ensureCanAccess(File $file): void
+    {
+        if ($file->fileable_type !== ChatMessage::class) {
+            return;
+        }
+
+        $message = ChatMessage::query()->findOrFail($file->fileable_id);
+
+        abort_unless(
+            auth()->check()
+                && $message->chat()
+                    ->whereHas('participants', fn ($query) => $query->where('users.id', auth()->id()))
+                    ->exists(),
+            403
+        );
     }
 
     public function render()

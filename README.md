@@ -1,4 +1,29 @@
-# RailTime – AI-Protokoll
+# RailTime – interne Mitarbeiter- und Kommunikationsplattform
+
+RailTime bündelt die tägliche interne Zusammenarbeit in einer zentralen, rollenbasierten Webanwendung. Mitarbeitende erhalten einen persönlichen Bereich für ihre Daten, freigegebene Dokumente, Nachrichten, Chats und E-Mail-Vorlagen. Verwaltung und Administratoren steuern zusätzlich Mitarbeiter, Teams, Berechtigungen, Dateien, Vorlagen und betriebliche Einstellungen; ausschließlich globale Administratoren sehen den gesonderten Administratorbereich mit vollständigen Systemkennzahlen.
+
+**Projektstatus (21. Juli 2026):** Die Kernanwendung ist als Laravel-/Livewire-System umgesetzt und in den zentralen Arbeitsabläufen funktionsfähig. Die Oberfläche unterstützt Desktop, Tablet und Mobilgeräte sowie Hell-/Dunkelmodus. Vor einem Produktivbetrieb müssen die Zielumgebung vollständig migriert, die Queue und – für sofortige Echtzeitaktualisierungen – Laravel Reverb eingerichtet werden.
+
+## Nutzen für das Unternehmen
+
+- Zentrale, nachvollziehbare Mitarbeiterverwaltung statt verteilter Einzelablagen.
+- Rollen- und teamabhängige Informationen: Beschäftigte sehen nur persönliche bzw. freigegebene Inhalte, Administratoren erhalten die notwendigen Betriebsdaten.
+- Schnellere interne Kommunikation durch Nachrichten, Echtzeit-Chats, Lesestatus, Tippanzeige sowie Datei-, Bild-, Video- und Sprachnachrichten.
+- Kontrollierte Dokumentbereitstellung über persönliche, rollenbasierte und teambezogene Downloadbereiche mit Sichtbarkeits- und Ablaufregeln.
+- Einheitliche Außendarstellung durch zentral gepflegte Firmendaten und personalisierte E-Mail-Vorlagen beziehungsweise Signaturen.
+
+## Derzeit lauffähige Funktionen
+
+- Getrennte Anmeldung und URL-Struktur für globale Administratoren sowie rollen-/teamgerechte Dashboards für Administratoren, Verwaltung, Mitarbeiter und Gäste.
+- Mitarbeiter anlegen, bearbeiten und einladen, einschließlich Team, Firmenposition, persönlicher Stammdaten, Status und Berechtigungen.
+- Persönliches Profil mit Kontakt- und Adressdaten, Sicherheit, Zwei-Faktor-Authentifizierung und Sitzungsverwaltung.
+- Datei- und Downloadcenter mit Ordnern, Rollen-/Teamfreigaben, Zeitfenstern, Vorschau, Download und automatischer Löschung abgelaufener Inhalte.
+- Interne Nachrichten und Chats mit Echtzeitaktualisierung, Tippstatus, Zustell-/Lesestatus, Anhängen, Bildvorschau, Video und Sprachnachrichten.
+- Mailverwaltung sowie personalisierte E-Mail-Vorlagen und Signaturen auf Basis zentraler Firmendaten.
+- Administrations-Einstellungen in den Bereichen Allgemein, Benutzer und System sowie ein Systemdashboard mit Benutzer-, Aktivitäts- und Betriebskennzahlen.
+- Responsive Navigation mit mobilem Drawer, dauerhaft sichtbarem aktiven Untermenü und animiertem Burger-/Schließen-Schalter.
+
+## Entwicklungs- und Übergabeprotokoll
 
 Diese Datei ist das gemeinsame Übergabe- und Kommunikationsprotokoll für Coding-Agents (z. B. Codex und Claude Code).
 
@@ -6,7 +31,7 @@ Diese Datei ist das gemeinsame Übergabe- und Kommunikationsprotokoll für Codin
 
 - Laravel-App unter `App/` mit Admin-Bereich (`/administrator`) und Nutzerbereich.
 - Migrationen für eine Neuinstallation bereinigt: nachträgliche `add_...`-Migrationen wurden in die jeweiligen `create_...`-Migrationen integriert.
-- Teams: `Mitarbeiter`, `Verwaltung`, `Administration`.
+- Teams: `Administratoren`, `Verwaltung`, `Mitarbeiter`, `Gäste`.
 - Lucas (`lucas@zacharias-net.de`) ist der einzige globale und Team-Administrator.
 - Alle Benutzer mit Rolle `staff` werden beim Seeding jedem Default-Team zugeordnet.
 - `php artisan migrate:status` und PHP-Lint der geänderten Dateien waren erfolgreich.

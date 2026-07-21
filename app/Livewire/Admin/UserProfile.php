@@ -2,9 +2,9 @@
 
 namespace App\Livewire\Admin;
 
+use App\Actions\Jetstream\DeleteUser;
 use App\Models\User;
 use App\Models\UserProfile as ProfileModel;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Livewire\Component;
@@ -74,7 +74,7 @@ class UserProfile extends Component
 
     public function deleteUser()
     {
-        Gate::authorize('users.edit');
+        Gate::authorize('employees.delete');
 
         $user = User::find($this->userId);
 
@@ -92,15 +92,18 @@ class UserProfile extends Component
             return;
         }
 
+        if ($user->isSuperAdmin()) {
+            $this->dispatch('swal:toast', type: 'error', text: __('app.cannot_delete_super_admin'));
+
+            return;
+        }
+
         try {
-            DB::transaction(function () use ($user) {
-                $user->tokens()->delete();
-                $user->deleteProfilePhoto();
-                $user->delete();
-            });
+            app(DeleteUser::class)->delete($user);
         } catch (\Throwable $e) {
             Log::error('Benutzer konnte nicht geloescht werden.', [
                 'user_id' => $user->id,
+                'deleted_by' => auth()->id(),
                 'error' => $e->getMessage(),
             ]);
 

@@ -2,9 +2,11 @@
 
 namespace App\Livewire\Admin;
 
+use App\Actions\Jetstream\DeleteUser;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -209,6 +211,52 @@ class Employees extends Component
         } else {
             $this->dispatch('swal:toast', type: 'info', text: 'Benutzer ist bereits inaktiv.');
         }
+    }
+
+    public function deleteUser(int $userId): void
+    {
+        Gate::authorize('employees.delete');
+
+        $user = User::find($userId);
+
+        if (! $user) {
+            $this->dispatch('swal:toast', type: 'error', text: __('app.user_not_found'));
+
+            return;
+        }
+
+        if ($user->id === auth()->id()) {
+            $this->dispatch('swal:toast', type: 'error', text: __('app.cannot_delete_self'));
+
+            return;
+        }
+
+        if ($user->isSuperAdmin()) {
+            $this->dispatch('swal:toast', type: 'error', text: __('app.cannot_delete_super_admin'));
+
+            return;
+        }
+
+        try {
+            app(DeleteUser::class)->delete($user);
+        } catch (\Throwable $e) {
+            Log::error('Mitarbeiter konnte nicht geloescht werden.', [
+                'user_id' => $user->id,
+                'deleted_by' => auth()->id(),
+                'error' => $e->getMessage(),
+            ]);
+
+            $this->dispatch('swal:toast', type: 'error', text: __('app.user_delete_failed'));
+
+            return;
+        }
+
+        $this->selectedEmployees = array_values(array_diff(
+            array_map('intval', $this->selectedEmployees),
+            [$userId]
+        ));
+
+        $this->dispatch('swal:toast', type: 'success', text: __('app.user_deleted'));
     }
 
     public function getEmployeesProperty()

@@ -34,6 +34,13 @@ class AuthServiceProvider extends ServiceProvider
             return $user->isAdmin() ? true : null;
         });
 
+        // Benutzerkonten loeschen ist bewusst keine delegierbare Team-
+        // Berechtigung. Diese Aktion bleibt ausschliesslich globalen Admins
+        // vorbehalten, auch wenn ein Team sonst Benutzer bearbeiten darf.
+        Gate::define('employees.delete', static function ($user): bool {
+            return $user->isAdmin();
+        });
+
         foreach (RbacCatalog::allPermissions() as $permission) {
             Gate::define($permission, static function ($user) use ($permission): bool {
                 return $user->hasRbacPermission($permission);

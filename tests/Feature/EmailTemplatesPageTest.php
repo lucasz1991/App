@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Support\EmailTemplateBuilder;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
 
@@ -78,5 +79,22 @@ class EmailTemplatesPageTest extends TestCase
         $this->actingAs($user)
             ->get(route('email-templates.download', ['template' => 'unbekannt']))
             ->assertNotFound();
+    }
+
+    public function test_downloadable_mail_templates_have_no_top_image_and_keep_the_footer_logo(): void
+    {
+        $user = User::factory()->create(['name' => 'Mara Beispiel']);
+        $builder = new EmailTemplateBuilder($user);
+
+        $html = $builder->build('vorlage-html')['content'];
+        $eml = $builder->build('vorlage-eml')['content'];
+
+        $this->assertStringNotContainsString('hero-railtime', $html);
+        $this->assertStringNotContainsString('{{HERO_SRC}}', $html);
+        $this->assertSame(1, substr_count($html, '<img '));
+        $this->assertStringContainsString('class="rt-logo"', $html);
+
+        $this->assertStringNotContainsString('railtime-hero', $eml);
+        $this->assertStringContainsString('Content-ID: <railtime-logo>', $eml);
     }
 }

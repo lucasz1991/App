@@ -93,7 +93,7 @@
           @if($isImage)
             <div class="img-container flex min-h-[200px] items-center justify-center bg-rt-surface-muted dark:bg-rt-dark-canvas">
                 <img
-                  class="block w-auto h-auto"
+                  class="block max-h-[72vh] w-auto max-w-full object-contain"
                   src="{{ $tempUrl }}"
                   alt="{{ $file->name_with_extension ?? $file->name }}"
                 />
@@ -158,7 +158,7 @@
           @if($file)
           <x-ui.buttons.button-basic
               :mode="'basic'"
-              href="{{ $file->getEphemeralPublicUrl() }}"
+              href="{{ $this->url }}"
               target="_blank"
               rel="noopener noreferrer"
               :size="'sm'"

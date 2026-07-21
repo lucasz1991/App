@@ -39,15 +39,18 @@
                     </x-dropdown-link>
                 @endif
 
-                <x-dropdown-link
-                    wire:click.prevent="deleteUser()"
-                    wire:confirm="{{ __('app.delete_user_confirm') }}"
-                    :can="'users.edit'"
-                    class="text-red-700 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-500/10"
-                >
-                    <i class="far fa-trash-alt mr-2"></i>
-                    {{ __('app.delete_user') }}
-                </x-dropdown-link>
+                @can('employees.delete')
+                    @if ((int) $user->id !== (int) auth()->id() && ! $user->isSuperAdmin())
+                        <x-dropdown-link
+                            wire:click.prevent="deleteUser()"
+                            wire:confirm="{{ __('app.delete_user_confirm') }}"
+                            class="text-red-700 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-500/10"
+                        >
+                            <i class="far fa-trash-alt mr-2"></i>
+                            {{ __('app.delete_user') }}
+                        </x-dropdown-link>
+                    @endif
+                @endcan
             </x-slot>
         </x-dropdown>
     </x-slot:actions>
