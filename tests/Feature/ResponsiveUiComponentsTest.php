@@ -61,4 +61,69 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertStringContainsString('<x-ui.dropdown.anchor-dropdown align="right" width="64">', $view);
         $this->assertStringContainsString(':label="__(\'app.actions\')"', $view);
     }
+
+    public function test_text_controls_use_mobile_safe_font_sizes_and_polished_focus_states(): void
+    {
+        $html = Blade::render(<<<'BLADE'
+            <x-ui.forms.input id="name" />
+            <x-ui.forms.select id="team"><option>Team</option></x-ui.forms.select>
+            <x-input id="legacy" />
+        BLADE);
+        $styles = file_get_contents(resource_path('css/app.css'));
+
+        $this->assertSame(3, substr_count($html, 'text-base'));
+        $this->assertSame(3, substr_count($html, 'sm:text-sm'));
+        $this->assertSame(3, substr_count($html, 'min-h-11'));
+        $this->assertGreaterThanOrEqual(2, substr_count($html, 'focus:ring-4'));
+        $this->assertStringContainsString("input[type='text']", $styles);
+        $this->assertStringContainsString('font-size: 1rem !important', $styles);
+        $this->assertStringContainsString('textarea {', $styles);
+    }
+
+    public function test_toggle_components_share_a_larger_accessible_switch_design(): void
+    {
+        $html = Blade::render(<<<'BLADE'
+            <x-ui.forms.toggle-button id="primary-toggle" label="Aktiv" />
+            <x-ui.forms.checkbox id="secondary-toggle" toggle label="E-Mail" />
+        BLADE);
+
+        $this->assertSame(2, substr_count($html, 'role="switch"'));
+        $this->assertSame(2, substr_count($html, 'data-toggle-control'));
+        $this->assertSame(2, substr_count($html, 'h-7 w-12'));
+        $this->assertSame(2, substr_count($html, 'peer-focus-visible:ring-4'));
+        $this->assertSame(2, substr_count($html, 'peer-checked:after:translate-x-full'));
+        $this->assertStringNotContainsString('aria-checked="true"', $html);
+    }
+
+    public function test_tabs_use_a_full_width_mobile_section_selector_by_default(): void
+    {
+        $html = Blade::render(<<<'BLADE'
+            <x-ui.accordion.tabs
+                :tabs="[
+                    'general' => ['label' => 'Allgemein', 'icon' => 'fad fa-sliders-h'],
+                    'company' => ['label' => 'Firmendaten', 'icon' => 'fad fa-building'],
+                    'users' => ['label' => 'Benutzer', 'icon' => 'fad fa-users'],
+                    'system' => ['label' => 'System', 'icon' => 'fad fa-server'],
+                ]"
+            >
+                Inhalt
+            </x-ui.accordion.tabs>
+        BLADE);
+
+        $this->assertStringContainsString("setupMQ('md')", $html);
+        $this->assertStringContainsString('aria-haspopup="listbox"', $html);
+        $this->assertStringContainsString('relative min-w-0 flex-1', $html);
+        $this->assertStringContainsString('max-h-[min(22rem,60dvh)]', $html);
+    }
+
+    public function test_admin_settings_use_mobile_spacing_full_width_actions_and_safe_grids(): void
+    {
+        $view = file_get_contents(resource_path('views/livewire/admin/settings.blade.php'));
+
+        $this->assertStringContainsString('content-class="mt-4 sm:mt-6"', $view);
+        $this->assertStringContainsString('p-4 shadow-rt-sm', $view);
+        $this->assertStringContainsString('sm:grid-cols-2', $view);
+        $this->assertGreaterThanOrEqual(4, substr_count($view, 'class="w-full sm:w-auto"'));
+        $this->assertGreaterThanOrEqual(4, substr_count($view, 'class="hidden h-11 w-11'));
+    }
 }

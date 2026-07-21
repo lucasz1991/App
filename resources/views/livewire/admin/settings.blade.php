@@ -12,6 +12,8 @@
         ]"
         default="general"
         persist-key="admin-settings.tabs"
+        :aria-label="__('app.settings')"
+        content-class="mt-4 sm:mt-6"
     >
     <x-ui.accordion.tab-panel for="system" panel-class="space-y-6">
     {{-- Wartungsmodus-Warnbanner --}}
@@ -27,23 +29,23 @@
 
     {{-- System / Wartungsmodus --}}
     <section
-        class="overflow-hidden rounded-2xl bg-rt-surface-muted p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60"
+        class="min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 sm:p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60"
         data-anim="fade-up"
     >
-        <div class="rounded-[calc(1rem-2px)] bg-rt-surface p-6 dark:bg-rt-dark-surface">
-            <div class="flex items-start gap-4">
-                <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent">
+        <div class="rounded-[calc(1rem-2px)] bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6">
+            <div class="flex min-w-0 items-start gap-3 sm:gap-4">
+                <span class="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent sm:flex">
                     <i class="fad fa-sliders fa-lg" aria-hidden="true"></i>
                 </span>
                 <div class="min-w-0 flex-1">
-                    <h2 class="text-lg font-semibold tracking-tight text-rt-text dark:text-rt-dark-text">
+                    <h2 class="text-base font-semibold tracking-tight text-rt-text dark:text-rt-dark-text sm:text-lg">
                         {{ __('app.system') }}
                     </h2>
-                    <p class="mt-1 text-sm text-rt-muted dark:text-rt-dark-muted">
+                    <p class="mt-1 break-words text-sm text-rt-muted dark:text-rt-dark-muted">
                         {{ __('app.settings_overview_system_text') }}
                     </p>
 
-                    <div class="mt-5 flex flex-col gap-4 rounded-xl bg-rt-surface-muted p-4 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="mt-4 flex flex-col gap-3 rounded-xl bg-rt-surface-muted p-3.5 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60 sm:mt-5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:p-4">
                         <div class="min-w-0">
                             <p class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">
                                 {{ __('app.maintenance_mode') }}
@@ -52,11 +54,13 @@
                                 {{ __('app.maintenance_mode_hint') }}
                             </p>
                         </div>
-                        <x-ui.forms.toggle-button model="maintenanceMode" />
+                        <div class="shrink-0 self-start sm:self-center">
+                            <x-ui.forms.toggle-button model="maintenanceMode" />
+                        </div>
                     </div>
 
                     <div class="mt-5">
-                        <x-ui.buttons.button-basic mode="primary" wire:click="saveSystem" can="settings.manage">
+                        <x-ui.buttons.button-basic class="w-full sm:w-auto" mode="primary" wire:click="saveSystem" can="settings.manage">
                             <i class="fad fa-save" aria-hidden="true"></i>
                             {{ __('app.save') }}
                         </x-ui.buttons.button-basic>
@@ -70,20 +74,20 @@
     {{-- Einladungen --}}
     <x-ui.accordion.tab-panel for="users" panel-class="space-y-6">
     <section
-        class="rounded-2xl bg-rt-surface p-6 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60"
+        class="min-w-0 rounded-2xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60 sm:p-6"
         data-anim="fade-up"
         data-anim-delay="0.05"
     >
-        <div class="flex items-start gap-4">
-            <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent">
+        <div class="flex min-w-0 items-start gap-3 sm:gap-4">
+            <span class="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent sm:flex">
                 <i class="fad fa-user-plus fa-lg" aria-hidden="true"></i>
             </span>
             <div class="min-w-0 flex-1">
-                <h2 class="text-lg font-semibold tracking-tight text-rt-text dark:text-rt-dark-text">
+                <h2 class="text-base font-semibold tracking-tight text-rt-text dark:text-rt-dark-text sm:text-lg">
                     {{ __('app.invitations') }}
                 </h2>
 
-                <div class="mt-4 max-w-sm">
+                <div class="mt-4 w-full sm:max-w-sm">
                     <label for="invitation_expiry_days" class="block text-sm font-medium text-rt-text dark:text-rt-dark-text">
                         {{ __('app.invitation_expiry_days') }}
                     </label>
@@ -105,7 +109,7 @@
                 </div>
 
                 <div class="mt-5">
-                    <x-ui.buttons.button-basic mode="primary" wire:click="saveInvitations" can="settings.manage">
+                    <x-ui.buttons.button-basic class="w-full sm:w-auto" mode="primary" wire:click="saveInvitations" can="settings.manage">
                         <i class="fad fa-save" aria-hidden="true"></i>
                         {{ __('app.save') }}
                     </x-ui.buttons.button-basic>
@@ -118,23 +122,23 @@
     {{-- E-Mails --}}
     <x-ui.accordion.tab-panel for="general" panel-class="space-y-6">
     <section
-        class="rounded-2xl bg-rt-surface p-6 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60"
+        class="min-w-0 rounded-2xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60 sm:p-6"
         data-anim="fade-up"
         data-anim-delay="0.1"
     >
-        <div class="flex items-start gap-4">
-            <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent">
+        <div class="flex min-w-0 items-start gap-3 sm:gap-4">
+            <span class="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent sm:flex">
                 <i class="fad fa-envelope fa-lg" aria-hidden="true"></i>
             </span>
             <div class="min-w-0 flex-1">
-                <h2 class="text-lg font-semibold tracking-tight text-rt-text dark:text-rt-dark-text">
+                <h2 class="text-base font-semibold tracking-tight text-rt-text dark:text-rt-dark-text sm:text-lg">
                     {{ __('app.settings_mails') }}
                 </h2>
-                <p class="mt-1 text-sm text-rt-muted dark:text-rt-dark-muted">
+                <p class="mt-1 break-words text-sm text-rt-muted dark:text-rt-dark-muted">
                     {{ __('app.settings_overview_mails_text') }}
                 </p>
 
-                <div class="mt-4 max-w-md">
+                <div class="mt-4 w-full sm:max-w-md">
                     <label for="admin_email" class="block text-sm font-medium text-rt-text dark:text-rt-dark-text">
                         {{ __('app.admin_email_address') }}
                     </label>
@@ -155,7 +159,7 @@
                 </div>
 
                 <div class="mt-5">
-                    <x-ui.buttons.button-basic mode="primary" wire:click="saveMails" can="settings.manage">
+                    <x-ui.buttons.button-basic class="w-full sm:w-auto" mode="primary" wire:click="saveMails" can="settings.manage">
                         <i class="fad fa-save" aria-hidden="true"></i>
                         {{ __('app.save') }}
                     </x-ui.buttons.button-basic>
@@ -167,23 +171,23 @@
 
     <x-ui.accordion.tab-panel for="company" panel-class="space-y-6">
         <section
-            class="rounded-2xl bg-rt-surface p-6 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60"
+            class="min-w-0 rounded-2xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60 sm:p-6"
             data-anim="fade-up"
         >
-            <div class="flex items-start gap-4">
-                <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent">
+            <div class="flex min-w-0 items-start gap-3 sm:gap-4">
+                <span class="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent sm:flex">
                     <i class="fad fa-building fa-lg" aria-hidden="true"></i>
                 </span>
                 <div class="min-w-0 flex-1">
-                    <h2 class="text-lg font-semibold tracking-tight text-rt-text dark:text-rt-dark-text">
+                    <h2 class="text-base font-semibold tracking-tight text-rt-text dark:text-rt-dark-text sm:text-lg">
                         {{ __('app.company_data') }}
                     </h2>
-                    <p class="mt-1 max-w-3xl text-sm text-rt-muted dark:text-rt-dark-muted">
+                    <p class="mt-1 max-w-3xl break-words text-sm text-rt-muted dark:text-rt-dark-muted">
                         {{ __('app.company_data_hint') }}
                     </p>
 
                     <form wire:submit="saveCompany" class="mt-6">
-                        <div class="grid gap-x-5 gap-y-4 md:grid-cols-2">
+                        <div class="grid min-w-0 gap-x-5 gap-y-4 sm:grid-cols-2">
                             @foreach ([
                                 ['name', 'company_name', 'text', 'organization'],
                                 ['email', 'company_email', 'email', 'email'],
@@ -200,7 +204,7 @@
                                 ['vat_id', 'vat_id', 'text', 'off'],
                                 ['tax_number', 'tax_number', 'text', 'off'],
                             ] as [$field, $label, $type, $autocomplete])
-                                <div class="{{ in_array($field, ['name', 'street', 'managing_directors'], true) ? 'md:col-span-2' : '' }}">
+                                <div class="min-w-0 {{ in_array($field, ['name', 'street', 'managing_directors'], true) ? 'sm:col-span-2' : '' }}">
                                     <label for="company_{{ $field }}" class="block text-sm font-medium text-rt-text dark:text-rt-dark-text">
                                         {{ __('app.'.$label) }}
                                     </label>
@@ -218,8 +222,8 @@
                             @endforeach
                         </div>
 
-                        <div class="mt-6 flex items-center justify-end border-t border-rt-border/70 pt-5 dark:border-rt-dark-border/70">
-                            <x-ui.buttons.button-basic type="submit" mode="primary" can="settings.manage">
+                        <div class="mt-6 flex flex-col border-t border-rt-border/70 pt-5 dark:border-rt-dark-border/70 sm:flex-row sm:items-center sm:justify-end">
+                            <x-ui.buttons.button-basic class="w-full sm:w-auto" type="submit" mode="primary" can="settings.manage">
                                 <i class="fad fa-save" aria-hidden="true"></i>
                                 <span>{{ __('app.save_company_data') }}</span>
                             </x-ui.buttons.button-basic>

@@ -21,6 +21,7 @@ return [
     'german' => 'Deutsch',
     'english' => 'Englisch',
     'toggle_theme' => 'Hell/Dunkel umschalten',
+    'select_section' => 'Bereich wählen',
 
     // Dashboards
     'welcome_name' => 'Willkommen, :name!',

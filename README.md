@@ -1,5 +1,11 @@
 # RailTime – interne Mitarbeiter- und Kommunikationsplattform
 
+## 2026-07-21 - Codex (Mobile Formfelder und Toggle-Redesign)
+
+- Alle gemeinsamen Text-, Datums-, Zeit- und Auswahlfelder verwenden mobil `text-base` und ab `sm` wieder die kompakte Schriftgröße. Eine zusätzliche mobile CSS-Regel schützt auch native und von Flatpickr erzeugte Eingabefelder vor dem automatischen iOS-Fokuszoom.
+- Formfelder besitzen nun einheitliche 44-px-Touchflächen, ruhigere Innenabstände, klarere Light-/Dark-Fokuszustände und konsistente Disabled-/Readonly-Darstellungen.
+- Beide Toggle-Komponenten verwenden denselben größeren Schalter mit sauber zentriertem Knob, sichtbarem Tastaturfokus, korrekten Disabled-Zuständen und echtem zugänglichem Switch-Status.
+
 ## 2026-07-21 - Codex (Verbindliche Dateien mit Versionierung)
 
 - Die Dateiverwaltung besitzt nun den separaten Bereich `Verbindliche Dateien`: Administratoren pflegen dort dauerhaft benannte Dokumentzwecke wie Wagen- oder Meldelisten und veröffentlichen jeweils eine aktuelle Fassung.

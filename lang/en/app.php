@@ -21,6 +21,7 @@ return [
     'german' => 'German',
     'english' => 'English',
     'toggle_theme' => 'Toggle light/dark mode',
+    'select_section' => 'Choose section',
 
     // Dashboards
     'welcome_name' => 'Welcome, :name!',
