@@ -102,7 +102,7 @@
 
         {{-- Asymmetrische Kennzahlenleiste. --}}
         <section class="grid grid-cols-2 gap-3 xl:grid-cols-5" aria-label="{{ __('app.dashboard') }}" data-anim-stagger>
-            <article class="rt-admin-panel group relative col-span-2 overflow-hidden rounded-2xl border-t-2 border-t-rt-red p-5 transition duration-300 ease-rt-spring hover:-translate-y-1 hover:shadow-rt-md">
+            <article class="rt-admin-panel rt-admin-panel-accent group relative col-span-2 overflow-hidden rounded-2xl p-5 transition duration-300 ease-rt-spring hover:-translate-y-1 hover:shadow-rt-md">
                 <div class="relative flex items-end justify-between gap-5">
                     <div>
                         <p class="text-xs font-medium text-rt-muted dark:text-rt-dark-muted">{{ __('app.total_users') }}</p>
