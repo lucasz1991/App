@@ -11,6 +11,12 @@
             'activity' => __('app.active_users'),
         ],
     ]);
+    $previewToneClasses = [
+        'red' => 'border-rose-200 bg-rose-50 text-rt-red dark:border-rose-900 dark:bg-rose-950 dark:text-rose-300',
+        'amber' => 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300',
+        'blue' => 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300',
+        'emerald' => 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
+    ];
 @endphp
 
 <x-ui.page>
@@ -102,7 +108,7 @@
         </section>
 
         {{-- Vier gleichwertige Kennzahlen in einer durchgehenden Zeile. --}}
-        <section class="grid grid-cols-4 gap-1.5 sm:gap-3" aria-label="{{ __('app.dashboard') }}" data-anim-stagger>
+        <section class="grid grid-cols-4 gap-1.5 sm:gap-3" aria-label="{{ __('app.dashboard') }}" data-dashboard-kpis data-anim-stagger>
             <article class="rt-admin-panel rt-admin-panel-accent group relative min-w-0 overflow-hidden rounded-xl p-2.5 transition duration-300 ease-rt-spring hover:-translate-y-1 hover:shadow-rt-md sm:rounded-2xl sm:p-5">
                 <div class="flex items-center justify-between gap-1.5">
                     <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-rt-red dark:border-slate-700 dark:bg-slate-800 sm:h-9 sm:w-9 sm:rounded-xl"><i data-feather="users" class="h-3.5 w-3.5 sm:h-4 sm:w-4"></i></span>
@@ -139,6 +145,49 @@
                 <p class="mt-3 truncate text-[10px] text-rt-muted dark:text-rt-dark-muted sm:mt-4 sm:text-xs">{{ __('app.teams_rbac') }}</p>
                 <p class="mt-1 text-xl font-semibold tabular-nums text-rt-text dark:text-white sm:text-2xl" data-dashboard-count="{{ $totalTeams }}">{{ number_format($totalTeams, 0, ',', '.') }}</p>
             </article>
+        </section>
+
+        <section class="rt-admin-panel overflow-hidden rounded-2xl" aria-labelledby="operational-preview-heading" data-anim="fade-up">
+            <header class="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 px-5 py-5 sm:px-6 dark:border-slate-700">
+                <div>
+                    <div class="flex flex-wrap items-center gap-2.5">
+                        <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.operations') }}</p>
+                        <span class="inline-flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                            <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+                            {{ __('app.demo_preview') }}
+                        </span>
+                    </div>
+                    <h2 id="operational-preview-heading" class="mt-1 text-lg font-semibold text-rt-text dark:text-white">{{ __('app.operational_control') }}</h2>
+                    <p class="mt-1 max-w-2xl text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">{{ __('app.operational_preview_dashboard_hint') }}</p>
+                </div>
+                <span class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                    <i data-feather="database" class="h-3.5 w-3.5"></i>
+                    {{ __('app.no_database_connection') }}
+                </span>
+            </header>
+
+            <div class="grid gap-px bg-slate-200 sm:grid-cols-2 xl:grid-cols-4 dark:bg-slate-700" data-operational-preview>
+                @foreach ($operationalPreviews as $previewModule)
+                    <a
+                        href="{{ route('admin.operations.preview', ['module' => $previewModule['slug']]) }}"
+                        wire:navigate
+                        class="group min-w-0 bg-white px-5 py-5 transition duration-300 hover:bg-slate-50 sm:px-6 dark:bg-[#111827] dark:hover:bg-slate-800"
+                    >
+                        <div class="flex items-start justify-between gap-3">
+                            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border {{ $previewToneClasses[$previewModule['tone']] ?? $previewToneClasses['red'] }}">
+                                <i data-feather="{{ $previewModule['icon'] }}" class="h-4 w-4"></i>
+                            </span>
+                            <i data-feather="arrow-up-right" class="h-4 w-4 text-slate-400 transition duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-rt-red"></i>
+                        </div>
+                        <p class="mt-4 text-2xl font-semibold tracking-[-0.035em] tabular-nums text-rt-text dark:text-white">{{ $previewModule['metric'] }}</p>
+                        <p class="mt-0.5 truncate text-xs text-rt-muted dark:text-rt-dark-muted">{{ $previewModule['metric_label'] }}</p>
+                        <div class="mt-4 border-t border-slate-200 pt-3 dark:border-slate-700">
+                            <p class="truncate text-sm font-semibold text-rt-text dark:text-white">{{ $previewModule['title'] }}</p>
+                            <p class="mt-1 truncate text-[11px] text-rt-soft dark:text-rt-dark-soft">{{ $previewModule['badge'] }}</p>
+                        </div>
+                    </a>
+                @endforeach
+            </div>
         </section>
 
         {{-- Feine SVG-Diagramme mit Apache ECharts 6. --}}

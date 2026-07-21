@@ -3,6 +3,7 @@
 use App\Livewire\Admin\Dashboard;
 use App\Livewire\Admin\Employees;
 use App\Livewire\Admin\MailManagement;
+use App\Livewire\Admin\OperationalPreview;
 use App\Livewire\Admin\Settings;
 use App\Livewire\Admin\UserProfile;
 use App\Livewire\MessageBox;
@@ -82,6 +83,9 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
     ->group(function () {
         Route::get('/', Dashboard::class)->name('dashboard');
         Route::get('/index', Dashboard::class)->name('index');
+        Route::get('/betrieb/{module}', OperationalPreview::class)
+            ->where('module', 'orders|shift-management|calendar|customers')
+            ->name('operations.preview');
         Route::get('/settings', Settings::class)->name('settings');
         Route::get('/employees', Employees::class)->name('employees');
         Route::get('/user/{userId}', UserProfile::class)->name('user-profile');

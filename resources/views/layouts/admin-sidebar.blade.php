@@ -10,6 +10,18 @@
             </x-menu.sidebar-nav-link>
         </x-menu.sidebar-nav>
 
+        <x-menu.sidebar-nav :label="__('app.operations_preview_navigation')">
+            @foreach (app(\App\Support\Operations\OperationalPreviewCatalog::class)->dashboard() as $previewModule)
+                <x-menu.sidebar-nav-link
+                    :href="route('admin.operations.preview', ['module' => $previewModule['slug']])"
+                    :icon="$previewModule['icon']"
+                    :active="request()->routeIs('admin.operations.preview') && request()->route('module') === $previewModule['slug']"
+                >
+                    {{ $previewModule['title'] }}
+                </x-menu.sidebar-nav-link>
+            @endforeach
+        </x-menu.sidebar-nav>
+
         @canany(['settings.manage', 'employees.view', 'files.manage', 'manage.messages'])
         <x-menu.sidebar-nav :label="__('app.administration')">
             @can('settings.manage')

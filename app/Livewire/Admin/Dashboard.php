@@ -3,6 +3,7 @@
 namespace App\Livewire\Admin;
 
 use App\Support\Dashboard\SystemDashboardData;
+use App\Support\Operations\OperationalPreviewCatalog;
 use Livewire\Component;
 
 class Dashboard extends Component
@@ -22,7 +23,7 @@ class Dashboard extends Component
         }
     }
 
-    public function render(SystemDashboardData $dashboardData)
+    public function render(SystemDashboardData $dashboardData, OperationalPreviewCatalog $previewCatalog)
     {
         abort_unless(auth()->user()?->isAdmin(), 403);
 
@@ -33,6 +34,7 @@ class Dashboard extends Component
             'recentActivity' => $dashboardData->recentActivity(),
             'operations' => $dashboardData->operations(),
             'charts' => $dashboardData->charts(),
+            'operationalPreviews' => $previewCatalog->dashboard(),
             'canViewSystemData' => $canViewSystemData,
             'system' => $canViewSystemData ? $dashboardData->system() : null,
         ])->layout('layouts.master', ['area' => 'admin']);
