@@ -66,9 +66,10 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
     Route::get('/messages', MessageBox::class)->name('messages');
     // Chat steht ALLEN angemeldeten Benutzern offen (Admin- wie Nutzerbereich).
     Route::get('/chat', App\Livewire\ChatBox::class)->name('chat');
-    // Personalisierte E-Mail-Vorlagen/Signaturen (Profil-Tab "E-Mail-Vorlagen").
-    Route::get('/profile/email-templates/{template}', App\Http\Controllers\ProfileEmailTemplateController::class)
-        ->name('profile.email-templates');
+    // Personalisierte E-Mail-Vorlagen/Signaturen als eigenstaendiger Bereich.
+    Route::view('/email-templates', 'email-templates.index')->name('email-templates.index');
+    Route::get('/email-templates/{template}/download', App\Http\Controllers\ProfileEmailTemplateController::class)
+        ->name('email-templates.download');
 });
 
 Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session'), 'verified', 'role:admin,staff'])

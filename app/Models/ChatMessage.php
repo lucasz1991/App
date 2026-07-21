@@ -9,6 +9,16 @@ class ChatMessage extends Model
 {
     protected $fillable = ['chat_id', 'user_id', 'body'];
 
+    /**
+     * Chat-Inhalte werden mit dem App-Key verschlüsselt gespeichert.
+     */
+    protected function casts(): array
+    {
+        return [
+            'body' => 'encrypted',
+        ];
+    }
+
     public function chat(): BelongsTo
     {
         return $this->belongsTo(Chat::class);

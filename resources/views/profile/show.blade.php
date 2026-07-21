@@ -17,7 +17,6 @@
         }
 
         $profileTabs['sessions'] = ['label' => __('app.sessions'), 'icon' => 'fad fa-laptop'];
-        $profileTabs['templates'] = ['label' => __('app.email_templates'), 'icon' => 'fad fa-envelope-open-text'];
     @endphp
 
     <x-ui.page
@@ -64,7 +63,8 @@
         <x-ui.accordion.tabs
             :tabs="$profileTabs"
             :collapse-at="'md'"
-            default="personal"
+            :default="request('tab', 'personal')"
+            :force-default="request()->filled('tab')"
             persist-key="own-profile.tabs"
         >
             <x-ui.accordion.tab-panel for="personal" panel-class="space-y-8">
@@ -91,9 +91,6 @@
                 @livewire('profile.logout-other-browser-sessions-form')
             </x-ui.accordion.tab-panel>
 
-            <x-ui.accordion.tab-panel for="templates" panel-class="space-y-8">
-                @include('profile.email-templates')
-            </x-ui.accordion.tab-panel>
         </x-ui.accordion.tabs>
     </x-ui.page>
 @endsection

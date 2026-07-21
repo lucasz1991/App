@@ -1,9 +1,26 @@
-<div class="relative" wire:poll.60s="loadInbox">
+<div class="relative flex items-center gap-1.5" wire:poll.60s="loadInbox">
     @php
-        $messageRoute = in_array(auth()->user()?->role, ['admin', 'staff'], true)
+        $messageRoute = auth()->user()?->usesAdminLayout()
             ? route('admin.messages')
             : route('messages');
     @endphp
+
+    <a
+        href="{{ route('chat') }}"
+        wire:navigate
+        title="{{ __('app.chat') }}"
+        aria-label="{{ __('app.chat') }}"
+        class="relative flex h-9 w-9 items-center justify-center rounded-lg border border-rt-border bg-rt-surface px-0 text-rt-text shadow-sm transition hover:bg-rt-surface-muted hover:text-rt-accent focus:outline-none focus:ring-2 focus:ring-rt-accent/40 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white dark:hover:bg-rt-dark-surface-muted dark:hover:text-white"
+    >
+        <i class="far fa-comments text-base" aria-hidden="true"></i>
+
+        @if ($unreadChatMessagesCount >= 1)
+            <span class="absolute -right-1.5 -top-1.5 rounded-full bg-rt-red px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                {{ $unreadChatMessagesCount > 99 ? '99+' : $unreadChatMessagesCount }}
+            </span>
+        @endif
+    </a>
+
     <x-dropdown align="right" width="w-96"
                 dropdown-classes="!rounded-xl !shadow-rt-md"
                 content-classes="!rounded-xl !border-rt-border/60 py-1 bg-rt-surface text-rt-text dark:!border-rt-dark-border/60 dark:bg-rt-dark-surface dark:text-white">
@@ -39,7 +56,7 @@
                     <button
                         type="button"
                         class="flex w-full items-center gap-3 p-3 text-left transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted dark:hover:bg-rt-dark-surface-muted {{ $isUnread ? 'bg-rt-accent-soft dark:bg-rt-dark-accent-soft' : '' }}"
-                        x-on:click="$wire.showMessage({{ $message->id }})"
+                        wire:click="$dispatch('message-viewer:open', { messageId: {{ $message->id }} })"
                     >
                         <img src="{{ $senderAvatar }}" class="h-8 w-8 rounded-full object-cover" alt="">
                         <div class="min-w-0 flex-auto">
@@ -71,10 +88,4 @@
             </div>
         </x-slot>
     </x-dropdown>
-
-    {{-- Anzeige-Modal --}}
-    <x-ui.messages.message-show-modal
-        model="showMessageModal"
-        :message="$selectedMessage"
-    />
 </div>

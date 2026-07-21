@@ -2,6 +2,7 @@
     // ['anwesenheit' => 'Anwesenheit'] ODER ['anwesenheit' => ['label'=>'…','icon'=>'…']]
     'tabs' => [],
     'default' => null,
+    'forceDefault' => false,
     'persistKey' => null,
     // optional: 'sm' | 'md' | 'lg' | 'xl' | '2xl'
     'collapseAt' => null,
@@ -70,7 +71,7 @@
             this.collapsed = false;
         }
     }"
-    x-init="ensureActiveTab(); setupMQ(@js($collapseAt)); onResize(); $watch('openTab', () => onResize())"
+    x-init="if (@js($forceDefault)) { openTab = @js($initial); } ensureActiveTab(); setupMQ(@js($collapseAt)); onResize(); $watch('openTab', () => onResize())"
     class="w-full"
     wire:key="{{ \Illuminate\Support\Str::slug($key) }}"
 >

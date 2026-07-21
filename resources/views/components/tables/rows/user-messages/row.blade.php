@@ -28,9 +28,13 @@
 
 {{-- 1: Betreff --}}
 <div class="flex min-w-0 flex-col px-2 py-2 {{ $hc(1) }}">
-    <div class="truncate text-rt-text dark:text-rt-dark-text {{ $isUnread ? 'font-semibold' : 'font-medium' }}">
+    <button
+        type="button"
+        wire:click="$dispatch('message-viewer:open', { messageId: {{ $item->id }} })"
+        class="truncate text-left text-rt-text transition-colors duration-200 hover:text-rt-red focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40 dark:text-rt-dark-text dark:hover:text-rt-dark-accent {{ $isUnread ? 'font-semibold' : 'font-medium' }}"
+    >
         {{ $item->subject }}
-    </div>
+    </button>
 </div>
 
 {{-- 2: Nachricht (Snippet + ggf. Anhang) --}}

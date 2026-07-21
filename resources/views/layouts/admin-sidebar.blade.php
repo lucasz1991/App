@@ -58,20 +58,37 @@
              empfangen selbst aber keine — der Bereich bleibt den Mitarbeitern
              (Nutzer-Sidebar) vorbehalten. --}}
         <x-menu.sidebar-nav :label="__('app.personal_data')">
-            <x-menu.sidebar-nav-link
-                :href="route('chat')"
-                icon="message-circle"
-                :active="request()->routeIs('chat')"
+            <x-menu.sidebar-nav-group
+                icon="message-square"
+                :active="request()->routeIs('chat', 'admin.messages')"
             >
-                {{ __('app.chat') }}
-            </x-menu.sidebar-nav-link>
+                <x-slot:label>{{ __('app.communication') }}</x-slot:label>
+
+                <x-menu.sidebar-nav-link
+                    :href="route('chat')"
+                    icon="message-circle"
+                    :active="request()->routeIs('chat')"
+                    class="!pl-12"
+                >
+                    {{ __('app.chat') }}
+                </x-menu.sidebar-nav-link>
+
+                <x-menu.sidebar-nav-link
+                    :href="route('admin.messages')"
+                    icon="mail"
+                    :active="request()->routeIs('admin.messages')"
+                    class="!pl-12"
+                >
+                    {{ __('app.messages') }}
+                </x-menu.sidebar-nav-link>
+            </x-menu.sidebar-nav-group>
 
             <x-menu.sidebar-nav-link
-                :href="route('admin.messages')"
-                icon="mail"
-                :active="request()->routeIs('admin.messages')"
+                :href="route('email-templates.index')"
+                icon="file-text"
+                :active="request()->routeIs('email-templates.*')"
             >
-                {{ __('app.messages') }}
+                {{ __('app.email_templates') }}
             </x-menu.sidebar-nav-link>
 
             <x-menu.sidebar-nav-link

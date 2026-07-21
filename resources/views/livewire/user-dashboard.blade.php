@@ -92,7 +92,7 @@
                         <i data-feather="message-circle" class="h-4 w-4"></i>
                         {{ __('app.chat') }}
                     </a>
-                    <a href="{{ route('profile.show') }}"
+                    <a href="{{ route('email-templates.index') }}" wire:navigate
                        class="flex items-center gap-3 rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition-all duration-300 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red/40 hover:bg-rt-red/5 hover:text-rt-red hover:shadow-rt-xs active:scale-[0.98] dark:border-slate-700 dark:text-slate-300 dark:hover:border-rt-red/40 dark:hover:bg-slate-700 dark:hover:text-rt-red">
                         <i data-feather="file-text" class="h-4 w-4"></i>
                         {{ __('app.email_templates') }}

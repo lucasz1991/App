@@ -61,6 +61,7 @@
             </div>
         </main>
         @auth
+            <livewire:messages.message-viewer-modal />
             <livewire:tools.file-pools.file-preview-modal />
         @endauth
         <!-- script -->

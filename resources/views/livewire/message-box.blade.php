@@ -1,5 +1,5 @@
 <div class="relative" wire:loading.class="cursor-wait">
-    <x-ui.page :title="__('app.messages')" :eyebrow="__('app.personal_data')">
+    <x-ui.page :title="__('app.messages')" :eyebrow="__('app.personal_data')" :count="$messages->total()">
         <div class="space-y-5">
             {{-- Suche --}}
             <div class="rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
@@ -46,8 +46,4 @@
         </div>
     </x-ui.page>
 
-    <x-ui.messages.message-show-modal
-        model="showMessageModal"
-        :message="$selectedMessage"
-    />
 </div>

@@ -11,7 +11,7 @@
     <x-slot name="content">
         {{-- Anzeigen --}}
         <x-dropdown-link href="javascript:void(0)"
-                         wire:click="showMessage({{ $item->id }})">
+                         wire:click="$dispatch('message-viewer:open', { messageId: {{ $item->id }} })">
             <i class="far fa-eye mr-2" aria-hidden="true"></i>
             {{ __('app.show') }}
         </x-dropdown-link>

@@ -342,6 +342,8 @@ return [
     'open' => 'Open',
     'contact' => 'Contact & address',
     'download_center' => 'Download center',
+    'communication' => 'Communication',
+    'downloads_and_templates' => 'Downloads & templates',
     'chat' => 'Chat',
     'chats' => 'Chats',
     'new_chat' => 'New chat',
@@ -397,12 +399,12 @@ return [
     'mail_confidentiality' => 'This email may contain confidential information. If you are not the intended recipient, please notify the sender and delete this message.',
     'mail_subcopy' => 'If you have trouble clicking the ":actionText" button, copy the URL below and paste it into your web browser:',
 
-    // Profile: email templates
+    // Email templates
     'position' => 'Role / position',
     'position_placeholder' => 'e.g. management, IT services, office assistance',
     'email_templates' => 'Email templates',
     'email_templates_intro' => 'Personal email templates and signatures in the RailTime design — your name, role and contact details are already filled in.',
-    'email_templates_missing_data' => 'Your phone number or role is not fully maintained yet. Add them in the "Personal data" tab so they appear in the templates.',
+    'email_templates_missing_data' => 'Your phone number or role is not fully maintained yet. Add them in your profile under "Personal details" so they appear in the templates.',
     'email_templates_legal_hint' => 'Please fill in placeholders such as {{BETREFF}}, {{NACHRICHT}} and the legal details (management, register court, HRB, VAT ID) before sending.',
     'email_template_mail_eml' => 'Email template for Outlook (EML)',
     'email_template_mail_eml_hint' => 'Double-click to open the template as a new draft — including the logo in the footer, hero image and your signature.',

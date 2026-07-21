@@ -2,13 +2,13 @@
 @php
 
 $modeClasses = match ($mode) {
-    'primary', 'blue' => ' text-white bg-rt-red hover:bg-rt-red-dark focus:ring-rt-red/40 border-rt-red',
+    'primary', 'blue' => ' text-white dark:text-white bg-rt-red hover:bg-rt-red-dark focus:ring-rt-red/40 border-rt-red',
     'basic', 'secondary', 'light', 'white' => ' text-rt-text dark:text-white bg-rt-surface dark:bg-rt-dark-surface hover:bg-rt-surface-muted dark:hover:bg-rt-dark-surface-muted focus:ring-rt-accent/40 border-rt-border dark:border-rt-dark-border',
-    'danger' => ' text-white bg-red-600 hover:bg-red-700 focus:ring-red-300 border-red-600',
-    'success' => ' text-white bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-300 border-emerald-600',
-    'warning' => ' text-white bg-amber-500 hover:bg-amber-600 focus:ring-amber-300 border-amber-500',
-    'info' => ' text-white bg-sky-600 hover:bg-sky-700 focus:ring-sky-300 border-sky-600',
-    'dark' => ' text-white bg-slate-800 hover:bg-slate-900 focus:ring-slate-700 border-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 dark:border-slate-600',
+    'danger' => ' text-white dark:text-white bg-red-600 hover:bg-red-700 focus:ring-red-300 border-red-600',
+    'success' => ' text-white dark:text-white bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-300 border-emerald-600',
+    'warning' => ' text-white dark:text-white bg-amber-500 hover:bg-amber-600 focus:ring-amber-300 border-amber-500',
+    'info' => ' text-white dark:text-white bg-sky-600 hover:bg-sky-700 focus:ring-sky-300 border-sky-600',
+    'dark' => ' text-white dark:text-white bg-slate-800 hover:bg-slate-900 focus:ring-slate-700 border-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 dark:border-slate-600',
     'link' => ' text-rt-red bg-transparent hover:bg-rt-red/10 focus:ring-rt-red/30 border-transparent',
 };
 

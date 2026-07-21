@@ -342,6 +342,8 @@ return [
     'open' => 'Öffnen',
     'contact' => 'Kontakt & Anschrift',
     'download_center' => 'Download-Center',
+    'communication' => 'Kommunikation',
+    'downloads_and_templates' => 'Downloads & Vorlagen',
     'chat' => 'Chat',
     'chats' => 'Chats',
     'new_chat' => 'Neuer Chat',
@@ -397,12 +399,12 @@ return [
     'mail_confidentiality' => 'Diese E-Mail kann vertrauliche Informationen enthalten. Sollten Sie nicht der vorgesehene Empfänger sein, informieren Sie bitte den Absender und löschen Sie diese Nachricht.',
     'mail_subcopy' => 'Wenn du Probleme hast, den „:actionText“-Button zu klicken, kopiere bitte die folgende URL und füge sie in deinen Webbrowser ein:',
 
-    // Profil: E-Mail-Vorlagen
+    // E-Mail-Vorlagen
     'position' => 'Funktion / Position',
     'position_placeholder' => 'z. B. Geschäftsführung, IT-Technik, Büro-Assistenz',
     'email_templates' => 'E-Mail-Vorlagen',
     'email_templates_intro' => 'Persönliche E-Mail-Vorlagen und Signaturen im RailTime-Design — Name, Funktion und Kontaktdaten sind bereits eingetragen.',
-    'email_templates_missing_data' => 'Telefonnummer oder Funktion sind noch nicht vollständig gepflegt. Ergänze sie im Tab „Persönliche Daten", damit sie in den Vorlagen erscheinen.',
+    'email_templates_missing_data' => 'Telefonnummer oder Funktion sind noch nicht vollständig gepflegt. Ergänze sie im Profil unter „Persönliche Daten", damit sie in den Vorlagen erscheinen.',
     'email_templates_legal_hint' => 'Platzhalter wie {{BETREFF}}, {{NACHRICHT}} sowie die rechtlichen Angaben (Geschäftsführung, Registergericht, HRB, USt-IdNr.) bitte vor dem Versand ausfüllen.',
     'email_template_mail_eml' => 'E-Mail-Vorlage für Outlook (EML)',
     'email_template_mail_eml_hint' => 'Doppelklicken öffnet die Vorlage als neuen Entwurf — inklusive Logo im Footer, Kopfbild und deiner Signatur.',

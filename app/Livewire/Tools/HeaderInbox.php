@@ -2,18 +2,15 @@
 
 namespace App\Livewire\Tools;
 
-use App\Models\File;
-use App\Models\Message;
+use App\Models\ChatMessage;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class HeaderInbox extends Component
 {
     public int $unreadMessagesCount = 0;
+    public int $unreadChatMessagesCount = 0;
     public $receivedMessages;            // Collection (kleine Liste)
-    public $selectedMessage = null;      // App\Models\Message|null
-    public bool $showMessageModal = false;
 
     public function mount(): void
     {
@@ -27,6 +24,7 @@ class HeaderInbox extends Component
 
         if (! $user) {
             $this->unreadMessagesCount = 0;
+            $this->unreadChatMessagesCount = 0;
             $this->receivedMessages = collect();
 
             return;
@@ -43,46 +41,18 @@ class HeaderInbox extends Component
         $this->unreadMessagesCount = $user->receivedMessages()
             ->where('status', 1)
             ->count();
-    }
 
-    public function showMessage(int $messageId): void
-    {
-        $user = Auth::user();
-
-        if (! $user) {
-            return;
-        }
-
-        // Nachricht holen (inkl. files & sender fuers Modal)
-        $this->selectedMessage = $user->receivedMessages()
-            ->with(['files', 'sender'])
-            ->find($messageId);
-
-        if ($this->selectedMessage) {
-            // als gelesen markieren
-            if ((int) $this->selectedMessage->status === 1) {
-                $this->selectedMessage->update(['status' => 2]);
-            }
-
-            // Modal oeffnen
-            $this->showMessageModal = true;
-
-            // Zaehler/Liste aktualisieren
-            $this->loadInbox();
-        }
-    }
-
-    /**
-     * Download eines Anhangs — nur Dateien aus eigenen empfangenen Nachrichten.
-     */
-    public function downloadFile(int $fileId): StreamedResponse
-    {
-        $file = File::query()
-            ->where('fileable_type', Message::class)
-            ->whereIn('fileable_id', Auth::user()->receivedMessages()->select('id'))
-            ->findOrFail($fileId);
-
-        return $file->download($file->disk ?: 'private');
+        $this->unreadChatMessagesCount = ChatMessage::query()
+            ->join('chat_user', function ($join) use ($user) {
+                $join->on('chat_user.chat_id', '=', 'chat_messages.chat_id')
+                    ->where('chat_user.user_id', '=', $user->id);
+            })
+            ->where('chat_messages.user_id', '!=', $user->id)
+            ->where(function ($query) {
+                $query->whereNull('chat_user.last_read_at')
+                    ->orWhereColumn('chat_messages.created_at', '>', 'chat_user.last_read_at');
+            })
+            ->count();
     }
 
     public function render()
