@@ -2,6 +2,7 @@
 
 ## 2026-07-21 - Codex (Viewport-sichere Dropdowns, mobile Tabellen und Chatdarstellung)
 
+- Tabellenzeilen besitzen jetzt eine einheitliche Bedienung: Ein einfacher Klick schaltet die Zeilenauswahl um, ein Doppelklick oeffnet die jeweils vorhandene Detailansicht. Bei Mitarbeitern ist dies das Profil, bei Nachrichten und Aufgaben das Detail-Modal und bei Mails die Detailausgabe. Links, Formulare und Aktions-Dropdowns bleiben davon ausgenommen.
 - Das gemeinsame Dropdown- und Anchor-Dropdown-System hält jetzt auf Mobilgeräten, Tablets und Desktop immer 12 Pixel Sicherheitsabstand zum sichtbaren Bildschirmrand.
 - Menüs wechseln bei zu wenig Platz automatisch ober- beziehungsweise unterhalb des Triggers, werden horizontal in den Viewport verschoben und erhalten bei Bedarf eine eigene Scrollfläche statt aus dem Bildschirm zu ragen.
 - Ein kleiner Formpfeil bleibt auch nach dem Verschieben exakt auf den auslösenden Button ausgerichtet. Die Menüs werden zentral an den Dokument-Body gesetzt und dadurch nicht mehr von Tabellen, Karten oder anderen Stacking-Kontexten abgeschnitten.

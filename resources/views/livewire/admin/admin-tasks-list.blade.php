@@ -93,6 +93,9 @@
             ['label' => 'Status',      'key' => 'status',           'width' => '15%', 'sortable' => false,  'hideOn' => 'none'],
         ]"
         :items="$tasks"
+        :selected-items="$selectedTasks"
+        selection-action="toggleTaskSelection"
+        detail-action="openTaskDetail"
         :sort-by="$sortBy ?? null"
         :sort-dir="$sortDir ?? 'asc'"
         row-view="components.tables.rows.admin-tasks.task-row"

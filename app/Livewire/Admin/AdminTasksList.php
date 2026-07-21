@@ -19,6 +19,9 @@ class AdminTasksList extends Component
     public $filterPriority = null; // null = alle
     public bool $onlyMine  = false;
 
+    /** @var array<int, int> */
+    public array $selectedTasks = [];
+
     protected $queryString = [
         'search'         => ['except' => ''],
         'filterStatus'   => ['except' => null],
@@ -65,6 +68,28 @@ class AdminTasksList extends Component
     public function updatedOnlyMine(): void
     {
         $this->resetPage();
+    }
+
+    public function toggleTaskSelection(int $taskId): void
+    {
+        if (! AdminTask::query()->whereKey($taskId)->exists()) {
+            return;
+        }
+
+        if (in_array($taskId, $this->selectedTasks, true)) {
+            $this->selectedTasks = array_values(array_diff($this->selectedTasks, [$taskId]));
+        } else {
+            $this->selectedTasks[] = $taskId;
+        }
+    }
+
+    public function openTaskDetail(int $taskId): void
+    {
+        if (! AdminTask::query()->whereKey($taskId)->exists()) {
+            return;
+        }
+
+        $this->dispatch('openAdminTaskDetail', ['taskId' => $taskId]);
     }
 
     /*

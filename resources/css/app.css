@@ -1255,6 +1255,21 @@ body[data-mode="dark"] .rt-chat-read-indicator.is-delivered {
 /* Responsive Datentabellen: Smartphones erhalten lesbare Datenkarten statt
    eines zusammengedrueckten Desktop-Rasters. Kleine Tablets nutzen zwei
    Spalten; ab md gilt wieder das konfigurierte Tabellenraster. */
+.rt-table-row[data-table-row-interactive='true'] {
+    cursor: pointer;
+}
+
+.rt-table-row.rt-table-row-selected {
+    background: rgba(228, 0, 43, 0.075);
+    box-shadow: inset 3px 0 0 #e4002b;
+}
+
+html.dark .rt-table-row.rt-table-row-selected,
+body[data-mode='dark'] .rt-table-row.rt-table-row-selected {
+    background: rgba(255, 79, 112, 0.13);
+    box-shadow: inset 3px 0 0 #ff4f70;
+}
+
 .rt-table-row-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr);

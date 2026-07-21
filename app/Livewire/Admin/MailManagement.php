@@ -18,8 +18,28 @@ class MailManagement extends Component
 
     public ?int $expandedMailId = null;
 
+    /** @var array<int, int> */
+    public array $selectedMails = [];
+
+    public function toggleMailSelection(int $id): void
+    {
+        if (! Mail::query()->whereKey($id)->exists()) {
+            return;
+        }
+
+        if (in_array($id, $this->selectedMails, true)) {
+            $this->selectedMails = array_values(array_diff($this->selectedMails, [$id]));
+        } else {
+            $this->selectedMails[] = $id;
+        }
+    }
+
     public function toggleMailDetails(int $id): void
     {
+        if (! Mail::query()->whereKey($id)->exists()) {
+            return;
+        }
+
         $this->expandedMailId = $this->expandedMailId === $id ? null : $id;
     }
 

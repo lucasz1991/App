@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Livewire;
 
+use App\Livewire\MessageBox;
 use App\Livewire\Messages\MessageViewerModal;
 use App\Models\Message;
 use App\Models\User;
@@ -113,5 +114,37 @@ class MessageViewerModalTest extends TestCase
 
         $response->assertOk();
         $this->assertSame(1, substr_count($response->getContent(), 'data-testid="message-viewer-host"'));
+    }
+
+    public function test_message_table_row_selection_and_detail_are_limited_to_the_recipient(): void
+    {
+        $sender = User::factory()->create(['role' => 'admin']);
+        $recipient = User::factory()->create();
+        $otherUser = User::factory()->create();
+        $ownMessage = Message::create([
+            'subject' => 'Eigene Nachricht',
+            'message' => 'Inhalt',
+            'from_user' => $sender->id,
+            'to_user' => $recipient->id,
+            'status' => '1',
+        ]);
+        $foreignMessage = Message::create([
+            'subject' => 'Fremde Nachricht',
+            'message' => 'Nicht sichtbar',
+            'from_user' => $sender->id,
+            'to_user' => $otherUser->id,
+            'status' => '1',
+        ]);
+
+        Livewire::actingAs($recipient)
+            ->test(MessageBox::class)
+            ->call('toggleMessageSelection', $ownMessage->id)
+            ->assertSet('selectedMessages', [$ownMessage->id])
+            ->call('toggleMessageSelection', $foreignMessage->id)
+            ->assertSet('selectedMessages', [$ownMessage->id])
+            ->call('openMessageDetail', $ownMessage->id)
+            ->assertDispatched('message-viewer:open', messageId: $ownMessage->id)
+            ->call('toggleMessageSelection', $ownMessage->id)
+            ->assertSet('selectedMessages', []);
     }
 }

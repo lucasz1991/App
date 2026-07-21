@@ -29,6 +29,9 @@
                 ['label' => __('app.status'), 'key' => 'status', 'width' => '24%', 'sortable' => true, 'hideOn' => 'none'],
             ]"
             :items="$mails"
+            :selected-items="$selectedMails"
+            selection-action="toggleMailSelection"
+            detail-action="toggleMailDetails"
             row-view="components.tables.rows.mails.row"
             actions-view="components.tables.rows.mails.actions"
             details-view="components.tables.rows.mails.details"

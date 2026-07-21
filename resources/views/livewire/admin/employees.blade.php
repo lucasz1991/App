@@ -134,6 +134,8 @@
                 ]"
                 :items="$employees"
                 :selected-items="$selectedEmployees"
+                selection-action="toggleEmployeeSelection"
+                detail-route="admin.user-profile"
                 row-view="components.tables.rows.employees.employee-row"
                 actions-view="components.tables.rows.employees.employee-actions"
                 :sort-by="$sortBy ?? null"

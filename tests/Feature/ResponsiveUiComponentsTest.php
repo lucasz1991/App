@@ -80,6 +80,9 @@ class ResponsiveUiComponentsTest extends TestCase
             <x-tables.table
                 :columns="$columns"
                 :items="$items"
+                :selected-items="[7]"
+                selection-action="toggleSelection"
+                detail-route="admin.user-profile"
                 actions-view="components.tables.rows.user-messages.actions"
             />
         BLADE, [
@@ -93,6 +96,31 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertStringContainsString('rt-table-row-grid', $html);
         $this->assertStringContainsString('rt-table-row-actions absolute right-3 top-3', $html);
         $this->assertStringContainsString('aria-haspopup="menu"', $html);
+        $this->assertStringContainsString('data-table-row-interactive="true"', $html);
+        $this->assertStringContainsString('data-selected="true"', $html);
+        $this->assertStringContainsString('rt-table-row-selected', $html);
+        $this->assertStringContainsString('x-on:click="queueSelection($event)"', $html);
+        $this->assertStringContainsString('x-on:dblclick.prevent="openDetails($event)"', $html);
+        $this->assertStringContainsString('window.setTimeout(() => this.toggleSelection(), 220)', $html);
+        $this->assertStringContainsString('administrator\\/user\\/7', $html);
+        $this->assertStringContainsString("event.target.closest('a, button, input, select, textarea, label, [role=button], [data-table-row-ignore]')", $html);
+    }
+
+    public function test_all_shared_application_tables_configure_selection_and_details(): void
+    {
+        $employees = file_get_contents(resource_path('views/livewire/admin/employees.blade.php'));
+        $mails = file_get_contents(resource_path('views/livewire/admin/mail-management.blade.php'));
+        $messages = file_get_contents(resource_path('views/livewire/message-box.blade.php'));
+        $tasks = file_get_contents(resource_path('views/livewire/admin/admin-tasks-list.blade.php'));
+
+        $this->assertStringContainsString('selection-action="toggleEmployeeSelection"', $employees);
+        $this->assertStringContainsString('detail-route="admin.user-profile"', $employees);
+        $this->assertStringContainsString('selection-action="toggleMailSelection"', $mails);
+        $this->assertStringContainsString('detail-action="toggleMailDetails"', $mails);
+        $this->assertStringContainsString('selection-action="toggleMessageSelection"', $messages);
+        $this->assertStringContainsString('detail-action="openMessageDetail"', $messages);
+        $this->assertStringContainsString('selection-action="toggleTaskSelection"', $tasks);
+        $this->assertStringContainsString('detail-action="openTaskDetail"', $tasks);
     }
 
     public function test_tables_use_single_column_mobile_cards_and_scrollable_permission_matrices(): void

@@ -14,6 +14,9 @@ class MessageBox extends Component
 
     public string $search = '';
 
+    /** @var array<int, int> */
+    public array $selectedMessages = [];
+
     protected $listeners = [
         'inbox:refresh' => '$refresh',
     ];
@@ -26,6 +29,28 @@ class MessageBox extends Component
     public function loadMore(): void
     {
         $this->loadedPages++;
+    }
+
+    public function toggleMessageSelection(int $messageId): void
+    {
+        if (! auth()->user()->receivedMessages()->whereKey($messageId)->exists()) {
+            return;
+        }
+
+        if (in_array($messageId, $this->selectedMessages, true)) {
+            $this->selectedMessages = array_values(array_diff($this->selectedMessages, [$messageId]));
+        } else {
+            $this->selectedMessages[] = $messageId;
+        }
+    }
+
+    public function openMessageDetail(int $messageId): void
+    {
+        if (! auth()->user()->receivedMessages()->whereKey($messageId)->exists()) {
+            return;
+        }
+
+        $this->dispatch('message-viewer:open', messageId: $messageId);
     }
 
     public function markAsRead(int $messageId): void
@@ -58,6 +83,8 @@ class MessageBox extends Component
         }
 
         $message->delete();
+
+        $this->selectedMessages = array_values(array_diff($this->selectedMessages, [$messageId]));
 
         $this->dispatch('swal:toast', type: 'success', text: __('app.message_deleted'));
         $this->dispatch('inbox:refresh');

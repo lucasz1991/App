@@ -13,7 +13,7 @@
 @endphp
 
 {{-- 0: Name (mit Auswahl-Kreis wie bei Courses) --}}
-<div data-rt-table-label="{{ $columnsMeta[0]['label'] ?? '' }}" class="px-2 py-2 pr-4 {{ $hc(0) }} cursor-pointer" wire:click="$dispatch('toggleEmployeeSelection', [{{ $item->id }}])">
+<div data-rt-table-label="{{ $columnsMeta[0]['label'] ?? '' }}" class="px-2 py-2 pr-4 {{ $hc(0) }}">
     <div class="grid grid-cols-[auto_1fr] gap-2 items-center">
         <div class="flex items-center">
             <div
@@ -94,4 +94,3 @@
         {{ $created ?? '—' }}
     </div>
 </div>
-

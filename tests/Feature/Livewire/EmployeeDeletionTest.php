@@ -100,4 +100,17 @@ class EmployeeDeletionTest extends TestCase
         $this->assertModelExists($admin);
         $this->assertModelExists($primaryAdmin);
     }
+
+    public function test_employee_table_row_click_toggles_the_server_side_selection(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $employee = User::factory()->create(['role' => 'staff']);
+
+        Livewire::actingAs($admin)
+            ->test(Employees::class)
+            ->call('toggleEmployeeSelection', $employee->id)
+            ->assertSet('selectedEmployees', [$employee->id])
+            ->call('toggleEmployeeSelection', $employee->id)
+            ->assertSet('selectedEmployees', []);
+    }
 }

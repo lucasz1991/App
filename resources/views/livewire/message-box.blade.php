@@ -28,6 +28,9 @@
                     ['label' => __('app.date'),     'key' => 'created_at', 'width' => '20%', 'sortable' => false, 'hideOn' => 'sm'],
                 ]"
                 :items="$messages"
+                :selected-items="$selectedMessages"
+                selection-action="toggleMessageSelection"
+                detail-action="openMessageDetail"
                 row-view="components.tables.rows.messages.row"
                 actions-view="components.tables.rows.messages.actions"
                 class="mt-3 sm:mt-4"
