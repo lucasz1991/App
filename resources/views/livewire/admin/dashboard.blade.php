@@ -26,7 +26,7 @@
         data-admin-dashboard
     >
         {{-- Markanter Einstieg statt eines generischen Seitenkopfs. --}}
-        <section class="rt-admin-hero relative overflow-hidden rounded-2xl px-4 py-4 text-rt-text shadow-rt-md sm:px-6 sm:py-5 lg:px-7 dark:text-white" data-anim="fade-up">
+        <section class="rt-admin-hero relative overflow-hidden rounded-2xl px-4 py-4 text-rt-text shadow-rt-md sm:px-6 sm:py-5 lg:px-7 dark:text-white" data-dashboard-segment="hero">
             <svg class="pointer-events-none absolute -right-20 bottom-0 h-full w-[58%] opacity-70" viewBox="0 0 720 360" fill="none" aria-hidden="true">
                 <path class="rt-admin-route-bed" d="M42 306C130 276 132 191 220 176C314 160 338 263 431 233C515 205 501 105 680 58" stroke-width="34" stroke-linecap="round" />
                 <path class="rt-admin-route-line" d="M42 306C130 276 132 191 220 176C314 160 338 263 431 233C515 205 501 105 680 58" stroke="#e4002b" stroke-width="3" stroke-linecap="round" />
@@ -35,7 +35,7 @@
                 <circle class="rt-admin-route-end" cx="680" cy="58" r="5" />
             </svg>
 
-            <div class="relative z-10 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,30rem)] lg:items-center">
+            <div class="relative z-10 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,30rem)] lg:items-center" data-dashboard-items>
                 <div class="max-w-3xl">
                     <div class="mb-3 flex flex-wrap items-center gap-2.5">
                         <span class="rt-admin-hero-badge inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-semibold tracking-[0.13em] text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200">
@@ -108,7 +108,7 @@
         </section>
 
         {{-- Vier gleichwertige Kennzahlen in einer durchgehenden Zeile. --}}
-        <section class="grid grid-cols-4 gap-1.5 sm:gap-2.5" aria-label="{{ __('app.dashboard') }}" data-dashboard-kpis data-anim-stagger>
+        <section class="grid grid-cols-4 gap-1.5 sm:gap-2.5" aria-label="{{ __('app.dashboard') }}" data-dashboard-segment="kpis" data-dashboard-kpis data-dashboard-items>
             <article class="rt-admin-panel rt-admin-panel-accent group relative min-w-0 overflow-hidden rounded-xl p-2.5 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md sm:p-3.5">
                 <div class="flex items-center justify-between gap-1.5">
                     <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-rt-red dark:border-slate-700 dark:bg-slate-800"><i data-feather="users" class="h-3.5 w-3.5"></i></span>
@@ -148,7 +148,7 @@
         </section>
 
         {{-- Feine SVG-Diagramme mit Apache ECharts 6. --}}
-        <section class="grid gap-3 lg:grid-cols-12" aria-label="{{ __('app.user_growth') }}" data-anim="fade-up">
+        <section class="grid gap-3 lg:grid-cols-12" aria-label="{{ __('app.user_growth') }}" data-dashboard-segment="charts" data-dashboard-items>
             <article class="rt-admin-panel overflow-hidden rounded-2xl p-4 lg:col-span-8 xl:col-span-6">
                 <header class="flex flex-wrap items-start justify-between gap-3">
                     <div>
@@ -197,8 +197,8 @@
         </section>
 
         @if (auth()->user()?->role === 'admin')
-        <section class="rt-admin-panel rt-admin-operations overflow-hidden rounded-2xl" aria-labelledby="operational-preview-heading" data-anim="fade-up">
-            <header class="rt-admin-operations-header flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3.5 sm:px-5 dark:border-slate-600 dark:bg-slate-900">
+        <section class="rt-admin-panel rt-admin-operations overflow-hidden rounded-2xl" aria-labelledby="operational-preview-heading" data-dashboard-segment="operations">
+            <header class="rt-admin-operations-header flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3.5 sm:px-5 dark:border-slate-600 dark:bg-slate-900" data-dashboard-item>
                 <div>
                     <div class="flex flex-wrap items-center gap-2.5">
                         <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.operations') }}</p>
@@ -216,7 +216,7 @@
                 </span>
             </header>
 
-            <div class="rt-admin-operations-grid grid gap-px bg-slate-200 sm:grid-cols-2 lg:grid-cols-4 dark:bg-slate-600" data-operational-preview>
+            <div class="rt-admin-operations-grid grid gap-px bg-slate-200 sm:grid-cols-2 lg:grid-cols-4 dark:bg-slate-600" data-operational-preview data-dashboard-items>
                 @foreach ($operationalPreviews as $previewModule)
                     <a
                         href="{{ route('admin.operations.preview', ['module' => $previewModule['slug']]) }}"
@@ -241,7 +241,7 @@
         </section>
         @endif
 
-        <section class="grid gap-3 lg:grid-cols-12" data-anim="fade-up" data-anim-delay=".05">
+        <section class="grid gap-3 lg:grid-cols-12" data-dashboard-segment="accounts" data-dashboard-items>
             {{-- Neueste Benutzer --}}
             <article class="rt-admin-panel rounded-2xl lg:col-span-8">
                 <header class="flex items-center justify-between gap-4 border-b border-slate-200 px-4 py-3.5 sm:px-5 dark:border-slate-700">
@@ -256,7 +256,7 @@
                         </a>
                     @endcan
                 </header>
-                <div class="rt-admin-list-grid grid gap-px bg-slate-200 sm:grid-cols-2 dark:bg-slate-700">
+                <div class="rt-admin-list-grid grid gap-px bg-slate-200 sm:grid-cols-2 dark:bg-slate-700" data-dashboard-items>
                     @forelse ($recentUsers as $user)
                         <a href="{{ route('admin.user-profile', $user->id) }}" wire:navigate class="rt-admin-user-row group flex min-w-0 items-center gap-3 bg-rt-surface px-4 py-3 transition duration-200 hover:bg-rt-surface-muted sm:px-5 dark:bg-rt-dark-surface dark:hover:bg-rt-dark-surface-muted">
                             <span class="rt-admin-user-avatar flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-sm font-semibold text-rt-text transition duration-200 group-hover:border-rt-red group-hover:bg-rt-red group-hover:text-white dark:border-slate-700 dark:bg-slate-800 dark:text-white">
@@ -281,7 +281,7 @@
             <article class="rt-admin-panel rounded-2xl p-4 lg:col-span-4">
                 <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.admin_control_center') }}</p>
                 <h2 class="mt-1 text-lg font-semibold text-rt-text dark:text-white">{{ __('app.quick_access') }}</h2>
-                <div class="mt-3 grid grid-cols-2 gap-2">
+                <div class="mt-3 grid grid-cols-2 gap-2" data-dashboard-items>
                     @can('employees.view')
                         <a href="{{ route('admin.employees') }}" wire:navigate class="rt-admin-quick-link group rounded-xl border border-slate-200 bg-slate-50 p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red hover:bg-rt-red hover:text-white hover:shadow-rt-glow dark:border-slate-700 dark:bg-slate-800 dark:text-white">
                             <i data-feather="users" class="h-5 w-5 text-rt-red transition group-hover:text-white"></i>
@@ -310,7 +310,7 @@
             </article>
         </section>
 
-        <section class="grid gap-3 {{ $canViewSystemData && $system ? 'lg:grid-cols-12' : '' }}" data-anim="fade-up" data-anim-delay=".08">
+        <section class="grid gap-3 {{ $canViewSystemData && $system ? 'lg:grid-cols-12' : '' }}" data-dashboard-segment="system" data-dashboard-items>
             <article class="rt-admin-panel rounded-2xl p-4 {{ $canViewSystemData && $system ? 'lg:col-span-5' : '' }}">
                 <div class="flex items-center justify-between gap-3">
                     <div>
@@ -319,7 +319,7 @@
                     </div>
                     <span class="flex h-9 w-9 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"><i data-feather="radio" class="h-4 w-4"></i></span>
                 </div>
-                <div class="mt-3 space-y-2">
+                <div class="mt-3 space-y-2" data-dashboard-items>
                     @forelse ($recentActivity as $entry)
                         <div class="flex items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-rt-surface-muted dark:hover:bg-rt-dark-surface-muted">
                             <span class="relative shrink-0">
@@ -352,7 +352,7 @@
                         </span>
                     </header>
 
-                    <dl class="rt-admin-system-grid grid gap-px bg-slate-200 sm:grid-cols-2 lg:grid-cols-3 dark:bg-slate-700">
+                    <dl class="rt-admin-system-grid grid gap-px bg-slate-200 sm:grid-cols-2 lg:grid-cols-3 dark:bg-slate-700" data-dashboard-items>
                         @foreach ([
                             [__('app.application'), $system['appVersion']],
                             [__('app.environment'), $system['environment']],

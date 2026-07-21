@@ -26,6 +26,7 @@ let activePageRoot = null;
 let activeMedia = null;
 let firstFrame = null;
 let secondFrame = null;
+let revealGeneration = 0;
 
 function pageRoot() {
     return document.querySelector('.page-content') || document.body;
@@ -59,6 +60,8 @@ function showImmediately(elements) {
 }
 
 function cleanupReveals() {
+    revealGeneration += 1;
+
     if (firstFrame !== null) window.cancelAnimationFrame(firstFrame);
     if (secondFrame !== null) window.cancelAnimationFrame(secondFrame);
     firstFrame = null;
@@ -66,6 +69,117 @@ function cleanupReveals() {
 
     activeMedia?.revert();
     activeMedia = null;
+}
+
+function dashboardSegmentItems(segment) {
+    const items = [
+        ...segment.querySelectorAll('[data-dashboard-item]'),
+        ...segment.querySelectorAll('[data-dashboard-items] > *'),
+    ];
+
+    return Array.from(new Set(items)).filter((item) => (
+        item !== segment && !item.hasAttribute('data-dashboard-segment')
+    ));
+}
+
+function dashboardAnimationTargets(segments) {
+    return Array.from(new Set(segments.flatMap((segment) => [
+        segment,
+        ...dashboardSegmentItems(segment),
+    ])));
+}
+
+function prepareDashboardSegment(segment) {
+    const items = dashboardSegmentItems(segment);
+    const targets = [segment, ...items];
+
+    markPending(targets);
+    gsap.set(segment, {
+        autoAlpha: 0,
+        y: 28,
+        scale: 0.992,
+        transformOrigin: '50% 0%',
+    });
+
+    if (items.length) {
+        gsap.set(items, {
+            autoAlpha: 0,
+            y: 16,
+            scale: 0.988,
+            transformOrigin: '50% 50%',
+        });
+    }
+
+    return { segment, items, targets };
+}
+
+function appendDashboardSegment(timeline, prepared, position = 0) {
+    const { segment, items, targets } = prepared;
+    const label = `segment-${segment.dataset.dashboardSegment || Math.random().toString(36).slice(2)}`;
+
+    timeline.addLabel(label, position);
+    timeline.to(segment, {
+        autoAlpha: 1,
+        y: 0,
+        scale: 1,
+        duration: 0.62,
+        ease: 'power3.out',
+        overwrite: 'auto',
+        clearProps: 'transform,opacity,visibility',
+    }, label);
+
+    if (items.length) {
+        timeline.to(items, {
+            autoAlpha: 1,
+            y: 0,
+            scale: 1,
+            duration: 0.46,
+            ease: 'power2.out',
+            stagger: 0.055,
+            overwrite: 'auto',
+            clearProps: 'transform,opacity,visibility',
+        }, `${label}+=0.14`);
+    }
+
+    timeline.call(() => markComplete(targets));
+}
+
+function setupDashboardSegments(segments) {
+    const introSegments = [];
+
+    segments.forEach((segment) => {
+        const targets = [segment, ...dashboardSegmentItems(segment)];
+
+        if (isAlreadyAboveViewport(segment)) {
+            showImmediately(targets);
+            return;
+        }
+
+        const prepared = prepareDashboardSegment(segment);
+
+        if (isInitiallyVisible(segment)) {
+            introSegments.push(prepared);
+            return;
+        }
+
+        const timeline = gsap.timeline({
+            scrollTrigger: {
+                trigger: segment,
+                start: 'clamp(top 88%)',
+                once: true,
+                invalidateOnRefresh: true,
+                toggleActions: 'play none none none',
+            },
+        });
+        appendDashboardSegment(timeline, prepared);
+    });
+
+    if (!introSegments.length) return;
+
+    const introTimeline = gsap.timeline({ delay: 0.08 });
+    introSegments.forEach((prepared, index) => {
+        appendDashboardSegment(introTimeline, prepared, index === 0 ? 0 : '>-0.18');
+    });
 }
 
 function isInitiallyVisible(element) {
@@ -117,10 +231,13 @@ function createRevealTween(elements, fromVars, trigger, options = {}) {
 }
 
 function setupReveals(root) {
-    const singleTargets = Array.from(root.querySelectorAll('[data-anim]'));
-    const staggerContainers = Array.from(root.querySelectorAll('[data-anim-stagger]'));
+    const dashboardSegments = Array.from(root.querySelectorAll('[data-admin-dashboard] [data-dashboard-segment]'));
+    const singleTargets = Array.from(root.querySelectorAll('[data-anim]'))
+        .filter((element) => !element.closest('[data-dashboard-segment]'));
+    const staggerContainers = Array.from(root.querySelectorAll('[data-anim-stagger]'))
+        .filter((element) => !element.closest('[data-dashboard-segment]'));
 
-    if (!singleTargets.length && !staggerContainers.length) {
+    if (!singleTargets.length && !staggerContainers.length && !dashboardSegments.length) {
         ScrollTrigger.refresh();
         return;
     }
@@ -133,7 +250,8 @@ function setupReveals(root) {
         },
         ({ conditions }) => {
             const staggerChildren = staggerContainers.flatMap((container) => Array.from(container.children));
-            const allTargets = [...singleTargets, ...staggerChildren];
+            const dashboardTargets = dashboardAnimationTargets(dashboardSegments);
+            const allTargets = [...singleTargets, ...staggerChildren, ...dashboardTargets];
 
             if (conditions.reduceMotion) {
                 showImmediately(allTargets);
@@ -155,6 +273,8 @@ function setupReveals(root) {
                     { duration: 0.52, stagger: 0.075 },
                 );
             });
+
+            setupDashboardSegments(dashboardSegments);
 
             return () => {
                 allTargets.forEach((element) => delete element.dataset.animPending);
@@ -181,6 +301,7 @@ function bootReveals() {
 
     cleanupReveals();
     activePageRoot = root;
+    const generation = revealGeneration;
 
     // Zwei Frames lassen Livewire/Alpine, Fonts und das Layout zuerst ihre
     // endgueltigen Positionen setzen. So laufen Above-the-fold-Fades sichtbar.
@@ -189,7 +310,13 @@ function bootReveals() {
             firstFrame = null;
             secondFrame = null;
 
-            if (root === activePageRoot && root.isConnected) setupReveals(root);
+            if (
+                generation === revealGeneration
+                && root === activePageRoot
+                && root.isConnected
+            ) {
+                setupReveals(root);
+            }
         });
     });
 }
@@ -201,5 +328,9 @@ if (document.readyState !== 'loading') {
 }
 
 document.addEventListener('livewire:navigated', bootReveals);
+document.addEventListener('livewire:navigating', () => {
+    cleanupReveals();
+    activePageRoot = null;
+});
 
 export { gsap, ScrollTrigger };

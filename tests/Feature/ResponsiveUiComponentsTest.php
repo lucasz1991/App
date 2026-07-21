@@ -21,6 +21,26 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertStringContainsString('role="menu"', $html);
     }
 
+    public function test_topbar_preferences_are_grouped_in_one_shared_anchor_dropdown(): void
+    {
+        $view = file_get_contents(resource_path('views/layouts/topbar.blade.php'));
+        $html = view('layouts.topbar', ['area' => 'user'])->render();
+
+        $this->assertSame(1, substr_count($view, 'data-topbar-preferences-trigger'));
+        $this->assertStringContainsString('<x-ui.dropdown.anchor-dropdown', $view);
+
+        $this->assertStringContainsString('href="' . route('locale.switch', 'de') . '"', $html);
+        $this->assertStringContainsString('href="' . route('locale.switch', 'en') . '"', $html);
+
+        $this->assertStringContainsString('$store.theme?.toggle()', $view);
+        $this->assertStringContainsString('$store.sound?.toggle()', $view);
+
+        $this->assertDoesNotMatchRegularExpression(
+            '/data-topbar-(?:language|locale|theme|sound)-(?:trigger|toggle)/',
+            $view,
+        );
+    }
+
     public function test_table_uses_mobile_summary_grid_and_fixed_right_actions(): void
     {
         $item = (object) ['id' => 7, 'status' => 1];
