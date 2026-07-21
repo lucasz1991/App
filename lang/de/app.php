@@ -241,7 +241,7 @@ return [
     'messages' => 'Nachrichten',
     'message' => 'Nachricht',
     'subject' => 'Betreff',
-    'it_support' => 'IT-Feedback & Support',
+    'it_support' => 'Support',
     'help_and_contact' => 'Hilfe & Kontakt',
     'it_support_description' => 'Stellen Sie Fragen, melden Sie technische Probleme oder senden Sie Verbesserungsvorschläge direkt an den IT-Support.',
     'it_support_category' => 'Art der Anfrage',

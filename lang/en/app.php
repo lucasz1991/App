@@ -241,7 +241,7 @@ return [
     'messages' => 'Messages',
     'message' => 'Message',
     'subject' => 'Subject',
-    'it_support' => 'IT feedback & support',
+    'it_support' => 'Support',
     'help_and_contact' => 'Help & contact',
     'it_support_description' => 'Ask questions, report technical problems or send suggestions directly to IT support.',
     'it_support_category' => 'Request type',

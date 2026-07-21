@@ -1,5 +1,11 @@
 # RailTime – interne Mitarbeiter- und Kommunikationsplattform
 
+## 2026-07-21 - Codex (IT-Feedback und Support)
+
+- Alle angemeldeten Benutzer erreichen über den letzten Sidebar-Eintrag ein responsives IT-Feedback- und Supportformular für Fragen, technische Probleme, Feedback und Funktionswünsche.
+- Supportanfragen werden im bestehenden Mailprotokoll erfasst, über den Queue-Mailversand an die zentrale Admin-/Super-Admin-Adresse geschickt und können über die Absenderadresse direkt beantwortet werden.
+- Die statischen Links zu Auftragsverwaltung, Schichtleitung, Kalender und Kundendatenbank werden in Sidebar und Dashboard ausschließlich bei der globalen Rolle `admin` ausgegeben; die Routen bleiben zusätzlich durch `role:admin` geschützt.
+
 ## 2026-07-21 - Codex (Mobile Einstellungen und Tab-Auswahl)
 
 - Die gemeinsame Tabs-Komponente wechselt unter 768 Pixeln automatisch in einen vollbreiten Bereichswähler; alle Tabs bleiben ohne horizontalen Overflow erreichbar.
