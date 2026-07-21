@@ -16,7 +16,7 @@ echarts.use([
     SVGRenderer,
 ]);
 
-export function renderAdminDashboardCharts({ refs, config = {}, dark = false }) {
+export function renderAdminDashboardCharts({ refs, config = {}, dark = false, animate = true }) {
     const charts = [];
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const textColor = dark ? '#a9b6c9' : '#64748b';
@@ -29,11 +29,13 @@ export function renderAdminDashboardCharts({ refs, config = {}, dark = false }) 
     const growth = config.userGrowth || { labels: [], totals: [], registrations: [] };
     const activity = config.activity || { labels: [], values: [] };
     const status = config.status || { labels: [], values: [] };
-    const animation = reduceMotion ? {} : {
+    const animation = reduceMotion || !animate ? {
+        animation: false,
+    } : {
         animation: true,
-        animationDuration: 720,
+        animationDuration: 880,
         animationEasing: 'cubicOut',
-        animationDelay: (index) => index * 28,
+        animationDelay: (index) => Math.min(index * 34, 280),
     };
     const tooltip = {
         backgroundColor: surfaceColor,
@@ -52,10 +54,16 @@ export function renderAdminDashboardCharts({ refs, config = {}, dark = false }) 
     const mount = (element, option) => {
         if (!element) return;
 
+        echarts.getInstanceByDom(element)?.dispose();
+
         const chart = echarts.init(element, null, { renderer: 'svg' });
-        chart.setOption({ animation: false, ...animation, ...option });
+        chart.setOption({ ...animation, ...option }, { notMerge: true, lazyUpdate: false });
         charts.push(chart);
         resizeObserver?.observe(element);
+
+        window.requestAnimationFrame(() => {
+            if (!chart.isDisposed()) chart.resize();
+        });
     };
 
     if (refs.growthChart) {

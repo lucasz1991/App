@@ -397,21 +397,24 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
 Alpine.data('adminDashboardCharts', (config = {}) => ({
     charts: [],
     kpiMotion: null,
+    kpiObserver: null,
+    counterTween: null,
+    progressTween: null,
     themeObserver: null,
     resizeObserver: null,
     renderTimer: null,
     renderRequest: null,
+    chartsRendered: false,
 
     init() {
-        this.animateCounters();
-
         this.$nextTick(() => {
-            this.renderCharts();
+            this.observeKpis();
+            window.requestAnimationFrame(() => this.renderCharts(true));
         });
 
         this.themeObserver = new MutationObserver(() => {
             window.clearTimeout(this.renderTimer);
-            this.renderTimer = window.setTimeout(() => this.renderCharts(), 80);
+            this.renderTimer = window.setTimeout(() => this.renderCharts(false), 80);
         });
         this.themeObserver.observe(document.documentElement, {
             attributes: true,
@@ -423,22 +426,54 @@ Alpine.data('adminDashboardCharts', (config = {}) => ({
         this.renderRequest = null;
         window.clearTimeout(this.renderTimer);
         this.themeObserver?.disconnect();
+        this.kpiObserver?.disconnect();
         this.resizeObserver?.disconnect();
+        this.counterTween?.kill();
+        this.progressTween?.kill();
         this.kpiMotion?.revert();
         this.destroyCharts();
     },
 
-    animateCounters() {
+    observeKpis() {
+        const kpiGrid = this.$root.querySelector('[data-dashboard-kpis]');
+
+        if (!kpiGrid) return;
+
+        const start = () => {
+            this.kpiObserver?.disconnect();
+            this.kpiObserver = null;
+            window.requestAnimationFrame(() => {
+                if (this.$root.isConnected) this.animateCounters(kpiGrid);
+            });
+        };
+
+        if (
+            typeof IntersectionObserver === 'undefined'
+            || window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        ) {
+            start();
+            return;
+        }
+
+        this.kpiObserver = new IntersectionObserver(
+            (entries) => {
+                if (entries.some((entry) => entry.isIntersecting)) start();
+            },
+            { threshold: 0.18, rootMargin: '0px 0px -6% 0px' },
+        );
+        this.kpiObserver.observe(kpiGrid);
+    },
+
+    animateCounters(kpiGrid) {
         const formatter = new Intl.NumberFormat(document.documentElement.lang || 'de-DE');
-        const counters = Array.from(this.$root.querySelectorAll('[data-dashboard-count]'))
+        const counters = Array.from(kpiGrid.querySelectorAll('[data-dashboard-count]'))
             .map((element) => ({
                 element,
                 target: Number(element.dataset.dashboardCount),
-                value: 0,
                 rendered: null,
             }))
             .filter((counter) => Number.isFinite(counter.target));
-        const progress = this.$root.querySelector('[data-dashboard-progress]');
+        const progress = kpiGrid.querySelector('[data-dashboard-progress]');
         const progressTarget = Math.min(100, Math.max(0, Number(progress?.dataset.dashboardProgress || 0))) / 100;
 
         const renderFinalState = () => {
@@ -447,10 +482,17 @@ Alpine.data('adminDashboardCharts', (config = {}) => ({
             });
 
             if (progress) {
-                window.gsap?.set(progress, { scaleX: progressTarget, transformOrigin: 'left center' });
+                if (window.gsap) {
+                    window.gsap.set(progress, { scaleX: progressTarget, transformOrigin: 'left center' });
+                } else {
+                    progress.style.transform = `scaleX(${progressTarget})`;
+                    progress.style.transformOrigin = 'left center';
+                }
             }
         };
 
+        this.counterTween?.kill();
+        this.progressTween?.kill();
         this.kpiMotion?.revert();
 
         if (!window.gsap) {
@@ -471,19 +513,20 @@ Alpine.data('adminDashboardCharts', (config = {}) => ({
                 }
 
                 counters.forEach((counter) => {
-                    counter.value = 0;
                     counter.rendered = 0;
                     counter.element.textContent = formatter.format(0);
                 });
 
-                window.gsap.to(counters, {
-                    value: (index) => counters[index].target,
-                    duration: 0.82,
-                    ease: 'power2.out',
+                const state = { progress: 0 };
+
+                this.counterTween = window.gsap.to(state, {
+                    progress: 1,
+                    duration: 0.9,
+                    ease: 'power3.out',
                     overwrite: true,
                     onUpdate: () => {
                         counters.forEach((counter) => {
-                            const nextValue = Math.round(counter.value);
+                            const nextValue = Math.round(counter.target * state.progress);
                             if (nextValue === counter.rendered) return;
 
                             counter.rendered = nextValue;
@@ -494,12 +537,12 @@ Alpine.data('adminDashboardCharts', (config = {}) => ({
                 });
 
                 if (progress) {
-                    window.gsap.fromTo(
+                    this.progressTween = window.gsap.fromTo(
                         progress,
                         { scaleX: 0, transformOrigin: 'left center' },
                         {
                             scaleX: progressTarget,
-                            duration: 0.95,
+                            duration: 1.05,
                             ease: 'power3.out',
                             overwrite: 'auto',
                         },
@@ -516,7 +559,7 @@ Alpine.data('adminDashboardCharts', (config = {}) => ({
         this.charts = [];
     },
 
-    async renderCharts() {
+    async renderCharts(animate = !this.chartsRendered) {
         const request = Symbol('admin-dashboard-chart-render');
         this.renderRequest = request;
 
@@ -534,10 +577,12 @@ Alpine.data('adminDashboardCharts', (config = {}) => ({
             },
             config,
             dark: document.documentElement.classList.contains('dark'),
+            animate,
         });
 
         this.charts = rendered.charts;
         this.resizeObserver = rendered.resizeObserver;
+        this.chartsRendered = true;
     },
 }));
 

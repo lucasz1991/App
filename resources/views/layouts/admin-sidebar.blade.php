@@ -10,18 +10,6 @@
             </x-menu.sidebar-nav-link>
         </x-menu.sidebar-nav>
 
-        <x-menu.sidebar-nav :label="__('app.operations_preview_navigation')">
-            @foreach (app(\App\Support\Operations\OperationalPreviewCatalog::class)->dashboard() as $previewModule)
-                <x-menu.sidebar-nav-link
-                    :href="route('admin.operations.preview', ['module' => $previewModule['slug']])"
-                    :icon="$previewModule['icon']"
-                    :active="request()->routeIs('admin.operations.preview') && request()->route('module') === $previewModule['slug']"
-                >
-                    {{ $previewModule['title'] }}
-                </x-menu.sidebar-nav-link>
-            @endforeach
-        </x-menu.sidebar-nav>
-
         @canany(['settings.manage', 'employees.view', 'files.manage', 'manage.messages'])
         <x-menu.sidebar-nav :label="__('app.administration')">
             @can('settings.manage')
@@ -33,6 +21,26 @@
                     {{ __('app.settings') }}
                 </x-menu.sidebar-nav-link>
             @endcan
+
+            @if (auth()->user()?->isAdmin())
+                <x-menu.sidebar-nav-group
+                    icon="layers"
+                    :active="request()->routeIs('admin.operations.preview')"
+                >
+                    <x-slot:label>{{ __('app.operations_preview') }}</x-slot:label>
+
+                    @foreach (app(\App\Support\Operations\OperationalPreviewCatalog::class)->dashboard() as $previewModule)
+                        <x-menu.sidebar-nav-link
+                            :href="route('admin.operations.preview', ['module' => $previewModule['slug']])"
+                            :icon="$previewModule['icon']"
+                            :active="request()->routeIs('admin.operations.preview') && request()->route('module') === $previewModule['slug']"
+                            class="!pl-12"
+                        >
+                            {{ $previewModule['title'] }}
+                        </x-menu.sidebar-nav-link>
+                    @endforeach
+                </x-menu.sidebar-nav-group>
+            @endif
 
             @can('employees.view')
                 <x-menu.sidebar-nav-link
