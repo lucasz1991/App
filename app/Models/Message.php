@@ -18,6 +18,8 @@ class Message extends Model
     protected $fillable = [
         'subject',
         'message',
+        'action_url',
+        'action_label',
         'from_user',
         'to_user',
         'status',

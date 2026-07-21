@@ -11,6 +11,9 @@
                     : ($message->sender?->profile_photo_url ?? asset('rt-brand/rt-logo.svg'));
                 $createdAbsolute = $message->created_at?->format('d.m.Y H:i');
                 $createdRelative = $message->created_at?->diffForHumans();
+                $safeActionUrl = is_string($message->action_url) && str_starts_with($message->action_url, '/')
+                    ? $message->action_url
+                    : null;
             @endphp
 
             <article
@@ -75,6 +78,17 @@
                         </h2>
 
                         <div class="mt-6 max-w-[68ch] whitespace-pre-wrap break-words text-[0.9375rem] leading-7 text-rt-text dark:text-rt-dark-text">{{ $message->message }}</div>
+
+                        @if($safeActionUrl)
+                            <a
+                                href="{{ $safeActionUrl }}"
+                                wire:navigate
+                                class="mt-6 inline-flex items-center gap-2 rounded-lg bg-rt-red px-4 py-2.5 text-sm font-semibold text-white shadow-rt-xs transition-all duration-200 hover:-translate-y-0.5 hover:bg-rt-red-dark active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40"
+                            >
+                                <i class="far fa-arrow-right" aria-hidden="true"></i>
+                                {{ $message->action_label ?: __('app.open') }}
+                            </a>
+                        @endif
                     </section>
 
                     @if ($message->files?->count())

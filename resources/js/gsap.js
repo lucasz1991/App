@@ -1,15 +1,10 @@
 // ---------------------------------------------------------------
-// GSAP-Setup fuer RailTime (Blade + Livewire + Alpine + Vite).
+// GSAP-Reveals fuer RailTime (Blade + Livewire + Alpine + Vite).
 //
-// - Stellt gsap & ScrollTrigger global bereit (window.gsap / window.ScrollTrigger).
-// - Deklarative Reveal-Animationen ueber data-Attribute (opt-in, kein Zwang):
-//     data-anim="fade-up|fade|zoom|left|right"   Einblenden beim Scrollen
-//     data-anim-delay="0.2"                        Verzoegerung (Sekunden)
-//     data-anim-stagger  (am Container)            Kinder gestaffelt einblenden
-// - Respektiert prefers-reduced-motion (via gsap.matchMedia): dann sofort
-//   sichtbar, keine Bewegung.
-// - Re-initialisiert nach jeder Livewire-Navigation (wire:navigate) und
-//   aktualisiert ScrollTrigger, da das DOM getauscht wird.
+// Jede per wire:navigate geladene DOM-Generation erhaelt genau einen
+// matchMedia-Kontext. Oberhalb des Falzes sichtbare Elemente starten sofort;
+// weiter unten liegende Bereiche werden einmalig durch ScrollTrigger gezeigt.
+// Beim naechsten Seitenwechsel wird der alte Kontext vollstaendig verworfen.
 // ---------------------------------------------------------------
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
@@ -21,99 +16,190 @@ window.ScrollTrigger = ScrollTrigger;
 
 const REVEAL_PRESETS = {
     fade: { autoAlpha: 0 },
-    'fade-up': { autoAlpha: 0, y: 24 },
-    zoom: { autoAlpha: 0, scale: 0.94 },
-    left: { autoAlpha: 0, x: -28 },
-    right: { autoAlpha: 0, x: 28 },
+    'fade-up': { autoAlpha: 0, y: 22 },
+    zoom: { autoAlpha: 0, scale: 0.96 },
+    left: { autoAlpha: 0, x: -26 },
+    right: { autoAlpha: 0, x: 26 },
 };
 
-let mm = null;
+let activePageRoot = null;
+let activeMedia = null;
+let firstFrame = null;
+let secondFrame = null;
 
-function markRevealed(el) {
-    el.dataset.animDone = '1';
+function pageRoot() {
+    return document.querySelector('.page-content') || document.body;
 }
 
-function initReveals(root = document) {
-    // Bereits initialisierte Elemente ueberspringen (verhindert Doppelbindung).
-    const targets = root.querySelectorAll('[data-anim]:not([data-anim-done]), [data-anim-stagger]:not([data-anim-done])');
-    if (!targets.length) return;
+function markPending(elements) {
+    elements.forEach((element) => {
+        element.dataset.animPending = '1';
+        delete element.dataset.animDone;
+    });
+}
 
-    // gsap.matchMedia: bei reduzierter Bewegung nur sichtbar schalten.
-    mm = mm || gsap.matchMedia();
+function markComplete(elements) {
+    elements.forEach((element) => {
+        delete element.dataset.animPending;
+        element.dataset.animDone = '1';
+    });
+}
 
-    targets.forEach((el) => markRevealed(el));
+function showImmediately(elements) {
+    if (!elements.length) return;
 
-    mm.add(
+    gsap.set(elements, {
+        autoAlpha: 1,
+        x: 0,
+        y: 0,
+        scale: 1,
+        clearProps: 'transform,opacity,visibility',
+    });
+    markComplete(elements);
+}
+
+function cleanupReveals() {
+    if (firstFrame !== null) window.cancelAnimationFrame(firstFrame);
+    if (secondFrame !== null) window.cancelAnimationFrame(secondFrame);
+    firstFrame = null;
+    secondFrame = null;
+
+    activeMedia?.revert();
+    activeMedia = null;
+}
+
+function isInitiallyVisible(element) {
+    const rect = element.getBoundingClientRect();
+
+    return rect.bottom > 0 && rect.top <= window.innerHeight * 0.9;
+}
+
+function isAlreadyAboveViewport(element) {
+    return element.getBoundingClientRect().bottom <= 0;
+}
+
+function createRevealTween(elements, fromVars, trigger, options = {}) {
+    if (!elements.length) return;
+
+    if (isAlreadyAboveViewport(trigger)) {
+        showImmediately(elements);
+        return;
+    }
+
+    markPending(elements);
+
+    const toVars = {
+        autoAlpha: 1,
+        x: 0,
+        y: 0,
+        scale: 1,
+        duration: options.duration ?? 0.58,
+        delay: options.delay ?? 0,
+        ease: 'power2.out',
+        stagger: options.stagger,
+        overwrite: 'auto',
+        immediateRender: true,
+        clearProps: 'transform,opacity,visibility',
+        onComplete: () => markComplete(elements),
+    };
+
+    if (!isInitiallyVisible(trigger)) {
+        toVars.scrollTrigger = {
+            trigger,
+            start: 'clamp(top 90%)',
+            once: true,
+            invalidateOnRefresh: true,
+            toggleActions: 'play none none none',
+        };
+    }
+
+    gsap.fromTo(elements, fromVars, toVars);
+}
+
+function setupReveals(root) {
+    const singleTargets = Array.from(root.querySelectorAll('[data-anim]'));
+    const staggerContainers = Array.from(root.querySelectorAll('[data-anim-stagger]'));
+
+    if (!singleTargets.length && !staggerContainers.length) {
+        ScrollTrigger.refresh();
+        return;
+    }
+
+    activeMedia = gsap.matchMedia();
+    activeMedia.add(
         {
-            reduce: '(prefers-reduced-motion: reduce)',
-            animate: '(prefers-reduced-motion: no-preference)',
+            reduceMotion: '(prefers-reduced-motion: reduce)',
+            animateMotion: '(prefers-reduced-motion: no-preference)',
         },
-        (context) => {
-            const { reduce } = context.conditions;
+        ({ conditions }) => {
+            const staggerChildren = staggerContainers.flatMap((container) => Array.from(container.children));
+            const allTargets = [...singleTargets, ...staggerChildren];
 
-            root.querySelectorAll('[data-anim][data-anim-done]').forEach((el) => {
-                const preset = REVEAL_PRESETS[el.dataset.anim] || REVEAL_PRESETS['fade-up'];
-                const delay = parseFloat(el.dataset.animDelay || '0') || 0;
+            if (conditions.reduceMotion) {
+                showImmediately(allTargets);
+                return;
+            }
 
-                if (reduce) {
-                    gsap.set(el, { autoAlpha: 1, clearProps: 'transform' });
-                    return;
-                }
+            singleTargets.forEach((element) => {
+                const preset = REVEAL_PRESETS[element.dataset.anim] || REVEAL_PRESETS['fade-up'];
+                const delay = Math.max(0, Math.min(0.5, Number.parseFloat(element.dataset.animDelay || '0') || 0));
 
-                gsap.from(el, {
-                    ...preset,
-                    delay,
-                    duration: 0.6,
-                    ease: 'power2.out',
-                    scrollTrigger: {
-                        trigger: el,
-                        start: 'top 88%',
-                        once: true,
-                    },
-                });
+                createRevealTween([element], preset, element, { delay });
             });
 
-            root.querySelectorAll('[data-anim-stagger][data-anim-done]').forEach((container) => {
-                const children = container.children;
-                if (!children.length) return;
-
-                if (reduce) {
-                    gsap.set(children, { autoAlpha: 1, clearProps: 'transform' });
-                    return;
-                }
-
-                gsap.from(children, {
-                    autoAlpha: 0,
-                    y: 20,
-                    duration: 0.5,
-                    ease: 'power2.out',
-                    stagger: 0.08,
-                    scrollTrigger: {
-                        trigger: container,
-                        start: 'top 85%',
-                        once: true,
-                    },
-                });
+            staggerContainers.forEach((container) => {
+                createRevealTween(
+                    Array.from(container.children),
+                    { autoAlpha: 0, y: 18 },
+                    container,
+                    { duration: 0.52, stagger: 0.075 },
+                );
             });
-        }
+
+            return () => {
+                allTargets.forEach((element) => delete element.dataset.animPending);
+            };
+        },
+        root,
     );
+
+    ScrollTrigger.refresh();
+
+    if (document.fonts?.ready) {
+        document.fonts.ready.then(() => {
+            if (activePageRoot === root && root.isConnected) ScrollTrigger.refresh();
+        });
+    }
 }
 
-function boot() {
-    initReveals();
-    ScrollTrigger.refresh();
+function bootReveals() {
+    const root = pageRoot();
+
+    // DOMContentLoaded und Livewires initiales navigated koennen direkt
+    // nacheinander feuern. Dieselbe Seite darf dadurch nicht doppelt starten.
+    if (!root || root === activePageRoot) return;
+
+    cleanupReveals();
+    activePageRoot = root;
+
+    // Zwei Frames lassen Livewire/Alpine, Fonts und das Layout zuerst ihre
+    // endgueltigen Positionen setzen. So laufen Above-the-fold-Fades sichtbar.
+    firstFrame = window.requestAnimationFrame(() => {
+        secondFrame = window.requestAnimationFrame(() => {
+            firstFrame = null;
+            secondFrame = null;
+
+            if (root === activePageRoot && root.isConnected) setupReveals(root);
+        });
+    });
 }
 
 if (document.readyState !== 'loading') {
-    boot();
+    bootReveals();
 } else {
-    document.addEventListener('DOMContentLoaded', boot);
+    document.addEventListener('DOMContentLoaded', bootReveals, { once: true });
 }
 
-// Livewire tauscht bei wire:navigate das DOM aus -> neu binden + refreshen.
-document.addEventListener('livewire:navigated', () => {
-    initReveals();
-    ScrollTrigger.refresh();
-});
+document.addEventListener('livewire:navigated', bootReveals);
 
 export { gsap, ScrollTrigger };

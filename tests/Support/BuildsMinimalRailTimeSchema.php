@@ -64,6 +64,8 @@ trait BuildsMinimalRailTimeSchema
             $table->id();
             $table->text('subject');
             $table->text('message');
+            $table->text('action_url')->nullable();
+            $table->string('action_label')->nullable();
             $table->unsignedBigInteger('from_user');
             $table->unsignedBigInteger('to_user');
             $table->string('status');
@@ -73,12 +75,20 @@ trait BuildsMinimalRailTimeSchema
         Schema::create('files', function (Blueprint $table): void {
             $table->id();
             $table->nullableMorphs('fileable');
+            $table->unsignedBigInteger('filepool_id')->nullable();
+            $table->unsignedBigInteger('folder_id')->nullable();
+            $table->unsignedBigInteger('user_id')->nullable();
             $table->string('name')->nullable();
             $table->string('path')->nullable();
             $table->string('disk')->nullable();
             $table->string('mime_type')->nullable();
+            $table->string('type')->nullable();
+            $table->json('shared_roles')->nullable();
             $table->unsignedBigInteger('size')->nullable();
             $table->timestamp('expires_at')->nullable();
+            $table->date('visible_from')->nullable();
+            $table->boolean('auto_delete')->default(false);
+            $table->json('visible_teams')->nullable();
             $table->timestamps();
         });
 

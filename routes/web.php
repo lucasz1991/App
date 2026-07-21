@@ -3,6 +3,7 @@
 use App\Livewire\Admin\Dashboard;
 use App\Livewire\Admin\Employees;
 use App\Livewire\Admin\MailManagement;
+use App\Livewire\Admin\ManagedDocuments;
 use App\Livewire\Admin\OperationalPreview;
 use App\Livewire\Admin\Settings;
 use App\Livewire\Admin\UserProfile;
@@ -64,6 +65,8 @@ Route::view('/user/confirm-password', 'auth.confirm-password')
 Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session'), 'verified'])->group(function () {
     Route::get('/dashboard', UserDashboard::class)->name('dashboard');
     Route::get('/files', UserFiles::class)->name('files');
+    Route::get('/files/verbindlich/{managedDocument}', App\Http\Controllers\ManagedDocumentDownloadController::class)
+        ->name('managed-documents.download');
     Route::get('/messages', MessageBox::class)->name('messages');
     // Chat steht ALLEN angemeldeten Benutzern offen (Admin- wie Nutzerbereich).
     Route::get('/chat', App\Livewire\ChatBox::class)->name('chat');
@@ -90,6 +93,7 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
         Route::get('/employees', Employees::class)->name('employees');
         Route::get('/user/{userId}', UserProfile::class)->name('user-profile');
         Route::get('/files', App\Livewire\Admin\FileManager::class)->name('files');
+        Route::get('/files/verbindlich', ManagedDocuments::class)->name('managed-documents');
         Route::get('/mails', MailManagement::class)->name('mail-management');
         // Admins verwenden dieselbe robuste Nachrichtenoberfläche, erhalten
         // aber weiterhin über die Komponente das Admin-Layout.

@@ -33,13 +33,30 @@
             @endcan
 
             @can('files.manage')
-                <x-menu.sidebar-nav-link
-                    :href="route('admin.files')"
+                <x-menu.sidebar-nav-group
                     icon="folder"
-                    :active="request()->routeIs('admin.files')"
+                    :active="request()->routeIs('admin.files', 'admin.managed-documents')"
                 >
-                    {{ __('app.file_management') }}
-                </x-menu.sidebar-nav-link>
+                    <x-slot:label>{{ __('app.file_management') }}</x-slot:label>
+
+                    <x-menu.sidebar-nav-link
+                        :href="route('admin.files')"
+                        icon="download-cloud"
+                        :active="request()->routeIs('admin.files')"
+                        class="!pl-12"
+                    >
+                        {{ __('app.download_files') }}
+                    </x-menu.sidebar-nav-link>
+
+                    <x-menu.sidebar-nav-link
+                        :href="route('admin.managed-documents')"
+                        icon="file-text"
+                        :active="request()->routeIs('admin.managed-documents')"
+                        class="!pl-12"
+                    >
+                        {{ __('app.managed_documents') }}
+                    </x-menu.sidebar-nav-link>
+                </x-menu.sidebar-nav-group>
             @endcan
 
             @can('manage.messages')

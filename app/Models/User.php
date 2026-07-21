@@ -241,11 +241,20 @@ class User extends Authenticatable
      * $files: iterable von File-Modellen, deren Metadaten als Anhaenge
      * auf die Nachricht kopiert werden.
      */
-    public function receiveMessage(string $subject, string $message, ?int $fromUserId = null, $files = null): Message
+    public function receiveMessage(
+        string $subject,
+        string $message,
+        ?int $fromUserId = null,
+        $files = null,
+        ?string $actionUrl = null,
+        ?string $actionLabel = null
+    ): Message
     {
         $receivedMessage = Message::create([
             'subject' => $subject,
             'message' => $message,
+            'action_url' => $actionUrl,
+            'action_label' => $actionLabel,
             'from_user' => $fromUserId ?? 1,
             'to_user' => $this->id,
             'status' => '1',

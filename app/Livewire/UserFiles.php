@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\File;
+use App\Models\ManagedDocument;
 use Livewire\Component;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -27,6 +28,12 @@ class UserFiles extends Component
         // ihre Admin-Sidebar, normale Nutzer die Nutzer-Sidebar.
         return view('livewire.user-files', [
             'grouped' => auth()->user()->availableFilesGrouped(),
+            'managedDocuments' => ManagedDocument::query()
+                ->visibleTo(auth()->user())
+                ->whereHas('currentVersion.file')
+                ->with(['currentVersion.file', 'teams'])
+                ->orderByDesc('content_updated_at')
+                ->get(),
         ])->layout('layouts.master');
     }
 }
