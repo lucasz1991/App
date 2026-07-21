@@ -101,22 +101,19 @@
             </div>
         </section>
 
-        {{-- Asymmetrische Kennzahlenleiste. --}}
-        <section class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5" aria-label="{{ __('app.dashboard') }}" data-anim-stagger>
-            <article class="rt-admin-panel rt-admin-panel-accent group relative col-span-2 overflow-hidden rounded-2xl p-5 transition duration-300 ease-rt-spring hover:-translate-y-1 hover:shadow-rt-md sm:col-span-3 xl:col-span-2">
-                <div class="relative flex items-end justify-between gap-5">
-                    <div>
-                        <p class="text-xs font-medium text-rt-muted dark:text-rt-dark-muted">{{ __('app.total_users') }}</p>
-                        <p class="mt-2 text-4xl font-semibold tracking-[-0.045em] tabular-nums text-rt-text dark:text-white" data-dashboard-count="{{ $totalUsers }}">{{ number_format($totalUsers, 0, ',', '.') }}</p>
-                    </div>
-                    <div class="text-right">
-                        <span class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                            <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                            {{ $activeRate }}% {{ __('app.active_rate') }}
-                        </span>
-                    </div>
+        {{-- Vier gleichwertige Kennzahlen in einer durchgehenden Zeile. --}}
+        <section class="grid grid-cols-4 gap-1.5 sm:gap-3" aria-label="{{ __('app.dashboard') }}" data-anim-stagger>
+            <article class="rt-admin-panel rt-admin-panel-accent group relative min-w-0 overflow-hidden rounded-xl p-2.5 transition duration-300 ease-rt-spring hover:-translate-y-1 hover:shadow-rt-md sm:rounded-2xl sm:p-5">
+                <div class="flex items-center justify-between gap-1.5">
+                    <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-rt-red dark:border-slate-700 dark:bg-slate-800 sm:h-9 sm:w-9 sm:rounded-xl"><i data-feather="users" class="h-3.5 w-3.5 sm:h-4 sm:w-4"></i></span>
+                    <span class="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-1 text-[9px] font-semibold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 sm:text-[10px]">
+                        <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                        {{ $activeRate }}%<span class="sr-only"> {{ __('app.active_rate') }}</span>
+                    </span>
                 </div>
-                <div class="mt-5 h-1.5 overflow-hidden rounded-full bg-rt-surface-muted dark:bg-rt-dark-surface-muted">
+                <p class="mt-3 truncate text-[10px] text-rt-muted dark:text-rt-dark-muted sm:mt-4 sm:text-xs">{{ __('app.total_users') }}</p>
+                <p class="mt-1 text-xl font-semibold tracking-[-0.035em] tabular-nums text-rt-text dark:text-white sm:text-2xl" data-dashboard-count="{{ $totalUsers }}">{{ number_format($totalUsers, 0, ',', '.') }}</p>
+                <div class="mt-3 h-1 overflow-hidden rounded-full bg-rt-surface-muted dark:bg-rt-dark-surface-muted sm:h-1.5">
                     <div
                         class="h-full rounded-full bg-rt-red"
                         data-dashboard-progress="{{ $activeProgress }}"
@@ -125,22 +122,22 @@
                 </div>
             </article>
 
-            <article class="rt-admin-panel rounded-2xl p-4 transition duration-300 ease-rt-spring hover:-translate-y-1 hover:shadow-rt-md sm:p-5">
-                <span class="flex h-9 w-9 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"><i data-feather="user-check" class="h-4 w-4"></i></span>
-                <p class="mt-4 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.active_users') }}</p>
-                <p class="mt-1 text-2xl font-semibold tabular-nums text-rt-text dark:text-white" data-dashboard-count="{{ $activeUsers }}">{{ number_format($activeUsers, 0, ',', '.') }}</p>
+            <article class="rt-admin-panel min-w-0 rounded-xl p-2.5 transition duration-300 ease-rt-spring hover:-translate-y-1 hover:shadow-rt-md sm:rounded-2xl sm:p-5">
+                <span class="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 sm:h-9 sm:w-9 sm:rounded-xl"><i data-feather="user-check" class="h-3.5 w-3.5 sm:h-4 sm:w-4"></i></span>
+                <p class="mt-3 truncate text-[10px] text-rt-muted dark:text-rt-dark-muted sm:mt-4 sm:text-xs">{{ __('app.active_users') }}</p>
+                <p class="mt-1 text-xl font-semibold tabular-nums text-rt-text dark:text-white sm:text-2xl" data-dashboard-count="{{ $activeUsers }}">{{ number_format($activeUsers, 0, ',', '.') }}</p>
             </article>
 
-            <article class="rt-admin-panel rounded-2xl p-4 transition duration-300 ease-rt-spring hover:-translate-y-1 hover:shadow-rt-md sm:p-5">
-                <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent"><i data-feather="briefcase" class="h-4 w-4"></i></span>
-                <p class="mt-4 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.employees') }}</p>
-                <p class="mt-1 text-2xl font-semibold tabular-nums text-rt-text dark:text-white" data-dashboard-count="{{ $totalEmployees }}">{{ number_format($totalEmployees, 0, ',', '.') }}</p>
+            <article class="rt-admin-panel min-w-0 rounded-xl p-2.5 transition duration-300 ease-rt-spring hover:-translate-y-1 hover:shadow-rt-md sm:rounded-2xl sm:p-5">
+                <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent sm:h-9 sm:w-9 sm:rounded-xl"><i data-feather="briefcase" class="h-3.5 w-3.5 sm:h-4 sm:w-4"></i></span>
+                <p class="mt-3 truncate text-[10px] text-rt-muted dark:text-rt-dark-muted sm:mt-4 sm:text-xs">{{ __('app.employees') }}</p>
+                <p class="mt-1 text-xl font-semibold tabular-nums text-rt-text dark:text-white sm:text-2xl" data-dashboard-count="{{ $totalEmployees }}">{{ number_format($totalEmployees, 0, ',', '.') }}</p>
             </article>
 
-            <article class="rt-admin-panel col-span-2 rounded-2xl p-4 transition duration-300 ease-rt-spring hover:-translate-y-1 hover:shadow-rt-md sm:col-span-1 sm:p-5">
-                <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-200"><i data-feather="layers" class="h-4 w-4"></i></span>
-                <p class="mt-4 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.teams_rbac') }}</p>
-                <p class="mt-1 text-2xl font-semibold tabular-nums text-rt-text dark:text-white" data-dashboard-count="{{ $totalTeams }}">{{ number_format($totalTeams, 0, ',', '.') }}</p>
+            <article class="rt-admin-panel min-w-0 rounded-xl p-2.5 transition duration-300 ease-rt-spring hover:-translate-y-1 hover:shadow-rt-md sm:rounded-2xl sm:p-5">
+                <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-200 sm:h-9 sm:w-9 sm:rounded-xl"><i data-feather="layers" class="h-3.5 w-3.5 sm:h-4 sm:w-4"></i></span>
+                <p class="mt-3 truncate text-[10px] text-rt-muted dark:text-rt-dark-muted sm:mt-4 sm:text-xs">{{ __('app.teams_rbac') }}</p>
+                <p class="mt-1 text-xl font-semibold tabular-nums text-rt-text dark:text-white sm:text-2xl" data-dashboard-count="{{ $totalTeams }}">{{ number_format($totalTeams, 0, ',', '.') }}</p>
             </article>
         </section>
 

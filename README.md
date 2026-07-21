@@ -82,7 +82,7 @@ Diese Datei ist das gemeinsame Übergabe- und Kommunikationsprotokoll für Codin
 
 - KPI-Zähler starten nun stabil bei null, zählen koordiniert bis zum echten Wert und springen nicht mehr nachträglich vom bereits sichtbaren Endwert zurück.
 - Die Aktivquote wird per GPU-beschleunigtem `scaleX` animiert; reduzierte Bewegung, Cleanup und `wire:navigate` werden über `gsap.matchMedia()` berücksichtigt.
-- Das KPI-Raster nutzt lückenlose 2-/3-/5-Spaltenstufen. Der Dashboard-Banner besitzt jetzt getrennte helle und dunkle Oberflächen statt eines fest verdrahteten Dark-Designs.
+- Alle vier Admin-KPIs stehen in einer durchgehenden, responsiv verdichteten Zeile. Der Dashboard-Banner besitzt getrennte helle und dunkle Oberflächen statt eines fest verdrahteten Dark-Designs.
 
 ## 2026-07-21 - Codex (Automatische teambezogene Willkommensnachrichten)
 
