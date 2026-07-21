@@ -30,7 +30,6 @@ a { color: inherit; }
 <!--[if mso]><table role="presentation" width="640" align="center"><tr><td><![endif]-->
 <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;max-width:640px;margin:0 auto;background:#f4f2ed;">
 <tbody>
-{{ $header ?? '' }}
 <tr>
 <td class="rt-pad" bgcolor="#f4f2ed" align="left" style="padding:38px 44px 30px;background:#f4f2ed;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:24px;color:#3f4852;text-align:left;">
 {{ Illuminate\Mail\Markdown::parse($slot) }}

@@ -11,14 +11,6 @@
             <td align="center">
                 <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
                     <tr>
-                        <td style="background:#080b10;padding:28px 32px;text-align:center;">
-                            <img src="{{ asset('rt-brand/rt-logo.svg') }}" alt="{{ config('app.name') }}" width="56" height="56" style="display:inline-block;">
-                            <p style="margin:12px 0 0;color:#ffffff;font-size:18px;font-weight:bold;letter-spacing:.04em;">
-                                RT Rail Time GmbH
-                            </p>
-                        </td>
-                    </tr>
-                    <tr>
                         <td style="padding:32px;">
                             <h1 style="margin:0 0 16px;font-size:20px;color:#0f172a;">
                                 {{ __('app.you_were_invited', ['app' => config('app.name')]) }}
@@ -51,7 +43,10 @@
                         </td>
                     </tr>
                     <tr>
-                        <td style="padding:16px 32px;border-top:1px solid #e2e8f0;text-align:center;">
+                        <td style="padding:22px 32px;background:#080b10;border-top:5px solid #e4002b;text-align:center;">
+                            <a href="{{ config('app.url') }}" style="display:inline-block;margin-bottom:14px;">
+                                <img src="{{ asset('rt-brand/img/logo-mail-dark.png') }}" alt="{{ config('app.name') }}" width="200" style="display:block;width:200px;max-width:100%;height:auto;border:0;">
+                            </a>
                             <p style="margin:0;font-size:11px;color:#94a3b8;">
                                 {{ config('app.name') }} v{{ config('app.version') }} &middot; RT Rail Time GmbH
                             </p>

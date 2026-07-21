@@ -405,7 +405,7 @@ return [
     'email_templates_missing_data' => 'Telefonnummer oder Funktion sind noch nicht vollständig gepflegt. Ergänze sie im Tab „Persönliche Daten", damit sie in den Vorlagen erscheinen.',
     'email_templates_legal_hint' => 'Platzhalter wie {{BETREFF}}, {{NACHRICHT}} sowie die rechtlichen Angaben (Geschäftsführung, Registergericht, HRB, USt-IdNr.) bitte vor dem Versand ausfüllen.',
     'email_template_mail_eml' => 'E-Mail-Vorlage für Outlook (EML)',
-    'email_template_mail_eml_hint' => 'Doppelklicken öffnet die Vorlage als neuen Entwurf — inklusive Logo, Kopfbild und deiner Signatur.',
+    'email_template_mail_eml_hint' => 'Doppelklicken öffnet die Vorlage als neuen Entwurf — inklusive Logo im Footer, Kopfbild und deiner Signatur.',
     'email_template_mail_html' => 'E-Mail-Vorlage (HTML)',
     'email_template_mail_html_hint' => 'Eigenständige HTML-Datei mit eingebetteten Bildern — im Browser öffnen und Inhalt kopieren.',
     'email_template_signature_dark' => 'Signatur dunkel (HTML)',
