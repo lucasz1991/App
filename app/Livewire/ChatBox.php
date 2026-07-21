@@ -85,8 +85,10 @@ class ChatBox extends Component
         foreach ($this->uploads as $uploadedFile) {
             $path = $uploadedFile->store('uploads/chat/' . $chat->id, 'private');
             $detectedMime = Storage::disk('private')->mimeType($path);
-            $mime = (! $detectedMime || $detectedMime === 'application/octet-stream')
-                ? $uploadedFile->getClientMimeType()
+            $clientMime = strtolower((string) $uploadedFile->getClientMimeType());
+            $isDeclaredMedia = str_starts_with($clientMime, 'audio/') || str_starts_with($clientMime, 'video/');
+            $mime = ($isDeclaredMedia || ! $detectedMime || $detectedMime === 'application/octet-stream')
+                ? $clientMime
                 : $detectedMime;
 
             $message->files()->create([
