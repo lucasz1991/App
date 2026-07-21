@@ -5,13 +5,13 @@
             {{ __('app.add_note') }}
         </label>
 
-        <textarea
+        <x-ui.forms.textarea
             id="noteBody"
             wire:model="noteBody"
             rows="3"
             placeholder="{{ __('app.note_placeholder') }}"
-            class="block w-full rounded-xl border border-rt-border bg-rt-surface px-3.5 py-2.5 text-base leading-6 text-rt-text shadow-rt-xs outline-none placeholder:text-rt-soft transition-all duration-200 ease-rt-spring focus:border-rt-red focus:ring-4 focus:ring-rt-red/15 sm:text-sm sm:leading-5 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text dark:placeholder:text-rt-dark-soft dark:focus:ring-rt-red/25"
-        ></textarea>
+            class="block"
+        />
         <x-input-error for="noteBody" class="mt-2" />
 
         <div class="mt-3 flex justify-end">

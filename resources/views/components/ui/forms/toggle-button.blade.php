@@ -12,11 +12,11 @@
 
 <label
     for="{{ $inputId }}"
-    @class([
+    {{ $attributes->only('class')->class([
         'group inline-flex min-h-11 items-center gap-3 select-none',
         'cursor-pointer' => ! $disabled,
         'cursor-not-allowed opacity-60' => $disabled,
-    ])
+    ]) }}
 >
     <input
         id="{{ $inputId }}"

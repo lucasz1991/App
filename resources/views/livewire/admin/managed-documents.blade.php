@@ -91,7 +91,7 @@
                 </div>
                 <div>
                     <x-ui.forms.label for="managed-description" :value="__('app.description')" />
-                    <textarea id="managed-description" wire:model="description" rows="3" class="mt-1 w-full rounded-xl border border-rt-border bg-rt-control px-3.5 py-2.5 text-base leading-6 text-rt-text shadow-rt-xs outline-none transition-all duration-200 focus:border-rt-red focus:ring-4 focus:ring-rt-red/15 sm:text-sm sm:leading-5 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:focus:ring-rt-red/25"></textarea>
+                    <x-ui.forms.textarea id="managed-description" wire:model="description" rows="3" class="mt-1" />
                     @error('description') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                 </div>
                 <div>
@@ -147,7 +147,7 @@
                 </div>
                 <div>
                     <x-ui.forms.label for="managed-version-notes" :value="__('app.change_notes')" />
-                    <textarea id="managed-version-notes" wire:model="changeNotes" rows="3" class="mt-1 w-full rounded-xl border border-rt-border bg-rt-control px-3.5 py-2.5 text-base leading-6 text-rt-text shadow-rt-xs outline-none transition-all duration-200 focus:border-rt-red focus:ring-4 focus:ring-rt-red/15 sm:text-sm sm:leading-5 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:focus:ring-rt-red/25"></textarea>
+                    <x-ui.forms.textarea id="managed-version-notes" wire:model="changeNotes" rows="3" class="mt-1" />
                 </div>
                 <p class="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">{{ __('app.previous_versions_remain') }}</p>
             </div>

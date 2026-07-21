@@ -194,6 +194,39 @@ body[data-mode="dark"] .rt-ui-dropdown-link:focus {
     background-color: #1b2a43 !important;
 }
 
+html.dark .rt-ui-icon-button,
+body[data-mode="dark"] .rt-ui-icon-button {
+    color: #a9b6c9 !important;
+}
+
+html.dark .rt-ui-icon-button:hover,
+body[data-mode="dark"] .rt-ui-icon-button:hover {
+    color: #ff8295 !important;
+    background-color: #1b2a43 !important;
+}
+
+html.dark .rt-ui-icon-button-danger,
+body[data-mode="dark"] .rt-ui-icon-button-danger {
+    color: #fda4af !important;
+}
+
+html.dark .rt-ui-icon-button-danger:hover,
+body[data-mode="dark"] .rt-ui-icon-button-danger:hover {
+    color: #fecdd3 !important;
+    background-color: rgba(244, 63, 94, 0.14) !important;
+}
+
+html.dark .rt-ui-danger-soft,
+body[data-mode="dark"] .rt-ui-danger-soft {
+    color: #fda4af !important;
+    background-color: rgba(244, 63, 94, 0.14) !important;
+}
+
+html.dark .rt-ui-danger-soft .text-red-600,
+body[data-mode="dark"] .rt-ui-danger-soft .text-red-600 {
+    color: #fda4af !important;
+}
+
 html.dark .rt-ui-toggle-control,
 body[data-mode="dark"] .rt-ui-toggle-control {
     background-color: #334155 !important;
@@ -1100,6 +1133,29 @@ body[data-mode="dark"] [data-admin-dashboard] .rt-admin-quick-link:hover {
     html.dark body[data-sidebar-collapsible="true"] .vertical-menu #sidebar-menu > ul > li.mm-active > .sidebar-nav-link {
         background: #25141d;
     }
+}
+
+/* Legacy MetisMenu setzt aktive Links blau und mit !important. Die
+   Anwendung verwendet bewusst den RailTime-Akzent, auch nach wire:navigate. */
+.rt-ui-sidebar .sidebar-nav-link[data-menu-active="true"] {
+    color: #e4002b !important;
+    background-color: #ffe4e9 !important;
+}
+
+html.dark .rt-ui-sidebar .sidebar-nav-link[data-menu-active="true"],
+body[data-mode="dark"] .rt-ui-sidebar .sidebar-nav-link[data-menu-active="true"] {
+    color: #ff8295 !important;
+    background-color: #2a1720 !important;
+}
+
+html.dark body[data-sidebar-collapsible="true"][data-sidebar-expanded="true"] .vertical-menu,
+body[data-mode="dark"][data-sidebar-collapsible="true"][data-sidebar-expanded="true"] .vertical-menu {
+    box-shadow: 18px 0 48px rgba(0, 0, 0, 0.42);
+}
+
+html.dark body[data-sidebar-collapsible="true"][data-sidebar-expanded="true"] .topbar-brand .navbar-brand,
+body[data-mode="dark"][data-sidebar-collapsible="true"][data-sidebar-expanded="true"] .topbar-brand .navbar-brand {
+    box-shadow: 10px 0 30px rgba(0, 0, 0, 0.32);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -9,7 +9,7 @@
 @endphp
 
 <div
-    {{ $attributes->except(['class'])->merge(['class' => 'space-y-3']) }}
+    {{ $attributes->class('space-y-3') }}
     x-data="{
         fallback: @js(strtoupper($fallback)),
         value: @js(strtoupper($fallback)),

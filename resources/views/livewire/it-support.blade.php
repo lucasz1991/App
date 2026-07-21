@@ -49,14 +49,14 @@
 
             <div class="mt-4 min-w-0">
                 <x-ui.forms.label for="it_support_message" :value="__('app.it_support_message')" />
-                <textarea
+                <x-ui.forms.textarea
                     id="it_support_message"
                     rows="9"
                     maxlength="5000"
                     wire:model="message"
                     placeholder="{{ __('app.it_support_message_placeholder') }}"
-                    class="mt-1.5 min-h-44 w-full resize-y rounded-xl border border-rt-border bg-rt-control px-3.5 py-3 text-base leading-6 text-rt-text shadow-rt-xs outline-none transition-all duration-200 ease-rt-spring placeholder:text-rt-soft hover:border-rt-accent/50 focus:border-rt-accent focus:ring-4 focus:ring-rt-accent/15 sm:text-sm dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:placeholder:text-rt-dark-soft dark:hover:border-rt-dark-accent dark:focus:ring-rt-dark-accent/20"
-                ></textarea>
+                    class="mt-1.5 min-h-44 py-3"
+                />
                 <div class="mt-1.5 flex flex-wrap items-start justify-between gap-2">
                     <x-ui.forms.input-error for="message" />
                     <span class="ml-auto text-[11px] text-rt-soft dark:text-rt-dark-soft">{{ __('app.it_support_message_limit') }}</span>

@@ -98,7 +98,7 @@
                                     </span>
                                     <span class="block truncate text-xs text-rt-muted dark:text-rt-dark-muted">
                                         @if ($latest)
-                                            {{ (int) $latest->user_id === (int) $me->id ? __('app.you') . ': ' : '' }}{{ filled($latest->body) ? $latest->body : __('app.chat_attachment') }}
+                                            {{ (int) $latest->user_id === (int) $me->id ? __('app.you') . ': ' : '' }}{{ $latest->isVoice() ? __('app.voice_message') : (filled($latest->body) ? $latest->body : __('app.chat_attachment')) }}
                                         @endif
                                     </span>
                                 </span>
@@ -148,7 +148,10 @@
                                 userId: {{ (int) $me->id }},
                                 userName: @js($me->name),
                                 typingText: @js(__('app.is_typing')),
-                                recordingText: @js(__('app.recording'))
+                                recordingText: @js(__('app.recording')),
+                                unsupportedText: @js(__('app.voice_recording_unsupported')),
+                                microphoneErrorText: @js(__('app.voice_microphone_error')),
+                                uploadErrorText: @js(__('app.voice_upload_failed'))
                             })"
                         >
                         {{-- Chat-Kopf --}}
@@ -217,6 +220,12 @@
                                         && ! $own
                                         && ($newDay || ! $prev || (int) $prev->user_id !== (int) $message->user_id);
                                     $isRead = $own && $selectedChat->messageReadByAllRecipients($message, $me);
+                                    $voiceFile = $message->isVoice()
+                                        ? ($message->files->firstWhere('type', 'voice')
+                                            ?? $message->files->first(fn ($file) => str_starts_with(strtolower((string) $file->mime_type), 'audio/')))
+                                        : null;
+                                    $voiceConsumed = $message->view_once
+                                        && ($own || $message->hasBeenViewedBy($me));
                                 @endphp
 
                                 <div wire:key="chat-msg-{{ $message->id }}" class="flex flex-col">
@@ -244,7 +253,14 @@
                                             <p class="whitespace-pre-wrap break-words">{{ $message->body }}</p>
                                         @endif
 
-                                        @if ($message->files->isNotEmpty())
+                                        @if ($voiceFile)
+                                            <x-chat.voice-message
+                                                :message="$message"
+                                                :file="$voiceFile"
+                                                :own="$own"
+                                                :consumed="$voiceConsumed"
+                                            />
+                                        @elseif ($message->files->isNotEmpty())
                                             <div class="space-y-2 {{ filled($message->body) ? 'mt-2' : '' }}">
                                                 @foreach ($message->files as $file)
                                                     @php
@@ -333,6 +349,18 @@
                                         @endif
 
                                         <p class="mt-1 flex items-center justify-end gap-1 text-right text-[10px] leading-none opacity-80">
+                                            @if ($own)
+                                                <button
+                                                    type="button"
+                                                    wire:click="deleteMessage({{ $message->id }})"
+                                                    wire:confirm="{{ __('app.delete_chat_message_confirm') }}"
+                                                    class="mr-auto inline-flex h-6 w-6 items-center justify-center rounded-full opacity-65 transition hover:bg-black/10 hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/50 dark:hover:bg-white/10"
+                                                    title="{{ __('app.delete_chat_message') }}"
+                                                    aria-label="{{ __('app.delete_chat_message') }}"
+                                                >
+                                                    <i class="far fa-trash-alt" aria-hidden="true"></i>
+                                                </button>
+                                            @endif
                                             <span>{{ $message->created_at->format('H:i') }}</span>
                                             @if ($own)
                                                 <i class="far fa-check-double {{ $isRead ? 'text-sky-300' : 'text-white/60' }}"
@@ -361,11 +389,6 @@
                                 </div>
                             @endif
 
-                            <p x-cloak x-show="recording" class="mb-2 px-2 text-xs font-medium text-rt-red">
-                                <i class="fas fa-circle mr-1 animate-pulse" aria-hidden="true"></i>
-                                <span x-text="recordingLabel"></span>
-                            </p>
-
                             <form wire:submit.prevent="send" class="flex items-center gap-1.5 sm:gap-2">
                                 <input id="chat-attachments-{{ $selectedChat->id }}"
                                        type="file"
@@ -373,34 +396,89 @@
                                        multiple
                                        accept="audio/*,video/*,image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip"
                                        class="sr-only">
-                                <label for="chat-attachments-{{ $selectedChat->id }}"
-                                       title="{{ __('app.add_attachment') }}"
-                                       class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full border border-rt-border bg-rt-surface text-rt-text shadow-rt-xs transition hover:bg-rt-surface-muted hover:text-rt-red sm:h-10 sm:w-10 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white dark:hover:bg-rt-dark-surface-muted">
-                                    <i class="far fa-paperclip" aria-hidden="true"></i>
-                                    <span class="sr-only">{{ __('app.add_attachment') }}</span>
-                                </label>
 
-                                <button type="button"
-                                        @click="toggleRecording()"
-                                        :class="recording ? 'bg-rt-red text-white border-rt-red' : 'border-rt-border bg-rt-surface text-rt-text dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white'"
-                                        title="{{ __('app.voice_message') }}"
-                                        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border shadow-rt-xs transition hover:text-rt-red sm:h-10 sm:w-10 dark:hover:text-white">
-                                    <i :class="recording ? 'fas fa-stop' : 'far fa-microphone'" aria-hidden="true"></i>
-                                    <span class="sr-only">{{ __('app.voice_message') }}</span>
-                                </button>
+                                <div x-show="!recording && !sendingVoice" class="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
+                                    <label for="chat-attachments-{{ $selectedChat->id }}"
+                                           title="{{ __('app.add_attachment') }}"
+                                           class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full border border-rt-border bg-rt-surface text-rt-text shadow-rt-xs transition hover:bg-rt-surface-muted hover:text-rt-red sm:h-10 sm:w-10 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white dark:hover:bg-rt-dark-surface-muted">
+                                        <i class="far fa-paperclip" aria-hidden="true"></i>
+                                        <span class="sr-only">{{ __('app.add_attachment') }}</span>
+                                    </label>
 
-                                <input type="text"
-                                       wire:model="messageText"
-                                       @input.debounce.250ms="sendTyping()"
-                                       placeholder="{{ __('app.type_message') }}"
-                                       autocomplete="off"
-                                       class="h-11 min-w-0 flex-1 rounded-full border border-rt-border bg-rt-control px-4 text-base leading-6 text-rt-text shadow-rt-xs outline-none transition-all duration-200 ease-rt-spring placeholder:text-rt-soft hover:border-rt-accent/50 focus:border-rt-accent focus:ring-4 focus:ring-rt-accent/15 sm:h-10 sm:text-sm sm:leading-5 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:placeholder:text-rt-dark-soft dark:hover:border-rt-dark-accent dark:focus:ring-rt-dark-accent/20">
-                                <button type="submit"
-                                        title="{{ __('app.type_message') }}"
-                                        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-rt-red text-white shadow-rt-sm transition-all duration-200 ease-rt-spring hover:bg-rt-red-dark active:scale-95 sm:h-10 sm:w-10 dark:bg-rt-red dark:text-white">
-                                    <i class="far fa-paper-plane" aria-hidden="true"></i>
-                                    <span class="sr-only">{{ __('app.type_message') }}</span>
-                                </button>
+                                    <button type="button"
+                                            @click="startRecording()"
+                                            title="{{ __('app.voice_message') }}"
+                                            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-rt-border bg-rt-surface text-rt-text shadow-rt-xs transition hover:border-rt-red/50 hover:bg-rt-surface-muted hover:text-rt-red active:scale-95 sm:h-10 sm:w-10 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white dark:hover:bg-rt-dark-surface-muted">
+                                        <i class="far fa-microphone" aria-hidden="true"></i>
+                                        <span class="sr-only">{{ __('app.voice_message') }}</span>
+                                    </button>
+
+                                    <input type="text"
+                                           wire:model="messageText"
+                                           @input.debounce.250ms="sendTyping()"
+                                           placeholder="{{ __('app.type_message') }}"
+                                           autocomplete="off"
+                                           class="h-11 min-w-0 flex-1 rounded-full border border-rt-border bg-rt-control px-4 text-base leading-6 text-rt-text shadow-rt-xs outline-none transition-all duration-200 ease-rt-spring placeholder:text-rt-soft hover:border-rt-accent/50 focus:border-rt-accent focus:ring-4 focus:ring-rt-accent/15 sm:h-10 sm:text-sm sm:leading-5 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:placeholder:text-rt-dark-soft dark:hover:border-rt-dark-accent dark:focus:ring-rt-dark-accent/20">
+                                    <button type="submit"
+                                            title="{{ __('app.type_message') }}"
+                                            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-rt-red text-white shadow-rt-sm transition-all duration-200 ease-rt-spring hover:bg-rt-red-dark active:scale-95 sm:h-10 sm:w-10 dark:bg-rt-red dark:text-white">
+                                        <i class="far fa-paper-plane" aria-hidden="true"></i>
+                                        <span class="sr-only">{{ __('app.type_message') }}</span>
+                                    </button>
+                                </div>
+
+                                <div
+                                    x-cloak
+                                    x-show="recording || sendingVoice"
+                                    x-transition:enter="transition duration-200 ease-out"
+                                    x-transition:enter-start="translate-y-1 opacity-0"
+                                    x-transition:enter-end="translate-y-0 opacity-100"
+                                    data-no-chat-swipe
+                                    class="rt-voice-recorder flex min-w-0 flex-1 items-center gap-2 rounded-2xl border border-rt-border bg-rt-control px-1.5 py-1 shadow-rt-xs dark:border-rt-dark-border dark:bg-rt-dark-control"
+                                >
+                                    <button
+                                        type="button"
+                                        @click="cancelRecording()"
+                                        :disabled="sendingVoice"
+                                        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-rt-muted transition hover:bg-rt-surface hover:text-rt-red disabled:cursor-not-allowed disabled:opacity-40 dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface"
+                                        title="{{ __('app.cancel_recording') }}"
+                                        aria-label="{{ __('app.cancel_recording') }}"
+                                    >
+                                        <i class="far fa-trash-alt" aria-hidden="true"></i>
+                                    </button>
+
+                                    <div class="flex min-w-0 flex-1 items-center gap-2">
+                                        <span class="rt-recording-dot h-2.5 w-2.5 shrink-0 rounded-full bg-rt-red" aria-hidden="true"></span>
+                                        <span class="w-[4.75rem] shrink-0 text-xs font-semibold tabular-nums text-rt-text dark:text-white" x-text="sendingVoice ? @js(__('app.voice_sending')) : recordingLabel"></span>
+                                        <div class="rt-recording-wave flex h-7 min-w-0 flex-1 items-center justify-center gap-[3px] overflow-hidden" aria-hidden="true">
+                                            <template x-for="index in 18" :key="index">
+                                                <span :style="`--rt-wave-index: ${index}`"></span>
+                                            </template>
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        @click="toggleViewOnce()"
+                                        :disabled="sendingVoice"
+                                        :aria-pressed="viewOnce.toString()"
+                                        :class="viewOnce ? 'border-rt-red bg-rt-red text-white' : 'border-rt-border text-rt-muted dark:border-rt-dark-border dark:text-rt-dark-muted'"
+                                        class="rt-voice-once-button flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-xs font-bold transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                                        title="{{ __('app.voice_once_hint') }}"
+                                        aria-label="{{ __('app.voice_once') }}"
+                                    >1</button>
+
+                                    <button
+                                        type="button"
+                                        @click="sendRecording()"
+                                        :disabled="sendingVoice"
+                                        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rt-red text-white shadow-rt-sm transition hover:bg-rt-red-dark active:scale-95 disabled:cursor-wait disabled:opacity-70"
+                                        title="{{ __('app.send_voice_message') }}"
+                                        aria-label="{{ __('app.send_voice_message') }}"
+                                    >
+                                        <i :class="sendingVoice ? 'fas fa-spinner fa-spin' : 'fas fa-paper-plane'" aria-hidden="true"></i>
+                                    </button>
+                                </div>
                             </form>
                             @error('messageText')
                                 <p class="mt-1 px-2 text-xs text-red-600 dark:text-red-400">{{ $message }}</p>
@@ -409,6 +487,9 @@
                                 <p class="mt-1 px-2 text-xs text-red-600 dark:text-red-400">{{ $message }}</p>
                             @enderror
                             @error('uploads.*')
+                                <p class="mt-1 px-2 text-xs text-red-600 dark:text-red-400">{{ $message }}</p>
+                            @enderror
+                            @error('voiceUpload')
                                 <p class="mt-1 px-2 text-xs text-red-600 dark:text-red-400">{{ $message }}</p>
                             @enderror
                             <p wire:loading wire:target="uploads" class="mt-1 px-2 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.uploading') }}</p>

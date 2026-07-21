@@ -39,6 +39,9 @@
     @yield('css')
 </head>
     <body x-bind:data-mode="$store.theme?.dark ? 'dark' : 'light'" data-mode="light" data-sidebar-size="lg" data-sidebar-collapsible="true" data-sidebar-expanded="false" class="group font-sans bg-rt-canvas text-rt-text dark:bg-rt-dark-canvas dark:text-rt-dark-text">
+        <script>
+            document.body.dataset.mode = localStorage.getItem('rt-theme') === 'true' ? 'dark' : 'light';
+        </script>
         <!-- sidebar -->
         @include('layouts.sidebar', ['area' => $area])
         <!-- topbar -->
