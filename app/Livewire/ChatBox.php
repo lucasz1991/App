@@ -2,18 +2,29 @@
 
 namespace App\Livewire;
 
+use App\Events\ChatMessageSent;
+use App\Events\ChatRead;
 use App\Models\Chat;
 use App\Models\ChatMessage;
 use App\Models\User;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Livewire\Attributes\On;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 class ChatBox extends Component
 {
+    use WithFileUploads;
+
     public ?int $selectedChatId = null;
 
     public string $messageText = '';
 
     public string $search = '';
+
+    /** @var array<int, \Livewire\Features\SupportFileUploads\TemporaryUploadedFile> */
+    public array $uploads = [];
 
     /** Modal: neuer Chat / neue Gruppe */
     public bool $showNewChat = false;
@@ -40,12 +51,22 @@ class ChatBox extends Component
         $this->selectedChatId = $chat->id;
         $this->messageText = '';
 
-        $chat->participants()->updateExistingPivot(auth()->id(), ['last_read_at' => now()]);
+        $this->markChatRead($chat);
     }
 
     public function send(): void
     {
-        $this->validate(['messageText' => ['required', 'string', 'max:5000']]);
+        $this->validate([
+            'messageText' => ['nullable', 'string', 'max:5000'],
+            'uploads' => ['array', 'max:5'],
+            'uploads.*' => ['file', 'max:20480'],
+        ]);
+
+        if (trim($this->messageText) === '' && $this->uploads === []) {
+            $this->addError('messageText', __('app.chat_message_or_attachment_required'));
+
+            return;
+        }
 
         if (! $this->selectedChatId) {
             return;
@@ -53,16 +74,62 @@ class ChatBox extends Component
 
         $chat = $this->myChat($this->selectedChatId);
 
-        ChatMessage::create([
+        $message = ChatMessage::create([
             'chat_id' => $chat->id,
             'user_id' => auth()->id(),
             'body' => trim($this->messageText),
         ]);
 
+        foreach ($this->uploads as $uploadedFile) {
+            $path = $uploadedFile->store('uploads/chat/' . $chat->id, 'private');
+            $mime = Storage::disk('private')->mimeType($path) ?: $uploadedFile->getClientMimeType();
+
+            $message->files()->create([
+                'name' => $uploadedFile->getClientOriginalName(),
+                'path' => $path,
+                'disk' => 'private',
+                'mime_type' => $mime,
+                'type' => str_starts_with((string) $mime, 'audio/')
+                    ? 'audio'
+                    : (str_starts_with((string) $mime, 'video/') ? 'video' : 'chat'),
+                'size' => $uploadedFile->getSize(),
+                'user_id' => auth()->id(),
+            ]);
+        }
+
         $chat->touch();
         $chat->participants()->updateExistingPivot(auth()->id(), ['last_read_at' => now()]);
 
         $this->messageText = '';
+        $this->uploads = [];
+        $this->broadcastChatEvent(new ChatMessageSent($message));
+        $this->dispatch('inbox:refresh');
+        $this->dispatch('chat:scroll-bottom');
+    }
+
+    public function removeUpload(int $index): void
+    {
+        if (! isset($this->uploads[$index])) {
+            return;
+        }
+
+        $this->uploads[$index]->delete();
+        unset($this->uploads[$index]);
+        $this->uploads = array_values($this->uploads);
+    }
+
+    #[On('chat:refresh')]
+    public function refreshChat(int $chatId): void
+    {
+        if ($this->selectedChatId !== $chatId) {
+            $this->dispatch('inbox:refresh');
+
+            return;
+        }
+
+        $chat = $this->myChat($chatId);
+        $this->markChatRead($chat);
+        $this->dispatch('inbox:refresh');
         $this->dispatch('chat:scroll-bottom');
     }
 
@@ -119,9 +186,35 @@ class ChatBox extends Component
     public function pollTick(): void
     {
         if ($this->selectedChatId) {
-            $this->myChat($this->selectedChatId)
-                ->participants()
-                ->updateExistingPivot(auth()->id(), ['last_read_at' => now()]);
+            $this->markChatRead($this->myChat($this->selectedChatId));
+        }
+    }
+
+    protected function markChatRead(Chat $chat): void
+    {
+        $participant = $chat->participants->firstWhere('id', auth()->id());
+        $lastReadAt = $participant?->pivot?->last_read_at;
+        $latestOtherMessageAt = $chat->messages()
+            ->where('user_id', '!=', auth()->id())
+            ->max('created_at');
+
+        if (! $latestOtherMessageAt || ($lastReadAt && $lastReadAt >= $latestOtherMessageAt)) {
+            return;
+        }
+
+        $chat->participants()->updateExistingPivot(auth()->id(), ['last_read_at' => now()]);
+        $this->broadcastChatEvent(new ChatRead($chat->id, auth()->id()));
+    }
+
+    protected function broadcastChatEvent(object $event): void
+    {
+        try {
+            event($event);
+        } catch (\Throwable $exception) {
+            Log::notice('Chat-Echtzeitereignis konnte nicht gesendet werden.', [
+                'event' => $event::class,
+                'error' => $exception->getMessage(),
+            ]);
         }
     }
 
@@ -130,7 +223,7 @@ class ChatBox extends Component
         $me = auth()->user();
 
         $chats = $me->chats()
-            ->with(['participants', 'latestMessage.sender'])
+            ->with(['participants', 'latestMessage.sender', 'latestMessage.files'])
             ->orderByDesc('chats.updated_at')
             ->get();
 
@@ -150,7 +243,7 @@ class ChatBox extends Component
 
             if ($selectedChat) {
                 $messages = $selectedChat->messages()
-                    ->with('sender:id,name,profile_photo_path')
+                    ->with(['sender:id,name,profile_photo_path', 'files'])
                     ->orderBy('id')
                     ->limit(200)
                     ->get();

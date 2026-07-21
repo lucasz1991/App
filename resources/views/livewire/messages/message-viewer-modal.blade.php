@@ -1,4 +1,4 @@
-<div>
+<div data-testid="message-viewer-host">
     <x-modal id="message-viewer-modal" wire:model="isOpen" maxWidth="4xl">
         @if ($message)
             @php

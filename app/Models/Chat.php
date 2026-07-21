@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Support\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -65,6 +66,18 @@ class Chat extends Model
             ->where('user_id', '!=', $user->id)
             ->when($lastRead, fn ($q) => $q->where('created_at', '>', $lastRead))
             ->count();
+    }
+
+    /** Sind alle anderen Teilnehmer mit ihrem Lesestand an der Nachricht vorbei? */
+    public function messageReadByAllRecipients(ChatMessage $message, User $sender): bool
+    {
+        $recipients = $this->participants->where('id', '!=', $sender->id);
+
+        return $recipients->isNotEmpty() && $recipients->every(function (User $recipient) use ($message): bool {
+            $lastReadAt = $recipient->pivot?->last_read_at;
+
+            return $lastReadAt && Carbon::parse($lastReadAt)->greaterThanOrEqualTo($message->created_at);
+        });
     }
 
     /** Existierenden Direktchat zwischen zwei Nutzern finden oder anlegen. */
