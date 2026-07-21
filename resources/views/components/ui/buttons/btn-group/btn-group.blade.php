@@ -4,9 +4,8 @@
 ])
 
 @php
-$base = 'inline-flex flex-wrap items-stretch rounded-lg border border-gray-200
-         bg-white shadow-sm overflow-hidden
-         dark:bg-gray-800 dark:border-gray-700';
+$base = 'rt-ui-button-group rt-ui-surface inline-flex flex-wrap items-stretch overflow-hidden rounded-lg border border-rt-border
+         bg-rt-surface shadow-rt-xs dark:border-rt-dark-border dark:bg-rt-dark-surface';
 @endphp
 
 <div {{ $attributes->merge([

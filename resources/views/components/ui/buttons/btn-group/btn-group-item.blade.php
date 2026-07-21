@@ -18,12 +18,11 @@ $base = 'inline-flex items-center gap-2 font-medium
          transition-colors select-none';
 
 $colors = $active
-    ? 'bg-blue-600 text-white hover:bg-blue-700 focus-visible:ring-blue-400'
-    : 'bg-white text-gray-700 hover:bg-gray-50 focus-visible:ring-blue-400
-       dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700';
+    ? 'rt-ui-button-group-item-active bg-rt-red text-white hover:bg-rt-red-dark focus-visible:ring-rt-red/40'
+    : 'bg-rt-surface text-rt-text hover:bg-rt-surface-muted focus-visible:ring-rt-red/40
+       dark:bg-rt-dark-surface dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted';
 
-$borders = 'border-l border-gray-200 first:border-l-0
-            dark:border-gray-700';
+$borders = 'border-l border-rt-border first:border-l-0 dark:border-rt-dark-border';
 
 $rounded = 'first:rounded-l-lg last:rounded-r-lg';
 
@@ -32,6 +31,7 @@ $disabledCls = $disabled
     : '';
 
 $cls = implode(' ', [
+    'rt-ui-button rt-ui-button-group-item',
     $base,
     $sizeMap[$size] ?? $sizeMap['md'],
     $colors,

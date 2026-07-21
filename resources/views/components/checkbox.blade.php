@@ -1,1 +1,1 @@
-<input type="checkbox" {!! $attributes->merge(['class' => 'rounded border-rt-border text-rt-red shadow-rt-xs transition-all duration-300 ease-rt-spring focus:ring-rt-red/40 dark:border-rt-dark-border dark:bg-rt-dark-control']) !!}>
+<input type="checkbox" {!! $attributes->merge(['class' => 'rt-ui-checkbox rounded border-rt-border text-rt-red shadow-rt-xs transition-all duration-300 ease-rt-spring focus:ring-rt-red/40 dark:border-rt-dark-border dark:bg-rt-dark-control']) !!}>

@@ -74,7 +74,7 @@
             @if($required) required @endif
             pattern="^\d{2}:\d{2}$"
             {{ $attributes->merge([
-                'class' => 'block min-h-11 w-full rounded-xl border border-rt-border bg-rt-control px-3.5 py-2.5 pr-11 text-base leading-6 text-rt-text shadow-rt-xs outline-none placeholder:text-rt-soft transition-all duration-200 ease-rt-spring hover:border-rt-accent/50 focus:border-rt-accent focus:ring-4 focus:ring-rt-accent/15 disabled:bg-rt-surface-muted disabled:text-rt-soft sm:text-sm sm:leading-5 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-text dark:placeholder:text-rt-dark-soft dark:focus:ring-rt-dark-accent/20',
+                'class' => 'rt-ui-control block min-h-11 w-full rounded-xl border border-rt-border bg-rt-control px-3.5 py-2.5 pr-11 text-base leading-6 text-rt-text shadow-rt-xs outline-none placeholder:text-rt-soft transition-all duration-200 ease-rt-spring hover:border-rt-accent/50 focus:border-rt-accent focus:ring-4 focus:ring-rt-accent/15 disabled:bg-rt-surface-muted disabled:text-rt-soft sm:text-sm sm:leading-5 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-text dark:placeholder:text-rt-dark-soft dark:focus:ring-rt-dark-accent/20',
                 // Hinweis: min/max bei Flatpickr werden via JS gesetzt; HTML-Attribute sind optional
                 'autocomplete' => 'off',
             ]) }}
