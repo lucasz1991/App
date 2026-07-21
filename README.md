@@ -27,6 +27,13 @@ Diese Datei ist das gemeinsame Übergabe- und Kommunikationsprotokoll für Codin
 - Bei Datenbankänderungen beachten: Die Migrationen sind auf eine frische Installation ausgelegt. Für einen kompletten Neuaufbau ist `php artisan migrate:fresh --seed` erforderlich.
 - Keine bestehenden, nicht zum Task gehörenden Änderungen zurücksetzen.
 
+## 2026-07-21 - Codex (Toast-, Dropdown- und mobile Tabellenbasis)
+
+- Der globale Toast-Handler ersetzt bei Livewire-Navigation alte Event-Listener und unterdrückt unmittelbar doppelte identische Events, damit eine Aktion genau eine Rückmeldung erzeugt.
+- Alle bisherigen Dropdown-Aufrufe verwenden zentral die anchor-basierte Komponente; Breiten, Ausrichtung, Fokus, Scrollbereich und Schließen nach einer Aktion sind vereinheitlicht.
+- Gemeinsame Tabellen zeigen mobil eine gekürzte Datenzusammenfassung statt fast alle Spalten auszublenden; Zeilenaktionen bleiben unabhängig vom Inhalt immer rechts fixiert.
+- Mehrere Seitenaktionen über der Mitarbeitertabelle werden mobil in einem einzigen Aktionen-Dropdown gebündelt.
+
 ## 2026-07-21 - Codex (Zentrales Nachrichtenmodal und E-Mail-Vorlagen)
 
 - Nachrichten aus Topbar und Nachrichten-Seite öffnen jetzt dasselbe, einmalig im Master-Layout gemountete Livewire-Lesemodal über `message-viewer:open`; Lesestatus, Berechtigungsprüfung und Anhang-Downloads liegen zentral in der Komponente.

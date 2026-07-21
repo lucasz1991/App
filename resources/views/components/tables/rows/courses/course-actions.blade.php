@@ -1,8 +1,6 @@
 <x-dropdown align="right" width="48">
     <x-slot name="trigger">
-        <button type="button" class="text-center px-4 py-2 text-xl font-semibold bg-white hover:bg-gray-100 rounded-lg border border-gray-200">
-            &#x22EE;
-        </button>
+        <x-ui.dropdown.action-trigger />
     </x-slot>
 
     <x-slot name="content">

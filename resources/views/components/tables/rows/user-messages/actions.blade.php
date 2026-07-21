@@ -2,10 +2,7 @@
 
 <x-dropdown align="right" width="48">
     <x-slot name="trigger">
-        <button type="button"
-                class="rounded-lg border border-rt-border bg-rt-surface px-4 py-2 text-center text-xl font-semibold text-rt-text shadow-rt-xs hover:bg-rt-surface-muted dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted transition-all duration-300 ease-rt-spring active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-rt-red/40 focus:ring-offset-2 dark:focus:ring-offset-slate-900">
-            &#x22EE;
-        </button>
+        <x-ui.dropdown.action-trigger />
     </x-slot>
 
     <x-slot name="content">

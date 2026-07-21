@@ -61,7 +61,7 @@
      stattdessen ueber rounded-t/b auf Kopf- und letzter Zeile gehalten. --}}
 <div {{ $attributes->merge(['class' => 'w-full mt-4 relative rounded-xl bg-rt-surface text-rt-text shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60 '.$class]) }}>
     {{-- Header (nur md+) --}}
-    <div class="hidden md:grid rounded-t-xl bg-rt-surface-muted p-2 text-xs font-semibold uppercase tracking-wide text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted border-b border-rt-border dark:border-rt-dark-border text-left"
+    <div class="hidden md:grid rounded-t-xl bg-rt-surface-muted p-2 pr-16 text-xs font-semibold uppercase tracking-wide text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted border-b border-rt-border dark:border-rt-dark-border text-left"
          style="grid-template-columns: {{ $gridTemplate }};">
         @foreach($columns as $col)
             @php $hidden = $hideClass($col['hideOn']); @endphp
@@ -91,8 +91,8 @@
     @php
         $isSelected = in_array($item->id, (array) $selectedItems);
     @endphp
-    <div class="relative border-b border-rt-border/60 dark:border-rt-dark-border last:border-b-0 last:rounded-b-xl py-2 text-sm md:px-2 transition-colors duration-300 ease-rt-spring hover:bg-rt-nav-hover dark:hover:bg-rt-dark-nav-hover">
-        <div class="grid items-center" style="grid-template-columns: {{ $gridTemplate }} min-content;">
+    <div class="relative border-b border-rt-border/60 px-2 py-2 pr-14 text-sm transition-colors duration-300 ease-rt-spring last:rounded-b-xl last:border-b-0 hover:bg-rt-nav-hover dark:border-rt-dark-border dark:hover:bg-rt-dark-nav-hover md:px-2 md:pr-16">
+        <div class="rt-table-row-grid items-center gap-x-2 gap-y-0.5 md:gap-0" style="--rt-table-columns: {{ $gridTemplate }};">
         {{-- Zellen --}}
         @if($rowView)
             @include($rowView, ['item' => $item, 'isSelected' => $isSelected, 'columnsMeta' => $columns, 'hideClass' => $hideClass])
@@ -102,13 +102,15 @@
             @endforeach
         @endif
 
-        {{-- Actions rechts, ohne absolute --}}
+        </div>
+
+        {{-- Zeilenaktionen bleiben unabhaengig von Anzahl/Breite der Spalten
+             immer am rechten Zeilenrand erreichbar. --}}
         @if($actionsView ?? false)
-            <div class="justify-self-end relative right-9">
-            @include($actionsView, ['item' => $item])
+            <div class="rt-table-row-actions absolute right-2 top-1/2 z-20 -translate-y-1/2">
+                @include($actionsView, ['item' => $item])
             </div>
         @endif
-        </div>
         @if ($detailsView && (int) $expandedId === (int) $item->id)
             @include($detailsView, ['item' => $item])
         @endif

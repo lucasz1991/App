@@ -43,6 +43,34 @@ html {
     scroll-behavior: smooth;
 }
 
+/* Responsive Datentabellen: mobil bleiben die wichtigsten Zellen als
+   zweispaltige, gekuerzte Zusammenfassung sichtbar. Ab md gilt wieder das
+   von der Tabellenkomponente gelieferte Spaltenraster. */
+.rt-table-row-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.65fr);
+}
+
+.rt-table-row-grid > * {
+    min-width: 0;
+}
+
+@media (max-width: 767px) {
+    .rt-table-row-grid > * {
+        overflow: hidden;
+    }
+
+    .rt-table-row-grid > *:nth-child(n + 3) {
+        font-size: 0.75rem;
+    }
+}
+
+@media (min-width: 768px) {
+    .rt-table-row-grid {
+        grid-template-columns: var(--rt-table-columns);
+    }
+}
+
 /* Seitenwechsel-Spinner (wire:navigate-Overlay, siehe resources/js/app.js) */
 .rt-nav-spinner {
     width: 44px;
