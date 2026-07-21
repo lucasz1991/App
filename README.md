@@ -33,8 +33,8 @@ Diese Datei ist das gemeinsame Übergabe- und Kommunikationsprotokoll für Codin
 - Migrationen für eine Neuinstallation bereinigt: nachträgliche `add_...`-Migrationen wurden in die jeweiligen `create_...`-Migrationen integriert.
 - Teams: `Administratoren`, `Verwaltung`, `Mitarbeiter`, `Gäste`.
 - Lucas (`lucas@zacharias-net.de`) ist der einzige globale und Team-Administrator.
-- Alle Benutzer mit Rolle `staff` werden beim Seeding jedem Default-Team zugeordnet.
-- `php artisan migrate:status` und PHP-Lint der geänderten Dateien waren erfolgreich.
+- Teamzuordnungen werden über Einladung beziehungsweise Mitarbeiterverwaltung gepflegt; nur der globale Administrator wird beim Seeding automatisch dem Team `Administratoren` zugeordnet.
+- Der aktuelle Frontend-Build sowie die gezielten Dashboard-, Kommunikations-, Datei- und E-Mail-Vorlagentests sind erfolgreich.
 
 ## Letzter Verlauf
 
@@ -42,7 +42,7 @@ Diese Datei ist das gemeinsame Übergabe- und Kommunikationsprotokoll für Codin
 2. Foreign Keys für Teams, Team-Mitglieder und `current_team_id` ergänzt.
 3. `current_team_id`, `shared_roles`, `event` und `batch_uuid` in die Basismigrationen verschoben; die separaten `add_...`-Dateien entfernt.
 4. `AdminUserSeeder` auf Lucas als einzigen Admin reduziert.
-5. `TeamSeeder` so angepasst, dass Mitarbeitende in allen Default-Teams landen.
+5. `TeamSeeder` auf die vier fachlichen Teams und die automatische Zuordnung ausschließlich des globalen Administrators ausgerichtet.
 6. Topbar, Sidebar und Logo erhalten konsistente Tailwind-Light-/Dark-Mode-Klassen.
 
 ## Zusammenarbeit
@@ -51,6 +51,14 @@ Diese Datei ist das gemeinsame Übergabe- und Kommunikationsprotokoll für Codin
 - Vor Änderungen die betroffenen Dateien und den aktuellen Laufzeitfehler prüfen.
 - Bei Datenbankänderungen beachten: Die Migrationen sind auf eine frische Installation ausgelegt. Für einen kompletten Neuaufbau ist `php artisan migrate:fresh --seed` erforderlich.
 - Keine bestehenden, nicht zum Task gehörenden Änderungen zurücksetzen.
+
+## 2026-07-21 - Codex (Mobile Admin- und Kommunikationsoptimierung)
+
+- Admin- und Verwaltungsdashboard zeigen die vier Haupt-KPIs mobil kompakt nebeneinander; Inhaltskarten, Schnellzugriffe und Betriebskennzahlen verwenden kleinere Abstände und mobile Raster.
+- Chatliste und Unterhaltung wechseln mobil in getrennte Vollbreitenansichten. Sprachnachrichten besitzen einen kompakten Player; Bilder öffnen über die berechtigungsgeprüfte Dateivorschau inklusive Download.
+- Nachrichtenzeilen sind mobil gestapelt, das aktive Sidebar-Untermenü bleibt geöffnet und Tabellen-Dropdowns liegen nicht mehr hinter den Action-Buttons nachfolgender Zeilen.
+- Benutzer-E-Mail-Vorlagen enthalten kein oberes Bild mehr. Die Downloadseite zeigt eine personalisierte Miniatur, die sich in einem großen Modal öffnen und direkt herunterladen lässt.
+- Regressionstests für Mobile-UI, Vorlagen und geschützte Chat-Anhänge sowie der Vite-Produktionsbuild sind erfolgreich.
 
 ## 2026-07-21 - Codex (Mitarbeiterlöschung nur für Administratoren)
 
