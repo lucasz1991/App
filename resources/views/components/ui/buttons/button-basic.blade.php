@@ -12,6 +12,12 @@ $modeClasses = match ($mode) {
     'link' => ' text-rt-red bg-transparent hover:bg-rt-red/10 focus:ring-rt-red/30 border-transparent',
 };
 
+$themeVariant = match ($mode) {
+    'primary', 'blue' => 'primary',
+    'basic', 'secondary', 'light', 'white' => 'secondary',
+    default => $mode,
+};
+
 $sizeClasses = match ($size) {
     'sm' => 'px-2 py-1 text-sm',
     'md' => 'px-4 py-2 text-sm',
@@ -29,7 +35,7 @@ if (is_string($can) && $can !== '') {
 $isDeniedByCan = ! $isAllowed;
 $isDisabled = isset($attributes['disabled']) || $isDeniedByCan;
 
-$classes = $modeClasses . ' ' . $sizeClasses;
+$classes = 'rt-ui-button rt-ui-button-' . $themeVariant . ' ' . $modeClasses . ' ' . $sizeClasses;
 $classes .= ' transition-all duration-300 ease-rt-spring inline-flex items-center justify-center gap-2 text-center font-semibold leading-none border rounded-lg shadow-rt-xs active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-slate-900 disabled:opacity-50 [&>i]:shrink-0 [&>i]:leading-none [&>svg]:h-[1em] [&>svg]:w-[1em] [&>svg]:shrink-0';
 
 if ($mode === 'primary' || $mode === 'blue') {
