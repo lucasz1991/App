@@ -27,7 +27,14 @@ class RoleMiddleware
 
         $user = Auth::user();
 
-        if (! in_array($user->role, $roles, true)) {
+        // Team-basierter Zugang: Mitglieder der Teams Administrator/Verwaltung
+        // duerfen in den Adminbereich, auch wenn ihre globale Rolle 'user' ist
+        // (Details steuern die RBAC-Gates).
+        $teamGrantsAccess = $isAdminArea
+            && (in_array('admin', $roles, true) || in_array('staff', $roles, true))
+            && $user->usesAdminLayout();
+
+        if (! in_array($user->role, $roles, true) && ! $teamGrantsAccess) {
             $error = ['status' => 'Dein Konto hat nicht die erforderliche Rolle fuer diesen Bereich.'];
 
             return $isAdminArea

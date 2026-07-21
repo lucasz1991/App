@@ -70,6 +70,65 @@ function rtApplyTheme() {
 
 document.addEventListener('livewire:navigated', rtApplyTheme);
 
+// ---------------------------------------------------------------
+// Seitenwechsel-Overlay fuer wire:navigate: legt eine weiche, leicht
+// unscharfe Ebene mit RailTime-Spinner ueber den Inhalt, damit ein
+// Seitenwechsel sichtbar "laedt". Wird erst nach kurzer Verzoegerung
+// gezeigt (kein Flackern bei vorab geladenen Seiten) und nach dem
+// body-Swap bei Bedarf neu angehaengt.
+// ---------------------------------------------------------------
+(function () {
+    let overlay = null;
+    let showTimer = null;
+    let active = false;
+
+    function ensureOverlay() {
+        // Livewire tauscht bei wire:navigate den <body> aus -> ggf. neu anhaengen.
+        if (overlay && document.body.contains(overlay)) {
+            return overlay;
+        }
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'rt-nav-overlay';
+            overlay.setAttribute('aria-hidden', 'true');
+            overlay.innerHTML = '<div class="rt-nav-spinner"></div>';
+            overlay.style.cssText = [
+                'position:fixed', 'inset:0', 'z-index:190',
+                'display:flex', 'align-items:center', 'justify-content:center',
+                'opacity:0', 'pointer-events:none',
+                'backdrop-filter:blur(2px)', '-webkit-backdrop-filter:blur(2px)',
+                'transition:opacity .2s ease',
+            ].join(';');
+        }
+        document.body.appendChild(overlay);
+        return overlay;
+    }
+
+    function start() {
+        active = true;
+        clearTimeout(showTimer);
+        showTimer = setTimeout(function () {
+            if (!active) return;
+            const o = ensureOverlay();
+            const dark = document.documentElement.classList.contains('dark');
+            o.style.background = dark ? 'rgba(11,17,32,.55)' : 'rgba(243,246,250,.5)';
+            o.style.opacity = '1';
+        }, 120);
+    }
+
+    function done() {
+        active = false;
+        clearTimeout(showTimer);
+        if (overlay) {
+            overlay.style.opacity = '0';
+        }
+    }
+
+    document.addEventListener('livewire:navigate', start);
+    document.addEventListener('livewire:navigating', start);
+    document.addEventListener('livewire:navigated', done);
+})();
+
 window.Alpine = Alpine;
 
 Livewire.start();

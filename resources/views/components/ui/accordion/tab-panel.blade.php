@@ -6,7 +6,6 @@
 <div
     x-show="openTab === '{{ $for }}'"
     x-cloak
-    x-transition.opacity.duration.150ms
     role="tabpanel"
     id="panel-{{ $for }}"
     aria-labelledby="tab-{{ $for }}"

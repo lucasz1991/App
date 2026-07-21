@@ -13,10 +13,18 @@
         <x-menu.sidebar-nav :label="__('app.personal_data')">
             <x-menu.sidebar-nav-link
                 :href="route('files')"
-                icon="folder"
+                icon="download-cloud"
                 :active="request()->routeIs('files')"
             >
-                {{ __('app.my_files') }}
+                {{ __('app.download_center') }}
+            </x-menu.sidebar-nav-link>
+
+            <x-menu.sidebar-nav-link
+                :href="route('chat')"
+                icon="message-circle"
+                :active="request()->routeIs('chat')"
+            >
+                {{ __('app.chat') }}
             </x-menu.sidebar-nav-link>
 
             <x-menu.sidebar-nav-link

@@ -1,66 +1,58 @@
-<x-ui.page :title="__('app.my_files')" :eyebrow="__('app.personal_data')">
-    {{-- Persoenlicher Standard-Downloadbereich --}}
-    <div class="rounded-xl bg-rt-surface p-6 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
-        <div class="mb-5 flex items-start gap-3">
-            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent">
-                <i data-feather="user" class="h-5 w-5"></i>
+<div class="relative" wire:loading.class="cursor-wait">
+    @php
+        $teamsTotal = collect($grouped['teams'])->sum(fn ($entry) => $entry['files']->count());
+        $total = $grouped['personal']->count() + $grouped['company']->count() + $teamsTotal;
+    @endphp
+
+    <x-ui.page
+        :title="__('app.download_center')"
+        :eyebrow="__('app.downloads')"
+        :description="__('app.downloads_intro')"
+    >
+        <x-slot:actions>
+            <span class="inline-flex items-center gap-2 rounded-full bg-rt-surface px-3 py-1.5 text-xs font-semibold text-rt-text shadow-rt-xs ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60">
+                <i class="fad fa-cloud-arrow-down text-rt-accent dark:text-rt-dark-accent"></i>
+                {{ trans_choice('app.files_count', $total, ['count' => number_format($total, 0, ',', '.')]) }}
             </span>
-            <div>
-                <h2 class="font-semibold tracking-tight text-rt-text dark:text-rt-dark-text">{{ __('app.my_files') }}</h2>
-                <p class="mt-0.5 text-sm text-rt-muted dark:text-rt-dark-muted">Eigene, direkt für Sie bereitgestellte Downloads.</p>
+        </x-slot:actions>
+
+        @if ($total === 0)
+            <div class="flex w-full flex-col items-center gap-3 rounded-2xl border border-dashed border-rt-border bg-rt-surface-muted/60 py-16 text-center dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/40" data-anim="fade-up">
+                <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-rt-surface text-rt-soft shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-soft dark:ring-rt-dark-border/60">
+                    <i class="fad fa-folder-open text-2xl"></i>
+                </span>
+                <p class="text-sm text-rt-muted dark:text-rt-dark-muted">{{ __('app.no_downloads_available') }}</p>
             </div>
-        </div>
-        <livewire:tools.file-pools.manage-file-pools
-            :model-type="\App\Models\User::class"
-            :model-id="auth()->id()"
-            :read-only="true"
-            :key="'my-files-'.auth()->id()"
-        />
-    </div>
+        @else
+            {{-- Fuer Sie bereitgestellt (persoenlicher Pool) --}}
+            @if ($grouped['personal']->isNotEmpty())
+                <x-ui.filepool.download-group
+                    :title="__('app.provided_for_you')"
+                    icon="fad fa-user-check"
+                    :files="$grouped['personal']"
+                />
+            @endif
 
-    {{-- Fuer die eigene Rolle freigegebene Firmendateien --}}
-    <div data-anim="fade-up">
-        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-rt-accent dark:text-rt-dark-accent">Freigaben</p>
-        <h2 class="mt-1 text-xl font-semibold tracking-tight text-rt-text dark:text-rt-dark-text">{{ __('app.shared_files') }}</h2>
-    </div>
+            {{-- Firmen-Freigaben (Rolle/Team) --}}
+            @if ($grouped['company']->isNotEmpty())
+                <x-ui.filepool.download-group
+                    :title="__('app.company_files')"
+                    icon="fad fa-building"
+                    :files="$grouped['company']"
+                    delay="0.05"
+                />
+            @endif
 
-    <div class="rounded-xl bg-rt-surface p-6 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
-        <livewire:tools.file-pools.manage-file-pools
-            :pool-id="\App\Models\FilePool::company()->id"
-            :read-only="true"
-            :role-filter="auth()->user()->role"
-            :key="'shared-files-'.auth()->id()"
-        />
-    </div>
-
-    {{-- Standard-Downloadbereiche der Teams --}}
-    @if ($teams->isNotEmpty())
-        <div data-anim="fade-up">
-            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-rt-accent dark:text-rt-dark-accent">Teams</p>
-            <h2 class="mt-1 text-xl font-semibold tracking-tight text-rt-text dark:text-rt-dark-text">Team-Dateien</h2>
-            <p class="mt-1 text-sm text-rt-muted dark:text-rt-dark-muted">Dokumente, die in Ihren Teams standardmäßig bereitgestellt werden.</p>
-        </div>
-
-        <div class="grid gap-6 xl:grid-cols-2">
-            @foreach ($teams as $team)
-                <section class="rounded-xl bg-rt-surface p-6 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
-                    <div class="mb-5 flex items-center gap-3">
-                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent">
-                            <i data-feather="users" class="h-5 w-5"></i>
-                        </span>
-                        <div>
-                            <h3 class="font-semibold tracking-tight text-rt-text dark:text-rt-dark-text">{{ $team->name }}</h3>
-                            <p class="text-sm text-rt-muted dark:text-rt-dark-muted">Standard-Downloads dieses Teams</p>
-                        </div>
-                    </div>
-                    <livewire:tools.file-pools.manage-file-pools
-                        :model-type="\App\Models\Team::class"
-                        :model-id="$team->id"
-                        :read-only="true"
-                        :key="'team-files-'.$team->id.'-'.auth()->id()"
-                    />
-                </section>
+            {{-- Team-Downloads --}}
+            @foreach ($grouped['teams'] as $entry)
+                <x-ui.filepool.download-group
+                    :title="$entry['team']->name"
+                    :eyebrow="__('app.my_teams')"
+                    icon="fad fa-users"
+                    :files="$entry['files']"
+                    delay="0.05"
+                />
             @endforeach
-        </div>
-    @endif
-</x-ui.page>
+        @endif
+    </x-ui.page>
+</div>

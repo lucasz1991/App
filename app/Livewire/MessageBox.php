@@ -118,7 +118,7 @@ class MessageBox extends Component
 
         $messages = $base->paginate(12 * $this->loadedPages);
 
-        $area = in_array(auth()->user()->role, ['admin', 'staff'], true) ? 'admin' : 'user';
+        $area = auth()->user()->usesAdminLayout() ? 'admin' : 'user';
 
         return view('livewire.message-box', compact('messages'))
             ->layout('layouts.master', ['area' => $area]);

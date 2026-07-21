@@ -10,11 +10,12 @@ use Illuminate\Database\Seeder;
 class TeamSeeder extends Seeder
 {
     /**
-     * Legt die drei Basis-Teams (Rechtegruppen) an:
+     * Legt die vier Basis-Teams (Rechtegruppen) an:
      *
-     * - Mitarbeiter:    Basisrechte (keine Verwaltungsrechte)
-     * - Verwaltung:     Benutzer-, Datei- und Nachrichtenverwaltung
-     * - Administration: fast alle Rechte, aber KEINE Rollen-/Systemverwaltung
+     * - Gast:          keine Rechte (nur Downloads/Chat im Nutzerbereich)
+     * - Mitarbeiter:   Basisrechte (Nutzerbereich)
+     * - Verwaltung:    Benutzer-, Datei- und Nachrichtenverwaltung (Admin-Layout)
+     * - Administrator: fast alle Rechte, aber KEINE Rollen-/Systemverwaltung (Admin-Layout)
      */
     public function run(): void
     {
@@ -24,9 +25,16 @@ class TeamSeeder extends Seeder
             ->where('role', 'admin')
             ->update(['role' => 'staff']);
 
+        // Historischer Name: "Administration" -> "Administrator"
+        Team::query()
+            ->where('personal_team', false)
+            ->where('name', 'Administration')
+            ->update(['name' => 'Administrator']);
+
         $all = RbacCatalog::allPermissions();
 
         $teams = [
+            'Gast' => [],
             'Mitarbeiter' => [],
             'Verwaltung' => [
                 'employees.view',
@@ -37,7 +45,7 @@ class TeamSeeder extends Seeder
                 'users.messages.view',
                 'users.messages.create',
             ],
-            'Administration' => array_values(array_diff($all, [
+            'Administrator' => array_values(array_diff($all, [
                 'roles.manage',
                 'settings.manage',
             ])),
@@ -64,22 +72,25 @@ class TeamSeeder extends Seeder
                 ]
             );
 
-            // Jeder Mitarbeiter ist Mitglied in jedem Default-Team. Nur Lucas
-            // erhält auch auf Teamebene die Admin-Rolle.
-            $employees = User::query()->whereIn('role', ['admin', 'staff'])->get();
-            $team->users()->syncWithoutDetaching(
-                $employees->mapWithKeys(fn (User $employee) => [
-                    $employee->id => ['role' => $employee->email === 'lucas@zacharias-net.de' ? 'admin' : 'staff'],
-                ])->all()
-            );
+            // Bestehende Mitarbeiter werden Mitglied der beiden Admin-Teams
+            // (Verwaltung/Administrator); Gast + Mitarbeiter bleiben fuer
+            // normale Nutzer reserviert. Nur Lucas erhaelt Team-Admin-Rolle.
+            if (in_array($name, ['Verwaltung', 'Administrator'], true)) {
+                $employees = User::query()->whereIn('role', ['admin', 'staff'])->get();
+                $team->users()->syncWithoutDetaching(
+                    $employees->mapWithKeys(fn (User $employee) => [
+                        $employee->id => ['role' => $employee->email === 'lucas@zacharias-net.de' ? 'admin' : 'staff'],
+                    ])->all()
+                );
+            }
 
             if ($team->wasRecentlyCreated === false && $team->rbac_permissions !== $permissions) {
                 $team->forceFill(['rbac_permissions' => $permissions])->save();
             }
         }
 
-        // Administration als aktives Team für Lucas setzen.
-        $administration = Team::where('name', 'Administration')->where('personal_team', false)->first();
+        // Administrator als aktives Team für Lucas setzen.
+        $administration = Team::where('name', 'Administrator')->where('personal_team', false)->first();
         if ($administration) {
             $owner->teams()->syncWithoutDetaching([$administration->id]);
             if (! $owner->current_team_id) {

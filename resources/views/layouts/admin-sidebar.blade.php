@@ -10,6 +10,7 @@
             </x-menu.sidebar-nav-link>
         </x-menu.sidebar-nav>
 
+        @canany(['settings.manage', 'employees.view', 'files.manage', 'manage.messages'])
         <x-menu.sidebar-nav :label="__('app.administration')">
             @can('settings.manage')
                 <x-menu.sidebar-nav-link
@@ -51,8 +52,25 @@
                 </x-menu.sidebar-nav-link>
             @endcan
         </x-menu.sidebar-nav>
+        @endcanany
 
         <x-menu.sidebar-nav :label="__('app.personal_data')">
+            <x-menu.sidebar-nav-link
+                :href="route('files')"
+                icon="download-cloud"
+                :active="request()->routeIs('files')"
+            >
+                {{ __('app.download_center') }}
+            </x-menu.sidebar-nav-link>
+
+            <x-menu.sidebar-nav-link
+                :href="route('chat')"
+                icon="message-circle"
+                :active="request()->routeIs('chat')"
+            >
+                {{ __('app.chat') }}
+            </x-menu.sidebar-nav-link>
+
             <x-menu.sidebar-nav-link
                 :href="route('admin.messages')"
                 icon="mail"

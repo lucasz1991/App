@@ -237,6 +237,47 @@
     50% { left: 86%; opacity: 1; transform: scaleY(1); }
 }
 
+/* ============================================================
+   Light-Modus: helle Buehne (Standard oben = dunkel).
+   Greift, wenn <html> KEINE .dark-Klasse traegt (Theme-Store).
+   ============================================================ */
+html:not(.dark) .rt-auth {
+    background:
+        radial-gradient(circle at 50% 16%, rgba(228, 0, 43, .12), transparent 54%),
+        linear-gradient(160deg, #f7f9fc, #eef2f7 55%, #e6ebf2);
+}
+
+html:not(.dark) .rt-auth__status {
+    color: rgba(15, 23, 42, .6);
+}
+
+html:not(.dark) .rt-auth__status i {
+    background: rgba(15, 23, 42, .22);
+}
+
+/* Weisse Wortmarke im Light-Modus einfaerben, damit sie lesbar bleibt */
+html:not(.dark) .rt-logo-wordmark {
+    filter: brightness(0.12) drop-shadow(0 10px 20px rgba(15, 23, 42, .18));
+}
+
+/* Dezente weisse Zierringe/Skala im Light-Modus abdunkeln */
+html:not(.dark) .rt-logo-orbit {
+    border-color: rgba(15, 23, 42, .18);
+}
+
+html:not(.dark) .rt-logo-orbit--inner {
+    border-color: rgba(228, 0, 43, .5);
+}
+
+html:not(.dark) .rt-logo-stage::after {
+    border-color: rgba(15, 23, 42, .12);
+    background: repeating-conic-gradient(from 0deg, rgba(15, 23, 42, .14) 0 1deg, transparent 1deg 18deg);
+}
+
+html:not(.dark) .rt-logo-3d {
+    filter: drop-shadow(0 24px 40px rgba(15, 23, 42, .28));
+}
+
 /* ---------- Reduzierte Bewegung ---------- */
 @media (prefers-reduced-motion: reduce) {
     .rt-auth-brand__logo { transition: none; opacity: 1; transform: none; }

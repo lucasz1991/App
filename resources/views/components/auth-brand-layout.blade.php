@@ -11,6 +11,19 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@700&display=swap" rel="stylesheet">
 
 <div class="rt-auth">
+    {{-- Theme-Umschalter (Hell/Dunkel) — nutzt den globalen Alpine-Theme-Store --}}
+    <button type="button" x-data @click="$store.theme?.toggle()"
+            class="fixed right-4 top-4 z-50 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white ring-1 ring-white/20 backdrop-blur-sm transition-all duration-300 hover:bg-white/20 active:scale-95"
+            :aria-label="$store.theme?.dark ? '{{ __('app.toggle_theme') }}' : '{{ __('app.toggle_theme') }}'"
+            title="{{ __('app.toggle_theme') }}">
+        <svg x-show="!$store.theme?.dark" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+        <svg x-show="$store.theme?.dark" x-cloak xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="4"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+        </svg>
+    </button>
+
     {{-- Markenbuehne: Logo oben --}}
     <div class="rt-auth__brand">
         <div class="rt-auth-brand__logo" id="rt-auth-logo">
@@ -48,7 +61,7 @@
         <span>RT / 01</span><i></i><span>DE / BUNDESWEIT</span><i></i><span>24 / 7</span>
     </div>
 
-    <div class="mt-3.5 text-center text-[11px] font-medium tracking-wide text-white/40">
+    <div class="mt-3.5 text-center text-[11px] font-medium tracking-wide text-slate-500 dark:text-white/40">
         {{ config('app.name') }} v{{ config('app.version') }}
     </div>
 </div>

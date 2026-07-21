@@ -132,8 +132,10 @@ return [
     */
 
     'navigate' => [
-        'show_progress_bar' => true,
-        'progress_bar_color' => '#2299dd',
+        // Eigener Ladebalken/Overlay uebernimmt die Seitenwechsel-Anzeige
+        // (siehe resources/js/app.js) — daher Livewires Default-Bar aus.
+        'show_progress_bar' => false,
+        'progress_bar_color' => '#e4002b',
     ],
 
     /*

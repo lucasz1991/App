@@ -1,34 +1,30 @@
 <x-guest-layout>
-    <x-authentication-card>
-        <x-slot name="logo">
-            <x-authentication-card-logo />
-        </x-slot>
-
-        <div class="mb-4 text-sm text-rt-muted dark:text-rt-dark-muted">
-            {{ __('Forgot your password? No problem. Just let us know your email address and we will email you a password reset link that will allow you to choose a new one.') }}
-        </div>
+    <x-auth-brand-layout :title="__('app.forgot_password_title')" :description="__('app.forgot_password_description')">
+        <x-validation-errors class="mt-4 mb-4" />
 
         @if (session('status'))
-            <div class="mb-4 rounded-lg bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 ring-1 ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/30">
+            <div class="mt-4 mb-4 rounded-lg bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 ring-1 ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/30">
                 {{ session('status') }}
             </div>
         @endif
 
-        <x-validation-errors class="mb-4" />
-
-        <form method="POST" action="{{ route('password.email') }}" class="space-y-5">
+        <form method="POST" action="{{ route('password.email') }}" class="mt-6 space-y-5">
             @csrf
 
-            <div class="block">
-                <x-ui.forms.label for="email" value="{{ __('Email') }}" />
+            <div>
+                <x-ui.forms.label for="email" :value="__('app.email')" />
                 <x-ui.forms.input id="email" class="mt-1 block" type="email" name="email" :value="old('email')" required autofocus autocomplete="username" />
             </div>
 
-            <div class="flex items-center justify-end">
-                <x-button>
-                    {{ __('Email Password Reset Link') }}
-                </x-button>
-            </div>
+            <x-button class="w-full justify-center">
+                {{ __('app.send_reset_link') }}
+            </x-button>
         </form>
-    </x-authentication-card>
+
+        <div class="mt-6 text-center">
+            <a href="{{ route('login') }}" class="text-sm text-rt-muted underline transition-colors duration-300 hover:text-rt-red dark:text-rt-dark-muted dark:hover:text-rt-dark-accent">
+                {{ __('app.back_to_login') }}
+            </a>
+        </div>
+    </x-auth-brand-layout>
 </x-guest-layout>

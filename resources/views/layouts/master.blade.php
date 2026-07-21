@@ -1,7 +1,7 @@
 @php
     // Bereich bestimmt Sidebar/Topbar-Variante: 'admin' oder 'user'.
-    // Ohne expliziten Wert wird er aus der Rolle des Nutzers abgeleitet.
-    $area = $area ?? (auth()->check() && in_array(auth()->user()->role, ['admin', 'staff'], true) ? 'admin' : 'user');
+    // Ohne expliziten Wert entscheidet Rolle ODER Team (Administrator/Verwaltung).
+    $area = $area ?? (auth()->check() && auth()->user()->usesAdminLayout() ? 'admin' : 'user');
 @endphp
 <!DOCTYPE html>
 <html lang="de" dir="ltr"
@@ -46,9 +46,9 @@
              @extends-Seiten liefern @section('content'), Livewire-Seiten via
              ->layout() liefern $slot. Beide landen im selben Wrapper (gleicher
              Sidebar-Offset, Gradient, Container) -> identische Seitenstruktur. --}}
-        <main class="bg-gradient-to-br from-rt-canvas via-rt-surface-muted to-rt-sidebar dark:from-rt-dark-canvas dark:via-rt-dark-surface dark:to-rt-dark-sidebar">
+        <main class="bg-[linear-gradient(to_bottom_right,#f8fafc,#ffffff_45%,#ffe4e6)] dark:bg-[linear-gradient(to_bottom_right,#08080a,#0b090c_45%,#1c0b12)]">
             <div class="main-content group-data-[sidebar-size=sm]:ml-[70px]">
-                <div class="min-h-screen page-content px-1 bg-[radial-gradient(70rem_22rem_at_50%_-8rem,rgba(228,0,43,0.05),transparent)] shadow-[inset_0_80px_30px_-10px_rgba(15,23,42,0.08)] dark:bg-[radial-gradient(70rem_22rem_at_50%_-8rem,rgba(228,0,43,0.08),transparent)] dark:shadow-[inset_0_80px_30px_-10px_rgba(0,0,0,0.35)]">
+                <div class="min-h-screen page-content px-1 bg-[radial-gradient(72rem_26rem_at_28%_-8rem,rgba(228,0,43,0.07),transparent)] shadow-[inset_0_80px_30px_-10px_rgba(15,23,42,0.05)] dark:bg-[radial-gradient(70rem_28rem_at_28%_-8rem,rgba(228,0,43,0.16),transparent)] dark:shadow-[inset_0_80px_30px_-10px_rgba(0,0,0,0.5)]">
                     <div class="container-fluid px-0 md:px-5">
                         @yield('content')
                         {{ $slot ?? '' }}

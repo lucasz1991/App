@@ -1,4 +1,4 @@
-<div x-data="{ openFileForm: @entangle('openFileForm') }">
+<div x-data="{ openFileForm: @entangle('openFileForm'), ctx: false, cx: 0, cy: 0, cf: null, openCtx(e, id) { this.cf = id; this.cx = e.clientX; this.cy = e.clientY; this.ctx = true; } }">
   {{-- Toolbar: Breadcrumbs + Aktionen --}}
   <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
     {{-- Breadcrumbs (Explorer-Pfad) --}}
@@ -51,30 +51,30 @@
 
   {{-- Ordner-Raster --}}
   @if($folders->count() > 0)
-    <div class="mb-2 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+    <div class="mb-2 mx-2 grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8" @contextmenu.prevent="openCtx($event, null)">
       @foreach($folders as $folder)
-        <div class="group relative rounded-xl bg-rt-surface p-3 shadow-rt-sm ring-1 ring-rt-border/60 transition-all duration-300 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md hover:ring-rt-accent/40 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60 dark:hover:ring-rt-accent/40" wire:key="folder-{{ $folder->id }}">
+        <div class="group relative rounded-lg p-2 transition-all duration-300 ease-rt-spring hover:bg-rt-accent/5 hover:ring-1 hover:ring-rt-accent/30 dark:hover:bg-rt-dark-accent/10 dark:hover:ring-rt-dark-accent/30" wire:key="folder-{{ $folder->id }}" @contextmenu.prevent.stop="openCtx($event, {{ $folder->id }})">
           @if($folder->auto_delete || $folder->visible_until)
             <div class="absolute left-1.5 top-1.5 text-rt-muted dark:text-rt-dark-muted" title="{{ $folder->visible_until ? __('app.visible_until').': '.$folder->visible_until->format('d.m.Y').($folder->auto_delete ? ' · '.__('app.auto_delete') : '') : __('app.auto_delete') }}">
               <i class="fad fa-clock text-[11px]"></i>
             </div>
           @endif
-          <button type="button" wire:click="enterFolder({{ $folder->id }})" class="flex w-full flex-col items-center gap-1 text-center focus:outline-none">
-            <i class="fad fa-folder text-4xl text-amber-400 transition group-hover:text-amber-500"></i>
-            <span class="w-full truncate text-xs font-medium text-rt-text dark:text-rt-dark-text" title="{{ $folder->name }}">{{ $folder->name }}</span>
+          <button type="button" wire:click="enterFolder({{ $folder->id }})" class="flex w-full flex-col items-center gap-1 pt-2 text-center focus:outline-none">
+            <i class="fad fa-folder text-5xl text-amber-400 transition group-hover:text-amber-500 dark:text-amber-400 dark:group-hover:text-amber-300"></i>
+            <span class="w-full line-clamp-2 break-words text-xs font-medium leading-snug text-rt-text dark:text-rt-dark-text" title="{{ $folder->name }}">{{ $folder->name }}</span>
           </button>
 
           @if(!$readOnly)
-            <div class="absolute right-1.5 top-1.5 opacity-0 transition group-hover:opacity-100">
+            <div class="absolute right-1.5 top-1.5">
               <x-dropdown align="right" width="48">
                 <x-slot name="trigger">
-                  <button type="button" class="rounded-lg px-1.5 py-0.5 text-sm text-rt-muted transition hover:bg-rt-surface-muted hover:text-rt-text dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted dark:hover:text-rt-dark-text">
+                  <button type="button" class="rounded-lg bg-rt-surface/80 px-1.5 py-0.5 text-sm text-rt-muted shadow-rt-xs ring-1 ring-rt-border/60 transition hover:bg-rt-surface-muted hover:text-rt-text dark:bg-rt-dark-surface/80 dark:text-rt-dark-muted dark:ring-rt-dark-border/60 dark:hover:bg-rt-dark-surface-muted dark:hover:text-rt-dark-text">
                     &#x22EE;
                   </button>
                 </x-slot>
                 <x-slot name="content">
                   <x-dropdown-link wire:click.prevent="openRenameFolder({{ $folder->id }})">
-                    <i class="far fa-pen mr-2"></i>{{ __('app.rename') }}
+                    <i class="far fa-cog mr-2"></i>{{ __('app.folder_settings') }}
                   </x-dropdown-link>
                   @if($allowRoleSharing)
                     <x-dropdown-link wire:click.prevent="openPermissions({{ $folder->id }})">
@@ -96,9 +96,9 @@
   @endif
 
   {{-- Datei-Raster --}}
-  <div class="my-6 mx-2 flex flex-wrap" data-anim-stagger>
+  <div class="my-6 mx-2 grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8" data-anim-stagger @contextmenu.prevent="openCtx($event, null)">
     @forelse($poolFiles as $file)
-      <div class="w-32 mb-4 mr-4" wire:key="file-{{ $file->id }}">
+      <div class="min-w-0" wire:key="file-{{ $file->id }}">
         <x-ui.filepool.file-card :file="$file" :read-only="$readOnly" />
         @if($allowRoleSharing && ! $file->folder_id)
           <div class="mt-1 flex flex-wrap gap-1">
@@ -116,12 +116,58 @@
       </div>
     @empty
       @if($folders->count() === 0)
-        <div class="flex w-full flex-col items-center gap-2 rounded-xl border border-dashed border-rt-border bg-rt-surface-muted/60 py-12 text-center dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/40">
+        <div class="col-span-full flex w-full flex-col items-center gap-2 rounded-xl border border-dashed border-rt-border bg-rt-surface-muted/60 py-12 text-center dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/40">
           <i class="fad fa-folder-open text-3xl text-rt-soft dark:text-rt-dark-soft"></i>
           <span class="text-sm text-rt-muted dark:text-rt-dark-muted">{{ __('app.no_files_available') }}</span>
         </div>
       @endif
     @endforelse
+  </div>
+
+  {{-- Rechtsklick-Kontextmenue (Explorer) --}}
+  @php $ctxItem = 'flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium transition-all duration-300 ease-rt-spring'; @endphp
+  <div x-show="ctx" x-cloak
+       @click.outside="ctx = false"
+       @keydown.escape.window="ctx = false"
+       :style="'left:' + cx + 'px; top:' + cy + 'px'"
+       class="fixed z-[300] w-56 rounded-xl bg-rt-surface p-1.5 shadow-rt-md ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+    {{-- Ordner-spezifisch (nur bei Rechtsklick auf einen Ordner) --}}
+    <template x-if="cf !== null">
+      <div class="space-y-0.5">
+        <button type="button" @click="$wire.enterFolder(cf); ctx = false" class="{{ $ctxItem }} text-rt-text hover:bg-rt-surface-muted dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted">
+          <i class="far fa-folder-open w-4 text-center"></i>{{ __('app.open') }}
+        </button>
+        @if(!$readOnly)
+          <button type="button" @click="$wire.openRenameFolder(cf); ctx = false" class="{{ $ctxItem }} text-rt-text hover:bg-rt-surface-muted dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted">
+            <i class="far fa-cog w-4 text-center"></i>{{ __('app.folder_settings') }}
+          </button>
+          @if($allowRoleSharing)
+            <button type="button" @click="$wire.openPermissions(cf); ctx = false" class="{{ $ctxItem }} text-rt-text hover:bg-rt-surface-muted dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted">
+              <i class="far fa-shield-alt w-4 text-center"></i>{{ __('app.permissions') }}
+            </button>
+          @endif
+          <button type="button" @click="if (confirm('{{ __('app.folder_delete_confirm') }}')) { $wire.deleteFolder(cf); } ctx = false" class="{{ $ctxItem }} text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10">
+            <i class="far fa-trash-alt w-4 text-center"></i>{{ __('app.delete') }}
+          </button>
+        @endif
+        <div class="my-1 border-t border-rt-border/60 dark:border-rt-dark-border/60"></div>
+      </div>
+    </template>
+
+    {{-- Allgemeine Aktionen --}}
+    @if(!$readOnly)
+      <button type="button" @click="$wire.openCreateFolder(); ctx = false" class="{{ $ctxItem }} text-rt-text hover:bg-rt-surface-muted dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted">
+        <i class="far fa-folder-plus w-4 text-center"></i>{{ __('app.new_folder') }}
+      </button>
+      <button type="button" @click="openFileForm = true; ctx = false" class="{{ $ctxItem }} text-rt-text hover:bg-rt-surface-muted dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted">
+        <i class="far fa-upload w-4 text-center"></i>{{ __('app.file_upload') }}
+      </button>
+    @endif
+    @if($filePool && $poolFiles->count() > 0)
+      <button type="button" @click="$wire.downloadAll(); ctx = false" class="{{ $ctxItem }} text-rt-text hover:bg-rt-surface-muted dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted">
+        <i class="far fa-file-archive w-4 text-center"></i>{{ __('app.download_all_files') }}
+      </button>
+    @endif
   </div>
 
   @if(!$readOnly && $filePool)
@@ -279,7 +325,7 @@
 
     {{-- Ordner anlegen/umbenennen --}}
     <x-dialog-modal wire:model="openFolderForm" maxWidth="lg">
-      <x-slot name="title">{{ $editFolderId ? __('app.rename_folder') : __('app.new_folder') }}</x-slot>
+      <x-slot name="title">{{ $editFolderId ? __('app.folder_settings') : __('app.new_folder') }}</x-slot>
       <x-slot name="content">
         <x-ui.forms.label :value="__('app.folder_name')" />
         <x-ui.forms.input type="text" wire:model="folderName" wire:keydown.enter="saveFolder" class="mt-1 block" />

@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     if (auth()->check()) {
-        return in_array(auth()->user()->role, ['admin', 'staff'], true)
+        return auth()->user()->usesAdminLayout()
             ? redirect()->route('admin.dashboard')
             : redirect()->route('dashboard');
     }
@@ -64,6 +64,8 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
     Route::get('/dashboard', UserDashboard::class)->name('dashboard');
     Route::get('/files', UserFiles::class)->name('files');
     Route::get('/messages', MessageBox::class)->name('messages');
+    // Chat steht ALLEN angemeldeten Benutzern offen (Admin- wie Nutzerbereich).
+    Route::get('/chat', App\Livewire\ChatBox::class)->name('chat');
 });
 
 Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session'), 'verified', 'role:admin,staff'])

@@ -1,4 +1,19 @@
 <div>
+  @php
+    $roleLabel = match ($user->role) {
+        'admin' => __('app.role_admin'),
+        'staff' => __('app.role_staff'),
+        default => __('app.role_user'),
+    };
+    $roleColor = match ($user->role) {
+        'admin' => 'purple',
+        'staff' => 'sky',
+        default => 'green',
+    };
+    $lastActivityAt = $user->lastActivityAt();
+    $isUserOnline = $user->isOnline();
+  @endphp
+
   <x-ui.page :title="$user->name" :eyebrow="__('app.employees')" :description="$user->email">
     <x-slot:actions>
         <x-back-button :href="route('admin.employees')" />
@@ -37,75 +52,51 @@
         </x-dropdown>
     </x-slot:actions>
 
-    <div class="rounded-2xl bg-rt-surface-muted p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60" data-anim="fade-up">
-      <div class="overflow-hidden rounded-[calc(1rem-2px)] bg-rt-surface dark:bg-rt-dark-surface">
-        <div class="relative">
-            <div class="h-24 bg-gradient-to-r from-rt-red/10 via-slate-50 to-slate-200 dark:from-rt-red/20 dark:via-slate-800 dark:to-slate-900"></div>
+    {{-- Identitaets-Card: klar, horizontal, ohne Cover/ueberlappenden Avatar --}}
+    <div class="rounded-2xl bg-rt-surface p-5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60" data-anim="fade-up">
+        <div class="flex flex-col gap-5 sm:flex-row sm:items-center">
+            <img
+                src="{{ $user->profile_photo_url }}"
+                alt="{{ $user->name }}"
+                class="h-20 w-20 shrink-0 rounded-2xl object-cover shadow-rt-sm ring-1 ring-rt-border/60 dark:ring-rt-dark-border/60"
+            >
 
-            <div class="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold text-white {{ $user->isActive() ? 'bg-emerald-500/90' : 'bg-rose-500/90' }}">
-                <span class="h-1.5 w-1.5 rounded-full bg-white"></span>
-                <span>{{ $user->isActive() ? ucfirst(__('app.active')) : ucfirst(__('app.inactive')) }}</span>
-            </div>
-
-            <div class="absolute right-3 top-3 rounded-full bg-black/30 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
-                {{ __('app.registered') }}: {{ $user->created_at->format('d.m.Y') }}
-            </div>
-
-            <div class="absolute left-1/2 top-full -translate-x-1/2 -translate-y-1/2">
-                <div class="h-28 w-28 overflow-hidden rounded-2xl border-4 border-white bg-white shadow-rt-md dark:border-slate-700 dark:bg-slate-800 md:h-32 md:w-32">
-                    <img
-                        class="h-full w-full object-cover object-center"
-                        src="{{ $user->profile_photo_url }}"
-                        alt="{{ $user->name }}"
-                    >
+            <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-center gap-2">
+                    <h2 class="text-xl font-semibold tracking-tight text-rt-text dark:text-rt-dark-text">{{ $user->name }}</h2>
+                    <x-ui.badge :color="$roleColor">
+                        <i class="far fa-user-tag"></i>
+                        {{ $roleLabel }}
+                    </x-ui.badge>
                 </div>
-            </div>
-        </div>
+                <p class="mt-0.5 truncate text-sm text-rt-muted dark:text-rt-dark-muted">{{ $user->email }}</p>
 
-        <div class="px-4 pb-5 pt-16 md:px-6 md:pt-20">
-            <div class="text-center">
-                <h2 class="text-xl font-semibold text-slate-900 dark:text-white">{{ $user->name }}</h2>
-                <div class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ $user->email }}</div>
+                <div class="mt-3 flex flex-wrap items-center gap-2">
+                    <x-ui.badge :color="$user->isActive() ? 'green' : 'red'">
+                        <span class="h-1.5 w-1.5 rounded-full {{ $user->isActive() ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-red-500 dark:bg-red-400' }}"></span>
+                        {{ $user->isActive() ? ucfirst(__('app.active')) : ucfirst(__('app.inactive')) }}
+                    </x-ui.badge>
 
-                @php
-                    $roleLabel = match ($user->role) {
-                        'admin' => __('app.role_admin'),
-                        'staff' => __('app.role_staff'),
-                        default => __('app.role_user'),
-                    };
-                    $roleClasses = match ($user->role) {
-                        'admin' => 'bg-purple-50 text-purple-700 ring-purple-200 dark:bg-purple-500/10 dark:text-purple-300 dark:ring-purple-500/30',
-                        'staff' => 'bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-500/10 dark:text-sky-300 dark:ring-sky-500/30',
-                        default => 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/30',
-                    };
-                @endphp
-                <div class="mt-3 inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset {{ $roleClasses }}">
-                    <i class="far fa-user-tag mr-2"></i>
-                    {{ $roleLabel }}
-                </div>
-
-                @php
-                    $lastActivityAt = $user->lastActivityAt();
-                    $isUserOnline = $user->isOnline();
-                @endphp
-                <div class="mt-3 flex flex-wrap items-center justify-center gap-2">
                     @if ($isUserOnline)
-                        <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/30">
+                        <x-ui.badge color="green">
                             <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400"></span>
                             {{ __('app.online') }}
-                        </span>
+                        </x-ui.badge>
                     @endif
-                    <span class="inline-flex items-center gap-1.5 rounded-full bg-rt-surface-muted px-3 py-1 text-xs text-slate-500 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:text-slate-400 dark:ring-rt-dark-border/60">
+
+                    <span class="inline-flex items-center gap-1.5 rounded-full bg-rt-surface-muted px-2.5 py-0.5 text-xs text-rt-muted ring-1 ring-inset ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted dark:ring-rt-dark-border/60">
                         <i class="far fa-clock"></i>
                         {{ __('app.last_online') }}:
-                        <span class="font-semibold text-slate-700 dark:text-slate-300">
-                            {{ $lastActivityAt ? $lastActivityAt->format('d.m.Y H:i') : __('app.never') }}
-                        </span>
+                        <span class="font-semibold text-rt-text dark:text-rt-dark-text">{{ $lastActivityAt ? $lastActivityAt->format('d.m.Y H:i') : __('app.never') }}</span>
+                    </span>
+
+                    <span class="inline-flex items-center gap-1.5 rounded-full bg-rt-surface-muted px-2.5 py-0.5 text-xs text-rt-muted ring-1 ring-inset ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted dark:ring-rt-dark-border/60">
+                        <i class="far fa-hashtag"></i>
+                        {{ __('app.user_id') }}: <span class="font-semibold text-rt-text dark:text-rt-dark-text">{{ $user->id }}</span>
                     </span>
                 </div>
             </div>
         </div>
-      </div>
     </div>
 
     <x-ui.accordion.tabs
@@ -119,87 +110,82 @@
         default="userDetails"
         persist-key="admin.user.{{ $user->id }}.tabs"
     >
-        {{-- TAB: Details --}}
-        <x-ui.accordion.tab-panel for="userDetails" panelClass="space-y-4 rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 z-10 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
-            <div class="w-full">
-                <section>
-                    <div class="mb-3">
-                        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <h3 class="flex items-center gap-2 text-base font-semibold text-slate-800 dark:text-white">
-                                <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
-                                    <i class="far fa-user text-sm"></i>
-                                </span>
-                                <span>{{ __('app.user_details') }}</span>
-                            </h3>
-                            <div class="flex flex-wrap items-center gap-2">
-                                <span class="inline-flex items-center rounded-full bg-rt-surface-muted px-2.5 py-1 text-xs font-medium text-slate-700 shadow-rt-xs ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:text-slate-300 dark:ring-rt-dark-border/60">
-                                    {{ __('app.user_id') }}: {{ $user->id }}
-                                </span>
-                            </div>
-                        </div>
+        {{-- TAB: Details — klare zweispaltige Info-Sektionen --}}
+        {{-- Wichtig: kein display-Utility (grid) direkt auf dem x-show-Panel,
+             sonst gewinnt Tailwinds !important gegen Alpines inline display:none. --}}
+        <x-ui.accordion.tab-panel for="userDetails" panelClass="space-y-4">
+          <div class="grid gap-4 lg:grid-cols-2">
+            {{-- Persoenliche Daten --}}
+            <section class="rounded-xl bg-rt-surface p-5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+                <h3 class="flex items-center gap-2 text-sm font-semibold text-rt-text dark:text-rt-dark-text">
+                    <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent">
+                        <i class="far fa-user text-sm"></i>
+                    </span>
+                    {{ __('app.personal_data') }}
+                </h3>
+                <dl class="mt-4 divide-y divide-rt-border/60 dark:divide-rt-dark-border/60">
+                    <div class="flex items-baseline justify-between gap-4 py-2.5">
+                        <dt class="text-xs uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.username') }}</dt>
+                        <dd class="text-right text-sm font-medium text-rt-text dark:text-rt-dark-text">{{ $user->name }}</dd>
                     </div>
-
-                    <div class="pt-4">
-                        <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                            <article class="rounded-xl bg-gradient-to-b from-rt-surface-muted to-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 dark:from-rt-dark-surface-muted dark:to-rt-dark-surface dark:ring-rt-dark-border/60">
-                                <div class="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ __('app.username') }}</div>
-                                <div class="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-200">{{ $user->name }}</div>
-
-                                <div class="mt-3 text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ __('app.birth_date') }}</div>
-                                <div class="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-200">
-                                    {{ $profile?->birth_date ? $profile->birth_date->format('d.m.Y') : '-' }}
-                                </div>
-
-                                @if ($profile?->personnel_nr)
-                                    <div class="mt-2 inline-flex items-center rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 dark:bg-slate-700 dark:text-slate-300">
-                                        {{ __('app.personnel_nr') }}: {{ $profile->personnel_nr }}
-                                    </div>
-                                @endif
-                            </article>
-
-                            <article class="rounded-xl bg-gradient-to-b from-rt-surface-muted to-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 dark:from-rt-dark-surface-muted dark:to-rt-dark-surface dark:ring-rt-dark-border/60">
-                                <div class="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ __('app.registered_at') }}</div>
-                                <div class="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-200">{{ $user->created_at->format('d.m.Y') }}</div>
-
-                                <div class="mt-3 text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ __('app.email') }}</div>
-                                <div class="mt-1 flex items-center gap-2">
-                                    <div class="break-all text-sm text-slate-700 dark:text-slate-300" title="{{ $user->email }}">{{ $user->email }}</div>
-                                    @if ($user->email_verified_at)
-                                        <span class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-[11px] text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
-                                              title="{{ __('app.email_verified') }}: {{ $user->email_verified_at->format('d.m.Y H:i') }}">
-                                            <i class="far fa-check-circle"></i>
-                                        </span>
-                                    @else
-                                        <span class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-rose-200 bg-rose-50 text-[11px] text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300"
-                                              title="{{ __('app.email_not_verified') }}">
-                                            <i class="far fa-exclamation-circle"></i>
-                                        </span>
-                                    @endif
-                                </div>
-                            </article>
-
-                            <article class="rounded-xl bg-gradient-to-b from-rt-surface-muted to-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 dark:from-rt-dark-surface-muted dark:to-rt-dark-surface dark:ring-rt-dark-border/60">
-                                <div class="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ __('app.address') }}</div>
-                                @if ($profile && ($profile->street || $profile->postal_code || $profile->city || $profile->country))
-                                    <div class="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-200">{{ $profile->street ?: '-' }}</div>
-                                    <div class="mt-1 text-sm text-slate-700 dark:text-slate-300">{{ trim(($profile->postal_code ?? '') . ' ' . ($profile->city ?? '')) ?: '-' }}</div>
-                                    @if ($profile->country)
-                                        <div class="mt-1 text-sm text-slate-700 dark:text-slate-300">{{ $profile->country }}</div>
-                                    @endif
-                                @else
-                                    <div class="mt-1 text-sm text-slate-600 dark:text-slate-400">{{ __('app.no_address') }}</div>
-                                @endif
-
-                                <div class="mt-3 text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ __('app.phone') }}</div>
-                                <div class="mt-1 text-sm text-slate-700 dark:text-slate-300">{{ $profile?->phone ?: '-' }}</div>
-
-                                <div class="mt-3 text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ __('app.mobile') }}</div>
-                                <div class="mt-1 text-sm text-slate-700 dark:text-slate-300">{{ $profile?->mobile ?: '-' }}</div>
-                            </article>
-                        </div>
+                    <div class="flex items-baseline justify-between gap-4 py-2.5">
+                        <dt class="text-xs uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.birth_date') }}</dt>
+                        <dd class="text-right text-sm font-medium text-rt-text dark:text-rt-dark-text">{{ $profile?->birth_date ? $profile->birth_date->format('d.m.Y') : '–' }}</dd>
                     </div>
-                </section>
-            </div>
+                    <div class="flex items-baseline justify-between gap-4 py-2.5">
+                        <dt class="text-xs uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.personnel_nr') }}</dt>
+                        <dd class="text-right text-sm font-medium text-rt-text dark:text-rt-dark-text">{{ $profile?->personnel_nr ?: '–' }}</dd>
+                    </div>
+                    <div class="flex items-baseline justify-between gap-4 py-2.5">
+                        <dt class="text-xs uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.registered_at') }}</dt>
+                        <dd class="text-right text-sm font-medium text-rt-text dark:text-rt-dark-text">{{ $user->created_at->format('d.m.Y') }}</dd>
+                    </div>
+                </dl>
+            </section>
+
+            {{-- Kontakt & Anschrift --}}
+            <section class="rounded-xl bg-rt-surface p-5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+                <h3 class="flex items-center gap-2 text-sm font-semibold text-rt-text dark:text-rt-dark-text">
+                    <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent">
+                        <i class="far fa-address-card text-sm"></i>
+                    </span>
+                    {{ __('app.contact') }}
+                </h3>
+                <dl class="mt-4 divide-y divide-rt-border/60 dark:divide-rt-dark-border/60">
+                    <div class="flex items-baseline justify-between gap-4 py-2.5">
+                        <dt class="text-xs uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.email') }}</dt>
+                        <dd class="flex items-center justify-end gap-2 text-right text-sm font-medium text-rt-text dark:text-rt-dark-text">
+                            <span class="break-all">{{ $user->email }}</span>
+                            @if ($user->email_verified_at)
+                                <i class="far fa-check-circle shrink-0 text-emerald-500 dark:text-emerald-400" title="{{ __('app.email_verified') }}"></i>
+                            @else
+                                <i class="far fa-exclamation-circle shrink-0 text-amber-500 dark:text-amber-400" title="{{ __('app.email_not_verified') }}"></i>
+                            @endif
+                        </dd>
+                    </div>
+                    <div class="flex items-baseline justify-between gap-4 py-2.5">
+                        <dt class="text-xs uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.phone') }}</dt>
+                        <dd class="text-right text-sm font-medium text-rt-text dark:text-rt-dark-text">{{ $profile?->phone ?: '–' }}</dd>
+                    </div>
+                    <div class="flex items-baseline justify-between gap-4 py-2.5">
+                        <dt class="text-xs uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.mobile') }}</dt>
+                        <dd class="text-right text-sm font-medium text-rt-text dark:text-rt-dark-text">{{ $profile?->mobile ?: '–' }}</dd>
+                    </div>
+                    <div class="flex items-baseline justify-between gap-4 py-2.5">
+                        <dt class="shrink-0 text-xs uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.address') }}</dt>
+                        <dd class="text-right text-sm font-medium text-rt-text dark:text-rt-dark-text">
+                            @if ($profile && ($profile->street || $profile->postal_code || $profile->city || $profile->country))
+                                {{ $profile->street ?: '' }}<br>
+                                {{ trim(($profile->postal_code ?? '') . ' ' . ($profile->city ?? '')) }}
+                                @if ($profile->country)<br>{{ $profile->country }}@endif
+                            @else
+                                <span class="text-rt-muted dark:text-rt-dark-muted">{{ __('app.no_address') }}</span>
+                            @endif
+                        </dd>
+                    </div>
+                </dl>
+            </section>
+          </div>
         </x-ui.accordion.tab-panel>
 
         {{-- TAB: Bemerkungen --}}

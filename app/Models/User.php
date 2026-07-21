@@ -224,4 +224,99 @@ class User extends Authenticatable
             ]);
         }
     }
+
+    /** Chats, an denen der Benutzer teilnimmt. */
+    public function chats(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(Chat::class, 'chat_user')
+            ->withPivot('last_read_at')
+            ->withTimestamps();
+    }
+
+    /**
+     * Entscheidet, ob der Benutzer das Admin-Layout (und den /administrator-
+     * Bereich) nutzt: globale Rolle admin/staff ODER Mitgliedschaft in den
+     * Teams "Administrator"/"Verwaltung". Mitglieder von "Mitarbeiter"/"Gast"
+     * (ohne Admin-Team) bleiben im Nutzer-Layout.
+     */
+    public function usesAdminLayout(): bool
+    {
+        if (in_array($this->role, ['admin', 'staff'], true)) {
+            return true;
+        }
+
+        return $this->teams()
+            ->where('personal_team', false)
+            ->whereIn('teams.name', ['Administrator', 'Verwaltung'])
+            ->exists();
+    }
+
+    /**
+     * Alle dem Benutzer bereitgestellten Dateien, gruppiert nach Herkunft:
+     *  - 'personal': persoenlicher Pool (vom Admin im Profil hinzugefuegt)
+     *  - 'company':  firmenweite Freigaben (per Rolle ODER per Team sichtbar)
+     *  - 'teams':    Standard-Downloads der Teams des Benutzers
+     * Beruecksichtigt nur sichtbare (Zeitfenster + Team) und nicht abgelaufene
+     * Dateien; neueste zuerst.
+     *
+     * @return array{personal: \Illuminate\Support\Collection, company: \Illuminate\Support\Collection, teams: array<int, array{team: Team, files: \Illuminate\Support\Collection}>}
+     */
+    public function availableFilesGrouped(): array
+    {
+        $me = $this;
+        $visible = fn (File $file) => $file->isPubliclyVisible($me) && ! $file->isExpired();
+
+        // Persoenlicher Pool
+        $personal = ($this->filePool?->files()->latest()->get() ?? collect())
+            ->filter($visible)->values();
+
+        // Firmen-Freigaben: rollen- ODER teambasiert freigegeben
+        $company = FilePool::company()->files()->latest()->get()->filter(function (File $file) use ($me, $visible) {
+            if (! $visible($file)) {
+                return false;
+            }
+
+            if ($file->folder_id) {
+                $folder = $file->folder;
+
+                return $folder && $folder->allowsForRole($me->role, 'view');
+            }
+
+            // Wurzeldatei: per Rolle freigegeben ODER gezielt fuer ein Team sichtbar
+            return $file->isSharedWithRole($me->role) || ! empty($file->visible_teams);
+        })->values();
+
+        // Team-Pools
+        $teams = [];
+        foreach ($this->teams()->where('personal_team', false)->orderBy('name')->get() as $team) {
+            $pool = $team->filePool;
+            $files = $pool
+                ? $pool->files()->latest()->get()->filter($visible)->values()
+                : collect();
+
+            if ($files->isNotEmpty()) {
+                $teams[] = ['team' => $team, 'files' => $files];
+            }
+        }
+
+        return ['personal' => $personal, 'company' => $company, 'teams' => $teams];
+    }
+
+    /**
+     * Flache Liste der IDs aller bereitgestellten Dateien (fuer Download-Checks).
+     *
+     * @return array<int, int>
+     */
+    public function availableFileIds(): array
+    {
+        $grouped = $this->availableFilesGrouped();
+
+        $ids = $grouped['personal']->pluck('id')->merge($grouped['company']->pluck('id'));
+
+        foreach ($grouped['teams'] as $entry) {
+            $ids = $ids->merge($entry['files']->pluck('id'));
+        }
+
+        return $ids->unique()->values()->all();
+    }
 }
