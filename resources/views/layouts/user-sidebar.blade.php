@@ -64,7 +64,7 @@
             <x-menu.sidebar-nav-link
                 :href="route('profile.show')"
                 icon="user"
-                :active="request()->routeIs('profile.show')"
+                :active="request()->routeIs('profile.show') && request('tab') !== 'templates'"
                 :navigate="false"
             >
                 {{ __('app.profile') }}

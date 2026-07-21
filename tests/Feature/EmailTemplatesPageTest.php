@@ -48,6 +48,17 @@ class EmailTemplatesPageTest extends TestCase
             ->assertDontSee('id="panel-templates"', escape: false);
     }
 
+    public function test_admin_sees_email_templates_as_active_own_sidebar_page(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin)
+            ->get(route('email-templates.index'))
+            ->assertOk()
+            ->assertSee(route('email-templates.index'), escape: false)
+            ->assertSee('data-menu-active="true"', escape: false);
+    }
+
     public function test_personalized_template_can_be_downloaded_and_unknown_key_returns_404(): void
     {
         $user = User::factory()->create(['name' => 'Mara Beispiel']);

@@ -6,6 +6,7 @@ use App\Models\ChatMessage;
 use App\Models\File;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\HeaderUtils;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ChatAttachmentController extends Controller
@@ -20,7 +21,10 @@ class ChatAttachmentController extends Controller
             403
         );
 
-        if ($request->boolean('download')) {
+        $mime = strtolower((string) $file->mime_type);
+        $canRenderInline = str_starts_with($mime, 'audio/') || str_starts_with($mime, 'video/');
+
+        if ($request->boolean('download') || ! $canRenderInline) {
             return $file->download($file->disk ?: 'private', denyExpired: false);
         }
 
@@ -28,8 +32,12 @@ class ChatAttachmentController extends Controller
         abort_unless(Storage::disk($disk)->exists($file->path), 404);
 
         return Storage::disk($disk)->response($file->path, $file->name, [
-            'Content-Type' => $file->mime_type ?: 'application/octet-stream',
-            'Content-Disposition' => 'inline; filename="' . addslashes($file->name) . '"',
+            'Content-Type' => $mime,
+            'Content-Disposition' => HeaderUtils::makeDisposition(
+                HeaderUtils::DISPOSITION_INLINE,
+                $file->name,
+                'attachment'
+            ),
             'Cache-Control' => 'private, max-age=300',
             'X-Content-Type-Options' => 'nosniff',
         ]);

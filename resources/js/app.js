@@ -131,6 +131,145 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
 
 window.Alpine = Alpine;
 
+Alpine.data('chatRealtime', (config) => ({
+    channel: null,
+    typingLabel: '',
+    typingTimer: null,
+    recorder: null,
+    recording: false,
+    recordingSeconds: 0,
+    recordingLabel: '',
+    recordingTimer: null,
+    recordingStream: null,
+    chunks: [],
+
+    init() {
+        this.recordingLabel = config.recordingText || 'Aufnahme';
+
+        if (!window.Echo || !config.chatId) {
+            return;
+        }
+
+        this.channel = window.Echo.private(`chat.${config.chatId}`)
+            .listen('.chat.message.sent', (event) => {
+                Livewire.dispatch('chat:refresh', { chatId: Number(event.chatId) });
+                Livewire.dispatch('inbox:refresh');
+            })
+            .listen('.chat.read', (event) => {
+                Livewire.dispatch('chat:refresh', { chatId: Number(event.chatId) });
+            })
+            .listenForWhisper('typing', (event) => {
+                if (Number(event.userId) === Number(config.userId)) {
+                    return;
+                }
+
+                window.clearTimeout(this.typingTimer);
+                this.typingLabel = `${event.userName} ${config.typingText}`;
+                this.typingTimer = window.setTimeout(() => {
+                    this.typingLabel = '';
+                }, 1800);
+            });
+    },
+
+    destroy() {
+        window.clearTimeout(this.typingTimer);
+        window.clearInterval(this.recordingTimer);
+        this.stopRecordingTracks();
+
+        if (window.Echo && config.chatId) {
+            window.Echo.leave(`chat.${config.chatId}`);
+        }
+    },
+
+    sendTyping() {
+        this.channel?.whisper('typing', {
+            userId: Number(config.userId),
+            userName: config.userName,
+        });
+    },
+
+    async toggleRecording() {
+        if (this.recording) {
+            this.recorder?.stop();
+            return;
+        }
+
+        if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+            window.dispatchEvent(new CustomEvent('swal:toast', {
+                detail: { type: 'error', text: 'Sprachaufnahme wird von diesem Browser nicht unterstützt.' },
+            }));
+            return;
+        }
+
+        try {
+            this.recordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const preferredMime = [
+                'audio/webm;codecs=opus',
+                'audio/ogg;codecs=opus',
+                'audio/mp4',
+            ].find((mime) => MediaRecorder.isTypeSupported(mime));
+
+            this.chunks = [];
+            this.recorder = preferredMime
+                ? new MediaRecorder(this.recordingStream, { mimeType: preferredMime })
+                : new MediaRecorder(this.recordingStream);
+
+            this.recorder.addEventListener('dataavailable', (event) => {
+                if (event.data.size > 0) {
+                    this.chunks.push(event.data);
+                }
+            });
+
+            this.recorder.addEventListener('stop', () => this.finishRecording(), { once: true });
+            this.recorder.start(250);
+            this.recording = true;
+            this.recordingSeconds = 0;
+            this.updateRecordingLabel();
+            this.recordingTimer = window.setInterval(() => {
+                this.recordingSeconds += 1;
+                this.updateRecordingLabel();
+            }, 1000);
+        } catch (error) {
+            this.stopRecordingTracks();
+            window.dispatchEvent(new CustomEvent('swal:toast', {
+                detail: { type: 'error', text: 'Das Mikrofon konnte nicht verwendet werden.' },
+            }));
+        }
+    },
+
+    finishRecording() {
+        window.clearInterval(this.recordingTimer);
+        this.recording = false;
+        this.stopRecordingTracks();
+
+        if (this.chunks.length === 0) {
+            return;
+        }
+
+        const mime = this.recorder?.mimeType || this.chunks[0]?.type || 'audio/webm';
+        const extension = mime.includes('ogg') ? 'ogg' : (mime.includes('mp4') ? 'm4a' : 'webm');
+        const file = new File(
+            [new Blob(this.chunks, { type: mime })],
+            `sprachnachricht-${Date.now()}.${extension}`,
+            { type: mime }
+        );
+
+        this.$wire.uploadMultiple('uploads', [file]);
+        this.chunks = [];
+    },
+
+    stopRecordingTracks() {
+        this.recordingStream?.getTracks().forEach((track) => track.stop());
+        this.recordingStream = null;
+    },
+
+    updateRecordingLabel() {
+        const minutes = Math.floor(this.recordingSeconds / 60);
+        const seconds = String(this.recordingSeconds % 60).padStart(2, '0');
+        this.recordingLabel = `${config.recordingText || 'Aufnahme'} ${minutes}:${seconds}`;
+    },
+}));
+
 Livewire.start();
 
 rtApplyTheme();
@@ -158,6 +297,17 @@ rtApplyTheme();
                 detail: { type: 'info', title, text },
             }));
 
+            Livewire.dispatch('inbox:refresh');
+        })
+        .listen('.chat.message.received', (event) => {
+            const title = lang.newChatMessage || 'Neue Chatnachricht';
+            const text = event.from ? `${lang.from || 'Von'}: ${event.from}` : '';
+
+            window.dispatchEvent(new CustomEvent('swal:toast', {
+                detail: { type: 'info', title, text },
+            }));
+
+            Livewire.dispatch('chat:refresh', { chatId: Number(event.chatId) });
             Livewire.dispatch('inbox:refresh');
         });
 })();

@@ -6,6 +6,7 @@
     <x-ui.accordion.tabs
         :tabs="[
             'general' => ['label' => __('app.general'), 'icon' => 'fad fa-sliders-h'],
+            'company' => ['label' => __('app.company_data'), 'icon' => 'fad fa-building'],
             'users' => ['label' => __('app.users'), 'icon' => 'fad fa-users'],
             'system' => ['label' => __('app.system'), 'icon' => 'fad fa-server'],
         ]"
@@ -56,7 +57,7 @@
 
                     <div class="mt-5">
                         <x-ui.buttons.button-basic mode="primary" wire:click="saveSystem" can="settings.manage">
-                            <i class="fad fa-floppy-disk" aria-hidden="true"></i>
+                            <i class="fad fa-save" aria-hidden="true"></i>
                             {{ __('app.save') }}
                         </x-ui.buttons.button-basic>
                     </div>
@@ -105,7 +106,7 @@
 
                 <div class="mt-5">
                     <x-ui.buttons.button-basic mode="primary" wire:click="saveInvitations" can="settings.manage">
-                        <i class="fad fa-floppy-disk" aria-hidden="true"></i>
+                        <i class="fad fa-save" aria-hidden="true"></i>
                         {{ __('app.save') }}
                     </x-ui.buttons.button-basic>
                 </div>
@@ -155,13 +156,78 @@
 
                 <div class="mt-5">
                     <x-ui.buttons.button-basic mode="primary" wire:click="saveMails" can="settings.manage">
-                        <i class="fad fa-floppy-disk" aria-hidden="true"></i>
+                        <i class="fad fa-save" aria-hidden="true"></i>
                         {{ __('app.save') }}
                     </x-ui.buttons.button-basic>
                 </div>
             </div>
         </div>
     </section>
+    </x-ui.accordion.tab-panel>
+
+    <x-ui.accordion.tab-panel for="company" panel-class="space-y-6">
+        <section
+            class="rounded-2xl bg-rt-surface p-6 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60"
+            data-anim="fade-up"
+        >
+            <div class="flex items-start gap-4">
+                <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent">
+                    <i class="fad fa-building fa-lg" aria-hidden="true"></i>
+                </span>
+                <div class="min-w-0 flex-1">
+                    <h2 class="text-lg font-semibold tracking-tight text-rt-text dark:text-rt-dark-text">
+                        {{ __('app.company_data') }}
+                    </h2>
+                    <p class="mt-1 max-w-3xl text-sm text-rt-muted dark:text-rt-dark-muted">
+                        {{ __('app.company_data_hint') }}
+                    </p>
+
+                    <form wire:submit="saveCompany" class="mt-6">
+                        <div class="grid gap-x-5 gap-y-4 md:grid-cols-2">
+                            @foreach ([
+                                ['name', 'company_name', 'text', 'organization'],
+                                ['email', 'company_email', 'email', 'email'],
+                                ['street', 'street', 'text', 'street-address'],
+                                ['postal_code', 'postal_code', 'text', 'postal-code'],
+                                ['city', 'city', 'text', 'address-level2'],
+                                ['country', 'country', 'text', 'country-name'],
+                                ['phone', 'company_phone', 'tel', 'tel'],
+                                ['emergency_phone', 'emergency_phone', 'tel', 'tel'],
+                                ['website', 'website', 'url', 'url'],
+                                ['managing_directors', 'managing_directors', 'text', 'off'],
+                                ['register_court', 'register_court', 'text', 'off'],
+                                ['commercial_register_number', 'commercial_register_number', 'text', 'off'],
+                                ['vat_id', 'vat_id', 'text', 'off'],
+                                ['tax_number', 'tax_number', 'text', 'off'],
+                            ] as [$field, $label, $type, $autocomplete])
+                                <div class="{{ in_array($field, ['name', 'street', 'managing_directors'], true) ? 'md:col-span-2' : '' }}">
+                                    <label for="company_{{ $field }}" class="block text-sm font-medium text-rt-text dark:text-rt-dark-text">
+                                        {{ __('app.'.$label) }}
+                                    </label>
+                                    <x-ui.forms.input
+                                        id="company_{{ $field }}"
+                                        type="{{ $type }}"
+                                        autocomplete="{{ $autocomplete }}"
+                                        wire:model="company.{{ $field }}"
+                                        class="mt-1.5"
+                                    />
+                                    @error('company.'.$field)
+                                        <p class="mt-1.5 text-sm text-rt-red">{{ $message }}</p>
+                                    @enderror
+                                </div>
+                            @endforeach
+                        </div>
+
+                        <div class="mt-6 flex items-center justify-end border-t border-rt-border/70 pt-5 dark:border-rt-dark-border/70">
+                            <x-ui.buttons.button-basic type="submit" mode="primary" can="settings.manage">
+                                <i class="fad fa-save" aria-hidden="true"></i>
+                                <span>{{ __('app.save_company_data') }}</span>
+                            </x-ui.buttons.button-basic>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </section>
     </x-ui.accordion.tab-panel>
     </x-ui.accordion.tabs>
 </x-ui.page>

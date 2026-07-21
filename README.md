@@ -27,6 +27,13 @@ Diese Datei ist das gemeinsame Übergabe- und Kommunikationsprotokoll für Codin
 - Bei Datenbankänderungen beachten: Die Migrationen sind auf eine frische Installation ausgelegt. Für einen kompletten Neuaufbau ist `php artisan migrate:fresh --seed` erforderlich.
 - Keine bestehenden, nicht zum Task gehörenden Änderungen zurücksetzen.
 
+## 2026-07-21 - Codex (Zentrales Nachrichtenmodal und E-Mail-Vorlagen)
+
+- Nachrichten aus Topbar und Nachrichten-Seite öffnen jetzt dasselbe, einmalig im Master-Layout gemountete Livewire-Lesemodal über `message-viewer:open`; Lesestatus, Berechtigungsprüfung und Anhang-Downloads liegen zentral in der Komponente.
+- Die alte `AdminMessageBox` und das doppelt eingebundene Blade-Modal wurden entfernt. Der Nachrichtentext wird escaped dargestellt, Topbar-Badge und Liste aktualisieren sich direkt über `inbox:refresh`.
+- E-Mail-Vorlagen sind unter `/email-templates` eine eigene Seite in Nutzer- und Admin-Sidebar; der bisherige Profil-Tab wurde entfernt und die Downloadroute entsprechend ausgelagert.
+- Isolierte Livewire-/Featuretests prüfen eigene und fremde Nachrichten, XSS-sichere Ausgabe, genau eine Modal-Instanz in beiden Layouts, Sidebar/Routen sowie gültige und ungültige Vorlagen-Downloads.
+
 ## 2026-07-21 - Codex (Mitarbeiter-Stammdaten, Einladungen und Einstellungs-Tabs)
 
 - Mitarbeiter anlegen/bearbeiten nutzt jetzt die Tabs "Team und Sicherheit" und "Persoenliche Daten". Firmenposition, Personalnummer, Kontakt-, Adress- und Geburtsdaten werden im `user_profiles`-Datensatz gespeichert.

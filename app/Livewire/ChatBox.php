@@ -3,10 +3,12 @@
 namespace App\Livewire;
 
 use App\Events\ChatMessageSent;
+use App\Events\ChatMessageReceived;
 use App\Events\ChatRead;
 use App\Models\Chat;
 use App\Models\ChatMessage;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\On;
@@ -82,7 +84,10 @@ class ChatBox extends Component
 
         foreach ($this->uploads as $uploadedFile) {
             $path = $uploadedFile->store('uploads/chat/' . $chat->id, 'private');
-            $mime = Storage::disk('private')->mimeType($path) ?: $uploadedFile->getClientMimeType();
+            $detectedMime = Storage::disk('private')->mimeType($path);
+            $mime = (! $detectedMime || $detectedMime === 'application/octet-stream')
+                ? $uploadedFile->getClientMimeType()
+                : $detectedMime;
 
             $message->files()->create([
                 'name' => $uploadedFile->getClientOriginalName(),
@@ -103,6 +108,7 @@ class ChatBox extends Component
         $this->messageText = '';
         $this->uploads = [];
         $this->broadcastChatEvent(new ChatMessageSent($message));
+        $this->broadcastChatEvent(new ChatMessageReceived($message));
         $this->dispatch('inbox:refresh');
         $this->dispatch('chat:scroll-bottom');
     }
@@ -198,7 +204,7 @@ class ChatBox extends Component
             ->where('user_id', '!=', auth()->id())
             ->max('created_at');
 
-        if (! $latestOtherMessageAt || ($lastReadAt && $lastReadAt >= $latestOtherMessageAt)) {
+        if (! $latestOtherMessageAt || ($lastReadAt && Carbon::parse($lastReadAt)->gte(Carbon::parse($latestOtherMessageAt)))) {
             return;
         }
 

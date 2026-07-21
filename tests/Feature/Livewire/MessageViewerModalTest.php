@@ -94,4 +94,24 @@ class MessageViewerModalTest extends TestCase
             ->assertSee('&lt;script&gt;', escape: false)
             ->assertDontSee('<script>alert("x")</script>', escape: false);
     }
+
+    public function test_user_messages_page_mounts_the_global_viewer_exactly_once(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->get(route('messages'));
+
+        $response->assertOk();
+        $this->assertSame(1, substr_count($response->getContent(), 'data-testid="message-viewer-host"'));
+    }
+
+    public function test_admin_messages_page_mounts_the_global_viewer_exactly_once(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $response = $this->actingAs($admin)->get(route('admin.messages'));
+
+        $response->assertOk();
+        $this->assertSame(1, substr_count($response->getContent(), 'data-testid="message-viewer-host"'));
+    }
 }

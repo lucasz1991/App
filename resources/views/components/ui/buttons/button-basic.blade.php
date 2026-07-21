@@ -30,7 +30,7 @@ $isDeniedByCan = ! $isAllowed;
 $isDisabled = isset($attributes['disabled']) || $isDeniedByCan;
 
 $classes = $modeClasses . ' ' . $sizeClasses;
-$classes .= ' transition-all duration-300 ease-rt-spring inline-flex items-center justify-center gap-2 text-center font-semibold border rounded-lg shadow-rt-xs active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-slate-900 disabled:opacity-50';
+$classes .= ' transition-all duration-300 ease-rt-spring inline-flex items-center justify-center gap-2 text-center font-semibold leading-none border rounded-lg shadow-rt-xs active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-slate-900 disabled:opacity-50 [&>i]:shrink-0 [&>i]:leading-none [&>svg]:h-[1em] [&>svg]:w-[1em] [&>svg]:shrink-0';
 
 if ($mode === 'primary' || $mode === 'blue') {
     $classes .= ' hover:shadow-rt-glow hover:-translate-y-px';

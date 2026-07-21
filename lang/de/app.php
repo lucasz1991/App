@@ -347,6 +347,7 @@ return [
     'chat' => 'Chat',
     'chats' => 'Chats',
     'new_chat' => 'Neuer Chat',
+    'new_chat_message' => 'Neue Chatnachricht',
     'new_group' => 'Neue Gruppe',
     'group_name' => 'Gruppenname',
     'select_participants' => 'Teilnehmer auswählen',

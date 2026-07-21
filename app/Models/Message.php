@@ -26,13 +26,10 @@ class Message extends Model
     /**
      * Betreff und Inhalt werden mit dem App-Key verschlüsselt gespeichert.
      */
-    protected function casts(): array
-    {
-        return [
-            'subject' => 'encrypted',
-            'message' => 'encrypted',
-        ];
-    }
+    protected $casts = [
+        'subject' => 'encrypted',
+        'message' => 'encrypted',
+    ];
 
     /**
      * Get the user who sent the message.

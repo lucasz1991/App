@@ -16,6 +16,7 @@
         <script>
             window.rtLang = {
                 newMessage: @json(__('app.new_message')),
+                newChatMessage: @json(__('app.new_chat_message')),
                 from: @json(__('app.from')),
             };
         </script>

@@ -4,12 +4,15 @@ namespace App\Livewire\Tools;
 
 use App\Models\ChatMessage;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 class HeaderInbox extends Component
 {
     public int $unreadMessagesCount = 0;
+
     public int $unreadChatMessagesCount = 0;
+
     public $receivedMessages;            // Collection (kleine Liste)
 
     public function mount(): void
@@ -17,7 +20,7 @@ class HeaderInbox extends Component
         $this->loadInbox();
     }
 
-    #[\Livewire\Attributes\On('inbox:refresh')]
+    #[On('inbox:refresh')]
     public function loadInbox(): void
     {
         $user = Auth::user();

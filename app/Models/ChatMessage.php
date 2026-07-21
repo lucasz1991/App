@@ -13,12 +13,9 @@ class ChatMessage extends Model
     /**
      * Chat-Inhalte werden mit dem App-Key verschlüsselt gespeichert.
      */
-    protected function casts(): array
-    {
-        return [
-            'body' => 'encrypted',
-        ];
-    }
+    protected $casts = [
+        'body' => 'encrypted',
+    ];
 
     public function chat(): BelongsTo
     {
