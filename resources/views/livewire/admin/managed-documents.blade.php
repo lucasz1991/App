@@ -91,7 +91,7 @@
                 </div>
                 <div>
                     <x-ui.forms.label for="managed-description" :value="__('app.description')" />
-                    <textarea id="managed-description" wire:model="description" rows="3" class="mt-1 w-full rounded-lg border border-rt-border bg-rt-control px-3 py-2 text-sm text-rt-text focus:border-rt-red focus:ring-rt-red/30 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white"></textarea>
+                    <textarea id="managed-description" wire:model="description" rows="3" class="mt-1 w-full rounded-xl border border-rt-border bg-rt-control px-3.5 py-2.5 text-base leading-6 text-rt-text shadow-rt-xs outline-none transition-all duration-200 focus:border-rt-red focus:ring-4 focus:ring-rt-red/15 sm:text-sm sm:leading-5 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:focus:ring-rt-red/25"></textarea>
                     @error('description') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                 </div>
                 <div>
@@ -122,7 +122,7 @@
                 @if(!$editingId)
                     <div class="rounded-xl bg-rt-surface-muted p-4 dark:bg-rt-dark-surface-muted">
                         <x-ui.forms.label for="managed-initial-file" :value="__('app.initial_file')" />
-                        <input id="managed-initial-file" type="file" wire:model="upload" class="mt-2 block w-full text-sm text-rt-muted file:mr-3 file:rounded-lg file:border-0 file:bg-rt-red file:px-3 file:py-2 file:font-semibold file:text-white">
+                        <input id="managed-initial-file" type="file" wire:model="upload" class="mt-2 block w-full text-base text-rt-muted sm:text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-rt-red file:px-3 file:py-2 file:font-semibold file:text-white">
                         @error('upload') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                         <x-ui.forms.label for="managed-initial-notes" :value="__('app.change_notes')" class="mt-4" />
                         <x-ui.forms.input id="managed-initial-notes" type="text" wire:model="changeNotes" class="mt-1" />
@@ -142,12 +142,12 @@
             <div class="space-y-4">
                 <div>
                     <x-ui.forms.label for="managed-version-file" :value="__('app.file')" />
-                    <input id="managed-version-file" type="file" wire:model="upload" class="mt-2 block w-full text-sm text-rt-muted file:mr-3 file:rounded-lg file:border-0 file:bg-rt-red file:px-3 file:py-2 file:font-semibold file:text-white">
+                    <input id="managed-version-file" type="file" wire:model="upload" class="mt-2 block w-full text-base text-rt-muted sm:text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-rt-red file:px-3 file:py-2 file:font-semibold file:text-white">
                     @error('upload') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                 </div>
                 <div>
                     <x-ui.forms.label for="managed-version-notes" :value="__('app.change_notes')" />
-                    <textarea id="managed-version-notes" wire:model="changeNotes" rows="3" class="mt-1 w-full rounded-lg border border-rt-border bg-rt-control px-3 py-2 text-sm text-rt-text dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white"></textarea>
+                    <textarea id="managed-version-notes" wire:model="changeNotes" rows="3" class="mt-1 w-full rounded-xl border border-rt-border bg-rt-control px-3.5 py-2.5 text-base leading-6 text-rt-text shadow-rt-xs outline-none transition-all duration-200 focus:border-rt-red focus:ring-4 focus:ring-rt-red/15 sm:text-sm sm:leading-5 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:focus:ring-rt-red/25"></textarea>
                 </div>
                 <p class="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">{{ __('app.previous_versions_remain') }}</p>
             </div>

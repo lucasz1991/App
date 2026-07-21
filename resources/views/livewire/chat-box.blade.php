@@ -375,7 +375,7 @@
                                        class="sr-only">
                                 <label for="chat-attachments-{{ $selectedChat->id }}"
                                        title="{{ __('app.add_attachment') }}"
-                                       class="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border border-rt-border bg-rt-surface text-rt-text shadow-rt-xs transition hover:bg-rt-surface-muted hover:text-rt-red sm:h-10 sm:w-10 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white dark:hover:bg-rt-dark-surface-muted">
+                                       class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full border border-rt-border bg-rt-surface text-rt-text shadow-rt-xs transition hover:bg-rt-surface-muted hover:text-rt-red sm:h-10 sm:w-10 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white dark:hover:bg-rt-dark-surface-muted">
                                     <i class="far fa-paperclip" aria-hidden="true"></i>
                                     <span class="sr-only">{{ __('app.add_attachment') }}</span>
                                 </label>
@@ -384,7 +384,7 @@
                                         @click="toggleRecording()"
                                         :class="recording ? 'bg-rt-red text-white border-rt-red' : 'border-rt-border bg-rt-surface text-rt-text dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white'"
                                         title="{{ __('app.voice_message') }}"
-                                        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border shadow-rt-xs transition hover:text-rt-red sm:h-10 sm:w-10 dark:hover:text-white">
+                                        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border shadow-rt-xs transition hover:text-rt-red sm:h-10 sm:w-10 dark:hover:text-white">
                                     <i :class="recording ? 'fas fa-stop' : 'far fa-microphone'" aria-hidden="true"></i>
                                     <span class="sr-only">{{ __('app.voice_message') }}</span>
                                 </button>
@@ -394,10 +394,10 @@
                                        @input.debounce.250ms="sendTyping()"
                                        placeholder="{{ __('app.type_message') }}"
                                        autocomplete="off"
-                                       class="h-9 min-w-0 flex-1 rounded-full border border-rt-border bg-rt-control px-3 text-sm text-rt-text shadow-rt-xs transition-all duration-300 ease-rt-spring placeholder:text-rt-soft hover:border-rt-accent/40 focus:border-rt-accent focus:ring focus:ring-rt-accent/30 sm:h-10 sm:px-4 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:placeholder:text-rt-dark-soft dark:hover:border-rt-dark-accent">
+                                       class="h-11 min-w-0 flex-1 rounded-full border border-rt-border bg-rt-control px-4 text-base leading-6 text-rt-text shadow-rt-xs outline-none transition-all duration-200 ease-rt-spring placeholder:text-rt-soft hover:border-rt-accent/50 focus:border-rt-accent focus:ring-4 focus:ring-rt-accent/15 sm:h-10 sm:text-sm sm:leading-5 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:placeholder:text-rt-dark-soft dark:hover:border-rt-dark-accent dark:focus:ring-rt-dark-accent/20">
                                 <button type="submit"
                                         title="{{ __('app.type_message') }}"
-                                        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rt-red text-white shadow-rt-sm transition-all duration-300 ease-rt-spring hover:bg-rt-red-dark active:scale-95 sm:h-10 sm:w-10 dark:bg-rt-red dark:text-white">
+                                        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-rt-red text-white shadow-rt-sm transition-all duration-200 ease-rt-spring hover:bg-rt-red-dark active:scale-95 sm:h-10 sm:w-10 dark:bg-rt-red dark:text-white">
                                     <i class="far fa-paper-plane" aria-hidden="true"></i>
                                     <span class="sr-only">{{ __('app.type_message') }}</span>
                                 </button>

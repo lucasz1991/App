@@ -53,7 +53,7 @@
                 <div>
                     <x-ui.forms.label for="mailBody" :value="__('app.message')" />
                     <textarea id="mailBody" rows="6" wire:model="mailBody"
-                              class="mt-1 block w-full rounded-lg border-rt-border bg-rt-surface text-sm shadow-rt-xs transition-all duration-300 ease-rt-spring focus:border-rt-red focus:ring focus:ring-rt-red/30 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text"></textarea>
+                              class="mt-1 block w-full rounded-xl border border-rt-border bg-rt-surface px-3.5 py-2.5 text-base leading-6 text-rt-text shadow-rt-xs outline-none transition-all duration-200 ease-rt-spring focus:border-rt-red focus:ring-4 focus:ring-rt-red/15 sm:text-sm sm:leading-5 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text dark:focus:ring-rt-red/25"></textarea>
                     <x-input-error for="mailBody" class="mt-2" />
                 </div>
 

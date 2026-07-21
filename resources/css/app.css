@@ -43,6 +43,29 @@ html {
     scroll-behavior: smooth;
 }
 
+/* iOS zoomt Formfelder unter 16 px beim Fokus automatisch. Die gemeinsamen
+   Komponenten tragen text-base bereits als Klasse; diese mobile Schutzschicht
+   deckt auch Flatpickr-Alt-Inputs und vereinzelte native Felder sicher ab. */
+@media (max-width: 639px) {
+    input[type='text'],
+    input[type='email'],
+    input[type='password'],
+    input[type='search'],
+    input[type='tel'],
+    input[type='url'],
+    input[type='number'],
+    input[type='date'],
+    input[type='time'],
+    input[type='datetime-local'],
+    input[type='month'],
+    input[type='week'],
+    select,
+    textarea {
+        font-size: 1rem !important;
+        line-height: 1.5rem !important;
+    }
+}
+
 /* Admin Command Center: eigenstaendige RailTime-Strecke, dezentes Raster und
    GPU-beschleunigte Signallauf-Animation. */
 .rt-admin-hero {

@@ -323,7 +323,7 @@
             @input="updateHexInput($event.target.value)"
             @blur="commitHexInput()"
             @keydown.enter.prevent="commitHexInput()"
-            class="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 font-mono text-sm text-slate-700 shadow-sm"
+            class="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 font-mono text-base leading-6 text-slate-700 shadow-sm outline-none transition-all duration-200 focus:border-rt-red focus:ring-4 focus:ring-rt-red/15 sm:text-sm sm:leading-5"
         >
     </div>
 

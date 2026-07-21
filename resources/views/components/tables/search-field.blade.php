@@ -27,7 +27,7 @@
             type="text" 
             placeholder="Search..." 
             x-model="value"
-            {{ $attributes->merge(['class' => 'w-full border-none bg-transparent px-2 py-1 text-base text-rt-text placeholder:text-rt-soft focus:border-transparent focus:ring-0 dark:text-rt-dark-text dark:placeholder:text-rt-dark-soft']) }}
+            {{ $attributes->merge(['class' => 'w-full border-none bg-transparent px-2 py-1 text-base leading-6 text-rt-text placeholder:text-rt-soft focus:border-transparent focus:ring-0 sm:text-sm sm:leading-5 dark:text-rt-dark-text dark:placeholder:text-rt-dark-soft']) }}
             :class="(focused || value.length > 0) ? 'w-full' : 'hidden'"
         />
         <!-- Clear Button -->
