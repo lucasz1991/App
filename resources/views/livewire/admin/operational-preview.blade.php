@@ -31,6 +31,7 @@
     :eyebrow="__('app.operations_preview')"
     :description="$moduleData['description']"
     class="rt-operational-page !space-y-4 !py-4 lg:!py-5"
+    data-operational-module="{{ $moduleData['slug'] }}"
 >
     <x-slot:actions>
         <span class="rt-operational-demo-badge inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
@@ -63,13 +64,13 @@
                             <p class="mt-1 text-4xl font-semibold tracking-[-0.045em] tabular-nums text-rt-text dark:text-white">{{ $moduleData['metric'] }}</p>
                         </div>
                     </div>
-                    <span class="rt-operational-tone inline-flex rounded-lg border px-2.5 py-1.5 text-xs font-semibold {{ $tone['soft'] }}">{{ $moduleData['badge'] }}</span>
+                    <span class="rt-operational-tone inline-flex rounded-lg border px-2.5 py-1.5 text-xs font-semibold {{ $tone['soft'] }}" data-operational-tone="{{ $moduleData['tone'] }}">{{ $moduleData['badge'] }}</span>
                 </div>
             </header>
 
             <dl class="rt-operational-stats grid gap-px bg-slate-200 sm:grid-cols-3 dark:bg-slate-700" aria-label="{{ __('app.preview_summary') }}">
                 @foreach ($moduleData['stats'] as $stat)
-                    <div class="rt-operational-stat bg-white px-5 py-4 dark:bg-[#111827]">
+                    <div class="rt-operational-stat bg-rt-surface px-5 py-4 dark:bg-[#111827]" data-operational-stat>
                         <dt class="text-[10px] font-semibold uppercase tracking-[0.12em] text-rt-soft dark:text-rt-dark-soft">{{ $stat['label'] }}</dt>
                         <dd class="mt-2 text-2xl font-semibold tabular-nums text-rt-text dark:text-white">{{ $stat['value'] }}</dd>
                         <p class="mt-1 truncate text-xs text-rt-muted dark:text-rt-dark-muted" title="{{ $stat['detail'] }}">{{ $stat['detail'] }}</p>
@@ -85,7 +86,7 @@
 
                 <div class="rt-operational-list mt-4 divide-y divide-slate-200 dark:divide-slate-700">
                     @foreach ($moduleData['items'] as $item)
-                        <div class="grid gap-3 py-4 sm:grid-cols-[5rem_minmax(0,1fr)_auto] sm:items-center">
+                        <div class="grid gap-3 py-4 sm:grid-cols-[5rem_minmax(0,1fr)_auto] sm:items-center" data-operational-item>
                             <span class="text-xs font-semibold tabular-nums text-rt-red dark:text-rt-red-light">{{ $item['eyebrow'] }}</span>
                             <div class="min-w-0">
                                 <p class="truncate text-sm font-semibold text-rt-text dark:text-white" title="{{ $item['title'] }}">{{ $item['title'] }}</p>
@@ -108,14 +109,15 @@
                     <a
                         href="{{ route('admin.operations.preview', ['module' => $previewModule['slug']]) }}"
                         wire:navigate
+                        data-operational-nav-link
                         @class([
                             'rt-operational-nav-link group flex items-center gap-3 rounded-xl border px-3 py-3 text-sm font-semibold transition duration-200',
                             'rt-operational-nav-link-active border-rt-red bg-rose-50 text-rt-red dark:bg-rose-950 dark:text-rose-200' => $previewModule['slug'] === $moduleData['slug'],
-                            'border-slate-200 bg-slate-50 text-rt-text hover:border-slate-300 hover:bg-white dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:border-slate-600 dark:hover:bg-slate-700' => $previewModule['slug'] !== $moduleData['slug'],
+                            'border-slate-200 bg-slate-50 text-rt-text hover:border-slate-300 hover:bg-rt-surface dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:border-slate-600 dark:hover:bg-slate-700' => $previewModule['slug'] !== $moduleData['slug'],
                         ])
                         @if ($previewModule['slug'] === $moduleData['slug']) aria-current="page" @endif
                     >
-                        <span class="rt-operational-nav-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-current/20 bg-white/70 dark:bg-slate-900/60">
+                        <span class="rt-operational-nav-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-current/20 bg-rt-surface/70 dark:bg-slate-900/60">
                             <i data-feather="{{ $previewModule['icon'] }}" class="h-4 w-4"></i>
                         </span>
                         <span class="min-w-0 flex-1 truncate">{{ $previewModule['title'] }}</span>

@@ -528,6 +528,20 @@ body[data-mode="dark"] .rt-toast__message { color: #a9b6c9; }
     border-color: #64748b;
 }
 
+html.dark [data-admin-dashboard] .rt-admin-hero-secondary,
+body[data-mode="dark"] [data-admin-dashboard] .rt-admin-hero-secondary {
+    color: #e7edf7 !important;
+    background-color: #172033 !important;
+    border-color: #475569 !important;
+}
+
+html.dark [data-admin-dashboard] .rt-admin-hero-secondary:hover,
+body[data-mode="dark"] [data-admin-dashboard] .rt-admin-hero-secondary:hover {
+    color: #ffffff !important;
+    background-color: #263653 !important;
+    border-color: #64748b !important;
+}
+
 .dark .rt-admin-hero-copy {
     color: #a9b6c9;
 }
@@ -726,6 +740,90 @@ body[data-mode="dark"] [data-admin-dashboard] .rt-admin-quick-link:hover {
 
 .dark .rt-operational-nav-icon {
     background: #0f172a;
+}
+
+/* The legacy vendor bundle still contains utility declarations with
+   !important. These late, component-scoped rules make every operational
+   preview surface obey both theme signals used by the master layout. */
+html.dark .rt-operational-page .rt-admin-panel,
+body[data-mode="dark"] .rt-operational-page .rt-admin-panel {
+    color: #e7edf7 !important;
+    background-color: #111827 !important;
+    border-color: #334155 !important;
+}
+
+html.dark .rt-operational-page .rt-operational-demo-badge,
+html.dark .rt-operational-page .rt-operational-notice,
+body[data-mode="dark"] .rt-operational-page .rt-operational-demo-badge,
+body[data-mode="dark"] .rt-operational-page .rt-operational-notice {
+    color: #fde68a !important;
+    background-color: #2a200d !important;
+    border-color: #92400e !important;
+}
+
+html.dark .rt-operational-page .rt-operational-header,
+body[data-mode="dark"] .rt-operational-page .rt-operational-header {
+    background-color: #0f172a !important;
+    border-color: #273449 !important;
+}
+
+html.dark .rt-operational-page .rt-operational-tone,
+body[data-mode="dark"] .rt-operational-page .rt-operational-tone {
+    color: #e7edf7 !important;
+    background-color: #1e293b !important;
+    border-color: #475569 !important;
+}
+
+html.dark .rt-operational-page .rt-operational-stats,
+body[data-mode="dark"] .rt-operational-page .rt-operational-stats {
+    background-color: #273449 !important;
+}
+
+html.dark .rt-operational-page .rt-operational-stat,
+body[data-mode="dark"] .rt-operational-page .rt-operational-stat {
+    color: #e7edf7 !important;
+    background-color: #172033 !important;
+}
+
+html.dark .rt-operational-page .rt-operational-list > :not([hidden]) ~ :not([hidden]),
+body[data-mode="dark"] .rt-operational-page .rt-operational-list > :not([hidden]) ~ :not([hidden]) {
+    border-color: #273449 !important;
+}
+
+html.dark .rt-operational-page .rt-operational-item-status,
+html.dark .rt-operational-page .rt-operational-schema,
+body[data-mode="dark"] .rt-operational-page .rt-operational-item-status,
+body[data-mode="dark"] .rt-operational-page .rt-operational-schema {
+    color: #cbd5e1 !important;
+    background-color: #172033 !important;
+    border-color: #334155 !important;
+}
+
+html.dark .rt-operational-page .rt-operational-nav-link,
+body[data-mode="dark"] .rt-operational-page .rt-operational-nav-link {
+    color: #e7edf7 !important;
+    background-color: #172033 !important;
+    border-color: #334155 !important;
+}
+
+html.dark .rt-operational-page .rt-operational-nav-link:hover,
+body[data-mode="dark"] .rt-operational-page .rt-operational-nav-link:hover {
+    background-color: #1e293b !important;
+    border-color: #475569 !important;
+}
+
+html.dark .rt-operational-page .rt-operational-nav-link-active,
+html.dark .rt-operational-page .rt-operational-nav-link-active:hover,
+body[data-mode="dark"] .rt-operational-page .rt-operational-nav-link-active,
+body[data-mode="dark"] .rt-operational-page .rt-operational-nav-link-active:hover {
+    color: #ff8295 !important;
+    background-color: #31141e !important;
+    border-color: #e4002b !important;
+}
+
+html.dark .rt-operational-page .rt-operational-nav-icon,
+body[data-mode="dark"] .rt-operational-page .rt-operational-nav-icon {
+    background-color: #0f172a !important;
 }
 
 .rt-admin-panel-accent,

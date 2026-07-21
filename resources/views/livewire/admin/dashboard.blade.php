@@ -64,7 +64,7 @@
                             </a>
                         @endcan
                         @can('manage.messages')
-                            <a href="{{ route('admin.messages') }}" wire:navigate class="rt-admin-hero-secondary inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-rt-xs transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:border-slate-400 hover:bg-slate-50 active:translate-y-0 focus:outline-none focus:ring-2 focus:ring-rt-red/30 dark:border-slate-500 dark:bg-slate-800 dark:text-white dark:hover:border-slate-300 dark:hover:bg-slate-700">
+                            <a href="{{ route('admin.messages') }}" wire:navigate data-dashboard-hero-secondary class="rt-ui-button rt-ui-button-secondary rt-admin-hero-secondary inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-rt-surface px-3 py-2 text-xs font-semibold text-slate-800 shadow-rt-xs transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:border-slate-400 hover:bg-slate-50 active:translate-y-0 focus:outline-none focus:ring-2 focus:ring-rt-red/30 dark:border-slate-500 dark:bg-slate-800 dark:text-white dark:hover:border-slate-300 dark:hover:bg-slate-700">
                                 <i data-feather="message-square" class="h-4 w-4"></i>
                                 {{ __('app.messages') }}
                             </a>
@@ -202,7 +202,7 @@
                 <div>
                     <div class="flex flex-wrap items-center gap-2.5">
                         <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.operations') }}</p>
-                        <span class="inline-flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-amber-700 dark:border-amber-700 dark:bg-amber-900 dark:text-amber-200">
+                        <span class="rt-admin-demo-badge inline-flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-amber-700 dark:border-amber-700 dark:bg-amber-900 dark:text-amber-200">
                             <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
                             {{ __('app.demo_preview') }}
                         </span>
@@ -224,7 +224,7 @@
                         class="rt-admin-operations-card group min-w-0 bg-white px-4 py-3.5 transition duration-200 hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700"
                     >
                         <div class="flex items-start justify-between gap-3">
-                            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border {{ $previewToneClasses[$previewModule['tone']] ?? $previewToneClasses['red'] }}">
+                            <span class="rt-admin-preview-tone flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border {{ $previewToneClasses[$previewModule['tone']] ?? $previewToneClasses['red'] }}" data-preview-tone="{{ $previewModule['tone'] }}">
                                 <i data-feather="{{ $previewModule['icon'] }}" class="h-4 w-4"></i>
                             </span>
                             <i data-feather="arrow-up-right" class="h-4 w-4 text-slate-400 transition duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-rt-red"></i>
