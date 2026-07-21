@@ -4,12 +4,12 @@
     </x-slot>
 
     <x-slot name="description">
-        {{ __('Verwalte und melde dich von deinen aktiven Sitzungen in anderen Browsern und Geräten ab.') }}
+        {{ __('Verwalten und beenden Sie Ihre aktiven Sitzungen in anderen Browsern und auf anderen Geräten.') }}
     </x-slot>
 
     <x-slot name="content">
         <div class="max-w-xl text-sm text-rt-muted dark:text-rt-dark-muted">
-            {{ __('Falls erforderlich, kannst du dich von allen deinen anderen Browsersitzungen auf allen Geräten abmelden. Einige deiner letzten Sitzungen sind unten aufgeführt; diese Liste ist jedoch möglicherweise nicht vollständig. Wenn du glaubst, dass dein Konto kompromittiert wurde, solltest du auch dein Passwort ändern.') }}
+            {{ __('Falls erforderlich, können Sie alle anderen Browsersitzungen auf allen Geräten beenden. Einige Ihrer letzten Sitzungen sind unten aufgeführt; diese Liste ist möglicherweise nicht vollständig. Wenn Sie vermuten, dass Ihr Konto kompromittiert wurde, sollten Sie auch Ihr Passwort ändern.') }}
         </div>
 
         @if (count($this->sessions) > 0)
@@ -68,7 +68,7 @@
             </x-slot>
 
             <x-slot name="content">
-                {{ __('Bitte gib dein Passwort ein, um zu bestätigen, dass du dich von deinen anderen Browsersitzungen auf allen Geräten abmelden möchtest.') }}
+                {{ __('Bitte geben Sie Ihr Passwort ein, um das Beenden Ihrer anderen Browsersitzungen auf allen Geräten zu bestätigen.') }}
 
                 <div class="mt-4" x-data="{}" x-on:confirming-logout-other-browser-sessions.window="setTimeout(() => $refs.password.focus(), 250)">
                     <x-ui.forms.input type="password" class="mt-1 block w-3/4"

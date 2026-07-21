@@ -4,7 +4,7 @@
     </x-slot>
 
     <x-slot name="description">
-        {{ __('Aktualisiere die Profilinformationen und die E-Mail-Adresse deines Kontos.') }}
+        {{ __('Aktualisieren Sie die Profilinformationen und die E-Mail-Adresse Ihres Kontos.') }}
     </x-slot>
 
     <x-slot name="form">
@@ -107,7 +107,7 @@
 
             @if (Laravel\Fortify\Features::enabled(Laravel\Fortify\Features::emailVerification()) && ! $this->user->hasVerifiedEmail())
                 <p class="mt-2 text-sm text-rt-muted dark:text-rt-dark-muted">
-                    {{ __('Deine E-Mail-Adresse ist nicht verifiziert.') }}
+                    {{ __('Ihre E-Mail-Adresse ist nicht verifiziert.') }}
 
                     <button type="button" class="rounded-md text-sm text-rt-accent underline transition hover:text-rt-text focus:outline-none focus:ring-2 focus:ring-rt-accent/40 dark:text-rt-dark-accent dark:hover:text-rt-dark-text" wire:click.prevent="sendEmailVerification">
                         {{ __('Klicke hier, um die Verifizierungs-E-Mail erneut zu senden.') }}
@@ -116,7 +116,7 @@
 
                 @if ($this->verificationLinkSent)
                     <p class="mt-2 font-medium text-sm text-emerald-600 dark:text-emerald-400">
-                        {{ __('Ein neuer Verifizierungslink wurde an deine E-Mail-Adresse gesendet.') }}
+                        {{ __('Ein neuer Verifizierungslink wurde an Ihre E-Mail-Adresse gesendet.') }}
                     </p>
                 @endif
             @endif

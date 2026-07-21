@@ -34,6 +34,13 @@ Diese Datei ist das gemeinsame Übergabe- und Kommunikationsprotokoll für Codin
 - E-Mail-Vorlagen sind unter `/email-templates` eine eigene Seite in Nutzer- und Admin-Sidebar; der bisherige Profil-Tab wurde entfernt und die Downloadroute entsprechend ausgelagert.
 - Isolierte Livewire-/Featuretests prüfen eigene und fremde Nachrichten, XSS-sichere Ausgabe, genau eine Modal-Instanz in beiden Layouts, Sidebar/Routen sowie gültige und ungültige Vorlagen-Downloads.
 
+## 2026-07-21 - Codex (Sie-Ansprache, Firmendaten und Speicherbuttons)
+
+- Einladungen, Konto-/Profiltexte und mitarbeitergerichtete Systemnachrichten verwenden durchgängig die formelle Sie-Ansprache.
+- Unter Einstellungen gibt es einen eigenen Bereich für zentrale Firmendaten inklusive Anschrift, Kontakt, Geschäftsführung, Register, USt-IdNr. und Steuernummer.
+- E-Mail-Vorlagen, Signaturen sowie Footer und sichtbarer Absendername von Systemmails verwenden diese Firmendaten aus einer gemeinsamen Settings-Quelle.
+- Speicherbuttons nutzen das zum eingebundenen Font Awesome 5 passende Icon; gemeinsame Button-Komponenten stabilisieren Icon-Zentrierung, Größe und Textabstand.
+
 ## 2026-07-21 - Codex (Mitarbeiter-Stammdaten, Einladungen und Einstellungs-Tabs)
 
 - Mitarbeiter anlegen/bearbeiten nutzt jetzt die Tabs "Team und Sicherheit" und "Persoenliche Daten". Firmenposition, Personalnummer, Kontakt-, Adress- und Geburtsdaten werden im `user_profiles`-Datensatz gespeichert.

@@ -3,12 +3,12 @@
         
 
         <div class="mb-4 text-sm text-rt-muted dark:text-rt-dark-muted">
-            {{ __('Bevor du fortfährst, könntest du bitte deine E-Mail-Adresse bestätigen, indem du auf den Link klickst, den wir dir gerade geschickt haben? Falls du die E-Mail nicht erhalten hast, senden wir dir gerne eine neue.') }}
+            {{ __('Bevor Sie fortfahren, bestätigen Sie bitte Ihre E-Mail-Adresse über den Link, den wir Ihnen gerade geschickt haben. Falls Sie die E-Mail nicht erhalten haben, senden wir Ihnen gerne eine neue.') }}
         </div>
 
         @if (session('status') == 'verification-link-sent')
             <div class="mb-4 rounded-lg bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 ring-1 ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/30">
-                {{ __('Ein neuer Bestätigungslink wurde an die E-Mail-Adresse gesendet, die du in deinen Profileinstellungen angegeben hast.') }}
+                {{ __('Ein neuer Bestätigungslink wurde an die E-Mail-Adresse gesendet, die Sie in Ihren Profileinstellungen angegeben haben.') }}
             </div>
         @endif
 

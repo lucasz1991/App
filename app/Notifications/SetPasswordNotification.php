@@ -2,14 +2,16 @@
 
 namespace App\Notifications;
 
-use Illuminate\Notifications\Notification;
+use App\Support\CompanyData;
 use Illuminate\Notifications\Messages\MailMessage;
-use Illuminate\Support\Facades\URL;
+use Illuminate\Notifications\Notification;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\URL;
 
 class SetPasswordNotification extends Notification
 {
     protected $user;
+
     protected $token;
 
     public function __construct($user, $token)
@@ -25,15 +27,17 @@ class SetPasswordNotification extends Notification
 
     public function toMail($notifiable)
     {
+        $company = CompanyData::all();
+
         return (new MailMessage)
-            ->subject('Herzlich willkommen bei CBW Schulnetz! Setze dein Passwort')
-            ->greeting('Hallo ' . $this->user->name . '!')
-            ->line('Um dein Konto zu vervollständigen, setze bitte ein Passwort.')
+            ->from(config('mail.from.address'), $company['name'])
+            ->subject('Herzlich willkommen bei '.$company['name'].' – richten Sie Ihr Passwort ein')
+            ->greeting('Guten Tag '.$this->user->name.',')
+            ->line('Um Ihr Konto zu vervollständigen, richten Sie bitte ein Passwort ein.')
             ->action('Passwort setzen', $this->resetUrl($notifiable))
             ->line('Der Link ist 60 Minuten gültig.')
-            ->line('Falls der Link abgelaufen ist oder nicht funktioniert, kannst du jederzeit einen neuen Passwort-Setzen-Link anfordern.')
-            ->salutation('Mit freundlichen Grüßen,')
-            ->salutation('dein CBW Schulnetz Team');
+            ->line('Falls der Link abgelaufen ist oder nicht funktioniert, können Sie jederzeit einen neuen Link zum Setzen Ihres Passworts anfordern.')
+            ->salutation('Mit freundlichen Grüßen, Ihr Team von '.$company['name']);
     }
 
     protected function resetUrl($notifiable)

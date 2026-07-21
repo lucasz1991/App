@@ -25,7 +25,7 @@ class RouteServiceProvider extends ServiceProvider
             return '/login';
         }
 
-        return in_array(Auth::user()->role, ['admin', 'staff'], true)
+        return Auth::user()->isAdmin()
             ? '/administrator'
             : '/dashboard';
     }

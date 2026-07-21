@@ -74,6 +74,63 @@ class User extends Authenticatable
     }
 
     /**
+     * Das fuer die Dashboard-Auswahl massgebliche fachliche Team.
+     * Bei mehreren alten/uneindeutigen Zuordnungen wird bewusst kein
+     * Management-Team geraten, damit keine Systemdaten versehentlich
+     * freigegeben werden.
+     */
+    public function dashboardTeam(): ?Team
+    {
+        $recognizedNames = [
+            'Administratoren',
+            'Administrator',
+            'Administration',
+            'Verwaltung',
+            'Mitarbeiter',
+            'Gäste',
+            'Gaeste',
+            'Gast',
+        ];
+
+        $currentTeam = $this->currentTeam;
+
+        if ($currentTeam && ! $currentTeam->personal_team && in_array($currentTeam->name, $recognizedNames, true)) {
+            return $currentTeam;
+        }
+
+        $recognizedTeams = $this->teams()
+            ->where('personal_team', false)
+            ->whereIn('teams.name', $recognizedNames)
+            ->get();
+
+        return $recognizedTeams->count() === 1 ? $recognizedTeams->first() : null;
+    }
+
+    /**
+     * Liefert den fachlichen Dashboard-Typ unabhaengig von der technischen
+     * globalen Rolle. Nur die globale Admin-Rolle verwendet /administrator.
+     */
+    public function dashboardAudience(): string
+    {
+        if ($this->isAdmin()) {
+            return 'admin';
+        }
+
+        return match ($this->dashboardTeam()?->name) {
+            'Administratoren', 'Administrator', 'Administration' => 'administration',
+            'Verwaltung' => 'management',
+            'Gäste', 'Gaeste', 'Gast' => 'guest',
+            'Mitarbeiter' => 'employee',
+            default => $this->role === 'staff' ? 'employee' : 'guest',
+        };
+    }
+
+    public function canViewSystemDashboard(): bool
+    {
+        return in_array($this->dashboardAudience(), ['admin', 'administration', 'management'], true);
+    }
+
+    /**
      * Benutzer #1 ist der Super-Admin: erscheint nicht in der
      * Mitarbeiterliste und wird nicht im Activity-Log erfasst.
      */
@@ -233,22 +290,10 @@ class User extends Authenticatable
             ->withTimestamps();
     }
 
-    /**
-     * Entscheidet, ob der Benutzer das Admin-Layout (und den /administrator-
-     * Bereich) nutzt: globale Rolle admin/staff ODER Mitgliedschaft in den
-     * Teams "Administrator"/"Verwaltung". Mitglieder von "Mitarbeiter"/"Gast"
-     * (ohne Admin-Team) bleiben im Nutzer-Layout.
-     */
+    /** Nur die globale Admin-Rolle nutzt Layout und URL /administrator. */
     public function usesAdminLayout(): bool
     {
-        if (in_array($this->role, ['admin', 'staff'], true)) {
-            return true;
-        }
-
-        return $this->teams()
-            ->where('personal_team', false)
-            ->whereIn('teams.name', ['Administrator', 'Verwaltung'])
-            ->exists();
+        return $this->isAdmin();
     }
 
     /**

@@ -2,15 +2,16 @@
 
 namespace App\Notifications;
 
-use Illuminate\Notifications\Notification;
+use App\Support\CompanyData;
 use Illuminate\Notifications\Messages\MailMessage;
-use Illuminate\Support\Facades\Lang;
-use Illuminate\Support\Facades\URL;
+use Illuminate\Notifications\Notification;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\URL;
 
 class CustomResetPasswordNotification extends Notification
 {
     protected $user;
+
     protected $token;
 
     public function __construct($user, $token)
@@ -26,13 +27,16 @@ class CustomResetPasswordNotification extends Notification
 
     public function toMail($notifiable)
     {
+        $company = CompanyData::all();
+
         return (new MailMessage)
+            ->from(config('mail.from.address'), $company['name'])
             ->subject('Passwort zurücksetzen')
-            ->greeting('Hallo ' . $this->user->name . '!')
-            ->line('Du hast eine Anfrage gestellt, dein Passwort zurückzusetzen.')
+            ->greeting('Guten Tag '.$this->user->name.',')
+            ->line('Sie haben angefordert, Ihr Passwort zurückzusetzen.')
             ->action('Passwort zurücksetzen', $this->resetUrl($notifiable))
             ->line('Der Link ist 60 Minuten gültig.')
-            ->salutation('Mit freundlichen Grüßen, CBW Schulnetz Team');
+            ->salutation('Mit freundlichen Grüßen, Ihr Team von '.$company['name']);
     }
 
     protected function resetUrl($notifiable)
@@ -44,4 +48,3 @@ class CustomResetPasswordNotification extends Notification
         );
     }
 }
-

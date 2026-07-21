@@ -70,7 +70,7 @@ class InvitedRegistrationController extends Controller
         Auth::login($user);
         $request->session()->regenerate();
 
-        return in_array($user->role, ['admin', 'staff'], true)
+        return $user->isAdmin()
             ? redirect()->route('admin.dashboard')
             : redirect()->route('dashboard');
     }

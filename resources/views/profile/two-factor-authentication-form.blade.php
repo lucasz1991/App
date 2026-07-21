@@ -4,7 +4,7 @@
     </x-slot>
 
     <x-slot name="description">
-        {{ __('Füge zusätzliche Sicherheit zu deinem Konto hinzu, indem du die Zwei-Faktor-Authentifizierung verwendest.') }}
+        {{ __('Schützen Sie Ihr Konto zusätzlich mit der Zwei-Faktor-Authentifizierung.') }}
     </x-slot>
 
     <x-slot name="content">
@@ -13,16 +13,16 @@
                 @if ($showingConfirmation)
                     {{ __('Beende das Aktivieren der Zwei-Faktor-Authentifizierung.') }}
                 @else
-                    {{ __('Du hast die Zwei-Faktor-Authentifizierung aktiviert.') }}
+                    {{ __('Sie haben die Zwei-Faktor-Authentifizierung aktiviert.') }}
                 @endif
             @else
-                {{ __('Du hast die Zwei-Faktor-Authentifizierung nicht aktiviert.') }}
+                {{ __('Sie haben die Zwei-Faktor-Authentifizierung nicht aktiviert.') }}
             @endif
         </h3>
 
         <div class="mt-3 max-w-xl text-sm text-rt-muted dark:text-rt-dark-muted">
             <p>
-                {{ __('Wenn die Zwei-Faktor-Authentifizierung aktiviert ist, wirst du bei der Anmeldung nach einem sicheren, zufälligen Token gefragt. Du kannst dieses Token mit der Google Authenticator-App auf deinem Telefon abrufen.') }}
+                {{ __('Wenn die Zwei-Faktor-Authentifizierung aktiviert ist, werden Sie bei der Anmeldung nach einem sicheren Token gefragt. Sie können dieses Token mit der Google Authenticator-App auf Ihrem Telefon abrufen.') }}
             </p>
         </div>
 
@@ -31,9 +31,9 @@
                 <div class="mt-4 max-w-xl text-sm text-rt-muted dark:text-rt-dark-muted">
                     <p class="font-semibold">
                         @if ($showingConfirmation)
-                            {{ __('Um die Zwei-Faktor-Authentifizierung abzuschließen, scanne den folgenden QR-Code mit der Authenticator-App auf deinem Telefon oder gib den Setup-Schlüssel ein und sende den generierten OTP-Code.') }}
+                            {{ __('Um die Zwei-Faktor-Authentifizierung abzuschließen, scannen Sie den folgenden QR-Code mit der Authenticator-App auf Ihrem Telefon oder geben Sie den Setup-Schlüssel und anschließend den generierten OTP-Code ein.') }}
                         @else
-                            {{ __('Die Zwei-Faktor-Authentifizierung ist jetzt aktiviert. Scanne den folgenden QR-Code mit der Authenticator-App auf deinem Telefon oder gib den Setup-Schlüssel ein.') }}
+                            {{ __('Die Zwei-Faktor-Authentifizierung ist jetzt aktiviert. Scannen Sie den folgenden QR-Code mit der Authenticator-App auf Ihrem Telefon oder geben Sie den Setup-Schlüssel ein.') }}
                         @endif
                     </p>
                 </div>
@@ -64,7 +64,7 @@
             @if ($showingRecoveryCodes)
                 <div class="mt-4 max-w-xl text-sm text-rt-muted dark:text-rt-dark-muted">
                     <p class="font-semibold">
-                        {{ __('Speichere diese Wiederherstellungscodes in einem sicheren Passwort-Manager. Sie können verwendet werden, um den Zugriff auf dein Konto wiederherzustellen, falls dein Zwei-Faktor-Authentifizierungsgerät verloren geht.') }}
+                        {{ __('Speichern Sie diese Wiederherstellungscodes in einem sicheren Passwort-Manager. Damit können Sie den Zugriff auf Ihr Konto wiederherstellen, falls Ihr Zwei-Faktor-Authentifizierungsgerät verloren geht.') }}
                     </p>
                 </div>
 

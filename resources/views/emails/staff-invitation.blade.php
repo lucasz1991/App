@@ -6,6 +6,7 @@
     <title>{{ __('app.invitation_to', ['app' => config('app.name')]) }}</title>
 </head>
 <body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;">
+    @php($company = \App\Support\CompanyData::all())
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 12px;">
         <tr>
             <td align="center">
@@ -44,11 +45,11 @@
                     </tr>
                     <tr>
                         <td style="padding:22px 32px;background:#080b10;border-top:5px solid #e4002b;text-align:center;">
-                            <a href="{{ config('app.url') }}" style="display:inline-block;margin-bottom:14px;">
-                                <img src="{{ asset('rt-brand/img/logo-mail-dark.png') }}" alt="{{ config('app.name') }}" width="200" style="display:block;width:200px;max-width:100%;height:auto;border:0;">
+                            <a href="{{ $company['website'] ?: config('app.url') }}" style="display:inline-block;margin-bottom:14px;">
+                                <img src="{{ asset('rt-brand/img/logo-mail-dark.png') }}" alt="{{ $company['name'] }}" width="200" style="display:block;width:200px;max-width:100%;height:auto;border:0;">
                             </a>
                             <p style="margin:0;font-size:11px;color:#94a3b8;">
-                                {{ config('app.name') }} v{{ config('app.version') }} &middot; RT Rail Time GmbH
+                                {{ $company['name'] }} &middot; {{ \App\Support\CompanyData::addressLine($company) }}
                             </p>
                         </td>
                     </tr>

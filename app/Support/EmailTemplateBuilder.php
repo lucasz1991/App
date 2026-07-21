@@ -11,14 +11,11 @@ use Illuminate\Support\Str;
  *
  * Name, Funktion und Kontaktdaten des Benutzers werden fest eingesetzt;
  * inhaltliche Platzhalter ({{BETREFF}}, {{NACHRICHT}}, …) sowie die
- * rechtlichen Pflichtangaben ({{GESCHAEFTSFUEHRUNG}}, {{HRB}}, …) bleiben
- * bewusst als Platzhalter stehen — sie duerfen nicht erfunden werden.
+ * zentralen Firmendaten werden aus den Administrationseinstellungen bezogen.
  */
 class EmailTemplateBuilder
 {
-    public function __construct(protected User $user)
-    {
-    }
+    public function __construct(protected User $user) {}
 
     /**
      * Verfuegbare Downloads: key => [label-/hint-Sprachschluessel, Endung].
@@ -102,7 +99,7 @@ class EmailTemplateBuilder
     {
         $profile = $this->user->profile;
 
-        return [
+        return array_merge(CompanyData::templateValues(), [
             'VORNAME_NACHNAME' => $this->user->name,
             'POSITION' => $profile?->position ?: $this->fallbackPosition(),
             'DURCHWAHL' => (string) ($profile?->phone ?? ''),
@@ -110,7 +107,7 @@ class EmailTemplateBuilder
             'MOBIL' => (string) ($profile?->mobile ?? ''),
             'MOBIL_TEL' => $this->telHref($profile?->mobile),
             'E_MAIL' => $this->user->email,
-        ];
+        ]);
     }
 
     /**
@@ -124,7 +121,7 @@ class EmailTemplateBuilder
             ->orderBy('name')
             ->value('teams.name');
 
-        return $teamName ?: 'RT Rail Time GmbH';
+        return $teamName ?: CompanyData::all()['name'];
     }
 
     protected function telHref(?string $number): string
@@ -135,11 +132,11 @@ class EmailTemplateBuilder
         $digits = preg_replace('/[^\d+]/', '', $number) ?? '';
 
         if (str_starts_with($digits, '00')) {
-            return '+' . substr($digits, 2);
+            return '+'.substr($digits, 2);
         }
 
         if (str_starts_with($digits, '0')) {
-            return '+49' . substr($digits, 1);
+            return '+49'.substr($digits, 1);
         }
 
         return $digits;
@@ -147,13 +144,13 @@ class EmailTemplateBuilder
 
     protected function masterPath(string $file): string
     {
-        return resource_path('mail-templates/' . $file);
+        return resource_path('mail-templates/'.$file);
     }
 
     protected function substitute(string $template, array $values): string
     {
         foreach ($values as $key => $value) {
-            $template = str_replace('{{' . $key . '}}', $value, $template);
+            $template = str_replace('{{'.$key.'}}', $value, $template);
         }
 
         return $template;
@@ -193,7 +190,7 @@ class EmailTemplateBuilder
 
     protected function inlineImage(string $asset, string $mime): string
     {
-        return "data:{$mime};base64," . base64_encode(file_get_contents($this->masterPath('assets/' . $asset)));
+        return "data:{$mime};base64,".base64_encode(file_get_contents($this->masterPath('assets/'.$asset)));
     }
 
     protected function buildEmailHtml(bool $inlineImages): string
@@ -234,7 +231,7 @@ class EmailTemplateBuilder
             $values['DURCHWAHL'] !== '' ? "T {$values['DURCHWAHL']}" : null,
             $values['MOBIL'] !== '' ? "M {$values['MOBIL']}" : null,
         ]);
-        $phoneLine = $phoneParts === [] ? '' : implode(' · ', $phoneParts) . "\n";
+        $phoneLine = $phoneParts === [] ? '' : implode(' · ', $phoneParts)."\n";
 
         return <<<TEXT
 {{ANREDE}},
@@ -255,14 +252,14 @@ Freundliche Grüße
 {$values['VORNAME_NACHNAME']}
 {$values['POSITION']}
 
-RT Rail Time GmbH
-Borsteler Weg 29–31 · 21423 Winsen (Luhe)
+{$values['FIRMENNAME']}
+{$values['FIRMENSTRASSE']} · {$values['FIRMEN_PLZ_ORT']}
 {$phoneLine}E {$values['E_MAIL']}
-Notfalldienst 24/7: 0160 1881848
+Notfalldienst 24/7: {$values['NOTFALLNUMMER']}
 
-Geschäftsführung: {{GESCHAEFTSFUEHRUNG}}
-Registergericht: {{REGISTERGERICHT}} · HRB {{HRB}}
-USt-IdNr.: {{UST_ID}}
+Geschäftsführung: {$values['GESCHAEFTSFUEHRUNG']}
+Registergericht: {$values['REGISTERGERICHT']} · HRB {$values['HRB']}
+USt-IdNr.: {$values['UST_ID']} · Steuernummer: {$values['STEUERNUMMER']}
 TEXT;
     }
 
@@ -279,17 +276,17 @@ TEXT;
 {$values['VORNAME_NACHNAME']}
 {$values['POSITION']}
 
-RT Rail Time GmbH
-Borsteler Weg 29–31
-21423 Winsen (Luhe)
+{$values['FIRMENNAME']}
+{$values['FIRMENSTRASSE']}
+{$values['FIRMEN_PLZ_ORT']}
 
 {$contactLines}E {$values['E_MAIL']}
-Notfalldienst 24/7: 0160 1881848
-Zentrale E-Mail: kontakt@rail-time.de
+Notfalldienst 24/7: {$values['NOTFALLNUMMER']}
+Zentrale E-Mail: {$values['FIRMEN_EMAIL']}
 
-Geschäftsführung: {{GESCHAEFTSFUEHRUNG}}
-Registergericht: {{REGISTERGERICHT}} · HRB {{HRB}}
-USt-IdNr.: {{UST_ID}}
+Geschäftsführung: {$values['GESCHAEFTSFUEHRUNG']}
+Registergericht: {$values['REGISTERGERICHT']} · HRB {$values['HRB']}
+USt-IdNr.: {$values['UST_ID']} · Steuernummer: {$values['STEUERNUMMER']}
 TEXT;
     }
 
@@ -300,8 +297,8 @@ TEXT;
     protected function buildEml(): string
     {
         $values = $this->profileValues();
-        $altBoundary = '=_rt_alt_' . Str::random(24);
-        $relBoundary = '=_rt_rel_' . Str::random(24);
+        $altBoundary = '=_rt_alt_'.Str::random(24);
+        $relBoundary = '=_rt_rel_'.Str::random(24);
 
         // Anzeigename RFC-5322-konform aufbereiten: Zeilenumbrueche duerfen
         // nie in einen Header gelangen; Nicht-ASCII wird RFC-2047-kodiert,
@@ -310,7 +307,7 @@ TEXT;
         if (! mb_check_encoding($fromName, 'ASCII')) {
             $fromName = mb_encode_mimeheader($fromName, 'UTF-8', 'B');
         } elseif (! preg_match('/^[A-Za-z0-9 ._-]+$/', $fromName)) {
-            $fromName = '"' . addcslashes($fromName, '\\"') . '"';
+            $fromName = '"'.addcslashes($fromName, '\\"').'"';
         }
 
         $plain = chunk_split(base64_encode($this->buildPlainBody()), 76, "\r\n");
@@ -320,7 +317,7 @@ TEXT;
 
         $lines = [
             'MIME-Version: 1.0',
-            'Subject: {{BETREFF}} | RT Rail Time GmbH',
+            "Subject: {{BETREFF}} | {$values['FIRMENNAME']}",
             "From: {$fromName} <{$values['E_MAIL']}>",
             'To: {{EMPFAENGER_E_MAIL}}',
             'X-Unsent: 1',

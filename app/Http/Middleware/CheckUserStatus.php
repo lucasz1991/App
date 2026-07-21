@@ -19,12 +19,12 @@ class CheckUserStatus
 
             // Prüfe das status-Feld (0 oder false = inaktiv)
             if (empty($user->status) || $user->status == false || $user->status == 0) {
-                    request()->session()->invalidate();
-                    request()->session()->regenerateToken();
-            Auth::guard('web')->logout();
+                request()->session()->invalidate();
+                request()->session()->regenerateToken();
+                Auth::guard('web')->logout();
 
                 return redirect()->route('login')
-                    ->withErrors(['status' => 'Dein Konto ist inaktiv. Bitte wende dich an die Administration.']);
+                    ->withErrors(['status' => 'Ihr Konto ist inaktiv. Bitte wenden Sie sich an die Administration.']);
             }
         }
 

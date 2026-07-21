@@ -1,6 +1,6 @@
 @php
     // Bereich bestimmt Sidebar/Topbar-Variante: 'admin' oder 'user'.
-    // Ohne expliziten Wert entscheidet Rolle ODER Team (Administrator/Verwaltung).
+    // Ohne expliziten Wert entscheidet ausschliesslich die globale Admin-Rolle.
     $area = $area ?? (auth()->check() && auth()->user()->usesAdminLayout() ? 'admin' : 'user');
 @endphp
 <!DOCTYPE html>

@@ -16,22 +16,22 @@
             </h2>
 
             <p>
-                In dieser Übersicht siehst du alle
+                In dieser Übersicht sehen Sie alle
                 <strong>Berichtshefte</strong>, die geprüft werden müssen –
                 aufgeteilt in offen, in Bearbeitung und abgeschlossen.
             </p>
 
             <p class="mt-2">
-                Um Doppelprüfungen zu vermeiden, musst du ein Berichtsheft
-                zunächst <strong>übernehmen</strong>. Erst danach ist es dir
+                Um Doppelprüfungen zu vermeiden, müssen Sie ein Berichtsheft
+                zunächst <strong>übernehmen</strong>. Erst danach ist es Ihnen
                 exklusiv zugeordnet.
             </p>
 
             <p class="mt-2">
-                Im Detail-Dialog kannst du das
+                Im Detail-Dialog können Sie das
                 <strong>Berichtsheft vollständig einsehen</strong>,
                 die Einträge prüfen und die Kontrolle abschließen.
-                Nach erfolgreicher Prüfung markierst du das Berichtsheft als
+                Nach erfolgreicher Prüfung markieren Sie das Berichtsheft als
                 <strong>abgeschlossen</strong>.
             </p>
 

@@ -121,12 +121,12 @@
 
     <x-slot name="footer">
         <x-ui.buttons.button-basic wire:click="close" class="mr-2" size="sm">
-            <i class="far fa-times mr-2"></i>
+            <i class="far fa-times"></i>
             {{ __('app.close') }}
         </x-ui.buttons.button-basic>
         <x-ui.buttons.button-basic wire:click="save" wire:loading.attr="disabled" size="sm">
-            <i class="fal fa-save mr-2" wire:loading.remove wire:target="save"></i>
-            <i class="fal fa-spinner fa-spin mr-2 text-rt-red" wire:loading wire:target="save"></i>
+            <i class="fal fa-save" wire:loading.remove wire:target="save"></i>
+            <i class="fal fa-spinner fa-spin text-rt-red" wire:loading wire:target="save"></i>
             {{ __('app.save') }}
         </x-ui.buttons.button-basic>
     </x-slot>

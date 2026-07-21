@@ -74,7 +74,7 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
         ->name('email-templates.download');
 });
 
-Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session'), 'verified', 'role:admin,staff'])
+Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session'), 'verified', 'role:admin'])
     ->prefix('administrator')
     ->name('admin.')
     ->group(function () {

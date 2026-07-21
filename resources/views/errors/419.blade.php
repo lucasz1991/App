@@ -8,10 +8,10 @@
     <div class="pt-3 md:pt-12  antialiased">
         <div class="max-w-3xl mx-auto py-10 sm:px-6 lg:px-8">
             <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-6 rounded-md shadow">
-                <h2 class="text-2xl font-semibold mb-2">Deine Sitzung ist abgelaufen!</h2>
+                <h2 class="text-2xl font-semibold mb-2">Ihre Sitzung ist abgelaufen!</h2>
                 <p class="text-lg">
-                    Aus Sicherheitsgründen wurdest du automatisch abgemeldet, da deine Sitzung abgelaufen ist. 
-                    Bitte melde dich erneut an, um fortzufahren.
+                    Aus Sicherheitsgründen wurden Sie automatisch abgemeldet, da Ihre Sitzung abgelaufen ist.
+                    Bitte melden Sie sich erneut an, um fortzufahren.
                 </p>
                 <div class="mt-4">
                     <a href="{{ url('/login') }}" class="inline-flex items-center justify-center px-5 py-3 text-base font-medium text-center text-gray-900 border border-gray-300 rounded-lg bg-white hover:bg-gray-200 focus:ring-4 focus:ring-gray-100">

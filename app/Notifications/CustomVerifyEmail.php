@@ -2,8 +2,8 @@
 
 namespace App\Notifications;
 
+use App\Support\CompanyData;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Carbon;
@@ -37,15 +37,17 @@ class CustomVerifyEmail extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         $verificationUrl = $this->verificationUrl($notifiable);
-    
+        $company = CompanyData::all();
+
         return (new MailMessage)
-            ->subject('Bestätige deine E-Mail-Adresse')
-            ->greeting('Willkommen bei CBW Schulnetz!')
-            ->line('Vielen Dank, dass du dich bei CBW Schulnetz registriert hast.')
-            ->line('Bitte klicke auf den folgenden Button, um deine E-Mail-Adresse zu bestätigen:')
+            ->from(config('mail.from.address'), $company['name'])
+            ->subject('Bestätigen Sie Ihre E-Mail-Adresse')
+            ->greeting('Willkommen bei '.$company['name'].'!')
+            ->line('Vielen Dank, dass Sie sich registriert haben.')
+            ->line('Bitte klicken Sie auf den folgenden Button, um Ihre E-Mail-Adresse zu bestätigen:')
             ->action('E-Mail bestätigen', $verificationUrl)
-            ->line('Falls du diese Aktion nicht angefordert hast, ignoriere bitte diese Nachricht.')
-            ->salutation('Liebe Grüße, dein CBW Schulnetz Team');
+            ->line('Falls Sie diese Aktion nicht angefordert haben, ignorieren Sie bitte diese Nachricht.')
+            ->salutation('Mit freundlichen Grüßen, Ihr Team von '.$company['name']);
     }
 
     /**
@@ -54,8 +56,8 @@ class CustomVerifyEmail extends Notification
     protected function verificationUrl($notifiable): string
     {
         return URL::temporarySignedRoute(
-            'verification.verify', 
-            Carbon::now()->addMinutes(60), 
+            'verification.verify',
+            Carbon::now()->addMinutes(60),
             ['id' => $notifiable->getKey(), 'hash' => sha1($notifiable->getEmailForVerification())]
         );
     }

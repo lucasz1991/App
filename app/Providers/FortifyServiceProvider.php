@@ -47,11 +47,11 @@ class FortifyServiceProvider extends ServiceProvider
 
             if (! $user->isActive()) {
                 throw ValidationException::withMessages([
-                    Fortify::username() => 'Dein Konto ist inaktiv. Bitte wende dich an die Administration.',
+                    Fortify::username() => 'Ihr Konto ist inaktiv. Bitte wenden Sie sich an die Administration.',
                 ]);
             }
 
-            if ($request->boolean('admin_login') && ! in_array($user->role, ['admin', 'staff'], true)) {
+            if ($request->boolean('admin_login') && ! $user->isAdmin()) {
                 throw ValidationException::withMessages([
                     Fortify::username() => 'Dieser Login ist nur fuer Administratoren freigeschaltet.',
                 ]);

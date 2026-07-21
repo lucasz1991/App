@@ -1,5 +1,5 @@
 @php
-    $area = $area ?? (auth()->check() && in_array(auth()->user()->role, ['admin', 'staff'], true) ? 'admin' : 'user');
+    $area = $area ?? (auth()->check() && auth()->user()->usesAdminLayout() ? 'admin' : 'user');
     $brandHref = $area === 'admin' ? route('admin.dashboard') : route('dashboard');
 @endphp
 <nav class="fixed top-0 left-0 right-0 z-40 flex items-center border-b border-rt-border/60 bg-white/85 text-rt-text shadow-rt-xs backdrop-blur-xl dark:border-rt-dark-border/60 dark:bg-slate-900/85 dark:text-rt-dark-text print:hidden">

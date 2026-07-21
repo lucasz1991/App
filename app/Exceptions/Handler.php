@@ -2,13 +2,13 @@
 
 namespace App\Exceptions;
 
-use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
+use Illuminate\Session\TokenMismatchException;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
-use Illuminate\Session\TokenMismatchException;
 use Throwable;
-use Illuminate\Support\Facades\Log;
 
 class Handler extends ExceptionHandler
 {
@@ -41,7 +41,7 @@ class Handler extends ExceptionHandler
         // 403 Fehler (Keine Berechtigung)
         $this->renderable(function (AuthorizationException $e, $request) {
             return $request->expectsJson()
-                ? response()->json(['message' => 'Du hast keine Berechtigung, auf diese Ressource zuzugreifen.'], 403)
+                ? response()->json(['message' => 'Sie haben keine Berechtigung, auf diese Ressource zuzugreifen.'], 403)
                 : response()->view('errors.403', [], 403);
         });
 

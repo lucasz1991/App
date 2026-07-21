@@ -2,19 +2,19 @@
 
 namespace App\Livewire\Admin\Tasks;
 
-use Livewire\Component;
-use Livewire\Attributes\On;
 use App\Models\AdminTask;
 use App\Models\Mail;
+use App\Models\ReportBook as ReportBookModel;
 use App\Models\Setting;
 use Illuminate\Support\Facades\Auth;
-
+use Livewire\Attributes\On;
 // Falls dein Context wirklich App\Models\ReportBook ist:
-use App\Models\ReportBook as ReportBookModel;
+use Livewire\Component;
 
 class AdminTaskDetail extends Component
 {
     public ?int $taskId = null;
+
     public ?AdminTask $task = null;
 
     public bool $showDetailModal = false;
@@ -24,7 +24,9 @@ class AdminTaskDetail extends Component
 
     // erhÃ¤lt zusÃ¤tzliche Metadaten beim Ã–ffnen
     public array $payload = [];
+
     public array $entryApprovals = [];
+
     public string $rejectionComment = '';
 
     protected $listeners = [
@@ -35,13 +37,15 @@ class AdminTaskDetail extends Component
     {
         if (is_int($payload)) {
             $taskId = $payload;
-            $meta   = [];
+            $meta = [];
         } else {
             $taskId = $payload['taskId'] ?? null;
-            $meta   = $payload;
+            $meta = $payload;
         }
 
-        if (! $taskId) return;
+        if (! $taskId) {
+            return;
+        }
 
         $this->taskId = $taskId;
 
@@ -77,7 +81,9 @@ class AdminTaskDetail extends Component
 
     public function assignToMe(): void
     {
-        if (! $this->taskId) return;
+        if (! $this->taskId) {
+            return;
+        }
 
         $task = AdminTask::findOrFail($this->taskId);
 
@@ -94,15 +100,17 @@ class AdminTaskDetail extends Component
         $this->dispatch('taskAssigned');
 
         $this->dispatch('showAlert', [
-            'type'  => 'success',
+            'type' => 'success',
             'title' => 'Ãœbernommen',
-            'text'  => 'Aufgabe erfolgreich Ã¼bernommen.',
+            'text' => 'Aufgabe erfolgreich Ã¼bernommen.',
         ]);
     }
 
     public function markAsCompleted(): void
     {
-        if (! $this->taskId) return;
+        if (! $this->taskId) {
+            return;
+        }
 
         $task = AdminTask::findOrFail($this->taskId);
 
@@ -119,15 +127,17 @@ class AdminTaskDetail extends Component
         $this->close();
 
         $this->dispatch('showAlert', [
-            'type'  => 'success',
+            'type' => 'success',
             'title' => 'Abgeschlossen',
-            'text'  => 'Aufgabe erfolgreich abgeschlossen.',
+            'text' => 'Aufgabe erfolgreich abgeschlossen.',
         ]);
     }
 
     public function releaseTask(): void
     {
-        if (! $this->taskId) return;
+        if (! $this->taskId) {
+            return;
+        }
 
         $task = AdminTask::findOrFail($this->taskId);
 
@@ -155,9 +165,9 @@ class AdminTaskDetail extends Component
         $this->dispatch('taskAssigned');
 
         $this->dispatch('showAlert', [
-            'type'  => 'success',
+            'type' => 'success',
             'title' => 'ZurÃ¼ckgegeben',
-            'text'  => 'Aufgabe wurde wieder freigegeben.',
+            'text' => 'Aufgabe wurde wieder freigegeben.',
         ]);
     }
 
@@ -170,6 +180,7 @@ class AdminTaskDetail extends Component
      * (bei dir: 2)
      */
     protected int $reviewedStatus = 2;
+
     protected int $rejectedStatus = 3;
 
     /**
@@ -186,22 +197,31 @@ class AdminTaskDetail extends Component
      */
     public function approveReportBook(): void
     {
-        if (! $this->taskId || ! $this->task) return;
+        if (! $this->taskId || ! $this->task) {
+            return;
+        }
 
-        if ($this->task->task_type !== 'reportbook_review') return;
+        if ($this->task->task_type !== 'reportbook_review') {
+            return;
+        }
 
-        if ((int) $this->task->assigned_to !== (int) Auth::id()) return;
+        if ((int) $this->task->assigned_to !== (int) Auth::id()) {
+            return;
+        }
 
         $reportBook = $this->task->context;
 
-        if (! $reportBook) return;
+        if (! $reportBook) {
+            return;
+        }
 
         if ($this->hasRejectedEntries()) {
             $this->dispatch('showAlert', [
-                'type'  => 'warning',
+                'type' => 'warning',
                 'title' => 'Freigabe nicht mÃ¶glich',
-                'text'  => 'Es sind abgelehnte EintrÃ¤ge markiert. Nutze in diesem Fall bitte "Ablehnen".',
+                'text' => 'Es sind abgelehnte EintrÃ¤ge markiert. Nutze in diesem Fall bitte "Ablehnen".',
             ]);
+
             return;
         }
 
@@ -211,6 +231,7 @@ class AdminTaskDetail extends Component
 
             // direkt Kontextansicht zeigen
             $this->viewMode = 'context';
+
             return;
         }
 
@@ -222,18 +243,25 @@ class AdminTaskDetail extends Component
 
     public function rejectReportBook(): void
     {
-        if (! $this->taskId || ! $this->task) return;
-        if ($this->task->task_type !== 'reportbook_review') return;
-        if ((int) $this->task->assigned_to !== (int) Auth::id()) return;
+        if (! $this->taskId || ! $this->task) {
+            return;
+        }
+        if ($this->task->task_type !== 'reportbook_review') {
+            return;
+        }
+        if ((int) $this->task->assigned_to !== (int) Auth::id()) {
+            return;
+        }
 
         $reportBook = $this->task->context;
 
-        if (! $reportBook) return;
+        if (! $reportBook) {
+            return;
+        }
 
         if (! $this->hasRejectedEntries()) {
             return;
         }
-
 
         $this->applyReportBookReview($reportBook);
         $this->sendReportBookRejectionMessage($reportBook);
@@ -252,18 +280,18 @@ class AdminTaskDetail extends Component
     {
         // Kontext-Name fÃ¼r den Dialog
         $courseTitle = data_get($reportBook, 'course.title') ?? 'Kurs';
-        $klasse      = data_get($reportBook, 'course.klassen_id');
+        $klasse = data_get($reportBook, 'course.klassen_id');
 
         $contextName = $klasse ? "{$courseTitle} â€“ {$klasse}" : $courseTitle;
 
         $this->dispatch('openSignatureForm', [
             'fileableType' => ReportBookModel::class,
-            'fileableId'   => (int) $reportBook->id,
-            'fileType'     => 'sign_reportbook_trainer',
-            'label'        => 'Berichtsheft prüfen',
-            'signForName'  => 'Berichtsheft (Ausbilder)',
-            'contextName'  => $contextName,
-            'confirmText'  => "Ich bestätige als <strong>Ausbilder</strong>, dass ich das Berichtsheft<br><strong>({$contextName})</strong><br>geprüft habe und die Angaben vollständig sind.",
+            'fileableId' => (int) $reportBook->id,
+            'fileType' => 'sign_reportbook_trainer',
+            'label' => 'Berichtsheft prüfen',
+            'signForName' => 'Berichtsheft (Ausbilder)',
+            'contextName' => $contextName,
+            'confirmText' => "Ich bestätige als <strong>Ausbilder</strong>, dass ich das Berichtsheft<br><strong>({$contextName})</strong><br>geprüft habe und die Angaben vollständig sind.",
         ]);
     }
 
@@ -275,8 +303,8 @@ class AdminTaskDetail extends Component
     public function handleTrainerSignatureCompleted(array $payload): void
     {
         $fileableType = data_get($payload, 'fileableType');
-        $fileType     = data_get($payload, 'fileType');
-        $fileableId   = (int) data_get($payload, 'fileableId');
+        $fileType = data_get($payload, 'fileType');
+        $fileableId = (int) data_get($payload, 'fileableId');
 
         if (
             $fileableType !== ReportBookModel::class ||
@@ -286,11 +314,17 @@ class AdminTaskDetail extends Component
             return;
         }
 
-        if (! $this->taskId || ! $this->task) return;
+        if (! $this->taskId || ! $this->task) {
+            return;
+        }
 
         // sicherstellen: Task passt + assigned user passt
-        if ($this->task->task_type !== 'reportbook_review') return;
-        if ((int) $this->task->assigned_to !== (int) Auth::id()) return;
+        if ($this->task->task_type !== 'reportbook_review') {
+            return;
+        }
+        if ((int) $this->task->assigned_to !== (int) Auth::id()) {
+            return;
+        }
 
         $reportBook = $this->task->context;
 
@@ -300,10 +334,11 @@ class AdminTaskDetail extends Component
 
         if ($this->hasRejectedEntries()) {
             $this->dispatch('showAlert', [
-                'type'  => 'warning',
+                'type' => 'warning',
                 'title' => 'Freigabe nicht möglich',
-                'text'  => 'Es sind abgelehnte Einträge markiert. Nutze in diesem Fall bitte "Ablehnen".',
+                'text' => 'Es sind abgelehnte Einträge markiert. Nutze in diesem Fall bitte "Ablehnen".',
             ]);
+
             return;
         }
 
@@ -316,7 +351,7 @@ class AdminTaskDetail extends Component
     public function handleTrainerSignatureAborted(array $payload = []): void
     {
         // optional: Info/Toast
-        return;
+
     }
 
     /**
@@ -337,6 +372,7 @@ class AdminTaskDetail extends Component
 
             if ($isApproved) {
                 $approvedEntryIds[] = (int) $entryId;
+
                 continue;
             }
 
@@ -365,7 +401,6 @@ class AdminTaskDetail extends Component
         $this->viewMode = 'context';
         $this->markAsCompleted();
     }
-
 
     protected function initializeEntryApprovals(): void
     {
@@ -407,7 +442,7 @@ class AdminTaskDetail extends Component
             return;
         }
 
-        $courseTitle = data_get($reportBook, 'course.title') ?? 'dein Berichtsheft';
+        $courseTitle = data_get($reportBook, 'course.title') ?? 'Ihr Berichtsheft';
         $courseId = (int) data_get($reportBook, 'course_id');
         $baseUrl = rtrim((string) (Setting::getValue('api', 'base_api_url') ?: config('app.url')), '/');
         $rejectedEntryIds = $this->getRejectedEntryIds();
@@ -426,11 +461,13 @@ class AdminTaskDetail extends Component
 
             if ($courseId > 0 && $dayId > 0) {
                 $entryLines[] = "- {$dateText}: <a href='{$baseUrl}/user/reportbook?course={$courseId}&day={$dayId}' target='_blank'>Berichtsheft ansehen</a><br>";
+
                 continue;
             }
 
             if ($courseId > 0) {
                 $entryLines[] = "- {$dateText}: <a href='{$baseUrl}/user/reportbook?course={$courseId}' target='_blank'>Berichtsheft ansehen</a>";
+
                 continue;
             }
 
@@ -438,29 +475,29 @@ class AdminTaskDetail extends Component
         }
 
         $entriesText = empty($entryLines)
-            ? "- Keine konkreten Einträge gefunden."
+            ? '- Keine konkreten Einträge gefunden.'
             : implode("\n", $entryLines);
 
         $subject = 'Berichtsheft abgelehnt';
-        $body = "Dein Berichtsheft für den Baustein ({$courseTitle}) wurde abgelehnt und muss neu eingereicht werden.<br><br>"
-            . "Abgelehnte Einträge:<br>"
-            . "{$entriesText}<br><br>"
-            . "Begründung:<br>"
-            . trim($this->rejectionComment);
+        $body = "Ihr Berichtsheft für den Baustein ({$courseTitle}) wurde abgelehnt und muss neu eingereicht werden.<br><br>"
+            .'Abgelehnte Einträge:<br>'
+            ."{$entriesText}<br><br>"
+            .'Begründung:<br>'
+            .trim($this->rejectionComment);
 
         Mail::create([
             'type' => 'both',
             'status' => false,
             'content' => [
                 'subject' => $subject,
-                'header'  => 'Berichtsheft abgelehnt',
-                'body'    => $body,
-                'link'    => '',
+                'header' => 'Berichtsheft abgelehnt',
+                'body' => $body,
+                'link' => '',
             ],
             'recipients' => [[
                 'user_id' => $recipientId,
-                'email'   => (string) data_get($reportBook, 'user.email', ''),
-                'status'  => false,
+                'email' => (string) data_get($reportBook, 'user.email', ''),
+                'status' => false,
             ]],
         ]);
     }
@@ -473,27 +510,27 @@ class AdminTaskDetail extends Component
             return;
         }
 
-        $courseTitle = data_get($reportBook, 'course.title') ?? 'dein Berichtsheft';
+        $courseTitle = data_get($reportBook, 'course.title') ?? 'Ihr Berichtsheft';
         $baseUrl = rtrim((string) (Setting::getValue('api', 'base_api_url') ?: config('app.url')), '/');
         $courseId = (int) data_get($reportBook, 'course_id');
 
         $subject = 'Berichtsheft freigegeben';
-        $body = "Dein Berichtsheft für den Baustein ({$courseTitle}) wurde freigegeben. Gute Arbeit!";
-        $link = "{$baseUrl}/user/reportbook?course={$courseId}"; 
+        $body = "Ihr Berichtsheft für den Baustein ({$courseTitle}) wurde freigegeben. Gute Arbeit!";
+        $link = "{$baseUrl}/user/reportbook?course={$courseId}";
 
         Mail::create([
             'type' => 'both',
             'status' => false,
             'content' => [
                 'subject' => $subject,
-                'header'  => 'Berichtsheft freigegeben',
-                'body'    => $body,
-                'link'    => $link,
+                'header' => 'Berichtsheft freigegeben',
+                'body' => $body,
+                'link' => $link,
             ],
             'recipients' => [[
                 'user_id' => $recipientId,
-                'email'   => (string) data_get($reportBook, 'user.email', ''),
-                'status'  => false,
+                'email' => (string) data_get($reportBook, 'user.email', ''),
+                'status' => false,
             ]],
         ]);
     }
