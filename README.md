@@ -1,5 +1,11 @@
 # RailTime – interne Mitarbeiter- und Kommunikationsplattform
 
+## 2026-07-21 - Codex (Betriebsvorschau und Dashboard-Animationen)
+
+- NEU statische Admin-Vorschauen für Aufträge, Schichtleitung, Kalender und Kundendatenbank. Die Beispieldaten liegen bewusst in einem reinen Preview-Katalog; es gibt keine Models, Migrationen oder Schreibzugriffe.
+- Die vier Bereiche erscheinen auf dem Admin-Dashboard und in der Sidebar unter einer eigenen Überschrift unterhalb der Administration als gemeinsames aufklappbares Untermenü.
+- KPI-Zähler starten erst beim sichtbaren Kennzahlenbereich, werden bei Livewire-Navigation sauber beendet und laufen nur einmal. ECharts entsorgt Altinstanzen; Themewechsel aktualisieren die Darstellung ohne erneute Show-Animation.
+
 ## Information für die Auftraggeber
 
 Mit RailTime steht inzwischen eine gemeinsame Grundlage bereit, über die Mitarbeiter, persönliche Informationen, interne Nachrichten, Chats und Dateien sicher und einheitlich gemanagt werden können. Statt Informationen auf verschiedene Messenger, E-Mail-Verläufe und einzelne Ablagen zu verteilen, werden die relevanten Bereiche zentral zusammengeführt. Dabei sieht jeder Mitarbeiter nur die Inhalte, die für ihn persönlich, seine Rolle oder sein Team freigegeben sind.

@@ -414,7 +414,7 @@ Alpine.data('adminDashboardCharts', (config = {}) => ({
 
         this.themeObserver = new MutationObserver(() => {
             window.clearTimeout(this.renderTimer);
-            this.renderTimer = window.setTimeout(() => this.renderCharts(false), 80);
+            this.renderTimer = window.setTimeout(() => this.renderCharts(!this.chartsRendered), 80);
         });
         this.themeObserver.observe(document.documentElement, {
             attributes: true,

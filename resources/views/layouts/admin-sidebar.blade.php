@@ -22,26 +22,6 @@
                 </x-menu.sidebar-nav-link>
             @endcan
 
-            @if (auth()->user()?->isAdmin())
-                <x-menu.sidebar-nav-group
-                    icon="layers"
-                    :active="request()->routeIs('admin.operations.preview')"
-                >
-                    <x-slot:label>{{ __('app.operations_preview') }}</x-slot:label>
-
-                    @foreach (app(\App\Support\Operations\OperationalPreviewCatalog::class)->dashboard() as $previewModule)
-                        <x-menu.sidebar-nav-link
-                            :href="route('admin.operations.preview', ['module' => $previewModule['slug']])"
-                            :icon="$previewModule['icon']"
-                            :active="request()->routeIs('admin.operations.preview') && request()->route('module') === $previewModule['slug']"
-                            class="!pl-12"
-                        >
-                            {{ $previewModule['title'] }}
-                        </x-menu.sidebar-nav-link>
-                    @endforeach
-                </x-menu.sidebar-nav-group>
-            @endif
-
             @can('employees.view')
                 <x-menu.sidebar-nav-link
                     :href="route('admin.employees')"
@@ -73,6 +53,28 @@
             @endcan
         </x-menu.sidebar-nav>
         @endcanany
+
+        @if (auth()->user()?->isAdmin())
+            <x-menu.sidebar-nav :label="__('app.operations_preview')">
+                <x-menu.sidebar-nav-group
+                    icon="layers"
+                    :active="request()->routeIs('admin.operations.preview')"
+                >
+                    <x-slot:label>{{ __('app.operational_control') }}</x-slot:label>
+
+                    @foreach (app(\App\Support\Operations\OperationalPreviewCatalog::class)->dashboard() as $previewModule)
+                        <x-menu.sidebar-nav-link
+                            :href="route('admin.operations.preview', ['module' => $previewModule['slug']])"
+                            :icon="$previewModule['icon']"
+                            :active="request()->routeIs('admin.operations.preview') && request()->route('module') === $previewModule['slug']"
+                            class="!pl-12"
+                        >
+                            {{ $previewModule['title'] }}
+                        </x-menu.sidebar-nav-link>
+                    @endforeach
+                </x-menu.sidebar-nav-group>
+            </x-menu.sidebar-nav>
+        @endif
 
         {{-- Kein Download-Center: Admins/Verwaltung stellen Dateien bereit,
              empfangen selbst aber keine — der Bereich bleibt den Mitarbeitern
