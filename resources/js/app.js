@@ -12,7 +12,6 @@ import Echo from 'laravel-echo';
 import Pusher from 'pusher-js';
 import Swiper from 'swiper';
 import 'swiper/css';
-import { registerViewportDropdown } from './viewport-dropdown';
 // GSAP-Setup (window.gsap/ScrollTrigger + deklarative data-anim-Reveals)
 import './gsap';
 
@@ -44,7 +43,6 @@ Alpine.plugin(collapse);
 Alpine.plugin(mask);
 Alpine.plugin(resize);
 Alpine.plugin(intersect);
-registerViewportDropdown(Alpine);
 
 // Zentraler Theme-Store: liest die Einstellung beim Start aus localStorage
 // und schreibt sie beim Umschalten zurueck. Ueberlebt Reloads UND
