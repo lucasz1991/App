@@ -1,5 +1,11 @@
 # RailTime – interne Mitarbeiter- und Kommunikationsplattform
 
+## 2026-07-21 - Codex (Mobile Einstellungen und Tab-Auswahl)
+
+- Die gemeinsame Tabs-Komponente wechselt unter 768 Pixeln automatisch in einen vollbreiten Bereichswähler; alle Tabs bleiben ohne horizontalen Overflow erreichbar.
+- Die Admin-Einstellungen verwenden mobil kompaktere Karten, volle Formularbreite, einspaltige Eingaben und vollbreite Speichern-Aktionen. Dekorative Abschnittsicons werden auf kleinen Displays ausgeblendet.
+- Authentifizierte Livewire- und Responsive-Komponententests sowie der Vite-Produktionsbuild sind erfolgreich.
+
 ## 2026-07-21 - Codex (Mobile Formfelder und Toggle-Redesign)
 
 - Alle gemeinsamen Text-, Datums-, Zeit- und Auswahlfelder verwenden mobil `text-base` und ab `sm` wieder die kompakte Schriftgröße. Eine zusätzliche mobile CSS-Regel schützt auch native und von Flatpickr erzeugte Eingabefelder vor dem automatischen iOS-Fokuszoom.
