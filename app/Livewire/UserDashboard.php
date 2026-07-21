@@ -62,6 +62,26 @@ class UserDashboard extends Component
 
         $nextShift = collect($shifts)->firstWhere('time', '!=', 'frei');
 
+        // Neueste interne Nachrichten (Info fuer den Mitarbeiter)
+        $latestMessages = $user->receivedMessages()
+            ->with('sender:id,name,profile_photo_path')
+            ->latest()
+            ->limit(3)
+            ->get();
+
+        // Profil-Vollstaendigkeit: vollstaendige Kontaktdaten landen
+        // automatisch in den E-Mail-Vorlagen (Profil-Tab).
+        $profile = $user->profile;
+        $profileChecks = [
+            'phone' => filled($profile?->phone),
+            'mobile' => filled($profile?->mobile),
+            'position' => filled($profile?->position),
+            'profile_photo' => filled($user->profile_photo_path),
+        ];
+        $profileCompletion = (int) round(
+            100 * count(array_filter($profileChecks)) / count($profileChecks)
+        );
+
         return view('livewire.user-dashboard', [
             'recentFiles' => $recentFiles,
             'unreadMessages' => $unreadMessages,
@@ -69,6 +89,9 @@ class UserDashboard extends Component
             'shifts' => $shifts,
             'plans' => $plans,
             'nextShift' => $nextShift,
+            'latestMessages' => $latestMessages,
+            'profileChecks' => $profileChecks,
+            'profileCompletion' => $profileCompletion,
         ])->layout('layouts.master', ['area' => 'user']);
     }
 }

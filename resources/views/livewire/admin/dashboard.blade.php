@@ -1,7 +1,7 @@
 <x-ui.page
     :title="__('app.dashboard')"
     :eyebrow="__('app.administration')"
-    description="Überblick über Benutzer, Teams und aktuelle Verwaltungsaufgaben."
+    description="Überblick über Benutzer, Teams, Betrieb und Systemzustand."
 >
     <x-slot:actions>
         <div class="rounded-xl bg-rt-surface px-4 py-3 text-right shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
@@ -72,48 +72,159 @@
         </div>
 
         {{-- Schnellzugriff --}}
-        <div class="space-y-4">
-            <div class="rounded-xl bg-rt-surface p-6 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
-                <h2 class="text-base font-semibold text-slate-900 dark:text-white">{{ __('app.quick_access') }}</h2>
-                <div class="mt-4 space-y-2">
-                    @can('employees.view')
-                        <a href="{{ route('admin.employees') }}"
-                           class="flex items-center gap-3 rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition-all duration-300 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red/40 hover:bg-rt-red/5 hover:text-rt-red hover:shadow-rt-xs active:scale-[0.98] dark:border-slate-700 dark:text-slate-300 dark:hover:border-rt-red/40 dark:hover:bg-slate-700 dark:hover:text-rt-red">
-                            <i data-feather="users" class="h-4 w-4"></i>
-                            {{ __('app.manage_employees') }}
-                        </a>
-                    @endcan
-                    @can('roles.manage')
-                        <a href="{{ route('admin.employees') }}"
-                           class="flex items-center gap-3 rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition-all duration-300 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red/40 hover:bg-rt-red/5 hover:text-rt-red hover:shadow-rt-xs active:scale-[0.98] dark:border-slate-700 dark:text-slate-300 dark:hover:border-rt-red/40 dark:hover:bg-slate-700 dark:hover:text-rt-red">
-                            <i data-feather="shield" class="h-4 w-4"></i>
-                            {{ __('app.teams_permissions') }}
-                        </a>
-                    @endcan
-                    <a href="{{ route('profile.show') }}"
-                       class="flex items-center gap-3 rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition-all duration-300 ease-rt-spring hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:shadow-rt-xs active:scale-[0.98] dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-700">
-                        <i data-feather="user" class="h-4 w-4"></i>
-                        {{ __('app.my_profile') }}
+        <div class="rounded-xl bg-rt-surface p-6 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+            <h2 class="text-base font-semibold text-slate-900 dark:text-white">{{ __('app.quick_access') }}</h2>
+            <div class="mt-4 space-y-2">
+                @can('employees.view')
+                    <a href="{{ route('admin.employees') }}"
+                       class="flex items-center gap-3 rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition-all duration-300 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red/40 hover:bg-rt-red/5 hover:text-rt-red hover:shadow-rt-xs active:scale-[0.98] dark:border-slate-700 dark:text-slate-300 dark:hover:border-rt-red/40 dark:hover:bg-slate-700 dark:hover:text-rt-red">
+                        <i data-feather="users" class="h-4 w-4"></i>
+                        {{ __('app.manage_employees') }}
                     </a>
+                @endcan
+                @can('files.manage')
+                    <a href="{{ route('admin.files') }}"
+                       class="flex items-center gap-3 rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition-all duration-300 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red/40 hover:bg-rt-red/5 hover:text-rt-red hover:shadow-rt-xs active:scale-[0.98] dark:border-slate-700 dark:text-slate-300 dark:hover:border-rt-red/40 dark:hover:bg-slate-700 dark:hover:text-rt-red">
+                        <i data-feather="folder" class="h-4 w-4"></i>
+                        {{ __('app.file_management') }}
+                    </a>
+                @endcan
+                @can('manage.messages')
+                    <a href="{{ route('admin.mail-management') }}"
+                       class="flex items-center gap-3 rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition-all duration-300 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red/40 hover:bg-rt-red/5 hover:text-rt-red hover:shadow-rt-xs active:scale-[0.98] dark:border-slate-700 dark:text-slate-300 dark:hover:border-rt-red/40 dark:hover:bg-slate-700 dark:hover:text-rt-red">
+                        <i data-feather="send" class="h-4 w-4"></i>
+                        {{ __('app.mail_management') }}
+                    </a>
+                @endcan
+                @can('roles.manage')
+                    <a href="{{ route('admin.employees') }}"
+                       class="flex items-center gap-3 rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition-all duration-300 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red/40 hover:bg-rt-red/5 hover:text-rt-red hover:shadow-rt-xs active:scale-[0.98] dark:border-slate-700 dark:text-slate-300 dark:hover:border-rt-red/40 dark:hover:bg-slate-700 dark:hover:text-rt-red">
+                        <i data-feather="shield" class="h-4 w-4"></i>
+                        {{ __('app.teams_permissions') }}
+                    </a>
+                @endcan
+                <a href="{{ route('profile.show') }}"
+                   class="flex items-center gap-3 rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition-all duration-300 ease-rt-spring hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:shadow-rt-xs active:scale-[0.98] dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-700">
+                    <i data-feather="user" class="h-4 w-4"></i>
+                    {{ __('app.my_profile') }}
+                </a>
+            </div>
+        </div>
+    </div>
+
+    {{-- System & Betrieb — nur im Admin-/Verwaltungsbereich sichtbar --}}
+    <div class="grid gap-6 lg:grid-cols-3" data-anim="fade-up" data-anim-delay="0.15">
+        {{-- Systemstatus --}}
+        <div class="rounded-xl bg-rt-surface p-6 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+            <h2 class="text-base font-semibold text-slate-900 dark:text-white">{{ __('app.system_status') }}</h2>
+            <dl class="mt-4 space-y-2 text-sm">
+                <div class="flex justify-between gap-4">
+                    <dt class="text-slate-500 dark:text-slate-400">{{ __('app.application') }}</dt>
+                    <dd class="text-right font-medium text-slate-900 dark:text-white">{{ $system['appVersion'] }}</dd>
+                </div>
+                <div class="flex justify-between gap-4">
+                    <dt class="text-slate-500 dark:text-slate-400">{{ __('app.environment') }}</dt>
+                    <dd class="text-right font-medium text-slate-900 dark:text-white">{{ $system['environment'] }}</dd>
+                </div>
+                <div class="flex justify-between gap-4">
+                    <dt class="text-slate-500 dark:text-slate-400">{{ __('app.debug_mode') }}</dt>
+                    <dd class="text-right font-medium">
+                        @if ($system['debug'])
+                            <span class="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">{{ __('app.on') }}</span>
+                        @else
+                            <span class="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">{{ __('app.off') }}</span>
+                        @endif
+                    </dd>
+                </div>
+                <div class="flex justify-between gap-4">
+                    <dt class="text-slate-500 dark:text-slate-400">{{ __('app.php_version') }}</dt>
+                    <dd class="text-right font-medium text-slate-900 dark:text-white">{{ $system['php'] }}</dd>
+                </div>
+                <div class="flex justify-between gap-4">
+                    <dt class="text-slate-500 dark:text-slate-400">Laravel</dt>
+                    <dd class="text-right font-medium text-slate-900 dark:text-white">{{ $system['laravel'] }}</dd>
+                </div>
+                <div class="flex justify-between gap-4">
+                    <dt class="text-slate-500 dark:text-slate-400">{{ __('app.database') }}</dt>
+                    <dd class="text-right font-medium text-slate-900 dark:text-white">{{ $system['database'] }}</dd>
+                </div>
+                <div class="flex justify-between gap-4">
+                    <dt class="text-slate-500 dark:text-slate-400">{{ __('app.queue') }}</dt>
+                    <dd class="text-right font-medium text-slate-900 dark:text-white">
+                        {{ $system['queue'] }}
+                        @if ($system['failedJobs'] > 0)
+                            <span class="ml-1 rounded-full bg-rt-red/10 px-2 py-0.5 text-xs font-semibold text-rt-red">{{ __('app.jobs_failed', ['count' => $system['failedJobs']]) }}</span>
+                        @endif
+                    </dd>
+                </div>
+                <div class="flex justify-between gap-4">
+                    <dt class="text-slate-500 dark:text-slate-400">{{ __('app.file_storage') }}</dt>
+                    <dd class="text-right font-medium text-slate-900 dark:text-white">{{ $system['storage'] }}</dd>
+                </div>
+                <div class="flex justify-between gap-4">
+                    <dt class="text-slate-500 dark:text-slate-400">{{ __('app.server_disk') }}</dt>
+                    <dd class="text-right font-medium text-slate-900 dark:text-white">{{ $system['disk'] }}</dd>
+                </div>
+                <div class="flex justify-between gap-4">
+                    <dt class="text-slate-500 dark:text-slate-400">{{ __('app.last_activity') }}</dt>
+                    <dd class="text-right font-medium text-slate-900 dark:text-white">{{ $system['lastActivityAt']?->diffForHumans() ?? '—' }}</dd>
+                </div>
+            </dl>
+        </div>
+
+        {{-- Betrieb --}}
+        <div class="rounded-xl bg-rt-surface p-6 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+            <h2 class="text-base font-semibold text-slate-900 dark:text-white">{{ __('app.operations') }}</h2>
+            <div class="mt-4 space-y-3">
+                <div class="flex items-center justify-between rounded-lg bg-rt-surface-muted/60 px-4 py-3 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted/40 dark:ring-rt-dark-border/60">
+                    <div class="flex items-center gap-3">
+                        <span class="relative flex h-2.5 w-2.5">
+                            <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60"></span>
+                            <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
+                        </span>
+                        <span class="text-sm text-slate-600 dark:text-slate-300">{{ __('app.online_now') }}</span>
+                    </div>
+                    <span class="text-lg font-semibold text-slate-900 dark:text-white">{{ $operations['online'] }}</span>
+                </div>
+
+                <a href="{{ route('admin.employees') }}" class="flex items-center justify-between rounded-lg bg-rt-surface-muted/60 px-4 py-3 ring-1 ring-rt-border/60 transition-all duration-300 ease-rt-spring hover:ring-rt-accent/40 dark:bg-rt-dark-surface-muted/40 dark:ring-rt-dark-border/60">
+                    <div class="flex items-center gap-3">
+                        <i data-feather="user-plus" class="h-4 w-4 text-rt-muted dark:text-rt-dark-muted"></i>
+                        <span class="text-sm text-slate-600 dark:text-slate-300">{{ __('app.open_invitations') }}</span>
+                    </div>
+                    <span class="text-lg font-semibold {{ $operations['openInvitations'] > 0 ? 'text-rt-red' : 'text-slate-900 dark:text-white' }}">{{ $operations['openInvitations'] }}</span>
+                </a>
+
+                <div class="flex items-center justify-between rounded-lg bg-rt-surface-muted/60 px-4 py-3 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted/40 dark:ring-rt-dark-border/60">
+                    <div class="flex items-center gap-3">
+                        <i data-feather="mail" class="h-4 w-4 text-rt-muted dark:text-rt-dark-muted"></i>
+                        <span class="text-sm text-slate-600 dark:text-slate-300">{{ __('app.unread_messages_total') }}</span>
+                    </div>
+                    <span class="text-lg font-semibold text-slate-900 dark:text-white">{{ number_format($operations['unreadTotal'], 0, ',', '.') }}</span>
                 </div>
             </div>
+        </div>
 
-            <div class="rounded-xl bg-rt-surface p-6 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
-                <h2 class="text-base font-semibold text-slate-900 dark:text-white">{{ __('app.system') }}</h2>
-                <dl class="mt-4 space-y-2 text-sm">
-                    <div class="flex justify-between">
-                        <dt class="text-slate-500 dark:text-slate-400">{{ __('app.application') }}</dt>
-                        <dd class="font-medium text-slate-900 dark:text-white">{{ config('app.name') }}</dd>
+        {{-- Zuletzt aktive Benutzer --}}
+        <div class="rounded-xl bg-rt-surface p-6 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+            <h2 class="text-base font-semibold text-slate-900 dark:text-white">{{ __('app.recently_active') }}</h2>
+            <div class="mt-4 space-y-3">
+                @forelse ($recentActivity as $entry)
+                    <div class="flex items-center justify-between gap-3">
+                        <div class="flex min-w-0 items-center gap-3">
+                            <span class="relative shrink-0">
+                                <img src="{{ $entry['user']->profile_photo_url }}" alt="{{ $entry['user']->name }}" class="h-8 w-8 rounded-full object-cover ring-1 ring-rt-border/60 dark:ring-rt-dark-border/60">
+                                @if ($entry['lastSeen']->gte(now()->subMinutes(5)))
+                                    <span class="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-rt-surface dark:ring-rt-dark-surface"></span>
+                                @endif
+                            </span>
+                            <p class="truncate text-sm font-medium text-slate-900 dark:text-white">{{ $entry['user']->name }}</p>
+                        </div>
+                        <span class="shrink-0 text-xs text-slate-400">{{ $entry['lastSeen']->diffForHumans() }}</span>
                     </div>
-                    <div class="flex justify-between">
-                        <dt class="text-slate-500 dark:text-slate-400">{{ __('app.environment') }}</dt>
-                        <dd class="font-medium text-slate-900 dark:text-white">{{ app()->environment() }}</dd>
-                    </div>
-                    <div class="flex justify-between">
-                        <dt class="text-slate-500 dark:text-slate-400">Laravel</dt>
-                        <dd class="font-medium text-slate-900 dark:text-white">{{ app()->version() }}</dd>
-                    </div>
-                </dl>
+                @empty
+                    <p class="text-sm text-slate-500 dark:text-slate-400">{{ __('app.no_activity_yet') }}</p>
+                @endforelse
             </div>
         </div>
     </div>
