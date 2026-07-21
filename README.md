@@ -3,7 +3,7 @@
 ## 2026-07-21 - Codex (Chat-Swipe-Richtung)
 
 - Die mobile Swipe-Steuerung ist korrigiert: Nach rechts wischen öffnet aus einem Chat die Chatübersicht, nach links wischen kehrt aus der Übersicht zum zuletzt ausgewählten Chat zurück.
-- Die Zuordnung ist durch einen Regressionstest gegen erneutes Vertauschen abgesichert.
+- Die seitliche Wechselanimation folgt jetzt derselben Bewegungsrichtung wie die Swipe-Geste. Zuordnung und Animation sind durch Regressionstests gegen erneutes Vertauschen abgesichert.
 
 ## 2026-07-21 - Codex (IT-Feedback und Support)
 

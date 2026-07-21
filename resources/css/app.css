@@ -428,12 +428,12 @@ body[data-mode="dark"] [data-admin-dashboard] .rt-admin-operations-card-divider 
 
     .rt-chat-page[data-mobile-pane='list'] .rt-chat-conversation-pane {
         pointer-events: none;
-        transform: translateX(-100%);
+        transform: translateX(100%);
     }
 
     .rt-chat-page[data-mobile-pane='chat'] .rt-chat-list-pane {
         pointer-events: none;
-        transform: translateX(100%);
+        transform: translateX(-100%);
     }
 
     .rt-chat-page[data-mobile-pane='chat'] .rt-chat-conversation-pane {

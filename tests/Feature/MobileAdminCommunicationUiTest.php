@@ -39,6 +39,14 @@ class MobileAdminCommunicationUiTest extends TestCase
         $this->assertStringNotContainsString("deltaX < 0 && this.mobilePane === 'chat'", $script);
         $this->assertStringNotContainsString("deltaX > 0 && this.mobilePane === 'list'", $script);
         $this->assertStringContainsString(".rt-chat-page[data-mobile-pane='chat']", $styles);
+        $this->assertMatchesRegularExpression(
+            "/\[data-mobile-pane='list'\] \.rt-chat-conversation-pane\s*\{[^}]*translateX\(100%\)/s",
+            $styles
+        );
+        $this->assertMatchesRegularExpression(
+            "/\[data-mobile-pane='chat'\] \.rt-chat-list-pane\s*\{[^}]*translateX\(-100%\)/s",
+            $styles
+        );
         $this->assertStringContainsString('@media (min-width: 768px)', $styles);
         $this->assertStringContainsString("['contentMode' => 'viewport']", $component);
         $this->assertStringContainsString('rt-viewport-layout', $layout);
