@@ -1,8 +1,8 @@
-<div class="p-6">
+<div class="p-3 sm:p-6">
     @section('title')
         {{ __('Kontake Admin') }}
     @endsection
-    <div class="flex justify-between space-x-3">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <x-button wire:click="create" class="btn-xs text-xs">Neuer Kontakt</x-button>
         <livewire:admin.contacts.search-contacts-form />
     </div>
@@ -27,8 +27,8 @@
         </div>
     @endif
 
-    <div class="rt-ui-surface mt-4 mb-3 overflow-x-auto rounded-xl border border-rt-border bg-rt-surface dark:border-rt-dark-border dark:bg-rt-dark-surface">
-    <table class="min-w-[56rem] w-full text-left text-rt-text dark:text-rt-dark-text">
+    <div class="rt-ui-surface mb-3 mt-4 min-w-0 rounded-xl border border-rt-border bg-rt-surface dark:border-rt-dark-border dark:bg-rt-dark-surface">
+    <table class="rt-responsive-data-table w-full text-left text-rt-text dark:text-rt-dark-text">
         <thead>
             <tr class="rt-ui-surface-muted bg-rt-surface-muted dark:bg-rt-dark-surface-muted">
                 <th class="border border-rt-border p-2 dark:border-rt-dark-border">Branche</th>
@@ -43,13 +43,13 @@
         <tbody>
             @foreach($contacts as $contact)
                 <tr>
-                    <td class="border border-rt-border p-2 dark:border-rt-dark-border">{{ $contact->category }}</td>
-                    <td class="border border-rt-border p-2 font-semibold dark:border-rt-dark-border">{{ $contact->name }}</td>
-                    <td class="border border-rt-border p-2 dark:border-rt-dark-border">{{ $contact->address }}</td>
-                    <td class="border border-rt-border p-2 font-semibold dark:border-rt-dark-border">{{ $contact->email }}</td>
-                    <td class="border border-rt-border p-2 dark:border-rt-dark-border">{{ $contact->phone }}</td>
-                    <td class="border border-rt-border p-2 dark:border-rt-dark-border">{{ $contact->website }}</td>
-                    <td class="border border-rt-border p-2 dark:border-rt-dark-border">
+                    <td data-rt-table-label="Branche" class="border border-rt-border p-2 dark:border-rt-dark-border">{{ $contact->category }}</td>
+                    <td data-rt-table-label="Name" class="border border-rt-border p-2 font-semibold dark:border-rt-dark-border">{{ $contact->name }}</td>
+                    <td data-rt-table-label="Anschrift" class="border border-rt-border p-2 dark:border-rt-dark-border">{{ $contact->address }}</td>
+                    <td data-rt-table-label="E-Mail" class="border border-rt-border p-2 font-semibold dark:border-rt-dark-border">{{ $contact->email }}</td>
+                    <td data-rt-table-label="Telefon" class="border border-rt-border p-2 dark:border-rt-dark-border">{{ $contact->phone }}</td>
+                    <td data-rt-table-label="Website" class="border border-rt-border p-2 dark:border-rt-dark-border">{{ $contact->website }}</td>
+                    <td data-rt-table-label="Status" class="border border-rt-border p-2 dark:border-rt-dark-border">
                         @if(is_null($contact->additional_data) || empty($contact->additional_data))
                             <x-ui.badge color="slate">unkontaktiert</x-ui.badge>
                         @else

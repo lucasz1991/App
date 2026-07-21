@@ -398,11 +398,11 @@
         <x-slot name="title">{{ __('app.folder_permissions') }}</x-slot>
         <x-slot name="content">
           <p class="mb-3 text-sm text-rt-muted dark:text-rt-dark-muted">{{ __('app.folder_permissions_hint') }}</p>
-          <div class="overflow-x-auto rounded-xl border border-rt-border dark:border-rt-dark-border">
-            <table class="w-full text-sm">
+          <div class="rt-table-scroll rounded-xl border border-rt-border dark:border-rt-dark-border">
+            <table class="min-w-[34rem] w-full text-sm">
               <thead>
                 <tr class="bg-rt-surface-muted text-left text-xs font-semibold uppercase tracking-wide text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted">
-                  <th class="px-3 py-2">{{ __('app.role') }}</th>
+                  <th class="sticky left-0 z-[1] bg-rt-surface-muted px-3 py-2 dark:bg-rt-dark-surface-muted">{{ __('app.role') }}</th>
                   @foreach(\App\Models\FileFolder::permissionActions() as $actionKey => $actionLabel)
                     <th class="px-3 py-2 text-center">{{ $actionLabel }}</th>
                   @endforeach
@@ -411,7 +411,7 @@
               <tbody class="divide-y divide-rt-border dark:divide-rt-dark-border">
                 @foreach(\App\Models\File::shareableRoles() as $roleKey => $roleLabel)
                   <tr>
-                    <td class="px-3 py-2 font-medium text-rt-text dark:text-rt-dark-text">{{ $roleLabel }}</td>
+                    <td class="sticky left-0 bg-rt-surface px-3 py-2 font-medium text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text">{{ $roleLabel }}</td>
                     @foreach(\App\Models\FileFolder::permissionActions() as $actionKey => $actionLabel)
                       <td class="px-3 py-2 text-center">
                         <input type="checkbox"

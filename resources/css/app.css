@@ -1167,31 +1167,153 @@ body[data-mode="dark"] .rt-operational-page .rt-operational-nav-icon {
     }
 }
 
-/* Responsive Datentabellen: mobil bleiben die wichtigsten Zellen als
-   zweispaltige, gekuerzte Zusammenfassung sichtbar. Ab md gilt wieder das
-   von der Tabellenkomponente gelieferte Spaltenraster. */
+/* Responsive Datentabellen: Smartphones erhalten lesbare Datenkarten statt
+   eines zusammengedrueckten Desktop-Rasters. Kleine Tablets nutzen zwei
+   Spalten; ab md gilt wieder das konfigurierte Tabellenraster. */
 .rt-table-row-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.65fr);
+    grid-template-columns: minmax(0, 1fr);
 }
 
 .rt-table-row-grid > * {
     min-width: 0;
+    max-width: 100%;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 639px) {
     .rt-table-row-grid > * {
-        overflow: hidden;
+        grid-column: 1 / -1 !important;
+        overflow-wrap: anywhere;
     }
 
-    .rt-table-row-grid > *:nth-child(n + 3) {
-        font-size: 0.75rem;
+    .rt-table-row-grid > [data-rt-table-label]:not(.hidden) {
+        display: grid;
+        grid-template-columns: minmax(5.75rem, 34%) minmax(0, 1fr);
+        align-items: center;
+        gap: 0.75rem;
+        min-height: 2.5rem;
+        padding: 0.5rem 0.25rem;
+        border-bottom: 1px solid rgba(219, 227, 238, 0.72);
+    }
+
+    .rt-table-row-grid > [data-rt-table-label]:not(.hidden)::before {
+        content: attr(data-rt-table-label);
+        min-width: 0;
+        color: #64748b;
+        font-size: 0.625rem;
+        font-weight: 700;
+        line-height: 1.25;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .rt-table-row-grid > [data-rt-table-label]:not(.hidden):last-child {
+        border-bottom: 0;
+    }
+
+    html.dark .rt-table-row-grid > [data-rt-table-label]:not(.hidden),
+    body[data-mode="dark"] .rt-table-row-grid > [data-rt-table-label]:not(.hidden) {
+        border-bottom-color: rgba(39, 52, 73, 0.8);
+    }
+
+    html.dark .rt-table-row-grid > [data-rt-table-label]:not(.hidden)::before,
+    body[data-mode="dark"] .rt-table-row-grid > [data-rt-table-label]:not(.hidden)::before {
+        color: #a9b6c9;
+    }
+}
+
+@media (min-width: 640px) and (max-width: 767px) {
+    .rt-table-row-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
 @media (min-width: 768px) {
     .rt-table-row-grid {
         grid-template-columns: var(--rt-table-columns);
+    }
+}
+
+/* Alte semantische Tabellen koennen dieselbe Mobile-Kartendarstellung
+   nutzen. Matrizen bekommen dagegen bewusst einen horizontalen Scrollbereich. */
+.rt-table-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 767px) {
+    .rt-responsive-data-table,
+    .rt-responsive-data-table tbody,
+    .rt-responsive-data-table tr,
+    .rt-responsive-data-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .rt-responsive-data-table thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    .rt-responsive-data-table tbody {
+        display: grid;
+        gap: 0.75rem;
+        padding: 0.75rem;
+    }
+
+    .rt-responsive-data-table tbody tr {
+        overflow: hidden;
+        border: 1px solid #dbe3ee;
+        border-radius: 0.75rem;
+        background: #fff;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    }
+
+    .rt-responsive-data-table tbody td {
+        display: grid;
+        grid-template-columns: minmax(5.75rem, 34%) minmax(0, 1fr);
+        align-items: center;
+        gap: 0.75rem;
+        overflow-wrap: anywhere;
+        border: 0 !important;
+        border-bottom: 1px solid #e8edf4 !important;
+        padding: 0.65rem 0.75rem !important;
+    }
+
+    .rt-responsive-data-table tbody td:last-child {
+        border-bottom: 0 !important;
+    }
+
+    .rt-responsive-data-table tbody td::before {
+        content: attr(data-rt-table-label);
+        color: #64748b;
+        font-size: 0.625rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    html.dark .rt-responsive-data-table tbody tr,
+    body[data-mode="dark"] .rt-responsive-data-table tbody tr {
+        border-color: #273449;
+        background: #111827;
+    }
+
+    html.dark .rt-responsive-data-table tbody td,
+    body[data-mode="dark"] .rt-responsive-data-table tbody td {
+        border-bottom-color: #273449 !important;
+    }
+
+    html.dark .rt-responsive-data-table tbody td::before,
+    body[data-mode="dark"] .rt-responsive-data-table tbody td::before {
+        color: #a9b6c9;
     }
 }
 
