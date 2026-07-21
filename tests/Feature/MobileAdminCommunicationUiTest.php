@@ -23,10 +23,22 @@ class MobileAdminCommunicationUiTest extends TestCase
     {
         $view = file_get_contents(resource_path('views/livewire/chat-box.blade.php'));
         $script = file_get_contents(resource_path('js/app.js'));
+        $styles = file_get_contents(resource_path('css/app.css'));
+        $component = file_get_contents(app_path('Livewire/ChatBox.php'));
+        $layout = file_get_contents(resource_path('views/layouts/master.blade.php'));
 
-        $this->assertStringContainsString("\$selectedChat ? 'hidden md:flex' : 'flex'", $view);
-        $this->assertStringContainsString("\$selectedChat ? 'flex' : 'hidden md:flex'", $view);
-        $this->assertStringContainsString("wire:click=\"\$set('selectedChatId', null)\"", $view);
+        $this->assertStringContainsString('x-data="chatPaneNavigation(', $view);
+        $this->assertStringContainsString('x-on:touchstart.passive="touchStart($event)"', $view);
+        $this->assertStringContainsString('x-on:touchend.passive="touchEnd($event)"', $view);
+        $this->assertStringContainsString('x-on:click="showList()"', $view);
+        $this->assertStringNotContainsString("\$set('selectedChatId', null)", $view);
+        $this->assertStringContainsString('rt-chat-list-collapsed', $view);
+        $this->assertStringContainsString("Alpine.data('chatPaneNavigation'", $script);
+        $this->assertStringContainsString(".rt-chat-page[data-mobile-pane='chat']", $styles);
+        $this->assertStringContainsString('@media (min-width: 768px)', $styles);
+        $this->assertStringContainsString("['contentMode' => 'viewport']", $component);
+        $this->assertStringContainsString('rt-viewport-layout', $layout);
+        $this->assertStringNotContainsString('<x-ui.page', $view);
         $this->assertStringContainsString("str_starts_with(\$mime, 'image/')", $view);
         $this->assertStringContainsString("new CustomEvent('filepool-preview'", $view);
         $this->assertStringContainsString('x-data="chatAudioPlayer()"', $view);

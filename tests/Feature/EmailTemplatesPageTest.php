@@ -35,9 +35,16 @@ class EmailTemplatesPageTest extends TestCase
             ->assertSee(route('email-templates.download', ['template' => 'vorlage-eml']), escape: false)
             ->assertSee(route('email-templates.preview', ['template' => 'vorlage-html']), escape: false)
             ->assertSee(__('app.preview_enlarged'))
+            ->assertSee('x-data="emailTemplatePreview"', escape: false)
+            ->assertSee('style="display: none;"', escape: false)
+            ->assertDontSee('x-teleport=', escape: false)
             ->assertSee('data-menu-active="true"', escape: false);
 
         $this->assertSame(1, substr_count($response->getContent(), 'data-testid="message-viewer-host"'));
+        $this->assertStringContainsString(
+            "Alpine.data('emailTemplatePreview'",
+            file_get_contents(resource_path('js/app.js'))
+        );
     }
 
     public function test_profile_no_longer_contains_an_email_templates_tab(): void
