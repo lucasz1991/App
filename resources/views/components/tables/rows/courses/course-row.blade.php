@@ -32,7 +32,7 @@
 @endphp
 
 {{-- 0: Titel --}}
-<div class="px-2 py-2  pr-4 {{ $hc(0) }} cursor-pointer" wire:click="$dispatch('toggleCourseSelection', [{{ $item->id }}])" x-on:dblclick="window.location='{{ route('admin.courses.show', $item) }}'">
+<div data-rt-table-label="{{ $columnsMeta[0]['label'] ?? '' }}" class="px-2 py-2 pr-4 {{ $hc(0) }} cursor-pointer" wire:click="$dispatch('toggleCourseSelection', [{{ $item->id }}])" x-on:dblclick="window.location='{{ route('admin.courses.show', $item) }}'">
 <div class="grid grid-cols-[auto_1fr] gap-2 items-center">
     <div class="flex items-center">
         <div 
@@ -59,7 +59,7 @@
 
 
 {{-- 2: Zeitraum (planned_start_date / planned_end_date) --}}
-<div class="flex justify-center px-2 py-2 text-xs {{ $hc(1) }}">
+<div data-rt-table-label="{{ $columnsMeta[1]['label'] ?? '' }}" class="flex justify-center px-2 py-2 text-xs {{ $hc(1) }}">
     <div class="rt-ui-surface-muted inline-flex flex-col items-center justify-center rounded-lg border border-rt-border bg-rt-surface-muted px-2 py-1.5 text-rt-text shadow-rt-xs dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-rt-dark-text">
         <div class="font-semibold text-[10px] leading-tight">
             {{ $termin_id }}
@@ -79,14 +79,14 @@
 
 
 {{-- 3: Status (nur Icons mit Tooltip) bg-yellow-100  text-yellow-600 text-blue-400 bg-blue-100 --}}
-<div class="px-2 py-2 flex items-center gap-2 {{ $hc(2) }}">
+<div data-rt-table-label="{{ $columnsMeta[2]['label'] ?? '' }}" class="px-2 py-2 flex items-center gap-2 {{ $hc(2) }}">
     <i class="{{ $item->status_icon }}" title="{{ $item->status_icon_title }}"></i>
 </div>
 
 
 
 {{-- 1: Tutor (aus Person) --}}
-<div class="truncate px-2 py-2 text-rt-text dark:text-rt-dark-text {{ $hc(3) }}">
+<div data-rt-table-label="{{ $columnsMeta[3]['label'] ?? '' }}" class="truncate px-2 py-2 text-rt-text dark:text-rt-dark-text {{ $hc(3) }}">
     @if($item->tutor !== null)
         <span class="inline-flex items-center gap-1">
             <x-user.public-info :person="$item->tutor" />
@@ -97,7 +97,7 @@
 </div>
 
 {{-- 4: Aktivitäten (Teilnehmer & Exporte) --}}
-<div class="px-2 py-1 text-xs {{ $hc(4) }}">
+<div data-rt-table-label="{{ $columnsMeta[4]['label'] ?? '' }}" class="px-2 py-1 text-xs {{ $hc(4) }}">
     <div class="flex gap-1 items-center pr-8">
         @can('courses.export')
         @php

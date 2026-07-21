@@ -22,6 +22,7 @@
 
 {{-- 0: ID --}}
 <div
+    data-rt-table-label="{{ $columnsMeta[0]['label'] ?? '' }}"
     class="px-2 py-2 {{ $hc(0) }} cursor-pointer"
     wire:click="$dispatch('openAdminTaskDetail',[ { taskId: {{ $task->id }}  }])"
 >
@@ -44,6 +45,7 @@
 
 {{-- 1: Typ + Kurzbeschreibung --}}
 <div
+    data-rt-table-label="{{ $columnsMeta[1]['label'] ?? '' }}"
     class="px-2 py-2 pr-4 {{ $hc(1) }} cursor-pointer"
     wire:click="$dispatch('openAdminTaskDetail',[ { taskId: {{ $task->id }}  }])"
 >
@@ -63,7 +65,8 @@
 
 {{-- 3: Ersteller --}}
 <div
-    class="px-2 py-2 {{ $hc(3) }} cursor-pointer"
+    data-rt-table-label="{{ $columnsMeta[2]['label'] ?? '' }}"
+    class="px-2 py-2 {{ $hc(2) }} cursor-pointer"
     wire:click="$dispatch('openAdminTaskDetail',[ { taskId: {{ $task->id }}  }])"
 >
     <div class="flex flex-col gap-0.5">
@@ -78,7 +81,8 @@
 
 {{-- 4: Status --}}
 <div
-    class="px-2 py-2 flex items-center justify-end gap-2 {{ $hc(6) }} cursor-pointer"
+    data-rt-table-label="{{ $columnsMeta[3]['label'] ?? '' }}"
+    class="px-2 py-2 flex items-center justify-end gap-2 {{ $hc(3) }} cursor-pointer"
     wire:click="$dispatch('openAdminTaskDetail',[ { taskId: {{ $task->id }}  }])"
 >
     <span data-rt-tone="{{ $statusTone }}" class="rt-ui-badge inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium

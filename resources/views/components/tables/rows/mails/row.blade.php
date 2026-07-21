@@ -6,10 +6,10 @@
     $recipientCount = collect($item->recipients ?? [])->filter(fn ($recipient) => is_array($recipient))->unique(fn ($recipient) => ((int) ($recipient['user_id'] ?? 0)).'|'.strtolower((string) ($recipient['email'] ?? '')))->count();
 @endphp
 
-<button type="button" wire:click="toggleMailDetails({{ $item->id }})" class="truncate px-2 py-2 text-left font-semibold text-rt-text dark:text-white {{ $hc(0) }}">#{{ $item->id }}</button>
-<button type="button" wire:click="toggleMailDetails({{ $item->id }})" class="truncate px-2 py-2 text-left text-rt-muted dark:text-rt-dark-muted {{ $hc(1) }}">{{ $item->created_at->format('d.m.Y H:i') }}</button>
-<button type="button" wire:click="toggleMailDetails({{ $item->id }})" class="px-2 py-2 text-left {{ $hc(2) }}"><x-ui.badge :color="$typeColor">{{ $typeLabel }}</x-ui.badge></button>
-<button type="button" wire:click="toggleMailDetails({{ $item->id }})" class="truncate px-2 py-2 text-left text-rt-muted dark:text-rt-dark-muted {{ $hc(3) }}">{{ __('app.x_recipients', ['count' => $recipientCount]) }}</button>
-<button type="button" wire:click="toggleMailDetails({{ $item->id }})" class="px-2 py-2 text-left {{ $hc(4) }}">
+<button data-rt-table-label="{{ $columnsMeta[0]['label'] ?? '' }}" type="button" wire:click="toggleMailDetails({{ $item->id }})" class="truncate px-2 py-2 text-left font-semibold text-rt-text dark:text-white {{ $hc(0) }}">#{{ $item->id }}</button>
+<button data-rt-table-label="{{ $columnsMeta[1]['label'] ?? '' }}" type="button" wire:click="toggleMailDetails({{ $item->id }})" class="truncate px-2 py-2 text-left text-rt-muted dark:text-rt-dark-muted {{ $hc(1) }}">{{ $item->created_at->format('d.m.Y H:i') }}</button>
+<button data-rt-table-label="{{ $columnsMeta[2]['label'] ?? '' }}" type="button" wire:click="toggleMailDetails({{ $item->id }})" class="px-2 py-2 text-left {{ $hc(2) }}"><x-ui.badge :color="$typeColor">{{ $typeLabel }}</x-ui.badge></button>
+<button data-rt-table-label="{{ $columnsMeta[3]['label'] ?? '' }}" type="button" wire:click="toggleMailDetails({{ $item->id }})" class="truncate px-2 py-2 text-left text-rt-muted dark:text-rt-dark-muted {{ $hc(3) }}">{{ __('app.x_recipients', ['count' => $recipientCount]) }}</button>
+<button data-rt-table-label="{{ $columnsMeta[4]['label'] ?? '' }}" type="button" wire:click="toggleMailDetails({{ $item->id }})" class="px-2 py-2 text-left {{ $hc(4) }}">
     <x-ui.badge :color="$item->status ? 'green' : 'red'">{{ $item->status ? __('app.sent') : __('app.status_open') }}</x-ui.badge>
 </button>

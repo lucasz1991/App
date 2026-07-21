@@ -13,7 +13,7 @@
 @endphp
 
 {{-- 0: Name (mit Auswahl-Kreis wie bei Courses) --}}
-<div class="px-2 py-2 pr-4 {{ $hc(0) }} cursor-pointer" wire:click="$dispatch('toggleEmployeeSelection', [{{ $item->id }}])">
+<div data-rt-table-label="{{ $columnsMeta[0]['label'] ?? '' }}" class="px-2 py-2 pr-4 {{ $hc(0) }} cursor-pointer" wire:click="$dispatch('toggleEmployeeSelection', [{{ $item->id }}])">
     <div class="grid grid-cols-[auto_1fr] gap-2 items-center">
         <div class="flex items-center">
             <div
@@ -39,12 +39,12 @@
 </div>
 
 {{-- 1: E-Mail --}}
-<div class="px-2 py-2 text-rt-muted dark:text-rt-dark-muted truncate {{ $hc(1) }}">
+<div data-rt-table-label="{{ $columnsMeta[1]['label'] ?? '' }}" class="px-2 py-2 text-rt-muted dark:text-rt-dark-muted truncate {{ $hc(1) }}">
     <a href="mailto:{{ $email }}" class="hover:underline">{{ $email }}</a>
 </div>
 
 {{-- 2: Team (Badge) --}}
-<div class="flex items-center px-2 py-2 text-xs {{ $hc(2) }}">
+<div data-rt-table-label="{{ $columnsMeta[2]['label'] ?? '' }}" class="flex items-center px-2 py-2 text-xs {{ $hc(2) }}">
     <div class="flex items-center">
         <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-rt-surface-muted text-rt-muted ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted dark:ring-rt-dark-border/60 mr-2">
             {{ $team }}
@@ -89,10 +89,9 @@
 </div>
 
 {{-- 3: Erstellt am --}}
-<div class="px-2 py-2 text-rt-muted dark:text-rt-dark-muted {{ $hc(3) }} ">
+<div data-rt-table-label="{{ $columnsMeta[3]['label'] ?? '' }}" class="px-2 py-2 text-rt-muted dark:text-rt-dark-muted {{ $hc(3) }} ">
     <div class="pr-8">
         {{ $created ?? '—' }}
     </div>
 </div>
-
 

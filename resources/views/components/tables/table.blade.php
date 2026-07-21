@@ -59,7 +59,7 @@
 {{-- Kein overflow-hidden: die Aktions-Dropdowns der Zeilen ragen ueber den
      Rahmen hinaus und wuerden sonst abgeschnitten. Die runden Ecken werden
      stattdessen ueber rounded-t/b auf Kopf- und letzter Zeile gehalten. --}}
-<div {{ $attributes->merge(['class' => 'rt-ui-surface rt-ui-table w-full mt-4 relative rounded-xl bg-rt-surface text-rt-text shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60 '.$class]) }}>
+<div {{ $attributes->merge(['class' => 'rt-ui-surface rt-ui-table relative mt-4 w-full min-w-0 max-w-full rounded-xl bg-rt-surface text-rt-text shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60 '.$class]) }}>
     {{-- Header (nur md+) --}}
     <div class="rt-ui-surface-muted hidden md:grid rounded-t-xl bg-rt-surface-muted p-2 pr-16 text-xs font-semibold uppercase tracking-wide text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted border-b border-rt-border dark:border-rt-dark-border text-left"
          style="grid-template-columns: {{ $gridTemplate }};">
@@ -92,11 +92,11 @@
     @php
         $isSelected = in_array($item->id, (array) $selectedItems);
     @endphp
-    <div class="relative border-b border-rt-border/60 px-2 py-2 pr-14 text-sm transition-colors duration-300 ease-rt-spring last:rounded-b-xl last:border-b-0 hover:bg-rt-nav-hover dark:border-rt-dark-border dark:hover:bg-rt-dark-nav-hover md:px-2 md:pr-16">
-        <div class="rt-table-row-grid items-center gap-x-2 gap-y-0.5 md:gap-0" style="--rt-table-columns: {{ $gridTemplate }};">
+    <div class="rt-table-row relative border-b border-rt-border/60 px-3 py-3 pr-14 text-sm transition-colors duration-300 ease-rt-spring last:rounded-b-xl last:border-b-0 hover:bg-rt-nav-hover dark:border-rt-dark-border dark:hover:bg-rt-dark-nav-hover md:px-2 md:py-2 md:pr-16">
+        <div class="rt-table-row-grid content-start items-center gap-1.5 sm:gap-x-3 md:gap-0" style="--rt-table-columns: {{ $gridTemplate }};">
         {{-- Zellen --}}
         @if($rowView)
-            @include($rowView, ['item' => $item, 'isSelected' => $isSelected, 'columnsMeta' => $columns, 'hideClass' => $hideClass])
+            @include($rowView, ['item' => $item, 'isSelected' => $isSelected, 'selectedItems' => $selectedItems, 'columnsMeta' => $columns, 'hideClass' => $hideClass])
         @else
             @foreach($columns as $col)
             <div class="px-2 py-2 {{ $hideClass($col['hideOn']) }}">—</div>
@@ -108,12 +108,14 @@
         {{-- Zeilenaktionen bleiben unabhaengig von Anzahl/Breite der Spalten
              immer am rechten Zeilenrand erreichbar. --}}
         @if($actionsView ?? false)
-            <div class="rt-table-row-actions absolute right-2 inset-y-0 flex items-center">
+            <div class="rt-table-row-actions absolute right-3 top-3 z-10 flex items-center md:inset-y-0 md:right-2 md:top-auto md:z-auto">
                 @include($actionsView, ['item' => $item])
             </div>
         @endif
         @if ($detailsView && (int) $expandedId === (int) $item->id)
-            @include($detailsView, ['item' => $item])
+            <div class="rt-table-row-details -mx-3 -mb-3 mt-3 md:-mx-2 md:-mb-2 md:mt-2">
+                @include($detailsView, ['item' => $item])
+            </div>
         @endif
     </div>
     @empty
