@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\StaffInvitation;
 use App\Models\User;
+use App\Models\UserProfile;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\View\View;
 
@@ -37,17 +39,33 @@ class InvitedRegistrationController extends Controller
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ]);
 
-        $user = User::create([
-            'name' => $validated['name'],
-            'email' => $invitation->email,
-            'password' => Hash::make($validated['password']),
-            'role' => $invitation->role,
-            'status' => true,
-        ]);
+        $user = DB::transaction(function () use ($validated, $invitation): User {
+            $user = User::create([
+                'name' => $validated['name'],
+                'email' => $invitation->email,
+                'password' => Hash::make($validated['password']),
+                'role' => 'staff',
+                'status' => true,
+            ]);
 
-        $user->forceFill(['email_verified_at' => now()])->save();
+            $user->forceFill([
+                'email_verified_at' => now(),
+                'current_team_id' => $invitation->team_id,
+            ])->save();
 
-        $invitation->forceFill(['accepted_at' => now()])->save();
+            if ($invitation->team_id) {
+                $user->teams()->sync([$invitation->team_id]);
+            }
+
+            UserProfile::create([
+                'user_id' => $user->id,
+                'position' => $invitation->position ?: null,
+            ]);
+
+            $invitation->forceFill(['accepted_at' => now()])->save();
+
+            return $user;
+        });
 
         Auth::login($user);
         $request->session()->regenerate();

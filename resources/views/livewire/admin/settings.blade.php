@@ -3,6 +3,16 @@
     :eyebrow="__('app.administration')"
     :description="__('app.settings_page_description')"
 >
+    <x-ui.accordion.tabs
+        :tabs="[
+            'general' => ['label' => __('app.general'), 'icon' => 'fad fa-sliders-h'],
+            'users' => ['label' => __('app.users'), 'icon' => 'fad fa-users'],
+            'system' => ['label' => __('app.system'), 'icon' => 'fad fa-server'],
+        ]"
+        default="general"
+        persist-key="admin-settings.tabs"
+    >
+    <x-ui.accordion.tab-panel for="system" panel-class="space-y-6">
     {{-- Wartungsmodus-Warnbanner --}}
     @if ($maintenanceMode)
         <div
@@ -54,8 +64,10 @@
             </div>
         </div>
     </section>
+    </x-ui.accordion.tab-panel>
 
     {{-- Einladungen --}}
+    <x-ui.accordion.tab-panel for="users" panel-class="space-y-6">
     <section
         class="rounded-2xl bg-rt-surface p-6 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60"
         data-anim="fade-up"
@@ -100,8 +112,10 @@
             </div>
         </div>
     </section>
+    </x-ui.accordion.tab-panel>
 
     {{-- E-Mails --}}
+    <x-ui.accordion.tab-panel for="general" panel-class="space-y-6">
     <section
         class="rounded-2xl bg-rt-surface p-6 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60"
         data-anim="fade-up"
@@ -148,4 +162,6 @@
             </div>
         </div>
     </section>
+    </x-ui.accordion.tab-panel>
+    </x-ui.accordion.tabs>
 </x-ui.page>

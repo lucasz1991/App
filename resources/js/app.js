@@ -207,6 +207,22 @@ function setDesktopSidebarExpanded(expanded) {
     }
 
     document.body.setAttribute('data-sidebar-expanded', expanded ? 'true' : 'false');
+    syncSidebarToggleState();
+}
+
+function setMobileSidebarOpen(open) {
+    document.body.classList.toggle('sidebar-enable', open);
+    syncSidebarToggleState();
+}
+
+function syncSidebarToggleState() {
+    const expanded = isDesktopHoverSidebar()
+        ? document.body.getAttribute('data-sidebar-expanded') === 'true'
+        : document.body.classList.contains('sidebar-enable');
+
+    document.querySelectorAll('.vertical-menu-btn').forEach((button) => {
+        button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    });
 }
 
 function scheduleDesktopSidebarCollapse() {
@@ -233,17 +249,19 @@ function syncSidebarInteractionMode() {
     document.body.setAttribute('data-sidebar-collapsible', desktopMode ? 'true' : 'false');
 
     if (desktopMode) {
-        document.body.classList.remove('sidebar-enable');
+        setMobileSidebarOpen(false);
 
         const isExpanded = document.body.getAttribute('data-sidebar-expanded') === 'true';
         const shouldStayExpanded = isExpanded || isSidebarHoveredOrFocused();
 
         document.body.setAttribute('data-sidebar-expanded', shouldStayExpanded ? 'true' : 'false');
+        syncSidebarToggleState();
         return;
     }
 
     clearSidebarCollapseTimer();
     document.body.setAttribute('data-sidebar-expanded', 'false');
+    syncSidebarToggleState();
 }
 
 function initLeftMenuCollapse() {
@@ -263,7 +281,7 @@ function initLeftMenuCollapse() {
                 return;
             }
 
-            document.body.classList.toggle('sidebar-enable');
+            setMobileSidebarOpen(!document.body.classList.contains('sidebar-enable'));
             initMenuItemScroll();
         });
     });
@@ -388,7 +406,7 @@ function initSidebarInteractions() {
                 }
 
                 if (!target || !target.closest('.vertical-menu, .vertical-menu-btn')) {
-                    document.body.classList.remove('sidebar-enable');
+                    setMobileSidebarOpen(false);
                 }
             },
             true
@@ -401,7 +419,7 @@ function initSidebarInteractions() {
 
             clearSidebarCollapseTimer();
             setDesktopSidebarExpanded(false);
-            document.body.classList.remove('sidebar-enable');
+            setMobileSidebarOpen(false);
         });
 
         window.addEventListener('resize', syncSidebarInteractionMode);

@@ -17,14 +17,19 @@
                 </div>
 
                 <div>
-                    <x-ui.forms.label for="invite-role" :value="__('app.role')" />
-                    <x-ui.forms.select id="invite-role" wire:model="role" class="mt-1 block">
-                        <option value="staff">{{ __('app.role_staff') }}</option>
-                        @if (auth()->user()->isAdmin())
-                            <option value="admin">{{ __('app.role_admin') }}</option>
-                        @endif
+                    <x-ui.forms.label for="invite-team" :value="__('app.team')" />
+                    <x-ui.forms.select id="invite-team" wire:model="teamId" class="mt-1 block" :placeholder="__('app.please_select')">
+                        @foreach($teams as $team)
+                            <option value="{{ $team->id }}">{{ $team->name }}</option>
+                        @endforeach
                     </x-ui.forms.select>
-                    <x-input-error for="role" class="mt-1" />
+                    <x-input-error for="teamId" class="mt-1" />
+                </div>
+
+                <div>
+                    <x-ui.forms.label for="invite-position" :value="__('app.position')" />
+                    <x-ui.forms.input id="invite-position" class="mt-1 block" type="text" wire:model="position" :placeholder="__('app.position_placeholder')" autocomplete="organization-title" />
+                    <x-input-error for="position" class="mt-1" />
                 </div>
             </div>
         </div>

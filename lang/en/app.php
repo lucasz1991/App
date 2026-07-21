@@ -292,6 +292,9 @@ return [
     // Settings (admin configuration)
     'settings' => 'Settings',
     'administration' => 'Administration',
+    'mobile_navigation' => 'Open or close navigation',
+    'general' => 'General',
+    'users' => 'Users',
     'settings_page_description' => 'Central configuration for system, invitations and emails.',
     'settings_overview' => 'Overview',
     'settings_mails' => 'Emails',

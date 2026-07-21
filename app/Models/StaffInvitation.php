@@ -10,6 +10,8 @@ class StaffInvitation extends Model
     protected $fillable = [
         'email',
         'role',
+        'team_id',
+        'position',
         'token',
         'invited_by',
         'expires_at',
@@ -24,6 +26,11 @@ class StaffInvitation extends Model
     public function inviter(): BelongsTo
     {
         return $this->belongsTo(User::class, 'invited_by');
+    }
+
+    public function team(): BelongsTo
+    {
+        return $this->belongsTo(Team::class);
     }
 
     public function isExpired(): bool

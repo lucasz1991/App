@@ -2,9 +2,21 @@
     $area = $area ?? (auth()->check() && in_array(auth()->user()->role, ['admin', 'staff'], true) ? 'admin' : 'user');
     $brandHref = $area === 'admin' ? route('admin.dashboard') : route('dashboard');
 @endphp
-<nav class="fixed top-0 left-0 right-0 z-10 flex items-center border-b border-rt-border/60 bg-white/85 text-rt-text shadow-rt-xs backdrop-blur-xl dark:border-rt-dark-border/60 dark:bg-slate-900/85 dark:text-rt-dark-text print:hidden">
+<nav class="fixed top-0 left-0 right-0 z-40 flex items-center border-b border-rt-border/60 bg-white/85 text-rt-text shadow-rt-xs backdrop-blur-xl dark:border-rt-dark-border/60 dark:bg-slate-900/85 dark:text-rt-dark-text print:hidden">
     <div class="flex justify-between w-full">
         <div class="flex items-center topbar-brand">
+            <a
+                href="{{ $brandHref }}"
+                class="flex h-[70px] w-14 shrink-0 items-center justify-center lg:hidden"
+                aria-label="RailTime"
+            >
+                <img
+                    class="h-9 w-9 object-contain dark:brightness-0 dark:invert"
+                    src="{{ asset('rt-brand/rt-logo.svg') }}"
+                    alt="RailTime Logo"
+                >
+            </a>
+
             <div
                 class="hidden lg:flex navbar-brand items-center justify-between shrink px-3 h-[70px] ltr:border-r rtl:border-l border-rt-border/60 bg-rt-topbar shadow-none dark:border-rt-dark-border/60 dark:bg-rt-dark-topbar">
                 <a href="{{ $brandHref }}"
@@ -22,21 +34,23 @@
             </div>
             <!-- Toggle Button (relativ zur Sidebar positioniert, sichtbar bei kleineren Bildschirmen) -->
             <button type="button"
-                class="border-b border-rt-border/60 text-rt-text transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted/70 dark:border-rt-dark-border/60 dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted/70 group-data-[sidebar-size=sm]:border-rt-border/60 group-data-[sidebar-size=sm]:dark:border-rt-dark-border/60 h-[70px] px-4 rtl:-mr-14 py-1 vertical-menu-btn text-16"
-                id="vertical-menu-btn">
-                <div class="z-50 text-rt-muted dark:text-rt-dark-muted burger-container group-data-[sidebar-size=lg]:open">
-                    <div class="burger-bar bar1"></div>
-                    <div class="burger-bar bar2"></div>
-                    <div class="burger-bar bar3"></div>
-                </div>
+                class="vertical-menu-btn flex h-[70px] w-14 shrink-0 items-center justify-center border-b border-rt-border/60 px-3 text-rt-muted transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted/70 hover:text-rt-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rt-accent dark:border-rt-dark-border/60 dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted/70 dark:hover:text-rt-dark-text group-data-[sidebar-size=sm]:border-rt-border/60 group-data-[sidebar-size=sm]:dark:border-rt-dark-border/60"
+                id="vertical-menu-btn"
+                aria-label="{{ __('app.mobile_navigation') }}"
+                aria-controls="app-sidebar"
+                aria-expanded="false"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                    <path d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
             </button>
         </div>
-        <div class="flex justify-between w-full items-center ltr:pl-6 rtl:pr-6 ltr:pr-6 rtl:pl-6 border-b border-rt-border/60 dark:border-rt-dark-border/60">
+        <div class="flex min-w-0 flex-1 items-center justify-end border-b border-rt-border/60 px-2 dark:border-rt-dark-border/60 sm:px-4 lg:px-6">
             <div>
 
 
             </div>
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-1.5 sm:gap-3">
                     {{-- Sprache umschalten (Flaggen-Dropdown) --}}
                     @php
                         $rtLocales = [

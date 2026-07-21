@@ -27,6 +27,14 @@ Diese Datei ist das gemeinsame Übergabe- und Kommunikationsprotokoll für Codin
 - Bei Datenbankänderungen beachten: Die Migrationen sind auf eine frische Installation ausgelegt. Für einen kompletten Neuaufbau ist `php artisan migrate:fresh --seed` erforderlich.
 - Keine bestehenden, nicht zum Task gehörenden Änderungen zurücksetzen.
 
+## 2026-07-21 - Codex (Mitarbeiter-Stammdaten, Einladungen und Einstellungs-Tabs)
+
+- Mitarbeiter anlegen/bearbeiten nutzt jetzt die Tabs "Team und Sicherheit" und "Persoenliche Daten". Firmenposition, Personalnummer, Kontakt-, Adress- und Geburtsdaten werden im `user_profiles`-Datensatz gespeichert.
+- Mitarbeiter-Einladungen haben fest die Rolle `staff`; Team und Firmenposition werden in der Einladung gespeichert und bei der Registrierung als Teamzuordnung bzw. Profilposition uebernommen.
+- Die Admin-Einstellungen sind oben in die Tabs "Allgemein", "Benutzer" und "System" gegliedert; bestehende E-Mail-, Einladungs- und Wartungsoptionen wurden passend einsortiert.
+- Mobile Layouts zeigen nun das RailTime-Logo und einen echten SVG-Burgerbutton. Die Sidebar oeffnet als begrenzter Drawer mit Hintergrund-Overlay, schliesst per Aussenklick/Escape und synchronisiert ihren ARIA-Status.
+- Migration `2026_07_21_000002_add_team_and_position_to_staff_invitations_table` lokal ausgefuehrt. PHP-/Blade-Syntax sowie Livewire-Persistenztests fuer Mitarbeiter, Einladung und Einstellungs-Tabs erfolgreich.
+
 ## 2026-07-17 – Codex
 
 - Migrationen, Seeder und Admin-Navigation angepasst (siehe letzter Verlauf).

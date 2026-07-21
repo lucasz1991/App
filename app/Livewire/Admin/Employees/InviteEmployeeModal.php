@@ -3,8 +3,9 @@
 namespace App\Livewire\Admin\Employees;
 
 use App\Mail\StaffInvitationMail;
+use App\Models\Setting;
 use App\Models\StaffInvitation;
-use App\Models\User;
+use App\Models\Team;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -19,13 +20,16 @@ class InviteEmployeeModal extends Component
 
     public string $email = '';
 
-    public string $role = 'staff';
+    public ?int $teamId = null;
+
+    public string $position = '';
 
     public function rules(): array
     {
         return [
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')],
-            'role' => ['required', Rule::in(['staff', 'admin'])],
+            'teamId' => ['required', 'integer', 'exists:teams,id'],
+            'position' => ['nullable', 'string', 'max:100'],
         ];
     }
 
@@ -35,19 +39,13 @@ class InviteEmployeeModal extends Component
         Gate::authorize('employees.create');
 
         $this->resetValidation();
-        $this->reset(['email', 'role']);
-        $this->role = 'staff';
+        $this->reset(['email', 'teamId', 'position']);
         $this->showModal = true;
     }
 
     public function save(): void
     {
         Gate::authorize('employees.create');
-
-        // Nur Admins duerfen Admin-Einladungen verschicken
-        if ($this->role === 'admin' && ! auth()->user()->isAdmin()) {
-            abort(403);
-        }
 
         $this->validate();
 
@@ -58,12 +56,14 @@ class InviteEmployeeModal extends Component
             ->delete();
 
         // Gueltigkeitsdauer aus den Einstellungen (Fallback 7 Tage)
-        $expiryDays = (int) (\App\Models\Setting::getValue('invitations', 'expiry_days') ?? 7);
+        $expiryDays = (int) (Setting::getValue('invitations', 'expiry_days') ?? 7);
         $expiryDays = $expiryDays > 0 ? $expiryDays : 7;
 
         $invitation = StaffInvitation::create([
             'email' => $this->email,
-            'role' => $this->role,
+            'role' => 'staff',
+            'team_id' => $this->teamId,
+            'position' => $this->position ?: null,
             'token' => Str::random(64),
             'invited_by' => auth()->id(),
             'expires_at' => now()->addDays($expiryDays),
@@ -93,6 +93,11 @@ class InviteEmployeeModal extends Component
 
     public function render()
     {
-        return view('livewire.admin.employees.invite-employee-modal');
+        $teams = Team::query()
+            ->where('personal_team', false)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        return view('livewire.admin.employees.invite-employee-modal', compact('teams'));
     }
 }
