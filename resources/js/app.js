@@ -143,6 +143,9 @@ Alpine.data('chatRealtime', (config) => ({
     recordingLabel: '',
     recordingTimer: null,
     recordingStream: null,
+    recordingIntent: null,
+    sendingVoice: false,
+    viewOnce: false,
     chunks: [],
 
     init() {
@@ -154,6 +157,10 @@ Alpine.data('chatRealtime', (config) => ({
 
         this.channel = window.Echo.private(`chat.${config.chatId}`)
             .listen('.chat.message.sent', (event) => {
+                Livewire.dispatch('chat:refresh', { chatId: Number(event.chatId) });
+                Livewire.dispatch('inbox:refresh');
+            })
+            .listen('.chat.message.deleted', (event) => {
                 Livewire.dispatch('chat:refresh', { chatId: Number(event.chatId) });
                 Livewire.dispatch('inbox:refresh');
             })
@@ -190,15 +197,14 @@ Alpine.data('chatRealtime', (config) => ({
         });
     },
 
-    async toggleRecording() {
-        if (this.recording) {
-            this.recorder?.stop();
+    async startRecording() {
+        if (this.recording || this.sendingVoice) {
             return;
         }
 
         if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
             window.dispatchEvent(new CustomEvent('swal:toast', {
-                detail: { type: 'error', text: 'Sprachaufnahme wird von diesem Browser nicht unterstützt.' },
+                detail: { type: 'error', text: config.unsupportedText || 'Sprachaufnahme wird von diesem Browser nicht unterstützt.' },
             }));
             return;
         }
@@ -225,17 +231,49 @@ Alpine.data('chatRealtime', (config) => ({
             this.recorder.addEventListener('stop', () => this.finishRecording(), { once: true });
             this.recorder.start(250);
             this.recording = true;
+            this.recordingIntent = null;
+            this.viewOnce = false;
             this.recordingSeconds = 0;
             this.updateRecordingLabel();
             this.recordingTimer = window.setInterval(() => {
                 this.recordingSeconds += 1;
                 this.updateRecordingLabel();
+
+                if (this.recordingSeconds >= 300) {
+                    this.sendRecording();
+                }
             }, 1000);
         } catch (error) {
             this.stopRecordingTracks();
             window.dispatchEvent(new CustomEvent('swal:toast', {
-                detail: { type: 'error', text: 'Das Mikrofon konnte nicht verwendet werden.' },
+                detail: { type: 'error', text: config.microphoneErrorText || 'Das Mikrofon konnte nicht verwendet werden.' },
             }));
+        }
+    },
+
+    cancelRecording() {
+        if (!this.recording) {
+            this.resetVoiceRecorder();
+            return;
+        }
+
+        this.recordingIntent = 'cancel';
+        this.recorder?.stop();
+    },
+
+    sendRecording() {
+        if (!this.recording || this.sendingVoice) {
+            return;
+        }
+
+        this.recordingIntent = 'send';
+        this.sendingVoice = true;
+        this.recorder?.stop();
+    },
+
+    toggleViewOnce() {
+        if (this.recording && !this.sendingVoice) {
+            this.viewOnce = !this.viewOnce;
         }
     },
 
@@ -244,7 +282,15 @@ Alpine.data('chatRealtime', (config) => ({
         this.recording = false;
         this.stopRecordingTracks();
 
+        const shouldSend = this.recordingIntent === 'send';
+
+        if (!shouldSend) {
+            this.resetVoiceRecorder();
+            return;
+        }
+
         if (this.chunks.length === 0) {
+            this.voiceUploadFailed();
             return;
         }
 
@@ -256,8 +302,37 @@ Alpine.data('chatRealtime', (config) => ({
             { type: mime }
         );
 
-        this.$wire.uploadMultiple('uploads', [file]);
+        this.$wire.upload(
+            'voiceUpload',
+            file,
+            () => {
+                this.$wire.call('sendVoice', this.viewOnce)
+                    .then(() => this.resetVoiceRecorder())
+                    .catch(() => this.voiceUploadFailed());
+            },
+            () => this.voiceUploadFailed()
+        );
         this.chunks = [];
+    },
+
+    voiceUploadFailed() {
+        this.resetVoiceRecorder();
+        window.dispatchEvent(new CustomEvent('swal:toast', {
+            detail: { type: 'error', text: config.uploadErrorText || 'Die Sprachnachricht konnte nicht gesendet werden.' },
+        }));
+    },
+
+    resetVoiceRecorder() {
+        window.clearInterval(this.recordingTimer);
+        this.stopRecordingTracks();
+        this.recording = false;
+        this.sendingVoice = false;
+        this.recordingIntent = null;
+        this.recordingSeconds = 0;
+        this.recordingLabel = config.recordingText || 'Aufnahme';
+        this.chunks = [];
+        this.recorder = null;
+        this.viewOnce = false;
     },
 
     stopRecordingTracks() {
@@ -272,10 +347,16 @@ Alpine.data('chatRealtime', (config) => ({
     },
 }));
 
-Alpine.data('chatAudioPlayer', () => ({
+Alpine.data('chatAudioPlayer', (config = {}) => ({
+    messageId: Number(config.messageId || 0),
+    sourceUrl: config.sourceUrl || '',
+    viewOnce: Boolean(config.viewOnce),
+    consumed: Boolean(config.consumed),
+    loading: false,
     playing: false,
     currentTime: 0,
     duration: 0,
+    waveform: [8, 15, 11, 20, 13, 24, 17, 10, 22, 14, 26, 18, 12, 21, 9, 17, 25, 14, 20, 11, 23, 16, 10, 19, 13, 22, 15, 9],
 
     get progress() {
         return this.duration > 0 ? Math.min(100, (this.currentTime / this.duration) * 100) : 0;
@@ -291,6 +372,19 @@ Alpine.data('chatAudioPlayer', () => ({
     },
 
     toggle() {
+        if (this.consumed || this.loading) {
+            return;
+        }
+
+        if (!this.sourceUrl) {
+            this.loading = true;
+            this.$wire.call('requestVoicePlayback', this.messageId)
+                .catch(() => {
+                    this.loading = false;
+                });
+            return;
+        }
+
         if (this.$refs.audio.paused) {
             this.$refs.audio.play().catch(() => {
                 this.playing = false;
@@ -299,6 +393,33 @@ Alpine.data('chatAudioPlayer', () => ({
         }
 
         this.$refs.audio.pause();
+    },
+
+    acceptSource(detail) {
+        if (Number(detail?.messageId) !== this.messageId) {
+            return;
+        }
+
+        this.sourceUrl = detail.url || '';
+        this.viewOnce = Boolean(detail.viewOnce);
+        this.loading = false;
+        this.$nextTick(() => {
+            this.$refs.audio.load();
+            this.$refs.audio.play().catch(() => {
+                this.playing = false;
+            });
+        });
+    },
+
+    markConsumed(detail) {
+        if (Number(detail?.messageId) !== this.messageId) {
+            return;
+        }
+
+        this.loading = false;
+        this.playing = false;
+        this.consumed = true;
+        this.sourceUrl = '';
     },
 
     metadataLoaded() {
@@ -310,6 +431,10 @@ Alpine.data('chatAudioPlayer', () => ({
     },
 
     seek(value) {
+        if (this.consumed || !this.sourceUrl) {
+            return;
+        }
+
         const nextTime = Math.max(0, Math.min(Number(value) || 0, this.duration || 0));
         this.$refs.audio.currentTime = nextTime;
         this.currentTime = nextTime;
@@ -317,6 +442,16 @@ Alpine.data('chatAudioPlayer', () => ({
 
     ended() {
         this.playing = false;
+
+        if (this.viewOnce) {
+            this.consumed = true;
+            this.sourceUrl = '';
+            this.$refs.audio.removeAttribute('src');
+            this.$refs.audio.load();
+            this.$wire.call('finishVoicePlayback', this.messageId);
+            return;
+        }
+
         this.currentTime = 0;
         this.$refs.audio.currentTime = 0;
     },

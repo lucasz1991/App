@@ -60,19 +60,19 @@
 
 {{-- 2: Zeitraum (planned_start_date / planned_end_date) --}}
 <div class="flex justify-center px-2 py-2 text-xs {{ $hc(1) }}">
-    <div class="inline-flex flex-col items-center justify-center px-2 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 shadow-sm">
+    <div class="rt-ui-surface-muted inline-flex flex-col items-center justify-center rounded-lg border border-rt-border bg-rt-surface-muted px-2 py-1.5 text-rt-text shadow-rt-xs dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-rt-dark-text">
         <div class="font-semibold text-[10px] leading-tight">
             {{ $termin_id }}
         </div>
 
-        <div class="w-6 border-t border-slate-200 my-0.5"></div>
+        <div class="my-0.5 w-6 border-t border-rt-border dark:border-rt-dark-border"></div>
 
         @if($startLbl || $endLbl)
             <div class="font-medium text-[10px] leading-tight">
                 {{ $startLbl ?? '—' }} – {{ $endLbl ?? '—' }}
             </div>
         @else
-            <div class="text-gray-400 text-[10px]">—</div>
+            <div class="text-[10px] text-rt-soft dark:text-rt-dark-soft">—</div>
         @endif
     </div>
 </div>
@@ -86,13 +86,13 @@
 
 
 {{-- 1: Tutor (aus Person) --}}
-<div class="px-2 py-2 text-gray-700 truncate {{ $hc(3) }}">
+<div class="truncate px-2 py-2 text-rt-text dark:text-rt-dark-text {{ $hc(3) }}">
     @if($item->tutor !== null)
         <span class="inline-flex items-center gap-1">
             <x-user.public-info :person="$item->tutor" />
         </span>
     @else
-        <span class="text-gray-400">—</span>
+        <span class="text-rt-soft dark:text-rt-dark-soft">—</span>
     @endif
 </div>
 
@@ -160,34 +160,35 @@
                     <x-ui.dropdown.anchor-dropdown
                         align="right"
                         width="40"
-                        dropdownClasses="mt-1 w-44 bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden"
-                        contentClasses="bg-white"
+                        dropdownClasses="mt-1 w-44 overflow-hidden"
+                        contentClasses="bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text"
                         :overlay="false"
                         :trap="false"
                         :scrollOnOpen="false"
                         :offset="6"
                     >
                         <x-slot name="trigger">
-                            <div
+                            <button
+                                type="button"
                                 title="{{ $action['title'] }}"
-                                class="relative inline-flex items-center gap-1 px-1 py-1 rounded bg-gray-50 text-gray-700 border border-gray-300 mr-2 cursor-pointer hover:bg-gray-100 hover:border-gray-400 transition"
+                                class="rt-ui-button rt-ui-button-secondary relative mr-2 inline-flex items-center gap-1 rounded border border-rt-border bg-rt-surface px-1 py-1 text-rt-text transition hover:bg-rt-surface-muted dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted"
                             >
                                 <i class="{{ $action['icon'] }}"></i>
-                                <div class="absolute -top-2 -right-2 bg-white/70 rounded-full aspect-square p-[2px]">
+                                <span class="rt-ui-surface absolute -right-2 -top-2 rounded-full bg-rt-surface/90 p-[2px] dark:bg-rt-dark-surface/90">
                                     {!! $action['badge'] !!}
-                                </div>
-                            </div>
+                                </span>
+                            </button>
                         </x-slot>
                         <x-slot name="content">
-                            <div class="py-1 text-xs text-gray-700">
+                            <div class="py-1 text-xs text-rt-text dark:text-rt-dark-text">
                                 <button
                                     type="button"
                                     wire:click="{{ $action['wire'] }}"
                                     wire:loading.attr="disabled"
                                     wire:target="{{ $action['wire'] }}"
-                                    class="flex w-full items-center gap-2 px-3 py-2 hover:bg-gray-50 text-sm disabled:opacity-60 disabled:cursor-wait"
+                                    class="rt-ui-dropdown-link flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-rt-surface-muted disabled:cursor-wait disabled:opacity-60 dark:hover:bg-rt-dark-nav-hover"
                                 >
-                                    <i class="fal fa-download text-[14px] text-gray-500" wire:loading.remove wire:target="{{ $action['wire'] }}"></i>
+                                    <i class="fal fa-download text-[14px] text-rt-muted dark:text-rt-dark-muted" wire:loading.remove wire:target="{{ $action['wire'] }}"></i>
                                     <i class="fal fa-spinner fa-spin text-[14px] text-blue-500" wire:loading wire:target="{{ $action['wire'] }}"></i>
                                     <span>{{ $action['title'] }}</span>
                                 </button>
@@ -197,10 +198,10 @@
                 @else
                     <div
                         title="{{ $action['title'] }}"
-                        class="relative inline-flex items-center gap-1 px-1 py-1 rounded bg-gray-50 text-gray-400 border border-gray-200 mr-2 cursor-not-allowed opacity-60"
+                        class="rt-ui-button rt-ui-button-secondary relative mr-2 inline-flex cursor-not-allowed items-center gap-1 rounded border border-rt-border bg-rt-surface-muted px-1 py-1 text-rt-soft opacity-60 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-rt-dark-soft"
                     >
                         <i class="{{ $action['icon'] }}"></i>
-                        <div class="absolute -top-2 -right-2 bg-white/70 rounded-full aspect-square p-[2px]">
+                        <div class="rt-ui-surface absolute -right-2 -top-2 rounded-full bg-rt-surface/90 p-[2px] dark:bg-rt-dark-surface/90">
                             {!! $action['badge'] !!}
                         </div>
                     </div>

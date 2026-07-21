@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ChatMessage;
 use App\Models\File;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\HeaderUtils;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -20,6 +21,18 @@ class ChatAttachmentController extends Controller
             $message->chat()->whereHas('participants', fn ($query) => $query->where('users.id', $request->user()->id))->exists(),
             403
         );
+
+        if ($message->isVoice() && $message->view_once) {
+            $providedToken = (string) $request->query('voice_token', '');
+            $activeToken = Cache::get(ChatMessage::voicePlaybackCacheKey($message->id, $request->user()->id));
+
+            abort_unless(
+                $providedToken !== ''
+                    && is_string($activeToken)
+                    && hash_equals($activeToken, $providedToken),
+                410
+            );
+        }
 
         $mime = strtolower((string) $file->mime_type);
         $canRenderInline = str_starts_with($mime, 'image/')
@@ -40,7 +53,7 @@ class ChatAttachmentController extends Controller
                 $file->name,
                 'attachment'
             ),
-            'Cache-Control' => 'private, max-age=300',
+            'Cache-Control' => $message->view_once ? 'private, no-store, max-age=0' : 'private, max-age=300',
             'X-Content-Type-Options' => 'nosniff',
         ]);
     }

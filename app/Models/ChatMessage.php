@@ -52,4 +52,9 @@ class ChatMessage extends Model
 
         return $this->views()->where('user_id', $user->id)->exists();
     }
+
+    public static function voicePlaybackCacheKey(int $messageId, int $userId): string
+    {
+        return "chat-voice-playback:{$messageId}:{$userId}";
+    }
 }

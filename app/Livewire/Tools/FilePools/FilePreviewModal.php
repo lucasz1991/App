@@ -71,6 +71,10 @@ class FilePreviewModal extends Component
 
         $message = ChatMessage::query()->findOrFail($file->fileable_id);
 
+        // Einmal-Sprachnachrichten duerfen weder ueber die globale Vorschau
+        // noch ueber deren Download-Methode am Einmal-Player vorbeigelangen.
+        abort_if($message->isVoice() && $message->view_once, 403);
+
         abort_unless(
             auth()->check()
                 && $message->chat()
