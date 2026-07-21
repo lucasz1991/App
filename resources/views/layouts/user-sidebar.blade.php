@@ -70,5 +70,15 @@
                 {{ __('app.profile') }}
             </x-menu.sidebar-nav-link>
         </x-menu.sidebar-nav>
+
+        <x-menu.sidebar-nav :label="__('app.help_and_contact')">
+            <x-menu.sidebar-nav-link
+                :href="route('support')"
+                icon="life-buoy"
+                :active="request()->routeIs('support')"
+            >
+                {{ __('app.it_support') }}
+            </x-menu.sidebar-nav-link>
+        </x-menu.sidebar-nav>
     </ul>
 </div>

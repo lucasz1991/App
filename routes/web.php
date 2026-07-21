@@ -7,6 +7,7 @@ use App\Livewire\Admin\ManagedDocuments;
 use App\Livewire\Admin\OperationalPreview;
 use App\Livewire\Admin\Settings;
 use App\Livewire\Admin\UserProfile;
+use App\Livewire\ItSupport;
 use App\Livewire\MessageBox;
 use App\Livewire\UserDashboard;
 use App\Livewire\UserFiles;
@@ -70,6 +71,7 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
     Route::get('/messages', MessageBox::class)->name('messages');
     // Chat steht ALLEN angemeldeten Benutzern offen (Admin- wie Nutzerbereich).
     Route::get('/chat', App\Livewire\ChatBox::class)->name('chat');
+    Route::get('/support', ItSupport::class)->name('support');
     Route::get('/chat/files/{file}', App\Http\Controllers\ChatAttachmentController::class)
         ->name('chat.attachments');
     // Personalisierte E-Mail-Vorlagen/Signaturen als eigenstaendiger Bereich.

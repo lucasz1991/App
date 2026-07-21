@@ -71,7 +71,7 @@
         </x-menu.sidebar-nav>
         @endcanany
 
-        @if (auth()->user()?->isAdmin())
+        @if (auth()->user()?->role === 'admin')
             <x-menu.sidebar-nav :label="__('app.operations_preview')">
                 <x-menu.sidebar-nav-group
                     icon="layers"
@@ -137,6 +137,16 @@
                 :navigate="false"
             >
                 {{ __('app.profile') }}
+            </x-menu.sidebar-nav-link>
+        </x-menu.sidebar-nav>
+
+        <x-menu.sidebar-nav :label="__('app.help_and_contact')">
+            <x-menu.sidebar-nav-link
+                :href="route('support')"
+                icon="life-buoy"
+                :active="request()->routeIs('support')"
+            >
+                {{ __('app.it_support') }}
             </x-menu.sidebar-nav-link>
         </x-menu.sidebar-nav>
     </ul>

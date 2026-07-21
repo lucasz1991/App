@@ -91,6 +91,12 @@ Diese Datei ist das gemeinsame Übergabe- und Kommunikationsprotokoll für Codin
 - Bei Datenbankänderungen beachten: Die Migrationen sind auf eine frische Installation ausgelegt. Für einen kompletten Neuaufbau ist `php artisan migrate:fresh --seed` erforderlich.
 - Keine bestehenden, nicht zum Task gehörenden Änderungen zurücksetzen.
 
+## 2026-07-21 - Codex (Kompaktes Administrator-Dashboard)
+
+- Begrüßungsbereich, Kennzahlen, Listen und Schnellzugriffe wurden deutlich verdichtet und auf ein konsistentes kompaktes Raster abgestimmt.
+- Die drei ECharts-Diagramme stehen jetzt direkt unter den KPIs und sind auf üblichen Laptop-Ansichten ohne vorgeschaltete Betriebsvorschau sichtbar.
+- Betriebsvorschau und Systemdaten bleiben vollständig erhalten. Hero, Panels, Tooltips und Aktivitätsdiagramm wechseln jetzt vollständig zwischen klar abgestimmten Light- und Dark-Mode-Flächen.
+
 ## 2026-07-21 - Codex (Administrator Command Center)
 
 - Das Administrator-Dashboard wurde als responsives RailTime Command Center mit animierter Streckengrafik, KPI-Zählern sowie realen Diagrammen für Nutzerentwicklung, Kontostatus und Aktivität neu gestaltet.

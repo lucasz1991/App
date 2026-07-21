@@ -147,52 +147,9 @@
             </article>
         </section>
 
-        <section class="rt-admin-panel overflow-hidden rounded-2xl" aria-labelledby="operational-preview-heading" data-anim="fade-up">
-            <header class="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 px-5 py-5 sm:px-6 dark:border-slate-700">
-                <div>
-                    <div class="flex flex-wrap items-center gap-2.5">
-                        <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.operations') }}</p>
-                        <span class="inline-flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300">
-                            <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
-                            {{ __('app.demo_preview') }}
-                        </span>
-                    </div>
-                    <h2 id="operational-preview-heading" class="mt-1 text-lg font-semibold text-rt-text dark:text-white">{{ __('app.operational_control') }}</h2>
-                    <p class="mt-1 max-w-2xl text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">{{ __('app.operational_preview_dashboard_hint') }}</p>
-                </div>
-                <span class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                    <i data-feather="database" class="h-3.5 w-3.5"></i>
-                    {{ __('app.no_database_connection') }}
-                </span>
-            </header>
-
-            <div class="grid gap-px bg-slate-200 sm:grid-cols-2 xl:grid-cols-4 dark:bg-slate-700" data-operational-preview>
-                @foreach ($operationalPreviews as $previewModule)
-                    <a
-                        href="{{ route('admin.operations.preview', ['module' => $previewModule['slug']]) }}"
-                        wire:navigate
-                        class="group min-w-0 bg-white px-5 py-5 transition duration-300 hover:bg-slate-50 sm:px-6 dark:bg-[#111827] dark:hover:bg-slate-800"
-                    >
-                        <div class="flex items-start justify-between gap-3">
-                            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border {{ $previewToneClasses[$previewModule['tone']] ?? $previewToneClasses['red'] }}">
-                                <i data-feather="{{ $previewModule['icon'] }}" class="h-4 w-4"></i>
-                            </span>
-                            <i data-feather="arrow-up-right" class="h-4 w-4 text-slate-400 transition duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-rt-red"></i>
-                        </div>
-                        <p class="mt-4 text-2xl font-semibold tracking-[-0.035em] tabular-nums text-rt-text dark:text-white">{{ $previewModule['metric'] }}</p>
-                        <p class="mt-0.5 truncate text-xs text-rt-muted dark:text-rt-dark-muted">{{ $previewModule['metric_label'] }}</p>
-                        <div class="mt-4 border-t border-slate-200 pt-3 dark:border-slate-700">
-                            <p class="truncate text-sm font-semibold text-rt-text dark:text-white">{{ $previewModule['title'] }}</p>
-                            <p class="mt-1 truncate text-[11px] text-rt-soft dark:text-rt-dark-soft">{{ $previewModule['badge'] }}</p>
-                        </div>
-                    </a>
-                @endforeach
-            </div>
-        </section>
-
         {{-- Feine SVG-Diagramme mit Apache ECharts 6. --}}
-        <section class="grid gap-4 xl:grid-cols-12" aria-label="{{ __('app.user_growth') }}" data-anim="fade-up">
-            <article class="rt-admin-panel overflow-hidden rounded-2xl p-5 sm:p-6 xl:col-span-8">
+        <section class="grid gap-3 lg:grid-cols-2 xl:grid-cols-12" aria-label="{{ __('app.user_growth') }}" data-anim="fade-up">
+            <article class="rt-admin-panel overflow-hidden rounded-2xl p-4 lg:col-span-2 xl:col-span-6">
                 <header class="flex flex-wrap items-start justify-between gap-3">
                     <div>
                         <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.last_14_days') }}</p>
@@ -204,47 +161,90 @@
                         <strong class="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 font-semibold text-rt-text dark:border-slate-700 dark:bg-slate-800 dark:text-white">+{{ array_sum($charts['userGrowth']['registrations']) }}</strong>
                     </div>
                 </header>
-                <div class="rt-admin-chart mt-4 h-[270px] sm:h-[300px]" x-ref="growthChart" aria-label="{{ __('app.user_growth') }}"></div>
+                <div class="rt-admin-chart mt-2 h-[210px] sm:h-[225px]" x-ref="growthChart" aria-label="{{ __('app.user_growth') }}"></div>
             </article>
 
-            <div class="grid gap-4 xl:col-span-4">
-                <article class="rt-admin-panel rounded-2xl p-5 sm:p-6">
-                    <div class="flex items-start justify-between gap-3">
-                        <div>
-                            <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.accounts') }}</p>
-                            <h2 class="mt-1 text-lg font-semibold text-rt-text dark:text-white">{{ __('app.account_status') }}</h2>
-                        </div>
-                        <span class="text-xs font-semibold tabular-nums text-rt-muted dark:text-rt-dark-muted">{{ $activeRate }}%</span>
+            <article class="rt-admin-panel rounded-2xl p-4 xl:col-span-3">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.accounts') }}</p>
+                        <h2 class="mt-1 text-lg font-semibold text-rt-text dark:text-white">{{ __('app.account_status') }}</h2>
                     </div>
-                    <div class="rt-admin-chart h-[178px]" x-ref="statusChart" aria-label="{{ __('app.account_status') }}"></div>
-                    <dl class="grid grid-cols-2 gap-2 border-t border-slate-200 pt-3 dark:border-slate-700">
-                        <div>
-                            <dt class="flex items-center gap-2 text-[10px] text-rt-muted dark:text-rt-dark-muted"><span class="h-2 w-2 rounded-full bg-rt-red"></span>{{ __('app.active_users') }}</dt>
-                            <dd class="mt-1 text-sm font-semibold tabular-nums text-rt-text dark:text-white">{{ number_format($charts['status']['values'][0] ?? 0, 0, ',', '.') }}</dd>
-                        </div>
-                        <div>
-                            <dt class="flex items-center gap-2 text-[10px] text-rt-muted dark:text-rt-dark-muted"><span class="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-600"></span>{{ __('app.inactive_users') }}</dt>
-                            <dd class="mt-1 text-sm font-semibold tabular-nums text-rt-text dark:text-white">{{ number_format($charts['status']['values'][1] ?? 0, 0, ',', '.') }}</dd>
-                        </div>
-                    </dl>
-                </article>
-                <article class="overflow-hidden rounded-2xl border border-slate-700 bg-[#111827] p-5 text-white shadow-rt-md sm:p-6">
-                    <div class="flex items-start justify-between gap-4">
-                        <div>
-                            <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">{{ __('app.last_14_days') }}</p>
-                            <h2 class="mt-1 text-base font-semibold text-white">{{ __('app.activity_trend') }}</h2>
-                        </div>
-                        <i data-feather="bar-chart-2" class="h-5 w-5 text-rt-red-light"></i>
+                    <span class="text-xs font-semibold tabular-nums text-rt-muted dark:text-rt-dark-muted">{{ $activeRate }}%</span>
+                </div>
+                <div class="rt-admin-chart h-[132px]" x-ref="statusChart" aria-label="{{ __('app.account_status') }}"></div>
+                <dl class="grid grid-cols-2 gap-2 border-t border-slate-200 pt-2.5 dark:border-slate-700">
+                    <div>
+                        <dt class="flex items-center gap-2 text-[10px] text-rt-muted dark:text-rt-dark-muted"><span class="h-2 w-2 rounded-full bg-rt-red"></span>{{ __('app.active_users') }}</dt>
+                        <dd class="mt-1 text-sm font-semibold tabular-nums text-rt-text dark:text-white">{{ number_format($charts['status']['values'][0] ?? 0, 0, ',', '.') }}</dd>
                     </div>
-                    <div class="rt-admin-chart mt-3 h-[118px]" x-ref="activityChart" aria-label="{{ __('app.activity_trend') }}"></div>
-                </article>
-            </div>
+                    <div>
+                        <dt class="flex items-center gap-2 text-[10px] text-rt-muted dark:text-rt-dark-muted"><span class="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-600"></span>{{ __('app.inactive_users') }}</dt>
+                        <dd class="mt-1 text-sm font-semibold tabular-nums text-rt-text dark:text-white">{{ number_format($charts['status']['values'][1] ?? 0, 0, ',', '.') }}</dd>
+                    </div>
+                </dl>
+            </article>
+            <article class="rt-admin-panel overflow-hidden rounded-2xl p-4 xl:col-span-3">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-muted dark:text-rt-dark-muted">{{ __('app.last_14_days') }}</p>
+                        <h2 class="mt-1 text-base font-semibold text-rt-text dark:text-white">{{ __('app.activity_trend') }}</h2>
+                    </div>
+                    <i data-feather="bar-chart-2" class="h-5 w-5 text-rt-red-light"></i>
+                </div>
+                <div class="rt-admin-chart mt-2 h-[150px]" x-ref="activityChart" aria-label="{{ __('app.activity_trend') }}"></div>
+            </article>
         </section>
 
-        <section class="grid gap-4 xl:grid-cols-12" data-anim="fade-up" data-anim-delay=".05">
+        @if (auth()->user()?->role === 'admin')
+        <section class="rt-admin-panel overflow-hidden rounded-2xl" aria-labelledby="operational-preview-heading" data-anim="fade-up">
+            <header class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-4 py-3.5 sm:px-5 dark:border-slate-700">
+                <div>
+                    <div class="flex flex-wrap items-center gap-2.5">
+                        <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.operations') }}</p>
+                        <span class="inline-flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                            <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+                            {{ __('app.demo_preview') }}
+                        </span>
+                    </div>
+                    <h2 id="operational-preview-heading" class="mt-1 text-base font-semibold text-rt-text dark:text-white">{{ __('app.operational_control') }}</h2>
+                    <p class="mt-0.5 max-w-2xl text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">{{ __('app.operational_preview_dashboard_hint') }}</p>
+                </div>
+                <span class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                    <i data-feather="database" class="h-3.5 w-3.5"></i>
+                    {{ __('app.no_database_connection') }}
+                </span>
+            </header>
+
+            <div class="grid gap-px bg-slate-200 sm:grid-cols-2 lg:grid-cols-4 dark:bg-slate-700" data-operational-preview>
+                @foreach ($operationalPreviews as $previewModule)
+                    <a
+                        href="{{ route('admin.operations.preview', ['module' => $previewModule['slug']]) }}"
+                        wire:navigate
+                        class="group min-w-0 bg-white px-4 py-3.5 transition duration-200 hover:bg-slate-50 dark:bg-rt-dark-surface dark:hover:bg-rt-dark-surface-muted"
+                    >
+                        <div class="flex items-start justify-between gap-3">
+                            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border {{ $previewToneClasses[$previewModule['tone']] ?? $previewToneClasses['red'] }}">
+                                <i data-feather="{{ $previewModule['icon'] }}" class="h-4 w-4"></i>
+                            </span>
+                            <i data-feather="arrow-up-right" class="h-4 w-4 text-slate-400 transition duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-rt-red"></i>
+                        </div>
+                        <p class="mt-2.5 text-xl font-semibold tracking-[-0.035em] tabular-nums text-rt-text dark:text-white">{{ $previewModule['metric'] }}</p>
+                        <p class="mt-0.5 truncate text-xs text-rt-muted dark:text-rt-dark-muted">{{ $previewModule['metric_label'] }}</p>
+                        <div class="mt-2.5 border-t border-slate-200 pt-2.5 dark:border-slate-700">
+                            <p class="truncate text-sm font-semibold text-rt-text dark:text-white">{{ $previewModule['title'] }}</p>
+                            <p class="mt-0.5 truncate text-[11px] text-rt-soft dark:text-rt-dark-soft">{{ $previewModule['badge'] }}</p>
+                        </div>
+                    </a>
+                @endforeach
+            </div>
+        </section>
+        @endif
+
+        <section class="grid gap-3 lg:grid-cols-12" data-anim="fade-up" data-anim-delay=".05">
             {{-- Neueste Benutzer --}}
-            <article class="rt-admin-panel rounded-2xl xl:col-span-8">
-                <header class="flex items-center justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6 dark:border-slate-700">
+            <article class="rt-admin-panel rounded-2xl lg:col-span-8">
+                <header class="flex items-center justify-between gap-4 border-b border-slate-200 px-4 py-3.5 sm:px-5 dark:border-slate-700">
                     <div>
                         <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.accounts') }}</p>
                         <h2 class="mt-1 text-lg font-semibold text-rt-text dark:text-white">{{ __('app.recent_users') }}</h2>
@@ -258,8 +258,8 @@
                 </header>
                 <div class="grid gap-px bg-slate-200 sm:grid-cols-2 dark:bg-slate-700">
                     @forelse ($recentUsers as $user)
-                        <a href="{{ route('admin.user-profile', $user->id) }}" wire:navigate class="group flex min-w-0 items-center gap-3 bg-rt-surface px-5 py-4 transition duration-300 hover:bg-rt-surface-muted sm:px-6 dark:bg-rt-dark-surface dark:hover:bg-rt-dark-surface-muted">
-                            <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-sm font-semibold text-rt-text transition duration-300 group-hover:border-rt-red group-hover:bg-rt-red group-hover:text-white dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+                        <a href="{{ route('admin.user-profile', $user->id) }}" wire:navigate class="group flex min-w-0 items-center gap-3 bg-rt-surface px-4 py-3 transition duration-200 hover:bg-rt-surface-muted sm:px-5 dark:bg-rt-dark-surface dark:hover:bg-rt-dark-surface-muted">
+                            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-sm font-semibold text-rt-text transition duration-200 group-hover:border-rt-red group-hover:bg-rt-red group-hover:text-white dark:border-slate-700 dark:bg-slate-800 dark:text-white">
                                 {{ mb_strtoupper(mb_substr($user->name, 0, 1)) }}
                             </span>
                             <span class="min-w-0 flex-1">
@@ -278,40 +278,40 @@
             </article>
 
             {{-- Schnellzugriffe als kompakte Befehlsflaeche. --}}
-            <article class="rt-admin-panel rounded-2xl p-5 sm:p-6 xl:col-span-4">
+            <article class="rt-admin-panel rounded-2xl p-4 lg:col-span-4">
                 <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.admin_control_center') }}</p>
                 <h2 class="mt-1 text-lg font-semibold text-rt-text dark:text-white">{{ __('app.quick_access') }}</h2>
-                <div class="mt-5 grid grid-cols-2 gap-2.5">
+                <div class="mt-3 grid grid-cols-2 gap-2">
                     @can('employees.view')
-                        <a href="{{ route('admin.employees') }}" wire:navigate class="group rounded-xl border border-slate-200 bg-slate-50 p-3.5 transition duration-300 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red hover:bg-rt-red hover:text-white hover:shadow-rt-glow dark:border-slate-700 dark:bg-slate-800">
+                        <a href="{{ route('admin.employees') }}" wire:navigate class="group rounded-xl border border-slate-200 bg-slate-50 p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red hover:bg-rt-red hover:text-white hover:shadow-rt-glow dark:border-slate-700 dark:bg-slate-800 dark:text-white">
                             <i data-feather="users" class="h-5 w-5 text-rt-red transition group-hover:text-white"></i>
-                            <span class="mt-4 block text-xs font-semibold leading-5">{{ __('app.manage_employees') }}</span>
+                            <span class="mt-2.5 block text-xs font-semibold leading-5">{{ __('app.manage_employees') }}</span>
                         </a>
                     @endcan
                     @can('files.manage')
-                        <a href="{{ route('admin.files') }}" wire:navigate class="group rounded-xl border border-slate-200 bg-slate-50 p-3.5 transition duration-300 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red hover:bg-rt-red hover:text-white hover:shadow-rt-glow dark:border-slate-700 dark:bg-slate-800">
+                        <a href="{{ route('admin.files') }}" wire:navigate class="group rounded-xl border border-slate-200 bg-slate-50 p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red hover:bg-rt-red hover:text-white hover:shadow-rt-glow dark:border-slate-700 dark:bg-slate-800 dark:text-white">
                             <i data-feather="folder" class="h-5 w-5 text-rt-red transition group-hover:text-white"></i>
-                            <span class="mt-4 block text-xs font-semibold leading-5">{{ __('app.file_management') }}</span>
+                            <span class="mt-2.5 block text-xs font-semibold leading-5">{{ __('app.file_management') }}</span>
                         </a>
                     @endcan
                     @can('manage.messages')
-                        <a href="{{ route('admin.mail-management') }}" wire:navigate class="group rounded-xl border border-slate-200 bg-slate-50 p-3.5 transition duration-300 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red hover:bg-rt-red hover:text-white hover:shadow-rt-glow dark:border-slate-700 dark:bg-slate-800">
+                        <a href="{{ route('admin.mail-management') }}" wire:navigate class="group rounded-xl border border-slate-200 bg-slate-50 p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red hover:bg-rt-red hover:text-white hover:shadow-rt-glow dark:border-slate-700 dark:bg-slate-800 dark:text-white">
                             <i data-feather="send" class="h-5 w-5 text-rt-red transition group-hover:text-white"></i>
-                            <span class="mt-4 block text-xs font-semibold leading-5">{{ __('app.mail_management') }}</span>
+                            <span class="mt-2.5 block text-xs font-semibold leading-5">{{ __('app.mail_management') }}</span>
                         </a>
                     @endcan
                     @can('settings.manage')
-                        <a href="{{ route('admin.settings') }}" wire:navigate class="group rounded-xl border border-slate-200 bg-slate-50 p-3.5 transition duration-300 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red hover:bg-rt-red hover:text-white hover:shadow-rt-glow dark:border-slate-700 dark:bg-slate-800">
+                        <a href="{{ route('admin.settings') }}" wire:navigate class="group rounded-xl border border-slate-200 bg-slate-50 p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red hover:bg-rt-red hover:text-white hover:shadow-rt-glow dark:border-slate-700 dark:bg-slate-800 dark:text-white">
                             <i data-feather="sliders" class="h-5 w-5 text-rt-red transition group-hover:text-white"></i>
-                            <span class="mt-4 block text-xs font-semibold leading-5">{{ __('app.settings') }}</span>
+                            <span class="mt-2.5 block text-xs font-semibold leading-5">{{ __('app.settings') }}</span>
                         </a>
                     @endcan
                 </div>
             </article>
         </section>
 
-        <section class="grid gap-4 {{ $canViewSystemData && $system ? 'xl:grid-cols-12' : '' }}" data-anim="fade-up" data-anim-delay=".08">
-            <article class="rt-admin-panel rounded-2xl p-5 sm:p-6 {{ $canViewSystemData && $system ? 'xl:col-span-5' : '' }}">
+        <section class="grid gap-3 {{ $canViewSystemData && $system ? 'lg:grid-cols-12' : '' }}" data-anim="fade-up" data-anim-delay=".08">
+            <article class="rt-admin-panel rounded-2xl p-4 {{ $canViewSystemData && $system ? 'lg:col-span-5' : '' }}">
                 <div class="flex items-center justify-between gap-3">
                     <div>
                         <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.live_operations') }}</p>
@@ -319,7 +319,7 @@
                     </div>
                     <span class="flex h-9 w-9 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"><i data-feather="radio" class="h-4 w-4"></i></span>
                 </div>
-                <div class="mt-5 space-y-2.5">
+                <div class="mt-3 space-y-2">
                     @forelse ($recentActivity as $entry)
                         <div class="flex items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-rt-surface-muted dark:hover:bg-rt-dark-surface-muted">
                             <span class="relative shrink-0">
@@ -339,8 +339,8 @@
 
             {{-- Serverseitig nur fuer das Administratoren-Team bereitgestellt. --}}
             @if ($canViewSystemData && $system)
-                <article class="rt-admin-panel overflow-hidden rounded-2xl xl:col-span-7" data-system-dashboard>
-                    <header class="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 px-5 py-5 sm:px-6 dark:border-slate-700">
+                <article class="rt-admin-panel overflow-hidden rounded-2xl lg:col-span-7" data-system-dashboard>
+                    <header class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-4 py-3.5 sm:px-5 dark:border-slate-700">
                         <div>
                             <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.administrator_team') }}</p>
                             <h2 class="mt-1 text-lg font-semibold text-rt-text dark:text-white">{{ __('app.technical_system_data') }}</h2>
@@ -364,7 +364,7 @@
                             [__('app.server_disk'), $system['disk']],
                             [__('app.last_activity'), $system['lastActivityAt']?->diffForHumans() ?? '—'],
                         ] as [$label, $value])
-                            <div class="min-w-0 bg-rt-surface px-5 py-4 dark:bg-rt-dark-surface">
+                            <div class="min-w-0 bg-rt-surface px-4 py-3 dark:bg-rt-dark-surface">
                                 <dt class="text-[10px] font-semibold uppercase tracking-[0.12em] text-rt-soft dark:text-rt-dark-soft">{{ $label }}</dt>
                                 <dd class="mt-1.5 truncate text-sm font-semibold text-rt-text dark:text-white" title="{{ $value }}">{{ $value }}</dd>
                             </div>

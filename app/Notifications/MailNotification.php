@@ -48,6 +48,11 @@ class MailNotification extends Notification implements ShouldQueue
             ->from(config('mail.from.address'), $company['name'])
             ->subject($subject);
 
+        $replyTo = trim((string) ($content['reply_to'] ?? ''));
+        if (filter_var($replyTo, FILTER_VALIDATE_EMAIL)) {
+            $m->replyTo($replyTo, trim((string) ($content['reply_to_name'] ?? '')) ?: null);
+        }
+
         if ($greeting) {
             $m->greeting($greeting);
         }

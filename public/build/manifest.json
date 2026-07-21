@@ -16,18 +16,18 @@
     "src": "node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-vietnamese-wght-normal.woff2"
   },
   "resources/css/app.css": {
-    "file": "assets/app-BcVQqwYn.css",
+    "file": "assets/app-3C-TmYc_.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
   "resources/js/admin-dashboard-echarts.js": {
-    "file": "assets/admin-dashboard-echarts-BI-3gA8S.js",
+    "file": "assets/admin-dashboard-echarts-rrxRpE-U.js",
     "name": "admin-dashboard-echarts",
     "src": "resources/js/admin-dashboard-echarts.js",
     "isDynamicEntry": true
   },
   "resources/js/app.js": {
-    "file": "assets/app-8sVkCNCL.js",
+    "file": "assets/app-C0nT2erq.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,

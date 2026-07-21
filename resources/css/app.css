@@ -85,9 +85,9 @@ html {
 
 .dark .rt-admin-hero::before {
     background:
-        radial-gradient(circle at 78% 18%, rgba(228, 0, 43, 0.24), transparent 25%),
-        radial-gradient(circle at 12% 112%, rgba(255, 255, 255, 0.07), transparent 34%),
-        #080b10;
+        radial-gradient(circle at 78% 18%, rgba(228, 0, 43, 0.2), transparent 28%),
+        radial-gradient(circle at 12% 112%, rgba(71, 85, 105, 0.2), transparent 38%),
+        #0b1120;
 }
 
 .rt-admin-hero::after {
@@ -104,10 +104,10 @@ html {
 }
 
 .dark .rt-admin-hero::after {
-    opacity: 0.22;
+    opacity: 0.3;
     background-image:
-        linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+        linear-gradient(rgba(148, 163, 184, 0.1) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(148, 163, 184, 0.1) 1px, transparent 1px);
 }
 
 .rt-admin-route-bed { stroke: #cfd9e4; }
@@ -139,7 +139,7 @@ html {
 
 .dark .rt-admin-panel {
     background: #111827;
-    border-color: #344158;
+    border-color: #334155;
     box-shadow:
         0 1px 2px rgba(0, 0, 0, 0.24),
         0 16px 34px -28px rgba(0, 0, 0, 0.9);

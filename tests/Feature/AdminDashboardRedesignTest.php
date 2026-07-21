@@ -177,6 +177,25 @@ class AdminDashboardRedesignTest extends TestCase
         $this->assertStringContainsString('dark:text-white', $dashboard);
     }
 
+    public function test_admin_dashboard_is_compact_theme_aware_and_places_charts_first(): void
+    {
+        $dashboard = file_get_contents(resource_path('views/livewire/admin/dashboard.blade.php'));
+        $chartModule = file_get_contents(resource_path('js/admin-dashboard-echarts.js'));
+        $growthChartPosition = strpos($dashboard, 'x-ref="growthChart"');
+        $operationalPreviewPosition = strpos($dashboard, 'operational-preview-heading');
+
+        $this->assertIsInt($growthChartPosition);
+        $this->assertIsInt($operationalPreviewPosition);
+        $this->assertLessThan($operationalPreviewPosition, $growthChartPosition);
+        $this->assertStringContainsString('h-[210px] sm:h-[225px]', $dashboard);
+        $this->assertStringContainsString('grid gap-3 lg:grid-cols-2 xl:grid-cols-12', $dashboard);
+        $this->assertStringNotContainsString('lg:min-h-[25rem]', $dashboard);
+        $this->assertStringNotContainsString('h-[270px] sm:h-[300px]', $dashboard);
+        $this->assertStringNotContainsString('bg-[#111827] p-5 text-white', $dashboard);
+        $this->assertStringContainsString("const activityPointBorder = dark ? '#111827' : '#ffffff'", $chartModule);
+        $this->assertStringContainsString('activityAreaStart', $chartModule);
+    }
+
     private function createTeam(User $owner, string $name): Team
     {
         return Team::forceCreate([

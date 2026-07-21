@@ -34,7 +34,9 @@ class Dashboard extends Component
             'recentActivity' => $dashboardData->recentActivity(),
             'operations' => $dashboardData->operations(),
             'charts' => $dashboardData->charts(),
-            'operationalPreviews' => $previewCatalog->dashboard(),
+            'operationalPreviews' => auth()->user()?->role === 'admin'
+                ? $previewCatalog->dashboard()
+                : [],
             'canViewSystemData' => $canViewSystemData,
             'system' => $canViewSystemData ? $dashboardData->system() : null,
         ])->layout('layouts.master', ['area' => 'admin']);

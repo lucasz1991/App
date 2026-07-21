@@ -25,6 +25,9 @@ export function renderAdminDashboardCharts({ refs, config = {}, dark = false, an
     const surfaceColor = dark ? '#111827' : '#ffffff';
     const mutedSurface = dark ? '#273449' : '#e8edf4';
     const red = '#e4002b';
+    const activityPointBorder = dark ? '#111827' : '#ffffff';
+    const activityAreaStart = dark ? 'rgba(228, 0, 43, 0.34)' : 'rgba(228, 0, 43, 0.18)';
+    const activityAreaEnd = dark ? 'rgba(228, 0, 43, 0.02)' : 'rgba(228, 0, 43, 0.01)';
     const fontFamily = 'Plus Jakarta Sans Variable, sans-serif';
     const growth = config.userGrowth || { labels: [], totals: [], registrations: [] };
     const activity = config.activity || { labels: [], values: [] };
@@ -43,7 +46,7 @@ export function renderAdminDashboardCharts({ refs, config = {}, dark = false, an
         borderWidth: 1,
         padding: [9, 11],
         textStyle: { color: strongText, fontFamily, fontSize: 12 },
-        extraCssText: 'border-radius:10px;box-shadow:0 12px 30px rgba(15,23,42,.12);',
+        extraCssText: `border-radius:10px;box-shadow:0 12px 30px ${dark ? 'rgba(0,0,0,.34)' : 'rgba(15,23,42,.12)'};`,
     };
     const resizeObserver = typeof ResizeObserver === 'undefined'
         ? null
@@ -165,7 +168,7 @@ export function renderAdminDashboardCharts({ refs, config = {}, dark = false, an
             tooltip: {
                 ...tooltip,
                 trigger: 'axis',
-                axisPointer: { type: 'line', lineStyle: { color: '#475569' } },
+                axisPointer: { type: 'line', lineStyle: { color: gridColor } },
                 formatter: (items) => {
                     const point = items?.[0];
                     return point ? `${activity.labels?.[point.dataIndex] || ''}<br><strong>${point.value}</strong> ${config.labels?.activity || ''}` : '';
@@ -182,13 +185,13 @@ export function renderAdminDashboardCharts({ refs, config = {}, dark = false, an
                 symbolSize: 5,
                 showSymbol: true,
                 lineStyle: { color: red, width: 2 },
-                itemStyle: { color: red, borderColor: '#080b10', borderWidth: 2 },
+                itemStyle: { color: red, borderColor: activityPointBorder, borderWidth: 2 },
                 areaStyle: {
                     color: {
                         type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
                         colorStops: [
-                            { offset: 0, color: '#49121d' },
-                            { offset: 1, color: '#10141b' },
+                            { offset: 0, color: activityAreaStart },
+                            { offset: 1, color: activityAreaEnd },
                         ],
                     },
                 },
