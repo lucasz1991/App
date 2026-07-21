@@ -122,8 +122,8 @@ function appendDashboardSegment(timeline, prepared, position = 0) {
         autoAlpha: 1,
         y: 0,
         scale: 1,
-        duration: 0.62,
-        ease: 'power3.out',
+        duration: 0.72,
+        ease: 'expo.out',
         overwrite: 'auto',
         clearProps: 'transform,opacity,visibility',
     }, label);
@@ -133,12 +133,12 @@ function appendDashboardSegment(timeline, prepared, position = 0) {
             autoAlpha: 1,
             y: 0,
             scale: 1,
-            duration: 0.46,
-            ease: 'power2.out',
-            stagger: 0.055,
+            duration: 0.54,
+            ease: 'power3.out',
+            stagger: { each: 0.05, from: 'start' },
             overwrite: 'auto',
             clearProps: 'transform,opacity,visibility',
-        }, `${label}+=0.14`);
+        }, `${label}+=0.12`);
     }
 
     timeline.call(() => markComplete(targets));
@@ -178,7 +178,9 @@ function setupDashboardSegments(segments) {
 
     const introTimeline = gsap.timeline({ delay: 0.08 });
     introSegments.forEach((prepared, index) => {
-        appendDashboardSegment(introTimeline, prepared, index === 0 ? 0 : '>-0.18');
+        // Staerkere Ueberlappung laesst die Segmente als eine fliessende
+        // Kaskade statt als getrennte Bloecke einlaufen.
+        appendDashboardSegment(introTimeline, prepared, index === 0 ? 0 : '>-0.26');
     });
 }
 
@@ -207,9 +209,9 @@ function createRevealTween(elements, fromVars, trigger, options = {}) {
         x: 0,
         y: 0,
         scale: 1,
-        duration: options.duration ?? 0.58,
+        duration: options.duration ?? 0.6,
         delay: options.delay ?? 0,
-        ease: 'power2.out',
+        ease: 'power3.out',
         stagger: options.stagger,
         overwrite: 'auto',
         immediateRender: true,

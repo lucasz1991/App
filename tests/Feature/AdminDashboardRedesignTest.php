@@ -216,7 +216,9 @@ class AdminDashboardRedesignTest extends TestCase
         $this->assertIsInt($growthChartPosition);
         $this->assertIsInt($operationalPreviewPosition);
         $this->assertLessThan($operationalPreviewPosition, $growthChartPosition);
-        $this->assertStringContainsString('h-[210px] sm:h-[225px]', $dashboard);
+        // Zwei-Panel-Wachstumschart (Linie + Registrierungs-Balken) braucht
+        // etwas mehr Hoehe als das fruehere Einzel-Panel.
+        $this->assertStringContainsString('h-[236px] sm:h-[252px]', $dashboard);
         $this->assertStringContainsString('grid gap-3 lg:grid-cols-12', $dashboard);
         $this->assertStringContainsString('lg:col-span-8 xl:col-span-6', $dashboard);
         $this->assertStringContainsString('lg:col-span-4 xl:col-span-3', $dashboard);
