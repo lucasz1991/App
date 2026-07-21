@@ -36,6 +36,19 @@ class ChatBox extends Component
 
     protected $listeners = ['refreshComponent' => '$refresh'];
 
+    /** Beim Einstieg den zuletzt geoeffneten, weiterhin erlaubten Chat anzeigen. */
+    public function mount(): void
+    {
+        $lastChatId = auth()->user()->chats()
+            ->orderByDesc('chat_user.last_opened_at')
+            ->orderByDesc('chats.updated_at')
+            ->value('chats.id');
+
+        if ($lastChatId) {
+            $this->openChat((int) $lastChatId);
+        }
+    }
+
     /** Chat des angemeldeten Nutzers laden oder 403. */
     protected function myChat(int $chatId): Chat
     {
@@ -53,7 +66,9 @@ class ChatBox extends Component
         $this->selectedChatId = $chat->id;
         $this->messageText = '';
 
+        $chat->participants()->updateExistingPivot(auth()->id(), ['last_opened_at' => now()]);
         $this->markChatRead($chat);
+        $this->dispatch('chat:pane-open');
     }
 
     public function send(): void
@@ -272,6 +287,6 @@ class ChatBox extends Component
             'selectedChat' => $selectedChat,
             'messages' => $messages,
             'contacts' => $contacts,
-        ])->layout('layouts.master');
+        ])->layout('layouts.master', ['contentMode' => 'viewport']);
     }
 }

@@ -15,7 +15,7 @@ class Chat extends Model
     public function participants(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'chat_user')
-            ->withPivot('last_read_at')
+            ->withPivot('last_read_at', 'last_opened_at')
             ->withTimestamps();
     }
 

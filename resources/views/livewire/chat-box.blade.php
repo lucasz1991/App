@@ -1,33 +1,52 @@
-<div class="relative" wire:loading.class="cursor-wait">
+<div class="rt-chat-page relative h-full min-h-0 overflow-hidden p-2 sm:p-3"
+     x-data="chatPaneNavigation(@js((bool) $selectedChat))"
+     data-has-selected-chat="{{ $selectedChat ? 'true' : 'false' }}"
+     data-mobile-pane="{{ $selectedChat ? 'chat' : 'list' }}"
+     x-bind:data-mobile-pane="mobilePane"
+     x-on:chat:pane-open.window="showChat()"
+     x-on:touchstart.passive="touchStart($event)"
+     x-on:touchend.passive="touchEnd($event)"
+     x-on:touchcancel="cancelSwipe()"
+     wire:loading.class="cursor-wait">
     @php
         $me = auth()->user();
     @endphp
 
-    <x-ui.page :title="__('app.chat')" :eyebrow="__('app.personal_data')">
-
-        {{-- Messenger-Karte --}}
-        <div class="overflow-hidden rounded-xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/60 sm:rounded-2xl dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
-            <div class="flex h-[calc(100dvh-190px)] min-h-[420px] md:h-[calc(100vh-260px)] md:min-h-[480px]">
+    {{-- Messenger startet ohne zusaetzlichen Seitenkopf direkt unter der Topbar. --}}
+    <div class="h-full min-h-0 overflow-hidden rounded-xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/60 sm:rounded-2xl dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+        <div class="rt-chat-panes relative flex h-full min-h-0 overflow-hidden">
 
                 {{-- ============================== LINKE SPALTE: Chat-Liste ============================== --}}
-                <div class="{{ $selectedChat ? 'hidden md:flex' : 'flex' }} w-full shrink-0 flex-col border-rt-border/60 md:w-80 md:border-r dark:border-rt-dark-border/60">
+                <div id="rt-chat-overview"
+                     class="rt-chat-list-pane flex min-h-0 w-full shrink-0 flex-col border-rt-border/60 md:w-80 md:border-r dark:border-rt-dark-border/60"
+                     x-bind:class="{ 'rt-chat-list-collapsed': listCollapsed }">
 
                     {{-- Kopfzeile --}}
-                    <div class="flex items-center justify-between border-b border-rt-border/60 px-4 py-3 dark:border-rt-dark-border/60">
+                    <div class="flex shrink-0 items-center justify-between border-b border-rt-border/60 px-4 py-3 dark:border-rt-dark-border/60">
                         <h2 class="text-sm font-semibold uppercase tracking-wide text-rt-text dark:text-rt-dark-text">
                             {{ __('app.chats') }}
                         </h2>
-                        <button type="button"
-                                wire:click="$set('showNewChat', true)"
-                                title="{{ __('app.new_chat') }}"
-                                class="flex h-8 w-8 items-center justify-center rounded-full bg-rt-red text-white shadow-rt-xs transition-all duration-300 ease-rt-spring hover:bg-rt-red-dark active:scale-95 dark:bg-rt-red dark:text-white">
-                            <i class="far fa-plus" aria-hidden="true"></i>
-                            <span class="sr-only">{{ __('app.new_chat') }}</span>
-                        </button>
+                        <div class="flex items-center gap-1.5">
+                            <button type="button"
+                                    x-on:click="toggleList()"
+                                    class="hidden h-8 w-8 items-center justify-center rounded-full text-rt-muted transition hover:bg-rt-surface-muted hover:text-rt-text md:flex dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted dark:hover:text-white"
+                                    aria-controls="rt-chat-overview"
+                                    aria-label="{{ __('app.hide_chat_overview') }}"
+                                    title="{{ __('app.hide_chat_overview') }}">
+                                <i class="far fa-chevron-left" aria-hidden="true"></i>
+                            </button>
+                            <button type="button"
+                                    wire:click="$set('showNewChat', true)"
+                                    title="{{ __('app.new_chat') }}"
+                                    class="flex h-8 w-8 items-center justify-center rounded-full bg-rt-red text-white shadow-rt-xs transition-all duration-300 ease-rt-spring hover:bg-rt-red-dark active:scale-95 dark:bg-rt-red dark:text-white">
+                                <i class="far fa-plus" aria-hidden="true"></i>
+                                <span class="sr-only">{{ __('app.new_chat') }}</span>
+                            </button>
+                        </div>
                     </div>
 
                     {{-- Suche --}}
-                    <div class="border-b border-rt-border/60 px-3 py-2.5 dark:border-rt-dark-border/60">
+                    <div class="shrink-0 border-b border-rt-border/60 px-3 py-2.5 dark:border-rt-dark-border/60">
                         <label for="chat-search" class="sr-only">{{ __('app.search') }}</label>
                         <div class="relative">
                             <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
@@ -43,7 +62,7 @@
                     </div>
 
                     {{-- Chat-Liste --}}
-                    <div class="flex-1 overflow-y-auto py-1">
+                    <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain py-1">
                         @forelse ($chats as $chat)
                             @php
                                 $isActive  = (int) $selectedChatId === (int) $chat->id;
@@ -58,6 +77,7 @@
                             <button type="button"
                                     wire:key="chat-item-{{ $chat->id }}"
                                     wire:click="openChat({{ $chat->id }})"
+                                    x-on:click="showChat()"
                                     class="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors duration-200 ease-rt-spring {{ $isActive ? 'bg-rt-accent-soft/60 dark:bg-rt-dark-accent-soft/40' : 'hover:bg-rt-surface-muted/70 dark:hover:bg-rt-dark-surface-muted/50' }}">
 
                                 {{-- Avatar --}}
@@ -102,10 +122,19 @@
                 </div>
 
                 {{-- ============================== RECHTE SPALTE: Unterhaltung ============================== --}}
-                <div class="{{ $selectedChat ? 'flex' : 'hidden md:flex' }} min-w-0 flex-1 flex-col">
+                <div class="rt-chat-conversation-pane flex min-h-0 min-w-0 flex-1 flex-col">
                     @if (! $selectedChat)
                         {{-- Leerer Zustand --}}
-                        <div class="flex flex-1 flex-col items-center justify-center gap-4 bg-rt-surface-muted/60 px-6 text-center dark:bg-rt-dark-canvas/40">
+                        <div class="relative flex flex-1 flex-col items-center justify-center gap-4 bg-rt-surface-muted/60 px-6 text-center dark:bg-rt-dark-canvas/40">
+                            <button type="button"
+                                    x-on:click="toggleList()"
+                                    class="absolute left-3 top-3 hidden h-9 w-9 items-center justify-center rounded-full text-rt-muted transition hover:bg-rt-surface hover:text-rt-text md:flex dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface dark:hover:text-white"
+                                    aria-controls="rt-chat-overview"
+                                    x-bind:aria-expanded="(! listCollapsed).toString()"
+                                    x-bind:aria-label="listCollapsed ? @js(__('app.show_chat_overview')) : @js(__('app.hide_chat_overview'))"
+                                    x-bind:title="listCollapsed ? @js(__('app.show_chat_overview')) : @js(__('app.hide_chat_overview'))">
+                                <i class="far" x-bind:class="listCollapsed ? 'fa-chevron-right' : 'fa-chevron-left'" aria-hidden="true"></i>
+                            </button>
                             <span class="flex h-16 w-16 items-center justify-center rounded-full bg-rt-accent-soft text-2xl text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent">
                                 <i class="fad fa-comments" aria-hidden="true"></i>
                             </span>
@@ -123,12 +152,21 @@
                             })"
                         >
                         {{-- Chat-Kopf --}}
-                        <div class="flex items-center gap-2.5 border-b border-rt-border/60 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3 dark:border-rt-dark-border/60">
+                        <div class="flex shrink-0 items-center gap-2.5 border-b border-rt-border/60 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3 dark:border-rt-dark-border/60">
                             @php
                                 $headerAvatar = $selectedChat->avatarUrlFor($me);
                             @endphp
                             <button type="button"
-                                    wire:click="$set('selectedChatId', null)"
+                                    x-on:click="toggleList()"
+                                    class="hidden h-9 w-9 shrink-0 items-center justify-center rounded-full text-rt-muted transition hover:bg-rt-surface-muted hover:text-rt-text md:flex dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted dark:hover:text-white"
+                                    aria-controls="rt-chat-overview"
+                                    x-bind:aria-expanded="(! listCollapsed).toString()"
+                                    x-bind:aria-label="listCollapsed ? @js(__('app.show_chat_overview')) : @js(__('app.hide_chat_overview'))"
+                                    x-bind:title="listCollapsed ? @js(__('app.show_chat_overview')) : @js(__('app.hide_chat_overview'))">
+                                <i class="far" x-bind:class="listCollapsed ? 'fa-chevron-right' : 'fa-chevron-left'" aria-hidden="true"></i>
+                            </button>
+                            <button type="button"
+                                    x-on:click="showList()"
                                     class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-rt-muted transition hover:bg-rt-surface-muted hover:text-rt-text md:hidden dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted dark:hover:text-white"
                                     aria-label="{{ __('app.back') }}"
                                     title="{{ __('app.back') }}">
@@ -162,7 +200,7 @@
                              x-data
                              x-init="$el.scrollTop = $el.scrollHeight"
                              x-on:chat:scroll-bottom.window="$nextTick(() => $el.scrollTo(0, $el.scrollHeight))"
-                             class="flex-1 space-y-1 overflow-y-auto bg-rt-surface-muted/60 px-2.5 py-3 sm:px-4 sm:py-4 dark:bg-rt-dark-canvas/40">
+                             class="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain bg-rt-surface-muted/60 px-2.5 py-3 sm:px-4 sm:py-4 dark:bg-rt-dark-canvas/40">
 
                             @php
                                 $items = $messages->values();
@@ -308,7 +346,7 @@
                         </div>
 
                         {{-- Eingabezeile --}}
-                        <div class="border-t border-rt-border/60 px-2 py-2.5 sm:px-3 sm:py-3 dark:border-rt-dark-border/60">
+                        <div class="shrink-0 border-t border-rt-border/60 bg-rt-surface px-2 py-2.5 sm:px-3 sm:py-3 dark:border-rt-dark-border/60 dark:bg-rt-dark-surface">
                             @if ($uploads !== [])
                                 <div class="mb-2 flex flex-wrap gap-2 px-1">
                                     @foreach ($uploads as $index => $upload)
@@ -378,9 +416,8 @@
                         </div>
                     @endif
                 </div>
-            </div>
         </div>
-    </x-ui.page>
+    </div>
 
     {{-- ============================== MODAL: Neuer Chat / Neue Gruppe ============================== --}}
     <x-dialog-modal wire:model="showNewChat" maxWidth="md">

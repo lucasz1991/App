@@ -5,6 +5,7 @@ namespace App\Livewire\Admin\Employees;
 use App\Models\Team;
 use App\Models\User;
 use App\Models\UserProfile;
+use App\Support\EmployeeWelcomeService;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -119,6 +120,7 @@ class EmployeeFormModal extends Component
         Gate::authorize('employees.create');
         $this->validate();
 
+        $isNewEmployee = ! $this->userId;
         $user = $this->userId ? User::findOrFail($this->userId) : new User;
 
         // Admin-Konten duerfen nur von Admins bearbeitet werden
@@ -169,6 +171,10 @@ class EmployeeFormModal extends Component
                 // Optional: Jetstream-internen Switch (falls du Features nutzt, die darauf hören)
                 $user->switchTeam($primary);
             }
+        }
+
+        if ($isNewEmployee) {
+            app(EmployeeWelcomeService::class)->send($user->fresh('currentTeam'));
         }
 
         $this->dispatch('employeeSaved');

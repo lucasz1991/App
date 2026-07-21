@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\StaffInvitation;
 use App\Models\User;
 use App\Models\UserProfile;
+use App\Support\EmployeeWelcomeService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -66,6 +67,8 @@ class InvitedRegistrationController extends Controller
 
             return $user;
         });
+
+        app(EmployeeWelcomeService::class)->send($user->fresh('currentTeam'));
 
         Auth::login($user);
         $request->session()->regenerate();

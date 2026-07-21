@@ -95,6 +95,7 @@ trait BuildsMinimalRailTimeSchema
             $table->unsignedBigInteger('chat_id');
             $table->unsignedBigInteger('user_id');
             $table->timestamp('last_read_at')->nullable();
+            $table->timestamp('last_opened_at')->nullable();
             $table->timestamps();
         });
 

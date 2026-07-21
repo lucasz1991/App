@@ -43,6 +43,31 @@ html {
     scroll-behavior: smooth;
 }
 
+/* Viewport-Seiten wie der Messenger duerfen keinen eigenen Dokument-Scroll
+   erzeugen. Die Topbar belegt 70px; den restlichen dynamischen Viewport
+   erhalten die Seite und ihre Flex-Kinder ohne zusaetzlichen Footer. */
+.rt-viewport-layout {
+    height: 100dvh;
+    overflow: hidden;
+}
+
+.rt-viewport-layout .main-content,
+.rt-viewport-layout .page-content,
+.rt-viewport-layout .container-fluid {
+    height: 100%;
+    min-height: 0;
+}
+
+.rt-viewport-layout .main-content,
+.rt-viewport-layout .page-content {
+    overflow: hidden;
+}
+
+.rt-viewport-layout .page-content {
+    padding-top: 70px;
+    padding-bottom: 0;
+}
+
 /* Kompakter Messenger-Player fuer Sprachnachrichten. Der Fortschritt bleibt
    auch in eigenen roten und fremden hellen/dunklen Sprechblasen gut sichtbar. */
 .rt-voice-progress {

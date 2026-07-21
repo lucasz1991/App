@@ -286,7 +286,7 @@ class User extends Authenticatable
     public function chats(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
     {
         return $this->belongsToMany(Chat::class, 'chat_user')
-            ->withPivot('last_read_at')
+            ->withPivot('last_read_at', 'last_opened_at')
             ->withTimestamps();
     }
 
