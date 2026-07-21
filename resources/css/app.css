@@ -66,6 +66,270 @@ html {
     }
 }
 
+/*
+ * RailTime UI theme contract
+ * --------------------------
+ * Livewire navigation can briefly restore the server-rendered <html> while
+ * Alpine already restored body[data-mode]. Reusable UI primitives therefore
+ * support both theme signals. The semantic rt-* utilities remain the single
+ * source of truth; these late rules also prevent older vendor utilities from
+ * winning the cascade and creating bright surfaces with dark-mode text.
+ */
+body[data-mode="dark"] {
+    color: #e7edf7;
+    background-color: #0b1120;
+}
+
+html.dark .bg-rt-canvas,
+body[data-mode="dark"] .bg-rt-canvas { background-color: #0b1120 !important; }
+html.dark .bg-rt-surface,
+body[data-mode="dark"] .bg-rt-surface { background-color: #111827 !important; }
+html.dark .bg-rt-surface-muted,
+body[data-mode="dark"] .bg-rt-surface-muted { background-color: #172033 !important; }
+html.dark .bg-rt-topbar,
+body[data-mode="dark"] .bg-rt-topbar { background-color: #0f172a !important; }
+html.dark .bg-rt-sidebar,
+body[data-mode="dark"] .bg-rt-sidebar { background-color: #101827 !important; }
+html.dark .bg-rt-control,
+body[data-mode="dark"] .bg-rt-control { background-color: #263653 !important; }
+html.dark .bg-rt-nav-hover,
+body[data-mode="dark"] .bg-rt-nav-hover { background-color: #1b2a43 !important; }
+html.dark .bg-rt-accent-soft,
+body[data-mode="dark"] .bg-rt-accent-soft { background-color: #4a1723 !important; }
+
+html.dark .text-rt-text,
+body[data-mode="dark"] .text-rt-text { color: #e7edf7 !important; }
+html.dark .text-rt-muted,
+body[data-mode="dark"] .text-rt-muted { color: #a9b6c9 !important; }
+html.dark .text-rt-soft,
+body[data-mode="dark"] .text-rt-soft { color: #75839a !important; }
+html.dark .text-rt-accent,
+body[data-mode="dark"] .text-rt-accent { color: #ff8295 !important; }
+html.dark .border-rt-border,
+body[data-mode="dark"] .border-rt-border { border-color: #273449 !important; }
+
+html.dark .rt-ui-button-secondary,
+body[data-mode="dark"] .rt-ui-button-secondary,
+html.dark .rt-ui-button-group-item:not(.rt-ui-button-group-item-active),
+body[data-mode="dark"] .rt-ui-button-group-item:not(.rt-ui-button-group-item-active) {
+    color: #e7edf7 !important;
+    background-color: #111827 !important;
+    border-color: #334155 !important;
+}
+
+html.dark .rt-ui-button-secondary:hover,
+body[data-mode="dark"] .rt-ui-button-secondary:hover,
+html.dark .rt-ui-button-group-item:not(.rt-ui-button-group-item-active):hover,
+body[data-mode="dark"] .rt-ui-button-group-item:not(.rt-ui-button-group-item-active):hover {
+    color: #ffffff !important;
+    background-color: #172033 !important;
+    border-color: #475569 !important;
+}
+
+html.dark .rt-ui-button:disabled,
+body[data-mode="dark"] .rt-ui-button:disabled,
+html.dark .rt-ui-button[aria-disabled="true"],
+body[data-mode="dark"] .rt-ui-button[aria-disabled="true"] {
+    box-shadow: none !important;
+}
+
+html.dark .rt-ui-control,
+body[data-mode="dark"] .rt-ui-control {
+    color: #e7edf7 !important;
+    background-color: #263653 !important;
+    border-color: #334155 !important;
+}
+
+html.dark .rt-ui-control::placeholder,
+body[data-mode="dark"] .rt-ui-control::placeholder {
+    color: #8c9bb0 !important;
+}
+
+html.dark .rt-ui-control:disabled,
+html.dark .rt-ui-control:read-only,
+body[data-mode="dark"] .rt-ui-control:disabled,
+body[data-mode="dark"] .rt-ui-control:read-only {
+    color: #8c9bb0 !important;
+    background-color: #0f172a !important;
+}
+
+html.dark .rt-ui-surface,
+body[data-mode="dark"] .rt-ui-surface {
+    color: #e7edf7 !important;
+    background-color: #111827 !important;
+    border-color: #273449 !important;
+}
+
+html.dark .rt-ui-surface-muted,
+body[data-mode="dark"] .rt-ui-surface-muted {
+    color: #e7edf7 !important;
+    background-color: #172033 !important;
+    border-color: #273449 !important;
+}
+
+html.dark .rt-ui-dropdown-link,
+body[data-mode="dark"] .rt-ui-dropdown-link {
+    color: #dbe5f2 !important;
+}
+
+html.dark .rt-ui-dropdown-link:hover,
+html.dark .rt-ui-dropdown-link:focus,
+body[data-mode="dark"] .rt-ui-dropdown-link:hover,
+body[data-mode="dark"] .rt-ui-dropdown-link:focus {
+    color: #ff8295 !important;
+    background-color: #1b2a43 !important;
+}
+
+html.dark .rt-ui-toggle-control,
+body[data-mode="dark"] .rt-ui-toggle-control {
+    background-color: #334155 !important;
+    border-color: #475569 !important;
+}
+
+html.dark input:checked + .rt-ui-toggle-control,
+body[data-mode="dark"] input:checked + .rt-ui-toggle-control {
+    background-color: #e4002b !important;
+    border-color: #f51b3b !important;
+}
+
+html.dark .rt-ui-toggle-control::after,
+body[data-mode="dark"] .rt-ui-toggle-control::after {
+    background-color: #f8fafc !important;
+    border-color: #94a3b8 !important;
+}
+
+html.dark .rt-ui-checkbox:not(:checked),
+body[data-mode="dark"] .rt-ui-checkbox:not(:checked) {
+    background-color: #263653 !important;
+    border-color: #475569 !important;
+}
+
+html.dark .rt-ui-badge[data-rt-tone="slate"],
+html.dark .rt-ui-badge[data-rt-tone="gray"],
+body[data-mode="dark"] .rt-ui-badge[data-rt-tone="slate"],
+body[data-mode="dark"] .rt-ui-badge[data-rt-tone="gray"] {
+    color: #b8c4d5 !important;
+    background-color: #172033 !important;
+}
+
+html.dark .rt-ui-badge[data-rt-tone="yellow"],
+html.dark .rt-ui-badge[data-rt-tone="amber"],
+body[data-mode="dark"] .rt-ui-badge[data-rt-tone="yellow"],
+body[data-mode="dark"] .rt-ui-badge[data-rt-tone="amber"] {
+    color: #fcd34d !important;
+    background-color: rgba(245, 158, 11, 0.15) !important;
+}
+
+html.dark .rt-ui-badge[data-rt-tone="blue"],
+html.dark .rt-ui-badge[data-rt-tone="sky"],
+body[data-mode="dark"] .rt-ui-badge[data-rt-tone="blue"],
+body[data-mode="dark"] .rt-ui-badge[data-rt-tone="sky"] {
+    color: #7dd3fc !important;
+    background-color: rgba(14, 165, 233, 0.15) !important;
+}
+
+html.dark .rt-ui-badge[data-rt-tone="green"],
+html.dark .rt-ui-badge[data-rt-tone="emerald"],
+body[data-mode="dark"] .rt-ui-badge[data-rt-tone="green"],
+body[data-mode="dark"] .rt-ui-badge[data-rt-tone="emerald"] {
+    color: #6ee7b7 !important;
+    background-color: rgba(16, 185, 129, 0.15) !important;
+}
+
+html.dark .rt-ui-badge[data-rt-tone="red"],
+body[data-mode="dark"] .rt-ui-badge[data-rt-tone="red"] {
+    color: #fda4af !important;
+    background-color: rgba(244, 63, 94, 0.15) !important;
+}
+
+html.dark .rt-ui-badge[data-rt-tone="purple"],
+html.dark .rt-ui-badge[data-rt-tone="primary"],
+body[data-mode="dark"] .rt-ui-badge[data-rt-tone="purple"],
+body[data-mode="dark"] .rt-ui-badge[data-rt-tone="primary"] {
+    color: #d8b4fe !important;
+    background-color: rgba(168, 85, 247, 0.15) !important;
+}
+
+html.dark .rt-ui-alert,
+body[data-mode="dark"] .rt-ui-alert {
+    color: #e7edf7 !important;
+    background-color: #172033 !important;
+    border-color: #334155 !important;
+}
+
+html.dark .rt-ui-alert[data-rt-tone="success"],
+body[data-mode="dark"] .rt-ui-alert[data-rt-tone="success"] {
+    color: #d1fae5 !important;
+    background-color: rgba(16, 185, 129, 0.12) !important;
+    border-color: rgba(16, 185, 129, 0.36) !important;
+}
+
+html.dark .rt-ui-alert[data-rt-tone="warning"],
+body[data-mode="dark"] .rt-ui-alert[data-rt-tone="warning"] {
+    color: #fef3c7 !important;
+    background-color: rgba(245, 158, 11, 0.12) !important;
+    border-color: rgba(245, 158, 11, 0.36) !important;
+}
+
+html.dark .rt-ui-alert[data-rt-tone="danger"],
+body[data-mode="dark"] .rt-ui-alert[data-rt-tone="danger"] {
+    color: #ffe4e6 !important;
+    background-color: rgba(244, 63, 94, 0.12) !important;
+    border-color: rgba(244, 63, 94, 0.36) !important;
+}
+
+html.dark .rt-pagination,
+body[data-mode="dark"] .rt-pagination {
+    color: #a9b6c9 !important;
+}
+
+html.dark .rt-pagination :is(a, button, [aria-disabled="true"] > span, [aria-current="page"] > span),
+body[data-mode="dark"] .rt-pagination :is(a, button, [aria-disabled="true"] > span, [aria-current="page"] > span) {
+    color: #dbe5f2 !important;
+    background-color: #111827 !important;
+    border-color: #334155 !important;
+}
+
+html.dark .rt-pagination :is(a, button):hover,
+body[data-mode="dark"] .rt-pagination :is(a, button):hover {
+    color: #ffffff !important;
+    background-color: #1b2a43 !important;
+}
+
+html.dark .rt-pagination [aria-current="page"] > span,
+body[data-mode="dark"] .rt-pagination [aria-current="page"] > span {
+    color: #ff8295 !important;
+    background-color: #4a1723 !important;
+    border-color: #e4002b !important;
+}
+
+.rt-toast {
+    color: #172033;
+    background-color: #ffffff;
+    border: 1px solid #dbe3ee;
+    border-left-width: 4px;
+    border-radius: 0.75rem;
+    box-shadow: 0 16px 40px -16px rgba(15, 23, 42, 0.3);
+    padding: 0.75rem 0.875rem;
+    font-family: inherit;
+    font-size: 0.875rem;
+    opacity: 0;
+    transform: translateY(-6px);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.rt-toast__message { color: #64748b; }
+
+html.dark .rt-toast,
+body[data-mode="dark"] .rt-toast {
+    color: #e7edf7;
+    background-color: #111827;
+    border-color: #334155;
+}
+
+html.dark .rt-toast__message,
+body[data-mode="dark"] .rt-toast__message { color: #a9b6c9; }
+
 /* Admin Command Center: eigenstaendige RailTime-Strecke, dezentes Raster und
    GPU-beschleunigte Signallauf-Animation. */
 .rt-admin-hero {
