@@ -9,6 +9,13 @@
 
     <x-slot name="form">
         <div class="col-span-6 grid w-full grid-cols-1 gap-6 md:grid-cols-2">
+            <!-- Funktion / Position -->
+            <div class="md:col-span-2">
+                <x-ui.forms.label for="position" value="{{ __('app.position') }}" />
+                <x-ui.forms.input id="position" type="text" class="mt-1 block" wire:model="position" placeholder="{{ __('app.position_placeholder') }}" autocomplete="organization-title" />
+                <x-input-error for="position" class="mt-2" />
+            </div>
+
             <!-- Telefon -->
             <div>
                 <x-ui.forms.label for="phone" value="{{ __('app.phone') }}" />

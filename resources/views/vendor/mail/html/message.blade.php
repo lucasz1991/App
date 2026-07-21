@@ -22,6 +22,8 @@
 <x-slot:footer>
 <x-mail::footer>
 © {{ date('Y') }} {{ config('app.name') }}. @lang('Alle Rechte vorbehalten.')
+
+Diese E-Mail kann vertrauliche Informationen enthalten. Sollten Sie nicht der vorgesehene Empfänger sein, informieren Sie bitte den Absender und löschen Sie diese Nachricht.
 </x-mail::footer>
 </x-slot:footer>
 </x-mail::layout>

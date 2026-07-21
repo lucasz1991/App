@@ -359,6 +359,24 @@ return [
     'no_downloads_available' => 'No files are currently available for you.',
     'files_count' => ':count file|:count files',
 
+    // Profile: email templates
+    'position' => 'Role / position',
+    'position_placeholder' => 'e.g. management, IT services, office assistance',
+    'email_templates' => 'Email templates',
+    'email_templates_intro' => 'Personal email templates and signatures in the RailTime design — your name, role and contact details are already filled in.',
+    'email_templates_missing_data' => 'Your phone number or role is not fully maintained yet. Add them in the "Personal data" tab so they appear in the templates.',
+    'email_templates_legal_hint' => 'Please fill in placeholders such as {{BETREFF}}, {{NACHRICHT}} and the legal details (management, register court, HRB, VAT ID) before sending.',
+    'email_template_mail_eml' => 'Email template for Outlook (EML)',
+    'email_template_mail_eml_hint' => 'Double-click to open the template as a new draft — including logo, hero image and your signature.',
+    'email_template_mail_html' => 'Email template (HTML)',
+    'email_template_mail_html_hint' => 'Self-contained HTML file with embedded images — open in the browser and copy the content.',
+    'email_template_signature_dark' => 'Signature dark (HTML)',
+    'email_template_signature_dark_hint' => 'Dark HTML signature with embedded logo — open in the browser, select and copy into your signature editor.',
+    'email_template_signature_light' => 'Signature light (HTML)',
+    'email_template_signature_light_hint' => 'Light HTML signature with embedded logo — for mail clients with a light theme.',
+    'email_template_signature_text' => 'Signature (plain text)',
+    'email_template_signature_text_hint' => 'Plain-text version of the signature for text-only mails and mobile clients.',
+
     // Forgot password
     'forgot_password_title' => 'Forgot password',
     'forgot_password_description' => 'Enter your email address and we will send you a link to reset your password.',

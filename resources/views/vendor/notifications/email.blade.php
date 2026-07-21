@@ -1,25 +1,34 @@
 <x-mail::message>
+{{-- Eyebrow im d1-Stil --}}
+<tr>
+<td align="left" style="padding:0 0 10px;">
+<div style="color:#e4002b;font-family:Consolas,'Courier New',monospace;font-size:10px;line-height:16px;font-weight:bold;letter-spacing:1.4px;text-transform:uppercase;">RT / {{ config('app.name') }}</div>
+</td>
+</tr>
+
 @if (! empty($greeting))
 <tr>
-<td align="center" style="font-size:0px;padding:10px 25px;word-break:break-word; font-family:Ubuntu, Helvetica, Arial, sans-serif;font-size:24px;font-weight:bold;line-height:1;text-align:center;color:#0c968e;">
+<td align="left" style="padding:0 0 20px;">
+<div class="rt-title" style="color:#111820;font-family:Arial,Helvetica,sans-serif;font-size:30px;line-height:35px;font-weight:400;letter-spacing:-1px;">
 @if ($greeting === 'default')
 @if ($level === 'error')
 @lang('Whoops!')
 @else
-@lang('Hello!')
+@lang('Hallo!')
 @endif
 @else
 {{ $greeting }}
 @endif
+</div>
 </td>
 </tr>
 @endif
 
 <tr>
-<td align="left" style="font-size:0px;padding:10px 25px 30px 25px;word-break:break-word;">
+<td align="left" style="padding:0 0 14px;">
 {{-- Intro Lines --}}
 @foreach ($introLines as $line)
-<div style="font-family:Ubuntu, Helvetica, Arial, sans-serif;font-size:13px;line-height:1.5;text-align:left;color:#000000;">
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:24px;text-align:left;color:#3f4852;margin:0 0 12px;">
 {{ $line }}
 </div>
 @endforeach
@@ -40,10 +49,10 @@
 @endisset
 
 <tr>
-<td align="left" style="font-size:0px;padding:10px 25px 30px 25px;word-break:break-word;">
+<td align="left" style="padding:0 0 10px;">
 {{-- Outro Lines --}}
 @foreach ($outroLines as $line)
-<div style="font-family:Ubuntu, Helvetica, Arial, sans-serif;font-size:13px;line-height:1.5;text-align:left;color:#000000;">
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:24px;text-align:left;color:#3f4852;margin:0 0 12px;">
 {{ $line }}
 </div>
 @endforeach
@@ -51,15 +60,16 @@
 </tr>
 
 {{-- Salutation --}}
-@if (! empty($salutation))
 <tr>
-<td align="left" style="font-size:0px;padding:10px 25px 30px 25px;word-break:break-word;">
-<div style="font-family:Ubuntu, Helvetica, Arial, sans-serif;font-size:13px;line-height:1.5;text-align:left;color:#000000;">
-{{ $salutation }}
-</div>
+<td align="left" style="padding:0 0 18px;">
+@if (! empty($salutation))
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:24px;color:#111820;">{{ $salutation }}</div>
+@else
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:24px;color:#3f4852;">@lang('Freundliche Grüße')</div>
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:24px;font-weight:bold;color:#111820;">{{ config('app.name') }}</div>
+@endif
 </td>
 </tr>
-@endif
 
 {{-- Subcopy --}}
 @isset($actionText)

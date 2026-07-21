@@ -1,23 +1,22 @@
 @props([
 'url',
 'color' => 'primary',
-'align' => 'center',
+'align' => 'left',
 ])
+<?php
+    $background = match ($color) {
+        'success' => '#157f66',
+        'error' => '#9f0020',
+        default => '#e4002b',
+    };
+?>
 <tr>
-<td align="{{ $align }}" vertical-align="middle"
-style="font-size:0px;padding:10px 25px;word-break:break-word;">
-<table border="0" cellpadding="0" cellspacing="0" role="presentation"
-style="border-collapse:separate;line-height:100%;">
+<td align="{{ $align }}" style="padding:8px 0 18px;">
+<table role="presentation" border="0" cellpadding="0" cellspacing="0">
 <tbody>
 <tr>
-<td align="{{ $align }}" bgcolor="#223d63" role="presentation"
-style="border:none;border-radius:3px;cursor:auto;mso-padding-alt:10px 25px;background:#223d63;"
-valign="middle">
-<a href="{{ $url }}"
-style="display:inline-block;background:#223d63;color:#ffffff;font-family:Ubuntu, Helvetica, Arial, sans-serif;font-size:13px;font-weight:normal;line-height:120%;margin:0;text-decoration:none;text-transform:none;padding:10px 25px;mso-padding-alt:0px;border-radius:3px;"
-target="_blank">
-{{ $slot }}
-</a>
+<td bgcolor="{{ $background }}" style="background:{{ $background }};">
+<a href="{{ $url }}" target="_blank" style="display:inline-block;padding:14px 22px;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:18px;font-weight:bold;text-decoration:none;text-transform:uppercase;letter-spacing:.5px;">{{ $slot }} &nbsp;&rarr;</a>
 </td>
 </tr>
 </tbody>

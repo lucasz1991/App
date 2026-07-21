@@ -8,6 +8,7 @@ use Livewire\Component;
 
 class UpdateContactInformationForm extends Component
 {
+    public $position;
     public $phone;
     public $mobile;
     public $street;
@@ -20,6 +21,7 @@ class UpdateContactInformationForm extends Component
     {
         $profile = $this->profile();
 
+        $this->position = $profile->position;
         $this->phone = $profile->phone;
         $this->mobile = $profile->mobile;
         $this->street = $profile->street;
@@ -32,6 +34,7 @@ class UpdateContactInformationForm extends Component
     public function save(): void
     {
         $this->validate([
+            'position' => 'nullable|string|max:100',
             'phone' => 'nullable|string|max:50',
             'mobile' => 'nullable|string|max:50',
             'street' => 'nullable|string|max:255',
@@ -42,6 +45,7 @@ class UpdateContactInformationForm extends Component
         ]);
 
         $this->profile()->update([
+            'position' => $this->position ?: null,
             'phone' => $this->phone ?: null,
             'mobile' => $this->mobile ?: null,
             'street' => $this->street ?: null,

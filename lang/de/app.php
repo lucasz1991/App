@@ -359,6 +359,24 @@ return [
     'no_downloads_available' => 'Aktuell stehen keine Dateien für Sie bereit.',
     'files_count' => ':count Datei|:count Dateien',
 
+    // Profil: E-Mail-Vorlagen
+    'position' => 'Funktion / Position',
+    'position_placeholder' => 'z. B. Geschäftsführung, IT-Technik, Büro-Assistenz',
+    'email_templates' => 'E-Mail-Vorlagen',
+    'email_templates_intro' => 'Persönliche E-Mail-Vorlagen und Signaturen im RailTime-Design — Name, Funktion und Kontaktdaten sind bereits eingetragen.',
+    'email_templates_missing_data' => 'Telefonnummer oder Funktion sind noch nicht vollständig gepflegt. Ergänze sie im Tab „Persönliche Daten", damit sie in den Vorlagen erscheinen.',
+    'email_templates_legal_hint' => 'Platzhalter wie {{BETREFF}}, {{NACHRICHT}} sowie die rechtlichen Angaben (Geschäftsführung, Registergericht, HRB, USt-IdNr.) bitte vor dem Versand ausfüllen.',
+    'email_template_mail_eml' => 'E-Mail-Vorlage für Outlook (EML)',
+    'email_template_mail_eml_hint' => 'Doppelklicken öffnet die Vorlage als neuen Entwurf — inklusive Logo, Kopfbild und deiner Signatur.',
+    'email_template_mail_html' => 'E-Mail-Vorlage (HTML)',
+    'email_template_mail_html_hint' => 'Eigenständige HTML-Datei mit eingebetteten Bildern — im Browser öffnen und Inhalt kopieren.',
+    'email_template_signature_dark' => 'Signatur dunkel (HTML)',
+    'email_template_signature_dark_hint' => 'Dunkle HTML-Signatur mit eingebettetem Logo — im Browser öffnen, markieren und in den Signatur-Editor kopieren.',
+    'email_template_signature_light' => 'Signatur hell (HTML)',
+    'email_template_signature_light_hint' => 'Helle HTML-Signatur mit eingebettetem Logo — für Mailprogramme mit hellem Design.',
+    'email_template_signature_text' => 'Signatur (Nur-Text)',
+    'email_template_signature_text_hint' => 'Textfassung der Signatur für Nur-Text-Mails und mobile Clients.',
+
     // Passwort vergessen
     'forgot_password_title' => 'Passwort vergessen',
     'forgot_password_description' => 'Gib deine E-Mail-Adresse ein — wir senden dir einen Link zum Zurücksetzen deines Passworts.',

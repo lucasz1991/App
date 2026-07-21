@@ -25,6 +25,7 @@ class UserProfile extends Model
         'country',
         'birth_date',
         'personnel_nr',
+        'position',
     ];
 
     /**

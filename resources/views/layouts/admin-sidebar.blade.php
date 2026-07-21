@@ -54,15 +54,10 @@
         </x-menu.sidebar-nav>
         @endcanany
 
+        {{-- Kein Download-Center: Admins/Verwaltung stellen Dateien bereit,
+             empfangen selbst aber keine — der Bereich bleibt den Mitarbeitern
+             (Nutzer-Sidebar) vorbehalten. --}}
         <x-menu.sidebar-nav :label="__('app.personal_data')">
-            <x-menu.sidebar-nav-link
-                :href="route('files')"
-                icon="download-cloud"
-                :active="request()->routeIs('files')"
-            >
-                {{ __('app.download_center') }}
-            </x-menu.sidebar-nav-link>
-
             <x-menu.sidebar-nav-link
                 :href="route('chat')"
                 icon="message-circle"
