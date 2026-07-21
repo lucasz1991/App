@@ -38,7 +38,10 @@ return new class extends Migration
             $table->text('change_notes')->nullable();
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
-            $table->unique(['managed_document_id', 'version_number']);
+            $table->unique(
+                ['managed_document_id', 'version_number'],
+                'managed_doc_versions_doc_version_unique'
+            );
         });
     }
 

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Livewire\Admin\OperationalPreview;
 use App\Models\User;
 use App\Support\Operations\OperationalPreviewCatalog;
+use Illuminate\Support\Facades\Bus;
 use Livewire\Livewire;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
@@ -50,6 +51,8 @@ class AdminOperationalPreviewTest extends TestCase
 
     public function test_operational_preview_routes_are_admin_only_and_reject_unknown_modules(): void
     {
+        Bus::fake();
+
         $admin = User::factory()->create(['role' => 'admin']);
         $staff = User::factory()->create(['role' => 'staff']);
 
@@ -94,6 +97,7 @@ class AdminOperationalPreviewTest extends TestCase
     {
         $script = file_get_contents(resource_path('js/app.js'));
         $chartModule = file_get_contents(resource_path('js/admin-dashboard-echarts.js'));
+        $revealScript = file_get_contents(resource_path('js/gsap.js'));
         $dashboard = file_get_contents(resource_path('views/livewire/admin/dashboard.blade.php'));
 
         $this->assertStringContainsString('data-dashboard-kpis', $dashboard);
@@ -103,5 +107,10 @@ class AdminOperationalPreviewTest extends TestCase
         $this->assertStringContainsString('this.counterTween?.kill()', $script);
         $this->assertStringContainsString('animate = true', $chartModule);
         $this->assertStringContainsString('echarts.getInstanceByDom(element)?.dispose()', $chartModule);
+        $this->assertStringContainsString('if (!root || root === activePageRoot) return;', $revealScript);
+        $this->assertStringContainsString("start: 'clamp(top 90%)'", $revealScript);
+        $this->assertStringContainsString("clearProps: 'transform,opacity,visibility'", $revealScript);
+        $this->assertStringContainsString('isInitiallyVisible(trigger)', $revealScript);
+        $this->assertStringNotContainsString("querySelectorAll('[data-anim][data-anim-done]')", $revealScript);
     }
 }

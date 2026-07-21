@@ -106,7 +106,14 @@ class ManagedDocuments extends Component
         });
 
         if ($isNew) {
-            $this->storeVersion($document, $this->changeNotes);
+            try {
+                $this->storeVersion($document, $this->changeNotes);
+            } catch (\Throwable $exception) {
+                $document->delete();
+
+                throw $exception;
+            }
+
             $notifier->notify($document->fresh(['currentVersion', 'teams']), 'created');
         }
 

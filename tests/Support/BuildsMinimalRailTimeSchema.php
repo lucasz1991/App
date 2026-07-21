@@ -72,6 +72,16 @@ trait BuildsMinimalRailTimeSchema
             $table->timestamps();
         });
 
+        Schema::create('file_pools', function (Blueprint $table): void {
+            $table->id();
+            $table->string('filepoolable_type');
+            $table->unsignedBigInteger('filepoolable_id');
+            $table->string('title');
+            $table->string('type')->nullable();
+            $table->text('description')->nullable();
+            $table->timestamps();
+        });
+
         Schema::create('files', function (Blueprint $table): void {
             $table->id();
             $table->nullableMorphs('fileable');
