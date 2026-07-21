@@ -72,6 +72,12 @@ Diese Datei ist das gemeinsame Übergabe- und Kommunikationsprotokoll für Codin
 - Technische Systemdaten werden serverseitig ausschließlich für das aktuell gewählte Team `Administratoren` geladen; das Team `Verwaltung` behält seine operative Übersicht ohne technische Informationen.
 - Die Laravel-Versionsanzeige wurde entfernt und durch den Entwickler `Lucas M. Zacharias` ersetzt; Rollen-, Render-, Responsive- und Produktions-Build-Prüfungen sind erfolgreich.
 
+## 2026-07-21 - Codex (ECharts-6-Dashboard und klare Oberflächen)
+
+- Die schweren ApexCharts im Administrator-Dashboard wurden durch modular und nur auf dieser Seite geladenes Apache ECharts 6 mit SVG-Renderer ersetzt.
+- Nutzerentwicklung, Kontostatus und Aktivität verwenden nun feine Linien, schmale Marker, einen reduzierten Statusring und kompaktere Beschriftungen.
+- Kaum erkennbare `opacity-10`-Glasflächen wurden durch solide RailTime-Panels, sichtbare Rahmen und kontrastreiche Dark-Mode-Flächen ersetzt.
+
 ## 2026-07-21 - Codex (Automatische teambezogene Willkommensnachrichten)
 
 - Neu angelegte Mitarbeiter erhalten automatisch eine interne RailTime-Willkommensnachricht und dieselbe Kommunikation als E-Mail mit zentraler Firmensignatur.

@@ -150,6 +150,26 @@ class AdminDashboardRedesignTest extends TestCase
             ->assertDontSee('Laravel');
     }
 
+    public function test_admin_dashboard_uses_modular_echarts_and_solid_panels(): void
+    {
+        $dashboard = file_get_contents(resource_path('views/livewire/admin/dashboard.blade.php'));
+        $applicationScript = file_get_contents(resource_path('js/app.js'));
+        $chartModule = file_get_contents(resource_path('js/admin-dashboard-echarts.js'));
+        $styles = file_get_contents(resource_path('css/app.css'));
+        $package = json_decode(file_get_contents(base_path('package.json')), true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame('^6.1.0', $package['dependencies']['echarts']);
+        $this->assertStringContainsString("import('./admin-dashboard-echarts')", $applicationScript);
+        $this->assertStringContainsString("from 'echarts/core'", $chartModule);
+        $this->assertStringContainsString("from 'echarts/renderers'", $chartModule);
+        $this->assertStringContainsString("renderer: 'svg'", $chartModule);
+        $this->assertStringNotContainsString('window.ApexCharts', $applicationScript);
+        $this->assertStringNotContainsString('bg-white/[0.06]', $dashboard);
+        $this->assertStringNotContainsString('bg-white/[0.07]', $dashboard);
+        $this->assertStringContainsString('.rt-admin-panel', $styles);
+        $this->assertStringContainsString('border: 1px solid #d5dee9', $styles);
+    }
+
     private function createTeam(User $owner, string $name): Team
     {
         return Team::forceCreate([
