@@ -1,5 +1,11 @@
 # RailTime – interne Mitarbeiter- und Kommunikationsplattform
 
+## 2026-07-21 - Codex (Viewport-sichere Dropdowns)
+
+- Das gemeinsame Dropdown- und Anchor-Dropdown-System hält jetzt auf Mobilgeräten, Tablets und Desktop immer 12 Pixel Sicherheitsabstand zum sichtbaren Bildschirmrand.
+- Menüs wechseln bei zu wenig Platz automatisch ober- beziehungsweise unterhalb des Triggers, werden horizontal in den Viewport verschoben und erhalten bei Bedarf eine eigene Scrollfläche statt aus dem Bildschirm zu ragen.
+- Ein kleiner Formpfeil bleibt auch nach dem Verschieben exakt auf den auslösenden Button ausgerichtet. Die Menüs werden zentral an den Dokument-Body gesetzt und dadurch nicht mehr von Tabellen, Karten oder anderen Stacking-Kontexten abgeschnitten.
+
 ## 2026-07-21 - Codex (Sprachnachrichten und eigene Nachrichten löschen)
 
 - Der Eingabebereich zeigt Textmodus und Sprachaufnahmemodus jetzt strikt abwechselnd. Die Alpine-Ausblendung verwendet eine priorisierte Display-Regel, damit globale Flex-Utilities nicht mehr beide Bereiche nebeneinander sichtbar machen können.

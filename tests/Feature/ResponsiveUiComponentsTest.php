@@ -7,7 +7,7 @@ use Tests\TestCase;
 
 class ResponsiveUiComponentsTest extends TestCase
 {
-    public function test_legacy_dropdown_alias_renders_the_shared_anchor_dropdown(): void
+    public function test_legacy_dropdown_alias_renders_the_viewport_safe_shared_anchor_dropdown(): void
     {
         $html = Blade::render(<<<'BLADE'
             <x-dropdown align="left" width="96">
@@ -16,9 +16,26 @@ class ResponsiveUiComponentsTest extends TestCase
             </x-dropdown>
         BLADE);
 
-        $this->assertStringContainsString('x-anchor.bottom-start.offset.8.flip.shift', $html);
+        $this->assertStringContainsString('x-data="viewportDropdown({', $html);
+        $this->assertStringContainsString('x-teleport="body"', $html);
+        $this->assertStringContainsString('data-rt-dropdown-panel', $html);
+        $this->assertStringContainsString('data-rt-dropdown-caret', $html);
+        $this->assertStringContainsString('gutter: 12', $html);
         $this->assertStringContainsString('w-96', $html);
         $this->assertStringContainsString('role="menu"', $html);
+    }
+
+    public function test_dropdown_positioner_clamps_all_edges_and_tracks_the_trigger_with_a_caret(): void
+    {
+        $script = file_get_contents(resource_path('js/viewport-dropdown.js'));
+        $styles = file_get_contents(resource_path('css/app.css'));
+
+        $this->assertStringContainsString('calculateViewportDropdownPosition', $script);
+        $this->assertStringContainsString("placement === 'bottom'", $script);
+        $this->assertStringContainsString('viewportRight - safeGutter - width', $script);
+        $this->assertStringContainsString("--rt-dropdown-caret-x", $script);
+        $this->assertStringContainsString('.rt-viewport-dropdown[data-placement="bottom"] .rt-ui-dropdown-caret', $styles);
+        $this->assertStringContainsString('.rt-viewport-dropdown[data-placement="top"] .rt-ui-dropdown-caret', $styles);
     }
 
     public function test_topbar_preferences_are_grouped_in_one_shared_anchor_dropdown(): void

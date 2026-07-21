@@ -8,6 +8,8 @@ const clamp = (value, minimum, maximum) => Math.min(Math.max(value, minimum), Ma
 export function calculateViewportDropdownPosition({
     viewportWidth,
     viewportHeight,
+    viewportLeft = 0,
+    viewportTop = 0,
     triggerRect,
     panelWidth,
     panelHeight,
@@ -22,13 +24,15 @@ export function calculateViewportDropdownPosition({
     const maxWidth = Math.max(0, safeViewportWidth - (safeGutter * 2));
     const width = Math.min(Math.max(0, panelWidth), maxWidth);
 
+    const viewportRight = viewportLeft + safeViewportWidth;
+    const viewportBottom = viewportTop + safeViewportHeight;
     const preferredLeft = align === 'left'
         ? triggerRect.left
         : triggerRect.right - width;
-    const left = clamp(preferredLeft, safeGutter, safeViewportWidth - safeGutter - width);
+    const left = clamp(preferredLeft, viewportLeft + safeGutter, viewportRight - safeGutter - width);
 
-    const spaceBelow = Math.max(0, safeViewportHeight - safeGutter - triggerRect.bottom - safeOffset);
-    const spaceAbove = Math.max(0, triggerRect.top - safeGutter - safeOffset);
+    const spaceBelow = Math.max(0, viewportBottom - safeGutter - triggerRect.bottom - safeOffset);
+    const spaceAbove = Math.max(0, triggerRect.top - viewportTop - safeGutter - safeOffset);
     const placement = align === 'top'
         ? ((panelHeight <= spaceAbove || spaceAbove >= spaceBelow) ? 'top' : 'bottom')
         : ((panelHeight <= spaceBelow || spaceBelow >= spaceAbove) ? 'bottom' : 'top');
@@ -41,7 +45,7 @@ export function calculateViewportDropdownPosition({
     const preferredTop = placement === 'bottom'
         ? triggerRect.bottom + safeOffset
         : triggerRect.top - safeOffset - height;
-    const top = clamp(preferredTop, safeGutter, safeViewportHeight - safeGutter - height);
+    const top = clamp(preferredTop, viewportTop + safeGutter, viewportBottom - safeGutter - height);
 
     const triggerCenter = triggerRect.left + (triggerRect.width / 2);
     const caretInset = Math.min(22, Math.max(8, width / 2));
@@ -75,6 +79,8 @@ export function registerViewportDropdown(Alpine) {
 
             window.addEventListener('resize', this.resizeHandler, { passive: true });
             document.addEventListener('scroll', this.scrollHandler, true);
+            window.visualViewport?.addEventListener('resize', this.resizeHandler, { passive: true });
+            window.visualViewport?.addEventListener('scroll', this.scrollHandler, { passive: true });
 
             this.$watch('open', (isOpen) => {
                 this.syncTriggerAccessibility();
@@ -109,6 +115,8 @@ export function registerViewportDropdown(Alpine) {
         destroy() {
             window.removeEventListener('resize', this.resizeHandler);
             document.removeEventListener('scroll', this.scrollHandler, true);
+            window.visualViewport?.removeEventListener('resize', this.resizeHandler);
+            window.visualViewport?.removeEventListener('scroll', this.scrollHandler);
             window.cancelAnimationFrame(this.positionFrame);
             this.stopObservingSize();
         },
@@ -143,10 +151,15 @@ export function registerViewportDropdown(Alpine) {
                 return;
             }
 
-            const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
-            const viewportHeight = window.visualViewport?.height
+            const visualViewport = window.visualViewport;
+            const viewportWidth = visualViewport?.width
+                || document.documentElement.clientWidth
+                || window.innerWidth;
+            const viewportHeight = visualViewport?.height
                 || document.documentElement.clientHeight
                 || window.innerHeight;
+            const viewportLeft = visualViewport?.offsetLeft || 0;
+            const viewportTop = visualViewport?.offsetTop || 0;
             const maximumViewportWidth = Math.max(0, viewportWidth - (this.gutter * 2));
             const maximumViewportHeight = Math.max(0, viewportHeight - (this.gutter * 2));
 
@@ -167,6 +180,8 @@ export function registerViewportDropdown(Alpine) {
             const position = calculateViewportDropdownPosition({
                 viewportWidth,
                 viewportHeight,
+                viewportLeft,
+                viewportTop,
                 triggerRect,
                 panelWidth: panelRect.width,
                 panelHeight: panelRect.height,
@@ -191,6 +206,10 @@ export function registerViewportDropdown(Alpine) {
             this.stopObservingSize();
 
             if (typeof ResizeObserver === 'undefined') {
+                return;
+            }
+
+            if (!this.$refs.trigger || !this.$refs.panel) {
                 return;
             }
 

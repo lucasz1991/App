@@ -52,7 +52,9 @@
 
   {{-- Overlay --}}
   @if($overlay)
-    <div x-show="open" x-transition.opacity class="fixed inset-0 z-40 bg-black/40" @click="close()" style="display:none;"></div>
+    <template x-teleport="body">
+      <div x-show="open" x-transition.opacity class="fixed inset-0 z-[170] bg-black/40" @click="close()" style="display:none;"></div>
+    </template>
   @endif
 
   {{-- Das Teleportieren verhindert Clipping durch Tabellen und Karten. --}}

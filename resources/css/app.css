@@ -180,6 +180,32 @@ body[data-mode="dark"] .rt-ui-surface-muted {
     border-color: #273449 !important;
 }
 
+/* Viewport-sichere Dropdowns werden an <body> teleportiert. Der kleine
+ * Formpfeil bleibt auch nach horizontalem Clamping am Triggerzentrum. */
+.rt-viewport-dropdown {
+    overflow: visible !important;
+    transform-origin: var(--rt-dropdown-caret-x, 50%) top;
+    will-change: transform, opacity;
+}
+
+.rt-viewport-dropdown[data-placement="top"] {
+    transform-origin: var(--rt-dropdown-caret-x, 50%) bottom;
+}
+
+.rt-viewport-dropdown[data-placement="bottom"] .rt-ui-dropdown-caret {
+    top: -0.3rem;
+    left: var(--rt-dropdown-caret-x, 50%);
+    border-bottom-width: 0;
+    border-right-width: 0;
+}
+
+.rt-viewport-dropdown[data-placement="top"] .rt-ui-dropdown-caret {
+    bottom: -0.3rem;
+    left: var(--rt-dropdown-caret-x, 50%);
+    border-left-width: 0;
+    border-top-width: 0;
+}
+
 html.dark .rt-ui-topbar,
 body[data-mode="dark"] .rt-ui-topbar {
     color: #e7edf7 !important;
