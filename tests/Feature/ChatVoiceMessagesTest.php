@@ -48,7 +48,7 @@ class ChatVoiceMessagesTest extends TestCase
             ->assertSet('selectedChatId', $chat->id)
             ->set('voiceUpload', UploadedFile::fake()->create('aufnahme.webm', 128, 'audio/webm'))
             ->assertSet('voiceUpload', fn ($upload) => $upload !== null)
-            ->call('sendVoice', true)
+            ->call('sendVoice', true, 37)
             ->assertHasNoErrors();
 
         $message = ChatMessage::query()->where('chat_id', $chat->id)->sole();
@@ -56,6 +56,7 @@ class ChatVoiceMessagesTest extends TestCase
         $this->assertSame('', $message->body);
         $this->assertSame('voice', $message->message_type);
         $this->assertTrue($message->view_once);
+        $this->assertSame(37, $message->voice_duration_seconds);
         $this->assertSame('voice', $message->files()->sole()->type);
     }
 

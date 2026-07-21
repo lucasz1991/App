@@ -325,6 +325,7 @@ Alpine.data('chatRealtime', (config) => ({
             return;
         }
 
+        const recordedDuration = Math.max(1, Math.round(this.recordingSeconds));
         const mime = this.recorder?.mimeType || this.chunks[0]?.type || 'audio/webm';
         const extension = mime.includes('ogg') ? 'ogg' : (mime.includes('mp4') ? 'm4a' : 'webm');
         const file = new File(
@@ -337,7 +338,7 @@ Alpine.data('chatRealtime', (config) => ({
             'voiceUpload',
             file,
             () => {
-                this.$wire.call('sendVoice', this.viewOnce)
+                this.$wire.call('sendVoice', this.viewOnce, recordedDuration)
                     .then(() => this.resetVoiceRecorder())
                     .catch(() => this.voiceUploadFailed());
             },
@@ -386,8 +387,17 @@ Alpine.data('chatAudioPlayer', (config = {}) => ({
     loading: false,
     playing: false,
     currentTime: 0,
-    duration: 0,
-    waveform: [8, 15, 11, 20, 13, 24, 17, 10, 22, 14, 26, 18, 12, 21, 9, 17, 25, 14, 20, 11, 23, 16, 10, 19, 13, 22, 15, 9],
+    duration: Math.max(0, Number(config.durationHint || 0)),
+    progressFrame: null,
+    waveformPattern: [8, 15, 11, 20, 13, 24, 17, 10, 22, 14, 26, 18, 12, 21, 9, 17, 25, 14, 20, 11, 23, 16, 10, 19, 13, 22, 15, 9, 18, 25, 12, 20, 15, 27, 11, 18, 23, 14, 21, 9, 17, 24, 13, 19, 26, 12, 18, 10],
+
+    get waveform() {
+        const barCount = this.duration > 0
+            ? Math.max(20, Math.min(this.waveformPattern.length, Math.round(20 + (this.duration / 4))))
+            : 28;
+
+        return this.waveformPattern.slice(0, barCount);
+    },
 
     get progress() {
         return this.duration > 0 ? Math.min(100, (this.currentTime / this.duration) * 100) : 0;
@@ -417,6 +427,11 @@ Alpine.data('chatAudioPlayer', (config = {}) => ({
         }
 
         if (this.$refs.audio.paused) {
+            if (this.duration > 0 && this.currentTime >= this.duration - 0.05) {
+                this.$refs.audio.currentTime = 0;
+                this.currentTime = 0;
+            }
+
             this.$refs.audio.play().catch(() => {
                 this.playing = false;
             });
@@ -449,16 +464,57 @@ Alpine.data('chatAudioPlayer', (config = {}) => ({
 
         this.loading = false;
         this.playing = false;
+        this.stopProgressAnimation();
         this.consumed = true;
         this.sourceUrl = '';
     },
 
     metadataLoaded() {
-        this.duration = Number.isFinite(this.$refs.audio.duration) ? this.$refs.audio.duration : 0;
+        const mediaDuration = this.$refs.audio.duration;
+
+        if (Number.isFinite(mediaDuration) && mediaDuration > 0) {
+            this.duration = mediaDuration;
+        }
     },
 
     timeUpdated() {
         this.currentTime = this.$refs.audio.currentTime || 0;
+    },
+
+    playbackStarted() {
+        this.playing = true;
+        this.startProgressAnimation();
+    },
+
+    playbackPaused() {
+        this.playing = false;
+        this.stopProgressAnimation();
+    },
+
+    startProgressAnimation() {
+        this.stopProgressAnimation();
+
+        const syncProgress = () => {
+            if (!this.$refs.audio || this.$refs.audio.paused || this.$refs.audio.ended) {
+                this.stopProgressAnimation();
+                return;
+            }
+
+            this.currentTime = Math.min(
+                this.duration || this.$refs.audio.currentTime,
+                this.$refs.audio.currentTime || 0
+            );
+            this.progressFrame = window.requestAnimationFrame(syncProgress);
+        };
+
+        this.progressFrame = window.requestAnimationFrame(syncProgress);
+    },
+
+    stopProgressAnimation() {
+        if (this.progressFrame !== null) {
+            window.cancelAnimationFrame(this.progressFrame);
+            this.progressFrame = null;
+        }
     },
 
     seek(value) {
@@ -473,6 +529,8 @@ Alpine.data('chatAudioPlayer', (config = {}) => ({
 
     ended() {
         this.playing = false;
+        this.stopProgressAnimation();
+        this.currentTime = this.duration;
 
         if (this.viewOnce) {
             this.consumed = true;
@@ -482,9 +540,10 @@ Alpine.data('chatAudioPlayer', (config = {}) => ({
             this.$wire.call('finishVoicePlayback', this.messageId);
             return;
         }
+    },
 
-        this.currentTime = 0;
-        this.$refs.audio.currentTime = 0;
+    destroy() {
+        this.stopProgressAnimation();
     },
 }));
 

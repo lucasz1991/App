@@ -126,6 +126,7 @@ trait BuildsMinimalRailTimeSchema
             $table->text('body');
             $table->string('message_type', 24)->default('text');
             $table->boolean('view_once')->default(false);
+            $table->unsignedSmallInteger('voice_duration_seconds')->nullable();
             $table->timestamps();
         });
 

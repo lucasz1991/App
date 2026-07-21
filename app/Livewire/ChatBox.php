@@ -114,7 +114,7 @@ class ChatBox extends Component
         $this->finishSending($chat, $message);
     }
 
-    public function sendVoice(bool $viewOnce = false): void
+    public function sendVoice(bool $viewOnce = false, int $durationSeconds = 0): void
     {
         $this->validate([
             'voiceUpload' => ['required', 'file', 'max:20480'],
@@ -140,6 +140,7 @@ class ChatBox extends Component
             'body' => '',
             'message_type' => 'voice',
             'view_once' => $viewOnce,
+            'voice_duration_seconds' => $durationSeconds > 0 ? min(300, $durationSeconds) : null,
         ]);
 
         try {

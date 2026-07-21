@@ -1326,6 +1326,15 @@ body[data-mode="dark"] .rt-operational-page .rt-operational-nav-icon {
             color 160ms ease;
     }
 
+    /* Untermenue-Links tragen im offenen Zustand bewusst einen groesseren
+       Einzug. Eingeklappt wird dieser harte Einzug ueberschrieben, damit auch
+       aktive Untermenue-Icons exakt in der 72-px-Sidebar zentriert bleiben. */
+    body[data-sidebar-collapsible="true"]:not([data-sidebar-expanded="true"]) .vertical-menu .mm-collapse .sidebar-nav-link,
+    body[data-sidebar-collapsible="true"]:not([data-sidebar-expanded="true"]) .vertical-menu .mm-collapsing .sidebar-nav-link {
+        padding-left: var(--webreach-sidebar-collapsed-padding) !important;
+        padding-right: var(--webreach-sidebar-collapsed-padding) !important;
+    }
+
     body[data-sidebar-collapsible="true"] .vertical-menu .sidebar-nav-link__icon {
         display: inline-flex;
         align-items: center;

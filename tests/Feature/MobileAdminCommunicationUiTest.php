@@ -64,6 +64,10 @@ class MobileAdminCommunicationUiTest extends TestCase
         $this->assertSame(2, substr_count($view, 'data-chat-composer-mode='));
         $this->assertStringContainsString('x-data="chatAudioPlayer({', file_get_contents(resource_path('views/components/chat/voice-message.blade.php')));
         $this->assertStringContainsString('$voiceFile = $message->voiceFile();', $view);
+        $this->assertStringContainsString('x-show.important="consumed"', file_get_contents(resource_path('views/components/chat/voice-message.blade.php')));
+        $this->assertStringContainsString('x-show.important="!consumed"', file_get_contents(resource_path('views/components/chat/voice-message.blade.php')));
+        $this->assertStringContainsString('durationHint:', file_get_contents(resource_path('views/components/chat/voice-message.blade.php')));
+        $this->assertStringContainsString('window.requestAnimationFrame(syncProgress)', $script);
     }
 
     public function test_active_mobile_sidebar_group_is_forced_open(): void
@@ -74,6 +78,8 @@ class MobileAdminCommunicationUiTest extends TestCase
         $this->assertStringContainsString('data-mobile-expanded=', $component);
         $this->assertStringContainsString('li[data-mobile-expanded="true"] > .mm-collapse', $styles);
         $this->assertStringContainsString('display: block !important', $styles);
+        $this->assertStringContainsString(':not([data-sidebar-expanded="true"]) .vertical-menu .mm-collapse .sidebar-nav-link', $styles);
+        $this->assertStringContainsString('padding-left: var(--webreach-sidebar-collapsed-padding) !important', $styles);
     }
 
     public function test_messages_use_full_width_mobile_rows(): void

@@ -17,7 +17,8 @@
         messageId: {{ (int) $message->id }},
         sourceUrl: @js($sourceUrl),
         viewOnce: @js((bool) $message->view_once),
-        consumed: @js((bool) $consumed)
+        consumed: @js((bool) $consumed),
+        durationHint: {{ (int) ($message->voice_duration_seconds ?? 0) }}
     })"
     x-on:chat:voice-ready.window="acceptSource($event.detail)"
     x-on:chat:voice-consumed.window="markConsumed($event.detail)"
@@ -31,12 +32,12 @@
         class="sr-only"
         @loadedmetadata="metadataLoaded()"
         @timeupdate="timeUpdated()"
-        @play="playing = true"
-        @pause="playing = false"
+        @play="playbackStarted()"
+        @pause="playbackPaused()"
         @ended="ended()"
     ></audio>
 
-    <div x-show="consumed" class="flex min-h-12 items-center gap-3">
+    <div x-show.important="consumed" class="flex min-h-12 items-center gap-3">
         <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/10 dark:bg-white/10">
             <i class="far fa-circle-check" aria-hidden="true"></i>
         </span>
@@ -46,7 +47,7 @@
         </span>
     </div>
 
-    <div x-show="!consumed" class="flex min-w-0 items-center gap-2.5">
+    <div x-show.important="!consumed" class="flex min-w-0 items-center gap-2.5">
         <button
             type="button"
             @click="toggle()"
