@@ -145,8 +145,159 @@ html {
         0 16px 34px -28px rgba(0, 0, 0, 0.9);
 }
 
-.dark .rt-admin-operations {
+.dark [data-admin-dashboard] .text-rt-red,
+.dark .rt-operational-page .text-rt-red {
+    color: #ff8295;
+}
+
+.dark .rt-admin-hero-badge,
+.dark .rt-admin-hero-secondary,
+.dark .rt-admin-chart-total {
+    color: #e7edf7;
+    background: #172033;
     border-color: #475569;
+}
+
+.dark .rt-admin-hero-secondary:hover {
+    color: #ffffff;
+    background: #263653;
+    border-color: #64748b;
+}
+
+.dark .rt-admin-hero-copy {
+    color: #a9b6c9;
+}
+
+.dark .rt-admin-live-card {
+    color: #e7edf7;
+    background: #111827;
+    border-color: #475569;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.04),
+        0 20px 44px -32px rgba(0, 0, 0, 0.95);
+}
+
+.dark .rt-admin-live-icon,
+.dark .rt-admin-user-avatar {
+    background: #172033;
+    border-color: #475569;
+}
+
+.dark .rt-admin-live-stats > :not([hidden]) ~ :not([hidden]) {
+    border-color: #334155;
+}
+
+.dark .rt-admin-operations {
+    border-color: #334155;
+}
+
+.dark .rt-admin-operations-header {
+    background: #0f172a;
+    border-color: #273449;
+}
+
+.dark .rt-admin-operations-status {
+    color: #cbd5e1;
+    background: #080f1d;
+    border-color: #334155;
+}
+
+.dark .rt-admin-operations-grid,
+.dark .rt-admin-list-grid,
+.dark .rt-admin-system-grid {
+    background: #273449;
+}
+
+.dark .rt-admin-operations-card {
+    background: #172033;
+}
+
+.dark .rt-admin-operations-card:hover {
+    background: #1e293b;
+}
+
+.dark .rt-admin-operations-card-divider {
+    border-color: #334155;
+}
+
+.dark .rt-admin-user-row,
+.dark .rt-admin-system-cell {
+    background: #111827;
+}
+
+.dark .rt-admin-user-row:hover {
+    background: #172033;
+}
+
+.dark .rt-admin-quick-link {
+    color: #e7edf7;
+    background: #172033;
+    border-color: #334155;
+}
+
+.dark .rt-admin-quick-link:hover {
+    color: #ffffff;
+    background: #e4002b;
+    border-color: #f51b3b;
+}
+
+.dark .rt-operational-demo-badge,
+.dark .rt-operational-notice {
+    color: #fde68a;
+    background: #2a200d;
+    border-color: #92400e;
+}
+
+.dark .rt-operational-header {
+    background: #0f172a;
+    border-color: #273449;
+}
+
+.dark .rt-operational-tone {
+    color: #e7edf7;
+    background: #1e293b;
+    border-color: #475569;
+}
+
+.dark .rt-operational-stats {
+    background: #273449;
+}
+
+.dark .rt-operational-stat {
+    background: #172033;
+}
+
+.dark .rt-operational-list > :not([hidden]) ~ :not([hidden]) {
+    border-color: #273449;
+}
+
+.dark .rt-operational-item-status,
+.dark .rt-operational-schema {
+    color: #cbd5e1;
+    background: #172033;
+    border-color: #334155;
+}
+
+.dark .rt-operational-nav-link {
+    color: #e7edf7;
+    background: #172033;
+    border-color: #334155;
+}
+
+.dark .rt-operational-nav-link:hover {
+    background: #1e293b;
+    border-color: #475569;
+}
+
+.dark .rt-operational-nav-link-active,
+.dark .rt-operational-nav-link-active:hover {
+    color: #ff8295;
+    background: #31141e;
+    border-color: #e4002b;
+}
+
+.dark .rt-operational-nav-icon {
+    background: #0f172a;
 }
 
 .rt-admin-panel-accent,
@@ -601,6 +752,11 @@ html {
     body[data-sidebar-collapsible="true"] .vertical-menu .sidebar-nav-link.active,
     body[data-sidebar-collapsible="true"] .vertical-menu #sidebar-menu > ul > li.mm-active > .sidebar-nav-link {
         background: rgba(59, 130, 246, 0.08);
+    }
+
+    html.dark body[data-sidebar-collapsible="true"] .vertical-menu .sidebar-nav-link.active,
+    html.dark body[data-sidebar-collapsible="true"] .vertical-menu #sidebar-menu > ul > li.mm-active > .sidebar-nav-link {
+        background: #25141d;
     }
 }
 

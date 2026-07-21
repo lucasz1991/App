@@ -181,6 +181,7 @@ class AdminDashboardRedesignTest extends TestCase
     {
         $dashboard = file_get_contents(resource_path('views/livewire/admin/dashboard.blade.php'));
         $chartModule = file_get_contents(resource_path('js/admin-dashboard-echarts.js'));
+        $styles = file_get_contents(resource_path('css/app.css'));
         $growthChartPosition = strpos($dashboard, 'x-ref="growthChart"');
         $operationalPreviewPosition = strpos($dashboard, 'operational-preview-heading');
 
@@ -194,6 +195,12 @@ class AdminDashboardRedesignTest extends TestCase
         $this->assertStringContainsString('rt-admin-operations', $dashboard);
         $this->assertStringContainsString('dark:bg-slate-900', $dashboard);
         $this->assertStringContainsString('dark:bg-slate-800 dark:hover:bg-slate-700', $dashboard);
+        $this->assertStringContainsString('rt-admin-live-card', $dashboard);
+        $this->assertSame(4, substr_count($dashboard, 'rt-admin-quick-link'));
+        $this->assertStringContainsString('.dark .rt-admin-live-card', $styles);
+        $this->assertStringContainsString('.dark .rt-admin-operations-card', $styles);
+        $this->assertStringContainsString('.dark .rt-admin-quick-link', $styles);
+        $this->assertStringContainsString('.dark [data-admin-dashboard] .text-rt-red', $styles);
         $this->assertStringNotContainsString('lg:min-h-[25rem]', $dashboard);
         $this->assertStringNotContainsString('h-[270px] sm:h-[300px]', $dashboard);
         $this->assertStringNotContainsString('bg-[#111827] p-5 text-white', $dashboard);

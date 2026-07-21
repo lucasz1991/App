@@ -102,6 +102,12 @@ Diese Datei ist das gemeinsame Übergabe- und Kommunikationsprotokoll für Codin
 - Bei Datenbankänderungen beachten: Die Migrationen sind auf eine frische Installation ausgelegt. Für einen kompletten Neuaufbau ist `php artisan migrate:fresh --seed` erforderlich.
 - Keine bestehenden, nicht zum Task gehörenden Änderungen zurücksetzen.
 
+## 2026-07-21 - Codex (Dashboard- und Auftragsmodule im Dark Mode)
+
+- Die im Screenshot hell zurückfallenden Dashboard-Flächen besitzen nun eigene stabile Dark-Mode-Zustände für Live-Betrieb, Sekundäraktion, Diagramm-Badge, Betriebssteuerung, Nutzerliste, Schnellzugriffe und Systemzellen.
+- Der Hero wurde auf eine kompaktere, begrenzte Live-Betriebsspalte umgestellt; dunkle Akzenttexte und Trennlinien verwenden kontraststärkere zentrale RailTime-Farben.
+- Alle vier Betriebs-Dummymodule einschließlich Aufträge verwenden dieselben dunklen Kopf-, Statistik-, Listen-, Navigation- und Hinweisflächen; die aktive Desktop-Sidebar bleibt ebenfalls themegerecht.
+
 ## 2026-07-21 - Codex (Desktop-Diagramme und Betriebssteuerung im Dark Mode)
 
 - Nutzerentwicklung und Kontostatus stehen bereits ab der normalen Desktop-Breite im Verhältnis 8:4 nebeneinander; auf besonders breiten Ansichten ergänzt der Aktivitätstrend die gemeinsame Diagrammzeile.

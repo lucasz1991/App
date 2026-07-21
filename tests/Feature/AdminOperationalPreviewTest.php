@@ -113,4 +113,20 @@ class AdminOperationalPreviewTest extends TestCase
         $this->assertStringContainsString('isInitiallyVisible(trigger)', $revealScript);
         $this->assertStringNotContainsString("querySelectorAll('[data-anim][data-anim-done]')", $revealScript);
     }
+
+    public function test_operational_modules_use_strong_shared_dark_mode_surfaces(): void
+    {
+        $preview = file_get_contents(resource_path('views/livewire/admin/operational-preview.blade.php'));
+        $styles = file_get_contents(resource_path('css/app.css'));
+
+        $this->assertStringContainsString('rt-operational-page', $preview);
+        $this->assertStringContainsString('rt-operational-notice', $preview);
+        $this->assertStringContainsString('rt-operational-stats', $preview);
+        $this->assertStringContainsString('rt-operational-stat', $preview);
+        $this->assertStringContainsString('rt-operational-nav-link-active', $preview);
+        $this->assertStringContainsString('.dark .rt-operational-notice', $styles);
+        $this->assertStringContainsString('.dark .rt-operational-stat', $styles);
+        $this->assertStringContainsString('.dark .rt-operational-nav-link-active', $styles);
+        $this->assertStringContainsString('html.dark body[data-sidebar-collapsible="true"]', $styles);
+    }
 }
