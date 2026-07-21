@@ -127,9 +127,7 @@ class User extends Authenticatable
 
     public function canViewSystemDashboard(): bool
     {
-        $teamName = $this->dashboardTeam()?->name;
-
-        return in_array($teamName, ['Administratoren', 'Administrator', 'Administration'], true);
+        return $this->dashboardTeam()?->name === 'Administratoren';
     }
 
     public function canViewManagementDashboard(): bool

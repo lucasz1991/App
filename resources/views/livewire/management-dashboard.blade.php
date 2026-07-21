@@ -35,13 +35,16 @@
             </div>
         </section>
 
-        <div class="grid gap-4 sm:gap-6 xl:grid-cols-2" data-anim="fade-up">
+        <div @class([
+            'grid gap-4 sm:gap-6',
+            'xl:grid-cols-2' => $canViewSystemData,
+        ]) data-anim="fade-up">
             <section class="rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 sm:p-6 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
                 <h2 class="text-base font-semibold text-rt-text dark:text-white">{{ __('app.recently_active') }}</h2>
                 <div class="mt-4 space-y-2.5">
                     @forelse ($recentActivity as $entry)
                         <div class="flex items-center gap-3 rounded-lg bg-rt-surface-muted/60 px-3 py-2.5 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted/40 dark:ring-rt-dark-border/60">
-                            <img src="{{ $entry['user']->profile_photo_url }}" alt="" class="h-9 w-9 rounded-full object-cover">
+                            <img src="{{ $entry['user']->profile_photo_url }}" alt="{{ $entry['user']->name }}" class="h-9 w-9 rounded-xl object-cover">
                             <div class="min-w-0 flex-1">
                                 <p class="truncate text-sm font-semibold text-rt-text dark:text-white">{{ $entry['user']->name }}</p>
                                 <p class="truncate text-xs text-rt-muted dark:text-rt-dark-muted">{{ $entry['user']->email }}</p>
@@ -56,20 +59,24 @@
                 </div>
             </section>
 
-            <section class="rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 sm:p-6 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
-                <h2 class="text-base font-semibold text-rt-text dark:text-white">{{ __('app.system_status') }}</h2>
-                <dl class="mt-4 divide-y divide-rt-border/60 text-sm dark:divide-rt-dark-border/60">
-                    <div class="flex items-center justify-between gap-4 py-2.5"><dt class="text-rt-muted dark:text-rt-dark-muted">{{ __('app.application') }}</dt><dd class="text-right font-medium text-rt-text dark:text-white">{{ $system['appVersion'] }}</dd></div>
-                    <div class="flex items-center justify-between gap-4 py-2.5"><dt class="text-rt-muted dark:text-rt-dark-muted">{{ __('app.environment') }}</dt><dd class="text-right font-medium text-rt-text dark:text-white">{{ $system['environment'] }}</dd></div>
-                    <div class="flex items-center justify-between gap-4 py-2.5"><dt class="text-rt-muted dark:text-rt-dark-muted">{{ __('app.php_version') }}</dt><dd class="text-right font-medium text-rt-text dark:text-white">{{ $system['php'] }}</dd></div>
-                    <div class="flex items-center justify-between gap-4 py-2.5"><dt class="text-rt-muted dark:text-rt-dark-muted">Laravel</dt><dd class="text-right font-medium text-rt-text dark:text-white">{{ $system['laravel'] }}</dd></div>
-                    <div class="flex items-center justify-between gap-4 py-2.5"><dt class="text-rt-muted dark:text-rt-dark-muted">{{ __('app.database') }}</dt><dd class="text-right font-medium text-rt-text dark:text-white">{{ $system['database'] }}</dd></div>
-                    <div class="flex items-center justify-between gap-4 py-2.5"><dt class="text-rt-muted dark:text-rt-dark-muted">{{ __('app.queue') }}</dt><dd class="text-right font-medium text-rt-text dark:text-white">{{ $system['queue'] }}</dd></div>
-                    <div class="flex items-center justify-between gap-4 py-2.5"><dt class="text-rt-muted dark:text-rt-dark-muted">{{ __('app.file_storage') }}</dt><dd class="text-right font-medium text-rt-text dark:text-white">{{ $system['storage'] }}</dd></div>
-                    <div class="flex items-center justify-between gap-4 py-2.5"><dt class="text-rt-muted dark:text-rt-dark-muted">{{ __('app.server_disk') }}</dt><dd class="text-right font-medium text-rt-text dark:text-white">{{ $system['disk'] }}</dd></div>
-                    <div class="flex items-center justify-between gap-4 py-2.5"><dt class="text-rt-muted dark:text-rt-dark-muted">{{ __('app.last_activity') }}</dt><dd class="text-right font-medium text-rt-text dark:text-white">{{ $system['lastActivityAt']?->diffForHumans() ?? '—' }}</dd></div>
-                </dl>
-            </section>
+            @if ($canViewSystemData && $system)
+                <section class="rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 sm:p-6 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60" data-system-dashboard>
+                    <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.administrator_team') }}</p>
+                    <h2 class="mt-1 text-base font-semibold text-rt-text dark:text-white">{{ __('app.technical_system_data') }}</h2>
+                    <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.technical_system_data_description') }}</p>
+                    <dl class="mt-4 divide-y divide-rt-border/60 text-sm dark:divide-rt-dark-border/60">
+                        <div class="flex items-center justify-between gap-4 py-2.5"><dt class="text-rt-muted dark:text-rt-dark-muted">{{ __('app.application') }}</dt><dd class="text-right font-medium text-rt-text dark:text-white">{{ $system['appVersion'] }}</dd></div>
+                        <div class="flex items-center justify-between gap-4 py-2.5"><dt class="text-rt-muted dark:text-rt-dark-muted">{{ __('app.environment') }}</dt><dd class="text-right font-medium text-rt-text dark:text-white">{{ $system['environment'] }}</dd></div>
+                        <div class="flex items-center justify-between gap-4 py-2.5"><dt class="text-rt-muted dark:text-rt-dark-muted">{{ __('app.php_version') }}</dt><dd class="text-right font-medium text-rt-text dark:text-white">{{ $system['php'] }}</dd></div>
+                        <div class="flex items-center justify-between gap-4 py-2.5"><dt class="text-rt-muted dark:text-rt-dark-muted">{{ __('app.developer') }}</dt><dd class="text-right font-medium text-rt-text dark:text-white">{{ $system['developer'] }}</dd></div>
+                        <div class="flex items-center justify-between gap-4 py-2.5"><dt class="text-rt-muted dark:text-rt-dark-muted">{{ __('app.database') }}</dt><dd class="text-right font-medium text-rt-text dark:text-white">{{ $system['database'] }}</dd></div>
+                        <div class="flex items-center justify-between gap-4 py-2.5"><dt class="text-rt-muted dark:text-rt-dark-muted">{{ __('app.queue') }}</dt><dd class="text-right font-medium text-rt-text dark:text-white">{{ $system['queue'] }}</dd></div>
+                        <div class="flex items-center justify-between gap-4 py-2.5"><dt class="text-rt-muted dark:text-rt-dark-muted">{{ __('app.file_storage') }}</dt><dd class="text-right font-medium text-rt-text dark:text-white">{{ $system['storage'] }}</dd></div>
+                        <div class="flex items-center justify-between gap-4 py-2.5"><dt class="text-rt-muted dark:text-rt-dark-muted">{{ __('app.server_disk') }}</dt><dd class="text-right font-medium text-rt-text dark:text-white">{{ $system['disk'] }}</dd></div>
+                        <div class="flex items-center justify-between gap-4 py-2.5"><dt class="text-rt-muted dark:text-rt-dark-muted">{{ __('app.last_activity') }}</dt><dd class="text-right font-medium text-rt-text dark:text-white">{{ $system['lastActivityAt']?->diffForHumans() ?? '—' }}</dd></div>
+                    </dl>
+                </section>
+            @endif
         </div>
     </x-ui.page>
 </div>

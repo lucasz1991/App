@@ -6,17 +6,17 @@ use Tests\TestCase;
 
 class MobileAdminCommunicationUiTest extends TestCase
 {
-    public function test_admin_dashboards_keep_four_compact_kpis_on_mobile(): void
+    public function test_admin_dashboards_keep_responsive_mobile_kpis(): void
     {
-        foreach ([
-            resource_path('views/livewire/admin/dashboard.blade.php'),
-            resource_path('views/livewire/management-dashboard.blade.php'),
-        ] as $view) {
-            $contents = file_get_contents($view);
+        $adminDashboard = file_get_contents(resource_path('views/livewire/admin/dashboard.blade.php'));
+        $managementDashboard = file_get_contents(resource_path('views/livewire/management-dashboard.blade.php'));
 
-            $this->assertStringContainsString('grid grid-cols-4 gap-1.5', $contents);
-            $this->assertSame(4, substr_count($contents, ':compact-mobile="true"'));
-        }
+        $this->assertStringContainsString('rt-admin-hero', $adminDashboard);
+        $this->assertStringContainsString('grid grid-cols-2 gap-3 xl:grid-cols-5', $adminDashboard);
+        $this->assertGreaterThanOrEqual(4, substr_count($adminDashboard, 'data-dashboard-count'));
+
+        $this->assertStringContainsString('grid grid-cols-4 gap-1.5', $managementDashboard);
+        $this->assertSame(4, substr_count($managementDashboard, ':compact-mobile="true"'));
     }
 
     public function test_chat_has_distinct_mobile_panes_and_rich_attachment_previews(): void

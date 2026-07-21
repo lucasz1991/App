@@ -460,7 +460,6 @@ Alpine.data('adminDashboardCharts', (config = {}) => ({
         const dark = document.documentElement.classList.contains('dark');
         const textColor = dark ? '#a9b6c9' : '#64748b';
         const gridColor = dark ? 'rgba(169,182,201,.13)' : 'rgba(100,116,139,.14)';
-        const surfaceColor = dark ? '#111827' : '#ffffff';
         const tooltipTheme = dark ? 'dark' : 'light';
         const growth = config.userGrowth || { labels: [], totals: [], registrations: [] };
         const activity = config.activity || { labels: [], values: [] };

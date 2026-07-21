@@ -1,5 +1,19 @@
 # RailTime – interne Mitarbeiter- und Kommunikationsplattform
 
+## Information für die Auftraggeber
+
+Mit RailTime steht inzwischen eine gemeinsame Grundlage bereit, über die Mitarbeiter, persönliche Informationen, interne Nachrichten, Chats und Dateien sicher und einheitlich gemanagt werden können. Statt Informationen auf verschiedene Messenger, E-Mail-Verläufe und einzelne Ablagen zu verteilen, werden die relevanten Bereiche zentral zusammengeführt. Dabei sieht jeder Mitarbeiter nur die Inhalte, die für ihn persönlich, seine Rolle oder sein Team freigegeben sind.
+
+Ein wichtiger Schwerpunkt ist die Sicherheit der Daten und Kommunikation. Persönliche Nachrichten und Chat-Inhalte werden bereits serverseitig verschlüsselt gespeichert und liegen dadurch nicht als frei lesbarer Klartext in der Datenbank. Ergänzend schützen rollenbasierte Berechtigungen, private Echtzeitkanäle und die für den Produktivbetrieb vorgesehene verschlüsselte HTTPS-/WSS-Übertragung den Zugriff. Damit besitzt die Plattform bereits ein sehr hohes Sicherheitsniveau für die zentrale interne Kommunikation. Eine echte Ende-zu-Ende-Verschlüsselung nach dem Signal-Protokoll wäre eine zusätzliche, davon getrennte Ausbaustufe und wird daher nicht fälschlich als bereits umgesetzt dargestellt.
+
+Auch die Echtzeit- und Push-Grundlage ist schon enthalten: Neue Nachrichten können direkt zugestellt, durch Badges und Hinweise sichtbar gemacht und ohne manuelles Neuladen aktualisiert werden. Diese Technik bildet gleichzeitig die Basis für die geplante App. Gemeinsam arbeiten wir nun weiter daran, die Handhabung im täglichen Einsatz so einfach, schnell und verständlich wie möglich zu gestalten.
+
+Die E-Mail-Vorlagen und Signaturen stehen jedem Mitarbeiter einheitlich und mit seinen persönlichen Kontaktdaten sowie den zentral gepflegten Firmendaten zur Verfügung. Dadurch kann die Kommunikation nach außen unabhängig vom jeweiligen Mitarbeiter im gleichen RailTime-Auftritt erfolgen.
+
+Als nächster größerer Arbeitsbereich befinden sich die Auftrags- und Schichtverwaltung in Umsetzung. Funktionen und Bedienung werden dabei gemeinsam anhand der tatsächlichen betrieblichen Abläufe abgestimmt, damit am Ende nicht nur einzelne Funktionen vorhanden sind, sondern ein Werkzeug entsteht, das im Arbeitsalltag wirklich schnell und unkompliziert genutzt werden kann.
+
+Für die weitere Einrichtung müssen die Mitarbeiter anschließend angelegt beziehungsweise eingeladen und den passenden Teams und Firmenpositionen zugeordnet werden. Hierzu ist noch die Frage offen: Gibt es bereits eine aktuelle Mitarbeiterliste mit Namen, geschäftlichen E-Mail-Adressen, Teamzugehörigkeit und Firmenposition? Wenn eine solche Liste vorhanden ist, kann sie als Grundlage für die strukturierte Einladung und Einrichtung verwendet werden. Andernfalls können die Mitarbeiter schrittweise direkt über die Mitarbeiterverwaltung eingeladen werden.
+
 RailTime bündelt die tägliche interne Zusammenarbeit in einer zentralen, rollenbasierten Webanwendung. Mitarbeitende erhalten einen persönlichen Bereich für ihre Daten, freigegebene Dokumente, Nachrichten, Chats und E-Mail-Vorlagen. Verwaltung und Administratoren steuern zusätzlich Mitarbeiter, Teams, Berechtigungen, Dateien, Vorlagen und betriebliche Einstellungen; ausschließlich globale Administratoren sehen den gesonderten Administratorbereich mit vollständigen Systemkennzahlen.
 
 **Projektstatus (21. Juli 2026):** Die Kernanwendung ist als Laravel-/Livewire-System umgesetzt und in den zentralen Arbeitsabläufen funktionsfähig. Die Oberfläche unterstützt Desktop, Tablet und Mobilgeräte sowie Hell-/Dunkelmodus. Vor einem Produktivbetrieb müssen die Zielumgebung vollständig migriert, die Queue und – für sofortige Echtzeitaktualisierungen – Laravel Reverb eingerichtet werden.
@@ -51,6 +65,12 @@ Diese Datei ist das gemeinsame Übergabe- und Kommunikationsprotokoll für Codin
 - Vor Änderungen die betroffenen Dateien und den aktuellen Laufzeitfehler prüfen.
 - Bei Datenbankänderungen beachten: Die Migrationen sind auf eine frische Installation ausgelegt. Für einen kompletten Neuaufbau ist `php artisan migrate:fresh --seed` erforderlich.
 - Keine bestehenden, nicht zum Task gehörenden Änderungen zurücksetzen.
+
+## 2026-07-21 - Codex (Administrator Command Center)
+
+- Das Administrator-Dashboard wurde als responsives RailTime Command Center mit animierter Streckengrafik, KPI-Zählern sowie realen Diagrammen für Nutzerentwicklung, Kontostatus und Aktivität neu gestaltet.
+- Technische Systemdaten werden serverseitig ausschließlich für das aktuell gewählte Team `Administratoren` geladen; das Team `Verwaltung` behält seine operative Übersicht ohne technische Informationen.
+- Die Laravel-Versionsanzeige wurde entfernt und durch den Entwickler `Lucas M. Zacharias` ersetzt; Rollen-, Render-, Responsive- und Produktions-Build-Prüfungen sind erfolgreich.
 
 ## 2026-07-21 - Codex (Automatische teambezogene Willkommensnachrichten)
 
