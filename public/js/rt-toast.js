@@ -77,7 +77,8 @@
         var text = detail.text || '';
 
         var toast = document.createElement('div');
-        toast.style.cssText = 'background:#fff;border:1px solid #e2e8f0;border-left:4px solid ' + (COLORS[type] || COLORS.info) + ';border-radius:8px;box-shadow:0 10px 24px rgba(15,23,42,.14);padding:10px 14px;font-family:inherit;font-size:14px;color:#0f172a;opacity:0;transform:translateY(-6px);transition:opacity .25s ease,transform .25s ease;';
+        toast.className = 'rt-toast';
+        toast.style.borderLeftColor = COLORS[type] || COLORS.info;
 
         var titleElement = document.createElement('strong');
         titleElement.style.cssText = 'display:block;font-size:13px;margin-bottom:2px;';
@@ -86,7 +87,7 @@
 
         if (text) {
             var textElement = document.createElement('span');
-            textElement.style.color = '#475569';
+            textElement.className = 'rt-toast__message';
             textElement.textContent = text;
             toast.appendChild(textElement);
         }

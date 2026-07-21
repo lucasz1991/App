@@ -4,13 +4,16 @@ namespace App\Livewire;
 
 use App\Events\ChatMessageSent;
 use App\Events\ChatMessageReceived;
+use App\Events\ChatMessageDeleted;
 use App\Events\ChatRead;
 use App\Models\Chat;
 use App\Models\ChatMessage;
 use App\Models\User;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -27,6 +30,9 @@ class ChatBox extends Component
 
     /** @var array<int, \Livewire\Features\SupportFileUploads\TemporaryUploadedFile> */
     public array $uploads = [];
+
+    /** Separater Uploadkanal fuer eine aufgenommene Sprachnachricht. */
+    public $voiceUpload = null;
 
     /** Modal: neuer Chat / neue Gruppe */
     public bool $showNewChat = false;
@@ -95,39 +101,130 @@ class ChatBox extends Component
             'chat_id' => $chat->id,
             'user_id' => auth()->id(),
             'body' => trim($this->messageText),
+            'message_type' => $this->uploads === [] ? 'text' : 'attachment',
+            'view_once' => false,
         ]);
 
         foreach ($this->uploads as $uploadedFile) {
-            $path = $uploadedFile->store('uploads/chat/' . $chat->id, 'private');
-            $detectedMime = Storage::disk('private')->mimeType($path);
-            $clientMime = strtolower((string) $uploadedFile->getClientMimeType());
-            $isDeclaredMedia = str_starts_with($clientMime, 'audio/') || str_starts_with($clientMime, 'video/');
-            $mime = ($isDeclaredMedia || ! $detectedMime || $detectedMime === 'application/octet-stream')
-                ? $clientMime
-                : $detectedMime;
-
-            $message->files()->create([
-                'name' => $uploadedFile->getClientOriginalName(),
-                'path' => $path,
-                'disk' => 'private',
-                'mime_type' => $mime,
-                'type' => str_starts_with((string) $mime, 'audio/')
-                    ? 'audio'
-                    : (str_starts_with((string) $mime, 'video/') ? 'video' : 'chat'),
-                'size' => $uploadedFile->getSize(),
-                'user_id' => auth()->id(),
-            ]);
+            $this->storeMessageUpload($message, $uploadedFile);
         }
-
-        $chat->touch();
-        $chat->participants()->updateExistingPivot(auth()->id(), ['last_read_at' => now()]);
 
         $this->messageText = '';
         $this->uploads = [];
-        $this->broadcastChatEvent(new ChatMessageSent($message));
-        $this->broadcastChatEvent(new ChatMessageReceived($message));
+        $this->finishSending($chat, $message);
+    }
+
+    public function sendVoice(bool $viewOnce = false): void
+    {
+        $this->validate([
+            'voiceUpload' => ['required', 'file', 'max:20480'],
+        ]);
+
+        if (! $this->selectedChatId) {
+            return;
+        }
+
+        $clientMime = strtolower((string) $this->voiceUpload->getClientMimeType());
+        abort_unless(str_starts_with($clientMime, 'audio/'), 422, __('app.voice_message_invalid'));
+
+        $chat = $this->myChat($this->selectedChatId);
+        $message = ChatMessage::create([
+            'chat_id' => $chat->id,
+            'user_id' => auth()->id(),
+            'body' => '',
+            'message_type' => 'voice',
+            'view_once' => $viewOnce,
+        ]);
+
+        try {
+            $this->storeMessageUpload($message, $this->voiceUpload, 'voice');
+        } catch (\Throwable $exception) {
+            $message->delete();
+
+            throw $exception;
+        }
+
+        $this->voiceUpload = null;
+        $this->finishSending($chat, $message);
+        $this->dispatch('chat:voice-sent');
+    }
+
+    public function deleteMessage(int $messageId): void
+    {
+        if (! $this->selectedChatId) {
+            return;
+        }
+
+        $chat = $this->myChat($this->selectedChatId);
+        $message = $chat->messages()->with('files')->findOrFail($messageId);
+
+        abort_unless((int) $message->user_id === (int) auth()->id(), 403);
+
+        $message->files->each->delete();
+        $message->delete();
+        $chat->touch();
+
+        $this->broadcastChatEvent(new ChatMessageDeleted($chat->id, $messageId));
         $this->dispatch('inbox:refresh');
         $this->dispatch('chat:scroll-bottom');
+    }
+
+    public function requestVoicePlayback(int $messageId): void
+    {
+        if (! $this->selectedChatId) {
+            return;
+        }
+
+        $chat = $this->myChat($this->selectedChatId);
+        $message = $chat->messages()->with(['files', 'views'])->findOrFail($messageId);
+        abort_unless($message->isVoice(), 422);
+
+        $file = $message->files->firstWhere('type', 'voice')
+            ?? $message->files->first(fn ($item) => str_starts_with(strtolower((string) $item->mime_type), 'audio/'));
+        abort_unless($file, 404);
+
+        if (! $message->view_once) {
+            $this->dispatch(
+                'chat:voice-ready',
+                messageId: $message->id,
+                url: route('chat.attachments', ['file' => $file]),
+                viewOnce: false,
+            );
+
+            return;
+        }
+
+        if ((int) $message->user_id === (int) auth()->id() || $message->hasBeenViewedBy(auth()->user())) {
+            $this->dispatch('chat:voice-consumed', messageId: $message->id);
+
+            return;
+        }
+
+        $view = $message->views()->firstOrCreate(
+            ['user_id' => auth()->id()],
+            ['viewed_at' => now()],
+        );
+
+        if (! $view->wasRecentlyCreated) {
+            $this->dispatch('chat:voice-consumed', messageId: $message->id);
+
+            return;
+        }
+
+        $token = Str::random(64);
+        Cache::put(ChatMessage::voicePlaybackCacheKey($message->id, auth()->id()), $token, now()->addMinutes(10));
+
+        $this->dispatch(
+            'chat:voice-ready',
+            messageId: $message->id,
+            url: route('chat.attachments', ['file' => $file, 'voice_token' => $token]),
+            viewOnce: true,
+        );
+    }
+
+    public function finishVoicePlayback(int $messageId): void
+    {
+        Cache::forget(ChatMessage::voicePlaybackCacheKey($messageId, auth()->id()));
     }
 
     public function removeUpload(int $index): void
@@ -139,6 +236,40 @@ class ChatBox extends Component
         $this->uploads[$index]->delete();
         unset($this->uploads[$index]);
         $this->uploads = array_values($this->uploads);
+    }
+
+    protected function storeMessageUpload(ChatMessage $message, mixed $uploadedFile, ?string $forcedType = null): void
+    {
+        $path = $uploadedFile->store('uploads/chat/' . $message->chat_id, 'private');
+        $detectedMime = Storage::disk('private')->mimeType($path);
+        $clientMime = strtolower((string) $uploadedFile->getClientMimeType());
+        $isDeclaredMedia = str_starts_with($clientMime, 'audio/') || str_starts_with($clientMime, 'video/');
+        $mime = ($isDeclaredMedia || ! $detectedMime || $detectedMime === 'application/octet-stream')
+            ? $clientMime
+            : $detectedMime;
+
+        $message->files()->create([
+            'name' => $uploadedFile->getClientOriginalName(),
+            'path' => $path,
+            'disk' => 'private',
+            'mime_type' => $mime,
+            'type' => $forcedType ?? (str_starts_with((string) $mime, 'audio/')
+                ? 'audio'
+                : (str_starts_with((string) $mime, 'video/') ? 'video' : 'chat')),
+            'size' => $uploadedFile->getSize(),
+            'user_id' => auth()->id(),
+        ]);
+    }
+
+    protected function finishSending(Chat $chat, ChatMessage $message): void
+    {
+        $chat->touch();
+        $chat->participants()->updateExistingPivot(auth()->id(), ['last_read_at' => now()]);
+
+        $this->broadcastChatEvent(new ChatMessageSent($message));
+        $this->broadcastChatEvent(new ChatMessageReceived($message));
+        $this->dispatch('inbox:refresh');
+        $this->dispatch('chat:scroll-bottom');
     }
 
     #[On('chat:refresh')]
@@ -266,7 +397,7 @@ class ChatBox extends Component
 
             if ($selectedChat) {
                 $messages = $selectedChat->messages()
-                    ->with(['sender:id,name,profile_photo_path', 'files'])
+                    ->with(['sender:id,name,profile_photo_path', 'files', 'views:id,chat_message_id,user_id,viewed_at'])
                     ->orderBy('id')
                     ->limit(200)
                     ->get();

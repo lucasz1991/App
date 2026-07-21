@@ -10,11 +10,11 @@ if (is_string($can) && $can !== '') {
 $isDeniedByCan = ! $isAllowed;
 $isDisabled = isset($attributes['disabled']) || $isDeniedByCan;
 
-$classes = 'inline-flex items-center w-full px-4 py-2 text-start text-sm leading-5 text-slate-700 dark:text-slate-200 focus:outline-none transition-all duration-300 ease-rt-spring';
+$classes = 'rt-ui-dropdown-link inline-flex items-center w-full px-4 py-2 text-start text-sm leading-5 text-rt-text dark:text-rt-dark-text focus:outline-none transition-all duration-300 ease-rt-spring';
 if ($isDisabled) {
     $classes .= ' opacity-80 cursor-not-allowed';
 } else {
-    $classes .= ' hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-rt-red dark:hover:text-rt-red focus:bg-slate-50 dark:focus:bg-slate-700';
+    $classes .= ' hover:bg-rt-surface-muted dark:hover:bg-rt-dark-nav-hover hover:text-rt-red dark:hover:text-rt-dark-accent focus:bg-rt-surface-muted dark:focus:bg-rt-dark-nav-hover';
 }
 
 $title = $isDeniedByCan

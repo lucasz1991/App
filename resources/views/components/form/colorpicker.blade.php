@@ -303,13 +303,13 @@
                 <div class="h-14 rounded-[14px]" :style="{ backgroundColor: value }"></div>
             </div>
             <div class="grid grid-cols-2 gap-2">
-                <div class="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-center">
-                    <div class="text-[10px] uppercase tracking-[0.22em] text-slate-400">Hue</div>
-                    <div class="mt-1 text-sm font-semibold text-slate-700" x-text="Math.round(hue)"></div>
+                <div class="rt-ui-surface rounded-2xl border border-rt-border bg-rt-surface px-3 py-2 text-center dark:border-rt-dark-border dark:bg-rt-dark-surface">
+                    <div class="text-[10px] uppercase tracking-[0.22em] text-rt-soft dark:text-rt-dark-soft">Hue</div>
+                    <div class="mt-1 text-sm font-semibold text-rt-text dark:text-rt-dark-text" x-text="Math.round(hue)"></div>
                 </div>
-                <div class="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-center">
-                    <div class="text-[10px] uppercase tracking-[0.22em] text-slate-400">Alpha</div>
-                    <div class="mt-1 text-sm font-semibold text-slate-700" x-text="Math.round(alpha) + '%'"></div>
+                <div class="rt-ui-surface rounded-2xl border border-rt-border bg-rt-surface px-3 py-2 text-center dark:border-rt-dark-border dark:bg-rt-dark-surface">
+                    <div class="text-[10px] uppercase tracking-[0.22em] text-rt-soft dark:text-rt-dark-soft">Alpha</div>
+                    <div class="mt-1 text-sm font-semibold text-rt-text dark:text-rt-dark-text" x-text="Math.round(alpha) + '%'"></div>
                 </div>
             </div>
         </div>
@@ -323,7 +323,7 @@
             @input="updateHexInput($event.target.value)"
             @blur="commitHexInput()"
             @keydown.enter.prevent="commitHexInput()"
-            class="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 font-mono text-base leading-6 text-slate-700 shadow-sm outline-none transition-all duration-200 focus:border-rt-red focus:ring-4 focus:ring-rt-red/15 sm:text-sm sm:leading-5"
+            class="rt-ui-control min-h-11 w-full rounded-xl border border-rt-border bg-rt-control px-3.5 py-2.5 font-mono text-base leading-6 text-rt-text shadow-rt-xs outline-none transition-all duration-200 focus:border-rt-red focus:ring-4 focus:ring-rt-red/15 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-text sm:text-sm sm:leading-5"
         >
     </div>
 

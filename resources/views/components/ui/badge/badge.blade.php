@@ -22,6 +22,6 @@
     ];
 @endphp
 
-<span {{ $attributes->merge(['class' => "$base {$sizes[$size]} {$colors[$color]}"]) }}>
+<span data-rt-tone="{{ $color }}" {{ $attributes->merge(['class' => "rt-ui-badge $base {$sizes[$size]} {$colors[$color]}"]) }}>
     {{ $slot }}
 </span>

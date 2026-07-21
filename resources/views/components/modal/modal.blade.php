@@ -32,7 +32,7 @@
     x-on:keydown.escape.window="close()"
     x-show="show"
     id="{{ $id }}"
-    class="jetstream-modal fixed inset-0 overflow-y-auto px-4 py-6 z-50"
+    class="rt-ui-modal jetstream-modal fixed inset-0 overflow-y-auto px-4 py-6 z-50"
     style="display: none; z-index: 9999 !important;"
 >
     {{-- Overlay --}}
@@ -47,13 +47,13 @@
         x-transition:leave-start="opacity-100"
         x-transition:leave-end="opacity-0"
     >
-        <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
+        <div class="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"></div>
     </div>
 
     {{-- Modal-Container --}}
     <div
         x-show="show"
-        class="mb-6 bg-white rounded-lg overflow-hidden shadow-xl transform transition-all sm:w-full {{ $maxWidthClass }} sm:mx-auto"
+        class="rt-ui-surface rt-ui-modal-panel mb-6 overflow-hidden rounded-2xl border border-rt-border bg-rt-surface text-rt-text shadow-rt-lg transform transition-all dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text sm:w-full {{ $maxWidthClass }} sm:mx-auto"
         x-trap.inert.noscroll="show"
         x-transition:enter="ease-out duration-300"
         x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
@@ -64,15 +64,15 @@
     >
         <div class="relative">
             {{-- TITLE BAR --}}
-            <div class="px-2 md:px-6 py-2 pt-4 md:pt-5 md:py-3 bg-gray-100 border-b border-gray-300">
-                <div class="text-lg font-medium text-gray-900">
+            <div class="rt-ui-surface-muted border-b border-rt-border bg-rt-surface-muted px-2 py-2 pt-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted md:px-6 md:py-3 md:pt-5">
+                <div class="text-lg font-medium text-rt-text dark:text-rt-dark-text">
                     {{ $title }}
                 </div>
 
                 @if(!$trapClose)
                     <button
                         type="button"
-                        class="absolute top-1 right-1 text-gray-500 hover:text-gray-700 transition p-1 rounded"
+                        class="rt-ui-button rt-ui-button-secondary absolute right-2 top-2 rounded-lg p-2 text-rt-muted transition hover:bg-rt-nav-hover hover:text-rt-text dark:text-rt-dark-muted dark:hover:bg-rt-dark-nav-hover dark:hover:text-white"
                         @click="close()"
                     >
                         <svg
@@ -96,12 +96,12 @@
             </div>
 
             {{-- CONTENT --}}
-            <div class="px-2 md:px-6 py-2 md:py-4 text-sm text-gray-600">
+            <div class="px-2 py-2 text-sm text-rt-muted dark:text-rt-dark-muted md:px-6 md:py-4">
                 {{ $content }}
             </div>
 
             {{-- FOOTER --}}
-            <div class="flex flex-row justify-end px-2 md:px-6 py-2 md:py-4 bg-gray-100 text-end border-t border-gray-300">
+            <div class="rt-ui-surface-muted flex flex-row justify-end border-t border-rt-border bg-rt-surface-muted px-2 py-2 text-end dark:border-rt-dark-border dark:bg-rt-dark-surface-muted md:px-6 md:py-4">
                 {{ $footer }}
             </div>
         </div>

@@ -9,7 +9,7 @@
     };
 @endphp
 
-<div {{ $attributes->class("flex gap-3 rounded-xl border p-4 {$styles}") }} role="alert">
+<div data-rt-tone="{{ $type }}" {{ $attributes->class("rt-ui-alert flex gap-3 rounded-xl border p-4 {$styles}") }} role="alert">
     <span class="mt-0.5 shrink-0 text-rt-accent dark:text-rt-dark-accent" aria-hidden="true">
         <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 10v5M12 7h.01"/></svg>
     </span>

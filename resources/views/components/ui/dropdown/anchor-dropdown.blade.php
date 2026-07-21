@@ -139,7 +139,7 @@
     <div
       x-ref="panelScroll"
       role="menu"
-      class="max-h-[min(28rem,calc(100vh-2rem))] overflow-y-auto rounded-xl border border-rt-border shadow-rt-md dark:border-rt-dark-border {{ $contentClasses }}"
+      class="rt-ui-surface rt-ui-dropdown-panel max-h-[min(28rem,calc(100vh-2rem))] overflow-y-auto rounded-xl border border-rt-border shadow-rt-md dark:border-rt-dark-border {{ $contentClasses }}"
       @click="if ($event.target.closest('a, button, [role=menuitem]')) open=false"
     >
       {{ $content }}

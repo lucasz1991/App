@@ -18,6 +18,6 @@
     $classes = $map[$color] ?? $map['slate'];
 @endphp
 
-<span {{ $attributes->class('inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ' . $classes) }}>
+<span data-rt-tone="{{ $color }}" {{ $attributes->class('rt-ui-badge inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ' . $classes) }}>
     {{ $slot }}
 </span>

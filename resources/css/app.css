@@ -167,6 +167,20 @@ body[data-mode="dark"] .rt-ui-surface-muted {
     border-color: #273449 !important;
 }
 
+html.dark .rt-ui-topbar,
+body[data-mode="dark"] .rt-ui-topbar {
+    color: #e7edf7 !important;
+    background-color: rgba(15, 23, 42, 0.94) !important;
+    border-color: #273449 !important;
+}
+
+html.dark .rt-ui-sidebar,
+body[data-mode="dark"] .rt-ui-sidebar {
+    color: #e7edf7 !important;
+    background-color: #101827 !important;
+    background-image: linear-gradient(to bottom, #111827, #101827, #0b1120) !important;
+}
+
 html.dark .rt-ui-dropdown-link,
 body[data-mode="dark"] .rt-ui-dropdown-link {
     color: #dbe5f2 !important;
