@@ -359,6 +359,14 @@ return [
     'no_downloads_available' => 'Aktuell stehen keine Dateien für Sie bereit.',
     'files_count' => ':count Datei|:count Dateien',
 
+    // E-Mail-Rahmen (Notifications)
+    'mail_greeting_default' => 'Hallo!',
+    'mail_greeting_error' => 'Ups!',
+    'mail_regards' => 'Freundliche Grüße',
+    'mail_all_rights' => 'Alle Rechte vorbehalten.',
+    'mail_confidentiality' => 'Diese E-Mail kann vertrauliche Informationen enthalten. Sollten Sie nicht der vorgesehene Empfänger sein, informieren Sie bitte den Absender und löschen Sie diese Nachricht.',
+    'mail_subcopy' => 'Wenn du Probleme hast, den „:actionText“-Button zu klicken, kopiere bitte die folgende URL und füge sie in deinen Webbrowser ein:',
+
     // Profil: E-Mail-Vorlagen
     'position' => 'Funktion / Position',
     'position_placeholder' => 'z. B. Geschäftsführung, IT-Technik, Büro-Assistenz',

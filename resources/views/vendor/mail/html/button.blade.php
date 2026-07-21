@@ -10,9 +10,9 @@
         default => '#e4002b',
     };
 ?>
-<tr>
-<td align="{{ $align }}" style="padding:8px 0 18px;">
-<table role="presentation" border="0" cellpadding="0" cellspacing="0">
+{{-- Kein align-Attribut bei linksbuendig: align="left" liesse die Tabelle
+     floaten und der Folgetext wuerde daneben statt darunter stehen. --}}
+<table role="presentation" border="0" cellpadding="0" cellspacing="0"@if ($align === 'center') align="center"@endif style="margin:8px 0 18px;{{ $align === 'center' ? 'margin-left:auto;margin-right:auto;' : '' }}">
 <tbody>
 <tr>
 <td bgcolor="{{ $background }}" style="background:{{ $background }};">
@@ -21,5 +21,3 @@
 </tr>
 </tbody>
 </table>
-</td>
-</tr>

@@ -359,6 +359,14 @@ return [
     'no_downloads_available' => 'No files are currently available for you.',
     'files_count' => ':count file|:count files',
 
+    // Email chrome (notifications)
+    'mail_greeting_default' => 'Hello!',
+    'mail_greeting_error' => 'Whoops!',
+    'mail_regards' => 'Kind regards',
+    'mail_all_rights' => 'All rights reserved.',
+    'mail_confidentiality' => 'This email may contain confidential information. If you are not the intended recipient, please notify the sender and delete this message.',
+    'mail_subcopy' => 'If you have trouble clicking the ":actionText" button, copy the URL below and paste it into your web browser:',
+
     // Profile: email templates
     'position' => 'Role / position',
     'position_placeholder' => 'e.g. management, IT services, office assistance',

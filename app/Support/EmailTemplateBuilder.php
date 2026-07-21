@@ -129,7 +129,10 @@ class EmailTemplateBuilder
 
     protected function telHref(?string $number): string
     {
-        $digits = preg_replace('/[^\d+]/', '', (string) $number) ?? '';
+        // "(0)" ist die eingeklammerte Trunk-Null ("+49 (0) 4171 …") und
+        // gehoert nicht in die internationale Wahlnummer.
+        $number = str_replace('(0)', '', (string) $number);
+        $digits = preg_replace('/[^\d+]/', '', $number) ?? '';
 
         if (str_starts_with($digits, '00')) {
             return '+' . substr($digits, 2);
@@ -154,6 +157,21 @@ class EmailTemplateBuilder
         }
 
         return $template;
+    }
+
+    /**
+     * Profilwerte fuer HTML-Kontexte escapen — Werte wie der Team-Name
+     * (POSITION-Fallback) stammen nicht zwingend vom Benutzer selbst.
+     *
+     * @param  array<string, string>  $values
+     * @return array<string, string>
+     */
+    protected function escapeForHtml(array $values): array
+    {
+        return array_map(
+            fn (string $value) => htmlspecialchars($value, ENT_QUOTES, 'UTF-8'),
+            $values
+        );
     }
 
     /**
@@ -183,7 +201,7 @@ class EmailTemplateBuilder
         $values = $this->profileValues();
         $html = file_get_contents($this->masterPath('email-master.html'));
         $html = $this->stripEmptyContactRows($html, $values);
-        $html = $this->substitute($html, $values);
+        $html = $this->substitute($html, $this->escapeForHtml($values));
 
         return $this->substitute($html, $inlineImages
             ? [
@@ -201,7 +219,7 @@ class EmailTemplateBuilder
         $values = $this->profileValues();
         $html = file_get_contents($this->masterPath($master));
         $html = $this->stripEmptyContactRows($html, $values);
-        $html = $this->substitute($html, $values);
+        $html = $this->substitute($html, $this->escapeForHtml($values));
 
         return $this->substitute($html, [
             'LOGO_SRC' => $this->inlineImage($logo, 'image/png'),
@@ -285,9 +303,14 @@ TEXT;
         $altBoundary = '=_rt_alt_' . Str::random(24);
         $relBoundary = '=_rt_rel_' . Str::random(24);
 
-        $fromName = $values['VORNAME_NACHNAME'];
+        // Anzeigename RFC-5322-konform aufbereiten: Zeilenumbrueche duerfen
+        // nie in einen Header gelangen; Nicht-ASCII wird RFC-2047-kodiert,
+        // ASCII mit Sonderzeichen (Komma, Klammern, …) in DQUOTEs gesetzt.
+        $fromName = trim(preg_replace('/[\r\n]+/', ' ', $values['VORNAME_NACHNAME']));
         if (! mb_check_encoding($fromName, 'ASCII')) {
             $fromName = mb_encode_mimeheader($fromName, 'UTF-8', 'B');
+        } elseif (! preg_match('/^[A-Za-z0-9 ._-]+$/', $fromName)) {
+            $fromName = '"' . addcslashes($fromName, '\\"') . '"';
         }
 
         $plain = chunk_split(base64_encode($this->buildPlainBody()), 76, "\r\n");

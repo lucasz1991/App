@@ -21,9 +21,11 @@
 {{-- Footer --}}
 <x-slot:footer>
 <x-mail::footer>
-© {{ date('Y') }} {{ config('app.name') }}. @lang('Alle Rechte vorbehalten.')
+© {{ date('Y') }} {{ config('app.name') }}. {{ __('app.mail_all_rights') }}
+{{-- PHP schluckt das Newline nach dem schliessenden echo-Tag — die doppelte
+     Leerzeile stellt sicher, dass Markdown hier zwei Absaetze erzeugt. --}}
 
-Diese E-Mail kann vertrauliche Informationen enthalten. Sollten Sie nicht der vorgesehene Empfänger sein, informieren Sie bitte den Absender und löschen Sie diese Nachricht.
+{{ __('app.mail_confidentiality') }}
 </x-mail::footer>
 </x-slot:footer>
 </x-mail::layout>

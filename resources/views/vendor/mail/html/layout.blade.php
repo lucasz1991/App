@@ -32,13 +32,9 @@ a { color: inherit; }
 <tbody>
 {{ $header ?? '' }}
 <tr>
-<td class="rt-pad" bgcolor="#f4f2ed" style="padding:38px 44px 30px;background:#f4f2ed;">
-<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
-<tbody>
+<td class="rt-pad" bgcolor="#f4f2ed" align="left" style="padding:38px 44px 30px;background:#f4f2ed;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:24px;color:#3f4852;text-align:left;">
 {{ Illuminate\Mail\Markdown::parse($slot) }}
 {{ $subcopy ?? '' }}
-</tbody>
-</table>
 </td>
 </tr>
 {{ $footer ?? '' }}
