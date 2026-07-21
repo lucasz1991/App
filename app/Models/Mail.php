@@ -13,6 +13,7 @@ class Mail extends Model
     ];
 
     protected $casts = [
+        'status' => 'boolean',
         'content' => 'json',
         'recipients' => 'json',
     ];
