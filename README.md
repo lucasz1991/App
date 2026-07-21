@@ -1,5 +1,12 @@
 # RailTime – interne Mitarbeiter- und Kommunikationsplattform
 
+## 2026-07-21 - Codex (Verbindliche Dateien mit Versionierung)
+
+- Die Dateiverwaltung besitzt nun den separaten Bereich `Verbindliche Dateien`: Administratoren pflegen dort dauerhaft benannte Dokumentzwecke wie Wagen- oder Meldelisten und veröffentlichen jeweils eine aktuelle Fassung.
+- Neue Fassungen bleiben als wiederherstellbare Versionshistorie erhalten. Normale Benutzer sehen im Download-Center ausschließlich die aktuelle Version; Sichtbarkeit und automatische Benachrichtigungen können für alle Mitarbeiter oder ausgewählte Teams festgelegt werden.
+- Der MySQL-Index verwendet einen kurzen expliziten Namen und kann auch nach einem zuvor abgebrochenen Migrationslauf verlustfrei ergänzt werden. PHPUnit läuft künftig isoliert auf SQLite-In-Memory statt auf der lokalen App-Datenbank.
+- Alle 49 Tests mit 308 Assertions sowie der Vite-Produktionsbuild sind erfolgreich.
+
 ## 2026-07-21 - Codex (Betriebsvorschau und Dashboard-Animationen)
 
 - NEU statische Admin-Vorschauen für Aufträge, Schichtleitung, Kalender und Kundendatenbank. Die Beispieldaten liegen bewusst in einem reinen Preview-Katalog; es gibt keine Models, Migrationen oder Schreibzugriffe.
