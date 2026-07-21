@@ -177,6 +177,16 @@ html {
         0 20px 44px -32px rgba(0, 0, 0, 0.95);
 }
 
+/* Dashboard theme lock: both signals are maintained by the master layout.
+   The important background values prevent late vendor/card rules from
+   producing white surfaces with already-dark text. */
+html.dark [data-admin-dashboard] .rt-admin-live-card,
+body[data-mode="dark"] [data-admin-dashboard] .rt-admin-live-card {
+    color: #e7edf7 !important;
+    background-color: #111827 !important;
+    border-color: #475569 !important;
+}
+
 .dark .rt-admin-live-icon,
 .dark .rt-admin-user-avatar {
     background: #172033;
@@ -191,9 +201,22 @@ html {
     border-color: #334155;
 }
 
+html.dark [data-admin-dashboard] .rt-admin-operations,
+body[data-mode="dark"] [data-admin-dashboard] .rt-admin-operations {
+    color: #e7edf7 !important;
+    background-color: #111827 !important;
+    border-color: #334155 !important;
+}
+
 .dark .rt-admin-operations-header {
     background: #0f172a;
     border-color: #273449;
+}
+
+html.dark [data-admin-dashboard] .rt-admin-operations-header,
+body[data-mode="dark"] [data-admin-dashboard] .rt-admin-operations-header {
+    background-color: #0f172a !important;
+    border-color: #273449 !important;
 }
 
 .dark .rt-admin-operations-status {
@@ -202,22 +225,49 @@ html {
     border-color: #334155;
 }
 
+html.dark [data-admin-dashboard] .rt-admin-operations-status,
+body[data-mode="dark"] [data-admin-dashboard] .rt-admin-operations-status {
+    color: #cbd5e1 !important;
+    background-color: #080f1d !important;
+    border-color: #334155 !important;
+}
+
 .dark .rt-admin-operations-grid,
 .dark .rt-admin-list-grid,
 .dark .rt-admin-system-grid {
     background: #273449;
 }
 
+html.dark [data-admin-dashboard] .rt-admin-operations-grid,
+body[data-mode="dark"] [data-admin-dashboard] .rt-admin-operations-grid {
+    background-color: #273449 !important;
+}
+
 .dark .rt-admin-operations-card {
     background: #172033;
+}
+
+html.dark [data-admin-dashboard] .rt-admin-operations-card,
+body[data-mode="dark"] [data-admin-dashboard] .rt-admin-operations-card {
+    background-color: #172033 !important;
 }
 
 .dark .rt-admin-operations-card:hover {
     background: #1e293b;
 }
 
+html.dark [data-admin-dashboard] .rt-admin-operations-card:hover,
+body[data-mode="dark"] [data-admin-dashboard] .rt-admin-operations-card:hover {
+    background-color: #1e293b !important;
+}
+
 .dark .rt-admin-operations-card-divider {
     border-color: #334155;
+}
+
+html.dark [data-admin-dashboard] .rt-admin-operations-card-divider,
+body[data-mode="dark"] [data-admin-dashboard] .rt-admin-operations-card-divider {
+    border-color: #334155 !important;
 }
 
 .dark .rt-admin-user-row,
