@@ -70,7 +70,11 @@
                         <div>
                             <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/45">{{ __('app.live_operations') }}</p>
                             <p class="mt-1 text-sm font-semibold text-white">
-                                {{ ($system['failedJobs'] ?? 0) > 0 ? __('app.jobs_failed', ['count' => $system['failedJobs']]) : __('app.system_ready') }}
+                                @if ($canViewSystemData)
+                                    {{ ($system['failedJobs'] ?? 0) > 0 ? __('app.jobs_failed', ['count' => $system['failedJobs']]) : __('app.system_ready') }}
+                                @else
+                                    {{ __('app.operations') }}
+                                @endif
                             </p>
                         </div>
                         <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.08] text-rt-red-light ring-1 ring-inset ring-white/10">
