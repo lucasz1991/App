@@ -378,9 +378,9 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
         const threshold = Math.max(72, Math.min(140, window.innerWidth * 0.22));
 
         if (Math.abs(deltaX) >= threshold && Math.abs(deltaX) > Math.abs(deltaY) * 1.25) {
-            if (deltaX < 0 && this.mobilePane === 'chat') {
+            if (deltaX > 0 && this.mobilePane === 'chat') {
                 this.showList();
-            } else if (deltaX > 0 && this.mobilePane === 'list') {
+            } else if (deltaX < 0 && this.mobilePane === 'list') {
                 this.resumeLastChat();
             }
         }

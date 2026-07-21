@@ -34,6 +34,10 @@ class MobileAdminCommunicationUiTest extends TestCase
         $this->assertStringNotContainsString("\$set('selectedChatId', null)", $view);
         $this->assertStringContainsString('rt-chat-list-collapsed', $view);
         $this->assertStringContainsString("Alpine.data('chatPaneNavigation'", $script);
+        $this->assertStringContainsString("deltaX > 0 && this.mobilePane === 'chat'", $script);
+        $this->assertStringContainsString("deltaX < 0 && this.mobilePane === 'list'", $script);
+        $this->assertStringNotContainsString("deltaX < 0 && this.mobilePane === 'chat'", $script);
+        $this->assertStringNotContainsString("deltaX > 0 && this.mobilePane === 'list'", $script);
         $this->assertStringContainsString(".rt-chat-page[data-mobile-pane='chat']", $styles);
         $this->assertStringContainsString('@media (min-width: 768px)', $styles);
         $this->assertStringContainsString("['contentMode' => 'viewport']", $component);

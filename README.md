@@ -1,5 +1,10 @@
 # RailTime – interne Mitarbeiter- und Kommunikationsplattform
 
+## 2026-07-21 - Codex (Chat-Swipe-Richtung)
+
+- Die mobile Swipe-Steuerung ist korrigiert: Nach rechts wischen öffnet aus einem Chat die Chatübersicht, nach links wischen kehrt aus der Übersicht zum zuletzt ausgewählten Chat zurück.
+- Die Zuordnung ist durch einen Regressionstest gegen erneutes Vertauschen abgesichert.
+
 ## 2026-07-21 - Codex (IT-Feedback und Support)
 
 - Alle angemeldeten Benutzer erreichen über den letzten Sidebar-Eintrag ein responsives IT-Feedback- und Supportformular für Fragen, technische Probleme, Feedback und Funktionswünsche.
