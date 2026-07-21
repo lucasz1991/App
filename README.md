@@ -1,5 +1,18 @@
 # RailTime – interne Mitarbeiter- und Kommunikationsplattform
 
+## 2026-07-21 - Codex (Sprachnachrichten und eigene Nachrichten löschen)
+
+- Eigene Chatnachrichten können direkt in der Sprechblase gelöscht werden. Die Berechtigung wird serverseitig auf Absender und Chatmitgliedschaft geprüft; zugehörige private Dateien werden mit entfernt.
+- Aufgenommene Sprachnachrichten werden als eigener Nachrichtentyp ohne Text und ohne normalen Anhangs-Chip gesendet. Die mobile Aufnahmeleiste ersetzt während der Aufnahme die Texteingabe und bietet animierte Pegel, Abbrechen, Senden und `Einmal anhören`.
+- Die Wiedergabe verwendet einen eigenen responsiven Player mit Wellenform, Fortschritt, Zeit und Play/Pause statt nativer Browser-Steuerelemente. Einmal-Sprachnachrichten erhalten pro Empfänger nur einen kurzlebigen serverseitigen Wiedergabezugang und lassen sich nicht über Vorschau oder Download umgehen.
+- Die additive Chat-Migration wurde erfolgreich ausgeführt. Alle 62 Tests mit 435 Assertions sowie der Vite-Produktionsbuild sind erfolgreich.
+
+## 2026-07-21 - Codex (Globaler Dark-Mode-Vertrag fuer UI-Komponenten)
+
+- Ursache der hellen Dark-Mode-Flaechen abgesichert: Das Legacy-Tailwind-Bundle nutzt `!important` und `body[data-mode=dark]`, waehrend Vite `html.dark` verwendet. Eine zentrale, spaet geladene `rt-ui-*`-Kompatibilitaetsschicht unterstuetzt beide Signale und gewinnt gezielt gegen alte Light-Utilities.
+- Buttons, Disabled-Zustaende, Inputs, Selects, Textareas, Checkboxen, Toggles, Dropdowns samt semantischen Varianten, Modals, Tabellen, Pagination, Karten, Badges, Alerts, File-Pool-Elemente, Navigation und Toasts auf gemeinsame Theme-Hooks umgestellt.
+- Absichtlich helle Inhalte wie Mail-Vorschauen, QR-Codes und Colorpicker-Regler bleiben ausgenommen. Das ausgelieferte Vite-CSS wird durch einen Regressionstest auf die neuen Theme-Selektoren geprueft.
+
 ## 2026-07-21 - Codex (Chat-Swipe-Richtung)
 
 - Die mobile Swipe-Steuerung ist korrigiert: Nach rechts wischen öffnet aus einem Chat die Chatübersicht, nach links wischen kehrt aus der Übersicht zum zuletzt ausgewählten Chat zurück.

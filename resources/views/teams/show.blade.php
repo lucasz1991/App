@@ -1,4 +1,4 @@
-<x-admin-layout>
+<x-app-layout>
     <x-slot name="header">
         <h2 class="text-xl font-semibold tracking-tight text-rt-text dark:text-rt-dark-text leading-tight">
             {{ __('Team Settings') }}
@@ -20,4 +20,4 @@
             @endif
         </div>
     </div>
-</x-admin-layout>
+</x-app-layout>

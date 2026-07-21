@@ -840,7 +840,10 @@ window.addEventListener('saved', () => {
 });
 
 window.addEventListener('rt:inbox-increased', () => {
-    if (window.Echo) {
+    // Nur der tatsaechlich verbundene Echtzeit-Kanal ersetzt den Polling-Ton —
+    // ein konfigurierter, aber nicht erreichbarer Reverb-Server darf die
+    // Benachrichtigung nicht verschlucken.
+    if (window.Echo?.connector?.pusher?.connection?.state === 'connected') {
         return;
     }
 
