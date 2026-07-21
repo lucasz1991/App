@@ -4,39 +4,39 @@
         :eyebrow="$dashboardTeamName"
         :description="__('app.management_dashboard_description')"
     >
-        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" data-anim-stagger>
-            <x-ui.dashboard.stat-card :label="__('app.total_users')" :value="number_format($totalUsers, 0, ',', '.')">
-                <i data-feather="users" class="h-6 w-6"></i>
+        <div class="grid grid-cols-4 gap-1.5 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4" data-anim-stagger>
+            <x-ui.dashboard.stat-card :compact-mobile="true" :label="__('app.total_users')" :value="number_format($totalUsers, 0, ',', '.')">
+                <i data-feather="users" class="h-4 w-4 sm:h-6 sm:w-6"></i>
             </x-ui.dashboard.stat-card>
-            <x-ui.dashboard.stat-card tone="emerald" :label="__('app.active_users')" :value="number_format($activeUsers, 0, ',', '.')">
-                <i data-feather="user-check" class="h-6 w-6"></i>
+            <x-ui.dashboard.stat-card :compact-mobile="true" tone="emerald" :label="__('app.active_users')" :value="number_format($activeUsers, 0, ',', '.')">
+                <i data-feather="user-check" class="h-4 w-4 sm:h-6 sm:w-6"></i>
             </x-ui.dashboard.stat-card>
-            <x-ui.dashboard.stat-card tone="red" :label="__('app.employees')" :value="number_format($totalEmployees, 0, ',', '.')">
-                <i data-feather="briefcase" class="h-6 w-6"></i>
+            <x-ui.dashboard.stat-card :compact-mobile="true" tone="red" :label="__('app.employees')" :value="number_format($totalEmployees, 0, ',', '.')">
+                <i data-feather="briefcase" class="h-4 w-4 sm:h-6 sm:w-6"></i>
             </x-ui.dashboard.stat-card>
-            <x-ui.dashboard.stat-card tone="violet" :label="__('app.teams_rbac')" :value="number_format($totalTeams, 0, ',', '.')">
-                <i data-feather="shield" class="h-6 w-6"></i>
+            <x-ui.dashboard.stat-card :compact-mobile="true" tone="violet" :label="__('app.teams_rbac')" :value="number_format($totalTeams, 0, ',', '.')">
+                <i data-feather="shield" class="h-4 w-4 sm:h-6 sm:w-6"></i>
             </x-ui.dashboard.stat-card>
         </div>
 
-        <section class="grid gap-4 sm:grid-cols-3" aria-labelledby="operations-title" data-anim="fade-up">
+        <section class="grid grid-cols-3 gap-1.5 sm:gap-4" aria-labelledby="operations-title" data-anim="fade-up">
             <h2 id="operations-title" class="sr-only">{{ __('app.operations') }}</h2>
-            <div class="rounded-xl bg-rt-surface p-5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
-                <p class="text-xs font-semibold uppercase tracking-[0.16em] text-rt-muted dark:text-rt-dark-muted">{{ __('app.online_now') }}</p>
-                <p class="mt-2 text-2xl font-bold text-rt-text dark:text-white">{{ number_format($operations['online'], 0, ',', '.') }}</p>
+            <div class="rounded-xl bg-rt-surface p-2.5 text-center shadow-rt-sm ring-1 ring-rt-border/60 sm:p-5 sm:text-left dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+                <p class="min-h-[1.5rem] text-[9px] font-semibold uppercase leading-[1.15] tracking-[0.08em] text-rt-muted sm:min-h-0 sm:text-xs sm:leading-normal sm:tracking-[0.16em] dark:text-rt-dark-muted">{{ __('app.online_now') }}</p>
+                <p class="mt-1 text-lg font-bold text-rt-text sm:mt-2 sm:text-2xl dark:text-white">{{ number_format($operations['online'], 0, ',', '.') }}</p>
             </div>
-            <div class="rounded-xl bg-rt-surface p-5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
-                <p class="text-xs font-semibold uppercase tracking-[0.16em] text-rt-muted dark:text-rt-dark-muted">{{ __('app.open_invitations') }}</p>
-                <p class="mt-2 text-2xl font-bold text-rt-text dark:text-white">{{ number_format($operations['openInvitations'], 0, ',', '.') }}</p>
+            <div class="rounded-xl bg-rt-surface p-2.5 text-center shadow-rt-sm ring-1 ring-rt-border/60 sm:p-5 sm:text-left dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+                <p class="min-h-[1.5rem] text-[9px] font-semibold uppercase leading-[1.15] tracking-[0.08em] text-rt-muted sm:min-h-0 sm:text-xs sm:leading-normal sm:tracking-[0.16em] dark:text-rt-dark-muted">{{ __('app.open_invitations') }}</p>
+                <p class="mt-1 text-lg font-bold text-rt-text sm:mt-2 sm:text-2xl dark:text-white">{{ number_format($operations['openInvitations'], 0, ',', '.') }}</p>
             </div>
-            <div class="rounded-xl bg-rt-surface p-5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
-                <p class="text-xs font-semibold uppercase tracking-[0.16em] text-rt-muted dark:text-rt-dark-muted">{{ __('app.unread_messages_total') }}</p>
-                <p class="mt-2 text-2xl font-bold text-rt-text dark:text-white">{{ number_format($operations['unreadTotal'], 0, ',', '.') }}</p>
+            <div class="rounded-xl bg-rt-surface p-2.5 text-center shadow-rt-sm ring-1 ring-rt-border/60 sm:p-5 sm:text-left dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+                <p class="min-h-[1.5rem] text-[9px] font-semibold uppercase leading-[1.15] tracking-[0.08em] text-rt-muted sm:min-h-0 sm:text-xs sm:leading-normal sm:tracking-[0.16em] dark:text-rt-dark-muted">{{ __('app.unread_messages_total') }}</p>
+                <p class="mt-1 text-lg font-bold text-rt-text sm:mt-2 sm:text-2xl dark:text-white">{{ number_format($operations['unreadTotal'], 0, ',', '.') }}</p>
             </div>
         </section>
 
-        <div class="grid gap-6 xl:grid-cols-2" data-anim="fade-up">
-            <section class="rounded-xl bg-rt-surface p-6 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+        <div class="grid gap-4 sm:gap-6 xl:grid-cols-2" data-anim="fade-up">
+            <section class="rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 sm:p-6 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
                 <h2 class="text-base font-semibold text-rt-text dark:text-white">{{ __('app.recently_active') }}</h2>
                 <div class="mt-4 space-y-2.5">
                     @forelse ($recentActivity as $entry)
@@ -56,7 +56,7 @@
                 </div>
             </section>
 
-            <section class="rounded-xl bg-rt-surface p-6 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+            <section class="rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 sm:p-6 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
                 <h2 class="text-base font-semibold text-rt-text dark:text-white">{{ __('app.system_status') }}</h2>
                 <dl class="mt-4 divide-y divide-rt-border/60 text-sm dark:divide-rt-dark-border/60">
                     <div class="flex items-center justify-between gap-4 py-2.5"><dt class="text-rt-muted dark:text-rt-dark-muted">{{ __('app.application') }}</dt><dd class="text-right font-medium text-rt-text dark:text-white">{{ $system['appVersion'] }}</dd></div>

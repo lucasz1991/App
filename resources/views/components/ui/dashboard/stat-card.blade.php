@@ -1,4 +1,9 @@
-@props(['label', 'value', 'tone' => 'sky'])
+@props([
+    'label',
+    'value',
+    'tone' => 'sky',
+    'compactMobile' => false,
+])
 
 @php
     $toneClasses = match ($tone) {
@@ -7,18 +12,42 @@
         'violet' => 'bg-violet-50 text-violet-600 dark:bg-violet-500/10 dark:text-violet-300',
         default => 'bg-sky-50 text-sky-600 dark:bg-sky-500/10 dark:text-sky-300',
     };
+
+    $shellClasses = $compactMobile
+        ? 'rounded-xl bg-rt-surface-muted p-0.5 shadow-rt-sm ring-1 ring-rt-border/60 sm:rounded-2xl sm:p-1.5 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60'
+        : 'rounded-2xl bg-rt-surface-muted p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60';
+
+    $innerClasses = $compactMobile
+        ? 'flex min-h-[5.5rem] items-center justify-center rounded-[calc(.75rem-2px)] bg-rt-surface px-1 py-2 sm:min-h-0 sm:justify-start sm:rounded-[calc(1rem-2px)] sm:p-5 dark:bg-rt-dark-surface'
+        : 'rounded-[calc(1rem-2px)] bg-rt-surface p-5 dark:bg-rt-dark-surface';
 @endphp
 
 {{-- Double-bezel: aeussere Schale + innerer Kern (Designsprache v2) --}}
-<div {{ $attributes->merge(['class' => 'rounded-2xl bg-rt-surface-muted p-1.5 ring-1 ring-rt-border/60 shadow-rt-sm dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60']) }}>
-    <div class="rounded-[calc(1rem-2px)] bg-rt-surface p-5 dark:bg-rt-dark-surface">
-        <div class="flex items-center gap-4">
-            <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg {{ $toneClasses }}">
+<div {{ $attributes->merge(['class' => $shellClasses]) }}>
+    <div class="{{ $innerClasses }}">
+        <div @class([
+            'flex items-center gap-4',
+            'w-full min-w-0 flex-col gap-1 text-center sm:flex-row sm:gap-4 sm:text-left' => $compactMobile,
+        ])>
+            <span @class([
+                'flex shrink-0 items-center justify-center rounded-lg',
+                'h-12 w-12' => ! $compactMobile,
+                'h-7 w-7 sm:h-12 sm:w-12' => $compactMobile,
+                $toneClasses,
+            ])>
                 {{ $slot }}
             </span>
-            <div>
-                <p class="text-sm text-rt-muted dark:text-rt-dark-muted">{{ $label }}</p>
-                <p class="text-3xl font-semibold tracking-tight tabular-nums text-rt-text dark:text-rt-dark-text">{{ $value }}</p>
+            <div class="min-w-0">
+                <p @class([
+                    'text-rt-muted dark:text-rt-dark-muted',
+                    'text-sm' => ! $compactMobile,
+                    'min-h-[1.5rem] text-[9px] font-medium leading-[1.15] sm:min-h-0 sm:text-sm sm:font-normal sm:leading-normal' => $compactMobile,
+                ])>{{ $label }}</p>
+                <p @class([
+                    'font-semibold tracking-tight tabular-nums text-rt-text dark:text-rt-dark-text',
+                    'text-3xl' => ! $compactMobile,
+                    'text-lg leading-none sm:text-3xl sm:leading-normal' => $compactMobile,
+                ])>{{ $value }}</p>
             </div>
         </div>
     </div>
