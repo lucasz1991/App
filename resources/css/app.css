@@ -124,6 +124,18 @@ html {
     }
 }
 
+/* Native Vorschau der Mitarbeiter-E-Mailvorlage. Die explizite Regel gewinnt
+   auch gegen globale Display-Utilities und verhindert ein offenes Modal beim
+   ersten Seitenaufruf ohne jeden Alpine-/Livewire-Zustand. */
+#email-template-preview-dialog:not([open]) {
+    display: none !important;
+}
+
+#email-template-preview-dialog::backdrop {
+    background: rgb(2 6 23 / 0.68);
+    backdrop-filter: blur(4px);
+}
+
 /* Kompakter Messenger-Player fuer Sprachnachrichten. Der Fortschritt bleibt
    auch in eigenen roten und fremden hellen/dunklen Sprechblasen gut sichtbar. */
 .rt-voice-progress {

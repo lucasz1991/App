@@ -18,7 +18,6 @@
         :eyebrow="__('app.personal_data')"
         :count="count($availableTemplates)"
     >
-        <div x-data="emailTemplatePreview">
         <div class="grid items-start gap-6 xl:grid-cols-[minmax(18rem,0.8fr)_minmax(0,1.35fr)]">
             <aside class="space-y-4 xl:sticky xl:top-24" data-anim="fade-up">
                 <section class="overflow-hidden rounded-2xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70">
@@ -111,7 +110,7 @@
                     <div class="grid items-center gap-4 md:grid-cols-[minmax(0,1fr)_minmax(13rem,0.62fr)]">
                         <button
                             type="button"
-                            @click="show()"
+                            onclick="document.getElementById('email-template-preview-dialog')?.showModal()"
                             class="group/preview relative h-48 w-full overflow-hidden rounded-xl bg-slate-200 text-left shadow-inner ring-1 ring-rt-border/70 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/50 dark:bg-slate-900 dark:ring-rt-dark-border/70"
                             aria-label="{{ __('app.preview') }}"
                         >
@@ -138,7 +137,7 @@
                             <p class="mt-2 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">{{ __('app.email_template_mail_html_hint') }}</p>
                             <button
                                 type="button"
-                                @click="show()"
+                                onclick="document.getElementById('email-template-preview-dialog')?.showModal()"
                                 class="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-rt-red transition hover:text-rt-red-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40 dark:text-rt-dark-accent"
                             >
                                 <i class="far fa-expand-alt" aria-hidden="true"></i>
@@ -179,38 +178,27 @@
             </section>
         </div>
 
-        {{-- Eigenstaendiger Alpine-Host statt Teleport: bleibt beim Start sicher
-             verborgen und verliert bei Navigationen nicht seinen Daten-Scope. --}}
-        <div
-            x-cloak
-            x-show="open"
-            style="display: none;"
-            x-on:keydown.escape.window="close()"
-            x-transition.opacity.duration.150ms
-            class="fixed inset-0 z-[180] flex items-center justify-center p-2 sm:p-5"
-            role="dialog"
-            aria-modal="true"
+        {{-- Native Dialog statt Alpine-Overlay: Ohne open-Attribut bleibt die
+             Vorschau selbst bei einem JavaScript-Fehler garantiert geschlossen. --}}
+        <dialog
+            id="email-template-preview-dialog"
+            class="m-auto h-[92dvh] w-[calc(100%_-_1rem)] max-w-5xl overflow-hidden rounded-2xl border-0 bg-transparent p-0 shadow-2xl sm:w-[calc(100%_-_2.5rem)]"
             aria-label="{{ __('app.preview') }}"
+            onclick="if (event.target === this) this.close()"
         >
-            <button type="button" class="absolute inset-0 bg-slate-950/65 backdrop-blur-sm" @click="close()" aria-label="{{ __('app.close') }}"></button>
             <div
-                x-show="open"
-                x-transition:enter="ease-out duration-200"
-                x-transition:enter-start="opacity-0 translate-y-3 scale-[0.98]"
-                x-transition:enter-end="opacity-100 translate-y-0 scale-100"
-                x-transition:leave="ease-in duration-150"
-                x-transition:leave-start="opacity-100 translate-y-0 scale-100"
-                x-transition:leave-end="opacity-0 translate-y-3 scale-[0.98]"
-                class="relative flex h-[92dvh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-rt-surface shadow-2xl ring-1 ring-white/20 dark:bg-rt-dark-surface"
+                class="relative flex h-full w-full flex-col overflow-hidden rounded-2xl bg-rt-surface ring-1 ring-white/20 dark:bg-rt-dark-surface"
             >
                 <header class="flex items-center justify-between gap-4 border-b border-rt-border/70 px-4 py-3 sm:px-5 dark:border-rt-dark-border/70">
                     <div class="min-w-0">
                         <p class="truncate text-sm font-semibold text-rt-text dark:text-white">{{ __('app.email_template_mail_html') }}</p>
                         <p class="text-xs text-rt-muted dark:text-rt-dark-muted">{{ $user->name }}</p>
                     </div>
-                    <button type="button" @click="close()" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rt-surface-muted text-rt-muted transition hover:text-rt-red dark:bg-rt-dark-surface-muted dark:text-white dark:hover:text-rt-dark-accent" aria-label="{{ __('app.close') }}">
-                        <i class="far fa-times" aria-hidden="true"></i>
-                    </button>
+                    <form method="dialog">
+                        <button type="submit" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rt-surface-muted text-rt-muted transition hover:text-rt-red dark:bg-rt-dark-surface-muted dark:text-white dark:hover:text-rt-dark-accent" aria-label="{{ __('app.close') }}">
+                            <i class="far fa-times" aria-hidden="true"></i>
+                        </button>
+                    </form>
                 </header>
                 <iframe
                     src="{{ $previewUrl }}"
@@ -228,7 +216,6 @@
                     </a>
                 </footer>
             </div>
-        </div>
-        </div>
+        </dialog>
     </x-ui.page>
 @endsection

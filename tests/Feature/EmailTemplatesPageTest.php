@@ -35,16 +35,24 @@ class EmailTemplatesPageTest extends TestCase
             ->assertSee(route('email-templates.download', ['template' => 'vorlage-eml']), escape: false)
             ->assertSee(route('email-templates.preview', ['template' => 'vorlage-html']), escape: false)
             ->assertSee(__('app.preview_enlarged'))
-            ->assertSee('x-data="emailTemplatePreview"', escape: false)
-            ->assertSee('style="display: none;"', escape: false)
+            ->assertSee('id="email-template-preview-dialog"', escape: false)
+            ->assertSee('method="dialog"', escape: false)
+            ->assertSee("document.getElementById('email-template-preview-dialog')?.showModal()", escape: false)
+            ->assertDontSee('x-data="emailTemplatePreview"', escape: false)
             ->assertDontSee('x-teleport=', escape: false)
             ->assertSee('data-menu-active="true"', escape: false);
 
         $this->assertSame(1, substr_count($response->getContent(), 'data-testid="message-viewer-host"'));
+        $this->assertStringNotContainsString("Alpine.data('emailTemplatePreview'", file_get_contents(resource_path('js/app.js')));
+        $this->assertStringNotContainsString('x-show="open"', file_get_contents(resource_path('views/email-templates/index.blade.php')));
         $this->assertStringContainsString(
-            "Alpine.data('emailTemplatePreview'",
-            file_get_contents(resource_path('js/app.js'))
+            '#email-template-preview-dialog:not([open])',
+            file_get_contents(resource_path('css/app.css'))
         );
+
+        $dialogMarkup = strstr($response->getContent(), '<dialog', before_needle: false);
+        $dialogOpeningTag = strstr((string) $dialogMarkup, '>', before_needle: true);
+        $this->assertStringNotContainsString(' open', (string) $dialogOpeningTag);
     }
 
     public function test_profile_no_longer_contains_an_email_templates_tab(): void
