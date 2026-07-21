@@ -285,10 +285,24 @@ body[data-mode="dark"] [data-admin-dashboard] .rt-admin-operations-card-divider 
     border-color: #334155;
 }
 
+html.dark [data-admin-dashboard] .rt-admin-quick-link,
+body[data-mode="dark"] [data-admin-dashboard] .rt-admin-quick-link {
+    color: #e7edf7 !important;
+    background-color: #172033 !important;
+    border-color: #334155 !important;
+}
+
 .dark .rt-admin-quick-link:hover {
     color: #ffffff;
     background: #e4002b;
     border-color: #f51b3b;
+}
+
+html.dark [data-admin-dashboard] .rt-admin-quick-link:hover,
+body[data-mode="dark"] [data-admin-dashboard] .rt-admin-quick-link:hover {
+    color: #ffffff !important;
+    background-color: #e4002b !important;
+    border-color: #f51b3b !important;
 }
 
 .dark .rt-operational-demo-badge,

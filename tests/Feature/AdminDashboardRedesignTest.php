@@ -204,6 +204,8 @@ class AdminDashboardRedesignTest extends TestCase
         $this->assertStringContainsString('html.dark [data-admin-dashboard] .rt-admin-live-card', $styles);
         $this->assertStringContainsString('body[data-mode="dark"] [data-admin-dashboard] .rt-admin-live-card', $styles);
         $this->assertStringContainsString('html.dark [data-admin-dashboard] .rt-admin-operations-card', $styles);
+        $this->assertStringContainsString('html.dark [data-admin-dashboard] .rt-admin-quick-link', $styles);
+        $this->assertStringContainsString('body[data-mode="dark"] [data-admin-dashboard] .rt-admin-quick-link', $styles);
         $this->assertStringContainsString('background-color: #111827 !important', $styles);
         $this->assertStringContainsString('background-color: #172033 !important', $styles);
         $this->assertStringNotContainsString('lg:min-h-[25rem]', $dashboard);

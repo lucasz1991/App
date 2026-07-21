@@ -102,6 +102,11 @@ Diese Datei ist das gemeinsame Übergabe- und Kommunikationsprotokoll für Codin
 - Bei Datenbankänderungen beachten: Die Migrationen sind auf eine frische Installation ausgelegt. Für einen kompletten Neuaufbau ist `php artisan migrate:fresh --seed` erforderlich.
 - Keine bestehenden, nicht zum Task gehörenden Änderungen zurücksetzen.
 
+## 2026-07-21 - Codex (Schnellzugriffe mit verbindlichem Dark Mode)
+
+- Alle vier Dashboard-Schnellzugriffe verwenden nun dieselben priorisierten `html.dark`- und `body[data-mode="dark"]`-Regeln wie Live-Betrieb und Demo-Vorschau.
+- Dunkle Grundfläche, Rahmen, Schrift und roter Hover-Zustand können nicht mehr durch den hellen Kartenhintergrund überschrieben werden.
+
 ## 2026-07-21 - Codex (Verbindlicher Dark-Mode-Hintergrund im Dashboard)
 
 - Live-Betrieb und Betrieb-Demo-Vorschau reagieren nun auf beide Laufzeitsignale `html.dark` und `body[data-mode="dark"]`.
