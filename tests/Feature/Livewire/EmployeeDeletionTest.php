@@ -31,6 +31,18 @@ class EmployeeDeletionTest extends TestCase
             $table->timestamp('expires_at')->nullable();
             $table->timestamps();
         });
+
+        Schema::create('activity_log', function (Blueprint $table): void {
+            $table->bigIncrements('id');
+            $table->string('log_name')->nullable()->index();
+            $table->text('description');
+            $table->nullableMorphs('subject', 'subject');
+            $table->string('event')->nullable();
+            $table->nullableMorphs('causer', 'causer');
+            $table->json('properties')->nullable();
+            $table->uuid('batch_uuid')->nullable();
+            $table->timestamps();
+        });
     }
 
     public function test_admin_can_delete_an_employee_from_the_employee_list(): void

@@ -33,6 +33,8 @@ class EmailTemplatesPageTest extends TestCase
         $response->assertOk()
             ->assertSee(__('app.email_templates'))
             ->assertSee(route('email-templates.download', ['template' => 'vorlage-eml']), escape: false)
+            ->assertSee(route('email-templates.preview', ['template' => 'vorlage-html']), escape: false)
+            ->assertSee(__('app.preview_enlarged'))
             ->assertSee('data-menu-active="true"', escape: false);
 
         $this->assertSame(1, substr_count($response->getContent(), 'data-testid="message-viewer-host"'));
@@ -96,5 +98,24 @@ class EmailTemplatesPageTest extends TestCase
 
         $this->assertStringNotContainsString('railtime-hero', $eml);
         $this->assertStringContainsString('Content-ID: <railtime-logo>', $eml);
+    }
+
+    public function test_personalized_html_preview_is_inline_protected_and_has_no_top_image(): void
+    {
+        $user = User::factory()->create(['name' => 'Mara Beispiel']);
+
+        $response = $this->actingAs($user)
+            ->get(route('email-templates.preview', ['template' => 'vorlage-html']));
+
+        $response->assertOk()
+            ->assertHeader('content-disposition', 'inline')
+            ->assertHeader('cache-control', 'max-age=0, no-store, private')
+            ->assertDontSee('hero-railtime', escape: false)
+            ->assertSee('class="rt-logo"', escape: false);
+
+        $this->assertStringContainsString(
+            "default-src 'none'",
+            (string) $response->headers->get('content-security-policy')
+        );
     }
 }

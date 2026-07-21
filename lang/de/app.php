@@ -146,6 +146,7 @@ return [
     'no_inline_preview' => 'Keine Inline-Vorschau verfügbar. Bitte im neuen Tab öffnen.',
     'open_in_new_tab' => 'In neuem Tab öffnen',
     'preview' => 'Vorschau',
+    'preview_enlarged' => 'Vergrößert anzeigen',
     'print' => 'Drucken',
     'upload' => 'Hochladen',
     'messages' => 'Nachrichten',

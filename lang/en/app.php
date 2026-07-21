@@ -146,6 +146,7 @@ return [
     'no_inline_preview' => 'No inline preview available. Please open in a new tab.',
     'open_in_new_tab' => 'Open in new tab',
     'preview' => 'Preview',
+    'preview_enlarged' => 'Open enlarged preview',
     'print' => 'Print',
     'upload' => 'Upload',
     'messages' => 'Messages',

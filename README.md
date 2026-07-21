@@ -52,6 +52,12 @@ Diese Datei ist das gemeinsame Übergabe- und Kommunikationsprotokoll für Codin
 - Bei Datenbankänderungen beachten: Die Migrationen sind auf eine frische Installation ausgelegt. Für einen kompletten Neuaufbau ist `php artisan migrate:fresh --seed` erforderlich.
 - Keine bestehenden, nicht zum Task gehörenden Änderungen zurücksetzen.
 
+## 2026-07-21 - Codex (Mitarbeiterlöschung nur für Administratoren)
+
+- Mitarbeiter können direkt über das Aktionsmenü der Mitarbeiterliste gelöscht werden; die bestehende Profilaktion verwendet dieselbe vollständige Jetstream-Löschroutine.
+- Die Löschberechtigung `employees.delete` ist absichtlich nicht an Teams delegierbar und serverseitig ausschließlich für globale Administratoren freigegeben.
+- Eigenlöschung und das Löschen des primären Systemadministrators bleiben sowohl in der Oberfläche als auch in der Livewire-Aktion gesperrt.
+
 ## 2026-07-21 - Codex (Toast-, Dropdown- und mobile Tabellenbasis)
 
 - Der globale Toast-Handler ersetzt bei Livewire-Navigation alte Event-Listener und unterdrückt unmittelbar doppelte identische Events, damit eine Aktion genau eine Rückmeldung erzeugt.

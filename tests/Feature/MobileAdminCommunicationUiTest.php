@@ -50,4 +50,16 @@ class MobileAdminCommunicationUiTest extends TestCase
         $this->assertGreaterThanOrEqual(3, substr_count($row, 'col-span-2'));
         $this->assertStringContainsString('md:col-span-1', $row);
     }
+
+    public function test_table_action_containers_do_not_trap_open_dropdowns_in_row_stacking_contexts(): void
+    {
+        $table = file_get_contents(resource_path('views/components/tables/table.blade.php'));
+
+        $this->assertStringContainsString(
+            'rt-table-row-actions absolute right-2 inset-y-0 flex items-center',
+            $table
+        );
+        $this->assertStringNotContainsString('rt-table-row-actions absolute right-2 top-1/2 z-20', $table);
+        $this->assertStringNotContainsString('rt-table-row-actions absolute right-2 top-1/2 z-20 -translate-y-1/2', $table);
+    }
 }

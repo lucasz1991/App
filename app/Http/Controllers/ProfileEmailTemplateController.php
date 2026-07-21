@@ -24,4 +24,19 @@ class ProfileEmailTemplateController extends Controller
             'Content-Disposition' => 'attachment; filename="' . $file['filename'] . '"',
         ]);
     }
+
+    public function preview(Request $request, string $template): Response
+    {
+        abort_unless($template === 'vorlage-html', 404);
+
+        $file = (new EmailTemplateBuilder($request->user()))->build($template);
+
+        return response($file['content'], 200, [
+            'Content-Type' => 'text/html; charset=UTF-8',
+            'Content-Disposition' => 'inline',
+            'Cache-Control' => 'private, no-store, max-age=0',
+            'Content-Security-Policy' => "default-src 'none'; img-src data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'",
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
 }

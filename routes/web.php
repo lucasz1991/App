@@ -72,6 +72,8 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
     Route::view('/email-templates', 'email-templates.index')->name('email-templates.index');
     Route::get('/email-templates/{template}/download', App\Http\Controllers\ProfileEmailTemplateController::class)
         ->name('email-templates.download');
+    Route::get('/email-templates/{template}/preview', [App\Http\Controllers\ProfileEmailTemplateController::class, 'preview'])
+        ->name('email-templates.preview');
 });
 
 Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session'), 'verified', 'role:admin'])

@@ -107,7 +107,7 @@
         {{-- Zeilenaktionen bleiben unabhaengig von Anzahl/Breite der Spalten
              immer am rechten Zeilenrand erreichbar. --}}
         @if($actionsView ?? false)
-            <div class="rt-table-row-actions absolute right-2 top-1/2 z-20 -translate-y-1/2">
+            <div class="rt-table-row-actions absolute right-2 inset-y-0 flex items-center">
                 @include($actionsView, ['item' => $item])
             </div>
         @endif
