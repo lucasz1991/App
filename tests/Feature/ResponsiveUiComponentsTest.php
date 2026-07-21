@@ -91,8 +91,24 @@ class ResponsiveUiComponentsTest extends TestCase
         ]);
 
         $this->assertStringContainsString('rt-table-row-grid', $html);
-        $this->assertStringContainsString('rt-table-row-actions absolute right-2', $html);
+        $this->assertStringContainsString('rt-table-row-actions absolute right-3 top-3', $html);
         $this->assertStringContainsString('aria-haspopup="menu"', $html);
+    }
+
+    public function test_tables_use_single_column_mobile_cards_and_scrollable_permission_matrices(): void
+    {
+        $styles = file_get_contents(resource_path('css/app.css'));
+        $table = file_get_contents(resource_path('views/components/tables/table.blade.php'));
+        $contacts = file_get_contents(resource_path('views/livewire/admin/manage-contacts.blade.php'));
+        $filePools = file_get_contents(resource_path('views/livewire/tools/file-pools/manage-file-pools.blade.php'));
+
+        $this->assertStringContainsString('grid-template-columns: minmax(0, 1fr)', $styles);
+        $this->assertStringContainsString('[data-rt-table-label]:not(.hidden)', $styles);
+        $this->assertStringContainsString('rt-table-row-details', $table);
+        $this->assertStringContainsString('rt-responsive-data-table', $contacts);
+        $this->assertGreaterThanOrEqual(7, substr_count($contacts, 'data-rt-table-label='));
+        $this->assertStringContainsString('rt-table-scroll', $filePools);
+        $this->assertStringContainsString('min-w-[34rem]', $filePools);
     }
 
     public function test_toast_script_replaces_old_listeners_and_suppresses_immediate_duplicates(): void

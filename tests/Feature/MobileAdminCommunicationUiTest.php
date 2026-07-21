@@ -68,6 +68,11 @@ class MobileAdminCommunicationUiTest extends TestCase
         $this->assertStringContainsString('x-show.important="!consumed"', file_get_contents(resource_path('views/components/chat/voice-message.blade.php')));
         $this->assertStringContainsString('durationHint:', file_get_contents(resource_path('views/components/chat/voice-message.blade.php')));
         $this->assertStringContainsString('window.requestAnimationFrame(syncProgress)', $script);
+        $this->assertStringContainsString('px-3 pb-3 pt-4', $view);
+        $this->assertStringContainsString('rt-chat-transcript', $view);
+        $this->assertStringContainsString('rt-chat-message--own', $view);
+        $this->assertStringContainsString('rt-chat-message--other', $view);
+        $this->assertStringContainsString('.rt-chat-read-indicator.is-read', $styles);
     }
 
     public function test_active_mobile_sidebar_group_is_forced_open(): void
@@ -95,10 +100,9 @@ class MobileAdminCommunicationUiTest extends TestCase
         $table = file_get_contents(resource_path('views/components/tables/table.blade.php'));
 
         $this->assertStringContainsString(
-            'rt-table-row-actions absolute right-2 inset-y-0 flex items-center',
+            'rt-table-row-actions absolute right-3 top-3 z-10 flex items-center',
             $table
         );
-        $this->assertStringNotContainsString('rt-table-row-actions absolute right-2 top-1/2 z-20', $table);
-        $this->assertStringNotContainsString('rt-table-row-actions absolute right-2 top-1/2 z-20 -translate-y-1/2', $table);
+        $this->assertStringContainsString('md:inset-y-0 md:right-2 md:top-auto', $table);
     }
 }

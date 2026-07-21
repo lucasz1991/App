@@ -120,6 +120,18 @@ class AdminDashboardRedesignTest extends TestCase
         $this->assertSame(3, $charts['userGrowth']['totals'][13]);
     }
 
+    public function test_recent_users_card_excludes_admin_accounts(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'created_at' => now()]);
+        $employee = User::factory()->create(['role' => 'staff', 'created_at' => now()->subMinute()]);
+
+        $recentUsers = app(SystemDashboardData::class)->recentUsers();
+
+        $this->assertNotContains($admin->id, $recentUsers->pluck('id'));
+        $this->assertContains($employee->id, $recentUsers->pluck('id'));
+        $this->assertTrue($recentUsers->every(fn (User $user): bool => $user->role !== 'admin'));
+    }
+
     public function test_admin_render_contains_animated_charts_and_management_render_hides_system_data(): void
     {
         $owner = User::factory()->create(['role' => 'admin']);

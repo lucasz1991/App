@@ -988,6 +988,91 @@ body[data-mode="dark"] .rt-operational-page .rt-operational-nav-icon {
     padding-bottom: 0;
 }
 
+/* Ruhige Messenger-Flaeche und kontraststarke Sprechblasen. Eigene
+   Nachrichten bleiben in der Markenwelt, ohne die Lesbarkeit einer vollroten
+   Flaeche zu opfern. */
+.rt-chat-transcript {
+    background-color: #eef3f8;
+    background-image:
+        radial-gradient(circle at 18% 12%, rgba(228, 0, 43, 0.035), transparent 28rem),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.44), transparent 14rem);
+}
+
+.rt-chat-message {
+    border: 1px solid transparent;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 22px -18px rgba(15, 23, 42, 0.28);
+}
+
+.rt-chat-message--own {
+    color: #4b1722;
+    background: #fbe3e8;
+    border-color: #f1b5c0;
+}
+
+.rt-chat-message--other {
+    color: #172033;
+    background: #ffffff;
+    border-color: #d7e0eb;
+}
+
+.rt-chat-message-meta {
+    color: rgba(71, 85, 105, 0.9);
+}
+
+.rt-chat-message--own .rt-chat-message-meta {
+    color: rgba(94, 35, 48, 0.82);
+}
+
+.rt-chat-read-indicator.is-read {
+    color: #0284c7;
+}
+
+.rt-chat-read-indicator.is-delivered {
+    color: rgba(94, 35, 48, 0.52);
+}
+
+html.dark .rt-chat-transcript,
+body[data-mode="dark"] .rt-chat-transcript {
+    background-color: #0c1422;
+    background-image:
+        radial-gradient(circle at 18% 10%, rgba(255, 130, 149, 0.07), transparent 30rem),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 15rem);
+}
+
+html.dark .rt-chat-message--own,
+body[data-mode="dark"] .rt-chat-message--own {
+    color: #fff1f4;
+    background: #4a1b28;
+    border-color: #743044;
+}
+
+html.dark .rt-chat-message--other,
+body[data-mode="dark"] .rt-chat-message--other {
+    color: #e7edf7;
+    background: #182335;
+    border-color: #2e3e55;
+}
+
+html.dark .rt-chat-message-meta,
+body[data-mode="dark"] .rt-chat-message-meta {
+    color: rgba(207, 217, 231, 0.72);
+}
+
+html.dark .rt-chat-message--own .rt-chat-message-meta,
+body[data-mode="dark"] .rt-chat-message--own .rt-chat-message-meta {
+    color: rgba(255, 225, 232, 0.76);
+}
+
+html.dark .rt-chat-read-indicator.is-read,
+body[data-mode="dark"] .rt-chat-read-indicator.is-read {
+    color: #7dd3fc;
+}
+
+html.dark .rt-chat-read-indicator.is-delivered,
+body[data-mode="dark"] .rt-chat-read-indicator.is-delivered {
+    color: rgba(255, 225, 232, 0.48);
+}
+
 /* Der Messenger ist mobil eine animierte Zwei-Seiten-Ansicht. Horizontal
    gewischt wird nur unterhalb des Breakpoints, an dem beide Spalten passen. */
 @media (max-width: 767.98px) {

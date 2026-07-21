@@ -1,4 +1,4 @@
-<div class="rt-chat-page relative h-full min-h-0 overflow-hidden p-2 sm:p-3"
+<div class="rt-chat-page relative h-full min-h-0 overflow-hidden px-3 pb-3 pt-4 sm:px-4 sm:pb-4 sm:pt-5 md:px-0 md:pb-5 md:pt-5"
      x-data="chatPaneNavigation(@js((bool) $selectedChat))"
      data-has-selected-chat="{{ $selectedChat ? 'true' : 'false' }}"
      data-mobile-pane="{{ $selectedChat ? 'chat' : 'list' }}"
@@ -203,7 +203,7 @@
                              x-data
                              x-init="$el.scrollTop = $el.scrollHeight"
                              x-on:chat:scroll-bottom.window="$nextTick(() => $el.scrollTo(0, $el.scrollHeight))"
-                             class="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain bg-rt-surface-muted/60 px-2.5 py-3 sm:px-4 sm:py-4 dark:bg-rt-dark-canvas/40">
+                             class="rt-chat-transcript min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-2.5 py-3 sm:px-4 sm:py-4">
 
                             @php
                                 $items = $messages->values();
@@ -243,9 +243,9 @@
                                     @endif
 
                                     {{-- Sprechblase --}}
-                                    <div class="{{ $own
-                                             ? 'ml-auto rounded-2xl rounded-br-md bg-rt-red text-white dark:bg-rt-red dark:text-white'
-                                             : 'mr-auto rounded-2xl rounded-bl-md bg-rt-surface text-rt-text ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60' }} max-w-[88%] px-3 py-2 text-sm shadow-rt-xs sm:max-w-[75%] sm:px-3.5">
+                                    <div data-rt-chat-message="{{ $own ? 'own' : 'other' }}" class="rt-chat-message {{ $own
+                                             ? 'rt-chat-message--own ml-auto rounded-br-md'
+                                             : 'rt-chat-message--other mr-auto rounded-bl-md' }} max-w-[88%] rounded-2xl px-3 py-2 text-sm sm:max-w-[75%] sm:px-3.5">
                                         @if (filled($message->body))
                                             <p class="whitespace-pre-wrap break-words">{{ $message->body }}</p>
                                         @endif
@@ -345,7 +345,7 @@
                                             </div>
                                         @endif
 
-                                        <p class="mt-1 flex items-center justify-end gap-1 text-right text-[10px] leading-none opacity-80">
+                                        <p class="rt-chat-message-meta mt-1 flex items-center justify-end gap-1 text-right text-[10px] leading-none">
                                             @if ($own)
                                                 <button
                                                     type="button"
@@ -360,7 +360,7 @@
                                             @endif
                                             <span>{{ $message->created_at->format('H:i') }}</span>
                                             @if ($own)
-                                                <i class="far fa-check-double {{ $isRead ? 'text-sky-300' : 'text-white/60' }}"
+                                                <i class="rt-chat-read-indicator far fa-check-double {{ $isRead ? 'is-read' : 'is-delivered' }}"
                                                    title="{{ $isRead ? __('app.message_read') : __('app.message_delivered') }}"
                                                    aria-label="{{ $isRead ? __('app.message_read') : __('app.message_delivered') }}"></i>
                                             @endif

@@ -28,6 +28,7 @@ class SystemDashboardData
     public function recentUsers(): Collection
     {
         return User::query()
+            ->where('role', '!=', 'admin')
             ->latest()
             ->limit(6)
             ->get(['id', 'name', 'email', 'role', 'status', 'created_at']);
