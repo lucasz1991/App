@@ -270,6 +270,56 @@ Alpine.data('chatRealtime', (config) => ({
     },
 }));
 
+Alpine.data('chatAudioPlayer', () => ({
+    playing: false,
+    currentTime: 0,
+    duration: 0,
+
+    get progress() {
+        return this.duration > 0 ? Math.min(100, (this.currentTime / this.duration) * 100) : 0;
+    },
+
+    get formattedTime() {
+        const value = this.playing || this.currentTime > 0 ? this.currentTime : this.duration;
+        const safeValue = Number.isFinite(value) ? Math.max(0, value) : 0;
+        const minutes = Math.floor(safeValue / 60);
+        const seconds = String(Math.floor(safeValue % 60)).padStart(2, '0');
+
+        return `${minutes}:${seconds}`;
+    },
+
+    toggle() {
+        if (this.$refs.audio.paused) {
+            this.$refs.audio.play().catch(() => {
+                this.playing = false;
+            });
+            return;
+        }
+
+        this.$refs.audio.pause();
+    },
+
+    metadataLoaded() {
+        this.duration = Number.isFinite(this.$refs.audio.duration) ? this.$refs.audio.duration : 0;
+    },
+
+    timeUpdated() {
+        this.currentTime = this.$refs.audio.currentTime || 0;
+    },
+
+    seek(value) {
+        const nextTime = Math.max(0, Math.min(Number(value) || 0, this.duration || 0));
+        this.$refs.audio.currentTime = nextTime;
+        this.currentTime = nextTime;
+    },
+
+    ended() {
+        this.playing = false;
+        this.currentTime = 0;
+        this.$refs.audio.currentTime = 0;
+    },
+}));
+
 Livewire.start();
 
 rtApplyTheme();

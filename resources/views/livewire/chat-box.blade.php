@@ -6,11 +6,11 @@
     <x-ui.page :title="__('app.chat')" :eyebrow="__('app.personal_data')">
 
         {{-- Messenger-Karte --}}
-        <div class="overflow-hidden rounded-2xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
-            <div class="flex h-[calc(100vh-260px)] min-h-[480px]">
+        <div class="overflow-hidden rounded-xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/60 sm:rounded-2xl dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+            <div class="flex h-[calc(100dvh-190px)] min-h-[420px] md:h-[calc(100vh-260px)] md:min-h-[480px]">
 
                 {{-- ============================== LINKE SPALTE: Chat-Liste ============================== --}}
-                <div class="flex w-80 shrink-0 flex-col border-r border-rt-border/60 dark:border-rt-dark-border/60">
+                <div class="{{ $selectedChat ? 'hidden md:flex' : 'flex' }} w-full shrink-0 flex-col border-rt-border/60 md:w-80 md:border-r dark:border-rt-dark-border/60">
 
                     {{-- Kopfzeile --}}
                     <div class="flex items-center justify-between border-b border-rt-border/60 px-4 py-3 dark:border-rt-dark-border/60">
@@ -102,7 +102,7 @@
                 </div>
 
                 {{-- ============================== RECHTE SPALTE: Unterhaltung ============================== --}}
-                <div class="flex min-w-0 flex-1 flex-col">
+                <div class="{{ $selectedChat ? 'flex' : 'hidden md:flex' }} min-w-0 flex-1 flex-col">
                     @if (! $selectedChat)
                         {{-- Leerer Zustand --}}
                         <div class="flex flex-1 flex-col items-center justify-center gap-4 bg-rt-surface-muted/60 px-6 text-center dark:bg-rt-dark-canvas/40">
@@ -123,10 +123,17 @@
                             })"
                         >
                         {{-- Chat-Kopf --}}
-                        <div class="flex items-center gap-3 border-b border-rt-border/60 px-4 py-3 dark:border-rt-dark-border/60">
+                        <div class="flex items-center gap-2.5 border-b border-rt-border/60 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3 dark:border-rt-dark-border/60">
                             @php
                                 $headerAvatar = $selectedChat->avatarUrlFor($me);
                             @endphp
+                            <button type="button"
+                                    wire:click="$set('selectedChatId', null)"
+                                    class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-rt-muted transition hover:bg-rt-surface-muted hover:text-rt-text md:hidden dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted dark:hover:text-white"
+                                    aria-label="{{ __('app.back') }}"
+                                    title="{{ __('app.back') }}">
+                                <i class="far fa-arrow-left" aria-hidden="true"></i>
+                            </button>
                             @if ($headerAvatar)
                                 <img src="{{ $headerAvatar }}"
                                      alt="{{ $selectedChat->displayNameFor($me) }}"
@@ -155,7 +162,7 @@
                              x-data
                              x-init="$el.scrollTop = $el.scrollHeight"
                              x-on:chat:scroll-bottom.window="$nextTick(() => $el.scrollTo(0, $el.scrollHeight))"
-                             class="flex-1 space-y-1 overflow-y-auto bg-rt-surface-muted/60 px-4 py-4 dark:bg-rt-dark-canvas/40">
+                             class="flex-1 space-y-1 overflow-y-auto bg-rt-surface-muted/60 px-2.5 py-3 sm:px-4 sm:py-4 dark:bg-rt-dark-canvas/40">
 
                             @php
                                 $items = $messages->values();
@@ -193,8 +200,8 @@
 
                                     {{-- Sprechblase --}}
                                     <div class="{{ $own
-                                            ? 'ml-auto rounded-2xl rounded-br-md bg-rt-red text-white dark:bg-rt-red dark:text-white'
-                                            : 'mr-auto rounded-2xl rounded-bl-md bg-rt-surface text-rt-text ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60' }} max-w-[75%] px-3.5 py-2 text-sm shadow-rt-xs">
+                                             ? 'ml-auto rounded-2xl rounded-br-md bg-rt-red text-white dark:bg-rt-red dark:text-white'
+                                             : 'mr-auto rounded-2xl rounded-bl-md bg-rt-surface text-rt-text ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60' }} max-w-[88%] px-3 py-2 text-sm shadow-rt-xs sm:max-w-[75%] sm:px-3.5">
                                         @if (filled($message->body))
                                             <p class="whitespace-pre-wrap break-words">{{ $message->body }}</p>
                                         @endif
@@ -209,19 +216,58 @@
                                                     @endphp
 
                                                     @if (str_starts_with($mime, 'audio/'))
-                                                        <div class="min-w-[240px]">
-                                                            <audio controls preload="metadata" class="h-10 w-full" src="{{ $inlineUrl }}">
+                                                        <div x-data="chatAudioPlayer()" class="w-[min(17rem,72vw)] max-w-full py-0.5">
+                                                            <audio x-ref="audio"
+                                                                   preload="metadata"
+                                                                   class="sr-only"
+                                                                   src="{{ $inlineUrl }}"
+                                                                   @loadedmetadata="metadataLoaded()"
+                                                                   @timeupdate="timeUpdated()"
+                                                                   @play="playing = true"
+                                                                   @pause="playing = false"
+                                                                   @ended="ended()">
                                                                 <a href="{{ $downloadUrl }}">{{ $file->name }}</a>
                                                             </audio>
-                                                            <p class="mt-1 truncate text-[10px] opacity-75">{{ $file->name }}</p>
+
+                                                            <div class="flex min-w-0 items-center gap-2.5">
+                                                                <button type="button"
+                                                                        @click="toggle()"
+                                                                        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/10 text-sm transition hover:bg-black/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/50 dark:bg-white/10 dark:hover:bg-white/15"
+                                                                        aria-label="{{ __('app.voice_message') }}">
+                                                                    <i :class="playing ? 'fas fa-pause' : 'fas fa-play pl-0.5'" aria-hidden="true"></i>
+                                                                </button>
+
+                                                                <div class="min-w-0 flex-1">
+                                                                    <div class="flex items-center gap-2 text-[10px] font-medium opacity-80">
+                                                                        <span class="truncate">{{ __('app.voice_message') }}</span>
+                                                                        <span class="ml-auto shrink-0 tabular-nums" x-text="formattedTime"></span>
+                                                                    </div>
+                                                                    <input type="range"
+                                                                           min="0"
+                                                                           step="0.1"
+                                                                           :max="duration || 0"
+                                                                           :value="currentTime"
+                                                                           :style="`--rt-voice-progress: ${progress}%`"
+                                                                           @input="seek($event.target.value)"
+                                                                           class="rt-voice-progress mt-1 block w-full cursor-pointer"
+                                                                           aria-label="{{ __('app.voice_message') }}">
+                                                                </div>
+
+                                                                <a href="{{ $downloadUrl }}"
+                                                                   class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full opacity-70 transition hover:bg-black/10 hover:opacity-100 dark:hover:bg-white/10"
+                                                                   title="{{ __('app.download') }}"
+                                                                   aria-label="{{ __('app.download') }}">
+                                                                    <i class="far fa-download" aria-hidden="true"></i>
+                                                                </a>
+                                                            </div>
                                                         </div>
                                                     @elseif (str_starts_with($mime, 'video/'))
-                                                        <video controls preload="metadata" class="max-h-72 w-full min-w-[240px] rounded-xl bg-black" src="{{ $inlineUrl }}">
+                                                        <video controls preload="metadata" class="max-h-72 w-full max-w-[72vw] rounded-xl bg-black sm:max-w-full" src="{{ $inlineUrl }}">
                                                             <a href="{{ $downloadUrl }}">{{ $file->name }}</a>
                                                         </video>
                                                     @else
                                                         <a href="{{ $downloadUrl }}"
-                                                           class="flex min-w-[220px] items-center gap-2 rounded-xl bg-black/10 px-3 py-2 text-left hover:bg-black/15 dark:bg-white/10 dark:hover:bg-white/15">
+                                                           class="flex min-w-0 max-w-[72vw] items-center gap-2 rounded-xl bg-black/10 px-3 py-2 text-left hover:bg-black/15 sm:max-w-full dark:bg-white/10 dark:hover:bg-white/15">
                                                             <i class="far fa-file-download shrink-0" aria-hidden="true"></i>
                                                             <span class="min-w-0">
                                                                 <span class="block truncate text-xs font-semibold">{{ $file->name }}</span>
@@ -247,7 +293,7 @@
                         </div>
 
                         {{-- Eingabezeile --}}
-                        <div class="border-t border-rt-border/60 px-3 py-3 dark:border-rt-dark-border/60">
+                        <div class="border-t border-rt-border/60 px-2 py-2.5 sm:px-3 sm:py-3 dark:border-rt-dark-border/60">
                             @if ($uploads !== [])
                                 <div class="mb-2 flex flex-wrap gap-2 px-1">
                                     @foreach ($uploads as $index => $upload)
@@ -267,7 +313,7 @@
                                 <span x-text="recordingLabel"></span>
                             </p>
 
-                            <form wire:submit.prevent="send" class="flex items-center gap-2">
+                            <form wire:submit.prevent="send" class="flex items-center gap-1.5 sm:gap-2">
                                 <input id="chat-attachments-{{ $selectedChat->id }}"
                                        type="file"
                                        wire:model="uploads"
@@ -276,7 +322,7 @@
                                        class="sr-only">
                                 <label for="chat-attachments-{{ $selectedChat->id }}"
                                        title="{{ __('app.add_attachment') }}"
-                                       class="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full border border-rt-border bg-rt-surface text-rt-text shadow-rt-xs transition hover:bg-rt-surface-muted hover:text-rt-red dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white dark:hover:bg-rt-dark-surface-muted">
+                                       class="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border border-rt-border bg-rt-surface text-rt-text shadow-rt-xs transition hover:bg-rt-surface-muted hover:text-rt-red sm:h-10 sm:w-10 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white dark:hover:bg-rt-dark-surface-muted">
                                     <i class="far fa-paperclip" aria-hidden="true"></i>
                                     <span class="sr-only">{{ __('app.add_attachment') }}</span>
                                 </label>
@@ -285,7 +331,7 @@
                                         @click="toggleRecording()"
                                         :class="recording ? 'bg-rt-red text-white border-rt-red' : 'border-rt-border bg-rt-surface text-rt-text dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white'"
                                         title="{{ __('app.voice_message') }}"
-                                        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border shadow-rt-xs transition hover:text-rt-red dark:hover:text-white">
+                                        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border shadow-rt-xs transition hover:text-rt-red sm:h-10 sm:w-10 dark:hover:text-white">
                                     <i :class="recording ? 'fas fa-stop' : 'far fa-microphone'" aria-hidden="true"></i>
                                     <span class="sr-only">{{ __('app.voice_message') }}</span>
                                 </button>
@@ -295,10 +341,10 @@
                                        @input.debounce.250ms="sendTyping()"
                                        placeholder="{{ __('app.type_message') }}"
                                        autocomplete="off"
-                                       class="h-10 min-w-0 flex-1 rounded-full border border-rt-border bg-rt-control px-4 text-sm text-rt-text shadow-rt-xs transition-all duration-300 ease-rt-spring placeholder:text-rt-soft hover:border-rt-accent/40 focus:border-rt-accent focus:ring focus:ring-rt-accent/30 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:placeholder:text-rt-dark-soft dark:hover:border-rt-dark-accent">
+                                       class="h-9 min-w-0 flex-1 rounded-full border border-rt-border bg-rt-control px-3 text-sm text-rt-text shadow-rt-xs transition-all duration-300 ease-rt-spring placeholder:text-rt-soft hover:border-rt-accent/40 focus:border-rt-accent focus:ring focus:ring-rt-accent/30 sm:h-10 sm:px-4 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:placeholder:text-rt-dark-soft dark:hover:border-rt-dark-accent">
                                 <button type="submit"
                                         title="{{ __('app.type_message') }}"
-                                        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rt-red text-white shadow-rt-sm transition-all duration-300 ease-rt-spring hover:bg-rt-red-dark active:scale-95 dark:bg-rt-red dark:text-white">
+                                        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rt-red text-white shadow-rt-sm transition-all duration-300 ease-rt-spring hover:bg-rt-red-dark active:scale-95 sm:h-10 sm:w-10 dark:bg-rt-red dark:text-white">
                                     <i class="far fa-paper-plane" aria-hidden="true"></i>
                                     <span class="sr-only">{{ __('app.type_message') }}</span>
                                 </button>

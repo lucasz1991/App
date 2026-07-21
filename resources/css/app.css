@@ -43,6 +43,56 @@ html {
     scroll-behavior: smooth;
 }
 
+/* Kompakter Messenger-Player fuer Sprachnachrichten. Der Fortschritt bleibt
+   auch in eigenen roten und fremden hellen/dunklen Sprechblasen gut sichtbar. */
+.rt-voice-progress {
+    height: 1rem;
+    margin: 0;
+    appearance: none;
+    background: transparent;
+}
+
+.rt-voice-progress::-webkit-slider-runnable-track {
+    height: 3px;
+    border-radius: 9999px;
+    background: linear-gradient(
+        to right,
+        currentColor 0 var(--rt-voice-progress, 0%),
+        rgba(100, 116, 139, 0.32) var(--rt-voice-progress, 0%) 100%
+    );
+}
+
+.rt-voice-progress::-webkit-slider-thumb {
+    width: 10px;
+    height: 10px;
+    margin-top: -3.5px;
+    appearance: none;
+    border: 2px solid currentColor;
+    border-radius: 9999px;
+    background: currentColor;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.24);
+}
+
+.rt-voice-progress::-moz-range-track {
+    height: 3px;
+    border-radius: 9999px;
+    background: rgba(100, 116, 139, 0.32);
+}
+
+.rt-voice-progress::-moz-range-progress {
+    height: 3px;
+    border-radius: 9999px;
+    background: currentColor;
+}
+
+.rt-voice-progress::-moz-range-thumb {
+    width: 8px;
+    height: 8px;
+    border: 2px solid currentColor;
+    border-radius: 9999px;
+    background: currentColor;
+}
+
 /* Responsive Datentabellen: mobil bleiben die wichtigsten Zellen als
    zweispaltige, gekuerzte Zusammenfassung sichtbar. Ab md gilt wieder das
    von der Tabellenkomponente gelieferte Spaltenraster. */
@@ -153,6 +203,20 @@ html {
 
     .vertical-menu {
         width: min(86vw, 300px) !important;
+    }
+
+    /* Das Untermenue des aktuell besuchten Bereichs bleibt im mobilen Drawer
+       dauerhaft offen. MetisMenu darf seinen Zustand dabei weiterhin fuer
+       alle nicht aktiven Gruppen verwalten. */
+    #sidebar-menu li[data-mobile-expanded="true"] > .mm-collapse,
+    #sidebar-menu li[data-mobile-expanded="true"] > .mm-collapsing {
+        display: block !important;
+        height: auto !important;
+        overflow: visible !important;
+    }
+
+    #sidebar-menu li[data-mobile-expanded="true"] > .has-arrow::after {
+        transform: rotate(-45deg) translate(0, -50%) !important;
     }
 }
 

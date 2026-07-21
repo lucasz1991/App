@@ -9,7 +9,10 @@
         : 'text-rt-muted before:h-0 before:opacity-0 hover:bg-rt-nav-hover hover:text-rt-accent dark:text-white dark:hover:bg-rt-dark-surface-muted dark:hover:text-white');
 @endphp
 
-<li @class(['mm-active' => $active])>
+<li
+    @class(['mm-active' => $active])
+    data-mobile-expanded="{{ $active ? 'true' : 'false' }}"
+>
     <a
         href="#"
         data-menu-active="{{ $active ? 'true' : 'false' }}"
