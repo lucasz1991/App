@@ -45,9 +45,13 @@ class ItSupport extends Component
 
         if (RateLimiter::tooManyAttempts($rateLimitKey, 3)) {
             $seconds = RateLimiter::availableIn($rateLimitKey);
-            $this->addError('form', __('app.it_support_rate_limit', [
+            $message = __('app.it_support_rate_limit', [
                 'minutes' => max(1, (int) ceil($seconds / 60)),
-            ]));
+            ]);
+            $this->addError('form', $message);
+            // 'form' ist keine Komponenten-Property und ueberlebt Livewires
+            // Snapshot-Filter nicht — der Fehlerton kommt daher ueber den Toast.
+            $this->dispatch('swal:toast', type: 'error', text: $message);
 
             return;
         }
@@ -55,7 +59,9 @@ class ItSupport extends Component
         $recipient = SupportRecipient::resolve();
 
         if (! $recipient) {
-            $this->addError('form', __('app.it_support_recipient_missing'));
+            $message = __('app.it_support_recipient_missing');
+            $this->addError('form', $message);
+            $this->dispatch('swal:toast', type: 'error', text: $message);
 
             return;
         }

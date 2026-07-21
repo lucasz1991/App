@@ -45,7 +45,7 @@
             <i data-feather="info" class="mt-0.5 h-4 w-4 shrink-0"></i>
             <div>
                 <p class="font-semibold">{{ __('app.preview_not_productive') }}</p>
-                <p class="mt-0.5 text-xs leading-5 text-amber-800 dark:text-amber-200">{{ __('app.preview_no_database') }}</p>
+                <p class="rt-operational-notice-copy mt-0.5 text-xs leading-5 text-amber-800 dark:text-amber-200">{{ __('app.preview_no_database') }}</p>
             </div>
         </div>
     </div>

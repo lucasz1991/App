@@ -65,7 +65,7 @@
                         width="72"
                         :offset="10"
                         content-classes="bg-rt-surface p-2 text-rt-text dark:bg-rt-dark-surface dark:text-white"
-                        data-topbar-preferences
+                        data-topbar-preferences-dropdown
                     >
                         <x-slot:trigger>
                             <x-topbar.control-button
@@ -76,7 +76,7 @@
                                 x-bind:aria-expanded="open.toString()"
                                 class="w-9 px-0 shadow-rt-xs transition-all duration-300 ease-rt-spring active:scale-[0.98]"
                             >
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                <svg data-topbar-preferences-icon xmlns="http://www.w3.org/2000/svg" class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.592c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.041.147.084.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.245a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a6.76 6.76 0 010 .255c-.008.378.137.75.43.992l1.003.827c.424.35.534.955.26 1.43l-1.296 2.247a1.125 1.125 0 01-1.37.489l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.592c-.55 0-1.02-.397-1.11-.94l-.213-1.281c-.063-.374-.313-.686-.645-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.075-.124l-1.217.456a1.125 1.125 0 01-1.37-.49l-1.296-2.245a1.125 1.125 0 01.26-1.431l1.003-.827c.293-.241.438-.613.43-.992a6.76 6.76 0 010-.255c.008-.378-.137-.75-.43-.992l-1.003-.827a1.125 1.125 0 01-.26-1.43l1.296-2.247a1.125 1.125 0 011.37-.489l1.217.456c.355.133.75.072 1.076-.124.072-.044.146-.086.22-.128.331-.183.581-.495.644-.869l.213-1.281z" />
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                 </svg>
@@ -89,7 +89,7 @@
                                 <p class="mt-0.5 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.preferences_description') }}</p>
                             </div>
 
-                            <div class="border-t border-rt-border/70 px-1 pt-2 dark:border-rt-dark-border/70">
+                            <div class="border-t border-rt-border/70 px-1 pt-2 dark:border-rt-dark-border/70" data-topbar-preference="language">
                                 <p class="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-rt-soft dark:text-rt-dark-soft">{{ __('app.language') }}</p>
                                 <div class="grid grid-cols-2 gap-1.5">
                                     @foreach ($rtLocales as $localeKey => $localeMeta)
@@ -111,6 +111,7 @@
                                 <button
                                     type="button"
                                     role="menuitemcheckbox"
+                                    data-topbar-preference="theme"
                                     x-bind:aria-checked="Boolean($store.theme?.dark).toString()"
                                     @click.stop="$store.theme?.toggle()"
                                     class="flex min-h-12 w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left transition hover:bg-rt-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent/40 dark:hover:bg-rt-dark-surface-muted"
@@ -132,6 +133,7 @@
                                 <button
                                     type="button"
                                     role="menuitemcheckbox"
+                                    data-topbar-preference="sound"
                                     x-bind:aria-checked="Boolean($store.sound?.enabled).toString()"
                                     @click.stop="$store.sound?.toggle()"
                                     class="flex min-h-12 w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left transition hover:bg-rt-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent/40 dark:hover:bg-rt-dark-surface-muted"
