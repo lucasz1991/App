@@ -117,6 +117,11 @@ class EmployeeWelcomeMessageTest extends TestCase
         $this->assertSame('Mitarbeiter', $mail->content['team']);
         $this->assertTrue($mail->status);
         Notification::assertSentToTimes($employee, MailNotification::class, 1);
+        Notification::assertSentTo(
+            $employee,
+            MailNotification::class,
+            fn (MailNotification $notification): bool => count($notification->toMail($employee)->introLines) === 4
+        );
     }
 
     public function test_accepted_invitation_sends_management_welcome_exactly_once(): void

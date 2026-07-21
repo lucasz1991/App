@@ -52,6 +52,12 @@ Diese Datei ist das gemeinsame Übergabe- und Kommunikationsprotokoll für Codin
 - Bei Datenbankänderungen beachten: Die Migrationen sind auf eine frische Installation ausgelegt. Für einen kompletten Neuaufbau ist `php artisan migrate:fresh --seed` erforderlich.
 - Keine bestehenden, nicht zum Task gehörenden Änderungen zurücksetzen.
 
+## 2026-07-21 - Codex (Automatische teambezogene Willkommensnachrichten)
+
+- Neu angelegte Mitarbeiter erhalten automatisch eine interne RailTime-Willkommensnachricht und dieselbe Kommunikation als E-Mail mit zentraler Firmensignatur.
+- Die Teams `Administratoren`, `Verwaltung`, `Mitarbeiter` und `Gäste` verwenden jeweils eigene Hinweise zu ihren Bereichen und Berechtigungen; unbekannte Teamnamen erhalten einen allgemeinen Fallbacktext.
+- Der Versand erfolgt nach abgeschlossener Teamzuordnung sowohl bei direkt angelegten Mitarbeitern als auch nach Annahme einer Einladung und wird als `both` in der Mailverwaltung protokolliert.
+
 ## 2026-07-21 - Codex (Mobile Admin- und Kommunikationsoptimierung)
 
 - Admin- und Verwaltungsdashboard zeigen die vier Haupt-KPIs mobil kompakt nebeneinander; Inhaltskarten, Schnellzugriffe und Betriebskennzahlen verwenden kleinere Abstände und mobile Raster.

@@ -320,6 +320,78 @@ Alpine.data('chatAudioPlayer', () => ({
     },
 }));
 
+Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
+    mobilePane: initialHasSelection ? 'chat' : 'list',
+    listCollapsed: localStorage.getItem('rt-chat-list-collapsed') === 'true',
+    touchStartX: null,
+    touchStartY: null,
+
+    showList() {
+        this.mobilePane = 'list';
+    },
+
+    showChat() {
+        this.mobilePane = 'chat';
+    },
+
+    resumeLastChat() {
+        if (this.$root.dataset.hasSelectedChat === 'true') {
+            this.showChat();
+        }
+    },
+
+    toggleList() {
+        this.listCollapsed = !this.listCollapsed;
+
+        try {
+            localStorage.setItem('rt-chat-list-collapsed', this.listCollapsed ? 'true' : 'false');
+        } catch (_) {
+            // Die Navigation funktioniert auch, wenn der Browser Storage sperrt.
+        }
+    },
+
+    touchStart(event) {
+        if (window.innerWidth >= 768 || event.touches.length !== 1) {
+            this.cancelSwipe();
+            return;
+        }
+
+        if (event.target.closest('input, textarea, select, button, audio, video, [role="dialog"], [data-no-chat-swipe]')) {
+            this.cancelSwipe();
+            return;
+        }
+
+        this.touchStartX = event.touches[0].clientX;
+        this.touchStartY = event.touches[0].clientY;
+    },
+
+    touchEnd(event) {
+        if (window.innerWidth >= 768 || this.touchStartX === null || event.changedTouches.length !== 1) {
+            this.cancelSwipe();
+            return;
+        }
+
+        const deltaX = event.changedTouches[0].clientX - this.touchStartX;
+        const deltaY = event.changedTouches[0].clientY - this.touchStartY;
+        const threshold = Math.max(72, Math.min(140, window.innerWidth * 0.22));
+
+        if (Math.abs(deltaX) >= threshold && Math.abs(deltaX) > Math.abs(deltaY) * 1.25) {
+            if (deltaX < 0 && this.mobilePane === 'chat') {
+                this.showList();
+            } else if (deltaX > 0 && this.mobilePane === 'list') {
+                this.resumeLastChat();
+            }
+        }
+
+        this.cancelSwipe();
+    },
+
+    cancelSwipe() {
+        this.touchStartX = null;
+        this.touchStartY = null;
+    },
+}));
+
 Alpine.data('emailTemplatePreview', () => ({
     open: false,
 
