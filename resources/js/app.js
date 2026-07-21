@@ -25,10 +25,23 @@ const loadAdminDashboardECharts = () => import('./admin-dashboard-echarts');
 window.Pusher = Pusher;
 
 if (import.meta.env.VITE_REVERB_APP_KEY) {
+    const configuredHost = String(import.meta.env.VITE_REVERB_HOST || '').trim();
+    const browserHost = window.location.hostname;
+    const loopbackHosts = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+
+    // `localhost` ist fuer Laravel auf dem Server korrekt, zeigt im Browser
+    // eines Mitarbeiters aber auf dessen eigenen Rechner. Bei Zugriff ueber
+    // LAN/Domain deshalb automatisch denselben Host wie die geoeffnete App
+    // verwenden. So bleibt lokale Entwicklung unveraendert und entfernte
+    // Clients landen nicht unbemerkt im langsameren Polling-Fallback.
+    const reverbHost = loopbackHosts.has(configuredHost) && !loopbackHosts.has(browserHost)
+        ? browserHost
+        : (configuredHost || browserHost);
+
     window.Echo = new Echo({
         broadcaster: 'reverb',
         key: import.meta.env.VITE_REVERB_APP_KEY,
-        wsHost: import.meta.env.VITE_REVERB_HOST,
+        wsHost: reverbHost,
         wsPort: import.meta.env.VITE_REVERB_PORT ?? 80,
         wssPort: import.meta.env.VITE_REVERB_PORT ?? 443,
         forceTLS: (import.meta.env.VITE_REVERB_SCHEME ?? 'https') === 'https',

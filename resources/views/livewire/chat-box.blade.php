@@ -198,7 +198,7 @@
                         </div>
 
                         {{-- Nachrichtenbereich --}}
-                        <div wire:poll.5s="pollTick"
+                        <div wire:poll.2s="pollTick"
                              wire:key="chat-pane-{{ $selectedChat->id }}"
                              x-data
                              x-init="$el.scrollTop = $el.scrollHeight"

@@ -39,11 +39,11 @@ class EmailTemplatesPageTest extends TestCase
             ->assertSee('method="dialog"', escape: false)
             ->assertSee("document.getElementById('email-template-preview-dialog')?.showModal()", escape: false)
             ->assertDontSee('x-data="emailTemplatePreview"', escape: false)
-            ->assertDontSee('x-teleport=', escape: false)
             ->assertSee('data-menu-active="true"', escape: false);
 
         $this->assertSame(1, substr_count($response->getContent(), 'data-testid="message-viewer-host"'));
         $this->assertStringNotContainsString("Alpine.data('emailTemplatePreview'", file_get_contents(resource_path('js/app.js')));
+        $this->assertStringNotContainsString('x-teleport=', file_get_contents(resource_path('views/email-templates/index.blade.php')));
         $this->assertStringNotContainsString('x-show="open"', file_get_contents(resource_path('views/email-templates/index.blade.php')));
         $this->assertStringContainsString(
             '#email-template-preview-dialog:not([open])',
