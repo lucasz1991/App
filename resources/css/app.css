@@ -43,6 +43,68 @@ html {
     scroll-behavior: smooth;
 }
 
+/* Admin Command Center: eigenstaendige RailTime-Strecke, dezentes Raster und
+   GPU-beschleunigte Signallauf-Animation. */
+.rt-admin-hero {
+    isolation: isolate;
+}
+
+.rt-admin-hero::before {
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+    content: '';
+    background:
+        radial-gradient(circle at 78% 18%, rgba(228, 0, 43, 0.24), transparent 25%),
+        radial-gradient(circle at 12% 112%, rgba(255, 255, 255, 0.07), transparent 34%),
+        #080b10;
+}
+
+.rt-admin-hero::after {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    content: '';
+    opacity: 0.22;
+    background-image:
+        linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+    background-size: 42px 42px;
+    mask-image: linear-gradient(to left, black, transparent 78%);
+}
+
+.rt-admin-route-line {
+    stroke-dasharray: 14 16;
+    animation: rt-admin-route 7s linear infinite;
+}
+
+.rt-admin-signal {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: rt-admin-signal 2.4s cubic-bezier(0.32, 0.72, 0, 1) infinite;
+}
+
+.rt-admin-chart .apexcharts-canvas,
+.rt-admin-chart svg {
+    max-width: 100% !important;
+}
+
+@keyframes rt-admin-route {
+    to { stroke-dashoffset: -120; }
+}
+
+@keyframes rt-admin-signal {
+    0%, 100% { opacity: 0.45; transform: scale(0.74); }
+    45% { opacity: 1; transform: scale(1.18); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rt-admin-route-line,
+    .rt-admin-signal {
+        animation: none;
+    }
+}
+
 /* Viewport-Seiten wie der Messenger duerfen keinen eigenen Dokument-Scroll
    erzeugen. Die Topbar belegt 70px; den restlichen dynamischen Viewport
    erhalten die Seite und ihre Flex-Kinder ohne zusaetzlichen Footer. */

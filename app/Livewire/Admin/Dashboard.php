@@ -26,11 +26,15 @@ class Dashboard extends Component
     {
         abort_unless(auth()->user()?->isAdmin(), 403);
 
+        $canViewSystemData = auth()->user()->canViewSystemDashboard();
+
         return view('livewire.admin.dashboard', [
             'recentUsers' => $dashboardData->recentUsers(),
             'recentActivity' => $dashboardData->recentActivity(),
             'operations' => $dashboardData->operations(),
-            'system' => $dashboardData->system(),
+            'charts' => $dashboardData->charts(),
+            'canViewSystemData' => $canViewSystemData,
+            'system' => $canViewSystemData ? $dashboardData->system() : null,
         ])->layout('layouts.master', ['area' => 'admin']);
     }
 }

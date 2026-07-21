@@ -34,7 +34,9 @@ class UserDashboard extends Component
         $audience = $user->dashboardAudience();
         $dashboardTeam = $user->dashboardTeam();
 
-        if ($user->canViewSystemDashboard()) {
+        if ($user->canViewManagementDashboard()) {
+            $canViewSystemData = $user->canViewSystemDashboard();
+
             return view('livewire.management-dashboard', array_merge(
                 $dashboardData->counters(),
                 [
@@ -43,7 +45,8 @@ class UserDashboard extends Component
                     'recentUsers' => $dashboardData->recentUsers(),
                     'recentActivity' => $dashboardData->recentActivity(),
                     'operations' => $dashboardData->operations(),
-                    'system' => $dashboardData->system(),
+                    'canViewSystemData' => $canViewSystemData,
+                    'system' => $canViewSystemData ? $dashboardData->system() : null,
                 ]
             ))->layout('layouts.master', ['area' => 'user']);
         }

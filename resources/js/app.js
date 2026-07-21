@@ -392,6 +392,235 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
     },
 }));
 
+Alpine.data('adminDashboardCharts', (config = {}) => ({
+    charts: [],
+    counterTweens: [],
+    themeObserver: null,
+    renderTimer: null,
+
+    init() {
+        this.$nextTick(() => {
+            this.animateCounters();
+            this.renderCharts();
+        });
+
+        this.themeObserver = new MutationObserver(() => {
+            window.clearTimeout(this.renderTimer);
+            this.renderTimer = window.setTimeout(() => this.renderCharts(), 80);
+        });
+        this.themeObserver.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['class'],
+        });
+    },
+
+    destroy() {
+        window.clearTimeout(this.renderTimer);
+        this.themeObserver?.disconnect();
+        this.counterTweens.forEach((tween) => tween.kill());
+        this.destroyCharts();
+    },
+
+    animateCounters() {
+        const formatter = new Intl.NumberFormat(document.documentElement.lang || 'de-DE');
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        this.$root.querySelectorAll('[data-dashboard-count]').forEach((element) => {
+            const target = Number(element.dataset.dashboardCount || 0);
+
+            if (!window.gsap || reduceMotion) {
+                element.textContent = formatter.format(target);
+                return;
+            }
+
+            const state = { value: 0 };
+            const tween = window.gsap.to(state, {
+                value: target,
+                duration: 1.15,
+                delay: Number(element.dataset.dashboardDelay || 0),
+                ease: 'power3.out',
+                onUpdate: () => {
+                    element.textContent = formatter.format(Math.round(state.value));
+                },
+            });
+            this.counterTweens.push(tween);
+        });
+    },
+
+    destroyCharts() {
+        this.charts.forEach((chart) => chart.destroy());
+        this.charts = [];
+    },
+
+    renderCharts() {
+        if (!window.ApexCharts) return;
+
+        this.destroyCharts();
+
+        const dark = document.documentElement.classList.contains('dark');
+        const textColor = dark ? '#a9b6c9' : '#64748b';
+        const gridColor = dark ? 'rgba(169,182,201,.13)' : 'rgba(100,116,139,.14)';
+        const surfaceColor = dark ? '#111827' : '#ffffff';
+        const tooltipTheme = dark ? 'dark' : 'light';
+        const growth = config.userGrowth || { labels: [], totals: [], registrations: [] };
+        const activity = config.activity || { labels: [], values: [] };
+        const status = config.status || { labels: [], values: [] };
+
+        if (this.$refs.growthChart) {
+            const growthChart = new window.ApexCharts(this.$refs.growthChart, {
+                chart: {
+                    type: 'line',
+                    height: 308,
+                    background: 'transparent',
+                    fontFamily: 'Plus Jakarta Sans Variable, sans-serif',
+                    toolbar: { show: false },
+                    zoom: { enabled: false },
+                    animations: {
+                        enabled: !window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+                        easing: 'easeinout',
+                        speed: 900,
+                        animateGradually: { enabled: true, delay: 90 },
+                    },
+                },
+                series: [
+                    { name: config.labels?.total || 'Gesamt', type: 'area', data: growth.totals || [] },
+                    { name: config.labels?.registrations || 'Neu', type: 'column', data: growth.registrations || [] },
+                ],
+                colors: ['#e4002b', dark ? '#75839a' : '#94a3b8'],
+                stroke: { curve: 'smooth', width: [3, 0], lineCap: 'round' },
+                fill: {
+                    type: ['gradient', 'solid'],
+                    opacity: [0.32, 0.5],
+                    gradient: {
+                        shadeIntensity: 0.2,
+                        opacityFrom: 0.42,
+                        opacityTo: 0.02,
+                        stops: [0, 86, 100],
+                    },
+                },
+                plotOptions: {
+                    bar: { columnWidth: '36%', borderRadius: 4, borderRadiusApplication: 'end' },
+                },
+                dataLabels: { enabled: false },
+                markers: { size: 0, hover: { size: 5 } },
+                grid: {
+                    borderColor: gridColor,
+                    strokeDashArray: 4,
+                    padding: { left: 6, right: 8, top: 4, bottom: -6 },
+                },
+                xaxis: {
+                    categories: growth.labels || [],
+                    axisBorder: { show: false },
+                    axisTicks: { show: false },
+                    labels: {
+                        style: { colors: textColor, fontSize: '11px' },
+                        hideOverlappingLabels: true,
+                    },
+                },
+                yaxis: {
+                    min: 0,
+                    forceNiceScale: true,
+                    labels: { style: { colors: textColor, fontSize: '11px' } },
+                },
+                legend: {
+                    position: 'top',
+                    horizontalAlign: 'right',
+                    fontSize: '12px',
+                    labels: { colors: textColor },
+                    markers: { width: 8, height: 8, radius: 8 },
+                },
+                tooltip: { theme: tooltipTheme, shared: true, intersect: false },
+                theme: { mode: dark ? 'dark' : 'light' },
+            });
+            growthChart.render();
+            this.charts.push(growthChart);
+        }
+
+        if (this.$refs.statusChart) {
+            const statusChart = new window.ApexCharts(this.$refs.statusChart, {
+                chart: {
+                    type: 'donut',
+                    height: 238,
+                    background: 'transparent',
+                    fontFamily: 'Plus Jakarta Sans Variable, sans-serif',
+                    animations: {
+                        enabled: !window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+                        speed: 950,
+                        animateGradually: { enabled: true, delay: 130 },
+                    },
+                },
+                series: status.values || [],
+                labels: status.labels || [],
+                colors: ['#e4002b', dark ? '#273449' : '#dbe3ee'],
+                stroke: { width: 0 },
+                dataLabels: { enabled: false },
+                legend: {
+                    position: 'bottom',
+                    fontSize: '12px',
+                    labels: { colors: textColor },
+                    markers: { width: 8, height: 8, radius: 8 },
+                    itemMargin: { horizontal: 10, vertical: 4 },
+                },
+                plotOptions: {
+                    pie: {
+                        donut: {
+                            size: '76%',
+                            labels: {
+                                show: true,
+                                name: { show: true, color: textColor, fontSize: '11px', offsetY: 17 },
+                                value: { show: true, color: dark ? '#e7edf7' : '#172033', fontSize: '28px', fontWeight: 700, offsetY: -15 },
+                                total: {
+                                    show: true,
+                                    label: config.labels?.accounts || 'Konten',
+                                    color: textColor,
+                                    formatter: (context) => context.globals.seriesTotals.reduce((sum, value) => sum + value, 0),
+                                },
+                            },
+                        },
+                    },
+                },
+                tooltip: { theme: tooltipTheme },
+                theme: { mode: dark ? 'dark' : 'light', monochrome: { enabled: false } },
+                responsive: [{ breakpoint: 640, options: { chart: { height: 220 } } }],
+            });
+            statusChart.render();
+            this.charts.push(statusChart);
+        }
+
+        if (this.$refs.activityChart) {
+            const activityChart = new window.ApexCharts(this.$refs.activityChart, {
+                chart: {
+                    type: 'bar',
+                    height: 112,
+                    background: 'transparent',
+                    fontFamily: 'Plus Jakarta Sans Variable, sans-serif',
+                    sparkline: { enabled: true },
+                    animations: {
+                        enabled: !window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+                        speed: 750,
+                        animateGradually: { enabled: true, delay: 55 },
+                    },
+                },
+                series: [{ name: config.labels?.activity || 'Aktive Nutzer', data: activity.values || [] }],
+                colors: ['#e4002b'],
+                fill: { opacity: 0.82 },
+                plotOptions: {
+                    bar: { columnWidth: '46%', borderRadius: 4, borderRadiusApplication: 'end' },
+                },
+                grid: { show: false },
+                dataLabels: { enabled: false },
+                tooltip: {
+                    theme: tooltipTheme,
+                    x: { formatter: (_, context) => activity.labels?.[context.dataPointIndex] || '' },
+                },
+                theme: { mode: dark ? 'dark' : 'light' },
+            });
+            activityChart.render();
+            this.charts.push(activityChart);
+        }
+    },
+}));
+
 Livewire.start();
 
 rtApplyTheme();

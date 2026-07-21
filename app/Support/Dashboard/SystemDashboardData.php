@@ -98,6 +98,73 @@ class SystemDashboardData
         ];
     }
 
+    /**
+     * Reale Diagrammdaten fuer den Admin-Einstieg.
+     *
+     * @return array{
+     *     userGrowth: array{labels: array<int, string>, totals: array<int, int>, registrations: array<int, int>},
+     *     activity: array{labels: array<int, string>, values: array<int, int>},
+     *     status: array{labels: array<int, string>, values: array<int, int>}
+     * }
+     */
+    public function charts(): array
+    {
+        $days = collect(range(13, 0))->map(fn (int $daysAgo) => now()->subDays($daysAgo)->startOfDay());
+        $start = $days->first();
+
+        $registrationsByDay = User::query()
+            ->where('created_at', '>=', $start)
+            ->selectRaw('DATE(created_at) as day, COUNT(*) as aggregate')
+            ->groupBy('day')
+            ->pluck('aggregate', 'day')
+            ->map(fn ($value) => (int) $value);
+
+        try {
+            $activityByDay = Activity::query()
+                ->whereNotNull('causer_id')
+                ->where('created_at', '>=', $start)
+                ->selectRaw('DATE(created_at) as day, COUNT(DISTINCT causer_id) as aggregate')
+                ->groupBy('day')
+                ->pluck('aggregate', 'day')
+                ->map(fn ($value) => (int) $value);
+        } catch (\Throwable) {
+            $activityByDay = collect();
+        }
+
+        $runningTotal = User::query()->where('created_at', '<', $start)->count();
+        $growthTotals = [];
+        $registrations = [];
+        $activity = [];
+
+        foreach ($days as $day) {
+            $key = $day->toDateString();
+            $dailyRegistrations = (int) ($registrationsByDay[$key] ?? 0);
+            $runningTotal += $dailyRegistrations;
+            $registrations[] = $dailyRegistrations;
+            $growthTotals[] = $runningTotal;
+            $activity[] = (int) ($activityByDay[$key] ?? 0);
+        }
+
+        $activeUsers = User::query()->where('status', true)->count();
+        $inactiveUsers = User::query()->where('status', false)->count();
+
+        return [
+            'userGrowth' => [
+                'labels' => $days->map(fn (Carbon $day) => $day->translatedFormat('d. M'))->all(),
+                'totals' => $growthTotals,
+                'registrations' => $registrations,
+            ],
+            'activity' => [
+                'labels' => $days->map(fn (Carbon $day) => $day->translatedFormat('d. M'))->all(),
+                'values' => $activity,
+            ],
+            'status' => [
+                'labels' => [__('app.active_users'), __('app.inactive_users')],
+                'values' => [$activeUsers, $inactiveUsers],
+            ],
+        ];
+    }
+
     /** @return array<string, mixed> */
     public function system(): array
     {
@@ -138,7 +205,7 @@ class SystemDashboardData
             'environment' => app()->environment(),
             'debug' => (bool) config('app.debug'),
             'php' => PHP_VERSION,
-            'laravel' => app()->version(),
+            'developer' => 'Lucas M. Zacharias',
             'database' => $databaseLabel,
             'queue' => $queueLabel,
             'failedJobs' => $failedJobs,
