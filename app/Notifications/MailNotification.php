@@ -36,6 +36,9 @@ class MailNotification extends Notification implements ShouldQueue
         $subject = $content['subject'] ?? 'Nachricht';
         $greeting = $content['header'] ?? null;
         $body = $content['body'] ?? '';
+        $lines = is_array($content['lines'] ?? null)
+            ? $content['lines']
+            : [$body];
         $link = $content['link'] ?? null;
 
         // sicherstellen, dass die Relation vorhanden ist (falls lazy)
@@ -49,7 +52,13 @@ class MailNotification extends Notification implements ShouldQueue
             $m->greeting($greeting);
         }
 
-        $m->line($body);
+        foreach ($lines as $line) {
+            $line = trim((string) $line);
+
+            if ($line !== '') {
+                $m->line($line);
+            }
+        }
 
         if (! empty($link)) {
             $m->action(__('app.continue'), $link);

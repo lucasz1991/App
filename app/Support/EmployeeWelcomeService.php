@@ -33,7 +33,7 @@ class EmployeeWelcomeService
     }
 
     /**
-     * @return array{subject: string, header: string, body: string, link: string, system_key: string, team: string}
+     * @return array{subject: string, header: string, body: string, lines: array<int, string>, link: string, system_key: string, team: string}
      */
     public function contentFor(User $user): array
     {
@@ -42,16 +42,18 @@ class EmployeeWelcomeService
         $teamName = trim((string) ($user->currentTeam?->name ?? ''));
         $displayTeamName = $teamName !== '' ? $teamName : __('app.welcome_team_fallback_name');
         $teamText = __($this->teamTranslationKey($teamName));
+        $lines = [
+            __('app.welcome_message_intro', ['app' => config('app.name')]),
+            __('app.welcome_message_team_intro', ['team' => $displayTeamName]),
+            $teamText,
+            __('app.welcome_message_next_steps'),
+        ];
 
         return [
             'subject' => __('app.welcome_message_subject', ['app' => config('app.name')]),
             'header' => __('app.welcome_message_header', ['name' => $user->name]),
-            'body' => implode("\n\n", [
-                __('app.welcome_message_intro', ['app' => config('app.name')]),
-                __('app.welcome_message_team_intro', ['team' => $displayTeamName]),
-                $teamText,
-                __('app.welcome_message_next_steps'),
-            ]),
+            'body' => implode("\n\n", $lines),
+            'lines' => $lines,
             'link' => route($user->isAdmin() ? 'admin.login' : 'login'),
             'system_key' => 'employee_welcome',
             'team' => $displayTeamName,

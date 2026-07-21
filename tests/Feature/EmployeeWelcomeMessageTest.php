@@ -84,6 +84,7 @@ class EmployeeWelcomeMessageTest extends TestCase
             $content = $service->contentFor($user);
 
             $this->assertSame($teamName, $content['team']);
+            $this->assertCount(4, $content['lines']);
             $this->assertStringContainsString($expectedText, $content['body']);
         }
     }

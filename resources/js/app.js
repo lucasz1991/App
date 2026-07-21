@@ -320,6 +320,18 @@ Alpine.data('chatAudioPlayer', () => ({
     },
 }));
 
+Alpine.data('emailTemplatePreview', () => ({
+    open: false,
+
+    show() {
+        this.open = true;
+    },
+
+    close() {
+        this.open = false;
+    },
+}));
+
 Livewire.start();
 
 rtApplyTheme();

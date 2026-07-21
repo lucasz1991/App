@@ -199,7 +199,7 @@ return [
     'welcome_message_header' => 'Herzlich willkommen, :name!',
     'welcome_message_intro' => 'Ihr Zugang zur :app Mitarbeiter-Applikation wurde erfolgreich eingerichtet. Ab sofort können Sie die für Sie freigegebenen Bereiche nutzen.',
     'welcome_message_team_intro' => 'Sie wurden dem Team „:team“ zugeordnet.',
-    'welcome_message_team_administrators' => 'Im Administrationsbereich können Sie Systemeinstellungen, Mitarbeiter, Berechtigungen und zentrale Inhalte verwalten. Bitte gehen Sie mit den erweiterten Zugriffsrechten besonders sorgfältig um.',
+    'welcome_message_team_administrators' => 'Als Mitglied des Teams Administratoren unterstützen Sie bei Systemeinstellungen, Mitarbeiterverwaltung, Berechtigungen und zentralen Inhalten. Bitte gehen Sie mit den für Sie freigegebenen erweiterten Zugriffsrechten besonders sorgfältig um.',
     'welcome_message_team_management' => 'Für Ihre Aufgaben in der Verwaltung stehen Ihnen die Mitarbeiterkommunikation, Dokumente und die für betriebliche Abläufe freigegebenen Funktionen zur Verfügung.',
     'welcome_message_team_employees' => 'In Ihrem persönlichen Bereich finden Sie interne Nachrichten, freigegebene Dokumente, Ihre Profildaten sowie die zentral bereitgestellten E-Mail-Vorlagen.',
     'welcome_message_team_guests' => 'In Ihrem Bereich finden Sie die für Ihr Team freigegebenen Informationen und Dokumente. Weitere Funktionen werden entsprechend Ihrer Berechtigungen angezeigt.',

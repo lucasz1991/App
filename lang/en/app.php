@@ -199,7 +199,7 @@ return [
     'welcome_message_header' => 'Welcome, :name!',
     'welcome_message_intro' => 'Your access to the :app employee application has been set up successfully. You can now use the areas that have been enabled for you.',
     'welcome_message_team_intro' => 'You have been assigned to the “:team” team.',
-    'welcome_message_team_administrators' => 'In the administration area, you can manage system settings, employees, permissions and central content. Please handle these extended access rights with particular care.',
+    'welcome_message_team_administrators' => 'As a member of the Administrators team, you assist with system settings, employee management, permissions and central content. Please handle the extended access rights enabled for you with particular care.',
     'welcome_message_team_management' => 'For your management tasks, employee communication, documents and the functions enabled for operational processes are available to you.',
     'welcome_message_team_employees' => 'Your personal area contains internal messages, shared documents, your profile data and centrally provided email templates.',
     'welcome_message_team_guests' => 'Your area contains the information and documents shared with your team. Additional functions are displayed according to your permissions.',
