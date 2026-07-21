@@ -415,6 +415,11 @@ return [
     'complete_profile' => 'Complete profile',
     'profile_complete_hint' => 'All set — your contact details automatically appear in the email templates.',
     'profile_photo' => 'Profile photo',
+    'management_dashboard_description' => 'System and operational information for administrators and management.',
+    'personal_dashboard_description' => 'News, downloads and information about your account.',
+    'news_and_information' => 'News & information',
+    'team_employees' => 'Employees',
+    'team_guests' => 'Guests',
 
     // Email chrome (notifications)
     'mail_greeting_default' => 'Hello!',

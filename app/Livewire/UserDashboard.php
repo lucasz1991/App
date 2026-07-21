@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\File;
+use App\Support\Dashboard\SystemDashboardData;
 use Livewire\Component;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -27,9 +28,25 @@ class UserDashboard extends Component
         return $file->download($file->disk ?: 'private');
     }
 
-    public function render()
+    public function render(SystemDashboardData $dashboardData)
     {
         $user = auth()->user();
+        $audience = $user->dashboardAudience();
+        $dashboardTeam = $user->dashboardTeam();
+
+        if ($user->canViewSystemDashboard()) {
+            return view('livewire.management-dashboard', array_merge(
+                $dashboardData->counters(),
+                [
+                    'dashboardAudience' => $audience,
+                    'dashboardTeamName' => $dashboardTeam?->name ?? __('app.administration'),
+                    'recentUsers' => $dashboardData->recentUsers(),
+                    'recentActivity' => $dashboardData->recentActivity(),
+                    'operations' => $dashboardData->operations(),
+                    'system' => $dashboardData->system(),
+                ]
+            ))->layout('layouts.master', ['area' => 'user']);
+        }
 
         // Echte Daten: bereitgestellte Dateien + ungelesene Nachrichten
         $grouped = $user->availableFilesGrouped();
@@ -92,6 +109,10 @@ class UserDashboard extends Component
             'latestMessages' => $latestMessages,
             'profileChecks' => $profileChecks,
             'profileCompletion' => $profileCompletion,
+            'dashboardAudience' => $audience,
+            'dashboardTeamName' => $dashboardTeam?->name
+                ?? ($audience === 'guest' ? __('app.team_guests') : __('app.team_employees')),
+            'showSchedule' => $audience === 'employee',
         ])->layout('layouts.master', ['area' => 'user']);
     }
 }

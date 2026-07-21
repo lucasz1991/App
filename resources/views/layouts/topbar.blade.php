@@ -32,17 +32,19 @@
                     </span>
                 </a>
             </div>
-            <!-- Toggle Button (relativ zur Sidebar positioniert, sichtbar bei kleineren Bildschirmen) -->
+            <!-- Toggle Button: ausschliesslich Mobile/Tablet, animiert Burger <-> X. -->
             <button type="button"
-                class="vertical-menu-btn flex h-[70px] w-14 shrink-0 items-center justify-center border-b border-rt-border/60 px-3 text-rt-muted transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted/70 hover:text-rt-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rt-accent dark:border-rt-dark-border/60 dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted/70 dark:hover:text-rt-dark-text group-data-[sidebar-size=sm]:border-rt-border/60 group-data-[sidebar-size=sm]:dark:border-rt-dark-border/60"
+                class="vertical-menu-btn flex h-[70px] w-14 shrink-0 items-center justify-center border-b border-rt-border/60 px-3 text-rt-muted transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted/70 hover:text-rt-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rt-accent dark:border-rt-dark-border/60 dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted/70 dark:hover:text-rt-dark-text min-[1140px]:hidden"
                 id="vertical-menu-btn"
                 aria-label="{{ __('app.mobile_navigation') }}"
                 aria-controls="app-sidebar"
                 aria-expanded="false"
             >
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-                    <path d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
+                <span class="rt-menu-icon" aria-hidden="true">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </span>
             </button>
         </div>
         <div class="flex min-w-0 flex-1 items-center justify-end border-b border-rt-border/60 px-2 dark:border-rt-dark-border/60 sm:px-4 lg:px-6">

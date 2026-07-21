@@ -415,6 +415,11 @@ return [
     'complete_profile' => 'Profil vervollständigen',
     'profile_complete_hint' => 'Alles gepflegt — Ihre Kontaktdaten erscheinen automatisch in den E-Mail-Vorlagen.',
     'profile_photo' => 'Profilfoto',
+    'management_dashboard_description' => 'System- und Betriebsinformationen für Administratoren und Verwaltung.',
+    'personal_dashboard_description' => 'Neuigkeiten, Downloads und Informationen zu Ihrer Person.',
+    'news_and_information' => 'Neuigkeiten & Informationen',
+    'team_employees' => 'Mitarbeiter',
+    'team_guests' => 'Gäste',
 
     // E-Mail-Rahmen (Notifications)
     'mail_greeting_default' => 'Hallo!',

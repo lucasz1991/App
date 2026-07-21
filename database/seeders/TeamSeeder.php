@@ -12,10 +12,10 @@ class TeamSeeder extends Seeder
     /**
      * Legt die vier Basis-Teams (Rechtegruppen) an:
      *
-     * - Gast:          keine Rechte (nur Downloads/Chat im Nutzerbereich)
+     * - Gäste:         keine Rechte (nur Downloads/Chat im Nutzerbereich)
      * - Mitarbeiter:   Basisrechte (Nutzerbereich)
-     * - Verwaltung:    Benutzer-, Datei- und Nachrichtenverwaltung (Admin-Layout)
-     * - Administrator: fast alle Rechte, aber KEINE Rollen-/Systemverwaltung (Admin-Layout)
+     * - Verwaltung:    Systemuebersicht im Nutzerbereich
+     * - Administratoren: Systemuebersicht im Nutzerbereich
      */
     public function run(): void
     {
@@ -25,16 +25,21 @@ class TeamSeeder extends Seeder
             ->where('role', 'admin')
             ->update(['role' => 'staff']);
 
-        // Historischer Name: "Administration" -> "Administrator"
+        // Historische Namen auf die sichtbaren Teambezeichnungen vereinheitlichen.
         Team::query()
             ->where('personal_team', false)
-            ->where('name', 'Administration')
-            ->update(['name' => 'Administrator']);
+            ->whereIn('name', ['Administration', 'Administrator'])
+            ->update(['name' => 'Administratoren']);
+
+        Team::query()
+            ->where('personal_team', false)
+            ->whereIn('name', ['Gast', 'Gaeste'])
+            ->update(['name' => 'Gäste']);
 
         $all = RbacCatalog::allPermissions();
 
         $teams = [
-            'Gast' => [],
+            'Gäste' => [],
             'Mitarbeiter' => [],
             'Verwaltung' => [
                 'employees.view',
@@ -45,7 +50,7 @@ class TeamSeeder extends Seeder
                 'users.messages.view',
                 'users.messages.create',
             ],
-            'Administrator' => array_values(array_diff($all, [
+            'Administratoren' => array_values(array_diff($all, [
                 'roles.manage',
                 'settings.manage',
             ])),
@@ -72,25 +77,13 @@ class TeamSeeder extends Seeder
                 ]
             );
 
-            // Bestehende Mitarbeiter werden Mitglied der beiden Admin-Teams
-            // (Verwaltung/Administrator); Gast + Mitarbeiter bleiben fuer
-            // normale Nutzer reserviert. Nur Lucas erhaelt Team-Admin-Rolle.
-            if (in_array($name, ['Verwaltung', 'Administrator'], true)) {
-                $employees = User::query()->whereIn('role', ['admin', 'staff'])->get();
-                $team->users()->syncWithoutDetaching(
-                    $employees->mapWithKeys(fn (User $employee) => [
-                        $employee->id => ['role' => $employee->email === 'lucas@zacharias-net.de' ? 'admin' : 'staff'],
-                    ])->all()
-                );
-            }
-
             if ($team->wasRecentlyCreated === false && $team->rbac_permissions !== $permissions) {
                 $team->forceFill(['rbac_permissions' => $permissions])->save();
             }
         }
 
-        // Administrator als aktives Team für Lucas setzen.
-        $administration = Team::where('name', 'Administrator')->where('personal_team', false)->first();
+        // Nur der globale Admin wird automatisch dem Administratoren-Team zugeordnet.
+        $administration = Team::where('name', 'Administratoren')->where('personal_team', false)->first();
         if ($administration) {
             $owner->teams()->syncWithoutDetaching([$administration->id]);
             if (! $owner->current_team_id) {

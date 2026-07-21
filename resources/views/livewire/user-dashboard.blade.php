@@ -1,14 +1,16 @@
 <div class="relative" wire:loading.class="cursor-wait">
     <x-ui.page
         :title="__('app.welcome_name', ['name' => auth()->user()->name])"
-        eyebrow="RT Rail Time GmbH"
-        :description="now()->translatedFormat('l, d. F Y') . ' · ' . __('app.user_area_of', ['app' => config('app.name')])"
+        :eyebrow="$dashboardTeamName"
+        :description="now()->translatedFormat('l, d. F Y') . ' · ' . __('app.personal_dashboard_description')"
     >
-        {{-- Kennzahlen (relevant fuer den Mitarbeiter, keine Admin-Statistiken) --}}
-        <div class="grid gap-4 sm:grid-cols-3" data-anim-stagger>
-            <x-ui.dashboard.stat-card tone="red" :label="__('app.next_shift')" :value="$nextShift ? $nextShift['date'] : '—'">
-                <i data-feather="calendar" class="h-6 w-6"></i>
-            </x-ui.dashboard.stat-card>
+        {{-- Ausschliesslich persoenliche Kennzahlen, niemals Systemstatistiken. --}}
+        <div class="grid gap-4 {{ $showSchedule ? 'sm:grid-cols-3' : 'sm:grid-cols-2' }}" data-anim-stagger>
+            @if ($showSchedule)
+                <x-ui.dashboard.stat-card tone="red" :label="__('app.next_shift')" :value="$nextShift ? $nextShift['date'] : '—'">
+                    <i data-feather="calendar" class="h-6 w-6"></i>
+                </x-ui.dashboard.stat-card>
+            @endif
 
             <x-ui.dashboard.stat-card :label="__('app.available_files')" :value="number_format($filesTotal, 0, ',', '.')">
                 <i data-feather="folder" class="h-6 w-6"></i>
@@ -19,7 +21,8 @@
             </x-ui.dashboard.stat-card>
         </div>
 
-        {{-- Dienstplan + Termine --}}
+        @if ($showSchedule)
+        {{-- Dienstplan + Termine gibt es nur fuer das Team Mitarbeiter. --}}
         <div class="grid gap-6 lg:grid-cols-3" data-anim="fade-up">
             {{-- Naechste Schichten --}}
             <div class="rounded-xl bg-rt-surface p-6 shadow-rt-sm ring-1 ring-rt-border/60 lg:col-span-2 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
@@ -70,6 +73,7 @@
                 </div>
             </div>
         </div>
+        @endif
 
         {{-- Möglichkeiten & Infos: Schnellzugriff, Nachrichten, Profil-Status --}}
         <div class="grid gap-6 md:grid-cols-3" data-anim="fade-up" data-anim-delay="0.05">
@@ -103,7 +107,7 @@
             {{-- Neueste Nachrichten --}}
             <div class="rounded-xl bg-rt-surface p-6 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
                 <div class="flex items-center justify-between">
-                    <h2 class="text-base font-semibold text-rt-text dark:text-rt-dark-text">{{ __('app.latest_messages') }}</h2>
+                    <h2 class="text-base font-semibold text-rt-text dark:text-rt-dark-text">{{ __('app.news_and_information') }}</h2>
                     <a href="{{ route('messages') }}" wire:navigate class="text-sm font-medium text-rt-red transition-all duration-300 ease-rt-spring hover:text-rt-red-dark">
                         {{ __('app.show_all') }}
                     </a>
