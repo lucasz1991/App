@@ -59,6 +59,9 @@ class MobileAdminCommunicationUiTest extends TestCase
         $this->assertStringContainsString('wire:click="deleteMessage(', $view);
         $this->assertStringContainsString('@click="startRecording()"', $view);
         $this->assertStringContainsString('@click="toggleViewOnce()"', $view);
+        $this->assertStringContainsString('x-show.important="!recording && !sendingVoice"', $view);
+        $this->assertStringContainsString('x-show.important="recording || sendingVoice"', $view);
+        $this->assertSame(2, substr_count($view, 'data-chat-composer-mode='));
         $this->assertStringContainsString('x-data="chatAudioPlayer({', file_get_contents(resource_path('views/components/chat/voice-message.blade.php')));
     }
 

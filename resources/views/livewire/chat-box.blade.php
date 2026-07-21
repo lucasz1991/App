@@ -397,7 +397,7 @@
                                        accept="audio/*,video/*,image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip"
                                        class="sr-only">
 
-                                <div x-show="!recording && !sendingVoice" class="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
+                                <div x-show.important="!recording && !sendingVoice" data-chat-composer-mode="text" class="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
                                     <label for="chat-attachments-{{ $selectedChat->id }}"
                                            title="{{ __('app.add_attachment') }}"
                                            class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full border border-rt-border bg-rt-surface text-rt-text shadow-rt-xs transition hover:bg-rt-surface-muted hover:text-rt-red sm:h-10 sm:w-10 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white dark:hover:bg-rt-dark-surface-muted">
@@ -429,7 +429,8 @@
 
                                 <div
                                     x-cloak
-                                    x-show="recording || sendingVoice"
+                                    x-show.important="recording || sendingVoice"
+                                    data-chat-composer-mode="voice"
                                     x-transition:enter="transition duration-200 ease-out"
                                     x-transition:enter-start="translate-y-1 opacity-0"
                                     x-transition:enter-end="translate-y-0 opacity-100"
