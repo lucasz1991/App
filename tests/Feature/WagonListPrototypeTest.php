@@ -75,6 +75,10 @@ class WagonListPrototypeTest extends TestCase
         $this->assertStringContainsString('localStorage.removeItem', $script);
         $this->assertStringContainsString("__('app.wagon_list')", $view);
         $this->assertStringContainsString("__('app.brake_sheet')", $view);
+        $this->assertStringContainsString('wagon-sheet-grid', $view);
+        $this->assertStringContainsString('data-mobile-wagon-editor', $view);
+        $this->assertStringContainsString('focusNextCell', $script);
+        $this->assertStringContainsString('mobileWagon', $script);
         $this->assertFileDoesNotExist(app_path('Models/WagonList.php'));
         $this->assertFileDoesNotExist(app_path('Models/Wagon.php'));
     }

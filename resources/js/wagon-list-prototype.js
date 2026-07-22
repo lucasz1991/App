@@ -56,6 +56,7 @@ export function wagonListPrototype(config = {}) {
         storageKey: String(config.storageKey || 'rt-wagon-list-prototype:v1'),
         visibleCount: 3,
         openWagon: 0,
+        mobileWagon: 0,
         persistedAt: null,
         persistTimer: null,
         meta: {
@@ -88,6 +89,7 @@ export function wagonListPrototype(config = {}) {
                 }));
                 this.brakeSheet = { ...emptyBrakeSheet(), ...(stored.brakeSheet || {}) };
                 this.visibleCount = Math.max(3, Math.min(MAX_WAGONS, Number(stored.visibleCount || 3)));
+                this.mobileWagon = Math.min(this.mobileWagon, this.visibleCount - 1);
                 this.persistedAt = stored.persistedAt || null;
             } catch (_) {
                 localStorage.removeItem(this.storageKey);
@@ -140,19 +142,53 @@ export function wagonListPrototype(config = {}) {
             this.brakeSheet = emptyBrakeSheet();
             this.visibleCount = 3;
             this.openWagon = 0;
+            this.mobileWagon = 0;
             this.persistedAt = null;
         },
 
         addWagon() {
             if (this.visibleCount >= MAX_WAGONS) return;
             this.openWagon = this.visibleCount;
+            this.mobileWagon = this.visibleCount;
             this.visibleCount += 1;
-            this.$nextTick(() => this.$root.querySelector(`[data-wagon-index='${this.openWagon}']`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+            this.$nextTick(() => this.$root.querySelector('[data-mobile-wagon-editor]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+        },
+
+        showMobileWagon(index) {
+            this.mobileWagon = Math.max(0, Math.min(this.visibleCount - 1, Number(index)));
+        },
+
+        previousMobileWagon() {
+            this.showMobileWagon(this.mobileWagon - 1);
+        },
+
+        nextMobileWagon() {
+            this.showMobileWagon(this.mobileWagon + 1);
+        },
+
+        focusNextCell(event) {
+            const table = event.target.closest('[data-wagon-sheet]');
+            if (!table) return;
+
+            const cells = Array.from(table.querySelectorAll('[data-wagon-cell]'))
+                .filter((cell) => !cell.disabled && cell.offsetParent !== null);
+            const currentIndex = cells.indexOf(event.target);
+            const next = cells[currentIndex + 1];
+
+            if (next) {
+                next.focus();
+                next.select?.();
+            }
         },
 
         clearWagon(index) {
             this.wagons[index] = emptyWagon();
             this.schedulePersist();
+        },
+
+        cycleBrakeType(wagon) {
+            const values = ['', 'K', 'L', 'LL'];
+            wagon.brakeType = values[(values.indexOf(wagon.brakeType) + 1) % values.length];
         },
 
         wagonNumber(wagon) {
@@ -195,6 +231,10 @@ export function wagonListPrototype(config = {}) {
 
         get activeWagons() {
             return this.wagons.filter((wagon) => this.isWagonFilled(wagon));
+        },
+
+        get completionCount() {
+            return this.wagons.slice(0, this.visibleCount).filter((wagon) => this.isWagonFilled(wagon)).length;
         },
 
         sum(field) {

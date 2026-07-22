@@ -10,6 +10,7 @@
   'scrollOnTrigger'   => false,
   'headerOffset'      => 0,
   'matchTriggerWidth' => false,
+  'triggerClasses'    => 'inline-flex',
 ])
 
 @php
@@ -28,6 +29,9 @@
     default => 'w-48',
   };
   $matchesTriggerWidth = (bool) $matchTriggerWidth || $widthClass === 'w-full';
+  // A teleported fixed panel cannot use Tailwind's viewport-relative w-full.
+  // Its exact width is assigned from the trigger inside positionPanel().
+  $panelWidthClass = $matchesTriggerWidth ? 'w-auto' : $widthClass;
 @endphp
 
 <div
@@ -216,7 +220,7 @@
   @keydown.escape.window="close()"
   @close.window.stop="close()"
 >
-  <div class="inline-flex" x-ref="trigger" @click="toggle()">
+  <div class="{{ $triggerClasses }}" x-ref="trigger" @click="toggle()">
     {{ $trigger }}
   </div>
 
@@ -236,10 +240,10 @@
       x-transition:leave-start="transform opacity-100 scale-100"
       x-transition:leave-end="transform opacity-0 scale-95"
       x-bind:data-placement="placement"
-      class="rt-viewport-dropdown fixed z-[180] {{ $widthClass }} rounded-xl shadow-rt-md {{ $dropdownClasses }}"
+      class="rt-viewport-dropdown fixed z-[180] {{ $panelWidthClass }} rounded-xl shadow-rt-md {{ $dropdownClasses }}"
       style="display:none; left:12px; top:12px; margin:0; max-width:calc(100vw - 24px); max-height:calc(100dvh - 24px);"
       data-rt-dropdown-panel
-      @click.outside="close()"
+      @click.outside="if (!$refs.trigger.contains($event.target)) close()"
       @if($trap) x-trap.inert.noscroll="open" @endif
       x-ref="panel"
     >

@@ -75,7 +75,7 @@
     wire:key="{{ \Illuminate\Support\Str::slug($key) }}"
 >
     <div
-        class="rounded-xl bg-rt-surface p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60"
+        class="rt-tabs-shell rounded-xl bg-rt-surface p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60"
         role="tablist"
         aria-label="{{ $ariaLabel ?: __('app.select_section') }}"
         @keydown.right.prevent="moveTab(1)"
@@ -91,10 +91,8 @@
                         <button
                             type="button"
                             @click.prevent="selectTab(tab.id)"
-                            :class="openTab === tab.id
-                                ? 'border-rt-accent/30 bg-rt-accent-soft text-rt-accent shadow-rt-xs dark:border-rt-dark-accent/40 dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent'
-                                : 'border-transparent text-rt-muted hover:bg-rt-surface-muted hover:text-rt-text dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted dark:hover:text-rt-dark-text'"
-                            class="inline-flex min-h-10 items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition-all duration-300 ease-rt-spring"
+                            :data-active="openTab === tab.id ? 'true' : 'false'"
+                            class="rt-desktop-tab inline-flex min-h-10 items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition-all duration-300 ease-rt-spring"
                             role="tab"
                             :id="`tab-${tab.id}`"
                             :data-tab-id="tab.id"
@@ -118,12 +116,10 @@
                             type="button"
                             @click.prevent="selectTab(tab.id)"
                             :class="[
-                                openTab === tab.id
-                                    ? 'border-sky-300 bg-sky-50 text-sky-800 shadow-rt-xs dark:border-sky-500/40 dark:bg-sky-500/10 dark:text-sky-200'
-                                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-800 dark:hover:text-white',
                                 items.length % 2 === 1 && index === items.length - 1 ? 'col-span-2' : ''
                             ]"
-                            class="group relative flex min-h-14 min-w-0 items-center gap-2 rounded-lg border px-2.5 py-2.5 pr-7 text-left text-[13px] font-semibold leading-tight transition-all duration-200 ease-rt-spring active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-sky-400/50 sm:text-sm"
+                            :data-active="openTab === tab.id ? 'true' : 'false'"
+                            class="rt-mobile-tab group relative flex min-h-14 min-w-0 items-center gap-2 rounded-lg border px-2.5 py-2.5 pr-7 text-left text-[13px] font-semibold leading-tight transition-all duration-200 ease-rt-spring active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-sky-400/50 sm:text-sm"
                             role="tab"
                             :id="`tab-${tab.id}`"
                             :data-tab-id="tab.id"
@@ -132,15 +128,15 @@
                             :tabindex="openTab === tab.id ? 0 : -1"
                         >
                             <span
-                                class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors"
-                                :class="openTab === tab.id ? 'bg-sky-100 text-sky-700 dark:bg-sky-400/15 dark:text-sky-200' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'"
+                                class="rt-mobile-tab-icon flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors"
+                                :data-active="openTab === tab.id ? 'true' : 'false'"
                             >
                                 <template x-if="tab.icon">
                                     <i :class="tab.icon" aria-hidden="true"></i>
                                 </template>
                             </span>
                             <span class="min-w-0 flex-1 break-words" x-text="tab.label"></span>
-                            <i x-show="openTab === tab.id" class="far fa-check-circle absolute right-2 top-2 text-[11px] text-sky-600 dark:text-sky-300" aria-hidden="true"></i>
+                            <i x-show="openTab === tab.id" class="rt-mobile-tab-check far fa-check-circle absolute right-2 top-2 text-[11px]" aria-hidden="true"></i>
                         </button>
                     </template>
                 </div>

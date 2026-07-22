@@ -125,7 +125,12 @@
 
         {{-- Tabelle --}}
         <div class="w-full" data-anim="fade-up" data-anim-delay="0.05">
+            <div class="rt-employee-mobile-header grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] gap-2 px-3 py-2.5 pr-14 text-[10px] font-bold uppercase tracking-[0.08em] md:hidden">
+                <span>{{ __('app.name') }}</span>
+                <span>{{ __('app.email') }}</span>
+            </div>
             <x-tables.table
+                class="rt-employee-table"
                 :columns="[
                     ['label'=>__('app.name'),'key'=>'name','width'=>'35%','sortable'=>true,'hideOn'=>'none'],
                     ['label'=>__('app.email'),'key'=>'email','width'=>'30%','sortable'=>true,'hideOn'=>'none'],

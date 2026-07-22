@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphOne;
 
 class EmployeeDocumentRequirement extends Model
 {
@@ -16,38 +17,25 @@ class EmployeeDocumentRequirement extends Model
         'pension_exemption' => 'RV-Befreiungsantrag',
     ];
 
-    public const STATUSES = [
-        'missing' => 'Fehlt',
-        'submitted' => 'Eingereicht',
-        'verified' => 'Geprüft',
-        'not_required' => 'Nicht erforderlich',
-    ];
-
     protected $fillable = [
         'user_id',
         'document_type',
-        'status',
-        'file_id',
-        'verified_by',
-        'verified_at',
     ];
 
-    protected $casts = [
-        'verified_at' => 'datetime',
-    ];
+    protected static function booted(): void
+    {
+        static::deleting(function (EmployeeDocumentRequirement $requirement): void {
+            $requirement->file?->delete();
+        });
+    }
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    public function file(): BelongsTo
+    public function file(): MorphOne
     {
-        return $this->belongsTo(File::class);
-    }
-
-    public function verifier(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'verified_by');
+        return $this->morphOne(File::class, 'fileable');
     }
 }

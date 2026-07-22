@@ -13,7 +13,7 @@
 @endphp
 
 {{-- 0: Name (mit Auswahl-Kreis wie bei Courses) --}}
-<div data-rt-table-label="{{ $columnsMeta[0]['label'] ?? '' }}" class="px-2 py-2 pr-4 {{ $hc(0) }}">
+<div data-rt-table-label="{{ $columnsMeta[0]['label'] ?? '' }}" class="rt-employee-name-cell px-2 py-2 pr-4 {{ $hc(0) }}">
     <div class="grid grid-cols-[auto_1fr] gap-2 items-center">
         <div class="flex items-center">
             <div
@@ -39,7 +39,7 @@
 </div>
 
 {{-- 1: E-Mail --}}
-<div data-rt-table-label="{{ $columnsMeta[1]['label'] ?? '' }}" class="px-2 py-2 text-rt-muted dark:text-rt-dark-muted truncate {{ $hc(1) }}">
+<div data-rt-table-label="{{ $columnsMeta[1]['label'] ?? '' }}" class="rt-employee-email-cell truncate px-2 py-2 text-rt-muted dark:text-rt-dark-muted {{ $hc(1) }}">
     <a href="mailto:{{ $email }}" class="hover:underline">{{ $email }}</a>
 </div>
 

@@ -10,10 +10,12 @@ use App\Models\User;
 use App\Models\UserProfile;
 use App\Support\Rbac\RbacCatalog;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
@@ -132,35 +134,40 @@ class EmployeeMasterDataSecurityTest extends TestCase
         $this->actingAs($unauthorized)->get(route('employees.index'))->assertForbidden();
     }
 
-    public function test_document_requirement_rejects_a_file_from_another_employee_pool(): void
+    public function test_employee_document_is_stored_separately_from_the_employee_file_pool(): void
     {
         $this->migrateEmployeeSecurity();
+        Storage::fake('private');
         $admin = User::factory()->create(['role' => 'admin']);
         $target = User::factory()->create(['role' => 'staff']);
-        $other = User::factory()->create(['role' => 'staff']);
         $targetPool = $target->filePool()->create(['title' => 'Privat', 'type' => User::class, 'description' => '']);
-        $otherPool = $other->filePool()->create(['title' => 'Privat', 'type' => User::class, 'description' => '']);
-        $ownFile = $targetPool->files()->create(['name' => 'Ausweis.pdf', 'path' => 'private/ausweis.pdf', 'disk' => 'private']);
-        $foreignFile = $otherPool->files()->create(['name' => 'Fremd.pdf', 'path' => 'private/fremd.pdf', 'disk' => 'private']);
+        $targetPool->files()->create([
+            'name' => 'Normale Datei.pdf',
+            'path' => 'uploads/files/normal.pdf',
+            'disk' => 'private',
+            'type' => 'pdf',
+        ]);
 
         Livewire::actingAs($admin)
             ->test(EmployeeDocuments::class, ['userId' => $target->id])
-            ->set('statuses.identity_card', 'submitted')
-            ->set('fileIds.identity_card', $foreignFile->id)
-            ->call('save', 'identity_card')
-            ->assertForbidden();
-
-        Livewire::actingAs($admin)
-            ->test(EmployeeDocuments::class, ['userId' => $target->id])
-            ->set('statuses.identity_card', 'verified')
-            ->set('fileIds.identity_card', $ownFile->id)
+            ->set('uploads.identity_card', UploadedFile::fake()->create('Ausweis.pdf', 128, 'application/pdf'))
             ->call('save', 'identity_card')
             ->assertHasNoErrors();
 
-        $requirement = EmployeeDocumentRequirement::firstOrFail();
-        $this->assertSame($ownFile->id, $requirement->file_id);
-        $this->assertSame($admin->id, $requirement->verified_by);
-        $this->assertNotNull($requirement->verified_at);
+        $requirement = EmployeeDocumentRequirement::with('file')->firstOrFail();
+        $this->assertSame($target->id, $requirement->user_id);
+        $this->assertSame('identity_card', $requirement->document_type);
+        $this->assertNotNull($requirement->file);
+        $this->assertSame(EmployeeDocumentRequirement::class, $requirement->file->fileable_type);
+        $this->assertSame($requirement->id, $requirement->file->fileable_id);
+        $this->assertNull($requirement->file->filepool_id);
+        $this->assertSame('employee-document', $requirement->file->type);
+        $this->assertSame(['Normale Datei.pdf'], $targetPool->files()->pluck('name')->all());
+        Storage::disk('private')->assertExists($requirement->file->path);
+
+        $view = file_get_contents(resource_path('views/livewire/admin/user-profile/employee-documents.blade.php'));
+        $this->assertStringNotContainsString("__('app.status')", $view);
+        $this->assertStringNotContainsString('availableStatuses', $view);
     }
 
     public function test_edit_flags_never_expose_sensitive_data_without_the_matching_view_flag(): void
@@ -209,5 +216,6 @@ class EmployeeMasterDataSecurityTest extends TestCase
     {
         (require database_path('migrations/2026_07_22_000001_encrypt_and_expand_user_profiles.php'))->up();
         (require database_path('migrations/2026_07_22_000002_create_employee_document_requirements_table.php'))->up();
+        (require database_path('migrations/2026_07_22_000003_separate_employee_documents_from_file_pools.php'))->up();
     }
 }

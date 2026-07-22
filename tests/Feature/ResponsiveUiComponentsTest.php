@@ -175,6 +175,25 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertStringContainsString('textarea {', $styles);
     }
 
+    public function test_shared_select_uses_the_anchor_dropdown_instead_of_a_native_select(): void
+    {
+        $html = Blade::render(<<<'BLADE'
+            <x-ui.forms.select id="team" placeholder="Team wählen">
+                <option value="1">Verwaltung</option>
+                <option value="2">Mitarbeiter</option>
+            </x-ui.forms.select>
+        BLADE);
+        $component = file_get_contents(resource_path('views/components/ui/forms/select.blade.php'));
+
+        $this->assertStringContainsString('data-rt-custom-select', $html);
+        $this->assertStringContainsString('role="combobox"', $html);
+        $this->assertStringContainsString('role="listbox"', $html);
+        $this->assertStringContainsString('x-teleport="body"', $html);
+        $this->assertStringContainsString('Verwaltung', $html);
+        $this->assertStringNotContainsString('<select', $html);
+        $this->assertStringNotContainsString('<select', $component);
+    }
+
     public function test_toggle_components_share_a_larger_accessible_switch_design(): void
     {
         $html = Blade::render(<<<'BLADE'
@@ -213,6 +232,23 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertStringContainsString('break-words', $html);
         $this->assertStringNotContainsString('flex-1 truncate', $html);
         $this->assertStringNotContainsString('aria-haspopup="listbox"', $html);
+        $this->assertStringContainsString('rt-mobile-tab', $html);
+
+        $styles = file_get_contents(resource_path('css/app.css'));
+        $this->assertStringContainsString("body[data-mode='dark'] .rt-mobile-tab", $styles);
+        $this->assertStringContainsString(".rt-mobile-tab[data-active='true']", $styles);
+    }
+
+    public function test_employee_list_remains_one_row_per_employee_on_mobile(): void
+    {
+        $view = file_get_contents(resource_path('views/livewire/admin/employees.blade.php'));
+        $styles = file_get_contents(resource_path('css/app.css'));
+
+        $this->assertStringContainsString('rt-employee-mobile-header', $view);
+        $this->assertStringContainsString('class="rt-employee-table"', $view);
+        $this->assertStringContainsString('.rt-employee-table .rt-table-row-grid', $styles);
+        $this->assertStringContainsString('grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr)', $styles);
+        $this->assertStringContainsString('.rt-employee-table .rt-employee-email-cell', $styles);
     }
 
     public function test_admin_settings_use_mobile_spacing_full_width_actions_and_safe_grids(): void
@@ -236,5 +272,7 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertStringNotContainsString('data-mobile-expanded', $group);
         $this->assertStringContainsString('toggle: true', $script);
         $this->assertStringNotContainsString('[data-mobile-expanded="true"]', $styles);
+        $this->assertStringContainsString('.rt-ui-sidebar .sidebar-nav-link:focus-visible', $styles);
+        $this->assertStringContainsString('background-color: #fff0f3 !important', $styles);
     }
 }
