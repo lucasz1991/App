@@ -1501,19 +1501,6 @@ body[data-mode='dark'] .rt-table-row.rt-table-row-selected {
         width: min(86vw, 300px) !important;
     }
 
-    /* Das Untermenue des aktuell besuchten Bereichs bleibt im mobilen Drawer
-       dauerhaft offen. MetisMenu darf seinen Zustand dabei weiterhin fuer
-       alle nicht aktiven Gruppen verwalten. */
-    #sidebar-menu li[data-mobile-expanded="true"] > .mm-collapse,
-    #sidebar-menu li[data-mobile-expanded="true"] > .mm-collapsing {
-        display: block !important;
-        height: auto !important;
-        overflow: visible !important;
-    }
-
-    #sidebar-menu li[data-mobile-expanded="true"] > .has-arrow::after {
-        transform: rotate(-45deg) translate(0, -50%) !important;
-    }
 }
 
 @media (min-width: 1140px) {

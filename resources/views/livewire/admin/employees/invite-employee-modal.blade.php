@@ -26,11 +26,13 @@
                     <x-input-error for="teamId" class="mt-1" />
                 </div>
 
-                <div>
-                    <x-ui.forms.label for="invite-position" :value="__('app.position')" />
-                    <x-ui.forms.input id="invite-position" class="mt-1 block" type="text" wire:model="position" :placeholder="__('app.position_placeholder')" autocomplete="organization-title" />
-                    <x-input-error for="position" class="mt-1" />
-                </div>
+                @if ($canEditMasterData)
+                    <div>
+                        <x-ui.forms.label for="invite-position" :value="__('app.position')" />
+                        <x-ui.forms.input id="invite-position" class="mt-1 block" type="text" wire:model="position" :placeholder="__('app.position_placeholder')" autocomplete="organization-title" />
+                        <x-input-error for="position" class="mt-1" />
+                    </div>
+                @endif
             </div>
         </div>
     </x-slot>

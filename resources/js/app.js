@@ -14,6 +14,7 @@ import Swiper from 'swiper';
 import 'swiper/css';
 // GSAP-Setup (window.gsap/ScrollTrigger + deklarative data-anim-Reveals)
 import './gsap';
+import { wagonListPrototype } from './wagon-list-prototype';
 
 const loadAdminDashboardECharts = () => import('./admin-dashboard-echarts');
 
@@ -161,6 +162,8 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
 })();
 
 window.Alpine = Alpine;
+
+Alpine.data('wagonListPrototype', wagonListPrototype);
 
 Alpine.data('chatRealtime', (config) => ({
     channel: null,
@@ -984,7 +987,9 @@ function initMetisMenu() {
         window.__webreachMetisMenu.dispose();
     }
 
-    window.__webreachMetisMenu = new window.MetisMenu('#side-menu');
+    window.__webreachMetisMenu = new window.MetisMenu('#side-menu', {
+        toggle: true,
+    });
 }
 
 function clearSidebarCollapseTimer() {

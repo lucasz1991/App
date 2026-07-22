@@ -79,14 +79,14 @@ class MobileAdminCommunicationUiTest extends TestCase
         $this->assertStringContainsString('wsHost: reverbHost', $script);
     }
 
-    public function test_active_mobile_sidebar_group_is_forced_open(): void
+    public function test_active_mobile_sidebar_group_starts_open_without_locking_the_accordion(): void
     {
         $component = file_get_contents(resource_path('views/components/menu/sidebar-nav-group.blade.php'));
         $styles = file_get_contents(resource_path('css/app.css'));
 
-        $this->assertStringContainsString('data-mobile-expanded=', $component);
-        $this->assertStringContainsString('li[data-mobile-expanded="true"] > .mm-collapse', $styles);
-        $this->assertStringContainsString('display: block !important', $styles);
+        $this->assertStringContainsString("'mm-show' => \$active", $component);
+        $this->assertStringNotContainsString('data-mobile-expanded=', $component);
+        $this->assertStringNotContainsString('li[data-mobile-expanded="true"] > .mm-collapse', $styles);
         $this->assertStringContainsString(':not([data-sidebar-expanded="true"]) .vertical-menu .mm-collapse .sidebar-nav-link', $styles);
         $this->assertStringContainsString('padding-left: var(--webreach-sidebar-collapsed-padding) !important', $styles);
     }

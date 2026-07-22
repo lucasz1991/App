@@ -5,23 +5,75 @@
         :description="now()->translatedFormat('l, d. F Y') . ' · ' . __('app.personal_dashboard_description')"
     >
         {{-- Ausschliesslich persoenliche Kennzahlen, niemals Systemstatistiken. --}}
-        <div class="grid gap-4 {{ $showSchedule ? 'sm:grid-cols-3' : 'sm:grid-cols-2' }}" data-anim-stagger>
+        <div class="grid grid-cols-2 gap-2 sm:gap-4 {{ $showSchedule ? 'xl:grid-cols-4' : 'sm:grid-cols-2' }}" data-anim-stagger>
             @if ($showSchedule)
-                <x-ui.dashboard.stat-card tone="red" :label="__('app.next_shift')" :value="$nextShift ? $nextShift['date'] : '—'">
-                    <i data-feather="calendar" class="h-6 w-6"></i>
+                <x-ui.dashboard.stat-card :compact-mobile="true" tone="red" :label="__('app.next_shift')" :value="$nextShift ? $nextShift['date'] : '—'">
+                    <i data-feather="calendar" class="h-4 w-4 sm:h-6 sm:w-6"></i>
+                </x-ui.dashboard.stat-card>
+
+                <x-ui.dashboard.stat-card :compact-mobile="true" tone="sky" :label="__('app.next_order')" :value="$nextOrder['number']">
+                    <i data-feather="clipboard" class="h-4 w-4 sm:h-6 sm:w-6"></i>
+                </x-ui.dashboard.stat-card>
+
+                <x-ui.dashboard.stat-card :compact-mobile="true" tone="violet" :label="__('app.assignment')" :value="$nextOrder['train']">
+                    <i data-feather="map-pin" class="h-4 w-4 sm:h-6 sm:w-6"></i>
                 </x-ui.dashboard.stat-card>
             @endif
 
-            <x-ui.dashboard.stat-card :label="__('app.available_files')" :value="number_format($filesTotal, 0, ',', '.')">
-                <i data-feather="folder" class="h-6 w-6"></i>
-            </x-ui.dashboard.stat-card>
+            @unless ($showSchedule)
+                <x-ui.dashboard.stat-card :compact-mobile="true" :label="__('app.available_files')" :value="number_format($filesTotal, 0, ',', '.')">
+                    <i data-feather="folder" class="h-4 w-4 sm:h-6 sm:w-6"></i>
+                </x-ui.dashboard.stat-card>
+            @endunless
 
-            <x-ui.dashboard.stat-card tone="emerald" :label="__('app.unread_messages')" :value="number_format($unreadMessages, 0, ',', '.')">
-                <i data-feather="mail" class="h-6 w-6"></i>
+            <x-ui.dashboard.stat-card :compact-mobile="true" tone="emerald" :label="__('app.unread_messages')" :value="number_format($unreadMessages, 0, ',', '.')">
+                <i data-feather="mail" class="h-4 w-4 sm:h-6 sm:w-6"></i>
             </x-ui.dashboard.stat-card>
         </div>
 
         @if ($showSchedule)
+        <section class="overflow-hidden rounded-2xl bg-slate-950 text-white shadow-rt-md ring-1 ring-slate-900" data-anim="fade-up" aria-labelledby="next-order-title">
+            <div class="grid gap-0 lg:grid-cols-[minmax(0,1.45fr)_minmax(18rem,.55fr)]">
+                <div class="relative overflow-hidden p-5 sm:p-7">
+                    <div class="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-sky-500/15 blur-3xl"></div>
+                    <div class="relative">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="rounded-md bg-white/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-sky-200">{{ __('app.demo_preview') }}</span>
+                            <span class="rounded-md bg-emerald-400/10 px-2 py-1 text-[10px] font-semibold text-emerald-200">{{ $nextOrder['status'] }}</span>
+                        </div>
+                        <p class="mt-5 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{{ __('app.next_order') }} · {{ $nextOrder['number'] }}</p>
+                        <h2 id="next-order-title" class="mt-1 text-2xl font-semibold tracking-tight text-white sm:text-3xl">{{ $nextOrder['train'] }}</h2>
+                        <p class="mt-2 text-base font-medium text-slate-200">{{ $nextOrder['route'] }}</p>
+
+                        <dl class="mt-6 grid gap-4 text-sm sm:grid-cols-3">
+                            <div><dt class="text-xs text-slate-400">{{ __('app.time') }}</dt><dd class="mt-1 font-semibold">{{ $nextOrder['date'] }} · {{ $nextOrder['time'] }}</dd></div>
+                            <div><dt class="text-xs text-slate-400">{{ __('app.assignment') }}</dt><dd class="mt-1 font-semibold">{{ $nextOrder['assignment'] }}</dd></div>
+                            <div><dt class="text-xs text-slate-400">{{ __('app.meeting_point') }}</dt><dd class="mt-1 font-semibold">{{ $nextOrder['meetingPoint'] }}</dd></div>
+                        </dl>
+
+                        <a href="{{ $wagonListRoute }}" wire:navigate class="mt-6 inline-flex min-h-11 items-center gap-2 rounded-lg bg-sky-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-sky-400 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-sky-300/60">
+                            <i class="far fa-edit" aria-hidden="true"></i>
+                            {{ __('app.open_wagon_list') }}
+                        </a>
+                    </div>
+                </div>
+
+                <aside class="border-t border-white/10 bg-white/[0.04] p-5 sm:p-7 lg:border-l lg:border-t-0" aria-label="{{ __('app.work_checklist') }}">
+                    <h3 class="text-sm font-semibold text-white">{{ __('app.work_checklist') }}</h3>
+                    <div class="mt-4 space-y-3">
+                        @foreach ($workChecklist as $item)
+                            <div class="flex items-center gap-3 text-sm">
+                                <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg {{ $item['done'] ? 'bg-emerald-400/15 text-emerald-300' : 'bg-white/10 text-slate-400' }}">
+                                    <i class="far {{ $item['done'] ? 'fa-check' : 'fa-circle' }} text-xs" aria-hidden="true"></i>
+                                </span>
+                                <span class="{{ $item['done'] ? 'text-slate-400 line-through' : 'font-medium text-slate-100' }}">{{ $item['label'] }}</span>
+                            </div>
+                        @endforeach
+                    </div>
+                </aside>
+            </div>
+        </section>
+
         {{-- Dienstplan + Termine gibt es nur fuer das Team Mitarbeiter. --}}
         <div class="grid gap-6 lg:grid-cols-3" data-anim="fade-up">
             {{-- Naechste Schichten --}}

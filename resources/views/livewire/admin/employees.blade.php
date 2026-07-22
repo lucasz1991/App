@@ -135,7 +135,7 @@
                 :items="$employees"
                 :selected-items="$selectedEmployees"
                 selection-action="toggleEmployeeSelection"
-                detail-route="admin.user-profile"
+                detail-route="{{ auth()->user()->usesAdminLayout() ? 'admin.user-profile' : 'employees.show' }}"
                 row-view="components.tables.rows.employees.employee-row"
                 actions-view="components.tables.rows.employees.employee-actions"
                 :sort-by="$sortBy ?? null"

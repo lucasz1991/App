@@ -10,6 +10,38 @@
             </x-menu.sidebar-nav-link>
         </x-menu.sidebar-nav>
 
+        @can('employees.view')
+            <x-menu.sidebar-nav :label="__('app.administration')">
+                <x-menu.sidebar-nav-link
+                    :href="route('employees.index')"
+                    icon="users"
+                    :active="request()->routeIs('employees.*')"
+                >
+                    {{ __('app.employees') }}
+                </x-menu.sidebar-nav-link>
+            </x-menu.sidebar-nav>
+        @endcan
+
+        @if (in_array(auth()->user()?->dashboardAudience(), ['employee', 'management', 'administration'], true))
+            <x-menu.sidebar-nav :label="__('app.operations')">
+                <x-menu.sidebar-nav-group
+                    icon="layers"
+                    :active="request()->routeIs('operations.wagon-list')"
+                >
+                    <x-slot:label>{{ __('app.operational_control') }}</x-slot:label>
+
+                    <x-menu.sidebar-nav-link
+                        :href="route('operations.wagon-list')"
+                        icon="edit-3"
+                        :active="request()->routeIs('operations.wagon-list')"
+                        class="!pl-12"
+                    >
+                        {{ __('app.wagon_list') }}
+                    </x-menu.sidebar-nav-link>
+                </x-menu.sidebar-nav-group>
+            </x-menu.sidebar-nav>
+        @endif
+
         <x-menu.sidebar-nav :label="__('app.personal_data')">
             <x-menu.sidebar-nav-group
                 icon="message-square"

@@ -16,10 +16,18 @@ class UserProfile extends Component
 
     public function mount($userId)
     {
-        Gate::authorize('users.profiles.view');
+        Gate::authorize('employees.view');
 
         $this->userId = $userId;
         $this->loadUser();
+
+        if (Gate::allows('employees.master-data.view') || Gate::allows('employees.compensation.view')) {
+            activity('employee-master-data')
+                ->causedBy(auth()->user())
+                ->performedOn($this->user)
+                ->withProperties(['target_user_id' => $this->user->id])
+                ->log('employee_master_data_viewed');
+        }
     }
 
     public function loadUser(): void
@@ -81,7 +89,7 @@ class UserProfile extends Component
         if (! $user) {
             $this->dispatch('swal:toast', type: 'error', text: __('app.user_not_found'));
 
-            return $this->redirectRoute('admin.employees');
+            return $this->redirectRoute($this->employeesRoute());
         }
 
         $this->guardAdminAccount($user);
@@ -114,7 +122,7 @@ class UserProfile extends Component
 
         $this->dispatch('swal:toast', type: 'success', text: __('app.user_deleted'));
 
-        return $this->redirectRoute('admin.employees');
+        return $this->redirectRoute($this->employeesRoute());
     }
 
     public function render()
@@ -124,6 +132,14 @@ class UserProfile extends Component
         return view('livewire.admin.user-profile', [
             'user' => $this->user,
             'profile' => $profile,
-        ])->layout('layouts.master');
+            'canViewMasterData' => Gate::allows('employees.master-data.view'),
+            'canViewCompensation' => Gate::allows('employees.compensation.view'),
+            'employeesRoute' => $this->employeesRoute(),
+        ])->layout('layouts.master', ['area' => auth()->user()->usesAdminLayout() ? 'admin' : 'user']);
+    }
+
+    private function employeesRoute(): string
+    {
+        return auth()->user()->usesAdminLayout() ? 'admin.employees' : 'employees.index';
     }
 }

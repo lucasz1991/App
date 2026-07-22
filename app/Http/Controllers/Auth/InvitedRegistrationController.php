@@ -58,8 +58,13 @@ class InvitedRegistrationController extends Controller
                 $user->teams()->sync([$invitation->team_id]);
             }
 
+            $nameParts = preg_split('/\s+/', trim($validated['name'])) ?: [];
+            $firstName = array_shift($nameParts);
+
             UserProfile::create([
                 'user_id' => $user->id,
+                'first_name' => $firstName ?: null,
+                'last_name' => $nameParts ? implode(' ', $nameParts) : null,
                 'position' => $invitation->position ?: null,
             ]);
 

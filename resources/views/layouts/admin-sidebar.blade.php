@@ -75,9 +75,18 @@
             <x-menu.sidebar-nav :label="__('app.operations_preview')">
                 <x-menu.sidebar-nav-group
                     icon="layers"
-                    :active="request()->routeIs('admin.operations.preview')"
+                    :active="request()->routeIs('admin.operations.preview', 'admin.operations.wagon-list')"
                 >
                     <x-slot:label>{{ __('app.operational_control') }}</x-slot:label>
+
+                    <x-menu.sidebar-nav-link
+                        :href="route('admin.operations.wagon-list')"
+                        icon="edit-3"
+                        :active="request()->routeIs('admin.operations.wagon-list')"
+                        class="!pl-12"
+                    >
+                        {{ __('app.wagon_list') }}
+                    </x-menu.sidebar-nav-link>
 
                     @foreach (app(\App\Support\Operations\OperationalPreviewCatalog::class)->dashboard() as $previewModule)
                         <x-menu.sidebar-nav-link

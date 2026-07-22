@@ -9,6 +9,7 @@ use App\Livewire\Admin\Settings;
 use App\Livewire\Admin\UserProfile;
 use App\Livewire\ItSupport;
 use App\Livewire\MessageBox;
+use App\Livewire\Operations\WagonListPrototype;
 use App\Livewire\UserDashboard;
 use App\Livewire\UserFiles;
 use Illuminate\Http\Request;
@@ -65,6 +66,11 @@ Route::view('/user/confirm-password', 'auth.confirm-password')
 
 Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session'), 'verified'])->group(function () {
     Route::get('/dashboard', UserDashboard::class)->name('dashboard');
+    Route::get('/employees', Employees::class)->name('employees.index');
+    Route::get('/employees/{userId}', UserProfile::class)->name('employees.show');
+    Route::get('/betrieb/wagenliste', WagonListPrototype::class)
+        ->middleware(\App\Http\Middleware\RedirectAdminWagonList::class)
+        ->name('operations.wagon-list');
     Route::get('/files', UserFiles::class)->name('files');
     Route::get('/files/verbindlich/{managedDocument}', App\Http\Controllers\ManagedDocumentDownloadController::class)
         ->name('managed-documents.download');
@@ -91,6 +97,7 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
         Route::get('/betrieb/{module}', OperationalPreview::class)
             ->where('module', 'orders|shift-management|calendar|customers')
             ->name('operations.preview');
+        Route::get('/betrieb/wagenliste', WagonListPrototype::class)->name('operations.wagon-list');
         Route::get('/settings', Settings::class)->name('settings');
         Route::get('/employees', Employees::class)->name('employees');
         Route::get('/user/{userId}', UserProfile::class)->name('user-profile');

@@ -296,6 +296,6 @@ class Employees extends Component
         $employees = $this->employees;
 
         return view('livewire.admin.employees', compact('employees', 'teams'))
-            ->layout('layouts.master');
+            ->layout('layouts.master', ['area' => auth()->user()->usesAdminLayout() ? 'admin' : 'user']);
     }
 }

@@ -53,6 +53,10 @@ class TeamSeeder extends Seeder
             'Administratoren' => array_values(array_diff($all, [
                 'roles.manage',
                 'settings.manage',
+                'employees.master-data.view',
+                'employees.master-data.edit',
+                'employees.compensation.view',
+                'employees.compensation.edit',
             ])),
         ];
 

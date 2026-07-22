@@ -82,6 +82,24 @@ class UserDashboard extends Component
 
         $nextShift = collect($shifts)->firstWhere('time', '!=', 'frei');
 
+        $nextOrder = [
+            'number' => 'RT-2407',
+            'train' => 'DGS 69342',
+            'date' => '22.07.2026',
+            'time' => '06:15 – 12:40',
+            'route' => 'Maschen Rbf → Bremen Rbf',
+            'assignment' => 'Wagenprüfung & Zugvorbereitung',
+            'meetingPoint' => 'Betriebsstelle Maschen · Gleis 12',
+            'status' => __('app.preview_prepared'),
+        ];
+
+        $workChecklist = [
+            ['label' => __('app.accept_assignment'), 'done' => true],
+            ['label' => __('app.check_documents'), 'done' => true],
+            ['label' => __('app.complete_wagon_list'), 'done' => false],
+            ['label' => __('app.finish_brake_sheet'), 'done' => false],
+        ];
+
         // Neueste interne Nachrichten (Info fuer den Mitarbeiter)
         $latestMessages = $user->receivedMessages()
             ->with('sender:id,name,profile_photo_path')
@@ -109,6 +127,8 @@ class UserDashboard extends Component
             'shifts' => $shifts,
             'plans' => $plans,
             'nextShift' => $nextShift,
+            'nextOrder' => $nextOrder,
+            'workChecklist' => $workChecklist,
             'latestMessages' => $latestMessages,
             'profileChecks' => $profileChecks,
             'profileCompletion' => $profileCompletion,
@@ -116,6 +136,7 @@ class UserDashboard extends Component
             'dashboardTeamName' => $dashboardTeam?->name
                 ?? ($audience === 'guest' ? __('app.team_guests') : __('app.team_employees')),
             'showSchedule' => $audience === 'employee',
+            'wagonListRoute' => route('operations.wagon-list'),
         ])->layout('layouts.master', ['area' => 'user']);
     }
 }

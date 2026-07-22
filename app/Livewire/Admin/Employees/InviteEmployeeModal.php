@@ -26,11 +26,16 @@ class InviteEmployeeModal extends Component
 
     public function rules(): array
     {
-        return [
+        $rules = [
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')],
             'teamId' => ['required', 'integer', 'exists:teams,id'],
-            'position' => ['nullable', 'string', 'max:100'],
         ];
+
+        if ($this->canEditPosition()) {
+            $rules['position'] = ['nullable', 'string', 'max:100'];
+        }
+
+        return $rules;
     }
 
     #[On('open-invite-employee')]
@@ -63,7 +68,7 @@ class InviteEmployeeModal extends Component
             'email' => $this->email,
             'role' => 'staff',
             'team_id' => $this->teamId,
-            'position' => $this->position ?: null,
+            'position' => $this->canEditPosition() ? ($this->position ?: null) : null,
             'token' => Str::random(64),
             'invited_by' => auth()->id(),
             'expires_at' => now()->addDays($expiryDays),
@@ -98,6 +103,15 @@ class InviteEmployeeModal extends Component
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        return view('livewire.admin.employees.invite-employee-modal', compact('teams'));
+        return view('livewire.admin.employees.invite-employee-modal', [
+            'teams' => $teams,
+            'canEditMasterData' => $this->canEditPosition(),
+        ]);
+    }
+
+    private function canEditPosition(): bool
+    {
+        return Gate::allows('employees.master-data.view')
+            && Gate::allows('employees.master-data.edit');
     }
 }

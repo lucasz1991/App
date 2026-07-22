@@ -48,15 +48,16 @@ trait BuildsMinimalRailTimeSchema
         Schema::create('user_profiles', function (Blueprint $table): void {
             $table->id();
             $table->unsignedBigInteger('user_id')->unique();
-            $table->string('phone')->nullable();
-            $table->string('mobile')->nullable();
-            $table->string('street')->nullable();
-            $table->string('postal_code')->nullable();
-            $table->string('city')->nullable();
-            $table->string('country')->nullable();
-            $table->date('birth_date')->nullable();
-            $table->string('personnel_nr')->nullable();
-            $table->string('position')->nullable();
+            foreach ([
+                'first_name', 'last_name', 'phone', 'mobile', 'street', 'postal_code', 'city', 'country',
+                'birth_date', 'birth_place', 'birth_name', 'nationality', 'education', 'personnel_nr',
+                'position', 'entry_date', 'multiple_employment', 'employment_type', 'weekly_working_hours',
+                'additional_information', 'tax_identification_number', 'social_security_number', 'iban',
+                'health_insurance', 'tax_class', 'children_count', 'religion', 'compensation_type',
+                'compensation_amount',
+            ] as $field) {
+                $table->longText($field)->nullable();
+            }
             $table->timestamps();
         });
 

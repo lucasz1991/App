@@ -26,6 +26,10 @@ class RbacCatalog
             'Employees' => [
                 ['key' => 'employees.view', 'label' => 'Mitarbeiter anzeigen'],
                 ['key' => 'employees.create', 'label' => 'Mitarbeiter erstellen & bearbeiten'],
+                ['key' => 'employees.master-data.view', 'label' => 'Mitarbeiter-Stammdaten anzeigen'],
+                ['key' => 'employees.master-data.edit', 'label' => 'Mitarbeiter-Stammdaten bearbeiten'],
+                ['key' => 'employees.compensation.view', 'label' => 'Lohn- und Sozialdaten anzeigen'],
+                ['key' => 'employees.compensation.edit', 'label' => 'Lohn- und Sozialdaten bearbeiten'],
                 ['key' => 'roles.manage', 'label' => 'Rollen verwalten'],
             ],
             'Benutzer' => [

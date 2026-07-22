@@ -202,6 +202,11 @@ class User extends Authenticatable
         return $this->hasOne(UserProfile::class);
     }
 
+    public function documentRequirements(): HasMany
+    {
+        return $this->hasMany(EmployeeDocumentRequirement::class);
+    }
+
     public function notes(): HasMany
     {
         return $this->hasMany(UserNote::class);

@@ -16,7 +16,7 @@
 
   <x-ui.page :title="$user->name" :eyebrow="__('app.employees')" :description="$user->email">
     <x-slot:actions>
-        <x-back-button :href="route('admin.employees')" />
+        <x-back-button :href="route($employeesRoute)" />
 
         <x-dropdown align="right" width="48">
             <x-slot name="trigger">
@@ -102,13 +102,24 @@
         </div>
     </div>
 
-    <x-ui.accordion.tabs
-        :tabs="[
+    @php
+        $employeeProfileTabs = [
             'userDetails' => ['label' => __('app.details'), 'icon' => 'fad fa-id-card'],
             'userNotes' => ['label' => __('app.notes'), 'icon' => 'fad fa-sticky-note'],
             'userFiles' => ['label' => __('app.files'), 'icon' => 'fad fa-folder-open'],
             'userMessages' => ['label' => __('app.messages'), 'icon' => 'fad fa-envelope'],
-        ]"
+        ];
+        if ($canViewMasterData) {
+            $employeeProfileTabs['masterData'] = ['label' => __('app.master_data'), 'icon' => 'fad fa-user-lock'];
+            $employeeProfileTabs['documents'] = ['label' => __('app.employee_documents'), 'icon' => 'fad fa-folder-check'];
+        }
+        if ($canViewCompensation) {
+            $employeeProfileTabs['compensation'] = ['label' => __('app.compensation_data'), 'icon' => 'fad fa-coins'];
+        }
+    @endphp
+
+    <x-ui.accordion.tabs
+        :tabs="$employeeProfileTabs"
         :collapse-at="'md'"
         default="userDetails"
         persist-key="admin.user.{{ $user->id }}.tabs"
@@ -135,10 +146,12 @@
                         <dt class="text-xs uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.birth_date') }}</dt>
                         <dd class="text-right text-sm font-medium text-rt-text dark:text-rt-dark-text">{{ $profile?->birth_date ? $profile->birth_date->format('d.m.Y') : '–' }}</dd>
                     </div>
-                    <div class="flex items-baseline justify-between gap-4 py-2.5">
-                        <dt class="text-xs uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.personnel_nr') }}</dt>
-                        <dd class="text-right text-sm font-medium text-rt-text dark:text-rt-dark-text">{{ $profile?->personnel_nr ?: '–' }}</dd>
-                    </div>
+                    @if ($canViewMasterData)
+                        <div class="flex items-baseline justify-between gap-4 py-2.5">
+                            <dt class="text-xs uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.personnel_nr') }}</dt>
+                            <dd class="text-right text-sm font-medium text-rt-text dark:text-rt-dark-text">{{ $profile?->personnel_nr ?: '–' }}</dd>
+                        </div>
+                    @endif
                     <div class="flex items-baseline justify-between gap-4 py-2.5">
                         <dt class="text-xs uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.registered_at') }}</dt>
                         <dd class="text-right text-sm font-medium text-rt-text dark:text-rt-dark-text">{{ $user->created_at->format('d.m.Y') }}</dd>
@@ -217,6 +230,21 @@
                 </div>
             @endif
         </x-ui.accordion.tab-panel>
+
+        @if ($canViewMasterData)
+            <x-ui.accordion.tab-panel for="masterData" panelClass="space-y-4">
+                @include('livewire.admin.user-profile.partials.master-data', ['profile' => $profile])
+            </x-ui.accordion.tab-panel>
+            <x-ui.accordion.tab-panel for="documents" panelClass="space-y-4">
+                <livewire:admin.user-profile.employee-documents :user-id="$user->id" :key="'employee-documents-'.$user->id" />
+            </x-ui.accordion.tab-panel>
+        @endif
+
+        @if ($canViewCompensation)
+            <x-ui.accordion.tab-panel for="compensation" panelClass="space-y-4">
+                @include('livewire.admin.user-profile.partials.compensation-data', ['profile' => $profile])
+            </x-ui.accordion.tab-panel>
+        @endif
     </x-ui.accordion.tabs>
   </x-ui.page>
 

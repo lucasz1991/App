@@ -114,7 +114,7 @@ class ResponsiveUiComponentsTest extends TestCase
         $tasks = file_get_contents(resource_path('views/livewire/admin/admin-tasks-list.blade.php'));
 
         $this->assertStringContainsString('selection-action="toggleEmployeeSelection"', $employees);
-        $this->assertStringContainsString('detail-route="admin.user-profile"', $employees);
+        $this->assertStringContainsString("'admin.user-profile' : 'employees.show'", $employees);
         $this->assertStringContainsString('selection-action="toggleMailSelection"', $mails);
         $this->assertStringContainsString('detail-action="toggleMailDetails"', $mails);
         $this->assertStringContainsString('selection-action="toggleMessageSelection"', $messages);
@@ -190,7 +190,7 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertStringNotContainsString('aria-checked="true"', $html);
     }
 
-    public function test_tabs_use_a_full_width_mobile_section_selector_by_default(): void
+    public function test_tabs_use_a_visible_wrapping_mobile_icon_switcher_by_default(): void
     {
         $html = Blade::render(<<<'BLADE'
             <x-ui.accordion.tabs
@@ -206,9 +206,13 @@ class ResponsiveUiComponentsTest extends TestCase
         BLADE);
 
         $this->assertStringContainsString("setupMQ('md')", $html);
-        $this->assertStringContainsString('aria-haspopup="listbox"', $html);
-        $this->assertStringContainsString('relative min-w-0 flex-1', $html);
-        $this->assertStringContainsString('max-h-[min(22rem,60dvh)]', $html);
+        $this->assertStringContainsString('grid min-w-0 grid-cols-2', $html);
+        $this->assertStringContainsString("items.length % 2 === 1", $html);
+        $this->assertStringContainsString("'col-span-2'", $html);
+        $this->assertStringContainsString('far fa-check-circle', $html);
+        $this->assertStringContainsString('break-words', $html);
+        $this->assertStringNotContainsString('flex-1 truncate', $html);
+        $this->assertStringNotContainsString('aria-haspopup="listbox"', $html);
     }
 
     public function test_admin_settings_use_mobile_spacing_full_width_actions_and_safe_grids(): void
@@ -220,5 +224,17 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertStringContainsString('sm:grid-cols-2', $view);
         $this->assertGreaterThanOrEqual(4, substr_count($view, 'class="w-full sm:w-auto"'));
         $this->assertGreaterThanOrEqual(4, substr_count($view, 'class="hidden h-11 w-11'));
+    }
+
+    public function test_mobile_sidebar_leaves_accordion_state_to_metis_menu(): void
+    {
+        $group = file_get_contents(resource_path('views/components/menu/sidebar-nav-group.blade.php'));
+        $styles = file_get_contents(resource_path('css/app.css'));
+        $script = file_get_contents(resource_path('js/app.js'));
+
+        $this->assertStringContainsString("'mm-show' => \$active", $group);
+        $this->assertStringNotContainsString('data-mobile-expanded', $group);
+        $this->assertStringContainsString('toggle: true', $script);
+        $this->assertStringNotContainsString('[data-mobile-expanded="true"]', $styles);
     }
 }

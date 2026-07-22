@@ -4,7 +4,7 @@
     'default' => null,
     'forceDefault' => false,
     'persistKey' => null,
-    // optional: 'sm' | 'md' | 'lg' | 'xl' | '2xl'; mobil standardmäßig als Auswahlmenü
+    // optional: 'sm' | 'md' | 'lg' | 'xl' | '2xl'; mobil als sichtbarer Icon-Umschalter
     'collapseAt' => 'md',
     'ariaLabel' => null,
     'contentClass' => 'mt-4 sm:mt-6',
@@ -23,7 +23,6 @@
         openTab: $persist('{{ $initial }}').as('{{ $key }}'),
         collapsed: false,
         forceCollapsed: false,
-        menuOpen: false,
         items: (function() {
             const out = [];
             @foreach($tabs as $k => $tab)
@@ -36,9 +35,6 @@
             @endforeach
             return out;
         })(),
-        get active() {
-            return this.items.find(item => item.id === this.openTab) ?? this.items[0];
-        },
         ensureActiveTab() {
             if (!this.items.some(item => item.id === this.openTab)) {
                 this.openTab = this.items[0]?.id ?? null;
@@ -46,13 +42,11 @@
         },
         selectTab(id) {
             this.openTab = id;
-            this.menuOpen = false;
         },
         moveTab(direction) {
             const index = this.items.findIndex(item => item.id === this.openTab);
             const nextIndex = (index + direction + this.items.length) % this.items.length;
             this.openTab = this.items[nextIndex].id;
-            this.menuOpen = false;
             this.$nextTick(() => this.$root.querySelector(`[data-tab-id='${this.openTab}']`)?.focus());
         },
         mq: null,
@@ -74,7 +68,6 @@
         },
         onResize() {
             this.collapsed = this.forceCollapsed;
-            if (!this.collapsed) this.menuOpen = false;
         }
     }"
     x-init="if (@js($forceDefault)) { openTab = @js($initial); } ensureActiveTab(); setupMQ(@js($collapseAt)); onResize()"
@@ -91,90 +84,65 @@
         @keydown.end.prevent="selectTab(items[items.length - 1].id)"
         wire:ignore
     >
-        <div class="flex min-w-0 gap-1" x-resize.debounce.150ms="onResize()">
+        <div class="min-w-0" x-resize.debounce.150ms="onResize()">
             <template x-if="!collapsed">
-                <template x-for="tab in items" :key="tab.id">
-                    <button
-                        type="button"
-                        @click.prevent="selectTab(tab.id)"
-                        :class="openTab === tab.id
-                            ? 'border-rt-accent/30 bg-rt-accent-soft text-rt-accent shadow-rt-xs dark:border-rt-dark-accent/40 dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent'
-                            : 'border-transparent text-rt-muted hover:bg-rt-surface-muted hover:text-rt-text dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted dark:hover:text-rt-dark-text'"
-                        class="inline-flex min-h-10 items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition-all duration-300 ease-rt-spring"
-                        role="tab"
-                        :id="`tab-${tab.id}`"
-                        :data-tab-id="tab.id"
-                        :aria-controls="`panel-${tab.id}`"
-                        :aria-selected="openTab === tab.id"
-                        :tabindex="openTab === tab.id ? 0 : -1"
-                    >
-                        <template x-if="tab.icon">
-                            <i :class="tab.icon + ' fa-lg'" aria-hidden="true"></i>
-                        </template>
-                        <span class="whitespace-nowrap" x-text="tab.label"></span>
-                    </button>
-                </template>
+                <div class="flex min-w-0 gap-1">
+                    <template x-for="tab in items" :key="tab.id">
+                        <button
+                            type="button"
+                            @click.prevent="selectTab(tab.id)"
+                            :class="openTab === tab.id
+                                ? 'border-rt-accent/30 bg-rt-accent-soft text-rt-accent shadow-rt-xs dark:border-rt-dark-accent/40 dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent'
+                                : 'border-transparent text-rt-muted hover:bg-rt-surface-muted hover:text-rt-text dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted dark:hover:text-rt-dark-text'"
+                            class="inline-flex min-h-10 items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition-all duration-300 ease-rt-spring"
+                            role="tab"
+                            :id="`tab-${tab.id}`"
+                            :data-tab-id="tab.id"
+                            :aria-controls="`panel-${tab.id}`"
+                            :aria-selected="openTab === tab.id"
+                            :tabindex="openTab === tab.id ? 0 : -1"
+                        >
+                            <template x-if="tab.icon">
+                                <i :class="tab.icon + ' fa-lg'" aria-hidden="true"></i>
+                            </template>
+                            <span class="whitespace-nowrap" x-text="tab.label"></span>
+                        </button>
+                    </template>
+                </div>
             </template>
 
-            {{-- Mobil: ein vollbreiter Bereichswähler verhindert horizontalen Overflow. --}}
             <template x-if="collapsed">
-                <div
-                    class="relative min-w-0 flex-1"
-                    @click.outside="menuOpen = false"
-                    @keydown.escape.window="menuOpen = false"
-                >
-                    <button
-                        type="button"
-                        @click="menuOpen = !menuOpen"
-                        class="flex min-h-11 w-full min-w-0 items-center gap-3 rounded-lg border border-rt-accent/30 bg-rt-accent-soft px-3.5 py-2.5 text-left text-sm font-semibold text-rt-accent shadow-rt-xs transition-colors duration-200 dark:border-rt-dark-accent/40 dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent"
-                        :aria-expanded="menuOpen"
-                        aria-haspopup="listbox"
-                    >
-                        <template x-if="active?.icon">
-                            <i :class="active.icon + ' fa-lg shrink-0'" aria-hidden="true"></i>
-                        </template>
-                        <span class="min-w-0 flex-1 truncate" x-text="active?.label ?? ''"></span>
-                        <span class="hidden text-[10px] font-semibold uppercase tracking-[0.12em] text-rt-muted dark:text-rt-dark-muted min-[360px]:inline">
-                            {{ __('app.select_section') }}
-                        </span>
-                        <i
-                            class="fad fa-chevron-down shrink-0 transition-transform duration-200"
-                            :class="menuOpen && 'rotate-180'"
-                            aria-hidden="true"
-                        ></i>
-                    </button>
-
-                    <div
-                        x-cloak
-                        x-show="menuOpen"
-                        x-transition:enter="transition ease-out duration-150"
-                        x-transition:enter-start="opacity-0 -translate-y-1"
-                        x-transition:enter-end="opacity-100 translate-y-0"
-                        x-transition:leave="transition ease-in duration-100"
-                        x-transition:leave-start="opacity-100 translate-y-0"
-                        x-transition:leave-end="opacity-0 -translate-y-1"
-                        class="absolute inset-x-0 z-30 mt-2 max-h-[min(22rem,60dvh)] overflow-y-auto rounded-xl bg-rt-surface p-1.5 shadow-rt-md ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70"
-                        role="listbox"
-                    >
-                        <template x-for="tab in items" :key="tab.id">
-                            <button
-                                type="button"
-                                class="flex min-h-11 w-full min-w-0 items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors duration-200"
-                                :class="openTab === tab.id
-                                    ? 'bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent'
-                                    : 'text-rt-text hover:bg-rt-surface-muted dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted'"
-                                role="option"
-                                :aria-selected="openTab === tab.id"
-                                @click="selectTab(tab.id)"
+                <div class="grid min-w-0 grid-cols-2 gap-1.5">
+                    <template x-for="(tab, index) in items" :key="tab.id">
+                        <button
+                            type="button"
+                            @click.prevent="selectTab(tab.id)"
+                            :class="[
+                                openTab === tab.id
+                                    ? 'border-sky-300 bg-sky-50 text-sky-800 shadow-rt-xs dark:border-sky-500/40 dark:bg-sky-500/10 dark:text-sky-200'
+                                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-800 dark:hover:text-white',
+                                items.length % 2 === 1 && index === items.length - 1 ? 'col-span-2' : ''
+                            ]"
+                            class="group relative flex min-h-14 min-w-0 items-center gap-2 rounded-lg border px-2.5 py-2.5 pr-7 text-left text-[13px] font-semibold leading-tight transition-all duration-200 ease-rt-spring active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-sky-400/50 sm:text-sm"
+                            role="tab"
+                            :id="`tab-${tab.id}`"
+                            :data-tab-id="tab.id"
+                            :aria-controls="`panel-${tab.id}`"
+                            :aria-selected="openTab === tab.id"
+                            :tabindex="openTab === tab.id ? 0 : -1"
+                        >
+                            <span
+                                class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors"
+                                :class="openTab === tab.id ? 'bg-sky-100 text-sky-700 dark:bg-sky-400/15 dark:text-sky-200' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'"
                             >
                                 <template x-if="tab.icon">
-                                    <i :class="tab.icon + ' fa-lg shrink-0'" aria-hidden="true"></i>
+                                    <i :class="tab.icon" aria-hidden="true"></i>
                                 </template>
-                                <span class="min-w-0 flex-1 truncate" x-text="tab.label"></span>
-                                <i x-show="openTab === tab.id" class="fad fa-check shrink-0" aria-hidden="true"></i>
-                            </button>
-                        </template>
-                    </div>
+                            </span>
+                            <span class="min-w-0 flex-1 break-words" x-text="tab.label"></span>
+                            <i x-show="openTab === tab.id" class="far fa-check-circle absolute right-2 top-2 text-[11px] text-sky-600 dark:text-sky-300" aria-hidden="true"></i>
+                        </button>
+                    </template>
                 </div>
             </template>
         </div>
