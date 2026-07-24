@@ -294,6 +294,7 @@ return [
     'from' => 'Von',
     'date' => 'Datum',
     'search' => 'Suchen',
+    'filters' => 'Filter',
     'send' => 'Senden',
     'show' => 'Anzeigen',
     'open' => 'Öffnen',

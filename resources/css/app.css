@@ -9,6 +9,17 @@
     display: none !important;
 }
 
+/* Tabellen-Toolbar: Auf Mobile ist der Filterbereich ein ausklappbares Modul
+   (Alpine x-show/x-collapse). Ab lg wird er dauerhaft als Inline-Reihe erzwungen
+   und die von x-show/x-collapse/x-cloak gesetzten Inline-Styles ueberschrieben. */
+@media (min-width: 1024px) {
+    [data-tables-toolbar] .rt-toolbar-filters {
+        display: flex !important;
+        height: auto !important;
+        overflow: visible !important;
+    }
+}
+
 body {
     @apply bg-rt-canvas text-rt-text antialiased dark:bg-rt-dark-canvas dark:text-rt-dark-text;
     font-family: 'Plus Jakarta Sans Variable', ui-sans-serif, system-ui, sans-serif;

@@ -44,7 +44,10 @@
         </x-slot:actions>
 
         {{-- Listen-Toolbar: links Massenauswahl, rechts Suche/Filter --}}
-        <x-tables.toolbar data-anim="fade-up">
+        <x-tables.toolbar
+            data-anim="fade-up"
+            :filter-count="(trim((string) ($search ?? '')) !== '' ? 1 : 0) + ((string) ($teamId ?? '') !== '' ? 1 : 0)"
+        >
             <x-slot:bulk>
                 <x-tables.bulk-actions :count="count($selectedEmployees)" select-all="toggleSelectAll">
                     <x-dropdown-link href="#" wire:click.prevent="clearSelection" tone="danger">
