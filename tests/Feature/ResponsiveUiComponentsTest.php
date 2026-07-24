@@ -222,7 +222,7 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertStringNotContainsString('aria-checked="true"', $html);
     }
 
-    public function test_tabs_use_a_visible_wrapping_mobile_icon_switcher_by_default(): void
+    public function test_tabs_use_a_theme_aware_three_dimensional_carousel_at_every_breakpoint(): void
     {
         $html = Blade::render(<<<'BLADE'
             <x-ui.accordion.tabs
@@ -237,19 +237,25 @@ class ResponsiveUiComponentsTest extends TestCase
             </x-ui.accordion.tabs>
         BLADE);
 
-        $this->assertStringContainsString("setupMQ('md')", $html);
-        $this->assertStringContainsString('grid min-w-0 grid-cols-2', $html);
-        $this->assertStringContainsString("items.length % 2 === 1", $html);
-        $this->assertStringContainsString("'col-span-2'", $html);
-        $this->assertStringContainsString('far fa-check-circle', $html);
-        $this->assertStringContainsString('break-words', $html);
-        $this->assertStringNotContainsString('flex-1 truncate', $html);
+        $this->assertStringContainsString('data-tab-carousel', $html);
+        $this->assertStringContainsString('rt-tabs-carousel-track', $html);
+        $this->assertStringContainsString('rt-carousel-tab', $html);
+        $this->assertStringContainsString(':data-position="tabPosition(index)"', $html);
+        $this->assertStringContainsString("return 'active'", $html);
+        $this->assertStringContainsString("return 'before'", $html);
+        $this->assertStringContainsString("return 'after'", $html);
+        $this->assertStringContainsString("centerActiveTab('auto')", $html);
+        $this->assertStringContainsString('scrollTo({ left: Math.max(0, left)', $html);
         $this->assertStringNotContainsString('aria-haspopup="listbox"', $html);
-        $this->assertStringContainsString('rt-mobile-tab', $html);
+        $this->assertStringNotContainsString('grid-cols-2', $html);
 
         $styles = file_get_contents(resource_path('css/app.css'));
-        $this->assertStringContainsString("body[data-mode='dark'] .rt-mobile-tab", $styles);
-        $this->assertStringContainsString(".rt-mobile-tab[data-active='true']", $styles);
+        $this->assertStringContainsString('.rt-tabs-shell {', $styles);
+        $this->assertStringContainsString('perspective: 900px', $styles);
+        $this->assertStringContainsString(".rt-carousel-tab[data-position='active']", $styles);
+        $this->assertStringContainsString(".rt-carousel-tab[data-position='before']", $styles);
+        $this->assertStringContainsString(".rt-carousel-tab[data-position='after']", $styles);
+        $this->assertStringContainsString("body[data-mode='dark'] .rt-carousel-tab", $styles);
     }
 
     public function test_employee_list_remains_one_row_per_employee_on_mobile(): void
@@ -289,15 +295,27 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertStringContainsString('background-color: #fff0f3 !important', $styles);
     }
 
-    public function test_shared_tabs_and_layout_expose_mobile_swipe_navigation(): void
+    public function test_shared_tabs_and_layout_expose_animated_swipe_navigation_on_mobile_and_desktop(): void
     {
         $tabs = file_get_contents(resource_path('views/components/ui/accordion/tabs.blade.php'));
+        $panel = file_get_contents(resource_path('views/components/ui/accordion/tab-panel.blade.php'));
+        $styles = file_get_contents(resource_path('css/app.css'));
         $script = file_get_contents(resource_path('js/app.js'));
         $wagon = file_get_contents(resource_path('js/wagon-list-prototype.js'));
 
         $this->assertStringContainsString('data-swipe-tabs', $tabs);
         $this->assertStringContainsString('@touchstart.passive="touchStart($event)"', $tabs);
         $this->assertStringContainsString("this.moveTab(deltaX < 0 ? 1 : -1, false)", $tabs);
+        $this->assertStringContainsString('@pointerdown="pointerStart($event)"', $tabs);
+        $this->assertStringContainsString("event.pointerType !== 'mouse'", $tabs);
+        $this->assertStringContainsString(':data-tab-direction="tabDirection"', $tabs);
+        $this->assertStringNotContainsString('window.innerWidth >= 768', $tabs);
+        $this->assertStringContainsString('x-transition:enter="rt-tab-panel-transition"', $panel);
+        $this->assertStringContainsString('x-transition:leave-end="rt-tab-panel-leave-end"', $panel);
+        $this->assertStringContainsString("[data-tab-direction='next'] .rt-tab-panel-enter-start", $styles);
+        $this->assertStringContainsString("[data-tab-direction='previous'] .rt-tab-panel-enter-start", $styles);
+        $this->assertStringContainsString('transition:', $styles);
+        $this->assertStringContainsString('transform 320ms cubic-bezier(0.32, 0.72, 0, 1)', $styles);
         $this->assertStringNotContainsString('\\"', $tabs);
         $this->assertStringContainsString('initMobileSidebarSwipe()', $script);
         $this->assertStringContainsString("startsAtOpeningEdge", $script);

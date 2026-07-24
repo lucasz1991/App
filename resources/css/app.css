@@ -1252,57 +1252,172 @@ body[data-mode="dark"] .rt-chat-read-indicator.is-delivered {
     }
 }
 
-/* Shared tabs: the mobile switcher must follow both supported theme signals.
-   Some layouts use html.dark, others keep the active mode on body[data-mode]. */
-.rt-desktop-tab {
-    border-color: transparent;
-    color: #64748b;
+/* Shared 3D tab carousel. One component powers mobile and desktop so click,
+   keyboard and swipe navigation always use the same direction and motion. */
+.rt-tabs-shell {
+    overflow: hidden;
+    perspective: 900px;
 }
 
-.rt-desktop-tab:hover {
-    background: #f1f5f9;
-    color: #0f172a;
+.rt-tabs-carousel {
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0.3rem;
+    scroll-behavior: smooth;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+    touch-action: pan-y;
 }
 
-.rt-desktop-tab[data-active='true'] {
-    border-color: rgba(14, 116, 144, 0.28);
-    background: #eaf7fb;
-    color: #075985;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+.rt-tabs-carousel::-webkit-scrollbar {
+    display: none;
 }
 
-.rt-mobile-tab {
+.rt-tabs-carousel-track {
+    display: flex;
+    width: max-content;
+    min-width: 100%;
+    align-items: stretch;
+    justify-content: center;
+    gap: 0.45rem;
+}
+
+.rt-carousel-tab {
+    width: clamp(8rem, 38vw, 9.5rem);
     border-color: #dbe3ee;
-    background: #fff;
-    color: #475569;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.035);
+    background: linear-gradient(145deg, #ffffff, #f5f8fc);
+    color: #526175;
+    opacity: 0.82;
+    box-shadow:
+        0 1px 2px rgba(15, 23, 42, 0.05),
+        0 8px 18px -16px rgba(15, 23, 42, 0.38);
+    transform-origin: center;
+    transition:
+        transform 320ms cubic-bezier(0.32, 0.72, 0, 1),
+        opacity 220ms ease,
+        color 220ms ease,
+        border-color 220ms ease,
+        background-color 220ms ease,
+        box-shadow 320ms ease;
+    will-change: transform;
 }
 
-.rt-mobile-tab:hover {
-    border-color: #cbd5e1;
-    background: #f8fafc;
+.rt-carousel-tab:hover {
+    border-color: #a9b8ca;
     color: #0f172a;
+    opacity: 1;
 }
 
-.rt-mobile-tab[data-active='true'] {
+.rt-carousel-tab[data-position='active'] {
+    z-index: 4;
     border-color: #7dd3fc;
-    background: #eff8ff;
+    background: linear-gradient(145deg, #f7fcff, #e7f6ff);
     color: #075985;
-    box-shadow: 0 2px 8px rgba(14, 116, 144, 0.09);
+    opacity: 1;
+    box-shadow:
+        0 9px 24px -16px rgba(2, 132, 199, 0.52),
+        0 2px 7px rgba(15, 23, 42, 0.08);
+    transform: perspective(700px) translateY(-2px) translateZ(18px) scale(1);
 }
 
-.rt-mobile-tab-icon {
-    background: #f1f5f9;
+.rt-carousel-tab[data-position='before'] {
+    z-index: 3;
+    transform: perspective(700px) rotateY(9deg) translateY(1px) scale(0.95);
+}
+
+.rt-carousel-tab[data-position='after'] {
+    z-index: 3;
+    transform: perspective(700px) rotateY(-9deg) translateY(1px) scale(0.95);
+}
+
+.rt-carousel-tab[data-position='far-before'] {
+    z-index: 1;
+    opacity: 0.62;
+    transform: perspective(700px) rotateY(13deg) translateY(2px) scale(0.9);
+}
+
+.rt-carousel-tab[data-position='far-after'] {
+    z-index: 1;
+    opacity: 0.62;
+    transform: perspective(700px) rotateY(-13deg) translateY(2px) scale(0.9);
+}
+
+.rt-carousel-tab-icon {
+    background: #edf2f7;
     color: #64748b;
 }
 
-.rt-mobile-tab-icon[data-active='true'] {
+.rt-carousel-tab-icon[data-active='true'] {
     background: #dff3ff;
     color: #0369a1;
+    box-shadow: inset 0 0 0 1px rgba(14, 165, 233, 0.1);
 }
 
-.rt-mobile-tab-check {
-    color: #0284c7;
+.rt-carousel-tab-depth {
+    position: absolute;
+    right: 12%;
+    bottom: -0.28rem;
+    left: 12%;
+    z-index: -1;
+    height: 0.5rem;
+    border-radius: 999px;
+    background: rgba(14, 116, 144, 0.16);
+    filter: blur(6px);
+    opacity: 0;
+    transition: opacity 260ms ease;
+}
+
+.rt-carousel-tab[data-position='active'] .rt-carousel-tab-depth {
+    opacity: 1;
+}
+
+@media (min-width: 768px) {
+    .rt-tabs-carousel {
+        padding: 0.35rem 0.5rem;
+    }
+
+    .rt-tabs-carousel-track {
+        gap: 0.55rem;
+    }
+
+    .rt-carousel-tab {
+        width: auto;
+        min-width: 9rem;
+        max-width: 15rem;
+        flex: 1 0 9rem;
+    }
+}
+
+.rt-tab-panel-transition {
+    transition:
+        transform 320ms cubic-bezier(0.32, 0.72, 0, 1),
+        opacity 220ms ease;
+    will-change: transform, opacity;
+}
+
+.rt-tab-panel-leave {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+}
+
+.rt-tab-panel-enter-end,
+.rt-tab-panel-leave-start {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+[data-swipe-tabs][data-tab-direction='next'] .rt-tab-panel-enter-start,
+[data-swipe-tabs][data-tab-direction='previous'] .rt-tab-panel-leave-end {
+    opacity: 0;
+    transform: translateX(100%);
+}
+
+[data-swipe-tabs][data-tab-direction='next'] .rt-tab-panel-leave-end,
+[data-swipe-tabs][data-tab-direction='previous'] .rt-tab-panel-enter-start {
+    opacity: 0;
+    transform: translateX(-100%);
 }
 
 html.dark .rt-tabs-shell,
@@ -1312,63 +1427,55 @@ body[data-mode='dark'] .rt-tabs-shell {
     box-shadow: 0 0 0 1px rgba(51, 65, 85, 0.72), 0 8px 22px rgba(2, 6, 23, 0.14);
 }
 
-html.dark .rt-desktop-tab,
-body[data-mode='dark'] .rt-desktop-tab {
-    color: #a9b6c9;
-}
-
-html.dark .rt-desktop-tab:hover,
-body[data-mode='dark'] .rt-desktop-tab:hover {
-    background: #1d293d;
-    color: #f8fafc;
-}
-
-html.dark .rt-desktop-tab[data-active='true'],
-body[data-mode='dark'] .rt-desktop-tab[data-active='true'] {
-    border-color: rgba(56, 189, 248, 0.38);
-    background: rgba(14, 165, 233, 0.14);
-    color: #bae6fd;
-    box-shadow: 0 2px 10px rgba(2, 132, 199, 0.08);
-}
-
-html.dark .rt-mobile-tab,
-body[data-mode='dark'] .rt-mobile-tab {
+html.dark .rt-carousel-tab,
+body[data-mode='dark'] .rt-carousel-tab {
     border-color: #334155;
-    background: #172033;
-    color: #cbd5e1;
-    box-shadow: none;
+    background: linear-gradient(145deg, #1b2639, #141d2e);
+    color: #a9b6c9;
+    box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.2),
+        0 10px 22px -18px rgba(0, 0, 0, 0.95);
 }
 
-html.dark .rt-mobile-tab:hover,
-body[data-mode='dark'] .rt-mobile-tab:hover {
-    border-color: #475569;
-    background: #1d293d;
+html.dark .rt-carousel-tab:hover,
+body[data-mode='dark'] .rt-carousel-tab:hover {
+    border-color: #52627a;
     color: #f8fafc;
 }
 
-html.dark .rt-mobile-tab[data-active='true'],
-body[data-mode='dark'] .rt-mobile-tab[data-active='true'] {
+html.dark .rt-carousel-tab[data-position='active'],
+body[data-mode='dark'] .rt-carousel-tab[data-position='active'] {
     border-color: rgba(56, 189, 248, 0.48);
-    background: rgba(14, 165, 233, 0.16);
+    background: linear-gradient(145deg, rgba(14, 165, 233, 0.2), rgba(13, 37, 60, 0.96));
     color: #bae6fd;
-    box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.06);
+    box-shadow:
+        0 10px 26px -17px rgba(14, 165, 233, 0.45),
+        inset 0 0 0 1px rgba(125, 211, 252, 0.06);
 }
 
-html.dark .rt-mobile-tab-icon,
-body[data-mode='dark'] .rt-mobile-tab-icon {
+html.dark .rt-carousel-tab-icon,
+body[data-mode='dark'] .rt-carousel-tab-icon {
     background: #243147;
     color: #94a3b8;
 }
 
-html.dark .rt-mobile-tab-icon[data-active='true'],
-body[data-mode='dark'] .rt-mobile-tab-icon[data-active='true'] {
+html.dark .rt-carousel-tab-icon[data-active='true'],
+body[data-mode='dark'] .rt-carousel-tab-icon[data-active='true'] {
     background: rgba(56, 189, 248, 0.17);
     color: #bae6fd;
 }
 
-html.dark .rt-mobile-tab-check,
-body[data-mode='dark'] .rt-mobile-tab-check {
-    color: #7dd3fc;
+html.dark .rt-carousel-tab-depth,
+body[data-mode='dark'] .rt-carousel-tab-depth {
+    background: rgba(56, 189, 248, 0.26);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rt-carousel-tab,
+    .rt-carousel-tab-depth,
+    .rt-tab-panel-transition {
+        transition: none;
+    }
 }
 
 /* Wagenlisten-Arbeitsfläche: eine ruhige Tabellenoptik am Desktop und ein
@@ -2237,6 +2344,71 @@ body[data-mode="dark"] .rt-ui-sidebar .sidebar-nav-link:focus-visible {
     color: #ff9aaa !important;
     background-color: #321821 !important;
     box-shadow: inset 0 0 0 1px rgba(255, 79, 112, 0.34), 0 3px 10px rgba(0, 0, 0, 0.18) !important;
+}
+
+/* MetisMenu faerbt geoeffnete Gruppen und aktive Trails blau (#3b82f6, teils
+   !important). RailTime bleibt konsequent neutral/rot – niemals blau. Der
+   geoeffnete, aber nicht aktive Gruppen-Header erscheint in gedaempftem
+   Neutralton, der tatsaechlich aktive Punkt sowie Hover in RailTime-Rot. */
+.rt-ui-sidebar .metismenu .mm-active > a,
+.rt-ui-sidebar .metismenu .mm-active a,
+.rt-ui-sidebar .metismenu .mm-active .active {
+    color: #64748b !important;
+}
+
+.rt-ui-sidebar .metismenu .mm-active a:hover {
+    color: #e4002b !important;
+}
+
+.rt-ui-sidebar .metismenu .mm-active a[data-menu-active="true"] {
+    color: #e4002b !important;
+}
+
+html.dark .rt-ui-sidebar .metismenu .mm-active > a,
+html.dark .rt-ui-sidebar .metismenu .mm-active a,
+html.dark .rt-ui-sidebar .metismenu .mm-active .active,
+body[data-mode="dark"] .rt-ui-sidebar .metismenu .mm-active > a,
+body[data-mode="dark"] .rt-ui-sidebar .metismenu .mm-active a,
+body[data-mode="dark"] .rt-ui-sidebar .metismenu .mm-active .active {
+    color: #ffffff !important;
+}
+
+html.dark .rt-ui-sidebar .metismenu .mm-active a:hover,
+html.dark .rt-ui-sidebar .metismenu .mm-active a[data-menu-active="true"],
+body[data-mode="dark"] .rt-ui-sidebar .metismenu .mm-active a:hover,
+body[data-mode="dark"] .rt-ui-sidebar .metismenu .mm-active a[data-menu-active="true"] {
+    color: #ff8295 !important;
+}
+
+/* Auch die eingeklappte (sm) Sidebar faerbt Hover blau – auf Rot umstellen. */
+body[data-sidebar-size="sm"] .vertical-menu #sidebar-menu > ul > li:hover > a,
+body[data-sidebar-size="sm"] .vertical-menu #sidebar-menu > ul > li:hover > ul a {
+    color: #e4002b !important;
+}
+
+/* Geoeffnete Submenue-Gruppe als zusammengehoerigen Block hervorheben: Der
+   Gruppen-Header und das aufgeklappte Untermenue teilen sich einen dezenten,
+   rot getoenten Panel-Hintergrund, damit klar wird, dass sie zusammengehoeren. */
+.rt-ui-sidebar #sidebar-menu li.mm-active > a.has-arrow {
+    background-color: rgba(228, 0, 43, 0.05);
+    border-radius: 0.85rem 0.85rem 0 0;
+}
+
+.rt-ui-sidebar #sidebar-menu li.mm-active > ul.mm-collapse,
+.rt-ui-sidebar #sidebar-menu li.mm-active > ul.mm-collapsing {
+    background-color: rgba(228, 0, 43, 0.05);
+    border-radius: 0 0 0.85rem 0.85rem;
+    padding-bottom: 0.3rem;
+    margin-bottom: 0.2rem;
+}
+
+html.dark .rt-ui-sidebar #sidebar-menu li.mm-active > a.has-arrow,
+html.dark .rt-ui-sidebar #sidebar-menu li.mm-active > ul.mm-collapse,
+html.dark .rt-ui-sidebar #sidebar-menu li.mm-active > ul.mm-collapsing,
+body[data-mode="dark"] .rt-ui-sidebar #sidebar-menu li.mm-active > a.has-arrow,
+body[data-mode="dark"] .rt-ui-sidebar #sidebar-menu li.mm-active > ul.mm-collapse,
+body[data-mode="dark"] .rt-ui-sidebar #sidebar-menu li.mm-active > ul.mm-collapsing {
+    background-color: rgba(255, 130, 149, 0.10);
 }
 
 html.dark body[data-sidebar-collapsible="true"][data-sidebar-expanded="true"] .vertical-menu,

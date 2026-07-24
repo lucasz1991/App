@@ -4,7 +4,7 @@
     'default' => null,
     'forceDefault' => false,
     'persistKey' => null,
-    // optional: 'sm' | 'md' | 'lg' | 'xl' | '2xl'; mobil als sichtbarer Icon-Umschalter
+    // Aus Kompatibilitaetsgruenden weiterhin akzeptiert; das Carousel ist in allen Groessen aktiv.
     'collapseAt' => 'md',
     'ariaLabel' => null,
     'contentClass' => 'mt-4 sm:mt-6',
@@ -21,10 +21,11 @@
 <div
     x-data="{
         openTab: $persist('{{ $initial }}').as('{{ $key }}'),
-        collapsed: false,
-        forceCollapsed: false,
+        tabDirection: 'next',
         touchStartX: null,
         touchStartY: null,
+        pointerStartX: null,
+        pointerStartY: null,
         items: (function() {
             const out = [];
             @foreach($tabs as $k => $tab)
@@ -42,25 +43,65 @@
                 this.openTab = this.items[0]?.id ?? null;
             }
         },
-        selectTab(id) {
+        activeIndex() {
+            return Math.max(0, this.items.findIndex(item => item.id === this.openTab));
+        },
+        tabPosition(index) {
+            const offset = index - this.activeIndex();
+            if (offset === 0) return 'active';
+            if (offset === -1) return 'before';
+            if (offset === 1) return 'after';
+            return offset < 0 ? 'far-before' : 'far-after';
+        },
+        selectTab(id, focusTab = false) {
+            if (id === this.openTab) return;
+
+            const currentIndex = this.activeIndex();
+            const nextIndex = this.items.findIndex(item => item.id === id);
+            if (nextIndex < 0) return;
+
+            this.tabDirection = nextIndex >= currentIndex ? 'next' : 'previous';
             this.openTab = id;
+            this.$nextTick(() => {
+                this.centerActiveTab();
+                if (focusTab) {
+                    this.$root.querySelector(`[data-tab-id='${this.openTab}']`)?.focus();
+                }
+            });
         },
         moveTab(direction, focusTab = true) {
             if (this.items.length < 2) return;
-            const index = this.items.findIndex(item => item.id === this.openTab);
+            const index = this.activeIndex();
             const nextIndex = (index + direction + this.items.length) % this.items.length;
+            this.tabDirection = direction > 0 ? 'next' : 'previous';
             this.openTab = this.items[nextIndex].id;
-            if (focusTab) {
-                this.$nextTick(() => this.$root.querySelector(`[data-tab-id='${this.openTab}']`)?.focus());
-            }
+            this.$nextTick(() => {
+                this.centerActiveTab();
+                if (focusTab) {
+                    this.$root.querySelector(`[data-tab-id='${this.openTab}']`)?.focus();
+                }
+            });
+        },
+        centerActiveTab(behavior = 'smooth') {
+            const carousel = this.$refs.carousel;
+            const active = this.$root.querySelector(`[data-tab-id='${this.openTab}']`);
+            if (!carousel || !active) return;
+
+            const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            const left = active.offsetLeft - ((carousel.clientWidth - active.offsetWidth) / 2);
+            carousel.scrollTo({ left: Math.max(0, left), behavior: reduceMotion ? 'auto' : behavior });
+        },
+        isInteractiveTarget(target) {
+            if (!(target instanceof Element)) return true;
+            return target.closest('input, textarea, select, button, a, audio, video, [contenteditable=true], [role=dialog], [data-no-tab-swipe]');
         },
         touchStart(event) {
-            if (window.innerWidth >= 768 || event.touches.length !== 1) {
+            if (event.touches.length !== 1) {
                 this.cancelSwipe();
                 return;
             }
 
-            if (event.target.closest('input, textarea, select, button, a, audio, video, [contenteditable=true], [role=dialog], [data-no-tab-swipe]')) {
+            if (this.isInteractiveTarget(event.target)) {
                 this.cancelSwipe();
                 return;
             }
@@ -69,7 +110,7 @@
             this.touchStartY = event.touches[0].clientY;
         },
         touchEnd(event) {
-            if (window.innerWidth >= 768 || this.touchStartX === null || event.changedTouches.length !== 1) {
+            if (this.touchStartX === null || event.changedTouches.length !== 1) {
                 this.cancelSwipe();
                 return;
             }
@@ -88,37 +129,50 @@
             this.touchStartX = null;
             this.touchStartY = null;
         },
-        mq: null,
-        setupMQ(breakpoint) {
-            if (!breakpoint) return;
+        pointerStart(event) {
+            if (event.pointerType !== 'mouse' || event.button !== 0 || this.isInteractiveTarget(event.target)) {
+                this.cancelPointerSwipe();
+                return;
+            }
 
-            const breakpoints = { sm: 640, md: 768, lg: 1024, xl: 1280, '2xl': 1536 };
-            const width = breakpoints[breakpoint];
-            if (!width) return;
-
-            this.mq = window.matchMedia(`(min-width: ${width}px)`);
-            const update = () => {
-                this.forceCollapsed = !this.mq.matches;
-                this.onResize();
-            };
-
-            this.mq.addEventListener?.('change', update);
-            update();
+            this.pointerStartX = event.clientX;
+            this.pointerStartY = event.clientY;
         },
-        onResize() {
-            this.collapsed = this.forceCollapsed;
-        }
+        pointerEnd(event) {
+            if (this.pointerStartX === null) {
+                this.cancelPointerSwipe();
+                return;
+            }
+
+            const deltaX = event.clientX - this.pointerStartX;
+            const deltaY = event.clientY - this.pointerStartY;
+
+            if (Math.abs(deltaX) >= 72 && Math.abs(deltaX) > Math.abs(deltaY) * 1.25) {
+                this.moveTab(deltaX < 0 ? 1 : -1, false);
+            }
+
+            this.cancelPointerSwipe();
+        },
+        cancelPointerSwipe() {
+            this.pointerStartX = null;
+            this.pointerStartY = null;
+        },
     }"
-    x-init="if (@js($forceDefault)) { openTab = @js($initial); } ensureActiveTab(); setupMQ(@js($collapseAt)); onResize()"
+    x-init="if (@js($forceDefault)) { openTab = @js($initial); } ensureActiveTab(); $nextTick(() => centerActiveTab('auto'))"
+    :data-tab-direction="tabDirection"
     class="w-full min-w-0"
     @touchstart.passive="touchStart($event)"
     @touchend.passive="touchEnd($event)"
     @touchcancel.passive="cancelSwipe()"
+    @pointerdown="pointerStart($event)"
+    @pointerup="pointerEnd($event)"
+    @pointercancel="cancelPointerSwipe()"
+    @resize.window.debounce.150ms="centerActiveTab('auto')"
     data-swipe-tabs
     wire:key="{{ \Illuminate\Support\Str::slug($key) }}"
 >
     <div
-        class="rt-tabs-shell rounded-xl bg-rt-surface p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60"
+        class="rt-tabs-shell rounded-2xl bg-rt-surface p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60"
         role="tablist"
         aria-label="{{ $ariaLabel ?: __('app.select_section') }}"
         @keydown.right.prevent="moveTab(1)"
@@ -127,67 +181,43 @@
         @keydown.end.prevent="selectTab(items[items.length - 1].id)"
         wire:ignore
     >
-        <div class="min-w-0" x-resize.debounce.150ms="onResize()">
-            <template x-if="!collapsed">
-                <div class="flex min-w-0 gap-1">
-                    <template x-for="tab in items" :key="tab.id">
-                        <button
-                            type="button"
-                            @click.prevent="selectTab(tab.id)"
+        <div
+            x-ref="carousel"
+            class="rt-tabs-carousel min-w-0"
+            data-tab-carousel
+        >
+            <div class="rt-tabs-carousel-track">
+                <template x-for="(tab, index) in items" :key="tab.id">
+                    <button
+                        type="button"
+                        @click.prevent="selectTab($event.currentTarget.dataset.tabId, true)"
+                        :data-active="openTab === tab.id ? 'true' : 'false'"
+                        :data-position="tabPosition(index)"
+                        class="rt-carousel-tab group relative flex min-h-12 min-w-0 shrink-0 snap-center items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-center text-[13px] font-semibold leading-tight focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/60 sm:min-h-11 sm:px-4 sm:text-sm"
+                        role="tab"
+                        :id="`tab-${tab.id}`"
+                        :data-tab-id="tab.id"
+                        :aria-controls="`panel-${tab.id}`"
+                        :aria-selected="openTab === tab.id"
+                        :tabindex="openTab === tab.id ? 0 : -1"
+                    >
+                        <span
+                            class="rt-carousel-tab-icon flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors"
                             :data-active="openTab === tab.id ? 'true' : 'false'"
-                            class="rt-desktop-tab inline-flex min-h-10 items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition-all duration-300 ease-rt-spring"
-                            role="tab"
-                            :id="`tab-${tab.id}`"
-                            :data-tab-id="tab.id"
-                            :aria-controls="`panel-${tab.id}`"
-                            :aria-selected="openTab === tab.id"
-                            :tabindex="openTab === tab.id ? 0 : -1"
                         >
                             <template x-if="tab.icon">
-                                <i :class="tab.icon + ' fa-lg'" aria-hidden="true"></i>
+                                <i :class="tab.icon" aria-hidden="true"></i>
                             </template>
-                            <span class="whitespace-nowrap" x-text="tab.label"></span>
-                        </button>
-                    </template>
-                </div>
-            </template>
-
-            <template x-if="collapsed">
-                <div class="grid min-w-0 grid-cols-2 gap-1.5">
-                    <template x-for="(tab, index) in items" :key="tab.id">
-                        <button
-                            type="button"
-                            @click.prevent="selectTab(tab.id)"
-                            :class="[
-                                items.length % 2 === 1 && index === items.length - 1 ? 'col-span-2' : ''
-                            ]"
-                            :data-active="openTab === tab.id ? 'true' : 'false'"
-                            class="rt-mobile-tab group relative flex min-h-14 min-w-0 items-center gap-2 rounded-lg border px-2.5 py-2.5 pr-7 text-left text-[13px] font-semibold leading-tight transition-all duration-200 ease-rt-spring active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-sky-400/50 sm:text-sm"
-                            role="tab"
-                            :id="`tab-${tab.id}`"
-                            :data-tab-id="tab.id"
-                            :aria-controls="`panel-${tab.id}`"
-                            :aria-selected="openTab === tab.id"
-                            :tabindex="openTab === tab.id ? 0 : -1"
-                        >
-                            <span
-                                class="rt-mobile-tab-icon flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors"
-                                :data-active="openTab === tab.id ? 'true' : 'false'"
-                            >
-                                <template x-if="tab.icon">
-                                    <i :class="tab.icon" aria-hidden="true"></i>
-                                </template>
-                            </span>
-                            <span class="min-w-0 flex-1 break-words" x-text="tab.label"></span>
-                            <i x-show="openTab === tab.id" class="rt-mobile-tab-check far fa-check-circle absolute right-2 top-2 text-[11px]" aria-hidden="true"></i>
-                        </button>
-                    </template>
-                </div>
-            </template>
+                        </span>
+                        <span class="min-w-0 truncate" x-text="tab.label"></span>
+                        <span class="rt-carousel-tab-depth" aria-hidden="true"></span>
+                    </button>
+                </template>
+            </div>
         </div>
     </div>
 
-    <div class="{{ $contentClass }} min-w-0">
+    <div class="rt-tab-panels {{ $contentClass }} relative min-w-0 overflow-hidden" data-tab-panels>
         {{ $slot }}
     </div>
 </div>
