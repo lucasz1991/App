@@ -57,6 +57,10 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertStringContainsString('data-rt-custom-select', $html);
         $this->assertStringContainsString('\u0022value\u0022:\u0022de', $html);
         $this->assertStringContainsString('\u0022value\u0022:\u0022en', $html);
+        $this->assertStringContainsString('\u0022icon\u0022:\u0022', $html);
+        $this->assertStringContainsString('de.svg', $html);
+        $this->assertStringContainsString('gb.svg', $html);
+        $this->assertStringContainsString('selectedIcon', $html);
         $this->assertStringNotContainsString('<select', $html);
 
         $this->assertSame(1, substr_count($view, '$store.theme?.toggle()'));
@@ -67,6 +71,9 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertSame(2, substr_count($html, 'role="menuitemcheckbox"'));
         $this->assertStringContainsString('grid grid-cols-2 gap-2', $html);
         $this->assertSame(2, substr_count($view, 'data-topbar-preference="theme"') + substr_count($view, 'data-topbar-preference="sound"'));
+        $this->assertSame(1, substr_count($html, 'data-topbar-toggle-track="theme"'));
+        $this->assertSame(1, substr_count($html, 'data-topbar-toggle-track="sound"'));
+        $this->assertSame(2, substr_count($html, 'translate-x-5'));
         $this->assertGreaterThanOrEqual(4, substr_count($view, 'x-show='));
         $this->assertStringContainsString('aria-label="' . __('app.settings') . '"', $html);
         $this->assertStringContainsString('aria-haspopup="menu"', $html);

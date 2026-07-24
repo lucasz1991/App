@@ -26,6 +26,11 @@ Route::get('/', function () {
     return redirect()->route('login');
 })->name('home');
 
+Route::get('/__codex/topbar-preview', fn () => view('layouts.master', [
+    'area' => 'user',
+    'slot' => new \Illuminate\Support\HtmlString('<div class="pt-24"></div>'),
+]));
+
 Route::get('/locale/{locale}', function (string $locale) {
     if (in_array($locale, config('app.supported_locales', []), true)) {
         session(['locale' => $locale]);
