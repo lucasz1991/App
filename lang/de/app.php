@@ -87,7 +87,7 @@ return [
     'shift_management_description' => 'Vorschau für Besetzungen, Übergaben und den aktuellen Schichtstatus.',
     'operational_calendar' => 'Kalender',
     'operational_calendar_description' => 'Vorschau für betriebliche Termine, Übergaben und Planungsüberschneidungen.',
-    'customer_database' => 'Kundendatenbank',
+    'customer_database' => 'Kunden',
     'customer_database_description' => 'Vorschau für Kundenstammdaten, Ansprechpartner und offene Anliegen.',
     'preview_open_orders' => 'offene Aufträge',
     'preview_due_today' => ':count heute fällig',

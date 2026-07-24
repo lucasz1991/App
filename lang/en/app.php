@@ -87,7 +87,7 @@ return [
     'shift_management_description' => 'Preview for staffing, handovers and current shift status.',
     'operational_calendar' => 'Calendar',
     'operational_calendar_description' => 'Preview for operational appointments, handovers and planning conflicts.',
-    'customer_database' => 'Customer database',
+    'customer_database' => 'Customers',
     'customer_database_description' => 'Preview for customer master data, contacts and open requests.',
     'preview_open_orders' => 'open orders',
     'preview_due_today' => ':count due today',

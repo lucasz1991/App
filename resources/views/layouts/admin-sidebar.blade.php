@@ -22,57 +22,84 @@
             </x-menu.sidebar-nav>
         @endcan
 
-        @can('employees.view')
+        @canany(['employees.view', 'manage.messages'])
             <x-menu.sidebar-nav :label="__('app.management')">
-                <x-menu.sidebar-nav-link
-                    :href="route('admin.employees')"
-                    icon="users"
-                    :active="request()->routeIs('admin.employees', 'employees.show')"
-                >
-                    {{ __('app.employees') }}
-                </x-menu.sidebar-nav-link>
-            </x-menu.sidebar-nav>
-        @endcan
-
-        @if (auth()->user()?->role === 'admin')
-            <x-menu.sidebar-nav :label="__('app.operations')">
-                <x-menu.sidebar-nav-group
-                    icon="layers"
-                    :active="request()->routeIs('admin.operations.preview', 'admin.operations.wagon-list')"
-                >
-                    <x-slot:label>{{ __('app.operational_control') }}</x-slot:label>
-
+                @can('employees.view')
                     <x-menu.sidebar-nav-link
-                        :href="route('admin.operations.wagon-list')"
-                        icon="edit-3"
-                        :active="request()->routeIs('admin.operations.wagon-list')"
-                        class="!pl-12"
+                        :href="route('admin.employees')"
+                        icon="users"
+                        :active="request()->routeIs('admin.employees', 'employees.show')"
                     >
-                        {{ __('app.wagon_list') }}
+                        {{ __('app.employees') }}
+                    </x-menu.sidebar-nav-link>
+                @endcan
+
+                @if (auth()->user()?->isAdmin())
+                    <x-menu.sidebar-nav-link
+                        :href="route('admin.operations.preview', ['module' => 'customers'])"
+                        icon="briefcase"
+                        :active="request()->routeIs('admin.operations.preview') && request()->route('module') === 'customers'"
+                    >
+                        {{ __('app.customer_database') }}
                     </x-menu.sidebar-nav-link>
 
-                    @foreach (app(\App\Support\Operations\OperationalPreviewCatalog::class)->dashboard() as $previewModule)
-                        <x-menu.sidebar-nav-link
-                            :href="route('admin.operations.preview', ['module' => $previewModule['slug']])"
-                            :icon="$previewModule['icon']"
-                            :active="request()->routeIs('admin.operations.preview') && request()->route('module') === $previewModule['slug']"
-                            class="!pl-12"
-                        >
-                            {{ $previewModule['title'] }}
-                        </x-menu.sidebar-nav-link>
-                    @endforeach
-                </x-menu.sidebar-nav-group>
+                    <x-menu.sidebar-nav-link
+                        :href="route('admin.operations.preview', ['module' => 'orders'])"
+                        icon="clipboard"
+                        :active="request()->routeIs('admin.operations.preview') && request()->route('module') === 'orders'"
+                    >
+                        {{ __('app.operational_orders') }}
+                    </x-menu.sidebar-nav-link>
+
+                    <x-menu.sidebar-nav-link
+                        :href="route('admin.operations.preview', ['module' => 'shift-management'])"
+                        icon="clock"
+                        :active="request()->routeIs('admin.operations.preview') && request()->route('module') === 'shift-management'"
+                    >
+                        {{ __('app.shift_management') }}
+                    </x-menu.sidebar-nav-link>
+
+                    <x-menu.sidebar-nav-link
+                        :href="route('admin.operations.preview', ['module' => 'calendar'])"
+                        icon="calendar"
+                        :active="request()->routeIs('admin.operations.preview') && request()->route('module') === 'calendar'"
+                    >
+                        {{ __('app.operational_calendar') }}
+                    </x-menu.sidebar-nav-link>
+                @endif
+
+                @can('manage.messages')
+                    <x-menu.sidebar-nav-link
+                        :href="route('admin.mail-management')"
+                        icon="send"
+                        :active="request()->routeIs('admin.mail-management')"
+                    >
+                        {{ __('app.mail_management') }}
+                    </x-menu.sidebar-nav-link>
+                @endcan
+            </x-menu.sidebar-nav>
+        @endcanany
+
+        @if (auth()->user()?->isAdmin())
+            <x-menu.sidebar-nav :label="__('app.operations')">
+                <x-menu.sidebar-nav-link
+                    :href="route('admin.operations.wagon-list')"
+                    icon="list"
+                    :active="request()->routeIs('admin.operations.wagon-list')"
+                >
+                    {{ __('app.wagon_list') }}
+                </x-menu.sidebar-nav-link>
             </x-menu.sidebar-nav>
         @endif
 
-        <x-menu.sidebar-nav :label="__('app.content_and_files')">
-            <x-menu.sidebar-nav-group
-                icon="folder"
-                :active="request()->routeIs('admin.files', 'admin.managed-documents', 'admin.mail-management', 'email-templates.*')"
-            >
-                <x-slot:label>{{ __('app.files_and_templates') }}</x-slot:label>
+        @can('files.manage')
+            <x-menu.sidebar-nav :label="__('app.content_and_files')">
+                <x-menu.sidebar-nav-group
+                    icon="folder"
+                    :active="request()->routeIs('admin.files', 'admin.managed-documents')"
+                >
+                    <x-slot:label>{{ __('app.files_and_templates') }}</x-slot:label>
 
-                @can('files.manage')
                     <x-menu.sidebar-nav-link
                         :href="route('admin.files')"
                         icon="folder"
@@ -90,29 +117,9 @@
                     >
                         {{ __('app.managed_documents') }}
                     </x-menu.sidebar-nav-link>
-                @endcan
-
-                <x-menu.sidebar-nav-link
-                    :href="route('email-templates.index')"
-                    icon="file-text"
-                    :active="request()->routeIs('email-templates.*')"
-                    class="!pl-12"
-                >
-                    {{ __('app.email_templates') }}
-                </x-menu.sidebar-nav-link>
-
-                @can('manage.messages')
-                    <x-menu.sidebar-nav-link
-                        :href="route('admin.mail-management')"
-                        icon="send"
-                        :active="request()->routeIs('admin.mail-management')"
-                        class="!pl-12"
-                    >
-                        {{ __('app.mail_management') }}
-                    </x-menu.sidebar-nav-link>
-                @endcan
-            </x-menu.sidebar-nav-group>
-        </x-menu.sidebar-nav>
+                </x-menu.sidebar-nav-group>
+            </x-menu.sidebar-nav>
+        @endcan
 
         <x-menu.sidebar-nav :label="__('app.communication')">
             <x-menu.sidebar-nav-group
@@ -142,6 +149,14 @@
         </x-menu.sidebar-nav>
 
         <x-menu.sidebar-nav :label="__('app.my_area')">
+            <x-menu.sidebar-nav-link
+                :href="route('email-templates.index')"
+                icon="file-text"
+                :active="request()->routeIs('email-templates.*')"
+            >
+                {{ __('app.email_templates') }}
+            </x-menu.sidebar-nav-link>
+
             <x-menu.sidebar-nav-group
                 icon="user"
                 :active="request()->routeIs('profile.show', 'support')"

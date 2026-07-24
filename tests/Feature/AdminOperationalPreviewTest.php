@@ -84,30 +84,62 @@ class AdminOperationalPreviewTest extends TestCase
             ->assertNotFound();
     }
 
-    public function test_sidebar_uses_clear_company_operations_and_content_groups(): void
+    public function test_sidebar_splits_company_management_operations_and_content_sections(): void
     {
         $sidebar = file_get_contents(resource_path('views/layouts/admin-sidebar.blade.php'));
-        $settingsPosition = strpos($sidebar, "route('admin.settings')");
-        $employeesPosition = strpos($sidebar, "route('admin.employees')");
-        $mailPosition = strpos($sidebar, "route('admin.mail-management')");
+
+        $companyPosition = strpos($sidebar, ":label=\"__('app.company')\"");
+        $managementPosition = strpos($sidebar, ":label=\"__('app.management')\"");
         $operationsPosition = strpos($sidebar, ":label=\"__('app.operations')\"");
         $contentPosition = strpos($sidebar, ":label=\"__('app.content_and_files')\"");
+        $myAreaPosition = strpos($sidebar, ":label=\"__('app.my_area')\"");
 
-        $this->assertNotFalse($settingsPosition);
-        $this->assertNotFalse($employeesPosition);
-        $this->assertNotFalse($mailPosition);
+        $settingsPosition = strpos($sidebar, "route('admin.settings')");
+        $employeesPosition = strpos($sidebar, "route('admin.employees')");
+        $customersPosition = strpos($sidebar, "'module' => 'customers'");
+        $mailPosition = strpos($sidebar, "route('admin.mail-management')");
+        $wagonPosition = strpos($sidebar, "route('admin.operations.wagon-list')");
+        $emailTemplatesPosition = strpos($sidebar, "route('email-templates.index')");
+        $profileSupportPosition = strpos($sidebar, "<x-slot:label>{{ __('app.profile_and_support') }}</x-slot:label>");
+
+        $this->assertNotFalse($companyPosition);
+        $this->assertNotFalse($managementPosition);
         $this->assertNotFalse($operationsPosition);
         $this->assertNotFalse($contentPosition);
-        $this->assertLessThan($operationsPosition, $settingsPosition);
-        $this->assertLessThan($operationsPosition, $employeesPosition);
+        $this->assertNotFalse($myAreaPosition);
+        $this->assertNotFalse($settingsPosition);
+        $this->assertNotFalse($employeesPosition);
+        $this->assertNotFalse($customersPosition);
+        $this->assertNotFalse($mailPosition);
+        $this->assertNotFalse($wagonPosition);
+        $this->assertNotFalse($emailTemplatesPosition);
+
+        // Firma trägt nur die Einstellungen; danach folgt Management.
+        $this->assertLessThan($managementPosition, $companyPosition);
+        $this->assertLessThan($managementPosition, $settingsPosition);
+
+        // Management bündelt Mitarbeiter, Kunden und Mailverwaltung vor dem Betrieb.
+        $this->assertGreaterThan($managementPosition, $employeesPosition);
+        $this->assertGreaterThan($managementPosition, $customersPosition);
+        $this->assertGreaterThan($managementPosition, $mailPosition);
+        $this->assertLessThan($operationsPosition, $customersPosition);
+        $this->assertLessThan($operationsPosition, $mailPosition);
+
+        // Die Wagenliste ist ein eigenständiger Betriebslink, nicht mehr in der Betriebssteuerungs-Gruppe.
         $this->assertLessThan($contentPosition, $operationsPosition);
-        $this->assertLessThan($mailPosition, $contentPosition);
-        $this->assertGreaterThanOrEqual(5, substr_count($sidebar, '<x-menu.sidebar-nav-group'));
-        $this->assertStringContainsString("<x-slot:label>{{ __('app.organization') }}</x-slot:label>", $sidebar);
-        $this->assertStringContainsString("<x-slot:label>{{ __('app.operational_control') }}</x-slot:label>", $sidebar);
+        $this->assertGreaterThan($operationsPosition, $wagonPosition);
+        $this->assertStringNotContainsString("__('app.operational_control')", $sidebar);
+        $this->assertStringNotContainsString("__('app.organization')", $sidebar);
+
+        // E-Mail-Vorlagen liegen im persönlichen Bereich über Profil & Support.
+        $this->assertGreaterThan($myAreaPosition, $emailTemplatesPosition);
+        $this->assertLessThan($profileSupportPosition, $emailTemplatesPosition);
+
+        // Verbleibende aufklappbare Gruppen: Dateien & Vorlagen, Chat & Nachrichten, Profil & Support.
         $this->assertStringContainsString("<x-slot:label>{{ __('app.files_and_templates') }}</x-slot:label>", $sidebar);
         $this->assertStringContainsString("<x-slot:label>{{ __('app.chat_and_messages') }}</x-slot:label>", $sidebar);
         $this->assertStringContainsString("<x-slot:label>{{ __('app.profile_and_support') }}</x-slot:label>", $sidebar);
+        $this->assertSame(3, substr_count($sidebar, '<x-menu.sidebar-nav-group'));
         $this->assertStringContainsString('class="!pl-12"', $sidebar);
     }
 
