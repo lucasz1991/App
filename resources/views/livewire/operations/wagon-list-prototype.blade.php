@@ -7,6 +7,11 @@
         'resetConfirm' => __('app.reset'),
         'cancel' => __('app.cancel'),
         'notSaved' => __('app.wagon_not_saved'),
+        'exportUrl' => auth()->user()->usesAdminLayout()
+            ? route('admin.operations.wagon-list.export')
+            : route('operations.wagon-list.export'),
+        'exportSuccess' => __('app.wagon_export_success'),
+        'exportError' => __('app.wagon_export_error'),
     ]))"
     class="min-w-0"
     data-wagon-list-prototype
@@ -23,14 +28,26 @@
         :description="__('app.wagon_list_description')"
     >
         <x-slot:actions>
-            <button
-                type="button"
-                @click="resetDraft()"
-                class="inline-flex min-h-10 items-center gap-2 rounded-lg border border-rt-border bg-rt-surface px-3 py-2 text-sm font-semibold text-rt-muted shadow-rt-xs transition hover:border-red-300 hover:bg-red-50 hover:text-red-700 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-red-400/40 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-muted dark:hover:border-red-500/40 dark:hover:bg-red-500/10 dark:hover:text-red-300"
-            >
-                <i class="far fa-undo" aria-hidden="true"></i>
-                {{ __('app.reset_draft') }}
-            </button>
+            <div class="flex flex-wrap items-center justify-end gap-2">
+                <button
+                    type="button"
+                    @click="exportWorkbook()"
+                    :disabled="exporting"
+                    class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-rt-red px-3.5 py-2 text-sm font-semibold text-white shadow-rt-xs transition hover:bg-rt-red-dark hover:shadow-rt-glow active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-rt-red/35 disabled:cursor-wait disabled:opacity-65"
+                >
+                    <i class="far fa-file-excel" x-show="!exporting" aria-hidden="true"></i>
+                    <i class="far fa-spinner fa-spin" x-show="exporting" x-cloak aria-hidden="true"></i>
+                    <span x-text="exporting ? @js(__('app.wagon_exporting')) : @js(__('app.export_excel'))"></span>
+                </button>
+                <button
+                    type="button"
+                    @click="resetDraft()"
+                    class="inline-flex min-h-10 items-center gap-2 rounded-lg border border-rt-border bg-rt-surface px-3 py-2 text-sm font-semibold text-rt-muted shadow-rt-xs transition hover:border-red-300 hover:bg-red-50 hover:text-red-700 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-red-400/40 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-muted dark:hover:border-red-500/40 dark:hover:bg-red-500/10 dark:hover:text-red-300"
+                >
+                    <i class="far fa-undo" aria-hidden="true"></i>
+                    {{ __('app.reset_draft') }}
+                </button>
+            </div>
         </x-slot:actions>
 
         <div class="rt-wagon-notice flex flex-col gap-3 rounded-xl border p-3 text-sm shadow-rt-xs sm:flex-row sm:items-center sm:justify-between" data-wagon-demo-notice>
@@ -150,7 +167,13 @@
                         </div>
                     </div>
 
-                    <article class="rt-wagon-mobile-card overflow-hidden rounded-2xl shadow-rt-sm">
+                    <article
+                        class="rt-wagon-mobile-card overflow-hidden rounded-2xl shadow-rt-sm"
+                        @touchstart.passive="wagonTouchStart($event)"
+                        @touchend.passive="wagonTouchEnd($event)"
+                        @touchcancel.passive="cancelWagonSwipe()"
+                        data-wagon-swipe
+                    >
                         <header class="flex items-center gap-3 border-b border-rt-border/70 px-4 py-3 dark:border-rt-dark-border/70">
                             <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft text-sm font-bold text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent" x-text="mobileWagon + 1"></span>
                             <div class="min-w-0 flex-1">

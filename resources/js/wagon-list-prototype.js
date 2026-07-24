@@ -59,6 +59,9 @@ export function wagonListPrototype(config = {}) {
         mobileWagon: 0,
         persistedAt: null,
         persistTimer: null,
+        exporting: false,
+        wagonTouchStartX: null,
+        wagonTouchStartY: null,
         meta: {
             trainNumber: '',
             date: new Date().toISOString().slice(0, 10),
@@ -146,6 +149,73 @@ export function wagonListPrototype(config = {}) {
             this.persistedAt = null;
         },
 
+        async exportWorkbook() {
+            if (this.exporting || !config.exportUrl) return;
+
+            this.persistDraft();
+            this.exporting = true;
+
+            try {
+                const response = await fetch(config.exportUrl, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({
+                        meta: this.meta,
+                        wagons: this.wagons.slice(0, this.visibleCount),
+                        brakeSheet: this.brakeSheet,
+                    }),
+                });
+
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({}));
+                    const validationMessage = Object.values(error.errors || {}).flat()[0];
+                    throw new Error(validationMessage || error.message || config.exportError);
+                }
+
+                const blob = await response.blob();
+                const disposition = response.headers.get('Content-Disposition') || '';
+                const encodedName = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+                const fallbackName = disposition.match(/filename="?([^";]+)"?/i)?.[1];
+                const filename = encodedName
+                    ? decodeURIComponent(encodedName)
+                    : (fallbackName || 'RailTime_Wagenliste.xlsx');
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+
+                window.Swal?.fire({
+                    toast: true,
+                    position: 'top-end',
+                    timer: 2600,
+                    showConfirmButton: false,
+                    icon: 'success',
+                    title: config.exportSuccess,
+                });
+            } catch (error) {
+                window.Swal?.fire({
+                    toast: true,
+                    position: 'top-end',
+                    timer: 4200,
+                    showConfirmButton: false,
+                    icon: 'error',
+                    title: error?.message || config.exportError,
+                });
+            } finally {
+                this.exporting = false;
+            }
+        },
+
         addWagon() {
             if (this.visibleCount >= MAX_WAGONS) return;
             this.openWagon = this.visibleCount;
@@ -164,6 +234,43 @@ export function wagonListPrototype(config = {}) {
 
         nextMobileWagon() {
             this.showMobileWagon(this.mobileWagon + 1);
+        },
+
+        wagonTouchStart(event) {
+            if (window.innerWidth >= 1024 || event.touches.length !== 1) {
+                this.cancelWagonSwipe();
+                return;
+            }
+
+            if (event.target.closest('input, textarea, button, [contenteditable="true"], [data-no-wagon-swipe]')) {
+                this.cancelWagonSwipe();
+                return;
+            }
+
+            this.wagonTouchStartX = event.touches[0].clientX;
+            this.wagonTouchStartY = event.touches[0].clientY;
+        },
+
+        wagonTouchEnd(event) {
+            if (this.wagonTouchStartX === null || event.changedTouches.length !== 1) {
+                this.cancelWagonSwipe();
+                return;
+            }
+
+            const deltaX = event.changedTouches[0].clientX - this.wagonTouchStartX;
+            const deltaY = event.changedTouches[0].clientY - this.wagonTouchStartY;
+            const threshold = Math.max(54, Math.min(96, window.innerWidth * 0.18));
+
+            if (Math.abs(deltaX) >= threshold && Math.abs(deltaX) > Math.abs(deltaY) * 1.25) {
+                deltaX < 0 ? this.nextMobileWagon() : this.previousMobileWagon();
+            }
+
+            this.cancelWagonSwipe();
+        },
+
+        cancelWagonSwipe() {
+            this.wagonTouchStartX = null;
+            this.wagonTouchStartY = null;
         },
 
         focusNextCell(event) {

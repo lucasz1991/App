@@ -1,13 +1,13 @@
 @props(['file', 'readOnly' => false])
 
 <div    x-data="{ isHovered: false }"
-        class="group relative rounded-lg p-2 text-rt-text transition-all duration-300 ease-rt-spring hover:bg-rt-accent/5 hover:ring-1 hover:ring-rt-accent/30 dark:text-white dark:hover:bg-rt-dark-accent/10 dark:hover:ring-rt-dark-accent/30 cardgroup"
+        class="group relative h-full rounded-lg p-1.5 text-rt-text transition-all duration-300 ease-rt-spring hover:bg-rt-accent/5 hover:ring-1 hover:ring-rt-accent/30 dark:text-white dark:hover:bg-rt-dark-accent/10 dark:hover:ring-rt-dark-accent/30 cardgroup"
         @mouseenter="isHovered = true"
         @mouseleave="isHovered = false"
         @touchstart="isHovered = true"
         >
     <div class="w-full">
-        <img src="{{ $file->icon_or_thumbnail }}" alt="{{ $file->name }}" class="w-full !aspect-square @if($file->is_image) rounded-md object-cover @else object-contain p-4 @endif">
+        <img src="{{ $file->icon_or_thumbnail }}" alt="{{ $file->name }}" class="w-full !aspect-square @if($file->is_image) rounded-md object-cover @else object-contain p-3 @endif">
     </div>
     <div class="mt-1.5 space-y-0.5 text-center">
         <div class="line-clamp-2 break-words text-xs leading-snug text-rt-text dark:text-rt-dark-text" title="{{ $file->name }}">{{ $file->name }}</div>

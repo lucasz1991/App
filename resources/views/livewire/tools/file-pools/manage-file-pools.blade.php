@@ -51,16 +51,16 @@
 
   {{-- Ordner-Raster --}}
   @if($folders->count() > 0)
-    <div class="mb-2 mx-2 grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8" @contextmenu.prevent="openCtx($event, null)">
+    <div class="rt-file-explorer-grid mb-2" @contextmenu.prevent="openCtx($event, null)">
       @foreach($folders as $folder)
-        <div class="group relative rounded-lg p-2 transition-all duration-300 ease-rt-spring hover:bg-rt-accent/5 hover:ring-1 hover:ring-rt-accent/30 dark:hover:bg-rt-dark-accent/10 dark:hover:ring-rt-dark-accent/30" wire:key="folder-{{ $folder->id }}" @contextmenu.prevent.stop="openCtx($event, {{ $folder->id }})">
+        <div class="rt-file-explorer-card group relative rounded-lg p-1.5 transition-all duration-300 ease-rt-spring hover:bg-rt-accent/5 hover:ring-1 hover:ring-rt-accent/30 dark:hover:bg-rt-dark-accent/10 dark:hover:ring-rt-dark-accent/30" wire:key="folder-{{ $folder->id }}" @contextmenu.prevent.stop="openCtx($event, {{ $folder->id }})">
           @if($folder->auto_delete || $folder->visible_until)
             <div class="absolute left-1.5 top-1.5 text-rt-muted dark:text-rt-dark-muted" title="{{ $folder->visible_until ? __('app.visible_until').': '.$folder->visible_until->format('d.m.Y').($folder->auto_delete ? ' · '.__('app.auto_delete') : '') : __('app.auto_delete') }}">
               <i class="fad fa-clock text-[11px]"></i>
             </div>
           @endif
           <button type="button" wire:click="enterFolder({{ $folder->id }})" class="flex w-full flex-col items-center gap-1 pt-2 text-center focus:outline-none">
-            <i class="fad fa-folder text-5xl text-amber-400 transition group-hover:text-amber-500 dark:text-amber-400 dark:group-hover:text-amber-300"></i>
+            <i class="fad fa-folder text-4xl text-amber-400 transition group-hover:text-amber-500 dark:text-amber-400 dark:group-hover:text-amber-300"></i>
             <span class="w-full line-clamp-2 break-words text-xs font-medium leading-snug text-rt-text dark:text-rt-dark-text" title="{{ $folder->name }}">{{ $folder->name }}</span>
           </button>
 
@@ -96,9 +96,9 @@
   @endif
 
   {{-- Datei-Raster --}}
-  <div class="my-6 mx-2 grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8" data-anim-stagger @contextmenu.prevent="openCtx($event, null)">
+  <div class="rt-file-explorer-grid my-6" data-anim-stagger @contextmenu.prevent="openCtx($event, null)">
     @forelse($poolFiles as $file)
-      <div class="min-w-0" wire:key="file-{{ $file->id }}">
+      <div class="rt-file-explorer-card min-w-0" wire:key="file-{{ $file->id }}">
         <x-ui.filepool.file-card :file="$file" :read-only="$readOnly" />
         @if($allowRoleSharing && ! $file->folder_id)
           <div class="mt-1 flex flex-wrap gap-1">
@@ -241,75 +241,86 @@
     <x-dialog-modal wire:model="openEditFileForm">
       <x-slot name="title">{{ __('app.edit_file') }}</x-slot>
       <x-slot name="content">
-        <div class="mt-4">
-          <x-ui.forms.label :value="__('app.file_name')" />
-          <x-ui.forms.input type="text" wire:model="selectedFileName" class="mt-1 block" />
-          @error('selectedFileName')
-            <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
-          @enderror
-        </div>
-        <div class="mt-4">
-          <x-ui.forms.label :value="__('app.expires_date')" />
-          <x-ui.forms.input type="date" wire:model="selectedFileExpiresDate" class="mt-1 block" />
-          @error('selectedFileExpiresDate')
-            <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
-          @enderror
-        </div>
-
-        {{-- Sichtbarkeit / Ablauf / Team-Freigabe --}}
-        <div class="mt-6 space-y-4 rounded-xl border border-rt-border bg-rt-surface-muted/40 p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/30">
-          <p class="text-xs font-semibold uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.visibility') }}</p>
-
-          <div>
-            <x-ui.forms.label :value="__('app.visible_from')" />
-            <x-ui.forms.input type="date" wire:model="selectedFileVisibleFrom" class="mt-1 block" />
-            <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.visible_from_hint') }}</p>
-            @error('selectedFileVisibleFrom')
+        <x-ui.accordion.tabs
+          :tabs="[
+            'fileName' => ['label' => __('app.name'), 'icon' => 'fad fa-pen'],
+            'fileVisibility' => ['label' => __('app.visibility'), 'icon' => 'fad fa-eye'],
+            'fileDeletion' => ['label' => __('app.automatic_deletion'), 'icon' => 'fad fa-clock'],
+          ]"
+          default="fileName"
+          :force-default="true"
+          persist-key="file-settings.tabs"
+          content-class="mt-4"
+        >
+          <x-ui.accordion.tab-panel for="fileName" panel-class="rounded-xl border border-rt-border bg-rt-surface-muted/40 p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/30">
+            <x-ui.forms.label :value="__('app.file_name')" />
+            <x-ui.forms.input type="text" wire:model="selectedFileName" class="mt-1 block" required />
+            @error('selectedFileName')
               <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
             @enderror
-          </div>
+          </x-ui.accordion.tab-panel>
 
-          <div>
-            <x-ui.forms.toggle-button model="selectedFileAutoDelete" :label="__('app.auto_delete')" />
-            <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.auto_delete_hint') }}</p>
-          </div>
+          <x-ui.accordion.tab-panel for="fileVisibility" panel-class="space-y-4 rounded-xl border border-rt-border bg-rt-surface-muted/40 p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/30">
+            <div>
+              <x-ui.forms.label :value="__('app.visible_from')" />
+              <x-ui.forms.input type="date" wire:model="selectedFileVisibleFrom" class="mt-1 block" />
+              <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.visible_from_hint') }}</p>
+              @error('selectedFileVisibleFrom')
+                <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
+              @enderror
+            </div>
 
-          <div>
-            <x-ui.forms.label :value="__('app.team_visibility')" />
-            <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.team_visibility_hint') }}</p>
-            @if($teams->isEmpty())
-              <p class="mt-2 text-sm text-rt-muted dark:text-rt-dark-muted">{{ __('app.no_teams_available') }}</p>
-            @else
-              <div class="mt-2 max-h-40 space-y-2 overflow-y-auto rounded-lg border border-rt-border bg-rt-surface p-3 dark:border-rt-dark-border dark:bg-rt-dark-surface">
-                @foreach($teams as $team)
-                  <x-ui.forms.checkbox
-                    :id="'file-team-'.$team->id"
-                    :value="$team->id"
-                    wire:model="selectedFileVisibleTeams"
-                    :label="$team->name"
-                  />
-                @endforeach
+            <div>
+              <x-ui.forms.label :value="__('app.team_visibility')" />
+              <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.team_visibility_hint') }}</p>
+              @if($teams->isEmpty())
+                <p class="mt-2 text-sm text-rt-muted dark:text-rt-dark-muted">{{ __('app.no_teams_available') }}</p>
+              @else
+                <div class="mt-2 max-h-40 space-y-2 overflow-y-auto rounded-lg border border-rt-border bg-rt-surface p-3 dark:border-rt-dark-border dark:bg-rt-dark-surface">
+                  @foreach($teams as $team)
+                    <x-ui.forms.checkbox
+                      :id="'file-team-'.$team->id"
+                      :value="$team->id"
+                      wire:model="selectedFileVisibleTeams"
+                      :label="$team->name"
+                    />
+                  @endforeach
+                </div>
+              @endif
+            </div>
+
+            @if($allowRoleSharing && ! $currentFolder)
+              <div>
+                <x-ui.forms.label :value="__('app.shared_for_roles')" />
+                <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.shared_for_roles_hint') }}</p>
+                <div class="mt-2 space-y-2">
+                  @foreach(\App\Models\File::shareableRoles() as $roleKey => $roleLabel)
+                    <x-ui.forms.checkbox
+                      :id="'share-role-'.$roleKey"
+                      value="{{ $roleKey }}"
+                      wire:model="selectedFileShareRoles"
+                      :label="$roleLabel"
+                    />
+                  @endforeach
+                </div>
               </div>
             @endif
-          </div>
-        </div>
+          </x-ui.accordion.tab-panel>
 
-        @if($allowRoleSharing && ! $currentFolder)
-          <div class="mt-4">
-            <x-ui.forms.label :value="__('app.shared_for_roles')" />
-            <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.shared_for_roles_hint') }}</p>
-            <div class="mt-2 space-y-2">
-              @foreach(\App\Models\File::shareableRoles() as $roleKey => $roleLabel)
-                <x-ui.forms.checkbox
-                  :id="'share-role-'.$roleKey"
-                  value="{{ $roleKey }}"
-                  wire:model="selectedFileShareRoles"
-                  :label="$roleLabel"
-                />
-              @endforeach
+          <x-ui.accordion.tab-panel for="fileDeletion" panel-class="space-y-4 rounded-xl border border-rt-border bg-rt-surface-muted/40 p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/30">
+            <div>
+              <x-ui.forms.label :value="__('app.expires_date')" />
+              <x-ui.forms.input type="date" wire:model="selectedFileExpiresDate" class="mt-1 block" />
+              @error('selectedFileExpiresDate')
+                <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
+              @enderror
             </div>
-          </div>
-        @endif
+            <div>
+              <x-ui.forms.toggle-button model="selectedFileAutoDelete" :label="__('app.auto_delete')" />
+              <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.auto_delete_hint') }}</p>
+            </div>
+          </x-ui.accordion.tab-panel>
+        </x-ui.accordion.tabs>
       </x-slot>
       <x-slot name="footer">
           <div class="flex justify-end space-x-2">
@@ -327,17 +338,26 @@
     <x-dialog-modal wire:model="openFolderForm" maxWidth="lg">
       <x-slot name="title">{{ $editFolderId ? __('app.folder_settings') : __('app.new_folder') }}</x-slot>
       <x-slot name="content">
-        <x-ui.forms.label :value="__('app.folder_name')" />
-        <x-ui.forms.input type="text" wire:model="folderName" wire:keydown.enter="saveFolder" class="mt-1 block" />
-        @error('folderName')
-          <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
-        @enderror
+        <x-ui.accordion.tabs
+          :tabs="[
+            'folderName' => ['label' => __('app.name'), 'icon' => 'fad fa-pen'],
+            'folderVisibility' => ['label' => __('app.visibility'), 'icon' => 'fad fa-eye'],
+            'folderDeletion' => ['label' => __('app.automatic_deletion'), 'icon' => 'fad fa-clock'],
+          ]"
+          default="folderName"
+          :force-default="true"
+          persist-key="folder-settings.tabs"
+          content-class="mt-4"
+        >
+          <x-ui.accordion.tab-panel for="folderName" panel-class="rounded-xl border border-rt-border bg-rt-surface-muted/40 p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/30">
+            <x-ui.forms.label :value="__('app.folder_name')" />
+            <x-ui.forms.input type="text" wire:model="folderName" wire:keydown.enter="saveFolder" class="mt-1 block" required />
+            @error('folderName')
+              <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
+            @enderror
+          </x-ui.accordion.tab-panel>
 
-        {{-- Sichtbarkeit / Ablauf / Team-Freigabe --}}
-        <div class="mt-6 space-y-4 rounded-xl border border-rt-border bg-rt-surface-muted/40 p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/30">
-          <p class="text-xs font-semibold uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.visibility') }}</p>
-
-          <div class="grid gap-4 sm:grid-cols-2">
+          <x-ui.accordion.tab-panel for="folderVisibility" panel-class="space-y-4 rounded-xl border border-rt-border bg-rt-surface-muted/40 p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/30">
             <div>
               <x-ui.forms.label :value="__('app.visible_from')" />
               <x-ui.forms.input type="date" wire:model="folderVisibleFrom" class="mt-1 block" />
@@ -346,6 +366,28 @@
                 <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
               @enderror
             </div>
+
+            <div>
+              <x-ui.forms.label :value="__('app.team_visibility')" />
+              <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.team_visibility_hint') }}</p>
+              @if($teams->isEmpty())
+                <p class="mt-2 text-sm text-rt-muted dark:text-rt-dark-muted">{{ __('app.no_teams_available') }}</p>
+              @else
+                <div class="mt-2 max-h-40 space-y-2 overflow-y-auto rounded-lg border border-rt-border bg-rt-surface p-3 dark:border-rt-dark-border dark:bg-rt-dark-surface">
+                  @foreach($teams as $team)
+                    <x-ui.forms.checkbox
+                      :id="'folder-team-'.$team->id"
+                      :value="$team->id"
+                      wire:model="folderVisibleTeams"
+                      :label="$team->name"
+                    />
+                  @endforeach
+                </div>
+              @endif
+            </div>
+          </x-ui.accordion.tab-panel>
+
+          <x-ui.accordion.tab-panel for="folderDeletion" panel-class="space-y-4 rounded-xl border border-rt-border bg-rt-surface-muted/40 p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/30">
             <div>
               <x-ui.forms.label :value="__('app.visible_until')" />
               <x-ui.forms.input type="date" wire:model="folderVisibleUntil" class="mt-1 block" />
@@ -353,32 +395,12 @@
                 <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
               @enderror
             </div>
-          </div>
-
-          <div>
-            <x-ui.forms.toggle-button model="folderAutoDelete" :label="__('app.auto_delete')" />
-            <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.auto_delete_hint') }}</p>
-          </div>
-
-          <div>
-            <x-ui.forms.label :value="__('app.team_visibility')" />
-            <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.team_visibility_hint') }}</p>
-            @if($teams->isEmpty())
-              <p class="mt-2 text-sm text-rt-muted dark:text-rt-dark-muted">{{ __('app.no_teams_available') }}</p>
-            @else
-              <div class="mt-2 max-h-40 space-y-2 overflow-y-auto rounded-lg border border-rt-border bg-rt-surface p-3 dark:border-rt-dark-border dark:bg-rt-dark-surface">
-                @foreach($teams as $team)
-                  <x-ui.forms.checkbox
-                    :id="'folder-team-'.$team->id"
-                    :value="$team->id"
-                    wire:model="folderVisibleTeams"
-                    :label="$team->name"
-                  />
-                @endforeach
-              </div>
-            @endif
-          </div>
-        </div>
+            <div>
+              <x-ui.forms.toggle-button model="folderAutoDelete" :label="__('app.auto_delete')" />
+              <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.auto_delete_hint') }}</p>
+            </div>
+          </x-ui.accordion.tab-panel>
+        </x-ui.accordion.tabs>
       </x-slot>
       <x-slot name="footer">
           <div class="flex justify-end space-x-2">

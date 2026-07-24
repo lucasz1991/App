@@ -84,23 +84,30 @@ class AdminOperationalPreviewTest extends TestCase
             ->assertNotFound();
     }
 
-    public function test_sidebar_has_its_own_operational_heading_below_all_administration_links(): void
+    public function test_sidebar_uses_clear_company_operations_and_content_groups(): void
     {
         $sidebar = file_get_contents(resource_path('views/layouts/admin-sidebar.blade.php'));
         $settingsPosition = strpos($sidebar, "route('admin.settings')");
         $employeesPosition = strpos($sidebar, "route('admin.employees')");
         $mailPosition = strpos($sidebar, "route('admin.mail-management')");
-        $previewHeadingPosition = strpos($sidebar, ":label=\"__('app.operations_preview')\"");
+        $operationsPosition = strpos($sidebar, ":label=\"__('app.operations')\"");
+        $contentPosition = strpos($sidebar, ":label=\"__('app.content_and_files')\"");
 
         $this->assertNotFalse($settingsPosition);
         $this->assertNotFalse($employeesPosition);
         $this->assertNotFalse($mailPosition);
-        $this->assertNotFalse($previewHeadingPosition);
-        $this->assertLessThan($previewHeadingPosition, $settingsPosition);
-        $this->assertLessThan($previewHeadingPosition, $employeesPosition);
-        $this->assertLessThan($previewHeadingPosition, $mailPosition);
-        $this->assertStringContainsString('<x-menu.sidebar-nav-group', $sidebar);
+        $this->assertNotFalse($operationsPosition);
+        $this->assertNotFalse($contentPosition);
+        $this->assertLessThan($operationsPosition, $settingsPosition);
+        $this->assertLessThan($operationsPosition, $employeesPosition);
+        $this->assertLessThan($contentPosition, $operationsPosition);
+        $this->assertLessThan($mailPosition, $contentPosition);
+        $this->assertGreaterThanOrEqual(5, substr_count($sidebar, '<x-menu.sidebar-nav-group'));
+        $this->assertStringContainsString("<x-slot:label>{{ __('app.organization') }}</x-slot:label>", $sidebar);
         $this->assertStringContainsString("<x-slot:label>{{ __('app.operational_control') }}</x-slot:label>", $sidebar);
+        $this->assertStringContainsString("<x-slot:label>{{ __('app.files_and_templates') }}</x-slot:label>", $sidebar);
+        $this->assertStringContainsString("<x-slot:label>{{ __('app.chat_and_messages') }}</x-slot:label>", $sidebar);
+        $this->assertStringContainsString("<x-slot:label>{{ __('app.profile_and_support') }}</x-slot:label>", $sidebar);
         $this->assertStringContainsString('class="!pl-12"', $sidebar);
     }
 

@@ -145,7 +145,11 @@
                             ] as [$field, $label, $type])
                                 <div>
                                     <x-ui.forms.label :value="__('app.'.$label)" />
-                                    <x-ui.forms.input :type="$type" wire:model="{{ $field }}" :disabled="!$canEditCompensation" @if($field === 'compensation_amount') step="0.01" min="0" @endif />
+                                    @if ($field === 'compensation_amount')
+                                        <x-ui.forms.input type="number" step="0.01" min="0" wire:model="{{ $field }}" :disabled="! $canEditCompensation" />
+                                    @else
+                                        <x-ui.forms.input :type="$type" wire:model="{{ $field }}" :disabled="! $canEditCompensation" />
+                                    @endif
                                     <x-ui.forms.input-error :for="$field" />
                                 </div>
                             @endforeach

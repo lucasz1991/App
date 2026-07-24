@@ -59,6 +59,9 @@
                             'de' => ['flag' => 'rt-brand/flags/de.svg', 'label' => __('app.german')],
                             'en' => ['flag' => 'rt-brand/flags/gb.svg', 'label' => __('app.english')],
                         ];
+                        $rtLocaleRoutes = collect(array_keys($rtLocales))
+                            ->mapWithKeys(fn (string $locale) => [$locale => route('locale.switch', $locale)])
+                            ->all();
                     @endphp
                     <x-ui.dropdown.anchor-dropdown
                         align="right"
@@ -89,44 +92,38 @@
                                 <p class="mt-0.5 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.preferences_description') }}</p>
                             </div>
 
-                            <div class="border-t border-rt-border/70 px-1 pt-2 dark:border-rt-dark-border/70" data-topbar-preference="language">
+                            <div class="border-t border-rt-border/70 px-1 pt-2 dark:border-rt-dark-border/70" data-topbar-preference="language" @click.stop>
                                 <p class="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-rt-soft dark:text-rt-dark-soft">{{ __('app.language') }}</p>
-                                <div class="grid grid-cols-2 gap-1.5">
+                                <x-ui.forms.select
+                                    id="topbar-language"
+                                    change="const routes = {{ \Illuminate\Support\Js::from($rtLocaleRoutes) }}; if (routes[selected]) window.location.assign(routes[selected]);"
+                                    :aria-label="__('app.language')"
+                                >
                                     @foreach ($rtLocales as $localeKey => $localeMeta)
-                                        <a
-                                            href="{{ route('locale.switch', $localeKey) }}"
-                                            role="menuitemradio"
-                                            aria-checked="{{ app()->getLocale() === $localeKey ? 'true' : 'false' }}"
-                                            @if (app()->getLocale() === $localeKey) aria-current="true" @endif
-                                            class="flex min-h-11 items-center gap-2 rounded-lg border px-2.5 py-2 text-sm transition {{ app()->getLocale() === $localeKey ? 'border-rt-red/30 bg-rt-accent-soft font-semibold text-rt-text dark:border-rt-red/50 dark:bg-rt-dark-accent-soft dark:text-white' : 'border-transparent text-rt-muted hover:border-rt-border hover:bg-rt-surface-muted dark:text-rt-dark-muted dark:hover:border-rt-dark-border dark:hover:bg-rt-dark-surface-muted' }}"
-                                        >
-                                            <img src="{{ asset($localeMeta['flag']) }}" alt="" class="h-4 w-6 rounded-sm object-cover">
-                                            <span class="truncate">{{ $localeMeta['label'] }}</span>
-                                        </a>
+                                        <option value="{{ $localeKey }}" @selected(app()->getLocale() === $localeKey)>{{ $localeMeta['label'] }}</option>
                                     @endforeach
-                                </div>
+                                </x-ui.forms.select>
                             </div>
 
-                            <div class="mt-2 space-y-1 border-t border-rt-border/70 px-1 pt-2 dark:border-rt-dark-border/70">
+                            <div class="mt-2 grid grid-cols-2 gap-2 border-t border-rt-border/70 px-1 pt-2 dark:border-rt-dark-border/70">
                                 <button
                                     type="button"
                                     role="menuitemcheckbox"
                                     data-topbar-preference="theme"
                                     x-bind:aria-checked="Boolean($store.theme?.dark).toString()"
                                     @click.stop="$store.theme?.toggle()"
-                                    class="flex min-h-12 w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left transition hover:bg-rt-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent/40 dark:hover:bg-rt-dark-surface-muted"
+                                    :class="$store.theme?.dark
+                                        ? 'border-rt-red/50 bg-rt-accent-soft dark:border-rt-red/60 dark:bg-rt-dark-accent-soft'
+                                        : 'border-rt-border bg-rt-surface-muted/70 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/60'"
+                                    class="group flex min-h-[5.25rem] min-w-0 flex-col items-start justify-between gap-2 rounded-xl border p-2.5 text-left transition hover:border-rt-red/40 hover:bg-rt-accent-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40"
                                 >
-                                    <span class="flex min-w-0 items-center gap-3">
-                                        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rt-surface-muted text-rt-muted dark:bg-rt-dark-surface-muted dark:text-white">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
-                                        </span>
-                                        <span class="min-w-0">
-                                            <span class="block text-sm font-medium text-rt-text dark:text-white">{{ __('app.appearance') }}</span>
-                                            <span class="block text-xs text-rt-muted dark:text-rt-dark-muted" x-text="$store.theme?.dark ? @js(__('app.dark_mode')) : @js(__('app.light_mode'))"></span>
-                                        </span>
+                                    <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-rt-muted shadow-rt-xs dark:bg-slate-800 dark:text-white" aria-hidden="true">
+                                        <svg x-show="!$store.theme?.dark" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1.5m0 15V21m9-9h-1.5M4.5 12H3m15.364-6.364-1.061 1.061M6.697 17.303l-1.061 1.061m12.728 0-1.061-1.061M6.697 6.697 5.636 5.636M16.5 12a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z" /></svg>
+                                        <svg x-show="$store.theme?.dark" x-cloak xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 0 1 8.646 3.646 9.003 9.003 0 1 0 20.354 15.354Z" /></svg>
                                     </span>
-                                    <span class="relative inline-flex h-6 w-11 shrink-0 rounded-full bg-slate-300 transition dark:bg-slate-600" x-bind:class="$store.theme?.dark ? '!bg-rt-red' : ''" aria-hidden="true">
-                                        <span class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform" x-bind:class="$store.theme?.dark ? 'translate-x-5' : 'translate-x-0'"></span>
+                                    <span class="min-w-0">
+                                        <span class="block text-xs font-semibold text-rt-text dark:text-white">{{ __('app.appearance') }}</span>
+                                        <span class="block truncate text-[11px] text-rt-muted dark:text-rt-dark-muted" x-text="$store.theme?.dark ? @js(__('app.dark_mode')) : @js(__('app.light_mode'))"></span>
                                     </span>
                                 </button>
 
@@ -136,19 +133,18 @@
                                     data-topbar-preference="sound"
                                     x-bind:aria-checked="Boolean($store.sound?.enabled).toString()"
                                     @click.stop="$store.sound?.toggle()"
-                                    class="flex min-h-12 w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left transition hover:bg-rt-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent/40 dark:hover:bg-rt-dark-surface-muted"
+                                    :class="$store.sound?.enabled
+                                        ? 'border-rt-red/50 bg-rt-accent-soft dark:border-rt-red/60 dark:bg-rt-dark-accent-soft'
+                                        : 'border-rt-border bg-rt-surface-muted/70 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/60'"
+                                    class="group flex min-h-[5.25rem] min-w-0 flex-col items-start justify-between gap-2 rounded-xl border p-2.5 text-left transition hover:border-rt-red/40 hover:bg-rt-accent-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40"
                                 >
-                                    <span class="flex min-w-0 items-center gap-3">
-                                        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rt-surface-muted text-rt-muted dark:bg-rt-dark-surface-muted dark:text-white">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" /></svg>
-                                        </span>
-                                        <span class="min-w-0">
-                                            <span class="block text-sm font-medium text-rt-text dark:text-white">{{ __('app.sound') }}</span>
-                                            <span class="block text-xs text-rt-muted dark:text-rt-dark-muted" x-text="$store.sound?.enabled ? @js(__('app.sound_on')) : @js(__('app.sound_off'))"></span>
-                                        </span>
+                                    <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-rt-muted shadow-rt-xs dark:bg-slate-800 dark:text-white" aria-hidden="true">
+                                        <svg x-show="$store.sound?.enabled" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>
+                                        <svg x-show="!$store.sound?.enabled" x-cloak xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="m18 9 4 4m0-4-4 4M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>
                                     </span>
-                                    <span class="relative inline-flex h-6 w-11 shrink-0 rounded-full bg-slate-300 transition dark:bg-slate-600" x-bind:class="$store.sound?.enabled ? '!bg-rt-red' : ''" aria-hidden="true">
-                                        <span class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform" x-bind:class="$store.sound?.enabled ? 'translate-x-5' : 'translate-x-0'"></span>
+                                    <span class="min-w-0">
+                                        <span class="block text-xs font-semibold text-rt-text dark:text-white">{{ __('app.sound') }}</span>
+                                        <span class="block truncate text-[11px] text-rt-muted dark:text-rt-dark-muted" x-text="$store.sound?.enabled ? @js(__('app.sound_on')) : @js(__('app.sound_off'))"></span>
                                     </span>
                                 </button>
                             </div>

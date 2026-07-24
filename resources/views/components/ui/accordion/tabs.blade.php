@@ -23,6 +23,8 @@
         openTab: $persist('{{ $initial }}').as('{{ $key }}'),
         collapsed: false,
         forceCollapsed: false,
+        touchStartX: null,
+        touchStartY: null,
         items: (function() {
             const out = [];
             @foreach($tabs as $k => $tab)
@@ -43,11 +45,48 @@
         selectTab(id) {
             this.openTab = id;
         },
-        moveTab(direction) {
+        moveTab(direction, focusTab = true) {
+            if (this.items.length < 2) return;
             const index = this.items.findIndex(item => item.id === this.openTab);
             const nextIndex = (index + direction + this.items.length) % this.items.length;
             this.openTab = this.items[nextIndex].id;
-            this.$nextTick(() => this.$root.querySelector(`[data-tab-id='${this.openTab}']`)?.focus());
+            if (focusTab) {
+                this.$nextTick(() => this.$root.querySelector(`[data-tab-id='${this.openTab}']`)?.focus());
+            }
+        },
+        touchStart(event) {
+            if (window.innerWidth >= 768 || event.touches.length !== 1) {
+                this.cancelSwipe();
+                return;
+            }
+
+            if (event.target.closest('input, textarea, select, button, a, audio, video, [contenteditable=true], [role=dialog], [data-no-tab-swipe]')) {
+                this.cancelSwipe();
+                return;
+            }
+
+            this.touchStartX = event.touches[0].clientX;
+            this.touchStartY = event.touches[0].clientY;
+        },
+        touchEnd(event) {
+            if (window.innerWidth >= 768 || this.touchStartX === null || event.changedTouches.length !== 1) {
+                this.cancelSwipe();
+                return;
+            }
+
+            const deltaX = event.changedTouches[0].clientX - this.touchStartX;
+            const deltaY = event.changedTouches[0].clientY - this.touchStartY;
+            const threshold = Math.max(54, Math.min(96, window.innerWidth * 0.18));
+
+            if (Math.abs(deltaX) >= threshold && Math.abs(deltaX) > Math.abs(deltaY) * 1.25) {
+                this.moveTab(deltaX < 0 ? 1 : -1, false);
+            }
+
+            this.cancelSwipe();
+        },
+        cancelSwipe() {
+            this.touchStartX = null;
+            this.touchStartY = null;
         },
         mq: null,
         setupMQ(breakpoint) {
@@ -72,6 +111,10 @@
     }"
     x-init="if (@js($forceDefault)) { openTab = @js($initial); } ensureActiveTab(); setupMQ(@js($collapseAt)); onResize()"
     class="w-full min-w-0"
+    @touchstart.passive="touchStart($event)"
+    @touchend.passive="touchEnd($event)"
+    @touchcancel.passive="cancelSwipe()"
+    data-swipe-tabs
     wire:key="{{ \Illuminate\Support\Str::slug($key) }}"
 >
     <div

@@ -4,10 +4,14 @@ namespace Tests\Feature;
 
 use App\Models\Team;
 use App\Models\User;
+use App\Support\WagonListWorkbookExporter;
+use DOMDocument;
+use DOMXPath;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
+use ZipArchive;
 
 class WagonListPrototypeTest extends TestCase
 {
@@ -81,5 +85,109 @@ class WagonListPrototypeTest extends TestCase
         $this->assertStringContainsString('mobileWagon', $script);
         $this->assertFileDoesNotExist(app_path('Models/WagonList.php'));
         $this->assertFileDoesNotExist(app_path('Models/Wagon.php'));
+    }
+
+    public function test_employee_can_export_the_browser_draft_into_the_original_excel_layout(): void
+    {
+        $owner = User::factory()->create(['role' => 'admin']);
+        $employeeTeam = Team::forceCreate([
+            'user_id' => $owner->id,
+            'name' => 'Mitarbeiter',
+            'personal_team' => false,
+            'rbac_permissions' => [],
+        ]);
+        $employee = User::factory()->create(['role' => 'staff', 'current_team_id' => $employeeTeam->id]);
+        $employee->teams()->attach($employeeTeam);
+
+        $payload = [
+            'meta' => [
+                'trainNumber' => '4711',
+                'date' => '2026-07-24',
+                'origin' => 'Berlin',
+                'destination' => 'Hamburg',
+                'reference' => 'RT-2026-0815',
+            ],
+            'wagons' => [[
+                'number12' => '80',
+                'number34' => '80',
+                'number58' => '1234',
+                'number911' => '567',
+                'checkDigit' => '8',
+                'category' => 'Habbiins',
+                'axlesEmpty' => 4,
+                'axlesLoaded' => 0,
+                'length' => 21.5,
+                'wagonWeight' => 24.3,
+                'loadWeight' => 31.7,
+                'brakeG' => 38,
+                'brakeP' => 44,
+                'shippingStation' => 'Berlin',
+                'destinationStation' => 'Hamburg',
+                'brakeType' => 'K',
+                'discBrake' => true,
+                'parkingBrake' => 20,
+                'maxSpeed' => 120,
+                'remark' => 'Testwagen',
+            ]],
+            'brakeSheet' => [
+                'tractionWeight' => 80,
+                'tractionBrakeWeight' => 72,
+                'tractionAxles' => 4,
+                'minimumBrakePercentage' => 80,
+                'brakedAxles' => 4,
+                'lowerVehicleSpeed' => 100,
+                'nbuepBrake' => 'yes',
+                'dangerousGoods' => 'no',
+                'issuerName' => 'Max Mustermann',
+            ],
+        ];
+
+        $this->actingAs($employee)
+            ->postJson(route('operations.wagon-list.export'), $payload)
+            ->assertOk()
+            ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            ->assertDownload('RailTime_Wagenliste_4711_2026-07-24.xlsx');
+
+        $path = app(WagonListWorkbookExporter::class)->export($payload);
+        $zip = new ZipArchive();
+        $this->assertTrue($zip->open($path) === true);
+
+        try {
+            $wagonSheet = $this->xlsxCells($zip->getFromName('xl/worksheets/sheet1.xml'));
+            $brakeSheet = $this->xlsxCells($zip->getFromName('xl/worksheets/sheet2.xml'));
+
+            $this->assertSame('4711', $wagonSheet['C2']);
+            $this->assertSame('46227', $wagonSheet['K2']);
+            $this->assertSame('Berlin', $wagonSheet['C3']);
+            $this->assertSame('Hamburg', $wagonSheet['K3']);
+            $this->assertSame('80', $wagonSheet['B7']);
+            $this->assertSame('Habbiins', $wagonSheet['G7']);
+            $this->assertSame('56', $wagonSheet['M7']);
+            $this->assertSame('D', $wagonSheet['S7']);
+            $this->assertSame('ja', $brakeSheet['E29']);
+            $this->assertSame('nein', $brakeSheet['E36']);
+            $this->assertStringContainsString('Max Mustermann', $brakeSheet['A38']);
+        } finally {
+            $zip->close();
+            @unlink($path);
+        }
+    }
+
+    private function xlsxCells(string $xml): array
+    {
+        $document = new DOMDocument();
+        $document->loadXML($xml);
+        $xpath = new DOMXPath($document);
+        $xpath->registerNamespace('x', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+        $cells = [];
+
+        foreach ($xpath->query('//x:c') as $cell) {
+            $reference = $cell->getAttribute('r');
+            $inline = $xpath->query('./x:is/x:t', $cell)->item(0);
+            $value = $xpath->query('./x:v', $cell)->item(0);
+            $cells[$reference] = $inline?->textContent ?? $value?->textContent ?? '';
+        }
+
+        return $cells;
     }
 }

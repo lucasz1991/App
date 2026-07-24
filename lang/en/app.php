@@ -30,6 +30,13 @@ return [
     'sound_on' => 'Enabled',
     'sound_off' => 'Disabled',
     'select_section' => 'Choose section',
+    'overview' => 'Overview',
+    'organization' => 'Organisation',
+    'content_and_files' => 'Content & files',
+    'files_and_templates' => 'Files & templates',
+    'chat_and_messages' => 'Chat & messages',
+    'my_area' => 'My area',
+    'profile_and_support' => 'Profile & support',
 
     // Dashboards
     'welcome_name' => 'Welcome, :name!',
@@ -473,6 +480,7 @@ return [
     'visible_until' => 'Visible until',
     'auto_delete' => 'Delete automatically after expiry',
     'auto_delete_hint' => 'Once the expiry date has passed, the entry and its contents are removed automatically and irreversibly.',
+    'automatic_deletion' => 'Automatic deletion',
     'team_visibility' => 'Team visibility',
     'team_visibility_hint' => 'Only members of the selected teams can see this entry. Without a selection it is visible to everyone.',
     'all_teams_visible' => 'Visible to all teams',
@@ -612,8 +620,8 @@ return [
     'back_to_login' => 'Back to login',
 
     // Managed documents
-    'download_files' => 'Download files',
-    'managed_documents' => 'Managed documents',
+    'download_files' => 'File explorer',
+    'managed_documents' => 'Work resource files',
     'managed_documents_intro' => 'Permanent document purposes with one current version, full history and targeted notifications.',
     'managed_documents_explanation' => 'The entry remains stable for vehicle lists, reporting lists and similar purposes. Each update creates a new version while older states remain available to administrators.',
     'one_purpose_one_current_file' => 'One purpose, one current file',
@@ -675,6 +683,10 @@ return [
     'wagon_reset_title' => 'Reset draft?',
     'wagon_reset_text' => 'All locally stored wagon and brake data will be removed.',
     'wagon_not_saved' => 'Not saved yet',
+    'export_excel' => 'Export to Excel',
+    'wagon_exporting' => 'Creating Excel …',
+    'wagon_export_success' => 'The wagon list has been exported to Excel.',
+    'wagon_export_error' => 'The Excel file could not be created.',
     'locally_saved' => 'Saved locally',
     'reset_draft' => 'Reset draft',
     'reset' => 'Reset',

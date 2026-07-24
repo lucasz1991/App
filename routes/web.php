@@ -12,6 +12,7 @@ use App\Livewire\MessageBox;
 use App\Livewire\Operations\WagonListPrototype;
 use App\Livewire\UserDashboard;
 use App\Livewire\UserFiles;
+use App\Http\Controllers\WagonListExportController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -71,6 +72,8 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
     Route::get('/betrieb/wagenliste', WagonListPrototype::class)
         ->middleware(\App\Http\Middleware\RedirectAdminWagonList::class)
         ->name('operations.wagon-list');
+    Route::post('/betrieb/wagenliste/export', WagonListExportController::class)
+        ->name('operations.wagon-list.export');
     Route::get('/files', UserFiles::class)->name('files');
     Route::get('/files/verbindlich/{managedDocument}', App\Http\Controllers\ManagedDocumentDownloadController::class)
         ->name('managed-documents.download');
@@ -98,6 +101,8 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
             ->where('module', 'orders|shift-management|calendar|customers')
             ->name('operations.preview');
         Route::get('/betrieb/wagenliste', WagonListPrototype::class)->name('operations.wagon-list');
+        Route::post('/betrieb/wagenliste/export', WagonListExportController::class)
+            ->name('operations.wagon-list.export');
         Route::get('/settings', Settings::class)->name('settings');
         Route::get('/employees', Employees::class)->name('employees');
         Route::get('/user/{userId}', UserProfile::class)->name('user-profile');

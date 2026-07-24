@@ -1,4 +1,4 @@
-<x-ui.page :title="__('app.file_management')" :eyebrow="__('app.administration')">
+<x-ui.page :title="__('app.download_files')" :eyebrow="__('app.file_management')">
     <livewire:tools.file-pools.manage-file-pools
         :pool-id="$companyPoolId"
         :read-only="false"

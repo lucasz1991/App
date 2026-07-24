@@ -1,6 +1,7 @@
 @props([
     'disabled' => false,
     'placeholder' => null,
+    'change' => null,
 ])
 
 @php
@@ -82,6 +83,7 @@
     }"
     x-modelable="selected"
     @if($xModel) x-model="{{ $xModel }}" @endif
+    @if($change) @change="{{ $change }}" @endif
     class="{{ $outerClasses }}"
     data-rt-custom-select
 >

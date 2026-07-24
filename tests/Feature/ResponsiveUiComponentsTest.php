@@ -53,15 +53,21 @@ class ResponsiveUiComponentsTest extends TestCase
         preg_match_all('/data-topbar-preference="([^"]+)"/', $view, $preferences);
         $this->assertSame(['language', 'theme', 'sound'], $preferences[1]);
 
-        $this->assertStringContainsString('href="' . route('locale.switch', 'de') . '"', $html);
-        $this->assertStringContainsString('href="' . route('locale.switch', 'en') . '"', $html);
+        $this->assertStringContainsString('id="topbar-language"', $html);
+        $this->assertStringContainsString('data-rt-custom-select', $html);
+        $this->assertStringContainsString('\u0022value\u0022:\u0022de', $html);
+        $this->assertStringContainsString('\u0022value\u0022:\u0022en', $html);
+        $this->assertStringNotContainsString('<select', $html);
 
         $this->assertSame(1, substr_count($view, '$store.theme?.toggle()'));
         $this->assertSame(1, substr_count($view, '$store.sound?.toggle()'));
         $this->assertSame(1, substr_count($html, 'data-topbar-preferences-dropdown'));
         $this->assertSame(1, substr_count($html, 'data-topbar-preferences-trigger'));
-        $this->assertSame(2, substr_count($html, 'role="menuitemradio"'));
+        $this->assertSame(0, substr_count($html, 'role="menuitemradio"'));
         $this->assertSame(2, substr_count($html, 'role="menuitemcheckbox"'));
+        $this->assertStringContainsString('grid grid-cols-2 gap-2', $html);
+        $this->assertSame(2, substr_count($view, 'data-topbar-preference="theme"') + substr_count($view, 'data-topbar-preference="sound"'));
+        $this->assertGreaterThanOrEqual(4, substr_count($view, 'x-show='));
         $this->assertStringContainsString('aria-label="' . __('app.settings') . '"', $html);
         $this->assertStringContainsString('aria-haspopup="menu"', $html);
         $this->assertStringContainsString('x-bind:aria-expanded="open.toString()"', $html);
@@ -274,5 +280,44 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertStringNotContainsString('[data-mobile-expanded="true"]', $styles);
         $this->assertStringContainsString('.rt-ui-sidebar .sidebar-nav-link:focus-visible', $styles);
         $this->assertStringContainsString('background-color: #fff0f3 !important', $styles);
+    }
+
+    public function test_shared_tabs_and_layout_expose_mobile_swipe_navigation(): void
+    {
+        $tabs = file_get_contents(resource_path('views/components/ui/accordion/tabs.blade.php'));
+        $script = file_get_contents(resource_path('js/app.js'));
+        $wagon = file_get_contents(resource_path('js/wagon-list-prototype.js'));
+
+        $this->assertStringContainsString('data-swipe-tabs', $tabs);
+        $this->assertStringContainsString('@touchstart.passive="touchStart($event)"', $tabs);
+        $this->assertStringContainsString("this.moveTab(deltaX < 0 ? 1 : -1, false)", $tabs);
+        $this->assertStringNotContainsString('\\"', $tabs);
+        $this->assertStringContainsString('initMobileSidebarSwipe()', $script);
+        $this->assertStringContainsString("startsAtOpeningEdge", $script);
+        $this->assertStringContainsString('setMobileSidebarOpen(true)', $script);
+        $this->assertStringContainsString('setMobileSidebarOpen(false)', $script);
+        $this->assertStringContainsString('wagonTouchStart', $wagon);
+        $this->assertStringContainsString('nextMobileWagon()', $wagon);
+        $this->assertStringContainsString('previousMobileWagon()', $wagon);
+    }
+
+    public function test_file_explorer_uses_equal_compact_cards_and_tabbed_settings(): void
+    {
+        $view = file_get_contents(resource_path('views/livewire/tools/file-pools/manage-file-pools.blade.php'));
+        $styles = file_get_contents(resource_path('css/app.css'));
+
+        $this->assertSame(2, substr_count($view, 'class="rt-file-explorer-grid'));
+        $this->assertGreaterThanOrEqual(2, substr_count($view, 'rt-file-explorer-card'));
+        $this->assertStringContainsString('.rt-file-explorer-grid', $styles);
+        $this->assertStringContainsString('repeat(auto-fill, minmax(5.75rem, 6.5rem))', $styles);
+        $this->assertStringContainsString('persist-key="file-settings.tabs"', $view);
+        $this->assertStringContainsString('persist-key="folder-settings.tabs"', $view);
+        $this->assertStringContainsString("'fileName' =>", $view);
+        $this->assertStringContainsString("'fileVisibility' =>", $view);
+        $this->assertStringContainsString("'fileDeletion' =>", $view);
+        $this->assertStringContainsString("'folderName' =>", $view);
+        $this->assertStringContainsString("'folderVisibility' =>", $view);
+        $this->assertStringContainsString("'folderDeletion' =>", $view);
+        $this->assertSame(2, substr_count($view, 'class="mt-1 block" required'));
     }
 }

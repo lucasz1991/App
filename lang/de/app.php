@@ -30,6 +30,13 @@ return [
     'sound_on' => 'Eingeschaltet',
     'sound_off' => 'Ausgeschaltet',
     'select_section' => 'Bereich wählen',
+    'overview' => 'Übersicht',
+    'organization' => 'Organisation',
+    'content_and_files' => 'Inhalte & Dateien',
+    'files_and_templates' => 'Dateien & Vorlagen',
+    'chat_and_messages' => 'Chat & Nachrichten',
+    'my_area' => 'Mein Bereich',
+    'profile_and_support' => 'Profil & Support',
 
     // Dashboards
     'welcome_name' => 'Willkommen, :name!',
@@ -473,6 +480,7 @@ return [
     'visible_until' => 'Sichtbar bis',
     'auto_delete' => 'Nach Ablauf automatisch löschen',
     'auto_delete_hint' => 'Ist das Ablaufdatum überschritten, wird der Eintrag samt Inhalt automatisch und unwiderruflich entfernt.',
+    'automatic_deletion' => 'Automatisches Löschen',
     'team_visibility' => 'Team-Sichtbarkeit',
     'team_visibility_hint' => 'Nur Mitglieder der gewählten Teams sehen diesen Eintrag. Ohne Auswahl ist er für alle sichtbar.',
     'all_teams_visible' => 'Für alle Teams sichtbar',
@@ -611,9 +619,9 @@ return [
     'send_reset_link' => 'Reset-Link senden',
     'back_to_login' => 'Zurück zum Login',
 
-    // Verbindliche Dateien
-    'download_files' => 'Download-Dateien',
-    'managed_documents' => 'Verbindliche Dateien',
+    // Arbeitsmitteldateien
+    'download_files' => 'Dateiexplorer',
+    'managed_documents' => 'Arbeitsmitteldateien',
     'managed_documents_intro' => 'Dauerhafte Dateizwecke mit einer aktuellen Version, vollständiger Historie und gezielten Benachrichtigungen.',
     'managed_documents_explanation' => 'Für Wagenliste, Meldeliste und ähnliche Zwecke bleibt der Eintrag unverändert. Eine Aktualisierung erzeugt eine neue Version, während ältere Stände für Administratoren erhalten bleiben.',
     'one_purpose_one_current_file' => 'Ein Zweck, eine aktuelle Datei',
@@ -675,6 +683,10 @@ return [
     'wagon_reset_title' => 'Entwurf zurücksetzen?',
     'wagon_reset_text' => 'Alle lokal gespeicherten Wagen- und Bremsdaten werden entfernt.',
     'wagon_not_saved' => 'Noch nicht gespeichert',
+    'export_excel' => 'Als Excel exportieren',
+    'wagon_exporting' => 'Excel wird erstellt …',
+    'wagon_export_success' => 'Die Wagenliste wurde als Excel-Datei erstellt.',
+    'wagon_export_error' => 'Die Excel-Datei konnte nicht erstellt werden.',
     'locally_saved' => 'Lokal gespeichert',
     'reset_draft' => 'Entwurf zurücksetzen',
     'reset' => 'Zurücksetzen',

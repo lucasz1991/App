@@ -1,6 +1,6 @@
 <div class="metismenu pb-10 pt-2.5" id="sidebar-menu">
     <ul id="side-menu">
-        <x-menu.sidebar-nav>
+        <x-menu.sidebar-nav :label="__('app.overview')">
             <x-menu.sidebar-nav-link
                 :href="route('admin.dashboard')"
                 icon="home"
@@ -10,69 +10,41 @@
             </x-menu.sidebar-nav-link>
         </x-menu.sidebar-nav>
 
-        @canany(['settings.manage', 'employees.view', 'files.manage', 'manage.messages'])
-        <x-menu.sidebar-nav :label="__('app.administration')">
-            @can('settings.manage')
-                <x-menu.sidebar-nav-link
-                    :href="route('admin.settings')"
-                    icon="settings"
-                    :active="request()->routeIs('admin.settings')"
-                >
-                    {{ __('app.settings') }}
-                </x-menu.sidebar-nav-link>
-            @endcan
-
-            @can('employees.view')
-                <x-menu.sidebar-nav-link
-                    :href="route('admin.employees')"
-                    icon="users"
-                    :active="request()->routeIs('admin.employees')"
-                >
-                    {{ __('app.employees') }}
-                </x-menu.sidebar-nav-link>
-            @endcan
-
-            @can('files.manage')
+        @canany(['settings.manage', 'employees.view'])
+            <x-menu.sidebar-nav :label="__('app.company')">
                 <x-menu.sidebar-nav-group
-                    icon="folder"
-                    :active="request()->routeIs('admin.files', 'admin.managed-documents')"
+                    icon="briefcase"
+                    :active="request()->routeIs('admin.settings', 'admin.employees', 'employees.show')"
                 >
-                    <x-slot:label>{{ __('app.file_management') }}</x-slot:label>
+                    <x-slot:label>{{ __('app.organization') }}</x-slot:label>
 
-                    <x-menu.sidebar-nav-link
-                        :href="route('admin.files')"
-                        icon="download-cloud"
-                        :active="request()->routeIs('admin.files')"
-                        class="!pl-12"
-                    >
-                        {{ __('app.download_files') }}
-                    </x-menu.sidebar-nav-link>
+                    @can('employees.view')
+                        <x-menu.sidebar-nav-link
+                            :href="route('admin.employees')"
+                            icon="users"
+                            :active="request()->routeIs('admin.employees', 'employees.show')"
+                            class="!pl-12"
+                        >
+                            {{ __('app.employees') }}
+                        </x-menu.sidebar-nav-link>
+                    @endcan
 
-                    <x-menu.sidebar-nav-link
-                        :href="route('admin.managed-documents')"
-                        icon="file-text"
-                        :active="request()->routeIs('admin.managed-documents')"
-                        class="!pl-12"
-                    >
-                        {{ __('app.managed_documents') }}
-                    </x-menu.sidebar-nav-link>
+                    @can('settings.manage')
+                        <x-menu.sidebar-nav-link
+                            :href="route('admin.settings')"
+                            icon="settings"
+                            :active="request()->routeIs('admin.settings')"
+                            class="!pl-12"
+                        >
+                            {{ __('app.settings') }}
+                        </x-menu.sidebar-nav-link>
+                    @endcan
                 </x-menu.sidebar-nav-group>
-            @endcan
-
-            @can('manage.messages')
-                <x-menu.sidebar-nav-link
-                    :href="route('admin.mail-management')"
-                    icon="send"
-                    :active="request()->routeIs('admin.mail-management')"
-                >
-                    {{ __('app.mail_management') }}
-                </x-menu.sidebar-nav-link>
-            @endcan
-        </x-menu.sidebar-nav>
+            </x-menu.sidebar-nav>
         @endcanany
 
         @if (auth()->user()?->role === 'admin')
-            <x-menu.sidebar-nav :label="__('app.operations_preview')">
+            <x-menu.sidebar-nav :label="__('app.operations')">
                 <x-menu.sidebar-nav-group
                     icon="layers"
                     :active="request()->routeIs('admin.operations.preview', 'admin.operations.wagon-list')"
@@ -102,15 +74,61 @@
             </x-menu.sidebar-nav>
         @endif
 
-        {{-- Kein Download-Center: Admins/Verwaltung stellen Dateien bereit,
-             empfangen selbst aber keine — der Bereich bleibt den Mitarbeitern
-             (Nutzer-Sidebar) vorbehalten. --}}
-        <x-menu.sidebar-nav :label="__('app.personal_data')">
+        <x-menu.sidebar-nav :label="__('app.content_and_files')">
+            <x-menu.sidebar-nav-group
+                icon="folder"
+                :active="request()->routeIs('admin.files', 'admin.managed-documents', 'admin.mail-management', 'email-templates.*')"
+            >
+                <x-slot:label>{{ __('app.files_and_templates') }}</x-slot:label>
+
+                @can('files.manage')
+                    <x-menu.sidebar-nav-link
+                        :href="route('admin.files')"
+                        icon="folder"
+                        :active="request()->routeIs('admin.files')"
+                        class="!pl-12"
+                    >
+                        {{ __('app.download_files') }}
+                    </x-menu.sidebar-nav-link>
+
+                    <x-menu.sidebar-nav-link
+                        :href="route('admin.managed-documents')"
+                        icon="tool"
+                        :active="request()->routeIs('admin.managed-documents')"
+                        class="!pl-12"
+                    >
+                        {{ __('app.managed_documents') }}
+                    </x-menu.sidebar-nav-link>
+                @endcan
+
+                <x-menu.sidebar-nav-link
+                    :href="route('email-templates.index')"
+                    icon="file-text"
+                    :active="request()->routeIs('email-templates.*')"
+                    class="!pl-12"
+                >
+                    {{ __('app.email_templates') }}
+                </x-menu.sidebar-nav-link>
+
+                @can('manage.messages')
+                    <x-menu.sidebar-nav-link
+                        :href="route('admin.mail-management')"
+                        icon="send"
+                        :active="request()->routeIs('admin.mail-management')"
+                        class="!pl-12"
+                    >
+                        {{ __('app.mail_management') }}
+                    </x-menu.sidebar-nav-link>
+                @endcan
+            </x-menu.sidebar-nav-group>
+        </x-menu.sidebar-nav>
+
+        <x-menu.sidebar-nav :label="__('app.communication')">
             <x-menu.sidebar-nav-group
                 icon="message-square"
                 :active="request()->routeIs('chat', 'admin.messages')"
             >
-                <x-slot:label>{{ __('app.communication') }}</x-slot:label>
+                <x-slot:label>{{ __('app.chat_and_messages') }}</x-slot:label>
 
                 <x-menu.sidebar-nav-link
                     :href="route('chat')"
@@ -130,33 +148,34 @@
                     {{ __('app.messages') }}
                 </x-menu.sidebar-nav-link>
             </x-menu.sidebar-nav-group>
-
-            <x-menu.sidebar-nav-link
-                :href="route('email-templates.index')"
-                icon="file-text"
-                :active="request()->routeIs('email-templates.*')"
-            >
-                {{ __('app.email_templates') }}
-            </x-menu.sidebar-nav-link>
-
-            <x-menu.sidebar-nav-link
-                :href="route('profile.show')"
-                icon="user"
-                :active="request()->routeIs('profile.show')"
-                :navigate="false"
-            >
-                {{ __('app.profile') }}
-            </x-menu.sidebar-nav-link>
         </x-menu.sidebar-nav>
 
-        <x-menu.sidebar-nav :label="__('app.help_and_contact')">
-            <x-menu.sidebar-nav-link
-                :href="route('support')"
-                icon="life-buoy"
-                :active="request()->routeIs('support')"
+        <x-menu.sidebar-nav :label="__('app.my_area')">
+            <x-menu.sidebar-nav-group
+                icon="user"
+                :active="request()->routeIs('profile.show', 'support')"
             >
-                {{ __('app.it_support') }}
-            </x-menu.sidebar-nav-link>
+                <x-slot:label>{{ __('app.profile_and_support') }}</x-slot:label>
+
+                <x-menu.sidebar-nav-link
+                    :href="route('profile.show')"
+                    icon="user"
+                    :active="request()->routeIs('profile.show')"
+                    :navigate="false"
+                    class="!pl-12"
+                >
+                    {{ __('app.profile') }}
+                </x-menu.sidebar-nav-link>
+
+                <x-menu.sidebar-nav-link
+                    :href="route('support')"
+                    icon="life-buoy"
+                    :active="request()->routeIs('support')"
+                    class="!pl-12"
+                >
+                    {{ __('app.it_support') }}
+                </x-menu.sidebar-nav-link>
+            </x-menu.sidebar-nav-group>
         </x-menu.sidebar-nav>
     </ul>
 </div>

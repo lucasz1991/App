@@ -972,6 +972,7 @@ window.addEventListener('rt:inbox-increased', (event) => {
 
 window.Swiper = Swiper;
 let sidebarCollapseTimer = null;
+let sidebarSwipeStart = null;
 
 function initMetisMenu() {
     if (!window.MetisMenu) {
@@ -1023,6 +1024,69 @@ function setDesktopSidebarExpanded(expanded) {
 function setMobileSidebarOpen(open) {
     document.body.classList.toggle('sidebar-enable', open);
     syncSidebarToggleState();
+}
+
+function initMobileSidebarSwipe() {
+    if (window.__rtMobileSidebarSwipeBound === true) {
+        return;
+    }
+
+    window.__rtMobileSidebarSwipeBound = true;
+
+    document.addEventListener('touchstart', (event) => {
+        if (window.innerWidth >= 1140 || event.touches.length !== 1) {
+            sidebarSwipeStart = null;
+            return;
+        }
+
+        const target = event.target instanceof Element ? event.target : null;
+        if (!target || target.closest('input, textarea, select, button, [contenteditable="true"], [role="dialog"], [data-no-sidebar-swipe]')) {
+            sidebarSwipeStart = null;
+            return;
+        }
+
+        const touch = event.touches[0];
+        const sidebarOpen = document.body.classList.contains('sidebar-enable');
+        const insideSidebar = Boolean(target.closest('#app-sidebar'));
+        const startsAtOpeningEdge = touch.clientX <= Math.max(24, window.innerWidth * 0.065);
+
+        if ((!sidebarOpen && startsAtOpeningEdge) || (sidebarOpen && insideSidebar)) {
+            sidebarSwipeStart = {
+                x: touch.clientX,
+                y: touch.clientY,
+                sidebarOpen,
+            };
+            return;
+        }
+
+        sidebarSwipeStart = null;
+    }, { passive: true });
+
+    document.addEventListener('touchend', (event) => {
+        if (!sidebarSwipeStart || event.changedTouches.length !== 1 || window.innerWidth >= 1140) {
+            sidebarSwipeStart = null;
+            return;
+        }
+
+        const touch = event.changedTouches[0];
+        const deltaX = touch.clientX - sidebarSwipeStart.x;
+        const deltaY = touch.clientY - sidebarSwipeStart.y;
+        const threshold = Math.max(64, Math.min(110, window.innerWidth * 0.2));
+        const isHorizontal = Math.abs(deltaX) >= threshold && Math.abs(deltaX) > Math.abs(deltaY) * 1.25;
+
+        if (isHorizontal && !sidebarSwipeStart.sidebarOpen && deltaX > 0) {
+            setMobileSidebarOpen(true);
+            initMenuItemScroll();
+        } else if (isHorizontal && sidebarSwipeStart.sidebarOpen && deltaX < 0) {
+            setMobileSidebarOpen(false);
+        }
+
+        sidebarSwipeStart = null;
+    }, { passive: true });
+
+    document.addEventListener('touchcancel', () => {
+        sidebarSwipeStart = null;
+    }, { passive: true });
 }
 
 function syncSidebarToggleState() {
@@ -1242,6 +1306,7 @@ function initAdminLayout() {
     syncSidebarInteractionMode();
     initMetisMenu();
     initLeftMenuCollapse();
+    initMobileSidebarSwipe();
     initSidebarInteractions();
     initActiveMenu();
     initMenuItemScroll();
