@@ -246,6 +246,9 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertStringContainsString("return 'after'", $html);
         $this->assertStringContainsString("centerActiveTab('auto')", $html);
         $this->assertStringContainsString('scrollTo({ left: Math.max(0, left)', $html);
+        $this->assertStringContainsString('$event.currentTarget.dataset.tabId', $html);
+        $this->assertStringContainsString(":data-sticky-enabled=\"stickyEnabled ? 'true' : 'false'\"", $html);
+        $this->assertStringContainsString("stickyEnabled = !\$root.closest('[role=dialog]')", $html);
         $this->assertStringNotContainsString('aria-haspopup="listbox"', $html);
         $this->assertStringNotContainsString('grid-cols-2', $html);
 
@@ -256,6 +259,10 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertStringContainsString(".rt-carousel-tab[data-position='before']", $styles);
         $this->assertStringContainsString(".rt-carousel-tab[data-position='after']", $styles);
         $this->assertStringContainsString("body[data-mode='dark'] .rt-carousel-tab", $styles);
+        $this->assertStringContainsString(".rt-tabs-shell[data-sticky-enabled='true']", $styles);
+        $this->assertStringContainsString(".main-content:has(.rt-tabs-shell[data-sticky-enabled='true'])", $styles);
+        $this->assertStringContainsString('top: calc(70px + 0.5rem)', $styles);
+        $this->assertStringNotContainsString('translateZ(-', $styles);
     }
 
     public function test_employee_list_remains_one_row_per_employee_on_mobile(): void
@@ -308,6 +315,15 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertStringContainsString("this.moveTab(deltaX < 0 ? 1 : -1, false)", $tabs);
         $this->assertStringContainsString('@pointerdown="pointerStart($event)"', $tabs);
         $this->assertStringContainsString("event.pointerType !== 'mouse'", $tabs);
+        $this->assertStringContainsString('@pointermove="carouselPointerMove($event)"', $tabs);
+        $this->assertStringContainsString('const wasDragged = this.carouselPointerMoved', $tabs);
+        $this->assertStringContainsString('if (wasDragged)', $tabs);
+        $this->assertStringContainsString('@touchstart.stop.passive="carouselTouchStart($event)"', $tabs);
+        $this->assertStringContainsString('@scroll.passive="onCarouselScroll()"', $tabs);
+        $this->assertStringContainsString('if (this.carouselProgrammaticScroll) return', $tabs);
+        $this->assertStringContainsString('window.clearTimeout(this.carouselSettleTimer)', $tabs);
+        $this->assertStringContainsString('settleCarousel()', $tabs);
+        $this->assertStringContainsString('--rt-carousel-drag-rotate', $tabs);
         $this->assertStringContainsString(':data-tab-direction="tabDirection"', $tabs);
         $this->assertStringNotContainsString('window.innerWidth >= 768', $tabs);
         $this->assertStringContainsString('x-transition:enter="rt-tab-panel-transition"', $panel);
@@ -316,6 +332,9 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertStringContainsString("[data-tab-direction='previous'] .rt-tab-panel-enter-start", $styles);
         $this->assertStringContainsString('transition:', $styles);
         $this->assertStringContainsString('transform 320ms cubic-bezier(0.32, 0.72, 0, 1)', $styles);
+        $this->assertStringContainsString(".rt-tabs-carousel[data-dragging='true']", $styles);
+        $this->assertStringContainsString('rotateY(var(--rt-carousel-drag-rotate, 0deg))', $styles);
+        $this->assertStringContainsString('touch-action: pan-x pan-y', $styles);
         $this->assertStringNotContainsString('\\"', $tabs);
         $this->assertStringContainsString('initMobileSidebarSwipe()', $script);
         $this->assertStringContainsString("startsAtOpeningEdge", $script);

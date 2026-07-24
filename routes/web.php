@@ -26,8 +26,6 @@ Route::get('/', function () {
     return redirect()->route('login');
 })->name('home');
 
-Route::view('/__codex/tabs-preview', 'codex-tabs-preview');
-
 Route::get('/locale/{locale}', function (string $locale) {
     if (in_array($locale, config('app.supported_locales', []), true)) {
         session(['locale' => $locale]);
