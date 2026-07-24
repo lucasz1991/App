@@ -10,38 +10,29 @@
             </x-menu.sidebar-nav-link>
         </x-menu.sidebar-nav>
 
-        @canany(['settings.manage', 'employees.view'])
+        @can('settings.manage')
             <x-menu.sidebar-nav :label="__('app.company')">
-                <x-menu.sidebar-nav-group
-                    icon="briefcase"
-                    :active="request()->routeIs('admin.settings', 'admin.employees', 'employees.show')"
+                <x-menu.sidebar-nav-link
+                    :href="route('admin.settings')"
+                    icon="settings"
+                    :active="request()->routeIs('admin.settings')"
                 >
-                    <x-slot:label>{{ __('app.organization') }}</x-slot:label>
-
-                    @can('employees.view')
-                        <x-menu.sidebar-nav-link
-                            :href="route('admin.employees')"
-                            icon="users"
-                            :active="request()->routeIs('admin.employees', 'employees.show')"
-                            class="!pl-12"
-                        >
-                            {{ __('app.employees') }}
-                        </x-menu.sidebar-nav-link>
-                    @endcan
-
-                    @can('settings.manage')
-                        <x-menu.sidebar-nav-link
-                            :href="route('admin.settings')"
-                            icon="settings"
-                            :active="request()->routeIs('admin.settings')"
-                            class="!pl-12"
-                        >
-                            {{ __('app.settings') }}
-                        </x-menu.sidebar-nav-link>
-                    @endcan
-                </x-menu.sidebar-nav-group>
+                    {{ __('app.settings') }}
+                </x-menu.sidebar-nav-link>
             </x-menu.sidebar-nav>
-        @endcanany
+        @endcan
+
+        @can('employees.view')
+            <x-menu.sidebar-nav :label="__('app.management')">
+                <x-menu.sidebar-nav-link
+                    :href="route('admin.employees')"
+                    icon="users"
+                    :active="request()->routeIs('admin.employees', 'employees.show')"
+                >
+                    {{ __('app.employees') }}
+                </x-menu.sidebar-nav-link>
+            </x-menu.sidebar-nav>
+        @endcan
 
         @if (auth()->user()?->role === 'admin')
             <x-menu.sidebar-nav :label="__('app.operations')">

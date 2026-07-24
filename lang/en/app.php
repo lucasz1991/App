@@ -32,6 +32,7 @@ return [
     'select_section' => 'Choose section',
     'overview' => 'Overview',
     'organization' => 'Organisation',
+    'management' => 'Management',
     'content_and_files' => 'Content & files',
     'files_and_templates' => 'Files & templates',
     'chat_and_messages' => 'Chat & messages',
