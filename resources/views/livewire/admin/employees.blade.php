@@ -44,84 +44,48 @@
         </x-slot:actions>
 
         {{-- Listen-Toolbar: links Massenauswahl, rechts Suche/Filter --}}
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between" data-anim="fade-up">
-            <div class="flex items-center gap-2">
-                <x-ui.buttons.button-basic
-                    wire:click="toggleSelectAll"
-                    :size="'sm'"
-                    :title="__('app.select_all')"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
-                    </svg>
-                </x-ui.buttons.button-basic>
-                @php $isDisabled = count($selectedEmployees) === 0; @endphp
-                <x-dropdown align="left">
-                    <x-slot name="trigger">
-                        <button
-                            type="button"
-                            @class([
-                                'text-sm border border-rt-border px-3 py-1.5 rounded-lg relative flex items-center justify-center bg-rt-control shadow-rt-xs transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted active:scale-[0.98] dark:bg-rt-dark-control dark:border-rt-dark-border dark:hover:bg-rt-dark-surface-muted',
-                                'cursor-not-allowed opacity-50' => $isDisabled,
-                                'cursor-pointer' => !$isDisabled,
-                            ])
-                            @if($isDisabled) disabled @endif
-                        >
-                            <svg class="w-4 h-4 text-rt-muted dark:text-rt-dark-muted" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
-                                width="24" height="24" fill="none" viewBox="0 0 24 24">
-                                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M5.005 11.19V12l6.998 4.042L19 12v-.81M5 16.15v.81L11.997 21l6.998-4.042v-.81M12.003 3 5.005 7.042l6.998 4.042L19 7.042 12.003 3Z"/>
-                            </svg>
-                            @unless($isDisabled)
-                                <span class="ml-2 bg-rt-red text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                                    {{ count($selectedEmployees) }}
-                                </span>
-                            @endunless
-                        </button>
-                    </x-slot>
-                    <x-slot name="content">
-                        <x-dropdown-link href="#" wire:click.prevent="clearSelection" class="hover:bg-red-100 dark:hover:bg-red-500/20">
-                            <i class="far fa-align-slash mr-2"></i>
-                            {{ __('app.clear_selection') }}
-                        </x-dropdown-link>
-                        <x-dropdown-link href="#" wire:click.prevent="messageSelected" :can="'users.messages.create'">
-                            <i class="far fa-paper-plane mr-2"></i>
-                            {{ __('app.compose_message') }}
-                        </x-dropdown-link>
-                        <x-dropdown-link href="#" wire:click.prevent="exportSelected" class="hover:bg-green-100 dark:hover:bg-green-500/20">
-                            <i class="far fa-download mr-2"></i>
-                            {{ __('app.export') }}
-                        </x-dropdown-link>
-                    </x-slot>
-                </x-dropdown>
-            </div>
+        <x-tables.toolbar data-anim="fade-up">
+            <x-slot:bulk>
+                <x-tables.bulk-actions :count="count($selectedEmployees)" select-all="toggleSelectAll">
+                    <x-dropdown-link href="#" wire:click.prevent="clearSelection" tone="danger">
+                        <i class="far fa-align-slash mr-2"></i>
+                        {{ __('app.clear_selection') }}
+                    </x-dropdown-link>
+                    <x-dropdown-link href="#" wire:click.prevent="messageSelected" :can="'users.messages.create'">
+                        <i class="far fa-paper-plane mr-2"></i>
+                        {{ __('app.compose_message') }}
+                    </x-dropdown-link>
+                    <x-dropdown-link href="#" wire:click.prevent="exportSelected" tone="success">
+                        <i class="far fa-download mr-2"></i>
+                        {{ __('app.export') }}
+                    </x-dropdown-link>
+                </x-tables.bulk-actions>
+            </x-slot:bulk>
 
-            <div class="flex flex-wrap items-center gap-2">
-                {{-- Suche --}}
-                <x-tables.search-field
-                    resultsCount="{{ $employees->count() }}"
-                    wire:model.live="search"
-                />
-                {{-- Team-Filter --}}
-                <div class="w-44">
-                    <x-ui.forms.select wire:model.live="teamId">
-                        <option value="">{{ __('app.all_teams') }}</option>
-                        @foreach($teams as $t)
-                            <option value="{{ $t->id }}">{{ $t->name }}</option>
-                        @endforeach
-                    </x-ui.forms.select>
-                </div>
-                {{-- Pro Seite --}}
-                <div class="w-36">
-                    <x-ui.forms.select wire:model.live="perPage">
-                        <option value="15">{{ __('app.per_page', ['count' => 15]) }}</option>
-                        <option value="30">{{ __('app.per_page', ['count' => 30]) }}</option>
-                        <option value="50">{{ __('app.per_page', ['count' => 50]) }}</option>
-                        <option value="100">{{ __('app.per_page', ['count' => 100]) }}</option>
-                    </x-ui.forms.select>
-                </div>
+            {{-- Suche --}}
+            <x-tables.search-field
+                resultsCount="{{ $employees->count() }}"
+                wire:model.live="search"
+            />
+            {{-- Team-Filter --}}
+            <div class="w-full sm:!w-44">
+                <x-ui.forms.select wire:model.live="teamId">
+                    <option value="">{{ __('app.all_teams') }}</option>
+                    @foreach($teams as $t)
+                        <option value="{{ $t->id }}">{{ $t->name }}</option>
+                    @endforeach
+                </x-ui.forms.select>
             </div>
-        </div>
+            {{-- Pro Seite --}}
+            <div class="w-full sm:!w-40">
+                <x-ui.forms.select wire:model.live="perPage">
+                    <option value="15">{{ __('app.per_page', ['count' => 15]) }}</option>
+                    <option value="30">{{ __('app.per_page', ['count' => 30]) }}</option>
+                    <option value="50">{{ __('app.per_page', ['count' => 50]) }}</option>
+                    <option value="100">{{ __('app.per_page', ['count' => 100]) }}</option>
+                </x-ui.forms.select>
+            </div>
+        </x-tables.toolbar>
 
         {{-- Tabelle --}}
         <div class="w-full" data-anim="fade-up" data-anim-delay="0.05">

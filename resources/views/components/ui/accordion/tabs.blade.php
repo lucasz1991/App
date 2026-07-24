@@ -32,8 +32,6 @@
         carouselPointerStartX: null,
         carouselPointerScrollLeft: 0,
         carouselPointerMoved: false,
-        carouselTouchStartX: null,
-        carouselTouchStartY: null,
         suppressCarouselClick: false,
         carouselSettleTimer: null,
         carouselFrame: null,
@@ -179,21 +177,22 @@
             this.carouselPointerStartX = event.clientX;
             this.carouselPointerScrollLeft = carousel.scrollLeft;
             this.carouselPointerMoved = false;
-            this.carouselProgrammaticScroll = false;
-            window.clearTimeout(this.carouselProgrammaticTimer);
-            window.clearTimeout(this.carouselSettleTimer);
-            this.carouselDragging = true;
-            carousel.setPointerCapture?.(event.pointerId);
-            this.updateCarouselDepth();
         },
         carouselPointerMove(event) {
             if (this.carouselPointerId !== event.pointerId || this.carouselPointerStartX === null) return;
 
             const deltaX = event.clientX - this.carouselPointerStartX;
-            if (Math.abs(deltaX) > 5) {
+            if (!this.carouselPointerMoved && Math.abs(deltaX) > 5) {
                 this.carouselPointerMoved = true;
                 this.suppressCarouselClick = true;
+                this.carouselProgrammaticScroll = false;
+                window.clearTimeout(this.carouselProgrammaticTimer);
+                window.clearTimeout(this.carouselSettleTimer);
+                this.carouselDragging = true;
+                event.currentTarget.setPointerCapture?.(event.pointerId);
             }
+
+            if (!this.carouselPointerMoved) return;
 
             event.preventDefault();
             this.$refs.carousel.scrollLeft = this.carouselPointerScrollLeft - deltaX;
@@ -203,7 +202,9 @@
             if (this.carouselPointerId !== event.pointerId) return;
 
             const wasDragged = this.carouselPointerMoved;
-            this.$refs.carousel?.releasePointerCapture?.(event.pointerId);
+            if (wasDragged) {
+                this.$refs.carousel?.releasePointerCapture?.(event.pointerId);
+            }
             this.carouselPointerId = null;
             this.carouselPointerStartX = null;
             this.carouselPointerMoved = false;
@@ -214,35 +215,6 @@
                 this.carouselDragging = false;
             }
             window.setTimeout(() => { this.suppressCarouselClick = false; }, 0);
-        },
-        carouselTouchStart(event) {
-            if (event.touches.length !== 1) return;
-
-            this.carouselTouchStartX = event.touches[0].clientX;
-            this.carouselTouchStartY = event.touches[0].clientY;
-            this.carouselProgrammaticScroll = false;
-            window.clearTimeout(this.carouselProgrammaticTimer);
-            window.clearTimeout(this.carouselSettleTimer);
-            this.carouselDragging = true;
-            this.updateCarouselDepth();
-        },
-        carouselTouchMove() {
-            this.updateCarouselDepth();
-        },
-        carouselTouchEnd(event) {
-            if (this.carouselTouchStartX !== null && event.changedTouches.length === 1) {
-                const deltaX = event.changedTouches[0].clientX - this.carouselTouchStartX;
-                const deltaY = event.changedTouches[0].clientY - this.carouselTouchStartY;
-                if (Math.abs(deltaX) > 8 && Math.abs(deltaX) > Math.abs(deltaY)) {
-                    this.suppressCarouselClick = true;
-                    window.setTimeout(() => { this.suppressCarouselClick = false; }, 350);
-                }
-            }
-
-            this.carouselTouchStartX = null;
-            this.carouselTouchStartY = null;
-            window.clearTimeout(this.carouselSettleTimer);
-            this.carouselSettleTimer = window.setTimeout(() => this.settleCarousel(), 130);
         },
         isInteractiveTarget(target) {
             if (!(target instanceof Element)) return true;
@@ -344,10 +316,6 @@
             @pointermove="carouselPointerMove($event)"
             @pointerup="carouselPointerUp($event)"
             @pointercancel="carouselPointerUp($event)"
-            @touchstart.stop.passive="carouselTouchStart($event)"
-            @touchmove.stop.passive="carouselTouchMove($event)"
-            @touchend.stop.passive="carouselTouchEnd($event)"
-            @touchcancel.stop.passive="carouselTouchEnd($event)"
             @dragstart.prevent
             data-tab-carousel
         >

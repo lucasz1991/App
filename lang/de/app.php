@@ -181,6 +181,7 @@ return [
     'employees_tip' => 'Filtern nach Team und suchen nach Name/E-Mail/ID. Mehrfachauswahl über die Checkboxen für Bulk-Aktionen.',
     'select_all' => 'Alle Auswählen/Entfernen',
     'clear_selection' => 'Auswahl entfernen',
+    'bulk_actions' => 'Massenaktionen',
     'export' => 'Exportieren',
     'all_teams' => 'alle Teams',
     'per_page' => ':count pro Seite',

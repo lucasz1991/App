@@ -318,7 +318,9 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertStringContainsString('@pointermove="carouselPointerMove($event)"', $tabs);
         $this->assertStringContainsString('const wasDragged = this.carouselPointerMoved', $tabs);
         $this->assertStringContainsString('if (wasDragged)', $tabs);
-        $this->assertStringContainsString('@touchstart.stop.passive="carouselTouchStart($event)"', $tabs);
+        $this->assertStringContainsString('event.currentTarget.setPointerCapture?.(event.pointerId)', $tabs);
+        $this->assertStringNotContainsString('@touchstart.stop.passive', $tabs);
+        $this->assertStringNotContainsString('carouselTouchEnd', $tabs);
         $this->assertStringContainsString('@scroll.passive="onCarouselScroll()"', $tabs);
         $this->assertStringContainsString('if (this.carouselProgrammaticScroll) return', $tabs);
         $this->assertStringContainsString('window.clearTimeout(this.carouselSettleTimer)', $tabs);
