@@ -135,11 +135,15 @@ class AdminOperationalPreviewTest extends TestCase
         $this->assertGreaterThan($myAreaPosition, $emailTemplatesPosition);
         $this->assertLessThan($profileSupportPosition, $emailTemplatesPosition);
 
-        // Verbleibende aufklappbare Gruppen: Dateien & Vorlagen, Chat & Nachrichten, Profil & Support.
+        // Management bündelt seine Einträge in zwei Untergruppen: Verwaltung und Disposition.
+        $this->assertStringContainsString("<x-slot:label>{{ __('app.management_administration') }}</x-slot:label>", $sidebar);
+        $this->assertStringContainsString("<x-slot:label>{{ __('app.management_dispatching') }}</x-slot:label>", $sidebar);
+
+        // Weitere aufklappbare Gruppen: Dateien & Vorlagen, Chat & Nachrichten, Profil & Support.
         $this->assertStringContainsString("<x-slot:label>{{ __('app.files_and_templates') }}</x-slot:label>", $sidebar);
         $this->assertStringContainsString("<x-slot:label>{{ __('app.chat_and_messages') }}</x-slot:label>", $sidebar);
         $this->assertStringContainsString("<x-slot:label>{{ __('app.profile_and_support') }}</x-slot:label>", $sidebar);
-        $this->assertSame(3, substr_count($sidebar, '<x-menu.sidebar-nav-group'));
+        $this->assertSame(5, substr_count($sidebar, '<x-menu.sidebar-nav-group'));
         $this->assertStringContainsString('class="!pl-12"', $sidebar);
     }
 

@@ -73,7 +73,7 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertSame(2, substr_count($view, 'data-topbar-preference="theme"') + substr_count($view, 'data-topbar-preference="sound"'));
         $this->assertSame(1, substr_count($html, 'data-topbar-toggle-track="theme"'));
         $this->assertSame(1, substr_count($html, 'data-topbar-toggle-track="sound"'));
-        $this->assertSame(2, substr_count($html, 'translate-x-5'));
+        $this->assertSame(2, substr_count($html, 'translate-x-[22px]'));
         $this->assertGreaterThanOrEqual(4, substr_count($view, 'x-show='));
         $this->assertStringContainsString('aria-label="' . __('app.settings') . '"', $html);
         $this->assertStringContainsString('aria-haspopup="menu"', $html);

@@ -33,6 +33,8 @@ return [
     'overview' => 'Overview',
     'organization' => 'Organisation',
     'management' => 'Management',
+    'management_administration' => 'Administration',
+    'management_dispatching' => 'Dispatching',
     'content_and_files' => 'Content & files',
     'files_and_templates' => 'Files & templates',
     'chat_and_messages' => 'Chat & messages',

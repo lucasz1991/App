@@ -114,7 +114,7 @@
                                     <span class="text-[10px] font-semibold uppercase tracking-[0.14em] text-rt-soft dark:text-rt-dark-soft">{{ __('app.appearance') }}</span>
                                     <button
                                         type="button"
-                                        role="switch"
+                                        role="menuitemcheckbox"
                                         data-topbar-preference="theme"
                                         data-topbar-toggle-track="theme"
                                         x-bind:aria-checked="Boolean($store.theme?.dark).toString()"
@@ -138,7 +138,7 @@
                                     <span class="text-[10px] font-semibold uppercase tracking-[0.14em] text-rt-soft dark:text-rt-dark-soft">{{ __('app.sound') }}</span>
                                     <button
                                         type="button"
-                                        role="switch"
+                                        role="menuitemcheckbox"
                                         data-topbar-preference="sound"
                                         data-topbar-toggle-track="sound"
                                         x-bind:aria-checked="Boolean($store.sound?.enabled).toString()"
