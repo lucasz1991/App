@@ -2,7 +2,13 @@
 
 namespace App\Models;
 
+use App\Events\MessageReceived;
+use App\Notifications\RailtimeWebPushNotification;
+use App\Support\Push\PushCategory;
+use App\Support\Push\PushDelivery;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
@@ -10,16 +16,20 @@ use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Jetstream\HasProfilePhoto;
 use Laravel\Jetstream\HasTeams;
 use Laravel\Sanctum\HasApiTokens;
+use NotificationChannels\WebPush\HasPushSubscriptions;
+use Spatie\Activitylog\Models\Activity;
 
 class User extends Authenticatable
 {
     use HasApiTokens;
     use HasFactory;
     use HasProfilePhoto;
+    use HasPushSubscriptions;
     use HasTeams;
     use Notifiable;
     use TwoFactorAuthenticatable;
@@ -67,6 +77,13 @@ class User extends Authenticatable
     protected $appends = [
         'profile_photo_url',
     ];
+
+    protected static function booted(): void
+    {
+        static::deleting(function (self $user): void {
+            $user->pushSubscriptions()->delete();
+        });
+    }
 
     public function isAdmin(): bool
     {
@@ -166,7 +183,7 @@ class User extends Authenticatable
      */
     public function activities(): MorphMany
     {
-        return $this->morphMany(\Spatie\Activitylog\Models\Activity::class, 'causer');
+        return $this->morphMany(Activity::class, 'causer');
     }
 
     /**
@@ -225,6 +242,51 @@ class User extends Authenticatable
         return $this->receivedMessages()->where('status', 1);
     }
 
+    public function notificationPreferences(): HasMany
+    {
+        return $this->hasMany(NotificationPreference::class);
+    }
+
+    public function wantsWebPush(PushCategory|string $category): bool
+    {
+        $categoryValue = $category instanceof PushCategory ? $category->value : $category;
+
+        return config('webpush.enabled')
+            && $this->notificationPreferences()
+                ->where('category', $categoryValue)
+                ->where('web_push_enabled', true)
+                ->exists();
+    }
+
+    public function enableDefaultPushPreferences(): void
+    {
+        foreach (PushCategory::cases() as $category) {
+            $this->notificationPreferences()->firstOrCreate(
+                ['category' => $category->value],
+                ['web_push_enabled' => true],
+            );
+        }
+    }
+
+    public function routeNotificationForWebPush(?object $notification = null): Collection
+    {
+        $subscriptions = $this->pushSubscriptions()->whereNull('revoked_at');
+
+        if ($notification instanceof RailtimeWebPushNotification
+            && $notification->targetSubscriptionId !== null) {
+            $subscriptions->whereKey($notification->targetSubscriptionId);
+        }
+
+        return $subscriptions->get();
+    }
+
+    public function deletePushSubscription(string $endpoint): void
+    {
+        $this->pushSubscriptions()
+            ->where('endpoint_hash', PushSubscription::hashEndpoint($endpoint))
+            ->delete();
+    }
+
     /**
      * Sende eine Nachricht an einen anderen Benutzer.
      */
@@ -253,8 +315,7 @@ class User extends Authenticatable
         $files = null,
         ?string $actionUrl = null,
         ?string $actionLabel = null
-    ): Message
-    {
+    ): Message {
         $receivedMessage = Message::create([
             'subject' => $subject,
             'message' => $message,
@@ -292,17 +353,19 @@ class User extends Authenticatable
     protected function broadcastMessageReceived(Message $message): void
     {
         try {
-            event(new \App\Events\MessageReceived($message));
+            event(new MessageReceived($message));
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::notice('Broadcast der Nachricht fehlgeschlagen', [
+            Log::notice('Broadcast der Nachricht fehlgeschlagen', [
                 'message_id' => $message->id,
                 'error' => $e->getMessage(),
             ]);
         }
+
+        app(PushDelivery::class)->messageReceived($message);
     }
 
     /** Chats, an denen der Benutzer teilnimmt. */
-    public function chats(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    public function chats(): BelongsToMany
     {
         return $this->belongsToMany(Chat::class, 'chat_user')
             ->withPivot('last_read_at', 'last_opened_at')

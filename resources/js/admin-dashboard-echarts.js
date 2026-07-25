@@ -50,6 +50,7 @@ export function renderAdminDashboardCharts({ refs, config = {}, dark = false, an
         backgroundColor: surfaceColor,
         borderColor: gridColor,
         borderWidth: 1,
+        confine: true,
         padding: [10, 12],
         textStyle: { color: strongText, fontFamily, fontSize: 12 },
         extraCssText: `border-radius:12px;box-shadow:0 16px 38px ${dark ? 'rgba(0,0,0,.44)' : 'rgba(15,23,42,.14)'};`,
@@ -58,13 +59,21 @@ export function renderAdminDashboardCharts({ refs, config = {}, dark = false, an
         type: 'line',
         lineStyle: { color: dark ? '#3b4d68' : '#c4d0de', type: [4, 4], width: 1 },
     };
+    const resizeHandlers = new WeakMap();
     const resizeObserver = typeof ResizeObserver === 'undefined'
         ? null
         : new ResizeObserver((entries) => {
-            entries.forEach(({ target }) => echarts.getInstanceByDom(target)?.resize());
+            entries.forEach(({ target }) => {
+                const chart = echarts.getInstanceByDom(target);
+
+                if (!chart) return;
+
+                chart.resize();
+                resizeHandlers.get(target)?.(chart, target);
+            });
         });
 
-    const mount = (element, option) => {
+    const mount = (element, option, onResize = null) => {
         if (!element) return;
 
         echarts.getInstanceByDom(element)?.dispose();
@@ -72,18 +81,21 @@ export function renderAdminDashboardCharts({ refs, config = {}, dark = false, an
         const chart = echarts.init(element, null, { renderer: 'svg' });
         chart.setOption({ ...animation, ...option }, { notMerge: true, lazyUpdate: false });
         charts.push(chart);
+        if (onResize) resizeHandlers.set(element, onResize);
         resizeObserver?.observe(element);
 
         window.requestAnimationFrame(() => {
             if (!chart.isDisposed()) chart.resize();
         });
+
+        return chart;
     };
 
     if (refs.growthChart) {
         const totals = growth.totals || [];
         const registrations = growth.registrations || [];
         const labels = growth.labels || [];
-        const compact = refs.growthChart.clientWidth < 560;
+        let compact = refs.growthChart.clientWidth < 560;
         // Eine Achse pro Skala: Gesamtverlauf und Neuregistrierungen teilen
         // sich die X-Achse, leben aber in zwei eigenen, klar getrennten
         // Panels (Kurs+Volumen-Muster) statt in einer Doppelachse.
@@ -198,6 +210,22 @@ export function renderAdminDashboardCharts({ refs, config = {}, dark = false, an
                     z: 2,
                 },
             ],
+        }, (chart, element) => {
+            const nextCompact = element.clientWidth < 560;
+
+            if (nextCompact === compact) return;
+
+            compact = nextCompact;
+            chart.setOption({
+                xAxis: [
+                    {},
+                    { axisLabel: { interval: compact ? 3 : 1 } },
+                ],
+                series: [
+                    {},
+                    { barWidth: compact ? 5 : 7 },
+                ],
+            }, { lazyUpdate: true });
         });
     }
 

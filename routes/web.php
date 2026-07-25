@@ -1,18 +1,26 @@
 <?php
 
+use App\Http\Controllers\Auth\InvitedRegistrationController;
+use App\Http\Controllers\ChatAttachmentController;
+use App\Http\Controllers\ManagedDocumentDownloadController;
+use App\Http\Controllers\ProfileEmailTemplateController;
+use App\Http\Controllers\PushSubscriptionController;
+use App\Http\Controllers\WagonListExportController;
+use App\Http\Middleware\RedirectAdminWagonList;
 use App\Livewire\Admin\Dashboard;
 use App\Livewire\Admin\Employees;
+use App\Livewire\Admin\FileManager;
 use App\Livewire\Admin\MailManagement;
 use App\Livewire\Admin\ManagedDocuments;
 use App\Livewire\Admin\OperationalPreview;
 use App\Livewire\Admin\Settings;
 use App\Livewire\Admin\UserProfile;
+use App\Livewire\ChatBox;
 use App\Livewire\ItSupport;
 use App\Livewire\MessageBox;
 use App\Livewire\Operations\WagonListPrototype;
 use App\Livewire\UserDashboard;
 use App\Livewire\UserFiles;
-use App\Http\Controllers\WagonListExportController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -38,9 +46,9 @@ Route::middleware('guest')->group(function () {
     Route::view('/login', 'auth.login')->name('login');
 
     // Registrierung nur per Einladung aus dem Adminbereich
-    Route::get('/einladung/{token}', [App\Http\Controllers\Auth\InvitedRegistrationController::class, 'create'])
+    Route::get('/einladung/{token}', [InvitedRegistrationController::class, 'create'])
         ->name('invitation.register');
-    Route::post('/einladung/{token}', [App\Http\Controllers\Auth\InvitedRegistrationController::class, 'store'])
+    Route::post('/einladung/{token}', [InvitedRegistrationController::class, 'store'])
         ->name('invitation.register.store');
 
     Route::get('/administrator/login', function (Request $request) {
@@ -70,24 +78,37 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
     Route::get('/employees', Employees::class)->name('employees.index');
     Route::get('/employees/{userId}', UserProfile::class)->name('employees.show');
     Route::get('/betrieb/wagenliste', WagonListPrototype::class)
-        ->middleware(\App\Http\Middleware\RedirectAdminWagonList::class)
+        ->middleware(RedirectAdminWagonList::class)
         ->name('operations.wagon-list');
     Route::post('/betrieb/wagenliste/export', WagonListExportController::class)
         ->name('operations.wagon-list.export');
     Route::get('/files', UserFiles::class)->name('files');
-    Route::get('/files/verbindlich/{managedDocument}', App\Http\Controllers\ManagedDocumentDownloadController::class)
+    Route::get('/files/verbindlich/{managedDocument}', ManagedDocumentDownloadController::class)
         ->name('managed-documents.download');
     Route::get('/messages', MessageBox::class)->name('messages');
     // Chat steht ALLEN angemeldeten Benutzern offen (Admin- wie Nutzerbereich).
-    Route::get('/chat', App\Livewire\ChatBox::class)->name('chat');
+    Route::get('/chat', ChatBox::class)->name('chat');
     Route::get('/support', ItSupport::class)->name('support');
-    Route::get('/chat/files/{file}', App\Http\Controllers\ChatAttachmentController::class)
+    Route::prefix('settings/push')
+        ->name('push.')
+        ->middleware('throttle:push-subscriptions')
+        ->group(function (): void {
+            Route::get('/status', [PushSubscriptionController::class, 'status'])->name('status');
+            Route::post('/subscriptions', [PushSubscriptionController::class, 'store'])->name('subscriptions.store');
+            Route::delete('/subscriptions', [PushSubscriptionController::class, 'destroy'])->name('subscriptions.destroy');
+            Route::patch('/preferences', [PushSubscriptionController::class, 'updatePreferences'])->name('preferences.update');
+            Route::post('/test', [PushSubscriptionController::class, 'test'])
+                ->withoutMiddleware('throttle:push-subscriptions')
+                ->middleware('throttle:push-test')
+                ->name('test');
+        });
+    Route::get('/chat/files/{file}', ChatAttachmentController::class)
         ->name('chat.attachments');
     // Personalisierte E-Mail-Vorlagen/Signaturen als eigenstaendiger Bereich.
     Route::view('/email-templates', 'email-templates.index')->name('email-templates.index');
-    Route::get('/email-templates/{template}/download', App\Http\Controllers\ProfileEmailTemplateController::class)
+    Route::get('/email-templates/{template}/download', ProfileEmailTemplateController::class)
         ->name('email-templates.download');
-    Route::get('/email-templates/{template}/preview', [App\Http\Controllers\ProfileEmailTemplateController::class, 'preview'])
+    Route::get('/email-templates/{template}/preview', [ProfileEmailTemplateController::class, 'preview'])
         ->name('email-templates.preview');
 });
 
@@ -106,10 +127,10 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
         Route::get('/settings', Settings::class)->name('settings');
         Route::get('/employees', Employees::class)->name('employees');
         Route::get('/user/{userId}', UserProfile::class)->name('user-profile');
-        Route::get('/files', App\Livewire\Admin\FileManager::class)->name('files');
+        Route::get('/files', FileManager::class)->name('files');
         Route::get('/files/verbindlich', ManagedDocuments::class)->name('managed-documents');
         Route::get('/mails', MailManagement::class)->name('mail-management');
         // Admins verwenden dieselbe robuste Nachrichtenoberfläche, erhalten
         // aber weiterhin über die Komponente das Admin-Layout.
         Route::get('/messages', MessageBox::class)->name('messages');
-});
+    });

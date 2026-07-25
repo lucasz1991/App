@@ -22,12 +22,11 @@ class MessageReceived implements ShouldBroadcastNow
 
     public function __construct(
         public Message $message,
-    ) {
-    }
+    ) {}
 
     public function broadcastOn(): PrivateChannel
     {
-        return new PrivateChannel('App.Models.User.' . $this->message->to_user);
+        return new PrivateChannel('App.Models.User.'.$this->message->to_user);
     }
 
     public function broadcastAs(): string
@@ -42,6 +41,7 @@ class MessageReceived implements ShouldBroadcastNow
     {
         return [
             'id' => $this->message->id,
+            'notification_id' => 'message:'.$this->message->id,
             'subject' => $this->message->subject,
             'from' => $this->message->sender?->name,
         ];

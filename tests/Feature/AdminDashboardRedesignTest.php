@@ -231,9 +231,9 @@ class AdminDashboardRedesignTest extends TestCase
         // Zwei-Panel-Wachstumschart (Linie + Registrierungs-Balken) braucht
         // etwas mehr Hoehe als das fruehere Einzel-Panel.
         $this->assertStringContainsString('h-[236px] sm:h-[252px]', $dashboard);
-        $this->assertStringContainsString('grid gap-3 lg:grid-cols-12', $dashboard);
-        $this->assertStringContainsString('lg:col-span-8 xl:col-span-6', $dashboard);
-        $this->assertStringContainsString('lg:col-span-4 xl:col-span-3', $dashboard);
+        $this->assertStringContainsString('grid gap-3 md:grid-cols-12', $dashboard);
+        $this->assertStringContainsString('md:col-span-8 xl:col-span-6', $dashboard);
+        $this->assertStringContainsString('md:col-span-4 xl:col-span-3', $dashboard);
         $this->assertStringContainsString('rt-admin-operations', $dashboard);
         $this->assertStringContainsString('dark:bg-slate-900', $dashboard);
         $this->assertStringContainsString('dark:bg-slate-800 dark:hover:bg-slate-700', $dashboard);

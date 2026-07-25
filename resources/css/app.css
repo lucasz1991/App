@@ -540,6 +540,32 @@ body[data-mode="dark"] .rt-toast__message { color: #a9b6c9; }
         0 14px 32px -26px rgba(15, 23, 42, 0.42);
 }
 
+[data-admin-dashboard],
+[data-management-dashboard],
+[data-user-dashboard],
+[data-admin-dashboard] > *,
+[data-management-dashboard] > *,
+[data-user-dashboard] > * {
+    min-width: 0;
+    max-width: 100%;
+}
+
+[data-user-dashboard] [data-dashboard-files] > * {
+    min-width: 0;
+}
+
+/* Auf Touchgeraeten bleiben Vorschau und Download auch in der kompakten
+   Zwei-Spalten-Dateiansicht sicher erreichbar. */
+@media (pointer: coarse), (max-width: 639px) {
+    [data-user-dashboard] [data-dashboard-files] .rt-ui-icon-button {
+        display: inline-flex;
+        min-width: 2.75rem;
+        min-height: 2.75rem;
+        align-items: center;
+        justify-content: center;
+    }
+}
+
 .dark .rt-admin-panel {
     background: #111827;
     border-color: #334155;
@@ -951,10 +977,12 @@ body[data-mode="dark"] .rt-operational-page .rt-operational-nav-icon {
 .rt-admin-chart {
     width: 100%;
     min-width: 0;
+    max-width: 100%;
 }
 
 .rt-admin-chart > div,
 .rt-admin-chart svg {
+    width: 100% !important;
     max-width: 100% !important;
 }
 

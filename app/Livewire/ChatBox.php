@@ -2,33 +2,37 @@
 
 namespace App\Livewire;
 
-use App\Events\ChatMessageSent;
-use App\Events\ChatMessageReceived;
 use App\Events\ChatMessageDeleted;
+use App\Events\ChatMessageReceived;
+use App\Events\ChatMessageSent;
 use App\Events\ChatRead;
 use App\Models\Chat;
 use App\Models\ChatMessage;
 use App\Models\User;
+use App\Support\Push\PushDelivery;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Attributes\On;
+use Livewire\Attributes\Url;
 use Livewire\Component;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
 
 class ChatBox extends Component
 {
     use WithFileUploads;
 
+    #[Url(as: 'chat', history: true)]
     public ?int $selectedChatId = null;
 
     public string $messageText = '';
 
     public string $search = '';
 
-    /** @var array<int, \Livewire\Features\SupportFileUploads\TemporaryUploadedFile> */
+    /** @var array<int, TemporaryUploadedFile> */
     public array $uploads = [];
 
     /** Separater Uploadkanal fuer eine aufgenommene Sprachnachricht. */
@@ -36,8 +40,11 @@ class ChatBox extends Component
 
     /** Modal: neuer Chat / neue Gruppe */
     public bool $showNewChat = false;
+
     public string $newChatTab = 'direct'; // direct | group
+
     public string $groupName = '';
+
     public array $groupParticipants = [];
 
     protected $listeners = ['refreshComponent' => '$refresh'];
@@ -45,6 +52,12 @@ class ChatBox extends Component
     /** Beim Einstieg den zuletzt geoeffneten, weiterhin erlaubten Chat anzeigen. */
     public function mount(): void
     {
+        if ($this->selectedChatId) {
+            $this->openChat($this->selectedChatId);
+
+            return;
+        }
+
         $lastChatId = auth()->user()->chats()
             ->orderByDesc('chat_user.last_opened_at')
             ->orderByDesc('chats.updated_at')
@@ -246,7 +259,7 @@ class ChatBox extends Component
 
     protected function storeMessageUpload(ChatMessage $message, mixed $uploadedFile, ?string $forcedType = null): void
     {
-        $path = $uploadedFile->store('uploads/chat/' . $message->chat_id, 'private');
+        $path = $uploadedFile->store('uploads/chat/'.$message->chat_id, 'private');
         $detectedMime = Storage::disk('private')->mimeType($path);
         $clientMime = strtolower((string) $uploadedFile->getClientMimeType());
         $isDeclaredMedia = str_starts_with($clientMime, 'audio/') || str_starts_with($clientMime, 'video/');
@@ -285,6 +298,7 @@ class ChatBox extends Component
 
         $this->broadcastChatEvent(new ChatMessageSent($message));
         $this->broadcastChatEvent(new ChatMessageReceived($message));
+        app(PushDelivery::class)->chatMessageReceived($message);
         $this->dispatch('inbox:refresh');
         $this->dispatch('chat:scroll-bottom');
     }

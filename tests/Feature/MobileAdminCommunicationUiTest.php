@@ -10,13 +10,30 @@ class MobileAdminCommunicationUiTest extends TestCase
     {
         $adminDashboard = file_get_contents(resource_path('views/livewire/admin/dashboard.blade.php'));
         $managementDashboard = file_get_contents(resource_path('views/livewire/management-dashboard.blade.php'));
+        $userDashboard = file_get_contents(resource_path('views/livewire/user-dashboard.blade.php'));
+        $statCard = file_get_contents(resource_path('views/components/ui/dashboard/stat-card.blade.php'));
+        $chartModule = file_get_contents(resource_path('js/admin-dashboard-echarts.js'));
+        $styles = file_get_contents(resource_path('css/app.css'));
 
         $this->assertStringContainsString('rt-admin-hero', $adminDashboard);
-        $this->assertStringContainsString('grid grid-cols-4 gap-1.5 sm:gap-2.5', $adminDashboard);
+        $this->assertStringContainsString('grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-2.5', $adminDashboard);
+        $this->assertStringContainsString('grid gap-3 md:grid-cols-12', $adminDashboard);
+        $this->assertGreaterThanOrEqual(2, substr_count($adminDashboard, 'inline-flex min-h-11'));
         $this->assertGreaterThanOrEqual(4, substr_count($adminDashboard, 'data-dashboard-count'));
 
-        $this->assertStringContainsString('grid grid-cols-4 gap-1.5', $managementDashboard);
+        $this->assertStringContainsString('data-management-dashboard', $managementDashboard);
+        $this->assertStringContainsString('grid grid-cols-2 gap-2 sm:gap-4 xl:grid-cols-4', $managementDashboard);
+        $this->assertStringContainsString('grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-4', $managementDashboard);
         $this->assertSame(4, substr_count($managementDashboard, ':compact-mobile="true"'));
+
+        $this->assertStringContainsString('data-user-dashboard', $userDashboard);
+        $this->assertStringContainsString('grid grid-cols-[3rem_minmax(0,1fr)]', $userDashboard);
+        $this->assertStringContainsString('grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6', $userDashboard);
+        $this->assertStringContainsString('min-h-[6rem]', $statCard);
+        $this->assertStringContainsString('text-pretty text-[10px]', $statCard);
+        $this->assertStringContainsString('confine: true', $chartModule);
+        $this->assertStringContainsString('const resizeHandlers = new WeakMap()', $chartModule);
+        $this->assertStringContainsString('[data-user-dashboard] [data-dashboard-files] .rt-ui-icon-button', $styles);
     }
 
     public function test_chat_has_distinct_mobile_panes_and_rich_attachment_previews(): void

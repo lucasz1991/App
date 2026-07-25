@@ -1,0 +1,845 @@
+const PWA_STATE_EVENT = 'railtime:pwa-state-changed';
+const PUSH_DEVICE_BINDING_STORAGE_KEY = 'railtime:webpush-device-binding:v1';
+
+let deferredInstallPrompt = null;
+let serviceWorkerRegistrationPromise = null;
+let lifecycleInitialized = false;
+
+function currentWindow() {
+    return typeof window === 'undefined' ? null : window;
+}
+
+function currentNavigator() {
+    return typeof navigator === 'undefined' ? null : navigator;
+}
+
+function currentStorage() {
+    try {
+        return currentWindow()?.localStorage || null;
+    } catch (_) {
+        return null;
+    }
+}
+
+function normalizedPushDeviceBinding(value) {
+    const account = typeof value?.account === 'string' ? value.account.trim() : '';
+    const subscriptionId = Number(value?.subscriptionId);
+
+    if (!account || !Number.isSafeInteger(subscriptionId) || subscriptionId < 1) {
+        return null;
+    }
+
+    return { account, subscriptionId };
+}
+
+export function readPushDeviceBinding(storageLike = currentStorage()) {
+    if (!storageLike) {
+        return null;
+    }
+
+    try {
+        return normalizedPushDeviceBinding(
+            JSON.parse(storageLike.getItem(PUSH_DEVICE_BINDING_STORAGE_KEY) || 'null'),
+        );
+    } catch (_) {
+        return null;
+    }
+}
+
+export function pushDeviceBindingMatches(binding, accountBinding) {
+    return Boolean(
+        binding
+        && typeof accountBinding === 'string'
+        && accountBinding
+        && binding.account === accountBinding,
+    );
+}
+
+export function writePushDeviceBinding(
+    accountBinding,
+    subscriptionId,
+    storageLike = currentStorage(),
+) {
+    const binding = normalizedPushDeviceBinding({
+        account: accountBinding,
+        subscriptionId,
+    });
+
+    if (!binding || !storageLike) {
+        return null;
+    }
+
+    try {
+        storageLike.setItem(PUSH_DEVICE_BINDING_STORAGE_KEY, JSON.stringify(binding));
+
+        return binding;
+    } catch (_) {
+        return null;
+    }
+}
+
+export function clearPushDeviceBinding(storageLike = currentStorage()) {
+    if (!storageLike) {
+        return;
+    }
+
+    try {
+        storageLike.removeItem(PUSH_DEVICE_BINDING_STORAGE_KEY);
+    } catch (_) {
+        // A failed local cleanup must not break the server-side revocation request.
+    }
+}
+
+export function isIosDevice(navigatorLike = currentNavigator()) {
+    if (!navigatorLike) {
+        return false;
+    }
+
+    const userAgent = String(navigatorLike.userAgent || '');
+    const platform = String(navigatorLike.platform || '');
+
+    return /iPad|iPhone|iPod/i.test(userAgent)
+        || (platform === 'MacIntel' && Number(navigatorLike.maxTouchPoints || 0) > 1);
+}
+
+export function isAndroidDevice(navigatorLike = currentNavigator()) {
+    return /Android/i.test(String(navigatorLike?.userAgent || ''));
+}
+
+export function isStandaloneMode(
+    windowLike = currentWindow(),
+    navigatorLike = currentNavigator(),
+) {
+    return Boolean(
+        navigatorLike?.standalone
+        || windowLike?.matchMedia?.('(display-mode: standalone)').matches,
+    );
+}
+
+export function runtimeCapabilities(
+    windowLike = currentWindow(),
+    navigatorLike = currentNavigator(),
+) {
+    const secureContext = Boolean(windowLike?.isSecureContext);
+    const serviceWorker = Boolean(navigatorLike && 'serviceWorker' in navigatorLike);
+    const pushManager = Boolean(windowLike?.PushManager);
+    const notifications = Boolean(windowLike?.Notification);
+
+    return {
+        secureContext,
+        serviceWorker,
+        pushManager,
+        notifications,
+        supported: secureContext && serviceWorker && pushManager && notifications,
+        permission: notifications ? windowLike.Notification.permission : 'unsupported',
+        ios: isIosDevice(navigatorLike),
+        android: isAndroidDevice(navigatorLike),
+        standalone: isStandaloneMode(windowLike, navigatorLike),
+    };
+}
+
+export function urlBase64ToUint8Array(base64String, decode = globalThis.atob) {
+    const normalized = String(base64String || '').trim();
+
+    if (!normalized) {
+        throw new Error('The VAPID public key is missing.');
+    }
+
+    const padding = '='.repeat((4 - (normalized.length % 4)) % 4);
+    const base64 = (normalized + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const decoded = decode(base64);
+
+    return Uint8Array.from(decoded, (character) => character.charCodeAt(0));
+}
+
+export function serviceWorkerScope(scriptUrl, baseUrl = currentWindow()?.location?.href) {
+    return new URL('./', new URL(scriptUrl, baseUrl)).href;
+}
+
+function dispatchPwaState() {
+    currentWindow()?.dispatchEvent(new CustomEvent(PWA_STATE_EVENT));
+}
+
+function installState() {
+    const windowLike = currentWindow();
+    const navigatorLike = currentNavigator();
+
+    return {
+        installed: isStandaloneMode(windowLike, navigatorLike),
+        promptAvailable: Boolean(deferredInstallPrompt),
+        ios: isIosDevice(navigatorLike),
+        android: isAndroidDevice(navigatorLike),
+    };
+}
+
+function configuredServiceWorkerUrl() {
+    const windowLike = currentWindow();
+
+    if (!windowLike) {
+        return null;
+    }
+
+    const configured = document.querySelector('meta[name="rt-service-worker-url"]')?.content;
+    const manifest = document.querySelector('link[rel="manifest"]')?.href;
+
+    if (configured) {
+        return new URL(configured, windowLike.location.href);
+    }
+
+    if (manifest) {
+        return new URL('service-worker.js', manifest);
+    }
+
+    return new URL('service-worker.js', windowLike.location.origin + '/');
+}
+
+export async function registerRailtimeServiceWorker() {
+    const windowLike = currentWindow();
+    const navigatorLike = currentNavigator();
+    const capabilities = runtimeCapabilities(windowLike, navigatorLike);
+
+    if (!capabilities.secureContext || !capabilities.serviceWorker) {
+        return null;
+    }
+
+    if (!serviceWorkerRegistrationPromise) {
+        serviceWorkerRegistrationPromise = (async () => {
+            const scriptUrl = configuredServiceWorkerUrl();
+
+            if (!scriptUrl || scriptUrl.origin !== windowLike.location.origin) {
+                throw new Error('The service worker must be served from the app origin.');
+            }
+
+            return navigatorLike.serviceWorker.register(scriptUrl.href, {
+                scope: serviceWorkerScope(scriptUrl.href),
+                updateViaCache: 'none',
+            });
+        })().catch((error) => {
+            serviceWorkerRegistrationPromise = null;
+            throw error;
+        });
+    }
+
+    return serviceWorkerRegistrationPromise;
+}
+
+async function readyServiceWorkerRegistration() {
+    const registration = await registerRailtimeServiceWorker();
+
+    if (registration?.active) {
+        return registration;
+    }
+
+    return currentNavigator().serviceWorker.ready;
+}
+
+export async function reconcilePushDeviceAccount({
+    accountBinding,
+    registration,
+    deviceBinding = readPushDeviceBinding(),
+    clearBinding = clearPushDeviceBinding,
+}) {
+    if (
+        !accountBinding
+        || !registration?.pushManager
+        || pushDeviceBindingMatches(deviceBinding, accountBinding)
+    ) {
+        return false;
+    }
+
+    const subscription = await registration.pushManager.getSubscription();
+
+    if (!subscription) {
+        clearBinding();
+
+        return false;
+    }
+
+    const removed = await subscription.unsubscribe();
+
+    if (removed) {
+        clearBinding();
+    }
+
+    return removed;
+}
+
+export function setupRailtimePwa() {
+    const windowLike = currentWindow();
+
+    if (!windowLike || lifecycleInitialized) {
+        return;
+    }
+
+    lifecycleInitialized = true;
+
+    windowLike.addEventListener('beforeinstallprompt', (event) => {
+        event.preventDefault();
+        deferredInstallPrompt = event;
+        dispatchPwaState();
+    });
+
+    windowLike.addEventListener('appinstalled', () => {
+        deferredInstallPrompt = null;
+        dispatchPwaState();
+    });
+
+    const register = () => {
+        registerRailtimeServiceWorker()
+            .then(async (registration) => {
+                const accountBinding = document.querySelector(
+                    'meta[name="rt-push-account-binding"]',
+                )?.content;
+
+                if (accountBinding) {
+                    await reconcilePushDeviceAccount({
+                        accountBinding,
+                        registration,
+                    });
+                }
+
+                dispatchPwaState();
+            })
+            .catch(() => dispatchPwaState());
+    };
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', register, { once: true });
+    } else {
+        register();
+    }
+}
+
+export async function promptRailtimeInstall() {
+    if (!deferredInstallPrompt) {
+        return { outcome: 'unavailable' };
+    }
+
+    const prompt = deferredInstallPrompt;
+    deferredInstallPrompt = null;
+
+    try {
+        await prompt.prompt();
+        const choice = await prompt.userChoice;
+        dispatchPwaState();
+
+        return choice;
+    } catch (error) {
+        dispatchPwaState();
+        throw error;
+    }
+}
+
+function browserName(navigatorLike = currentNavigator()) {
+    const brands = navigatorLike?.userAgentData?.brands;
+
+    if (Array.isArray(brands)) {
+        const brand = brands.find(({ brand: name }) => !/Not.A.Brand/i.test(name));
+
+        if (brand?.brand) {
+            return String(brand.brand).slice(0, 60);
+        }
+    }
+
+    const userAgent = String(navigatorLike?.userAgent || '');
+
+    if (/EdgiOS|EdgA|Edg\//i.test(userAgent)) return 'Microsoft Edge';
+    if (/CriOS|Chrome\//i.test(userAgent)) return 'Google Chrome';
+    if (/FxiOS|Firefox\//i.test(userAgent)) return 'Mozilla Firefox';
+    if (/Safari\//i.test(userAgent)) return 'Safari';
+
+    return 'Browser';
+}
+
+function platformName(capabilities) {
+    if (capabilities.ios) return 'ios';
+    if (capabilities.android) return 'android';
+    if (capabilities.supported) return 'desktop';
+
+    return 'unknown';
+}
+
+function deviceName(capabilities) {
+    if (capabilities.ios) return 'iPhone / iPad';
+    if (capabilities.android) return 'Android-Gerät';
+
+    return 'Desktop';
+}
+
+function csrfToken() {
+    return document.querySelector('meta[name="csrf-token"]')?.content || '';
+}
+
+async function apiRequest(url, options = {}) {
+    const response = await fetch(url, {
+        credentials: 'same-origin',
+        ...options,
+        headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': csrfToken(),
+            'X-Requested-With': 'XMLHttpRequest',
+            ...(options.headers || {}),
+        },
+    });
+
+    let payload = null;
+
+    if (response.status !== 204) {
+        try {
+            payload = await response.json();
+        } catch (_) {
+            payload = null;
+        }
+    }
+
+    if (!response.ok) {
+        const error = new Error(payload?.message || `HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+    }
+
+    return payload;
+}
+
+function serializedSubscription(subscription, capabilities) {
+    const json = subscription.toJSON();
+    const encodings = currentWindow().PushManager?.supportedContentEncodings || [];
+
+    if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) {
+        throw new Error('The browser returned an incomplete push subscription.');
+    }
+
+    return {
+        endpoint: json.endpoint,
+        keys: {
+            p256dh: json.keys.p256dh,
+            auth: json.keys.auth,
+        },
+        contentEncoding: encodings.includes('aes128gcm') ? 'aes128gcm' : (encodings[0] || 'aes128gcm'),
+        platform: platformName(capabilities),
+        browser: browserName(),
+        deviceName: deviceName(capabilities),
+    };
+}
+
+export async function syncExistingPushSubscription({
+    subscription,
+    capabilities,
+    serverEnabled,
+    serverConfigured,
+    accountBinding,
+    deviceBinding,
+    subscribeUrl,
+    request,
+    serialize = serializedSubscription,
+}) {
+    if (
+        !subscription
+        || capabilities.permission !== 'granted'
+        || !serverEnabled
+        || !serverConfigured
+        || !pushDeviceBindingMatches(deviceBinding, accountBinding)
+    ) {
+        return null;
+    }
+
+    return request(subscribeUrl, {
+        method: 'POST',
+        body: JSON.stringify(serialize(subscription, capabilities)),
+    });
+}
+
+function messageFrom(error, fallback) {
+    return typeof error?.message === 'string' && error.message && !/^HTTP \d+$/.test(error.message)
+        ? error.message
+        : fallback;
+}
+
+export function registerRailtimePushSettings(Alpine) {
+    Alpine.data('railtimePushSettings', (config = {}) => ({
+        config,
+        initialized: false,
+        busy: null,
+        error: '',
+        success: '',
+        capabilities: runtimeCapabilities(),
+        install: installState(),
+        subscription: null,
+        deviceBinding: readPushDeviceBinding(),
+        server: {
+            enabled: Boolean(config.serverEnabled),
+            configured: Boolean(config.serverConfigured),
+            subscription_count: 0,
+            preferences: {},
+        },
+        preferences: Object.fromEntries(
+            Object.entries(config.preferences || {}).map(([category, item]) => [
+                category,
+                Boolean(item?.enabled),
+            ]),
+        ),
+        pwaStateListener: null,
+
+        async init() {
+            this.pwaStateListener = () => {
+                this.capabilities = runtimeCapabilities();
+                this.install = installState();
+            };
+            window.addEventListener(PWA_STATE_EVENT, this.pwaStateListener);
+
+            await this.refresh();
+        },
+
+        destroy() {
+            if (this.pwaStateListener) {
+                window.removeEventListener(PWA_STATE_EVENT, this.pwaStateListener);
+            }
+        },
+
+        text(key, fallback = '') {
+            return this.config.messages?.[key] || fallback;
+        },
+
+        clearNotices() {
+            this.error = '';
+            this.success = '';
+        },
+
+        async refresh({ syncExisting = true } = {}) {
+            this.capabilities = runtimeCapabilities();
+            this.install = installState();
+
+            try {
+                if (this.capabilities.supported) {
+                    const registration = await readyServiceWorkerRegistration();
+                    const browserSubscription = await registration.pushManager.getSubscription();
+                    const storedBinding = readPushDeviceBinding();
+                    const belongsToCurrentAccount = pushDeviceBindingMatches(
+                        storedBinding,
+                        this.config.accountBinding,
+                    );
+                    this.deviceBinding = storedBinding;
+
+                    if (browserSubscription && belongsToCurrentAccount) {
+                        this.subscription = browserSubscription;
+
+                        if (syncExisting) {
+                            try {
+                                const result = await syncExistingPushSubscription({
+                                    subscription: browserSubscription,
+                                    capabilities: this.capabilities,
+                                    serverEnabled: this.config.serverEnabled,
+                                    serverConfigured: this.config.serverConfigured,
+                                    accountBinding: this.config.accountBinding,
+                                    deviceBinding: storedBinding,
+                                    subscribeUrl: this.config.urls.subscribe,
+                                    request: apiRequest,
+                                });
+
+                                if (result?.subscription_id) {
+                                    this.deviceBinding = writePushDeviceBinding(
+                                        this.config.accountBinding,
+                                        result.subscription_id,
+                                    ) || storedBinding;
+                                }
+                            } catch (error) {
+                                const syncError = new Error(this.text('syncFailed'));
+                                syncError.status = error.status;
+                                throw syncError;
+                            }
+                        }
+                    } else {
+                        this.subscription = null;
+
+                        if (browserSubscription) {
+                            const removed = await browserSubscription.unsubscribe().catch(() => false);
+
+                            if (removed) {
+                                clearPushDeviceBinding();
+                                this.deviceBinding = null;
+                            }
+                        } else if (storedBinding) {
+                            if (belongsToCurrentAccount) {
+                                try {
+                                    await apiRequest(this.config.urls.unsubscribe, {
+                                        method: 'DELETE',
+                                        body: JSON.stringify({
+                                            subscription_id: storedBinding.subscriptionId,
+                                        }),
+                                    });
+                                } catch (error) {
+                                    const syncError = new Error(this.text('syncFailed'));
+                                    syncError.status = error.status;
+                                    throw syncError;
+                                }
+                            }
+
+                            clearPushDeviceBinding();
+                            this.deviceBinding = null;
+                        }
+                    }
+                } else {
+                    this.subscription = null;
+                    this.deviceBinding = readPushDeviceBinding();
+                }
+
+                const status = await apiRequest(this.config.urls.status);
+                this.server = status;
+                this.preferences = {
+                    ...this.preferences,
+                    ...(status.preferences || {}),
+                };
+            } catch (error) {
+                this.error = messageFrom(error, this.text('loadFailed'));
+            } finally {
+                this.initialized = true;
+            }
+        },
+
+        get currentDeviceSubscribed() {
+            return Boolean(
+                this.subscription
+                && pushDeviceBindingMatches(this.deviceBinding, this.config.accountBinding),
+            );
+        },
+
+        get hasSubscribedDevice() {
+            return this.currentDeviceSubscribed || Number(this.server.subscription_count || 0) > 0;
+        },
+
+        get canPromptInstall() {
+            return !this.install.installed && this.install.promptAvailable;
+        },
+
+        get showIosInstallHelp() {
+            return this.install.ios && !this.install.installed;
+        },
+
+        get canSubscribe() {
+            return this.initialized
+                && this.server.enabled
+                && this.server.configured
+                && this.capabilities.supported
+                && (!this.capabilities.ios || this.capabilities.standalone)
+                && this.capabilities.permission !== 'denied'
+                && !this.currentDeviceSubscribed;
+        },
+
+        get canUnsubscribe() {
+            return this.currentDeviceSubscribed;
+        },
+
+        get canTest() {
+            return Boolean(config.testEnabled)
+                && this.server.enabled
+                && this.server.configured
+                && this.currentDeviceSubscribed
+                && Number.isSafeInteger(Number(this.deviceBinding?.subscriptionId));
+        },
+
+        get showPreferences() {
+            return this.server.enabled && this.server.configured && this.hasSubscribedDevice;
+        },
+
+        statusTitle() {
+            if (!this.initialized) return this.text('statusLoading');
+            if (!this.capabilities.secureContext) return this.text('statusInsecure');
+            if (this.capabilities.ios && !this.capabilities.standalone) return this.text('statusIosInstall');
+            if (!this.capabilities.supported) return this.text('statusUnsupported');
+            if (!this.server.enabled || !this.server.configured) return this.text('statusUnavailable');
+            if (this.capabilities.permission === 'denied') return this.text('statusBlocked');
+            if (this.currentDeviceSubscribed) return this.text('statusActive');
+
+            return this.text('statusReady');
+        },
+
+        statusDescription() {
+            if (!this.initialized) return this.text('statusLoadingDescription');
+            if (!this.capabilities.secureContext) return this.text('statusInsecureDescription');
+            if (this.capabilities.ios && !this.capabilities.standalone) {
+                return this.text('statusIosInstallDescription');
+            }
+            if (!this.capabilities.supported) return this.text('statusUnsupportedDescription');
+            if (!this.server.enabled || !this.server.configured) {
+                return this.text('statusUnavailableDescription');
+            }
+            if (this.capabilities.permission === 'denied') {
+                return this.text('statusBlockedDescription');
+            }
+            if (this.currentDeviceSubscribed) return this.text('statusActiveDescription');
+
+            return this.text('statusReadyDescription');
+        },
+
+        async promptInstall() {
+            this.clearNotices();
+            this.busy = 'install';
+
+            try {
+                const choice = await promptRailtimeInstall();
+
+                if (choice?.outcome === 'accepted') {
+                    this.success = this.text('installAccepted');
+                }
+            } catch (error) {
+                this.error = messageFrom(error, this.text('installFailed'));
+            } finally {
+                this.install = installState();
+                this.busy = null;
+            }
+        },
+
+        async subscribe() {
+            this.clearNotices();
+            this.busy = 'subscribe';
+            let createdLocally = false;
+            let subscription = null;
+
+            try {
+                this.capabilities = runtimeCapabilities();
+
+                if (!this.canSubscribe) {
+                    throw new Error(this.text('subscribeUnavailable'));
+                }
+
+                let permission = this.capabilities.permission;
+
+                if (permission !== 'granted') {
+                    permission = await window.Notification.requestPermission();
+                    this.capabilities = runtimeCapabilities();
+                }
+
+                if (permission !== 'granted') {
+                    throw new Error(
+                        permission === 'denied'
+                            ? this.text('permissionDenied')
+                            : this.text('permissionDismissed'),
+                    );
+                }
+
+                const registration = await readyServiceWorkerRegistration();
+                subscription = await registration.pushManager.getSubscription();
+
+                if (!subscription) {
+                    subscription = await registration.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: urlBase64ToUint8Array(this.config.vapidPublicKey),
+                    });
+                    createdLocally = true;
+                }
+
+                const result = await apiRequest(this.config.urls.subscribe, {
+                    method: 'POST',
+                    body: JSON.stringify(serializedSubscription(subscription, this.capabilities)),
+                });
+                const binding = writePushDeviceBinding(
+                    this.config.accountBinding,
+                    result?.subscription_id,
+                );
+
+                if (!binding) {
+                    await subscription.unsubscribe().catch(() => false);
+                    await apiRequest(this.config.urls.unsubscribe, {
+                        method: 'DELETE',
+                        body: JSON.stringify({ subscription_id: result?.subscription_id }),
+                    }).catch(() => null);
+                    throw new Error(this.text('subscribeFailed'));
+                }
+
+                this.subscription = subscription;
+                this.deviceBinding = binding;
+                await this.refresh({ syncExisting: false });
+                this.error = '';
+                this.success = this.text('subscribed');
+            } catch (error) {
+                if (createdLocally && subscription) {
+                    await subscription.unsubscribe().catch(() => false);
+                }
+
+                this.error = messageFrom(error, this.text('subscribeFailed'));
+            } finally {
+                this.busy = null;
+            }
+        },
+
+        async unsubscribe() {
+            this.clearNotices();
+            this.busy = 'unsubscribe';
+
+            try {
+                const binding = readPushDeviceBinding();
+
+                if (!pushDeviceBindingMatches(binding, this.config.accountBinding)) {
+                    throw new Error(this.text('unsubscribeFailed'));
+                }
+
+                const registration = await readyServiceWorkerRegistration();
+                const subscription = await registration.pushManager.getSubscription();
+
+                if (subscription) {
+                    const removed = await subscription.unsubscribe();
+
+                    if (!removed) {
+                        throw new Error(this.text('unsubscribeFailed'));
+                    }
+                }
+
+                this.subscription = null;
+                this.deviceBinding = null;
+                clearPushDeviceBinding();
+
+                await apiRequest(this.config.urls.unsubscribe, {
+                    method: 'DELETE',
+                    body: JSON.stringify({ subscription_id: binding.subscriptionId }),
+                });
+                await this.refresh();
+                this.error = '';
+                this.success = this.text('unsubscribed');
+            } catch (error) {
+                this.error = messageFrom(error, this.text('unsubscribeFailed'));
+            } finally {
+                this.busy = null;
+            }
+        },
+
+        async savePreference(category, enabled) {
+            const previous = Boolean(this.preferences[category]);
+            this.preferences[category] = Boolean(enabled);
+            this.clearNotices();
+            this.busy = `preference:${category}`;
+
+            try {
+                await apiRequest(this.config.urls.preferences, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ preferences: this.preferences }),
+                });
+                this.success = this.text('preferencesSaved');
+            } catch (error) {
+                this.preferences[category] = previous;
+                this.error = messageFrom(error, this.text('preferencesFailed'));
+            } finally {
+                this.busy = null;
+            }
+        },
+
+        async sendTest() {
+            this.clearNotices();
+            this.busy = 'test';
+
+            try {
+                await apiRequest(this.config.urls.test, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        subscription_id: this.deviceBinding.subscriptionId,
+                    }),
+                });
+                this.success = this.text('testQueued');
+            } catch (error) {
+                this.error = messageFrom(error, this.text('testFailed'));
+            } finally {
+                this.busy = null;
+            }
+        },
+    }));
+}

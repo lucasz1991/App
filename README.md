@@ -1,5 +1,15 @@
 # RailTime – interne Mitarbeiter- und Kommunikationsplattform
 
+## 2026-07-25 - Codex (Laravel 12, installierbare App und Web Push)
+
+- Die Anwendung wurde auf Laravel 12 und die dazu kompatiblen Versionen von Jetstream, Sanctum, Livewire, Reverb, PHPUnit und den weiteren Kernpaketen aktualisiert.
+- RailTime besitzt jetzt ein PWA-Manifest und einen Service Worker, sodass die Webanwendung auf iPhone, iPad und Android als App installiert werden kann.
+- Benutzer verwalten Installation, Push-Freigabe, registriertes Geraet, Nachrichten-/Chat-Einstellungen und Testversand im Profilbereich `App & Push`.
+- Push-Abonnements und Browser-Schluessel werden verschluesselt gespeichert; Endpunkte werden gehasht, auf bekannte HTTPS-Pushdienste begrenzt und beim Loeschen des Kontos entfernt.
+- Nachrichten und Chats verwenden generische, datensparsame Push-Texte mit berechtigungsgeprueften Deep Links. Reverb bleibt fuer die geoeffnete App aktiv, Web Push ergaenzt Hintergrund und geschlossene App.
+- Die Dashboards fuer Administratoren, Verwaltung, Mitarbeiter und Gaeste wurden fuer kleine Mobilbreiten erneut verdichtet und auf sichtbare Navigation, lesbare Kennzahlen und fehlenden Seiten-Overflow geprueft.
+- Einrichtung, Queue-Betrieb, Rollout und reale Geraeteabnahme sind in `docs/WEB_PUSH_PWA.md` dokumentiert.
+
 ## 2026-07-21 - Codex (Viewport-sichere Dropdowns, mobile Tabellen und Chatdarstellung)
 
 - Tabellenzeilen besitzen jetzt eine einheitliche Bedienung: Ein einfacher Klick schaltet die Zeilenauswahl um, ein Doppelklick oeffnet die jeweils vorhandene Detailansicht. Bei Mitarbeitern ist dies das Profil, bei Nachrichten und Aufgaben das Detail-Modal und bei Mails die Detailausgabe. Links, Formulare und Aktions-Dropdowns bleiben davon ausgenommen.

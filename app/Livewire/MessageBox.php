@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use Illuminate\Pagination\LengthAwarePaginator;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -14,12 +15,30 @@ class MessageBox extends Component
 
     public string $search = '';
 
+    #[Url(as: 'open', history: true)]
+    public ?int $openMessageId = null;
+
     /** @var array<int, int> */
     public array $selectedMessages = [];
 
     protected $listeners = [
         'inbox:refresh' => '$refresh',
     ];
+
+    public function mount(): void
+    {
+        if (! $this->openMessageId) {
+            return;
+        }
+
+        if (! auth()->user()->receivedMessages()->whereKey($this->openMessageId)->exists()) {
+            $this->openMessageId = null;
+
+            return;
+        }
+
+        $this->dispatch('message-viewer:open', messageId: $this->openMessageId);
+    }
 
     public function updatingSearch(): void
     {

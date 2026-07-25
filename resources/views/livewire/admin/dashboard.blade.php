@@ -21,7 +21,7 @@
 
 <x-ui.page>
     <div
-        class="space-y-3 sm:space-y-4"
+        class="min-w-0 space-y-3 sm:space-y-4"
         x-data="adminDashboardCharts(@js($chartConfig))"
         data-admin-dashboard
     >
@@ -56,15 +56,15 @@
                         {{ __('app.admin_dashboard_description') }}
                     </p>
 
-                    <div class="mt-4 flex flex-wrap gap-2">
+                    <div class="mt-4 grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
                         @can('employees.view')
-                            <a href="{{ route('admin.employees') }}" wire:navigate class="inline-flex items-center gap-2 rounded-lg bg-rt-red px-3 py-2 text-xs font-semibold text-white shadow-[0_10px_24px_-12px_rgba(228,0,43,.8)] transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:bg-rt-red-light active:translate-y-0 focus:outline-none focus:ring-2 focus:ring-white/70">
+                            <a href="{{ route('admin.employees') }}" wire:navigate class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-rt-red px-3 py-2 text-xs font-semibold text-white shadow-[0_10px_24px_-12px_rgba(228,0,43,.8)] transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:bg-rt-red-light active:translate-y-0 focus:outline-none focus:ring-2 focus:ring-white/70">
                                 <i data-feather="users" class="h-4 w-4"></i>
                                 {{ __('app.manage_employees') }}
                             </a>
                         @endcan
                         @can('manage.messages')
-                            <a href="{{ route('admin.messages') }}" wire:navigate data-dashboard-hero-secondary class="rt-ui-button rt-ui-button-secondary rt-admin-hero-secondary inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-rt-surface px-3 py-2 text-xs font-semibold text-slate-800 shadow-rt-xs transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:border-slate-400 hover:bg-slate-50 active:translate-y-0 focus:outline-none focus:ring-2 focus:ring-rt-red/30 dark:border-slate-500 dark:bg-slate-800 dark:text-white dark:hover:border-slate-300 dark:hover:bg-slate-700">
+                            <a href="{{ route('admin.messages') }}" wire:navigate data-dashboard-hero-secondary class="rt-ui-button rt-ui-button-secondary rt-admin-hero-secondary inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-rt-surface px-3 py-2 text-xs font-semibold text-slate-800 shadow-rt-xs transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:border-slate-400 hover:bg-slate-50 active:translate-y-0 focus:outline-none focus:ring-2 focus:ring-rt-red/30 dark:border-slate-500 dark:bg-slate-800 dark:text-white dark:hover:border-slate-300 dark:hover:bg-slate-700">
                                 <i data-feather="message-square" class="h-4 w-4"></i>
                                 {{ __('app.messages') }}
                             </a>
@@ -90,16 +90,16 @@
                     </div>
 
                     <dl class="rt-admin-live-stats mt-3 grid grid-cols-3 divide-x divide-slate-200 dark:divide-slate-700">
-                        <div class="pr-3">
-                            <dt class="text-[10px] leading-tight text-slate-500 dark:text-slate-400">{{ __('app.online_now') }}</dt>
+                        <div class="min-w-0 pr-1.5 sm:pr-3">
+                            <dt class="text-pretty text-[10px] leading-tight text-slate-500 dark:text-slate-400">{{ __('app.online_now') }}</dt>
                             <dd class="mt-1 text-xl font-semibold tabular-nums text-rt-text dark:text-white" data-dashboard-count="{{ $operations['online'] }}">{{ $operations['online'] }}</dd>
                         </div>
-                        <div class="px-3">
-                            <dt class="text-[10px] leading-tight text-slate-500 dark:text-slate-400">{{ __('app.open_invitations') }}</dt>
+                        <div class="min-w-0 px-1.5 sm:px-3">
+                            <dt class="text-pretty text-[10px] leading-tight text-slate-500 dark:text-slate-400">{{ __('app.open_invitations') }}</dt>
                             <dd class="mt-1 text-xl font-semibold tabular-nums text-rt-text dark:text-white" data-dashboard-count="{{ $operations['openInvitations'] }}">{{ $operations['openInvitations'] }}</dd>
                         </div>
-                        <div class="pl-3">
-                            <dt class="text-[10px] leading-tight text-slate-500 dark:text-slate-400">{{ __('app.unread_messages_total') }}</dt>
+                        <div class="min-w-0 pl-1.5 sm:pl-3">
+                            <dt class="text-pretty text-[10px] leading-tight text-slate-500 dark:text-slate-400">{{ __('app.unread_messages_total') }}</dt>
                             <dd class="mt-1 text-xl font-semibold tabular-nums text-rt-text dark:text-white" data-dashboard-count="{{ $operations['unreadTotal'] }}">{{ $operations['unreadTotal'] }}</dd>
                         </div>
                     </dl>
@@ -108,8 +108,8 @@
         </section>
 
         {{-- Vier gleichwertige Kennzahlen in einer durchgehenden Zeile. --}}
-        <section class="grid grid-cols-4 gap-1.5 sm:gap-2.5" aria-label="{{ __('app.dashboard') }}" data-dashboard-segment="kpis" data-dashboard-kpis data-dashboard-items>
-            <article class="rt-admin-panel rt-admin-panel-accent group relative min-w-0 overflow-hidden rounded-xl p-2.5 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md sm:p-3.5">
+        <section class="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-2.5" aria-label="{{ __('app.dashboard') }}" data-dashboard-segment="kpis" data-dashboard-kpis data-dashboard-items>
+            <article class="rt-admin-panel rt-admin-panel-accent group relative min-w-0 overflow-hidden rounded-xl p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md sm:p-3.5">
                 <div class="flex items-center justify-between gap-1.5">
                     <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-rt-red dark:border-slate-700 dark:bg-slate-800"><i data-feather="users" class="h-3.5 w-3.5"></i></span>
                     <span class="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-1 text-[9px] font-semibold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 sm:text-[10px]">
@@ -117,7 +117,7 @@
                         {{ $activeRate }}%<span class="sr-only"> {{ __('app.active_rate') }}</span>
                     </span>
                 </div>
-                <p class="mt-2.5 truncate text-[10px] text-rt-muted dark:text-rt-dark-muted sm:text-xs">{{ __('app.total_users') }}</p>
+                <p class="mt-2.5 text-pretty text-[10px] leading-4 text-rt-muted dark:text-rt-dark-muted sm:text-xs">{{ __('app.total_users') }}</p>
                 <p class="mt-1 text-xl font-semibold tracking-[-0.035em] tabular-nums text-rt-text dark:text-white sm:text-2xl" data-dashboard-count="{{ $totalUsers }}">{{ number_format($totalUsers, 0, ',', '.') }}</p>
                 <div class="mt-2 h-1 overflow-hidden rounded-full bg-rt-surface-muted dark:bg-rt-dark-surface-muted">
                     <div
@@ -128,28 +128,28 @@
                 </div>
             </article>
 
-            <article class="rt-admin-panel min-w-0 rounded-xl p-2.5 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md sm:p-3.5">
+            <article class="rt-admin-panel min-w-0 rounded-xl p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md sm:p-3.5">
                 <span class="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"><i data-feather="user-check" class="h-3.5 w-3.5"></i></span>
-                <p class="mt-2.5 truncate text-[10px] text-rt-muted dark:text-rt-dark-muted sm:text-xs">{{ __('app.active_users') }}</p>
+                <p class="mt-2.5 text-pretty text-[10px] leading-4 text-rt-muted dark:text-rt-dark-muted sm:text-xs">{{ __('app.active_users') }}</p>
                 <p class="mt-1 text-xl font-semibold tabular-nums text-rt-text dark:text-white sm:text-2xl" data-dashboard-count="{{ $activeUsers }}">{{ number_format($activeUsers, 0, ',', '.') }}</p>
             </article>
 
-            <article class="rt-admin-panel min-w-0 rounded-xl p-2.5 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md sm:p-3.5">
+            <article class="rt-admin-panel min-w-0 rounded-xl p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md sm:p-3.5">
                 <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent"><i data-feather="briefcase" class="h-3.5 w-3.5"></i></span>
-                <p class="mt-2.5 truncate text-[10px] text-rt-muted dark:text-rt-dark-muted sm:text-xs">{{ __('app.employees') }}</p>
+                <p class="mt-2.5 text-pretty text-[10px] leading-4 text-rt-muted dark:text-rt-dark-muted sm:text-xs">{{ __('app.employees') }}</p>
                 <p class="mt-1 text-xl font-semibold tabular-nums text-rt-text dark:text-white sm:text-2xl" data-dashboard-count="{{ $totalEmployees }}">{{ number_format($totalEmployees, 0, ',', '.') }}</p>
             </article>
 
-            <article class="rt-admin-panel min-w-0 rounded-xl p-2.5 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md sm:p-3.5">
+            <article class="rt-admin-panel min-w-0 rounded-xl p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md sm:p-3.5">
                 <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-200"><i data-feather="layers" class="h-3.5 w-3.5"></i></span>
-                <p class="mt-2.5 truncate text-[10px] text-rt-muted dark:text-rt-dark-muted sm:text-xs">{{ __('app.teams_rbac') }}</p>
+                <p class="mt-2.5 text-pretty text-[10px] leading-4 text-rt-muted dark:text-rt-dark-muted sm:text-xs">{{ __('app.teams_rbac') }}</p>
                 <p class="mt-1 text-xl font-semibold tabular-nums text-rt-text dark:text-white sm:text-2xl" data-dashboard-count="{{ $totalTeams }}">{{ number_format($totalTeams, 0, ',', '.') }}</p>
             </article>
         </section>
 
         {{-- Feine SVG-Diagramme mit Apache ECharts 6. --}}
-        <section class="grid gap-3 lg:grid-cols-12" aria-label="{{ __('app.user_growth') }}" data-dashboard-segment="charts" data-dashboard-items>
-            <article class="rt-admin-panel overflow-hidden rounded-2xl p-4 lg:col-span-8 xl:col-span-6">
+        <section class="grid gap-3 md:grid-cols-12" aria-label="{{ __('app.user_growth') }}" data-dashboard-segment="charts" data-dashboard-items>
+            <article class="rt-admin-panel overflow-hidden rounded-2xl p-4 md:col-span-8 xl:col-span-6">
                 <header class="flex flex-wrap items-start justify-between gap-3">
                     <div>
                         <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.last_14_days') }}</p>
@@ -164,7 +164,7 @@
                 <div class="rt-admin-chart mt-2 h-[236px] sm:h-[252px]" x-ref="growthChart" aria-label="{{ __('app.user_growth') }}"></div>
             </article>
 
-            <article class="rt-admin-panel rounded-2xl p-4 lg:col-span-4 xl:col-span-3">
+            <article class="rt-admin-panel rounded-2xl p-4 md:col-span-4 xl:col-span-3">
                 <div class="flex items-start justify-between gap-3">
                     <div>
                         <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.accounts') }}</p>
@@ -184,7 +184,7 @@
                     </div>
                 </dl>
             </article>
-            <article class="rt-admin-panel overflow-hidden rounded-2xl p-4 lg:col-span-12 xl:col-span-3">
+            <article class="rt-admin-panel overflow-hidden rounded-2xl p-4 md:col-span-12 xl:col-span-3">
                 <div class="flex items-start justify-between gap-4">
                     <div>
                         <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-muted dark:text-rt-dark-muted">{{ __('app.last_14_days') }}</p>
@@ -192,7 +192,7 @@
                     </div>
                     <i data-feather="bar-chart-2" class="h-5 w-5 text-rt-red-light"></i>
                 </div>
-                <div class="rt-admin-chart mt-2 h-[120px] sm:h-[150px] lg:h-[96px] xl:h-[150px]" x-ref="activityChart" aria-label="{{ __('app.activity_trend') }}"></div>
+                <div class="rt-admin-chart mt-2 h-[120px] sm:h-[150px] xl:h-[150px]" x-ref="activityChart" aria-label="{{ __('app.activity_trend') }}"></div>
             </article>
         </section>
 
@@ -216,12 +216,12 @@
                 </span>
             </header>
 
-            <div class="rt-admin-operations-grid grid grid-cols-2 gap-px bg-slate-200 lg:grid-cols-4 dark:bg-slate-600" data-operational-preview data-dashboard-items>
+            <div class="rt-admin-operations-grid grid grid-cols-2 gap-px bg-slate-200 md:grid-cols-4 dark:bg-slate-600" data-operational-preview data-dashboard-items>
                 @foreach ($operationalPreviews as $previewModule)
                     <a
                         href="{{ route('admin.operations.preview', ['module' => $previewModule['slug']]) }}"
                         wire:navigate
-                        class="rt-admin-operations-card group min-w-0 bg-white px-3 py-3 transition duration-200 hover:bg-slate-50 sm:px-4 sm:py-3.5 dark:bg-slate-800 dark:hover:bg-slate-700"
+                        class="rt-admin-operations-card group min-w-0 bg-white px-3 py-3 transition duration-200 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rt-red sm:px-4 sm:py-3.5 dark:bg-slate-800 dark:hover:bg-slate-700"
                     >
                         <div class="flex items-start justify-between gap-3">
                             <span class="rt-admin-preview-tone flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border sm:h-9 sm:w-9 {{ $previewToneClasses[$previewModule['tone']] ?? $previewToneClasses['red'] }}" data-preview-tone="{{ $previewModule['tone'] }}">
@@ -241,16 +241,16 @@
         </section>
         @endif
 
-        <section class="grid gap-3 lg:grid-cols-12" data-dashboard-segment="accounts" data-dashboard-items>
+        <section class="grid gap-3 md:grid-cols-12" data-dashboard-segment="accounts" data-dashboard-items>
             {{-- Neueste Benutzer --}}
-            <article class="rt-admin-panel rounded-2xl lg:col-span-8">
+            <article class="rt-admin-panel rounded-2xl md:col-span-8">
                 <header class="flex items-center justify-between gap-4 border-b border-slate-200 px-4 py-3.5 sm:px-5 dark:border-slate-700">
                     <div>
                         <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.accounts') }}</p>
                         <h2 class="mt-1 text-lg font-semibold text-rt-text dark:text-white">{{ __('app.recent_users') }}</h2>
                     </div>
                     @can('employees.view')
-                        <a href="{{ route('admin.employees') }}" wire:navigate class="inline-flex items-center gap-1.5 text-sm font-semibold text-rt-red transition hover:text-rt-red-dark focus:outline-none focus:ring-2 focus:ring-rt-red/30">
+                        <a href="{{ route('admin.employees') }}" wire:navigate class="inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-rt-red transition hover:text-rt-red-dark focus:outline-none focus:ring-2 focus:ring-rt-red/30">
                             {{ __('app.show_all') }}
                             <i data-feather="arrow-up-right" class="h-4 w-4"></i>
                         </a>
@@ -258,17 +258,17 @@
                 </header>
                 <div class="rt-admin-list-grid grid gap-px bg-slate-200 sm:grid-cols-2 dark:bg-slate-700" data-dashboard-items>
                     @forelse ($recentUsers as $user)
-                        <a href="{{ route('admin.user-profile', $user->id) }}" wire:navigate class="rt-admin-user-row group flex min-w-0 items-center gap-3 bg-rt-surface px-4 py-3 transition duration-200 hover:bg-rt-surface-muted sm:px-5 dark:bg-rt-dark-surface dark:hover:bg-rt-dark-surface-muted">
-                            <span class="rt-admin-user-avatar flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-sm font-semibold text-rt-text transition duration-200 group-hover:border-rt-red group-hover:bg-rt-red group-hover:text-white dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+                        <a href="{{ route('admin.user-profile', $user->id) }}" wire:navigate class="rt-admin-user-row group grid min-w-0 grid-cols-[2.25rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1 bg-rt-surface px-4 py-3 transition duration-200 hover:bg-rt-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rt-red sm:flex sm:px-5 dark:bg-rt-dark-surface dark:hover:bg-rt-dark-surface-muted">
+                            <span class="rt-admin-user-avatar row-span-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-sm font-semibold text-rt-text transition duration-200 group-hover:border-rt-red group-hover:bg-rt-red group-hover:text-white sm:row-auto dark:border-slate-700 dark:bg-slate-800 dark:text-white">
                                 {{ mb_strtoupper(mb_substr($user->name, 0, 1)) }}
                             </span>
                             <span class="min-w-0 flex-1">
                                 <span class="block truncate text-sm font-semibold text-rt-text dark:text-white">{{ $user->name }}</span>
                                 <span class="mt-0.5 block truncate text-xs text-rt-muted dark:text-rt-dark-muted">{{ $user->email }}</span>
                             </span>
-                            <span class="shrink-0 text-right">
+                            <span class="col-start-2 flex min-w-0 items-center gap-2 text-left sm:col-auto sm:block sm:shrink-0 sm:text-right">
                                 <span class="block text-[10px] font-semibold {{ $user->status ? 'text-emerald-600 dark:text-emerald-400' : 'text-rt-soft dark:text-rt-dark-soft' }}">{{ $user->status ? __('app.active') : __('app.inactive') }}</span>
-                                <span class="mt-1 block text-[10px] text-rt-soft dark:text-rt-dark-soft">{{ $user->created_at?->format('d.m.Y') }}</span>
+                                <span class="block text-[10px] text-rt-soft sm:mt-1 dark:text-rt-dark-soft">{{ $user->created_at?->format('d.m.Y') }}</span>
                             </span>
                         </a>
                     @empty
@@ -278,30 +278,30 @@
             </article>
 
             {{-- Schnellzugriffe als kompakte Befehlsflaeche. --}}
-            <article class="rt-admin-panel rounded-2xl p-4 lg:col-span-4">
+            <article class="rt-admin-panel rounded-2xl p-4 md:col-span-4">
                 <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.admin_control_center') }}</p>
                 <h2 class="mt-1 text-lg font-semibold text-rt-text dark:text-white">{{ __('app.quick_access') }}</h2>
                 <div class="mt-3 grid grid-cols-2 gap-2" data-dashboard-items>
                     @can('employees.view')
-                        <a href="{{ route('admin.employees') }}" wire:navigate class="rt-admin-quick-link group rounded-xl border border-slate-200 bg-slate-50 p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red hover:bg-rt-red hover:text-white hover:shadow-rt-glow dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+                        <a href="{{ route('admin.employees') }}" wire:navigate class="rt-admin-quick-link group min-h-20 rounded-xl border border-slate-200 bg-slate-50 p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red hover:bg-rt-red hover:text-white hover:shadow-rt-glow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red dark:border-slate-700 dark:bg-slate-800 dark:text-white">
                             <i data-feather="users" class="h-5 w-5 text-rt-red transition group-hover:text-white"></i>
                             <span class="mt-2.5 block text-xs font-semibold leading-5">{{ __('app.manage_employees') }}</span>
                         </a>
                     @endcan
                     @can('files.manage')
-                        <a href="{{ route('admin.files') }}" wire:navigate class="rt-admin-quick-link group rounded-xl border border-slate-200 bg-slate-50 p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red hover:bg-rt-red hover:text-white hover:shadow-rt-glow dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+                        <a href="{{ route('admin.files') }}" wire:navigate class="rt-admin-quick-link group min-h-20 rounded-xl border border-slate-200 bg-slate-50 p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red hover:bg-rt-red hover:text-white hover:shadow-rt-glow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red dark:border-slate-700 dark:bg-slate-800 dark:text-white">
                             <i data-feather="folder" class="h-5 w-5 text-rt-red transition group-hover:text-white"></i>
                             <span class="mt-2.5 block text-xs font-semibold leading-5">{{ __('app.file_management') }}</span>
                         </a>
                     @endcan
                     @can('manage.messages')
-                        <a href="{{ route('admin.mail-management') }}" wire:navigate class="rt-admin-quick-link group rounded-xl border border-slate-200 bg-slate-50 p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red hover:bg-rt-red hover:text-white hover:shadow-rt-glow dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+                        <a href="{{ route('admin.mail-management') }}" wire:navigate class="rt-admin-quick-link group min-h-20 rounded-xl border border-slate-200 bg-slate-50 p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red hover:bg-rt-red hover:text-white hover:shadow-rt-glow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red dark:border-slate-700 dark:bg-slate-800 dark:text-white">
                             <i data-feather="send" class="h-5 w-5 text-rt-red transition group-hover:text-white"></i>
                             <span class="mt-2.5 block text-xs font-semibold leading-5">{{ __('app.mail_management') }}</span>
                         </a>
                     @endcan
                     @can('settings.manage')
-                        <a href="{{ route('admin.settings') }}" wire:navigate class="rt-admin-quick-link group rounded-xl border border-slate-200 bg-slate-50 p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red hover:bg-rt-red hover:text-white hover:shadow-rt-glow dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+                        <a href="{{ route('admin.settings') }}" wire:navigate class="rt-admin-quick-link group min-h-20 rounded-xl border border-slate-200 bg-slate-50 p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red hover:bg-rt-red hover:text-white hover:shadow-rt-glow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red dark:border-slate-700 dark:bg-slate-800 dark:text-white">
                             <i data-feather="sliders" class="h-5 w-5 text-rt-red transition group-hover:text-white"></i>
                             <span class="mt-2.5 block text-xs font-semibold leading-5">{{ __('app.settings') }}</span>
                         </a>
@@ -310,8 +310,8 @@
             </article>
         </section>
 
-        <section class="grid gap-3 {{ $canViewSystemData && $system ? 'lg:grid-cols-12' : '' }}" data-dashboard-segment="system" data-dashboard-items>
-            <article class="rt-admin-panel rounded-2xl p-4 {{ $canViewSystemData && $system ? 'lg:col-span-5' : '' }}">
+        <section class="grid gap-3 {{ $canViewSystemData && $system ? 'md:grid-cols-12' : '' }}" data-dashboard-segment="system" data-dashboard-items>
+            <article class="rt-admin-panel rounded-2xl p-4 {{ $canViewSystemData && $system ? 'md:col-span-5' : '' }}">
                 <div class="flex items-center justify-between gap-3">
                     <div>
                         <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.live_operations') }}</p>
@@ -321,15 +321,15 @@
                 </div>
                 <div class="mt-3 space-y-2" data-dashboard-items>
                     @forelse ($recentActivity as $entry)
-                        <div class="flex items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-rt-surface-muted dark:hover:bg-rt-dark-surface-muted">
-                            <span class="relative shrink-0">
+                        <div class="grid grid-cols-[2.25rem_minmax(0,1fr)] items-center gap-x-3 gap-y-0.5 rounded-xl px-2 py-2 transition hover:bg-rt-surface-muted sm:flex dark:hover:bg-rt-dark-surface-muted">
+                            <span class="relative row-span-2 shrink-0 sm:row-auto">
                                 <img src="{{ $entry['user']->profile_photo_url }}" alt="{{ $entry['user']->name }}" class="h-9 w-9 rounded-xl object-cover ring-1 ring-rt-border/60 dark:ring-rt-dark-border/60">
                                 @if ($entry['lastSeen']->gte(now()->subMinutes(5)))
                                     <span class="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-rt-surface dark:ring-rt-dark-surface"></span>
                                 @endif
                             </span>
-                            <span class="min-w-0 flex-1 truncate text-sm font-semibold text-rt-text dark:text-white">{{ $entry['user']->name }}</span>
-                            <time class="shrink-0 text-[11px] text-rt-soft dark:text-rt-dark-soft" datetime="{{ $entry['lastSeen']->toIso8601String() }}">{{ $entry['lastSeen']->diffForHumans() }}</time>
+                            <span class="min-w-0 truncate text-sm font-semibold text-rt-text sm:flex-1 dark:text-white">{{ $entry['user']->name }}</span>
+                            <time class="col-start-2 text-[11px] text-rt-soft sm:col-auto sm:shrink-0 dark:text-rt-dark-soft" datetime="{{ $entry['lastSeen']->toIso8601String() }}">{{ $entry['lastSeen']->diffForHumans() }}</time>
                         </div>
                     @empty
                         <p class="rounded-xl bg-rt-surface-muted px-4 py-6 text-sm text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted">{{ __('app.no_activity_yet') }}</p>
@@ -339,7 +339,7 @@
 
             {{-- Serverseitig nur fuer das Administratoren-Team bereitgestellt. --}}
             @if ($canViewSystemData && $system)
-                <article class="rt-admin-panel overflow-hidden rounded-2xl lg:col-span-7" data-system-dashboard>
+                <article class="rt-admin-panel overflow-hidden rounded-2xl md:col-span-7" data-system-dashboard>
                     <header class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-4 py-3.5 sm:px-5 dark:border-slate-700">
                         <div>
                             <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.administrator_team') }}</p>
@@ -366,7 +366,7 @@
                         ] as [$label, $value])
                             <div class="rt-admin-system-cell min-w-0 bg-rt-surface px-4 py-3 dark:bg-rt-dark-surface">
                                 <dt class="text-[10px] font-semibold uppercase tracking-[0.12em] text-rt-soft dark:text-rt-dark-soft">{{ $label }}</dt>
-                                <dd class="mt-1.5 truncate text-sm font-semibold text-rt-text dark:text-white" title="{{ $value }}">{{ $value }}</dd>
+                                <dd class="mt-1.5 break-words text-sm font-semibold text-rt-text dark:text-white" title="{{ $value }}">{{ $value }}</dd>
                             </div>
                         @endforeach
                     </dl>

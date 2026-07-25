@@ -1,4 +1,4 @@
-<div class="relative" wire:loading.class="cursor-wait">
+<div class="relative min-w-0" wire:loading.class="cursor-wait" data-user-dashboard>
     <x-ui.page
         :title="__('app.welcome_name', ['name' => auth()->user()->name])"
         :eyebrow="$dashboardTeamName"
@@ -34,7 +34,7 @@
         @if ($showSchedule)
         <section class="overflow-hidden rounded-2xl bg-slate-950 text-white shadow-rt-md ring-1 ring-slate-900" data-anim="fade-up" aria-labelledby="next-order-title">
             <div class="grid gap-0 lg:grid-cols-[minmax(0,1.45fr)_minmax(18rem,.55fr)]">
-                <div class="relative overflow-hidden p-5 sm:p-7">
+                <div class="relative overflow-hidden p-4 sm:p-7">
                     <div class="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-sky-500/15 blur-3xl"></div>
                     <div class="relative">
                         <div class="flex flex-wrap items-center gap-2">
@@ -45,20 +45,20 @@
                         <h2 id="next-order-title" class="mt-1 text-2xl font-semibold tracking-tight text-white sm:text-3xl">{{ $nextOrder['train'] }}</h2>
                         <p class="mt-2 text-base font-medium text-slate-200">{{ $nextOrder['route'] }}</p>
 
-                        <dl class="mt-6 grid gap-4 text-sm sm:grid-cols-3">
+                        <dl class="mt-5 grid gap-3 text-sm sm:mt-6 sm:grid-cols-3 sm:gap-4">
                             <div><dt class="text-xs text-slate-400">{{ __('app.time') }}</dt><dd class="mt-1 font-semibold">{{ $nextOrder['date'] }} · {{ $nextOrder['time'] }}</dd></div>
                             <div><dt class="text-xs text-slate-400">{{ __('app.assignment') }}</dt><dd class="mt-1 font-semibold">{{ $nextOrder['assignment'] }}</dd></div>
                             <div><dt class="text-xs text-slate-400">{{ __('app.meeting_point') }}</dt><dd class="mt-1 font-semibold">{{ $nextOrder['meetingPoint'] }}</dd></div>
                         </dl>
 
-                        <a href="{{ $wagonListRoute }}" wire:navigate class="mt-6 inline-flex min-h-11 items-center gap-2 rounded-lg bg-sky-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-sky-400 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-sky-300/60">
+                        <a href="{{ $wagonListRoute }}" wire:navigate class="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-sky-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-sky-400 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-sky-300/60 sm:w-auto">
                             <i class="far fa-edit" aria-hidden="true"></i>
                             {{ __('app.open_wagon_list') }}
                         </a>
                     </div>
                 </div>
 
-                <aside class="border-t border-white/10 bg-white/[0.04] p-5 sm:p-7 lg:border-l lg:border-t-0" aria-label="{{ __('app.work_checklist') }}">
+                <aside class="border-t border-white/10 bg-white/[0.04] p-4 sm:p-7 lg:border-l lg:border-t-0" aria-label="{{ __('app.work_checklist') }}">
                     <h3 class="text-sm font-semibold text-white">{{ __('app.work_checklist') }}</h3>
                     <div class="mt-4 space-y-3">
                         @foreach ($workChecklist as $item)
@@ -75,9 +75,9 @@
         </section>
 
         {{-- Dienstplan + Termine gibt es nur fuer das Team Mitarbeiter. --}}
-        <div class="grid gap-6 lg:grid-cols-3" data-anim="fade-up">
+        <div class="grid gap-4 sm:gap-6 lg:grid-cols-3" data-anim="fade-up">
             {{-- Naechste Schichten --}}
-            <div class="rounded-xl bg-rt-surface p-6 shadow-rt-sm ring-1 ring-rt-border/60 lg:col-span-2 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+            <div class="min-w-0 rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 sm:p-6 lg:col-span-2 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
                 <div class="mb-4">
                     <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-accent dark:text-rt-dark-accent">{{ __('app.duty_roster') }}</p>
                     <h2 class="mt-1 text-lg font-semibold tracking-tight text-rt-text dark:text-rt-dark-text">{{ __('app.next_shifts') }}</h2>
@@ -85,16 +85,16 @@
 
                 <div class="space-y-2.5">
                     @foreach ($shifts as $shift)
-                        <div class="flex items-center gap-4 rounded-xl bg-rt-surface-muted/60 p-3 ring-1 ring-rt-border/60 transition-all duration-300 ease-rt-spring hover:ring-rt-accent/40 dark:bg-rt-dark-surface-muted/40 dark:ring-rt-dark-border/60">
-                            <div class="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-lg bg-rt-surface text-center shadow-rt-xs ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+                        <div class="grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1 rounded-xl bg-rt-surface-muted/60 p-3 ring-1 ring-rt-border/60 transition-all duration-300 ease-rt-spring hover:ring-rt-accent/40 sm:flex sm:gap-4 dark:bg-rt-dark-surface-muted/40 dark:ring-rt-dark-border/60">
+                            <div class="row-span-2 flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-lg bg-rt-surface text-center shadow-rt-xs ring-1 ring-rt-border/60 sm:row-auto dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
                                 <span class="text-[10px] font-medium uppercase text-rt-muted dark:text-rt-dark-muted">{{ $shift['day'] }}</span>
                                 <span class="text-xs font-bold text-rt-text dark:text-rt-dark-text">{{ $shift['date'] }}</span>
                             </div>
-                            <div class="min-w-0 flex-1">
+                            <div class="min-w-0 sm:flex-1">
                                 <p class="truncate text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ $shift['title'] }}</p>
                                 <p class="truncate text-xs text-rt-muted dark:text-rt-dark-muted">{{ $shift['route'] }}</p>
                             </div>
-                            <div class="shrink-0 text-right">
+                            <div class="col-start-2 min-w-0 text-left sm:col-auto sm:shrink-0 sm:text-right">
                                 <p class="text-sm font-semibold {{ $shift['time'] === 'frei' ? 'text-rt-soft dark:text-rt-dark-soft' : 'text-rt-text dark:text-rt-dark-text' }}">{{ $shift['time'] }}</p>
                                 @if ($shift['role'])
                                     <span class="mt-1 hidden sm:inline-block"><x-ui.badge :color="$shift['tone']">{{ $shift['role'] }}</x-ui.badge></span>
@@ -108,7 +108,7 @@
             </div>
 
             {{-- Naechste Termine --}}
-            <div class="rounded-xl bg-rt-surface p-6 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+            <div class="min-w-0 rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 sm:p-6 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
                 <h2 class="text-lg font-semibold tracking-tight text-rt-text dark:text-rt-dark-text">{{ __('app.upcoming_appointments') }}</h2>
                 <div class="mt-4 space-y-3">
                     @foreach ($plans as $plan)
@@ -128,9 +128,9 @@
         @endif
 
         {{-- Möglichkeiten & Infos: Schnellzugriff, Nachrichten, Profil-Status --}}
-        <div class="grid gap-6 md:grid-cols-3" data-anim="fade-up" data-anim-delay="0.05">
+        <div class="grid gap-4 sm:gap-6 md:grid-cols-3" data-anim="fade-up" data-anim-delay="0.05">
             {{-- Schnellzugriff --}}
-            <div class="rounded-xl bg-rt-surface p-6 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+            <div class="min-w-0 rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 sm:p-6 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
                 <h2 class="text-base font-semibold text-rt-text dark:text-rt-dark-text">{{ __('app.quick_access') }}</h2>
                 <div class="mt-4 space-y-2">
                     <a href="{{ route('files') }}" wire:navigate
@@ -157,16 +157,16 @@
             </div>
 
             {{-- Neueste Nachrichten --}}
-            <div class="rounded-xl bg-rt-surface p-6 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
-                <div class="flex items-center justify-between">
+            <div class="min-w-0 rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 sm:p-6 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+                <div class="flex flex-wrap items-center justify-between gap-3">
                     <h2 class="text-base font-semibold text-rt-text dark:text-rt-dark-text">{{ __('app.news_and_information') }}</h2>
-                    <a href="{{ route('messages') }}" wire:navigate class="text-sm font-medium text-rt-red transition-all duration-300 ease-rt-spring hover:text-rt-red-dark">
+                    <a href="{{ route('messages') }}" wire:navigate class="inline-flex min-h-11 items-center text-sm font-medium text-rt-red transition-all duration-300 ease-rt-spring hover:text-rt-red-dark">
                         {{ __('app.show_all') }}
                     </a>
                 </div>
                 <div class="mt-4 space-y-3">
                     @forelse ($latestMessages as $message)
-                        <a href="{{ route('messages') }}" wire:navigate class="flex items-start gap-3 rounded-lg px-2 py-1.5 transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted/60 dark:hover:bg-rt-dark-surface-muted/40" wire:key="dash-msg-{{ $message->id }}">
+                        <a href="{{ route('messages') }}" wire:navigate class="flex min-h-11 items-start gap-3 rounded-lg px-2 py-2.5 transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted/60 dark:hover:bg-rt-dark-surface-muted/40" wire:key="dash-msg-{{ $message->id }}">
                             <span class="mt-1 h-2 w-2 shrink-0 rounded-full {{ (int) $message->status === 1 ? 'bg-rt-red' : 'bg-slate-300 dark:bg-slate-600' }}"></span>
                             <span class="min-w-0">
                                 <span class="block truncate text-sm font-medium text-rt-text dark:text-rt-dark-text">{{ $message->subject }}</span>
@@ -182,7 +182,7 @@
             </div>
 
             {{-- Profil-Status --}}
-            <div class="rounded-xl bg-rt-surface p-6 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+            <div class="min-w-0 rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 sm:p-6 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
                 <h2 class="text-base font-semibold text-rt-text dark:text-rt-dark-text">{{ __('app.profile_status') }}</h2>
                 <div class="mt-4">
                     <div class="flex items-center justify-between text-sm">
@@ -208,7 +208,7 @@
                 </ul>
                 @if ($profileCompletion < 100)
                     <a href="{{ route('profile.show') }}"
-                       class="mt-4 inline-flex items-center gap-2 rounded-lg bg-rt-red px-4 py-2 text-sm font-semibold text-white shadow-rt-xs transition-all duration-300 ease-rt-spring hover:bg-rt-red-dark">
+                       class="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-rt-red px-4 py-2 text-sm font-semibold text-white shadow-rt-xs transition-all duration-300 ease-rt-spring hover:bg-rt-red-dark sm:w-auto">
                         {{ __('app.complete_profile') }}
                     </a>
                 @else
@@ -218,7 +218,7 @@
         </div>
 
         {{-- Aktuelle Dateien --}}
-        <div class="rounded-xl bg-rt-surface p-6 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60" data-anim="fade-up" data-anim-delay="0.05">
+        <div class="rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 sm:p-6 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60" data-anim="fade-up" data-anim-delay="0.05">
             <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
                 <div>
                     <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-accent dark:text-rt-dark-accent">{{ __('app.downloads') }}</p>
@@ -230,15 +230,15 @@
             </div>
 
             @if ($recentFiles->isNotEmpty())
-                <div class="flex flex-wrap gap-4">
+                <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6" data-dashboard-files>
                     @foreach ($recentFiles as $file)
-                        <div class="w-32" wire:key="dash-file-{{ $file->id }}">
+                        <div class="min-w-0" wire:key="dash-file-{{ $file->id }}">
                             <x-ui.filepool.file-card :file="$file" :read-only="true" />
                         </div>
                     @endforeach
                 </div>
             @else
-                <div class="flex w-full flex-col items-center gap-2 rounded-xl border border-dashed border-rt-border bg-rt-surface-muted/60 py-10 text-center dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/40">
+                <div class="flex w-full flex-col items-center gap-2 rounded-xl border border-dashed border-rt-border bg-rt-surface-muted/60 py-8 text-center sm:py-10 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/40">
                     <i class="fad fa-folder-open text-2xl text-rt-soft dark:text-rt-dark-soft"></i>
                     <span class="text-sm text-rt-muted dark:text-rt-dark-muted">{{ __('app.no_files_available') }}</span>
                 </div>

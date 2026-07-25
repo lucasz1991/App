@@ -5,9 +5,9 @@ namespace App\Providers;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Foundation\Support\Providers\RouteServiceProvider as ServiceProvider;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Auth;
 
 class RouteServiceProvider extends ServiceProvider
 {
@@ -18,7 +18,6 @@ class RouteServiceProvider extends ServiceProvider
      *
      * @var string
      */
-
     public static function home()
     {
         if (! Auth::check()) {
@@ -37,6 +36,14 @@ class RouteServiceProvider extends ServiceProvider
     {
         RateLimiter::for('api', function (Request $request) {
             return Limit::perMinute(300)->by($request->user()?->id ?: $request->ip());
+        });
+
+        RateLimiter::for('push-subscriptions', function (Request $request) {
+            return Limit::perMinute(30)->by($request->user()?->id ?: $request->ip());
+        });
+
+        RateLimiter::for('push-test', function (Request $request) {
+            return Limit::perMinutes(10, 3)->by($request->user()?->id ?: $request->ip());
         });
 
         $this->routes(function () {

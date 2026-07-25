@@ -1,0 +1,38 @@
+{
+    "id": "./",
+    "name": "RailTime",
+    "short_name": "RailTime",
+    "description": "Die RailTime App für Betrieb, Kommunikation und Dokumente.",
+    "lang": "de",
+    "dir": "ltr",
+    "start_url": "./?source=pwa",
+    "scope": "./",
+    "display": "standalone",
+    "background_color": "#f3f6fa",
+    "theme_color": "#e4002b",
+    "orientation": "any",
+    "categories": [
+        "business",
+        "productivity"
+    ],
+    "icons": [
+        {
+            "src": "icons/pwa-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "icons/pwa-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "icons/pwa-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}

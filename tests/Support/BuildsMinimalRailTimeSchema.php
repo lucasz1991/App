@@ -28,6 +28,37 @@ trait BuildsMinimalRailTimeSchema
             $table->timestamps();
         });
 
+        Schema::create('push_subscriptions', function (Blueprint $table): void {
+            $table->id();
+            $table->string('subscribable_type');
+            $table->unsignedBigInteger('subscribable_id');
+            $table->text('endpoint');
+            $table->char('endpoint_hash', 64)->unique();
+            $table->text('public_key')->nullable();
+            $table->text('auth_token')->nullable();
+            $table->string('content_encoding', 50)->nullable();
+            $table->string('device_name', 100)->nullable();
+            $table->string('platform', 20)->default('unknown');
+            $table->string('browser', 60)->nullable();
+            $table->char('user_agent_hash', 64)->nullable();
+            $table->timestamp('last_seen_at')->nullable();
+            $table->timestamp('last_success_at')->nullable();
+            $table->timestamp('last_failure_at')->nullable();
+            $table->unsignedInteger('failure_count')->default(0);
+            $table->timestamp('revoked_at')->nullable();
+            $table->timestamps();
+            $table->index(['subscribable_type', 'subscribable_id']);
+        });
+
+        Schema::create('notification_preferences', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('user_id');
+            $table->string('category', 40);
+            $table->boolean('web_push_enabled')->default(false);
+            $table->timestamps();
+            $table->unique(['user_id', 'category']);
+        });
+
         Schema::create('teams', function (Blueprint $table): void {
             $table->id();
             $table->unsignedBigInteger('user_id');

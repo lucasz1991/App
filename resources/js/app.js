@@ -15,8 +15,41 @@ import 'swiper/css';
 // GSAP-Setup (window.gsap/ScrollTrigger + deklarative data-anim-Reveals)
 import './gsap';
 import { wagonListPrototype } from './wagon-list-prototype';
+import { registerRailtimePushSettings, setupRailtimePwa } from './pwa';
+import { createNotificationSeenCache } from './notification-seen-cache';
 
 const loadAdminDashboardECharts = () => import('./admin-dashboard-echarts');
+const rtSeenNotifications = createNotificationSeenCache(window);
+let rtForegroundPushHandler = null;
+
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', (event) => {
+        if (event.data?.type !== 'railtime:push-received') {
+            return;
+        }
+
+        if (
+            !rtForegroundPushHandler
+            || document.visibilityState !== 'visible'
+            || !document.hasFocus()
+        ) {
+            return;
+        }
+
+        try {
+            rtForegroundPushHandler(event.data);
+
+            const acknowledgementPort = event.ports?.[0];
+            acknowledgementPort?.postMessage({
+                type: 'railtime:push-received-ack',
+                notification_id: event.data.notification_id,
+            });
+            acknowledgementPort?.close();
+        } catch (_) {
+            // Ohne erfolgreiche Verarbeitung und ACK zeigt der Service Worker den OS-Push.
+        }
+    });
+}
 
 // ---------------------------------------------------------------
 // Echtzeit (Laravel Reverb, Pusher-Protokoll). Nur aktiv, wenn ein
@@ -162,6 +195,9 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
 })();
 
 window.Alpine = Alpine;
+
+registerRailtimePushSettings(Alpine);
+setupRailtimePwa();
 
 Alpine.data('wagonListPrototype', wagonListPrototype);
 
@@ -890,6 +926,53 @@ Livewire.start();
 
 rtApplyTheme();
 
+function rtChatIdFromNotification(payload) {
+    const explicit = Number(payload.chatId || payload.chat_id || 0);
+
+    if (explicit > 0) {
+        return explicit;
+    }
+
+    try {
+        return Number(new URL(payload.url, window.location.href).searchParams.get('chat') || 0);
+    } catch (_) {
+        return 0;
+    }
+}
+
+function rtHandleIncomingNotification(payload, source = 'echo') {
+    const category = payload.category === 'chat' ? 'chat' : 'messages';
+    const notificationId = String(payload.notification_id || '').trim();
+    const chatId = category === 'chat' ? rtChatIdFromNotification(payload) : 0;
+    const isOpenChat = chatId > 0
+        && chatId === window.__rtOpenChatId
+        && document.hasFocus()
+        && !document.hidden;
+    const mayToast = source === 'service-worker'
+        || (document.visibilityState === 'visible' && document.hasFocus());
+
+    if (mayToast && rtSeenNotifications.take(notificationId)) {
+        window.dispatchEvent(new CustomEvent('swal:toast', {
+            detail: {
+                type: 'info',
+                title: payload.title,
+                text: payload.body || '',
+                sound: isOpenChat ? false : 'message',
+            },
+        }));
+    }
+
+    if (category === 'chat' && chatId > 0) {
+        Livewire.dispatch('chat:refresh', { chatId });
+    }
+
+    Livewire.dispatch('inbox:refresh');
+}
+
+rtForegroundPushHandler = (payload) => {
+    rtHandleIncomingNotification(payload, 'service-worker');
+};
+
 // ---------------------------------------------------------------
 // Live-Benachrichtigungen: privaten User-Channel abonnieren.
 // Bei neuer Nachricht: Toast anzeigen + Posteingang aktualisieren.
@@ -909,11 +992,12 @@ rtApplyTheme();
             const from = event.from ? `${lang.from || 'Von'}: ${event.from}` : '';
             const text = [from, event.subject].filter(Boolean).join(' — ');
 
-            window.dispatchEvent(new CustomEvent('swal:toast', {
-                detail: { type: 'info', title, text, sound: 'message' },
-            }));
-
-            Livewire.dispatch('inbox:refresh');
+            rtHandleIncomingNotification({
+                notification_id: event.notification_id || `message:${event.id}`,
+                category: 'messages',
+                title,
+                body: text,
+            });
         })
         .listen('.chat.message.received', (event) => {
             const title = lang.newChatMessage || 'Neue Chatnachricht';
@@ -921,16 +1005,13 @@ rtApplyTheme();
 
             // Der aktiv sichtbare Chat zeigt die Nachricht sofort selbst an —
             // dafuer keinen Ton spielen (der Toast bleibt als dezenter Hinweis).
-            const isOpenChat = Number(event.chatId) === window.__rtOpenChatId
-                && document.hasFocus()
-                && !document.hidden;
-
-            window.dispatchEvent(new CustomEvent('swal:toast', {
-                detail: { type: 'info', title, text, sound: isOpenChat ? false : 'message' },
-            }));
-
-            Livewire.dispatch('chat:refresh', { chatId: Number(event.chatId) });
-            Livewire.dispatch('inbox:refresh');
+            rtHandleIncomingNotification({
+                notification_id: event.notification_id || `chat-message:${event.messageId}`,
+                category: 'chat',
+                chatId: Number(event.chatId),
+                title,
+                body: text,
+            });
         });
 })();
 

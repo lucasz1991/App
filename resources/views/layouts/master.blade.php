@@ -11,6 +11,7 @@
 
 <head>
     @include('layouts.metahead')
+    @include('layouts.pwa-head')
     <meta name="csrf-token" content="{{ csrf_token() }}">
     @auth
         <meta name="rt-user-id" content="{{ auth()->id() }}">

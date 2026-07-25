@@ -15,6 +15,19 @@ class MessageViewerModal extends Component
 
     public bool $isOpen = false;
 
+    public function mount(): void
+    {
+        if (! request()->routeIs('messages')) {
+            return;
+        }
+
+        $messageId = request()->integer('open');
+
+        if ($messageId > 0) {
+            $this->open($messageId);
+        }
+    }
+
     #[On('message-viewer:open')]
     public function open(int $messageId): void
     {

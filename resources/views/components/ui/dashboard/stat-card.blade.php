@@ -14,11 +14,11 @@
     };
 
     $shellClasses = $compactMobile
-        ? 'rounded-xl bg-rt-surface-muted p-0.5 shadow-rt-sm ring-1 ring-rt-border/60 sm:rounded-2xl sm:p-1.5 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60'
+        ? 'min-w-0 rounded-xl bg-rt-surface-muted p-1 shadow-rt-sm ring-1 ring-rt-border/60 sm:rounded-2xl sm:p-1.5 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60'
         : 'rounded-2xl bg-rt-surface-muted p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60';
 
     $innerClasses = $compactMobile
-        ? 'flex min-h-[5.5rem] items-center justify-center rounded-[calc(.75rem-2px)] bg-rt-surface px-1 py-2 sm:min-h-0 sm:justify-start sm:rounded-[calc(1rem-2px)] sm:p-5 dark:bg-rt-dark-surface'
+        ? 'flex min-h-[6rem] items-center justify-center rounded-[calc(.75rem-2px)] bg-rt-surface px-2 py-2.5 sm:min-h-0 sm:justify-start sm:rounded-[calc(1rem-2px)] sm:p-5 dark:bg-rt-dark-surface'
         : 'rounded-[calc(1rem-2px)] bg-rt-surface p-5 dark:bg-rt-dark-surface';
 
     $themeTone = match ($tone) {
@@ -38,7 +38,7 @@
             <span data-rt-tone="{{ $themeTone }}" @class([
                 'rt-ui-badge flex shrink-0 items-center justify-center rounded-lg',
                 'h-12 w-12' => ! $compactMobile,
-                'h-7 w-7 sm:h-12 sm:w-12' => $compactMobile,
+                'h-8 w-8 sm:h-12 sm:w-12' => $compactMobile,
                 $toneClasses,
             ])>
                 {{ $slot }}
@@ -47,12 +47,12 @@
                 <p @class([
                     'text-rt-muted dark:text-rt-dark-muted',
                     'text-sm' => ! $compactMobile,
-                    'min-h-[1.5rem] text-[9px] font-medium leading-[1.15] sm:min-h-0 sm:text-sm sm:font-normal sm:leading-normal' => $compactMobile,
+                    'min-h-[1.625rem] text-pretty text-[10px] font-medium leading-[1.25] sm:min-h-0 sm:text-sm sm:font-normal sm:leading-normal' => $compactMobile,
                 ])>{{ $label }}</p>
                 <p @class([
                     'font-semibold tracking-tight tabular-nums text-rt-text dark:text-rt-dark-text',
                     'text-3xl' => ! $compactMobile,
-                    'text-lg leading-none sm:text-3xl sm:leading-normal' => $compactMobile,
+                    'text-xl leading-none sm:text-3xl sm:leading-normal' => $compactMobile,
                 ])>{{ $value }}</p>
             </div>
         </div>

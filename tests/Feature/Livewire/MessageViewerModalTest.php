@@ -6,6 +6,7 @@ use App\Livewire\MessageBox;
 use App\Livewire\Messages\MessageViewerModal;
 use App\Models\Message;
 use App\Models\User;
+use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
@@ -104,6 +105,28 @@ class MessageViewerModalTest extends TestCase
 
         $response->assertOk();
         $this->assertSame(1, substr_count($response->getContent(), 'data-testid="message-viewer-host"'));
+    }
+
+    public function test_authorized_push_deep_link_opens_the_message_in_the_global_viewer(): void
+    {
+        Queue::fake();
+
+        $sender = User::factory()->create(['role' => 'admin']);
+        $recipient = User::factory()->create();
+        $message = Message::create([
+            'subject' => 'Direkt geoeffnet',
+            'message' => 'Deep-Link-Inhalt',
+            'from_user' => $sender->id,
+            'to_user' => $recipient->id,
+            'status' => '1',
+        ]);
+
+        $response = $this->actingAs($recipient)->get(route('messages', ['open' => $message->id]));
+
+        $response
+            ->assertOk()
+            ->assertSee('Direkt geoeffnet');
+        $this->assertSame('2', (string) $message->fresh()->status);
     }
 
     public function test_admin_messages_page_mounts_the_global_viewer_exactly_once(): void

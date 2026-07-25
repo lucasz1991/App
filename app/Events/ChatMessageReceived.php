@@ -15,9 +15,7 @@ class ChatMessageReceived implements ShouldBroadcastNow
     use InteractsWithSockets;
     use SerializesModels;
 
-    public function __construct(public ChatMessage $message)
-    {
-    }
+    public function __construct(public ChatMessage $message) {}
 
     /** @return array<int, PrivateChannel> */
     public function broadcastOn(): array
@@ -26,7 +24,7 @@ class ChatMessageReceived implements ShouldBroadcastNow
             ->participants()
             ->where('users.id', '!=', $this->message->user_id)
             ->pluck('users.id')
-            ->map(fn ($userId) => new PrivateChannel('App.Models.User.' . $userId))
+            ->map(fn ($userId) => new PrivateChannel('App.Models.User.'.$userId))
             ->all();
     }
 
@@ -41,6 +39,7 @@ class ChatMessageReceived implements ShouldBroadcastNow
         return [
             'chatId' => (int) $this->message->chat_id,
             'messageId' => (int) $this->message->id,
+            'notification_id' => 'chat-message:'.$this->message->id,
             'from' => $this->message->sender?->name,
         ];
     }
