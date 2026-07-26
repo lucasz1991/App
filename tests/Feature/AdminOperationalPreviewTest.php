@@ -35,7 +35,7 @@ class AdminOperationalPreviewTest extends TestCase
         $this->assertStringNotContainsString('Schema::', $source);
     }
 
-    public function test_administrator_can_open_every_preview_and_sees_the_non_productive_notice(): void
+    public function test_administrator_can_open_every_preview_without_a_demo_notice(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
 
@@ -48,9 +48,9 @@ class AdminOperationalPreviewTest extends TestCase
                 ->assertSee($module['title'])
                 ->assertSee($module['metric'])
                 ->assertSee($module['badge'])
-                ->assertSee('data-preview-notice', escape: false)
-                ->assertSee(__('app.preview_not_productive'))
-                ->assertSee(__('app.preview_no_database'));
+                ->assertDontSee('data-preview-notice', escape: false)
+                ->assertDontSee(__('app.preview_not_productive'))
+                ->assertDontSee(__('app.preview_no_database'));
 
             $html = $component->html();
             $this->assertSame(3, substr_count($html, 'data-operational-stat'));
@@ -185,18 +185,16 @@ class AdminOperationalPreviewTest extends TestCase
         $styles = file_get_contents(resource_path('css/app.css'));
 
         $this->assertStringContainsString('rt-operational-page', $preview);
-        $this->assertStringContainsString('rt-operational-notice', $preview);
+        $this->assertStringNotContainsString('rt-operational-notice', $preview);
         $this->assertStringContainsString('rt-operational-stats', $preview);
         $this->assertStringContainsString('rt-operational-stat', $preview);
         $this->assertStringContainsString('rt-operational-nav-link-active', $preview);
-        $this->assertStringContainsString('rt-operational-notice-copy', $preview);
+        $this->assertStringNotContainsString('rt-operational-notice-copy', $preview);
         $this->assertStringContainsString('data-operational-tone=', $preview);
-        $this->assertStringContainsString('.dark .rt-operational-notice', $styles);
         $this->assertStringContainsString('.dark .rt-operational-stat', $styles);
         $this->assertStringContainsString('.dark .rt-operational-nav-link-active', $styles);
         foreach ([
             'rt-admin-panel',
-            'rt-operational-notice',
             'rt-operational-tone',
             'rt-operational-stat',
             'rt-operational-item-status',
@@ -208,7 +206,6 @@ class AdminOperationalPreviewTest extends TestCase
             $this->assertStringContainsString("html.dark .rt-operational-page .{$hook}", $styles);
             $this->assertStringContainsString("body[data-mode=\"dark\"] .rt-operational-page .{$hook}", $styles);
         }
-        $this->assertStringContainsString('html.dark .rt-operational-page .rt-operational-notice-copy', $styles);
         $this->assertStringContainsString('background-color: #172033 !important', $styles);
         $this->assertStringContainsString('html.dark body[data-sidebar-collapsible="true"]', $styles);
     }

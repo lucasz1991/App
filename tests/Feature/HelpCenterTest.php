@@ -28,7 +28,7 @@ class HelpCenterTest extends TestCase
             ->assertOk()
             ->assertSee(__('app.help_install_ios_title'))
             ->assertSee(__('app.help_install_android_title'))
-            ->assertSee(route('profile.show', ['tab' => 'app']))
+            ->assertSee(route('profile.show', ['tab' => 'settings']))
             ->assertDontSee('data-testid="push-server-diagnostics"', escape: false)
             ->assertDontSee(__('app.help_push_server'))
             ->assertDontSee(__('app.help_push_queue_worker_hint', [

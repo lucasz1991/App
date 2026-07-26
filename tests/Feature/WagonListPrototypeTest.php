@@ -58,7 +58,7 @@ class WagonListPrototypeTest extends TestCase
             ->get(route('operations.wagon-list'))
             ->assertOk()
             ->assertSee('rt-wagon-list-prototype:v1:'.$employee->id, escape: false)
-            ->assertSee('data-wagon-demo-notice', escape: false);
+            ->assertDontSee('data-wagon-demo-notice', escape: false);
 
         $this->actingAs($guest)->get(route('operations.wagon-list'))->assertForbidden();
         $this->actingAs($owner)->get(route('admin.operations.wagon-list'))->assertOk();

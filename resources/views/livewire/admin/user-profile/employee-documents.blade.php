@@ -1,15 +1,7 @@
 <div class="space-y-4">
-    <div class="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-100">
-        <div class="flex items-start gap-3">
-            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-sky-700 shadow-sm dark:bg-sky-400/10 dark:text-sky-200">
-                <i class="far fa-folder-lock" aria-hidden="true"></i>
-            </span>
-            <div>
-                <p class="font-semibold">{{ __('app.employee_documents') }}</p>
-                <p class="mt-1 text-xs leading-5 opacity-80">{{ __('app.employee_documents_hint') }}</p>
-            </div>
-        </div>
-    </div>
+    <x-ui.feedback.alert type="info" :title="__('app.employee_documents')">
+        <p class="text-xs leading-5 opacity-80">{{ __('app.employee_documents_hint') }}</p>
+    </x-ui.feedback.alert>
 
     @php
         $documentIcons = [

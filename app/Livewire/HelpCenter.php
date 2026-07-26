@@ -18,7 +18,7 @@ class HelpCenter extends Component
         $topics = collect($catalog->forUser($user))
             ->map(function (array $topic): array {
                 $topic['href'] = match ($topic['route']) {
-                    'admin.operations.preview' => route('admin.operations.preview', ['module' => 'overview']),
+                    'admin.operations.preview' => route('admin.operations.preview', ['module' => 'orders']),
                     null => route('help'),
                     default => route($topic['route']),
                 };

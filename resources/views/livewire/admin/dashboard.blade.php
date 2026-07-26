@@ -122,13 +122,7 @@
 
                 <header class="relative z-10 flex flex-wrap items-start justify-between gap-3 px-4 pb-3 pt-4 sm:px-5 sm:pb-4 sm:pt-5" data-dashboard-item>
                     <div class="max-w-2xl">
-                        <div class="flex flex-wrap items-center gap-2.5">
-                            <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-rt-red">{{ __('app.operations') }}</p>
-                            <span class="rt-admin-demo-badge inline-flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-amber-700 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
-                                <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
-                                {{ __('app.demo_preview') }}
-                            </span>
-                        </div>
+                        <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-rt-red">{{ __('app.operations') }}</p>
                         <h2 id="operational-preview-heading" class="mt-1.5 text-lg font-semibold tracking-tight text-rt-text dark:text-white">{{ __('app.operational_control') }}</h2>
                         <p class="mt-1 max-w-xl text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">{{ __('app.operational_preview_dashboard_hint') }}</p>
                     </div>

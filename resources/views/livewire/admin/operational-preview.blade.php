@@ -33,23 +33,6 @@
     class="rt-operational-page !space-y-4 !py-4 lg:!py-5"
     data-operational-module="{{ $moduleData['slug'] }}"
 >
-    <x-slot:actions>
-        <span class="rt-operational-demo-badge inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
-            <span class="h-2 w-2 rounded-full bg-amber-500"></span>
-            {{ __('app.static_demo_data') }}
-        </span>
-    </x-slot:actions>
-
-    <div class="rt-operational-notice rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-rt-xs dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100" role="note" data-preview-notice data-anim="fade">
-        <div class="flex items-start gap-3">
-            <i data-feather="info" class="mt-0.5 h-4 w-4 shrink-0"></i>
-            <div>
-                <p class="font-semibold">{{ __('app.preview_not_productive') }}</p>
-                <p class="rt-operational-notice-copy mt-0.5 text-xs leading-5 text-amber-800 dark:text-amber-200">{{ __('app.preview_no_database') }}</p>
-            </div>
-        </div>
-    </div>
-
     <section class="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(19rem,.6fr)]">
         <article class="rt-admin-panel rt-operational-main overflow-hidden rounded-2xl" data-anim="fade-up">
             <header class="rt-operational-header relative border-b border-slate-200 px-4 py-4 sm:px-6 sm:py-5 dark:border-slate-700">
@@ -81,7 +64,6 @@
             <div class="px-4 py-4 sm:px-6 sm:py-5">
                 <div class="flex items-center justify-between gap-4">
                     <h2 class="text-base font-semibold text-rt-text dark:text-white">{{ $moduleData['list_title'] }}</h2>
-                    <span class="text-[10px] font-semibold uppercase tracking-[0.14em] text-rt-soft dark:text-rt-dark-soft">{{ __('app.demo') }}</span>
                 </div>
 
                 <div class="rt-operational-list mt-3 divide-y divide-slate-200 sm:mt-4 dark:divide-slate-700">

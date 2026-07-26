@@ -156,7 +156,7 @@ class AdminDashboardRedesignTest extends TestCase
 
         Livewire::actingAs($managementUser)
             ->test(UserDashboard::class)
-            ->assertSee(__('app.management_dashboard_description'))
+            ->assertDontSee(__('app.management_dashboard_description'))
             ->assertDontSee('data-system-dashboard', escape: false)
             ->assertDontSee('Lucas M. Zacharias')
             ->assertDontSee('Laravel');
@@ -206,7 +206,7 @@ class AdminDashboardRedesignTest extends TestCase
         $this->assertSame(1, substr_count($dashboard, 'data-dashboard-hero-secondary'));
         $this->assertStringContainsString('rt-ui-button-secondary rt-admin-hero-secondary', $dashboard);
         $this->assertStringNotContainsString('rt-admin-hero-secondary inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white', $dashboard);
-        $this->assertStringContainsString('rt-admin-demo-badge', $dashboard);
+        $this->assertStringNotContainsString('rt-admin-demo-badge', $dashboard);
         $this->assertSame(1, substr_count($dashboard, 'data-preview-tone='));
 
         $this->assertGreaterThanOrEqual(2, substr_count($revealScript, 'gsap.timeline('));
@@ -214,7 +214,6 @@ class AdminDashboardRedesignTest extends TestCase
         $this->assertStringContainsString('setupDashboardSegments(dashboardSegments)', $revealScript);
         $this->assertStringContainsString('html.dark [data-admin-dashboard] .rt-admin-hero-secondary', $styles);
         $this->assertStringContainsString('body[data-mode="dark"] [data-admin-dashboard] .rt-admin-hero-secondary', $styles);
-        $this->assertStringContainsString('html.dark [data-admin-dashboard] .rt-admin-demo-badge', $styles);
     }
 
     public function test_admin_dashboard_is_compact_theme_aware_and_places_operations_before_kpis(): void

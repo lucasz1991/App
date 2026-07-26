@@ -33,7 +33,7 @@ class PushDeliveryTest extends TestCase
         Notification::fake();
     }
 
-    public function test_internal_message_notifies_only_the_recipient_with_a_generic_payload(): void
+    public function test_internal_message_push_contains_sender_and_message_preview(): void
     {
         $sender = User::factory()->create();
         $recipient = User::factory()->create();
@@ -52,15 +52,16 @@ class PushDeliveryTest extends TestCase
         Notification::assertSentTo(
             $recipient,
             RailtimeWebPushNotification::class,
-            function (RailtimeWebPushNotification $notification) use ($message): bool {
+            function (RailtimeWebPushNotification $notification) use ($message, $sender): bool {
                 $payload = $notification->toWebPush(new \stdClass, $notification)->toArray();
                 $serialized = json_encode($payload, JSON_THROW_ON_ERROR);
 
                 return $notification->notificationId === 'message:'.$message->id
                     && $notification->url === 'messages?open='.$message->id
                     && $notification->category === PushCategory::Messages
-                    && ! str_contains($serialized, 'Vertraulicher Dienstplan')
-                    && ! str_contains($serialized, '04:30');
+                    && str_contains($serialized, $sender->name)
+                    && str_contains($serialized, 'Vertraulicher Dienstplan')
+                    && str_contains($serialized, '04:30');
             }
         );
     }
@@ -97,6 +98,46 @@ class PushDeliveryTest extends TestCase
             fn (RailtimeWebPushNotification $notification): bool => $notification->notificationId === 'chat-message:'.$message->id
                 && $notification->url === 'chat?chat='.$chat->id
                 && $notification->category === PushCategory::Chat
+                && $notification->title === $sender->name
+                && $notification->body === 'Vertraulicher Chatinhalt'
+        );
+    }
+
+    public function test_chat_push_uses_clear_previews_for_voice_and_file_messages(): void
+    {
+        $sender = User::factory()->create();
+        $recipient = User::factory()->create();
+        $recipient->enableDefaultPushPreferences();
+        $this->subscribe($recipient, 'chat-preview-recipient');
+        $chat = Chat::query()->create([
+            'type' => 'direct',
+            'created_by' => $sender->id,
+        ]);
+        $chat->participants()->attach([$sender->id, $recipient->id]);
+
+        $voice = ChatMessage::query()->create([
+            'chat_id' => $chat->id,
+            'user_id' => $sender->id,
+            'body' => '',
+            'message_type' => 'voice',
+        ]);
+        $voice->files()->create([
+            'name' => 'sprachnachricht.webm',
+            'path' => 'chat/sprachnachricht.webm',
+            'disk' => 'private',
+            'mime_type' => 'audio/webm',
+            'size' => 128,
+            'type' => 'voice',
+        ]);
+
+        app(PushDelivery::class)->chatMessageReceived($voice);
+
+        Notification::assertSentTo(
+            $recipient,
+            RailtimeWebPushNotification::class,
+            fn (RailtimeWebPushNotification $notification): bool => $notification->notificationId === 'chat-message:'.$voice->id
+                && $notification->title === $sender->name
+                && $notification->body === __('app.voice_message')
         );
     }
 

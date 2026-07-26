@@ -7,6 +7,7 @@ use App\Models\Message;
 use App\Models\User;
 use App\Notifications\RailtimeWebPushNotification;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class PushDelivery
 {
@@ -22,8 +23,8 @@ class PushDelivery
             $recipient,
             new RailtimeWebPushNotification(
                 notificationId: 'message:'.$message->getKey(),
-                title: __('app.push_new_message_title'),
-                body: __('app.push_new_message_body'),
+                title: $message->sender?->name ?: __('app.push_new_message_title'),
+                body: $this->messagePreview($message),
                 url: 'messages?open='.$message->getKey(),
                 category: PushCategory::Messages,
             ),
@@ -41,8 +42,8 @@ class PushDelivery
                     $recipient,
                     new RailtimeWebPushNotification(
                         notificationId: 'chat-message:'.$message->getKey(),
-                        title: __('app.push_new_chat_title'),
-                        body: __('app.push_new_chat_body'),
+                        title: $message->sender?->name ?: __('app.push_new_chat_title'),
+                        body: $this->chatPreview($message),
                         url: 'chat?chat='.$message->chat_id,
                         category: PushCategory::Chat,
                     ),
@@ -61,5 +62,45 @@ class PushDelivery
                 'error_class' => $exception::class,
             ]);
         }
+    }
+
+    protected function messagePreview(Message $message): string
+    {
+        $subject = $this->previewText($message->subject, 70);
+        $body = $this->previewText($message->message);
+
+        if ($subject !== '' && $body !== '') {
+            return $subject.': '.$body;
+        }
+
+        return $subject !== '' ? $subject : ($body !== '' ? $body : __('app.push_new_message_body'));
+    }
+
+    protected function chatPreview(ChatMessage $message): string
+    {
+        $body = $this->previewText($message->body);
+
+        if ($body !== '') {
+            return $body;
+        }
+
+        if ($message->isVoice()) {
+            return __('app.voice_message');
+        }
+
+        if ($message->files()->exists()) {
+            return __('app.chat_attachment');
+        }
+
+        return __('app.push_new_chat_body');
+    }
+
+    protected function previewText(?string $value, int $limit = 160): string
+    {
+        return Str::of((string) $value)
+            ->stripTags()
+            ->squish()
+            ->limit($limit)
+            ->toString();
     }
 }

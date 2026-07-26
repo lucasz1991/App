@@ -352,7 +352,8 @@ class ResponsiveUiComponentsTest extends TestCase
         $view = file_get_contents(resource_path('views/livewire/tools/file-pools/manage-file-pools.blade.php'));
         $styles = file_get_contents(resource_path('css/app.css'));
 
-        $this->assertSame(2, substr_count($view, 'class="rt-file-explorer-grid'));
+        $this->assertSame(1, substr_count($view, 'class="rt-file-explorer-grid'));
+        $this->assertStringContainsString('Gemeinsames Explorer-Raster: zuerst Ordner, danach Dateien', $view);
         $this->assertGreaterThanOrEqual(2, substr_count($view, 'rt-file-explorer-card'));
         $this->assertStringContainsString('.rt-file-explorer-grid', $styles);
         $this->assertStringContainsString('repeat(auto-fill, minmax(5.75rem, 6.5rem))', $styles);

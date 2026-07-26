@@ -79,7 +79,7 @@
                     <div class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1 rounded-xl border border-white/70 bg-white/75 px-4 py-3 shadow-rt-xs backdrop-blur-sm dark:border-white/10 dark:bg-slate-950/35">
                         <strong class="row-span-2 text-3xl font-bold tabular-nums text-rt-text dark:text-rt-dark-text" x-text="drafts.length"></strong>
                         <span class="text-xs font-semibold text-rt-muted dark:text-rt-dark-muted">{{ $labels['drafts'] }}</span>
-                        <span class="text-[11px] text-rt-soft dark:text-rt-dark-soft">{{ __('app.wagon_demo_notice') }}</span>
+                        <span class="text-[11px] text-rt-soft dark:text-rt-dark-soft">{{ __('app.locally_saved') }}</span>
                     </div>
                 </div>
             </div>
@@ -250,23 +250,6 @@
 
             <div class="rt-wagon-editor-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 <main class="mx-auto w-full max-w-[100rem] space-y-5 px-3 pb-28 pt-4 sm:px-5 sm:pt-5 md:pb-8">
-        <div class="rt-wagon-notice flex flex-col gap-3 rounded-xl border p-3 text-sm shadow-rt-xs sm:flex-row sm:items-center sm:justify-between" data-wagon-demo-notice>
-            <div class="flex items-start gap-3">
-                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
-                    <i class="far fa-flask" aria-hidden="true"></i>
-                </span>
-                <div>
-                    <p class="font-semibold">{{ __('app.demo_preview') }}</p>
-                    <p class="mt-0.5 max-w-3xl text-xs leading-5 opacity-80">{{ __('app.wagon_demo_notice') }}</p>
-                </div>
-            </div>
-            <div class="flex shrink-0 items-center gap-2 text-xs font-semibold">
-                <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-                {{ __('app.locally_saved') }}:
-                <span x-text="formatSavedAt()"></span>
-            </div>
-        </div>
-
         <x-ui.accordion.tabs
             :tabs="[
                 'wagons' => ['label' => __('app.wagon_list'), 'icon' => 'fad fa-train'],

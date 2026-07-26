@@ -201,9 +201,20 @@
                         <div wire:poll.2s="pollTick"
                              wire:key="chat-pane-{{ $selectedChat->id }}"
                              x-data
-                             x-init="$el.scrollTop = $el.scrollHeight"
-                             x-on:chat:scroll-bottom.window="$nextTick(() => $el.scrollTo(0, $el.scrollHeight))"
-                             class="rt-chat-transcript min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-2.5 py-3 sm:px-4 sm:py-4">
+                             x-init="
+                                const scrollToLatest = (smooth = false) => {
+                                    requestAnimationFrame(() => $el.scrollTo({
+                                        top: $el.scrollHeight,
+                                        behavior: smooth ? 'smooth' : 'auto',
+                                    }));
+                                };
+                                scrollToLatest();
+                                const messageObserver = new MutationObserver(() => scrollToLatest(true));
+                                messageObserver.observe($el, { childList: true, subtree: true });
+                                $cleanup(() => messageObserver.disconnect());
+                             "
+                             x-on:chat:scroll-bottom.window="$nextTick(() => $el.scrollTo({ top: $el.scrollHeight, behavior: 'smooth' }))"
+                             class="rt-chat-transcript min-h-0 flex-1 space-y-1.5 overflow-y-auto overscroll-contain px-2.5 py-3 sm:px-5 sm:py-5">
 
                             @php
                                 $items = $messages->values();
@@ -386,7 +397,11 @@
                                 </div>
                             @endif
 
-                            <form wire:submit.prevent="send" class="flex items-center gap-1.5 sm:gap-2">
+                            <form
+                                wire:submit.prevent="send"
+                                x-data="{ draft: @entangle('messageText').live }"
+                                class="flex items-center"
+                            >
                                 <input id="chat-attachments-{{ $selectedChat->id }}"
                                        type="file"
                                        wire:model="uploads"
@@ -394,31 +409,43 @@
                                        accept="audio/*,video/*,image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip"
                                        class="sr-only">
 
-                                <div x-show.important="!recording && !sendingVoice" data-chat-composer-mode="text" class="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
+                                <div
+                                    x-show.important="!recording && !sendingVoice"
+                                    data-chat-composer-mode="text"
+                                    class="flex min-h-12 min-w-0 flex-1 items-center gap-1 rounded-[1.5rem] border border-rt-border bg-rt-control px-1.5 py-1 shadow-rt-xs transition focus-within:border-rt-accent focus-within:ring-4 focus-within:ring-rt-accent/15 dark:border-rt-dark-border dark:bg-rt-dark-control dark:focus-within:border-rt-dark-accent dark:focus-within:ring-rt-dark-accent/20"
+                                >
                                     <label for="chat-attachments-{{ $selectedChat->id }}"
                                            title="{{ __('app.add_attachment') }}"
-                                           class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full border border-rt-border bg-rt-surface text-rt-text shadow-rt-xs transition hover:bg-rt-surface-muted hover:text-rt-red sm:h-10 sm:w-10 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white dark:hover:bg-rt-dark-surface-muted">
+                                           class="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full text-rt-muted transition hover:bg-rt-surface hover:text-rt-red dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface dark:hover:text-rt-dark-accent">
                                         <i class="far fa-paperclip" aria-hidden="true"></i>
                                         <span class="sr-only">{{ __('app.add_attachment') }}</span>
                                     </label>
 
-                                    <button type="button"
-                                            @click="startRecording()"
-                                            title="{{ __('app.voice_message') }}"
-                                            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-rt-border bg-rt-surface text-rt-text shadow-rt-xs transition hover:border-rt-red/50 hover:bg-rt-surface-muted hover:text-rt-red active:scale-95 sm:h-10 sm:w-10 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white dark:hover:bg-rt-dark-surface-muted">
+                                    <input type="text"
+                                           x-model="draft"
+                                           @input.debounce.250ms="sendTyping()"
+                                           placeholder="{{ __('app.type_message') }}"
+                                           autocomplete="off"
+                                           class="h-10 min-w-0 flex-1 border-0 bg-transparent px-2 text-base leading-6 text-rt-text outline-none placeholder:text-rt-soft focus:border-0 focus:ring-0 sm:text-sm dark:text-white dark:placeholder:text-rt-dark-soft">
+
+                                    <button
+                                        x-cloak
+                                        x-show="draft.trim().length === 0 && !@js($uploads !== [])"
+                                        type="button"
+                                        @click="startRecording()"
+                                        title="{{ __('app.voice_message') }}"
+                                        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-rt-muted transition hover:bg-rt-surface hover:text-rt-red active:scale-95 dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface dark:hover:text-rt-dark-accent"
+                                    >
                                         <i class="far fa-microphone" aria-hidden="true"></i>
                                         <span class="sr-only">{{ __('app.voice_message') }}</span>
                                     </button>
 
-                                    <input type="text"
-                                           wire:model="messageText"
-                                           @input.debounce.250ms="sendTyping()"
-                                           placeholder="{{ __('app.type_message') }}"
-                                           autocomplete="off"
-                                           class="h-11 min-w-0 flex-1 rounded-full border border-rt-border bg-rt-control px-4 text-base leading-6 text-rt-text shadow-rt-xs outline-none transition-all duration-200 ease-rt-spring placeholder:text-rt-soft hover:border-rt-accent/50 focus:border-rt-accent focus:ring-4 focus:ring-rt-accent/15 sm:h-10 sm:text-sm sm:leading-5 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:placeholder:text-rt-dark-soft dark:hover:border-rt-dark-accent dark:focus:ring-rt-dark-accent/20">
-                                    <button type="submit"
+                                    <button
+                                            x-cloak
+                                            x-show="draft.trim().length > 0 || @js($uploads !== [])"
+                                            type="submit"
                                             title="{{ __('app.type_message') }}"
-                                            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-rt-red text-white shadow-rt-sm transition-all duration-200 ease-rt-spring hover:bg-rt-red-dark active:scale-95 sm:h-10 sm:w-10 dark:bg-rt-red dark:text-white">
+                                            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rt-red text-white shadow-rt-sm transition-all duration-200 ease-rt-spring hover:bg-rt-red-dark active:scale-95 dark:bg-rt-red dark:text-white">
                                         <i class="far fa-paper-plane" aria-hidden="true"></i>
                                         <span class="sr-only">{{ __('app.type_message') }}</span>
                                     </button>
