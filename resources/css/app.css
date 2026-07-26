@@ -1424,6 +1424,14 @@ body[data-mode="dark"] .rt-chat-read-indicator.is-delivered {
     align-items: stretch;
     justify-content: center;
     gap: 0.45rem;
+    /* Fuehrender/abschliessender Freiraum, damit auch der erste und der letzte
+       Tab bis in die Mitte gescrollt werden koennen. Ohne ihn kleben beide an
+       der Kante und werden von der Mittelpunkt-Erkennung nie ausgewaehlt
+       (siehe settleCarousel in components/ui/accordion/tabs.blade.php, das den
+       Rest ueber die Scrollposition abfaengt). Bewusst moderat: bei wenigen
+       Tabs bleibt die Leiste dank justify-content:center und min-width:100%
+       weiterhin zentriert und ohne Scrollbalken. */
+    padding-inline: 0.75rem;
 }
 
 .rt-carousel-tab {

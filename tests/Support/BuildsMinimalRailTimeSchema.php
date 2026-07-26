@@ -142,6 +142,17 @@ trait BuildsMinimalRailTimeSchema
             $table->timestamps();
         });
 
+        // Gehoert zum Minimalschema, weil die Topbar (layouts/pwa-head) auf
+        // JEDER authentifizierten Seite die persoenliche Ton-Zuordnung laedt.
+        Schema::create('user_sound_preferences', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('user_id');
+            $table->string('event', 40);
+            $table->string('signature', 40);
+            $table->timestamps();
+            $table->unique(['user_id', 'event']);
+        });
+
         // Gehoert zum Minimalschema, weil die Topbar (livewire:tools.header-inbox)
         // auf JEDER authentifizierten Seite die letzten Chats laedt.
         Schema::create('chats', function (Blueprint $table): void {

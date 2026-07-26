@@ -90,6 +90,22 @@
                     <i class="far fa-bell-slash" aria-hidden="true"></i>
                     {{ __('app.push_disable_device') }}
                 </button>
+
+                {{-- Testversand. sendTest() gab es in resources/js/pwa.js schon
+                     lange, war aber nirgends gerendert — und config.urls.test
+                     fehlte, sodass der Aufruf ins Leere gelaufen waere. --}}
+                <button
+                    x-cloak
+                    x-show.important="canUnsubscribe"
+                    type="button"
+                    class="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-rt-border bg-rt-surface px-4 py-2 text-sm font-semibold text-rt-text shadow-rt-xs transition hover:bg-rt-nav-hover focus:outline-none focus:ring-2 focus:ring-rt-accent focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text dark:hover:bg-rt-dark-nav-hover"
+                    :disabled="busy !== null"
+                    @click="sendTest()"
+                >
+                    <i class="far fa-paper-plane" aria-hidden="true"></i>
+                    <span x-show.important="busy !== 'test'">{{ __('app.push_send_test') }}</span>
+                    <span x-cloak x-show.important="busy === 'test'">{{ __('app.push_enabling') }}</span>
+                </button>
             </div>
 
             <div aria-live="polite" class="space-y-2">

@@ -372,6 +372,15 @@ class User extends Authenticatable
             ->withTimestamps();
     }
 
+    /**
+     * Persoenliche Ton-Zuordnung. Enthaelt nur die bewussten Abweichungen vom
+     * systemweiten Standard (siehe App\Support\Sound\SoundLibrary).
+     */
+    public function soundPreferences(): HasMany
+    {
+        return $this->hasMany(UserSoundPreference::class);
+    }
+
     /** Nur die globale Admin-Rolle nutzt Layout und URL /administrator. */
     public function usesAdminLayout(): bool
     {

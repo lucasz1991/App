@@ -149,11 +149,26 @@
             const tabs = Array.from(carousel.querySelectorAll('.rt-carousel-tab'));
             if (!tabs.length) return;
 
-            const closest = tabs.reduce((current, tab) => {
-                const rect = tab.getBoundingClientRect();
-                const distance = Math.abs((rect.left + (rect.width / 2)) - carouselCenter);
-                return distance < current.distance ? { tab, distance } : current;
-            }, { tab: tabs[0], distance: Number.POSITIVE_INFINITY }).tab;
+            // An den Scroll-Enden kann der erste bzw. letzte Tab die Mitte
+            // gar nicht erreichen. Ohne diese Sonderfaelle gewaenne dort immer
+            // der Nachbar: ganz links wurde der zweite, ganz rechts der
+            // vorletzte Tab aktiviert. Deshalb entscheidet an den Enden die
+            // Scrollposition, nicht der Abstand zur Mitte.
+            const maxScroll = carousel.scrollWidth - carousel.clientWidth;
+            const edge = 4;
+            let closest;
+
+            if (maxScroll > 0 && carousel.scrollLeft <= edge) {
+                closest = tabs[0];
+            } else if (maxScroll > 0 && carousel.scrollLeft >= maxScroll - edge) {
+                closest = tabs[tabs.length - 1];
+            } else {
+                closest = tabs.reduce((current, tab) => {
+                    const rect = tab.getBoundingClientRect();
+                    const distance = Math.abs((rect.left + (rect.width / 2)) - carouselCenter);
+                    return distance < current.distance ? { tab, distance } : current;
+                }, { tab: tabs[0], distance: Number.POSITIVE_INFINITY }).tab;
+            }
 
             const id = closest.dataset.tabId;
             const currentIndex = this.activeIndex();

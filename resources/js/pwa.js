@@ -106,6 +106,56 @@ export function isAndroidDevice(navigatorLike = currentNavigator()) {
     return /Android/i.test(String(navigatorLike?.userAgent || ''));
 }
 
+/**
+ * Desktop-Rechner (Windows, macOS, Linux, ChromeOS) — bewusst per Ausschluss
+ * der Mobilplattformen, weil iPadOS sich als "Macintosh" meldet und deshalb
+ * schon in isIosDevice() ueber maxTouchPoints erkannt wird.
+ */
+export function isDesktopPlatform(navigatorLike = currentNavigator()) {
+    if (isIosDevice(navigatorLike) || isAndroidDevice(navigatorLike)) {
+        return false;
+    }
+
+    return /Windows|Macintosh|Mac OS X|CrOS|Linux/i.test(String(navigatorLike?.userAgent || ''));
+}
+
+/**
+ * Feinunterscheidung fuer die Installationsanleitung: 'windows' | 'mac' | 'other'
+ * (null, wenn es kein Desktop ist).
+ */
+export function desktopFamily(navigatorLike = currentNavigator()) {
+    if (!isDesktopPlatform(navigatorLike)) {
+        return null;
+    }
+
+    const userAgent = String(navigatorLike?.userAgent || '');
+
+    if (/Windows/i.test(userAgent)) {
+        return 'windows';
+    }
+
+    if (/Macintosh|Mac OS X/i.test(userAgent)) {
+        return 'mac';
+    }
+
+    return 'other';
+}
+
+/**
+ * Safari auf dem Mac kennt kein beforeinstallprompt. Dort fuehrt nur
+ * "Ablage > Zum Dock hinzufuegen" (Safari 17+) zur Installation, weshalb dieser
+ * Fall eine eigene Anleitung braucht — analog zu iOS.
+ */
+export function isMacSafari(navigatorLike = currentNavigator()) {
+    if (desktopFamily(navigatorLike) !== 'mac') {
+        return false;
+    }
+
+    const userAgent = String(navigatorLike?.userAgent || '');
+
+    return /Safari/i.test(userAgent) && !/Chrome|Chromium|Edg\//i.test(userAgent);
+}
+
 export function isStandaloneMode(
     windowLike = currentWindow(),
     navigatorLike = currentNavigator(),
@@ -169,6 +219,9 @@ function installState() {
         promptAvailable: Boolean(deferredInstallPrompt),
         ios: isIosDevice(navigatorLike),
         android: isAndroidDevice(navigatorLike),
+        desktop: isDesktopPlatform(navigatorLike),
+        desktopFamily: desktopFamily(navigatorLike),
+        macSafari: isMacSafari(navigatorLike),
     };
 }
 
@@ -610,6 +663,17 @@ export function registerRailtimePushSettings(Alpine) {
 
         get canPromptInstall() {
             return !this.install.installed && this.install.promptAvailable;
+        },
+
+        /**
+         * Safari auf dem Mac bietet keinen Installationsdialog an — dort ist die
+         * Anleitung der einzige Weg. Auf Windows/Chrome/Edge greift stattdessen
+         * canPromptInstall.
+         */
+        get showDesktopInstallHelp() {
+            return this.install.desktop
+                && !this.install.installed
+                && !this.install.promptAvailable;
         },
 
         get showIosInstallHelp() {

@@ -30,7 +30,21 @@
             </div>
         </section>
 
-        <section aria-labelledby="help-topics-heading" class="space-y-4">
+        {{-- Ein gemeinsamer Alpine-Bereich ueber ALLE Gruppen: dadurch kann
+             immer nur genau ein Thema offen sein, auch gruppenuebergreifend.
+             Die Animation kommt von x-collapse (@alpinejs/collapse, in app.js
+             registriert). Bewusst kein <details> mehr — das laesst sich weder
+             exklusiv schalten noch animieren. --}}
+        <section
+            aria-labelledby="help-topics-heading"
+            class="space-y-4"
+            x-data="{
+                openTopic: null,
+                toggle(key) {
+                    this.openTopic = this.openTopic === key ? null : key;
+                },
+            }"
+        >
             <div class="mb-3 flex items-end justify-between gap-4">
                 <div>
                     <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.help_topics') }}</p>
@@ -47,10 +61,18 @@
             @forelse ($topicGroups as $group => $groupTopics)
                 <section class="overflow-hidden rounded-2xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
                     <h3 class="border-b border-rt-border/60 bg-rt-surface-muted px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-rt-muted dark:border-rt-dark-border/60 dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted">{{ $group }}</h3>
+                    @php $groupKey = \Illuminate\Support\Str::slug((string) $group); @endphp
                     <div class="divide-y divide-rt-border/60 dark:divide-rt-dark-border/60">
                         @foreach ($groupTopics as $topic)
-                            <details class="group px-4 py-1">
-                                <summary class="flex min-h-14 cursor-pointer list-none items-center gap-3 py-3 focus:outline-none">
+                            @php $topicKey = $groupKey.'-'.$loop->index; @endphp
+                            <div class="px-4 py-1" data-help-topic="{{ $topicKey }}">
+                                <button
+                                    type="button"
+                                    x-on:click="toggle(@js($topicKey))"
+                                    :aria-expanded="(openTopic === @js($topicKey)).toString()"
+                                    aria-controls="help-panel-{{ $topicKey }}"
+                                    class="flex min-h-14 w-full items-center gap-3 py-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent/30"
+                                >
                                     <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent">
                                         <i data-feather="{{ $topic['icon'] }}" class="h-4 w-4"></i>
                                     </span>
@@ -58,9 +80,25 @@
                                         <span class="block text-sm font-semibold text-rt-text dark:text-white">{{ $topic['title'] }}</span>
                                         <span class="mt-0.5 block text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">{{ $topic['summary'] }}</span>
                                     </span>
-                                    <i data-feather="chevron-down" class="h-4 w-4 shrink-0 text-rt-soft transition group-open:rotate-180 dark:text-rt-dark-soft"></i>
-                                </summary>
-                                <div class="pb-4 pl-12">
+                                    <i
+                                        data-feather="chevron-down"
+                                        class="h-4 w-4 shrink-0 text-rt-soft transition-transform duration-200 dark:text-rt-dark-soft"
+                                        :class="openTopic === @js($topicKey) && 'rotate-180'"
+                                    ></i>
+                                </button>
+
+                                {{-- x-collapse animiert die Hoehe. Die Klassen hier
+                                     enthalten bewusst KEINE Display-Utility
+                                     (flex/block/grid): die traegt die
+                                     Legacy-CSS mit !important, wodurch x-show
+                                     nicht mehr ausblenden koennte. --}}
+                                <div
+                                    id="help-panel-{{ $topicKey }}"
+                                    x-show="openTopic === @js($topicKey)"
+                                    x-collapse
+                                    x-cloak
+                                    class="overflow-hidden pb-4 pl-12"
+                                >
                                     <ul class="space-y-2">
                                         @foreach ($topic['points'] as $point)
                                             <li class="flex gap-2 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">
@@ -74,7 +112,7 @@
                                         <i class="far fa-arrow-right text-xs" aria-hidden="true"></i>
                                     </a>
                                 </div>
-                            </details>
+                            </div>
                         @endforeach
                     </div>
                 </section>
@@ -116,7 +154,13 @@
                 </a>
             </header>
 
-            <div class="grid gap-px bg-rt-border/60 lg:grid-cols-2 dark:bg-rt-dark-border/60">
+            {{-- Installieren und testen direkt hier, nicht nur als Verweis ins
+                 Profil. Nutzt die bestehende, getestete Push-Komponente. --}}
+            <div class="border-b border-rt-border/60 p-4 dark:border-rt-dark-border/60 sm:p-6">
+                <livewire:settings.push-settings />
+            </div>
+
+            <div class="grid gap-px bg-rt-border/60 lg:grid-cols-3 dark:bg-rt-dark-border/60">
                 <article class="bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6">
                     <div class="flex items-center gap-2">
                         <i class="fab fa-apple text-xl text-rt-text dark:text-white" aria-hidden="true"></i>
@@ -148,6 +192,48 @@
                             __('app.help_install_android_step_2'),
                             __('app.help_install_android_step_3'),
                             __('app.help_install_android_step_4'),
+                        ] as $step)
+                            <li class="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-3 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">
+                                <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-rt-surface-muted text-xs font-semibold text-rt-red dark:bg-rt-dark-surface-muted">{{ $loop->iteration }}</span>
+                                <span>{{ $step }}</span>
+                            </li>
+                        @endforeach
+                    </ol>
+                </article>
+
+                {{-- Desktop: Windows und macOS. Auf Windows/Chrome/Edge greift der
+                     Installationsdialog (Button oben), Safari auf dem Mac kennt
+                     nur "Ablage > Zum Dock hinzufuegen". --}}
+                <article class="bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6">
+                    <div class="flex items-center gap-2">
+                        <i class="far fa-desktop text-xl text-rt-text dark:text-white" aria-hidden="true"></i>
+                        <h3 class="text-base font-semibold text-rt-text dark:text-white">{{ __('app.help_install_desktop_title') }}</h3>
+                    </div>
+
+                    <p class="mt-3 text-xs font-semibold uppercase tracking-[0.12em] text-rt-soft dark:text-rt-dark-soft">
+                        <i class="fab fa-windows mr-1" aria-hidden="true"></i>{{ __('app.help_install_windows_subtitle') }}
+                    </p>
+                    <ol class="mt-2 space-y-3">
+                        @foreach ([
+                            __('app.help_install_windows_step_1'),
+                            __('app.help_install_windows_step_2'),
+                            __('app.help_install_windows_step_3'),
+                        ] as $step)
+                            <li class="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-3 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">
+                                <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-rt-surface-muted text-xs font-semibold text-rt-red dark:bg-rt-dark-surface-muted">{{ $loop->iteration }}</span>
+                                <span>{{ $step }}</span>
+                            </li>
+                        @endforeach
+                    </ol>
+
+                    <p class="mt-4 text-xs font-semibold uppercase tracking-[0.12em] text-rt-soft dark:text-rt-dark-soft">
+                        <i class="fab fa-apple mr-1" aria-hidden="true"></i>{{ __('app.help_install_mac_subtitle') }}
+                    </p>
+                    <ol class="mt-2 space-y-3">
+                        @foreach ([
+                            __('app.help_install_mac_step_1'),
+                            __('app.help_install_mac_step_2'),
+                            __('app.help_install_mac_step_3'),
                         ] as $step)
                             <li class="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-3 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">
                                 <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-rt-surface-muted text-xs font-semibold text-rt-red dark:bg-rt-dark-surface-muted">{{ $loop->iteration }}</span>

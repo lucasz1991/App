@@ -159,6 +159,24 @@
                                     </button>
                                 </div>
                             </div>
+
+                            @auth
+                                {{-- Weiterfuehrend: alle Einstellungen im Profil
+                                     (Sprache, Darstellung, Toene je Ereignis). --}}
+                                <div class="mt-2 border-t border-rt-border/70 px-1 pt-2 dark:border-rt-dark-border/70">
+                                    <a
+                                        href="{{ route('profile.show') }}"
+                                        class="flex min-h-10 items-center justify-between gap-2 rounded-lg px-2.5 text-sm font-medium text-rt-text transition hover:bg-rt-surface-muted hover:text-rt-accent dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted dark:hover:text-rt-dark-accent"
+                                        data-topbar-more-settings="true"
+                                    >
+                                        <span class="flex items-center gap-2">
+                                            <i class="far fa-sliders-h text-xs text-rt-muted dark:text-rt-dark-muted" aria-hidden="true"></i>
+                                            {{ __('app.more_settings') }}
+                                        </span>
+                                        <i class="far fa-chevron-right text-[10px] text-rt-muted dark:text-rt-dark-muted" aria-hidden="true"></i>
+                                    </a>
+                                </div>
+                            @endauth
                         </x-slot:content>
                     </x-ui.dropdown.anchor-dropdown>
 

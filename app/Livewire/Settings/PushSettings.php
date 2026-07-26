@@ -23,6 +23,9 @@ class PushSettings extends Component
                     'status' => route('push.status'),
                     'subscribe' => route('push.subscriptions.store'),
                     'unsubscribe' => route('push.subscriptions.destroy'),
+                    // Fehlte bisher: sendTest() in resources/js/pwa.js greift auf
+                    // config.urls.test zu, wodurch der Testversand ins Leere lief.
+                    'test' => route('push.test'),
                 ],
                 'messages' => [
                     'loadFailed' => __('app.push_load_failed'),
