@@ -104,6 +104,30 @@ class InfoModalTest extends TestCase
         $this->assertSame([], $offenders, "Diese Elemente koennen nie ausgeblendet werden (x-show.important fehlt):\n".implode("\n", $offenders));
     }
 
+    public function test_alpine_scope_survives_real_html_attribute_parsing(): void
+    {
+        // Genau dieser Fehler stand live: ein doppeltes Anfuehrungszeichen in
+        // einem x-data-Kommentar beendete das HTML-Attribut mitten im Objekt.
+        // Der Alpine-Scope zerbrach, 'open' fiel auf window.open (immer truthy)
+        // zurueck — ein leeres, unschliessbares Modal auf jeder Seite.
+        // String-Assertions sehen das nicht; nur ein HTML-Parser sieht es.
+        $html = Blade::render('<x-ui.info-modal />');
+
+        $document = new \DOMDocument();
+        libxml_use_internal_errors(true);
+        $document->loadHTML('<?xml encoding="UTF-8">'.$html);
+        libxml_clear_errors();
+
+        $node = (new \DOMXPath($document))->query('//*[@data-rt-info-modal]')->item(0);
+        $this->assertNotNull($node);
+
+        $xData = $node->getAttribute('x-data');
+        $this->assertStringContainsString('show(detail)', $xData);
+        $this->assertStringContainsString('close()', $xData);
+        $this->assertStringContainsString('open: false', $xData);
+        $this->assertSame(substr_count($xData, '{'), substr_count($xData, '}'));
+    }
+
     public function test_global_modal_is_rendered_once_in_every_app_shell(): void
     {
         foreach (['master', 'admin', 'app'] as $layout) {
