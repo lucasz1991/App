@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Eigenstaendiges SVG-Favicon: skaliert fuer Tab-Uebersicht, Lesezeichen und Verlauf. Keine externen Referenzen (Browser blockieren diese hier). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="RailTime">
+  <rect width="1024" height="1024" rx="190" fill="#f8fafc"/>
+  <g transform="translate(130 130) scale(0.764)"><path d="M0 0H738L862 152V462L755 583H617L1000 1000H731L460 658V410H675L715 364V206L673 160H0Z" fill="#e4002b"/><path d="M0 410H205V1000H0Z" fill="#e4002b"/><path d="M0 200H670V370H420V1000H245V370H0Z" fill="#151b24"/></g>
+</svg>

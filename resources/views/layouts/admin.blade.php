@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Admin Area | {{ config('app.name') }}</title>
+    {{-- Ohne dieses Partial hatten Seiten in diesem Layout ueberhaupt kein
+         Favicon und kein Apple-Touch-Icon — daher fehlte das Symbol in
+         Tab-Uebersichten und beim Installieren aus dem Adminbereich. --}}
+    @include('layouts.pwa-head')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @livewireStyles
 </head>

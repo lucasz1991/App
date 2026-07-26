@@ -252,6 +252,54 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
     window.RTNavOverlay = { hide: done };
 })();
 
+// ---------------------------------------------------------------
+// Abgelaufene Sitzung bei Livewire-Anfragen: ohne Rueckfrage erneuern.
+//
+// Standardverhalten von Livewire bei einer 419-Antwort ist
+// confirm("This page has expired.\nWould you like to refresh the page?")
+// (handlePageExpiry in vendor/livewire/livewire/dist/livewire.esm.js). Der
+// fail-Hook laeuft nachweislich VOR dieser Abfrage: ruft er preventDefault(),
+// kehrt Livewire sofort zurueck — kein Dialog und kein Fehler-Modal. Genau das
+// nutzen wir, um die Seite selbst neu zu laden.
+//
+// Ein Reload ist hier korrekt (anders als auf der 419-Fehlerseite): das
+// aktuelle Dokument wurde per GET geladen, es wird also kein POST wiederholt.
+// ---------------------------------------------------------------
+Livewire.hook('request', ({ fail }) => {
+    fail(({ status, preventDefault }) => {
+        if (status !== 419) {
+            return;
+        }
+
+        preventDefault();
+
+        try {
+            // Kurzzeit-Schutz gegen eine Reload-Schleife. Absichtlich mit
+            // Zeitstempel statt Einmal-Marker: ein spaeterer, echter Ablauf
+            // muss weiterhin automatisch behandelt werden.
+            const key = 'rt-419-recovered-at';
+            const last = Number(window.sessionStorage.getItem(key) || 0);
+
+            if (last && (Date.now() - last) < 10000) {
+                return;
+            }
+
+            window.sessionStorage.setItem(key, String(Date.now()));
+        } catch (_) {
+            // Ohne sessionStorage trotzdem versuchen.
+        }
+
+        // Ein haengendes Seitenwechsel-Overlay wuerde den Reload ueberdauern.
+        try {
+            window.RTNavOverlay?.hide();
+        } catch (_) {
+            // Overlay ist optional.
+        }
+
+        window.location.reload();
+    });
+});
+
 window.Alpine = Alpine;
 
 registerRailtimePushSettings(Alpine);

@@ -1,27 +1,50 @@
-<x-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-            Sitzung abgelaufen
-        </h2>
-    </x-slot>
+@php
+    /**
+     * Abgelaufene Sitzung (CSRF-Token). Die Seite stellt sich SOFORT und ohne
+     * Rueckfrage selbst wieder her.
+     *
+     * Warum nicht location.reload(): diese Antwort gehoert zu einem
+     * fehlgeschlagenen POST. Ein Reload wuerde den POST erneut senden. Deshalb
+     * wird per GET auf die Ausgangsseite gewechselt — dort holt sich die
+     * Anwendung eine frische Sitzung samt neuem Token, und weil ein GET keinen
+     * CSRF-Schutz hat, kann daraus keine Schleife entstehen.
+     *
+     * Das Ziel wird auf die eigene Anwendung begrenzt, damit ein fremder
+     * Referer keine offene Weiterleitung erzeugt.
+     *
+     * Livewire-Anfragen laufen NICHT hierueber: die behandelt der 419-Hook in
+     * resources/js/app.js, bevor Livewire seinen confirm()-Dialog zeigt.
+     */
+    $referer = (string) request()->headers->get('referer', '');
+    $home = url('/');
+    $target = ($referer !== '' && str_starts_with($referer, $home)) ? $referer : $home;
+    $targetJs = \Illuminate\Support\Js::from($target);
 
-    <div class="pt-3 md:pt-12  antialiased">
-        <div class="max-w-3xl mx-auto py-10 sm:px-6 lg:px-8">
-            <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-6 rounded-md shadow">
-                <h2 class="text-2xl font-semibold mb-2">Ihre Sitzung ist abgelaufen!</h2>
-                <p class="text-lg">
-                    Aus Sicherheitsgründen wurden Sie automatisch abgemeldet, da Ihre Sitzung abgelaufen ist.
-                    Bitte melden Sie sich erneut an, um fortzufahren.
-                </p>
-                <div class="mt-4">
-                    <a href="{{ url('/login') }}" class="inline-flex items-center justify-center px-5 py-3 text-base font-medium text-center text-gray-900 border border-gray-300 rounded-lg bg-white hover:bg-gray-200 focus:ring-4 focus:ring-gray-100">
-                        Erneut anmelden
-                    </a>
-                    <a href="{{ url('/') }}" class="inline-flex items-center justify-center px-5 py-3 text-base font-medium text-center text-gray-900 border border-gray-300 rounded-lg bg-white hover:bg-gray-200 focus:ring-4 focus:ring-gray-100">
-                        Zurück zur Startseite
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-</x-app-layout>
+    // Zwei Wege, absichtlich abgestimmt:
+    //  * JavaScript leitet sofort weiter (ohne Verlaufseintrag) — und entfernt
+    //    die Meta-Weiterleitung, wenn der Schleifenschutz greift.
+    //  * Ohne JavaScript uebernimmt die Meta-Weiterleitung nach 3 Sekunden.
+    $headExtra = '<meta http-equiv="refresh" content="3;url='.e($target).'">'
+        .'<script>(function(){'
+        .'var stop=function(){var m=document.querySelector(\'meta[http-equiv="refresh"]\');if(m&&m.parentNode){m.parentNode.removeChild(m);}};'
+        .'try{'
+        .'var k="rt-419-recovered-at",l=Number(sessionStorage.getItem(k)||0);'
+        // Kurzzeitfenster: schuetzt vor einer Schleife, laesst einen spaeteren
+        // echten Ablauf aber weiterhin automatisch behandeln.
+        .'if(l&&(Date.now()-l)<10000){stop();return;}'
+        .'sessionStorage.setItem(k,String(Date.now()));'
+        .'}catch(e){}'
+        .'window.location.replace('.$targetJs.');'
+        .'})();</script>';
+
+    $body = '<p class="rt-error__text" style="margin-top:.75rem">'
+        .e(__('app.session_restoring'))
+        .'</p>';
+@endphp
+
+@include('errors.partials.page', [
+    'status' => 419,
+    'headExtra' => $headExtra,
+    'body' => $body,
+    'hint' => __('app.session_restore_hint'),
+])

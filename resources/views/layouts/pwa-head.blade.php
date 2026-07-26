@@ -1,8 +1,7 @@
-<link rel="manifest" href="{{ asset('manifest.webmanifest') }}">
-<link rel="apple-touch-icon" sizes="180x180" href="{{ route('pwa.icon', ['icon' => 'apple-touch-icon-180.png']) }}">
-<link rel="icon" type="image/png" sizes="192x192" href="{{ route('pwa.icon', ['icon' => 'pwa-192.png']) }}">
-<meta name="theme-color" content="#f3f6fa" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0b1120" media="(prefers-color-scheme: dark)">
+{{-- Icons, Manifest und Theme-Color liegen in einem eigenen Partial, damit
+     auch Fehlerseiten sie ohne Auth-/Session-/DB-Zugriff einbinden koennen. --}}
+@include('layouts.icon-head')
+
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="{{ config('app.name', 'RailTime') }}">
