@@ -289,6 +289,14 @@ class ManageFilePools extends Component
             "expires.$filePoolId" => ['nullable', 'date', 'after:today'],
         ]);
 
+        if ($this->allowTeamPermissions
+            && $this->currentFolderId === null
+            && $this->sanitizeTeamIds($this->uploadVisibleTeams) === []) {
+            $this->addError('uploadVisibleTeams', __('app.team_selection_required'));
+
+            return;
+        }
+
         foreach ($this->fileUploads[$filePoolId] as $uploadedFile) {
             $filename = $uploadedFile->getClientOriginalName();
             $path = $uploadedFile->store('uploads/files', 'private');
@@ -304,10 +312,7 @@ class ManageFilePools extends Component
                 'expires_at' => $this->expires[$filePoolId] ?? null,
                 'visible_from' => $this->uploadVisibleFrom ?: null,
                 'auto_delete' => (bool) $this->uploadAutoDelete,
-                'visible_teams' => array_values(array_intersect(
-                    array_map('intval', $this->uploadVisibleTeams),
-                    Team::where('personal_team', false)->pluck('id')->all()
-                )),
+                'visible_teams' => $this->sanitizeTeamIds($this->uploadVisibleTeams),
             ]);
         }
         unset($this->fileUploads[$filePoolId], $this->expires[$filePoolId]);
@@ -362,15 +367,20 @@ class ManageFilePools extends Component
         $file = $this->findFileInPoolOrFail($this->file->id);
         $this->authorizeFileMutation($file);
 
+        if ($this->allowTeamPermissions
+            && ! $file->folder_id
+            && $this->sanitizeTeamIds($this->selectedFileVisibleTeams) === []) {
+            $this->addError('selectedFileVisibleTeams', __('app.team_selection_required'));
+
+            return;
+        }
+
         $payload = [
             'name' => $this->selectedFileName,
             'expires_at' => $this->selectedFileExpiresDate ?: null,
             'visible_from' => $this->selectedFileVisibleFrom ?: null,
             'auto_delete' => (bool) $this->selectedFileAutoDelete,
-            'visible_teams' => array_values(array_intersect(
-                array_map('intval', $this->selectedFileVisibleTeams),
-                Team::where('personal_team', false)->pluck('id')->all()
-            )),
+            'visible_teams' => $this->sanitizeTeamIds($this->selectedFileVisibleTeams),
         ];
 
         if ($this->allowTeamPermissions) {
@@ -736,6 +746,18 @@ class ManageFilePools extends Component
             ->pluck('id')
             ->map(fn ($id): int => (int) $id)
             ->all();
+    }
+
+    /**
+     * @param  array<int, int|string>  $teamIds
+     * @return array<int, int>
+     */
+    protected function sanitizeTeamIds(array $teamIds): array
+    {
+        return array_values(array_intersect(
+            array_map('intval', $teamIds),
+            $this->availableTeamIds()
+        ));
     }
 
     protected function canMoveFiles(FilePool $pool): bool

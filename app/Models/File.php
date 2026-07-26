@@ -44,9 +44,11 @@ class File extends Model
     ];
 
     /**
-     * Rollen, für die eine Datei freigegeben werden kann.
+     * Legacy-Rollenwerte früherer Datei-Freigaben.
      *
      * @return array<string, string>
+     *
+     * @deprecated Der Datei-Explorer autorisiert ausschließlich über Teams.
      */
     public static function shareableRoles(): array
     {
@@ -58,8 +60,9 @@ class File extends Model
     }
 
     /**
-     * Prüft, ob die Datei für die Rolle des Benutzers freigegeben ist.
-     * Alle Rollen außer admin/staff zählen als 'user'.
+     * Legacy-Prüfung für ältere Integrationen außerhalb des Datei-Explorers.
+     *
+     * @deprecated Der Datei-Explorer autorisiert ausschließlich über Teams.
      */
     public function isSharedWithRole(?string $role): bool
     {
@@ -645,8 +648,6 @@ class File extends Model
 
     /* ------------------------------------------------------------------
      * Sichtbarkeit: Zeitfenster (visible_from .. expires_at) + Team-Freigabe.
-     * Ergaenzt die bestehende Rollen-Freigabe (shared_roles) und wirkt nur im
-     * nutzerseitigen Rollenmodus; im Management sehen Admins/Verwaltung alles.
      * ----------------------------------------------------------------*/
 
     /** Liegt "jetzt" im Sichtbarkeitsfenster (ab visible_from, bis expires_at)? */

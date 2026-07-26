@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Support\Pwa\PwaIcon;
 use Illuminate\Support\Facades\Queue;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
@@ -40,6 +41,7 @@ class PwaFrontendTest extends TestCase
             ->assertOk()
             ->assertSee('rel="manifest"', escape: false)
             ->assertSee('rel="apple-touch-icon"', escape: false)
+            ->assertSee(route('pwa.icon', ['icon' => 'pwa-192.png']), escape: false)
             ->assertSee('name="apple-mobile-web-app-capable"', escape: false)
             ->assertSee('name="rt-service-worker-url"', escape: false)
             ->assertDontSee('name="rt-push-account-binding"', escape: false);
@@ -94,7 +96,8 @@ class PwaFrontendTest extends TestCase
         $this->assertSame('#e4002b', $manifest['theme_color']);
 
         foreach ($manifest['icons'] as $icon) {
-            $path = public_path($icon['src']);
+            $this->assertStringStartsWith('pwa-icons/', $icon['src']);
+            $path = public_path('icons/'.basename($icon['src']));
 
             $this->assertFileExists($path);
             $image = getimagesize($path);
@@ -117,13 +120,17 @@ class PwaFrontendTest extends TestCase
 
     public function test_manifest_icons_have_a_public_laravel_fallback_for_incomplete_deployments(): void
     {
-        foreach (array_keys(\App\Support\Pwa\PwaIcon::DIMENSIONS) as $icon) {
+        foreach (array_keys(PwaIcon::DIMENSIONS) as $icon) {
             $response = $this->get(route('pwa.icon', ['icon' => $icon]));
 
             $response
                 ->assertOk()
                 ->assertHeader('content-type', 'image/png')
                 ->assertHeader('x-content-type-options', 'nosniff');
+
+            $this->get(route('pwa.icon.legacy', ['icon' => $icon]))
+                ->assertOk()
+                ->assertHeader('content-type', 'image/png');
         }
 
         $this->get('/icons/not-a-pwa-icon.png')->assertNotFound();
@@ -134,6 +141,14 @@ class PwaFrontendTest extends TestCase
         $serviceWorker = file_get_contents(public_path('service-worker.js'));
 
         $this->assertStringContainsString('self.registration.scope', $serviceWorker);
+        $this->assertStringContainsString(
+            "const FALLBACK_ICON = 'pwa-icons/pwa-192.png'",
+            $serviceWorker,
+        );
+        $this->assertStringContainsString(
+            "const FALLBACK_BADGE = 'pwa-icons/push-badge-96.png'",
+            $serviceWorker,
+        );
         $this->assertStringContainsString('url.origin === scope.origin', $serviceWorker);
         $this->assertStringContainsString('url.pathname.startsWith(scope.pathname)', $serviceWorker);
         $this->assertStringContainsString('includeUncontrolled: true', $serviceWorker);
@@ -220,6 +235,6 @@ class PwaFrontendTest extends TestCase
             $iconHtaccess,
         );
         $this->assertStringContainsString('../index.php [L]', $iconHtaccess);
-        $this->assertStringNotContainsString('RewriteRule ^ ', $iconHtaccess);
+        $this->assertSame(1, substr_count($iconHtaccess, 'RewriteRule '));
     }
 }

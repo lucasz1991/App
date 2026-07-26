@@ -77,7 +77,7 @@
                 />
             @endif
 
-            {{-- Firmen-Freigaben (Rolle/Team) --}}
+            {{-- Firmen-Freigaben (Teams) --}}
             @if ($grouped['company']->isNotEmpty())
                 <x-ui.filepool.download-group
                     :title="__('app.company_files')"

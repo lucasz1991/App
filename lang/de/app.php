@@ -507,7 +507,7 @@ return [
     'folder_delete_confirm' => 'Diesen Ordner samt Inhalt wirklich unwiderruflich löschen?',
     'rename' => 'Umbenennen',
     'folder_permissions' => 'Ordner-Berechtigungen',
-    'folder_permissions_hint' => 'Festlegen, welche Rollen Dateien in diesem Ordner ansehen, herunterladen oder löschen dürfen. Ohne Einschränkung ist der Ordner für alle sichtbar.',
+    'folder_permissions_hint' => 'Festlegen, welche Teams Dateien in diesem Ordner ansehen, herunterladen oder löschen dürfen. Ohne gespeicherte Einschränkung ist der Ordner für alle sichtbar.',
     'folder_permissions_saved' => 'Ordner-Berechtigungen wurden gespeichert.',
 
     // Einstellungen (Admin-Konfiguration)
@@ -557,6 +557,8 @@ return [
     'automatic_deletion' => 'Automatisches Löschen',
     'team_visibility' => 'Team-Sichtbarkeit',
     'team_visibility_hint' => 'Nur Mitglieder der gewählten Teams sehen diesen Eintrag. Ohne Auswahl ist er für alle sichtbar.',
+    'company_team_visibility_hint' => 'Mindestens ein Team auswählen. Ohne Teamzuordnung wird die Datei im Downloadbereich nicht freigegeben.',
+    'team_selection_required' => 'Bitte mindestens ein Team für diese Datei auswählen.',
     'all_teams_visible' => 'Für alle Teams sichtbar',
     'folder_settings' => 'Ordner-Einstellungen',
     'no_teams_available' => 'Keine Teams vorhanden.',
@@ -940,7 +942,6 @@ return [
     'help_push_issue_subject_invalid' => 'VAPID_SUBJECT muss eine mailto:-Adresse oder eine HTTPS-URL sein.',
     'help_push_issue_public_key_missing' => 'Der öffentliche VAPID-Schlüssel fehlt.',
     'help_push_issue_private_key_missing' => 'Der private VAPID-Schlüssel fehlt.',
-    'help_push_issue_pem_file_unavailable' => 'Die konfigurierte VAPID-PEM-Datei ist nicht lesbar.',
     'help_push_issue_credentials_invalid' => 'Das VAPID-Schlüsselpaar oder die PEM-Datei ist ungültig.',
     'help_push_config_cache_hint' => 'Der Laravel-Konfigurationscache ist aktiv. Nach Änderungen an der Serverkonfiguration muss er neu aufgebaut werden.',
     'help_push_queue_worker_hint' => 'Die Anzeige prüft die sichere Serverkonfiguration. Für die Zustellung muss zusätzlich ein Queue-Worker die Queue „:queue“ verarbeiten.',

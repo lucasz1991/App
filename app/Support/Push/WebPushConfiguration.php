@@ -17,8 +17,6 @@ class WebPushConfiguration
 
     public const ISSUE_PRIVATE_KEY_MISSING = 'private_key_missing';
 
-    public const ISSUE_PEM_FILE_UNAVAILABLE = 'pem_file_unavailable';
-
     public const ISSUE_CREDENTIALS_INVALID = 'credentials_invalid';
 
     public static function accountBinding(int|string $userId): string
@@ -54,7 +52,6 @@ class WebPushConfiguration
         $subject = trim((string) config('webpush.vapid.subject'));
         $publicKey = trim((string) config('webpush.vapid.public_key'));
         $privateKey = trim((string) config('webpush.vapid.private_key'));
-        $pemFile = trim((string) config('webpush.vapid.pem_file'));
         $issues = [];
 
         if (! $enabled) {
@@ -77,16 +74,9 @@ class WebPushConfiguration
             $issues[] = self::ISSUE_PRIVATE_KEY_MISSING;
         }
 
-        $resolvedPemFile = self::resolvePemFile($pemFile);
-
-        if ($pemFile !== '' && ($resolvedPemFile === null || ! is_readable($resolvedPemFile))) {
-            $issues[] = self::ISSUE_PEM_FILE_UNAVAILABLE;
-        }
-
         $hasCredentials = $validSubject
             && $publicKey !== ''
-            && $privateKey !== ''
-            && ! in_array(self::ISSUE_PEM_FILE_UNAVAILABLE, $issues, true);
+            && $privateKey !== '';
 
         if ($hasCredentials) {
             $vapid = [
@@ -94,10 +84,6 @@ class WebPushConfiguration
                 'publicKey' => $publicKey,
                 'privateKey' => $privateKey,
             ];
-
-            if ($resolvedPemFile !== null) {
-                $vapid['pemFile'] = $resolvedPemFile;
-            }
 
             try {
                 VAPID::validate($vapid);
@@ -128,18 +114,5 @@ class WebPushConfiguration
 
         return filter_var($subject, FILTER_VALIDATE_URL) !== false
             && parse_url($subject, PHP_URL_SCHEME) === 'https';
-    }
-
-    private static function resolvePemFile(string $pemFile): ?string
-    {
-        if ($pemFile === '') {
-            return null;
-        }
-
-        if (str_starts_with(str_replace('\\', '/', $pemFile), 'storage/')) {
-            return base_path($pemFile);
-        }
-
-        return $pemFile;
     }
 }

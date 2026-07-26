@@ -3,12 +3,12 @@
 namespace App\Livewire\Tools\FilePools;
 
 use App\Models\ChatMessage;
-use Livewire\Component;
 use App\Models\File;
+use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
-use Illuminate\Support\Facades\Gate;
+use Livewire\Component;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class FilePreviewModal extends Component
@@ -37,10 +37,11 @@ class FilePreviewModal extends Component
     public function openWith(int $id): void
     {
         $this->fileId = $id;
-        $this->file   = File::find($id);
+        $this->file = File::find($id);
 
-        if (!$this->file) {
+        if (! $this->file) {
             $this->dispatch('swal:toast', type: 'error', text: __('app.file_not_found'));
+
             return;
         }
 

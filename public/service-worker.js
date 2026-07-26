@@ -1,8 +1,8 @@
 'use strict';
 
 const FALLBACK_TITLE = 'RailTime';
-const FALLBACK_ICON = 'icons/pwa-192.png';
-const FALLBACK_BADGE = 'icons/push-badge-96.png';
+const FALLBACK_ICON = 'pwa-icons/pwa-192.png';
+const FALLBACK_BADGE = 'pwa-icons/push-badge-96.png';
 const FOREGROUND_ACK_TYPE = 'railtime:push-received-ack';
 const FOREGROUND_ACK_TIMEOUT_MS = 750;
 

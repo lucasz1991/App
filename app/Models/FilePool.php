@@ -3,8 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class FilePool extends Model
 {
@@ -29,13 +29,12 @@ class FilePool extends Model
      */
     public function files(): MorphMany
     {
-        return $this->morphMany(\App\Models\File::class, 'fileable');
+        return $this->morphMany(File::class, 'fileable');
     }
 
     /**
-     * Firmenweiter Pool fuer die zentrale Dateiverwaltung.
-     * Dateien daraus werden ueber shared_roles rollenbasiert
-     * an Mitarbeiter/Benutzer freigegeben.
+     * Firmenweiter Pool für die zentrale Dateiverwaltung.
+     * Dateien daraus werden über Teams an Mitarbeiter/Benutzer freigegeben.
      */
     public static function company(): self
     {

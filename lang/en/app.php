@@ -507,7 +507,7 @@ return [
     'folder_delete_confirm' => 'Really delete this folder and all of its contents permanently?',
     'rename' => 'Rename',
     'folder_permissions' => 'Folder permissions',
-    'folder_permissions_hint' => 'Define which roles may view, download or delete files in this folder. Without restrictions the folder is visible to everyone.',
+    'folder_permissions_hint' => 'Define which teams may view, download or delete files in this folder. Without saved restrictions the folder is visible to everyone.',
     'folder_permissions_saved' => 'Folder permissions saved.',
 
     // Settings (admin configuration)
@@ -557,6 +557,8 @@ return [
     'automatic_deletion' => 'Automatic deletion',
     'team_visibility' => 'Team visibility',
     'team_visibility_hint' => 'Only members of the selected teams can see this entry. Without a selection it is visible to everyone.',
+    'company_team_visibility_hint' => 'Select at least one team. Without a team assignment, the file is not shared in the download area.',
+    'team_selection_required' => 'Please select at least one team for this file.',
     'all_teams_visible' => 'Visible to all teams',
     'folder_settings' => 'Folder settings',
     'no_teams_available' => 'No teams available.',
@@ -940,7 +942,6 @@ return [
     'help_push_issue_subject_invalid' => 'VAPID_SUBJECT must be a mailto: address or an HTTPS URL.',
     'help_push_issue_public_key_missing' => 'The public VAPID key is missing.',
     'help_push_issue_private_key_missing' => 'The private VAPID key is missing.',
-    'help_push_issue_pem_file_unavailable' => 'The configured VAPID PEM file is not readable.',
     'help_push_issue_credentials_invalid' => 'The VAPID key pair or PEM file is invalid.',
     'help_push_config_cache_hint' => 'Laravel configuration caching is active. Rebuild it after changing the server configuration.',
     'help_push_queue_worker_hint' => 'This status checks the secure server configuration. Delivery also requires a queue worker processing the “:queue” queue.',

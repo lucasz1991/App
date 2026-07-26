@@ -63,8 +63,8 @@ class RailtimeWebPushNotification extends Notification implements ShouldQueueAft
         return (new WebPushMessage)
             ->title($this->title)
             ->body($this->body)
-            ->icon('icons/pwa-192.png')
-            ->badge('icons/push-badge-96.png')
+            ->icon('pwa-icons/pwa-192.png')
+            ->badge('pwa-icons/push-badge-96.png')
             ->tag($this->notificationId)
             ->data([
                 'notification_id' => $this->notificationId,

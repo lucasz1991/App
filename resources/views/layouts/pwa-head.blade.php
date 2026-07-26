@@ -1,6 +1,6 @@
 <link rel="manifest" href="{{ asset('manifest.webmanifest') }}">
-<link rel="apple-touch-icon" sizes="180x180" href="{{ asset('icons/apple-touch-icon-180.png') }}">
-<link rel="icon" type="image/png" sizes="192x192" href="{{ asset('icons/pwa-192.png') }}">
+<link rel="apple-touch-icon" sizes="180x180" href="{{ route('pwa.icon', ['icon' => 'apple-touch-icon-180.png']) }}">
+<link rel="icon" type="image/png" sizes="192x192" href="{{ route('pwa.icon', ['icon' => 'pwa-192.png']) }}">
 <meta name="theme-color" content="#f3f6fa" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0b1120" media="(prefers-color-scheme: dark)">
 <meta name="mobile-web-app-capable" content="yes">

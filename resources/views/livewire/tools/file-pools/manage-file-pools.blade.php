@@ -308,7 +308,12 @@
 
           <div>
             <x-ui.forms.label :value="__('app.team_visibility')" />
-            <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.team_visibility_hint') }}</p>
+            <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">
+              {{ $allowTeamPermissions && ! $currentFolder ? __('app.company_team_visibility_hint') : __('app.team_visibility_hint') }}
+            </p>
+            @error('uploadVisibleTeams')
+              <span class="mt-1 block text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
+            @enderror
             @if($teams->isEmpty())
               <p class="mt-2 text-sm text-rt-muted dark:text-rt-dark-muted">{{ __('app.no_teams_available') }}</p>
             @else
@@ -373,7 +378,12 @@
 
             <div>
               <x-ui.forms.label :value="__('app.team_visibility')" />
-              <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.team_visibility_hint') }}</p>
+              <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">
+                {{ $allowTeamPermissions && ! $file?->folder_id ? __('app.company_team_visibility_hint') : __('app.team_visibility_hint') }}
+              </p>
+              @error('selectedFileVisibleTeams')
+                <span class="mt-1 block text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
+              @enderror
               @if($teams->isEmpty())
                 <p class="mt-2 text-sm text-rt-muted dark:text-rt-dark-muted">{{ __('app.no_teams_available') }}</p>
               @else

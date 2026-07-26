@@ -456,6 +456,13 @@ class User extends Authenticatable
         }
 
         if ($pool->filepoolable_type === 'company') {
+            // Wurzeldateien des Firmen-Pools müssen ausdrücklich mindestens
+            // einem Team zugeordnet sein. So werden alte Rollenfreigaben ohne
+            // Teamzuordnung beim Systemwechsel nicht versehentlich öffentlich.
+            if (! $file->folder_id && empty($file->visible_teams)) {
+                return false;
+            }
+
             return true;
         }
 

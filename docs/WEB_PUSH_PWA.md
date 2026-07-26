@@ -158,10 +158,11 @@ Berechtigungspruefung geoeffnet.
   no-store, must-revalidate` fuer `service-worker.js` pruefen.
 - Installation fehlt: Manifest und Icons ueber die tatsaechliche
   Produktivdomain laden; die Domain muss auf `public` zeigen.
-- `/icons/pwa-192.png` liefert 404: Zuerst pruefen, ob `public/icons` beim
-  Deployment uebertragen wurde. Fuer die vom Manifest und Push verwendeten
-  PNGs existiert zusaetzlich eine Laravel-Fallback-Route. Auf Plesk/Apache sorgt
-  `public/icons/.htaccess` dafuer, dass nur fehlende, explizit erlaubte
-  PWA-Dateinamen den Front Controller erreichen; vorhandene Dateien bleiben
-  statisch. Beide `.htaccess`-Dateien muessen deshalb mit ausgerollt sein und
-  `AllowOverride` muss Rewrites zulassen.
+- `/icons/pwa-192.png` liefert 404: Das weist meist auf einen unvollstaendigen
+  Transfer von `public/icons` oder auf eine Plesk-Regel fuer physische
+  Unterordner hin. Manifest, Service Worker, HTML-Head und Push-Payload nutzen
+  deshalb den kanonischen Laravel-Pfad `/pwa-icons/{datei}`; der Controller
+  liefert die echte Datei oder erzeugt ein gueltiges PNG. Der alte `/icons`-
+  Pfad bleibt fuer bereits installierte Clients erhalten. Wenn Plesk diesen
+  Legacy-Pfad vor Laravel abfaengt, muss auch `public/icons/.htaccess`
+  ausgerollt sein und `AllowOverride` Rewrites zulassen.

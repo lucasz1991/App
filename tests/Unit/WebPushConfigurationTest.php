@@ -61,7 +61,7 @@ class WebPushConfigurationTest extends TestCase
         $this->assertTrue(WebPushConfiguration::isConfigured());
     }
 
-    public function test_invalid_subject_key_pair_and_unreadable_pem_get_distinct_issue_codes(): void
+    public function test_invalid_subject_and_key_pair_get_distinct_issue_codes(): void
     {
         $keys = VAPID::createVapidKeys();
         config([
@@ -83,16 +83,6 @@ class WebPushConfigurationTest extends TestCase
 
         $this->assertContains(
             WebPushConfiguration::ISSUE_CREDENTIALS_INVALID,
-            WebPushConfiguration::diagnostics()['issues'],
-        );
-
-        config([
-            'webpush.vapid.public_key' => $keys['publicKey'],
-            'webpush.vapid.pem_file' => 'storage/missing-vapid-key.pem',
-        ]);
-
-        $this->assertContains(
-            WebPushConfiguration::ISSUE_PEM_FILE_UNAVAILABLE,
             WebPushConfiguration::diagnostics()['issues'],
         );
     }

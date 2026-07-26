@@ -50,7 +50,7 @@
         <div class="line-clamp-2 break-words text-[11px] font-semibold leading-snug text-white" title="{{ $file->name }}">
             {{ $file->name }}
         </div>
-        <div class="mt-0.5 text-[10px] font-medium text-white/72" title="{{ $file->getMimeTypeForHumans() }}">
+        <div class="mt-0.5 text-[10px] font-medium text-white/70" title="{{ $file->getMimeTypeForHumans() }}">
             {{ $file->size_formatted }}
         </div>
     </div>
