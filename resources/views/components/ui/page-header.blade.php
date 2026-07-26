@@ -1,8 +1,6 @@
 @props(['title', 'description' => null, 'eyebrow' => null, 'count' => null, 'help' => null])
 
 <header
-    x-data="{ pageHelpOpen: false }"
-    x-on:keydown.escape.window="pageHelpOpen = false"
     {{ $attributes->class('flex flex-wrap items-center justify-between gap-3') }}
     data-anim="fade-up"
 >
@@ -24,9 +22,17 @@
             {{ $actions }}
         @endisset
         @if ($help)
+            {{-- Oeffnet das EINE globale Infomodal (x-ui.info-modal, einmal je
+                 Layout) mit dem Inhalt dieser Seite. Bewusst kein eigener
+                 Dialog pro Button. --}}
             <button
                 type="button"
-                x-on:click="pageHelpOpen = true"
+                x-data
+                x-on:click="$dispatch('rt-info:open', {{ \Illuminate\Support\Js::from([
+                    'title' => $help['title'] ?? $title,
+                    'summary' => $help['summary'] ?? null,
+                    'points' => array_values($help['points'] ?? []),
+                ]) }})"
                 class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-rt-border bg-rt-control text-rt-muted shadow-rt-xs transition hover:border-rt-accent/40 hover:bg-rt-surface-muted hover:text-rt-accent focus:outline-none focus:ring-2 focus:ring-rt-accent/30 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-muted dark:hover:border-rt-dark-accent/40 dark:hover:bg-rt-dark-surface-muted dark:hover:text-rt-dark-accent"
                 aria-label="{{ app()->getLocale() === 'de' ? 'Informationen zu dieser Seite' : 'Information about this page' }}"
                 title="{{ app()->getLocale() === 'de' ? 'Seitenhilfe' : 'Page help' }}"
