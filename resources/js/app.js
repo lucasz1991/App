@@ -1,3 +1,7 @@
+// ZUERST importieren: das Modul installiert seine Fehler-Listener direkt beim
+// Import, also bevor die folgenden Module ausgewertet werden. Ein Fehler in
+// einem dieser Module wird dadurch bereits erfasst (siehe alpine-watchdog.js).
+import './alpine-watchdog';
 import './bootstrap';
 // Manuelles Livewire-Bundling (offizieller Livewire-3-Weg fuer eigene
 // Alpine-Plugins/Stores): Livewire + Alpine aus dem Livewire-ESM-Bundle
@@ -146,7 +150,19 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
 (function () {
     let overlay = null;
     let showTimer = null;
+    let failsafeTimer = null;
     let active = false;
+
+    // Notbremse. Grund (verifiziert in vendor/livewire/livewire/dist/
+    // livewire.esm.js, performFetch): Livewire holt die neue Seite mit
+    // fetch(...).then(...).then(...) OHNE .catch(). Bricht der Request ab
+    // (Netzwerkabbruch, Server nicht erreichbar, Verbindung zurueckgesetzt),
+    // wird der Callback nie aufgerufen -> es feuert weder 'livewire:navigating'
+    // noch 'livewire:navigated'. Ebenso bei einer abgebrochenen Navigation:
+    // 'livewire:navigate' ist cancelable, ein preventDefault stoppt den
+    // Seitenwechsel nach unserem start(). Ohne diese Grenze bliebe das Overlay
+    // dauerhaft sichtbar — wegen pointer-events:none sogar bedienbar dahinter.
+    const FAILSAFE_MS = 10000;
 
     function ensureOverlay() {
         // Livewire tauscht bei wire:navigate den <body> aus -> ggf. neu anhaengen.
@@ -166,25 +182,30 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
                 'transition:opacity .2s ease',
             ].join(';');
         }
-        document.body.appendChild(overlay);
+        if (document.body) {
+            document.body.appendChild(overlay);
+        }
         return overlay;
     }
 
     function start() {
         active = true;
-        clearTimeout(showTimer);
-        showTimer = setTimeout(function () {
+        window.clearTimeout(showTimer);
+        window.clearTimeout(failsafeTimer);
+        showTimer = window.setTimeout(function () {
             if (!active) return;
             const o = ensureOverlay();
             const dark = document.documentElement.classList.contains('dark');
             o.style.background = dark ? 'rgba(11,17,32,.55)' : 'rgba(243,246,250,.5)';
             o.style.opacity = '1';
         }, 120);
+        failsafeTimer = window.setTimeout(done, FAILSAFE_MS);
     }
 
     function done() {
         active = false;
-        clearTimeout(showTimer);
+        window.clearTimeout(showTimer);
+        window.clearTimeout(failsafeTimer);
         if (overlay) {
             overlay.style.opacity = '0';
         }
@@ -192,7 +213,22 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
 
     document.addEventListener('livewire:navigate', start);
     document.addEventListener('livewire:navigating', start);
+
+    // Alle Wege, auf denen eine Navigation endet ODER scheitert. done() ist
+    // idempotent, mehrfaches Aufraeumen ist deshalb unschaedlich.
     document.addEventListener('livewire:navigated', done);
+    window.addEventListener('popstate', done);
+    window.addEventListener('pageshow', done);
+    window.addEventListener('offline', done);
+    // Der fehlgeschlagene Navigations-Fetch (siehe oben) landet als
+    // unbehandelte Promise-Ablehnung — das praeziseste Signal fuer "die
+    // Navigation kommt nicht mehr zurueck".
+    window.addEventListener('unhandledrejection', done);
+    window.addEventListener('error', done);
+
+    // Damit andere Module (z. B. der Alpine-Watchdog) das Overlay vor einem
+    // Reload sicher entfernen koennen.
+    window.RTNavOverlay = { hide: done };
 })();
 
 window.Alpine = Alpine;

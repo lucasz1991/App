@@ -43,11 +43,13 @@ class WebPushConfiguration
      *     enabled: bool,
      *     configured: bool,
      *     ready: bool,
-     *     issues: list<string>
+     *     issues: list<string>,
+     *     auto_provisioned: bool
      * }
      */
     public static function diagnostics(): array
     {
+        $autoProvision = app(VapidAutoProvisioner::class)->ensureConfigured();
         $enabled = (bool) config('webpush.enabled');
         $subject = trim((string) config('webpush.vapid.subject'));
         $publicKey = trim((string) config('webpush.vapid.public_key'));
@@ -58,7 +60,7 @@ class WebPushConfiguration
             $issues[] = self::ISSUE_DISABLED;
         }
 
-        $validSubject = self::hasValidSubject($subject);
+        $validSubject = self::isValidSubject($subject);
 
         if ($subject === '') {
             $issues[] = self::ISSUE_SUBJECT_MISSING;
@@ -72,6 +74,10 @@ class WebPushConfiguration
 
         if ($privateKey === '') {
             $issues[] = self::ISSUE_PRIVATE_KEY_MISSING;
+        }
+
+        if ($autoProvision['issue'] !== null) {
+            $issues[] = $autoProvision['issue'];
         }
 
         $hasCredentials = $validSubject
@@ -103,10 +109,11 @@ class WebPushConfiguration
             'configured' => $configured,
             'ready' => $enabled && $configured,
             'issues' => $issues,
+            'auto_provisioned' => $autoProvision['provisioned'],
         ];
     }
 
-    private static function hasValidSubject(string $subject): bool
+    public static function isValidSubject(string $subject): bool
     {
         if (str_starts_with($subject, 'mailto:')) {
             return filter_var(substr($subject, 7), FILTER_VALIDATE_EMAIL) !== false;

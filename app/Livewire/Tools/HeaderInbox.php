@@ -3,6 +3,7 @@
 namespace App\Livewire\Tools;
 
 use App\Models\ChatMessage;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -77,8 +78,35 @@ class HeaderInbox extends Component
         }
     }
 
+    /**
+     * Letzte Chats fuer das gemeinsame Posteingangs-Dropdown.
+     *
+     * Bewusst NICHT als oeffentliche Livewire-Eigenschaft: die Chat-Modelle
+     * muessten sonst bei jedem Request serialisiert und rehydriert werden und
+     * verlieren dabei ihre Eager-Loads (participants/latestMessage), die
+     * displayNameFor()/unreadCountFor() brauchen. Frisch im render() geladen
+     * bleiben die Beziehungen garantiert vorhanden.
+     */
+    protected function recentChats(): Collection
+    {
+        $user = Auth::user();
+
+        if (! $user) {
+            return collect();
+        }
+
+        return $user->chats()
+            ->with(['participants', 'latestMessage'])
+            ->orderByDesc('chats.updated_at')
+            ->limit(3)
+            ->get();
+    }
+
     public function render()
     {
-        return view('livewire.tools.header-inbox');
+        return view('livewire.tools.header-inbox', [
+            'recentChats' => $this->recentChats(),
+            'totalUnreadCount' => $this->unreadMessagesCount + $this->unreadChatMessagesCount,
+        ]);
     }
 }

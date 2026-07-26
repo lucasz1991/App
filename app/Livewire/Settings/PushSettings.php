@@ -2,7 +2,6 @@
 
 namespace App\Livewire\Settings;
 
-use App\Support\Push\PushCategory;
 use App\Support\Push\WebPushConfiguration;
 use Illuminate\Contracts\View\View;
 use Livewire\Component;
@@ -11,35 +10,19 @@ class PushSettings extends Component
 {
     public function render(): View
     {
-        $preferences = collect(PushCategory::cases())
-            ->mapWithKeys(fn (PushCategory $category): array => [
-                $category->value => [
-                    'label' => $category->label(),
-                    'enabled' => (bool) auth()->user()
-                        ->notificationPreferences()
-                        ->where('category', $category->value)
-                        ->value('web_push_enabled'),
-                ],
-            ]);
-
         $pushDiagnostics = WebPushConfiguration::diagnostics();
 
         return view('livewire.settings.push-settings', [
-            'preferences' => $preferences,
             'pushDiagnostics' => $pushDiagnostics,
             'clientConfig' => [
                 'serverEnabled' => $pushDiagnostics['enabled'],
                 'serverConfigured' => $pushDiagnostics['configured'],
-                'testEnabled' => (bool) config('webpush.test_enabled'),
                 'vapidPublicKey' => (string) config('webpush.vapid.public_key'),
                 'accountBinding' => WebPushConfiguration::accountBinding(auth()->id()),
-                'preferences' => $preferences,
                 'urls' => [
                     'status' => route('push.status'),
                     'subscribe' => route('push.subscriptions.store'),
                     'unsubscribe' => route('push.subscriptions.destroy'),
-                    'preferences' => route('push.preferences.update'),
-                    'test' => route('push.test'),
                 ],
                 'messages' => [
                     'loadFailed' => __('app.push_load_failed'),
@@ -69,10 +52,6 @@ class PushSettings extends Component
                     'subscribeFailed' => __('app.push_subscribe_failed'),
                     'unsubscribed' => __('app.push_unsubscribed'),
                     'unsubscribeFailed' => __('app.push_unsubscribe_failed'),
-                    'preferencesSaved' => __('app.push_preferences_saved'),
-                    'preferencesFailed' => __('app.push_preferences_failed'),
-                    'testQueued' => __('app.push_test_queued'),
-                    'testFailed' => __('app.push_test_failed'),
                 ],
             ],
         ]);

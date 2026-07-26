@@ -31,6 +31,7 @@ class PushSubscriptionController extends Controller
             'configured' => $diagnostics['configured'],
             'ready' => $diagnostics['ready'],
             'configuration_issues' => $diagnostics['issues'],
+            'auto_provisioned' => $diagnostics['auto_provisioned'],
             'subscription_count' => $request->user()
                 ->pushSubscriptions()
                 ->whereNull('revoked_at')

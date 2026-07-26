@@ -5,6 +5,11 @@ use App\Models\PushSubscription;
 return [
     'enabled' => env('WEBPUSH_ENABLED', false),
     'test_enabled' => env('WEBPUSH_TEST_ENABLED', false),
+    'auto_provision' => env('WEBPUSH_AUTO_PROVISION', true),
+    'auto_provision_path' => env(
+        'WEBPUSH_AUTO_PROVISION_PATH',
+        storage_path('app/private/webpush-vapid.json'),
+    ),
     'queue' => env('WEBPUSH_QUEUE', 'webpush'),
     'default_ttl' => (int) env('WEBPUSH_DEFAULT_TTL', 3600),
 

@@ -70,12 +70,6 @@
         <section
             class="overflow-hidden rounded-2xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60"
             aria-labelledby="install-app-heading"
-            x-data="{
-                secure: window.isSecureContext,
-                serviceWorker: 'serviceWorker' in navigator,
-                permission: 'Notification' in window ? Notification.permission : 'unsupported',
-                standalone: window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true
-            }"
         >
             <header class="grid gap-4 border-b border-rt-border/60 bg-rt-surface-muted p-4 dark:border-rt-dark-border/60 dark:bg-rt-dark-surface-muted sm:p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
                 <div>
@@ -138,83 +132,6 @@
                 </article>
             </div>
 
-            <div class="border-t border-rt-border/60 p-4 dark:border-rt-dark-border/60 sm:p-6">
-                <div class="flex flex-wrap items-center gap-2">
-                    <span class="inline-flex min-h-8 items-center gap-2 rounded-lg px-2.5 py-1 text-xs font-semibold" :class="secure ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300'">
-                        <span class="h-1.5 w-1.5 rounded-full" :class="secure ? 'bg-emerald-500' : 'bg-amber-500'"></span>
-                        <span x-text="secure ? @js(__('app.help_https_ready')) : @js(__('app.help_https_missing'))"></span>
-                    </span>
-                    <span class="inline-flex min-h-8 items-center gap-2 rounded-lg px-2.5 py-1 text-xs font-semibold" :class="serviceWorker ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'">
-                        <span class="h-1.5 w-1.5 rounded-full" :class="serviceWorker ? 'bg-emerald-500' : 'bg-slate-400'"></span>
-                        {{ __('app.help_browser_support') }}
-                    </span>
-                    <span class="inline-flex min-h-8 items-center gap-2 rounded-lg bg-rt-surface-muted px-2.5 py-1 text-xs font-semibold text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted">
-                        {{ __('app.help_permission') }}:
-                        <span x-text="permission"></span>
-                    </span>
-                    <span x-show="standalone" x-cloak class="inline-flex min-h-8 items-center gap-2 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                        <i data-feather="check" class="h-3.5 w-3.5"></i>
-                        {{ __('app.help_installed') }}
-                    </span>
-                </div>
-
-                <dl class="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                    <div class="rounded-xl bg-rt-surface-muted p-3 dark:bg-rt-dark-surface-muted">
-                        <dt class="text-[10px] font-semibold uppercase tracking-[0.14em] text-rt-soft dark:text-rt-dark-soft">{{ __('app.help_push_server') }}</dt>
-                        <dd class="mt-1 text-sm font-semibold {{ $pushStatus['ready'] ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300' }}">
-                            {{ $pushStatus['ready'] ? __('app.ready') : __('app.not_ready') }}
-                        </dd>
-                    </div>
-                    <div class="rounded-xl bg-rt-surface-muted p-3 dark:bg-rt-dark-surface-muted">
-                        <dt class="text-[10px] font-semibold uppercase tracking-[0.14em] text-rt-soft dark:text-rt-dark-soft">{{ __('app.help_active_devices') }}</dt>
-                        <dd class="mt-1 text-sm font-semibold tabular-nums text-rt-text dark:text-white">{{ $pushStatus['activeDevices'] }}</dd>
-                    </div>
-                    <div class="rounded-xl bg-rt-surface-muted p-3 dark:bg-rt-dark-surface-muted">
-                        <dt class="text-[10px] font-semibold uppercase tracking-[0.14em] text-rt-soft dark:text-rt-dark-soft">{{ __('app.help_queue') }}</dt>
-                        <dd class="mt-1 text-sm font-semibold text-rt-text dark:text-white">{{ $pushStatus['queue'] }}</dd>
-                    </div>
-                    <div class="rounded-xl bg-rt-surface-muted p-3 dark:bg-rt-dark-surface-muted">
-                        <dt class="text-[10px] font-semibold uppercase tracking-[0.14em] text-rt-soft dark:text-rt-dark-soft">{{ __('app.help_phone_url') }}</dt>
-                        <dd class="mt-1 text-sm font-semibold {{ $pushStatus['phoneReadyUrl'] ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300' }}">
-                            {{ $pushStatus['phoneReadyUrl'] ? __('app.ready') : __('app.help_https_domain_required') }}
-                        </dd>
-                    </div>
-                </dl>
-
-                @if (! $pushStatus['ready'])
-                    <div
-                        class="mt-3 rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-amber-950 dark:border-amber-900/70 dark:bg-amber-950/35 dark:text-amber-100"
-                        role="status"
-                        data-testid="push-server-diagnostics"
-                    >
-                        <div class="flex items-start gap-3">
-                            <span class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700 dark:bg-amber-900/70 dark:text-amber-200">
-                                <i data-feather="alert-circle" class="h-4 w-4"></i>
-                            </span>
-                            <div class="min-w-0">
-                                <p class="text-sm font-semibold">{{ __('app.help_push_not_ready_title') }}</p>
-                                <ul class="mt-1.5 space-y-1 text-xs leading-5 text-amber-900/85 dark:text-amber-100/80">
-                                    @foreach ($pushStatus['issues'] as $issue)
-                                        <li class="flex gap-2">
-                                            <span aria-hidden="true">•</span>
-                                            <span>{{ __('app.help_push_issue_'.$issue) }}</span>
-                                        </li>
-                                    @endforeach
-                                </ul>
-                                @if ($pushStatus['configurationCached'])
-                                    <p class="mt-2 text-xs leading-5 text-amber-900/70 dark:text-amber-100/65">
-                                        {{ __('app.help_push_config_cache_hint') }}
-                                    </p>
-                                @endif
-                            </div>
-                        </div>
-                    </div>
-                @endif
-
-                <p class="mt-3 text-xs leading-5 text-rt-soft dark:text-rt-dark-soft">
-                    {{ __('app.help_push_queue_worker_hint', ['queue' => config('webpush.queue')]) }}
-                </p>
-            </div>
         </section>
     </div>
 </x-ui.page>

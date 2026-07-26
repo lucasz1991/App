@@ -42,6 +42,7 @@ Nachrichten und Chats.
    ```dotenv
    WEBPUSH_ENABLED=true
    WEBPUSH_TEST_ENABLED=false
+   WEBPUSH_AUTO_PROVISION=true
    WEBPUSH_QUEUE=webpush
    WEBPUSH_DEFAULT_TTL=3600
    WEBPUSH_ALLOWED_ENDPOINT_HOSTS="fcm.googleapis.com,*.push.services.mozilla.com,*.push.apple.com,*.notify.windows.com,*.wns.windows.com,*.push.samsung.com"
@@ -52,6 +53,15 @@ Nachrichten und Chats.
 
    `VAPID_SUBJECT` muss eine `mailto:`-Adresse oder eine HTTPS-URL sein. Weitere
    Endpoint-Hosts nur nach einer bewussten Sicherheitspruefung ergaenzen.
+
+   Wenn `WEBPUSH_AUTO_PROVISION=true` gesetzt ist und beide VAPID-Schluessel
+   fehlen, erzeugt die erste serverseitige Push-Diagnose einmalig ein
+   Schluesselpaar. Es wird nicht in Git oder im Webroot, sondern unter
+   `storage/app/private/webpush-vapid.json` gespeichert. Eine gueltige
+   HTTPS-`APP_URL` wird bei fehlendem `VAPID_SUBJECT` als Kontakt-URL verwendet.
+   Vorhandene, unvollstaendige oder ungueltige Schluessel werden nicht
+   automatisch ersetzt, damit bestehende Abonnements nicht unbemerkt ihre
+   Bindung verlieren.
 
 4. Datenbank aktualisieren und Caches erneuern:
 

@@ -16,7 +16,7 @@
             $profileTabs['security'] = ['label' => __('app.security'), 'icon' => 'fad fa-shield-alt'];
         }
 
-        $profileTabs['app'] = ['label' => __('app.app_and_push'), 'icon' => 'fad fa-mobile-alt'];
+        $profileTabs['app'] = ['label' => __('app.settings'), 'icon' => 'fad fa-cog'];
 
         $profileTabs['sessions'] = ['label' => __('app.sessions'), 'icon' => 'fad fa-laptop'];
     @endphp

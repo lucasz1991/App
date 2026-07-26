@@ -1347,6 +1347,31 @@ body[data-mode="dark"] .rt-chat-read-indicator.is-delivered {
     backdrop-filter: blur(14px);
 }
 
+/* Mobil sitzt die klebende Tab-Leiste direkt unter der 70px hohen Topbar
+   (keine Luecke mehr) und laeuft randlos bis an beide Bildschirmkanten, damit
+   die Tabs dort sauber abschneiden statt in einer Luecke zu enden.
+   Die Seitenabstaende der Layout-Container (page-content px-1, x-ui.page px-2)
+   werden mit calc(50% - 50vw) neutralisiert — unabhaengig von den konkreten
+   Padding-Werten und damit robust fuer alle Tab-Seiten. Der Ueberhang wird von
+   body{overflow-x:hidden} (Legacy-CSS) an der Viewport-Kante abgeschnitten,
+   deshalb entsteht kein horizontaler Scrollbalken. Auf .main-content ist
+   overflow bereits durch die :has()-Regel unten auf visible gesetzt.
+   Tabs in Dialogen bleiben ausgenommen (data-sticky-enabled='false'). */
+@media (max-width: 767px) {
+    .rt-tabs-shell[data-sticky-enabled='true'] {
+        top: 70px;
+        margin-left: calc(50% - 50vw);
+        margin-right: calc(50% - 50vw);
+        /* !important ist hier zwingend: die Legacy-tailwind.min.css definiert
+           .p-1\.5{padding:.375rem!important} und
+           .rounded-2xl{border-radius:1rem!important} — beide Klassen haengen am
+           Shell-Element und wuerden diese Werte sonst ueberschreiben. */
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        border-radius: 0 !important;
+    }
+}
+
 /* Das Legacy-Layout setzt auf .main-content overflow:hidden. Damit wuerde
    dieser Container zum nicht scrollenden Sticky-Bezug und die Tabs liefen
    trotz position:sticky aus dem Viewport. Nur echte Seiten-Tabs entsperren

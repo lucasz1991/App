@@ -2,7 +2,6 @@
 
 namespace App\Livewire;
 
-use App\Support\Push\WebPushConfiguration;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Str;
 use Livewire\Component;
@@ -31,23 +30,8 @@ class HelpCenter extends Component
                 );
             })
             ->values();
-        $appHost = (string) parse_url((string) config('app.url'), PHP_URL_HOST);
-        $appScheme = (string) parse_url((string) config('app.url'), PHP_URL_SCHEME);
-        $webPushDiagnostics = WebPushConfiguration::diagnostics();
-
         return view('livewire.help-center', [
             'topics' => $topics,
-            'pushStatus' => [
-                ...$webPushDiagnostics,
-                'activeDevices' => $user->pushSubscriptions()->whereNull('revoked_at')->count(),
-                'queue' => implode(' · ', array_filter([
-                    (string) config('queue.default'),
-                    (string) config('webpush.queue'),
-                ])),
-                'configurationCached' => app()->configurationIsCached(),
-                'phoneReadyUrl' => $appScheme === 'https'
-                    && ! in_array($appHost, ['127.0.0.1', 'localhost', '::1'], true),
-            ],
         ])->layout('layouts.master', [
             'area' => $user->usesAdminLayout() ? 'admin' : 'user',
         ]);
