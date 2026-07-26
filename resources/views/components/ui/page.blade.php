@@ -13,7 +13,13 @@
 @php
     $routeName = request()->route()?->getName();
     $help = app(\App\Support\PageHelpCatalog::class)->forRoute($routeName, $title);
-    $resolvedPageKey = 'page:'.($pageKey ?: ($routeName ?: 'path:'.request()->path()));
+    // Fallback-Reihenfolge bewusst: Routenname -> Titel -> Pfad. Der Pfad kommt
+    // zuletzt, weil er nicht ueberall stabil ist (Livewire-Tests rendern unter
+    // einem zufaelligen Endpunkt — ein pfadbasierter Schluessel waere dort bei
+    // jedem Render "neu" und das Intro erschiene endlos).
+    $resolvedPageKey = 'page:'.($pageKey
+        ?: ($routeName
+            ?: (filled($title) ? 'title:'.\Illuminate\Support\Str::slug((string) $title) : 'path:'.request()->path())));
 
     // Jeder Seitenaufruf wird vermerkt (wer hat was schon gesehen); die
     // Rueckmeldung "war der erste" steuert zusaetzlich das Intro.
