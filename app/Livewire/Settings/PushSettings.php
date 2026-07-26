@@ -22,13 +22,14 @@ class PushSettings extends Component
                 ],
             ]);
 
-        $pushConfigured = WebPushConfiguration::isConfigured();
+        $pushDiagnostics = WebPushConfiguration::diagnostics();
 
         return view('livewire.settings.push-settings', [
             'preferences' => $preferences,
+            'pushDiagnostics' => $pushDiagnostics,
             'clientConfig' => [
-                'serverEnabled' => (bool) config('webpush.enabled'),
-                'serverConfigured' => $pushConfigured,
+                'serverEnabled' => $pushDiagnostics['enabled'],
+                'serverConfigured' => $pushDiagnostics['configured'],
                 'testEnabled' => (bool) config('webpush.test_enabled'),
                 'vapidPublicKey' => (string) config('webpush.vapid.public_key'),
                 'accountBinding' => WebPushConfiguration::accountBinding(auth()->id()),

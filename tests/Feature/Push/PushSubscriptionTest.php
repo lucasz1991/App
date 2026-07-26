@@ -24,7 +24,6 @@ class PushSubscriptionTest extends TestCase
 
         config([
             'webpush.enabled' => true,
-            'webpush.settings_ui_enabled' => true,
             'webpush.test_enabled' => true,
             'webpush.vapid.subject' => 'mailto:webpush@example.test',
             'webpush.vapid.public_key' => $vapid['publicKey'],

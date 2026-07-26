@@ -132,6 +132,8 @@ class ManageFilePools extends Component
         $this->openEditFileForm = false;
         $this->readOnly = $readOnly;
         $this->allowTeamPermissions = $allowTeamPermissions;
+
+        abort_unless($this->userCanAccessPool($this->filePool), 403);
     }
 
     /* ------------------------------------------------------------------
@@ -321,40 +323,20 @@ class ManageFilePools extends Component
 
     public function downloadFile(int $fileId): StreamedResponse
     {
-        $file = File::findOrFail($fileId);
-
-        // Nur Dateien dieses Pools; bei Rollenfilter nur freigegebene
-        abort_if((int) $file->fileable_id !== (int) $this->filePoolId, 403);
-        abort_if($this->roleFilter !== null && ! $this->fileVisibleForRole($file, 'download'), 403);
-        abort_if($this->roleFilter !== null && ! $file->isPubliclyVisible(Auth::user()), 403);
+        $file = $this->findFileInPoolOrFail($fileId);
+        $this->authorizeFileAccess($file, 'download');
 
         return $file->download(); // zentral im Model
-    }
-
-    /**
-     * Sichtbarkeit/Downloadrecht einer Datei im Rollenmodus:
-     * Dateien in Ordnern erben das Ordner-Recht, Wurzeldateien
-     * nutzen weiterhin die dateibezogene Freigabe (shared_roles).
-     */
-    protected function fileVisibleForRole(File $file, string $action = 'view'): bool
-    {
-        if ($file->folder_id) {
-            $folder = $file->folder;
-
-            return $folder ? $folder->allowsForRole($this->roleFilter, $action) : false;
-        }
-
-        return $file->isSharedWithRole($this->roleFilter);
     }
 
     public function editFile($id)
     {
         abort_if($this->readOnly, 403);
 
-        $this->file = File::findOrFail($id);
+        $this->file = $this->findFileInPoolOrFail((int) $id);
+        $this->authorizeFileMutation($this->file);
         $this->selectedFileName = $this->file->name;
         $this->selectedFileExpiresDate = $this->file->expires_at?->format('Y-m-d') ?? '';
-        $this->selectedFileShareRoles = is_array($this->file->shared_roles) ? $this->file->shared_roles : [];
         $this->selectedFileVisibleFrom = $this->file->visible_from?->format('Y-m-d') ?? '';
         $this->selectedFileAutoDelete = (bool) $this->file->auto_delete;
         $this->selectedFileVisibleTeams = array_map('intval', (array) ($this->file->visible_teams ?? []));
@@ -371,11 +353,14 @@ class ManageFilePools extends Component
             'selectedFileVisibleFrom' => ['nullable', 'date'],
         ]);
 
-        if (! $this->file) {
+        if (! $this->file?->id) {
             $this->addError('file', __('app.no_file_selected'));
 
             return;
         }
+
+        $file = $this->findFileInPoolOrFail($this->file->id);
+        $this->authorizeFileMutation($file);
 
         $payload = [
             'name' => $this->selectedFileName,
@@ -388,17 +373,16 @@ class ManageFilePools extends Component
             )),
         ];
 
-        if ($this->allowRoleSharing) {
-            $payload['shared_roles'] = array_values(array_intersect(
-                $this->selectedFileShareRoles,
-                array_keys(File::shareableRoles())
-            ));
+        if ($this->allowTeamPermissions) {
+            // Rollenfreigaben sind im Datei-Explorer abgeloest. Beim naechsten
+            // Speichern wird ein alter Wert entfernt, damit nur Teams wirken.
+            $payload['shared_roles'] = null;
         }
 
-        $this->file->update($payload);
+        $file->update($payload);
 
         $this->reset([
-            'file', 'selectedFileName', 'selectedFileExpiresDate', 'selectedFileShareRoles', 'openEditFileForm',
+            'file', 'selectedFileName', 'selectedFileExpiresDate', 'openEditFileForm',
             'selectedFileVisibleFrom', 'selectedFileAutoDelete', 'selectedFileVisibleTeams',
         ]);
         $this->filePool->refresh();
@@ -473,8 +457,8 @@ class ManageFilePools extends Component
     }
 
     /**
-     * Dateien der aktuellen Explorer-Ebene unter Beruecksichtigung des
-     * Rollenfilters (Ordnerrechte bzw. shared_roles auf Wurzelebene).
+     * Dateien der aktuellen Explorer-Ebene unter Beruecksichtigung der
+     * Team-Sichtbarkeit und Team-Rechte.
      */
     protected function visibleFiles()
     {
@@ -485,10 +469,9 @@ class ManageFilePools extends Component
             ->latest()
             ->get();
 
-        if ($this->roleFilter !== null) {
+        if (! $this->canBypassFileVisibility()) {
             $files = $files->filter(
-                fn (File $file) => $this->fileVisibleForRole($file, 'download')
-                    && $file->isPubliclyVisible(Auth::user())
+                fn (File $file) => Auth::user()?->canAccessFile($file, 'download') === true
             )->values();
         }
 
@@ -515,8 +498,8 @@ class ManageFilePools extends Component
     {
         abort_if($this->readOnly, 403);
 
-        $file = File::findOrFail($fileId);
-        Storage::disk('private')->delete($file->path);
+        $file = $this->findFileInPoolOrFail($fileId);
+        $this->authorizeFileMutation($file);
         $file->delete();
         $this->dispatch('swal:toast', type: 'success', text: __('app.file_deleted'));
     }
@@ -607,6 +590,13 @@ class ManageFilePools extends Component
         abort(403);
     }
 
+    protected function authorizeFileMutation(File $file): void
+    {
+        $pool = FilePool::findOrFail($this->filePoolId);
+
+        $this->authorizeFileMove($pool, $file);
+    }
+
     protected function authorizeSourceFolder(File $file): void
     {
         if (! $file->folder_id) {
@@ -615,10 +605,8 @@ class ManageFilePools extends Component
 
         $sourceFolder = FileFolder::where('file_pool_id', $this->filePoolId)
             ->findOrFail($file->folder_id);
-        $role = $this->roleFilter ?? Auth::user()?->role;
-
         abort_unless(
-            $sourceFolder->allowsForRole($role, 'delete')
+            $sourceFolder->allowsForUser(Auth::user(), 'delete')
                 && $sourceFolder->isPubliclyVisible(Auth::user()),
             403
         );
@@ -632,11 +620,9 @@ class ManageFilePools extends Component
             return;
         }
 
-        $role = $this->roleFilter ?? $user?->role;
-
         abort_unless(
-            $folder->allowsForRole($role, 'view')
-                && $folder->allowsForRole($role, 'delete')
+            $folder->allowsForUser($user, 'view')
+                && $folder->allowsForUser($user, 'delete')
                 && $folder->isPubliclyVisible($user),
             403
         );
@@ -657,6 +643,99 @@ class ManageFilePools extends Component
 
         return collect($currentFolder->breadcrumb())
             ->contains(fn (FileFolder $folder): bool => (int) $folder->id === (int) $targetFolder->id);
+    }
+
+    protected function findFileInPoolOrFail(int $fileId): File
+    {
+        return File::query()
+            ->where('fileable_type', (new FilePool)->getMorphClass())
+            ->where('fileable_id', $this->filePoolId)
+            ->findOrFail($fileId);
+    }
+
+    protected function authorizeFileAccess(File $file, string $action): void
+    {
+        if ($this->canBypassFileVisibility()) {
+            return;
+        }
+
+        abort_unless(Auth::user()?->canAccessFile($file, $action) === true, 403);
+    }
+
+    protected function authorizeFolderView(FileFolder $folder): void
+    {
+        if ($this->canBypassFileVisibility()) {
+            return;
+        }
+
+        $user = Auth::user();
+
+        abort_unless(
+            $user
+                && $this->userCanAccessPool($this->filePool)
+                && $folder->allowsForUser($user, 'view')
+                && $folder->isPubliclyVisible($user),
+            403
+        );
+    }
+
+    protected function userCanAccessPool(?FilePool $pool): bool
+    {
+        $user = Auth::user();
+
+        if (! $pool || ! $user) {
+            return false;
+        }
+
+        if ($this->canBypassFileVisibility()) {
+            return true;
+        }
+
+        if ($pool->filepoolable_type === 'company') {
+            return true;
+        }
+
+        if ($pool->filepoolable_type === User::class) {
+            return (int) $pool->filepoolable_id === (int) $user->id;
+        }
+
+        if ($pool->filepoolable_type === Team::class) {
+            $team = Team::find($pool->filepoolable_id);
+
+            return $team && $user->belongsToTeam($team);
+        }
+
+        return false;
+    }
+
+    protected function canBypassFileVisibility(): bool
+    {
+        $user = Auth::user();
+
+        return (bool) ($user && (
+            $user->isAdmin()
+            || Gate::allows('files.manage')
+            || Gate::allows('users.edit')
+        ));
+    }
+
+    protected function canManageCompanyPermissions(): bool
+    {
+        $user = Auth::user();
+
+        return (bool) ($user && ($user->isAdmin() || Gate::allows('files.manage')));
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    protected function availableTeamIds(): array
+    {
+        return Team::query()
+            ->where('personal_team', false)
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
     }
 
     protected function canMoveFiles(FilePool $pool): bool
@@ -714,7 +793,7 @@ class ManageFilePools extends Component
             $this->currentFolderId = null;
         }
 
-        // Unterordner der aktuellen Ebene (im Rollenmodus nur sichtbare)
+        // Unterordner der aktuellen Ebene (für normale Benutzer nur erlaubte)
         $folders = $filePool
             ? FileFolder::where('file_pool_id', $this->filePoolId)
                 ->where(fn ($q) => $this->currentFolderId === null
@@ -724,14 +803,14 @@ class ManageFilePools extends Component
                 ->get()
             : collect();
 
-        if ($this->roleFilter !== null) {
+        if (! $this->canBypassFileVisibility()) {
             $folders = $folders->filter(
-                fn (FileFolder $folder) => $folder->allowsForRole($this->roleFilter, 'view')
+                fn (FileFolder $folder) => $folder->allowsForUser(Auth::user(), 'view')
                     && $folder->isPubliclyVisible(Auth::user())
             )->values();
         }
 
-        // Dateien der aktuellen Ebene (im Rollenmodus: Ordnerrecht bzw. shared_roles)
+        // Dateien der aktuellen Ebene nach Team-Sichtbarkeit/-Berechtigung.
         $poolFiles = $filePool
             ? $filePool->files()
                 ->where(fn ($q) => $this->currentFolderId === null
@@ -741,10 +820,9 @@ class ManageFilePools extends Component
                 ->get()
             : collect();
 
-        if ($this->roleFilter !== null) {
+        if (! $this->canBypassFileVisibility()) {
             $poolFiles = $poolFiles->filter(
-                fn (File $file) => $this->fileVisibleForRole($file, 'view')
-                    && $file->isPubliclyVisible(Auth::user())
+                fn (File $file) => Auth::user()?->canAccessFile($file, 'view') === true
             )->values();
         }
 

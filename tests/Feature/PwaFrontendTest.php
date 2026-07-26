@@ -18,7 +18,6 @@ class PwaFrontendTest extends TestCase
         $this->buildMinimalRailTimeSchema();
 
         config([
-            'webpush.settings_ui_enabled' => true,
             'webpush.enabled' => false,
             'webpush.test_enabled' => false,
             'webpush.vapid.subject' => 'http://invalid.example.test',
@@ -46,7 +45,7 @@ class PwaFrontendTest extends TestCase
             ->assertDontSee('name="rt-push-account-binding"', escape: false);
     }
 
-    public function test_profile_exposes_app_and_push_tab_only_behind_the_rollout_flag(): void
+    public function test_profile_always_exposes_the_app_and_push_tab(): void
     {
         $user = User::factory()->create();
 
@@ -59,19 +58,20 @@ class PwaFrontendTest extends TestCase
             ->assertSee('railtimePushSettings(', escape: false)
             ->assertSee('name="rt-push-account-binding"', escape: false);
 
-        config(['webpush.settings_ui_enabled' => false]);
-
         $this->actingAs($user)
-            ->get(route('profile.show'))
+            ->get(route('profile.show', ['tab' => 'app']))
             ->assertOk()
-            ->assertDontSee('data-testid="push-settings"', escape: false);
+            ->assertSee(__('app.app_and_push'))
+            ->assertSee('data-testid="push-settings"', escape: false)
+            ->assertSee('data-testid="push-settings-diagnostics"', escape: false)
+            ->assertSee(__('app.help_push_issue_disabled'));
     }
 
     public function test_push_settings_use_the_shared_server_configuration_validator(): void
     {
         $component = file_get_contents(app_path('Livewire/Settings/PushSettings.php'));
 
-        $this->assertStringContainsString('WebPushConfiguration::isConfigured()', $component);
+        $this->assertStringContainsString('WebPushConfiguration::diagnostics()', $component);
         $this->assertStringContainsString('WebPushConfiguration::accountBinding(', $component);
         $this->assertStringNotContainsString("filled(config('webpush.vapid.public_key'))", $component);
         $this->assertStringNotContainsString('privateKey', file_get_contents(

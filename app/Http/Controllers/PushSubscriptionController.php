@@ -17,6 +17,7 @@ class PushSubscriptionController extends Controller
 {
     public function status(Request $request): JsonResponse
     {
+        $diagnostics = WebPushConfiguration::diagnostics();
         $preferences = collect(PushCategory::cases())
             ->mapWithKeys(fn (PushCategory $category): array => [
                 $category->value => (bool) $request->user()
@@ -26,8 +27,10 @@ class PushSubscriptionController extends Controller
             ]);
 
         return response()->json([
-            'enabled' => (bool) config('webpush.enabled'),
-            'configured' => WebPushConfiguration::isConfigured(),
+            'enabled' => $diagnostics['enabled'],
+            'configured' => $diagnostics['configured'],
+            'ready' => $diagnostics['ready'],
+            'configuration_issues' => $diagnostics['issues'],
             'subscription_count' => $request->user()
                 ->pushSubscriptions()
                 ->whereNull('revoked_at')

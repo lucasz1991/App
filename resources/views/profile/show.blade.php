@@ -16,9 +16,7 @@
             $profileTabs['security'] = ['label' => __('app.security'), 'icon' => 'fad fa-shield-alt'];
         }
 
-        if (config('webpush.settings_ui_enabled')) {
-            $profileTabs['app'] = ['label' => __('app.app_and_push'), 'icon' => 'fad fa-mobile-alt'];
-        }
+        $profileTabs['app'] = ['label' => __('app.app_and_push'), 'icon' => 'fad fa-mobile-alt'];
 
         $profileTabs['sessions'] = ['label' => __('app.sessions'), 'icon' => 'fad fa-laptop'];
     @endphp
@@ -91,11 +89,9 @@
                 </x-ui.accordion.tab-panel>
             @endif
 
-            @if (config('webpush.settings_ui_enabled'))
-                <x-ui.accordion.tab-panel for="app" panel-class="space-y-8">
-                    <livewire:settings.push-settings />
-                </x-ui.accordion.tab-panel>
-            @endif
+            <x-ui.accordion.tab-panel for="app" panel-class="space-y-8">
+                <livewire:settings.push-settings />
+            </x-ui.accordion.tab-panel>
 
             <x-ui.accordion.tab-panel for="sessions" panel-class="space-y-8">
                 @livewire('profile.logout-other-browser-sessions-form')

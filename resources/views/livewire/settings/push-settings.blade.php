@@ -51,6 +51,31 @@
                 </p>
             </div>
 
+            @if (! $pushDiagnostics['ready'])
+                <div
+                    class="rounded-xl border border-amber-200 bg-amber-50/80 p-4 text-amber-950 dark:border-amber-900/70 dark:bg-amber-950/35 dark:text-amber-100"
+                    role="status"
+                    data-testid="push-settings-diagnostics"
+                >
+                    <div class="flex items-start gap-3">
+                        <span class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700 dark:bg-amber-900/70 dark:text-amber-200">
+                            <i class="far fa-exclamation-circle" aria-hidden="true"></i>
+                        </span>
+                        <div class="min-w-0">
+                            <h3 class="text-sm font-semibold">{{ __('app.help_push_not_ready_title') }}</h3>
+                            <ul class="mt-1.5 space-y-1 text-xs leading-5 text-amber-900/85 dark:text-amber-100/80">
+                                @foreach ($pushDiagnostics['issues'] as $issue)
+                                    <li class="flex gap-2">
+                                        <span aria-hidden="true">•</span>
+                                        <span>{{ __('app.help_push_issue_'.$issue) }}</span>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            @endif
+
             <div
                 x-cloak
                 x-show="showIosInstallHelp"

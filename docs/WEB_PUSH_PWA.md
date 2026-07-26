@@ -41,7 +41,6 @@ Nachrichten und Chats.
 
    ```dotenv
    WEBPUSH_ENABLED=true
-   WEBPUSH_SETTINGS_UI_ENABLED=true
    WEBPUSH_TEST_ENABLED=false
    WEBPUSH_QUEUE=webpush
    WEBPUSH_DEFAULT_TTL=3600
@@ -121,8 +120,10 @@ Berechtigungspruefung geoeffnet.
 
 1. Zuerst auf Staging mit `WEBPUSH_TEST_ENABLED=true` und einem Testkonto
    pruefen.
-2. Danach `WEBPUSH_ENABLED=true` und `WEBPUSH_SETTINGS_UI_ENABLED=true` fuer
-   eine kleine Pilotgruppe beziehungsweise die Zielumgebung aktivieren.
+2. Danach `WEBPUSH_ENABLED=true` fuer eine kleine Pilotgruppe beziehungsweise
+   die Zielumgebung aktivieren. Der Bereich `Profil -> App & Push` bleibt
+   absichtlich immer sichtbar und nennt bei fehlender Serverkonfiguration die
+   konkrete Voraussetzung.
 3. Den Testversand im Produktivbetrieb wieder mit
    `WEBPUSH_TEST_ENABLED=false` abschalten.
 4. Bei Problemen kann die Zustellung sofort mit `WEBPUSH_ENABLED=false`

@@ -4,7 +4,6 @@ use App\Models\PushSubscription;
 
 return [
     'enabled' => env('WEBPUSH_ENABLED', false),
-    'settings_ui_enabled' => env('WEBPUSH_SETTINGS_UI_ENABLED', false),
     'test_enabled' => env('WEBPUSH_TEST_ENABLED', false),
     'queue' => env('WEBPUSH_QUEUE', 'webpush'),
     'default_ttl' => (int) env('WEBPUSH_DEFAULT_TTL', 3600),
