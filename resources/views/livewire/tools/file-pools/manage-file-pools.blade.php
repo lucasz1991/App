@@ -180,7 +180,7 @@
                   <x-dropdown-link wire:click.prevent="openRenameFolder({{ $folder->id }})">
                     <i class="far fa-cog mr-2"></i>{{ __('app.folder_settings') }}
                   </x-dropdown-link>
-                  @if($allowRoleSharing)
+                  @if($allowTeamPermissions)
                     <x-dropdown-link wire:click.prevent="openPermissions({{ $folder->id }})">
                       <i class="far fa-shield-alt mr-2"></i>{{ __('app.permissions') }}
                     </x-dropdown-link>
@@ -214,19 +214,6 @@
           )"
           :drag-hint-id="'file-pool-drag-hint-'.$filePoolId"
         />
-        @if($allowRoleSharing && ! $file->folder_id)
-          <div class="mt-1 flex flex-wrap gap-1">
-            @forelse($file->shared_roles ?? [] as $sharedRole)
-              <span class="rounded-full bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-700 dark:bg-sky-500/10 dark:text-sky-300">
-                {{ \App\Models\File::shareableRoles()[$sharedRole] ?? $sharedRole }}
-              </span>
-            @empty
-              <span class="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500 dark:bg-slate-700 dark:text-slate-400">
-                {{ __('app.not_shared') }}
-              </span>
-            @endforelse
-          </div>
-        @endif
       </div>
     @empty
       @if($folders->count() === 0)
@@ -255,7 +242,7 @@
           <button type="button" @click="$wire.openRenameFolder(cf); ctx = false" class="{{ $ctxItem }} text-rt-text hover:bg-rt-surface-muted dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted">
             <i class="far fa-cog w-4 text-center"></i>{{ __('app.folder_settings') }}
           </button>
-          @if($allowRoleSharing)
+          @if($allowTeamPermissions)
             <button type="button" @click="$wire.openPermissions(cf); ctx = false" class="{{ $ctxItem }} text-rt-text hover:bg-rt-surface-muted dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted">
               <i class="far fa-shield-alt w-4 text-center"></i>{{ __('app.permissions') }}
             </button>
@@ -327,10 +314,10 @@
             @else
               <div class="mt-2 max-h-40 space-y-2 overflow-y-auto rounded-lg border border-rt-border bg-rt-surface p-3 dark:border-rt-dark-border dark:bg-rt-dark-surface">
                 @foreach($teams as $team)
-                  <x-ui.forms.checkbox
+                  <x-ui.forms.toggle-button
                     :id="'upload-team-'.$team->id"
+                    model="uploadVisibleTeams"
                     :value="$team->id"
-                    wire:model="uploadVisibleTeams"
                     :label="$team->name"
                   />
                 @endforeach
@@ -392,10 +379,10 @@
               @else
                 <div class="mt-2 max-h-40 space-y-2 overflow-y-auto rounded-lg border border-rt-border bg-rt-surface p-3 dark:border-rt-dark-border dark:bg-rt-dark-surface">
                   @foreach($teams as $team)
-                    <x-ui.forms.checkbox
+                    <x-ui.forms.toggle-button
                       :id="'file-team-'.$team->id"
+                      model="selectedFileVisibleTeams"
                       :value="$team->id"
-                      wire:model="selectedFileVisibleTeams"
                       :label="$team->name"
                     />
                   @endforeach
@@ -403,22 +390,6 @@
               @endif
             </div>
 
-            @if($allowRoleSharing && ! $currentFolder)
-              <div>
-                <x-ui.forms.label :value="__('app.shared_for_roles')" />
-                <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.shared_for_roles_hint') }}</p>
-                <div class="mt-2 space-y-2">
-                  @foreach(\App\Models\File::shareableRoles() as $roleKey => $roleLabel)
-                    <x-ui.forms.checkbox
-                      :id="'share-role-'.$roleKey"
-                      value="{{ $roleKey }}"
-                      wire:model="selectedFileShareRoles"
-                      :label="$roleLabel"
-                    />
-                  @endforeach
-                </div>
-              </div>
-            @endif
           </x-ui.accordion.tab-panel>
 
           <x-ui.accordion.tab-panel for="fileDeletion" panel-class="space-y-4 rounded-xl border border-rt-border bg-rt-surface-muted/40 p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/30">
@@ -489,10 +460,10 @@
               @else
                 <div class="mt-2 max-h-40 space-y-2 overflow-y-auto rounded-lg border border-rt-border bg-rt-surface p-3 dark:border-rt-dark-border dark:bg-rt-dark-surface">
                   @foreach($teams as $team)
-                    <x-ui.forms.checkbox
+                    <x-ui.forms.toggle-button
                       :id="'folder-team-'.$team->id"
+                      model="folderVisibleTeams"
                       :value="$team->id"
-                      wire:model="folderVisibleTeams"
                       :label="$team->name"
                     />
                   @endforeach
@@ -528,8 +499,8 @@
       </x-slot>
     </x-dialog-modal>
 
-    {{-- Ordner-Rechte --}}
-    @if($allowRoleSharing)
+    {{-- Team-Rechte für Ordner --}}
+    @if($allowTeamPermissions)
       <x-dialog-modal wire:model="openFolderPermissions" maxWidth="lg">
         <x-slot name="title">{{ __('app.folder_permissions') }}</x-slot>
         <x-slot name="content">
@@ -538,21 +509,24 @@
             <table class="min-w-[34rem] w-full text-sm">
               <thead>
                 <tr class="bg-rt-surface-muted text-left text-xs font-semibold uppercase tracking-wide text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted">
-                  <th class="sticky left-0 z-[1] bg-rt-surface-muted px-3 py-2 dark:bg-rt-dark-surface-muted">{{ __('app.role') }}</th>
+                  <th class="sticky left-0 z-[1] bg-rt-surface-muted px-3 py-2 dark:bg-rt-dark-surface-muted">{{ __('app.team') }}</th>
                   @foreach(\App\Models\FileFolder::permissionActions() as $actionKey => $actionLabel)
                     <th class="px-3 py-2 text-center">{{ $actionLabel }}</th>
                   @endforeach
                 </tr>
               </thead>
               <tbody class="divide-y divide-rt-border dark:divide-rt-dark-border">
-                @foreach(\App\Models\File::shareableRoles() as $roleKey => $roleLabel)
+                @foreach($teams as $team)
                   <tr>
-                    <td class="sticky left-0 bg-rt-surface px-3 py-2 font-medium text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text">{{ $roleLabel }}</td>
+                    <td class="sticky left-0 bg-rt-surface px-3 py-2 font-medium text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text">{{ $team->name }}</td>
                     @foreach(\App\Models\FileFolder::permissionActions() as $actionKey => $actionLabel)
                       <td class="px-3 py-2 text-center">
-                        <input type="checkbox"
-                               wire:model="folderPermissions.{{ $roleKey }}.{{ $actionKey }}"
-                               class="rounded border-slate-300 text-rt-red focus:ring-rt-red/40 dark:border-slate-600 dark:bg-slate-800">
+                        <x-ui.forms.toggle-button
+                          :id="'folder-permission-'.$team->id.'-'.$actionKey"
+                          :model="'folderPermissions.'.$team->id.'.'.$actionKey"
+                          aria-label="{{ $team->name }}: {{ $actionLabel }}"
+                          class="justify-center"
+                        />
                       </td>
                     @endforeach
                   </tr>

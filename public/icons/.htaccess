@@ -1,0 +1,9 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Plesk/Apache may stop inside this existing directory before the parent
+    # front-controller rule sees a missing icon. Keep real assets static and
+    # forward only the explicitly supported PWA filenames to Laravel.
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^(?:pwa-192|pwa-512|pwa-maskable-512|apple-touch-icon-180|push-badge-96)\.png$ ../index.php [L]
+</IfModule>

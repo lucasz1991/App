@@ -160,7 +160,8 @@ Berechtigungspruefung geoeffnet.
   Produktivdomain laden; die Domain muss auf `public` zeigen.
 - `/icons/pwa-192.png` liefert 404: Zuerst pruefen, ob `public/icons` beim
   Deployment uebertragen wurde. Fuer die vom Manifest und Push verwendeten
-  PNGs existiert zusaetzlich eine Laravel-Fallback-Route; damit diese bei einer
-  fehlenden statischen Datei greift, muss die Front-Controller-Regel aus
-  `public/.htaccess` aktiv sein. Die statischen Originaldateien bleiben der
-  bevorzugte Auslieferungsweg.
+  PNGs existiert zusaetzlich eine Laravel-Fallback-Route. Auf Plesk/Apache sorgt
+  `public/icons/.htaccess` dafuer, dass nur fehlende, explizit erlaubte
+  PWA-Dateinamen den Front Controller erreichen; vorhandene Dateien bleiben
+  statisch. Beide `.htaccess`-Dateien muessen deshalb mit ausgerollt sein und
+  `AllowOverride` muss Rewrites zulassen.

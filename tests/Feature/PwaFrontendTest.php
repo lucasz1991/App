@@ -209,9 +209,17 @@ class PwaFrontendTest extends TestCase
     public function test_apache_serves_manifest_type_and_disables_service_worker_caching(): void
     {
         $htaccess = file_get_contents(public_path('.htaccess'));
+        $iconHtaccess = file_get_contents(public_path('icons/.htaccess'));
 
         $this->assertStringContainsString('AddType application/manifest+json .webmanifest', $htaccess);
         $this->assertStringContainsString('<Files "service-worker.js">', $htaccess);
         $this->assertStringContainsString('no-cache, no-store, must-revalidate', $htaccess);
+        $this->assertStringContainsString('RewriteCond %{REQUEST_FILENAME} !-f', $iconHtaccess);
+        $this->assertStringContainsString(
+            '^(?:pwa-192|pwa-512|pwa-maskable-512|apple-touch-icon-180|push-badge-96)\.png$',
+            $iconHtaccess,
+        );
+        $this->assertStringContainsString('../index.php [L]', $iconHtaccess);
+        $this->assertStringNotContainsString('RewriteRule ^ ', $iconHtaccess);
     }
 }
