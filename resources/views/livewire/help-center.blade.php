@@ -157,7 +157,7 @@
             {{-- Installieren und testen direkt hier, nicht nur als Verweis ins
                  Profil. Nutzt die bestehende, getestete Push-Komponente. --}}
             <div class="border-b border-rt-border/60 p-4 dark:border-rt-dark-border/60 sm:p-6">
-                <livewire:settings.push-settings />
+                <livewire:settings.push-settings :show-test="true" />
             </div>
 
             <div class="grid gap-px bg-rt-border/60 lg:grid-cols-3 dark:bg-rt-dark-border/60">

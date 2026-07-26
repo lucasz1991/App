@@ -8,6 +8,13 @@ use Livewire\Component;
 
 class PushSettings extends Component
 {
+    /**
+     * Testversand anzeigen. Im Profil bewusst aus: dort ist das Panel absichtlich
+     * reduziert (siehe PwaFrontendTest). Die Hilfeseite setzt die Flagge, weil
+     * "installieren und testen" dort der eigentliche Zweck ist.
+     */
+    public bool $showTest = false;
+
     public function render(): View
     {
         $pushDiagnostics = WebPushConfiguration::diagnostics();

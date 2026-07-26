@@ -91,9 +91,11 @@
                     {{ __('app.push_disable_device') }}
                 </button>
 
-                {{-- Testversand. sendTest() gab es in resources/js/pwa.js schon
-                     lange, war aber nirgends gerendert — und config.urls.test
-                     fehlte, sodass der Aufruf ins Leere gelaufen waere. --}}
+                {{-- Testversand, nur wo ausdruecklich gewuenscht (Hilfeseite).
+                     sendTest() gab es in resources/js/pwa.js schon lange, war
+                     aber nirgends gerendert — und config.urls.test fehlte, sodass
+                     der Aufruf ins Leere gelaufen waere. --}}
+                @if ($showTest)
                 <button
                     x-cloak
                     x-show.important="canUnsubscribe"
@@ -106,6 +108,7 @@
                     <span x-show.important="busy !== 'test'">{{ __('app.push_send_test') }}</span>
                     <span x-cloak x-show.important="busy === 'test'">{{ __('app.push_enabling') }}</span>
                 </button>
+                @endif
             </div>
 
             <div aria-live="polite" class="space-y-2">
