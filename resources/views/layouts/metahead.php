@@ -2,4 +2,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
     <meta content="RailTime App" name="description" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <link rel="icon" type="image/svg+xml" href="<?php echo asset('rt-brand/rt-logo.svg'); ?>" />
+<?php /* Favicons stehen zentral in layouts/icon-head.blade.php. Die frueher hier
+   deklarierte rt-logo.svg war transparent und randlos: auf dunkler
+   Browserleiste verschwand das anthrazitfarbene T, und als zweite
+   SVG-Deklaration konkurrierte sie mit der zentralen Icon-Kette. */ ?>

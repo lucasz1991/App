@@ -88,6 +88,9 @@
             <livewire:tools.file-pools.file-preview-modal />
         @endauth
         <!-- script -->
+        {{-- EIN globales Infomodal fuer alle Info-Buttons dieser Seite. --}}
+        <x-ui.info-modal />
+
         @include('layouts.vendor-scripts')
         <!-- Scripts -->
         @vite(['resources/js/app.js'])

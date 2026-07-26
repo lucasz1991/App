@@ -430,7 +430,7 @@
 
                                     <button
                                         x-cloak
-                                        x-show="draft.trim().length === 0 && !@js($uploads !== [])"
+                                        x-show.important="draft.trim().length === 0 && !@js($uploads !== [])"
                                         type="button"
                                         @click="startRecording()"
                                         title="{{ __('app.voice_message') }}"

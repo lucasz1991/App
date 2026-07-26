@@ -15,5 +15,8 @@
             {{ $slot }}
         </main>
         @livewireScriptConfig
+        {{-- EIN globales Infomodal fuer alle Info-Buttons dieser Seite. --}}
+        <x-ui.info-modal />
+
     </body>
 </html>

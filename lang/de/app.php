@@ -996,4 +996,8 @@ return [
     'error_500_text' => 'Da ist etwas schiefgelaufen. Das Problem wurde protokolliert.',
     'error_503_title' => 'Wartungsarbeiten',
     'error_503_text' => 'Die Anwendung ist kurzzeitig nicht verfuegbar. Bitte versuchen Sie es spaeter erneut.',
+
+    // Globales Infomodal
+    'about_this_page' => 'Über diese Seite',
+    'open_all_help_topics' => 'Alle Hilfethemen öffnen',
 ];

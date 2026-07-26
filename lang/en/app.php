@@ -996,4 +996,8 @@ return [
     'error_500_text' => 'Something went wrong. The problem has been logged.',
     'error_503_title' => 'Maintenance',
     'error_503_text' => 'The application is briefly unavailable. Please try again later.',
+
+    // Globales Infomodal
+    'about_this_page' => 'About this page',
+    'open_all_help_topics' => 'Open all help topics',
 ];

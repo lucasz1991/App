@@ -50,7 +50,7 @@
          (Desktop-Sichtbarkeit wird per CSS erzwungen, siehe app.css) --}}
     <div
         id="{{ $panelId }}"
-        x-show="filtersOpen"
+        x-show.important="filtersOpen"
         x-collapse
         x-cloak
         class="rt-toolbar-filters flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center lg:ml-auto"

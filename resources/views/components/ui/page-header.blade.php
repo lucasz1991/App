@@ -42,48 +42,6 @@
         @endif
     </div>
 
-    @if ($help)
-        <div
-            x-show="pageHelpOpen"
-            x-cloak
-            x-transition.opacity.duration.200ms
-            class="fixed inset-0 z-[500] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="page-help-title"
-            x-on:click.self="pageHelpOpen = false"
-        >
-            <section
-                x-transition:enter="transition duration-250 ease-out"
-                x-transition:enter-start="translate-y-3 scale-[0.98] opacity-0"
-                x-transition:enter-end="translate-y-0 scale-100 opacity-100"
-                class="w-full max-w-lg overflow-hidden rounded-2xl bg-rt-surface shadow-rt-lg ring-1 ring-rt-border dark:bg-rt-dark-surface dark:ring-rt-dark-border"
-            >
-                <header class="flex items-start justify-between gap-4 border-b border-rt-border/70 px-5 py-4 dark:border-rt-dark-border/70">
-                    <div>
-                        <p class="text-[10px] font-semibold uppercase tracking-[0.16em] text-rt-red">{{ app()->getLocale() === 'de' ? 'Über diese Seite' : 'About this page' }}</p>
-                        <h2 id="page-help-title" class="mt-1 text-lg font-semibold text-rt-text dark:text-white">{{ $help['title'] }}</h2>
-                    </div>
-                    <button type="button" x-on:click="pageHelpOpen = false" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-rt-muted transition hover:bg-rt-surface-muted hover:text-rt-text dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted dark:hover:text-white" aria-label="{{ __('app.close') }}">
-                        <i class="far fa-times" aria-hidden="true"></i>
-                    </button>
-                </header>
-                <div class="px-5 py-5">
-                    <p class="text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">{{ $help['summary'] }}</p>
-                    <ul class="mt-4 space-y-3">
-                        @foreach ($help['points'] as $point)
-                            <li class="flex gap-3 text-sm leading-6 text-rt-text dark:text-rt-dark-text">
-                                <i class="far fa-check-circle mt-1 shrink-0 text-rt-accent dark:text-rt-dark-accent" aria-hidden="true"></i>
-                                <span>{{ $point }}</span>
-                            </li>
-                        @endforeach
-                    </ul>
-                    <a href="{{ route('help') }}" wire:navigate class="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-rt-red hover:text-rt-red-dark">
-                        <i class="far fa-life-ring" aria-hidden="true"></i>
-                        {{ app()->getLocale() === 'de' ? 'Alle Hilfethemen öffnen' : 'Open all help topics' }}
-                    </a>
-                </div>
-            </section>
-        </div>
-    @endif
+    {{-- Kein eigener Dialog mehr an dieser Stelle: der Inhalt wird an das
+         globale x-ui.info-modal geschickt (siehe Button oben). --}}
 </header>
