@@ -6,13 +6,18 @@ use App\Models\ChatMessage;
 use Livewire\Component;
 use App\Models\File;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
+use Illuminate\Support\Facades\Gate;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class FilePreviewModal extends Component
 {
     public bool $open = false;
+
+    #[Locked]
     public ?int $fileId = null;
+
     public ?File $file = null;
 
     #[On('filepool:preview')] // Livewire-Event (PHP -> PHP / JS -> PHP)
@@ -24,7 +29,7 @@ class FilePreviewModal extends Component
     public function downloadFile(int $fileId): StreamedResponse
     {
         $file = File::findOrFail($fileId);
-        $this->ensureCanAccess($file);
+        $this->ensureCanAccess($file, 'download');
 
         return $file->download($file->disk ?: 'private', denyExpired: $file->fileable_type !== ChatMessage::class);
     }
@@ -56,6 +61,8 @@ class FilePreviewModal extends Component
             return null;
         }
 
+        $this->ensureCanAccess($this->file);
+
         if ($this->file->fileable_type === ChatMessage::class) {
             return route('chat.attachments', ['file' => $this->file]);
         }
@@ -63,9 +70,21 @@ class FilePreviewModal extends Component
         return $this->file->getEphemeralPublicUrl();
     }
 
-    protected function ensureCanAccess(File $file): void
+    protected function ensureCanAccess(File $file, string $action = 'view'): void
     {
         if ($file->fileable_type !== ChatMessage::class) {
+            $user = auth()->user();
+
+            abort_unless($user, 403);
+
+            if ($user->isAdmin()
+                || Gate::forUser($user)->allows('files.manage')
+                || Gate::forUser($user)->allows('users.edit')) {
+                return;
+            }
+
+            abort_unless($user->canAccessFile($file, $action), 403);
+
             return;
         }
 

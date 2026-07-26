@@ -49,8 +49,6 @@ class ManageFilePools extends Component
 
     public string $selectedFileExpiresDate;
 
-    public array $selectedFileShareRoles = [];
-
     /** Datei-Sichtbarkeit (Zeitfenster ab / Auto-Loeschung / Teams) */
     public string $selectedFileVisibleFrom = '';
 
@@ -72,13 +70,9 @@ class ManageFilePools extends Component
     #[Locked]
     public bool $readOnly = true;
 
-    /** Freigabe pro Datei fuer Rollen aktivieren (zentrale Dateiverwaltung) */
+    /** Team-Berechtigungen fuer die zentrale Dateiverwaltung aktivieren. */
     #[Locked]
-    public bool $allowRoleSharing = false;
-
-    /** Nur Dateien anzeigen, die fuer diese Rolle freigegeben sind */
-    #[Locked]
-    public ?string $roleFilter = null;
+    public bool $allowTeamPermissions = false;
 
     /** Explorer: aktuell geoeffneter Ordner (null = Wurzel) */
     #[Locked]
@@ -100,7 +94,7 @@ class ManageFilePools extends Component
 
     public array $folderVisibleTeams = [];
 
-    /** Ordner-Rechte (Rolle => Aktion => bool) */
+    /** Ordner-Rechte (Team-ID => Aktion => bool) */
     public bool $openFolderPermissions = false;
 
     public ?int $permissionsFolderId = null;
@@ -112,8 +106,7 @@ class ManageFilePools extends Component
         ?int $modelId = null,
         bool $readOnly = true,
         ?int $poolId = null,
-        bool $allowRoleSharing = false,
-        ?string $roleFilter = null,
+        bool $allowTeamPermissions = false,
     ): void {
         if ($modelType === Team::class && $modelId !== null) {
             abort_unless(Auth::user()?->belongsToTeam(Team::findOrFail($modelId)), 403);
@@ -138,8 +131,7 @@ class ManageFilePools extends Component
         $this->openFileForm = false;
         $this->openEditFileForm = false;
         $this->readOnly = $readOnly;
-        $this->allowRoleSharing = $allowRoleSharing;
-        $this->roleFilter = $roleFilter;
+        $this->allowTeamPermissions = $allowTeamPermissions;
     }
 
     /* ------------------------------------------------------------------
@@ -148,7 +140,7 @@ class ManageFilePools extends Component
 
     /**
      * In einen Ordner wechseln (null = Wurzel). Prueft Pool-Zugehoerigkeit
-     * und — im Rollenmodus — das Ansehen-Recht des Ordners.
+     * und fuer normale Benutzer die Team-Berechtigung des Ordners.
      */
     public function enterFolder(?int $folderId = null): void
     {
@@ -160,13 +152,7 @@ class ManageFilePools extends Component
 
         $folder = FileFolder::where('file_pool_id', $this->filePoolId)->findOrFail($folderId);
 
-        if ($this->roleFilter !== null && ! $folder->allowsForRole($this->roleFilter, 'view')) {
-            abort(403);
-        }
-
-        if ($this->roleFilter !== null && ! $folder->isPubliclyVisible(Auth::user())) {
-            abort(403);
-        }
+        $this->authorizeFolderView($folder);
 
         $this->currentFolderId = $folder->id;
     }
@@ -253,7 +239,8 @@ class ManageFilePools extends Component
 
     public function openPermissions(int $folderId): void
     {
-        abort_if($this->readOnly || ! $this->allowRoleSharing, 403);
+        abort_if($this->readOnly || ! $this->allowTeamPermissions, 403);
+        abort_unless($this->canManageCompanyPermissions(), 403);
 
         $folder = FileFolder::where('file_pool_id', $this->filePoolId)->findOrFail($folderId);
         $this->permissionsFolderId = $folder->id;
@@ -261,9 +248,9 @@ class ManageFilePools extends Component
         $stored = is_array($folder->permissions) ? $folder->permissions : [];
         $this->folderPermissions = [];
 
-        foreach (array_keys(File::shareableRoles()) as $role) {
+        foreach ($this->availableTeamIds() as $teamId) {
             foreach (array_keys(FileFolder::permissionActions()) as $action) {
-                $this->folderPermissions[$role][$action] = (bool) ($stored[$role][$action] ?? false);
+                $this->folderPermissions[$teamId][$action] = (bool) ($stored[$teamId][$action] ?? false);
             }
         }
 
@@ -272,14 +259,15 @@ class ManageFilePools extends Component
 
     public function savePermissions(): void
     {
-        abort_if($this->readOnly || ! $this->allowRoleSharing, 403);
+        abort_if($this->readOnly || ! $this->allowTeamPermissions, 403);
+        abort_unless($this->canManageCompanyPermissions(), 403);
 
         $folder = FileFolder::where('file_pool_id', $this->filePoolId)->findOrFail($this->permissionsFolderId);
 
         $payload = [];
-        foreach (array_keys(File::shareableRoles()) as $role) {
+        foreach ($this->availableTeamIds() as $teamId) {
             foreach (array_keys(FileFolder::permissionActions()) as $action) {
-                $payload[$role][$action] = (bool) ($this->folderPermissions[$role][$action] ?? false);
+                $payload[$teamId][$action] = (bool) ($this->folderPermissions[$teamId][$action] ?? false);
             }
         }
 

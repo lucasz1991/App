@@ -17,6 +17,7 @@ import './gsap';
 import { wagonListPrototype } from './wagon-list-prototype';
 import { registerRailtimePushSettings, setupRailtimePwa } from './pwa';
 import { createNotificationSeenCache } from './notification-seen-cache';
+import { incomingNotificationSound } from './realtime-notification-sound';
 
 const loadAdminDashboardECharts = () => import('./admin-dashboard-echarts');
 const rtSeenNotifications = createNotificationSeenCache(window);
@@ -219,11 +220,6 @@ Alpine.data('chatRealtime', (config) => ({
     init() {
         this.recordingLabel = '0:00';
 
-        // Aktiven Chat global markieren: der User-Channel-Listener und der
-        // Polling-Fallback unterdruecken damit den Nachrichtenton fuer den
-        // gerade sichtbaren Chat (die Nachricht erscheint dort ohnehin sofort).
-        window.__rtOpenChatId = config.chatId ? Number(config.chatId) : null;
-
         if (!window.Echo || !config.chatId) {
             return;
         }
@@ -261,12 +257,6 @@ Alpine.data('chatRealtime', (config) => ({
             this.recorder.stop();
         }
         this.stopRecordingTracks();
-
-        // Marker nur zuruecksetzen, wenn nicht schon ein neuer Chat-Wechsel
-        // (init der Folge-Instanz) ihn ueberschrieben hat.
-        if (window.__rtOpenChatId === (config.chatId ? Number(config.chatId) : null)) {
-            window.__rtOpenChatId = null;
-        }
 
         if (window.Echo && config.chatId) {
             window.Echo.leave(`chat.${config.chatId}`);
@@ -944,10 +934,6 @@ function rtHandleIncomingNotification(payload, source = 'echo') {
     const category = payload.category === 'chat' ? 'chat' : 'messages';
     const notificationId = String(payload.notification_id || '').trim();
     const chatId = category === 'chat' ? rtChatIdFromNotification(payload) : 0;
-    const isOpenChat = chatId > 0
-        && chatId === window.__rtOpenChatId
-        && document.hasFocus()
-        && !document.hidden;
     const mayToast = source === 'service-worker'
         || (document.visibilityState === 'visible' && document.hasFocus());
 
@@ -957,7 +943,7 @@ function rtHandleIncomingNotification(payload, source = 'echo') {
                 type: 'info',
                 title: payload.title,
                 text: payload.body || '',
-                sound: isOpenChat ? false : 'message',
+                sound: incomingNotificationSound(category),
             },
         }));
     }
@@ -1003,8 +989,6 @@ rtForegroundPushHandler = (payload) => {
             const title = lang.newChatMessage || 'Neue Chatnachricht';
             const text = event.from ? `${lang.from || 'Von'}: ${event.from}` : '';
 
-            // Der aktiv sichtbare Chat zeigt die Nachricht sofort selbst an —
-            // dafuer keinen Ton spielen (der Toast bleibt als dezenter Hinweis).
             rtHandleIncomingNotification({
                 notification_id: event.notification_id || `chat-message:${event.messageId}`,
                 category: 'chat',
@@ -1035,20 +1019,8 @@ window.addEventListener('rt:inbox-increased', (event) => {
         return;
     }
 
-    // Reiner Chat-Anstieg, waehrend die Chat-Seite sichtbar im Fokus ist:
-    // Der 5s-pollTick zeigt die Nachricht dort gerade selbst an — der 60s-
-    // Posteingangs-Poll darf dann nicht nachtraeglich klingeln.
     const source = event.detail?.source || 'both';
-    if (
-        source === 'chat'
-        && window.__rtOpenChatId != null
-        && document.hasFocus()
-        && !document.hidden
-    ) {
-        return;
-    }
-
-    window.RTSound?.play('message');
+    window.RTSound?.play(incomingNotificationSound(source));
 });
 
 window.Swiper = Swiper;

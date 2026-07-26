@@ -21,9 +21,8 @@ class UserDashboard extends Component
      */
     public function downloadFile(int $fileId): StreamedResponse
     {
-        abort_unless(in_array($fileId, auth()->user()->availableFileIds(), true), 403);
-
         $file = File::findOrFail($fileId);
+        abort_unless(auth()->user()->canAccessFile($file, 'download'), 403);
 
         return $file->download($file->disk ?: 'private');
     }

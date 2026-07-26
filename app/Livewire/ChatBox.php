@@ -47,6 +47,14 @@ class ChatBox extends Component
 
     public array $groupParticipants = [];
 
+    /**
+     * Letzte fremde Nachricht des offenen Chats. Der Ausgangswert wird beim
+     * Oeffnen gesetzt, damit alte Nachrichten keinen Ton ausloesen. So kann
+     * pollTick ohne Reverb neue Eingaenge erkennen, bevor er sie als gelesen
+     * markiert.
+     */
+    public int $latestIncomingMessageId = 0;
+
     protected $listeners = ['refreshComponent' => '$refresh'];
 
     /** Beim Einstieg den zuletzt geoeffneten, weiterhin erlaubten Chat anzeigen. */
@@ -84,6 +92,7 @@ class ChatBox extends Component
 
         $this->selectedChatId = $chat->id;
         $this->messageText = '';
+        $this->latestIncomingMessageId = $this->latestIncomingMessageIdFor($chat);
 
         $chat->participants()->updateExistingPivot(auth()->id(), ['last_opened_at' => now()]);
         $this->markChatRead($chat);
@@ -313,6 +322,7 @@ class ChatBox extends Component
         }
 
         $chat = $this->myChat($chatId);
+        $this->latestIncomingMessageId = $this->latestIncomingMessageIdFor($chat);
         $this->markChatRead($chat);
         $this->dispatch('inbox:refresh');
         $this->dispatch('chat:scroll-bottom');
@@ -367,12 +377,32 @@ class ChatBox extends Component
         $this->openChat($chat->id);
     }
 
-    /** Beim Polling: offenen Chat als gelesen markieren. */
+    /**
+     * Beim Polling neue fremde Nachrichten melden und den offenen Chat danach
+     * als gelesen markieren. Der Browser spielt das Event nur ab, wenn keine
+     * Reverb-Verbindung aktiv ist; Echo/Foreground-Push bleiben damit frei von
+     * Doppeltoenen.
+     */
     public function pollTick(): void
     {
         if ($this->selectedChatId) {
-            $this->markChatRead($this->myChat($this->selectedChatId));
+            $chat = $this->myChat($this->selectedChatId);
+            $latestIncomingMessageId = $this->latestIncomingMessageIdFor($chat);
+
+            if ($latestIncomingMessageId > $this->latestIncomingMessageId) {
+                $this->dispatch('rt:inbox-increased', source: 'chat');
+            }
+
+            $this->latestIncomingMessageId = $latestIncomingMessageId;
+            $this->markChatRead($chat);
         }
+    }
+
+    protected function latestIncomingMessageIdFor(Chat $chat): int
+    {
+        return (int) ($chat->messages()
+            ->where('user_id', '!=', auth()->id())
+            ->max('id') ?? 0);
     }
 
     protected function markChatRead(Chat $chat): void

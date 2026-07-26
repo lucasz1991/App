@@ -144,8 +144,11 @@ Berechtigungspruefung geoeffnet.
 
 ## Fehlersuche
 
-- `configured: false`: VAPID-Schluessel oder ein gueltiges `VAPID_SUBJECT`
-  fehlen; danach `php artisan config:clear` ausfuehren.
+- `Push-Server: Nicht bereit`: Die Hilfe-Seite nennt jetzt die konkret fehlende
+  Voraussetzung, ohne Schluesselwerte auszugeben. Hauefig sind
+  `WEBPUSH_ENABLED`, ein VAPID-Schluessel oder ein gueltiges `VAPID_SUBJECT`
+  noch nicht in der aktiven Serverkonfiguration angekommen. Nach Aenderungen
+  `php artisan optimize:clear && php artisan config:cache` ausfuehren.
 - Keine zeitnahe Zustellung: dauerhaften Queue-Worker und dessen Queue-Liste
   `webpush,default` pruefen.
 - iPhone bietet keine Freigabe: App vom Home-Bildschirm starten und HTTPS sowie
@@ -154,3 +157,9 @@ Berechtigungspruefung geoeffnet.
   no-store, must-revalidate` fuer `service-worker.js` pruefen.
 - Installation fehlt: Manifest und Icons ueber die tatsaechliche
   Produktivdomain laden; die Domain muss auf `public` zeigen.
+- `/icons/pwa-192.png` liefert 404: Zuerst pruefen, ob `public/icons` beim
+  Deployment uebertragen wurde. Fuer die vom Manifest und Push verwendeten
+  PNGs existiert zusaetzlich eine Laravel-Fallback-Route; damit diese bei einer
+  fehlenden statischen Datei greift, muss die Front-Controller-Regel aus
+  `public/.htaccess` aktiv sein. Die statischen Originaldateien bleiben der
+  bevorzugte Auslieferungsweg.

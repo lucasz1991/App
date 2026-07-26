@@ -381,7 +381,7 @@ class User extends Authenticatable
     /**
      * Alle dem Benutzer bereitgestellten Dateien, gruppiert nach Herkunft:
      *  - 'personal': persoenlicher Pool (vom Admin im Profil hinzugefuegt)
-     *  - 'company':  firmenweite Freigaben (per Rolle ODER per Team sichtbar)
+     *  - 'company':  firmenweite Freigaben für die Teams des Benutzers
      *  - 'teams':    Standard-Downloads der Teams des Benutzers
      * Beruecksichtigt nur sichtbare (Zeitfenster + Team) und nicht abgelaufene
      * Dateien; neueste zuerst.
@@ -391,27 +391,16 @@ class User extends Authenticatable
     public function availableFilesGrouped(): array
     {
         $me = $this;
-        $visible = fn (File $file) => $file->isPubliclyVisible($me) && ! $file->isExpired();
+        $visible = fn (File $file) => $me->canAccessFile($file, 'view');
 
         // Persoenlicher Pool
         $personal = ($this->filePool?->files()->latest()->get() ?? collect())
             ->filter($visible)->values();
 
-        // Firmen-Freigaben: rollen- ODER teambasiert freigegeben
-        $company = FilePool::company()->files()->latest()->get()->filter(function (File $file) use ($me, $visible) {
-            if (! $visible($file)) {
-                return false;
-            }
-
-            if ($file->folder_id) {
-                $folder = $file->folder;
-
-                return $folder && $folder->allowsForRole($me->role, 'view');
-            }
-
-            // Wurzeldatei: per Rolle freigegeben ODER gezielt fuer ein Team sichtbar
-            return $file->isSharedWithRole($me->role) || ! empty($file->visible_teams);
-        })->values();
+        // Firmen-Freigaben: ausschließlich teambezogene Sichtbarkeit/Rechte.
+        $company = FilePool::company()->files()->latest()->get()
+            ->filter($visible)
+            ->values();
 
         // Team-Pools
         $teams = [];
@@ -427,6 +416,60 @@ class User extends Authenticatable
         }
 
         return ['personal' => $personal, 'company' => $company, 'teams' => $teams];
+    }
+
+    /**
+     * Zentraler Zugriffstest für Dateien aus Datei-Pools.
+     *
+     * Firmen-Dateien werden über Team-Sichtbarkeit und – sofern sie in einem
+     * Ordner liegen – über dessen Team-Rechtematrix autorisiert. Persönliche
+     * Pools bleiben beim Zielbenutzer, Team-Pools bei ihren Mitgliedern.
+     */
+    public function canAccessFile(File $file, string $action = 'view'): bool
+    {
+        if (! in_array($action, array_keys(FileFolder::permissionActions()), true)) {
+            return false;
+        }
+
+        if (! $file->isPubliclyVisible($this) || $file->isExpired()) {
+            return false;
+        }
+
+        if ($file->folder_id) {
+            $folder = $file->folder;
+
+            if (! $folder
+                || ! $folder->isPubliclyVisible($this)
+                || ! $folder->allowsForUser($this, $action)) {
+                return false;
+            }
+        }
+
+        if ($file->fileable_type !== (new FilePool)->getMorphClass()) {
+            return false;
+        }
+
+        $pool = FilePool::find($file->fileable_id);
+
+        if (! $pool) {
+            return false;
+        }
+
+        if ($pool->filepoolable_type === 'company') {
+            return true;
+        }
+
+        if ($pool->filepoolable_type === static::class) {
+            return (int) $pool->filepoolable_id === (int) $this->id;
+        }
+
+        if ($pool->filepoolable_type === Team::class) {
+            $team = Team::find($pool->filepoolable_id);
+
+            return $team && $this->belongsToTeam($team);
+        }
+
+        return false;
     }
 
     /**

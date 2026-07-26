@@ -33,14 +33,18 @@ class HelpCenter extends Component
             ->values();
         $appHost = (string) parse_url((string) config('app.url'), PHP_URL_HOST);
         $appScheme = (string) parse_url((string) config('app.url'), PHP_URL_SCHEME);
+        $webPushDiagnostics = WebPushConfiguration::diagnostics();
 
         return view('livewire.help-center', [
             'topics' => $topics,
             'pushStatus' => [
-                'enabled' => (bool) config('webpush.enabled'),
-                'configured' => WebPushConfiguration::isConfigured(),
+                ...$webPushDiagnostics,
                 'activeDevices' => $user->pushSubscriptions()->whereNull('revoked_at')->count(),
-                'queue' => (string) config('queue.default'),
+                'queue' => implode(' · ', array_filter([
+                    (string) config('queue.default'),
+                    (string) config('webpush.queue'),
+                ])),
+                'configurationCached' => app()->configurationIsCached(),
                 'phoneReadyUrl' => $appScheme === 'https'
                     && ! in_array($appHost, ['127.0.0.1', 'localhost', '::1'], true),
             ],

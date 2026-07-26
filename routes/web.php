@@ -4,8 +4,10 @@ use App\Http\Controllers\Auth\InvitedRegistrationController;
 use App\Http\Controllers\ChatAttachmentController;
 use App\Http\Controllers\ManagedDocumentDownloadController;
 use App\Http\Controllers\ProfileEmailTemplateController;
+use App\Http\Controllers\PwaIconController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\WagonListExportController;
+use App\Http\Middleware\LogActivity;
 use App\Http\Middleware\RedirectAdminWagonList;
 use App\Livewire\Admin\Dashboard;
 use App\Livewire\Admin\Employees;
@@ -22,8 +24,14 @@ use App\Livewire\MessageBox;
 use App\Livewire\Operations\WagonListPrototype;
 use App\Livewire\UserDashboard;
 use App\Livewire\UserFiles;
+use App\Support\Pwa\PwaIcon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+
+Route::get('/icons/{icon}', PwaIconController::class)
+    ->whereIn('icon', array_keys(PwaIcon::DIMENSIONS))
+    ->withoutMiddleware(LogActivity::class)
+    ->name('pwa.icon');
 
 Route::get('/', function () {
     if (auth()->check()) {

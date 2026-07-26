@@ -28,7 +28,7 @@ class FileFolder extends Model
     ];
 
     /**
-     * Aktionen, für die je Rolle Rechte vergeben werden können.
+     * Aktionen, die je Team vergeben werden können.
      *
      * @return array<string, string>
      */
@@ -62,13 +62,20 @@ class FileFolder extends Model
     }
 
     /**
-     * Prüft, ob eine Rolle die Aktion in diesem Ordner ausführen darf.
-     * Ohne gesetzte Rechte (null) ist der Ordner für alle freigegeben.
-     * Rollen außer admin/staff zählen als 'user'; Admins dürfen immer alles.
+     * Prüft, ob mindestens eines der Teams des Benutzers die Aktion in diesem
+     * Ordner ausführen darf. Ohne gespeicherte Matrix ist der Ordner
+     * uneingeschränkt. Admins dürfen immer alles.
+     *
+     * Die Matrix verwendet Team-IDs als Schlüssel:
+     * [team_id => ['view' => bool, 'download' => bool, 'delete' => bool]]
      */
-    public function allowsForRole(?string $role, string $action): bool
+    public function allowsForUser(?User $user, string $action): bool
     {
-        if ($role === 'admin') {
+        if (! array_key_exists($action, static::permissionActions())) {
+            return false;
+        }
+
+        if ($user?->isAdmin()) {
             return true;
         }
 
@@ -78,15 +85,26 @@ class FileFolder extends Model
             return true;
         }
 
-        $normalized = in_array($role, ['admin', 'staff'], true) ? $role : 'user';
+        if (! $user) {
+            return false;
+        }
 
-        return (bool) ($permissions[$normalized][$action] ?? false);
+        return $user->allTeams()
+            ->where('personal_team', false)
+            ->contains(function (Team $team) use ($permissions, $action): bool {
+                $teamPermissions = $permissions[(string) $team->id]
+                    ?? $permissions[$team->id]
+                    ?? null;
+
+                return is_array($teamPermissions)
+                    && (bool) ($teamPermissions[$action] ?? false);
+            });
     }
 
     /* ------------------------------------------------------------------
      * Sichtbarkeit: Zeitfenster (visible_from/visible_until) + Team-Freigabe
-     * (visible_teams). Greift zusaetzlich zu den Rollen-Rechten und nur im
-     * nutzerseitigen Rollenmodus; Admins/Verwaltung sehen im Management alles.
+     * (visible_teams). Greift zusätzlich zu den Team-Rechten; Admins sehen
+     * immer alles.
      * ----------------------------------------------------------------*/
 
     /** Liegt "jetzt" innerhalb des Sichtbarkeitsfensters? */

@@ -161,8 +161,8 @@
                 <dl class="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                     <div class="rounded-xl bg-rt-surface-muted p-3 dark:bg-rt-dark-surface-muted">
                         <dt class="text-[10px] font-semibold uppercase tracking-[0.14em] text-rt-soft dark:text-rt-dark-soft">{{ __('app.help_push_server') }}</dt>
-                        <dd class="mt-1 text-sm font-semibold {{ $pushStatus['enabled'] && $pushStatus['configured'] ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300' }}">
-                            {{ $pushStatus['enabled'] && $pushStatus['configured'] ? __('app.ready') : __('app.not_ready') }}
+                        <dd class="mt-1 text-sm font-semibold {{ $pushStatus['ready'] ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300' }}">
+                            {{ $pushStatus['ready'] ? __('app.ready') : __('app.not_ready') }}
                         </dd>
                     </div>
                     <div class="rounded-xl bg-rt-surface-muted p-3 dark:bg-rt-dark-surface-muted">
@@ -180,6 +180,40 @@
                         </dd>
                     </div>
                 </dl>
+
+                @if (! $pushStatus['ready'])
+                    <div
+                        class="mt-3 rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-amber-950 dark:border-amber-900/70 dark:bg-amber-950/35 dark:text-amber-100"
+                        role="status"
+                        data-testid="push-server-diagnostics"
+                    >
+                        <div class="flex items-start gap-3">
+                            <span class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700 dark:bg-amber-900/70 dark:text-amber-200">
+                                <i data-feather="alert-circle" class="h-4 w-4"></i>
+                            </span>
+                            <div class="min-w-0">
+                                <p class="text-sm font-semibold">{{ __('app.help_push_not_ready_title') }}</p>
+                                <ul class="mt-1.5 space-y-1 text-xs leading-5 text-amber-900/85 dark:text-amber-100/80">
+                                    @foreach ($pushStatus['issues'] as $issue)
+                                        <li class="flex gap-2">
+                                            <span aria-hidden="true">•</span>
+                                            <span>{{ __('app.help_push_issue_'.$issue) }}</span>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                                @if ($pushStatus['configurationCached'])
+                                    <p class="mt-2 text-xs leading-5 text-amber-900/70 dark:text-amber-100/65">
+                                        {{ __('app.help_push_config_cache_hint') }}
+                                    </p>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+                @endif
+
+                <p class="mt-3 text-xs leading-5 text-rt-soft dark:text-rt-dark-soft">
+                    {{ __('app.help_push_queue_worker_hint', ['queue' => config('webpush.queue')]) }}
+                </p>
             </div>
         </section>
     </div>

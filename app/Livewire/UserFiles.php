@@ -11,13 +11,12 @@ class UserFiles extends Component
 {
     /**
      * Download nur fuer Dateien, die dem Benutzer tatsaechlich bereitstehen
-     * (persoenlich, per Rolle/Team freigegeben oder aus einem Team-Pool).
+     * (persoenlich, per Team freigegeben oder aus einem Team-Pool).
      */
     public function downloadFile(int $fileId): StreamedResponse
     {
-        abort_unless(in_array($fileId, auth()->user()->availableFileIds(), true), 403);
-
         $file = File::findOrFail($fileId);
+        abort_unless(auth()->user()->canAccessFile($file, 'download'), 403);
 
         return $file->download($file->disk ?: 'private');
     }

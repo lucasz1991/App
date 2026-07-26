@@ -1,6 +1,6 @@
 /* RailTime Sound-Repertoire: dezente UI-Toene per Web Audio API (keine
    Audio-Dateien noetig). Stellt window.RTSound bereit:
-     RTSound.play('success' | 'message' | 'error' | 'warning' | 'info')
+     RTSound.play('success' | 'message' | 'chat' | 'error' | 'warning' | 'info')
      RTSound.setEnabled(true|false) / RTSound.toggle()
    Einstellung lebt in window.__rtSoundEnabled (funktioniert auch bei
    blockiertem Storage) und wird best-effort in localStorage ('rt-sound')
@@ -11,7 +11,7 @@
     'use strict';
 
     var STORAGE_KEY = 'rt-sound';
-    var MIN_INTERVAL_MS = 350; // gleicher Ton fruehestens alle 350ms (Doppel-Events)
+    var MIN_INTERVAL_MS = 220; // kurzer Schutz gegen technisch doppelte Events
 
     // Der AudioContext ueberlebt wire:navigate-Neuauswertungen dieses Scripts.
     function getContext() {
@@ -50,11 +50,12 @@
     }
 
     // Einzelnen Ton (Oszillator + Lautstaerke-Huellkurve) einplanen.
-    // options: { type, from, to, at, duration, peak, lowpass }
+    // options: { type, from, to, at, duration, peak, lowpass, pan, attack }
     function scheduleTone(ctx, options) {
         var start = ctx.currentTime + (options.at || 0);
         var duration = options.duration || 0.15;
         var peak = options.peak || 0.1;
+        var attack = Math.min(options.attack || 0.012, duration * 0.45);
 
         var oscillator = ctx.createOscillator();
         oscillator.type = options.type || 'sine';
@@ -65,7 +66,7 @@
 
         var gain = ctx.createGain();
         gain.gain.setValueAtTime(0.0001, start);
-        gain.gain.exponentialRampToValueAtTime(peak, start + 0.012);
+        gain.gain.exponentialRampToValueAtTime(peak, start + attack);
         gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
 
         var node = oscillator;
@@ -75,6 +76,16 @@
             filter.frequency.setValueAtTime(options.lowpass, start);
             node.connect(filter);
             node = filter;
+        }
+
+        // Dezente Stereobreite laesst die mehrschichtigen Messenger-Toene
+        // luftiger wirken. Aeltere Safari-Versionen fallen sauber auf Mono
+        // zurueck, wenn StereoPannerNode nicht verfuegbar ist.
+        if (typeof ctx.createStereoPanner === 'function' && options.pan) {
+            var panner = ctx.createStereoPanner();
+            panner.pan.setValueAtTime(options.pan, start);
+            node.connect(panner);
+            node = panner;
         }
 
         node.connect(gain);
@@ -91,10 +102,23 @@
             scheduleTone(ctx, { type: 'sine', from: 659, at: 0, duration: 0.16, peak: 0.14 });
             scheduleTone(ctx, { type: 'sine', from: 988, at: 0.09, duration: 0.22, peak: 0.12 });
         },
-        // Neue Chat-/Posteingangsnachricht: weiches "Plopp" mit Aufwaertsglide.
+        // Interne Nachricht: warmer, kurzer Dreiklang mit weichem Grundkoerper.
+        // Eigenstaendige RailTime-Komposition, nicht aus einem Messenger
+        // uebernommenes Audio.
         message: function (ctx) {
-            scheduleTone(ctx, { type: 'triangle', from: 540, to: 810, at: 0, duration: 0.18, peak: 0.13 });
-            scheduleTone(ctx, { type: 'sine', from: 1080, at: 0.05, duration: 0.1, peak: 0.05 });
+            scheduleTone(ctx, { type: 'sine', from: 294, to: 330, at: 0, duration: 0.28, peak: 0.045, lowpass: 900, pan: -0.12 });
+            scheduleTone(ctx, { type: 'triangle', from: 587, to: 659, at: 0, duration: 0.2, peak: 0.075, lowpass: 2600, pan: -0.22 });
+            scheduleTone(ctx, { type: 'sine', from: 880, to: 988, at: 0.065, duration: 0.22, peak: 0.065, pan: 0.2 });
+            scheduleTone(ctx, { type: 'sine', from: 1175, to: 1319, at: 0.135, duration: 0.24, peak: 0.04, pan: 0.1 });
+        },
+        // Chat: heller Glas-Doppelimpuls mit feinem Oberton-Schimmer. Kurz
+        // genug fuer laufende Unterhaltungen, aber klarer als ein UI-Klick.
+        chat: function (ctx) {
+            scheduleTone(ctx, { type: 'sine', from: 494, to: 554, at: 0, duration: 0.2, peak: 0.038, lowpass: 1200, pan: -0.08 });
+            scheduleTone(ctx, { type: 'triangle', from: 740, to: 988, at: 0, duration: 0.17, peak: 0.07, lowpass: 3200, pan: -0.24, attack: 0.008 });
+            scheduleTone(ctx, { type: 'sine', from: 1480, to: 1319, at: 0.018, duration: 0.14, peak: 0.03, pan: 0.2, attack: 0.006 });
+            scheduleTone(ctx, { type: 'triangle', from: 988, to: 1319, at: 0.115, duration: 0.21, peak: 0.075, lowpass: 3400, pan: 0.24, attack: 0.008 });
+            scheduleTone(ctx, { type: 'sine', from: 1976, to: 1760, at: 0.135, duration: 0.15, peak: 0.022, pan: -0.14, attack: 0.006 });
         },
         // Validierungs-/Fehlerfall: gedaempfter Doppelton abwaerts.
         error: function (ctx) {

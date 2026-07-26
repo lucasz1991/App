@@ -65,8 +65,7 @@ class HeaderInbox extends Component
         // Polling-Fallback ohne Reverb: Steigt ein Ungelesen-Zaehler, den
         // Nachrichtenton anstossen (app.js spielt ihn nur, wenn kein Echo
         // verbunden ist — sonst klingelt bereits der Echtzeit-Toast). Die
-        // Quelle laesst den Client reine Chat-Anstiege unterdruecken, wenn
-        // die Chat-Seite gerade sichtbar offen ist.
+        // Quelle waehlt im Client die passende Chat-/Posteingangs-Klangsignatur.
         $inboxIncreased = $this->unreadMessagesCount > $previousUnreadMessages;
         $chatIncreased = $this->unreadChatMessagesCount > $previousUnreadChatMessages;
 

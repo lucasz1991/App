@@ -115,6 +115,20 @@ class PwaFrontendTest extends TestCase
         );
     }
 
+    public function test_manifest_icons_have_a_public_laravel_fallback_for_incomplete_deployments(): void
+    {
+        foreach (array_keys(\App\Support\Pwa\PwaIcon::DIMENSIONS) as $icon) {
+            $response = $this->get(route('pwa.icon', ['icon' => $icon]));
+
+            $response
+                ->assertOk()
+                ->assertHeader('content-type', 'image/png')
+                ->assertHeader('x-content-type-options', 'nosniff');
+        }
+
+        $this->get('/icons/not-a-pwa-icon.png')->assertNotFound();
+    }
+
     public function test_service_worker_uses_scope_safe_navigation_without_fetch_caching(): void
     {
         $serviceWorker = file_get_contents(public_path('service-worker.js'));
