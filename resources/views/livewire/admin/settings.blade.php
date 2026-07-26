@@ -8,6 +8,7 @@
             'general' => ['label' => __('app.general'), 'icon' => 'fad fa-sliders-h'],
             'company' => ['label' => __('app.company_data'), 'icon' => 'fad fa-building'],
             'users' => ['label' => __('app.users'), 'icon' => 'fad fa-users'],
+            'sounds' => ['label' => __('app.sound_settings'), 'icon' => 'fad fa-music'],
             'system' => ['label' => __('app.system'), 'icon' => 'fad fa-server'],
         ]"
         default="general"
@@ -69,8 +70,11 @@
             </div>
         </div>
     </section>
+    </x-ui.accordion.tab-panel>
 
-    {{-- Toneinstellungen: systemweite Standards je Ereignis, mit Sofort-Vorschau. --}}
+    {{-- Toene: eigener, sichtbarer Tab — systemweite Standards je Ereignis,
+         mit Sofort-Vorschau beim Auswaehlen. --}}
+    <x-ui.accordion.tab-panel for="sounds" panel-class="space-y-6">
     <section
         class="min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 sm:p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60"
         data-anim="fade-up"

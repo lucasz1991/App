@@ -35,7 +35,9 @@ class PushDeliveryTest extends TestCase
 
     public function test_internal_message_push_contains_sender_and_message_preview(): void
     {
-        $sender = User::factory()->create();
+        // Bewusst mit Umlauten: haelt die JSON_UNESCAPED_UNICODE-Regression
+        // deterministisch fest (frueher flackerte der Test namensabhaengig).
+        $sender = User::factory()->create(['name' => 'Jürgen Größmann']);
         $recipient = User::factory()->create();
         $recipient->enableDefaultPushPreferences();
         $this->subscribe($recipient, 'message-recipient');
@@ -54,7 +56,11 @@ class PushDeliveryTest extends TestCase
             RailtimeWebPushNotification::class,
             function (RailtimeWebPushNotification $notification) use ($message, $sender): bool {
                 $payload = $notification->toWebPush(new \stdClass, $notification)->toArray();
-                $serialized = json_encode($payload, JSON_THROW_ON_ERROR);
+                // JSON_UNESCAPED_UNICODE ist hier entscheidend: faker_locale ist
+                // de_DE, ~15 % der Zufallsnamen tragen Umlaute. Ohne das Flag
+                // maskiert json_encode sie (ü), str_contains($.., $name)
+                // schlaegt fehl — und der Test flackert namensabhaengig.
+                $serialized = json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 
                 return $notification->notificationId === 'message:'.$message->id
                     && $notification->url === 'messages?open='.$message->id

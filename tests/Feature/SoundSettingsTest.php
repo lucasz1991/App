@@ -122,6 +122,18 @@ class SoundSettingsTest extends TestCase
 
         // Sofort-Vorschau beim Wechsel der Auswahl.
         $this->assertStringContainsString('window.RTSound?.preview(selected', $html);
+
+        // Die Toene haben einen EIGENEN, sichtbaren Tab (nicht versteckt im
+        // System-Tab — dort hatte sie niemand gefunden).
+        $blade = File::get(resource_path('views/livewire/admin/settings.blade.php'));
+        $this->assertStringContainsString("'sounds' => ['label' => __('app.sound_settings')", $blade);
+        $this->assertStringContainsString('<x-ui.accordion.tab-panel for="sounds"', $blade);
+
+        // Und rt-sounds.js wird mit Versionsstempel geladen, sonst haelt der
+        // Browser die alte Datei ohne Signaturen/preview im Cache fest.
+        $vendorScripts = File::get(resource_path('views/layouts/vendor-scripts.blade.php'));
+        $this->assertStringContainsString("rt-sounds.js') }}?v={{ filemtime(", $vendorScripts);
+        $this->assertStringContainsString("rt-toast.js') }}?v={{ filemtime(", $vendorScripts);
     }
 
     public function test_profile_settings_tab_bundles_display_sounds_and_push(): void
