@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Admin;
 
+use App\Jobs\ProcessMailJob;
 use App\Models\Mail;
 use App\Models\User;
 use Livewire\Component;
@@ -14,12 +15,20 @@ class MailManagement extends Component
     protected $listeners = ['table-sort' => 'tableSort'];
 
     public string $sortBy = 'id';
+
     public string $sortDirection = 'desc';
+
+    public string $search = '';
 
     public ?int $expandedMailId = null;
 
     /** @var array<int, int> */
     public array $selectedMails = [];
+
+    public function updatingSearch(): void
+    {
+        $this->resetPage();
+    }
 
     public function toggleMailSelection(int $id): void
     {
@@ -76,6 +85,7 @@ class MailManagement extends Component
 
         if (! $mail) {
             session()->flash('error', 'Mail nicht gefunden.');
+
             return;
         }
 
@@ -92,7 +102,7 @@ class MailManagement extends Component
         ]);
 
         // Der Versand laeuft ueber den bestehenden Job-Flow.
-        \App\Jobs\ProcessMailJob::dispatch($mail->fresh());
+        ProcessMailJob::dispatch($mail->fresh());
 
         session()->flash('message', __('app.mail_requeued'));
     }
@@ -103,6 +113,7 @@ class MailManagement extends Component
 
         if (! $sourceMail) {
             session()->flash('error', 'Ausgangs-Mail nicht gefunden.');
+
             return;
         }
 
@@ -110,6 +121,7 @@ class MailManagement extends Component
 
         if (! filter_var($superAdminMail, FILTER_VALIDATE_EMAIL)) {
             session()->flash('error', 'SUPER_ADMIN_MAIL ist nicht gesetzt oder ungueltig.');
+
             return;
         }
 
@@ -133,13 +145,28 @@ class MailManagement extends Component
 
     public function render()
     {
+        $search = trim($this->search);
         $mails = Mail::query()
+            ->when($search !== '', function ($query) use ($search): void {
+                $like = '%'.$search.'%';
+
+                $query->where(function ($query) use ($search, $like): void {
+                    if (ctype_digit($search)) {
+                        $query->orWhereKey((int) $search);
+                    }
+
+                    $query->orWhere('type', 'like', $like)
+                        ->orWhere('recipients', 'like', $like)
+                        ->orWhere('content', 'like', $like);
+                });
+            })
             ->orderBy($this->sortBy, $this->sortDirection)
             ->paginate(10);
 
         $recipientUserIds = $mails->getCollection()
             ->flatMap(function ($mail) {
                 $recipients = is_array($mail->recipients) ? $mail->recipients : [];
+
                 return collect($recipients)->pluck('user_id');
             })
             ->filter(fn ($id) => (int) $id > 0)

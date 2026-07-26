@@ -16,6 +16,7 @@ use App\Livewire\Admin\OperationalPreview;
 use App\Livewire\Admin\Settings;
 use App\Livewire\Admin\UserProfile;
 use App\Livewire\ChatBox;
+use App\Livewire\HelpCenter;
 use App\Livewire\ItSupport;
 use App\Livewire\MessageBox;
 use App\Livewire\Operations\WagonListPrototype;
@@ -88,6 +89,7 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
     Route::get('/messages', MessageBox::class)->name('messages');
     // Chat steht ALLEN angemeldeten Benutzern offen (Admin- wie Nutzerbereich).
     Route::get('/chat', ChatBox::class)->name('chat');
+    Route::get('/help', HelpCenter::class)->name('help');
     Route::get('/support', ItSupport::class)->name('support');
     Route::prefix('settings/push')
         ->name('push.')

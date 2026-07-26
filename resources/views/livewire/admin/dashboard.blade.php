@@ -107,6 +107,65 @@
             </div>
         </section>
 
+        @if (auth()->user()?->role === 'admin')
+            <section
+                class="rt-admin-operations-stage relative overflow-hidden rounded-2xl"
+                aria-labelledby="operational-preview-heading"
+                data-dashboard-segment="operations"
+            >
+                <div class="pointer-events-none absolute inset-y-0 right-0 hidden w-1/3 opacity-50 sm:block" aria-hidden="true">
+                    <svg class="h-full w-full" viewBox="0 0 420 170" fill="none" preserveAspectRatio="none">
+                        <path d="M8 150C98 142 111 62 205 73C292 83 310 20 412 16" stroke="currentColor" class="text-slate-200 dark:text-slate-700" stroke-width="18" stroke-linecap="round"/>
+                        <path d="M8 150C98 142 111 62 205 73C292 83 310 20 412 16" stroke="#e4002b" stroke-width="2.5" stroke-linecap="round"/>
+                    </svg>
+                </div>
+
+                <header class="relative z-10 flex flex-wrap items-start justify-between gap-3 px-4 pb-3 pt-4 sm:px-5 sm:pb-4 sm:pt-5" data-dashboard-item>
+                    <div class="max-w-2xl">
+                        <div class="flex flex-wrap items-center gap-2.5">
+                            <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-rt-red">{{ __('app.operations') }}</p>
+                            <span class="rt-admin-demo-badge inline-flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-amber-700 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
+                                <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+                                {{ __('app.demo_preview') }}
+                            </span>
+                        </div>
+                        <h2 id="operational-preview-heading" class="mt-1.5 text-lg font-semibold tracking-tight text-rt-text dark:text-white">{{ __('app.operational_control') }}</h2>
+                        <p class="mt-1 max-w-xl text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">{{ __('app.operational_preview_dashboard_hint') }}</p>
+                    </div>
+                    <span class="rt-admin-operations-status relative z-10 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white/90 px-3 py-2 text-xs font-medium text-slate-600 shadow-rt-xs backdrop-blur dark:border-slate-600 dark:bg-slate-900/90 dark:text-slate-200">
+                        <span class="relative flex h-2 w-2">
+                            <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-60"></span>
+                            <span class="relative inline-flex h-2 w-2 rounded-full bg-amber-500"></span>
+                        </span>
+                        {{ __('app.no_database_connection') }}
+                    </span>
+                </header>
+
+                <div class="rt-admin-operations-grid relative z-10 grid grid-cols-2 gap-2 px-3 pb-3 sm:px-4 sm:pb-4 md:grid-cols-4" data-operational-preview data-dashboard-items>
+                    @foreach ($operationalPreviews as $previewModule)
+                        <a
+                            href="{{ route('admin.operations.preview', ['module' => $previewModule['slug']]) }}"
+                            wire:navigate
+                            class="rt-admin-operations-card group min-w-0 rounded-xl border border-slate-200/90 bg-white/95 p-3 shadow-rt-xs backdrop-blur focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red sm:p-4 dark:border-slate-700 dark:bg-slate-900/95"
+                        >
+                            <div class="flex items-start justify-between gap-3">
+                                <span class="rt-admin-preview-tone flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border sm:h-10 sm:w-10 {{ $previewToneClasses[$previewModule['tone']] ?? $previewToneClasses['red'] }}" data-preview-tone="{{ $previewModule['tone'] }}">
+                                    <i data-feather="{{ $previewModule['icon'] }}" class="h-4 w-4"></i>
+                                </span>
+                                <i data-feather="arrow-up-right" class="h-4 w-4 text-slate-400 transition duration-300 ease-rt-spring group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-rt-red"></i>
+                            </div>
+                            <p class="mt-3 text-xl font-semibold tracking-[-0.04em] tabular-nums text-rt-text sm:text-2xl dark:text-white">{{ $previewModule['metric'] }}</p>
+                            <p class="mt-0.5 truncate text-[11px] text-rt-muted sm:text-xs dark:text-rt-dark-muted">{{ $previewModule['metric_label'] }}</p>
+                            <div class="mt-3 border-t border-slate-200/80 pt-2.5 dark:border-slate-700">
+                                <p class="truncate text-xs font-semibold text-rt-text sm:text-sm dark:text-white">{{ $previewModule['title'] }}</p>
+                                <p class="mt-0.5 hidden truncate text-[11px] text-rt-soft sm:block dark:text-rt-dark-soft">{{ $previewModule['badge'] }}</p>
+                            </div>
+                        </a>
+                    @endforeach
+                </div>
+            </section>
+        @endif
+
         {{-- Vier gleichwertige Kennzahlen in einer durchgehenden Zeile. --}}
         <section class="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-2.5" aria-label="{{ __('app.dashboard') }}" data-dashboard-segment="kpis" data-dashboard-kpis data-dashboard-items>
             <article class="rt-admin-panel rt-admin-panel-accent group relative min-w-0 overflow-hidden rounded-xl p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md sm:p-3.5">
@@ -195,51 +254,6 @@
                 <div class="rt-admin-chart mt-2 h-[120px] sm:h-[150px] xl:h-[150px]" x-ref="activityChart" aria-label="{{ __('app.activity_trend') }}"></div>
             </article>
         </section>
-
-        @if (auth()->user()?->role === 'admin')
-        <section class="rt-admin-panel rt-admin-operations overflow-hidden rounded-2xl" aria-labelledby="operational-preview-heading" data-dashboard-segment="operations">
-            <header class="rt-admin-operations-header flex flex-wrap items-start justify-between gap-2.5 border-b border-slate-200 bg-slate-50 px-3.5 py-3 sm:gap-3 sm:px-5 sm:py-3.5 dark:border-slate-600 dark:bg-slate-900" data-dashboard-item>
-                <div>
-                    <div class="flex flex-wrap items-center gap-2.5">
-                        <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.operations') }}</p>
-                        <span class="rt-admin-demo-badge inline-flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-amber-700 dark:border-amber-700 dark:bg-amber-900 dark:text-amber-200">
-                            <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
-                            {{ __('app.demo_preview') }}
-                        </span>
-                    </div>
-                    <h2 id="operational-preview-heading" class="mt-1 text-base font-semibold text-rt-text dark:text-white">{{ __('app.operational_control') }}</h2>
-                    <p class="mt-0.5 hidden max-w-2xl text-xs leading-5 text-rt-muted sm:block dark:text-rt-dark-muted">{{ __('app.operational_preview_dashboard_hint') }}</p>
-                </div>
-                <span class="rt-admin-operations-status hidden items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-600 sm:inline-flex dark:border-slate-600 dark:bg-slate-950 dark:text-slate-200">
-                    <i data-feather="database" class="h-3.5 w-3.5"></i>
-                    {{ __('app.no_database_connection') }}
-                </span>
-            </header>
-
-            <div class="rt-admin-operations-grid grid grid-cols-2 gap-px bg-slate-200 md:grid-cols-4 dark:bg-slate-600" data-operational-preview data-dashboard-items>
-                @foreach ($operationalPreviews as $previewModule)
-                    <a
-                        href="{{ route('admin.operations.preview', ['module' => $previewModule['slug']]) }}"
-                        wire:navigate
-                        class="rt-admin-operations-card group min-w-0 bg-white px-3 py-3 transition duration-200 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rt-red sm:px-4 sm:py-3.5 dark:bg-slate-800 dark:hover:bg-slate-700"
-                    >
-                        <div class="flex items-start justify-between gap-3">
-                            <span class="rt-admin-preview-tone flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border sm:h-9 sm:w-9 {{ $previewToneClasses[$previewModule['tone']] ?? $previewToneClasses['red'] }}" data-preview-tone="{{ $previewModule['tone'] }}">
-                                <i data-feather="{{ $previewModule['icon'] }}" class="h-4 w-4"></i>
-                            </span>
-                            <i data-feather="arrow-up-right" class="h-4 w-4 text-slate-400 transition duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-rt-red"></i>
-                        </div>
-                        <p class="mt-2 text-lg font-semibold tracking-[-0.035em] tabular-nums text-rt-text sm:mt-2.5 sm:text-xl dark:text-white">{{ $previewModule['metric'] }}</p>
-                        <p class="mt-0.5 truncate text-[11px] text-rt-muted sm:text-xs dark:text-rt-dark-muted">{{ $previewModule['metric_label'] }}</p>
-                        <div class="rt-admin-operations-card-divider mt-2 border-t border-slate-200 pt-2 sm:mt-2.5 sm:pt-2.5 dark:border-slate-600">
-                            <p class="truncate text-xs font-semibold text-rt-text sm:text-sm dark:text-white">{{ $previewModule['title'] }}</p>
-                            <p class="mt-0.5 hidden truncate text-[11px] text-rt-soft sm:block dark:text-rt-dark-soft">{{ $previewModule['badge'] }}</p>
-                        </div>
-                    </a>
-                @endforeach
-            </div>
-        </section>
-        @endif
 
         <section class="grid gap-3 md:grid-cols-12" data-dashboard-segment="accounts" data-dashboard-items>
             {{-- Neueste Benutzer --}}

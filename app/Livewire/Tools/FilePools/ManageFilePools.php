@@ -2,76 +2,109 @@
 
 namespace App\Livewire\Tools\FilePools;
 
-use Livewire\Component;
-use App\Models\FilePool;
 use App\Models\File;
 use App\Models\FileFolder;
+use App\Models\FilePool;
 use App\Models\Team;
-use Livewire\WithPagination;
-use Livewire\WithFileUploads;
+use App\Models\User;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Attributes\Locked;
+use Livewire\Component;
+use Livewire\WithFileUploads;
+use Livewire\WithPagination;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use ZipArchive;
-use Illuminate\Support\Facades\Auth;
 
 class ManageFilePools extends Component
 {
-    use WithPagination;
     use WithFileUploads;
+    use WithPagination;
 
+    #[Locked]
     public ?string $modelType = null;
+
+    #[Locked]
     public ?int $modelId = null;
 
+    #[Locked]
     public ?int $filePoolId = null;
+
+    #[Locked]
     public ?FilePool $filePool = null;
 
     public array $fileUploads = [];
+
     public array $selectedFiles = [];
+
     public array $expires = [];
 
     public ?File $file = null;
+
     public string $selectedFileName;
+
     public string $selectedFileExpiresDate;
+
     public array $selectedFileShareRoles = [];
 
     /** Datei-Sichtbarkeit (Zeitfenster ab / Auto-Loeschung / Teams) */
     public string $selectedFileVisibleFrom = '';
+
     public bool $selectedFileAutoDelete = false;
+
     public array $selectedFileVisibleTeams = [];
 
     /** Upload-Sichtbarkeit (Zeitfenster ab / Auto-Loeschung / Teams) */
     public string $uploadVisibleFrom = '';
+
     public bool $uploadAutoDelete = false;
+
     public array $uploadVisibleTeams = [];
 
     public bool $openFileForm = false;
+
     public bool $openEditFileForm = false;
 
+    #[Locked]
     public bool $readOnly = true;
 
     /** Freigabe pro Datei fuer Rollen aktivieren (zentrale Dateiverwaltung) */
+    #[Locked]
     public bool $allowRoleSharing = false;
 
     /** Nur Dateien anzeigen, die fuer diese Rolle freigegeben sind */
+    #[Locked]
     public ?string $roleFilter = null;
 
     /** Explorer: aktuell geoeffneter Ordner (null = Wurzel) */
+    #[Locked]
     public ?int $currentFolderId = null;
 
     /** Ordner anlegen/umbenennen */
     public bool $openFolderForm = false;
+
     public ?int $editFolderId = null;
+
     public string $folderName = '';
 
     /** Ordner-Sichtbarkeit (Zeitfenster / Auto-Loeschung / Teams) */
     public string $folderVisibleFrom = '';
+
     public string $folderVisibleUntil = '';
+
     public bool $folderAutoDelete = false;
+
     public array $folderVisibleTeams = [];
 
     /** Ordner-Rechte (Rolle => Aktion => bool) */
     public bool $openFolderPermissions = false;
+
     public ?int $permissionsFolderId = null;
+
     public array $folderPermissions = [];
 
     public function mount(
@@ -82,8 +115,8 @@ class ManageFilePools extends Component
         bool $allowRoleSharing = false,
         ?string $roleFilter = null,
     ): void {
-        if ($modelType === \App\Models\Team::class && $modelId !== null) {
-            abort_unless(Auth::user()?->belongsToTeam(\App\Models\Team::findOrFail($modelId)), 403);
+        if ($modelType === Team::class && $modelId !== null) {
+            abort_unless(Auth::user()?->belongsToTeam(Team::findOrFail($modelId)), 403);
         }
 
         if ($poolId !== null) {
@@ -121,6 +154,7 @@ class ManageFilePools extends Component
     {
         if ($folderId === null) {
             $this->currentFolderId = null;
+
             return;
         }
 
@@ -260,26 +294,26 @@ class ManageFilePools extends Component
         abort_if($this->readOnly, 403);
 
         $this->validate([
-            "fileUploads.$filePoolId"     => ['required', 'array', 'min:1'],
-            "fileUploads.$filePoolId.*"   => ['file', 'max:302400'], // 300 MB je Datei
-            "expires.$filePoolId"         => ['nullable', 'date', 'after:today'],
+            "fileUploads.$filePoolId" => ['required', 'array', 'min:1'],
+            "fileUploads.$filePoolId.*" => ['file', 'max:302400'], // 300 MB je Datei
+            "expires.$filePoolId" => ['nullable', 'date', 'after:today'],
         ]);
 
         foreach ($this->fileUploads[$filePoolId] as $uploadedFile) {
             $filename = $uploadedFile->getClientOriginalName();
-            $path     = $uploadedFile->store('uploads/files', 'private');
-            $mime     = Storage::disk('private')->mimeType($path) ?? $uploadedFile->getClientMimeType();
+            $path = $uploadedFile->store('uploads/files', 'private');
+            $mime = Storage::disk('private')->mimeType($path) ?? $uploadedFile->getClientMimeType();
 
             $this->filePool->files()->create([
-                'folder_id'    => $this->currentFolderId,
-                'user_id'      => Auth::user()->id ?? null,
-                'name'         => $filename,
-                'path'         => $path,
-                'mime_type'    => $mime,
-                'size'         => $uploadedFile->getSize(),
-                'expires_at'   => $this->expires[$filePoolId] ?? null,
+                'folder_id' => $this->currentFolderId,
+                'user_id' => Auth::user()->id ?? null,
+                'name' => $filename,
+                'path' => $path,
+                'mime_type' => $mime,
+                'size' => $uploadedFile->getSize(),
+                'expires_at' => $this->expires[$filePoolId] ?? null,
                 'visible_from' => $this->uploadVisibleFrom ?: null,
-                'auto_delete'  => (bool) $this->uploadAutoDelete,
+                'auto_delete' => (bool) $this->uploadAutoDelete,
                 'visible_teams' => array_values(array_intersect(
                     array_map('intval', $this->uploadVisibleTeams),
                     Team::where('personal_team', false)->pluck('id')->all()
@@ -349,8 +383,9 @@ class ManageFilePools extends Component
             'selectedFileVisibleFrom' => ['nullable', 'date'],
         ]);
 
-        if (!$this->file) {
+        if (! $this->file) {
             $this->addError('file', __('app.no_file_selected'));
+
             return;
         }
 
@@ -386,21 +421,21 @@ class ManageFilePools extends Component
      * Gemeinsamer Helper: erzeugt ein ZIP unter storage_path("app/private/zips")
      * und liefert eine BinaryFileResponse, die die ZIP-Datei nach dem Senden loescht.
      *
-     * @param  string  $baseName (ohne .zip)
-     * @param  \Illuminate\Support\Collection|\Traversable|array  $files  Sammlung von File-Modellen
-     * @return \Symfony\Component\HttpFoundation\BinaryFileResponse
+     * @param  string  $baseName  (ohne .zip)
+     * @param  Collection|\Traversable|array  $files  Sammlung von File-Modellen
+     * @return BinaryFileResponse
      */
     protected function buildZipResponse(string $baseName, $files)
     {
-        $zipFileName = trim($baseName) . '.zip';
-        $zipDir      = storage_path('app/private/zips');
-        $zipPath     = $zipDir . DIRECTORY_SEPARATOR . $zipFileName;
+        $zipFileName = trim($baseName).'.zip';
+        $zipDir = storage_path('app/private/zips');
+        $zipPath = $zipDir.DIRECTORY_SEPARATOR.$zipFileName;
 
-        if (!is_dir($zipDir)) {
+        if (! is_dir($zipDir)) {
             mkdir($zipDir, 0755, true);
         }
 
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
             abort(500, 'ZIP konnte nicht erzeugt werden.');
         }
@@ -444,7 +479,7 @@ class ManageFilePools extends Component
             ? $this->visibleFiles()
             : collect();
 
-        $base = 'RailTime_Dateien_' . now()->format('Ymd_His');
+        $base = 'RailTime_Dateien_'.now()->format('Ymd_His');
 
         return $this->buildZipResponse($base, $files);
     }
@@ -477,13 +512,13 @@ class ManageFilePools extends Component
      */
     public function downloadAll()
     {
-        if (!$this->filePool) {
+        if (! $this->filePool) {
             abort(404, 'FilePool nicht gefunden.');
         }
 
         $files = $this->visibleFiles();
 
-        $base = 'RailTime_Dateien_' . now()->format('Y_m_d-H_i_s');
+        $base = 'RailTime_Dateien_'.now()->format('Y_m_d-H_i_s');
 
         return $this->buildZipResponse($base, $files);
     }
@@ -496,6 +531,170 @@ class ManageFilePools extends Component
         Storage::disk('private')->delete($file->path);
         $file->delete();
         $this->dispatch('swal:toast', type: 'success', text: __('app.file_deleted'));
+    }
+
+    /**
+     * Verschiebt eine Datei innerhalb des aktuell sichtbaren Explorer-Kontexts.
+     *
+     * Als Ziele sind nur direkte, sichtbare Unterordner der aktuellen Ebene,
+     * ein Ordner im aktuellen Breadcrumb oder die Wurzel erlaubt. Dadurch
+     * kann ein manipulierter Livewire-Aufruf weder einen fremden Pool noch
+     * einen versteckten Ordner als Ziel verwenden.
+     */
+    public function moveFile(int $fileId, ?int $targetFolderId = null): void
+    {
+        abort_if($this->readOnly, 403);
+
+        $pool = FilePool::findOrFail($this->filePoolId);
+        $file = File::findOrFail($fileId);
+
+        abort_unless(
+            $file->fileable_type === FilePool::class
+                && (int) $file->fileable_id === (int) $pool->id,
+            403
+        );
+
+        $this->authorizeFileMove($pool, $file);
+
+        $targetFolder = null;
+
+        if ($targetFolderId !== null) {
+            $targetFolder = FileFolder::findOrFail($targetFolderId);
+
+            abort_unless((int) $targetFolder->file_pool_id === (int) $pool->id, 403);
+            abort_unless($this->isAvailableDropTarget($targetFolder), 403);
+
+            $this->authorizeTargetFolder($targetFolder);
+        }
+
+        if ((int) ($file->folder_id ?? 0) === (int) ($targetFolder?->id ?? 0)) {
+            $this->dispatch('swal:toast', type: 'info', text: __('app.file_already_in_folder'));
+
+            return;
+        }
+
+        DB::transaction(function () use ($file, $targetFolder): void {
+            $file->update(['folder_id' => $targetFolder?->id]);
+        });
+
+        $this->filePool = $pool->fresh();
+        $this->dispatch('swal:toast', type: 'success', text: __('app.file_moved'));
+    }
+
+    protected function authorizeFileMove(FilePool $pool, File $file): void
+    {
+        $user = Auth::user();
+
+        abort_unless($user, 403);
+
+        if ($user->isAdmin() || Gate::allows('files.manage')) {
+            return;
+        }
+
+        if ($pool->filepoolable_type === User::class) {
+            $managesUsers = Gate::allows('users.edit');
+            $ownsPoolAndFile = (int) $pool->filepoolable_id === (int) $user->id
+                && (int) $file->user_id === (int) $user->id;
+
+            abort_unless($managesUsers || $ownsPoolAndFile, 403);
+
+            return;
+        }
+
+        if ($pool->filepoolable_type === Team::class) {
+            $team = Team::find($pool->filepoolable_id);
+
+            abort_unless(
+                $team
+                    && $user->belongsToTeam($team)
+                    && (int) $file->user_id === (int) $user->id,
+                403
+            );
+
+            $this->authorizeSourceFolder($file);
+
+            return;
+        }
+
+        abort(403);
+    }
+
+    protected function authorizeSourceFolder(File $file): void
+    {
+        if (! $file->folder_id) {
+            return;
+        }
+
+        $sourceFolder = FileFolder::where('file_pool_id', $this->filePoolId)
+            ->findOrFail($file->folder_id);
+        $role = $this->roleFilter ?? Auth::user()?->role;
+
+        abort_unless(
+            $sourceFolder->allowsForRole($role, 'delete')
+                && $sourceFolder->isPubliclyVisible(Auth::user()),
+            403
+        );
+    }
+
+    protected function authorizeTargetFolder(FileFolder $folder): void
+    {
+        $user = Auth::user();
+
+        if ($user?->isAdmin() || Gate::allows('files.manage') || Gate::allows('users.edit')) {
+            return;
+        }
+
+        $role = $this->roleFilter ?? $user?->role;
+
+        abort_unless(
+            $folder->allowsForRole($role, 'view')
+                && $folder->allowsForRole($role, 'delete')
+                && $folder->isPubliclyVisible($user),
+            403
+        );
+    }
+
+    protected function isAvailableDropTarget(FileFolder $targetFolder): bool
+    {
+        if ((int) ($targetFolder->parent_id ?? 0) === (int) ($this->currentFolderId ?? 0)) {
+            return true;
+        }
+
+        if (! $this->currentFolderId) {
+            return false;
+        }
+
+        $currentFolder = FileFolder::where('file_pool_id', $this->filePoolId)
+            ->findOrFail($this->currentFolderId);
+
+        return collect($currentFolder->breadcrumb())
+            ->contains(fn (FileFolder $folder): bool => (int) $folder->id === (int) $targetFolder->id);
+    }
+
+    protected function canMoveFiles(FilePool $pool): bool
+    {
+        $user = Auth::user();
+
+        if ($this->readOnly || ! $user) {
+            return false;
+        }
+
+        if ($user->isAdmin() || Gate::allows('files.manage')) {
+            return true;
+        }
+
+        if ($pool->filepoolable_type === User::class) {
+            return Gate::allows('users.edit')
+                || (int) $pool->filepoolable_id === (int) $user->id;
+        }
+
+        if ($pool->filepoolable_type === Team::class) {
+            $team = Team::find($pool->filepoolable_id);
+
+            return $team && $user->belongsToTeam($team);
+        }
+
+        return false;
     }
 
     public function placeholder()
@@ -567,6 +766,7 @@ class ManageFilePools extends Component
             'folders' => $folders,
             'currentFolder' => $currentFolder,
             'breadcrumb' => $currentFolder ? $currentFolder->breadcrumb() : [],
+            'canMoveFiles' => $filePool ? $this->canMoveFiles($filePool) : false,
             'teams' => $this->readOnly
                 ? collect()
                 : Team::where('personal_team', false)->orderBy('name')->get(),

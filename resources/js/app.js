@@ -1054,6 +1054,7 @@ window.addEventListener('rt:inbox-increased', (event) => {
 window.Swiper = Swiper;
 let sidebarCollapseTimer = null;
 let sidebarSwipeStart = null;
+const DESKTOP_SIDEBAR_COLLAPSE_DELAY = 2000;
 
 function initMetisMenu() {
     if (!window.MetisMenu) {
@@ -1184,14 +1185,12 @@ function scheduleDesktopSidebarCollapse() {
     clearSidebarCollapseTimer();
 
     sidebarCollapseTimer = window.setTimeout(() => {
-        const activeElement = document.activeElement;
-        const focusInsideSidebar = activeElement?.closest('.vertical-menu, .topbar-brand');
-        const hoverInsideSidebar = document.querySelector('.vertical-menu:hover, .topbar-brand:hover');
+        sidebarCollapseTimer = null;
 
-        if (!focusInsideSidebar && !hoverInsideSidebar) {
+        if (!isSidebarHoveredOrFocused()) {
             setDesktopSidebarExpanded(false);
         }
-    }, 90);
+    }, DESKTOP_SIDEBAR_COLLAPSE_DELAY);
 }
 
 function syncSidebarInteractionMode() {

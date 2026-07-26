@@ -98,6 +98,21 @@ Nachrichten und Chats.
   Push bewusst erneut aktivieren. Ein Testversand geht nur an das gerade
   aktivierte Geraet.
 
+### Lokaler Test und Smartphone-Test
+
+`localhost` und `127.0.0.1` gelten im Browser auf demselben Entwicklungsrechner
+als sicherer Kontext. Ein Smartphone kann die Loopback-Adresse des Rechners
+jedoch nicht verwenden. Fuer iPhone, iPad oder Android ist deshalb eine vom
+Geraet erreichbare HTTPS-Adresse erforderlich; eine unverschluesselte
+LAN-Adresse reicht fuer Service Worker und Web Push nicht aus.
+
+Vor dem Test muessen drei Bedingungen gleichzeitig erfuellt sein:
+
+1. Das Geraet wird unter `Profil -> App & Push` bewusst aktiviert und erscheint
+   danach als aktives Geraet.
+2. Ein dauerhafter Queue-Worker verarbeitet `webpush,default`.
+3. Erst dann wird der Testversand fuer genau dieses Geraet ausgeloest.
+
 Push-Vorschauen enthalten absichtlich weder Betreff noch Nachrichteninhalt.
 Die Detailansicht wird erst nach Anmeldung und serverseitiger
 Berechtigungspruefung geoeffnet.

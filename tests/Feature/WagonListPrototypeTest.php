@@ -73,14 +73,26 @@ class WagonListPrototypeTest extends TestCase
         $view = file_get_contents(resource_path('views/livewire/operations/wagon-list-prototype.blade.php'));
 
         $this->assertStringContainsString('const MAX_WAGONS = 40', $script);
+        $this->assertStringContainsString('const STORAGE_VERSION = 2', $script);
         $this->assertStringContainsString('expectedCheckDigit', $script);
         $this->assertStringContainsString('deductionP19', $script);
         $this->assertStringContainsString('localStorage.setItem', $script);
         $this->assertStringContainsString('localStorage.removeItem', $script);
+        $this->assertStringContainsString('restoreDrafts', $script);
+        $this->assertStringContainsString('stored.version === 1', $script);
+        $this->assertStringContainsString('deleteAllDrafts', $script);
+        $this->assertStringContainsString('trapEditorFocus', $script);
         $this->assertStringContainsString("__('app.wagon_list')", $view);
         $this->assertStringContainsString("__('app.brake_sheet')", $view);
         $this->assertStringContainsString('wagon-sheet-grid', $view);
         $this->assertStringContainsString('data-mobile-wagon-editor', $view);
+        $this->assertStringContainsString('data-wagon-draft-overview', $view);
+        $this->assertStringContainsString('data-wagon-editor', $view);
+        $this->assertStringContainsString('role="dialog"', $view);
+        $this->assertStringContainsString('aria-modal="true"', $view);
+        $this->assertStringContainsString('x-show.important="editorOpen"', $view);
+        $this->assertStringContainsString('@keydown.escape.window="handleEscape($event)"', $view);
+        $this->assertStringContainsString('saveAndClose()', $view);
         $this->assertStringContainsString('focusNextCell', $script);
         $this->assertStringContainsString('mobileWagon', $script);
         $this->assertFileDoesNotExist(app_path('Models/WagonList.php'));
@@ -149,7 +161,7 @@ class WagonListPrototypeTest extends TestCase
             ->assertDownload('RailTime_Wagenliste_4711_2026-07-24.xlsx');
 
         $path = app(WagonListWorkbookExporter::class)->export($payload);
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         $this->assertTrue($zip->open($path) === true);
 
         try {
@@ -175,7 +187,7 @@ class WagonListPrototypeTest extends TestCase
 
     private function xlsxCells(string $xml): array
     {
-        $document = new DOMDocument();
+        $document = new DOMDocument;
         $document->loadXML($xml);
         $xpath = new DOMXPath($document);
         $xpath->registerNamespace('x', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');

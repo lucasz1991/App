@@ -20,6 +20,13 @@
     @endif
 
     <div data-anim="fade-up" data-anim-delay="0.05">
+        <div class="mb-3 flex items-center justify-end">
+            <x-tables.search-field
+                :results-count="$mails->count()"
+                wire:model.live.debounce.350ms="search"
+            />
+        </div>
+
         <x-tables.table
             :columns="[
                 ['label' => 'ID', 'key' => 'id', 'width' => '12%', 'sortable' => true, 'hideOn' => 'none'],

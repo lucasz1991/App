@@ -2,11 +2,19 @@
     x-data="wagonListPrototype(@js([
         'storageKey' => $storageKey,
         'locale' => app()->getLocale() === 'de' ? 'de-DE' : 'en-GB',
-        'resetTitle' => __('app.wagon_reset_title'),
-        'resetText' => __('app.wagon_reset_text'),
-        'resetConfirm' => __('app.reset'),
         'cancel' => __('app.cancel'),
         'notSaved' => __('app.wagon_not_saved'),
+        'deleteTitle' => $labels['deleteTitle'],
+        'deleteText' => $labels['deleteText'],
+        'deleteConfirm' => $labels['deleteConfirm'],
+        'deleteAllTitle' => $labels['deleteAllTitle'],
+        'deleteAllText' => $labels['deleteAllText'],
+        'deleteAllConfirm' => $labels['deleteAllConfirm'],
+        'draftSaved' => $labels['draftSaved'],
+        'saveError' => $labels['saveError'],
+        'trainLabel' => $labels['trainLabel'],
+        'untitledDraft' => $labels['untitledDraft'],
+        'noRoute' => $labels['noRoute'],
         'exportUrl' => auth()->user()->usesAdminLayout()
             ? route('admin.operations.wagon-list.export')
             : route('operations.wagon-list.export'),
@@ -15,6 +23,7 @@
     ]))"
     class="min-w-0"
     data-wagon-list-prototype
+    @keydown.escape.window="handleEscape($event)"
 >
     @php
         $inputClass = 'rt-ui-control rt-wagon-input mt-1 block min-h-11 w-full rounded-lg border border-rt-border bg-rt-control px-3 py-2 text-base text-rt-text shadow-rt-xs outline-none transition focus:border-rt-accent focus:ring-2 focus:ring-rt-accent/20 sm:text-sm';
@@ -31,25 +40,216 @@
             <div class="flex flex-wrap items-center justify-end gap-2">
                 <button
                     type="button"
-                    @click="exportWorkbook()"
-                    :disabled="exporting"
-                    class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-rt-red px-3.5 py-2 text-sm font-semibold text-white shadow-rt-xs transition hover:bg-rt-red-dark hover:shadow-rt-glow active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-rt-red/35 disabled:cursor-wait disabled:opacity-65"
+                    x-show.important="drafts.length > 0"
+                    x-cloak
+                    @click="deleteAllDrafts()"
+                    class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-rt-border bg-rt-surface px-3.5 py-2 text-sm font-semibold text-rt-muted shadow-rt-xs transition-all duration-200 hover:border-red-300 hover:bg-red-50 hover:text-red-700 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/45 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-muted dark:hover:border-red-500/40 dark:hover:bg-red-500/10 dark:hover:text-red-300"
                 >
-                    <i class="far fa-file-excel" x-show="!exporting" aria-hidden="true"></i>
-                    <i class="far fa-spinner fa-spin" x-show="exporting" x-cloak aria-hidden="true"></i>
-                    <span x-text="exporting ? @js(__('app.wagon_exporting')) : @js(__('app.export_excel'))"></span>
+                    <i class="far fa-trash-alt" aria-hidden="true"></i>
+                    {{ $labels['deleteAll'] }}
                 </button>
                 <button
                     type="button"
-                    @click="resetDraft()"
-                    class="inline-flex min-h-10 items-center gap-2 rounded-lg border border-rt-border bg-rt-surface px-3 py-2 text-sm font-semibold text-rt-muted shadow-rt-xs transition hover:border-red-300 hover:bg-red-50 hover:text-red-700 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-red-400/40 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-muted dark:hover:border-red-500/40 dark:hover:bg-red-500/10 dark:hover:text-red-300"
+                    x-ref="newDraftButton"
+                    @click="createDraft($event.currentTarget)"
+                    class="inline-flex min-h-11 items-center gap-2 rounded-lg bg-rt-red px-4 py-2.5 text-sm font-semibold text-white shadow-rt-xs transition-all duration-200 ease-rt-spring hover:-translate-y-0.5 hover:bg-rt-red-dark hover:shadow-rt-glow active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-rt-dark-canvas"
                 >
-                    <i class="far fa-undo" aria-hidden="true"></i>
-                    {{ __('app.reset_draft') }}
+                    <i class="far fa-plus" aria-hidden="true"></i>
+                    {{ $labels['newDraft'] }}
                 </button>
             </div>
         </x-slot:actions>
 
+        <section class="space-y-5" aria-labelledby="wagon-drafts-title" data-wagon-draft-overview>
+            <div class="rt-wagon-draft-hero relative overflow-hidden rounded-2xl p-5 shadow-rt-sm sm:p-7">
+                <div class="relative grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                    <div class="flex min-w-0 items-start gap-4">
+                        <span class="rt-wagon-draft-hero-icon flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-lg sm:h-14 sm:w-14">
+                            <i class="fad fa-train" aria-hidden="true"></i>
+                        </span>
+                        <div class="min-w-0">
+                            <p class="text-xs font-semibold tracking-wide text-rt-red dark:text-rt-dark-accent">{{ __('app.locally_saved') }}</p>
+                            <h2 id="wagon-drafts-title" class="mt-1 text-balance text-xl font-bold tracking-tight text-rt-text sm:text-2xl dark:text-rt-dark-text">
+                                {{ $labels['overviewTitle'] }}
+                            </h2>
+                            <p class="mt-2 max-w-2xl text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">{{ $labels['overviewDescription'] }}</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1 rounded-xl border border-white/70 bg-white/75 px-4 py-3 shadow-rt-xs backdrop-blur-sm dark:border-white/10 dark:bg-slate-950/35">
+                        <strong class="row-span-2 text-3xl font-bold tabular-nums text-rt-text dark:text-rt-dark-text" x-text="drafts.length"></strong>
+                        <span class="text-xs font-semibold text-rt-muted dark:text-rt-dark-muted">{{ $labels['drafts'] }}</span>
+                        <span class="text-[11px] text-rt-soft dark:text-rt-dark-soft">{{ __('app.wagon_demo_notice') }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div
+                x-show="drafts.length === 0"
+                x-cloak
+                class="rt-wagon-empty-state rounded-2xl border border-dashed px-5 py-12 text-center sm:px-8 sm:py-16"
+            >
+                <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-rt-accent-soft text-xl text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent">
+                    <i class="far fa-file-plus" aria-hidden="true"></i>
+                </span>
+                <h3 class="mt-5 text-lg font-semibold text-rt-text dark:text-rt-dark-text">{{ $labels['emptyTitle'] }}</h3>
+                <p class="mx-auto mt-2 max-w-xl text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">{{ $labels['emptyText'] }}</p>
+                <button
+                    type="button"
+                    @click="createDraft($event.currentTarget)"
+                    class="mt-6 inline-flex min-h-11 items-center gap-2 rounded-lg bg-rt-red px-5 py-2.5 text-sm font-semibold text-white shadow-rt-xs transition-all duration-200 ease-rt-spring hover:-translate-y-0.5 hover:bg-rt-red-dark hover:shadow-rt-glow active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-rt-dark-canvas"
+                >
+                    <i class="far fa-plus" aria-hidden="true"></i>
+                    {{ $labels['newDraft'] }}
+                </button>
+            </div>
+
+            <div x-show.important="drafts.length > 0" x-cloak class="grid gap-3 lg:grid-cols-2">
+                <template x-for="draft in sortedDrafts" :key="draft.id">
+                    <article class="rt-wagon-draft-card group flex min-w-0 flex-col rounded-2xl p-4 shadow-rt-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-rt-sm sm:p-5">
+                        <div class="flex min-w-0 items-start gap-3">
+                            <span class="rt-wagon-draft-card-icon flex h-11 w-11 shrink-0 items-center justify-center rounded-xl">
+                                <i class="far fa-file-spreadsheet" aria-hidden="true"></i>
+                            </span>
+                            <div class="min-w-0 flex-1">
+                                <button
+                                    type="button"
+                                    @click="openDraft(draft.id, $event.currentTarget)"
+                                    class="block max-w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40"
+                                >
+                                    <span class="block truncate text-base font-semibold text-rt-text transition group-hover:text-rt-red dark:text-rt-dark-text dark:group-hover:text-rt-dark-accent" x-text="draftTitle(draft)"></span>
+                                    <span class="mt-1 block truncate text-sm text-rt-muted dark:text-rt-dark-muted" x-text="draftRoute(draft)"></span>
+                                </button>
+                            </div>
+                            <span class="shrink-0 rounded-md bg-rt-surface-muted px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted">
+                                {{ $labels['localDraft'] }}
+                            </span>
+                        </div>
+
+                        <dl class="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 border-y border-rt-border/70 py-4 text-xs dark:border-rt-dark-border/70 sm:grid-cols-3">
+                            <div class="min-w-0">
+                                <dt class="text-rt-soft dark:text-rt-dark-soft">{{ __('app.date') }}</dt>
+                                <dd class="mt-1 truncate font-semibold tabular-nums text-rt-text dark:text-rt-dark-text" x-text="formatDate(draft.meta.date)"></dd>
+                            </div>
+                            <div class="min-w-0">
+                                <dt class="text-rt-soft dark:text-rt-dark-soft">{{ $labels['filledWagons'] }}</dt>
+                                <dd class="mt-1 font-semibold tabular-nums text-rt-text dark:text-rt-dark-text">
+                                    <span x-text="draftWagonCount(draft)"></span>/<span x-text="draft.visibleCount"></span>
+                                </dd>
+                            </div>
+                            <div class="col-span-2 min-w-0 sm:col-span-1">
+                                <dt class="text-rt-soft dark:text-rt-dark-soft">{{ $labels['updatedAt'] }}</dt>
+                                <dd class="mt-1 truncate font-semibold tabular-nums text-rt-text dark:text-rt-dark-text" x-text="formatSavedAt(draft.persistedAt)"></dd>
+                            </div>
+                        </dl>
+
+                        <div class="mt-4 flex flex-wrap items-center justify-between gap-2">
+                            <button
+                                type="button"
+                                @click="deleteDraft(draft.id)"
+                                class="inline-flex min-h-10 items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-rt-muted transition-all duration-200 hover:bg-red-50 hover:text-red-700 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/45 dark:text-rt-dark-muted dark:hover:bg-red-500/10 dark:hover:text-red-300"
+                            >
+                                <i class="far fa-trash-alt" aria-hidden="true"></i>
+                                {{ $labels['deleteDraft'] }}
+                            </button>
+                            <button
+                                type="button"
+                                @click="openDraft(draft.id, $event.currentTarget)"
+                                class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-rt-text px-4 py-2 text-xs font-semibold text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-700 active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40 dark:bg-rt-dark-text dark:text-slate-950 dark:hover:bg-white"
+                            >
+                                {{ $labels['continueDraft'] }}
+                                <i class="far fa-arrow-right" aria-hidden="true"></i>
+                            </button>
+                        </div>
+                    </article>
+                </template>
+            </div>
+        </section>
+
+        <section
+            x-show.important="editorOpen"
+            x-cloak
+            x-ref="editorDialog"
+            @keydown.tab="trapEditorFocus($event)"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="wagon-editor-title"
+            class="rt-wagon-editor fixed inset-0 z-[160] flex min-h-0 flex-col bg-rt-canvas text-rt-text dark:bg-rt-dark-canvas dark:text-rt-dark-text"
+            x-transition:enter="transition duration-300 ease-out"
+            x-transition:enter-start="opacity-0 scale-[0.995]"
+            x-transition:enter-end="opacity-100 scale-100"
+            x-transition:leave="transition duration-200 ease-in"
+            x-transition:leave-start="opacity-100 scale-100"
+            x-transition:leave-end="opacity-0 scale-[0.995]"
+            data-wagon-editor
+        >
+            <header class="rt-wagon-editor-header z-10 shrink-0 border-b border-rt-border/70 bg-rt-surface/95 px-3 py-3 shadow-rt-xs backdrop-blur-xl dark:border-rt-dark-border/70 dark:bg-rt-dark-surface/95 sm:px-5">
+                <div class="mx-auto flex max-w-[100rem] items-center gap-3">
+                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent">
+                        <i class="fad fa-train" aria-hidden="true"></i>
+                    </span>
+                    <div class="min-w-0 flex-1">
+                        <p class="text-[10px] font-bold uppercase tracking-[0.1em] text-rt-soft dark:text-rt-dark-soft">{{ $labels['localDraft'] }}</p>
+                        <h2 id="wagon-editor-title" x-ref="editorHeading" tabindex="-1" class="truncate text-base font-semibold outline-none sm:text-lg" x-text="activeDraftId ? draftTitle({ meta }) : @js($labels['untitledDraft'])"></h2>
+                        <p class="mt-0.5 hidden text-xs text-rt-muted dark:text-rt-dark-muted sm:block">
+                            {{ __('app.locally_saved') }}:
+                            <span class="tabular-nums" x-text="formatSavedAt()"></span>
+                        </p>
+                    </div>
+
+                    <div class="flex shrink-0 items-center gap-1.5 sm:gap-2">
+                        <button
+                            type="button"
+                            @click="resetDraft()"
+                            class="inline-flex h-10 w-10 items-center justify-center rounded-lg text-rt-muted transition-all duration-200 hover:bg-red-50 hover:text-red-700 active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/45 dark:text-rt-dark-muted dark:hover:bg-red-500/10 dark:hover:text-red-300"
+                            title="{{ $labels['deleteDraft'] }}"
+                            aria-label="{{ $labels['deleteDraft'] }}"
+                        >
+                            <i class="far fa-trash-alt" aria-hidden="true"></i>
+                        </button>
+                        <button
+                            type="button"
+                            @click="exportWorkbook()"
+                            :disabled="exporting"
+                            class="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-rt-border bg-rt-surface px-3 text-sm font-semibold text-rt-text shadow-rt-xs transition-all duration-200 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/45 disabled:cursor-wait disabled:opacity-65 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text dark:hover:border-emerald-500/40 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-300"
+                            title="{{ __('app.export_excel') }}"
+                            aria-label="{{ __('app.export_excel') }}"
+                        >
+                            <i class="far fa-file-excel" x-show="!exporting" aria-hidden="true"></i>
+                            <i class="far fa-spinner fa-spin" x-show="exporting" x-cloak aria-hidden="true"></i>
+                            <span class="rt-wagon-editor-export-label" x-text="exporting ? @js(__('app.wagon_exporting')) : @js(__('app.export_excel'))"></span>
+                        </button>
+                        <button
+                            type="button"
+                            @click="cancelEditor()"
+                            class="rt-wagon-editor-desktop-cancel min-h-10 items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-rt-muted transition hover:bg-rt-surface-muted hover:text-rt-text active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted dark:hover:text-rt-dark-text"
+                        >
+                            {{ __('app.cancel') }}
+                        </button>
+                        <button
+                            type="button"
+                            @click="saveAndClose()"
+                            class="rt-wagon-editor-desktop-save min-h-10 items-center gap-2 rounded-lg bg-rt-red px-4 py-2 text-sm font-semibold text-white shadow-rt-xs transition-all duration-200 hover:-translate-y-0.5 hover:bg-rt-red-dark hover:shadow-rt-glow active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40"
+                        >
+                            <i class="far fa-check" aria-hidden="true"></i>
+                            {{ $labels['saveAndClose'] }}
+                        </button>
+                        <button
+                            type="button"
+                            @click="cancelEditor()"
+                            class="inline-flex h-10 w-10 items-center justify-center rounded-lg text-rt-muted transition-all duration-200 hover:bg-rt-surface-muted hover:text-rt-text active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40 dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted dark:hover:text-rt-dark-text"
+                            title="{{ $labels['closeEditor'] }}"
+                            aria-label="{{ $labels['closeEditor'] }}"
+                            data-wagon-editor-close
+                        >
+                            <i class="far fa-times" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <div class="rt-wagon-editor-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain">
+                <main class="mx-auto w-full max-w-[100rem] space-y-5 px-3 pb-28 pt-4 sm:px-5 sm:pt-5 md:pb-8">
         <div class="rt-wagon-notice flex flex-col gap-3 rounded-xl border p-3 text-sm shadow-rt-xs sm:flex-row sm:items-center sm:justify-between" data-wagon-demo-notice>
             <div class="flex items-start gap-3">
                 <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
@@ -364,5 +564,28 @@
                 </section>
             </x-ui.accordion.tab-panel>
         </x-ui.accordion.tabs>
+                </main>
+            </div>
+
+            <footer class="rt-wagon-editor-mobile-actions fixed inset-x-0 bottom-0 z-20 grid grid-cols-2 gap-2 border-t border-rt-border/70 bg-rt-surface/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_-18px_rgba(15,23,42,0.45)] backdrop-blur-xl dark:border-rt-dark-border/70 dark:bg-rt-dark-surface/95 md:hidden">
+                <button
+                    type="button"
+                    @click="cancelEditor()"
+                    class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-rt-border bg-rt-surface px-3 py-2 text-sm font-semibold text-rt-text shadow-rt-xs transition-all duration-200 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text"
+                >
+                    <i class="far fa-times" aria-hidden="true"></i>
+                    {{ __('app.cancel') }}
+                </button>
+                <button
+                    type="button"
+                    @click="saveAndClose()"
+                    class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-rt-red px-3 py-2 text-sm font-semibold text-white shadow-rt-xs transition-all duration-200 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40"
+                >
+                    <i class="far fa-check" aria-hidden="true"></i>
+                    {{ $labels['saveAndClose'] }}
+                </button>
+                <p class="col-span-2 text-center text-[11px] leading-4 text-rt-soft dark:text-rt-dark-soft">{{ $labels['closeHint'] }}</p>
+            </footer>
+        </section>
     </x-ui.page>
 </div>

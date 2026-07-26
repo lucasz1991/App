@@ -198,7 +198,7 @@ class AdminDashboardRedesignTest extends TestCase
         preg_match_all('/data-dashboard-segment="([^"]+)"/', $dashboard, $segments);
 
         $this->assertSame(
-            ['hero', 'kpis', 'charts', 'operations', 'accounts', 'system'],
+            ['hero', 'operations', 'kpis', 'charts', 'accounts', 'system'],
             $segments[1],
         );
         $this->assertSame(substr_count($dashboard, '<section'), count($segments[1]));
@@ -217,30 +217,34 @@ class AdminDashboardRedesignTest extends TestCase
         $this->assertStringContainsString('html.dark [data-admin-dashboard] .rt-admin-demo-badge', $styles);
     }
 
-    public function test_admin_dashboard_is_compact_theme_aware_and_places_charts_first(): void
+    public function test_admin_dashboard_is_compact_theme_aware_and_places_operations_before_kpis(): void
     {
         $dashboard = file_get_contents(resource_path('views/livewire/admin/dashboard.blade.php'));
         $chartModule = file_get_contents(resource_path('js/admin-dashboard-echarts.js'));
         $styles = file_get_contents(resource_path('css/app.css'));
         $growthChartPosition = strpos($dashboard, 'x-ref="growthChart"');
         $operationalPreviewPosition = strpos($dashboard, 'operational-preview-heading');
+        $kpiPosition = strpos($dashboard, 'data-dashboard-kpis');
 
         $this->assertIsInt($growthChartPosition);
         $this->assertIsInt($operationalPreviewPosition);
-        $this->assertLessThan($operationalPreviewPosition, $growthChartPosition);
+        $this->assertIsInt($kpiPosition);
+        $this->assertLessThan($kpiPosition, $operationalPreviewPosition);
+        $this->assertLessThan($growthChartPosition, $operationalPreviewPosition);
         // Zwei-Panel-Wachstumschart (Linie + Registrierungs-Balken) braucht
         // etwas mehr Hoehe als das fruehere Einzel-Panel.
         $this->assertStringContainsString('h-[236px] sm:h-[252px]', $dashboard);
         $this->assertStringContainsString('grid gap-3 md:grid-cols-12', $dashboard);
         $this->assertStringContainsString('md:col-span-8 xl:col-span-6', $dashboard);
         $this->assertStringContainsString('md:col-span-4 xl:col-span-3', $dashboard);
-        $this->assertStringContainsString('rt-admin-operations', $dashboard);
+        $this->assertStringContainsString('rt-admin-operations-stage', $dashboard);
         $this->assertStringContainsString('dark:bg-slate-900', $dashboard);
-        $this->assertStringContainsString('dark:bg-slate-800 dark:hover:bg-slate-700', $dashboard);
+        $this->assertStringContainsString('dark:bg-slate-900/95', $dashboard);
         $this->assertStringContainsString('rt-admin-live-card', $dashboard);
         $this->assertSame(4, substr_count($dashboard, 'rt-admin-quick-link'));
         $this->assertStringContainsString('.dark .rt-admin-live-card', $styles);
         $this->assertStringContainsString('.dark .rt-admin-operations-card', $styles);
+        $this->assertStringContainsString('.dark .rt-admin-operations-stage', $styles);
         $this->assertStringContainsString('.dark .rt-admin-quick-link', $styles);
         $this->assertStringContainsString('.dark [data-admin-dashboard] .text-rt-red', $styles);
         $this->assertStringContainsString('html.dark [data-admin-dashboard] .rt-admin-live-card', $styles);

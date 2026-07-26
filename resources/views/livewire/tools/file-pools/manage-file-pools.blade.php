@@ -1,10 +1,96 @@
-<div x-data="{ openFileForm: @entangle('openFileForm'), ctx: false, cx: 0, cy: 0, cf: null, openCtx(e, id) { this.cf = id; this.cx = e.clientX; this.cy = e.clientY; this.ctx = true; } }">
+<div
+  x-data="{
+    openFileForm: @entangle('openFileForm'),
+    ctx: false,
+    cx: 0,
+    cy: 0,
+    cf: null,
+    canMoveFiles: @js($canMoveFiles),
+    draggedFileId: null,
+    dropTarget: null,
+    movingFileId: null,
+    openCtx(e, id) {
+      this.cf = id;
+      this.cx = e.clientX;
+      this.cy = e.clientY;
+      this.ctx = true;
+    },
+    fileIdFromDrag(event) {
+      const transferId = event.dataTransfer?.getData('application/x-railtime-file')
+        || event.dataTransfer?.getData('text/plain');
+      const fileId = Number(transferId || this.draggedFileId);
+
+      return Number.isInteger(fileId) && fileId > 0 ? fileId : null;
+    },
+    startFileDrag(event, fileId) {
+      if (!this.canMoveFiles) {
+        event.preventDefault();
+        return;
+      }
+
+      this.draggedFileId = Number(fileId);
+      event.currentTarget.setAttribute('aria-grabbed', 'true');
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('application/x-railtime-file', String(fileId));
+      event.dataTransfer.setData('text/plain', String(fileId));
+    },
+    endFileDrag(event) {
+      event.currentTarget.setAttribute('aria-grabbed', 'false');
+      this.draggedFileId = null;
+      this.dropTarget = null;
+    },
+    activateDropTarget(event, target) {
+      if (!this.draggedFileId) {
+        return;
+      }
+
+      event.dataTransfer.dropEffect = 'move';
+      this.dropTarget = target;
+    },
+    leaveDropTarget(event, target) {
+      if (this.dropTarget === target && !event.currentTarget.contains(event.relatedTarget)) {
+        this.dropTarget = null;
+      }
+    },
+    async dropFile(event, targetFolderId, target) {
+      const fileId = this.fileIdFromDrag(event);
+
+      if (!fileId || this.movingFileId) {
+        return;
+      }
+
+      this.dropTarget = null;
+      this.movingFileId = fileId;
+
+      try {
+        await this.$wire.moveFile(fileId, targetFolderId);
+      } catch (error) {
+        window.dispatchEvent(new CustomEvent('swal:toast', {
+          detail: { type: 'error', text: @js(__('app.file_move_failed')) },
+        }));
+      } finally {
+        this.draggedFileId = null;
+        this.movingFileId = null;
+      }
+    },
+  }"
+>
+  <p id="file-pool-drag-hint-{{ $filePoolId }}" class="sr-only">
+    {{ __('app.file_drag_hint') }}
+  </p>
   {{-- Toolbar: Breadcrumbs + Aktionen --}}
   <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
     {{-- Breadcrumbs (Explorer-Pfad) --}}
-    <nav class="flex min-w-0 items-center gap-1 rounded-xl bg-rt-surface-muted px-2 py-1.5 text-sm dark:bg-rt-dark-surface-muted" aria-label="Breadcrumb">
+    <nav class="flex min-w-0 items-center gap-1 overflow-x-auto rounded-xl bg-rt-surface-muted px-2 py-1.5 text-sm dark:bg-rt-dark-surface-muted" aria-label="Breadcrumb">
       <button type="button" wire:click="enterFolder"
-              class="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 font-medium transition-all duration-300 ease-rt-spring {{ $currentFolder ? 'text-rt-muted hover:bg-rt-surface hover:text-rt-accent hover:shadow-rt-xs dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface dark:hover:text-rt-dark-accent' : 'text-rt-text dark:text-rt-dark-text' }}">
+              class="rt-file-drop-breadcrumb inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 font-medium transition-all duration-300 ease-rt-spring {{ $currentFolder ? 'text-rt-muted hover:bg-rt-surface hover:text-rt-accent hover:shadow-rt-xs dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface dark:hover:text-rt-dark-accent' : 'text-rt-text dark:text-rt-dark-text' }}"
+              @if($canMoveFiles)
+                :data-drop-active="dropTarget === 'breadcrumb-root' ? 'true' : 'false'"
+                @dragenter.prevent="activateDropTarget($event, 'breadcrumb-root')"
+                @dragover.prevent="activateDropTarget($event, 'breadcrumb-root')"
+                @dragleave="leaveDropTarget($event, 'breadcrumb-root')"
+                @drop.prevent.stop="dropFile($event, null, 'breadcrumb-root')"
+              @endif>
         <i class="fad fa-home fa-sm"></i>
         {{ __('app.root_folder') }}
       </button>
@@ -14,7 +100,14 @@
           <span class="truncate rounded-lg px-2 py-1 font-semibold text-rt-text dark:text-rt-dark-text">{{ $crumb->name }}</span>
         @else
           <button type="button" wire:click="enterFolder({{ $crumb->id }})"
-                  class="truncate rounded-lg px-2 py-1 font-medium text-rt-muted transition-all duration-300 ease-rt-spring hover:bg-rt-surface hover:text-rt-accent hover:shadow-rt-xs dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface dark:hover:text-rt-dark-accent">
+                  class="rt-file-drop-breadcrumb shrink-0 truncate rounded-lg px-2 py-1 font-medium text-rt-muted transition-all duration-300 ease-rt-spring hover:bg-rt-surface hover:text-rt-accent hover:shadow-rt-xs dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface dark:hover:text-rt-dark-accent"
+                  @if($canMoveFiles)
+                    :data-drop-active="dropTarget === 'breadcrumb-{{ $crumb->id }}' ? 'true' : 'false'"
+                    @dragenter.prevent="activateDropTarget($event, 'breadcrumb-{{ $crumb->id }}')"
+                    @dragover.prevent="activateDropTarget($event, 'breadcrumb-{{ $crumb->id }}')"
+                    @dragleave="leaveDropTarget($event, 'breadcrumb-{{ $crumb->id }}')"
+                    @drop.prevent.stop="dropFile($event, {{ $crumb->id }}, 'breadcrumb-{{ $crumb->id }}')"
+                  @endif>
             {{ $crumb->name }}
           </button>
         @endif
@@ -53,7 +146,18 @@
   @if($folders->count() > 0)
     <div class="rt-file-explorer-grid mb-2" @contextmenu.prevent="openCtx($event, null)">
       @foreach($folders as $folder)
-        <div class="rt-file-explorer-card group relative rounded-lg p-1.5 transition-all duration-300 ease-rt-spring hover:bg-rt-accent/5 hover:ring-1 hover:ring-rt-accent/30 dark:hover:bg-rt-dark-accent/10 dark:hover:ring-rt-dark-accent/30" wire:key="folder-{{ $folder->id }}" @contextmenu.prevent.stop="openCtx($event, {{ $folder->id }})">
+        <div
+          class="rt-file-explorer-card rt-file-drop-folder group relative rounded-lg p-1.5 transition-all duration-300 ease-rt-spring hover:bg-rt-accent/5 hover:ring-1 hover:ring-rt-accent/30 dark:hover:bg-rt-dark-accent/10 dark:hover:ring-rt-dark-accent/30"
+          wire:key="folder-{{ $folder->id }}"
+          @contextmenu.prevent.stop="openCtx($event, {{ $folder->id }})"
+          @if($canMoveFiles)
+            :data-drop-active="dropTarget === 'folder-{{ $folder->id }}' ? 'true' : 'false'"
+            @dragenter.prevent="activateDropTarget($event, 'folder-{{ $folder->id }}')"
+            @dragover.prevent="activateDropTarget($event, 'folder-{{ $folder->id }}')"
+            @dragleave="leaveDropTarget($event, 'folder-{{ $folder->id }}')"
+            @drop.prevent.stop="dropFile($event, {{ $folder->id }}, 'folder-{{ $folder->id }}')"
+          @endif
+        >
           @if($folder->auto_delete || $folder->visible_until)
             <div class="absolute left-1.5 top-1.5 text-rt-muted dark:text-rt-dark-muted" title="{{ $folder->visible_until ? __('app.visible_until').': '.$folder->visible_until->format('d.m.Y').($folder->auto_delete ? ' · '.__('app.auto_delete') : '') : __('app.auto_delete') }}">
               <i class="fad fa-clock text-[11px]"></i>
@@ -99,7 +203,17 @@
   <div class="rt-file-explorer-grid my-6" data-anim-stagger @contextmenu.prevent="openCtx($event, null)">
     @forelse($poolFiles as $file)
       <div class="rt-file-explorer-card min-w-0" wire:key="file-{{ $file->id }}">
-        <x-ui.filepool.file-card :file="$file" :read-only="$readOnly" />
+        <x-ui.filepool.file-card
+          :file="$file"
+          :read-only="$readOnly"
+          :can-move="$canMoveFiles && (
+            $file->is_owned_by_auth_user
+            || auth()->user()?->isAdmin()
+            || auth()->user()?->can('files.manage')
+            || auth()->user()?->can('users.edit')
+          )"
+          :drag-hint-id="'file-pool-drag-hint-'.$filePoolId"
+        />
         @if($allowRoleSharing && ! $file->folder_id)
           <div class="mt-1 flex flex-wrap gap-1">
             @forelse($file->shared_roles ?? [] as $sharedRole)

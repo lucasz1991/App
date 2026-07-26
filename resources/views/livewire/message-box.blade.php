@@ -3,19 +3,12 @@
         <div class="space-y-3 sm:space-y-5">
             {{-- Suche --}}
             <div class="rounded-xl bg-rt-surface p-3 shadow-rt-sm ring-1 ring-rt-border/60 sm:p-4 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
-                <div class="flex flex-col items-center justify-between space-y-3 md:flex-row md:space-y-0">
-                    <div class="w-full md:w-1/2">
-                        <label for="message-search" class="sr-only">{{ __('app.search') }}</label>
-                        <div class="relative w-full">
-                            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                                <i class="far fa-search text-rt-soft dark:text-rt-dark-soft" aria-hidden="true"></i>
-                            </div>
-                            <x-ui.forms.input type="text" id="message-search"
-                                   wire:model.live.debounce.400ms="search"
-                                   placeholder="{{ __('app.search') }}"
-                                   class="block p-2 pl-10 text-sm" />
-                        </div>
-                    </div>
+                <div class="flex items-center">
+                    <x-tables.search-field
+                        id="message-search"
+                        :results-count="$messages->count()"
+                        wire:model.live.debounce.400ms="search"
+                    />
                 </div>
             </div>
 

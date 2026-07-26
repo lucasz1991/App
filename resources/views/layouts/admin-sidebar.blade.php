@@ -181,7 +181,7 @@
 
             <x-menu.sidebar-nav-group
                 icon="user"
-                :active="request()->routeIs('profile.show', 'support')"
+                :active="request()->routeIs('profile.show', 'help', 'support')"
             >
                 <x-slot:label>{{ __('app.profile_and_support') }}</x-slot:label>
 
@@ -193,6 +193,15 @@
                     class="!pl-12"
                 >
                     {{ __('app.profile') }}
+                </x-menu.sidebar-nav-link>
+
+                <x-menu.sidebar-nav-link
+                    :href="route('help')"
+                    icon="help-circle"
+                    :active="request()->routeIs('help')"
+                    class="!pl-12"
+                >
+                    {{ __('app.help') }}
                 </x-menu.sidebar-nav-link>
 
                 <x-menu.sidebar-nav-link
