@@ -30,11 +30,13 @@
             </div>
         </section>
 
-        <section aria-labelledby="help-topics-heading">
+        <section aria-labelledby="help-topics-heading" class="space-y-4">
             <div class="mb-3 flex items-end justify-between gap-4">
                 <div>
                     <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.help_topics') }}</p>
-                    <h2 id="help-topics-heading" class="mt-1 text-lg font-semibold tracking-tight text-rt-text dark:text-white">{{ __('app.help_direct_links') }}</h2>
+                    <h2 id="help-topics-heading" class="mt-1 text-lg font-semibold tracking-tight text-rt-text dark:text-white">
+                        {{ app()->getLocale() === 'de' ? 'RailTime Schritt für Schritt' : 'RailTime step by step' }}
+                    </h2>
                 </div>
                 <a href="{{ route('support') }}" wire:navigate class="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-rt-red transition hover:text-rt-red-dark focus:outline-none focus:ring-2 focus:ring-rt-red/30">
                     <i data-feather="life-buoy" class="h-4 w-4"></i>
@@ -42,20 +44,42 @@
                 </a>
             </div>
 
-            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                @forelse ($topics as $topic)
-                    <a
-                        href="{{ $topic['href'] }}"
-                        wire:navigate
-                        class="group flex min-h-36 flex-col rounded-2xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 transition duration-300 ease-rt-spring hover:-translate-y-1 hover:shadow-rt-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red dark:bg-rt-dark-surface dark:ring-rt-dark-border/60"
-                    >
-                        <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-rt-accent-soft text-rt-accent transition group-hover:bg-rt-red group-hover:text-white dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent">
-                            <i data-feather="{{ $topic['icon'] }}" class="h-5 w-5"></i>
-                        </span>
-                        <span class="mt-4 block text-sm font-semibold text-rt-text dark:text-white">{{ $topic['title'] }}</span>
-                        <span class="mt-1 block text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">{{ $topic['description'] }}</span>
-                    </a>
-                @empty
+            @forelse ($topicGroups as $group => $groupTopics)
+                <section class="overflow-hidden rounded-2xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+                    <h3 class="border-b border-rt-border/60 bg-rt-surface-muted px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-rt-muted dark:border-rt-dark-border/60 dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted">{{ $group }}</h3>
+                    <div class="divide-y divide-rt-border/60 dark:divide-rt-dark-border/60">
+                        @foreach ($groupTopics as $topic)
+                            <details class="group px-4 py-1">
+                                <summary class="flex min-h-14 cursor-pointer list-none items-center gap-3 py-3 focus:outline-none">
+                                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent">
+                                        <i data-feather="{{ $topic['icon'] }}" class="h-4 w-4"></i>
+                                    </span>
+                                    <span class="min-w-0 flex-1">
+                                        <span class="block text-sm font-semibold text-rt-text dark:text-white">{{ $topic['title'] }}</span>
+                                        <span class="mt-0.5 block text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">{{ $topic['summary'] }}</span>
+                                    </span>
+                                    <i data-feather="chevron-down" class="h-4 w-4 shrink-0 text-rt-soft transition group-open:rotate-180 dark:text-rt-dark-soft"></i>
+                                </summary>
+                                <div class="pb-4 pl-12">
+                                    <ul class="space-y-2">
+                                        @foreach ($topic['points'] as $point)
+                                            <li class="flex gap-2 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">
+                                                <i class="far fa-check-circle mt-1 shrink-0 text-rt-accent dark:text-rt-dark-accent" aria-hidden="true"></i>
+                                                <span>{{ $point }}</span>
+                                            </li>
+                                        @endforeach
+                                    </ul>
+                                    <a href="{{ $topic['href'] }}" wire:navigate class="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-rt-red hover:text-rt-red-dark">
+                                        {{ app()->getLocale() === 'de' ? 'Bereich öffnen' : 'Open area' }}
+                                        <i class="far fa-arrow-right text-xs" aria-hidden="true"></i>
+                                    </a>
+                                </div>
+                            </details>
+                        @endforeach
+                    </div>
+                </section>
+            @empty
+                <div>
                     <div class="rounded-2xl bg-rt-surface-muted px-5 py-8 text-center sm:col-span-2 xl:col-span-4 dark:bg-rt-dark-surface-muted">
                         <i data-feather="search" class="mx-auto h-6 w-6 text-rt-soft dark:text-rt-dark-soft"></i>
                         <p class="mt-3 text-sm font-semibold text-rt-text dark:text-white">{{ __('app.help_no_results') }}</p>
@@ -63,8 +87,8 @@
                             {{ __('app.reset_search') }}
                         </button>
                     </div>
-                @endforelse
-            </div>
+                </div>
+            @endforelse
         </section>
 
         <section
@@ -79,12 +103,14 @@
                         </span>
                         <div>
                             <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.help_install_eyebrow') }}</p>
-                            <h2 id="install-app-heading" class="mt-1 text-lg font-semibold tracking-tight text-rt-text dark:text-white">{{ __('app.help_install_title') }}</h2>
+                            <h2 id="install-app-heading" class="mt-1 text-lg font-semibold tracking-tight text-rt-text dark:text-white">
+                                {{ app()->getLocale() === 'de' ? 'Realtime auf dem Smartphone' : 'Realtime on your smartphone' }}
+                            </h2>
                         </div>
                     </div>
                     <p class="mt-3 max-w-3xl text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">{{ __('app.help_install_description') }}</p>
                 </div>
-                <a href="{{ route('profile.show', ['tab' => 'app']) }}" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-4 py-2 text-sm font-semibold text-white shadow-rt-sm transition hover:-translate-y-0.5 hover:bg-rt-red-dark focus:outline-none focus:ring-2 focus:ring-rt-red/30">
+                <a href="{{ route('profile.show', ['tab' => 'settings']) }}" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-4 py-2 text-sm font-semibold text-white shadow-rt-sm transition hover:-translate-y-0.5 hover:bg-rt-red-dark focus:outline-none focus:ring-2 focus:ring-rt-red/30">
                     <i data-feather="bell" class="h-4 w-4"></i>
                     {{ __('app.open_app_push') }}
                 </a>
@@ -132,6 +158,26 @@
                 </article>
             </div>
 
+        </section>
+
+        <section aria-labelledby="help-faq-heading">
+            <div class="mb-3">
+                <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">FAQ</p>
+                <h2 id="help-faq-heading" class="mt-1 text-lg font-semibold tracking-tight text-rt-text dark:text-white">
+                    {{ app()->getLocale() === 'de' ? 'Häufige Fragen' : 'Frequently asked questions' }}
+                </h2>
+            </div>
+            <div class="divide-y divide-rt-border/60 overflow-hidden rounded-2xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/60 dark:divide-rt-dark-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+                @foreach ($faqs as $faq)
+                    <details class="group px-4 sm:px-5">
+                        <summary class="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 py-4 text-sm font-semibold text-rt-text focus:outline-none dark:text-white">
+                            {{ $faq['question'] }}
+                            <i data-feather="plus" class="h-4 w-4 shrink-0 text-rt-muted transition group-open:rotate-45 dark:text-rt-dark-muted"></i>
+                        </summary>
+                        <p class="pb-4 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">{{ $faq['answer'] }}</p>
+                    </details>
+                @endforeach
+            </div>
         </section>
     </div>
 </x-ui.page>

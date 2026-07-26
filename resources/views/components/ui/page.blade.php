@@ -18,7 +18,12 @@
 --}}
 <div {{ $attributes->class('space-y-6 px-2 py-6 lg:py-8') }}>
     @if (! is_null($title) || isset($actions))
-        <x-ui.page-header :title="$title" :eyebrow="$eyebrow" :description="$description" :count="$count">
+        <x-ui.page-header
+            :title="$title"
+            :eyebrow="$eyebrow"
+            :count="$count"
+            :help="app(\App\Support\PageHelpCatalog::class)->forRoute(request()->route()?->getName(), $title)"
+        >
             @isset($actions)
                 <x-slot:actions>{{ $actions }}</x-slot:actions>
             @endisset

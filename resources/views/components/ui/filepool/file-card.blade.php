@@ -30,6 +30,10 @@
     @focusout="if (!$root.contains($event.relatedTarget)) actionsOpen = false"
     @click="if (!pointerFine && !$event.target.closest('[data-file-action]')) actionsOpen = true"
     @click.outside="if (!pointerFine) actionsOpen = false"
+    @contextmenu.prevent.stop="
+        actionsOpen = false;
+        $nextTick(() => $root.querySelector('[data-file-menu-trigger]')?.click())
+    "
     @keydown.escape.stop="actionsOpen = false; $root.focus()"
     @if($canMove)
         draggable="true"
@@ -71,8 +75,9 @@
                     <button
                         type="button"
                         data-file-action
+                        data-file-menu-trigger
                         draggable="false"
-                        class="rt-file-card-menu-trigger"
+                        class="rt-file-card-menu-trigger pointer-events-none translate-y-[-0.2rem] opacity-0 transition duration-200 ease-out group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-y-0 group-focus-within:opacity-100"
                         title="{{ __('app.file_actions') }}"
                         aria-label="{{ __('app.file_actions') }}"
                     >
@@ -106,7 +111,7 @@
         x-transition:leave="transition duration-150 ease-in"
         x-transition:leave-start="opacity-100 scale-100"
         x-transition:leave-end="opacity-0 scale-[0.985]"
-        class="rt-file-card-action-overlay absolute inset-0 z-20 items-center justify-center rounded-xl"
+        class="rt-file-card-action-overlay absolute inset-0 z-20 items-end justify-center rounded-xl pb-12"
         @click.stop
     >
         <div class="flex items-center justify-center gap-2" role="toolbar" aria-label="{{ __('app.file_actions') }}">

@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Support\PageHelpCatalog;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Str;
 use Livewire\Component;
@@ -10,11 +11,20 @@ class HelpCenter extends Component
 {
     public string $query = '';
 
-    public function render(): View
+    public function render(PageHelpCatalog $catalog): View
     {
         $user = auth()->user();
         $query = Str::lower(trim($this->query));
-        $topics = collect($this->topics())
+        $topics = collect($catalog->forUser($user))
+            ->map(function (array $topic): array {
+                $topic['href'] = match ($topic['route']) {
+                    'admin.operations.preview' => route('admin.operations.preview', ['module' => 'overview']),
+                    null => route('help'),
+                    default => route($topic['route']),
+                };
+
+                return $topic;
+            })
             ->filter(function (array $topic) use ($query): bool {
                 if ($query === '') {
                     return true;
@@ -23,8 +33,9 @@ class HelpCenter extends Component
                 return Str::contains(
                     Str::lower(implode(' ', [
                         $topic['title'],
-                        $topic['description'],
-                        implode(' ', $topic['keywords']),
+                        $topic['summary'],
+                        $topic['group'],
+                        implode(' ', $topic['points']),
                     ])),
                     $query,
                 );
@@ -33,62 +44,44 @@ class HelpCenter extends Component
 
         return view('livewire.help-center', [
             'topics' => $topics,
+            'topicGroups' => $topics->groupBy('group'),
+            'faqs' => $this->faqs(),
         ])->layout('layouts.master', [
             'area' => $user->usesAdminLayout() ? 'admin' : 'user',
         ]);
     }
 
     /**
-     * @return array<int, array{
-     *     title: string,
-     *     description: string,
-     *     icon: string,
-     *     href: string,
-     *     keywords: array<int, string>
-     * }>
+     * @return array<int, array{question:string, answer:string}>
      */
-    private function topics(): array
+    private function faqs(): array
     {
-        $topics = [
-            [
-                'title' => __('app.help_topic_profile_title'),
-                'description' => __('app.help_topic_profile_description'),
-                'icon' => 'user',
-                'href' => route('profile.show'),
-                'keywords' => ['profil', 'passwort', 'sicherheit', 'profile', 'password'],
-            ],
-            [
-                'title' => __('app.help_topic_messages_title'),
-                'description' => __('app.help_topic_messages_description'),
-                'icon' => 'message-square',
-                'href' => route('messages'),
-                'keywords' => ['nachrichten', 'chat', 'message', 'kommunikation'],
-            ],
-            [
-                'title' => __('app.help_topic_files_title'),
-                'description' => __('app.help_topic_files_description'),
-                'icon' => 'folder',
-                'href' => auth()->user()->usesAdminLayout() ? route('admin.files') : route('files'),
-                'keywords' => ['dateien', 'download', 'ordner', 'files'],
-            ],
-        ];
-
-        if (in_array(
-            auth()->user()->dashboardAudience(),
-            ['admin', 'employee', 'management', 'administration'],
-            true,
-        )) {
-            $topics[] = [
-                'title' => __('app.help_topic_wagon_title'),
-                'description' => __('app.help_topic_wagon_description'),
-                'icon' => 'clipboard',
-                'href' => auth()->user()->usesAdminLayout()
-                    ? route('admin.operations.wagon-list')
-                    : route('operations.wagon-list'),
-                'keywords' => ['wagenliste', 'warenliste', 'entwurf', 'export', 'wagon'],
+        if (app()->getLocale() !== 'de') {
+            return [
+                ['question' => 'Why am I not receiving push notifications?', 'answer' => 'Install RailTime on the device, allow notifications in Profile > Settings and check the notification permissions of the operating system.'],
+                ['question' => 'Where can I continue a wagon list?', 'answer' => 'Existing drafts appear first on the wagon list page. Open a draft to continue exactly where you stopped.'],
+                ['question' => 'How do I move a file?', 'answer' => 'Drag the file card onto a folder or onto one of the breadcrumbs above the file grid.'],
+                ['question' => 'How do I contact support?', 'answer' => 'Open Support from My area and include the steps, expected result and, if possible, a screenshot.'],
             ];
         }
 
-        return $topics;
+        return [
+            [
+                'question' => 'Warum erhalte ich keine Push-Benachrichtigungen?',
+                'answer' => 'Installieren Sie RailTime auf dem Gerät, erlauben Sie Benachrichtigungen unter Profil > Einstellungen und prüfen Sie zusätzlich die Mitteilungsrechte des Betriebssystems.',
+            ],
+            [
+                'question' => 'Wo kann ich eine Wagenliste fortsetzen?',
+                'answer' => 'Auf der Wagenlistenseite stehen vorhandene Entwürfe zuerst. Öffnen Sie einen Entwurf, um exakt an der letzten Stelle weiterzuarbeiten.',
+            ],
+            [
+                'question' => 'Wie verschiebe ich eine Datei?',
+                'answer' => 'Ziehen Sie die Dateikarte auf einen Ordner oder auf einen der Brotkrümel oberhalb des Dateirasters.',
+            ],
+            [
+                'question' => 'Wie erreiche ich den Support?',
+                'answer' => 'Öffnen Sie unter Mein Bereich den Support und nennen Sie Ablauf, erwartetes Ergebnis und möglichst einen Screenshot.',
+            ],
+        ];
     }
 }

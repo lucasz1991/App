@@ -142,10 +142,9 @@
     </div>
   </div>
 
-  {{-- Ordner-Raster --}}
-  @if($folders->count() > 0)
-    <div class="rt-file-explorer-grid mb-2" @contextmenu.prevent="openCtx($event, null)">
-      @foreach($folders as $folder)
+  {{-- Gemeinsames Explorer-Raster: zuerst Ordner, danach Dateien --}}
+  <div class="rt-file-explorer-grid my-6" data-anim-stagger @contextmenu.prevent="openCtx($event, null)">
+    @foreach($folders as $folder)
         <div
           class="rt-file-explorer-card rt-file-drop-folder group relative rounded-lg p-1.5 transition-all duration-300 ease-rt-spring hover:bg-rt-accent/5 hover:ring-1 hover:ring-rt-accent/30 dark:hover:bg-rt-dark-accent/10 dark:hover:ring-rt-dark-accent/30"
           wire:key="folder-{{ $folder->id }}"
@@ -195,13 +194,9 @@
             </div>
           @endif
         </div>
-      @endforeach
-    </div>
-  @endif
+    @endforeach
 
-  {{-- Datei-Raster --}}
-  <div class="rt-file-explorer-grid my-6" data-anim-stagger @contextmenu.prevent="openCtx($event, null)">
-    @forelse($poolFiles as $file)
+    @foreach($poolFiles as $file)
       <div class="rt-file-explorer-card min-w-0" wire:key="file-{{ $file->id }}">
         <x-ui.filepool.file-card
           :file="$file"
@@ -215,14 +210,14 @@
           :drag-hint-id="'file-pool-drag-hint-'.$filePoolId"
         />
       </div>
-    @empty
-      @if($folders->count() === 0)
-        <div class="col-span-full flex w-full flex-col items-center gap-2 rounded-xl border border-dashed border-rt-border bg-rt-surface-muted/60 py-12 text-center dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/40">
-          <i class="fad fa-folder-open text-3xl text-rt-soft dark:text-rt-dark-soft"></i>
-          <span class="text-sm text-rt-muted dark:text-rt-dark-muted">{{ __('app.no_files_available') }}</span>
-        </div>
-      @endif
-    @endforelse
+    @endforeach
+
+    @if($folders->isEmpty() && $poolFiles->isEmpty())
+      <div class="col-span-full flex w-full flex-col items-center gap-2 rounded-xl border border-dashed border-rt-border bg-rt-surface-muted/60 py-12 text-center dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/40">
+        <i class="fad fa-folder-open text-3xl text-rt-soft dark:text-rt-dark-soft"></i>
+        <span class="text-sm text-rt-muted dark:text-rt-dark-muted">{{ __('app.no_files_available') }}</span>
+      </div>
+    @endif
   </div>
 
   {{-- Rechtsklick-Kontextmenue (Explorer) --}}
