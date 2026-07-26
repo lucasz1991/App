@@ -90,6 +90,12 @@
             @endif
 
             <x-ui.accordion.tab-panel for="app" panel-class="space-y-8">
+                {{-- Sprache, Darstellung, Toene an/aus --}}
+                <x-ui.display-settings />
+
+                {{-- Persoenliche Ton-Zuordnung je Ereignis --}}
+                <livewire:settings.sound-preferences />
+
                 <livewire:settings.push-settings />
             </x-ui.accordion.tab-panel>
 

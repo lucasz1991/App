@@ -69,6 +69,41 @@
             </div>
         </div>
     </section>
+
+    {{-- Toneinstellungen: systemweite Standards je Ereignis, mit Sofort-Vorschau. --}}
+    <section
+        class="min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 sm:p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60"
+        data-anim="fade-up"
+        aria-labelledby="sound-settings-heading"
+        data-sound-settings
+    >
+        <div class="rounded-[calc(1rem-2px)] bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6">
+            <div class="flex min-w-0 items-start gap-3 sm:gap-4">
+                <span class="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent sm:flex">
+                    <i class="fad fa-volume fa-lg" aria-hidden="true"></i>
+                </span>
+                <div class="min-w-0 flex-1">
+                    <h2 id="sound-settings-heading" class="text-base font-semibold tracking-tight text-rt-text dark:text-rt-dark-text sm:text-lg">
+                        {{ __('app.sound_settings') }}
+                    </h2>
+                    <p class="mt-1 break-words text-sm text-rt-muted dark:text-rt-dark-muted">
+                        {{ __('app.sound_settings_hint') }}
+                    </p>
+
+                    <div class="mt-4 sm:mt-5">
+                        <x-ui.forms.sound-picker model="sounds" />
+                    </div>
+
+                    <div class="mt-5">
+                        <x-ui.buttons.button-basic class="w-full sm:w-auto" mode="primary" wire:click="saveSounds" can="settings.manage">
+                            <i class="fad fa-save" aria-hidden="true"></i>
+                            {{ __('app.save') }}
+                        </x-ui.buttons.button-basic>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
     </x-ui.accordion.tab-panel>
 
     {{-- Einladungen --}}

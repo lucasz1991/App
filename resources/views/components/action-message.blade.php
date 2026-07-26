@@ -1,10 +1,22 @@
 @props(['on'])
 
-<div x-data="{ shown: false, timeout: null }"
-    x-init="@this.on('{{ $on }}', () => { clearTimeout(timeout); shown = true; timeout = setTimeout(() => { shown = false }, 2000); })"
-    x-show.transition.out.opacity.duration.1500ms="shown"
-    x-transition:leave.opacity.duration.1500ms
-    style="display: none;"
-    {{ $attributes->merge(['class' => 'text-sm text-rt-muted dark:text-rt-dark-muted']) }}>
-    {{ $slot->isEmpty() ? 'Saved.' : $slot }}
-</div>
+{{--
+    Fruehere Inline-Meldung ("Gespeichert.") — jetzt eine unsichtbare Bruecke:
+    Das Livewire-Ereignis (z. B. 'saved') wird als Erfolgs-Toast gemeldet.
+    rt-toast.js zeigt ihn oben rechts und spielt automatisch den fuer 'success'
+    zugeordneten Ton (rt-sounds.js). Der Slot-Text bleibt je Formular anpassbar.
+
+    Achtung: keine doppelten Anfuehrungszeichen innerhalb von x-init — das
+    Attribut selbst ist mit " umschlossen (siehe InfoModalTest).
+--}}
+<span
+    x-data
+    x-init="@this.on('{{ $on }}', () => {
+        window.dispatchEvent(new CustomEvent('swal:toast', {
+            detail: { type: 'success', text: @js(trim($slot->isEmpty() ? __('app.saved') : (string) $slot)) },
+        }));
+    })"
+    class="hidden"
+    aria-hidden="true"
+    data-action-message-toast="{{ $on }}"
+></span>

@@ -233,6 +233,12 @@
         applyMap(readMapFromDocument());
     });
 
+    // Sofortige Uebernahme nach dem Speichern der Ton-Einstellungen
+    // (Livewire dispatcht 'rt-sounds:map' mit der neuen wirksamen Zuordnung).
+    window.addEventListener('rt-sounds:map', function (event) {
+        applyMap(event && event.detail ? event.detail.map : null);
+    });
+
     function signatureFor(event) {
         var name = EVENT_SIGNATURES[event] || event;
 

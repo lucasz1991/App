@@ -4,8 +4,10 @@ namespace App\Livewire\Admin;
 
 use App\Models\Setting;
 use App\Support\CompanyData;
+use App\Support\Sound\SoundLibrary;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 use Livewire\Component;
 
 class Settings extends Component
@@ -22,6 +24,13 @@ class Settings extends Component
     /** @var array<string, string> */
     public array $company = [];
 
+    /**
+     * Systemweite Standard-Ton-Zuordnung (Ereignis => Signatur).
+     *
+     * @var array<string, string>
+     */
+    public array $sounds = [];
+
     public function mount(): void
     {
         Gate::authorize('settings.manage');
@@ -36,6 +45,31 @@ class Settings extends Component
         $days = (int) (Setting::getValueUncached('invitations', 'expiry_days') ?? 7);
         $this->invitationExpiryDays = $days > 0 ? $days : 7;
         $this->company = CompanyData::all(uncached: true);
+        $this->sounds = SoundLibrary::systemMap();
+    }
+
+    /**
+     * Systemweite Standard-Ton-Zuordnung speichern (Ereignis => Signatur).
+     */
+    public function saveSounds(): void
+    {
+        Gate::authorize('settings.manage');
+
+        $this->validate([
+            'sounds' => ['required', 'array'],
+            'sounds.*' => ['required', 'string', Rule::in(SoundLibrary::signatures())],
+        ]);
+
+        foreach (SoundLibrary::events() as $event) {
+            if (array_key_exists($event, $this->sounds)) {
+                Setting::setValue('sounds', $event, (string) $this->sounds[$event]);
+            }
+        }
+
+        $this->dispatch('swal:toast', type: 'success', text: __('app.sounds_saved'));
+
+        // Neue wirksame Zuordnung sofort im Browser uebernehmen (rt-sounds.js).
+        $this->dispatch('rt-sounds:map', map: SoundLibrary::mapFor(auth()->user()));
     }
 
     public function saveSystem(): void

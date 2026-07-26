@@ -1050,4 +1050,10 @@ return [
     'welcome_intro_point_navigation' => 'The sidebar on the left leads to every area; the search at the top finds pages, people and content.',
     'welcome_intro_point_communication' => 'Chats and messages are always available via the envelope icon in the header.',
     'welcome_intro_point_help' => 'The first time you open a page, its quick info appears automatically — later at any time via the info button.',
+
+    // Profil-Einstellungen
+    'language_hint' => 'Interface language for this account.',
+    'appearance_hint' => 'Switch between the light and dark appearance.',
+    'sound_hint' => 'Turn all notification and feedback sounds on or off.',
+    'sound_preferences_hint' => 'Pick your own sound per event — or keep the system default. Use the play button to hear each sound instantly.',
 ];

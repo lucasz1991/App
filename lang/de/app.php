@@ -1050,4 +1050,10 @@ return [
     'welcome_intro_point_navigation' => 'Die Seitenleiste links führt zu allen Bereichen; die Suche oben findet Seiten, Personen und Inhalte.',
     'welcome_intro_point_communication' => 'Chats und Nachrichten erreichen Sie jederzeit über das Umschlag-Symbol in der Kopfzeile.',
     'welcome_intro_point_help' => 'Beim ersten Besuch einer Seite öffnet sich ihre Kurzinfo automatisch — spaeter jederzeit über den Info-Knopf.',
+
+    // Profil-Einstellungen
+    'language_hint' => 'Sprache der Oberfläche für dieses Konto.',
+    'appearance_hint' => 'Zwischen hellem und dunklem Erscheinungsbild wechseln.',
+    'sound_hint' => 'Alle Benachrichtigungs- und Hinweistöne ein- oder ausschalten.',
+    'sound_preferences_hint' => 'Wählen Sie je Ereignis Ihren eigenen Ton — oder lassen Sie den Systemstandard aktiv. Mit dem Abspielknopf hören Sie jeden Ton sofort an.',
 ];
