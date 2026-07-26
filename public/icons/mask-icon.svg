@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Monochrom fuer angepinnte Safari-Tabs (rel="mask-icon"). Safari faerbt
-     die Form selbst; der Rand sorgt dafuer, dass die Marke nicht an den
-     Kanten klebt und als Silhouette lesbar bleibt. -->
+<!-- Monochrom fuer angepinnte Safari-Tabs (rel="mask-icon"). Safari
+     faerbt die Form selbst, daher genau eine Volltonfarbe, kein
+     Hintergrund und keine Verlaeufe. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000" role="img" aria-label="RailTime">
-  <g transform="translate(120 120) scale(0.76)" fill="black">
+  <g transform="translate(60 60) scale(0.88)" fill="black">
     <path d="M0 0H738L862 152V462L755 583H617L1000 1000H731L460 658V410H675L715 364V206L673 160H0Z"/>
     <path d="M0 410H205V1000H0Z"/>
     <path d="M0 200H670V370H420V1000H245V370H0Z"/>

@@ -16,20 +16,28 @@
       * Windows-Kachel: msapplication-*
 --}}
 
-{{-- Klassische Favicons --}}
+{{-- Klassische Favicons. favicon.ico bleibt bewusst am Ursprung liegen: den
+     Pfad fragen Browser, Crawler und Betriebssystem-Shells fest ab. --}}
 <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="16x16 32x32 48x48">
-<link rel="icon" type="image/png" sizes="16x16" href="{{ asset('favicon-16.png') }}">
-<link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32.png') }}">
+<link rel="icon" type="image/png" sizes="16x16" href="{{ asset('icons/favicon-16.png') }}">
+<link rel="icon" type="image/png" sizes="32x32" href="{{ asset('icons/favicon-32.png') }}">
+<link rel="icon" type="image/png" sizes="48x48" href="{{ asset('icons/favicon-48.png') }}">
 
 {{-- Skalierbar (Chrome, Firefox, Edge bevorzugen dies fuer beliebige Groessen) --}}
-<link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}">
+<link rel="icon" type="image/svg+xml" href="{{ asset('icons/favicon.svg') }}">
 
 {{-- Angepinnter Safari-Tab --}}
-<link rel="mask-icon" href="{{ asset('mask-icon.svg') }}" color="#e4002b">
+<link rel="mask-icon" href="{{ asset('icons/mask-icon.svg') }}" color="#e4002b">
 
-{{-- iOS/iPadOS: mit und ohne sizes, damit aeltere Versionen ebenfalls greifen --}}
-<link rel="apple-touch-icon" sizes="180x180" href="{{ route('pwa.icon', ['icon' => 'apple-touch-icon-180.png']) }}">
-<link rel="apple-touch-icon" href="{{ route('pwa.icon', ['icon' => 'apple-touch-icon-180.png']) }}">
+{{-- iOS/iPadOS. Mehrere Groessen, damit iOS nicht selbst umrechnen muss, plus
+     die Variante ohne sizes und die precomposed-Form fuer aeltere Versionen.
+     Zusaetzlich liegen apple-touch-icon.png und -precomposed.png am Ursprung:
+     genau diese Pfade fragt iOS ab, wenn eine Seite keinen Link mitbringt. --}}
+<link rel="apple-touch-icon" sizes="180x180" href="{{ asset('icons/apple-touch-icon-180.png') }}">
+<link rel="apple-touch-icon" sizes="167x167" href="{{ asset('icons/apple-touch-icon-167.png') }}">
+<link rel="apple-touch-icon" sizes="152x152" href="{{ asset('icons/apple-touch-icon-152.png') }}">
+<link rel="apple-touch-icon" href="{{ asset('icons/apple-touch-icon-180.png') }}">
+<link rel="apple-touch-icon-precomposed" href="{{ asset('apple-touch-icon-precomposed.png') }}">
 
 {{-- Android/Chrome-Installation --}}
 <link rel="icon" type="image/png" sizes="192x192" href="{{ route('pwa.icon', ['icon' => 'pwa-192.png']) }}">
