@@ -1,5 +1,70 @@
 # RailTime – interne Mitarbeiter- und Kommunikationsplattform
 
+## 2026-07-26 - Automatische Reverb-/Supervisor-Einrichtung auf Plesk
+
+RailTime bringt zwei eigene Artisan-Befehle fuer die Reverb-Infrastruktur mit:
+
+```bash
+# Fehlende Reverb-Zugangsdaten erzeugen und vollstaendig in .env speichern.
+# Vorhandene vollstaendige Zugangsdaten bleiben unveraendert.
+php artisan railtime:reverb-keys
+
+# Nur pruefen, was der Server-Installer erkennen und einrichten wuerde.
+php artisan railtime:install-reverb-service --dry-run
+```
+
+Die vollstaendige Ersteinrichtung benoetigt genau einmal Root-Rechte. Im
+RailTime-Projektverzeichnis ausfuehren:
+
+```bash
+sudo "$(php -r 'echo PHP_BINARY;')" artisan railtime:install-reverb-service
+```
+
+Der Installer:
+
+- erkennt Projektpfad, Plesk-Systembenutzer und das aktuell verwendete PHP,
+- erzeugt fehlende Reverb-Keys, ohne Geheimnisse im Terminal auszugeben,
+- installiert Supervisor ueber `apt-get`, `dnf` oder `yum`, falls erforderlich,
+- schreibt eine idempotente `railtime-reverb`-Supervisor-Konfiguration,
+- aktiviert den Supervisor-Dienst sowie automatischen Start und Neustart,
+- startet Reverb als Projektbenutzer statt als `root`,
+- baut die Vite-Assets mit dem neuen oeffentlichen Reverb-Key neu, sofern `npm`
+  auf dem Server gefunden wird,
+- prueft abschliessend Prozessstatus und den lokalen Reverb-Port `8080`.
+
+Der Befehl darf erneut ausgefuehrt werden. Bestehende vollstaendige
+Reverb-Zugangsdaten werden dabei nicht rotiert. Eine bewusste Rotation erfolgt
+separat mit:
+
+```bash
+php artisan railtime:reverb-keys --force
+npm run build
+php artisan reverb:restart
+```
+
+Bei jedem spaeteren Deployment genuegt nach Migration und Cache-Aufbau:
+
+```bash
+php artisan queue:restart
+php artisan reverb:restart
+```
+
+Supervisor startet Reverb nach dem kontrollierten Stopp automatisch wieder.
+Der Plesk-/Nginx-WebSocket-Proxy von der oeffentlichen HTTPS-Domain auf
+`127.0.0.1:8080` bleibt eine einmalige Server-/Hostingkonfiguration, weil deren
+Speicherort von Domain und Plesk-Version abhaengt.
+
+Der vorhandene Plesk-Laravel-Queue-Worker verarbeitet alle RailTime-Jobs ueber
+die gemeinsame Queue `default`; dazu gehoert in `.env`:
+
+```dotenv
+QUEUE_CONNECTION=database
+WEBPUSH_QUEUE=default
+```
+
+RailTime startet bewusst keinen zusaetzlichen Queue-Worker mehr im
+Minutenscheduler. Dadurch entstehen auf Plesk keine doppelten Worker.
+
 ## 2026-07-25 - Codex (Laravel 12, installierbare App und Web Push)
 
 - Die Anwendung wurde auf Laravel 12 und die dazu kompatiblen Versionen von Jetstream, Sanctum, Livewire, Reverb, PHPUnit und den weiteren Kernpaketen aktualisiert.

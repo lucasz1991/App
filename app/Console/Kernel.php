@@ -12,13 +12,6 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // Arbeitet die Datenbank-Queue ab (u. a. verzoegerte DeleteTempFile-Jobs
-        // fuer ablaufende Vorschau-Kopien und den Mailversand), ohne dass ein
-        // dauerhafter Worker laufen muss.
-        $schedule->command('queue:work database --queue=webpush,default --stop-when-empty --tries=4 --backoff=30')
-            ->everyMinute()
-            ->withoutOverlapping();
-
         // Entfernt stuendlich abgelaufene Dateien/Ordner, die auf
         // automatisches Loeschen gesetzt sind.
         $schedule->command('files:purge-expired')

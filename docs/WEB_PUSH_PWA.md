@@ -43,7 +43,7 @@ Nachrichten und Chats.
    WEBPUSH_ENABLED=true
    WEBPUSH_TEST_ENABLED=false
    WEBPUSH_AUTO_PROVISION=true
-   WEBPUSH_QUEUE=webpush
+   WEBPUSH_QUEUE=default
    WEBPUSH_DEFAULT_TTL=3600
    WEBPUSH_ALLOWED_ENDPOINT_HOSTS="fcm.googleapis.com,*.push.services.mozilla.com,*.push.apple.com,*.notify.windows.com,*.wns.windows.com,*.push.samsung.com"
    VAPID_SUBJECT="mailto:technik@example.com"
@@ -77,7 +77,7 @@ Nachrichten und Chats.
    als Rueckfalloption bestehen:
 
    ```bash
-   php artisan queue:work database --queue=webpush,default --tries=4 --backoff=30 --timeout=90
+   php artisan queue:work database --queue=default --tries=4 --backoff=30 --timeout=90
    ```
 
    Der Prozess muss durch Supervisor, systemd oder die Prozessverwaltung des
@@ -119,7 +119,9 @@ Vor dem Test muessen drei Bedingungen gleichzeitig erfuellt sein:
 
 1. Das Geraet wird unter `Profil -> App & Push` bewusst aktiviert und erscheint
    danach als aktives Geraet.
-2. Ein dauerhafter Queue-Worker verarbeitet `webpush,default`.
+2. Ein dauerhafter Queue-Worker verarbeitet `default`. Auf Plesk uebernimmt
+   dies der im Laravel Toolkit aktivierte Queue-Worker; RailTime startet keinen
+   zweiten Worker ueber den Scheduler.
 3. Erst dann wird der Testversand fuer genau dieses Geraet ausgeloest.
 
 Push-Vorschauen enthalten absichtlich weder Betreff noch Nachrichteninhalt.
@@ -161,7 +163,7 @@ Berechtigungspruefung geoeffnet.
   noch nicht in der aktiven Serverkonfiguration angekommen. Nach Aenderungen
   `php artisan optimize:clear && php artisan config:cache` ausfuehren.
 - Keine zeitnahe Zustellung: dauerhaften Queue-Worker und dessen Queue-Liste
-  `webpush,default` pruefen.
+  `default` pruefen.
 - iPhone bietet keine Freigabe: App vom Home-Bildschirm starten und HTTPS sowie
   iOS/iPadOS-Version pruefen.
 - Service Worker bleibt alt: HTTPS-Header und `Cache-Control: no-cache,

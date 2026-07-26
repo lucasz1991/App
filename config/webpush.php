@@ -10,7 +10,7 @@ return [
         'WEBPUSH_AUTO_PROVISION_PATH',
         storage_path('app/private/webpush-vapid.json'),
     ),
-    'queue' => env('WEBPUSH_QUEUE', 'webpush'),
+    'queue' => env('WEBPUSH_QUEUE', 'default'),
     'default_ttl' => (int) env('WEBPUSH_DEFAULT_TTL', 3600),
 
     'vapid' => [
