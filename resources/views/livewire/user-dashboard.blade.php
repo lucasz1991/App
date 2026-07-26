@@ -3,7 +3,13 @@
         :title="__('app.welcome_name', ['name' => auth()->user()->name])"
         :eyebrow="$dashboardTeamName"
         :description="now()->translatedFormat('l, d. F Y') . ' · ' . __('app.personal_dashboard_description')"
+        :auto-intro="false"
     >
+        {{-- Allererster Besuch der Anwendung: festliches Willkommens-Intro
+             (ersetzt hier die automatische Seiteninfo). --}}
+        @if (\App\Support\PageViews::firstVisit(auth()->user(), 'intro:welcome'))
+            <x-ui.welcome-intro />
+        @endif
         {{-- Ausschliesslich persoenliche Kennzahlen, niemals Systemstatistiken. --}}
         <div class="grid grid-cols-2 gap-2 sm:gap-4 {{ $showSchedule ? 'xl:grid-cols-4' : 'sm:grid-cols-2' }}" data-anim-stagger>
             @if ($showSchedule)

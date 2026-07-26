@@ -1041,4 +1041,13 @@ return [
     'help_install_mac_step_1' => 'In Chrome oder Edge genuegt der Knopf "App installieren" oben.',
     'help_install_mac_step_2' => 'In Safari stattdessen "Ablage" > "Zum Dock hinzufuegen" waehlen (ab Safari 17).',
     'help_install_mac_step_3' => 'RailTime erscheint anschliessend im Dock und im Launchpad wie eine normale App.',
+
+    // Willkommens-Intro
+    'lets_go' => 'Los geht’s',
+    'skip_intro' => 'Überspringen',
+    'welcome_intro_eyebrow' => 'Willkommen bei RailTime',
+    'welcome_intro_text' => 'Schön, dass Sie da sind! Diese kurze Einführung zeigt Ihnen, wo alles liegt — danach begleitet Sie auf jeder Seite der Info-Knopf oben rechts.',
+    'welcome_intro_point_navigation' => 'Die Seitenleiste links führt zu allen Bereichen; die Suche oben findet Seiten, Personen und Inhalte.',
+    'welcome_intro_point_communication' => 'Chats und Nachrichten erreichen Sie jederzeit über das Umschlag-Symbol in der Kopfzeile.',
+    'welcome_intro_point_help' => 'Beim ersten Besuch einer Seite öffnet sich ihre Kurzinfo automatisch — spaeter jederzeit über den Info-Knopf.',
 ];

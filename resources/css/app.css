@@ -20,6 +20,36 @@
     }
 }
 
+/* Unter lg oeffnen die Filter als SCHWEBENDES Dropdown unter der Kompaktzeile
+   statt die Liste nach unten zu schieben. position/inset brauchen !important,
+   weil die Legacy-tailwind.min.css Utility-Klassen mit !important markiert. */
+@media (max-width: 1023.98px) {
+    [data-tables-toolbar] {
+        position: relative;
+    }
+
+    [data-tables-toolbar] .rt-toolbar-filters {
+        position: absolute !important;
+        top: 100%;
+        left: 0;
+        right: 0;
+        z-index: 40;
+        margin-top: 0.5rem;
+        padding: 0.75rem;
+        border-radius: 1rem;
+        border: 1px solid #dbe3ee;
+        background: #ffffff;
+        box-shadow: 0 4px 8px rgba(15, 23, 42, 0.06), 0 24px 64px -24px rgba(15, 23, 42, 0.28);
+    }
+
+    html.dark [data-tables-toolbar] .rt-toolbar-filters,
+    body[data-mode='dark'] [data-tables-toolbar] .rt-toolbar-filters {
+        border-color: #273449;
+        background: #111827;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.35), 0 24px 64px -24px rgba(0, 0, 0, 0.7);
+    }
+}
+
 body {
     @apply bg-rt-canvas text-rt-text antialiased dark:bg-rt-dark-canvas dark:text-rt-dark-text;
     font-family: 'Plus Jakarta Sans Variable', ui-sans-serif, system-ui, sans-serif;
@@ -2572,6 +2602,84 @@ body[data-mode='dark'] .rt-employee-mobile-header {
     }
 }
 
+/* Willkommens-Intro (x-ui.welcome-intro): gestaffelte, festliche
+   Eintritts-Animationen im RailTime-Stil. */
+.rt-welcome-backdrop {
+    background: rgba(8, 11, 16, 0.62);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    animation: rt-welcome-fade 320ms ease-out both;
+}
+
+.rt-welcome-card {
+    animation: rt-welcome-pop 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.rt-welcome-hero {
+    background:
+        radial-gradient(34rem 16rem at 50% -6rem, rgba(255, 255, 255, 0.28), transparent),
+        linear-gradient(135deg, #e4002b 0%, #a3001f 58%, #151b24 130%);
+}
+
+.rt-welcome-glow {
+    position: absolute;
+    inset: auto -30% -70% -30%;
+    height: 12rem;
+    background: radial-gradient(closest-side, rgba(255, 255, 255, 0.22), transparent);
+    animation: rt-welcome-glow 3.4s ease-in-out infinite alternate;
+    pointer-events: none;
+}
+
+.rt-welcome-logo {
+    filter: brightness(0) invert(1) drop-shadow(0 14px 28px rgba(0, 0, 0, 0.35));
+    animation: rt-welcome-float 4.2s ease-in-out infinite, rt-welcome-pop 640ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.rt-welcome-item {
+    animation: rt-welcome-rise 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: var(--rt-welcome-delay, 0ms);
+}
+
+@keyframes rt-welcome-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes rt-welcome-pop {
+    from { opacity: 0; transform: translateY(18px) scale(0.94); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes rt-welcome-rise {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes rt-welcome-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-7px); }
+}
+
+@keyframes rt-welcome-glow {
+    from { opacity: 0.55; transform: scaleX(0.9); }
+    to { opacity: 1; transform: scaleX(1.08); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rt-welcome-backdrop,
+    .rt-welcome-card,
+    .rt-welcome-logo,
+    .rt-welcome-glow,
+    .rt-welcome-item {
+        animation: none;
+    }
+
+    .rt-welcome-item {
+        opacity: 1;
+        transform: none;
+    }
+}
+
 /* Seitenwechsel-Spinner (wire:navigate-Overlay, siehe resources/js/app.js) */
 .rt-nav-spinner {
     width: 44px;
@@ -2610,6 +2718,27 @@ body[data-mode='dark'] .rt-employee-mobile-header {
 
 .rt-expandable-search[data-search-context='topbar'].is-expanded {
     width: clamp(12rem, 30vw, 22rem);
+}
+
+/* In der Topbar sitzt die Suche direkt neben den h-9-Kontrollknoepfen
+   (Posteingang/Einstellungen) und uebernimmt deren Mass und Radius. Da die
+   Gruppe rechts verankert ist, waechst das Feld beim Oeffnen nach links. */
+.rt-expandable-search[data-search-context='topbar'] {
+    width: 2.25rem;
+    min-width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 0.5rem;
+}
+
+.rt-expandable-search[data-search-context='topbar'] .rt-expandable-search__trigger {
+    width: 2.25rem;
+    border-radius: 0.5rem;
+}
+
+.rt-expandable-search[data-search-context='topbar'] .rt-expandable-search__input {
+    height: 2.25rem;
+    border-radius: 0.5rem;
+    padding-left: 2.25rem;
 }
 
 .rt-expandable-search__trigger,

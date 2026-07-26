@@ -34,20 +34,47 @@
         </x-slot>
 
         <x-slot name="content">
-            <div class="max-w-[calc(100vw-2rem)] bg-rt-surface text-[0.8125rem]/5 text-rt-text dark:bg-rt-dark-surface dark:text-white">
-
-                {{-- ---------------- Chats ---------------- --}}
-                <div class="flex items-center justify-between gap-2 px-3 pb-1.5 pt-2.5">
-                    <p class="text-[10px] font-semibold uppercase tracking-[0.16em] text-rt-soft dark:text-rt-dark-soft">
-                        {{ __('app.chats') }}
-                    </p>
-                    @if ($unreadChatMessagesCount >= 1)
-                        <span class="rounded-full bg-rt-red px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
-                            {{ $unreadChatMessagesCount > 99 ? '99+' : $unreadChatMessagesCount }}
-                        </span>
-                    @endif
+            @php
+                // Vorausgewaehlt ist der Tab mit neuen Eintraegen; haben beide
+                // welche, gewinnt der mit mehr Ungelesenen (Gleichstand: Chats).
+                $inboxDefaultTab = $unreadMessagesCount > $unreadChatMessagesCount ? 'messages' : 'chats';
+            @endphp
+            <div
+                x-data="{ inboxTab: @js($inboxDefaultTab) }"
+                class="max-w-[calc(100vw-2rem)] bg-rt-surface text-[0.8125rem]/5 text-rt-text dark:bg-rt-dark-surface dark:text-white"
+            >
+                {{-- Tab-Leiste: Chats | Nachrichten, mit Ungelesen-Zaehlern. --}}
+                <div class="grid grid-cols-2 gap-1 border-b border-rt-border/70 p-1.5 dark:border-rt-dark-border/70" role="tablist" data-inbox-tabs>
+                    @foreach ([
+                        'chats' => ['label' => __('app.chats'), 'count' => $unreadChatMessagesCount],
+                        'messages' => ['label' => __('app.messages'), 'count' => $unreadMessagesCount],
+                    ] as $tabKey => $tab)
+                        <button
+                            type="button"
+                            role="tab"
+                            @click.stop="inboxTab = @js($tabKey)"
+                            :aria-selected="(inboxTab === @js($tabKey)).toString()"
+                            :class="inboxTab === @js($tabKey)
+                                ? 'bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent'
+                                : 'text-rt-muted hover:bg-rt-surface-muted hover:text-rt-text dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted dark:hover:text-white'"
+                            class="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold outline-none transition focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rt-accent/35"
+                            data-inbox-tab="{{ $tabKey }}"
+                        >
+                            {{ $tab['label'] }}
+                            @if ($tab['count'] >= 1)
+                                <span class="rounded-full bg-rt-red px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+                                    {{ $tab['count'] > 99 ? '99+' : $tab['count'] }}
+                                </span>
+                            @endif
+                        </button>
+                    @endforeach
                 </div>
 
+                {{-- ---------------- Chats ---------------- --}}
+                {{-- x-show.important: die Legacy-CSS traegt Display-Utilities mit
+                     !important, ohne den Modifier liesse sich der Tab nie
+                     ausblenden. --}}
+                <div x-show.important="inboxTab === 'chats'" x-cloak data-inbox-panel="chats">
                 <div class="divide-y divide-rt-border dark:divide-rt-dark-border">
                     @forelse ($recentChats as $chat)
                         @php
@@ -126,18 +153,10 @@
                         {{ __('app.view_all_chats') }}
                     </a>
                 </div>
+                </div>
 
                 {{-- ---------------- Nachrichten ---------------- --}}
-                <div class="flex items-center justify-between gap-2 border-t border-rt-border px-3 pb-1.5 pt-2.5 dark:border-rt-dark-border">
-                    <p class="text-[10px] font-semibold uppercase tracking-[0.16em] text-rt-soft dark:text-rt-dark-soft">
-                        {{ __('app.messages') }}
-                    </p>
-                    @if ($unreadMessagesCount >= 1)
-                        <span class="rounded-full bg-rt-red px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
-                            {{ $unreadMessagesCount > 99 ? '99+' : $unreadMessagesCount }}
-                        </span>
-                    @endif
-                </div>
+                <div x-show.important="inboxTab === 'messages'" x-cloak data-inbox-panel="messages">
 
                 <div class="divide-y divide-rt-border dark:divide-rt-dark-border">
                     @forelse ($receivedMessages as $message)
@@ -182,6 +201,7 @@
                        class="block rounded-lg px-4 py-2 text-center font-medium text-rt-text shadow-rt-xs ring-1 ring-rt-border transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted hover:text-rt-accent active:scale-[0.98] dark:text-white dark:ring-rt-dark-border dark:hover:bg-rt-dark-surface-muted dark:hover:text-white">
                         {{ __('app.view_all_messages') }}
                     </a>
+                </div>
                 </div>
             </div>
         </x-slot>

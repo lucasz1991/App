@@ -142,6 +142,16 @@ trait BuildsMinimalRailTimeSchema
             $table->timestamps();
         });
 
+        // Gehoert zum Minimalschema, weil x-ui.page auf JEDER Seite den ersten
+        // Aufruf des Nutzers vermerkt (Intro-/Seiteninfo-Automatik).
+        Schema::create('user_page_views', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('user_id');
+            $table->string('page_key', 120);
+            $table->timestamp('first_seen_at');
+            $table->unique(['user_id', 'page_key']);
+        });
+
         // Gehoert zum Minimalschema, weil die Topbar (layouts/pwa-head) auf
         // JEDER authentifizierten Seite die persoenliche Ton-Zuordnung laedt.
         Schema::create('user_sound_preferences', function (Blueprint $table): void {

@@ -18,6 +18,10 @@
 --}}
 <div
     x-data="{ filtersOpen: false }"
+    {{-- Das Filter-Panel schwebt mobil als Dropdown (siehe app.css) und
+         schliesst wie eines: Klick daneben oder Escape. --}}
+    x-on:click.outside="filtersOpen = false"
+    x-on:keydown.escape.window="filtersOpen = false"
     {{ $attributes->class('flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-3') }}
     data-tables-toolbar
 >

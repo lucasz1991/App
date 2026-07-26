@@ -1,23 +1,21 @@
 @props(['title', 'description' => null, 'eyebrow' => null, 'count' => null, 'help' => null])
 
+{{-- Einheitlicher Kopf aller Listen-/Inhaltsseiten: NUR der Titel (bewusst ohne
+     Eyebrow wie "Administration"), rechts daneben — nie in einer zweiten
+     Zeile — die Aktionen und der Info-Knopf. flex-nowrap + truncate halten
+     die eine Zeile auch auf schmalen Screens. --}}
 <header
-    {{ $attributes->class('flex flex-wrap items-center justify-between gap-3') }}
+    {{ $attributes->class('flex flex-nowrap items-center justify-between gap-3') }}
     data-anim="fade-up"
 >
-    <div class="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
-        @if ($eyebrow)
-            <span class="shrink-0 text-[10px] font-semibold uppercase tracking-[0.16em] text-rt-muted dark:text-rt-dark-muted">{{ $eyebrow }}</span>
-            <span class="hidden h-3 w-px bg-rt-border sm:block dark:bg-rt-dark-border" aria-hidden="true"></span>
+    <div class="flex min-w-0 items-center gap-2">
+        <h1 class="truncate text-xl font-semibold tracking-tight text-rt-text sm:text-2xl dark:text-rt-dark-text">{{ $title }}</h1>
+        @if (! is_null($count))
+            <span class="inline-flex h-7 shrink-0 items-center justify-center rounded-full bg-rt-surface px-2.5 text-xs font-bold leading-none text-rt-red shadow-rt-xs ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-red dark:ring-rt-dark-border/60">{{ $count }}</span>
         @endif
-        <div class="flex min-w-0 items-center gap-2">
-            <h1 class="truncate text-xl font-semibold tracking-tight text-rt-text sm:text-2xl dark:text-rt-dark-text">{{ $title }}</h1>
-            @if (! is_null($count))
-                <span class="inline-flex h-7 items-center justify-center rounded-full bg-rt-surface px-2.5 text-xs font-bold leading-none text-rt-red shadow-rt-xs ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-red dark:ring-rt-dark-border/60">{{ $count }}</span>
-            @endif
-        </div>
     </div>
 
-    <div class="flex flex-wrap items-center gap-2">
+    <div class="flex shrink-0 items-center gap-2">
         @isset($actions)
             {{ $actions }}
         @endisset

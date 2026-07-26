@@ -19,7 +19,13 @@
     ];
 @endphp
 
-<x-ui.page>
+<x-ui.page :auto-intro="false">
+    {{-- Allererster Besuch der Anwendung: festliches Willkommens-Intro
+         (ersetzt hier die automatische Seiteninfo). --}}
+    @if (\App\Support\PageViews::firstVisit(auth()->user(), 'intro:welcome'))
+        <x-ui.welcome-intro />
+    @endif
+
     <div
         class="min-w-0 space-y-3 sm:space-y-4"
         x-data="adminDashboardCharts(@js($chartConfig))"

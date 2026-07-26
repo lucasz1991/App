@@ -1,46 +1,31 @@
 <div>
     <x-ui.page
         :title="__('app.employees')"
-        :eyebrow="__('app.administration')"
         :count="number_format($employeesTotal, 0, ',', '.')"
     >
         <x-slot:actions>
-            <div class="hidden items-center gap-2 sm:flex">
-                <x-ui.buttons.button-basic wire:click="openCreate" size="sm" :can="'employees.create'" :title="__('app.new_employee_hint')">
-                    <i class="far fa-plus"></i>
-                    {{ __('app.new_employee') }}
-                </x-ui.buttons.button-basic>
-                <x-ui.buttons.button-basic wire:click="openInvite" size="sm" :can="'employees.create'" :title="__('app.invite_employee_hint')">
-                    <i class="far fa-paper-plane"></i>
-                    {{ __('app.invite_employee') }}
-                </x-ui.buttons.button-basic>
-                <x-ui.buttons.button-basic wire:click="openTeamRbacModal" size="sm" :can="'roles.manage'" :title="__('app.teams_permissions_hint')">
-                    <i class="far fa-shield-alt"></i>
-                    {{ __('app.teams_permissions') }}
-                </x-ui.buttons.button-basic>
-            </div>
-
-            <div class="sm:hidden">
-                <x-ui.dropdown.anchor-dropdown align="right" width="64">
-                    <x-slot:trigger>
-                        <x-ui.dropdown.action-trigger :label="__('app.actions')" />
-                    </x-slot:trigger>
-                    <x-slot:content>
-                        <x-dropdown-link wire:click.prevent="openCreate" :can="'employees.create'" :title="__('app.new_employee_hint')">
-                            <i class="far fa-plus mr-2"></i>
-                            {{ __('app.new_employee') }}
-                        </x-dropdown-link>
-                        <x-dropdown-link wire:click.prevent="openInvite" :can="'employees.create'" :title="__('app.invite_employee_hint')">
-                            <i class="far fa-paper-plane mr-2"></i>
-                            {{ __('app.invite_employee') }}
-                        </x-dropdown-link>
-                        <x-dropdown-link wire:click.prevent="openTeamRbacModal" :can="'roles.manage'" :title="__('app.teams_permissions_hint')">
-                            <i class="far fa-shield-alt mr-2"></i>
-                            {{ __('app.teams_permissions') }}
-                        </x-dropdown-link>
-                    </x-slot:content>
-                </x-ui.dropdown.anchor-dropdown>
-            </div>
+            {{-- EIN Aktionen-Dropdown fuer alle Bildschirmgroessen: nur die drei
+                 Punkte, ohne Beschriftung. Sitzt zusammen mit dem Info-Knopf
+                 rechts neben dem Titel, nie in einer zweiten Zeile. --}}
+            <x-ui.dropdown.anchor-dropdown align="right" width="64">
+                <x-slot:trigger>
+                    <x-ui.dropdown.action-trigger :title="__('app.actions')" />
+                </x-slot:trigger>
+                <x-slot:content>
+                    <x-dropdown-link wire:click.prevent="openCreate" :can="'employees.create'" :title="__('app.new_employee_hint')">
+                        <i class="far fa-plus mr-2"></i>
+                        {{ __('app.new_employee') }}
+                    </x-dropdown-link>
+                    <x-dropdown-link wire:click.prevent="openInvite" :can="'employees.create'" :title="__('app.invite_employee_hint')">
+                        <i class="far fa-paper-plane mr-2"></i>
+                        {{ __('app.invite_employee') }}
+                    </x-dropdown-link>
+                    <x-dropdown-link wire:click.prevent="openTeamRbacModal" :can="'roles.manage'" :title="__('app.teams_permissions_hint')">
+                        <i class="far fa-shield-alt mr-2"></i>
+                        {{ __('app.teams_permissions') }}
+                    </x-dropdown-link>
+                </x-slot:content>
+            </x-ui.dropdown.anchor-dropdown>
         </x-slot:actions>
 
         {{-- Listen-Toolbar: links Massenauswahl, rechts Suche/Filter --}}

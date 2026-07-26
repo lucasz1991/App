@@ -186,11 +186,6 @@
                     </x-ui.dropdown.anchor-dropdown>
 
                     @auth
-                        {{-- Posteingang (Umschlag-Dropdown mit Ungelesen-Badge) --}}
-                        <livewire:tools.header-inbox />
-                    @endauth
-
-                    @auth
                         <!-- Settings Dropdown -->
                         <div class="ms-3 relative">
                             <x-dropdown align="" width="48">

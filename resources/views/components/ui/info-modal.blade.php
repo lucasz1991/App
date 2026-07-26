@@ -23,10 +23,14 @@
         title: '',
         summary: '',
         points: [],
+        // Intro-Modus: beim ersten Besuch einer Seite automatisch geoeffnet —
+        // dann gibt es einen deutlichen "Los geht's"-Knopf zum Ueberspringen.
+        intro: false,
         show(detail) {
             this.title = detail?.title ?? '';
             this.summary = detail?.summary ?? '';
             this.points = Array.isArray(detail?.points) ? detail.points : [];
+            this.intro = Boolean(detail?.intro);
             this.open = true;
         },
         close() {
@@ -86,6 +90,18 @@
                 <i class="far fa-life-ring" aria-hidden="true"></i>
                 {{ __('app.open_all_help_topics') }}
             </a>
+
+            {{-- Nur im Intro-Modus: deutlicher Abschluss-/Ueberspringen-Knopf. --}}
+            <div class="mt-5 flex justify-end" x-show.important="intro" x-cloak>
+                <button
+                    type="button"
+                    x-on:click="close()"
+                    class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-5 py-2 text-sm font-semibold text-white shadow-rt-sm transition hover:bg-rt-red-dark focus:outline-none focus:ring-2 focus:ring-rt-red/30"
+                >
+                    {{ __('app.lets_go') }}
+                    <i class="far fa-arrow-right text-xs" aria-hidden="true"></i>
+                </button>
+            </div>
         </div>
     </section>
 </div>

@@ -161,13 +161,20 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertStringContainsString('return now - lastShownAt < 500', $script);
     }
 
-    public function test_employee_header_has_one_mobile_actions_dropdown(): void
+    public function test_employee_header_has_one_unified_icon_only_actions_dropdown(): void
     {
         $view = file_get_contents(resource_path('views/livewire/admin/employees.blade.php'));
 
-        $this->assertSame(1, substr_count($view, '<div class="sm:hidden">'));
+        // EIN Aktionen-Dropdown fuer alle Bildschirmgroessen — nur die drei
+        // Punkte, ohne Beschriftung und ohne getrennte Desktop-Buttonreihe.
         $this->assertStringContainsString('<x-ui.dropdown.anchor-dropdown align="right" width="64">', $view);
-        $this->assertStringContainsString(':label="__(\'app.actions\')"', $view);
+        $this->assertStringContainsString('<x-ui.dropdown.action-trigger :title="__(\'app.actions\')" />', $view);
+        $this->assertStringNotContainsString(':label="__(\'app.actions\')"', $view);
+        $this->assertStringNotContainsString('<div class="sm:hidden">', $view);
+        $this->assertStringNotContainsString('hidden items-center gap-2 sm:flex', $view);
+
+        // Der Kopf traegt keinen Eyebrow mehr — nur den Titel.
+        $this->assertStringNotContainsString('eyebrow', $view);
     }
 
     public function test_text_controls_use_mobile_safe_font_sizes_and_polished_focus_states(): void
