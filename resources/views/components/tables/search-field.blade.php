@@ -46,7 +46,13 @@
     <button
         x-ref="trigger"
         type="button"
-        x-on:click="open()"
+        @if ($searchContext === 'topbar')
+            x-on:click="String(value ?? '').length > 0
+                ? $wire.openResults(String(value))
+                : open()"
+        @else
+            x-on:click="open()"
+        @endif
         class="rt-expandable-search__trigger"
         aria-label="{{ $ph }}"
         x-bind:aria-expanded="(expanded || String(value ?? '').length > 0).toString()"
@@ -62,6 +68,9 @@
         x-model="value"
         x-on:focus="expanded = true"
         x-on:blur="closeWhenEmpty()"
+        @if ($searchContext === 'topbar')
+            x-on:keydown.enter.prevent="$wire.openResults(String(value ?? ''))"
+        @endif
         x-bind:tabindex="expanded || String(value ?? '').length > 0 ? 0 : -1"
         placeholder="{{ $ph }}"
         autocomplete="off"

@@ -26,8 +26,12 @@ class GlobalSearch extends Component
         }
     }
 
-    public function openResults(): void
+    public function openResults(?string $query = null): void
     {
+        if ($query !== null) {
+            $this->query = mb_substr($query, 0, 80);
+        }
+
         $this->query = Str::squish($this->query);
         $this->showResults = true;
     }

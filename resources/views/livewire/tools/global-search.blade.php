@@ -1,5 +1,8 @@
 <div class="rt-topbar-search-slot">
-    <form x-on:submit.prevent="$wire.openResults()" class="flex items-center">
+    <form
+        x-on:submit.prevent="$wire.openResults($event.currentTarget.querySelector('input')?.value || '')"
+        class="flex items-center"
+    >
         <x-tables.search-field
             context="topbar"
             wire:model.live.debounce.300ms="query"

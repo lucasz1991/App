@@ -54,13 +54,15 @@ class SidebarAndSearchUiTest extends TestCase
     public function test_global_search_modal_only_renders_server_generated_result_links(): void
     {
         $component = file_get_contents(app_path('Livewire/Tools/GlobalSearch.php'));
+        $searchField = file_get_contents(resource_path('views/components/tables/search-field.blade.php'));
         $view = file_get_contents(resource_path('views/livewire/tools/global-search.blade.php'));
 
         $this->assertStringContainsString('Gate::allows(', $component);
         $this->assertStringContainsString('$user->receivedMessages()', $component);
         $this->assertStringContainsString('$user->chats()', $component);
         $this->assertStringContainsString("route('chat', ['chat' => \$chat->id])", $component);
-        $this->assertStringContainsString('x-on:submit.prevent="$wire.openResults()"', $view);
+        $this->assertStringContainsString('x-on:keydown.enter.prevent="$wire.openResults', $searchField);
+        $this->assertStringContainsString('x-on:submit.prevent="$wire.openResults', $view);
         $this->assertStringContainsString('href="{{ $result[\'url\'] }}"', $view);
         $this->assertStringContainsString('role="dialog"', $view);
         $this->assertStringContainsString('aria-modal="true"', $view);
