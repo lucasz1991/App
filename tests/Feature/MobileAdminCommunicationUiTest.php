@@ -6,6 +6,26 @@ use Tests\TestCase;
 
 class MobileAdminCommunicationUiTest extends TestCase
 {
+    public function test_shared_layout_keeps_the_version_footer_at_the_bottom_of_short_pages(): void
+    {
+        $layout = file_get_contents(resource_path('views/layouts/master.blade.php'));
+
+        $this->assertStringContainsString("'flex flex-col' => ! \$viewportMode", $layout);
+        $this->assertStringContainsString(
+            "'flex min-h-full flex-1 flex-col' => ! \$viewportMode",
+            $layout,
+        );
+        $this->assertStringContainsString('<div class="flex-1">', $layout);
+        $this->assertStringContainsString(
+            '{{ config(\'app.name\') }} v{{ config(\'app.version\') }}',
+            $layout,
+        );
+        $this->assertLessThan(
+            strpos($layout, "{{ config('app.version') }}"),
+            strpos($layout, '<div class="flex-1">'),
+        );
+    }
+
     public function test_admin_dashboards_keep_responsive_mobile_kpis(): void
     {
         $adminDashboard = file_get_contents(resource_path('views/livewire/admin/dashboard.blade.php'));

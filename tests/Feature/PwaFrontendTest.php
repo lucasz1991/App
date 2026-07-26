@@ -47,26 +47,32 @@ class PwaFrontendTest extends TestCase
             ->assertDontSee('name="rt-push-account-binding"', escape: false);
     }
 
-    public function test_profile_always_exposes_the_app_and_push_tab(): void
+    public function test_profile_exposes_a_reduced_settings_tab_for_push_notifications(): void
     {
         $user = User::factory()->create();
 
         $this->actingAs($user)
             ->get(route('profile.show', ['tab' => 'app']))
             ->assertOk()
-            ->assertSee(__('app.app_and_push'))
+            ->assertSee(__('app.settings'))
             ->assertSee(__('app.push_settings_title'))
             ->assertSee('data-testid="push-settings"', escape: false)
+            ->assertDontSee(__('app.app_and_push'))
+            ->assertDontSee('data-testid="push-settings-diagnostics"', escape: false)
+            ->assertDontSee(__('app.push_preferences_title'))
+            ->assertDontSee(__('app.push_send_test'))
             ->assertSee('railtimePushSettings(', escape: false)
             ->assertSee('name="rt-push-account-binding"', escape: false);
 
         $this->actingAs($user)
             ->get(route('profile.show', ['tab' => 'app']))
             ->assertOk()
-            ->assertSee(__('app.app_and_push'))
+            ->assertSee(__('app.settings'))
             ->assertSee('data-testid="push-settings"', escape: false)
-            ->assertSee('data-testid="push-settings-diagnostics"', escape: false)
-            ->assertSee(__('app.help_push_issue_disabled'));
+            ->assertDontSee('data-testid="push-settings-diagnostics"', escape: false)
+            ->assertDontSee(__('app.help_push_issue_disabled'))
+            ->assertDontSee(__('app.push_preferences_title'))
+            ->assertDontSee(__('app.push_send_test'));
     }
 
     public function test_push_settings_use_the_shared_server_configuration_validator(): void

@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\User;
-use Minishlink\WebPush\VAPID;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
 
@@ -30,6 +29,11 @@ class HelpCenterTest extends TestCase
             ->assertSee(__('app.help_install_ios_title'))
             ->assertSee(__('app.help_install_android_title'))
             ->assertSee(route('profile.show', ['tab' => 'app']))
+            ->assertDontSee('data-testid="push-server-diagnostics"', escape: false)
+            ->assertDontSee(__('app.help_push_server'))
+            ->assertDontSee(__('app.help_push_queue_worker_hint', [
+                'queue' => config('webpush.queue'),
+            ]))
             ->assertSee('data-help-center', escape: false);
     }
 
@@ -49,7 +53,7 @@ class HelpCenterTest extends TestCase
         }
     }
 
-    public function test_help_page_explains_each_missing_push_server_requirement_without_secrets(): void
+    public function test_help_page_omits_all_push_server_status_and_configuration_details(): void
     {
         config([
             'webpush.enabled' => false,
@@ -63,32 +67,16 @@ class HelpCenterTest extends TestCase
         $this->actingAs($user)
             ->get(route('help'))
             ->assertOk()
-            ->assertSee('data-testid="push-server-diagnostics"', escape: false)
-            ->assertSee(__('app.help_push_issue_disabled'))
-            ->assertSee(__('app.help_push_issue_subject_missing'))
-            ->assertSee(__('app.help_push_issue_public_key_missing'))
-            ->assertSee(__('app.help_push_issue_private_key_missing'))
-            ->assertSee(__('app.help_push_queue_worker_hint', [
+            ->assertSee(__('app.help_install_ios_title'))
+            ->assertSee(__('app.help_install_android_title'))
+            ->assertDontSee('data-testid="push-server-diagnostics"', escape: false)
+            ->assertDontSee(__('app.help_push_server'))
+            ->assertDontSee(__('app.help_active_devices'))
+            ->assertDontSee(__('app.help_queue'))
+            ->assertDontSee(__('app.help_push_issue_disabled'))
+            ->assertDontSee(__('app.help_push_config_cache_hint'))
+            ->assertDontSee(__('app.help_push_queue_worker_hint', [
                 'queue' => config('webpush.queue'),
             ]));
-    }
-
-    public function test_help_page_hides_diagnostics_for_a_ready_push_server(): void
-    {
-        $keys = VAPID::createVapidKeys();
-        config([
-            'webpush.enabled' => true,
-            'webpush.vapid.subject' => 'mailto:push@example.test',
-            'webpush.vapid.public_key' => $keys['publicKey'],
-            'webpush.vapid.private_key' => $keys['privateKey'],
-            'webpush.vapid.pem_file' => null,
-        ]);
-        $user = User::factory()->create();
-
-        $this->actingAs($user)
-            ->get(route('help'))
-            ->assertOk()
-            ->assertSee(__('app.ready'))
-            ->assertDontSee('data-testid="push-server-diagnostics"', escape: false);
     }
 }

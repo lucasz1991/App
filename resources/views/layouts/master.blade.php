@@ -57,16 +57,28 @@
             'rt-viewport-layout' => $viewportMode,
         ])>
             <div class="main-content group-data-[sidebar-size=sm]:ml-[70px]">
-                <div class="min-h-screen page-content px-1 bg-[radial-gradient(72rem_26rem_at_28%_-8rem,rgba(228,0,43,0.07),transparent)] shadow-[inset_0_80px_30px_-10px_rgba(15,23,42,0.05)] dark:bg-[radial-gradient(70rem_28rem_at_28%_-8rem,rgba(228,0,43,0.16),transparent)] dark:shadow-[inset_0_80px_30px_-10px_rgba(0,0,0,0.5)]">
-                    <div class="container-fluid px-0 md:px-5">
-                        @yield('content')
-                        {{ $slot ?? '' }}
-                        @unless ($viewportMode)
-                            {{-- Dezente Versionsanzeige --}}
+                <div @class([
+                    'min-h-screen page-content px-1 bg-[radial-gradient(72rem_26rem_at_28%_-8rem,rgba(228,0,43,0.07),transparent)] shadow-[inset_0_80px_30px_-10px_rgba(15,23,42,0.05)] dark:bg-[radial-gradient(70rem_28rem_at_28%_-8rem,rgba(228,0,43,0.16),transparent)] dark:shadow-[inset_0_80px_30px_-10px_rgba(0,0,0,0.5)]',
+                    'flex flex-col' => ! $viewportMode,
+                ])>
+                    <div @class([
+                        'container-fluid px-0 md:px-5',
+                        'flex min-h-full flex-1 flex-col' => ! $viewportMode,
+                    ])>
+                        @if ($viewportMode)
+                            @yield('content')
+                            {{ $slot ?? '' }}
+                        @else
+                            <div class="flex-1">
+                                @yield('content')
+                                {{ $slot ?? '' }}
+                            </div>
+
+                            {{-- Dezente Versionsanzeige als unterer Seitenabschluss --}}
                             <div class="mt-6 border-t border-rt-border/60 py-4 text-center text-[11px] font-medium tracking-wide text-rt-soft dark:border-rt-dark-border/60 dark:text-rt-dark-soft">
                                 {{ config('app.name') }} v{{ config('app.version') }}
                             </div>
-                        @endunless
+                        @endif
                     </div>
                 </div>
             </div>

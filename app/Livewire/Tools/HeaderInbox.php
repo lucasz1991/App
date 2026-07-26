@@ -91,7 +91,9 @@ class HeaderInbox extends Component
     {
         $user = Auth::user();
 
-        if (! $user) {
+        // Der hasTable-Check haelt die Topbar auch dann lauffaehig, wenn die
+        // Chat-Tabellen (noch) fehlen — z. B. vor der Migration.
+        if (! $user || ! \Illuminate\Support\Facades\Schema::hasTable('chats')) {
             return collect();
         }
 

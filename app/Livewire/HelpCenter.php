@@ -30,6 +30,7 @@ class HelpCenter extends Component
                 );
             })
             ->values();
+
         return view('livewire.help-center', [
             'topics' => $topics,
         ])->layout('layouts.master', [
