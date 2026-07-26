@@ -104,10 +104,46 @@ class HeaderInbox extends Component
             ->get();
     }
 
+    /**
+     * Ungelesene Chat-Nachrichten je Chat — in EINER Abfrage.
+     *
+     * Chat::unreadCountFor() wuerde pro Chat eine eigene COUNT-Abfrage
+     * ausloesen (N+1 auf jeder Seite, weil die Topbar ueberall rendert). Die
+     * Bedingung ist absichtlich identisch zu der in loadInbox(), damit der
+     * Gesamtzaehler und die Zeilen-Badges nie auseinanderlaufen koennen.
+     *
+     * @return array<int, int>
+     */
+    protected function unreadPerChat(): array
+    {
+        $user = Auth::user();
+
+        if (! $user) {
+            return [];
+        }
+
+        return ChatMessage::query()
+            ->join('chat_user', function ($join) use ($user) {
+                $join->on('chat_user.chat_id', '=', 'chat_messages.chat_id')
+                    ->where('chat_user.user_id', '=', $user->id);
+            })
+            ->where('chat_messages.user_id', '!=', $user->id)
+            ->where(function ($query) {
+                $query->whereNull('chat_user.last_read_at')
+                    ->orWhereColumn('chat_messages.created_at', '>', 'chat_user.last_read_at');
+            })
+            ->groupBy('chat_messages.chat_id')
+            ->selectRaw('chat_messages.chat_id as chat_id, count(*) as aggregate')
+            ->pluck('aggregate', 'chat_id')
+            ->map(fn ($value): int => (int) $value)
+            ->all();
+    }
+
     public function render()
     {
         return view('livewire.tools.header-inbox', [
             'recentChats' => $this->recentChats(),
+            'unreadPerChat' => $this->unreadPerChat(),
             'totalUnreadCount' => $this->unreadMessagesCount + $this->unreadChatMessagesCount,
         ]);
     }

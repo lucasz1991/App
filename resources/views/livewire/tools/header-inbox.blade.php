@@ -20,6 +20,8 @@
                     title="{{ __('app.chat_and_messages') }}"
                     aria-label="{{ __('app.chat_and_messages') }}"
                     aria-haspopup="true"
+                    data-inbox-trigger="true"
+                    data-inbox-total="{{ $totalUnreadCount }}"
                     class="relative w-9 px-0">
                 <i class="far fa-envelope text-base" aria-hidden="true"></i>
 
@@ -49,7 +51,7 @@
                 <div class="divide-y divide-rt-border dark:divide-rt-dark-border">
                     @forelse ($recentChats as $chat)
                         @php
-                            $chatUnread = $chat->unreadCountFor($viewer);
+                            $chatUnread = $unreadPerChat[$chat->id] ?? 0;
                             $chatName = $chat->displayNameFor($viewer);
                             $chatAvatar = $chat->avatarUrlFor($viewer) ?: asset('rt-brand/rt-logo.svg');
                             $lastMessage = $chat->latestMessage;
@@ -59,12 +61,21 @@
 
                             if ($lastMessage) {
                                 if ($lastMessage->view_once) {
-                                    $preview = __('app.messages');
+                                    $preview = __('app.view_once_message');
                                 } elseif ($lastMessage->message_type === 'voice') {
-                                    $preview = __('app.chat');
+                                    $preview = __('app.voice_message');
                                 } else {
-                                    $preview = \Illuminate\Support\Str::limit(
-                                        strip_tags((string) $lastMessage->body), 48
+                                    // body ist ein 'encrypted'-Cast. Ein Schluesselwechsel
+                                    // oder eine aus einer anderen Umgebung kopierte
+                                    // Datenbank wuerde sonst eine DecryptException werfen —
+                                    // und zwar auf JEDER Seite, weil die Topbar ueberall
+                                    // rendert. Deshalb bewusst ohne Log-Flut abfangen.
+                                    $preview = rescue(
+                                        fn () => \Illuminate\Support\Str::limit(
+                                            strip_tags((string) $lastMessage->body), 48
+                                        ),
+                                        null,
+                                        report: false,
                                     );
                                 }
                             }

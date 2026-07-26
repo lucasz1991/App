@@ -376,6 +376,7 @@ return [
     'no_messages' => 'Keine Nachrichten',
     'view_all_messages' => 'Alle Nachrichten ansehen',
     'no_chats' => 'Keine Chats',
+    'view_once_message' => 'Einmal sichtbare Nachricht',
     'view_all_chats' => 'Alle Chats ansehen',
     'mark_as_read' => 'Als gelesen markieren',
     'message_deleted' => 'Nachricht wurde gelöscht.',

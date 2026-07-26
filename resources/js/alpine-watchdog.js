@@ -29,6 +29,11 @@ const ATTEMPT_KEY = 'rt-alpine-recovery';
 // bleibt die Seite defekt stehen — besser als eine Endlosschleife.
 const MAX_ATTEMPTS = 1;
 const ATTEMPT_WINDOW_MS = 60000;
+// Absolute Obergrenze fuer die Sitzung. Ohne sie wuerde ein dauerhaft defektes
+// Bundle (404, CSP-Block, Adblocker) die Seite endlos neu laden — nur eben
+// gebremst auf einen Reload pro Zeitfenster. Ein gesunder Seitenaufbau setzt
+// den Zaehler wieder zurueck (siehe markHealthy).
+const MAX_ATTEMPTS_TOTAL = 2;
 // Alpine braucht nach dem Laden einen Moment. Vor Ablauf dieser Zeit gilt ein
 // fehlendes Alpine nicht als Absturz.
 const GRACE_MS = 2500;
@@ -45,14 +50,18 @@ function readAttempts() {
     try {
         const raw = window.sessionStorage.getItem(ATTEMPT_KEY);
         if (!raw) {
-            return { count: 0, at: 0 };
+            return { count: 0, at: 0, total: 0 };
         }
         const parsed = JSON.parse(raw);
 
-        return { count: Number(parsed.count) || 0, at: Number(parsed.at) || 0 };
+        return {
+            count: Number(parsed.count) || 0,
+            at: Number(parsed.at) || 0,
+            total: Number(parsed.total) || 0,
+        };
     } catch (_) {
         // Private-Mode/blockierter Storage: dann lieber gar nicht neu laden.
-        return { count: MAX_ATTEMPTS, at: Date.now() };
+        return { count: MAX_ATTEMPTS, at: Date.now(), total: MAX_ATTEMPTS_TOTAL };
     }
 }
 
@@ -73,7 +82,14 @@ function clearAttempts() {
 }
 
 function reloadAllowed() {
-    const { count, at } = readAttempts();
+    const { count, at, total } = readAttempts();
+
+    // Harte Obergrenze zuerst: sie gilt auch dann, wenn das Zeitfenster
+    // laengst abgelaufen ist. Nur so kann ein dauerhaft defektes Bundle keine
+    // (langsame) Endlos-Reloadschleife erzeugen.
+    if (total >= MAX_ATTEMPTS_TOTAL) {
+        return false;
+    }
 
     // Liegt der letzte Versuch lange zurueck, beginnt ein neues Zeitfenster.
     if (at && (Date.now() - at) > ATTEMPT_WINDOW_MS) {
@@ -99,7 +115,13 @@ function alpineIsHealthy() {
         return false;
     }
 
-    // Stichprobe an einer echten Komponentenwurzel.
+    // Stichprobe an einer echten Komponentenwurzel: Alpine haengt beim
+    // Initialisieren einen _x_dataStack an jedes x-data-Element.
+    //
+    // NICHT ueber Alpine.$data() pruefen: das liefert intern
+    // mergeProxies(...) -> new Proxy(...) und ist damit IMMER truthy, also
+    // voellig unabhaengig davon, ob Alpine laeuft (verifiziert in
+    // vendor/livewire/livewire/dist/livewire.esm.js, Alpine 3.15.12).
     const probe = document.querySelector('[x-data]');
 
     if (!probe) {
@@ -107,10 +129,6 @@ function alpineIsHealthy() {
     }
 
     try {
-        if (typeof alpine.$data === 'function') {
-            return alpine.$data(probe) != null;
-        }
-
         return Array.isArray(probe._x_dataStack) && probe._x_dataStack.length > 0;
     } catch (_) {
         return false;
@@ -143,10 +161,16 @@ function recover() {
 
     reloading = true;
 
-    const { count, at } = readAttempts();
+    const { count, at, total } = readAttempts();
     const windowExpired = at && (Date.now() - at) > ATTEMPT_WINDOW_MS;
 
-    writeAttempts({ count: windowExpired ? 1 : count + 1, at: Date.now() });
+    writeAttempts({
+        count: windowExpired ? 1 : count + 1,
+        at: Date.now(),
+        // total laeuft ueber alle Zeitfenster hinweg weiter und wird nur von
+        // einem gesunden Seitenaufbau zurueckgesetzt.
+        total: total + 1,
+    });
 
     // Ein haengendes Seitenwechsel-Overlay wuerde den Reload ueberdauern.
     try {

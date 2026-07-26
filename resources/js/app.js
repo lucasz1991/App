@@ -206,13 +206,33 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
         active = false;
         window.clearTimeout(showTimer);
         window.clearTimeout(failsafeTimer);
-        if (overlay) {
-            overlay.style.opacity = '0';
-        }
+
+        // WICHTIG: nicht nur den Knoten aus der Closure aufraeumen. Livewire
+        // legt fuer den Zurueck-Button eine HTML-Kopie der Seite im
+        // History-State ab. War das Overlay dabei im DOM, bringt die
+        // wiederhergestellte Seite einen KLON mit derselben id mit — den diese
+        // Closure nicht kennt und der sonst dauerhaft sichtbar bliebe.
+        document.querySelectorAll('#rt-nav-overlay').forEach(function (node) {
+            node.style.opacity = '0';
+
+            if (node !== overlay) {
+                node.remove();
+            }
+        });
     }
 
     document.addEventListener('livewire:navigate', start);
-    document.addEventListener('livewire:navigating', start);
+    document.addEventListener('livewire:navigating', function () {
+        start();
+
+        // Direkt nach diesem Event sichert Livewire die HTML-Kopie der Seite.
+        // Deshalb das Overlay vorher aus dem DOM nehmen — so kann es gar nicht
+        // erst als Klon in die History wandern. Dauert der Seitenwechsel
+        // laenger als 120 ms, haengt start() es an den neuen body an.
+        if (overlay) {
+            overlay.remove();
+        }
+    });
 
     // Alle Wege, auf denen eine Navigation endet ODER scheitert. done() ist
     // idempotent, mehrfaches Aufraeumen ist deshalb unschaedlich.

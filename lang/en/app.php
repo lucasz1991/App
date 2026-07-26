@@ -375,6 +375,7 @@ return [
     'load_more_messages' => 'Load more messages',
     'no_messages' => 'No messages',
     'no_chats' => 'No chats',
+    'view_once_message' => 'View-once message',
     'view_all_chats' => 'View all chats',
     'view_all_messages' => 'View all messages',
     'mark_as_read' => 'Mark as read',

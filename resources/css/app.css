@@ -1357,7 +1357,11 @@ body[data-mode="dark"] .rt-chat-read-indicator.is-delivered {
    deshalb entsteht kein horizontaler Scrollbalken. Auf .main-content ist
    overflow bereits durch die :has()-Regel unten auf visible gesetzt.
    Tabs in Dialogen bleiben ausgenommen (data-sticky-enabled='false'). */
-@media (max-width: 767px) {
+/* 767.98px statt 767px: die Desktop-Regeln der Tabs beginnen bei
+   min-width:768px. Bei einer fraktionalen Viewport-Breite (Zoom, fractional
+   DPR) wuerde sonst KEINE der beiden Regeln greifen und genau die Luecke
+   zurueckkommen, die hier behoben wird. */
+@media (max-width: 767.98px) {
     .rt-tabs-shell[data-sticky-enabled='true'] {
         top: 70px;
         margin-left: calc(50% - 50vw);
@@ -1369,6 +1373,15 @@ body[data-mode="dark"] .rt-chat-read-indicator.is-delivered {
         padding-left: 0 !important;
         padding-right: 0 !important;
         border-radius: 0 !important;
+    }
+
+    /* Auch der Scroll-Container darf seitlich nicht einruecken, sonst stoppen
+       die Tabs an den Enden ~5px vor der Bildschirmkante statt dort
+       abgeschnitten zu werden. Das vertikale Padding bleibt: es gibt der
+       aktiven Kachel und ihrem Tiefen-Effekt den noetigen Raum. */
+    .rt-tabs-shell[data-sticky-enabled='true'] .rt-tabs-carousel {
+        padding-left: 0;
+        padding-right: 0;
     }
 }
 
