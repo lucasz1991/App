@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Illuminate\Support\Facades\File;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
@@ -31,9 +32,7 @@ class ErrorPagesTest extends TestCase
         ];
     }
 
-    /**
-     * @dataProvider statusProvider
-     */
+    #[DataProvider('statusProvider')]
     public function test_every_status_renders_the_shared_branded_page(int $status, string $titleKey): void
     {
         $view = view()->exists("errors.{$status}")

@@ -117,11 +117,34 @@ class PwaFrontendTest extends TestCase
 
         $this->assertSame([180, 180], [$appleIcon[0], $appleIcon[1]]);
         $this->assertSame([96, 96], [$badge[0], $badge[1]]);
-        $this->assertGreaterThan(22, filesize(public_path('favicon.ico')));
-        $this->assertSame(
-            "\x00\x00\x01\x00\x01\x00",
-            file_get_contents(public_path('favicon.ico'), length: 6),
-        );
+        // favicon.ico muss MEHRERE kleine Groessen enthalten. Mit nur einer
+        // 192px-Grafik blieben Tab-Uebersicht, Verlauf und Lesezeichen leer —
+        // genau das war der gemeldete Fehler.
+        $ico = file_get_contents(public_path('favicon.ico'));
+        $header = unpack('vreserved/vtype/vcount', substr($ico, 0, 6));
+
+        $this->assertSame(0, $header['reserved']);
+        $this->assertSame(1, $header['type'], 'favicon.ico muss ein ICO (Typ 1) sein.');
+        $this->assertGreaterThanOrEqual(3, $header['count'], 'favicon.ico braucht mehrere Groessen.');
+
+        $sizes = [];
+
+        for ($index = 0; $index < $header['count']; $index++) {
+            $entry = unpack(
+                'Cwidth/Cheight/Ccolors/Creserved/vplanes/vbpp/Vsize/Voffset',
+                substr($ico, 6 + ($index * 16), 16),
+            );
+
+            $sizes[] = $entry['width'] === 0 ? 256 : $entry['width'];
+
+            // Jeder Eintrag muss vollstaendig in der Datei liegen.
+            $this->assertLessThanOrEqual(strlen($ico), $entry['offset'] + $entry['size']);
+            $this->assertNotFalse(getimagesizefromstring(substr($ico, $entry['offset'], $entry['size'])));
+        }
+
+        foreach ([16, 32, 48] as $required) {
+            $this->assertContains($required, $sizes, "favicon.ico fehlt die Groesse {$required}px.");
+        }
     }
 
     public function test_manifest_icons_have_a_public_laravel_fallback_for_incomplete_deployments(): void
