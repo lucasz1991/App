@@ -19,6 +19,7 @@ import 'swiper/css';
 // GSAP-Setup (window.gsap/ScrollTrigger + deklarative data-anim-Reveals)
 import './gsap';
 import { wagonListPrototype } from './wagon-list-prototype';
+import { numberInput } from './number-input';
 import { registerRailtimePushSettings, setupRailtimePwa } from './pwa';
 import { createNotificationSeenCache } from './notification-seen-cache';
 import { incomingNotificationSound } from './realtime-notification-sound';
@@ -257,6 +258,7 @@ registerRailtimePushSettings(Alpine);
 setupRailtimePwa();
 
 Alpine.data('wagonListPrototype', wagonListPrototype);
+Alpine.data('rtNumberInput', numberInput);
 
 Alpine.data('chatRealtime', (config) => ({
     channel: null,

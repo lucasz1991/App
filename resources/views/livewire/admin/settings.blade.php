@@ -92,11 +92,15 @@
                         {{ __('app.invitation_expiry_days') }}
                     </label>
                     <div class="mt-1.5">
-                        <x-ui.forms.input
-                            type="number"
+                        {{-- nullable=false: die Komponente ist an ein typisiertes
+                             int-Property gebunden, ein leeres Feld wuerde beim
+                             Speichern einen Typfehler ausloesen. --}}
+                        <x-ui.forms.number-input
                             id="invitation_expiry_days"
                             min="1"
                             max="365"
+                            :nullable="false"
+                            :unit="__('app.days')"
                             wire:model="invitationExpiryDays"
                         />
                     </div>

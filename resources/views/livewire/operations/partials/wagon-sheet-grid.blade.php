@@ -45,14 +45,14 @@
                         <input data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.checkDigit" inputmode="numeric" maxlength="1" :class="checkState(wagon) === 'invalid' && 'text-red-600 bg-red-50 dark:text-red-300 dark:bg-red-500/10'" class="{{ $sheetInput }}">
                     </div>
                     <div role="cell"><input data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.category" class="{{ $sheetInput }}"></div>
-                    <div role="cell"><input data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.axlesEmpty" type="number" min="0" class="{{ $sheetInput }}"></div>
-                    <div role="cell"><input data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.axlesLoaded" type="number" min="0" class="{{ $sheetInput }}"></div>
-                    <div role="cell"><input data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.length" type="number" min="0" step="0.01" class="{{ $sheetInput }}"></div>
-                    <div role="cell"><input data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.wagonWeight" type="number" min="0" step="0.01" class="{{ $sheetInput }}"></div>
-                    <div role="cell"><input data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.loadWeight" type="number" min="0" step="0.01" class="{{ $sheetInput }}"></div>
+                    <div role="cell"><x-ui.forms.number-input :stepper="false" min="0" data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.axlesEmpty" class="{{ $sheetInput }}" /></div>
+                    <div role="cell"><x-ui.forms.number-input :stepper="false" min="0" data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.axlesLoaded" class="{{ $sheetInput }}" /></div>
+                    <div role="cell"><x-ui.forms.number-input :stepper="false" min="0" step="0.01" :decimals="2" data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.length" class="{{ $sheetInput }}" /></div>
+                    <div role="cell"><x-ui.forms.number-input :stepper="false" min="0" step="0.01" :decimals="2" data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.wagonWeight" class="{{ $sheetInput }}" /></div>
+                    <div role="cell"><x-ui.forms.number-input :stepper="false" min="0" step="0.01" :decimals="2" data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.loadWeight" class="{{ $sheetInput }}" /></div>
                     <div role="cell" class="flex items-center px-2 text-sm font-bold tabular-nums"><span x-text="formatNumber(totalWeight(wagon))"></span>&nbsp;t</div>
-                    <div role="cell"><input data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.brakeG" type="number" min="0" step="0.01" class="{{ $sheetInput }}"></div>
-                    <div role="cell"><input data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.brakeP" type="number" min="0" step="0.01" class="{{ $sheetInput }}"></div>
+                    <div role="cell"><x-ui.forms.number-input :stepper="false" min="0" step="0.01" :decimals="2" data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.brakeG" class="{{ $sheetInput }}" /></div>
+                    <div role="cell"><x-ui.forms.number-input :stepper="false" min="0" step="0.01" :decimals="2" data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.brakeP" class="{{ $sheetInput }}" /></div>
                     <div role="cell"><input data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.shippingStation" class="{{ $sheetInput }}"></div>
                     <div role="cell"><input data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.destinationStation" class="{{ $sheetInput }}"></div>
                     <div role="cell" class="p-1">
@@ -61,8 +61,8 @@
                         </button>
                     </div>
                     <div role="cell" class="flex items-center justify-center"><input x-model="wagon.discBrake" type="checkbox" class="h-5 w-5 rounded border-rt-border text-rt-accent focus:ring-rt-accent/35 dark:border-rt-dark-border"></div>
-                    <div role="cell"><input data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.parkingBrake" type="number" min="0" step="0.1" class="{{ $sheetInput }}"></div>
-                    <div role="cell"><input data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.maxSpeed" type="number" min="0" class="{{ $sheetInput }}"></div>
+                    <div role="cell"><x-ui.forms.number-input :stepper="false" min="0" step="0.1" :decimals="1" data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.parkingBrake" class="{{ $sheetInput }}" /></div>
+                    <div role="cell"><x-ui.forms.number-input :stepper="false" min="0" data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.maxSpeed" class="{{ $sheetInput }}" /></div>
                     <div role="cell"><input data-wagon-cell @keydown.enter.prevent="focusNextCell($event)" x-model="wagon.remark" class="{{ $sheetInput }}"></div>
                     <div role="cell" class="flex items-center justify-center">
                         <button type="button" @click="clearWagon(index)" class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-500 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-500/10" title="{{ __('app.clear_wagon') }}">

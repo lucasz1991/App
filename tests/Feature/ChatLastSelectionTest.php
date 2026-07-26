@@ -5,8 +5,6 @@ namespace Tests\Feature;
 use App\Livewire\ChatBox;
 use App\Models\Chat;
 use App\Models\User;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
 
@@ -20,13 +18,6 @@ class ChatLastSelectionTest extends TestCase
 
         $this->buildMinimalRailTimeSchema();
 
-        Schema::create('chats', function (Blueprint $table): void {
-            $table->id();
-            $table->string('type')->default('direct');
-            $table->string('name')->nullable();
-            $table->unsignedBigInteger('created_by');
-            $table->timestamps();
-        });
     }
 
     public function test_last_opened_chat_is_restored_and_a_new_selection_is_persisted(): void

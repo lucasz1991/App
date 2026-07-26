@@ -117,7 +117,10 @@
                             </div>
                             <div>
                                 <x-ui.forms.label :value="__('app.weekly_working_hours')" />
-                                <x-ui.forms.input type="number" step="0.25" min="0" max="168" wire:model="weekly_working_hours" :disabled="!$canEditMasterData" />
+                                {{-- separator="." weil das Feld serverseitig mit
+                                     Laravels numeric-Regel geprueft wird und
+                                     is_numeric() kein Komma akzeptiert. --}}
+                                <x-ui.forms.number-input step="0.25" min="0" max="168" :decimals="2" separator="." wire:model="weekly_working_hours" :disabled="!$canEditMasterData" />
                             </div>
                             <div class="md:col-span-2">
                                 <x-ui.forms.label :value="__('app.additional_information')" />
@@ -146,7 +149,7 @@
                                 <div>
                                     <x-ui.forms.label :value="__('app.'.$label)" />
                                     @if ($field === 'compensation_amount')
-                                        <x-ui.forms.input type="number" step="0.01" min="0" wire:model="{{ $field }}" :disabled="! $canEditCompensation" />
+                                        <x-ui.forms.number-input step="0.01" min="0" :decimals="2" separator="." wire:model="{{ $field }}" :disabled="! $canEditCompensation" />
                                     @else
                                         <x-ui.forms.input :type="$type" wire:model="{{ $field }}" :disabled="! $canEditCompensation" />
                                     @endif

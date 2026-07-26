@@ -7,8 +7,6 @@ use App\Models\Chat;
 use App\Models\ChatMessage;
 use App\Models\Message;
 use App\Models\User;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Livewire\Livewire;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
@@ -27,15 +25,6 @@ class HeaderInboxCombinedDropdownTest extends TestCase
 
         $this->buildMinimalRailTimeSchema();
 
-        // Wie in den uebrigen Chat-Tests: die chats-Tabelle gehoert nicht zum
-        // gemeinsamen Minimalschema und wird hier ergaenzt.
-        Schema::create('chats', function (Blueprint $table): void {
-            $table->id();
-            $table->string('type')->default('direct');
-            $table->string('name')->nullable();
-            $table->unsignedBigInteger('created_by');
-            $table->timestamps();
-        });
     }
 
     public function test_one_trigger_shows_the_combined_unread_count_for_chats_and_messages(): void

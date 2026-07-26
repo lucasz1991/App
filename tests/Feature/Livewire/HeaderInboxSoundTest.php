@@ -7,8 +7,6 @@ use App\Models\Chat;
 use App\Models\ChatMessage;
 use App\Models\Message;
 use App\Models\User;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Livewire\Livewire;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
@@ -28,13 +26,6 @@ class HeaderInboxSoundTest extends TestCase
 
         $this->buildMinimalRailTimeSchema();
 
-        Schema::create('chats', function (Blueprint $table): void {
-            $table->id();
-            $table->string('type')->default('direct');
-            $table->string('name')->nullable();
-            $table->unsignedBigInteger('created_by');
-            $table->timestamps();
-        });
     }
 
     protected function unreadMessageFor(User $recipient, User $sender): Message

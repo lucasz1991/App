@@ -423,17 +423,17 @@
                             <fieldset class="rt-wagon-fieldset rounded-xl p-3">
                                 <legend class="px-1 text-xs font-bold uppercase tracking-[0.08em]">{{ __('app.axles_dimensions') }}</legend>
                                 <div class="mt-2 grid grid-cols-2 gap-3">
-                                    <label class="{{ $labelClass }}">{{ __('app.axles_empty') }}<input x-model="wagons[mobileWagon].axlesEmpty" type="number" min="0" class="{{ $inputClass }}"></label>
-                                    <label class="{{ $labelClass }}">{{ __('app.axles_loaded') }}<input x-model="wagons[mobileWagon].axlesLoaded" type="number" min="0" class="{{ $inputClass }}"></label>
-                                    <label class="{{ $labelClass }} col-span-2">{{ __('app.length_m') }}<input x-model="wagons[mobileWagon].length" type="number" min="0" step="0.01" class="{{ $inputClass }}"></label>
+                                    <label class="{{ $labelClass }}">{{ __('app.axles_empty') }}<x-ui.forms.number-input min="0" x-model="wagons[mobileWagon].axlesEmpty" class="mt-1" /></label>
+                                    <label class="{{ $labelClass }}">{{ __('app.axles_loaded') }}<x-ui.forms.number-input min="0" x-model="wagons[mobileWagon].axlesLoaded" class="mt-1" /></label>
+                                    <label class="{{ $labelClass }} col-span-2">{{ __('app.length_m') }}<x-ui.forms.number-input min="0" step="0.01" :decimals="2" x-model="wagons[mobileWagon].length" class="mt-1" /></label>
                                 </div>
                             </fieldset>
 
                             <fieldset class="rt-wagon-fieldset rounded-xl p-3">
                                 <legend class="px-1 text-xs font-bold uppercase tracking-[0.08em]">{{ __('app.weights_and_brakes') }}</legend>
                                 <div class="mt-2 grid grid-cols-2 gap-3">
-                                    <label class="{{ $labelClass }}">{{ __('app.wagon_weight_t') }}<input x-model="wagons[mobileWagon].wagonWeight" type="number" min="0" step="0.01" class="{{ $inputClass }}"></label>
-                                    <label class="{{ $labelClass }}">{{ __('app.load_weight_t') }}<input x-model="wagons[mobileWagon].loadWeight" type="number" min="0" step="0.01" class="{{ $inputClass }}"></label>
+                                    <label class="{{ $labelClass }}">{{ __('app.wagon_weight_t') }}<x-ui.forms.number-input min="0" step="0.01" :decimals="2" x-model="wagons[mobileWagon].wagonWeight" class="mt-1" /></label>
+                                    <label class="{{ $labelClass }}">{{ __('app.load_weight_t') }}<x-ui.forms.number-input min="0" step="0.01" :decimals="2" x-model="wagons[mobileWagon].loadWeight" class="mt-1" /></label>
                                     <div class="rt-wagon-calculated rounded-lg p-3">
                                         <span class="text-[10px] font-bold uppercase tracking-[0.08em] opacity-65">{{ __('app.total_weight') }}</span>
                                         <strong class="mt-1 block text-lg tabular-nums"><span x-text="formatNumber(totalWeight(wagons[mobileWagon]))"></span> t</strong>
@@ -442,8 +442,8 @@
                                         <input x-model="wagons[mobileWagon].discBrake" type="checkbox" class="h-5 w-5 rounded border-rt-border text-rt-accent focus:ring-rt-accent/35 dark:border-rt-dark-border">
                                         {{ __('app.disc_brake') }}
                                     </label>
-                                    <label class="{{ $labelClass }}">{{ __('app.brake_weight_g') }}<input x-model="wagons[mobileWagon].brakeG" type="number" min="0" step="0.01" class="{{ $inputClass }}"></label>
-                                    <label class="{{ $labelClass }}">{{ __('app.brake_weight_p') }}<input x-model="wagons[mobileWagon].brakeP" type="number" min="0" step="0.01" class="{{ $inputClass }}"></label>
+                                    <label class="{{ $labelClass }}">{{ __('app.brake_weight_g') }}<x-ui.forms.number-input min="0" step="0.01" :decimals="2" x-model="wagons[mobileWagon].brakeG" class="mt-1" /></label>
+                                    <label class="{{ $labelClass }}">{{ __('app.brake_weight_p') }}<x-ui.forms.number-input min="0" step="0.01" :decimals="2" x-model="wagons[mobileWagon].brakeP" class="mt-1" /></label>
                                 </div>
                             </fieldset>
 
@@ -452,8 +452,8 @@
                                 <div class="mt-2 grid grid-cols-2 gap-3">
                                     <label class="{{ $labelClass }}">{{ __('app.shipping_station') }}<input x-model="wagons[mobileWagon].shippingStation" class="{{ $inputClass }}"></label>
                                     <label class="{{ $labelClass }}">{{ __('app.destination_station') }}<input x-model="wagons[mobileWagon].destinationStation" class="{{ $inputClass }}"></label>
-                                    <label class="{{ $labelClass }}">{{ __('app.parking_brake_kn') }}<input x-model="wagons[mobileWagon].parkingBrake" type="number" min="0" step="0.1" class="{{ $inputClass }}"></label>
-                                    <label class="{{ $labelClass }}">{{ __('app.maximum_speed') }}<input x-model="wagons[mobileWagon].maxSpeed" type="number" min="0" class="{{ $inputClass }}"></label>
+                                    <label class="{{ $labelClass }}">{{ __('app.parking_brake_kn') }}<x-ui.forms.number-input min="0" step="0.1" :decimals="1" x-model="wagons[mobileWagon].parkingBrake" class="mt-1" /></label>
+                                    <label class="{{ $labelClass }}">{{ __('app.maximum_speed') }}<x-ui.forms.number-input min="0" x-model="wagons[mobileWagon].maxSpeed" class="mt-1" /></label>
                                     <label class="{{ $labelClass }} col-span-2">{{ __('app.remark') }}<textarea x-model="wagons[mobileWagon].remark" rows="2" class="{{ $inputClass }}"></textarea></label>
                                 </div>
                             </fieldset>
@@ -501,16 +501,16 @@
                         <fieldset class="rt-wagon-fieldset rounded-xl p-4">
                             <legend class="px-1 text-sm font-semibold">{{ __('app.traction_vehicle') }}</legend>
                             <div class="mt-2 grid gap-3 sm:grid-cols-3">
-                                <label class="{{ $labelClass }}">{{ __('app.weight_t') }}<input x-model="brakeSheet.tractionWeight" type="number" min="0" step="0.01" class="{{ $inputClass }}"></label>
-                                <label class="{{ $labelClass }}">{{ __('app.brake_weight_t') }}<input x-model="brakeSheet.tractionBrakeWeight" type="number" min="0" step="0.01" class="{{ $inputClass }}"></label>
-                                <label class="{{ $labelClass }}">{{ __('app.axles') }}<input x-model="brakeSheet.tractionAxles" type="number" min="0" class="{{ $inputClass }}"></label>
+                                <label class="{{ $labelClass }}">{{ __('app.weight_t') }}<x-ui.forms.number-input min="0" step="0.01" :decimals="2" x-model="brakeSheet.tractionWeight" class="mt-1" /></label>
+                                <label class="{{ $labelClass }}">{{ __('app.brake_weight_t') }}<x-ui.forms.number-input min="0" step="0.01" :decimals="2" x-model="brakeSheet.tractionBrakeWeight" class="mt-1" /></label>
+                                <label class="{{ $labelClass }}">{{ __('app.axles') }}<x-ui.forms.number-input min="0" x-model="brakeSheet.tractionAxles" class="mt-1" /></label>
                             </div>
                         </fieldset>
 
                         <fieldset class="rt-wagon-fieldset rounded-xl p-4">
                             <legend class="px-1 text-sm font-semibold">{{ __('app.brake_calculation') }}</legend>
                             <div class="mt-2 grid grid-cols-3 gap-3">
-                                <label class="{{ $labelClass }}">{{ __('app.minimum_brake_percentage') }}<input x-model="brakeSheet.minimumBrakePercentage" type="number" min="0" class="{{ $inputClass }}"></label>
+                                <label class="{{ $labelClass }}">{{ __('app.minimum_brake_percentage') }}<x-ui.forms.number-input min="0" x-model="brakeSheet.minimumBrakePercentage" class="mt-1" /></label>
                                 <div class="rt-wagon-calculated rounded-lg p-3"><span class="text-[10px] font-bold uppercase opacity-65">{{ __('app.available') }}</span><strong class="mt-1 block text-lg"><span x-text="brakeTotals.availablePercentage"></span> %</strong></div>
                                 <div class="rt-wagon-calculated rounded-lg p-3"><span class="text-[10px] font-bold uppercase opacity-65">{{ __('app.missing') }}</span><strong class="mt-1 block text-lg" :class="brakeTotals.missingPercentage > 0 ? 'text-red-600 dark:text-red-300' : 'text-emerald-600 dark:text-emerald-300'"><span x-text="brakeTotals.missingPercentage"></span> %</strong></div>
                             </div>
@@ -525,7 +525,7 @@
                                 <div class="flex justify-between gap-4 py-2"><dt class="opacity-65">{{ __('app.plastic_brakes_count') }}</dt><dd class="font-semibold" x-text="totals.plasticBrakes"></dd></div>
                                 <div class="flex justify-between gap-4 py-2"><dt class="opacity-65">{{ __('app.length_over_buffers') }}</dt><dd class="font-semibold"><span x-text="formatNumber(totals.length)"></span> m</dd></div>
                             </dl>
-                            <label class="mt-3 block {{ $labelClass }}">{{ __('app.braked_axles') }}<input x-model="brakeSheet.brakedAxles" type="number" min="0" class="{{ $inputClass }}"></label>
+                            <label class="mt-3 block {{ $labelClass }}">{{ __('app.braked_axles') }}<x-ui.forms.number-input min="0" x-model="brakeSheet.brakedAxles" class="mt-1" /></label>
                         </fieldset>
 
                         <fieldset class="rt-wagon-fieldset rounded-xl p-4">
@@ -556,7 +556,7 @@
                                         </div>
                                     </div>
                                 @endforeach
-                                <label class="{{ $labelClass }}">{{ __('app.lower_vehicle_speed') }}<input x-model="brakeSheet.lowerVehicleSpeed" type="number" min="0" class="{{ $inputClass }}"></label>
+                                <label class="{{ $labelClass }}">{{ __('app.lower_vehicle_speed') }}<x-ui.forms.number-input min="0" x-model="brakeSheet.lowerVehicleSpeed" class="mt-1" /></label>
                                 <label class="{{ $labelClass }} sm:col-span-2">{{ __('app.issued_by_name') }}<input x-model="brakeSheet.issuerName" class="{{ $inputClass }}"></label>
                             </div>
                         </fieldset>

@@ -7,8 +7,6 @@ use App\Livewire\Tools\FilePools\FilePreviewModal;
 use App\Models\Chat;
 use App\Models\ChatMessage;
 use App\Models\User;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Tests\Support\BuildsMinimalRailTimeSchema;
@@ -24,14 +22,6 @@ class ChatAttachmentPreviewTest extends TestCase
 
         $this->withoutMiddleware(LogActivity::class);
         $this->buildMinimalRailTimeSchema();
-
-        Schema::create('chats', function (Blueprint $table): void {
-            $table->id();
-            $table->string('type')->default('direct');
-            $table->string('name')->nullable();
-            $table->unsignedBigInteger('created_by');
-            $table->timestamps();
-        });
 
         Storage::fake('private');
     }

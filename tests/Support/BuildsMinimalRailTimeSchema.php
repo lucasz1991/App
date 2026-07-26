@@ -142,6 +142,16 @@ trait BuildsMinimalRailTimeSchema
             $table->timestamps();
         });
 
+        // Gehoert zum Minimalschema, weil die Topbar (livewire:tools.header-inbox)
+        // auf JEDER authentifizierten Seite die letzten Chats laedt.
+        Schema::create('chats', function (Blueprint $table): void {
+            $table->id();
+            $table->string('type')->default('direct');
+            $table->string('name')->nullable();
+            $table->unsignedBigInteger('created_by');
+            $table->timestamps();
+        });
+
         Schema::create('chat_user', function (Blueprint $table): void {
             $table->id();
             $table->unsignedBigInteger('chat_id');
