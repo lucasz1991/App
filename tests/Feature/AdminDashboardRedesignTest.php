@@ -212,7 +212,11 @@ class AdminDashboardRedesignTest extends TestCase
 
         $this->assertGreaterThanOrEqual(2, substr_count($revealScript, 'gsap.timeline('));
         $this->assertStringContainsString('timeline.addLabel(label, position)', $revealScript);
+        $this->assertStringContainsString('appendDashboardSegment(introTimeline, prepared, index * 0.08)', $revealScript);
         $this->assertStringContainsString('setupDashboardSegments(dashboardSegments)', $revealScript);
+        $this->assertStringContainsString('scheduleDashboardVisibilitySafety(root)', $revealScript);
+        $this->assertStringContainsString('[data-dashboard-segment][data-anim-pending]', $revealScript);
+        $this->assertStringContainsString('window.clearTimeout(dashboardSafetyTimer)', $revealScript);
         $this->assertStringContainsString('html.dark [data-admin-dashboard] .rt-admin-hero-secondary', $styles);
         $this->assertStringContainsString('body[data-mode="dark"] [data-admin-dashboard] .rt-admin-hero-secondary', $styles);
     }
@@ -246,6 +250,7 @@ class AdminDashboardRedesignTest extends TestCase
         $this->assertStringContainsString('dark:bg-slate-900/95', $dashboard);
         $this->assertStringContainsString('rt-admin-live-card', $dashboard);
         $this->assertSame(4, substr_count($dashboard, 'rt-admin-quick-link'));
+        $this->assertGreaterThanOrEqual(10, substr_count($dashboard, 'data-rt-glow'));
         $this->assertStringContainsString('.dark .rt-admin-live-card', $styles);
         $this->assertStringContainsString('.dark .rt-admin-operations-card', $styles);
         $this->assertStringContainsString('.dark .rt-admin-operations-stage', $styles);

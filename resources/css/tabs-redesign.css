@@ -72,8 +72,15 @@ body[data-mode='dark'] .rt-tabs-v2.rt-tabs-shell {
 }
 
 .rt-tabs-v2.rt-tabs-shell[data-sticky-enabled='true'] {
+    position: sticky;
+    top: calc(70px + 0.5rem);
+    z-index: 24;
     backdrop-filter: blur(18px) saturate(145%);
     -webkit-backdrop-filter: blur(18px) saturate(145%);
+}
+
+.main-content:has(.rt-tabs-v2.rt-tabs-shell[data-sticky-enabled='true']) {
+    overflow: visible;
 }
 
 .rt-tabs-v2 .rt-tabs-carousel {
@@ -296,7 +303,7 @@ body[data-mode='dark'] .rt-tabs-v2.rt-tabs-shell {
     transform: translate3d(-0.5rem, 0, 0);
 }
 
-@media (pointer: coarse) {
+@media (any-pointer: coarse) {
     .rt-tabs-v2 .rt-tabs-carousel {
         touch-action: pan-y;
     }
@@ -335,6 +342,7 @@ body[data-mode='dark'] .rt-tabs-v2.rt-tabs-shell {
          * vergroessert als Ink-Overflow nicht die Dokument-Scrollbreite.
          */
         --rt-tabs-mobile-gutter: 0.75rem;
+        top: 70px;
         box-sizing: border-box;
         width: 100%;
         max-width: 100%;

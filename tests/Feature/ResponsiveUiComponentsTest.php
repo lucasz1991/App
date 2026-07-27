@@ -35,8 +35,8 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertStringContainsString('positionPanel()', $component);
         $this->assertStringContainsString("this.placement === 'bottom'", $component);
         $this->assertStringContainsString('viewportRight - this.gutter - panelWidth', $component);
-        $this->assertStringContainsString("--rt-dropdown-caret-x", $component);
-        $this->assertStringContainsString("--rt-dropdown-connector-size", $component);
+        $this->assertStringContainsString('--rt-dropdown-caret-x', $component);
+        $this->assertStringContainsString('--rt-dropdown-connector-size', $component);
         $this->assertStringContainsString('Math.max(6, this.offset + 2)', $component);
         $this->assertStringContainsString('.rt-viewport-dropdown[data-placement="bottom"] .rt-ui-dropdown-caret', $styles);
         $this->assertStringContainsString('.rt-viewport-dropdown[data-placement="top"] .rt-ui-dropdown-caret', $styles);
@@ -82,7 +82,7 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertSame(1, substr_count($html, 'data-topbar-toggle-track="sound"'));
         $this->assertSame(2, substr_count($html, 'translate-x-[22px]'));
         $this->assertGreaterThanOrEqual(4, substr_count($view, 'x-show='));
-        $this->assertStringContainsString('aria-label="' . __('app.settings') . '"', $html);
+        $this->assertStringContainsString('aria-label="'.__('app.settings').'"', $html);
         $this->assertStringContainsString('aria-haspopup="menu"', $html);
         $this->assertStringContainsString('x-bind:aria-expanded="open.toString()"', $html);
 
@@ -277,6 +277,8 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertStringContainsString('--rt-tabs-mobile-gutter: 0.75rem', $styles);
         $this->assertStringContainsString('margin-inline: 0 !important', $styles);
         $this->assertStringContainsString(".rt-tabs-v2.rt-tabs-shell[data-sticky-enabled='true'] .rt-tabs-carousel", $styles);
+        $this->assertStringContainsString(".main-content:has(.rt-tabs-v2.rt-tabs-shell[data-sticky-enabled='true'])", $styles);
+        $this->assertStringContainsString('position: sticky', $styles);
         $this->assertStringContainsString('max-width: 100%', $styles);
         $this->assertStringNotContainsString('calc(50% - 50vw)', $styles);
         $this->assertDoesNotMatchRegularExpression('/#[0-9a-f]{3,8}/i', $styles);
@@ -336,15 +338,17 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertStringContainsString('Math.abs(deltaX) < 12', $tabs);
         $this->assertStringContainsString('const didDrag = this.touchDragging', $tabs);
         $this->assertStringContainsString('event.currentTarget.setPointerCapture?.(event.pointerId)', $tabs);
-        $this->assertStringContainsString("if (this.suppressTouchClick && event.pointerType === 'touch')", $tabs);
+        $this->assertStringContainsString('if (this.suppressTouchClick)', $tabs);
+        $this->assertStringContainsString("event.pointerType === 'mouse' || event.pointerType === 'pen'", $tabs);
+        $this->assertStringContainsString('@pointerdown.capture="preparePointerIntent($event)"', $tabs);
+        $this->assertStringContainsString('@pointercancel="cancelTouchPointer($event)"', $tabs);
+        $this->assertStringContainsString('@lostpointercapture="lostTouchPointerCapture($event)"', $tabs);
         $this->assertStringContainsString('@click="activateFromClick($event, tab.id)"', $tabs);
         $this->assertStringContainsString('@keydown.right.prevent.stop="moveTab(1)"', $tabs);
         $this->assertStringContainsString('@keydown.home.prevent.stop="moveToBoundary(\'start\')"', $tabs);
         $this->assertStringContainsString(':tabindex="openTab === tab.id ? 0 : -1"', $tabs);
         $this->assertStringNotContainsString('@touchstart', $tabs);
-        $this->assertStringNotContainsString("event.pointerType === 'mouse'", $tabs);
         $this->assertStringNotContainsString("event.pointerType !== 'mouse'", $tabs);
-        $this->assertStringNotContainsString("event.pointerType === 'pen'", $tabs);
         $this->assertStringNotContainsString('settleCarousel()', $tabs);
         $this->assertStringNotContainsString('@dragstart.prevent', $tabs);
         $this->assertStringContainsString(':data-tab-direction="tabDirection"', $tabs);
@@ -356,13 +360,13 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertStringContainsString("[data-tabs-input-policy='touch-only-drag'][data-tab-direction='previous']", $styles);
         $this->assertStringContainsString(".rt-tabs-carousel[data-touch-dragging='true']", $styles);
         $this->assertStringContainsString('touch-action: pan-x pan-y', $styles);
-        $this->assertStringContainsString('@media (pointer: coarse)', $styles);
+        $this->assertStringContainsString('@media (any-pointer: coarse)', $styles);
         $this->assertStringContainsString('touch-action: pan-y', $styles);
         $this->assertStringNotContainsString('cursor: grab', $styles);
         $this->assertStringNotContainsString('cursor: grabbing', $styles);
         $this->assertStringNotContainsString('\\"', $tabs);
         $this->assertStringContainsString('initMobileSidebarSwipe()', $script);
-        $this->assertStringContainsString("startsAtOpeningEdge", $script);
+        $this->assertStringContainsString('startsAtOpeningEdge', $script);
         $this->assertStringContainsString('setMobileSidebarOpen(true)', $script);
         $this->assertStringContainsString('setMobileSidebarOpen(false)', $script);
         $this->assertStringContainsString('wagonTouchStart', $wagon);

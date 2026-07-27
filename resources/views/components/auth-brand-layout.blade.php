@@ -4,12 +4,6 @@
      eine zentrierte Spalte — oben das animierte RailTime-Logo
      (3D-Logo + Animation aus Layout 3 der Website), darunter das Formular. --}}
 
-<link rel="stylesheet" href="{{ asset('rt-brand/rt-auth.css') }}">
-<link rel="icon" type="image/svg+xml" href="{{ asset('rt-brand/rt-logo.svg') }}">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@700&display=swap" rel="stylesheet">
-
 <div class="rt-auth">
     {{-- Theme-Umschalter (Hell/Dunkel) — nutzt den globalen Alpine-Theme-Store --}}
     <button type="button" x-data @click="$store.theme?.toggle()"

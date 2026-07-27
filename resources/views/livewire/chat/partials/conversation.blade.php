@@ -5,12 +5,14 @@
                 type="button"
                 x-on:click="toggleList()"
                 class="rt-chat-icon-button rt-chat-icon-button--quiet absolute left-4 top-4 z-10 hidden h-10 w-10 items-center justify-center rounded-xl text-sm md:inline-flex"
+                data-chat-list-toggle
                 aria-controls="rt-chat-overview"
                 x-bind:aria-expanded="(! listCollapsed).toString()"
+                x-bind:class="listCollapsed ? 'rt-chat-icon-button--open' : ''"
                 x-bind:aria-label="listCollapsed ? @js(__('app.show_chat_overview')) : @js(__('app.hide_chat_overview'))"
                 x-bind:title="listCollapsed ? @js(__('app.show_chat_overview')) : @js(__('app.hide_chat_overview'))"
             >
-                <i class="far fa-chevron-right" aria-hidden="true"></i>
+                <i class="far fa-chevron-left" aria-hidden="true"></i>
             </button>
 
             <x-chat.empty-state

@@ -74,8 +74,10 @@
         },
         activateFromClick(event, id) {
             // Ein echter Touch-Drag darf keinen synthetischen Klick ausloesen.
-            // Maus- und Pen-Klicks werden davon explizit nie abgefangen.
-            if (this.suppressTouchClick && event.pointerType === 'touch') {
+            // Der folgende Browser-Click kann in Embedded-WebViews als
+            // MouseEvent ohne pointerType ankommen. Das Flag selbst wird
+            // ausschliesslich von einem echten Touch-Drag gesetzt.
+            if (this.suppressTouchClick) {
                 event.preventDefault();
                 event.stopPropagation();
                 this.suppressTouchClick = false;
@@ -83,6 +85,14 @@
             }
 
             this.selectTab(id, true);
+        },
+        preparePointerIntent(event) {
+            // Ein echter Maus-/Pen-Klick hat stets einen eigenen PointerDown.
+            // Er darf nie von der kurzen Touch-Click-Sperre verschluckt werden.
+            if (event.pointerType === 'mouse' || event.pointerType === 'pen') {
+                window.clearTimeout(this.suppressTouchClickTimer);
+                this.suppressTouchClick = false;
+            }
         },
         moveTab(direction) {
             if (this.items.length < 2) return;
@@ -210,6 +220,18 @@
                 this.suppressTouchClick = false;
             }
         },
+        cancelTouchPointer(event = null) {
+            window.clearTimeout(this.suppressTouchClickTimer);
+            this.suppressTouchClick = false;
+            this.resetTouchPointer(event);
+        },
+        lostTouchPointerCapture(event) {
+            // Nach einem regulaeren PointerUp ist die ID bereits geloescht.
+            // Nur ein tatsaechlich abgebrochener aktiver Drag wird bereinigt.
+            if (this.touchPointerId === event.pointerId) {
+                this.cancelTouchPointer(event);
+            }
+        },
         resetTouchPointer(event = null) {
             const pointerId = this.touchPointerId;
             this.touchPointerId = null;
@@ -264,11 +286,12 @@
             class="rt-tabs-carousel"
             :data-touch-dragging="touchDragging ? 'true' : 'false'"
             @scroll.passive="syncScrollEdges()"
+            @pointerdown.capture="preparePointerIntent($event)"
             @pointerdown="touchPointerDown($event)"
             @pointermove="touchPointerMove($event)"
             @pointerup="touchPointerEnd($event)"
-            @pointercancel="resetTouchPointer($event)"
-            @lostpointercapture="resetTouchPointer()"
+            @pointercancel="cancelTouchPointer($event)"
+            @lostpointercapture="lostTouchPointerCapture($event)"
             data-tab-carousel
         >
             <div class="rt-tabs-carousel-track">

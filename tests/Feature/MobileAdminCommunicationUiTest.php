@@ -108,7 +108,8 @@ class MobileAdminCommunicationUiTest extends TestCase
         $this->assertStringContainsString('x-show.important="!consumed"', file_get_contents(resource_path('views/components/chat/voice-message.blade.php')));
         $this->assertStringContainsString('durationHint:', file_get_contents(resource_path('views/components/chat/voice-message.blade.php')));
         $this->assertStringContainsString('window.requestAnimationFrame(syncProgress)', $script);
-        $this->assertStringContainsString('px-3 pb-3 pt-4', $view);
+        $this->assertStringContainsString('overflow-hidden px-0 pb-3 pt-4', $view);
+        $this->assertStringNotContainsString('px-3 pb-3 pt-4', $view);
         $this->assertStringContainsString('rt-chat-transcript', $view);
         $this->assertStringContainsString('rt-chat-message--own', $view);
         $this->assertStringContainsString('rt-chat-message--other', $view);

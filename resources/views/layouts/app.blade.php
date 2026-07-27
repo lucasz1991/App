@@ -9,6 +9,8 @@
         <script>if (localStorage.getItem('rt-theme') === 'true') document.documentElement.classList.add('dark');</script>
         @vite(['resources/css/app.css', 'resources/css/shell-redesign.css', 'resources/css/tabs-redesign.css', 'resources/css/chat-redesign.css', 'resources/js/app.js'])
         @livewireStyles
+        @yield('css')
+        @stack('styles')
     </head>
     <body class="font-sans bg-rt-canvas text-rt-text antialiased dark:bg-rt-dark-canvas dark:text-rt-dark-text">
         <main>

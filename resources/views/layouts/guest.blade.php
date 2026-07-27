@@ -5,10 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     @include('layouts.pwa-head')
+    <link rel="icon" type="image/svg+xml" href="{{ asset('rt-brand/rt-logo.svg') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@700&display=swap" rel="stylesheet">
     <title>{{ config('app.name') }}</title>
     <script>if (localStorage.getItem('rt-theme') === 'true') document.documentElement.classList.add('dark');</script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <link rel="stylesheet" href="{{ asset('rt-brand/rt-auth.css') }}">
     @livewireStyles
+    @yield('css')
+    @stack('styles')
 </head>
 <body class="font-sans bg-rt-canvas text-rt-text antialiased dark:bg-rt-dark-canvas dark:text-rt-dark-text">
     <main>

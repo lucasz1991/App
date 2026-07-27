@@ -54,11 +54,7 @@
         </div>
     </div>
 
-    <div
-        class="rt-chat-list min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-2 pb-3 sm:px-3"
-        wire:loading.class="rt-chat-list--searching"
-        wire:target="search"
-    >
+    <div class="rt-chat-list min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-2 pb-3 sm:px-3">
         @forelse ($chats as $chat)
             @php
                 $isActive = (int) $selectedChatId === (int) $chat->id;

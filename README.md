@@ -1,5 +1,15 @@
 # RailTime – interne Mitarbeiter- und Kommunikationsplattform
 
+## 2026-07-28 - Codex (Vengeance-/Skiper-inspiriertes App-Redesign)
+
+- Die rollenbasierten Dashboards fuer Administratoren, Verwaltung, Mitarbeiter und Teilnehmer nutzen ein gemeinsames, vollbreites App-Layout mit abgestimmten Headern, Aktionen, Info-Elementen und responsiven Karten.
+- Sidebar und Topbar folgen einem einheitlichen 1024-Pixel-Breakpoint. Kommunikation steht in der Navigation unter Firma und ueber Management; Burger, Drawer und Desktop-Sidebar bleiben auch an den Legacy-Breakpoints erreichbar.
+- Chatliste, Verlauf, Nachrichten, Composer und Modale wurden als durchgaengige Vengeance-Oberflaeche neu gestaltet. Der Chat nutzt auf grossen und kleinen Viewports die komplette verfuegbare Breite; eigene Nachrichten sitzen rechts, und die Chatliste kann jederzeit wieder geoeffnet werden.
+- Tabs verwenden das gemeinsame V2-Karussell. Vollstaendiges Drag-and-Drop ist ausschliesslich fuer echte Touch-Pointer aktiv; Maus, Pen, Klick und Tastatur behalten ihre nativen Interaktionen.
+- Dropdowns, Anchor-Modale, Trigger, Seiten-Header, Buttons und Ladeanimationen teilen sich die RailTime-Farb- und Motion-Tokens. Vengeance- und Skiper-Muster wurden nativ fuer Blade, Livewire und Alpine adaptiert, ohne eine zweite React-Laufzeit einzufuehren.
+- Light und Dark Mode besitzen koordinierte Flaechen, Kontraste, Fokuszustande, rote Akzente und reduzierte Bewegung. GSAP-Reveals werden bei Navigation bereinigt und geben bereits sichtbare Dashboard-Bereiche auch nach Livewire-Morphs sicher frei.
+- Die Abnahme deckt 320, 375, 959, 960, 1023, 1024, 1139, 1140 und 1600 Pixel, Maus-/Mobile-Tabwechsel, Chatlisten-Navigation, Dark/Light sowie Produktions-Build und Featuretests ab.
+
 ## 2026-07-26 - Automatische Reverb-/Supervisor-Einrichtung auf Plesk
 
 RailTime bringt zwei eigene Artisan-Befehle fuer die Reverb-Infrastruktur mit:

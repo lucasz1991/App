@@ -11,6 +11,8 @@
     @include('layouts.pwa-head')
     @vite(['resources/css/app.css', 'resources/css/shell-redesign.css', 'resources/css/tabs-redesign.css', 'resources/css/chat-redesign.css', 'resources/js/app.js'])
     @livewireStyles
+    @yield('css')
+    @stack('styles')
 </head>
 <body x-data="{ sidebarOpen: false }" x-bind:data-mode="$store.theme?.dark ? 'dark' : 'light'" data-mode="light" data-sidebar-size="lg" class="group bg-rt-canvas text-rt-text antialiased dark:bg-rt-dark-canvas dark:text-rt-dark-text">
     <script>document.body.dataset.mode = localStorage.getItem('rt-theme') === 'true' ? 'dark' : 'light';</script>

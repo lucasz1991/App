@@ -7,6 +7,7 @@
         type="button"
         x-on:click="toggleList()"
         class="rt-chat-icon-button rt-chat-icon-button--quiet hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm md:inline-flex"
+        data-chat-list-toggle
         aria-controls="rt-chat-overview"
         x-bind:aria-expanded="(! listCollapsed).toString()"
         x-bind:class="listCollapsed ? 'rt-chat-icon-button--open' : ''"

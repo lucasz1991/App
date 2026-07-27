@@ -7,6 +7,8 @@
     <!-- css -->
     @include('layouts.head-css')
     @livewireStyles
+    @yield('css')
+    @stack('styles')
 </head>
 
 <body data-mode="light" data-sidebar-size="lg" class="group">

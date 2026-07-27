@@ -36,8 +36,11 @@
     <!-- css files -->
     @include('layouts.head-css')
     @vite(['resources/css/app.css', 'resources/css/shell-redesign.css', 'resources/css/tabs-redesign.css', 'resources/css/chat-redesign.css'])
-    <!-- Styles -->
     @livewireStyles
+    {{-- Seitenbezogene Styles muessen nach den globalen Bundles kommen, damit
+         sie die gemeinsame UI gezielt erweitern koennen. --}}
+    @yield('css')
+    @stack('styles')
 </head>
     <body x-bind:data-mode="$store.theme?.dark ? 'dark' : 'light'" data-mode="light" data-sidebar-size="lg" data-sidebar-collapsible="true" data-sidebar-expanded="false" class="group font-sans bg-rt-canvas text-rt-text dark:bg-rt-dark-canvas dark:text-rt-dark-text">
         <script>
@@ -64,11 +67,14 @@
         ])>
             <div class="main-content group-data-[sidebar-size=sm]:ml-[70px]">
                 <div @class([
-                    'min-h-screen page-content px-1 bg-[radial-gradient(64rem_28rem_at_92%_-10rem,rgba(228,0,43,0.09),transparent_58%),linear-gradient(180deg,rgba(255,255,255,0.92),rgba(242,245,249,0.98))] shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] dark:bg-[radial-gradient(64rem_30rem_at_92%_-10rem,rgba(228,0,43,0.15),transparent_58%),linear-gradient(180deg,rgba(12,20,33,0.98),rgba(8,13,22,1))] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]',
+                    'min-h-screen page-content bg-[radial-gradient(64rem_28rem_at_92%_-10rem,rgba(228,0,43,0.09),transparent_58%),linear-gradient(180deg,rgba(255,255,255,0.92),rgba(242,245,249,0.98))] shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] dark:bg-[radial-gradient(64rem_30rem_at_92%_-10rem,rgba(228,0,43,0.15),transparent_58%),linear-gradient(180deg,rgba(12,20,33,0.98),rgba(8,13,22,1))] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]',
+                    'px-0' => $viewportMode,
+                    'px-1' => ! $viewportMode,
                     'flex flex-col' => ! $viewportMode,
                 ])>
                     <div @class([
-                        'container-fluid w-full max-w-none px-0 md:px-5',
+                        'container-fluid w-full max-w-none px-0',
+                        'md:px-5' => ! $viewportMode,
                         'flex min-h-full flex-1 flex-col' => ! $viewportMode,
                     ])>
                         @if ($viewportMode)

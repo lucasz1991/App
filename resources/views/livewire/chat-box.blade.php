@@ -1,5 +1,5 @@
 <div
-    class="rt-chat-page relative h-full min-h-0 overflow-hidden px-3 pb-3 pt-4 sm:px-4 sm:pb-4 sm:pt-5 md:px-0 md:pb-5 md:pt-5"
+    class="rt-chat-page relative h-full min-h-0 overflow-hidden px-0 pb-3 pt-4 sm:pb-4 sm:pt-5 md:pb-5"
     x-data="chatPaneNavigation(@js((bool) $selectedChat))"
     data-has-selected-chat="{{ $selectedChat ? 'true' : 'false' }}"
     data-mobile-pane="{{ $selectedChat ? 'chat' : 'list' }}"

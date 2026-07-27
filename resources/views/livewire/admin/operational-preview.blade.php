@@ -34,7 +34,7 @@
     data-operational-module="{{ $moduleData['slug'] }}"
 >
     <section class="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(19rem,.6fr)]">
-        <article class="rt-admin-panel rt-operational-main overflow-hidden rounded-2xl" data-anim="fade-up">
+        <article class="rt-admin-panel rt-operational-main overflow-hidden rounded-2xl" data-anim="fade-up" data-rt-glow>
             <header class="rt-operational-header relative border-b border-slate-200 px-4 py-4 sm:px-6 sm:py-5 dark:border-slate-700">
                 <span class="absolute inset-x-0 top-0 h-1 {{ $tone['bar'] }}"></span>
                 <div class="flex flex-wrap items-start justify-between gap-3 sm:gap-5">
@@ -53,7 +53,7 @@
 
             <dl class="rt-operational-stats grid grid-cols-3 gap-px bg-slate-200 dark:bg-slate-700" aria-label="{{ __('app.preview_summary') }}">
                 @foreach ($moduleData['stats'] as $stat)
-                    <div class="rt-operational-stat bg-rt-surface px-3 py-3 sm:px-5 sm:py-4 dark:bg-rt-dark-surface" data-operational-stat>
+                    <div class="rt-operational-stat bg-rt-surface px-3 py-3 sm:px-5 sm:py-4 dark:bg-rt-dark-surface" data-operational-stat data-rt-glow>
                         <dt class="truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-rt-soft dark:text-rt-dark-soft" title="{{ $stat['label'] }}">{{ $stat['label'] }}</dt>
                         <dd class="mt-1.5 text-lg font-semibold tabular-nums text-rt-text sm:mt-2 sm:text-2xl dark:text-white">{{ $stat['value'] }}</dd>
                         <p class="mt-1 hidden truncate text-xs text-rt-muted sm:block dark:text-rt-dark-muted" title="{{ $stat['detail'] }}">{{ $stat['detail'] }}</p>
@@ -81,7 +81,7 @@
             </div>
         </article>
 
-        <aside class="rt-admin-panel rt-operational-sidebar h-fit rounded-2xl p-4 sm:p-6" data-anim="fade-up" data-anim-delay="0.12">
+        <aside class="rt-admin-panel rt-operational-sidebar h-fit rounded-2xl p-4 sm:p-6" data-anim="fade-up" data-anim-delay="0.12" data-rt-glow>
             <p class="rt-operational-eyebrow text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.operations_preview') }}</p>
             <h2 class="mt-1 text-lg font-semibold text-rt-text dark:text-white">{{ __('app.preview_modules') }}</h2>
             <p class="mt-2 hidden text-xs leading-5 text-rt-muted sm:block dark:text-rt-dark-muted">{{ __('app.preview_modules_hint') }}</p>

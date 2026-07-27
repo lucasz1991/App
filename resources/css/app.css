@@ -656,22 +656,14 @@ body[data-mode="dark"] .rt-toast__message { color: #aeb9c9; }
  * per Pointer-Delegation; ohne JS, auf Touch oder bei reduzierter Motion
  * bleibt der ruhige Grundzustand vollstaendig erhalten.
  */
-.rt-admin-panel,
-.rt-admin-live-card,
-.rt-admin-operations-card,
-.rt-admin-quick-link,
-.rt-operational-stat,
 [data-rt-glow] {
     position: relative;
+    isolation: isolate;
 }
 
-.rt-admin-panel::after,
-.rt-admin-live-card::after,
-.rt-admin-operations-card::after,
-.rt-admin-quick-link::after,
-.rt-operational-stat::after,
 [data-rt-glow]::after {
     position: absolute;
+    z-index: 0;
     inset: 0;
     border-radius: inherit;
     background: radial-gradient(
@@ -685,25 +677,18 @@ body[data-mode="dark"] .rt-toast__message { color: #aeb9c9; }
     transition: opacity 260ms ease;
 }
 
+[data-rt-glow] > * {
+    position: relative;
+    z-index: 1;
+}
+
 @media (hover: hover) and (pointer: fine) {
-    .rt-admin-panel:hover,
-    .rt-operational-stat:hover,
     [data-rt-glow]:hover {
         border-color: rgba(228, 0, 43, 0.32);
     }
 }
 
-html.dark .rt-admin-panel::after,
-html.dark .rt-admin-live-card::after,
-html.dark .rt-admin-operations-card::after,
-html.dark .rt-admin-quick-link::after,
-html.dark .rt-operational-stat::after,
 html.dark [data-rt-glow]::after,
-body[data-mode="dark"] .rt-admin-panel::after,
-body[data-mode="dark"] .rt-admin-live-card::after,
-body[data-mode="dark"] .rt-admin-operations-card::after,
-body[data-mode="dark"] .rt-admin-quick-link::after,
-body[data-mode="dark"] .rt-operational-stat::after,
 body[data-mode="dark"] [data-rt-glow]::after {
     background: radial-gradient(
         11rem circle at var(--rt-glow-x, 50%) var(--rt-glow-y, 50%),
@@ -713,22 +698,13 @@ body[data-mode="dark"] [data-rt-glow]::after {
 }
 
 @media (hover: hover) and (pointer: fine) {
-    html.dark .rt-admin-panel:hover,
-    html.dark .rt-operational-stat:hover,
     html.dark [data-rt-glow]:hover,
-    body[data-mode="dark"] .rt-admin-panel:hover,
-    body[data-mode="dark"] .rt-operational-stat:hover,
     body[data-mode="dark"] [data-rt-glow]:hover {
         border-color: rgba(255, 113, 137, 0.3);
     }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .rt-admin-panel::after,
-    .rt-admin-live-card::after,
-    .rt-admin-operations-card::after,
-    .rt-admin-quick-link::after,
-    .rt-operational-stat::after,
     [data-rt-glow]::after {
         transition: none;
     }
@@ -1547,6 +1523,7 @@ body[data-mode="dark"] .rt-chat-read-indicator.is-delivered {
 
 /* Shared 3D tab carousel. One component powers mobile and desktop so click,
    keyboard and swipe navigation always use the same direction and motion. */
+@layer rt-legacy-tabs {
 .rt-tabs-shell {
     overflow: hidden;
     perspective: 900px;
@@ -1861,6 +1838,7 @@ body[data-mode='dark'] .rt-carousel-tab-depth {
     .rt-tab-panel-transition {
         transition: none;
     }
+}
 }
 
 /* Wagenlisten-Arbeitsfläche: eine ruhige Tabellenoptik am Desktop und ein
@@ -3246,7 +3224,26 @@ body[data-mode='dark'] .rt-expandable-search__clear:hover {
     transform: rotate(-45deg);
 }
 
-@media (max-width: 1139px) {
+@media (max-width: 1023.98px) {
+    /*
+     * Das weiterhin benoetigte Legacy-Bundle definiert `lg` bereits ab 960px
+     * und versteckt die Sidebar bis 1140px. Diese Shell-Regeln bilden deshalb
+     * den verbindlichen 1024px-Vertrag unabhaengig von den Utility-Breakpoints.
+     */
+    .rt-shell-brand-mark,
+    .vertical-menu-btn {
+        display: flex !important;
+    }
+
+    .topbar-brand .navbar-brand,
+    .vertical-menu {
+        display: none !important;
+    }
+
+    body.sidebar-enable .vertical-menu {
+        display: block !important;
+    }
+
     body.sidebar-enable .rt-mobile-sidebar-backdrop {
         display: block;
     }
@@ -3261,7 +3258,19 @@ body[data-mode='dark'] .rt-expandable-search__clear:hover {
 
 }
 
-@media (min-width: 1140px) {
+@media (min-width: 1024px) {
+    .rt-shell-brand-mark {
+        display: none !important;
+    }
+
+    .topbar-brand .navbar-brand {
+        display: flex !important;
+    }
+
+    .vertical-menu {
+        display: block !important;
+    }
+
     .vertical-menu-btn {
         display: none !important;
     }

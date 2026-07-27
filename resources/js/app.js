@@ -1237,7 +1237,7 @@ function clearSidebarCollapseTimer() {
 }
 
 function isDesktopHoverSidebar() {
-    return window.innerWidth >= 1140 && Boolean(document.querySelector('.vertical-menu'));
+    return window.innerWidth >= 1024 && Boolean(document.querySelector('.vertical-menu'));
 }
 
 function isSidebarHoveredOrFocused() {
@@ -1270,7 +1270,7 @@ function initMobileSidebarSwipe() {
     window.__rtMobileSidebarSwipeBound = true;
 
     document.addEventListener('touchstart', (event) => {
-        if (window.innerWidth >= 1140 || event.touches.length !== 1) {
+        if (window.innerWidth >= 1024 || event.touches.length !== 1) {
             sidebarSwipeStart = null;
             return;
         }
@@ -1299,7 +1299,7 @@ function initMobileSidebarSwipe() {
     }, { passive: true });
 
     document.addEventListener('touchend', (event) => {
-        if (!sidebarSwipeStart || event.changedTouches.length !== 1 || window.innerWidth >= 1140) {
+        if (!sidebarSwipeStart || event.changedTouches.length !== 1 || window.innerWidth >= 1024) {
             sidebarSwipeStart = null;
             return;
         }

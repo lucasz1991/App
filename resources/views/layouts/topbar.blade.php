@@ -38,7 +38,7 @@
             </div>
             <!-- Toggle Button: ausschliesslich Mobile/Tablet, animiert Burger <-> X. -->
             <button type="button"
-                class="vertical-menu-btn flex h-[70px] w-14 shrink-0 items-center justify-center border-b border-rt-border/60 px-3 text-rt-muted transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted/70 hover:text-rt-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rt-accent dark:border-rt-dark-border/60 dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted/70 dark:hover:text-rt-dark-text min-[1140px]:hidden"
+                class="vertical-menu-btn flex h-[70px] w-14 shrink-0 items-center justify-center border-b border-rt-border/60 px-3 text-rt-muted transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted/70 hover:text-rt-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rt-accent dark:border-rt-dark-border/60 dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted/70 dark:hover:text-rt-dark-text lg:hidden"
                 id="vertical-menu-btn"
                 aria-label="{{ __('app.mobile_navigation') }}"
                 aria-controls="app-sidebar"

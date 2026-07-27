@@ -10,11 +10,14 @@ class ChatRedesignTest extends TestCase
     {
         $view = file_get_contents(resource_path('views/livewire/chat-box.blade.php'));
 
-        $this->assertStringContainsString("livewire.chat.partials.chat-list", $view);
-        $this->assertStringContainsString("livewire.chat.partials.conversation", $view);
-        $this->assertStringContainsString("livewire.chat.partials.new-chat-modal", $view);
+        $this->assertStringContainsString('livewire.chat.partials.chat-list', $view);
+        $this->assertStringContainsString('livewire.chat.partials.conversation', $view);
+        $this->assertStringContainsString('livewire.chat.partials.new-chat-modal', $view);
         $this->assertStringContainsString('data-chat-redesign="vengeance"', $view);
         $this->assertStringContainsString('data-anim="zoom"', $view);
+        $this->assertStringContainsString('overflow-hidden px-0 pb-3', $view);
+        $this->assertStringNotContainsString('px-3 pb-3', $view);
+        $this->assertStringNotContainsString('sm:px-4', $view);
     }
 
     public function test_chat_redesign_keeps_livewire_and_accessibility_anchors(): void
@@ -28,6 +31,8 @@ class ChatRedesignTest extends TestCase
         $this->assertStringContainsString('x-data="chatTranscriptScroll()"', $partials);
         $this->assertStringNotContainsString('$cleanup', $partials);
         $this->assertStringContainsString('data-no-chat-swipe', $partials);
+        $this->assertSame(2, substr_count($partials, 'data-chat-list-toggle'));
+        $this->assertStringNotContainsString('mx-auto flex w-full max-w-4xl', $partials);
         $this->assertStringContainsString('role="tablist"', $partials);
         $this->assertStringContainsString('aria-selected=', $partials);
         $this->assertStringContainsString('focus-visible:', $partials);
@@ -56,19 +61,27 @@ class ChatRedesignTest extends TestCase
     public function test_mobile_chat_panes_fill_the_same_absolute_slot_instead_of_collapsing_the_conversation(): void
     {
         $styles = file_get_contents(resource_path('css/chat-redesign.css'));
+        $list = file_get_contents(resource_path('views/livewire/chat/partials/chat-list.blade.php'));
 
         $this->assertMatchesRegularExpression(
             '/@media \(max-width: 767\.98px\)\s*\{\s*\/\*.*?\*\/\s*\.rt-chat-list-pane,\s*'
-            . '\.rt-chat-conversation-pane\s*\{[^}]*position:\s*absolute;[^}]*inset:\s*0;'
-            . '[^}]*width:\s*100%\s*!important;[^}]*min-width:\s*0\s*!important;[^}]*height:\s*100%;/s',
+            .'\.rt-chat-conversation-pane\s*\{[^}]*position:\s*absolute;[^}]*inset:\s*0;'
+            .'[^}]*width:\s*100%\s*!important;[^}]*min-width:\s*0\s*!important;[^}]*height:\s*100%;/s',
             $styles,
         );
 
         $this->assertMatchesRegularExpression(
-            '/@media \(min-width: 768px\)\s*\{[^}]*\.rt-chat-list-pane\s*\{[^}]*'
-            . 'width:\s*21\.5rem\s*!important;[^}]*flex-basis:\s*21\.5rem\s*!important;/s',
+            '/@media \(min-width: 768px\)\s*\{.*?\.rt-chat-list-pane\s*\{[^}]*'
+            .'width:\s*21\.5rem\s*!important;[^}]*flex-basis:\s*21\.5rem\s*!important;/s',
             $styles,
         );
         $this->assertStringContainsString('flex: 1 1 0% !important', $styles);
+        $this->assertStringContainsString('[data-chat-list-toggle]', $styles);
+        $this->assertStringContainsString('display: inline-flex !important', $styles);
+        $this->assertStringContainsString('padding-right: 0 !important', $styles);
+        $this->assertStringNotContainsString('App-Vollflaeche', $styles);
+        $this->assertStringNotContainsString('padding: 0 !important', $styles);
+        $this->assertStringNotContainsString('rt-chat-list--searching', $styles);
+        $this->assertStringNotContainsString('rt-chat-list--searching', $list);
     }
 }

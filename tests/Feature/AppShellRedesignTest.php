@@ -12,6 +12,9 @@ class AppShellRedesignTest extends TestCase
         $layout = file_get_contents(resource_path('views/layouts/master.blade.php'));
 
         $this->assertStringContainsString('container-fluid w-full max-w-none', $layout);
+        $this->assertStringContainsString("'md:px-5' => ! \$viewportMode", $layout);
+        $this->assertStringContainsString("'px-0' => \$viewportMode", $layout);
+        $this->assertStringContainsString("'px-1' => ! \$viewportMode", $layout);
         $this->assertStringNotContainsString('max-w-[100rem]', $layout);
         $this->assertStringContainsString('id="main-content"', $layout);
     }
@@ -45,8 +48,8 @@ class AppShellRedesignTest extends TestCase
         $styles = file_get_contents(resource_path('css/app.css'));
 
         $this->assertStringContainsString('rt-nav-loader__wordmark', $script);
-        $this->assertStringContainsString("window.gsap.timeline", $script);
-        $this->assertStringContainsString("window.gsap.fromTo(signal", $script);
+        $this->assertStringContainsString('window.gsap.timeline', $script);
+        $this->assertStringContainsString('window.gsap.fromTo(signal', $script);
         $this->assertStringContainsString("document.querySelectorAll('#rt-nav-overlay')", $script);
         $this->assertStringContainsString('.rt-nav-loader__track', $styles);
         $this->assertStringContainsString('@media (prefers-reduced-motion: reduce)', $styles);
@@ -63,5 +66,60 @@ class AppShellRedesignTest extends TestCase
         $this->assertStringContainsString("'surface-muted': '#182435'", $tailwind);
         $this->assertStringContainsString('background-color: #080d16', $styles);
         $this->assertStringContainsString('color: #edf2f8', $styles);
+        $this->assertStringContainsString('@layer rt-legacy-tabs', $styles);
+    }
+
+    public function test_temporary_visual_qa_login_bypass_is_not_part_of_the_app(): void
+    {
+        $login = file_get_contents(resource_path('views/auth/login.blade.php'));
+        $routes = file_get_contents(base_path('routes/web.php'));
+
+        $this->assertStringNotContainsString('data-dev-login', $login);
+        $this->assertStringNotContainsString('Dev-Login', $login);
+        $this->assertStringNotContainsString('__dev-login', $routes);
+        $this->assertStringNotContainsString('loginUsingId(1)', $routes);
+    }
+
+    public function test_shell_uses_one_desktop_breakpoint_for_brand_sidebar_and_swipe(): void
+    {
+        $topbar = file_get_contents(resource_path('views/layouts/topbar.blade.php'));
+        $script = file_get_contents(resource_path('js/app.js'));
+        $appStyles = file_get_contents(resource_path('css/app.css'));
+        $shellStyles = file_get_contents(resource_path('css/shell-redesign.css'));
+
+        $this->assertStringContainsString('lg:hidden', $topbar);
+        $this->assertStringNotContainsString('min-[1140px]:hidden', $topbar);
+        $this->assertStringContainsString('window.innerWidth >= 1024', $script);
+        $this->assertStringNotContainsString('window.innerWidth >= 1140', $script);
+        $this->assertStringContainsString('@media (min-width: 1024px)', $appStyles);
+        $this->assertStringContainsString('@media (min-width: 1024px)', $shellStyles);
+        $this->assertStringContainsString('body.sidebar-enable .vertical-menu', $appStyles);
+        $this->assertMatchesRegularExpression(
+            '/@media \(max-width: 1023\.98px\).*?\.rt-shell-brand-mark,\s*\.vertical-menu-btn\s*\{[^}]*display:\s*flex\s*!important;.*?'
+            .'\.topbar-brand \.navbar-brand,\s*\.vertical-menu\s*\{[^}]*display:\s*none\s*!important;/s',
+            $appStyles,
+        );
+        $this->assertMatchesRegularExpression(
+            '/@media \(min-width: 1024px\).*?\.rt-shell-brand-mark\s*\{[^}]*display:\s*none\s*!important;.*?'
+            .'\.topbar-brand \.navbar-brand\s*\{[^}]*display:\s*flex\s*!important;.*?'
+            .'\.vertical-menu\s*\{[^}]*display:\s*block\s*!important;/s',
+            $appStyles,
+        );
+    }
+
+    public function test_vengeance_glow_is_explicitly_scoped_and_cleans_up_before_navigation(): void
+    {
+        $motion = file_get_contents(resource_path('js/vengeance-motion.js'));
+        $styles = file_get_contents(resource_path('css/app.css'));
+
+        $this->assertStringContainsString("const GLOW_SELECTOR = '[data-rt-glow]'", $motion);
+        $this->assertStringContainsString('window.cancelAnimationFrame(pendingFrame)', $motion);
+        $this->assertStringContainsString("removeProperty('--rt-glow-o')", $motion);
+        $this->assertStringContainsString("event.pointerType === 'touch'", $motion);
+        $this->assertStringContainsString("reducedMotion.addEventListener('change', resetGlow)", $motion);
+        $this->assertStringContainsString('[data-rt-glow]::after', $styles);
+        $this->assertStringContainsString('[data-rt-glow] > *', $styles);
+        $this->assertStringNotContainsString('.rt-admin-panel::after', $styles);
+        $this->assertStringNotContainsString('.rt-operational-stat::after', $styles);
     }
 }

@@ -26,6 +26,7 @@ let activePageRoot = null;
 let activeMedia = null;
 let firstFrame = null;
 let secondFrame = null;
+let dashboardSafetyTimer = null;
 let revealGeneration = 0;
 
 function pageRoot() {
@@ -64,8 +65,10 @@ function cleanupReveals() {
 
     if (firstFrame !== null) window.cancelAnimationFrame(firstFrame);
     if (secondFrame !== null) window.cancelAnimationFrame(secondFrame);
+    if (dashboardSafetyTimer !== null) window.clearTimeout(dashboardSafetyTimer);
     firstFrame = null;
     secondFrame = null;
+    dashboardSafetyTimer = null;
 
     activeMedia?.revert();
     activeMedia = null;
@@ -122,7 +125,7 @@ function appendDashboardSegment(timeline, prepared, position = 0) {
         autoAlpha: 1,
         y: 0,
         scale: 1,
-        duration: 0.72,
+        duration: 0.48,
         ease: 'expo.out',
         overwrite: 'auto',
         clearProps: 'transform,opacity,visibility',
@@ -133,9 +136,9 @@ function appendDashboardSegment(timeline, prepared, position = 0) {
             autoAlpha: 1,
             y: 0,
             scale: 1,
-            duration: 0.54,
+            duration: 0.36,
             ease: 'power3.out',
-            stagger: { each: 0.05, from: 'start' },
+            stagger: { each: 0.035, from: 'start' },
             overwrite: 'auto',
             clearProps: 'transform,opacity,visibility',
         }, `${label}+=0.12`);
@@ -176,12 +179,36 @@ function setupDashboardSegments(segments) {
 
     if (!introSegments.length) return;
 
-    const introTimeline = gsap.timeline({ delay: 0.08 });
+    const introTimeline = gsap.timeline({ delay: 0.04 });
     introSegments.forEach((prepared, index) => {
-        // Staerkere Ueberlappung laesst die Segmente als eine fliessende
-        // Kaskade statt als getrennte Bloecke einlaufen.
-        appendDashboardSegment(introTimeline, prepared, index === 0 ? 0 : '>-0.26');
+        // Alle bereits sichtbaren Segmente laufen nahezu gemeinsam ein.
+        // Dadurch wirken Kennzahlen beim ersten Paint nicht wie leere oder
+        // beschaedigte Karten, die erst auf den Hero warten muessen.
+        appendDashboardSegment(introTimeline, prepared, index * 0.08);
     });
+}
+
+function scheduleDashboardVisibilitySafety(root) {
+    if (dashboardSafetyTimer !== null) window.clearTimeout(dashboardSafetyTimer);
+
+    dashboardSafetyTimer = window.setTimeout(() => {
+        dashboardSafetyTimer = null;
+
+        if (root !== activePageRoot || !root.isConnected) return;
+
+        const stuckVisibleSegments = Array.from(
+            root.querySelectorAll('[data-admin-dashboard] [data-dashboard-segment][data-anim-pending]'),
+        ).filter(isInitiallyVisible);
+
+        if (!stuckVisibleSegments.length) return;
+
+        // Livewire kann einen bereits vorbereiteten Segmentknoten waehrend der
+        // Intro-Timeline morphen. Der neue Knoten traegt dann noch den
+        // Startzustand, ist aber nicht mehr Ziel der alten Timeline. Alles,
+        // was jetzt sichtbar sein sollte, wird deshalb sicher freigegeben.
+        showImmediately(dashboardAnimationTargets(stuckVisibleSegments));
+        ScrollTrigger.refresh();
+    }, 700);
 }
 
 function isInitiallyVisible(element) {
@@ -209,7 +236,7 @@ function createRevealTween(elements, fromVars, trigger, options = {}) {
         x: 0,
         y: 0,
         scale: 1,
-        duration: options.duration ?? 0.6,
+        duration: options.duration ?? 0.46,
         delay: options.delay ?? 0,
         ease: 'power3.out',
         stagger: options.stagger,
@@ -277,6 +304,7 @@ function setupReveals(root) {
             });
 
             setupDashboardSegments(dashboardSegments);
+            scheduleDashboardVisibilitySafety(root);
 
             return () => {
                 allTargets.forEach((element) => delete element.dataset.animPending);

@@ -17,7 +17,10 @@ class SidebarAndSearchUiTest extends TestCase
         $this->assertStringContainsString("element.addEventListener('mouseleave'", $script);
         $this->assertStringContainsString("element.addEventListener('focusin'", $script);
         $this->assertStringContainsString('clearSidebarCollapseTimer();', $script);
-        $this->assertStringContainsString("document.addEventListener(\n            'pointerdown'", $script);
+        $this->assertMatchesRegularExpression(
+            "/document\\.addEventListener\\(\\s*'pointerdown'/s",
+            $script,
+        );
         $this->assertStringContainsString("!target.closest('.vertical-menu, .topbar-brand')", $script);
         $this->assertStringContainsString('420ms cubic-bezier(0.22, 1, 0.36, 1)', $styles);
         $this->assertStringContainsString('will-change: transform, opacity', $styles);

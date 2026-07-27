@@ -26,7 +26,7 @@
                 && ($own || ($message->hasBeenViewedBy($me) && ! $message->hasActiveVoicePlaybackFor($me)));
         @endphp
 
-        <div wire:key="chat-msg-{{ $message->id }}" class="rt-chat-message-row mx-auto flex w-full max-w-4xl flex-col">
+        <div wire:key="chat-msg-{{ $message->id }}" class="rt-chat-message-row flex w-full flex-col">
             @if ($newDay)
                 <div class="flex justify-center py-3">
                     <span class="rt-chat-date-chip rounded-full px-3 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-rt-muted dark:text-rt-dark-muted">

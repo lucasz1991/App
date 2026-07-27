@@ -215,7 +215,7 @@ body[data-mode='dark'] .rt-shell-sidebar {
     padding-inline: 0.5rem;
 }
 
-@media (min-width: 1140px) {
+@media (min-width: 1024px) {
     body[data-sidebar-collapsible='true']:not([data-sidebar-expanded='true']) .rt-shell-sidebar #sidebar-menu {
         padding-inline: 0;
     }
