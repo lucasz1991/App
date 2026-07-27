@@ -142,9 +142,9 @@ function rtApplyTheme() {
 document.addEventListener('livewire:navigated', rtApplyTheme);
 
 // ---------------------------------------------------------------
-// Seitenwechsel-Overlay fuer wire:navigate: legt eine weiche, leicht
-// unscharfe Ebene mit RailTime-Spinner ueber den Inhalt, damit ein
-// Seitenwechsel sichtbar "laedt". Wird erst nach kurzer Verzoegerung
+// Seitenwechsel-Overlay fuer wire:navigate: eine kompakte, streckenartige
+// RailTime-Ladebuehne mit kinetischer Wortmarke statt eines Standard-Spinners.
+// Wird erst nach kurzer Verzoegerung
 // gezeigt (kein Flackern bei vorab geladenen Seiten) und nach dem
 // body-Swap bei Bedarf neu angehaengt.
 // ---------------------------------------------------------------
@@ -173,15 +173,23 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
         if (!overlay) {
             overlay = document.createElement('div');
             overlay.id = 'rt-nav-overlay';
+            overlay.className = 'rt-nav-overlay';
+            overlay.setAttribute('role', 'status');
             overlay.setAttribute('aria-hidden', 'true');
-            overlay.innerHTML = '<div class="rt-nav-spinner"></div>';
-            overlay.style.cssText = [
-                'position:fixed', 'inset:0', 'z-index:190',
-                'display:flex', 'align-items:center', 'justify-content:center',
-                'opacity:0', 'pointer-events:none',
-                'backdrop-filter:blur(2px)', '-webkit-backdrop-filter:blur(2px)',
-                'transition:opacity .2s ease',
-            ].join(';');
+            overlay.setAttribute('aria-label', 'RailTime lädt die nächste Seite');
+            overlay.innerHTML = `
+                <div class="rt-nav-loader">
+                    <div class="rt-nav-loader__wordmark" aria-hidden="true">
+                        <span>R</span><span>A</span><span>I</span><span>L</span>
+                        <span class="rt-nav-loader__accent">T</span><span>I</span><span>M</span><span>E</span>
+                    </div>
+                    <div class="rt-nav-loader__track" aria-hidden="true">
+                        <span class="rt-nav-loader__line"></span>
+                        <span class="rt-nav-loader__signal"></span>
+                    </div>
+                    <span class="rt-nav-loader__label">SEITENWECHSEL</span>
+                </div>
+            `;
         }
         if (document.body) {
             document.body.appendChild(overlay);
@@ -196,9 +204,41 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
         showTimer = window.setTimeout(function () {
             if (!active) return;
             const o = ensureOverlay();
-            const dark = document.documentElement.classList.contains('dark');
-            o.style.background = dark ? 'rgba(11,17,32,.55)' : 'rgba(243,246,250,.5)';
-            o.style.opacity = '1';
+            o.setAttribute('aria-hidden', 'false');
+            o.classList.add('is-visible');
+
+            if (window.gsap && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                const loader = o.querySelector('.rt-nav-loader');
+                const letters = o.querySelectorAll('.rt-nav-loader__wordmark > span');
+                const signal = o.querySelector('.rt-nav-loader__signal');
+                const timeline = window.gsap.timeline({
+                    defaults: { ease: 'power3.out' },
+                });
+
+                timeline
+                    .fromTo(loader, { autoAlpha: 0, y: 12, scale: 0.985 }, {
+                        autoAlpha: 1,
+                        y: 0,
+                        scale: 1,
+                        duration: 0.36,
+                        overwrite: 'auto',
+                    })
+                    .fromTo(letters, { autoAlpha: 0, yPercent: 70 }, {
+                        autoAlpha: 1,
+                        yPercent: 0,
+                        duration: 0.28,
+                        stagger: 0.025,
+                        overwrite: 'auto',
+                    }, '<0.05');
+
+                window.gsap.fromTo(signal, { x: -12 }, {
+                    x: 184,
+                    duration: 0.9,
+                    ease: 'power2.inOut',
+                    repeat: -1,
+                    overwrite: 'auto',
+                });
+            }
         }, 120);
         failsafeTimer = window.setTimeout(done, FAILSAFE_MS);
     }
@@ -214,7 +254,13 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
         // wiederhergestellte Seite einen KLON mit derselben id mit — den diese
         // Closure nicht kennt und der sonst dauerhaft sichtbar bliebe.
         document.querySelectorAll('#rt-nav-overlay').forEach(function (node) {
-            node.style.opacity = '0';
+            window.gsap?.killTweensOf([
+                node.querySelector('.rt-nav-loader'),
+                node.querySelector('.rt-nav-loader__signal'),
+                ...node.querySelectorAll('.rt-nav-loader__wordmark > span'),
+            ].filter(Boolean));
+            node.classList.remove('is-visible');
+            node.setAttribute('aria-hidden', 'true');
 
             if (node !== overlay) {
                 node.remove();
@@ -692,6 +738,34 @@ Alpine.data('chatAudioPlayer', (config = {}) => ({
 
     destroy() {
         this.stopProgressAnimation();
+    },
+}));
+
+Alpine.data('chatTranscriptScroll', () => ({
+    messageObserver: null,
+
+    init() {
+        this.scrollToLatest();
+        this.messageObserver = new MutationObserver(() => this.scrollToLatest(true));
+        this.messageObserver.observe(this.$el, { childList: true, subtree: true });
+    },
+
+    scrollToLatest(smooth = false) {
+        requestAnimationFrame(() => {
+            if (! this.$el?.isConnected) {
+                return;
+            }
+
+            this.$el.scrollTo({
+                top: this.$el.scrollHeight,
+                behavior: smooth ? 'smooth' : 'auto',
+            });
+        });
+    },
+
+    destroy() {
+        this.messageObserver?.disconnect();
+        this.messageObserver = null;
     },
 }));
 

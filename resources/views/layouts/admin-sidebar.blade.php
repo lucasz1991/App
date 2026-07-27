@@ -22,6 +22,33 @@
             </x-menu.sidebar-nav>
         @endcan
 
+        <x-menu.sidebar-nav :label="__('app.communication')">
+            <x-menu.sidebar-nav-group
+                icon="message-square"
+                :active="request()->routeIs('chat', 'admin.messages')"
+            >
+                <x-slot:label>{{ __('app.chat_and_messages') }}</x-slot:label>
+
+                <x-menu.sidebar-nav-link
+                    :href="route('chat')"
+                    icon="message-circle"
+                    :active="request()->routeIs('chat')"
+                    class="!pl-12"
+                >
+                    {{ __('app.chat') }}
+                </x-menu.sidebar-nav-link>
+
+                <x-menu.sidebar-nav-link
+                    :href="route('admin.messages')"
+                    icon="mail"
+                    :active="request()->routeIs('admin.messages')"
+                    class="!pl-12"
+                >
+                    {{ __('app.messages') }}
+                </x-menu.sidebar-nav-link>
+            </x-menu.sidebar-nav-group>
+        </x-menu.sidebar-nav>
+
         @canany(['employees.view', 'manage.messages'])
             <x-menu.sidebar-nav :label="__('app.management')">
                 <x-menu.sidebar-nav-group
@@ -142,33 +169,6 @@
                 </x-menu.sidebar-nav-group>
             </x-menu.sidebar-nav>
         @endcan
-
-        <x-menu.sidebar-nav :label="__('app.communication')">
-            <x-menu.sidebar-nav-group
-                icon="message-square"
-                :active="request()->routeIs('chat', 'admin.messages')"
-            >
-                <x-slot:label>{{ __('app.chat_and_messages') }}</x-slot:label>
-
-                <x-menu.sidebar-nav-link
-                    :href="route('chat')"
-                    icon="message-circle"
-                    :active="request()->routeIs('chat')"
-                    class="!pl-12"
-                >
-                    {{ __('app.chat') }}
-                </x-menu.sidebar-nav-link>
-
-                <x-menu.sidebar-nav-link
-                    :href="route('admin.messages')"
-                    icon="mail"
-                    :active="request()->routeIs('admin.messages')"
-                    class="!pl-12"
-                >
-                    {{ __('app.messages') }}
-                </x-menu.sidebar-nav-link>
-            </x-menu.sidebar-nav-group>
-        </x-menu.sidebar-nav>
 
         <x-menu.sidebar-nav :label="__('app.my_area')">
             <x-menu.sidebar-nav-link

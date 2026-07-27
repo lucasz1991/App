@@ -89,12 +89,14 @@ class AdminOperationalPreviewTest extends TestCase
         $sidebar = file_get_contents(resource_path('views/layouts/admin-sidebar.blade.php'));
 
         $companyPosition = strpos($sidebar, ":label=\"__('app.company')\"");
+        $communicationPosition = strpos($sidebar, ":label=\"__('app.communication')\"");
         $managementPosition = strpos($sidebar, ":label=\"__('app.management')\"");
         $operationsPosition = strpos($sidebar, ":label=\"__('app.operations')\"");
         $contentPosition = strpos($sidebar, ":label=\"__('app.content_and_files')\"");
         $myAreaPosition = strpos($sidebar, ":label=\"__('app.my_area')\"");
 
         $settingsPosition = strpos($sidebar, "route('admin.settings')");
+        $chatPosition = strpos($sidebar, "route('chat')");
         $employeesPosition = strpos($sidebar, "route('admin.employees')");
         $customersPosition = strpos($sidebar, "'module' => 'customers'");
         $mailPosition = strpos($sidebar, "route('admin.mail-management')");
@@ -103,20 +105,26 @@ class AdminOperationalPreviewTest extends TestCase
         $profileSupportPosition = strpos($sidebar, "<x-slot:label>{{ __('app.profile_and_support') }}</x-slot:label>");
 
         $this->assertNotFalse($companyPosition);
+        $this->assertNotFalse($communicationPosition);
         $this->assertNotFalse($managementPosition);
         $this->assertNotFalse($operationsPosition);
         $this->assertNotFalse($contentPosition);
         $this->assertNotFalse($myAreaPosition);
         $this->assertNotFalse($settingsPosition);
+        $this->assertNotFalse($chatPosition);
         $this->assertNotFalse($employeesPosition);
         $this->assertNotFalse($customersPosition);
         $this->assertNotFalse($mailPosition);
         $this->assertNotFalse($wagonPosition);
         $this->assertNotFalse($emailTemplatesPosition);
 
-        // Firma trägt nur die Einstellungen; danach folgt Management.
-        $this->assertLessThan($managementPosition, $companyPosition);
-        $this->assertLessThan($managementPosition, $settingsPosition);
+        // Firma traegt nur die Einstellungen; Kommunikation folgt direkt
+        // danach und bleibt vor dem Management.
+        $this->assertLessThan($communicationPosition, $companyPosition);
+        $this->assertLessThan($communicationPosition, $settingsPosition);
+        $this->assertGreaterThan($communicationPosition, $chatPosition);
+        $this->assertLessThan($managementPosition, $communicationPosition);
+        $this->assertLessThan($managementPosition, $chatPosition);
 
         // Management bündelt Mitarbeiter, Kunden und Mailverwaltung vor dem Betrieb.
         $this->assertGreaterThan($managementPosition, $employeesPosition);
@@ -206,7 +214,9 @@ class AdminOperationalPreviewTest extends TestCase
             $this->assertStringContainsString("html.dark .rt-operational-page .{$hook}", $styles);
             $this->assertStringContainsString("body[data-mode=\"dark\"] .rt-operational-page .{$hook}", $styles);
         }
-        $this->assertStringContainsString('background-color: #172033 !important', $styles);
+        $this->assertStringContainsString('background-color: #182435 !important', $styles);
+        $this->assertStringContainsString('dark:bg-rt-dark-surface', $preview);
+        $this->assertStringNotContainsString('dark:bg-[#111827]', $preview);
         $this->assertStringContainsString('html.dark body[data-sidebar-collapsible="true"]', $styles);
     }
 }

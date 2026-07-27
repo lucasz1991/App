@@ -35,7 +35,7 @@
     </script>
     <!-- css files -->
     @include('layouts.head-css')
-    @vite(['resources/css/app.css'])
+    @vite(['resources/css/app.css', 'resources/css/shell-redesign.css', 'resources/css/tabs-redesign.css', 'resources/css/chat-redesign.css'])
     <!-- Styles -->
     @livewireStyles
 </head>
@@ -59,16 +59,16 @@
              ->layout() liefern $slot. Beide landen im selben Wrapper (gleicher
              Sidebar-Offset, Gradient, Container) -> identische Seitenstruktur. --}}
         <main id="main-content" tabindex="-1" @class([
-            'bg-[#edf2f7] dark:bg-[#070b12]',
+            'bg-rt-canvas dark:bg-rt-dark-canvas',
             'rt-viewport-layout' => $viewportMode,
         ])>
             <div class="main-content group-data-[sidebar-size=sm]:ml-[70px]">
                 <div @class([
-                    'min-h-screen page-content px-1 bg-[radial-gradient(64rem_28rem_at_92%_-10rem,rgba(228,0,43,0.10),transparent_58%),linear-gradient(180deg,rgba(255,255,255,0.88),rgba(247,249,252,0.96))] shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:bg-[radial-gradient(64rem_30rem_at_92%_-10rem,rgba(228,0,43,0.16),transparent_58%),linear-gradient(180deg,rgba(11,17,30,0.98),rgba(7,11,18,1))] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]',
+                    'min-h-screen page-content px-1 bg-[radial-gradient(64rem_28rem_at_92%_-10rem,rgba(228,0,43,0.09),transparent_58%),linear-gradient(180deg,rgba(255,255,255,0.92),rgba(242,245,249,0.98))] shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] dark:bg-[radial-gradient(64rem_30rem_at_92%_-10rem,rgba(228,0,43,0.15),transparent_58%),linear-gradient(180deg,rgba(12,20,33,0.98),rgba(8,13,22,1))] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]',
                     'flex flex-col' => ! $viewportMode,
                 ])>
                     <div @class([
-                        'container-fluid mx-auto w-full max-w-[100rem] px-0 md:px-5',
+                        'container-fluid w-full max-w-none px-0 md:px-5',
                         'flex min-h-full flex-1 flex-col' => ! $viewportMode,
                     ])>
                         @if ($viewportMode)

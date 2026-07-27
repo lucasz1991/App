@@ -46,7 +46,7 @@
     x-on:keydown.escape.window="close()"
     x-show.important="open"
     x-cloak
-    class="fixed inset-0 z-[500] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+    class="rt-info-backdrop fixed inset-0 z-[500] flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-md sm:p-6"
     x-on:click.self="close()"
     data-rt-info-modal
 >
@@ -55,55 +55,70 @@
         aria-modal="true"
         aria-labelledby="rt-info-modal-title"
         x-trap.inert.noscroll="open"
-        x-transition:enter="transition duration-250 ease-out"
-        x-transition:enter-start="translate-y-3 scale-[0.97] opacity-0"
+        x-transition:enter="transition duration-300 ease-out"
+        x-transition:enter-start="translate-y-3 scale-[0.985] opacity-0"
         x-transition:enter-end="translate-y-0 scale-100 opacity-100"
-        class="w-full max-w-lg overflow-hidden rounded-3xl bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:text-white dark:ring-rt-dark-border/70"
+        x-transition:leave="transition duration-200 ease-in"
+        x-transition:leave-start="translate-y-0 scale-100 opacity-100"
+        x-transition:leave-end="translate-y-2 scale-[0.99] opacity-0"
+        class="rt-info-dialog w-full max-w-2xl overflow-hidden rounded-[1.75rem] bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-white/40 dark:bg-rt-dark-surface dark:text-white dark:ring-rt-dark-border/70"
+        data-rt-info-dialog
     >
-        {{-- Markanter Kopf im RailTime-Stil (analog zum Willkommens-Intro) --}}
-        <header class="relative overflow-hidden bg-[linear-gradient(135deg,#e4002b_0%,#a3001f_62%,#151b24_135%)] px-6 pb-5 pt-6">
-            <div class="pointer-events-none absolute -right-10 -top-14 h-40 w-40 rounded-full bg-white/10 blur-2xl" aria-hidden="true"></div>
-            <div class="flex items-start justify-between gap-4">
-                <div class="flex min-w-0 items-center gap-3">
-                    <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-white shadow-rt-sm ring-1 ring-white/25 backdrop-blur">
-                        <i class="far fa-info text-lg" aria-hidden="true"></i>
+        <header class="rt-info-hero relative overflow-hidden px-5 pb-6 pt-5 sm:px-7 sm:pb-7 sm:pt-6">
+            <div class="rt-info-orbit rt-info-orbit--one" aria-hidden="true"></div>
+            <div class="rt-info-orbit rt-info-orbit--two" aria-hidden="true"></div>
+
+            <div class="relative z-[2] flex items-start justify-between gap-4">
+                <div class="flex min-w-0 items-center gap-3.5">
+                    <span class="rt-info-icon flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white ring-1 ring-white/20">
+                        <i class="far fa-route text-lg" aria-hidden="true"></i>
                     </span>
                     <div class="min-w-0">
-                        <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-white/75">{{ __('app.about_this_page') }}</p>
-                        <h2 id="rt-info-modal-title" class="mt-0.5 truncate text-lg font-semibold text-white" x-text="title"></h2>
+                        <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-white/65">{{ __('app.about_this_page') }}</p>
+                        <h2 id="rt-info-modal-title" class="mt-1 text-balance text-xl font-semibold leading-tight tracking-tight text-white sm:text-2xl" x-text="title"></h2>
                     </div>
                 </div>
                 <button
                     type="button"
                     x-on:click="close()"
-                    class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white/80 transition hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                    class="rt-info-close flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white/75 transition duration-200 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                     aria-label="{{ __('app.close') }}"
                 >
                     <i class="far fa-times" aria-hidden="true"></i>
                 </button>
             </div>
+
+            <div class="rt-info-route-map relative z-[2] mt-6" aria-hidden="true">
+                <span class="rt-info-route-line"></span>
+                @foreach ([['far fa-compass', 'start'], ['far fa-lightbulb', 'middle'], ['far fa-check', 'finish']] as [$icon, $position])
+                    <span class="rt-info-route-node rt-info-route-node--{{ $position }}">
+                        <i class="{{ $icon }}"></i>
+                    </span>
+                @endforeach
+            </div>
         </header>
 
-        <div class="px-6 py-5">
-            <p class="text-sm leading-6 text-rt-muted dark:text-rt-dark-muted" x-text="summary" x-show.important="summary"></p>
+        <div class="px-5 py-5 sm:px-7 sm:py-6">
+            <p class="max-w-xl text-pretty text-sm leading-6 text-rt-muted dark:text-rt-dark-muted" x-text="summary" x-show.important="summary"></p>
 
-            <ul class="mt-4 space-y-2.5" x-show.important="points.length">
+            <ul class="rt-info-points mt-5 grid gap-2.5 sm:grid-cols-2" x-show.important="points.length">
                 <template x-for="(point, index) in points" :key="index">
-                    <li class="flex items-start gap-3 rounded-xl bg-rt-surface-muted/70 px-3 py-2.5 text-sm leading-6 text-rt-text ring-1 ring-rt-border/50 dark:bg-rt-dark-surface-muted/60 dark:text-rt-dark-text dark:ring-rt-dark-border/50">
-                        <i class="far fa-check-circle mt-1 shrink-0 text-rt-accent dark:text-rt-dark-accent" aria-hidden="true"></i>
-                        <span x-text="point"></span>
+                    <li class="rt-info-point group flex min-h-20 items-start gap-3 rounded-2xl bg-rt-surface-muted/70 px-3.5 py-3 text-sm leading-6 text-rt-text ring-1 ring-rt-border/50 dark:bg-rt-dark-surface-muted/60 dark:text-rt-dark-text dark:ring-rt-dark-border/50">
+                        <span class="mt-0.5 inline-flex h-7 min-w-7 shrink-0 items-center justify-center rounded-lg bg-white text-[10px] font-bold tabular-nums text-rt-red shadow-rt-xs ring-1 ring-rt-border/60 dark:bg-rt-dark-control dark:text-rt-dark-accent dark:ring-rt-dark-border" x-text="String(index + 1).padStart(2, '0')"></span>
+                        <span class="pt-0.5" x-text="point"></span>
                     </li>
                 </template>
             </ul>
 
-            <div class="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-rt-border/60 pt-4 dark:border-rt-dark-border/60">
+            <div class="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-rt-border/60 pt-4 dark:border-rt-dark-border/60">
                 <a
                     href="{{ route('help') }}"
                     wire:navigate
-                    class="inline-flex items-center gap-2 text-sm font-semibold text-rt-red hover:text-rt-red-dark"
+                    class="group inline-flex min-h-10 items-center gap-2 rounded-xl px-2 text-sm font-semibold text-rt-red transition hover:bg-rt-accent-soft/60 hover:text-rt-red-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:hover:bg-rt-dark-accent-soft/50"
                 >
                     <i class="far fa-life-ring" aria-hidden="true"></i>
                     {{ __('app.open_all_help_topics') }}
+                    <i class="far fa-external-link-alt text-[10px] opacity-55 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" aria-hidden="true"></i>
                 </a>
 
                 {{-- Nur im Intro-Modus: deutlicher Abschluss-Knopf. --}}
@@ -112,7 +127,7 @@
                     x-show.important="intro"
                     x-cloak
                     x-on:click="close()"
-                    class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-5 py-2 text-sm font-semibold text-white shadow-rt-glow transition hover:-translate-y-0.5 hover:bg-rt-red-dark focus:outline-none focus:ring-2 focus:ring-rt-red/30"
+                    class="rt-skiper-highlight inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-5 py-2 text-sm font-semibold text-white shadow-rt-glow transition duration-200 hover:-translate-y-0.5 hover:bg-rt-red-dark focus:outline-none focus:ring-2 focus:ring-rt-red/30"
                 >
                     {{ __('app.lets_go') }}
                     <i class="far fa-arrow-right text-xs" aria-hidden="true"></i>

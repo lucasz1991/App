@@ -182,6 +182,7 @@
       panel.style.top = `${Math.round(top)}px`;
       panel.style.maxHeight = `${Math.floor(maxHeight)}px`;
       panel.style.setProperty('--rt-dropdown-caret-x', `${Math.round(caretX)}px`);
+      panel.style.setProperty('--rt-dropdown-connector-size', `${Math.max(6, this.offset + 2)}px`);
 
       if (panelScroll) {
         panelScroll.style.maxHeight = `${Math.floor(maxHeight)}px`;
@@ -220,7 +221,12 @@
   @keydown.escape.window="close()"
   @close.window.stop="close()"
 >
-  <div class="{{ $triggerClasses }}" x-ref="trigger" @click="toggle()">
+  <div
+    class="rt-ui-dropdown-trigger {{ $triggerClasses }}"
+    x-ref="trigger"
+    data-rt-dropdown-trigger
+    @click="toggle()"
+  >
     {{ $trigger }}
   </div>
 
@@ -233,12 +239,12 @@
   <template x-teleport="body">
     <div
       x-show="open"
-      x-transition:enter="transition ease-out duration-200"
-      x-transition:enter-start="transform opacity-0 scale-95"
-      x-transition:enter-end="transform opacity-100 scale-100"
-      x-transition:leave="transition ease-in duration-100"
-      x-transition:leave-start="transform opacity-100 scale-100"
-      x-transition:leave-end="transform opacity-0 scale-95"
+      x-transition:enter="transition duration-200 ease-out"
+      x-transition:enter-start="translate-y-1.5 scale-[0.985] opacity-0"
+      x-transition:enter-end="translate-y-0 scale-100 opacity-100"
+      x-transition:leave="transition duration-150 ease-in"
+      x-transition:leave-start="translate-y-0 scale-100 opacity-100"
+      x-transition:leave-end="translate-y-1 scale-[0.99] opacity-0"
       x-bind:data-placement="placement"
       class="rt-viewport-dropdown fixed z-[180] {{ $panelWidthClass }} rounded-xl shadow-rt-md {{ $dropdownClasses }}"
       style="display:none; left:12px; top:12px; margin:0; max-width:calc(100vw - 24px); max-height:calc(100dvh - 24px);"
@@ -249,7 +255,7 @@
     >
       <span
         aria-hidden="true"
-        class="rt-ui-dropdown-caret pointer-events-none absolute z-[1] h-2.5 w-2.5 -translate-x-1/2 rotate-45 border border-rt-border bg-rt-surface dark:border-rt-dark-border dark:bg-rt-dark-surface"
+        class="rt-ui-dropdown-caret pointer-events-none absolute z-[1]"
         data-rt-dropdown-caret
       ></span>
 

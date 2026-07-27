@@ -7,7 +7,13 @@ export default defineConfig({
     },
     plugins: [
         laravel({
-            input: ['resources/css/app.css', 'resources/js/app.js'],
+            input: [
+                'resources/css/app.css',
+                'resources/css/shell-redesign.css',
+                'resources/css/tabs-redesign.css',
+                'resources/css/chat-redesign.css',
+                'resources/js/app.js',
+            ],
             refresh: true,
         }),
     ],

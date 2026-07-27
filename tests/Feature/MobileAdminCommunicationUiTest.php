@@ -58,7 +58,10 @@ class MobileAdminCommunicationUiTest extends TestCase
 
     public function test_chat_has_distinct_mobile_panes_and_rich_attachment_previews(): void
     {
-        $view = file_get_contents(resource_path('views/livewire/chat-box.blade.php'));
+        $view = collect([
+            resource_path('views/livewire/chat-box.blade.php'),
+            ...glob(resource_path('views/livewire/chat/partials/*.blade.php')),
+        ])->map(fn (string $path): string => file_get_contents($path))->implode("\n");
         $script = file_get_contents(resource_path('js/app.js'));
         $styles = file_get_contents(resource_path('css/app.css'));
         $component = file_get_contents(app_path('Livewire/ChatBox.php'));

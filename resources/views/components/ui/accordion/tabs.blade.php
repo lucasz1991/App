@@ -4,7 +4,7 @@
     'default' => null,
     'forceDefault' => false,
     'persistKey' => null,
-    // Aus Kompatibilitaetsgruenden weiterhin akzeptiert; das Carousel ist in allen Groessen aktiv.
+    // Aus Kompatibilitaetsgruenden weiterhin akzeptiert.
     'collapseAt' => 'md',
     'ariaLabel' => null,
     'contentClass' => 'mt-4 sm:mt-6',
@@ -12,7 +12,7 @@
 
 @php
     $firstKey = array_key_first($tabs);
-    $initial = $default ?? $firstKey ?? 'tab-1';
+    $initial = (string) ($default ?? $firstKey ?? 'tab-1');
     $routeName = optional(request()->route())->getName() ?? request()->path();
     $tabsSig = implode(',', array_keys($tabs));
     $key = $persistKey ?: 'tabs:' . $routeName . $tabsSig;
@@ -20,35 +20,29 @@
 
 <div
     x-data="{
-        openTab: $persist('{{ $initial }}').as('{{ $key }}'),
+        openTab: $persist(@js($initial)).as(@js($key)),
         tabDirection: 'next',
         stickyEnabled: true,
+        touchPointerId: null,
         touchStartX: null,
         touchStartY: null,
-        pointerStartX: null,
-        pointerStartY: null,
-        carouselDragging: false,
-        carouselPointerId: null,
-        carouselPointerStartX: null,
-        carouselPointerScrollLeft: 0,
-        carouselPointerMoved: false,
-        suppressCarouselClick: false,
-        carouselSettleTimer: null,
-        carouselFrame: null,
-        carouselProgrammaticScroll: false,
-        carouselProgrammaticTimer: null,
-        items: (function() {
-            const out = [];
+        touchStartScrollLeft: 0,
+        touchDragging: false,
+        suppressTouchClick: false,
+        suppressTouchClickTimer: null,
+        scrollFrame: null,
+        atScrollStart: true,
+        atScrollEnd: true,
+        items: [
             @foreach($tabs as $k => $tab)
                 @php
                     $isArray = is_array($tab);
                     $label = $isArray ? ($tab['label'] ?? \Illuminate\Support\Str::title($k)) : $tab;
                     $iconClass = $isArray ? ($tab['icon'] ?? null) : null;
                 @endphp
-                out.push({ id: '{{ $k }}', label: @js($label), icon: @js($iconClass) });
+                { id: @js((string) $k), label: @js($label), icon: @js($iconClass) },
             @endforeach
-            return out;
-        })(),
+        ],
         ensureActiveTab() {
             if (!this.items.some(item => item.id === this.openTab)) {
                 this.openTab = this.items[0]?.id ?? null;
@@ -57,291 +51,234 @@
         activeIndex() {
             return Math.max(0, this.items.findIndex(item => item.id === this.openTab));
         },
-        tabPosition(index) {
-            const offset = index - this.activeIndex();
-            if (offset === 0) return 'active';
-            if (offset === -1) return 'before';
-            if (offset === 1) return 'after';
-            return offset < 0 ? 'far-before' : 'far-after';
+        tabElement(id) {
+            return Array.from(this.$refs.carousel?.querySelectorAll('[role=tab]') ?? [])
+                .find(tab => tab.dataset.tabId === id);
         },
         selectTab(id, focusTab = false) {
-            if (id === this.openTab) return;
+            if (!this.items.some(item => item.id === id)) return;
 
-            window.clearTimeout(this.carouselSettleTimer);
             const currentIndex = this.activeIndex();
             const nextIndex = this.items.findIndex(item => item.id === id);
-            if (nextIndex < 0) return;
-
             this.tabDirection = nextIndex >= currentIndex ? 'next' : 'previous';
             this.openTab = id;
+
             this.$nextTick(() => {
-                this.centerActiveTab();
+                this.revealActiveTab();
+                this.animateSelection();
+
                 if (focusTab) {
-                    this.$root.querySelector(`[data-tab-id='${this.openTab}']`)?.focus();
+                    this.tabElement(this.openTab)?.focus({ preventScroll: true });
                 }
             });
         },
-        moveTab(direction, focusTab = true) {
+        activateFromClick(event, id) {
+            // Ein echter Touch-Drag darf keinen synthetischen Klick ausloesen.
+            // Maus- und Pen-Klicks werden davon explizit nie abgefangen.
+            if (this.suppressTouchClick && event.pointerType === 'touch') {
+                event.preventDefault();
+                event.stopPropagation();
+                this.suppressTouchClick = false;
+                return;
+            }
+
+            this.selectTab(id, true);
+        },
+        moveTab(direction) {
             if (this.items.length < 2) return;
+
             const index = this.activeIndex();
             const nextIndex = (index + direction + this.items.length) % this.items.length;
-            this.tabDirection = direction > 0 ? 'next' : 'previous';
-            this.openTab = this.items[nextIndex].id;
-            this.$nextTick(() => {
-                this.centerActiveTab();
-                if (focusTab) {
-                    this.$root.querySelector(`[data-tab-id='${this.openTab}']`)?.focus();
-                }
-            });
+            this.selectTab(this.items[nextIndex].id, true);
         },
-        centerActiveTab(behavior = 'smooth') {
+        moveToBoundary(position) {
+            if (!this.items.length) return;
+            this.selectTab(position === 'start' ? this.items[0].id : this.items[this.items.length - 1].id, true);
+        },
+        revealActiveTab(behavior = 'smooth') {
             const carousel = this.$refs.carousel;
-            const active = this.$root.querySelector(`[data-tab-id='${this.openTab}']`);
+            const active = this.tabElement(this.openTab);
             if (!carousel || !active) return;
 
-            const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-            const left = active.offsetLeft - ((carousel.clientWidth - active.offsetWidth) / 2);
-            this.carouselProgrammaticScroll = true;
-            window.clearTimeout(this.carouselProgrammaticTimer);
-            carousel.scrollTo({ left: Math.max(0, left), behavior: reduceMotion ? 'auto' : behavior });
-            this.carouselProgrammaticTimer = window.setTimeout(() => {
-                this.carouselProgrammaticScroll = false;
-                this.updateCarouselDepth();
-            }, behavior === 'smooth' && !reduceMotion ? 520 : 40);
+            const inset = 12;
+            const activeStart = active.offsetLeft;
+            const activeEnd = activeStart + active.offsetWidth;
+            const visibleStart = carousel.scrollLeft + inset;
+            const visibleEnd = carousel.scrollLeft + carousel.clientWidth - inset;
+            let nextLeft = carousel.scrollLeft;
+
+            if (activeStart < visibleStart) {
+                nextLeft = Math.max(0, activeStart - inset);
+            } else if (activeEnd > visibleEnd) {
+                nextLeft = Math.max(0, activeEnd - carousel.clientWidth + inset);
+            }
+
+            if (Math.abs(nextLeft - carousel.scrollLeft) > 1) {
+                const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                carousel.scrollTo({ left: nextLeft, behavior: reduceMotion ? 'auto' : behavior });
+            }
+
+            this.syncScrollEdges();
         },
-        updateCarouselDepth() {
-            window.cancelAnimationFrame(this.carouselFrame || 0);
-            this.carouselFrame = window.requestAnimationFrame(() => {
+        animateSelection() {
+            if (!window.gsap || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+            const active = this.tabElement(this.openTab);
+            const marker = active?.querySelector('[data-rt-tab-active-mark]');
+            if (!active || !marker) return;
+
+            window.gsap.killTweensOf([active, marker]);
+            window.gsap.fromTo(
+                active,
+                { scale: 0.985 },
+                { scale: 1, duration: 0.24, ease: 'power2.out', clearProps: 'transform' },
+            );
+            window.gsap.fromTo(
+                marker,
+                { scaleX: 0.42, autoAlpha: 0.45 },
+                { scaleX: 1, autoAlpha: 1, duration: 0.34, ease: 'power3.out', clearProps: 'transform,opacity,visibility' },
+            );
+        },
+        syncScrollEdges() {
+            window.cancelAnimationFrame(this.scrollFrame || 0);
+            this.scrollFrame = window.requestAnimationFrame(() => {
                 const carousel = this.$refs.carousel;
                 if (!carousel) return;
 
-                const carouselRect = carousel.getBoundingClientRect();
-                const carouselCenter = carouselRect.left + (carouselRect.width / 2);
-
-                carousel.querySelectorAll('.rt-carousel-tab').forEach((tab) => {
-                    const rect = tab.getBoundingClientRect();
-                    const distance = ((rect.left + (rect.width / 2)) - carouselCenter) / Math.max(1, rect.width);
-                    const clamped = Math.max(-2.2, Math.min(2.2, distance));
-                    const depth = Math.abs(clamped);
-
-                    tab.style.setProperty('--rt-carousel-drag-rotate', `${clamped * -10}deg`);
-                    tab.style.setProperty('--rt-carousel-drag-scale', String(Math.max(0.86, 1 - (depth * 0.075))));
-                    tab.style.setProperty('--rt-carousel-drag-opacity', String(Math.max(0.48, 1 - (depth * 0.22))));
-                    tab.style.setProperty('--rt-carousel-drag-y', `${Math.min(3, depth * 1.5)}px`);
-                    tab.style.setProperty('--rt-carousel-drag-z', String(Math.max(1, 10 - Math.round(depth * 3))));
-                });
+                const maxScroll = Math.max(0, carousel.scrollWidth - carousel.clientWidth);
+                this.atScrollStart = carousel.scrollLeft <= 2;
+                this.atScrollEnd = maxScroll <= 2 || carousel.scrollLeft >= maxScroll - 2;
             });
         },
-        onCarouselScroll() {
-            this.updateCarouselDepth();
-            if (this.carouselProgrammaticScroll) return;
-
-            this.carouselDragging = true;
-            window.clearTimeout(this.carouselSettleTimer);
-            this.carouselSettleTimer = window.setTimeout(() => this.settleCarousel(), 130);
+        isTouchPointer(event) {
+            return event.pointerType === 'touch'
+                && event.isPrimary !== false;
         },
-        settleCarousel() {
+        touchPointerDown(event) {
             const carousel = this.$refs.carousel;
-            if (!carousel) return;
+            if (!carousel || !this.isTouchPointer(event)) return;
+            if (carousel.scrollWidth <= carousel.clientWidth + 1) return;
 
-            const carouselRect = carousel.getBoundingClientRect();
-            const carouselCenter = carouselRect.left + (carouselRect.width / 2);
-            const tabs = Array.from(carousel.querySelectorAll('.rt-carousel-tab'));
-            if (!tabs.length) return;
-
-            // An den Scroll-Enden kann der erste bzw. letzte Tab die Mitte
-            // gar nicht erreichen. Ohne diese Sonderfaelle gewaenne dort immer
-            // der Nachbar: ganz links wurde der zweite, ganz rechts der
-            // vorletzte Tab aktiviert. Deshalb entscheidet an den Enden die
-            // Scrollposition, nicht der Abstand zur Mitte.
-            const maxScroll = carousel.scrollWidth - carousel.clientWidth;
-            const edge = 4;
-            let closest;
-
-            if (maxScroll > 0 && carousel.scrollLeft <= edge) {
-                closest = tabs[0];
-            } else if (maxScroll > 0 && carousel.scrollLeft >= maxScroll - edge) {
-                closest = tabs[tabs.length - 1];
-            } else {
-                closest = tabs.reduce((current, tab) => {
-                    const rect = tab.getBoundingClientRect();
-                    const distance = Math.abs((rect.left + (rect.width / 2)) - carouselCenter);
-                    return distance < current.distance ? { tab, distance } : current;
-                }, { tab: tabs[0], distance: Number.POSITIVE_INFINITY }).tab;
-            }
-
-            const id = closest.dataset.tabId;
-            const currentIndex = this.activeIndex();
-            const nextIndex = this.items.findIndex(item => item.id === id);
-
-            if (id && id !== this.openTab && nextIndex >= 0) {
-                this.tabDirection = nextIndex >= currentIndex ? 'next' : 'previous';
-                this.openTab = id;
-            }
-
-            this.carouselDragging = false;
-            this.$nextTick(() => this.centerActiveTab());
+            window.clearTimeout(this.suppressTouchClickTimer);
+            this.suppressTouchClick = false;
+            this.touchPointerId = event.pointerId;
+            this.touchStartX = event.clientX;
+            this.touchStartY = event.clientY;
+            this.touchStartScrollLeft = carousel.scrollLeft;
+            this.touchDragging = false;
         },
-        carouselPointerDown(event) {
-            if (event.pointerType === 'touch' || event.button !== 0) return;
+        touchPointerMove(event) {
+            if (this.touchPointerId !== event.pointerId || !this.isTouchPointer(event)) return;
 
-            const carousel = this.$refs.carousel;
-            if (!carousel) return;
+            const deltaX = event.clientX - this.touchStartX;
+            const deltaY = event.clientY - this.touchStartY;
 
-            this.carouselPointerId = event.pointerId;
-            this.carouselPointerStartX = event.clientX;
-            this.carouselPointerScrollLeft = carousel.scrollLeft;
-            this.carouselPointerMoved = false;
-        },
-        carouselPointerMove(event) {
-            if (this.carouselPointerId !== event.pointerId || this.carouselPointerStartX === null) return;
+            if (!this.touchDragging) {
+                // Vertikales Scrollen bleibt immer beim Browser.
+                if (Math.abs(deltaY) > 9 && Math.abs(deltaY) > Math.abs(deltaX)) {
+                    this.resetTouchPointer();
+                    return;
+                }
 
-            const deltaX = event.clientX - this.carouselPointerStartX;
-            if (!this.carouselPointerMoved && Math.abs(deltaX) > 5) {
-                this.carouselPointerMoved = true;
-                this.suppressCarouselClick = true;
-                this.carouselProgrammaticScroll = false;
-                window.clearTimeout(this.carouselProgrammaticTimer);
-                window.clearTimeout(this.carouselSettleTimer);
-                this.carouselDragging = true;
+                // Kleine Fingerbewegungen bleiben ein normaler, sicherer Tap.
+                if (Math.abs(deltaX) < 12 || Math.abs(deltaX) <= Math.abs(deltaY) * 1.15) {
+                    return;
+                }
+
+                this.touchDragging = true;
+                this.suppressTouchClick = true;
                 event.currentTarget.setPointerCapture?.(event.pointerId);
             }
 
-            if (!this.carouselPointerMoved) return;
-
-            event.preventDefault();
-            this.$refs.carousel.scrollLeft = this.carouselPointerScrollLeft - deltaX;
-            this.updateCarouselDepth();
+            if (event.cancelable) event.preventDefault();
+            this.$refs.carousel.scrollLeft = this.touchStartScrollLeft - deltaX;
+            this.syncScrollEdges();
         },
-        carouselPointerUp(event) {
-            if (this.carouselPointerId !== event.pointerId) return;
+        touchPointerEnd(event) {
+            if (this.touchPointerId !== event.pointerId) return;
 
-            const wasDragged = this.carouselPointerMoved;
-            if (wasDragged) {
-                this.$refs.carousel?.releasePointerCapture?.(event.pointerId);
-            }
-            this.carouselPointerId = null;
-            this.carouselPointerStartX = null;
-            this.carouselPointerMoved = false;
-            window.clearTimeout(this.carouselSettleTimer);
-            if (wasDragged) {
-                this.carouselSettleTimer = window.setTimeout(() => this.settleCarousel(), 80);
+            const didDrag = this.touchDragging;
+            this.resetTouchPointer(event);
+
+            if (didDrag) {
+                // Moderne Pointer-Clicks tragen pointerType=touch. Der Timer ist
+                // nur ein Fallback, falls nach dem Drag gar kein Click folgt.
+                this.suppressTouchClickTimer = window.setTimeout(() => {
+                    this.suppressTouchClick = false;
+                }, 450);
             } else {
-                this.carouselDragging = false;
+                this.suppressTouchClick = false;
             }
-            window.setTimeout(() => { this.suppressCarouselClick = false; }, 0);
         },
-        isInteractiveTarget(target) {
-            if (!(target instanceof Element)) return true;
-            return target.closest('input, textarea, select, button, a, audio, video, [contenteditable=true], [role=dialog], [data-no-tab-swipe]');
-        },
-        touchStart(event) {
-            if (event.touches.length !== 1) {
-                this.cancelSwipe();
-                return;
-            }
-
-            if (this.isInteractiveTarget(event.target)) {
-                this.cancelSwipe();
-                return;
-            }
-
-            this.touchStartX = event.touches[0].clientX;
-            this.touchStartY = event.touches[0].clientY;
-        },
-        touchEnd(event) {
-            if (this.touchStartX === null || event.changedTouches.length !== 1) {
-                this.cancelSwipe();
-                return;
-            }
-
-            const deltaX = event.changedTouches[0].clientX - this.touchStartX;
-            const deltaY = event.changedTouches[0].clientY - this.touchStartY;
-            const threshold = Math.max(54, Math.min(96, window.innerWidth * 0.18));
-
-            if (Math.abs(deltaX) >= threshold && Math.abs(deltaX) > Math.abs(deltaY) * 1.25) {
-                this.moveTab(deltaX < 0 ? 1 : -1, false);
-            }
-
-            this.cancelSwipe();
-        },
-        cancelSwipe() {
+        resetTouchPointer(event = null) {
+            const pointerId = this.touchPointerId;
+            this.touchPointerId = null;
             this.touchStartX = null;
             this.touchStartY = null;
-        },
-        pointerStart(event) {
-            if (event.pointerType !== 'mouse' || event.button !== 0 || this.isInteractiveTarget(event.target)) {
-                this.cancelPointerSwipe();
-                return;
+            this.touchStartScrollLeft = 0;
+            this.touchDragging = false;
+
+            if (event && pointerId !== null && event.currentTarget?.hasPointerCapture?.(pointerId)) {
+                event.currentTarget.releasePointerCapture(pointerId);
             }
-
-            this.pointerStartX = event.clientX;
-            this.pointerStartY = event.clientY;
         },
-        pointerEnd(event) {
-            if (this.pointerStartX === null) {
-                this.cancelPointerSwipe();
-                return;
+        destroy() {
+            window.clearTimeout(this.suppressTouchClickTimer);
+            window.cancelAnimationFrame(this.scrollFrame || 0);
+
+            if (window.gsap) {
+                window.gsap.killTweensOf(this.$root.querySelectorAll('.rt-carousel-tab, [data-rt-tab-active-mark]'));
             }
-
-            const deltaX = event.clientX - this.pointerStartX;
-            const deltaY = event.clientY - this.pointerStartY;
-
-            if (Math.abs(deltaX) >= 72 && Math.abs(deltaX) > Math.abs(deltaY) * 1.25) {
-                this.moveTab(deltaX < 0 ? 1 : -1, false);
-            }
-
-            this.cancelPointerSwipe();
-        },
-        cancelPointerSwipe() {
-            this.pointerStartX = null;
-            this.pointerStartY = null;
         },
     }"
-    x-init="if (@js($forceDefault)) { openTab = @js($initial); } ensureActiveTab(); stickyEnabled = !$root.closest('[role=dialog]'); $nextTick(() => { centerActiveTab('auto'); updateCarouselDepth(); })"
+    x-init="
+        if (@js($forceDefault)) openTab = @js($initial);
+        ensureActiveTab();
+        stickyEnabled = !$root.closest('[role=dialog]');
+        $nextTick(() => {
+            revealActiveTab('auto');
+            syncScrollEdges();
+        });
+    "
     :data-tab-direction="tabDirection"
     class="w-full min-w-0"
-    @touchstart.passive="touchStart($event)"
-    @touchend.passive="touchEnd($event)"
-    @touchcancel.passive="cancelSwipe()"
-    @pointerdown="pointerStart($event)"
-    @pointerup="pointerEnd($event)"
-    @pointercancel="cancelPointerSwipe()"
-    @resize.window.debounce.150ms="centerActiveTab('auto')"
-    data-swipe-tabs
+    data-tabs-input-policy="touch-only-drag"
     wire:key="{{ \Illuminate\Support\Str::slug($key) }}"
 >
     <div
-        class="rt-tabs-shell rounded-2xl bg-rt-surface p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60"
+        class="rt-tabs-shell rt-tabs-v2"
         :data-sticky-enabled="stickyEnabled ? 'true' : 'false'"
+        :data-scroll-start="atScrollStart ? 'true' : 'false'"
+        :data-scroll-end="atScrollEnd ? 'true' : 'false'"
         role="tablist"
+        aria-orientation="horizontal"
         aria-label="{{ $ariaLabel ?: __('app.select_section') }}"
-        @keydown.right.prevent="moveTab(1)"
-        @keydown.left.prevent="moveTab(-1)"
-        @keydown.home.prevent="selectTab(items[0].id)"
-        @keydown.end.prevent="selectTab(items[items.length - 1].id)"
+        @keydown.right.prevent.stop="moveTab(1)"
+        @keydown.left.prevent.stop="moveTab(-1)"
+        @keydown.home.prevent.stop="moveToBoundary('start')"
+        @keydown.end.prevent.stop="moveToBoundary('end')"
         wire:ignore
     >
         <div
             x-ref="carousel"
-            class="rt-tabs-carousel min-w-0"
-            :data-dragging="carouselDragging ? 'true' : 'false'"
-            @scroll.passive="onCarouselScroll()"
-            @pointerdown="carouselPointerDown($event)"
-            @pointermove="carouselPointerMove($event)"
-            @pointerup="carouselPointerUp($event)"
-            @pointercancel="carouselPointerUp($event)"
-            @dragstart.prevent
+            class="rt-tabs-carousel"
+            :data-touch-dragging="touchDragging ? 'true' : 'false'"
+            @scroll.passive="syncScrollEdges()"
+            @pointerdown="touchPointerDown($event)"
+            @pointermove="touchPointerMove($event)"
+            @pointerup="touchPointerEnd($event)"
+            @pointercancel="resetTouchPointer($event)"
+            @lostpointercapture="resetTouchPointer()"
             data-tab-carousel
         >
             <div class="rt-tabs-carousel-track">
-                <template x-for="(tab, index) in items" :key="tab.id">
+                <template x-for="tab in items" :key="tab.id">
                     <button
                         type="button"
-                        @click.prevent="suppressCarouselClick ? (suppressCarouselClick = false) : selectTab($event.currentTarget.dataset.tabId, true)"
+                        @click="activateFromClick($event, tab.id)"
                         :data-active="openTab === tab.id ? 'true' : 'false'"
-                        :data-position="tabPosition(index)"
-                        class="rt-carousel-tab group relative flex min-h-12 min-w-0 shrink-0 snap-center items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-center text-[13px] font-semibold leading-tight focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/60 sm:min-h-11 sm:px-4 sm:text-sm"
+                        :data-position="openTab === tab.id ? 'active' : 'inactive'"
+                        class="rt-carousel-tab group"
                         role="tab"
                         :id="`tab-${tab.id}`"
                         :data-tab-id="tab.id"
@@ -350,15 +287,24 @@
                         :tabindex="openTab === tab.id ? 0 : -1"
                     >
                         <span
-                            class="rt-carousel-tab-icon flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors"
+                            class="rt-carousel-tab-icon"
                             :data-active="openTab === tab.id ? 'true' : 'false'"
+                            aria-hidden="true"
                         >
                             <template x-if="tab.icon">
-                                <i :class="tab.icon" aria-hidden="true"></i>
+                                <i :class="tab.icon"></i>
+                            </template>
+                            <template x-if="!tab.icon">
+                                <span class="rt-tab-fallback-dot"></span>
                             </template>
                         </span>
-                        <span class="min-w-0 truncate" x-text="tab.label"></span>
-                        <span class="rt-carousel-tab-depth" aria-hidden="true"></span>
+                        <span class="rt-carousel-tab-label" x-text="tab.label"></span>
+                        <span
+                            class="rt-tab-active-mark"
+                            :data-active="openTab === tab.id ? 'true' : 'false'"
+                            data-rt-tab-active-mark
+                            aria-hidden="true"
+                        ></span>
                     </button>
                 </template>
             </div>

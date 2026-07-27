@@ -10,6 +10,7 @@
     ]) }}
     aria-label="{{ $label ?: __('app.actions') }}"
     aria-haspopup="menu"
+    data-rt-action-trigger
 >
     <i class="far fa-ellipsis-h shrink-0 leading-none" aria-hidden="true"></i>
     @if (filled($label))

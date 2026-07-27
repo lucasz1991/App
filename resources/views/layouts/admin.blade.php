@@ -9,7 +9,7 @@
          Favicon und kein Apple-Touch-Icon — daher fehlte das Symbol in
          Tab-Uebersichten und beim Installieren aus dem Adminbereich. --}}
     @include('layouts.pwa-head')
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @vite(['resources/css/app.css', 'resources/css/shell-redesign.css', 'resources/css/tabs-redesign.css', 'resources/css/chat-redesign.css', 'resources/js/app.js'])
     @livewireStyles
 </head>
 <body x-data="{ sidebarOpen: false }" x-bind:data-mode="$store.theme?.dark ? 'dark' : 'light'" data-mode="light" data-sidebar-size="lg" class="group bg-rt-canvas text-rt-text antialiased dark:bg-rt-dark-canvas dark:text-rt-dark-text">

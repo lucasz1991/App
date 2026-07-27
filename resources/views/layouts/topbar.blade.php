@@ -2,12 +2,16 @@
     $area = $area ?? (auth()->check() && auth()->user()->usesAdminLayout() ? 'admin' : 'user');
     $brandHref = $area === 'admin' ? route('admin.dashboard') : route('dashboard');
 @endphp
-<nav class="rt-ui-topbar fixed top-0 left-0 right-0 z-40 flex items-center border-b border-rt-border/60 bg-rt-topbar/90 text-rt-text shadow-rt-xs backdrop-blur-xl dark:border-rt-dark-border/60 dark:bg-rt-dark-topbar/90 dark:text-rt-dark-text print:hidden">
+<nav
+    class="rt-ui-topbar rt-shell-topbar fixed left-0 right-0 top-0 z-40 flex items-center border-b border-rt-border/60 bg-rt-topbar/90 text-rt-text shadow-rt-xs backdrop-blur-xl dark:border-rt-dark-border/60 dark:bg-rt-dark-topbar/90 dark:text-rt-dark-text print:hidden"
+    data-rt-shell-topbar
+    aria-label="{{ app()->getLocale() === 'de' ? 'Kopfnavigation' : 'Header navigation' }}"
+>
     <div class="flex justify-between w-full">
         <div class="flex items-center topbar-brand">
             <a
                 href="{{ $brandHref }}"
-                class="flex h-[70px] w-14 shrink-0 items-center justify-center lg:hidden"
+                class="rt-shell-brand-mark flex h-[70px] w-14 shrink-0 items-center justify-center lg:hidden"
                 aria-label="RailTime"
             >
                 <img
@@ -20,7 +24,7 @@
             <div
                 class="hidden lg:flex navbar-brand items-center justify-between shrink px-3 h-[70px] ltr:border-r rtl:border-l border-rt-border/60 bg-rt-topbar shadow-none dark:border-rt-dark-border/60 dark:bg-rt-dark-topbar">
                 <a href="{{ $brandHref }}"
-                    class="flex items-center gap-2 text-lg flex-shrink-0 font-bold leading-[69px]">
+                    class="rt-shell-brand-link flex flex-shrink-0 items-center gap-2 text-lg font-bold leading-[69px]">
                         <img class="inline-block w-10 aspect-square align-middle dark:brightness-0 dark:invert"
                             src="{{ asset('rt-brand/rt-logo.svg') }}"
                             alt="RailTime Logo">
@@ -51,7 +55,7 @@
             {{-- Reihenfolge der Topbar-Kontrollen: Suche (expandiert nach links,
                  weil die Nachbarn rechts verankert bleiben), dann Posteingang,
                  dann Einstellungen, aussen das Profil. --}}
-            <div class="flex min-w-0 items-center gap-1.5 sm:gap-3">
+            <div class="rt-shell-topbar-controls flex min-w-0 items-center gap-1.5 sm:gap-3">
                     @auth
                         <livewire:tools.global-search />
 
@@ -73,7 +77,7 @@
                         align="right"
                         width="72"
                         :offset="10"
-                        content-classes="bg-rt-surface p-2 text-rt-text dark:bg-rt-dark-surface dark:text-white"
+                        content-classes="rt-topbar-preferences-panel bg-rt-surface p-2 text-rt-text dark:bg-rt-dark-surface dark:text-white"
                         data-topbar-preferences-dropdown="true"
                     >
                         <x-slot:trigger>
@@ -187,20 +191,47 @@
 
                     @auth
                         <!-- Settings Dropdown -->
-                        <div class="ms-3 relative">
-                            <x-dropdown align="" width="48">
+                        <div class="relative ms-1 sm:ms-2" data-topbar-profile>
+                            <x-dropdown
+                                align="right"
+                                width="64"
+                                :offset="10"
+                                dropdown-classes="rt-topbar-profile-dropdown"
+                                content-classes="rt-topbar-profile-panel bg-rt-surface p-2 text-rt-text dark:bg-rt-dark-surface dark:text-white"
+                            >
                                 <x-slot name="trigger">
                                     <button
-                                        class="flex items-center space-x-2 text-sm border-2 border-transparent rounded-full text-rt-text focus:outline-none focus:border-rt-border dark:text-white dark:focus:border-rt-dark-border transition-all duration-300 ease-rt-spring active:scale-[0.98]">
-                                        <img class="h-8 w-8 rounded-full object-cover"
-                                            src="{{ Auth::user()->profile_photo_url }}" alt="{{ Auth::user()->name }}" />
-                                            <span class="hidden font-medium xl:block">{{ Auth::user()->name }}</span>
-                                            <i class="hidden align-bottom mdi mdi-chevron-down xl:block text-rt-muted dark:text-white/80"></i>
+                                        type="button"
+                                        class="rt-topbar-profile-trigger group flex min-h-10 items-center gap-2 rounded-full border border-rt-border/80 bg-rt-surface/90 p-1 pe-2 text-sm text-rt-text shadow-rt-xs transition duration-200 ease-rt-spring hover:-translate-y-px hover:border-rt-red/25 hover:shadow-rt-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:border-rt-dark-border dark:bg-rt-dark-surface/90 dark:text-white"
+                                        aria-label="{{ __('app.manage_account') }}"
+                                        aria-haspopup="menu"
+                                    >
+                                        <span class="relative">
+                                            <img
+                                                class="h-8 w-8 rounded-full object-cover ring-1 ring-slate-900/10 dark:ring-white/15"
+                                                src="{{ Auth::user()->profile_photo_url }}"
+                                                alt="{{ Auth::user()->name }}"
+                                            />
+                                            <span class="rt-topbar-presence absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500 dark:border-slate-900" aria-hidden="true"></span>
+                                        </span>
+                                        <span class="hidden min-w-0 text-start xl:block">
+                                            <span class="block max-w-36 truncate text-xs font-semibold leading-4">{{ Auth::user()->name }}</span>
+                                            <span class="block text-[9px] font-semibold uppercase tracking-[0.14em] text-rt-soft dark:text-rt-dark-soft">{{ __('app.profile') }}</span>
+                                        </span>
+                                        <i class="far fa-chevron-down hidden text-[10px] text-rt-muted transition duration-200 group-aria-expanded:rotate-180 dark:text-white/70 xl:block" aria-hidden="true"></i>
                                     </button>
                                 </x-slot>
                                 <x-slot name="content">
-                                    <div class="block px-4 py-2 text-xs text-rt-soft dark:text-white/70">
-                                        {{ __('app.manage_account') }}
+                                    <div class="mb-1 flex items-center gap-3 rounded-xl bg-rt-surface-muted/75 px-3 py-3 dark:bg-rt-dark-surface-muted/70">
+                                        <img
+                                            class="h-10 w-10 shrink-0 rounded-xl object-cover ring-1 ring-slate-900/10 dark:ring-white/15"
+                                            src="{{ Auth::user()->profile_photo_url }}"
+                                            alt=""
+                                        />
+                                        <div class="min-w-0">
+                                            <p class="truncate text-sm font-semibold text-rt-text dark:text-white">{{ Auth::user()->name }}</p>
+                                            <p class="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-rt-soft dark:text-rt-dark-soft">{{ __('app.manage_account') }}</p>
+                                        </div>
                                     </div>
                                     <x-dropdown-link href="{{ route('profile.show') }}">
                                     <svg class="w-5 h-5  mr-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
@@ -210,7 +241,7 @@
                                         {{ __('app.profile') }}
                                     </x-dropdown-link>
 
-                                    <div class="border-t border-rt-border dark:border-rt-dark-border"></div>
+                                    <div class="my-1 border-t border-rt-border/70 dark:border-rt-dark-border/70"></div>
                                     <form method="POST" action="{{ route('logout') }}" x-data>
                                         @csrf
                                         <x-dropdown-link href="{{ route('logout') }}" @click.prevent="$root.submit();">
@@ -226,11 +257,21 @@
                         </div>
                     @else
                         <!-- Guest Dropdown -->
-                        <div class="ms-3 relative">
-                            <x-dropdown align="" width="48">
+                        <div class="relative ms-1 sm:ms-2">
+                            <x-dropdown
+                                align="right"
+                                width="48"
+                                :offset="10"
+                                dropdown-classes="rt-topbar-profile-dropdown"
+                                content-classes="rt-topbar-profile-panel bg-rt-surface p-2 text-rt-text dark:bg-rt-dark-surface dark:text-white"
+                            >
                                 <x-slot name="trigger">
                                     <button
-                                        class="flex items-center justify-center w-10 h-10 bg-rt-surface-muted text-rt-muted rounded-full shadow-rt-xs transition-all duration-300 ease-rt-spring hover:bg-rt-nav-hover hover:text-rt-accent active:scale-[0.98] dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted dark:hover:bg-rt-dark-nav-hover dark:hover:text-rt-dark-text">
+                                        type="button"
+                                        class="rt-topbar-profile-trigger flex h-10 w-10 items-center justify-center rounded-full border border-rt-border/80 bg-rt-surface text-rt-muted shadow-rt-xs transition duration-200 ease-rt-spring hover:-translate-y-px hover:border-rt-red/25 hover:text-rt-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-muted dark:hover:text-rt-dark-text"
+                                        aria-label="{{ $area === 'admin' ? __('app.admin_login') : __('app.login') }}"
+                                        aria-haspopup="menu"
+                                    >
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="w-5 h-5" viewBox="0 0 512 512">
                                             <path
                                             d="M337.711 241.3a16 16 0 0 0-11.461 3.988c-18.739 16.561-43.688 25.682-70.25 25.682s-51.511-9.121-70.25-25.683a16.007 16.007 0 0 0-11.461-3.988c-78.926 4.274-140.752 63.672-140.752 135.224v107.152C33.537 499.293 46.9 512 63.332 512h385.336c16.429 0 29.8-12.707 29.8-28.325V376.523c-.005-71.552-61.831-130.95-140.757-135.223zM446.463 480H65.537V376.523c0-52.739 45.359-96.888 104.351-102.8C193.75 292.63 224.055 302.97 256 302.97s62.25-10.34 86.112-29.245c58.992 5.91 104.351 50.059 104.351 102.8zM256 234.375a117.188 117.188 0 1 0-117.188-117.187A117.32 117.32 0 0 0 256 234.375zM256 32a85.188 85.188 0 1 1-85.188 85.188A85.284 85.284 0 0 1 256 32z"

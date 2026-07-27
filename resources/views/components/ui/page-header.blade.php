@@ -4,9 +4,12 @@
      Kontext und Beschreibung bleiben lesbar; Aktionen wechseln auf schmalen
      Screens kontrolliert in eine eigene Zeile. --}}
 <header
-    {{ $attributes->class('flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between') }}
+    {{ $attributes->class('relative flex flex-col gap-4 overflow-hidden rounded-[1.4rem] bg-rt-surface/95 p-4 shadow-rt-sm ring-1 ring-rt-border/70 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between sm:p-5 dark:bg-rt-dark-surface/95 dark:ring-rt-dark-border/70') }}
     data-anim="fade-up"
+    data-page-header
 >
+    <span class="pointer-events-none absolute inset-y-4 left-0 w-1 rounded-r-full bg-rt-red" aria-hidden="true"></span>
+
     <div class="min-w-0">
         @if (filled($eyebrow))
             <p class="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-rt-accent dark:text-rt-dark-accent">
@@ -28,9 +31,11 @@
         @endif
     </div>
 
-    <div class="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+    <div class="flex w-full min-w-0 items-start gap-2 rounded-xl bg-rt-surface-muted/70 p-1.5 ring-1 ring-inset ring-rt-border/60 sm:w-auto sm:max-w-[58%] sm:justify-end dark:bg-rt-dark-surface-muted/45 dark:ring-rt-dark-border/60" data-page-header-actions>
         @isset($actions)
-            {{ $actions }}
+            <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:flex-none sm:justify-end">
+                {{ $actions }}
+            </div>
         @endisset
         @if ($help)
             {{-- Oeffnet das EINE globale Infomodal (x-ui.info-modal, einmal je
@@ -44,9 +49,10 @@
                     'summary' => $help['summary'] ?? null,
                     'points' => array_values($help['points'] ?? []),
                 ]) }})"
-                class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-rt-control text-rt-muted shadow-rt-xs ring-1 ring-inset ring-rt-border/80 transition duration-200 ease-rt-spring hover:-translate-y-px hover:bg-rt-surface-muted hover:text-rt-accent focus:outline-none focus:ring-2 focus:ring-rt-accent/30 dark:bg-rt-dark-control dark:text-rt-dark-muted dark:ring-rt-dark-border/80 dark:hover:bg-rt-dark-surface-muted dark:hover:text-rt-dark-accent"
+                class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[0.7rem] bg-rt-control text-rt-muted shadow-rt-xs ring-1 ring-inset ring-rt-border/80 transition duration-200 ease-rt-spring hover:-translate-y-px hover:bg-rt-accent-soft hover:text-rt-accent focus:outline-none focus:ring-2 focus:ring-rt-accent/30 dark:bg-rt-dark-control dark:text-rt-dark-muted dark:ring-rt-dark-border/80 dark:hover:bg-rt-dark-accent-soft dark:hover:text-rt-dark-accent"
                 aria-label="{{ app()->getLocale() === 'de' ? 'Informationen zu dieser Seite' : 'Information about this page' }}"
                 title="{{ app()->getLocale() === 'de' ? 'Seitenhilfe' : 'Page help' }}"
+                data-page-info-button
             >
                 <i class="far fa-info-circle text-base" aria-hidden="true"></i>
             </button>

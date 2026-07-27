@@ -53,7 +53,7 @@
 
             <dl class="rt-operational-stats grid grid-cols-3 gap-px bg-slate-200 dark:bg-slate-700" aria-label="{{ __('app.preview_summary') }}">
                 @foreach ($moduleData['stats'] as $stat)
-                    <div class="rt-operational-stat bg-rt-surface px-3 py-3 sm:px-5 sm:py-4 dark:bg-[#111827]" data-operational-stat>
+                    <div class="rt-operational-stat bg-rt-surface px-3 py-3 sm:px-5 sm:py-4 dark:bg-rt-dark-surface" data-operational-stat>
                         <dt class="truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-rt-soft dark:text-rt-dark-soft" title="{{ $stat['label'] }}">{{ $stat['label'] }}</dt>
                         <dd class="mt-1.5 text-lg font-semibold tabular-nums text-rt-text sm:mt-2 sm:text-2xl dark:text-white">{{ $stat['value'] }}</dd>
                         <p class="mt-1 hidden truncate text-xs text-rt-muted sm:block dark:text-rt-dark-muted" title="{{ $stat['detail'] }}">{{ $stat['detail'] }}</p>

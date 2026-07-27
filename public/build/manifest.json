@@ -16,18 +16,33 @@
     "src": "node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-vietnamese-wght-normal.woff2"
   },
   "resources/css/app.css": {
-    "file": "assets/app-8RkThDwW.css",
+    "file": "assets/app-CEWq0dD5.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
+  "resources/css/chat-redesign.css": {
+    "file": "assets/chat-redesign-ByYgX8Tz.css",
+    "src": "resources/css/chat-redesign.css",
+    "isEntry": true
+  },
+  "resources/css/shell-redesign.css": {
+    "file": "assets/shell-redesign-CFDZHofi.css",
+    "src": "resources/css/shell-redesign.css",
+    "isEntry": true
+  },
+  "resources/css/tabs-redesign.css": {
+    "file": "assets/tabs-redesign-vv2r6dlx.css",
+    "src": "resources/css/tabs-redesign.css",
+    "isEntry": true
+  },
   "resources/js/admin-dashboard-echarts.js": {
-    "file": "assets/admin-dashboard-echarts-Bmt-dN7y.js",
+    "file": "assets/admin-dashboard-echarts-Ciig_Myz.js",
     "name": "admin-dashboard-echarts",
     "src": "resources/js/admin-dashboard-echarts.js",
     "isDynamicEntry": true
   },
   "resources/js/app.js": {
-    "file": "assets/app-FTDGbgqO.js",
+    "file": "assets/app-CZ8uP2Cv.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,

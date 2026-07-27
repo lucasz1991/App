@@ -86,7 +86,32 @@ class SharedUiDarkModeTest extends TestCase
         $this->assertStringContainsString('input:checked + .rt-ui-toggle-control', $styles);
         $this->assertStringContainsString('.rt-ui-dropdown-link[data-rt-tone="danger"]', $styles);
         $this->assertStringContainsString('.rt-pagination [aria-current="page"] > span', $styles);
-        $this->assertStringContainsString('background-color: #111827 !important', $styles);
+        $this->assertStringContainsString('background-color: #111a27 !important', $styles);
+    }
+
+    public function test_global_theme_contract_uses_the_current_railtime_palette(): void
+    {
+        $styles = file_get_contents(resource_path('css/app.css'));
+
+        foreach ([
+            '#111827' => '#111a27',
+            '#172033' => '#182435',
+            '#0f172a' => '#0c1421',
+            '#273449' => '#2a394d',
+            '#e7edf7' => '#edf2f8',
+            '#a9b6c9' => '#aeb9c9',
+            '#8c9bb0' => '#8d9bad',
+            '#ff8295' => '#ff7189',
+            '#1b2a43' => '#1a293d',
+            '#101827' => '#0d1624',
+            '#0b1120' => '#080d16',
+            '#263653' => '#223249',
+            '#64748b' => '#637188',
+            '#94a3b8' => '#91a0b4',
+        ] as $legacyColor => $currentColor) {
+            $this->assertStringNotContainsString($legacyColor, $styles);
+            $this->assertStringContainsString($currentColor, $styles);
+        }
     }
 
     public function test_modal_table_and_pagination_templates_are_connected_to_the_contract(): void

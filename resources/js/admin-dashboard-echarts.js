@@ -19,16 +19,16 @@ echarts.use([
 export function renderAdminDashboardCharts({ refs, config = {}, dark = false, animate = true }) {
     const charts = [];
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const textColor = dark ? '#a9b6c9' : '#64748b';
-    const strongText = dark ? '#f8fafc' : '#172033';
-    const gridColor = dark ? '#273449' : '#e2e8f0';
-    const surfaceColor = dark ? '#111827' : '#ffffff';
-    const mutedSurface = dark ? '#273449' : '#e8edf4';
+    const textColor = dark ? '#aeb9c9' : '#637188';
+    const strongText = dark ? '#f8fafc' : '#182435';
+    const gridColor = dark ? '#2a394d' : '#e2e8f0';
+    const surfaceColor = dark ? '#111a27' : '#ffffff';
+    const mutedSurface = dark ? '#2a394d' : '#e8edf4';
     // Auf dunkler Flaeche traegt das hellere Markenrot besser (Kontrast >= 3:1),
     // im Hellen bleibt das Original-Markenrot.
     const red = dark ? '#fb3b57' : '#e4002b';
     const redSoft = dark ? 'rgba(251, 59, 87, 0.55)' : 'rgba(228, 0, 43, 0.55)';
-    const activityPointBorder = dark ? '#111827' : '#ffffff';
+    const activityPointBorder = dark ? '#111a27' : '#ffffff';
     const activityAreaStart = dark ? 'rgba(251, 59, 87, 0.30)' : 'rgba(228, 0, 43, 0.16)';
     const activityAreaEnd = dark ? 'rgba(251, 59, 87, 0.02)' : 'rgba(228, 0, 43, 0.01)';
     const totalsAreaStart = dark ? 'rgba(248, 250, 252, 0.10)' : 'rgba(23, 32, 51, 0.07)';

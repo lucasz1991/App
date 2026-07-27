@@ -13,6 +13,7 @@
     <a
         href="#"
         data-menu-active="{{ $active ? 'true' : 'false' }}"
+        data-rt-sidebar-group
         aria-expanded="{{ $active ? 'true' : 'false' }}"
         {{ $attributes->class($classes) }}
     >

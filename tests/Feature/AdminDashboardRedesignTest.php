@@ -256,12 +256,13 @@ class AdminDashboardRedesignTest extends TestCase
         $this->assertStringContainsString('html.dark [data-admin-dashboard] .rt-admin-operations-card', $styles);
         $this->assertStringContainsString('html.dark [data-admin-dashboard] .rt-admin-quick-link', $styles);
         $this->assertStringContainsString('body[data-mode="dark"] [data-admin-dashboard] .rt-admin-quick-link', $styles);
-        $this->assertStringContainsString('background-color: #111827 !important', $styles);
-        $this->assertStringContainsString('background-color: #172033 !important', $styles);
+        $this->assertStringContainsString('background-color: #111a27 !important', $styles);
+        $this->assertStringContainsString('background-color: #182435 !important', $styles);
         $this->assertStringNotContainsString('lg:min-h-[25rem]', $dashboard);
         $this->assertStringNotContainsString('h-[270px] sm:h-[300px]', $dashboard);
-        $this->assertStringNotContainsString('bg-[#111827] p-5 text-white', $dashboard);
-        $this->assertStringContainsString("const activityPointBorder = dark ? '#111827' : '#ffffff'", $chartModule);
+        $this->assertStringContainsString('dark:bg-rt-dark-surface', $dashboard);
+        $this->assertStringNotContainsString('dark:bg-[#111827]', $dashboard);
+        $this->assertStringContainsString("const activityPointBorder = dark ? '#111a27' : '#ffffff'", $chartModule);
         $this->assertStringContainsString('activityAreaStart', $chartModule);
     }
 

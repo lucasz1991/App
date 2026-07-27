@@ -38,6 +38,7 @@ class InfoModalTest extends TestCase
     public function test_global_modal_can_actually_be_hidden_despite_important_display_utilities(): void
     {
         $modal = File::get(resource_path('views/components/ui/info-modal.blade.php'));
+        $welcome = File::get(resource_path('views/components/ui/welcome-intro.blade.php'));
 
         // Kern des behobenen Fehlers: die Legacy-Datei
         // public/build/css/tailwind.min.css setzt .flex{display:flex!important}.
@@ -46,6 +47,8 @@ class InfoModalTest extends TestCase
         // nicht schliessen. Nur x-show.important setzt display:none !important.
         $this->assertStringContainsString('x-show.important="open"', $modal);
         $this->assertStringNotContainsString('x-show="open"', $modal);
+        $this->assertStringContainsString('x-show.important="open"', $welcome);
+        $this->assertStringNotContainsString('x-show="open"', $welcome);
 
         // Vor der Alpine-Initialisierung verborgen halten.
         $this->assertStringContainsString('x-cloak', $modal);
