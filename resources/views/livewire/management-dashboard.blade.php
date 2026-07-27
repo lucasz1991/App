@@ -25,7 +25,7 @@
             </x-slot:aside>
 
             <x-slot:metrics>
-                <div class="grid grid-cols-2 gap-2 sm:gap-4 xl:grid-cols-4" data-anim-stagger>
+                <div class="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4" data-anim-stagger>
                     <x-ui.dashboard.stat-card :compact-mobile="true" :label="__('app.total_users')" :value="number_format($totalUsers, 0, ',', '.')">
                         <i data-feather="users" class="h-4 w-4 sm:h-5 sm:w-5"></i>
                     </x-ui.dashboard.stat-card>

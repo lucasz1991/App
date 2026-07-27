@@ -42,7 +42,7 @@ class MobileAdminCommunicationUiTest extends TestCase
         $this->assertGreaterThanOrEqual(4, substr_count($adminDashboard, 'data-dashboard-count'));
 
         $this->assertStringContainsString('data-management-dashboard', $managementDashboard);
-        $this->assertStringContainsString('grid grid-cols-2 gap-2 sm:gap-4 xl:grid-cols-4', $managementDashboard);
+        $this->assertStringContainsString('grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4', $managementDashboard);
         $this->assertStringContainsString('grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-4', $managementDashboard);
         $this->assertSame(4, substr_count($managementDashboard, ':compact-mobile="true"'));
 
