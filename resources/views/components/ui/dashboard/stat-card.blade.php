@@ -7,54 +7,50 @@
 
 @php
     $toneClasses = match ($tone) {
-        'emerald' => 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300',
-        'red' => 'bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent',
-        'violet' => 'bg-violet-50 text-violet-600 dark:bg-violet-500/10 dark:text-violet-300',
-        default => 'bg-sky-50 text-sky-600 dark:bg-sky-500/10 dark:text-sky-300',
+        'red', 'brand' => 'bg-rt-accent-soft text-rt-accent ring-rt-accent/10 dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent dark:ring-rt-dark-accent/15',
+        'success' => 'bg-emerald-50 text-emerald-700 ring-emerald-600/10 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-400/15',
+        'warning' => 'bg-amber-50 text-amber-700 ring-amber-600/10 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-400/15',
+        'danger' => 'bg-rose-50 text-rose-700 ring-rose-600/10 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-400/15',
+        default => 'bg-rt-surface-muted text-rt-muted ring-rt-border/70 dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted dark:ring-rt-dark-border/70',
     };
 
-    $shellClasses = $compactMobile
-        ? 'min-w-0 rounded-xl bg-rt-surface-muted p-1 shadow-rt-sm ring-1 ring-rt-border/60 sm:rounded-2xl sm:p-1.5 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60'
-        : 'rounded-2xl bg-rt-surface-muted p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60';
-
-    $innerClasses = $compactMobile
-        ? 'flex min-h-[6rem] items-center justify-center rounded-[calc(.75rem-2px)] bg-rt-surface px-2 py-2.5 sm:min-h-0 sm:justify-start sm:rounded-[calc(1rem-2px)] sm:p-5 dark:bg-rt-dark-surface'
-        : 'rounded-[calc(1rem-2px)] bg-rt-surface p-5 dark:bg-rt-dark-surface';
+    $cardClasses = $compactMobile
+        ? 'min-h-[4.75rem] px-2.5 py-3 sm:min-h-[6rem] sm:px-4 sm:py-4'
+        : 'min-h-[6rem] px-4 py-4';
 
     $themeTone = match ($tone) {
-        'emerald' => 'green',
-        'violet' => 'purple',
-        default => $tone,
+        'red', 'brand' => 'brand',
+        'success' => 'success',
+        'warning' => 'warning',
+        'danger' => 'danger',
+        default => 'neutral',
     };
 @endphp
 
-{{-- Double-bezel: aeussere Schale + innerer Kern (Designsprache v2) --}}
-<div {{ $attributes->merge(['class' => 'rt-ui-surface-muted ' . $shellClasses]) }}>
-    <div class="rt-ui-surface {{ $innerClasses }}">
-        <div @class([
-            'flex items-center gap-4',
-            'w-full min-w-0 flex-col gap-1 text-center sm:flex-row sm:gap-4 sm:text-left' => $compactMobile,
-        ])>
-            <span data-rt-tone="{{ $themeTone }}" @class([
-                'rt-ui-badge flex shrink-0 items-center justify-center rounded-lg',
-                'h-12 w-12' => ! $compactMobile,
-                'h-8 w-8 sm:h-12 sm:w-12' => $compactMobile,
-                $toneClasses,
+<article
+    {{ $attributes->class('rt-ui-surface relative flex min-w-0 items-center overflow-hidden rounded-2xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/70 '.$cardClasses.' dark:bg-rt-dark-surface dark:ring-rt-dark-border/70') }}
+    data-rt-tone="{{ $themeTone }}"
+>
+    <div class="flex w-full min-w-0 items-center gap-2.5 sm:gap-3.5">
+        <span class="rt-ui-badge flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset sm:h-10 sm:w-10 {{ $toneClasses }}" aria-hidden="true">
+            {{ $slot }}
+        </span>
+
+        <dl class="min-w-0 flex-1">
+            <dt @class([
+                'text-pretty text-[10px] font-semibold uppercase leading-[1.25] tracking-[0.08em] text-rt-muted dark:text-rt-dark-muted',
+                'sm:text-xs' => $compactMobile,
+                'sm:text-sm sm:normal-case sm:tracking-normal' => ! $compactMobile,
             ])>
-                {{ $slot }}
-            </span>
-            <div class="min-w-0">
-                <p @class([
-                    'text-rt-muted dark:text-rt-dark-muted',
-                    'text-sm' => ! $compactMobile,
-                    'min-h-[1.625rem] text-pretty text-[10px] font-medium leading-[1.25] sm:min-h-0 sm:text-sm sm:font-normal sm:leading-normal' => $compactMobile,
-                ])>{{ $label }}</p>
-                <p @class([
-                    'font-semibold tracking-tight tabular-nums text-rt-text dark:text-rt-dark-text',
-                    'text-3xl' => ! $compactMobile,
-                    'text-xl leading-none sm:text-3xl sm:leading-normal' => $compactMobile,
-                ])>{{ $value }}</p>
-            </div>
-        </div>
+                {{ $label }}
+            </dt>
+            <dd @class([
+                'mt-1 truncate font-bold leading-none tabular-nums tracking-[-0.035em] text-rt-text dark:text-rt-dark-text',
+                'text-xl sm:text-2xl' => $compactMobile,
+                'text-3xl' => ! $compactMobile,
+            ])>
+                {{ $value }}
+            </dd>
+        </dl>
     </div>
-</div>
+</article>

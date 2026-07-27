@@ -1,6 +1,3 @@
-<button   {!! $attributes->merge(['class' => 'rt-ui-button rt-ui-button-primary transition-all duration-300 ease-rt-spring inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold leading-none text-center bg-rt-red text-white dark:text-white shadow-rt-xs hover:bg-rt-red-dark hover:shadow-rt-glow hover:-translate-y-px active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-rt-red/40 focus:ring-offset-2 dark:focus:ring-offset-slate-900 disabled:opacity-50 waves-effect [&>i]:shrink-0 [&>i]:leading-none [&>svg]:h-[1em] [&>svg]:w-[1em] [&>svg]:shrink-0']) !!} x-data="{ isClicked: false }"
-    @click="isClicked = true; setTimeout(() => isClicked = false, 100)"
-    style="transform:scale(1);"
-    :style="isClicked ? 'transform:scale(0.9);' : ''">
-    {{ $slot }}   
+<button {!! $attributes->merge(['class' => 'rt-ui-button rt-ui-button-primary inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-rt-red px-4 py-2 text-center text-sm font-semibold leading-none text-white shadow-rt-xs transition-all duration-200 ease-rt-spring hover:-translate-y-px hover:bg-rt-red-dark hover:shadow-rt-glow active:translate-y-0 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-rt-red/40 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 dark:text-white dark:focus:ring-offset-slate-900 [&>i]:shrink-0 [&>i]:leading-none [&>svg]:h-[1em] [&>svg]:w-[1em] [&>svg]:shrink-0']) !!}>
+    {{ $slot }}
 </button>

@@ -75,21 +75,13 @@ $interactiveAttributes = $attributesWithoutTitle->filter(function ($value, $key)
     <a {!! $interactiveAttributes->merge(['class' => $classes]) !!}
         @if($title) title="{{ $title }}" @endif
         @if($isDisabled) aria-disabled="true" tabindex="-1" x-on:click.prevent.stop @endif
-        x-data="{ isClicked: false }" 
-        @click="isClicked = true; setTimeout(() => isClicked = false, 100)"
-        style="transform:scale(1);"
-        :style="isClicked ? 'transform:scale(0.9);' : ''"
         >
         {{ $slot }}
     </a>
 @else
     <button {!! $attributesWithoutTitle->merge(['class' => $classes]) !!}
         @if($title) title="{{ $title }}" @endif
-        @if($isDisabled) disabled @endif
-        x-data="{ isClicked: false }" 
-        @click="isClicked = true; setTimeout(() => isClicked = false, 100)"
-        style="transform:scale(1);"
-        :style="isClicked ? 'transform:scale(0.9);' : ''">
+        @if($isDisabled) disabled @endif>
         {{ $slot }}
     </button>
 @endif

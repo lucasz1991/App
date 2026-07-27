@@ -132,7 +132,7 @@ class AdminDashboardRedesignTest extends TestCase
         $this->assertTrue($recentUsers->every(fn (User $user): bool => $user->role !== 'admin'));
     }
 
-    public function test_admin_render_contains_animated_charts_and_management_render_hides_system_data(): void
+    public function test_admin_render_contains_animated_charts_and_management_render_shows_context_without_system_data(): void
     {
         $owner = User::factory()->create(['role' => 'admin']);
         $administrators = $this->createTeam($owner, 'Administratoren');
@@ -156,7 +156,7 @@ class AdminDashboardRedesignTest extends TestCase
 
         Livewire::actingAs($managementUser)
             ->test(UserDashboard::class)
-            ->assertDontSee(__('app.management_dashboard_description'))
+            ->assertSee(__('app.management_dashboard_description'))
             ->assertDontSee('data-system-dashboard', escape: false)
             ->assertDontSee('Lucas M. Zacharias')
             ->assertDontSee('Laravel');
@@ -179,7 +179,8 @@ class AdminDashboardRedesignTest extends TestCase
         $this->assertStringNotContainsString('bg-white/[0.06]', $dashboard);
         $this->assertStringNotContainsString('bg-white/[0.07]', $dashboard);
         $this->assertStringContainsString('.rt-admin-panel', $styles);
-        $this->assertStringContainsString('border: 1px solid #d5dee9', $styles);
+        $this->assertStringContainsString('background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%)', $styles);
+        $this->assertStringContainsString('border: 1px solid rgba(203, 213, 225, 0.78)', $styles);
         $this->assertStringContainsString('data-dashboard-progress', $dashboard);
         $this->assertStringNotContainsString('data-dashboard-delay', $dashboard);
         $this->assertStringNotContainsString('transition-[width]', $dashboard);
@@ -216,7 +217,7 @@ class AdminDashboardRedesignTest extends TestCase
         $this->assertStringContainsString('body[data-mode="dark"] [data-admin-dashboard] .rt-admin-hero-secondary', $styles);
     }
 
-    public function test_admin_dashboard_is_compact_theme_aware_and_places_operations_before_kpis(): void
+    public function test_admin_dashboard_is_compact_theme_aware_and_visually_prioritises_kpis_before_operations(): void
     {
         $dashboard = file_get_contents(resource_path('views/livewire/admin/dashboard.blade.php'));
         $chartModule = file_get_contents(resource_path('js/admin-dashboard-echarts.js'));
@@ -228,8 +229,12 @@ class AdminDashboardRedesignTest extends TestCase
         $this->assertIsInt($growthChartPosition);
         $this->assertIsInt($operationalPreviewPosition);
         $this->assertIsInt($kpiPosition);
+        // Die DOM-Reihenfolge bleibt fuer die bestehende Segment-Timeline stabil.
+        // CSS Grid priorisiert die Kennzahlen visuell direkt nach dem Hero.
         $this->assertLessThan($kpiPosition, $operationalPreviewPosition);
         $this->assertLessThan($growthChartPosition, $operationalPreviewPosition);
+        $this->assertStringContainsString('order-2 grid grid-cols-2', $dashboard);
+        $this->assertStringContainsString('order-3 relative', $dashboard);
         // Zwei-Panel-Wachstumschart (Linie + Registrierungs-Balken) braucht
         // etwas mehr Hoehe als das fruehere Einzel-Panel.
         $this->assertStringContainsString('h-[236px] sm:h-[252px]', $dashboard);

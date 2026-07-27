@@ -57,6 +57,23 @@ class SharedUiDarkModeTest extends TestCase
         $this->assertStringNotContainsString('wire:click="destroy"', $dropdown);
     }
 
+    public function test_shared_buttons_use_css_feedback_without_per_button_alpine_timers(): void
+    {
+        $templates = [
+            resource_path('views/components/button.blade.php'),
+            resource_path('views/components/secondary-button.blade.php'),
+            resource_path('views/components/ui/buttons/button-basic.blade.php'),
+        ];
+
+        foreach ($templates as $template) {
+            $source = file_get_contents($template);
+
+            $this->assertStringContainsString('active:scale-[0.98]', $source);
+            $this->assertStringNotContainsString('scale(0.9)', $source);
+            $this->assertStringNotContainsString('setTimeout', $source);
+        }
+    }
+
     public function test_theme_contract_supports_both_runtime_signals_and_component_states(): void
     {
         $styles = file_get_contents(resource_path('css/app.css'));

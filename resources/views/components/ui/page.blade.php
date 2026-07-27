@@ -39,6 +39,7 @@
         <x-ui.page-header
             :title="$title"
             :eyebrow="$eyebrow"
+            :description="$description"
             :count="$count"
             :help="$help"
         >

@@ -12,10 +12,10 @@
         ],
     ]);
     $previewToneClasses = [
-        'red' => 'border-rose-200 bg-rose-50 text-rt-red dark:border-rose-700 dark:bg-rose-900 dark:text-rose-200',
-        'amber' => 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900 dark:text-amber-200',
-        'blue' => 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-700 dark:bg-sky-900 dark:text-sky-200',
-        'emerald' => 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-900 dark:text-emerald-200',
+        'red' => 'border-slate-200 bg-slate-100 text-rt-red dark:border-slate-700 dark:bg-slate-800 dark:text-rt-dark-accent',
+        'amber' => 'border-slate-200 bg-slate-100 text-rt-red dark:border-slate-700 dark:bg-slate-800 dark:text-rt-dark-accent',
+        'blue' => 'border-slate-200 bg-slate-100 text-rt-red dark:border-slate-700 dark:bg-slate-800 dark:text-rt-dark-accent',
+        'emerald' => 'border-slate-200 bg-slate-100 text-rt-red dark:border-slate-700 dark:bg-slate-800 dark:text-rt-dark-accent',
     ];
 @endphp
 
@@ -27,12 +27,12 @@
     @endif
 
     <div
-        class="min-w-0 space-y-3 sm:space-y-4"
+        class="grid min-w-0 gap-3 sm:gap-4"
         x-data="adminDashboardCharts(@js($chartConfig))"
         data-admin-dashboard
     >
         {{-- Markanter Einstieg statt eines generischen Seitenkopfs. --}}
-        <section class="rt-admin-hero relative overflow-hidden rounded-2xl px-4 py-4 text-rt-text shadow-rt-md sm:px-6 sm:py-5 lg:px-7 dark:text-white" data-dashboard-segment="hero">
+        <section class="rt-admin-hero order-1 relative overflow-hidden rounded-[1.4rem] px-4 py-4 text-rt-text shadow-rt-md sm:px-6 sm:py-5 lg:px-7 dark:text-white" data-dashboard-segment="hero">
             <svg class="pointer-events-none absolute -right-20 bottom-0 h-full w-[58%] opacity-70" viewBox="0 0 720 360" fill="none" aria-hidden="true">
                 <path class="rt-admin-route-bed" d="M42 306C130 276 132 191 220 176C314 160 338 263 431 233C515 205 501 105 680 58" stroke-width="34" stroke-linecap="round" />
                 <path class="rt-admin-route-line" d="M42 306C130 276 132 191 220 176C314 160 338 263 431 233C515 205 501 105 680 58" stroke="#e4002b" stroke-width="3" stroke-linecap="round" />
@@ -115,7 +115,7 @@
 
         @if (auth()->user()?->role === 'admin')
             <section
-                class="rt-admin-operations-stage relative overflow-hidden rounded-2xl"
+                class="rt-admin-operations-stage order-3 relative overflow-hidden rounded-[1.4rem]"
                 aria-labelledby="operational-preview-heading"
                 data-dashboard-segment="operations"
             >
@@ -167,8 +167,8 @@
         @endif
 
         {{-- Vier gleichwertige Kennzahlen in einer durchgehenden Zeile. --}}
-        <section class="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-2.5" aria-label="{{ __('app.dashboard') }}" data-dashboard-segment="kpis" data-dashboard-kpis data-dashboard-items>
-            <article class="rt-admin-panel rt-admin-panel-accent group relative min-w-0 overflow-hidden rounded-xl p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md sm:p-3.5">
+        <section class="order-2 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-2.5" aria-label="{{ __('app.dashboard') }}" data-dashboard-segment="kpis" data-dashboard-kpis data-dashboard-items>
+            <article class="rt-admin-panel rt-admin-panel-accent group relative min-w-0 overflow-hidden rounded-[1.15rem] p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md sm:p-3.5">
                 <div class="flex items-center justify-between gap-1.5">
                     <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-rt-red dark:border-slate-700 dark:bg-slate-800"><i data-feather="users" class="h-3.5 w-3.5"></i></span>
                     <span class="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-1 text-[9px] font-semibold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 sm:text-[10px]">
@@ -187,19 +187,19 @@
                 </div>
             </article>
 
-            <article class="rt-admin-panel min-w-0 rounded-xl p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md sm:p-3.5">
+            <article class="rt-admin-panel min-w-0 rounded-[1.15rem] p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md sm:p-3.5">
                 <span class="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"><i data-feather="user-check" class="h-3.5 w-3.5"></i></span>
                 <p class="mt-2.5 text-pretty text-[10px] leading-4 text-rt-muted dark:text-rt-dark-muted sm:text-xs">{{ __('app.active_users') }}</p>
                 <p class="mt-1 text-xl font-semibold tabular-nums text-rt-text dark:text-white sm:text-2xl" data-dashboard-count="{{ $activeUsers }}">{{ number_format($activeUsers, 0, ',', '.') }}</p>
             </article>
 
-            <article class="rt-admin-panel min-w-0 rounded-xl p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md sm:p-3.5">
+            <article class="rt-admin-panel min-w-0 rounded-[1.15rem] p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md sm:p-3.5">
                 <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent"><i data-feather="briefcase" class="h-3.5 w-3.5"></i></span>
                 <p class="mt-2.5 text-pretty text-[10px] leading-4 text-rt-muted dark:text-rt-dark-muted sm:text-xs">{{ __('app.employees') }}</p>
                 <p class="mt-1 text-xl font-semibold tabular-nums text-rt-text dark:text-white sm:text-2xl" data-dashboard-count="{{ $totalEmployees }}">{{ number_format($totalEmployees, 0, ',', '.') }}</p>
             </article>
 
-            <article class="rt-admin-panel min-w-0 rounded-xl p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md sm:p-3.5">
+            <article class="rt-admin-panel min-w-0 rounded-[1.15rem] p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md sm:p-3.5">
                 <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-200"><i data-feather="layers" class="h-3.5 w-3.5"></i></span>
                 <p class="mt-2.5 text-pretty text-[10px] leading-4 text-rt-muted dark:text-rt-dark-muted sm:text-xs">{{ __('app.teams_rbac') }}</p>
                 <p class="mt-1 text-xl font-semibold tabular-nums text-rt-text dark:text-white sm:text-2xl" data-dashboard-count="{{ $totalTeams }}">{{ number_format($totalTeams, 0, ',', '.') }}</p>
@@ -207,7 +207,7 @@
         </section>
 
         {{-- Feine SVG-Diagramme mit Apache ECharts 6. --}}
-        <section class="grid gap-3 md:grid-cols-12" aria-label="{{ __('app.user_growth') }}" data-dashboard-segment="charts" data-dashboard-items>
+        <section class="order-4 grid gap-3 md:grid-cols-12" aria-label="{{ __('app.user_growth') }}" data-dashboard-segment="charts" data-dashboard-items>
             <article class="rt-admin-panel overflow-hidden rounded-2xl p-4 md:col-span-8 xl:col-span-6">
                 <header class="flex flex-wrap items-start justify-between gap-3">
                     <div>
@@ -255,7 +255,7 @@
             </article>
         </section>
 
-        <section class="grid gap-3 md:grid-cols-12" data-dashboard-segment="accounts" data-dashboard-items>
+        <section class="order-5 grid gap-3 md:grid-cols-12" data-dashboard-segment="accounts" data-dashboard-items>
             {{-- Neueste Benutzer --}}
             <article class="rt-admin-panel rounded-2xl md:col-span-8">
                 <header class="flex items-center justify-between gap-4 border-b border-slate-200 px-4 py-3.5 sm:px-5 dark:border-slate-700">
@@ -324,7 +324,7 @@
             </article>
         </section>
 
-        <section class="grid gap-3 {{ $canViewSystemData && $system ? 'md:grid-cols-12' : '' }}" data-dashboard-segment="system" data-dashboard-items>
+        <section class="order-6 grid gap-3 {{ $canViewSystemData && $system ? 'md:grid-cols-12' : '' }}" data-dashboard-segment="system" data-dashboard-items>
             <article class="rt-admin-panel rounded-2xl p-4 {{ $canViewSystemData && $system ? 'md:col-span-5' : '' }}">
                 <div class="flex items-center justify-between gap-3">
                     <div>
