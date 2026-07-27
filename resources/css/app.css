@@ -650,6 +650,143 @@ body[data-mode="dark"] .rt-toast__message { color: #aeb9c9; }
         0 16px 34px -28px rgba(0, 0, 0, 0.9);
 }
 
+/*
+ * Vengeance-Glow: zeigergefuehrtes Akzentlicht auf den Dashboard-Karten.
+ * resources/js/vengeance-motion.js setzt --rt-glow-x/--rt-glow-y/--rt-glow-o
+ * per Pointer-Delegation; ohne JS, auf Touch oder bei reduzierter Motion
+ * bleibt der ruhige Grundzustand vollstaendig erhalten.
+ */
+.rt-admin-panel,
+.rt-admin-live-card,
+.rt-admin-operations-card,
+.rt-admin-quick-link,
+.rt-operational-stat,
+[data-rt-glow] {
+    position: relative;
+}
+
+.rt-admin-panel::after,
+.rt-admin-live-card::after,
+.rt-admin-operations-card::after,
+.rt-admin-quick-link::after,
+.rt-operational-stat::after,
+[data-rt-glow]::after {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(
+        11rem circle at var(--rt-glow-x, 50%) var(--rt-glow-y, 50%),
+        rgba(228, 0, 43, 0.07),
+        transparent 62%
+    );
+    content: '';
+    opacity: var(--rt-glow-o, 0);
+    pointer-events: none;
+    transition: opacity 260ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .rt-admin-panel:hover,
+    .rt-operational-stat:hover,
+    [data-rt-glow]:hover {
+        border-color: rgba(228, 0, 43, 0.32);
+    }
+}
+
+html.dark .rt-admin-panel::after,
+html.dark .rt-admin-live-card::after,
+html.dark .rt-admin-operations-card::after,
+html.dark .rt-admin-quick-link::after,
+html.dark .rt-operational-stat::after,
+html.dark [data-rt-glow]::after,
+body[data-mode="dark"] .rt-admin-panel::after,
+body[data-mode="dark"] .rt-admin-live-card::after,
+body[data-mode="dark"] .rt-admin-operations-card::after,
+body[data-mode="dark"] .rt-admin-quick-link::after,
+body[data-mode="dark"] .rt-operational-stat::after,
+body[data-mode="dark"] [data-rt-glow]::after {
+    background: radial-gradient(
+        11rem circle at var(--rt-glow-x, 50%) var(--rt-glow-y, 50%),
+        rgba(255, 113, 137, 0.09),
+        transparent 62%
+    );
+}
+
+@media (hover: hover) and (pointer: fine) {
+    html.dark .rt-admin-panel:hover,
+    html.dark .rt-operational-stat:hover,
+    html.dark [data-rt-glow]:hover,
+    body[data-mode="dark"] .rt-admin-panel:hover,
+    body[data-mode="dark"] .rt-operational-stat:hover,
+    body[data-mode="dark"] [data-rt-glow]:hover {
+        border-color: rgba(255, 113, 137, 0.3);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rt-admin-panel::after,
+    .rt-admin-live-card::after,
+    .rt-admin-operations-card::after,
+    .rt-admin-quick-link::after,
+    .rt-operational-stat::after,
+    [data-rt-glow]::after {
+        transition: none;
+    }
+}
+
+/*
+ * Chart-Skeleton: ECharts laedt lazy per dynamic import — bis zum ersten
+ * Render zeigen die leeren .rt-admin-chart-Container einen ruhigen Shimmer
+ * statt einer weissen Flaeche. Sobald ECharts sein DOM einhaengt, greift
+ * :empty nicht mehr und der Skeleton verschwindet ohne JS-Aufwand.
+ */
+.rt-admin-chart:empty {
+    border-radius: 0.75rem;
+    background:
+        linear-gradient(
+            100deg,
+            transparent 32%,
+            rgba(148, 163, 184, 0.14) 46%,
+            rgba(148, 163, 184, 0.22) 50%,
+            rgba(148, 163, 184, 0.14) 54%,
+            transparent 68%
+        ),
+        linear-gradient(180deg, rgba(241, 245, 249, 0.9), rgba(248, 250, 252, 0.55));
+    background-size: 220% 100%, 100% 100%;
+    animation: rt-skeleton-sweep 1.6s ease-in-out infinite;
+}
+
+html.dark .rt-admin-chart:empty,
+body[data-mode="dark"] .rt-admin-chart:empty {
+    background:
+        linear-gradient(
+            100deg,
+            transparent 32%,
+            rgba(174, 185, 201, 0.09) 46%,
+            rgba(174, 185, 201, 0.14) 50%,
+            rgba(174, 185, 201, 0.09) 54%,
+            transparent 68%
+        ),
+        linear-gradient(180deg, rgba(24, 36, 53, 0.85), rgba(13, 22, 36, 0.55));
+    background-size: 220% 100%, 100% 100%;
+}
+
+@keyframes rt-skeleton-sweep {
+    from {
+        background-position: 120% 0, 0 0;
+    }
+
+    to {
+        background-position: -120% 0, 0 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rt-admin-chart:empty {
+        animation: none;
+    }
+}
+
 /* Betriebssteuerungs-Karten: beim Hover faehrt eine Akzentlinie an der
    Oberkante ein — Feedback ohne Layout-Verschiebung im gap-px-Raster. */
 .rt-admin-operations-stage {
@@ -2818,7 +2955,9 @@ body[data-mode='dark'] .rt-nav-loader {
     border: 2px solid rgba(255, 255, 255, 0.92);
     border-radius: 9999px;
     background: #e4002b;
-    box-shadow: 0 0 0 5px rgba(228, 0, 43, 0.12);
+    box-shadow:
+        0 0 0 5px rgba(228, 0, 43, 0.12),
+        0 0 16px 3px rgba(228, 0, 43, 0.4);
     will-change: transform;
 }
 

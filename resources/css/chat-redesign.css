@@ -259,6 +259,12 @@ body[data-mode='dark'] .rt-chat-page {
     transform: translateY(-1px);
 }
 
+/* Livewire-Suchlauf: die Liste dimmt ruhig, statt kommentarlos zu stehen. */
+.rt-chat-list--searching {
+    opacity: 0.55;
+    transition: opacity 160ms ease;
+}
+
 .rt-chat-list-item {
     position: relative;
     border: 1px solid transparent;
@@ -780,19 +786,88 @@ body[data-mode='dark'] .rt-chat-message--own .rt-chat-message-meta {
     .rt-chat-composer {
         padding-bottom: max(0.625rem, env(safe-area-inset-bottom));
     }
-}
 
-@media (max-width: 359.98px) {
+    /*
+     * App-Vollflaeche: unter 768px verschwinden Rand, Radius und Schatten der
+     * Chat-Karte — der Messenger fuellt den Pane-Slot randlos wie eine native
+     * App. Die Tailwind-Paddings im Blade ('px-3 pb-3 pt-4') bleiben bewusst
+     * stehen (Testvertrag MobileAdminCommunicationUiTest); diese spaeter
+     * geladenen Regeln gewinnen die Kaskade.
+     */
     .rt-chat-page {
-        padding-right: 0.375rem !important;
-        padding-bottom: 0.375rem !important;
-        padding-left: 0.375rem !important;
+        padding: 0 !important;
     }
 
     .rt-chat-shell {
-        border-radius: 1rem !important;
+        border: 0;
+        border-radius: 0 !important;
+        background: var(--chat-panel);
+        /* !important kontert die Utility-Schatten (shadow-rt-lg) des Blades. */
+        box-shadow: none !important;
     }
 
+    .rt-chat-shell::before {
+        display: none;
+    }
+
+    /* Suchfeld als ruhige Leiste statt schwebender Karte */
+    .rt-chat-search {
+        box-shadow: none;
+    }
+
+    .rt-chat-search:focus-within {
+        box-shadow: 0 0 0 4px color-mix(in srgb, var(--chat-accent) 12%, transparent);
+        transform: none;
+    }
+
+    /* Chatliste als randlose Zeilen mit Hairline-Trenner statt Einzelkarten */
+    .rt-chat-list {
+        padding-right: 0 !important;
+        padding-left: 0 !important;
+    }
+
+    .rt-chat-list-item {
+        border-radius: 0 !important;
+        border-right: 0;
+        border-left: 0;
+        border-bottom: 1px solid color-mix(in srgb, var(--chat-line) 44%, transparent);
+        padding-right: 1rem !important;
+        padding-left: 1rem !important;
+    }
+
+    .rt-chat-list-item:hover {
+        border-color: transparent;
+        border-bottom-color: color-mix(in srgb, var(--chat-line) 44%, transparent);
+        transform: none;
+    }
+
+    .rt-chat-list-item.is-active {
+        border-color: transparent;
+        border-bottom-color: color-mix(in srgb, var(--chat-line) 44%, transparent);
+        box-shadow: none;
+    }
+
+    .rt-chat-list-item::before {
+        left: 0;
+    }
+
+    /* Kopf und Composer als flache App-Leisten ohne Glas-Schatten */
+    .rt-chat-conversation-header {
+        background: var(--chat-panel);
+        box-shadow: none;
+        backdrop-filter: none;
+    }
+
+    .rt-chat-composer {
+        background: var(--chat-panel);
+        box-shadow: none;
+        backdrop-filter: none;
+    }
+}
+
+@media (max-width: 359.98px) {
+    /* Kleinste Geraete erben die randlose App-Vollflaeche aus dem
+       767.98px-Block; hier bleiben nur die Dichte-Anpassungen. */
     .rt-chat-list-header {
         padding-right: 0.75rem;
         padding-left: 0.75rem;

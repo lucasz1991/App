@@ -28,8 +28,9 @@
 @endphp
 
 <article
-    {{ $attributes->class('rt-ui-surface relative flex min-w-0 items-center overflow-hidden rounded-2xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/70 '.$cardClasses.' dark:bg-rt-dark-surface dark:ring-rt-dark-border/70') }}
+    {{ $attributes->class('rt-ui-surface relative flex min-w-0 items-center overflow-hidden rounded-2xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/70 motion-safe:transition motion-safe:duration-300 motion-safe:ease-rt-spring motion-safe:hover:-translate-y-0.5 motion-safe:hover:shadow-rt-md '.$cardClasses.' dark:bg-rt-dark-surface dark:ring-rt-dark-border/70') }}
     data-rt-tone="{{ $themeTone }}"
+    data-rt-glow
 >
     <div class="flex w-full min-w-0 items-center gap-2.5 sm:gap-3.5">
         <span class="rt-ui-badge flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset sm:h-10 sm:w-10 {{ $toneClasses }}" aria-hidden="true">

@@ -152,3 +152,17 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
         // aber weiterhin über die Komponente das Admin-Layout.
         Route::get('/messages', MessageBox::class)->name('messages');
     });
+
+/*
+| TEMPORAER (Claude, 2026-07-27): Lokaler Dev-Login fuer den visuellen
+| Browser-Smoke-Test des Vengeance-Redesigns. Nur in APP_ENV=local
+| registriert, tokengebunden, wird vor dem Commit wieder entfernt.
+*/
+if (app()->environment('local')) {
+    Route::get('/__dev-login/{token}', function (string $token) {
+        abort_unless(hash_equals('565d65f69a666b13fa1efdff56e56862', $token), 404);
+        \Illuminate\Support\Facades\Auth::loginUsingId(1);
+        request()->session()->regenerate();
+        return redirect('/');
+    });
+}

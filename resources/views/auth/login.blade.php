@@ -33,5 +33,14 @@
             </x-button>
         </form>
 
+        {{-- TEMPORAER (Claude, 2026-07-27): Dev-Login nur in APP_ENV=local fuer den
+             Browser-Smoke-Test des Vengeance-Redesigns; wird vor dem Commit entfernt. --}}
+        @if (app()->environment('local'))
+            <a href="{{ url('/__dev-login/565d65f69a666b13fa1efdff56e56862') }}" data-dev-login
+                class="mt-5 block w-full rounded-lg border border-dashed border-amber-400 bg-amber-50 px-4 py-2.5 text-center text-sm font-semibold text-amber-700">
+                Dev-Login (nur lokal)
+            </a>
+        @endif
+
     </x-auth-brand-layout>
 </x-guest-layout>

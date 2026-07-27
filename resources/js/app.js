@@ -18,6 +18,8 @@ import Swiper from 'swiper';
 import 'swiper/css';
 // GSAP-Setup (window.gsap/ScrollTrigger + deklarative data-anim-Reveals)
 import './gsap';
+// Vengeance-Motion (zeigergefuehrter Karten-Glow, Optik in app.css)
+import './vengeance-motion';
 import { wagonListPrototype } from './wagon-list-prototype';
 import { numberInput } from './number-input';
 import { registerRailtimePushSettings, setupRailtimePwa } from './pwa';
