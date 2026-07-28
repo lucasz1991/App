@@ -1779,12 +1779,20 @@ function initActiveMenu(sideMenu = document.getElementById('side-menu')) {
 
     const pageUrl = window.location.href.split(/[?#]/)[0];
     const menuItems = Array.from(sideMenu.querySelectorAll('a'));
+    // Gruppen-Trigger verwenden href="#". Der Browser loest dieses Attribut
+    // zur aktuellen Seiten-URL auf; dadurch galten sie bisher faelschlich als
+    // exakter Treffer und konnten neben dem echten Link aktiv bleiben.
+    const navigableItems = menuItems.filter((item) =>
+        item.matches('[data-rt-sidebar-link]')
+        && item.getAttribute('href')
+        && item.getAttribute('href') !== '#'
+    );
     const nestedLists = sideMenu.querySelectorAll('ul');
     // Livewires wire:current wird vor unserem navigated-Handler aktualisiert
     // und kennt auch Unterpfade. Das ist fuer die via @persist erhaltene
     // Sidebar die verlaessliche Quelle, wenn der Server-Link selbst nicht
     // exakt der aktuellen Detail-URL entspricht.
-    const currentMatches = menuItems.filter((item) => item.hasAttribute('data-current'));
+    const currentMatches = navigableItems.filter((item) => item.hasAttribute('data-current'));
 
     menuItems.forEach((item) => {
         item.classList.remove('active');
@@ -1798,8 +1806,8 @@ function initActiveMenu(sideMenu = document.getElementById('side-menu')) {
         list.classList.remove('mm-show');
     });
 
-    const exactMatches = menuItems.filter((item) => item.href === pageUrl);
-    const fallbackMatches = menuItems.filter((item) => item.dataset.menuActive === 'true');
+    const exactMatches = navigableItems.filter((item) => item.href.split(/[?#]/)[0] === pageUrl);
+    const fallbackMatches = navigableItems.filter((item) => item.dataset.menuActive === 'true');
     const activeItems = exactMatches.length > 0
         ? exactMatches
         : (currentMatches.length > 0 ? currentMatches : fallbackMatches);

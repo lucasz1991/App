@@ -76,7 +76,7 @@
         @if($hasStructuredSlots)
             {{-- TITLE BAR --}}
             @isset($title)
-                <header class="rt-ui-surface-muted relative shrink-0 border-b border-rt-border bg-rt-surface-muted px-5 py-4 pr-16 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted sm:px-6 sm:py-5 sm:pr-16">
+                <header class="rt-modal-header relative shrink-0 border-b border-rt-border/70 bg-rt-surface px-5 py-4 pr-16 dark:border-rt-dark-border/70 dark:bg-rt-dark-surface sm:px-6 sm:py-5 sm:pr-16">
                     <h2 id="{{ $id }}-title" class="text-balance text-lg font-semibold leading-6 tracking-tight text-rt-text dark:text-rt-dark-text">
                         {{ $title }}
                     </h2>
@@ -85,7 +85,7 @@
                         <button
                             type="button"
                             aria-label="{{ __('app.close') }}"
-                            class="rt-ui-button rt-ui-button-secondary absolute right-3 top-1/2 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl text-rt-muted transition-all duration-200 hover:bg-rt-nav-hover hover:text-rt-text active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40 dark:text-rt-dark-muted dark:hover:bg-rt-dark-nav-hover dark:hover:text-white sm:right-4"
+                            class="absolute right-3 top-1/2 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-xl text-rt-muted transition hover:bg-rt-nav-hover hover:text-rt-text focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-accent/15 dark:text-rt-dark-muted dark:hover:bg-rt-dark-nav-hover dark:hover:text-rt-dark-text sm:right-4"
                             @click="close()"
                         >
                             <svg
@@ -119,7 +119,7 @@
 
             {{-- FOOTER --}}
             @isset($footer)
-                <footer class="rt-ui-surface-muted flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-rt-border bg-rt-surface-muted px-5 py-4 text-end dark:border-rt-dark-border dark:bg-rt-dark-surface-muted sm:px-6 [&>*]:max-w-full">
+                <footer class="rt-modal-footer flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-rt-border/70 bg-rt-surface-muted/55 px-5 py-4 text-end dark:border-rt-dark-border/70 dark:bg-rt-dark-surface-muted/35 sm:px-6 [&>*]:max-w-full">
                     {{ $footer }}
                 </footer>
             @endisset

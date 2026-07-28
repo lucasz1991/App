@@ -314,7 +314,7 @@ body[data-mode='dark'] .rt-tabs-v2.rt-tabs-shell {
 }
 
 [data-tabs-scrubbing='true'] .rt-tab-panel-transition {
-    transition-duration: 90ms;
+    transition-duration: 180ms;
 }
 
 @media (min-width: 768px) {

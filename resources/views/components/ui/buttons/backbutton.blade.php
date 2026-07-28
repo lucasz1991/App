@@ -1,6 +1,28 @@
-<button   {!! $attributes->merge(['class' => 'rt-ui-button rt-ui-button-secondary transition-all duration-300 ease-rt-spring inline-flex items-center justify-center bg-rt-surface dark:bg-rt-dark-surface p-4 text-base font-medium text-center text-rt-text dark:text-rt-dark-text border border-rt-border dark:border-rt-dark-border shadow-rt-xs rounded-full aspect-square hover:bg-rt-surface-muted dark:hover:bg-rt-dark-surface-muted active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-rt-red/40 focus:ring-offset-2 dark:focus:ring-offset-slate-900 ']) !!} x-data="{ isClicked: false }"
-    @click="isClicked = true; setTimeout(() => isClicked = false, 100)"
-    style="transform:scale(1);"
-    :style="isClicked ? 'transform:scale(0.9);' : ''">
-    <svg class="transform rotate-180 text-slate-500 fill-slate-500 dark:text-slate-400 dark:fill-slate-400 h-6 aspect-square" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 648.63399 645.8089"><polygon fill="currentColor" points="391.537 0 0 0 257.097 322.904 0 645.809 391.537 645.809 648.634 322.904 391.537 0"/></svg>
-</button>
+@props([
+    'href' => null,
+    'fallback' => null,
+    'label' => null,
+])
+
+@php
+    $label = $label ?: (app()->getLocale() === 'de' ? 'Zurück' : 'Back');
+    $fallback = $fallback ?: url('/');
+    $classes = 'group inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-rt-border/80 bg-rt-surface text-rt-muted shadow-rt-xs transition duration-200 ease-rt-spring hover:-translate-x-0.5 hover:border-rt-accent/25 hover:bg-rt-accent-soft hover:text-rt-accent focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-accent/15 dark:border-rt-dark-border/80 dark:bg-rt-dark-surface dark:text-rt-dark-muted dark:hover:bg-rt-dark-accent-soft dark:hover:text-rt-dark-accent';
+@endphp
+
+@if($href)
+    <a href="{{ $href }}" {{ $attributes->class($classes) }} aria-label="{{ $label }}" title="{{ $label }}">
+        <i class="far fa-arrow-left text-sm transition-transform group-hover:-translate-x-0.5" aria-hidden="true"></i>
+    </a>
+@else
+    <button
+        type="button"
+        {{ $attributes->class($classes) }}
+        x-data
+        x-on:click="window.history.length > 1 ? window.history.back() : window.location.assign(@js($fallback))"
+        aria-label="{{ $label }}"
+        title="{{ $label }}"
+    >
+        <i class="far fa-arrow-left text-sm transition-transform group-hover:-translate-x-0.5" aria-hidden="true"></i>
+    </button>
+@endif

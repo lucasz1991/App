@@ -22,18 +22,17 @@
 
     <x-ui.page
         :title="__('app.profile')"
-        :description="__('app.profile_page_description')"
-        :eyebrow="__('app.manage_account')"
     >
-        <livewire:profile.profile-identity-card />
+        <div class="space-y-4 sm:space-y-5">
+            <livewire:profile.profile-identity-card />
 
-        <x-ui.accordion.tabs
-            :tabs="$profileTabs"
-            :collapse-at="'md'"
-            :default="request('tab', 'personal')"
-            :force-default="request()->filled('tab')"
-            persist-key="own-profile.tabs"
-        >
+            <x-ui.accordion.tabs
+                :tabs="$profileTabs"
+                :collapse-at="'md'"
+                :default="request('tab', 'personal')"
+                :force-default="request()->filled('tab')"
+                persist-key="own-profile.tabs"
+            >
             <x-ui.accordion.tab-panel for="personal" panel-class="space-y-8">
                 @livewire('profile.update-contact-information-form')
             </x-ui.accordion.tab-panel>
@@ -64,6 +63,7 @@
                 @livewire('profile.logout-other-browser-sessions-form')
             </x-ui.accordion.tab-panel>
 
-        </x-ui.accordion.tabs>
+            </x-ui.accordion.tabs>
+        </div>
     </x-ui.page>
 @endsection

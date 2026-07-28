@@ -3,6 +3,8 @@
     'eyebrow' => null,
     'description' => null,
     'count' => null,
+    'backUrl' => null,
+    'showBack' => true,
     // Schluessel fuer das Gesehen-Tracking; Standard ist der Routenname.
     'pageKey' => null,
     // Beim ERSTEN Besuch die Seiteninfo automatisch oeffnen. Dashboards
@@ -45,6 +47,8 @@
             :description="$description"
             :count="$count"
             :help="$help"
+            :back-url="$backUrl"
+            :show-back="$showBack"
         >
             @isset($actions)
                 <x-slot:actions>{{ $actions }}</x-slot:actions>

@@ -62,9 +62,7 @@ $ariaLabel = $attributes->get('aria-label', config('app.name') . ' Dialog');
                             x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
                             x-transition:leave-end="opacity-0 translate-y-3 sm:translate-y-1 sm:scale-[0.99]"
                             data-rt-modal-panel>
-                <div class="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain [overflow-wrap:anywhere] [scrollbar-gutter:stable] [&>*]:max-w-full [&>*]:min-w-0 [&_iframe]:max-w-full [&_img]:max-w-full [&_video]:max-w-full">
-                    {{ $slot }}
-                </div>
+                {{ $slot }}
             </div>
         </div>
     </template>

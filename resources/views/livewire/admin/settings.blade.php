@@ -30,8 +30,9 @@
 
     {{-- System / Wartungsmodus --}}
     <section
-        class="min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 sm:p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60"
+        class="relative min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 sm:p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60"
         data-anim="fade-up"
+        data-autosave-scope
     >
         <div class="rounded-[calc(1rem-2px)] bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6" data-rt-glow>
             <div class="flex min-w-0 items-start gap-3 sm:gap-4">
@@ -73,10 +74,11 @@
          mit Sofort-Vorschau beim Auswaehlen. --}}
     <x-ui.accordion.tab-panel for="sounds" panel-class="space-y-6">
     <section
-        class="min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 sm:p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60"
+        class="relative min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 sm:p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60"
         data-anim="fade-up"
         aria-labelledby="sound-settings-heading"
         data-sound-settings
+        data-autosave-scope
     >
         <div class="rounded-[calc(1rem-2px)] bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6" data-rt-glow>
             <div class="flex min-w-0 items-start gap-3 sm:gap-4">
@@ -92,7 +94,7 @@
                     </p>
 
                     <div class="mt-4 sm:mt-5">
-                        <x-ui.forms.sound-picker model="sounds" autosave="saveSounds" />
+                        <x-ui.forms.sound-picker model="sounds" />
                     </div>
 
                     <div class="mt-5">
@@ -107,8 +109,9 @@
     {{-- Einladungen --}}
     <x-ui.accordion.tab-panel for="users" panel-class="space-y-6">
     <section
-        class="min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 sm:p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60"
+        class="relative min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 sm:p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60"
         data-anim="fade-up"
+        data-autosave-scope
     >
         <div class="rounded-[calc(1rem-2px)] bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6" data-rt-glow>
         <div class="flex min-w-0 items-start gap-3 sm:gap-4">
@@ -135,7 +138,6 @@
                             :nullable="false"
                             :unit="__('app.days')"
                             wire:model="invitationExpiryDays"
-                            wire:blur="saveInvitations"
                         />
                     </div>
                     @error('invitationExpiryDays')
@@ -158,8 +160,9 @@
     {{-- E-Mails --}}
     <x-ui.accordion.tab-panel for="general" panel-class="space-y-6">
     <section
-        class="min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 sm:p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60"
+        class="relative min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 sm:p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60"
         data-anim="fade-up"
+        data-autosave-scope
     >
         <div class="rounded-[calc(1rem-2px)] bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6" data-rt-glow>
         <div class="flex min-w-0 items-start gap-3 sm:gap-4">
@@ -184,7 +187,6 @@
                             id="admin_email"
                             placeholder="admin@rail-time.de"
                             wire:model="adminEmail"
-                            wire:blur="saveMails"
                         />
                     </div>
                     @error('adminEmail')
@@ -206,8 +208,9 @@
 
     <x-ui.accordion.tab-panel for="company" panel-class="space-y-6">
         <section
-            class="min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 sm:p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60"
+            class="relative min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 sm:p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60"
             data-anim="fade-up"
+            data-autosave-scope
         >
             <div class="rounded-[calc(1rem-2px)] bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6" data-rt-glow>
             <div class="flex min-w-0 items-start gap-3 sm:gap-4">
@@ -249,7 +252,6 @@
                                         type="{{ $type }}"
                                         autocomplete="{{ $autocomplete }}"
                                         wire:model="company.{{ $field }}"
-                                        wire:blur="saveCompany"
                                         class="mt-1.5"
                                     />
                                     @error('company.'.$field)

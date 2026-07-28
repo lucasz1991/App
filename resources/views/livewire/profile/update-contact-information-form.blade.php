@@ -32,7 +32,6 @@
                         :type="$type"
                         class="mt-1 block"
                         wire:model="{{ $field }}"
-                        wire:blur="save"
                         :autocomplete="$autocomplete"
                     />
                     <x-input-error :for="$field" class="mt-2" />
@@ -46,6 +45,7 @@
             event="contact-saved"
             target="save"
             dirty-target="first_name,last_name,phone,mobile,street,postal_code,city,country,birth_date,birth_place,birth_name,nationality,education"
+            :floating="false"
         />
     </x-slot>
 </x-form-section>

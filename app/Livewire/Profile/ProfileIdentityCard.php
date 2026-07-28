@@ -29,6 +29,7 @@ class ProfileIdentityCard extends Component
         $user = Auth::user();
 
         if ($this->name === $user->name && $this->email === $user->email) {
+            $this->dispatch('identity-saved');
             return;
         }
 
