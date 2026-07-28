@@ -12,6 +12,11 @@ $maxWidth = [
     '3xl' => 'sm:max-w-3xl',
     '4xl' => 'sm:max-w-4xl',
 ][$maxWidth ?? '2xl'];
+
+$dialogRole = $attributes->get('role', 'dialog');
+$labelledBy = $attributes->get('aria-labelledby');
+$describedBy = $attributes->get('aria-describedby');
+$ariaLabel = $attributes->get('aria-label', config('app.name') . ' Dialog');
 @endphp
 
 <div
@@ -33,7 +38,18 @@ $maxWidth = [
         <div class="absolute inset-0 bg-slate-950/55 backdrop-blur-md"></div>
     </div>
 
-    <div x-show="show" role="dialog" aria-modal="true" aria-label="{{ $attributes->get('aria-label', config('app.name') . ' Dialog') }}" class="rt-ui-surface rt-ui-modal-panel rt-modal-frame relative mb-6 overflow-hidden rounded-[1.4rem] bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-rt-border/60 transform transition-all dark:bg-rt-dark-surface dark:text-white dark:ring-rt-dark-border/60 sm:w-full {{ $maxWidth }} sm:mx-auto"
+    <div x-show="show"
+                    role="{{ $dialogRole }}"
+                    aria-modal="true"
+                    @if (filled($labelledBy))
+                        aria-labelledby="{{ $labelledBy }}"
+                    @else
+                        aria-label="{{ $ariaLabel }}"
+                    @endif
+                    @if (filled($describedBy))
+                        aria-describedby="{{ $describedBy }}"
+                    @endif
+                    class="rt-ui-surface rt-ui-modal-panel rt-modal-frame relative mb-6 overflow-hidden rounded-[1.4rem] bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-rt-border/60 transform transition-all dark:bg-rt-dark-surface dark:text-white dark:ring-rt-dark-border/60 sm:w-full {{ $maxWidth }} sm:mx-auto"
                     x-trap.inert.noscroll="show"
                     x-transition:enter="ease-out duration-200"
                     x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-2 sm:scale-[0.985]"

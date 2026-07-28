@@ -89,17 +89,33 @@ class FilePreviewModal extends Component
             return;
         }
 
-        $message = ChatMessage::query()->findOrFail($file->fileable_id);
+        $message = ChatMessage::query()
+            ->with('chat.participants')
+            ->findOrFail($file->fileable_id);
 
         // Einmal-Sprachnachrichten duerfen weder ueber die globale Vorschau
         // noch ueber deren Download-Methode am Einmal-Player vorbeigelangen.
         abort_if($message->isVoice() && $message->view_once, 403);
 
+        $user = auth()->user();
+        $chat = $message->chat;
+        $participant = $user && $chat
+            ? $chat->participantFor($user)
+            : null;
+
+        // Bewusst keine globale Gate-Freigabe: Auch Administratoren muessen
+        // sichtbare Teilnehmer des privaten Chats sein.
         abort_unless(
-            auth()->check()
-                && $message->chat()
-                    ->whereHas('participants', fn ($query) => $query->where('users.id', auth()->id()))
-                    ->exists(),
+            $user
+                && $participant !== null
+                && $participant->pivot?->hidden_at === null,
+            403
+        );
+
+        $visibleSince = $chat->visibleSinceFor($user);
+
+        abort_if(
+            $visibleSince !== null && $message->created_at->lt($visibleSince),
             403
         );
     }

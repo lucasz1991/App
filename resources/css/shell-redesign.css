@@ -126,6 +126,39 @@ body[data-mode='dark'] .rt-shell-topbar-controls {
     box-shadow: none !important;
 }
 
+.rt-shell-topbar-controls .rt-expandable-search[data-search-context='topbar'] .rt-expandable-search__input,
+.rt-shell-topbar-controls .rt-expandable-search[data-search-context='topbar'] .rt-expandable-search__input:hover,
+.rt-shell-topbar-controls .rt-expandable-search[data-search-context='topbar'] .rt-expandable-search__input:focus {
+    border-color: transparent !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.rt-shell-topbar-controls .rt-expandable-search[data-search-context='topbar'].is-expanded {
+    background: rgba(255, 255, 255, 0.42);
+}
+
+.rt-shell-topbar-controls .rt-expandable-search[data-search-context='topbar'].is-expanded:focus-within {
+    outline: none;
+    background: rgba(255, 255, 255, 0.62);
+    box-shadow:
+        inset 0 -2px 0 rgba(228, 0, 43, 0.52),
+        0 12px 26px -24px rgba(228, 0, 43, 0.9);
+}
+
+html.dark .rt-shell-topbar-controls .rt-expandable-search[data-search-context='topbar'].is-expanded,
+body[data-mode='dark'] .rt-shell-topbar-controls .rt-expandable-search[data-search-context='topbar'].is-expanded {
+    background: rgba(255, 255, 255, 0.045);
+}
+
+html.dark .rt-shell-topbar-controls .rt-expandable-search[data-search-context='topbar'].is-expanded:focus-within,
+body[data-mode='dark'] .rt-shell-topbar-controls .rt-expandable-search[data-search-context='topbar'].is-expanded:focus-within {
+    background: rgba(255, 255, 255, 0.075);
+    box-shadow:
+        inset 0 -2px 0 rgba(255, 73, 108, 0.62),
+        0 12px 28px -24px rgba(255, 73, 108, 0.94);
+}
+
 .rt-topbar-control,
 .rt-topbar-profile-trigger {
     position: relative;

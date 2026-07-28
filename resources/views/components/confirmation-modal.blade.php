@@ -1,6 +1,19 @@
 @props(['id' => null, 'maxWidth' => null])
 
-<x-modal :id="$id" :maxWidth="$maxWidth" {{ $attributes }}>
+@php
+    $modalId = $id ?? md5($attributes->wire('model'));
+    $titleId = $modalId.'-title';
+    $contentId = $modalId.'-content';
+@endphp
+
+<x-modal
+    :id="$modalId"
+    :maxWidth="$maxWidth"
+    role="alertdialog"
+    aria-labelledby="{{ $titleId }}"
+    aria-describedby="{{ $contentId }}"
+    {{ $attributes->except(['role', 'aria-labelledby', 'aria-describedby']) }}
+>
     <div class="rt-modal-content bg-rt-surface px-4 pb-5 pt-6 dark:bg-rt-dark-surface sm:p-6">
         <div class="sm:flex sm:items-start">
             <div class="rt-ui-danger-soft rt-confirmation-icon mx-auto flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-red-100 ring-1 ring-red-200/70 dark:bg-red-500/10 dark:ring-red-400/20 sm:mx-0">
@@ -10,11 +23,11 @@
             </div>
 
             <div class="mt-3 text-center sm:mt-0 sm:ms-4 sm:text-start">
-                <h3 class="text-lg font-semibold tracking-tight text-rt-text dark:text-rt-dark-text">
+                <h3 id="{{ $titleId }}" class="text-lg font-semibold tracking-tight text-rt-text dark:text-rt-dark-text">
                     {{ $title }}
                 </h3>
 
-                <div class="mt-3 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">
+                <div id="{{ $contentId }}" class="mt-3 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">
                     {{ $content }}
                 </div>
             </div>

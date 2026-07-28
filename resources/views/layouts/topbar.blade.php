@@ -191,7 +191,7 @@
 
                     @auth
                         <!-- Settings Dropdown -->
-                        <div class="relative ms-1 sm:ms-2" data-topbar-profile>
+                        <div class="relative" data-topbar-profile>
                             <x-dropdown
                                 align="right"
                                 width="64"

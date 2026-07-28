@@ -88,7 +88,7 @@ body[data-mode='dark'] .rt-tabs-v2.rt-tabs-shell {
     overflow-x: auto;
     overflow-y: hidden;
     padding: 0.125rem;
-    scroll-behavior: smooth;
+    scroll-behavior: auto;
     scroll-snap-type: x proximity;
     scrollbar-width: none;
     overscroll-behavior-x: contain;
@@ -125,7 +125,7 @@ body[data-mode='dark'] .rt-tabs-v2.rt-tabs-shell {
     min-width: 8rem;
     max-width: 17rem;
     flex: 1 0 8rem;
-    scroll-snap-align: nearest;
+    scroll-snap-align: center;
     align-items: center;
     justify-content: center;
     gap: 0.5625rem;
@@ -305,11 +305,13 @@ body[data-mode='dark'] .rt-tabs-v2.rt-tabs-shell {
 
 @media (any-pointer: coarse) {
     .rt-tabs-v2 .rt-tabs-carousel {
+        scroll-snap-type: none;
         touch-action: pan-y;
     }
 
     .rt-tabs-v2 .rt-carousel-tab {
         min-height: 3rem;
+        scroll-snap-align: none;
     }
 }
 

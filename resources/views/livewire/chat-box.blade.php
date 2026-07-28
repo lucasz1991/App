@@ -5,6 +5,7 @@
     data-mobile-pane="{{ $selectedChat ? 'chat' : 'list' }}"
     x-bind:data-mobile-pane="mobilePane"
     x-on:chat:pane-open.window="showChat()"
+    x-on:chat:pane-list.window="showList()"
     x-on:touchstart.passive="touchStart($event)"
     x-on:touchend.passive="touchEnd($event)"
     x-on:touchcancel="cancelSwipe()"
@@ -26,4 +27,5 @@
     </div>
 
     @include('livewire.chat.partials.new-chat-modal')
+    @include('livewire.chat.partials.chat-options-modals')
 </div>

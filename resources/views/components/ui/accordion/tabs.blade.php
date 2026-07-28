@@ -182,19 +182,24 @@
 
             const deltaX = event.clientX - this.touchStartX;
             const deltaY = event.clientY - this.touchStartY;
+            const absoluteX = Math.abs(deltaX);
+            const absoluteY = Math.abs(deltaY);
+            const dragThreshold = 5;
 
             if (!this.touchDragging) {
                 // Vertikales Scrollen bleibt immer beim Browser.
-                if (Math.abs(deltaY) > 9 && Math.abs(deltaY) > Math.abs(deltaX)) {
+                if (absoluteY > dragThreshold && absoluteY >= absoluteX) {
                     this.resetTouchPointer();
                     return;
                 }
 
-                // Kleine Fingerbewegungen bleiben ein normaler, sicherer Tap.
-                if (Math.abs(deltaX) < 12 || Math.abs(deltaX) <= Math.abs(deltaY) * 1.15) {
+                // Eine kleine Hysterese schuetzt Taps, ohne den horizontalen
+                // Fingerweg wie zuvor ueber eine grosse Deadzone auszubremsen.
+                if (absoluteX < dragThreshold || absoluteX <= absoluteY + 2) {
                     return;
                 }
 
+                this.$refs.carousel.dataset.touchDragging = 'true';
                 this.touchDragging = true;
                 this.suppressTouchClick = true;
                 event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -202,7 +207,6 @@
 
             if (event.cancelable) event.preventDefault();
             this.$refs.carousel.scrollLeft = this.touchStartScrollLeft - deltaX;
-            this.syncScrollEdges();
         },
         touchPointerEnd(event) {
             if (this.touchPointerId !== event.pointerId) return;
@@ -238,6 +242,7 @@
             this.touchStartX = null;
             this.touchStartY = null;
             this.touchStartScrollLeft = 0;
+            this.$refs.carousel?.setAttribute('data-touch-dragging', 'false');
             this.touchDragging = false;
 
             if (event && pointerId !== null && event.currentTarget?.hasPointerCapture?.(pointerId)) {

@@ -117,11 +117,25 @@ class SharedUiDarkModeTest extends TestCase
     public function test_modal_table_and_pagination_templates_are_connected_to_the_contract(): void
     {
         $modal = file_get_contents(resource_path('views/components/modal.blade.php'));
+        $dialogModal = file_get_contents(resource_path('views/components/dialog-modal.blade.php'));
+        $confirmationModal = file_get_contents(resource_path('views/components/confirmation-modal.blade.php'));
         $table = file_get_contents(resource_path('views/components/tables/table.blade.php'));
 
         $this->assertStringContainsString('rt-ui-modal-panel', $modal);
-        $this->assertStringContainsString('role="dialog"', $modal);
+        $this->assertStringContainsString('role="{{ $dialogRole }}"', $modal);
         $this->assertStringContainsString('aria-modal="true"', $modal);
+        $this->assertStringContainsString('aria-labelledby="{{ $labelledBy }}"', $modal);
+        $this->assertStringContainsString('aria-describedby="{{ $describedBy }}"', $modal);
+
+        foreach ([$dialogModal, $confirmationModal] as $accessibleModal) {
+            $this->assertStringContainsString('aria-labelledby="{{ $titleId }}"', $accessibleModal);
+            $this->assertStringContainsString('aria-describedby="{{ $contentId }}"', $accessibleModal);
+            $this->assertStringContainsString('id="{{ $titleId }}"', $accessibleModal);
+            $this->assertStringContainsString('id="{{ $contentId }}"', $accessibleModal);
+        }
+
+        $this->assertStringContainsString('role="dialog"', $dialogModal);
+        $this->assertStringContainsString('role="alertdialog"', $confirmationModal);
         $this->assertStringContainsString('rt-ui-table', $table);
         $this->assertStringContainsString('aria-sort=', $table);
 
@@ -154,7 +168,7 @@ class SharedUiDarkModeTest extends TestCase
 
         $this->assertNotNull($asset, 'The Vite manifest does not contain the application stylesheet.');
 
-        $compiledPath = public_path('build/' . $asset);
+        $compiledPath = public_path('build/'.$asset);
         $this->assertFileExists($compiledPath);
 
         $compiled = file_get_contents($compiledPath);

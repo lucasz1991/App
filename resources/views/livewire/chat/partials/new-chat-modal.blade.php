@@ -23,9 +23,12 @@
                 aria-label="{{ __('app.chat_and_messages') }}"
             >
                 <button
+                    id="rt-new-chat-tab-direct"
                     type="button"
                     role="tab"
                     aria-selected="{{ $newChatTab === 'direct' ? 'true' : 'false' }}"
+                    aria-controls="rt-new-chat-panel-direct"
+                    tabindex="{{ $newChatTab === 'direct' ? '0' : '-1' }}"
                     wire:click="$set('newChatTab', 'direct')"
                     class="rt-chat-modal-tab {{ $newChatTab === 'direct' ? 'is-active' : '' }} min-h-10 rounded-lg px-3 py-2 text-xs font-bold"
                 >
@@ -33,9 +36,12 @@
                     {{ __('app.new_chat') }}
                 </button>
                 <button
+                    id="rt-new-chat-tab-group"
                     type="button"
                     role="tab"
                     aria-selected="{{ $newChatTab === 'group' ? 'true' : 'false' }}"
+                    aria-controls="rt-new-chat-panel-group"
+                    tabindex="{{ $newChatTab === 'group' ? '0' : '-1' }}"
                     wire:click="$set('newChatTab', 'group')"
                     class="rt-chat-modal-tab {{ $newChatTab === 'group' ? 'is-active' : '' }} min-h-10 rounded-lg px-3 py-2 text-xs font-bold"
                 >
@@ -45,7 +51,12 @@
             </div>
 
             @if ($newChatTab === 'direct')
-                <div class="rt-chat-contact-list max-h-80 space-y-1 overflow-y-auto pr-1" role="tabpanel">
+                <div
+                    id="rt-new-chat-panel-direct"
+                    class="rt-chat-contact-list max-h-80 space-y-1 overflow-y-auto pr-1"
+                    role="tabpanel"
+                    aria-labelledby="rt-new-chat-tab-direct"
+                >
                     @forelse ($contacts as $contact)
                         <button
                             type="button"
@@ -75,7 +86,12 @@
                     @endforelse
                 </div>
             @else
-                <div class="space-y-4" role="tabpanel">
+                <div
+                    id="rt-new-chat-panel-group"
+                    class="space-y-4"
+                    role="tabpanel"
+                    aria-labelledby="rt-new-chat-tab-group"
+                >
                     <div>
                         <x-ui.forms.label for="group-name" :value="__('app.group_name')" />
                         <x-ui.forms.input

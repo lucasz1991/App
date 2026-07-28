@@ -8,13 +8,17 @@ use App\Events\ChatMessageSent;
 use App\Events\ChatRead;
 use App\Models\Chat;
 use App\Models\ChatMessage;
+use App\Models\ChatMessageView;
+use App\Models\File;
 use App\Models\User;
 use App\Support\Push\PushDelivery;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -46,6 +50,23 @@ class ChatBox extends Component
     public string $groupName = '';
 
     public array $groupParticipants = [];
+
+    public bool $showDeleteMessageModal = false;
+
+    #[Locked]
+    public ?int $pendingDeleteMessageId = null;
+
+    public bool $showDeleteChatModal = false;
+
+    #[Locked]
+    public ?int $pendingDeleteChatId = null;
+
+    public bool $showGroupSettings = false;
+
+    public string $groupEditName = '';
+
+    /** @var array<int, int|string> */
+    public array $groupMemberIds = [];
 
     /**
      * Letzte fremde Nachricht des offenen Chats. Der Ausgangswert wird beim
@@ -80,10 +101,19 @@ class ChatBox extends Component
     protected function myChat(int $chatId): Chat
     {
         $chat = Chat::with('participants')->findOrFail($chatId);
+        $participant = $chat->participantFor(auth()->id());
 
-        abort_unless($chat->participants->contains('id', auth()->id()), 403);
+        abort_unless($participant && ! $participant->pivot?->hidden_at, 403);
 
         return $chat;
+    }
+
+    protected function visibleMessagesFor(Chat $chat)
+    {
+        $visibleSince = $chat->visibleSinceFor(auth()->id());
+
+        return $chat->messages()
+            ->when($visibleSince, fn ($query) => $query->where('created_at', '>=', $visibleSince));
     }
 
     public function openChat(int $chatId): void
@@ -185,17 +215,48 @@ class ChatBox extends Component
         }
 
         $chat = $this->myChat($this->selectedChatId);
-        $message = $chat->messages()->with('files')->findOrFail($messageId);
+        $message = $this->visibleMessagesFor($chat)->with('files')->findOrFail($messageId);
 
         abort_unless((int) $message->user_id === (int) auth()->id(), 403);
 
         $message->files->each->delete();
+        $message->views()->delete();
         $message->delete();
         $chat->touch();
 
         $this->broadcastChatEvent(new ChatMessageDeleted($chat->id, $messageId));
         $this->dispatch('inbox:refresh');
         $this->dispatch('chat:scroll-bottom');
+    }
+
+    public function requestDeleteMessage(int $messageId): void
+    {
+        if (! $this->selectedChatId) {
+            return;
+        }
+
+        $chat = $this->myChat($this->selectedChatId);
+        $message = $this->visibleMessagesFor($chat)->findOrFail($messageId);
+
+        abort_unless((int) $message->user_id === (int) auth()->id(), 403);
+
+        $this->pendingDeleteMessageId = $message->id;
+        $this->showDeleteMessageModal = true;
+    }
+
+    public function confirmDeleteMessage(): void
+    {
+        if (! $this->pendingDeleteMessageId) {
+            $this->showDeleteMessageModal = false;
+
+            return;
+        }
+
+        $messageId = $this->pendingDeleteMessageId;
+        $this->showDeleteMessageModal = false;
+        $this->pendingDeleteMessageId = null;
+
+        $this->deleteMessage($messageId);
     }
 
     public function requestVoicePlayback(int $messageId): void
@@ -205,7 +266,7 @@ class ChatBox extends Component
         }
 
         $chat = $this->myChat($this->selectedChatId);
-        $message = $chat->messages()->with(['files', 'views'])->findOrFail($messageId);
+        $message = $this->visibleMessagesFor($chat)->with(['files', 'views'])->findOrFail($messageId);
         abort_unless($message->isVoice(), 422);
 
         $file = $message->voiceFile();
@@ -302,6 +363,14 @@ class ChatBox extends Component
 
     protected function finishSending(Chat $chat, ChatMessage $message): void
     {
+        DB::table('chat_user')
+            ->where('chat_id', $chat->id)
+            ->whereNotNull('hidden_at')
+            ->update([
+                'hidden_at' => null,
+                'updated_at' => now(),
+            ]);
+
         $chat->touch();
         $chat->participants()->updateExistingPivot(auth()->id(), ['last_read_at' => now()]);
 
@@ -321,7 +390,14 @@ class ChatBox extends Component
             return;
         }
 
-        $chat = $this->myChat($chatId);
+        $chat = auth()->user()->chats()->with('participants')->find($chatId);
+
+        if (! $chat) {
+            $this->resetSelectedChat();
+
+            return;
+        }
+
         $this->latestIncomingMessageId = $this->latestIncomingMessageIdFor($chat);
         $this->markChatRead($chat);
         $this->dispatch('inbox:refresh');
@@ -359,6 +435,7 @@ class ChatBox extends Component
             return;
         }
 
+        $joinedAt = now();
         $chat = Chat::create([
             'type' => 'group',
             'name' => trim($this->groupName),
@@ -367,14 +444,180 @@ class ChatBox extends Component
 
         // Identische Pivot-Spalten je Zeile (sonst schlaegt der Bulk-Insert fehl)
         $chat->participants()->attach(
-            $ids->mapWithKeys(fn ($id) => [$id => ['last_read_at' => null]])
-                ->put(auth()->id(), ['last_read_at' => now()])
+            $ids->mapWithKeys(fn ($id) => [$id => [
+                'last_read_at' => null,
+                'last_opened_at' => null,
+                'joined_at' => $joinedAt,
+                'hidden_at' => null,
+                'cleared_at' => null,
+            ]])
+                ->put(auth()->id(), [
+                    'last_read_at' => $joinedAt,
+                    'last_opened_at' => $joinedAt,
+                    'joined_at' => $joinedAt,
+                    'hidden_at' => null,
+                    'cleared_at' => null,
+                ])
                 ->all()
         );
 
         $this->reset(['showNewChat', 'groupName', 'groupParticipants', 'search']);
         $this->dispatch('swal:toast', type: 'success', text: __('app.group_created'));
         $this->openChat($chat->id);
+    }
+
+    public function openGroupSettings(): void
+    {
+        if (! $this->selectedChatId) {
+            return;
+        }
+
+        $chat = $this->myChat($this->selectedChatId);
+        abort_unless($chat->canManageGroup(auth()->id()), 403);
+
+        $this->resetValidation(['groupEditName', 'groupMemberIds']);
+        $this->groupEditName = (string) $chat->name;
+        $this->groupMemberIds = $chat->participants
+            ->where('id', '!=', auth()->id())
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->values()
+            ->all();
+        $this->showGroupSettings = true;
+    }
+
+    public function saveGroupSettings(): void
+    {
+        if (! $this->selectedChatId) {
+            return;
+        }
+
+        $this->validate([
+            'groupEditName' => ['required', 'string', 'max:80'],
+            'groupMemberIds' => ['required', 'array', 'min:1'],
+            'groupMemberIds.*' => ['integer', 'distinct'],
+        ]);
+
+        $chat = $this->myChat($this->selectedChatId);
+        abort_unless($chat->canManageGroup(auth()->id()), 403);
+
+        $requestedIds = collect($this->groupMemberIds)
+            ->map(fn ($id): int => (int) $id)
+            ->filter(fn (int $id): bool => $id !== (int) auth()->id())
+            ->unique()
+            ->values();
+        $currentIds = $chat->participants->pluck('id')->map(fn ($id): int => (int) $id);
+        $validMemberIds = User::query()
+            ->whereIn('id', $requestedIds)
+            ->where(function ($query) use ($currentIds): void {
+                $query->where('status', true)
+                    ->orWhereIn('id', $currentIds);
+            })
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->values();
+
+        if ($validMemberIds->isEmpty()) {
+            $this->addError('groupMemberIds', __('app.select_participants'));
+
+            return;
+        }
+
+        DB::transaction(function () use ($chat, $validMemberIds): void {
+            $lockedChat = Chat::query()->lockForUpdate()->findOrFail($chat->id);
+            $lockedChat->load('participants');
+            abort_unless($lockedChat->canManageGroup(auth()->id()), 403);
+
+            $existingParticipants = $lockedChat->participants->keyBy(
+                fn (User $participant): int => (int) $participant->id
+            );
+            $desiredIds = $validMemberIds
+                ->push((int) auth()->id())
+                ->unique()
+                ->values();
+            $pivotRows = [];
+
+            foreach ($desiredIds as $userId) {
+                $existing = $existingParticipants->get((int) $userId);
+                $pivotRows[(int) $userId] = [
+                    'last_read_at' => $existing?->pivot?->last_read_at,
+                    'last_opened_at' => $existing?->pivot?->last_opened_at,
+                    'joined_at' => $existing?->pivot?->joined_at
+                        ?: $existing?->pivot?->created_at
+                        ?: now(),
+                    'hidden_at' => null,
+                    'cleared_at' => $existing?->pivot?->cleared_at,
+                ];
+            }
+
+            $lockedChat->participants()->sync($pivotRows);
+            $lockedChat->forceFill(['name' => trim($this->groupEditName)])->save();
+        });
+
+        $this->groupMemberIds = $validMemberIds->all();
+        $this->showGroupSettings = false;
+        $this->dispatch('swal:toast', type: 'success', text: __('app.group_updated'));
+        $this->dispatch('inbox:refresh');
+    }
+
+    public function requestDeleteChat(): void
+    {
+        if (! $this->selectedChatId) {
+            return;
+        }
+
+        $chat = $this->myChat($this->selectedChatId);
+        $this->pendingDeleteChatId = $chat->id;
+        $this->showDeleteChatModal = true;
+    }
+
+    public function confirmDeleteChat(): void
+    {
+        if (! $this->pendingDeleteChatId) {
+            $this->showDeleteChatModal = false;
+
+            return;
+        }
+
+        $chat = $this->myChat($this->pendingDeleteChatId);
+        $me = auth()->user();
+        $toastKey = 'chat_deleted';
+
+        if ($chat->isGroup() && $chat->canManageGroup($me)) {
+            $messageIds = $chat->messages()->pluck('id');
+            $fileIds = File::query()
+                ->where('fileable_type', ChatMessage::class)
+                ->whereIn('fileable_id', $messageIds)
+                ->pluck('id');
+
+            DB::transaction(function () use ($chat, $messageIds): void {
+                ChatMessageView::query()->whereIn('chat_message_id', $messageIds)->delete();
+                ChatMessage::query()->whereIn('id', $messageIds)->delete();
+                $chat->participants()->detach();
+                $chat->delete();
+            });
+
+            File::query()->whereIn('id', $fileIds)->get()->each->delete();
+            $toastKey = 'group_deleted';
+        } elseif ($chat->isGroup()) {
+            $chat->participants()->detach($me->id);
+            $chat->touch();
+            $toastKey = 'group_left';
+        } else {
+            $timestamp = now();
+            $chat->participants()->updateExistingPivot($me->id, [
+                'last_read_at' => $timestamp,
+                'last_opened_at' => null,
+                'hidden_at' => $timestamp,
+                'cleared_at' => $timestamp,
+            ]);
+        }
+
+        $this->showDeleteChatModal = false;
+        $this->pendingDeleteChatId = null;
+        $this->resetSelectedChat();
+        $this->dispatch('swal:toast', type: 'success', text: __($toastKey === 'chat_deleted' ? 'app.chat_deleted' : 'app.'.$toastKey));
+        $this->dispatch('inbox:refresh');
     }
 
     /**
@@ -386,7 +629,14 @@ class ChatBox extends Component
     public function pollTick(): void
     {
         if ($this->selectedChatId) {
-            $chat = $this->myChat($this->selectedChatId);
+            $chat = auth()->user()->chats()->with('participants')->find($this->selectedChatId);
+
+            if (! $chat) {
+                $this->resetSelectedChat();
+
+                return;
+            }
+
             $latestIncomingMessageId = $this->latestIncomingMessageIdFor($chat);
 
             if ($latestIncomingMessageId > $this->latestIncomingMessageId) {
@@ -400,7 +650,7 @@ class ChatBox extends Component
 
     protected function latestIncomingMessageIdFor(Chat $chat): int
     {
-        return (int) ($chat->messages()
+        return (int) ($this->visibleMessagesFor($chat)
             ->where('user_id', '!=', auth()->id())
             ->max('id') ?? 0);
     }
@@ -409,7 +659,7 @@ class ChatBox extends Component
     {
         $participant = $chat->participants->firstWhere('id', auth()->id());
         $lastReadAt = $participant?->pivot?->last_read_at;
-        $latestOtherMessageAt = $chat->messages()
+        $latestOtherMessageAt = $this->visibleMessagesFor($chat)
             ->where('user_id', '!=', auth()->id())
             ->max('created_at');
 
@@ -419,6 +669,29 @@ class ChatBox extends Component
 
         $chat->participants()->updateExistingPivot(auth()->id(), ['last_read_at' => now()]);
         $this->broadcastChatEvent(new ChatRead($chat->id, auth()->id()));
+    }
+
+    protected function resetSelectedChat(): void
+    {
+        foreach ($this->uploads as $upload) {
+            if ($upload instanceof TemporaryUploadedFile) {
+                $upload->delete();
+            }
+        }
+
+        if ($this->voiceUpload instanceof TemporaryUploadedFile) {
+            $this->voiceUpload->delete();
+        }
+
+        $this->selectedChatId = null;
+        $this->latestIncomingMessageId = 0;
+        $this->messageText = '';
+        $this->uploads = [];
+        $this->voiceUpload = null;
+        $this->showGroupSettings = false;
+        $this->showDeleteMessageModal = false;
+        $this->pendingDeleteMessageId = null;
+        $this->dispatch('chat:pane-list');
     }
 
     protected function broadcastChatEvent(object $event): void
@@ -438,9 +711,39 @@ class ChatBox extends Component
         $me = auth()->user();
 
         $chats = $me->chats()
-            ->with(['participants', 'latestMessage.sender', 'latestMessage.files'])
+            ->with('participants')
             ->orderByDesc('chats.updated_at')
             ->get();
+
+        if ($chats->isNotEmpty()) {
+            $latestMessageIds = ChatMessage::query()
+                ->join('chat_user', function ($join) use ($me): void {
+                    $join->on('chat_user.chat_id', '=', 'chat_messages.chat_id')
+                        ->where('chat_user.user_id', '=', $me->id);
+                })
+                ->whereNull('chat_user.hidden_at')
+                ->whereIn('chat_messages.chat_id', $chats->pluck('id'))
+                ->where(function ($query): void {
+                    $query->whereNull('chat_user.joined_at')
+                        ->orWhereColumn('chat_messages.created_at', '>=', 'chat_user.joined_at');
+                })
+                ->where(function ($query): void {
+                    $query->whereNull('chat_user.cleared_at')
+                        ->orWhereColumn('chat_messages.created_at', '>=', 'chat_user.cleared_at');
+                })
+                ->groupBy('chat_messages.chat_id')
+                ->selectRaw('MAX(chat_messages.id) as latest_message_id')
+                ->pluck('latest_message_id');
+            $latestMessages = ChatMessage::query()
+                ->with(['sender', 'files'])
+                ->whereKey($latestMessageIds)
+                ->get()
+                ->keyBy('chat_id');
+
+            $chats->each(
+                fn (Chat $chat) => $chat->setRelation('latestMessage', $latestMessages->get($chat->id))
+            );
+        }
 
         if (filled($this->search)) {
             $needle = mb_strtolower(trim($this->search));
@@ -457,7 +760,7 @@ class ChatBox extends Component
                 ?? $me->chats()->with('participants')->find($this->selectedChatId);
 
             if ($selectedChat) {
-                $messages = $selectedChat->messages()
+                $messages = $this->visibleMessagesFor($selectedChat)
                     ->with(['sender:id,name,profile_photo_path', 'files', 'views:id,chat_message_id,user_id,viewed_at'])
                     ->orderBy('id')
                     ->limit(200)
@@ -474,11 +777,31 @@ class ChatBox extends Component
             ->orderBy('name')
             ->get(['id', 'name', 'email', 'profile_photo_path']);
 
+        $groupCandidates = $contacts;
+
+        if ($selectedChat?->isGroup()) {
+            $existingMembers = $selectedChat->participants
+                ->where('id', '!=', $me->id)
+                ->map(fn (User $participant): User => $participant->setVisible([
+                    'id',
+                    'name',
+                    'email',
+                    'profile_photo_path',
+                    'status',
+                ]));
+            $groupCandidates = $contacts
+                ->concat($existingMembers)
+                ->unique('id')
+                ->sortBy(fn (User $user): string => mb_strtolower($user->name))
+                ->values();
+        }
+
         return view('livewire.chat-box', [
             'chats' => $chats,
             'selectedChat' => $selectedChat,
             'messages' => $messages,
             'contacts' => $contacts,
+            'groupCandidates' => $groupCandidates,
         ])->layout('layouts.master', ['contentMode' => 'viewport']);
     }
 }

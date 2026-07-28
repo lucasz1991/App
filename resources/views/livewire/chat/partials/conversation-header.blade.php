@@ -20,7 +20,8 @@
     <x-chat.icon-button
         icon="far fa-arrow-left"
         :label="__('app.back')"
-        class="md:hidden"
+        class="rt-chat-mobile-back"
+        data-chat-mobile-back
         x-on:click="showList()"
     />
 
@@ -52,4 +53,63 @@
         <span aria-hidden="true"></span>
         {{ __('app.online') }}
     </span>
+
+    <x-ui.dropdown.anchor-dropdown
+        align="right"
+        width="56"
+        :offset="7"
+        class="rt-chat-options shrink-0"
+    >
+        <x-slot name="trigger">
+            <x-ui.dropdown.action-trigger
+                :aria-label="__('app.chat_options')"
+                class="rt-chat-options-trigger h-10 w-10 rounded-xl px-0"
+                data-no-chat-swipe
+            />
+        </x-slot>
+
+        <x-slot name="content">
+            <div class="space-y-0.5 p-1.5" aria-label="{{ __('app.chat_options') }}">
+                @if ($selectedChat->canManageGroup($me))
+                    <x-ui.dropdown.dropdown-link wire:click="openGroupSettings">
+                        <span class="rt-chat-option-icon">
+                            <i class="far fa-users-cog" aria-hidden="true"></i>
+                        </span>
+                        <span>{{ __('app.group_settings') }}</span>
+                    </x-ui.dropdown.dropdown-link>
+                @endif
+
+                <x-ui.dropdown.dropdown-link
+                    as="a"
+                    :href="route('chat.export', ['chat' => $selectedChat])"
+                    data-no-chat-swipe
+                >
+                    <span class="rt-chat-option-icon">
+                        <i class="far fa-file-export" aria-hidden="true"></i>
+                    </span>
+                    <span>{{ __('app.export_chat') }}</span>
+                </x-ui.dropdown.dropdown-link>
+
+                <div class="rt-chat-option-divider my-1" role="separator"></div>
+
+                <x-ui.dropdown.dropdown-link
+                    wire:click="requestDeleteChat"
+                    data-rt-tone="danger"
+                >
+                    <span class="rt-chat-option-icon">
+                        <i class="far {{ $selectedChat->isGroup() && ! $selectedChat->canManageGroup($me) ? 'fa-sign-out-alt' : 'fa-trash-alt' }}" aria-hidden="true"></i>
+                    </span>
+                    <span>
+                        @if ($selectedChat->isGroup() && ! $selectedChat->canManageGroup($me))
+                            {{ __('app.leave_group') }}
+                        @elseif ($selectedChat->isGroup())
+                            {{ __('app.delete_group') }}
+                        @else
+                            {{ __('app.delete_chat') }}
+                        @endif
+                    </span>
+                </x-ui.dropdown.dropdown-link>
+            </div>
+        </x-slot>
+    </x-ui.dropdown.anchor-dropdown>
 </div>

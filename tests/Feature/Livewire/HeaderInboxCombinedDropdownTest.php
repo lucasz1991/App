@@ -7,6 +7,8 @@ use App\Models\Chat;
 use App\Models\ChatMessage;
 use App\Models\Message;
 use App\Models\User;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Livewire\Livewire;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
@@ -106,5 +108,58 @@ class HeaderInboxCombinedDropdownTest extends TestCase
         Livewire::actingAs($recipient)
             ->test(HeaderInbox::class)
             ->assertDontSee('Streng geheimer Einmal-Inhalt');
+    }
+
+    public function test_chat_counts_and_previews_respect_joined_cleared_and_hidden_timestamps(): void
+    {
+        $sender = User::factory()->create();
+        $recipient = User::factory()->create();
+        $chat = Chat::create(['type' => 'group', 'name' => 'Schichtwechsel', 'created_by' => $sender->id]);
+
+        $chat->participants()->attach([
+            $sender->id => [
+                'joined_at' => Carbon::parse('2026-07-25 08:00:00'),
+                'cleared_at' => null,
+                'hidden_at' => null,
+                'last_read_at' => null,
+            ],
+            $recipient->id => [
+                'joined_at' => Carbon::parse('2026-07-25 10:00:00'),
+                'cleared_at' => Carbon::parse('2026-07-25 12:00:00'),
+                'hidden_at' => null,
+                'last_read_at' => null,
+            ],
+        ]);
+
+        foreach ([
+            '2026-07-25 09:00:00' => 'Vor dem Beitritt',
+            '2026-07-25 11:00:00' => 'Vor dem Leeren',
+            '2026-07-25 13:00:00' => 'Nach dem Leeren sichtbar',
+        ] as $createdAt => $body) {
+            $this->travelTo(Carbon::parse($createdAt));
+            ChatMessage::create([
+                'chat_id' => $chat->id,
+                'user_id' => $sender->id,
+                'body' => $body,
+            ]);
+        }
+
+        Livewire::actingAs($recipient)
+            ->test(HeaderInbox::class)
+            ->assertSet('unreadChatMessagesCount', 1)
+            ->assertSee('Nach dem Leeren sichtbar')
+            ->assertDontSee('Vor dem Beitritt')
+            ->assertDontSee('Vor dem Leeren');
+
+        DB::table('chat_user')
+            ->where('chat_id', $chat->id)
+            ->where('user_id', $recipient->id)
+            ->update(['hidden_at' => Carbon::parse('2026-07-25 14:00:00')]);
+
+        Livewire::actingAs($recipient)
+            ->test(HeaderInbox::class)
+            ->assertSet('unreadChatMessagesCount', 0)
+            ->assertDontSee('Nach dem Leeren sichtbar')
+            ->assertDontSee('Schichtwechsel');
     }
 }

@@ -42,16 +42,20 @@ class AppShellRedesignTest extends TestCase
         $this->assertStringContainsString('Informationen zu dieser Seite', $html);
     }
 
-    public function test_navigation_loader_uses_the_kinetic_railtime_stage_and_gsap(): void
+    public function test_navigation_loader_is_a_textless_orb_without_a_modal_panel(): void
     {
         $script = file_get_contents(resource_path('js/app.js'));
         $styles = file_get_contents(resource_path('css/app.css'));
 
-        $this->assertStringContainsString('rt-nav-loader__wordmark', $script);
-        $this->assertStringContainsString('window.gsap.timeline', $script);
-        $this->assertStringContainsString('window.gsap.fromTo(signal', $script);
+        $this->assertStringContainsString('rt-nav-loader__orb', $script);
+        $this->assertStringContainsString('window.gsap.fromTo(loader', $script);
+        $this->assertStringNotContainsString('rt-nav-loader__wordmark', $script);
+        $this->assertStringNotContainsString('rt-nav-loader__label', $script);
+        $this->assertStringNotContainsString('SEITENWECHSEL', $script);
         $this->assertStringContainsString("document.querySelectorAll('#rt-nav-overlay')", $script);
-        $this->assertStringContainsString('.rt-nav-loader__track', $styles);
+        $this->assertStringContainsString('.rt-nav-loader__orb::before', $styles);
+        $this->assertStringContainsString('background: transparent', $styles);
+        $this->assertStringNotContainsString('.rt-nav-loader__track', $styles);
         $this->assertStringContainsString('@media (prefers-reduced-motion: reduce)', $styles);
     }
 

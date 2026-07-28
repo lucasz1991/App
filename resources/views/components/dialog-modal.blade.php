@@ -1,15 +1,28 @@
 @props(['id' => null, 'maxWidth' => null])
 
-<x-modal :id="$id" :maxWidth="$maxWidth" {{ $attributes }}>
+@php
+    $modalId = $id ?? md5($attributes->wire('model'));
+    $titleId = $modalId.'-title';
+    $contentId = $modalId.'-content';
+@endphp
+
+<x-modal
+    :id="$modalId"
+    :maxWidth="$maxWidth"
+    role="dialog"
+    aria-labelledby="{{ $titleId }}"
+    aria-describedby="{{ $contentId }}"
+    {{ $attributes->except(['role', 'aria-labelledby', 'aria-describedby']) }}
+>
     <div class="rt-modal-content px-5 pb-5 pt-6 sm:px-6 sm:pb-6">
         <div class="flex items-start gap-3">
             <span class="rt-modal-title-mark mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-rt-red shadow-[0_0_0_5px_rgba(228,0,43,0.10)]" aria-hidden="true"></span>
             <div class="min-w-0">
-                <div class="text-lg font-semibold tracking-tight text-rt-text dark:text-rt-dark-text">
+                <div id="{{ $titleId }}" class="text-lg font-semibold tracking-tight text-rt-text dark:text-rt-dark-text">
                     {{ $title }}
                 </div>
 
-                <div class="mt-3 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">
+                <div id="{{ $contentId }}" class="mt-3 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">
                     {{ $content }}
                 </div>
             </div>

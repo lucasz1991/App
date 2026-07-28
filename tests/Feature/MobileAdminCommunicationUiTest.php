@@ -96,7 +96,12 @@ class MobileAdminCommunicationUiTest extends TestCase
         $this->assertStringContainsString('x-data="chatAudioPlayer()"', $view);
         $this->assertStringContainsString("Alpine.data('chatAudioPlayer'", $script);
         $this->assertStringContainsString("message_type' => 'voice'", $component);
-        $this->assertStringContainsString('wire:click="deleteMessage(', $view);
+        $this->assertStringContainsString('wire:click="requestDeleteMessage(', $view);
+        $this->assertStringContainsString('<x-confirmation-modal id="rt-delete-chat-message-modal"', $view);
+        $this->assertStringContainsString('<x-confirmation-modal id="rt-delete-chat-modal"', $view);
+        $this->assertStringContainsString('<x-dialog-modal id="rt-group-settings-modal"', $view);
+        $this->assertStringContainsString('<x-ui.dropdown.anchor-dropdown', $view);
+        $this->assertStringNotContainsString('wire:confirm="{{ __(\'app.delete_chat_message_confirm\') }}"', $view);
         $this->assertStringContainsString('@click="startRecording()"', $view);
         $this->assertStringContainsString('@click="toggleViewOnce()"', $view);
         $this->assertStringContainsString('x-show.important="!recording && !sendingVoice"', $view);

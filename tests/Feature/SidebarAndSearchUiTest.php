@@ -30,6 +30,7 @@ class SidebarAndSearchUiTest extends TestCase
     {
         $component = file_get_contents(resource_path('views/components/tables/search-field.blade.php'));
         $styles = file_get_contents(resource_path('css/app.css'));
+        $shellStyles = file_get_contents(resource_path('css/shell-redesign.css'));
         $topbar = file_get_contents(resource_path('views/layouts/topbar.blade.php'));
 
         $this->assertStringContainsString("'is-expanded': expanded", $component);
@@ -38,7 +39,14 @@ class SidebarAndSearchUiTest extends TestCase
         $this->assertStringContainsString('data-search-context="{{ $searchContext }}"', $component);
         $this->assertStringContainsString('.rt-expandable-search.is-expanded', $styles);
         $this->assertStringContainsString("data-search-context='topbar'", $styles);
+        $this->assertStringContainsString(".rt-expandable-search[data-search-context='topbar'] .rt-expandable-search__input:focus", $shellStyles);
+        $this->assertStringContainsString('.is-expanded:focus-within', $shellStyles);
+        $this->assertStringContainsString('border-color: transparent !important', $shellStyles);
+        $this->assertStringContainsString('inset 0 -2px 0 rgba(228, 0, 43, 0.52)', $shellStyles);
+        $this->assertStringNotContainsString('outline: 2px solid rgba(228, 0, 43, 0.38)', $shellStyles);
         $this->assertStringContainsString('<livewire:tools.global-search />', $topbar);
+        $this->assertStringContainsString('<div class="relative" data-topbar-profile>', $topbar);
+        $this->assertStringNotContainsString('<div class="relative ms-1 sm:ms-2" data-topbar-profile>', $topbar);
 
         foreach ([
             'livewire/admin/employees.blade.php',

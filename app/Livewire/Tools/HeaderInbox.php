@@ -3,6 +3,8 @@
 namespace App\Livewire\Tools;
 
 use App\Models\ChatMessage;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\On;
@@ -51,11 +53,7 @@ class HeaderInbox extends Component
             ->where('status', 1)
             ->count();
 
-        $this->unreadChatMessagesCount = ChatMessage::query()
-            ->join('chat_user', function ($join) use ($user) {
-                $join->on('chat_user.chat_id', '=', 'chat_messages.chat_id')
-                    ->where('chat_user.user_id', '=', $user->id);
-            })
+        $this->unreadChatMessagesCount = $this->visibleChatMessagesFor($user)
             ->where('chat_messages.user_id', '!=', $user->id)
             ->where(function ($query) {
                 $query->whereNull('chat_user.last_read_at')
@@ -83,9 +81,9 @@ class HeaderInbox extends Component
      *
      * Bewusst NICHT als oeffentliche Livewire-Eigenschaft: die Chat-Modelle
      * muessten sonst bei jedem Request serialisiert und rehydriert werden und
-     * verlieren dabei ihre Eager-Loads (participants/latestMessage), die
-     * displayNameFor()/unreadCountFor() brauchen. Frisch im render() geladen
-     * bleiben die Beziehungen garantiert vorhanden.
+     * verlieren dabei ihre geladenen Beziehungen (participants/latestMessage),
+     * die displayNameFor() und die sichere Vorschau brauchen. Frisch im
+     * render() geladen bleiben diese Beziehungen garantiert vorhanden.
      */
     protected function recentChats(): Collection
     {
@@ -95,11 +93,34 @@ class HeaderInbox extends Component
             return collect();
         }
 
-        return $user->chats()
-            ->with(['participants', 'latestMessage'])
+        $chats = $user->chats()
+            ->with('participants')
             ->orderByDesc('chats.updated_at')
             ->limit(3)
             ->get();
+
+        if ($chats->isEmpty()) {
+            return $chats;
+        }
+
+        // latestMessage darf nach Beitritt/Leeren nicht auf einen aelteren
+        // Klartext zurueckfallen. Die IDs werden in einer gebuendelten Query
+        // bestimmt und danach als echte (verschluesselt gecastete) Modelle
+        // geladen.
+        $latestMessageIds = $this->visibleChatMessagesFor($user)
+            ->whereIn('chat_messages.chat_id', $chats->pluck('id'))
+            ->groupBy('chat_messages.chat_id')
+            ->selectRaw('MAX(chat_messages.id) as latest_message_id')
+            ->pluck('latest_message_id');
+
+        $latestMessages = ChatMessage::query()
+            ->whereKey($latestMessageIds)
+            ->get()
+            ->keyBy('chat_id');
+
+        return $chats->each(
+            fn ($chat) => $chat->setRelation('latestMessage', $latestMessages->get($chat->id))
+        );
     }
 
     /**
@@ -120,11 +141,7 @@ class HeaderInbox extends Component
             return [];
         }
 
-        return ChatMessage::query()
-            ->join('chat_user', function ($join) use ($user) {
-                $join->on('chat_user.chat_id', '=', 'chat_messages.chat_id')
-                    ->where('chat_user.user_id', '=', $user->id);
-            })
+        return $this->visibleChatMessagesFor($user)
             ->where('chat_messages.user_id', '!=', $user->id)
             ->where(function ($query) {
                 $query->whereNull('chat_user.last_read_at')
@@ -135,6 +152,28 @@ class HeaderInbox extends Component
             ->pluck('aggregate', 'chat_id')
             ->map(fn ($value): int => (int) $value)
             ->all();
+    }
+
+    /**
+     * Nachrichten eines nicht ausgeblendeten Chats innerhalb der persoenlichen
+     * Sichtbarkeitsgrenze (Beitritt bzw. spaeteres Leeren des Verlaufs).
+     */
+    protected function visibleChatMessagesFor(User $user): Builder
+    {
+        return ChatMessage::query()
+            ->join('chat_user', function ($join) use ($user): void {
+                $join->on('chat_user.chat_id', '=', 'chat_messages.chat_id')
+                    ->where('chat_user.user_id', '=', $user->id);
+            })
+            ->whereNull('chat_user.hidden_at')
+            ->where(function ($query): void {
+                $query->whereNull('chat_user.joined_at')
+                    ->orWhereColumn('chat_messages.created_at', '>=', 'chat_user.joined_at');
+            })
+            ->where(function ($query): void {
+                $query->whereNull('chat_user.cleared_at')
+                    ->orWhereColumn('chat_messages.created_at', '>=', 'chat_user.cleared_at');
+            });
     }
 
     public function render()

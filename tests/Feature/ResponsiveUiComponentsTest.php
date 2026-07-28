@@ -335,7 +335,9 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertStringContainsString('isTouchPointer(event)', $tabs);
         $this->assertStringContainsString("event.pointerType === 'touch'", $tabs);
         $this->assertStringNotContainsString("window.matchMedia('(pointer: coarse)').matches", $tabs);
-        $this->assertStringContainsString('Math.abs(deltaX) < 12', $tabs);
+        $this->assertStringContainsString('const dragThreshold = 5', $tabs);
+        $this->assertStringContainsString("dataset.touchDragging = 'true'", $tabs);
+        $this->assertStringContainsString("setAttribute('data-touch-dragging', 'false')", $tabs);
         $this->assertStringContainsString('const didDrag = this.touchDragging', $tabs);
         $this->assertStringContainsString('event.currentTarget.setPointerCapture?.(event.pointerId)', $tabs);
         $this->assertStringContainsString('if (this.suppressTouchClick)', $tabs);
@@ -359,8 +361,15 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertStringContainsString("[data-tabs-input-policy='touch-only-drag'][data-tab-direction='next']", $styles);
         $this->assertStringContainsString("[data-tabs-input-policy='touch-only-drag'][data-tab-direction='previous']", $styles);
         $this->assertStringContainsString(".rt-tabs-carousel[data-touch-dragging='true']", $styles);
+        $this->assertStringContainsString('scroll-behavior: auto', $styles);
+        $this->assertStringContainsString('scroll-snap-align: center', $styles);
+        $this->assertStringNotContainsString('scroll-snap-align: nearest', $styles);
         $this->assertStringContainsString('touch-action: pan-x pan-y', $styles);
         $this->assertStringContainsString('@media (any-pointer: coarse)', $styles);
+        $this->assertMatchesRegularExpression(
+            '/@media \(any-pointer: coarse\).*?\.rt-tabs-v2 \.rt-tabs-carousel\s*\{[^}]*scroll-snap-type:\s*none;[^}]*touch-action:\s*pan-y;/s',
+            $styles,
+        );
         $this->assertStringContainsString('touch-action: pan-y', $styles);
         $this->assertStringNotContainsString('cursor: grab', $styles);
         $this->assertStringNotContainsString('cursor: grabbing', $styles);

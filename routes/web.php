@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\InvitedRegistrationController;
 use App\Http\Controllers\ChatAttachmentController;
+use App\Http\Controllers\ChatExportController;
 use App\Http\Controllers\ManagedDocumentDownloadController;
 use App\Http\Controllers\ProfileEmailTemplateController;
 use App\Http\Controllers\PushSubscriptionController;
@@ -105,6 +106,10 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
     Route::get('/messages', MessageBox::class)->name('messages');
     // Chat steht ALLEN angemeldeten Benutzern offen (Admin- wie Nutzerbereich).
     Route::get('/chat', ChatBox::class)->name('chat');
+    Route::get('/chat/{chat}/export', ChatExportController::class)
+        ->whereNumber('chat')
+        ->middleware('throttle:30,1')
+        ->name('chat.export');
     Route::get('/help', HelpCenter::class)->name('help');
     Route::get('/support', ItSupport::class)->name('support');
     Route::prefix('settings/push')

@@ -144,9 +144,8 @@ function rtApplyTheme() {
 document.addEventListener('livewire:navigated', rtApplyTheme);
 
 // ---------------------------------------------------------------
-// Seitenwechsel-Overlay fuer wire:navigate: eine kompakte, streckenartige
-// RailTime-Ladebuehne mit kinetischer Wortmarke statt eines Standard-Spinners.
-// Wird erst nach kurzer Verzoegerung
+// Seitenwechsel-Overlay fuer wire:navigate: ein kompakter, frei schwebender
+// RailTime-Orb ohne Text oder Dialogflaeche. Wird erst nach kurzer Verzoegerung
 // gezeigt (kein Flackern bei vorab geladenen Seiten) und nach dem
 // body-Swap bei Bedarf neu angehaengt.
 // ---------------------------------------------------------------
@@ -180,17 +179,9 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
             overlay.setAttribute('aria-hidden', 'true');
             overlay.setAttribute('aria-label', 'RailTime lädt die nächste Seite');
             overlay.innerHTML = `
-                <div class="rt-nav-loader">
-                    <div class="rt-nav-loader__wordmark" aria-hidden="true">
-                        <span>R</span><span>A</span><span>I</span><span>L</span>
-                        <span class="rt-nav-loader__accent">T</span><span>I</span><span>M</span><span>E</span>
-                    </div>
-                    <div class="rt-nav-loader__track" aria-hidden="true">
-                        <span class="rt-nav-loader__line"></span>
-                        <span class="rt-nav-loader__signal"></span>
-                    </div>
-                    <span class="rt-nav-loader__label">SEITENWECHSEL</span>
-                </div>
+                <span class="rt-nav-loader" aria-hidden="true">
+                    <span class="rt-nav-loader__orb"></span>
+                </span>
             `;
         }
         if (document.body) {
@@ -211,34 +202,17 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
 
             if (window.gsap && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
                 const loader = o.querySelector('.rt-nav-loader');
-                const letters = o.querySelectorAll('.rt-nav-loader__wordmark > span');
-                const signal = o.querySelector('.rt-nav-loader__signal');
-                const timeline = window.gsap.timeline({
-                    defaults: { ease: 'power3.out' },
-                });
-
-                timeline
-                    .fromTo(loader, { autoAlpha: 0, y: 12, scale: 0.985 }, {
-                        autoAlpha: 1,
-                        y: 0,
-                        scale: 1,
-                        duration: 0.36,
-                        overwrite: 'auto',
-                    })
-                    .fromTo(letters, { autoAlpha: 0, yPercent: 70 }, {
-                        autoAlpha: 1,
-                        yPercent: 0,
-                        duration: 0.28,
-                        stagger: 0.025,
-                        overwrite: 'auto',
-                    }, '<0.05');
-
-                window.gsap.fromTo(signal, { x: -12 }, {
-                    x: 184,
-                    duration: 0.9,
-                    ease: 'power2.inOut',
-                    repeat: -1,
+                window.gsap.killTweensOf(loader);
+                window.gsap.fromTo(loader, {
+                    autoAlpha: 0,
+                    scale: 0.68,
+                }, {
+                    autoAlpha: 1,
+                    scale: 1,
+                    duration: 0.38,
+                    ease: 'back.out(1.7)',
                     overwrite: 'auto',
+                    clearProps: 'opacity,visibility,transform',
                 });
             }
         }, 120);
@@ -256,11 +230,10 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
         // wiederhergestellte Seite einen KLON mit derselben id mit — den diese
         // Closure nicht kennt und der sonst dauerhaft sichtbar bliebe.
         document.querySelectorAll('#rt-nav-overlay').forEach(function (node) {
-            window.gsap?.killTweensOf([
-                node.querySelector('.rt-nav-loader'),
-                node.querySelector('.rt-nav-loader__signal'),
-                ...node.querySelectorAll('.rt-nav-loader__wordmark > span'),
-            ].filter(Boolean));
+            const loader = node.querySelector('.rt-nav-loader');
+            if (loader) {
+                window.gsap?.killTweensOf(loader);
+            }
             node.classList.remove('is-visible');
             node.setAttribute('aria-hidden', 'true');
 
@@ -776,6 +749,39 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
     listCollapsed: localStorage.getItem('rt-chat-list-collapsed') === 'true',
     touchStartX: null,
     touchStartY: null,
+    viewportHandler: null,
+    viewportFrame: null,
+
+    init() {
+        this.viewportHandler = () => this.queueVisualViewportSync();
+
+        window.visualViewport?.addEventListener('resize', this.viewportHandler, { passive: true });
+        window.visualViewport?.addEventListener('scroll', this.viewportHandler, { passive: true });
+        window.addEventListener('resize', this.viewportHandler, { passive: true });
+
+        this.viewportHandler();
+    },
+
+    queueVisualViewportSync() {
+        if (this.viewportFrame !== null) {
+            window.cancelAnimationFrame(this.viewportFrame);
+        }
+
+        this.viewportFrame = window.requestAnimationFrame(() => {
+            this.viewportFrame = null;
+
+            if (!this.$root?.isConnected) {
+                return;
+            }
+
+            const visualViewport = window.visualViewport;
+            const viewportHeight = Math.max(0, visualViewport?.height ?? window.innerHeight);
+            const viewportTop = Math.max(0, visualViewport?.offsetTop ?? 0);
+
+            this.$root.style.setProperty('--rt-chat-visual-height', `${Math.round(viewportHeight)}px`);
+            this.$root.style.setProperty('--rt-chat-visual-top', `${Math.round(viewportTop)}px`);
+        });
+    },
 
     showList() {
         this.mobilePane = 'list';
@@ -840,6 +846,21 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
     cancelSwipe() {
         this.touchStartX = null;
         this.touchStartY = null;
+    },
+
+    destroy() {
+        window.visualViewport?.removeEventListener('resize', this.viewportHandler);
+        window.visualViewport?.removeEventListener('scroll', this.viewportHandler);
+        window.removeEventListener('resize', this.viewportHandler);
+
+        if (this.viewportFrame !== null) {
+            window.cancelAnimationFrame(this.viewportFrame);
+            this.viewportFrame = null;
+        }
+
+        this.$root?.style.removeProperty('--rt-chat-visual-height');
+        this.$root?.style.removeProperty('--rt-chat-visual-top');
+        this.viewportHandler = null;
     },
 }));
 

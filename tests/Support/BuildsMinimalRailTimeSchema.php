@@ -179,6 +179,9 @@ trait BuildsMinimalRailTimeSchema
             $table->unsignedBigInteger('user_id');
             $table->timestamp('last_read_at')->nullable();
             $table->timestamp('last_opened_at')->nullable();
+            $table->timestamp('joined_at')->nullable();
+            $table->timestamp('hidden_at')->nullable();
+            $table->timestamp('cleared_at')->nullable();
             $table->timestamps();
         });
 

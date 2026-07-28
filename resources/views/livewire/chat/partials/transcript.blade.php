@@ -176,8 +176,7 @@
                     @if ($own)
                         <button
                             type="button"
-                            wire:click="deleteMessage({{ $message->id }})"
-                            wire:confirm="{{ __('app.delete_chat_message_confirm') }}"
+                            wire:click="requestDeleteMessage({{ $message->id }})"
                             class="rt-chat-message-delete mr-auto inline-flex h-6 w-6 items-center justify-center rounded-lg opacity-55 hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/50"
                             title="{{ __('app.delete_chat_message') }}"
                             aria-label="{{ __('app.delete_chat_message') }}"

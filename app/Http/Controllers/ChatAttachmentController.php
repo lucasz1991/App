@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ChatMessage;
 use App\Models\File;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
@@ -16,9 +17,27 @@ class ChatAttachmentController extends Controller
     {
         abort_unless($file->fileable_type === ChatMessage::class, 404);
 
-        $message = ChatMessage::query()->findOrFail($file->fileable_id);
+        $message = ChatMessage::query()
+            ->with('chat.participants')
+            ->findOrFail($file->fileable_id);
+        $user = $request->user();
+
+        abort_unless($user instanceof User, 403);
+
+        $chat = $message->chat;
+        $participant = $chat?->participantFor($user);
+
+        // Keine Gate-Abkuerzung fuer Administratoren: Chat-Anhaenge gehoeren
+        // ausschliesslich sichtbaren Teilnehmern des konkreten Chats.
         abort_unless(
-            $message->chat()->whereHas('participants', fn ($query) => $query->where('users.id', $request->user()->id))->exists(),
+            $participant !== null && $participant->pivot?->hidden_at === null,
+            403
+        );
+
+        $visibleSince = $chat->visibleSinceFor($user);
+
+        abort_if(
+            $visibleSince !== null && $message->created_at->lt($visibleSince),
             403
         );
 
