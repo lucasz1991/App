@@ -101,7 +101,9 @@ export function railtimeTabs(config = {}) {
 
             if (immediate || this.reducedMotion()) {
                 reveal();
-                this.$dispatch('rt-tab:preload', { id });
+                window.dispatchEvent(new CustomEvent('rt-tab:preload', {
+                    detail: { id },
+                }));
                 return;
             }
 
