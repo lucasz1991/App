@@ -29,11 +29,11 @@ $ariaLabel = $attributes->get('aria-label', config('app.name') . ' Dialog');
             x-show="show"
             x-on:close.stop="show = false"
             id="{{ $id }}"
-            class="rt-ui-modal rt-modal-shell rt-modal-center-shell jetstream-modal fixed inset-0 z-[190] overflow-y-auto px-4 py-6 sm:px-0"
+            class="rt-ui-modal rt-modal-shell rt-modal-center-shell jetstream-modal fixed inset-0 z-[190] overflow-hidden p-3 sm:p-6"
             style="display: none;"
             data-rt-modal-shell
         >
-            <div x-show="show" class="rt-modal-backdrop fixed inset-0 transform transition-all" x-on:click="show = false" x-transition:enter="ease-out duration-200"
+            <div x-show="show" aria-hidden="true" class="rt-modal-backdrop fixed inset-0 transform transition-all" x-on:click="show = false" x-transition:enter="ease-out duration-200"
                             x-transition:enter-start="opacity-0"
                             x-transition:enter-end="opacity-100"
                             x-transition:leave="ease-in duration-200"
@@ -53,7 +53,7 @@ $ariaLabel = $attributes->get('aria-label', config('app.name') . ' Dialog');
                             @if (filled($describedBy))
                                 aria-describedby="{{ $describedBy }}"
                             @endif
-                            class="rt-ui-surface rt-ui-modal-panel rt-modal-frame relative my-auto max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100vw-2rem)] overflow-x-hidden overflow-y-auto rounded-[1.4rem] bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-rt-border/60 transform transition-all dark:bg-rt-dark-surface dark:text-white dark:ring-rt-dark-border/60 {{ $maxWidth }}"
+                            class="rt-ui-surface rt-ui-modal-panel rt-modal-frame relative my-auto flex max-h-[calc(100dvh-1.5rem)] min-h-0 min-w-0 w-full max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-[1.4rem] bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-rt-border/60 transform transition-all dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60 sm:max-h-[calc(100dvh-3rem)] {{ $maxWidth }}"
                             x-trap.inert.noscroll="show"
                             x-transition:enter="ease-out duration-200"
                             x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-2 sm:scale-[0.985]"
@@ -62,7 +62,9 @@ $ariaLabel = $attributes->get('aria-label', config('app.name') . ' Dialog');
                             x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
                             x-transition:leave-end="opacity-0 translate-y-3 sm:translate-y-1 sm:scale-[0.99]"
                             data-rt-modal-panel>
-                {{ $slot }}
+                <div class="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain [overflow-wrap:anywhere] [scrollbar-gutter:stable] [&>*]:max-w-full [&>*]:min-w-0 [&_iframe]:max-w-full [&_img]:max-w-full [&_video]:max-w-full">
+                    {{ $slot }}
+                </div>
             </div>
         </div>
     </template>
