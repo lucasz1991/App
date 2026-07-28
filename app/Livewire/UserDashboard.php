@@ -12,7 +12,7 @@ class UserDashboard extends Component
     public function mount(): void
     {
         if (auth()->user()->usesAdminLayout()) {
-            $this->redirectRoute('admin.dashboard');
+            $this->redirectRoute('admin.dashboard', navigate: true);
         }
     }
 

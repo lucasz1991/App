@@ -148,7 +148,7 @@
                     </div>
                     <p class="mt-3 max-w-3xl text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">{{ __('app.help_install_description') }}</p>
                 </div>
-                <a href="{{ route('profile.show', ['tab' => 'settings']) }}" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-4 py-2 text-sm font-semibold text-white shadow-rt-sm transition hover:-translate-y-0.5 hover:bg-rt-red-dark focus:outline-none focus:ring-2 focus:ring-rt-red/30">
+                <a href="{{ route('profile.show', ['tab' => 'settings']) }}" wire:navigate class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-4 py-2 text-sm font-semibold text-white shadow-rt-sm transition hover:-translate-y-0.5 hover:bg-rt-red-dark focus:outline-none focus:ring-2 focus:ring-rt-red/30">
                     <i data-feather="bell" class="h-4 w-4"></i>
                     {{ __('app.open_app_push') }}
                 </a>

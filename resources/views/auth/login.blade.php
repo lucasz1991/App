@@ -23,7 +23,7 @@
 
             <div class="flex items-center justify-between">
                 <x-ui.forms.checkbox id="remember" name="remember" :label="__('app.remember_me')" />
-                <a href="{{ route('password.request') }}" class="text-sm text-rt-muted underline transition-colors duration-300 hover:text-rt-red dark:text-rt-dark-muted dark:hover:text-rt-dark-accent">
+                <a href="{{ route('password.request') }}" wire:navigate class="text-sm text-rt-muted underline transition-colors duration-300 hover:text-rt-red dark:text-rt-dark-muted dark:hover:text-rt-dark-accent">
                     {{ __('app.forgot_password') }}
                 </a>
             </div>

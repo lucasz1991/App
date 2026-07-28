@@ -26,7 +26,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
                     </svg>
                 </button>
-                <a href="{{ route('admin.dashboard') }}" class="text-base font-semibold text-rt-text dark:text-rt-dark-text sm:text-lg">
+                <a href="{{ route('admin.dashboard') }}" wire:navigate class="text-base font-semibold text-rt-text dark:text-rt-dark-text sm:text-lg">
                     {{ config('app.name') }} Admin
                 </a>
             </div>

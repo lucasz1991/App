@@ -32,7 +32,7 @@
 
         <p class="mt-6 text-center text-sm text-rt-muted dark:text-rt-dark-muted">
             {{ __('app.already_registered') }}
-            <a href="{{ route('login') }}" class="font-medium text-rt-text underline transition-colors duration-300 hover:text-rt-red dark:text-rt-dark-text dark:hover:text-rt-dark-accent">
+            <a href="{{ route('login') }}" wire:navigate class="font-medium text-rt-text underline transition-colors duration-300 hover:text-rt-red dark:text-rt-dark-text dark:hover:text-rt-dark-accent">
                 {{ __('app.to_login') }}
             </a>
         </p>

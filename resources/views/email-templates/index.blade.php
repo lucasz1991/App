@@ -67,6 +67,7 @@
                                 </div>
                                 <a
                                     href="{{ route('profile.show') }}"
+                                    wire:navigate
                                     class="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-amber-900 underline decoration-amber-500/50 underline-offset-4 transition hover:decoration-current dark:text-amber-200"
                                 >
                                     {{ __('app.complete_profile') }}

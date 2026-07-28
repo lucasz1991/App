@@ -12,6 +12,11 @@ import gsap from 'gsap';
 
 const GLOW_SELECTOR = '[data-rt-glow]';
 const AMBIENT_SELECTOR = '[data-rt-shell-ambient]';
+// Das Ambient-Licht folgt dem Zeiger ueber der gesamten Shell — Inhalt,
+// Topbar und Sidebar. Die Koordinaten werden unten ohnehin auf die
+// Ambient-Flaeche geklemmt; ueber Topbar/Sidebar gleitet das Licht dadurch
+// sichtbar am Rand des Inhaltsbereichs mit, statt abrupt zu verschwinden.
+const AMBIENT_HOVER_SELECTOR = '#main-content, [data-rt-shell-topbar], #app-sidebar, .vertical-menu, .topbar-brand';
 
 const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -87,7 +92,7 @@ function applyAmbient(event) {
     resolveAmbient();
 
     const target = event.target instanceof Element ? event.target : null;
-    if (!ambient || !ambientPointer || !target?.closest('#main-content')) {
+    if (!ambient || !ambientPointer || !target?.closest(AMBIENT_HOVER_SELECTOR)) {
         ambientOpacity?.(0);
         return;
     }

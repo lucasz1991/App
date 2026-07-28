@@ -175,6 +175,7 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
     let showTimer = null;
     let failsafeTimer = null;
     let active = false;
+    let contentEntrancePending = false;
 
     // Notbremse. Grund (verifiziert in vendor/livewire/livewire/dist/
     // livewire.esm.js, performFetch): Livewire holt die neue Seite mit
@@ -199,11 +200,26 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
             overlay.setAttribute('role', 'status');
             overlay.setAttribute('aria-hidden', 'true');
             overlay.setAttribute('aria-label', 'RailTime lädt die nächste Seite');
+
+            // Partikelkranz und Funken deterministisch erzeugen: --i steuert
+            // Startwinkel/Verzoegerung, --s die Groesse. Bewusst ohne
+            // Math.random — gleiches Bild bei jedem Seitenwechsel.
+            const particles = Array.from({ length: 8 }, (_, i) => (
+                `<span class="rt-nav-loader__particle" style="--i:${i};--s:${(0.7 + (i % 3) * 0.24).toFixed(2)}"></span>`
+            )).join('');
+            const sparks = Array.from({ length: 3 }, (_, i) => (
+                `<span class="rt-nav-loader__spark" style="--i:${i}"></span>`
+            )).join('');
+
             overlay.innerHTML = `
                 <span class="rt-nav-loader" aria-hidden="true">
+                    <span class="rt-nav-loader__particles">${particles}</span>
                     <span class="rt-nav-loader__orb">
                         <span class="rt-nav-loader__fluid rt-nav-loader__fluid--drift"></span>
                         <span class="rt-nav-loader__fluid rt-nav-loader__fluid--counter"></span>
+                        <span class="rt-nav-loader__sheen"></span>
+                        ${sparks}
+                        <span class="rt-nav-loader__core"></span>
                         <span class="rt-nav-loader__gloss"></span>
                     </span>
                 </span>
@@ -217,6 +233,7 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
 
     function start() {
         active = true;
+        contentEntrancePending = true;
         window.clearTimeout(showTimer);
         window.clearTimeout(failsafeTimer);
         showTimer = window.setTimeout(function () {
@@ -230,18 +247,45 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
                 window.gsap.killTweensOf(loader);
                 window.gsap.fromTo(loader, {
                     autoAlpha: 0,
-                    scale: 0.68,
+                    scale: 0.55,
+                    y: 16,
                 }, {
                     autoAlpha: 1,
                     scale: 1,
-                    duration: 0.38,
-                    ease: 'back.out(1.7)',
+                    y: 0,
+                    duration: 0.5,
+                    ease: 'back.out(1.9)',
                     overwrite: 'auto',
                     clearProps: 'opacity,visibility,transform',
                 });
             }
         }, 120);
         failsafeTimer = window.setTimeout(done, FAILSAFE_MS);
+    }
+
+    // Einblendeanimation fuer die fertig geladene Seite: nur nach einer
+    // tatsaechlichen wire:navigate-Navigation (Flag), nie beim ersten
+    // Seitenaufbau. Bewusst NUR Opacity, kein Transform: .page-content
+    // enthaelt position:fixed-Kinder (Shell-Ambient) — ein Transform wuerde
+    // sie zum Containing Block umhaengen und vom Viewport loesen.
+    function playContentEntrance() {
+        if (!contentEntrancePending) return;
+        contentEntrancePending = false;
+
+        if (!window.gsap || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            return;
+        }
+
+        const content = document.querySelector('#main-content .page-content');
+        if (!content) return;
+
+        window.gsap.fromTo(content, { autoAlpha: 0 }, {
+            autoAlpha: 1,
+            duration: 0.34,
+            ease: 'power1.out',
+            overwrite: 'auto',
+            clearProps: 'opacity,visibility',
+        });
     }
 
     function done() {
@@ -283,7 +327,10 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
 
     // Alle Wege, auf denen eine Navigation endet ODER scheitert. done() ist
     // idempotent, mehrfaches Aufraeumen ist deshalb unschaedlich.
-    document.addEventListener('livewire:navigated', done);
+    document.addEventListener('livewire:navigated', function () {
+        done();
+        playContentEntrance();
+    });
     window.addEventListener('popstate', done);
     window.addEventListener('pageshow', done);
     window.addEventListener('offline', done);

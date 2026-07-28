@@ -1,4 +1,7 @@
-<a href="/" class="w-40 block">
+{{-- wire:navigate ist auf Seiten ohne Livewire-Skripte (z. B. Wartungsseite)
+     ein wirkungsloses Attribut — der Link faellt dort auf normale Navigation
+     zurueck. Auf Livewire-Seiten (Auth/Legal) navigiert er SPA-artig. --}}
+<a href="/" class="w-40 block" wire:navigate>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" id="Ebene_1" x="0px" y="0px" viewBox="0 0 596 603" style="enable-background:new 0 0 596 603;" xml:space="preserve">
 <filter height="100%" id="d9f285bae1" width="100%" x="0%" y="0%">
 	<feColorMatrix color-interpolation-filters="sRGB" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0.2126 0.7152 0.0722 0 0">
