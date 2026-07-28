@@ -17,13 +17,10 @@
         <div class="p-4 sm:p-6">
             {{-- Persoenliche Zuordnung: leer = Systemstandard (wird je Zeile
                  mit dem wirksamen Standardton angezeigt). --}}
-            <x-ui.forms.sound-picker model="sounds" :allow-default="true" :system-map="$systemMap" />
+            <x-ui.forms.sound-picker model="sounds" :allow-default="true" :system-map="$systemMap" autosave="save" />
 
             <div class="mt-5 flex justify-end">
-                <x-ui.buttons.button-basic mode="primary" wire:click="save" class="w-full sm:w-auto">
-                    <i class="fad fa-save" aria-hidden="true"></i>
-                    {{ __('app.save') }}
-                </x-ui.buttons.button-basic>
+                <x-ui.autosave-status event="sound-preferences-saved" target="save" dirty-target="sounds" />
             </div>
         </div>
     </section>

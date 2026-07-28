@@ -160,7 +160,9 @@ body[data-mode='dark'] .rt-tabs-v2.rt-tabs-shell {
         color 180ms ease,
         border-color 180ms ease,
         background-color 180ms ease,
-        box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1);
+        box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1),
+        transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 180ms ease;
     will-change: auto;
     -webkit-tap-highlight-color: transparent;
 }
@@ -311,23 +313,23 @@ body[data-mode='dark'] .rt-tabs-v2.rt-tabs-shell {
     transform: translate3d(-0.5rem, 0, 0);
 }
 
-@media (any-pointer: coarse) {
-    .rt-tabs-v2 .rt-tabs-carousel {
-        touch-action: pan-y;
-    }
-
-    .rt-tabs-v2 .rt-carousel-tab {
-        min-height: 3rem;
-    }
+[data-tabs-scrubbing='true'] .rt-tab-panel-transition {
+    transition-duration: 90ms;
 }
 
 @media (min-width: 768px) {
     .rt-tabs-v2 .rt-tabs-carousel {
+        overflow: hidden;
         padding: 0.125rem;
+        touch-action: pan-y;
+        cursor: default;
+        user-select: auto;
     }
 
     .rt-tabs-v2 .rt-tabs-carousel-track {
         gap: 0.375rem;
+        transform: none !important;
+        transition-duration: 0ms !important;
     }
 
     .rt-tabs-v2 .rt-carousel-tab {
@@ -376,10 +378,31 @@ body[data-mode='dark'] .rt-tabs-v2.rt-tabs-shell {
         padding-inline: 0.375rem;
     }
 
+    .rt-tabs-v2 .rt-tabs-carousel {
+        touch-action: pan-y;
+        cursor: grab;
+    }
+
+    .rt-tabs-v2 .rt-tabs-carousel[data-swiping='true'] {
+        cursor: grabbing;
+    }
+
     .rt-tabs-v2 .rt-carousel-tab {
-        min-width: max-content;
-        max-width: min(15rem, 72vw);
-        flex: 0 0 auto;
+        width: min(15rem, 68vw);
+        min-width: 10rem;
+        max-width: min(15rem, 68vw);
+        min-height: 3rem;
+        flex: 0 0 min(15rem, 68vw);
+    }
+
+    .rt-tabs-v2 .rt-carousel-tab[data-position='inactive'] {
+        opacity: 0.68;
+        transform: scale(0.955);
+    }
+
+    .rt-tabs-v2 .rt-carousel-tab[data-position='active'] {
+        opacity: 1;
+        transform: scale(1);
     }
 }
 

@@ -27,7 +27,14 @@
             ] as [$field, $label, $type, $autocomplete])
                 <div @class(['md:col-span-2' => in_array($field, ['street', 'education'], true)])>
                     <x-ui.forms.label :for="$field" :value="__('app.'.$label)" />
-                    <x-ui.forms.input :id="$field" :type="$type" class="mt-1 block" wire:model="{{ $field }}" :autocomplete="$autocomplete" />
+                    <x-ui.forms.input
+                        :id="$field"
+                        :type="$type"
+                        class="mt-1 block"
+                        wire:model="{{ $field }}"
+                        wire:blur="save"
+                        :autocomplete="$autocomplete"
+                    />
                     <x-input-error :for="$field" class="mt-2" />
                 </div>
             @endforeach
@@ -35,7 +42,10 @@
     </x-slot>
 
     <x-slot name="actions">
-        <x-action-message class="me-3" on="saved">{{ __('app.saved') }}</x-action-message>
-        <x-button wire:loading.attr="disabled">{{ __('app.save') }}</x-button>
+        <x-ui.autosave-status
+            event="contact-saved"
+            target="save"
+            dirty-target="first_name,last_name,phone,mobile,street,postal_code,city,country,birth_date,birth_place,birth_name,nationality,education"
+        />
     </x-slot>
 </x-form-section>

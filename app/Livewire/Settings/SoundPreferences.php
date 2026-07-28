@@ -60,7 +60,7 @@ class SoundPreferences extends Component
         // Beziehung neu laden, sonst rechnet mapFor() mit dem alten Stand.
         $user->unsetRelation('soundPreferences');
 
-        $this->dispatch('swal:toast', type: 'success', text: __('app.sounds_saved'));
+        $this->dispatch('sound-preferences-saved');
         $this->dispatch('rt-sounds:map', map: SoundLibrary::mapFor($user));
     }
 

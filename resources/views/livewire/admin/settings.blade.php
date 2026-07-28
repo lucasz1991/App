@@ -61,10 +61,7 @@
                     </div>
 
                     <div class="mt-5">
-                        <x-ui.buttons.button-basic class="w-full sm:w-auto" mode="primary" wire:click="saveSystem" can="settings.manage">
-                            <i class="fad fa-save" aria-hidden="true"></i>
-                            {{ __('app.save') }}
-                        </x-ui.buttons.button-basic>
+                        <x-ui.autosave-status event="system-settings-saved" target="saveSystem" />
                     </div>
                 </div>
             </div>
@@ -95,14 +92,11 @@
                     </p>
 
                     <div class="mt-4 sm:mt-5">
-                        <x-ui.forms.sound-picker model="sounds" />
+                        <x-ui.forms.sound-picker model="sounds" autosave="saveSounds" />
                     </div>
 
                     <div class="mt-5">
-                        <x-ui.buttons.button-basic class="w-full sm:w-auto" mode="primary" wire:click="saveSounds" can="settings.manage">
-                            <i class="fad fa-save" aria-hidden="true"></i>
-                            {{ __('app.save') }}
-                        </x-ui.buttons.button-basic>
+                        <x-ui.autosave-status event="sound-settings-saved" target="saveSounds" dirty-target="sounds" />
                     </div>
                 </div>
             </div>
@@ -141,6 +135,7 @@
                             :nullable="false"
                             :unit="__('app.days')"
                             wire:model="invitationExpiryDays"
+                            wire:blur="saveInvitations"
                         />
                     </div>
                     @error('invitationExpiryDays')
@@ -152,10 +147,7 @@
                 </div>
 
                 <div class="mt-5">
-                    <x-ui.buttons.button-basic class="w-full sm:w-auto" mode="primary" wire:click="saveInvitations" can="settings.manage">
-                        <i class="fad fa-save" aria-hidden="true"></i>
-                        {{ __('app.save') }}
-                    </x-ui.buttons.button-basic>
+                    <x-ui.autosave-status event="invitation-settings-saved" target="saveInvitations" dirty-target="invitationExpiryDays" />
                 </div>
             </div>
         </div>
@@ -192,6 +184,7 @@
                             id="admin_email"
                             placeholder="admin@rail-time.de"
                             wire:model="adminEmail"
+                            wire:blur="saveMails"
                         />
                     </div>
                     @error('adminEmail')
@@ -203,10 +196,7 @@
                 </div>
 
                 <div class="mt-5">
-                    <x-ui.buttons.button-basic class="w-full sm:w-auto" mode="primary" wire:click="saveMails" can="settings.manage">
-                        <i class="fad fa-save" aria-hidden="true"></i>
-                        {{ __('app.save') }}
-                    </x-ui.buttons.button-basic>
+                    <x-ui.autosave-status event="mail-settings-saved" target="saveMails" dirty-target="adminEmail" />
                 </div>
             </div>
         </div>
@@ -259,6 +249,7 @@
                                         type="{{ $type }}"
                                         autocomplete="{{ $autocomplete }}"
                                         wire:model="company.{{ $field }}"
+                                        wire:blur="saveCompany"
                                         class="mt-1.5"
                                     />
                                     @error('company.'.$field)
@@ -269,10 +260,11 @@
                         </div>
 
                         <div class="mt-6 flex flex-col border-t border-rt-border/70 pt-5 dark:border-rt-dark-border/70 sm:flex-row sm:items-center sm:justify-end">
-                            <x-ui.buttons.button-basic class="w-full sm:w-auto" type="submit" mode="primary" can="settings.manage">
-                                <i class="fad fa-save" aria-hidden="true"></i>
-                                <span>{{ __('app.save_company_data') }}</span>
-                            </x-ui.buttons.button-basic>
+                            <x-ui.autosave-status
+                                event="company-settings-saved"
+                                target="saveCompany"
+                                dirty-target="company.name,company.email,company.street,company.postal_code,company.city,company.country,company.phone,company.emergency_phone,company.website,company.managing_directors,company.register_court,company.commercial_register_number,company.vat_id,company.tax_number"
+                            />
                         </div>
                     </form>
                 </div>

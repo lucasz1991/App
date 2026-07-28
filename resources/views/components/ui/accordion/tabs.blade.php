@@ -23,8 +23,12 @@
         openTab: $persist(@js($initial)).as(@js($key)),
         tabDirection: 'next',
         stickyEnabled: true,
+        mobileTabs: false,
+        scrubbingTabs: false,
         swiper: null,
         scrollFrame: null,
+        mobileQuery: null,
+        mobileQueryHandler: null,
         atScrollStart: true,
         atScrollEnd: true,
         items: [
@@ -49,7 +53,7 @@
             return Array.from(this.$refs.carousel?.querySelectorAll('[role=tab]') ?? [])
                 .find(tab => tab.dataset.tabId === id);
         },
-        selectTab(id, focusTab = false) {
+        selectTab(id, focusTab = false, revealTab = true) {
             if (!this.items.some(item => item.id === id)) return;
 
             const currentIndex = this.activeIndex();
@@ -58,14 +62,25 @@
             this.openTab = id;
 
             this.$nextTick(() => {
-                this.revealActiveTab();
+                if (revealTab) {
+                    this.revealActiveTab();
+                }
                 this.animateSelection();
-                this.keepSelectedPanelVisible();
+                if (!this.scrubbingTabs) {
+                    this.keepSelectedPanelVisible();
+                }
 
                 if (focusTab) {
                     this.tabElement(this.openTab)?.focus({ preventScroll: true });
                 }
             });
+        },
+        selectTabFromSwiper(index) {
+            const item = this.items[index];
+            if (!item || item.id === this.openTab) return;
+
+            this.scrubbingTabs = true;
+            this.selectTab(item.id, false, false);
         },
         moveTab(direction) {
             if (this.items.length < 2) return;
@@ -79,7 +94,7 @@
             this.selectTab(position === 'start' ? this.items[0].id : this.items[this.items.length - 1].id, true);
         },
         revealActiveTab(behavior = 'smooth') {
-            if (!this.swiper) return;
+            if (!this.mobileTabs || !this.swiper) return;
 
             this.swiper.update();
             const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -87,22 +102,50 @@
             this.swiper.slideTo(this.activeIndex(), duration);
             this.syncScrollEdges();
         },
-        initSwiper() {
-            if (!window.Swiper || !this.$refs.carousel) return;
+        configureTabsForViewport(mobile) {
+            this.mobileTabs = mobile;
 
-            this.swiper?.destroy(true, false);
+            if (!mobile) {
+                this.scrubbingTabs = false;
+                this.swiper?.destroy(true, true);
+                this.swiper = null;
+                this.atScrollStart = true;
+                this.atScrollEnd = true;
+                this.$refs.carousel?.removeAttribute('data-swiping');
+                return;
+            }
+
+            this.$nextTick(() => {
+                this.initSwiper();
+                this.revealActiveTab('auto');
+            });
+        },
+        initResponsiveTabs() {
+            this.mobileQuery = window.matchMedia('(max-width: 767.98px)');
+            this.mobileQueryHandler = event => this.configureTabsForViewport(event.matches);
+            this.mobileQuery.addEventListener('change', this.mobileQueryHandler);
+            this.configureTabsForViewport(this.mobileQuery.matches);
+        },
+        initSwiper() {
+            if (!this.mobileTabs || !window.Swiper || !this.$refs.carousel) return;
+
+            this.swiper?.destroy(true, true);
             const controller = this;
 
             this.swiper = new window.Swiper(this.$refs.carousel, {
                 modules: window.SwiperFreeMode ? [window.SwiperFreeMode] : [],
                 slidesPerView: 'auto',
                 spaceBetween: 5,
+                initialSlide: this.activeIndex(),
+                centeredSlides: true,
+                centeredSlidesBounds: true,
+                slideToClickedSlide: true,
                 freeMode: {
                     enabled: true,
                     momentum: true,
                     momentumRatio: 0.72,
                     momentumVelocityRatio: 0.78,
-                    sticky: false,
+                    sticky: true,
                 },
                 threshold: 5,
                 touchAngle: 42,
@@ -115,6 +158,7 @@
                 preventClicksPropagation: false,
                 watchOverflow: true,
                 centerInsufficientSlides: true,
+                watchSlidesProgress: true,
                 observer: true,
                 observeParents: true,
                 resistanceRatio: 0.72,
@@ -125,6 +169,9 @@
                     },
                     progress() {
                         controller.syncScrollEdges();
+                    },
+                    activeIndexChange(swiper) {
+                        controller.selectTabFromSwiper(swiper.activeIndex);
                     },
                     resize() {
                         controller.revealActiveTab('auto');
@@ -137,6 +184,10 @@
                     },
                     touchEnd() {
                         controller.$refs.carousel?.setAttribute('data-swiping', 'false');
+                    },
+                    transitionEnd() {
+                        controller.scrubbingTabs = false;
+                        controller.syncScrollEdges();
                     },
                 },
             });
@@ -210,7 +261,12 @@
         },
         destroy() {
             window.cancelAnimationFrame(this.scrollFrame || 0);
-            this.swiper?.destroy(true, false);
+            if (this.mobileQuery && this.mobileQueryHandler) {
+                this.mobileQuery.removeEventListener('change', this.mobileQueryHandler);
+            }
+            this.mobileQuery = null;
+            this.mobileQueryHandler = null;
+            this.swiper?.destroy(true, true);
             this.swiper = null;
 
             if (window.gsap) {
@@ -223,14 +279,15 @@
         ensureActiveTab();
         stickyEnabled = !$root.closest('[role=dialog]');
         $nextTick(() => {
-            initSwiper();
-            revealActiveTab('auto');
+            initResponsiveTabs();
             syncScrollEdges();
         });
     "
     :data-tab-direction="tabDirection"
+    :data-tabs-mobile="mobileTabs ? 'true' : 'false'"
+    :data-tabs-scrubbing="scrubbingTabs ? 'true' : 'false'"
     class="w-full min-w-0"
-    data-tabs-input-policy="swiper-touch"
+    :data-tabs-input-policy="mobileTabs ? 'swiper-touch' : 'click-only'"
     wire:key="{{ \Illuminate\Support\Str::slug($key) }}"
 >
     <div
