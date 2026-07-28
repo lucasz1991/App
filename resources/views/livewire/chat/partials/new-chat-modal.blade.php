@@ -50,93 +50,63 @@
                 </button>
             </div>
 
-            @if ($newChatTab === 'direct')
-                <div
-                    id="rt-new-chat-panel-direct"
-                    class="rt-chat-contact-list max-h-80 space-y-1 overflow-y-auto pr-1"
-                    role="tabpanel"
-                    aria-labelledby="rt-new-chat-tab-direct"
-                >
-                    @forelse ($contacts as $contact)
-                        <div
-                            wire:key="contact-{{ $contact->id }}"
-                            class="flex items-center gap-1"
-                        >
-                            <button
-                                type="button"
-                                wire:click="startDirect({{ $contact->id }})"
-                                class="rt-chat-contact group flex min-h-14 min-w-0 flex-1 items-center gap-3 rounded-xl px-2.5 py-2 text-left"
-                            >
-                                <x-chat.avatar
-                                    :src="$contact->profile_photo_url"
-                                    :name="$contact->name"
-                                    size="sm"
-                                />
-                                <span class="min-w-0 flex-1">
-                                    <span class="block truncate text-sm font-bold tracking-[-0.02em] text-rt-text dark:text-rt-dark-text">{{ $contact->name }}</span>
-                                    <span class="mt-0.5 block truncate text-[10px] text-rt-muted dark:text-rt-dark-muted">{{ $contact->email }}</span>
-                                </span>
-                                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-rt-muted dark:text-rt-dark-muted">
-                                    <i class="far fa-arrow-right text-[10px]" aria-hidden="true"></i>
-                                </span>
-                            </button>
-
-                            <x-chat.icon-button
-                                icon="far fa-address-card"
-                                :label="__('app.open_person_preview') . ': ' . $contact->name"
-                                size="sm"
-                                wire:click="$dispatch('person-preview:open', { userId: {{ $contact->id }} })"
-                                data-no-chat-swipe
+            @if ($showNewChat)
+                @if ($newChatTab === 'direct')
+                    <div
+                        id="rt-new-chat-panel-direct"
+                        role="tabpanel"
+                        aria-labelledby="rt-new-chat-tab-direct"
+                    >
+                        @include('livewire.chat.partials.member-picker', [
+                            'pickerPaginator' => $contacts,
+                            'pickerMode' => 'direct',
+                            'searchId' => 'direct-contact-search',
+                            'searchModel' => 'directContactSearch',
+                            'pageName' => 'directContactsPage',
+                            'rowPrefix' => 'direct-contact',
+                        ])
+                    </div>
+                @else
+                    <div
+                        id="rt-new-chat-panel-group"
+                        class="space-y-4"
+                        role="tabpanel"
+                        aria-labelledby="rt-new-chat-tab-group"
+                    >
+                        <div>
+                            <x-ui.forms.label for="group-name" :value="__('app.group_name')" />
+                            <x-ui.forms.input
+                                type="text"
+                                id="group-name"
+                                wire:model="groupName"
+                                autocomplete="off"
+                                class="mt-1.5 rounded-xl"
                             />
+                            @error('groupName')
+                                <p class="rt-chat-field-error mt-1.5 text-xs">{{ $message }}</p>
+                            @enderror
                         </div>
-                    @empty
-                        <x-chat.empty-state
-                            compact
-                            :title="__('app.chats')"
-                            :description="__('app.no_chats_yet')"
-                        />
-                    @endforelse
-                </div>
-            @else
-                <div
-                    id="rt-new-chat-panel-group"
-                    class="space-y-4"
-                    role="tabpanel"
-                    aria-labelledby="rt-new-chat-tab-group"
-                >
-                    <div>
-                        <x-ui.forms.label for="group-name" :value="__('app.group_name')" />
-                        <x-ui.forms.input
-                            type="text"
-                            id="group-name"
-                            wire:model="groupName"
-                            autocomplete="off"
-                            class="mt-1.5 rounded-xl"
-                        />
-                        @error('groupName')
-                            <p class="rt-chat-field-error mt-1.5 text-xs">{{ $message }}</p>
-                        @enderror
-                    </div>
 
-                    <div>
-                        <x-ui.forms.label :value="__('app.select_participants')" />
-                        <div class="rt-chat-participant-list mt-1.5 max-h-56 space-y-1 overflow-y-auto rounded-xl p-2">
-                            @foreach ($contacts as $contact)
-                                <div wire:key="gp-row-{{ $contact->id }}" class="rounded-lg px-1.5 py-1">
-                                    <x-ui.forms.checkbox
-                                        :id="'gp-' . $contact->id"
-                                        :label="$contact->name"
-                                        value="{{ $contact->id }}"
-                                        wire:model="groupParticipants"
-                                    />
-                                </div>
-                            @endforeach
+                        <div>
+                            <x-ui.forms.label :value="__('app.select_participants')" />
+                            <div class="mt-1.5">
+                                @include('livewire.chat.partials.member-picker', [
+                                    'pickerPaginator' => $groupParticipantsPaginator,
+                                    'pickerMode' => 'select',
+                                    'selectionModel' => 'groupParticipants',
+                                    'selectedIds' => $groupParticipants,
+                                    'searchId' => 'group-participant-search',
+                                    'searchModel' => 'groupParticipantSearch',
+                                    'pageName' => 'groupParticipantsPage',
+                                    'rowPrefix' => 'group-participant',
+                                ])
+                            </div>
+                            @error('groupParticipants')
+                                <p class="rt-chat-field-error mt-1.5 text-xs">{{ $message }}</p>
+                            @enderror
                         </div>
-                        @error('groupParticipants')
-                            <p class="rt-chat-field-error mt-1.5 text-xs">{{ $message }}</p>
-                        @enderror
                     </div>
-                </div>
+                @endif
             @endif
         </x-slot>
 

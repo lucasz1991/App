@@ -76,9 +76,9 @@
                     @endphp
                     <x-ui.dropdown.anchor-dropdown
                         align="right"
-                        width="72"
+                        width="64"
                         :offset="10"
-                        content-classes="rt-topbar-preferences-panel bg-rt-surface p-2 text-rt-text dark:bg-rt-dark-surface dark:text-white"
+                        content-classes="rt-topbar-preferences-panel bg-rt-surface p-1.5 text-rt-text dark:bg-rt-dark-surface dark:text-white"
                         data-topbar-preferences-dropdown="true"
                     >
                         <x-slot:trigger>
@@ -98,86 +98,62 @@
                         </x-slot:trigger>
 
                         <x-slot:content>
-                            <div class="px-2 pb-2 pt-1">
-                                <p class="text-sm font-semibold text-rt-text dark:text-white">{{ __('app.settings') }}</p>
-                                <p class="mt-0.5 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.preferences_description') }}</p>
-                            </div>
+                            <div class="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-1.5" data-topbar-preferences-grid>
+                                <div class="min-w-0" data-topbar-preference="language" @click.stop>
+                                    <x-ui.forms.select
+                                        id="topbar-language"
+                                        change="const routes = {{ \Illuminate\Support\Js::from($rtLocaleRoutes) }}; if (routes[selected]) window.location.assign(routes[selected]);"
+                                        :aria-label="__('app.language')"
+                                    >
+                                        @foreach ($rtLocales as $localeKey => $localeMeta)
+                                            <option
+                                                value="{{ $localeKey }}"
+                                                data-icon="{{ asset($localeMeta['flag']) }}"
+                                                @selected(app()->getLocale() === $localeKey)
+                                            >{{ $localeMeta['label'] }}</option>
+                                        @endforeach
+                                    </x-ui.forms.select>
+                                </div>
 
-                            <div class="border-t border-rt-border/70 px-1 pt-2 dark:border-rt-dark-border/70" data-topbar-preference="language" @click.stop>
-                                <p class="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-rt-soft dark:text-rt-dark-soft">{{ __('app.language') }}</p>
-                                <x-ui.forms.select
-                                    id="topbar-language"
-                                    change="const routes = {{ \Illuminate\Support\Js::from($rtLocaleRoutes) }}; if (routes[selected]) window.location.assign(routes[selected]);"
-                                    :aria-label="__('app.language')"
+                                <button
+                                    type="button"
+                                    role="menuitemcheckbox"
+                                    data-topbar-preference="theme"
+                                    data-topbar-toggle-track="theme"
+                                    x-bind:aria-checked="Boolean($store.theme?.dark).toString()"
+                                    aria-label="{{ __('app.appearance') }}"
+                                    @click.stop="$store.theme?.toggle()"
+                                    class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-rt-border bg-rt-surface-muted/55 text-rt-muted transition duration-200 ease-rt-spring hover:border-rt-accent/35 hover:text-rt-accent focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-accent/15 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/55 dark:text-rt-dark-muted dark:hover:text-rt-dark-accent"
+                                    :class="$store.theme?.dark && '!border-rt-dark-accent/35 !bg-rt-dark-accent-soft !text-rt-dark-accent'"
                                 >
-                                    @foreach ($rtLocales as $localeKey => $localeMeta)
-                                        <option
-                                            value="{{ $localeKey }}"
-                                            data-icon="{{ asset($localeMeta['flag']) }}"
-                                            @selected(app()->getLocale() === $localeKey)
-                                        >{{ $localeMeta['label'] }}</option>
-                                    @endforeach
-                                </x-ui.forms.select>
-                            </div>
+                                    <svg x-show="!$store.theme?.dark" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1.5m0 15V21m9-9h-1.5M4.5 12H3m15.364-6.364-1.061 1.061M6.697 17.303l-1.061 1.061m12.728 0-1.061-1.061M6.697 6.697 5.636 5.636M16.5 12a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z" /></svg>
+                                    <svg x-show="$store.theme?.dark" x-cloak xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 0 1 8.646 3.646 9.003 9.003 0 1 0 20.354 15.354Z" /></svg>
+                                </button>
 
-                            <div class="mt-2 grid grid-cols-2 gap-2 border-t border-rt-border/70 px-1 pt-2 dark:border-rt-dark-border/70">
-                                <div class="flex flex-col items-center gap-2 rounded-xl border border-rt-border bg-rt-surface-muted/60 px-2 py-2.5 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/50">
-                                    <span class="text-[10px] font-semibold uppercase tracking-[0.14em] text-rt-soft dark:text-rt-dark-soft">{{ __('app.appearance') }}</span>
-                                    <button
-                                        type="button"
-                                        role="menuitemcheckbox"
-                                        data-topbar-preference="theme"
-                                        data-topbar-toggle-track="theme"
-                                        x-bind:aria-checked="Boolean($store.theme?.dark).toString()"
-                                        aria-label="{{ __('app.appearance') }}"
-                                        @click.stop="$store.theme?.toggle()"
-                                        class="relative h-7 w-[52px] shrink-0 rounded-full border border-slate-300 bg-slate-300 transition-colors duration-300 ease-rt-spring focus:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/50 focus-visible:ring-offset-1 focus-visible:ring-offset-rt-surface dark:border-slate-600 dark:bg-slate-600 dark:focus-visible:ring-offset-rt-dark-surface"
-                                        :class="$store.theme?.dark && '!border-rt-red !bg-rt-red'"
-                                    >
-                                        <span
-                                            class="absolute left-1 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full bg-white text-slate-600 shadow-sm transition-transform duration-300 ease-rt-spring"
-                                            :class="$store.theme?.dark && 'translate-x-[22px] text-rt-red'"
-                                            aria-hidden="true"
-                                        >
-                                            <svg x-show="!$store.theme?.dark" xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1.5m0 15V21m9-9h-1.5M4.5 12H3m15.364-6.364-1.061 1.061M6.697 17.303l-1.061 1.061m12.728 0-1.061-1.061M6.697 6.697 5.636 5.636M16.5 12a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z" /></svg>
-                                            <svg x-show="$store.theme?.dark" x-cloak xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 0 1 8.646 3.646 9.003 9.003 0 1 0 20.354 15.354Z" /></svg>
-                                        </span>
-                                    </button>
-                                </div>
-
-                                <div class="flex flex-col items-center gap-2 rounded-xl border border-rt-border bg-rt-surface-muted/60 px-2 py-2.5 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/50">
-                                    <span class="text-[10px] font-semibold uppercase tracking-[0.14em] text-rt-soft dark:text-rt-dark-soft">{{ __('app.sound') }}</span>
-                                    <button
-                                        type="button"
-                                        role="menuitemcheckbox"
-                                        data-topbar-preference="sound"
-                                        data-topbar-toggle-track="sound"
-                                        x-bind:aria-checked="Boolean($store.sound?.enabled).toString()"
-                                        aria-label="{{ __('app.sound') }}"
-                                        @click.stop="$store.sound?.toggle()"
-                                        class="relative h-7 w-[52px] shrink-0 rounded-full border border-slate-300 bg-slate-300 transition-colors duration-300 ease-rt-spring focus:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/50 focus-visible:ring-offset-1 focus-visible:ring-offset-rt-surface dark:border-slate-600 dark:bg-slate-600 dark:focus-visible:ring-offset-rt-dark-surface"
-                                        :class="$store.sound?.enabled && '!border-rt-red !bg-rt-red'"
-                                    >
-                                        <span
-                                            class="absolute left-1 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full bg-white text-slate-600 shadow-sm transition-transform duration-300 ease-rt-spring"
-                                            :class="$store.sound?.enabled && 'translate-x-[22px] text-rt-red'"
-                                            aria-hidden="true"
-                                        >
-                                            <svg x-show="$store.sound?.enabled" xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>
-                                            <svg x-show="!$store.sound?.enabled" x-cloak xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m18 9 4 4m0-4-4 4M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>
-                                        </span>
-                                    </button>
-                                </div>
+                                <button
+                                    type="button"
+                                    role="menuitemcheckbox"
+                                    data-topbar-preference="sound"
+                                    data-topbar-toggle-track="sound"
+                                    x-bind:aria-checked="Boolean($store.sound?.enabled).toString()"
+                                    aria-label="{{ __('app.sound') }}"
+                                    @click.stop="$store.sound?.toggle()"
+                                    class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-rt-border bg-rt-surface-muted/55 text-rt-muted transition duration-200 ease-rt-spring hover:border-rt-accent/35 hover:text-rt-accent focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-accent/15 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/55 dark:text-rt-dark-muted dark:hover:text-rt-dark-accent"
+                                    :class="$store.sound?.enabled && '!border-rt-accent/30 !bg-rt-accent-soft !text-rt-accent dark:!border-rt-dark-accent/35 dark:!bg-rt-dark-accent-soft dark:!text-rt-dark-accent'"
+                                >
+                                    <svg x-show="$store.sound?.enabled" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>
+                                    <svg x-show="!$store.sound?.enabled" x-cloak xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m18 9 4 4m0-4-4 4M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>
+                                </button>
                             </div>
 
                             @auth
                                 {{-- Weiterfuehrend: alle Einstellungen im Profil
                                      (Sprache, Darstellung, Toene je Ereignis). --}}
-                                <div class="mt-2 border-t border-rt-border/70 px-1 pt-2 dark:border-rt-dark-border/70">
+                                <div class="mt-1.5 border-t border-rt-border/70 pt-1.5 dark:border-rt-dark-border/70">
                                     <a
                                         href="{{ route('profile.show') }}"
                                         wire:navigate
-                                        class="flex min-h-10 items-center justify-between gap-2 rounded-lg px-2.5 text-sm font-medium text-rt-text transition hover:bg-rt-surface-muted hover:text-rt-accent dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted dark:hover:text-rt-dark-accent"
+                                        class="flex min-h-9 items-center justify-between gap-2 rounded-lg px-2 text-xs font-medium text-rt-text transition hover:bg-rt-surface-muted hover:text-rt-accent dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted dark:hover:text-rt-dark-accent"
                                         data-topbar-more-settings="true"
                                     >
                                         <span class="flex items-center gap-2">

@@ -51,7 +51,7 @@
             </x-slot:search>
 
             {{-- Team-Filter --}}
-            <div class="w-full">
+            <div class="w-full lg:w-52">
                 <x-ui.forms.select wire:model.live="teamId">
                     <option value="">{{ __('app.all_teams') }}</option>
                     @foreach($teams as $t)
@@ -60,7 +60,7 @@
                 </x-ui.forms.select>
             </div>
             {{-- Pro Seite --}}
-            <div class="w-full">
+            <div class="w-full lg:w-44">
                 <x-ui.forms.select wire:model.live="perPage">
                     <option value="15">{{ __('app.per_page', ['count' => 15]) }}</option>
                     <option value="30">{{ __('app.per_page', ['count' => 30]) }}</option>

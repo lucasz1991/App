@@ -783,6 +783,102 @@ body[data-mode='dark'] .rt-chat-message--own .rt-chat-message-meta {
     background: var(--chat-panel-muted);
 }
 
+.rt-chat-member-picker {
+    --chat-member-line: theme('colors.rt.border');
+    --chat-member-panel: theme('colors.rt.surface');
+    --chat-member-muted: theme('colors.rt.surface-muted');
+    --chat-member-control: theme('colors.rt.control');
+    --chat-member-accent: theme('colors.rt.accent');
+    --chat-member-shadow: color-mix(in srgb, theme('colors.rt-ink') 14%, transparent);
+}
+
+html.dark .rt-chat-member-picker,
+body[data-mode='dark'] .rt-chat-member-picker {
+    --chat-member-line: theme('colors.rt-dark.border');
+    --chat-member-panel: theme('colors.rt-dark.surface');
+    --chat-member-muted: theme('colors.rt-dark.surface-muted');
+    --chat-member-control: theme('colors.rt-dark.control');
+    --chat-member-accent: theme('colors.rt-dark.accent');
+    --chat-member-shadow: color-mix(in srgb, theme('colors.black') 42%, transparent);
+}
+
+.rt-chat-member-search {
+    border: 1px solid color-mix(in srgb, var(--chat-member-line) 84%, transparent);
+    border-radius: 0.75rem;
+    background: var(--chat-member-control);
+    box-shadow: 0 6px 18px -16px var(--chat-member-shadow);
+    transition:
+        border-color 180ms ease,
+        box-shadow 220ms ease;
+}
+
+.rt-chat-member-search:focus-within {
+    border-color: color-mix(in srgb, var(--chat-member-accent) 52%, var(--chat-member-line));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--chat-member-accent) 10%, transparent);
+}
+
+.rt-chat-member-row {
+    border: 1px solid transparent;
+    background: transparent;
+    transition:
+        border-color 180ms ease,
+        background-color 180ms ease;
+}
+
+.rt-chat-member-row:hover,
+.rt-chat-member-row:focus-within {
+    border-color: color-mix(in srgb, var(--chat-member-line) 72%, transparent);
+    background: color-mix(in srgb, var(--chat-member-muted) 76%, transparent);
+}
+
+.rt-chat-member-row > [data-rt-dropdown-root] {
+    display: flex;
+}
+
+.rt-chat-member-page-button {
+    display: inline-flex;
+    width: 2rem;
+    height: 2rem;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid color-mix(in srgb, var(--chat-member-line) 82%, transparent);
+    border-radius: 0.6rem;
+    color: theme('colors.rt.muted');
+    background: var(--chat-member-panel);
+    font-size: 0.625rem;
+    transition:
+        color 180ms ease,
+        border-color 180ms ease,
+        background-color 180ms ease,
+        transform 180ms ease;
+}
+
+html.dark .rt-chat-member-page-button,
+body[data-mode='dark'] .rt-chat-member-page-button {
+    color: theme('colors.rt-dark.muted');
+}
+
+.rt-chat-member-page-button:hover:not(:disabled),
+.rt-chat-member-page-button:focus-visible {
+    border-color: color-mix(in srgb, var(--chat-member-accent) 36%, var(--chat-member-line));
+    color: var(--chat-member-accent);
+    background: color-mix(in srgb, var(--chat-member-accent) 8%, var(--chat-member-panel));
+}
+
+.rt-chat-member-page-button:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--chat-member-accent) 38%, transparent);
+    outline-offset: 2px;
+}
+
+.rt-chat-member-page-button:active:not(:disabled) {
+    transform: scale(0.96);
+}
+
+.rt-chat-member-page-button:disabled {
+    cursor: default;
+    opacity: 0.32;
+}
+
 /*
  * Das Legacy-Bundle setzt `.w-full` mit `!important`. Ohne eine ebenso
  * verbindliche Desktop-Regel würde die Chatliste trotz `md:w-*` die gesamte

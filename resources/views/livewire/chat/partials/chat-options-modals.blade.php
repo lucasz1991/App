@@ -95,60 +95,70 @@
         </x-slot>
 
         <x-slot name="content">
-            <div class="space-y-5">
-                <div>
-                    <x-ui.forms.label for="group-edit-name" :value="__('app.group_name')" />
-                    <x-ui.forms.input
-                        type="text"
-                        id="group-edit-name"
-                        wire:model="groupEditName"
-                        autocomplete="off"
-                        class="mt-1.5"
-                    />
-                    @error('groupEditName')
-                        <p class="rt-chat-field-error mt-1.5 text-xs">{{ $message }}</p>
-                    @enderror
-                </div>
-
-                <div>
-                    <div class="flex items-end justify-between gap-3">
-                        <x-ui.forms.label :value="__('app.group_members')" />
-                        <span class="text-[10px] font-semibold uppercase tracking-[0.08em] text-rt-muted dark:text-rt-dark-muted">
-                            {{ __('app.invite_or_remove_members') }}
-                        </span>
+            @if ($showGroupSettings && $groupCandidates)
+                <div class="space-y-5">
+                    <div>
+                        <x-ui.forms.label for="group-edit-name" :value="__('app.group_name')" />
+                        <x-ui.forms.input
+                            type="text"
+                            id="group-edit-name"
+                            wire:model="groupEditName"
+                            autocomplete="off"
+                            class="mt-1.5"
+                        />
+                        @error('groupEditName')
+                            <p class="rt-chat-field-error mt-1.5 text-xs">{{ $message }}</p>
+                        @enderror
                     </div>
 
-                    <div class="rt-chat-group-owner mt-2 flex min-h-14 items-center gap-3 rounded-xl px-3 py-2.5">
-                        <x-chat.avatar :src="$me->profile_photo_url" :name="$me->name" size="sm" />
-                        <span class="min-w-0 flex-1">
-                            <span class="block truncate text-sm font-bold text-rt-text dark:text-rt-dark-text">{{ $me->name }}</span>
-                            <span class="block text-[10px] font-semibold uppercase tracking-[0.08em] text-rt-muted dark:text-rt-dark-muted">
+                    <div>
+                        <div class="flex items-end justify-between gap-3">
+                            <x-ui.forms.label :value="__('app.group_members')" />
+                            <span class="text-[10px] font-semibold uppercase tracking-[0.08em] text-rt-muted dark:text-rt-dark-muted">
+                                {{ __('app.invite_or_remove_members') }}
+                            </span>
+                        </div>
+
+                        <div class="rt-chat-group-owner mt-2 flex min-h-14 min-w-0 items-center gap-2 rounded-xl px-2.5 py-2">
+                            <x-user.public-info
+                                :user="$me"
+                                :size="9"
+                                :show-email="true"
+                                class="min-w-0 flex-1"
+                            />
+                            <span
+                                class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-rt-muted dark:text-rt-dark-muted"
+                                title="{{ __('app.group_owner') }}"
+                                aria-label="{{ __('app.group_owner') }}"
+                            >
+                                <i class="far fa-lock text-xs" aria-hidden="true"></i>
+                            </span>
+                            <span class="sr-only">
                                 {{ __('app.group_owner') }}
                             </span>
-                        </span>
-                        <i class="far fa-lock text-xs text-rt-muted dark:text-rt-dark-muted" aria-hidden="true"></i>
-                    </div>
+                        </div>
 
-                    <div class="rt-chat-participant-list mt-2 max-h-64 space-y-1 overflow-y-auto rounded-xl p-2">
-                        @foreach ($groupCandidates as $candidate)
-                            <div wire:key="group-settings-member-{{ $candidate->id }}" class="rt-chat-member-choice rounded-lg px-2">
-                                <x-ui.forms.checkbox
-                                    :id="'group-settings-member-' . $candidate->id"
-                                    :label="$candidate->name"
-                                    value="{{ $candidate->id }}"
-                                    wire:model="groupMemberIds"
-                                />
-                            </div>
-                        @endforeach
+                        <div class="mt-2">
+                            @include('livewire.chat.partials.member-picker', [
+                                'pickerPaginator' => $groupCandidates,
+                                'pickerMode' => 'select',
+                                'selectionModel' => 'groupMemberIds',
+                                'selectedIds' => $groupMemberIds,
+                                'searchId' => 'group-member-search',
+                                'searchModel' => 'groupMemberSearch',
+                                'pageName' => 'groupMembersPage',
+                                'rowPrefix' => 'group-settings-member',
+                            ])
+                        </div>
+                        @error('groupMemberIds')
+                            <p class="rt-chat-field-error mt-1.5 text-xs">{{ $message }}</p>
+                        @enderror
+                        @error('groupMemberIds.*')
+                            <p class="rt-chat-field-error mt-1.5 text-xs">{{ $message }}</p>
+                        @enderror
                     </div>
-                    @error('groupMemberIds')
-                        <p class="rt-chat-field-error mt-1.5 text-xs">{{ $message }}</p>
-                    @enderror
-                    @error('groupMemberIds.*')
-                        <p class="rt-chat-field-error mt-1.5 text-xs">{{ $message }}</p>
-                    @enderror
                 </div>
-            </div>
+            @endif
         </x-slot>
 
         <x-slot name="footer">
