@@ -7,6 +7,7 @@
     'chatAction' => null,
     'callAction' => null,
     'selected' => false,
+    'triggerClasses' => 'inline-flex',
 ])
 
 @php
@@ -27,6 +28,7 @@
     :offset="10"
     content-role="dialog"
     content-classes="bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text"
+    :trigger-classes="$triggerClasses"
     data-person-anchor-preview
 >
     <x-slot:trigger>

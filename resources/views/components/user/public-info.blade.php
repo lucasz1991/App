@@ -3,6 +3,7 @@
     'user' => null,
     'size' => 8,
     'showEmail' => false,
+    'showPresence' => true,
     'selected' => false,
 ])
 
@@ -36,7 +37,7 @@
         ?: ($resolvedUser->email ?? $resolvedPerson?->email ?? '')
         ?: 'Unbekannt';
     $email = trim((string) ($resolvedUser->email ?? $resolvedPerson->email ?? ''));
-    $isOnline = $hasUser && $resolvedUser->isOnline();
+    $isOnline = $hasUser && $showPresence && $resolvedUser->isOnline();
 
     $avatarUrl = 'https://ui-avatars.com/api/?name='
         . urlencode($displayName)
@@ -73,7 +74,7 @@
             ])
         >
 
-        @if ($hasUser)
+        @if ($hasUser && $showPresence)
             <span
                 @class([
                     'absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-rt-surface dark:ring-rt-dark-surface',

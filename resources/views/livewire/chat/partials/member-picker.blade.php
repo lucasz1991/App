@@ -59,6 +59,7 @@
                     :user="$member"
                     :can-chat="$member->isActive()"
                     chat-action="startDirect"
+                    trigger-classes="flex w-full"
                     class="min-w-0 flex-1"
                 >
                     <x-slot:trigger>
@@ -73,6 +74,7 @@
                                 :user="$member"
                                 :size="9"
                                 :show-email="true"
+                                :show-presence="false"
                                 :selected="$isSelected"
                             />
                         </button>
@@ -116,7 +118,7 @@
                     wire:loading.attr="disabled"
                     @disabled($pickerPaginator->onFirstPage())
                     class="rt-chat-member-page-button"
-                    aria-label="{{ strip_tags(__('pagination.previous')) }}"
+                    aria-label="{{ __('app.previous') }}"
                 >
                     <i class="far fa-chevron-left" aria-hidden="true"></i>
                 </button>
@@ -129,7 +131,7 @@
                     wire:loading.attr="disabled"
                     @disabled(! $pickerPaginator->hasMorePages())
                     class="rt-chat-member-page-button"
-                    aria-label="{{ strip_tags(__('pagination.next')) }}"
+                    aria-label="{{ __('app.next') }}"
                 >
                     <i class="far fa-chevron-right" aria-hidden="true"></i>
                 </button>

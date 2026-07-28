@@ -27,7 +27,7 @@
         'flex-wrap' => ! $singleLine,
     ]) }}
     x-data="{
-        desktopFilters: false,
+        desktopFilters: window.matchMedia('(min-width: 1024px)').matches,
         filterViewport: null,
         filterViewportListener: null,
         init() {

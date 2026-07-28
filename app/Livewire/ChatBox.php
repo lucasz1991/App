@@ -473,10 +473,12 @@ class ChatBox extends Component
 
         $this->reset([
             'showNewChat',
+            'showGroupSettings',
             'groupName',
             'groupParticipants',
             'directContactSearch',
             'groupParticipantSearch',
+            'groupMemberSearch',
             'search',
         ]);
         $this->resetMemberPickerPages();

@@ -124,6 +124,7 @@
                                 :user="$me"
                                 :size="9"
                                 :show-email="true"
+                                :show-presence="false"
                                 class="min-w-0 flex-1"
                             />
                             <span
