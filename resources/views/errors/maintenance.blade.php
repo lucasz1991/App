@@ -1,156 +1,533 @@
-{{-- maintenance.blade.php --}}
+@php
+    $formattedUpdatedAt = null;
+
+    if (filled($lastUpdated ?? null)) {
+        try {
+            $formattedUpdatedAt = \Carbon\Carbon::parse($lastUpdated)
+                ->setTimezone('Europe/Berlin')
+                ->format('d.m.Y · H:i');
+        } catch (\Throwable) {
+            $formattedUpdatedAt = null;
+        }
+    }
+@endphp
 <!DOCTYPE html>
 <html lang="de">
 <head>
-    <meta charset="UTF-8">
+    <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="theme-color" content="#f3f6fa" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0b1120" media="(prefers-color-scheme: dark)">
 
-    <title>Wartung – CBW Schulnetz</title>
+    <title>Wartung · RailTime</title>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    @include('layouts.icon-head')
 
-    <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        primary: '#2563eb',
-                        secondary: '#0ea5e9',
-                        accent: '#22c55e',
-                    }
-                }
+        try {
+            if (localStorage.getItem('rt-theme') === 'true') {
+                document.documentElement.classList.add('rt-dark');
             }
-        };
+        } catch (error) {}
     </script>
 
     <style>
-        body { font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-        
-        [x-cloak] { display: none !important; }
-
-        /* angenehm + sanft */
-        @keyframes floatSlow {
-            0%   { transform: translateY(0px); }
-            50%  { transform: translateY(-10px); }
-            100% { transform: translateY(0px); }
+        :root {
+            color-scheme: light;
+            --rt-canvas: #f3f6fa;
+            --rt-surface: rgba(255, 255, 255, 0.94);
+            --rt-surface-muted: #f7f9fc;
+            --rt-border: #dbe3ee;
+            --rt-border-strong: #c8d3e1;
+            --rt-text: #172033;
+            --rt-muted: #64748b;
+            --rt-soft: #91a0b5;
+            --rt-accent: #e4002b;
+            --rt-accent-hover: #c90026;
+            --rt-warning: #f59e0b;
+            --rt-shadow: 0 24px 70px -34px rgba(15, 23, 42, 0.34);
         }
-        @keyframes shimmerSoft {
-            0%   { transform: translateX(-30%) rotate(8deg); opacity: .0; }
-            20%  { opacity: .25; }
-            50%  { opacity: .12; }
-            100% { transform: translateX(130%) rotate(8deg); opacity: .0; }
+
+        html.rt-dark {
+            color-scheme: dark;
+            --rt-canvas: #0b1120;
+            --rt-surface: rgba(17, 24, 39, 0.94);
+            --rt-surface-muted: #151e2e;
+            --rt-border: #273449;
+            --rt-border-strong: #35445b;
+            --rt-text: #e7edf7;
+            --rt-muted: #a9b6c9;
+            --rt-soft: #77869d;
+            --rt-accent: #ff5f78;
+            --rt-accent-hover: #ff8295;
+            --rt-warning: #fbbf24;
+            --rt-shadow: 0 28px 80px -34px rgba(0, 0, 0, 0.72);
         }
 
-        .anim-float { animation: floatSlow 6.5s ease-in-out infinite; }
-        .anim-shimmer { animation: shimmerSoft 7.5s ease-in-out infinite; }
+        @media (prefers-color-scheme: dark) {
+            html:not(.rt-light) {
+                color-scheme: dark;
+                --rt-canvas: #0b1120;
+                --rt-surface: rgba(17, 24, 39, 0.94);
+                --rt-surface-muted: #151e2e;
+                --rt-border: #273449;
+                --rt-border-strong: #35445b;
+                --rt-text: #e7edf7;
+                --rt-muted: #a9b6c9;
+                --rt-soft: #77869d;
+                --rt-accent: #ff5f78;
+                --rt-accent-hover: #ff8295;
+                --rt-warning: #fbbf24;
+                --rt-shadow: 0 28px 80px -34px rgba(0, 0, 0, 0.72);
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            min-height: 100%;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            min-height: 100dvh;
+            background:
+                radial-gradient(60rem 28rem at 50% -10rem, rgba(228, 0, 43, 0.12), transparent 68%),
+                linear-gradient(var(--rt-canvas), var(--rt-canvas));
+            color: var(--rt-text);
+            font-family: "Plus Jakarta Sans", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+            line-height: 1.55;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body::before {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            content: "";
+            pointer-events: none;
+            background-image:
+                linear-gradient(rgba(100, 116, 139, 0.055) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(100, 116, 139, 0.055) 1px, transparent 1px);
+            background-size: 56px 56px;
+            mask-image: linear-gradient(to bottom, black, transparent 78%);
+        }
+
+        .rt-maintenance-page {
+            min-height: 100vh;
+            min-height: 100dvh;
+            display: grid;
+            place-items: center;
+            padding: clamp(1rem, 4vw, 3rem);
+        }
+
+        .rt-maintenance {
+            position: relative;
+            width: min(100%, 58rem);
+            overflow: hidden;
+            border: 1px solid var(--rt-border);
+            border-radius: 1.35rem;
+            background: var(--rt-surface);
+            box-shadow: var(--rt-shadow);
+            backdrop-filter: blur(20px);
+        }
+
+        .rt-maintenance::before {
+            position: absolute;
+            inset: 0 0 auto;
+            height: 3px;
+            content: "";
+            background: linear-gradient(90deg, var(--rt-accent), #ff8295 46%, transparent 92%);
+        }
+
+        .rt-maintenance__header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 1.25rem clamp(1.25rem, 4vw, 2rem);
+            border-bottom: 1px solid var(--rt-border);
+        }
+
+        .rt-brand {
+            display: inline-flex;
+            min-width: 0;
+            align-items: center;
+            gap: 0.75rem;
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .rt-brand__logo {
+            width: 2.75rem;
+            height: 2.75rem;
+            flex: 0 0 auto;
+            object-fit: contain;
+        }
+
+        .rt-brand__copy {
+            min-width: 0;
+        }
+
+        .rt-brand__name {
+            display: block;
+            font-size: 0.95rem;
+            font-weight: 800;
+            letter-spacing: 0.14em;
+            line-height: 1.15;
+            text-transform: uppercase;
+        }
+
+        .rt-brand__company {
+            display: block;
+            margin-top: 0.2rem;
+            color: var(--rt-muted);
+            font-size: 0.72rem;
+            font-weight: 600;
+        }
+
+        .rt-status {
+            display: inline-flex;
+            flex: 0 0 auto;
+            align-items: center;
+            gap: 0.5rem;
+            min-height: 2rem;
+            padding: 0.35rem 0.7rem;
+            border: 1px solid color-mix(in srgb, var(--rt-warning) 34%, var(--rt-border));
+            border-radius: 999px;
+            background: color-mix(in srgb, var(--rt-warning) 9%, transparent);
+            color: var(--rt-text);
+            font-size: 0.72rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .rt-status__dot {
+            width: 0.5rem;
+            height: 0.5rem;
+            border-radius: 50%;
+            background: var(--rt-warning);
+            box-shadow: 0 0 0 0 color-mix(in srgb, var(--rt-warning) 30%, transparent);
+            animation: rt-status-pulse 2.2s ease-out infinite;
+        }
+
+        .rt-maintenance__body {
+            display: grid;
+            grid-template-columns: minmax(0, 1.35fr) minmax(17rem, 0.65fr);
+            gap: clamp(1.5rem, 4vw, 3rem);
+            align-items: center;
+            padding: clamp(2rem, 6vw, 4rem) clamp(1.25rem, 6vw, 4rem);
+        }
+
+        .rt-eyebrow {
+            margin: 0 0 0.75rem;
+            color: var(--rt-accent);
+            font-size: 0.72rem;
+            font-weight: 800;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }
+
+        .rt-title {
+            max-width: 13ch;
+            margin: 0;
+            font-size: clamp(2rem, 5vw, 3.4rem);
+            font-weight: 750;
+            letter-spacing: -0.045em;
+            line-height: 1.02;
+        }
+
+        .rt-copy {
+            max-width: 38rem;
+            margin: 1.15rem 0 0;
+            color: var(--rt-muted);
+            font-size: clamp(0.95rem, 2vw, 1.05rem);
+        }
+
+        .rt-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.7rem;
+            margin-top: 1.75rem;
+        }
+
+        .rt-button {
+            display: inline-flex;
+            min-height: 2.8rem;
+            align-items: center;
+            justify-content: center;
+            gap: 0.55rem;
+            padding: 0.7rem 1rem;
+            border: 1px solid var(--rt-border-strong);
+            border-radius: 0.75rem;
+            background: var(--rt-surface);
+            color: var(--rt-text);
+            font-size: 0.85rem;
+            font-weight: 700;
+            text-decoration: none;
+            transition: transform 180ms ease, border-color 180ms ease, color 180ms ease, background 180ms ease;
+        }
+
+        .rt-button:hover {
+            border-color: var(--rt-accent);
+            color: var(--rt-accent);
+            transform: translateY(-1px);
+        }
+
+        .rt-button--primary {
+            border-color: var(--rt-accent);
+            background: var(--rt-accent);
+            color: #fff;
+        }
+
+        .rt-button--primary:hover {
+            border-color: var(--rt-accent-hover);
+            background: var(--rt-accent-hover);
+            color: #fff;
+        }
+
+        .rt-button svg {
+            width: 1rem;
+            height: 1rem;
+        }
+
+        .rt-service-card {
+            position: relative;
+            overflow: hidden;
+            padding: 1.25rem;
+            border: 1px solid var(--rt-border);
+            border-radius: 1rem;
+            background: var(--rt-surface-muted);
+        }
+
+        .rt-service-card::after {
+            position: absolute;
+            right: -2.8rem;
+            bottom: -3.4rem;
+            width: 9rem;
+            height: 9rem;
+            content: "";
+            border-radius: 50%;
+            background: color-mix(in srgb, var(--rt-accent) 8%, transparent);
+        }
+
+        .rt-service-card__icon {
+            display: grid;
+            width: 3rem;
+            height: 3rem;
+            place-items: center;
+            border: 1px solid color-mix(in srgb, var(--rt-accent) 22%, var(--rt-border));
+            border-radius: 0.85rem;
+            background: color-mix(in srgb, var(--rt-accent) 8%, var(--rt-surface));
+            color: var(--rt-accent);
+        }
+
+        .rt-service-card__icon svg {
+            width: 1.35rem;
+            height: 1.35rem;
+        }
+
+        .rt-service-card__label {
+            margin: 1rem 0 0.2rem;
+            color: var(--rt-soft);
+            font-size: 0.66rem;
+            font-weight: 800;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        .rt-service-card__value {
+            margin: 0;
+            font-size: 0.9rem;
+            font-weight: 700;
+        }
+
+        .rt-service-card__meta {
+            position: relative;
+            z-index: 1;
+            margin: 1rem 0 0;
+            padding-top: 1rem;
+            border-top: 1px solid var(--rt-border);
+            color: var(--rt-muted);
+            font-size: 0.78rem;
+        }
+
+        .rt-maintenance__footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 1rem clamp(1.25rem, 4vw, 2rem);
+            border-top: 1px solid var(--rt-border);
+            color: var(--rt-soft);
+            font-size: 0.72rem;
+        }
+
+        .rt-maintenance__footer a {
+            color: var(--rt-muted);
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .rt-maintenance__footer a:hover {
+            color: var(--rt-accent);
+        }
+
+        @keyframes rt-status-pulse {
+            0% {
+                box-shadow: 0 0 0 0 color-mix(in srgb, var(--rt-warning) 32%, transparent);
+            }
+            70%,
+            100% {
+                box-shadow: 0 0 0 0.55rem transparent;
+            }
+        }
+
+        @media (max-width: 720px) {
+            .rt-maintenance-page {
+                place-items: stretch;
+                padding: 0;
+            }
+
+            .rt-maintenance {
+                min-height: 100vh;
+                min-height: 100dvh;
+                border: 0;
+                border-radius: 0;
+            }
+
+            .rt-maintenance__body {
+                grid-template-columns: 1fr;
+                align-content: center;
+            }
+
+            .rt-title {
+                max-width: 15ch;
+            }
+
+            .rt-service-card {
+                max-width: none;
+            }
+        }
+
+        @media (max-width: 420px) {
+            .rt-brand__company {
+                display: none;
+            }
+
+            .rt-status {
+                padding-inline: 0.55rem;
+            }
+
+            .rt-actions {
+                flex-direction: column;
+            }
+
+            .rt-button {
+                width: 100%;
+            }
+
+            .rt-maintenance__footer {
+                align-items: flex-start;
+                flex-direction: column;
+                gap: 0.35rem;
+            }
+        }
+
         @media (prefers-reduced-motion: reduce) {
-            .anim-float, .anim-shimmer { animation: none !important; }
+            *,
+            *::before,
+            *::after {
+                scroll-behavior: auto !important;
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
         }
     </style>
 </head>
+<body>
+    <main class="rt-maintenance-page">
+        <section class="rt-maintenance" aria-labelledby="maintenance-title">
+            <header class="rt-maintenance__header">
+                <a class="rt-brand" href="{{ url('/') }}" aria-label="RailTime Startseite">
+                    <img
+                        class="rt-brand__logo"
+                        src="{{ asset('rt-brand/rt-logo.svg') }}"
+                        alt=""
+                        width="44"
+                        height="44"
+                    >
+                    <span class="rt-brand__copy">
+                        <span class="rt-brand__name">RailTime</span>
+                        <span class="rt-brand__company">Rail Time GmbH</span>
+                    </span>
+                </a>
 
-<body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
-    <div class="relative min-h-screen overflow-hidden">
-        {{-- Background --}}
-        <div class="absolute inset-0 pointer-events-none">
-            <div class="absolute -left-20 -top-24 h-80 w-80 rounded-full bg-gradient-to-br from-blue-200 to-emerald-200 blur-3xl opacity-60 anim-float"></div>
-            <div class="absolute right-0 top-10 h-96 w-96 rounded-full bg-gradient-to-bl from-blue-300 via-emerald-200 to-white blur-3xl opacity-50 anim-float" style="animation-delay: -1.6s;"></div>
-            <div class="absolute inset-x-10 bottom-0 h-32 bg-gradient-to-r from-blue-50 via-white to-emerald-50 blur-xl opacity-80"></div>
-        </div>
+                <span class="rt-status">
+                    <span class="rt-status__dot" aria-hidden="true"></span>
+                    Wartungsmodus
+                </span>
+            </header>
 
-        <main class="relative min-h-screen flex items-center justify-center px-5 md:px-10 py-14">
-            <div class="w-full max-w-2xl">
-                <div class="rounded-3xl p-[1px] bg-gradient-to-br from-blue-500 via-emerald-400 to-blue-200 shadow-[0_18px_60px_-40px_rgba(15,23,42,0.35)]">
-                    <div class="rounded-3xl bg-white border border-white/60 overflow-hidden relative">
-                        {{-- Soft shimmer overlay --}}
-                        <div class="pointer-events-none absolute -inset-10 opacity-20">
-                            <div class="anim-shimmer absolute top-0 -left-1/3 h-full w-1/2 bg-gradient-to-r from-transparent via-white to-transparent blur-xl"></div>
-                        </div>
+            <div class="rt-maintenance__body">
+                <div>
+                    <p class="rt-eyebrow">Systemwartung</p>
+                    <h1 class="rt-title" id="maintenance-title">Wir sind gleich wieder für Sie da.</h1>
+                    <p class="rt-copy">
+                        RailTime wird momentan aktualisiert. Währenddessen ist der Benutzerbereich vorübergehend nicht erreichbar.
+                        Bitte versuchen Sie es in wenigen Minuten erneut.
+                    </p>
 
-                        <div class="p-6 md:p-10 relative">
-                            {{-- Logo --}}
-                            <div class="flex items-center justify-between">
-                                <a href="/" class="inline-flex items-center gap-3">
-                                    <div class="w-[160px] opacity-90">
-                                        {{-- bevorzugt: eure bestehende Logo-Komponente --}}
-                                        @if (View::exists('components.authentication-card-logo'))
-                                            <x-authentication-card-logo />
-                                        @else
-                                            {{-- Fallback: Textlogo, falls Komponente nicht existiert --}}
-                                            <div class="text-lg font-semibold tracking-tight text-slate-900">
-                                                CBW<span class="text-blue-600"> Schulnetz</span>
-                                            </div>
-                                        @endif
-                                    </div>
-                                </a>
+                    <div class="rt-actions">
+                        <a class="rt-button rt-button--primary" href="{{ url()->current() }}">
+                            Erneut versuchen
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3L4.5 9m0 0V4.5M4.5 9H9"/>
+                            </svg>
+                        </a>
 
-                                <span class="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 ring-1 ring-blue-100">
-                                    Wartung
-                                </span>
-                            </div>
-
-                            <div class="mt-8 flex items-start gap-4">
-                                <div class="shrink-0 h-12 w-12 rounded-2xl bg-gradient-to-br from-blue-600 to-emerald-600 text-white flex items-center justify-center shadow-sm anim-float">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.274c.063.374.313.686.659.87.347.184.76.227 1.136.115l1.257-.377a1.125 1.125 0 011.366.806l.65 2.598a1.125 1.125 0 01-.505 1.26l-1.091.655c-.333.2-.533.564-.523.954l.036 1.437c.01.417.237.801.597 1.008l1.193.686c.47.27.707.809.57 1.324l-.65 2.598a1.125 1.125 0 01-1.366.806l-1.257-.377c-.376-.112-.79-.069-1.136.115-.346.184-.596.496-.659.87l-.213 1.274c-.09.542-.56.94-1.11.94h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.274c-.063-.374-.312-.686-.659-.87-.347-.184-.76-.227-1.136-.115l-1.256.377a1.125 1.125 0 01-1.367-.806l-.65-2.598a1.125 1.125 0 01.57-1.324l1.194-.686c.36-.207.587-.59.597-1.008l.036-1.437c.01-.39-.19-.754-.524-.954l-1.09-.655a1.125 1.125 0 01-.506-1.26l.65-2.598a1.125 1.125 0 011.366-.806l1.257.377c.376.112.79.069 1.136-.115.346-.184.596-.496.659-.87l.213-1.274z" />
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                    </svg>
-                                </div>
-
-                                <div class="min-w-0 flex-1">
-                                    <p class="text-sm font-semibold text-blue-700">Geplante Wartung</p>
-
-                                    <h1 class="mt-2 text-3xl md:text-4xl font-semibold tracking-tight text-slate-900">
-                                        Wir sind gleich wieder da
-                                    </h1>
-
-                                    <p class="mt-3 text-base text-slate-600 leading-relaxed">
-                                        Das CBW Schulnetz wird gerade aktualisiert. Bitte versuchen Sie es in kurzer Zeit erneut.
-                                    </p>
-
-                                    @if(!empty($lastUpdated))
-                                        <p class="mt-4 text-xs text-slate-500">
-                                            Letzte Aktualisierung:
-                                            <span class="font-semibold text-slate-700">
-                                                {{ \Carbon\Carbon::parse($lastUpdated)->setTimezone('Europe/Berlin')->format('d.m.Y H:i') }} Uhr
-                                            </span>
-                                        </p>
-                                    @endif
-                                </div>
-                            </div>
-
-                            {{-- Actions (minimal) --}}
-                            <div class="mt-8 flex flex-col sm:flex-row gap-3">
-                                <a
-                                    href="{{ route('admin.login') }}"
-                                    class="inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-blue-600 to-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:brightness-110 transition"
-                                >
-                                    Admin Login
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="ml-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
-                                    </svg>
-                                </a>
-
-                                <a
-                                    href="mailto:info@cbw-weiterbildung.de"
-                                    class="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm hover:shadow transition"
-                                >
-                                    Support kontaktieren
-                                </a>
-                            </div>
-
-                            <div class="mt-10 text-xs text-slate-500 flex items-center justify-between">
-                                <span>CBW Schulnetz</span>
-                                <span>maintenance</span>
-                            </div>
-                        </div>
+                        <a class="rt-button" href="{{ route('admin.login') }}">
+                            Administratorzugang
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 8.25V6a3 3 0 0 0-6 0v2.25M6.75 8.25h10.5v10.5H6.75V8.25Z"/>
+                            </svg>
+                        </a>
                     </div>
                 </div>
+
+                <aside class="rt-service-card" aria-label="Wartungsstatus">
+                    <div class="rt-service-card__icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M11.1 3.3a1.8 1.8 0 0 1 1.8 0l.65.38a1.8 1.8 0 0 0 1.4.18l.74-.2a1.8 1.8 0 0 1 2.2 1.27l.2.74a1.8 1.8 0 0 0 .7 1.22l.65.38a1.8 1.8 0 0 1 .9 1.56v.75a1.8 1.8 0 0 0 .36 1.18l.47.6a1.8 1.8 0 0 1 0 2.22l-.47.6a1.8 1.8 0 0 0-.36 1.18v.75a1.8 1.8 0 0 1-.9 1.56l-.65.38a1.8 1.8 0 0 0-.7 1.22l-.2.74a1.8 1.8 0 0 1-2.2 1.27l-.74-.2a1.8 1.8 0 0 0-1.4.18l-.65.38a1.8 1.8 0 0 1-1.8 0l-.65-.38a1.8 1.8 0 0 0-1.4-.18l-.74.2a1.8 1.8 0 0 1-2.2-1.27l-.2-.74a1.8 1.8 0 0 0-.7-1.22l-.65-.38a1.8 1.8 0 0 1-.9-1.56v-.75a1.8 1.8 0 0 0-.36-1.18l-.47-.6a1.8 1.8 0 0 1 0-2.22l.47-.6a1.8 1.8 0 0 0 .36-1.18v-.75a1.8 1.8 0 0 1 .9-1.56l.65-.38a1.8 1.8 0 0 0 .7-1.22l.2-.74a1.8 1.8 0 0 1 2.2-1.27l.74.2a1.8 1.8 0 0 0 1.4-.18l.65-.38Z"/>
+                            <circle cx="12" cy="12" r="3"/>
+                        </svg>
+                    </div>
+
+                    <p class="rt-service-card__label">Aktueller Status</p>
+                    <p class="rt-service-card__value">Wartungsarbeiten laufen</p>
+
+                    <p class="rt-service-card__meta">
+                        @if ($formattedUpdatedAt)
+                            Zuletzt aktualisiert<br>
+                            <strong>{{ $formattedUpdatedAt }} Uhr</strong>
+                        @else
+                            Sobald die Arbeiten abgeschlossen sind, steht RailTime automatisch wieder zur Verfügung.
+                        @endif
+                    </p>
+                </aside>
             </div>
-        </main>
-    </div>
+
+            <footer class="rt-maintenance__footer">
+                <span>RailTime · Betriebsportal</span>
+                <a href="mailto:kontakt@rail-time.de">kontakt@rail-time.de</a>
+            </footer>
+        </section>
+    </main>
 </body>
 </html>
