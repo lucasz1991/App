@@ -20,11 +20,12 @@
 @endphp
 
 <x-ui.page :auto-intro="false">
-    {{-- Allererster Besuch der Anwendung: festliches Willkommens-Intro
-         (ersetzt hier die automatische Seiteninfo). --}}
-    @if (\App\Support\PageViews::firstVisit(auth()->user(), 'intro:welcome'))
-        <x-ui.welcome-intro />
-    @endif
+    {{-- Beim allerersten Besuch startet das Intro automatisch. Danach bleibt
+         derselbe Dialog unsichtbar im DOM und kann ueber den Info-Knopf im
+         Hero jederzeit erneut geoeffnet werden. --}}
+    <x-ui.welcome-intro
+        :initially-open="\App\Support\PageViews::firstVisit(auth()->user(), 'intro:welcome')"
+    />
 
     <div
         class="grid min-w-0 gap-3 sm:gap-4"
@@ -90,8 +91,20 @@
                                 @endif
                             </p>
                         </div>
-                        <span class="rt-admin-live-icon flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-slate-100 text-rt-red dark:border-slate-600 dark:bg-slate-800 dark:text-rt-red-light">
-                            <i data-feather="activity" class="h-4 w-4"></i>
+                        <span class="flex shrink-0 items-center gap-1.5">
+                            <button
+                                type="button"
+                                class="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-500 shadow-rt-xs transition duration-200 hover:-translate-y-0.5 hover:border-rt-red hover:text-rt-red focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-rt-red-light dark:hover:text-rt-red-light"
+                                x-on:click="$dispatch('rt-welcome:open')"
+                                aria-label="{{ __('app.welcome_intro_reopen') }}"
+                                title="{{ __('app.welcome_intro_reopen') }}"
+                                data-welcome-intro-trigger
+                            >
+                                <i data-feather="info" class="h-4 w-4"></i>
+                            </button>
+                            <span class="rt-admin-live-icon flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-slate-100 text-rt-red dark:border-slate-600 dark:bg-slate-800 dark:text-rt-red-light">
+                                <i data-feather="activity" class="h-4 w-4"></i>
+                            </span>
                         </span>
                     </div>
 

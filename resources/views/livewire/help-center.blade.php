@@ -6,27 +6,81 @@
     :description="__('app.help_center_description')"
 >
     <div class="space-y-5" data-help-center>
-        <section class="relative overflow-hidden rounded-2xl bg-slate-950 px-4 py-5 text-white shadow-rt-md sm:px-6 sm:py-7">
-            <div class="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-rt-red/20 blur-3xl"></div>
-            <div class="relative grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,.5fr)] lg:items-end">
-                <div>
+        <section
+            class="relative overflow-hidden rounded-[1.4rem] bg-slate-950 px-4 py-5 text-white shadow-rt-md ring-1 ring-white/10 sm:px-6 sm:py-7"
+            data-help-hero
+        >
+            <div class="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-rt-red/20 blur-3xl" aria-hidden="true"></div>
+            <svg class="pointer-events-none absolute -bottom-16 right-0 h-64 w-[55%] opacity-35" viewBox="0 0 520 230" fill="none" aria-hidden="true">
+                <path d="M12 210C121 186 131 101 239 119C335 135 352 43 510 21" stroke="rgba(255,255,255,.16)" stroke-width="22" stroke-linecap="round"/>
+                <path d="M12 210C121 186 131 101 239 119C335 135 352 43 510 21" stroke="#e4002b" stroke-width="2.5" stroke-linecap="round"/>
+                <circle cx="239" cy="119" r="6" fill="#e4002b"/>
+                <circle cx="510" cy="21" r="5" fill="white"/>
+            </svg>
+
+            <div class="relative grid gap-5 lg:grid-cols-12 lg:items-stretch">
+                <div class="lg:col-span-7">
                     <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-rose-300">{{ __('app.help_quick_help') }}</p>
                     <h2 class="mt-2 max-w-2xl text-2xl font-semibold tracking-[-0.035em] text-white sm:text-3xl">
                         {{ __('app.help_find_answer') }}
                     </h2>
                     <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-300">{{ __('app.help_find_answer_description') }}</p>
+
+                    <label class="group relative mt-5 block">
+                        <span class="sr-only">{{ __('app.search_help') }}</span>
+                        <i data-feather="search" class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition group-focus-within:text-rose-300"></i>
+                        <input
+                            type="search"
+                            wire:model.live.debounce.250ms="query"
+                            class="min-h-12 w-full rounded-xl border border-white/15 bg-white/10 py-3 pl-11 pr-4 text-sm text-white outline-none backdrop-blur placeholder:text-slate-400 focus:border-rose-300 focus:bg-white/15 focus:ring-2 focus:ring-rose-300/20"
+                            placeholder="{{ __('app.search_help_placeholder') }}"
+                        >
+                    </label>
                 </div>
 
-                <label class="group relative block">
-                    <span class="sr-only">{{ __('app.search_help') }}</span>
-                    <i data-feather="search" class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition group-focus-within:text-rose-300"></i>
-                    <input
-                        type="search"
-                        wire:model.live.debounce.250ms="query"
-                        class="min-h-12 w-full rounded-xl border border-white/15 bg-white/10 py-3 pl-11 pr-4 text-sm text-white outline-none backdrop-blur placeholder:text-slate-400 focus:border-rose-300 focus:bg-white/15 focus:ring-2 focus:ring-rose-300/20"
-                        placeholder="{{ __('app.search_help_placeholder') }}"
-                    >
-                </label>
+                <aside
+                    class="relative flex min-h-[12rem] flex-col justify-between overflow-hidden rounded-2xl border border-white/15 bg-white/[0.08] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,.08)] backdrop-blur-md sm:p-5 lg:col-span-5"
+                    x-data="railtimePwaInstall(@js([
+                        'targets' => [
+                            'ios' => '#help-install-ios',
+                            'android' => '#help-install-android',
+                            'desktop' => '#help-install-desktop',
+                            'fallback' => '#help-install-guides',
+                        ],
+                        'messages' => [
+                            'installed' => __('app.help_installed'),
+                            'ready' => __('app.help_install_ready'),
+                            'manual' => __('app.push_install_manually_description'),
+                            'accepted' => __('app.push_install_accepted'),
+                            'failed' => __('app.push_install_failed'),
+                        ],
+                    ]))"
+                    data-help-install-control
+                >
+                    <div>
+                        <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-rose-300 ring-1 ring-white/15">
+                            <i class="far fa-mobile-alt" aria-hidden="true"></i>
+                        </span>
+                        <p class="mt-4 text-[10px] font-semibold uppercase tracking-[0.18em] text-rose-300">{{ __('app.help_install_eyebrow') }}</p>
+                        <h3 class="mt-1 text-lg font-semibold tracking-tight text-white">{{ __('app.help_install_title') }}</h3>
+                        <p class="mt-2 text-xs leading-5 text-slate-300" x-text="statusText()"></p>
+                    </div>
+
+                    <div class="mt-5">
+                        <button
+                            type="button"
+                            class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-rt-red px-4 py-2 text-sm font-semibold text-white shadow-rt-glow transition duration-200 hover:-translate-y-0.5 hover:bg-rt-red-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 disabled:cursor-default disabled:translate-y-0 disabled:bg-emerald-600 disabled:shadow-none"
+                            x-on:click="installApp()"
+                            x-bind:disabled="disabled"
+                            data-help-install-action
+                        >
+                            <i class="far" x-bind:class="mode === 'installed' ? 'fa-check' : (busy ? 'fa-circle-notch fa-spin' : 'fa-download')" aria-hidden="true"></i>
+                            {{ __('app.push_install_app') }}
+                        </button>
+                        <p class="mt-2 text-xs leading-5 text-emerald-200" x-show.important="notice" x-text="notice" aria-live="polite"></p>
+                        <p class="mt-2 text-xs leading-5 text-rose-200" x-show.important="error" x-text="error" aria-live="assertive"></p>
+                    </div>
+                </aside>
             </div>
         </section>
 
@@ -148,20 +202,16 @@
                     </div>
                     <p class="mt-3 max-w-3xl text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">{{ __('app.help_install_description') }}</p>
                 </div>
-                <a href="{{ route('profile.show', ['tab' => 'settings']) }}" wire:navigate class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-4 py-2 text-sm font-semibold text-white shadow-rt-sm transition hover:-translate-y-0.5 hover:bg-rt-red-dark focus:outline-none focus:ring-2 focus:ring-rt-red/30">
-                    <i data-feather="bell" class="h-4 w-4"></i>
-                    {{ __('app.open_app_push') }}
-                </a>
             </header>
 
             {{-- Installieren und testen direkt hier, nicht nur als Verweis ins
                  Profil. Nutzt die bestehende, getestete Push-Komponente. --}}
             <div class="border-b border-rt-border/60 p-4 dark:border-rt-dark-border/60 sm:p-6">
-                <livewire:settings.push-settings :show-test="true" />
+                <livewire:settings.push-settings :show-test="true" :show-install="false" />
             </div>
 
-            <div class="grid gap-px bg-rt-border/60 lg:grid-cols-3 dark:bg-rt-dark-border/60">
-                <article class="bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6">
+            <div id="help-install-guides" class="grid scroll-mt-24 gap-px bg-rt-border/60 lg:grid-cols-3 dark:bg-rt-dark-border/60">
+                <article id="help-install-ios" class="scroll-mt-24 bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6">
                     <div class="flex items-center gap-2">
                         <i class="fab fa-apple text-xl text-rt-text dark:text-white" aria-hidden="true"></i>
                         <h3 class="text-base font-semibold text-rt-text dark:text-white">{{ __('app.help_install_ios_title') }}</h3>
@@ -181,7 +231,7 @@
                     </ol>
                 </article>
 
-                <article class="bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6">
+                <article id="help-install-android" class="scroll-mt-24 bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6">
                     <div class="flex items-center gap-2">
                         <i class="fab fa-android text-xl text-rt-text dark:text-white" aria-hidden="true"></i>
                         <h3 class="text-base font-semibold text-rt-text dark:text-white">{{ __('app.help_install_android_title') }}</h3>
@@ -204,7 +254,7 @@
                 {{-- Desktop: Windows und macOS. Auf Windows/Chrome/Edge greift der
                      Installationsdialog (Button oben), Safari auf dem Mac kennt
                      nur "Ablage > Zum Dock hinzufuegen". --}}
-                <article class="bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6">
+                <article id="help-install-desktop" class="scroll-mt-24 bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6">
                     <div class="flex items-center gap-2">
                         <i class="far fa-desktop text-xl text-rt-text dark:text-white" aria-hidden="true"></i>
                         <h3 class="text-base font-semibold text-rt-text dark:text-white">{{ __('app.help_install_desktop_title') }}</h3>

@@ -994,6 +994,7 @@ return [
     'help_browser_support' => 'Browser-Unterstützung',
     'help_permission' => 'Berechtigung',
     'help_installed' => 'Als App gestartet',
+    'help_install_ready' => 'Dieser Browser kann RailTime direkt als App installieren.',
     'help_push_server' => 'Push-Server',
     'help_active_devices' => 'Aktive Geräte',
     'help_queue' => 'Queue',
@@ -1106,6 +1107,7 @@ return [
     'welcome_intro_point_navigation' => 'Die Seitenleiste links führt zu allen Bereichen; die Suche oben findet Seiten, Personen und Inhalte.',
     'welcome_intro_point_communication' => 'Chats und Nachrichten erreichen Sie jederzeit über das Umschlag-Symbol in der Kopfzeile.',
     'welcome_intro_point_help' => 'Beim ersten Besuch einer Seite öffnet sich ihre Kurzinfo automatisch — spaeter jederzeit über den Info-Knopf.',
+    'welcome_intro_reopen' => 'Willkommens-Einführung erneut anzeigen',
 
     // Profil-Einstellungen
     'language_hint' => 'Sprache der Oberfläche für dieses Konto.',

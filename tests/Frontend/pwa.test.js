@@ -7,6 +7,7 @@ import {
     isAndroidDevice,
     isIosDevice,
     isStandaloneMode,
+    installationMode,
     pushDeviceBindingMatches,
     readPushDeviceBinding,
     reconcilePushDeviceAccount,
@@ -63,6 +64,15 @@ test('recognises both display-mode and legacy iOS standalone state', () => {
         { matchMedia: () => ({ matches: false }) },
         { standalone: true },
     ), true);
+});
+
+test('models install prompt, installed, manual and unsupported states explicitly', () => {
+    assert.equal(installationMode({ installed: true, promptAvailable: true }), 'installed');
+    assert.equal(installationMode({ installed: false, promptAvailable: true }), 'prompt');
+    assert.equal(installationMode({ installed: false, ios: true }), 'manual');
+    assert.equal(installationMode({ installed: false, android: true }), 'manual');
+    assert.equal(installationMode({ installed: false, desktop: true }), 'manual');
+    assert.equal(installationMode({ installed: false }), 'unsupported');
 });
 
 test('requires secure context and every Web Push browser API', () => {

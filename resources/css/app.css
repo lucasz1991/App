@@ -1398,6 +1398,255 @@ body[data-mode="dark"] .rt-chat-read-indicator.is-delivered {
     }
 }
 
+/* Livewire-Skeletons: layoutnah statt generischer Spinner. Die 300-ms-
+   Verzoegerung kommt aus wire:loading.delay.long; der Overlay-Hintergrund
+   verhindert Layoutspruenge, waehrend der echte Inhalt an Ort und Stelle
+   bleibt. */
+.rt-page-skeleton-overlay {
+    overflow: hidden;
+    border-radius: 1rem;
+    background: color-mix(in srgb, theme('colors.rt.canvas') 94%, transparent);
+    backdrop-filter: blur(9px);
+}
+
+html.dark .rt-page-skeleton-overlay,
+body[data-mode='dark'] .rt-page-skeleton-overlay {
+    background: color-mix(in srgb, theme('colors.rt-dark.canvas') 94%, transparent);
+}
+
+.rt-page-live-content--loading {
+    pointer-events: none;
+    user-select: none;
+}
+
+.rt-loading-skeleton {
+    position: relative;
+    min-height: 100%;
+    padding: clamp(0.875rem, 2vw, 1.35rem);
+    overflow: hidden;
+    color: theme('colors.rt.muted');
+}
+
+.rt-loading-skeleton::before {
+    position: absolute;
+    inset: -30% auto auto -12%;
+    width: min(24rem, 72vw);
+    aspect-ratio: 1;
+    border-radius: 9999px;
+    background: radial-gradient(circle, color-mix(in srgb, theme('colors.rt.accent') 9%, transparent), transparent 68%);
+    content: '';
+    pointer-events: none;
+}
+
+.rt-loading-skeleton__heading,
+.rt-loading-skeleton__cards,
+.rt-loading-skeleton__rows,
+.rt-loading-skeleton__feature-card {
+    position: relative;
+    z-index: 1;
+}
+
+.rt-loading-skeleton__heading {
+    display: grid;
+    gap: 0.55rem;
+    margin-bottom: 1rem;
+}
+
+.rt-loading-skeleton__eyebrow,
+.rt-loading-skeleton__title,
+.rt-loading-skeleton__line,
+.rt-loading-skeleton__icon,
+.rt-loading-skeleton__avatar,
+.rt-loading-skeleton__action {
+    position: relative;
+    display: block;
+    overflow: hidden;
+    background: color-mix(in srgb, theme('colors.rt.border') 62%, theme('colors.rt.surface-muted'));
+}
+
+html.dark .rt-loading-skeleton__eyebrow,
+html.dark .rt-loading-skeleton__title,
+html.dark .rt-loading-skeleton__line,
+html.dark .rt-loading-skeleton__icon,
+html.dark .rt-loading-skeleton__avatar,
+html.dark .rt-loading-skeleton__action,
+body[data-mode='dark'] .rt-loading-skeleton__eyebrow,
+body[data-mode='dark'] .rt-loading-skeleton__title,
+body[data-mode='dark'] .rt-loading-skeleton__line,
+body[data-mode='dark'] .rt-loading-skeleton__icon,
+body[data-mode='dark'] .rt-loading-skeleton__avatar,
+body[data-mode='dark'] .rt-loading-skeleton__action {
+    background: color-mix(in srgb, theme('colors.rt-dark.border') 64%, theme('colors.rt-dark.surface-muted'));
+}
+
+.rt-loading-skeleton__eyebrow {
+    width: 5rem;
+    height: 0.45rem;
+    border-radius: 0.3rem;
+}
+
+.rt-loading-skeleton__title {
+    width: min(18rem, 58vw);
+    height: 1.25rem;
+    border-radius: 0.45rem;
+}
+
+.rt-loading-skeleton__cards {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 0.9rem;
+}
+
+.rt-loading-skeleton__card,
+.rt-loading-skeleton__feature-card,
+.rt-loading-skeleton__row {
+    border: 1px solid color-mix(in srgb, theme('colors.rt.border') 68%, transparent);
+    background: color-mix(in srgb, theme('colors.rt.surface') 88%, transparent);
+    box-shadow: 0 12px 30px -28px color-mix(in srgb, theme('colors.rt-ink') 28%, transparent);
+}
+
+html.dark .rt-loading-skeleton__card,
+html.dark .rt-loading-skeleton__feature-card,
+html.dark .rt-loading-skeleton__row,
+body[data-mode='dark'] .rt-loading-skeleton__card,
+body[data-mode='dark'] .rt-loading-skeleton__feature-card,
+body[data-mode='dark'] .rt-loading-skeleton__row {
+    border-color: color-mix(in srgb, theme('colors.rt-dark.border') 72%, transparent);
+    background: color-mix(in srgb, theme('colors.rt-dark.surface') 88%, transparent);
+}
+
+.rt-loading-skeleton__card {
+    display: grid;
+    gap: 0.65rem;
+    min-height: 7.6rem;
+    padding: 0.9rem;
+    border-radius: 0.9rem;
+}
+
+.rt-loading-skeleton__feature-card {
+    display: grid;
+    gap: 0.7rem;
+    min-height: 12rem;
+    padding: 1rem;
+    border-radius: 1rem;
+}
+
+.rt-loading-skeleton__icon,
+.rt-loading-skeleton__avatar {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 0.7rem;
+}
+
+.rt-loading-skeleton__rows {
+    display: grid;
+    gap: 0.55rem;
+}
+
+.rt-loading-skeleton__row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: 4.5rem;
+    padding: 0.75rem;
+    border-radius: 0.85rem;
+}
+
+.rt-loading-skeleton__rows--table .rt-loading-skeleton__row {
+    border-radius: 0.55rem;
+}
+
+.rt-loading-skeleton__row-copy {
+    display: grid;
+    gap: 0.48rem;
+}
+
+.rt-loading-skeleton__line {
+    width: 78%;
+    height: 0.55rem;
+    border-radius: 0.35rem;
+}
+
+.rt-loading-skeleton__line--medium {
+    width: 58%;
+}
+
+.rt-loading-skeleton__line--short {
+    width: 36%;
+}
+
+.rt-loading-skeleton__action {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.6rem;
+}
+
+.rt-loading-skeleton__eyebrow::after,
+.rt-loading-skeleton__title::after,
+.rt-loading-skeleton__line::after,
+.rt-loading-skeleton__icon::after,
+.rt-loading-skeleton__avatar::after,
+.rt-loading-skeleton__action::after {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        105deg,
+        transparent 16%,
+        color-mix(in srgb, theme('colors.white') 56%, transparent) 46%,
+        transparent 74%
+    );
+    content: '';
+    transform: translateX(-125%);
+    animation: rt-skeleton-shimmer 1.35s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    will-change: transform;
+}
+
+html.dark .rt-loading-skeleton__eyebrow::after,
+html.dark .rt-loading-skeleton__title::after,
+html.dark .rt-loading-skeleton__line::after,
+html.dark .rt-loading-skeleton__icon::after,
+html.dark .rt-loading-skeleton__avatar::after,
+html.dark .rt-loading-skeleton__action::after,
+body[data-mode='dark'] .rt-loading-skeleton__eyebrow::after,
+body[data-mode='dark'] .rt-loading-skeleton__title::after,
+body[data-mode='dark'] .rt-loading-skeleton__line::after,
+body[data-mode='dark'] .rt-loading-skeleton__icon::after,
+body[data-mode='dark'] .rt-loading-skeleton__avatar::after,
+body[data-mode='dark'] .rt-loading-skeleton__action::after {
+    background: linear-gradient(105deg, transparent 16%, rgb(255 255 255 / 0.1) 46%, transparent 74%);
+}
+
+@keyframes rt-skeleton-shimmer {
+    to {
+        transform: translateX(125%);
+    }
+}
+
+@media (max-width: 639.98px) {
+    .rt-loading-skeleton__cards {
+        grid-template-columns: 1fr;
+    }
+
+    .rt-loading-skeleton__card:nth-child(n + 3) {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rt-loading-skeleton__eyebrow::after,
+    .rt-loading-skeleton__title::after,
+    .rt-loading-skeleton__line::after,
+    .rt-loading-skeleton__icon::after,
+    .rt-loading-skeleton__avatar::after,
+    .rt-loading-skeleton__action::after {
+        animation: none;
+        transform: none;
+        opacity: 0.35;
+    }
+}
+
 /* Native Vorschau der Mitarbeiter-E-Mailvorlage. Die explizite Regel gewinnt
    auch gegen globale Display-Utilities und verhindert ein offenes Modal beim
    ersten Seitenaufruf ohne jeden Alpine-/Livewire-Zustand. */

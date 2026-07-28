@@ -8,6 +8,9 @@
     // Beim ERSTEN Besuch die Seiteninfo automatisch oeffnen. Dashboards
     // schalten das ab, weil dort das Willkommens-Intro laeuft.
     'autoIntro' => true,
+    // Livewire-Requests, die laenger als 300 ms dauern, erhalten einen
+    // layoutnahen Skeleton. Schnelle Aktionen bleiben dadurch flackerfrei.
+    'loadingSkeleton' => true,
 ])
 
 @php
@@ -60,5 +63,22 @@
         ></div>
     @endif
 
-    {{ $slot }}
+    <div class="relative min-h-32" data-page-loading-region>
+        @if ($loadingSkeleton)
+            <div
+                wire:loading.delay.long
+                class="rt-page-skeleton-overlay absolute inset-0 z-20"
+                data-page-loading-skeleton
+            >
+                <x-ui.loading.skeleton variant="page" :rows="4" />
+            </div>
+        @endif
+
+        <div
+            @if ($loadingSkeleton) wire:loading.class.delay.long="rt-page-live-content--loading" @endif
+            data-page-live-content
+        >
+            {{ $slot }}
+        </div>
+    </div>
 </div>

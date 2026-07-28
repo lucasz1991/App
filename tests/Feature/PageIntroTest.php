@@ -61,13 +61,15 @@ class PageIntroTest extends TestCase
             ->assertDontSee('data-rt-intro-auto', escape: false);
     }
 
-    public function test_dashboard_shows_the_welcome_intro_exactly_once_instead_of_the_page_info(): void
+    public function test_dashboard_auto_opens_the_welcome_intro_once_and_keeps_it_replayable(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
 
         Livewire::actingAs($admin)
             ->test(Dashboard::class)
             ->assertSee('data-rt-welcome-intro', escape: false)
+            ->assertSee('data-rt-welcome-initially-open="true"', escape: false)
+            ->assertSee('data-welcome-intro-trigger', escape: false)
             ->assertSee(__('app.welcome_intro_eyebrow'))
             ->assertSee(__('app.lets_go'))
             ->assertSee(__('app.skip_intro'))
@@ -76,7 +78,10 @@ class PageIntroTest extends TestCase
 
         Livewire::actingAs($admin)
             ->test(Dashboard::class)
-            ->assertDontSee('data-rt-welcome-intro', escape: false);
+            ->assertSee('data-rt-welcome-intro', escape: false)
+            ->assertSee('data-rt-welcome-initially-open="false"', escape: false)
+            ->assertSee('x-on:rt-welcome:open.window="open = true"', escape: false)
+            ->assertSee('data-welcome-intro-trigger', escape: false);
     }
 
     public function test_inbox_dropdown_uses_tabs_and_preselects_the_tab_with_news(): void

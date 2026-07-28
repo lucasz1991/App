@@ -77,8 +77,14 @@ class ChatRedesignTest extends TestCase
         $this->assertStringContainsString('window.visualViewport?.removeEventListener(\'scroll\'', $script);
         $this->assertStringContainsString('window.addEventListener(\'resize\', this.viewportHandler', $script);
         $this->assertStringContainsString('window.removeEventListener(\'resize\', this.viewportHandler', $script);
+        $this->assertStringContainsString("this.\$root.addEventListener('focusin', this.focusHandler)", $script);
+        $this->assertStringContainsString("this.\$root.addEventListener('focusout', this.focusHandler)", $script);
+        $this->assertStringContainsString("this.\$root?.removeEventListener('focusin', this.focusHandler)", $script);
+        $this->assertStringContainsString("this.\$root?.removeEventListener('focusout', this.focusHandler)", $script);
         $this->assertStringContainsString('window.requestAnimationFrame', $script);
         $this->assertStringContainsString('window.cancelAnimationFrame', $script);
+        $this->assertStringContainsString('stableViewportHeight', $script);
+        $this->assertStringContainsString('this.$root.dataset.keyboardOpen', $script);
         $this->assertStringContainsString("'--rt-chat-visual-height'", $script);
         $this->assertStringContainsString("'--rt-chat-visual-top'", $script);
         $this->assertStringContainsString("removeProperty('--rt-chat-visual-height')", $script);
@@ -86,8 +92,19 @@ class ChatRedesignTest extends TestCase
 
         $this->assertMatchesRegularExpression(
             '/@media \(max-width: 767\.98px\)\s*\{\s*\.rt-chat-page\s*\{[^}]*'
-            .'--rt-chat-visual-height,\s*100dvh\)[^}]*-\s*70px[^}]*'
-            .'--rt-chat-visual-top,\s*0px\)/s',
+            .'--rt-chat-visual-height,\s*100dvh\)[^}]*-\s*70px/s',
+            $styles,
+        );
+        $this->assertMatchesRegularExpression(
+            '/\.rt-chat-page\[data-keyboard-open=\'true\'\]\s*\{[^}]*'
+            .'position:\s*fixed\s*!important;[^}]*top:\s*var\(--rt-chat-visual-top[^}]*'
+            .'height:\s*var\(--rt-chat-visual-height,\s*100dvh\)\s*!important;/s',
+            $styles,
+        );
+        $this->assertMatchesRegularExpression(
+            '/@media \(max-width: 767\.98px\).*?\.rt-chat-shell\s*\{[^}]*'
+            .'border-top-left-radius:\s*0\s*!important;[^}]*'
+            .'border-top-right-radius:\s*0\s*!important;/s',
             $styles,
         );
         $this->assertMatchesRegularExpression(
@@ -104,8 +121,7 @@ class ChatRedesignTest extends TestCase
         $header = file_get_contents(resource_path('views/livewire/chat/partials/conversation-header.blade.php'));
 
         $this->assertMatchesRegularExpression(
-            '/@media \(max-width: 767\.98px\)\s*\{\s*'
-            .'(?:\.rt-chat-page\s*\{[^}]*\}\s*)?\/\*.*?\*\/\s*\.rt-chat-list-pane,\s*'
+            '/@media \(max-width: 767\.98px\).*?\.rt-chat-list-pane,\s*'
             .'\.rt-chat-conversation-pane\s*\{[^}]*position:\s*absolute;[^}]*inset:\s*0;'
             .'[^}]*width:\s*100%\s*!important;[^}]*min-width:\s*0\s*!important;[^}]*height:\s*100%;/s',
             $styles,

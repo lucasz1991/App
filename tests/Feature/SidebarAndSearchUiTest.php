@@ -6,6 +6,67 @@ use Tests\TestCase;
 
 class SidebarAndSearchUiTest extends TestCase
 {
+    public function test_sidebar_and_ambient_shell_persist_across_livewire_navigation(): void
+    {
+        $master = file_get_contents(resource_path('views/layouts/master.blade.php'));
+        $sidebar = file_get_contents(resource_path('views/layouts/sidebar.blade.php'));
+        $link = file_get_contents(resource_path('views/components/menu/sidebar-nav-link.blade.php'));
+        $script = file_get_contents(resource_path('js/app.js'));
+        $motion = file_get_contents(resource_path('js/vengeance-motion.js'));
+
+        $this->assertStringContainsString("@persist('railtime-sidebar-'.\$area)", $sidebar);
+        $this->assertStringContainsString("@persist('railtime-shell-ambient')", $master);
+        $this->assertStringContainsString('wire:current="active"', $link);
+        $this->assertStringContainsString("Alpine.store('shell'", $script);
+        $this->assertStringContainsString(
+            'x-bind:data-sidebar-expanded="$store.shell?.desktopSidebarExpanded',
+            $master,
+        );
+        $this->assertStringContainsString(
+            "document.addEventListener('livewire:navigating', captureDesktopSidebarState);",
+            $script,
+        );
+        $this->assertStringContainsString(
+            "document.addEventListener('livewire:navigated', restoreDesktopSidebarState);",
+            $script,
+        );
+        $this->assertStringContainsString('item.hasAttribute(\'data-current\')', $script);
+        $this->assertStringContainsString('const ambientSnapshot = {', $motion);
+        $this->assertStringContainsString('applyAmbientSnapshot(true);', $motion);
+        $this->assertStringContainsString(
+            "document.addEventListener('livewire:navigating', releaseCardGlowForNavigation);",
+            $motion,
+        );
+        $this->assertStringNotContainsString(
+            "document.addEventListener('livewire:navigating', resetGlow);",
+            $motion,
+        );
+    }
+
+    public function test_profile_is_standalone_and_help_and_support_share_a_support_submenu(): void
+    {
+        foreach (['admin-sidebar.blade.php', 'user-sidebar.blade.php'] as $sidebarView) {
+            $sidebar = file_get_contents(resource_path('views/layouts/'.$sidebarView));
+            $profilePosition = strpos($sidebar, "route('profile.show')");
+            $supportGroupPosition = strpos(
+                $sidebar,
+                "<x-menu.sidebar-nav-group",
+                $profilePosition === false ? 0 : $profilePosition,
+            );
+            $helpPosition = strpos($sidebar, "route('help')", $supportGroupPosition ?: 0);
+            $supportPosition = strpos($sidebar, "route('support')", $supportGroupPosition ?: 0);
+
+            $this->assertNotFalse($profilePosition, $sidebarView);
+            $this->assertNotFalse($supportGroupPosition, $sidebarView);
+            $this->assertNotFalse($helpPosition, $sidebarView);
+            $this->assertNotFalse($supportPosition, $sidebarView);
+            $this->assertGreaterThan($profilePosition, $supportGroupPosition, $sidebarView);
+            $this->assertGreaterThan($supportGroupPosition, $helpPosition, $sidebarView);
+            $this->assertGreaterThan($helpPosition, $supportPosition, $sidebarView);
+            $this->assertSame(1, substr_count($sidebar, "route('profile.show')"), $sidebarView);
+        }
+    }
+
     public function test_sidebar_submenus_rebind_per_alpine_navigation_generation_and_scroll_locally(): void
     {
         $script = file_get_contents(resource_path('js/app.js'));

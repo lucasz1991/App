@@ -16,6 +16,7 @@
         href="{{ $href }}"
         data-menu-active="{{ $active ? 'true' : 'false' }}"
         data-rt-sidebar-link
+        wire:current="active"
         @if($active) aria-current="page" @endif
         {{ $attributes->class($classes) }}
         @if($navigate) wire:navigate @endif

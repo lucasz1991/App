@@ -30,6 +30,11 @@ let ambientPointer = null;
 let ambientX = null;
 let ambientY = null;
 let ambientOpacity = null;
+const ambientSnapshot = {
+    clientX: null,
+    clientY: null,
+    visible: false,
+};
 
 function clearGlow(card) {
     if (!card) return;
@@ -56,6 +61,8 @@ function resolveAmbient() {
     ambientX = gsap.quickTo(ambientPointer, 'x', { duration: 0.72, ease: 'power3.out' });
     ambientY = gsap.quickTo(ambientPointer, 'y', { duration: 0.72, ease: 'power3.out' });
     ambientOpacity = gsap.quickTo(ambientPointer, 'opacity', { duration: 0.32, ease: 'power2.out' });
+
+    applyAmbientSnapshot(true);
 }
 
 function clearAmbient() {
@@ -68,6 +75,54 @@ function clearAmbient() {
     ambientX = null;
     ambientY = null;
     ambientOpacity = null;
+}
+
+function isAmbientTargetAt(clientX, clientY) {
+    if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) {
+        return false;
+    }
+
+    const target = document.elementFromPoint(clientX, clientY);
+
+    return Boolean(target?.closest(AMBIENT_HOVER_SELECTOR));
+}
+
+function applyAmbientSnapshot(immediate = false) {
+    if (!ambient || !ambientPointer) {
+        return;
+    }
+
+    const rect = ambient.getBoundingClientRect();
+    if (
+        !rect.width
+        || !rect.height
+        || !Number.isFinite(ambientSnapshot.clientX)
+        || !Number.isFinite(ambientSnapshot.clientY)
+    ) {
+        return;
+    }
+
+    const x = gsap.utils.clamp(0, rect.width, ambientSnapshot.clientX - rect.left);
+    const y = gsap.utils.clamp(0, rect.height, ambientSnapshot.clientY - rect.top);
+    const opacity = ambientSnapshot.visible
+        && finePointer.matches
+        && !reducedMotion.matches
+        && isAmbientTargetAt(ambientSnapshot.clientX, ambientSnapshot.clientY)
+        ? 0.82
+        : 0;
+
+    if (immediate) {
+        // Beim wire:navigate-DOM-Swap darf der gespeicherte Lichtpunkt nicht
+        // erst wieder mit der normalen Folgeanimation zum Cursor driften.
+        // Die neue bzw. via @persist erhaltene Flaeche bekommt den letzten
+        // Frame deshalb noch vor dem naechsten Paint synchron.
+        gsap.set(ambientPointer, { x, y, opacity });
+        return;
+    }
+
+    ambientX?.(x);
+    ambientY?.(y);
+    ambientOpacity?.(opacity);
 }
 
 function resetGlow() {
@@ -85,6 +140,7 @@ function resetGlow() {
 
     glowingCard = null;
     lastPointerEvent = null;
+    ambientSnapshot.visible = false;
     clearAmbient();
 }
 
@@ -92,17 +148,10 @@ function applyAmbient(event) {
     resolveAmbient();
 
     const target = event.target instanceof Element ? event.target : null;
-    if (!ambient || !ambientPointer || !target?.closest(AMBIENT_HOVER_SELECTOR)) {
-        ambientOpacity?.(0);
-        return;
-    }
-
-    const rect = ambient.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
-
-    ambientX?.(gsap.utils.clamp(0, rect.width, event.clientX - rect.left));
-    ambientY?.(gsap.utils.clamp(0, rect.height, event.clientY - rect.top));
-    ambientOpacity?.(0.82);
+    ambientSnapshot.clientX = event.clientX;
+    ambientSnapshot.clientY = event.clientY;
+    ambientSnapshot.visible = Boolean(target?.closest(AMBIENT_HOVER_SELECTOR));
+    applyAmbientSnapshot();
 }
 
 function applyGlow() {
@@ -140,6 +189,14 @@ document.addEventListener('pointermove', (event) => {
         return;
     }
 
+    // Koordinaten sofort sichern; der eigentliche DOM-Write bleibt fuer
+    // gleichmaessige Frames im requestAnimationFrame gebuendelt.
+    ambientSnapshot.clientX = event.clientX;
+    ambientSnapshot.clientY = event.clientY;
+    ambientSnapshot.visible = Boolean(
+        event.target instanceof Element
+        && event.target.closest(AMBIENT_HOVER_SELECTOR)
+    );
     lastPointerEvent = event;
     if (pendingFrame === null) {
         pendingFrame = window.requestAnimationFrame(applyGlow);
@@ -155,4 +212,30 @@ reducedMotion.addEventListener('change', resetGlow);
 
 // Beim Seitenwechsel (Body-Swap) haengt der alte Kartenverweis im Nichts —
 // Referenz loesen, damit kein Detached-DOM gehalten wird.
-document.addEventListener('livewire:navigating', resetGlow);
+function releaseCardGlowForNavigation() {
+    if (pendingFrame !== null) {
+        window.cancelAnimationFrame(pendingFrame);
+        pendingFrame = null;
+    }
+
+    if (glowingCard) {
+        clearGlow(glowingCard);
+    }
+
+    glowingCard = null;
+    lastPointerEvent = null;
+
+    // Ambient-DOM und Position bleiben ueber @persist erhalten. Die Referenz
+    // wird bewusst nicht geloescht und die Opacity nicht auf 0 gesetzt.
+}
+
+function restoreAmbientAfterNavigation() {
+    resolveAmbient();
+    applyAmbientSnapshot(true);
+}
+
+// Karten gehoeren zum ausgetauschten Content, die globale Ambient-Flaeche
+// dagegen bleibt erhalten. So gibt es weder Detached-DOM-Referenzen noch den
+// frueheren sichtbaren Reset auf (0, 0).
+document.addEventListener('livewire:navigating', releaseCardGlowForNavigation);
+document.addEventListener('livewire:navigated', restoreAmbientAfterNavigation);

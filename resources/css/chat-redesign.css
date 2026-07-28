@@ -834,7 +834,37 @@ body[data-mode='dark'] .rt-chat-message--own .rt-chat-message-meta {
 @media (max-width: 767.98px) {
     .rt-chat-page {
         height: max(0px, calc(var(--rt-chat-visual-height, 100dvh) - 70px)) !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+    }
+
+    .rt-chat-shell {
+        border-top-left-radius: 0 !important;
+        border-top-right-radius: 0 !important;
+    }
+
+    /*
+     * Sobald die Bildschirmtastatur den VisualViewport verkleinert, wird nur
+     * der Messenger in diesen sichtbaren Ausschnitt gehoben. Die Topbar bleibt
+     * im normalen Zustand direkt darueber; waehrend der Eingabe liegt der
+     * Chatheader selbst am oberen Rand und bleibt dadurch erreichbar.
+     */
+    .rt-chat-page[data-keyboard-open='true'] {
+        position: fixed !important;
+        z-index: 45;
         top: var(--rt-chat-visual-top, 0px);
+        right: 0;
+        left: 0;
+        width: 100%;
+        height: var(--rt-chat-visual-height, 100dvh) !important;
+        margin: 0 !important;
+        padding-block: 0 !important;
+        padding-inline: 0 !important;
+        overscroll-behavior: none;
+    }
+
+    .rt-chat-page[data-keyboard-open='true'] .rt-chat-shell {
+        border-radius: 0 !important;
     }
 
     /*
@@ -858,6 +888,7 @@ body[data-mode='dark'] .rt-chat-message--own .rt-chat-message-meta {
 
     .rt-chat-conversation-header {
         min-height: 4.5rem;
+        top: 0;
     }
 
     .rt-chat-transcript {

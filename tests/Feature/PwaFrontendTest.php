@@ -85,6 +85,14 @@ class PwaFrontendTest extends TestCase
         $this->assertStringNotContainsString('privateKey', file_get_contents(
             resource_path('views/livewire/settings/push-settings.blade.php')
         ));
+        $this->assertStringContainsString("'testEnabled' => (bool) config('webpush.test_enabled')", $component);
+        $this->assertStringContainsString("'test' => route('push.test')", $component);
+        $this->assertStringContainsString("'testQueued' => __('app.push_test_queued')", $component);
+        $this->assertStringContainsString("'testFailed' => __('app.push_test_failed')", $component);
+        $this->assertStringContainsString(
+            'x-show.important="canTest"',
+            file_get_contents(resource_path('views/livewire/settings/push-settings.blade.php'))
+        );
     }
 
     public function test_manifest_is_scope_relative_and_references_valid_png_icons(): void

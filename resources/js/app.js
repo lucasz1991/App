@@ -22,7 +22,11 @@ import './gsap';
 import './vengeance-motion';
 import { wagonListPrototype } from './wagon-list-prototype';
 import { numberInput } from './number-input';
-import { registerRailtimePushSettings, setupRailtimePwa } from './pwa';
+import {
+    registerRailtimePwaInstall,
+    registerRailtimePushSettings,
+    setupRailtimePwa,
+} from './pwa';
 import { createNotificationSeenCache } from './notification-seen-cache';
 import { createNotificationPresentationContext } from './notification-presentation';
 import { incomingNotificationSound } from './realtime-notification-sound';
@@ -131,6 +135,19 @@ Alpine.store('theme', {
         this.dark = !this.dark;
         localStorage.setItem('rt-theme', this.dark ? 'true' : 'false');
         rtApplyTheme();
+    },
+});
+
+// Shell-Zustand liegt absichtlich ausserhalb des austauschbaren <body>.
+// Livewire 3 behaelt globale Alpine-Stores bei wire:navigate im Speicher;
+// dadurch bindet der neue Body noch im selben Navigationszyklus wieder an
+// denselben Sidebar-Zustand und die persistierte Navigation klappt nicht
+// sichtbar ein und wieder aus.
+Alpine.store('shell', {
+    desktopSidebarExpanded: document.body?.getAttribute('data-sidebar-expanded') === 'true',
+
+    setDesktopSidebarExpanded(expanded) {
+        this.desktopSidebarExpanded = Boolean(expanded);
     },
 });
 
@@ -396,6 +413,7 @@ Livewire.hook('request', ({ fail }) => {
 window.Alpine = Alpine;
 
 registerRailtimePushSettings(Alpine);
+registerRailtimePwaInstall(Alpine);
 setupRailtimePwa();
 
 Alpine.data('wagonListPrototype', wagonListPrototype);
@@ -830,13 +848,25 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
     touchStartY: null,
     viewportHandler: null,
     viewportFrame: null,
+    focusHandler: null,
+    stableViewportHeight: 0,
+    keyboardOpen: false,
 
     init() {
         this.viewportHandler = () => this.queueVisualViewportSync();
+        this.focusHandler = () => this.queueVisualViewportSync();
+
+        const visualViewport = window.visualViewport;
+        this.stableViewportHeight = Math.max(
+            0,
+            visualViewport?.height ?? window.innerHeight,
+        );
 
         window.visualViewport?.addEventListener('resize', this.viewportHandler, { passive: true });
         window.visualViewport?.addEventListener('scroll', this.viewportHandler, { passive: true });
         window.addEventListener('resize', this.viewportHandler, { passive: true });
+        this.$root.addEventListener('focusin', this.focusHandler);
+        this.$root.addEventListener('focusout', this.focusHandler);
 
         this.viewportHandler();
     },
@@ -856,9 +886,33 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
             const visualViewport = window.visualViewport;
             const viewportHeight = Math.max(0, visualViewport?.height ?? window.innerHeight);
             const viewportTop = Math.max(0, visualViewport?.offsetTop ?? 0);
+            const activeElement = document.activeElement;
+            const editableFocused = activeElement instanceof Element
+                && this.$root.contains(activeElement)
+                && activeElement.matches('input, textarea, [contenteditable="true"]');
+
+            // Im Ruhezustand ist der sichtbare Viewport unsere stabile
+            // Referenz. Beim Fokus steht dieser Wert bereits fest, bevor die
+            // Tastatur den VisualViewport verkleinert (auch auf Android, wo
+            // window.innerHeight parallel schrumpfen kann).
+            const keyboardThreshold = Math.max(104, this.stableViewportHeight * 0.16);
+            const viewportRecovered = viewportHeight >= this.stableViewportHeight - keyboardThreshold;
+
+            if (!editableFocused && (!this.keyboardOpen || viewportRecovered)) {
+                this.stableViewportHeight = viewportHeight;
+            }
+
+            const keyboardDelta = this.stableViewportHeight - viewportHeight;
+            const nextKeyboardOpen = (editableFocused || this.keyboardOpen)
+                && keyboardDelta > keyboardThreshold;
 
             this.$root.style.setProperty('--rt-chat-visual-height', `${Math.round(viewportHeight)}px`);
             this.$root.style.setProperty('--rt-chat-visual-top', `${Math.round(viewportTop)}px`);
+
+            if (nextKeyboardOpen !== this.keyboardOpen) {
+                this.keyboardOpen = nextKeyboardOpen;
+                this.$root.dataset.keyboardOpen = nextKeyboardOpen ? 'true' : 'false';
+            }
         });
     },
 
@@ -931,6 +985,8 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
         window.visualViewport?.removeEventListener('resize', this.viewportHandler);
         window.visualViewport?.removeEventListener('scroll', this.viewportHandler);
         window.removeEventListener('resize', this.viewportHandler);
+        this.$root?.removeEventListener('focusin', this.focusHandler);
+        this.$root?.removeEventListener('focusout', this.focusHandler);
 
         if (this.viewportFrame !== null) {
             window.cancelAnimationFrame(this.viewportFrame);
@@ -939,7 +995,9 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
 
         this.$root?.style.removeProperty('--rt-chat-visual-height');
         this.$root?.style.removeProperty('--rt-chat-visual-top');
+        this.$root?.removeAttribute('data-keyboard-open');
         this.viewportHandler = null;
+        this.focusHandler = null;
     },
 }));
 
@@ -1475,7 +1533,34 @@ function setDesktopSidebarExpanded(expanded) {
         return;
     }
 
-    document.body.setAttribute('data-sidebar-expanded', expanded ? 'true' : 'false');
+    const nextExpanded = Boolean(expanded);
+
+    Alpine.store('shell').setDesktopSidebarExpanded(nextExpanded);
+    document.body.setAttribute('data-sidebar-expanded', nextExpanded ? 'true' : 'false');
+    syncSidebarToggleState();
+}
+
+function captureDesktopSidebarState() {
+    if (!document.body || !isDesktopHoverSidebar()) {
+        return;
+    }
+
+    Alpine.store('shell').setDesktopSidebarExpanded(
+        document.body.getAttribute('data-sidebar-expanded') === 'true'
+    );
+}
+
+function restoreDesktopSidebarState() {
+    if (!document.body || !isDesktopHoverSidebar()) {
+        return;
+    }
+
+    // Direkte Zuweisung als synchroner Fallback fuer den kurzen Moment,
+    // bevor Alpine das x-bind des neuen <body> ausgewertet hat.
+    document.body.setAttribute(
+        'data-sidebar-expanded',
+        Alpine.store('shell').desktopSidebarExpanded ? 'true' : 'false'
+    );
     syncSidebarToggleState();
 }
 
@@ -1648,8 +1733,16 @@ function initActiveMenu(sideMenu = document.getElementById('side-menu')) {
     const pageUrl = window.location.href.split(/[?#]/)[0];
     const menuItems = Array.from(sideMenu.querySelectorAll('a'));
     const nestedLists = sideMenu.querySelectorAll('ul');
+    // Livewires wire:current wird vor unserem navigated-Handler aktualisiert
+    // und kennt auch Unterpfade. Das ist fuer die via @persist erhaltene
+    // Sidebar die verlaessliche Quelle, wenn der Server-Link selbst nicht
+    // exakt der aktuellen Detail-URL entspricht.
+    const currentMatches = menuItems.filter((item) => item.hasAttribute('data-current'));
 
-    menuItems.forEach((item) => item.classList.remove('active'));
+    menuItems.forEach((item) => {
+        item.classList.remove('active');
+        item.removeAttribute('aria-current');
+    });
     sideMenu.querySelectorAll('[data-rt-sidebar-group]').forEach((trigger) => {
         trigger.setAttribute('aria-expanded', 'false');
     });
@@ -1660,10 +1753,13 @@ function initActiveMenu(sideMenu = document.getElementById('side-menu')) {
 
     const exactMatches = menuItems.filter((item) => item.href === pageUrl);
     const fallbackMatches = menuItems.filter((item) => item.dataset.menuActive === 'true');
-    const activeItems = exactMatches.length > 0 ? exactMatches : fallbackMatches;
+    const activeItems = exactMatches.length > 0
+        ? exactMatches
+        : (currentMatches.length > 0 ? currentMatches : fallbackMatches);
 
     activeItems.forEach((item) => {
         item.classList.add('active');
+        item.setAttribute('aria-current', 'page');
 
         let currentLi = item.closest('li');
         while (currentLi) {
@@ -1850,6 +1946,7 @@ function initAdminLayout() {
     initLeftMenuCollapse();
     initMobileSidebarSwipe();
     initSidebarInteractions();
+    initActiveMenu();
     initMenuItemScroll();
     initFeather();
 }
@@ -1873,7 +1970,11 @@ if (document.readyState === 'loading') {
     queueAdminLayoutInit();
 }
 
-// Livewire 3 ersetzt bei wire:navigate den gesamten Body samt Sidebar.
-// Alpine zerstoert/initialisiert rtSidebarNavigation je Generation; dieser
-// Frame bindet danach nur noch die globalen Shell-Interaktionen neu.
+// Livewire 3 ersetzt bei wire:navigate den Body; die Sidebar selbst wird
+// dabei via @persist weiterverwendet. Der Store stellt den
+// Breitenzustand synchron am neuen Body wieder her; danach aktualisiert der
+// Frame nur noch aktive Route, globale Shell-Interaktionen und Scrollposition.
+document.addEventListener('livewire:navigate', captureDesktopSidebarState);
+document.addEventListener('livewire:navigating', captureDesktopSidebarState);
+document.addEventListener('livewire:navigated', restoreDesktopSidebarState);
 document.addEventListener('livewire:navigated', queueAdminLayoutInit);

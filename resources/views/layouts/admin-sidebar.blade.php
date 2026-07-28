@@ -172,6 +172,15 @@
 
         <x-menu.sidebar-nav :label="__('app.my_area')">
             <x-menu.sidebar-nav-link
+                :href="route('profile.show')"
+                icon="user"
+                :active="request()->routeIs('profile.show')"
+                :navigate="false"
+            >
+                {{ __('app.profile') }}
+            </x-menu.sidebar-nav-link>
+
+            <x-menu.sidebar-nav-link
                 :href="route('email-templates.index')"
                 icon="file-text"
                 :active="request()->routeIs('email-templates.*')"
@@ -180,20 +189,10 @@
             </x-menu.sidebar-nav-link>
 
             <x-menu.sidebar-nav-group
-                icon="user"
-                :active="request()->routeIs('profile.show', 'help', 'support')"
+                icon="life-buoy"
+                :active="request()->routeIs('help', 'support')"
             >
-                <x-slot:label>{{ __('app.profile_and_support') }}</x-slot:label>
-
-                <x-menu.sidebar-nav-link
-                    :href="route('profile.show')"
-                    icon="user"
-                    :active="request()->routeIs('profile.show')"
-                    :navigate="false"
-                    class="!pl-8"
-                >
-                    {{ __('app.profile') }}
-                </x-menu.sidebar-nav-link>
+                <x-slot:label>{{ __('app.it_support') }}</x-slot:label>
 
                 <x-menu.sidebar-nav-link
                     :href="route('help')"

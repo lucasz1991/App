@@ -70,13 +70,10 @@ class UserMessages extends Component
 
     public function placeholder()
     {
-        $loading = e(__('app.loading'));
-
-        return <<<HTML
-            <div role="status" class="h-24 w-full animate-pulse rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 flex items-center justify-center">
-                <span class="text-sm text-slate-500 dark:text-slate-400">{$loading}</span>
-            </div>
-        HTML;
+        return view('livewire.placeholders.page-skeleton', [
+            'variant' => 'list',
+            'rows' => 5,
+        ]);
     }
 
     public function render()
