@@ -1,4 +1,8 @@
-<div class="rt-chat-composer shrink-0 px-2 pb-2.5 pt-2 sm:px-3 sm:pb-3">
+<div
+    class="rt-chat-composer shrink-0 px-2 pb-2.5 pt-2 sm:px-3 sm:pb-3"
+    data-no-chat-swipe
+    wire:key="chat-composer-{{ $selectedChat->id }}"
+>
     @if ($uploads !== [])
         <div class="mb-2 flex flex-wrap gap-2 px-1" aria-live="polite">
             @foreach ($uploads as $index => $upload)
@@ -22,7 +26,7 @@
 
     <form
         wire:submit.prevent="send"
-        x-data="{ draft: @entangle('messageText').live }"
+        x-data="{ draft: @entangle('messageText') }"
         class="flex items-center"
     >
         <input
@@ -54,6 +58,9 @@
                 @input.debounce.250ms="sendTyping()"
                 placeholder="{{ __('app.type_message') }}"
                 autocomplete="off"
+                autocapitalize="sentences"
+                enterkeyhint="send"
+                spellcheck="true"
                 class="h-10 min-w-0 flex-1 border-0 bg-transparent px-2 text-base leading-6 text-rt-text outline-none placeholder:text-rt-soft focus:border-0 focus:ring-0 sm:text-sm dark:text-white dark:placeholder:text-rt-dark-soft"
             >
 

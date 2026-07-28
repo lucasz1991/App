@@ -10,6 +10,9 @@
     $canCall = $canCommunicate
         && ($viewer->isAdmin() || $viewer->hasRbacPermission('calls.start'))
         && ($item->isAdmin() || $item->hasRbacPermission('calls.join'));
+    $roleKey = 'app.role_' . $item->role;
+    $roleLabel = __($roleKey);
+    $roleLabel = $roleLabel === $roleKey ? ucfirst((string) $item->role) : $roleLabel;
 @endphp
 
 {{-- 0: Gemeinsame Personeninformation: Bild, Name und E-Mail --}}
@@ -34,8 +37,11 @@
 {{-- 1: Kontostatus – mobil neben der kombinierten Personeninformation sichtbar --}}
 <div
     data-rt-table-label="{{ $columnsMeta[1]['label'] ?? '' }}"
-    class="rt-employee-status-cell flex items-center px-2 py-2 {{ $hc(1) }}"
+    class="rt-employee-status-cell flex min-w-0 flex-col items-start gap-1 px-2 py-2 {{ $hc(1) }}"
 >
+    <span class="max-w-full truncate text-[11px] font-semibold leading-4 text-rt-muted dark:text-rt-dark-muted">
+        {{ $roleLabel }}
+    </span>
     <span
         @class([
             'rt-ui-badge inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold ring-1',

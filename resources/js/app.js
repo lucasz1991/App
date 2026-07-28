@@ -870,6 +870,7 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
     keyboardOpen: false,
     visualViewportHeight: Math.max(0, window.visualViewport?.height ?? window.innerHeight),
     visualViewportTop: Math.max(0, window.visualViewport?.offsetTop ?? 0),
+    topbarInset: 70,
 
     init() {
         this.viewportHandler = () => this.queueVisualViewportSync();
@@ -878,8 +879,10 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
         const visualViewport = window.visualViewport;
         const viewportHeight = Math.max(0, visualViewport?.height ?? window.innerHeight);
         const viewportWidth = Math.max(0, visualViewport?.width ?? window.innerWidth);
+        const viewportTop = Math.max(0, visualViewport?.offsetTop ?? 0);
         this.visualViewportHeight = viewportHeight;
-        this.visualViewportTop = Math.max(0, visualViewport?.offsetTop ?? 0);
+        this.visualViewportTop = viewportTop;
+        this.topbarInset = this.resolveVisibleTopbarInset(viewportTop, viewportHeight);
 
         this.stableViewportHeight = Math.max(
             viewportHeight,
@@ -959,8 +962,10 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
 
             this.visualViewportHeight = viewportHeight;
             this.visualViewportTop = viewportTop;
+            this.topbarInset = this.resolveVisibleTopbarInset(viewportTop, viewportHeight);
             this.$root.style.setProperty('--rt-chat-visual-height', `${Math.round(viewportHeight)}px`);
             this.$root.style.setProperty('--rt-chat-visual-top', `${Math.round(viewportTop)}px`);
+            this.$root.style.setProperty('--rt-chat-topbar-inset', `${Math.round(this.topbarInset)}px`);
 
             if (nextKeyboardOpen !== this.keyboardOpen) {
                 this.keyboardOpen = nextKeyboardOpen;
@@ -975,6 +980,35 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
             rtChatViewportState.stableWidth = this.stableViewportWidth;
             rtChatViewportState.keyboardOpen = nextKeyboardOpen;
         });
+    },
+
+    resolveVisibleTopbarInset(viewportTop, viewportHeight) {
+        if (window.innerWidth >= 768) {
+            return 0;
+        }
+
+        const topbar = document.querySelector('[data-rt-shell-topbar]');
+
+        if (!(topbar instanceof HTMLElement)) {
+            return 0;
+        }
+
+        const styles = window.getComputedStyle(topbar);
+
+        if (
+            styles.display === 'none'
+            || styles.visibility === 'hidden'
+            || Number.parseFloat(styles.opacity || '1') <= 0
+        ) {
+            return 0;
+        }
+
+        const rect = topbar.getBoundingClientRect();
+        const viewportBottom = viewportTop + viewportHeight;
+        const visibleTop = Math.max(rect.top, viewportTop);
+        const visibleBottom = Math.min(rect.bottom, viewportBottom);
+
+        return Math.max(0, Math.min(rect.height, visibleBottom - visibleTop));
     },
 
     showList() {
@@ -1056,6 +1090,7 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
 
         this.$root?.style.removeProperty('--rt-chat-visual-height');
         this.$root?.style.removeProperty('--rt-chat-visual-top');
+        this.$root?.style.removeProperty('--rt-chat-topbar-inset');
         this.$root?.removeAttribute('data-keyboard-open');
         this.viewportHandler = null;
         this.focusHandler = null;

@@ -480,11 +480,20 @@ body[data-mode='dark'] .rt-tabs-v2.rt-tabs-shell {
     }
 
     .rt-tabs-v2 .rt-carousel-tab {
-        width: min(15rem, 68vw);
-        min-width: 10rem;
-        max-width: min(15rem, 68vw);
-        min-height: 3rem;
-        flex: 0 0 min(15rem, 68vw);
+        width: auto;
+        min-width: 0;
+        max-width: min(14rem, 72vw);
+        min-height: 2.75rem;
+        flex: 0 0 auto;
+        gap: 0.4375rem;
+        padding: 0.5rem 0.75rem 0.5625rem;
+        font-size: 0.78125rem;
+    }
+
+    .rt-tabs-v2 .rt-carousel-tab-icon {
+        width: 1.625rem;
+        height: 1.625rem;
+        flex-basis: 1.625rem;
     }
 
     .rt-tabs-v2 .rt-carousel-tab[data-position='inactive'] {

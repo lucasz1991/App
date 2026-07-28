@@ -3,6 +3,10 @@
     'tabs' => [],
     'default' => null,
     'forceDefault' => false,
+    // Bestehende Tabs merken ihre Auswahl weiterhin. Einzelne Formulare und
+    // Dialoge koennen die Persistenz explizit mit :persist="false" abschalten.
+    'persist' => true,
+    'resetOnOpen' => false,
     'persistKey' => null,
     // Kept for backwards compatibility with existing call sites.
     'collapseAt' => 'md',
@@ -31,15 +35,20 @@
 <div
     x-data="railtimeTabs({
         initial: @js($initial),
-        persistedTab: $persist(@js($initial)).as(@js($storageKey)),
+        persistedTab: @if ($persist) $persist(@js($initial)).as(@js($storageKey)) @else @js($initial) @endif,
         forceDefault: @js((bool) $forceDefault),
+        resetOnOpen: @js((bool) $resetOnOpen),
         items: @js($tabItems),
     })"
+    x-effect="if (@js((bool) $resetOnOpen) && typeof show !== 'undefined') syncModalOpenState(show)"
     :data-tab-direction="tabDirection"
     :data-tabs-mobile="mobileTabs ? 'true' : 'false'"
     :data-tabs-scrubbing="scrubbingTabs ? 'true' : 'false'"
     :data-tabs-input-policy="mobileTabs ? 'free-scroll-linked' : 'click-only'"
-    class="w-full min-w-0"
+    {{ $attributes->class('w-full min-w-0')->merge([
+        'data-anim' => 'fade-up',
+        'data-anim-delay' => '0.06',
+    ]) }}
     wire:key="{{ \Illuminate\Support\Str::slug($storageKey) }}"
 >
     <div

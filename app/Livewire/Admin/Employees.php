@@ -350,7 +350,7 @@ class Employees extends Component
         $base = User::query()
             ->with([
                 'currentTeam',
-                'profile:id,user_id,position',
+                'profile:id,user_id,first_name,last_name,position',
             ])
             ->whereIn('role', $allowedRoles)
             // Super-Admin (#1) wird nicht als Mitarbeiter gefuehrt

@@ -214,7 +214,6 @@
                                                 src="{{ Auth::user()->profile_photo_url }}"
                                                 alt="{{ Auth::user()->name }}"
                                             />
-                                            <span class="rt-topbar-presence absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500 dark:border-slate-900" aria-hidden="true"></span>
                                         </span>
                                         <span class="hidden min-w-0 text-start xl:block">
                                             <span class="block max-w-36 truncate text-xs font-semibold leading-4">{{ Auth::user()->name }}</span>

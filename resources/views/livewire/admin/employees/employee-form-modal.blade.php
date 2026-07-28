@@ -18,7 +18,14 @@
         <div class="space-y-5">
             <p class="text-sm text-rt-muted dark:text-rt-dark-muted">{{ __('app.employee_form_intro') }}</p>
 
-            <x-ui.accordion.tabs :tabs="$formTabs" default="teamSecurity" persist-key="employee-form.tabs">
+            <x-ui.accordion.tabs
+                :tabs="$formTabs"
+                default="teamSecurity"
+                :force-default="true"
+                :persist="false"
+                :reset-on-open="true"
+                persist-key="employee-form.tabs"
+            >
                 <x-ui.accordion.tab-panel for="teamSecurity" panel-class="space-y-4">
                     <div class="grid gap-4 rounded-xl bg-rt-surface-muted p-4 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60 md:grid-cols-2">
                         <div>

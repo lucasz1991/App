@@ -1,9 +1,11 @@
 @props([
     'filterCount' => 0,
+    'singleLine' => false,
 ])
 
 @php
     $filterCount = (int) $filterCount;
+    $singleLine = filter_var($singleLine, FILTER_VALIDATE_BOOL);
 @endphp
 
 {{--
@@ -13,7 +15,11 @@
     - weitere Filter im gemeinsamen, viewport-sicheren Anchor-Dropdown
 --}}
 <div
-    {{ $attributes->class('flex min-w-0 flex-wrap items-center gap-2 sm:gap-3') }}
+    {{ $attributes->class([
+        'flex min-w-0 items-center gap-2 sm:gap-3',
+        'flex-nowrap' => $singleLine,
+        'flex-wrap' => ! $singleLine,
+    ]) }}
     data-tables-toolbar
 >
     @isset($bulk)
@@ -23,7 +29,11 @@
     @endisset
 
     @isset($search)
-        <div class="order-last w-full min-w-0 sm:order-none sm:min-w-[13rem] sm:flex-1 lg:max-w-sm">
+        <div @class([
+            'min-w-0',
+            'flex-1' => $singleLine,
+            'order-last w-full sm:order-none sm:min-w-[13rem] sm:flex-1 lg:max-w-sm' => ! $singleLine,
+        ])>
             {{ $search }}
         </div>
     @endisset
@@ -44,13 +54,20 @@
                     aria-label="{{ __('app.filters') }}"
                 >
                     <i class="far fa-sliders-h text-sm text-rt-muted dark:text-rt-dark-muted" aria-hidden="true"></i>
-                    <span>{{ __('app.filters') }}</span>
+                    <span @class(['hidden sm:inline' => $singleLine])>{{ __('app.filters') }}</span>
                     @if ($filterCount > 0)
                         <span class="inline-flex min-w-[1.25rem] items-center justify-center rounded-md bg-rt-red px-1.5 py-0.5 text-xs font-bold leading-none text-white">
                             {{ $filterCount }}
                         </span>
                     @endif
-                    <i class="far fa-chevron-down text-[10px] text-rt-muted transition-transform duration-200 dark:text-rt-dark-muted" :class="open && 'rotate-180'" aria-hidden="true"></i>
+                    <i
+                        @class([
+                            'far fa-chevron-down text-[10px] text-rt-muted transition-transform duration-200 dark:text-rt-dark-muted',
+                            'hidden sm:inline-block' => $singleLine,
+                        ])
+                        :class="open && 'rotate-180'"
+                        aria-hidden="true"
+                    ></i>
                 </button>
             </x-slot:trigger>
 

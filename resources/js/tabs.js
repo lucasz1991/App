@@ -16,6 +16,7 @@ export function railtimeTabs(config = {}) {
         mobileTabs: false,
         scrubbingTabs: false,
         programmaticNavigation: false,
+        modalWasOpen: false,
         panelPosition: 0,
         panelHeight: 0,
         atScrollStart: true,
@@ -74,6 +75,38 @@ export function railtimeTabs(config = {}) {
             if (!this.items.some((item) => item.id === this.openTab)) {
                 this.openTab = this.items[0]?.id ?? null;
             }
+        },
+
+        resetToInitial() {
+            const initialIndex = Math.max(
+                0,
+                this.items.findIndex((item) => item.id === config.initial),
+            );
+            const initial = this.items[initialIndex];
+            if (!initial) return;
+
+            this.cancelSettleAnimation();
+            this.openTab = initial.id;
+            this.panelPosition = initialIndex;
+            this.scrubbingTabs = false;
+            this.programmaticNavigation = false;
+            this.loadTab(initial.id, true);
+
+            this.$nextTick(() => {
+                this.renderCoupledPosition(initialIndex, true);
+                this.updatePanelHeight(false);
+                this.syncScrollEdges();
+            });
+        },
+
+        syncModalOpenState(isOpen) {
+            const nextOpen = Boolean(isOpen);
+
+            if (nextOpen && !this.modalWasOpen && config.resetOnOpen) {
+                this.resetToInitial();
+            }
+
+            this.modalWasOpen = nextOpen;
         },
 
         activeIndex() {
@@ -226,6 +259,9 @@ export function railtimeTabs(config = {}) {
                 if (this.mobileTabs) {
                     this.renderCoupledPosition(this.panelPosition);
                 } else {
+                    if (this.$refs.carousel) {
+                        this.$refs.carousel.scrollLeft = 0;
+                    }
                     this.$refs.carouselTrack?.style.removeProperty('transform');
                     this.$refs.panelTrack?.style.removeProperty('transform');
                 }
@@ -301,6 +337,14 @@ export function railtimeTabs(config = {}) {
 
         applyCoupledTransforms(position) {
             if (!this.mobileTabs) return;
+
+            // Der gekoppelte Transform ist mobil die einzige Positionsquelle.
+            // Browser duerfen beim Fokussieren eines teilweise verdeckten
+            // Buttons den overflow-hidden Container trotzdem intern scrollen;
+            // ein solcher Restwert wuerde jeden mittleren Stopp verschieben.
+            if (this.$refs.carousel?.scrollLeft) {
+                this.$refs.carousel.scrollLeft = 0;
+            }
 
             const navigationOffset = this.navigationOffsetForPosition(position);
 
@@ -507,7 +551,7 @@ export function railtimeTabs(config = {}) {
                 this.animateSelection();
                 this.queueAdjacentPreload();
 
-                if (options.keepVisible) this.keepSelectedPanelVisible();
+                if (options.keepVisible !== false) this.keepSelectedPanelVisible();
                 if (options.focusTab) {
                     this.tabElement(target.id)?.focus({ preventScroll: true });
                 }
@@ -609,14 +653,15 @@ export function railtimeTabs(config = {}) {
                 const topOffset = Math.max(70, Number.isFinite(topbarBottom) ? topbarBottom : 70) + 8;
                 const shellRect = shell.getBoundingClientRect();
                 const panelRect = panel.getBoundingClientRect();
-                const visibleHeight = Math.max(
-                    0,
-                    Math.min(panelRect.bottom, window.innerHeight) - Math.max(panelRect.top, shellRect.bottom),
-                );
+                const viewportBottom = window.visualViewport
+                    ? window.visualViewport.offsetTop + window.visualViewport.height
+                    : window.innerHeight;
+                const panelFullyVisible = panelRect.top >= shellRect.bottom - 1
+                    && panelRect.bottom <= viewportBottom - 8;
 
                 if (
                     Math.abs(shellRect.top - topOffset) <= 12
-                    || visibleHeight >= Math.min(180, window.innerHeight * 0.28)
+                    || panelFullyVisible
                 ) return;
 
                 const target = Math.max(0, window.scrollY + shellRect.top - topOffset);

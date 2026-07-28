@@ -833,38 +833,32 @@ body[data-mode='dark'] .rt-chat-message--own .rt-chat-message-meta {
 
 @media (max-width: 767.98px) {
     .rt-chat-page {
-        height: max(0px, calc(var(--rt-chat-visual-height, 100dvh) - 70px)) !important;
-        padding-top: 0 !important;
-        padding-bottom: 0 !important;
-    }
-
-    .rt-chat-shell {
-        border-top-left-radius: 0 !important;
-        border-top-right-radius: 0 !important;
-    }
-
-    /*
-     * Sobald die Bildschirmtastatur den VisualViewport verkleinert, wird nur
-     * der Messenger in diesen sichtbaren Ausschnitt gehoben. Die Topbar bleibt
-     * im normalen Zustand direkt darueber; waehrend der Eingabe liegt der
-     * Chatheader selbst am oberen Rand und bleibt dadurch erreichbar.
-     */
-    .rt-chat-page[data-keyboard-open='true'] {
         position: fixed !important;
-        z-index: 45;
-        top: var(--rt-chat-visual-top, 0px);
+        z-index: 35;
+        top: calc(var(--rt-chat-visual-top, 0px) + var(--rt-chat-topbar-inset, 70px));
         right: 0;
         left: 0;
         width: 100%;
-        height: var(--rt-chat-visual-height, 100dvh) !important;
+        height: max(
+            0px,
+            calc(var(--rt-chat-visual-height, 100dvh) - var(--rt-chat-topbar-inset, 70px))
+        ) !important;
         margin: 0 !important;
-        padding-block: 0 !important;
-        padding-inline: 0 !important;
+        padding: 0 !important;
         overscroll-behavior: none;
     }
 
-    .rt-chat-page[data-keyboard-open='true'] .rt-chat-shell {
+    .rt-chat-shell {
         border-radius: 0 !important;
+    }
+
+    /*
+     * Die Seite ist mobil immer an den VisualViewport gebunden. Ist die
+     * Topbar sichtbar, beginnt sie direkt darunter; verschwindet die Topbar
+     * beim PWA-/Tastatur-Viewport, faellt der berechnete Abstand auf null.
+     */
+    .rt-chat-page[data-keyboard-open='true'] {
+        z-index: 45;
     }
 
     /*
@@ -887,8 +881,10 @@ body[data-mode='dark'] .rt-chat-message--own .rt-chat-message-meta {
     }
 
     .rt-chat-conversation-header {
+        position: sticky !important;
         min-height: 4.5rem;
         top: 0;
+        z-index: 10;
     }
 
     .rt-chat-transcript {
@@ -896,7 +892,37 @@ body[data-mode='dark'] .rt-chat-message--own .rt-chat-message-meta {
     }
 
     .rt-chat-composer {
-        padding-bottom: max(0.625rem, env(safe-area-inset-bottom));
+        margin: 0 !important;
+        padding: 0 0 env(safe-area-inset-bottom) !important;
+        background: var(--chat-control);
+        box-shadow: 0 -10px 28px -24px var(--chat-shadow-strong);
+    }
+
+    .rt-chat-composer > form {
+        min-height: 3.5rem;
+        background: var(--chat-control);
+    }
+
+    .rt-chat-composer-control,
+    .rt-voice-recorder {
+        min-height: 3.5rem;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        transform: none !important;
+    }
+
+    .rt-chat-composer-control:focus-within {
+        border: 0 !important;
+        box-shadow: inset 0 2px 0 color-mix(in srgb, var(--chat-accent) 54%, transparent) !important;
+        transform: none !important;
+    }
+
+    .rt-chat-composer input[type='text'] {
+        min-height: 2.75rem;
+        touch-action: manipulation;
+        -webkit-appearance: none;
     }
 }
 

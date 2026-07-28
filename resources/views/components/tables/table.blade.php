@@ -17,9 +17,13 @@
     'selectionAction' => null,
     'detailAction' => null,
     'detailRoute' => null,
+    // Optional fuer Listen mit einem separaten, direkt angrenzenden Mobile-Header.
+    'flushTop' => false,
 ])
 
 @php
+    $flushTop = filter_var($flushTop, FILTER_VALIDATE_BOOL);
+
     // Normalisiere Columns
     $columns = collect($columns)->map(function ($c) {
         if (is_string($c)) {
@@ -64,7 +68,7 @@
 {{-- Kein overflow-hidden: die Aktions-Dropdowns der Zeilen ragen ueber den
      Rahmen hinaus und wuerden sonst abgeschnitten. Die runden Ecken werden
      stattdessen ueber rounded-t/b auf Kopf- und letzter Zeile gehalten. --}}
-<div {{ $attributes->merge(['class' => 'rt-ui-surface rt-ui-table relative mt-4 w-full min-w-0 max-w-full rounded-xl bg-rt-surface text-rt-text shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60 '.$class]) }}>
+<div {{ $attributes->merge(['class' => 'rt-ui-surface rt-ui-table relative w-full min-w-0 max-w-full rounded-xl bg-rt-surface text-rt-text shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60 '.($flushTop ? '' : 'mt-4 ').$class]) }}>
     {{-- Header (nur md+) --}}
     <div class="rt-ui-surface-muted hidden md:grid rounded-t-xl bg-rt-surface-muted p-2 pr-16 text-xs font-semibold uppercase tracking-wide text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted border-b border-rt-border dark:border-rt-dark-border text-left"
          style="grid-template-columns: {{ $gridTemplate }};">

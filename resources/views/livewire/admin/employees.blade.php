@@ -23,6 +23,7 @@
         {{-- Listen-Toolbar: links Massenauswahl, rechts Suche/Filter --}}
         <x-tables.toolbar
             data-anim="fade-up"
+            :single-line="true"
             :filter-count="(trim((string) ($search ?? '')) !== '' ? 1 : 0) + ((string) ($teamId ?? '') !== '' ? 1 : 0)"
         >
             <x-slot:bulk>
@@ -77,6 +78,7 @@
             </div>
             <x-tables.table
                 class="rt-employee-table"
+                :flush-top="true"
                 :columns="[
                     ['label'=>__('app.name'),'key'=>'name','width'=>'40%','sortable'=>true,'hideOn'=>'none'],
                     ['label'=>__('app.status'),'key'=>'status','width'=>'18%','sortable'=>false,'hideOn'=>'none'],

@@ -78,7 +78,6 @@
                 <div @class([
                     'relative isolate min-h-screen page-content bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(242,245,249,0.98))] shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] dark:bg-[linear-gradient(180deg,rgba(12,20,33,0.98),rgba(8,13,22,1))] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]',
                     'px-0' => $viewportMode,
-                    'px-1' => ! $viewportMode,
                     'flex flex-col' => ! $viewportMode,
                 ])>
                     @persist('railtime-shell-ambient')
@@ -91,8 +90,9 @@
                         </div>
                     @endpersist
                     <div @class([
-                        'relative z-[1] container-fluid w-full max-w-none px-0',
-                        'md:px-5' => ! $viewportMode,
+                        'relative z-[1] container-fluid w-full max-w-none',
+                        'px-0' => $viewportMode,
+                        'px-3 sm:px-4 md:px-5' => ! $viewportMode,
                         'flex min-h-full flex-1 flex-col' => ! $viewportMode,
                     ])>
                         @if ($viewportMode)

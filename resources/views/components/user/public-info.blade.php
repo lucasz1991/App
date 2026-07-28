@@ -11,28 +11,55 @@
     $resolvedUser = $user ?? $resolvedPerson?->user ?? null;
     $hasUser = (bool) $resolvedUser;
 
-    $first = trim((string) ($resolvedPerson->vorname ?? ''));
-    $last = trim((string) ($resolvedPerson->nachname ?? ''));
-    $displayName = trim($last . ', ' . $first)
-        ?: ($resolvedUser->name ?? '')
-        ?: ($resolvedUser->email ?? '')
+    $meaningfulName = static function (mixed $value): string {
+        $name = trim((string) $value);
+
+        return preg_match('/[\p{L}\p{N}]/u', $name) === 1 ? $name : '';
+    };
+
+    $personFirst = $meaningfulName($resolvedPerson?->vorname);
+    $personLast = $meaningfulName($resolvedPerson?->nachname);
+    $personName = match (true) {
+        $personFirst !== '' && $personLast !== '' => $personLast . ', ' . $personFirst,
+        $personLast !== '' => $personLast,
+        default => $personFirst,
+    };
+
+    $profileFirst = $meaningfulName($resolvedUser?->profile?->first_name);
+    $profileLast = $meaningfulName($resolvedUser?->profile?->last_name);
+    $profileName = trim($profileFirst . ' ' . $profileLast);
+    $accountName = $meaningfulName($resolvedUser?->name);
+
+    $displayName = $personName
+        ?: $accountName
+        ?: $profileName
+        ?: ($resolvedUser->email ?? $resolvedPerson?->email ?? '')
         ?: 'Unbekannt';
     $email = trim((string) ($resolvedUser->email ?? $resolvedPerson->email ?? ''));
+    $isOnline = $hasUser && $resolvedUser->isOnline();
 
     $avatarUrl = 'https://ui-avatars.com/api/?name='
         . urlencode($displayName)
         . '&color=7F9CF5&background=EBF4FF&bold=true&size=96';
 
     $sizeClass = match ((int) $size) {
-        6 => 'h-6 w-6 rounded-lg',
-        9 => 'h-9 w-9 rounded-xl',
-        10 => 'h-10 w-10 rounded-xl',
-        12 => 'h-12 w-12 rounded-xl',
-        default => 'h-8 w-8 rounded-lg',
+        6 => 'h-6 w-6 rounded-full',
+        9 => 'h-9 w-9 rounded-full',
+        10 => 'h-10 w-10 rounded-full',
+        12 => 'h-12 w-12 rounded-full',
+        default => 'h-8 w-8 rounded-full',
     };
 @endphp
 
 <div {{ $attributes->class(['flex min-w-0 items-center gap-2.5', 'opacity-90' => ! $hasUser]) }}>
+    <span
+        @class([
+            'h-4 w-0.5 shrink-0 rounded-full transition-colors duration-200',
+            'bg-rt-red dark:bg-rt-dark-accent' => $selected,
+            'bg-transparent' => ! $selected,
+        ])
+        aria-hidden="true"
+    ></span>
     <span class="relative shrink-0">
         <img
             src="{{ $hasUser && ! empty($resolvedUser->profile_photo_url) ? $resolvedUser->profile_photo_url : $avatarUrl }}"
@@ -46,20 +73,16 @@
             ])
         >
 
-        @if ($selected)
-            <span class="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-rt-red text-[8px] text-white shadow-rt-xs ring-2 ring-rt-surface dark:bg-rt-dark-accent dark:ring-rt-dark-surface" aria-hidden="true">
-                <i class="far fa-check"></i>
-            </span>
-        @elseif ($hasUser)
+        @if ($hasUser)
             <span
                 @class([
                     'absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-rt-surface dark:ring-rt-dark-surface',
-                    'bg-emerald-500' => $resolvedUser?->isOnline(),
-                    'bg-slate-300 dark:bg-slate-600' => ! $resolvedUser?->isOnline(),
+                    'bg-emerald-500' => $isOnline,
+                    'bg-slate-300 dark:bg-slate-600' => ! $isOnline,
                 ])
-                title="{{ $resolvedUser?->isOnline() ? __('app.online') : __('app.offline') }}"
                 aria-hidden="true"
             ></span>
+            <span class="sr-only">{{ $isOnline ? __('app.online') : __('app.offline') }}</span>
         @endif
     </span>
 
