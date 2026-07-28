@@ -82,6 +82,9 @@ class UserProfile extends Component
     /** @var array<string, mixed> */
     public array $inlineValues = [];
 
+    /** @var array<int, string> */
+    public array $dirtyInlineFields = [];
+
     public function mount($userId)
     {
         // Die reduzierte Personenvorschau steht allen aktiven Kolleginnen und
@@ -106,6 +109,16 @@ class UserProfile extends Component
     {
         $this->user = User::findOrFail($this->userId);
         $this->syncInlineValues();
+        $this->dirtyInlineFields = [];
+    }
+
+    public function updatedInlineValues(mixed $value, string $field): void
+    {
+        abort_unless(in_array($field, array_merge(self::USER_FIELDS, self::PROFILE_FIELDS), true), 422);
+
+        if (! in_array($field, $this->dirtyInlineFields, true)) {
+            $this->dirtyInlineFields[] = $field;
+        }
     }
 
     /**
@@ -217,7 +230,8 @@ class UserProfile extends Component
 
         if ($this->inlineValuesAreEquivalent($field, $value, $persistedValues[$field])) {
             $this->user = $user;
-            $this->syncInlineValues();
+            $this->inlineValues[$field] = $persistedValues[$field];
+            $this->forgetDirtyInlineFields([$field]);
             $this->resetValidation($property);
 
             return true;
@@ -245,7 +259,12 @@ class UserProfile extends Component
             ->log('employee_profile_inline_updated');
 
         $this->user = $user->fresh();
-        $this->syncInlineValues();
+        $refreshedValues = $this->inlineValueMap(
+            $this->user,
+            ProfileModel::firstWhere('user_id', $this->user->id),
+        );
+        $this->inlineValues[$field] = $refreshedValues[$field];
+        $this->forgetDirtyInlineFields([$field]);
         $this->resetValidation($property);
         $this->dispatch('employee-profile-field-saved', field: $field);
 
@@ -263,14 +282,15 @@ class UserProfile extends Component
         $this->guardAdminAccount($user);
 
         $persistedValues = $this->inlineValueMap($user, $profile);
-        abort_if(array_diff(array_keys($this->inlineValues), array_keys($persistedValues)) !== [], 422);
+        $requestedFields = array_values(array_unique($this->dirtyInlineFields));
+
+        abort_if(array_diff($requestedFields, array_keys($persistedValues)) !== [], 422);
+        abort_if(array_diff($requestedFields, array_keys($this->inlineValues)) !== [], 422);
 
         $changedFields = [];
 
-        foreach ($persistedValues as $field => $persistedValue) {
-            if (! array_key_exists($field, $this->inlineValues)) {
-                continue;
-            }
+        foreach ($requestedFields as $field) {
+            $persistedValue = $persistedValues[$field];
 
             if (! $this->inlineValuesAreEquivalent($field, $this->inlineValues[$field], $persistedValue)) {
                 $changedFields[] = $field;
@@ -280,6 +300,7 @@ class UserProfile extends Component
         if ($changedFields === []) {
             $this->user = $user;
             $this->syncInlineValues();
+            $this->forgetDirtyInlineFields($requestedFields);
             $this->resetValidation();
             $this->dispatch('employee-profile-field-saved');
 
@@ -334,6 +355,7 @@ class UserProfile extends Component
 
         $this->user = $user->fresh();
         $this->syncInlineValues();
+        $this->forgetDirtyInlineFields($requestedFields);
         $this->resetValidation();
         $this->dispatch('employee-profile-field-saved', fields: $changedFields);
 
@@ -352,7 +374,12 @@ class UserProfile extends Component
 
         $this->user = User::findOrFail($this->userId);
         $this->guardAdminAccount($this->user);
-        $this->syncInlineValues();
+        $persistedValues = $this->inlineValueMap(
+            $this->user,
+            ProfileModel::firstWhere('user_id', $this->user->id),
+        );
+        $this->inlineValues[$field] = $persistedValues[$field];
+        $this->forgetDirtyInlineFields([$field]);
         $this->resetValidation('inlineValues.'.$field);
     }
 
@@ -453,6 +480,14 @@ class UserProfile extends Component
         }
 
         return (string) $candidate === (string) $persisted;
+    }
+
+    /**
+     * @param  array<int, string>  $fields
+     */
+    private function forgetDirtyInlineFields(array $fields): void
+    {
+        $this->dirtyInlineFields = array_values(array_diff($this->dirtyInlineFields, $fields));
     }
 
     private function syncInlineValues(): void

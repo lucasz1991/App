@@ -20,6 +20,9 @@
         dirty: false,
         saving: false,
         visible: false,
+        revision: 0,
+        activeRevision: null,
+        savedEventDuringFlush: false,
         pendingSave: null,
         timer: null,
         hideTimer: null,
@@ -53,6 +56,7 @@
             this.dirty = true;
             this.saved = false;
             this.visible = true;
+            this.revision += 1;
             window.clearTimeout(this.hideTimer);
             this.schedule();
         },
@@ -64,19 +68,38 @@
             }
             this.schedule();
         },
-        async flush() {
-            if (!this.dirty || !this.saveMethod) return;
-            if (this.saving) return this.pendingSave;
+        flush() {
+            if (!this.dirty || !this.saveMethod) return Promise.resolve(true);
+            if (this.saving) {
+                return this.pendingSave.then(() => this.dirty ? this.flush() : true);
+            }
 
             window.clearTimeout(this.timer);
             this.saving = true;
             this.visible = true;
-            this.pendingSave = this.$wire.call(this.saveMethod).finally(() => {
-                this.saving = false;
-                this.pendingSave = null;
-            });
+            this.activeRevision = this.revision;
+            this.savedEventDuringFlush = false;
+
+            const requestRevision = this.activeRevision;
+            this.pendingSave = this.$wire.call(this.saveMethod)
+                .then(result => {
+                    if (this.savedEventDuringFlush) {
+                        this.completeSavedFeedback(requestRevision);
+                    }
+
+                    return result;
+                })
+                .finally(() => {
+                    this.saving = false;
+                    this.activeRevision = null;
+                    this.pendingSave = null;
+                });
 
             return this.pendingSave;
+        },
+        requestFlush(event) {
+            if (event.detail?.scope !== this.scope) return;
+            event.detail.promise = this.flush();
         },
         handleOutside(event) {
             if (!this.dirty || this.scope?.contains(event.target)) return;
@@ -95,10 +118,18 @@
             await this.flush();
             window.location.assign(link.href);
         },
-        showSavedFeedback() {
+        completeSavedFeedback(savedRevision) {
+            if (this.revision > savedRevision) {
+                this.dirty = true;
+                this.saved = false;
+                this.visible = true;
+                this.schedule();
+
+                return;
+            }
+
             this.dirty = false;
             this.saved = true;
-            this.saving = false;
             window.clearTimeout(this.timer);
             window.clearTimeout(this.hideTimer);
 
@@ -110,9 +141,19 @@
                 this.saved = false;
             }, 1350);
         },
+        showSavedFeedback() {
+            if (this.saving) {
+                this.savedEventDuringFlush = true;
+
+                return;
+            }
+
+            this.completeSavedFeedback(this.revision);
+        },
     }"
     x-on:input.window="markDirty($event)"
     x-on:change.window="markDirty($event)"
+    x-on:rt-autosave-flush.window="requestFlush($event)"
     x-on:focusin.window="continueIdleCountdown($event)"
     x-on:pointerdown.window.capture="handleOutside($event)"
     x-on:click.window.capture="handleOutsideClick($event)"

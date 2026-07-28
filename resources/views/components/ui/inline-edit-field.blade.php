@@ -30,12 +30,27 @@
                 this.$refs.editor?.select?.();
             });
         },
+        requestAutosave() {
+            const scope = this.$el.closest('[data-autosave-scope]');
+
+            if (! scope) {
+                return this.$wire.saveInlineField(@js($field));
+            }
+
+            const detail = { scope, promise: null };
+            scope.dispatchEvent(new CustomEvent('rt-autosave-flush', {
+                bubbles: true,
+                detail,
+            }));
+
+            return detail.promise ?? this.$wire.saveInlineField(@js($field));
+        },
         async commit() {
             if (! this.editing || this.saving) return;
             this.saving = true;
 
             try {
-                const saved = await this.$wire.saveInlineField(@js($field));
+                const saved = await this.requestAutosave();
                 if (saved) this.editing = false;
             } finally {
                 this.saving = false;
@@ -81,7 +96,7 @@
                     id="{{ $inputId }}"
                     wire:model="{{ $wireModel }}"
                     x-on:blur="commit()"
-                    x-on:change="$el.blur()"
+                    x-on:change="$nextTick(() => $el.blur())"
                     x-on:keydown.escape.prevent.stop="cancel()"
                     x-bind:disabled="saving"
                     class="rt-ui-control min-h-11 w-full rounded-xl border border-rt-border bg-rt-control px-3.5 py-2.5 text-base leading-6 text-rt-text shadow-rt-xs outline-none transition duration-200 focus:border-rt-accent focus:ring-4 focus:ring-rt-accent/15 disabled:opacity-60 sm:text-sm dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:focus:ring-rt-dark-accent/20"

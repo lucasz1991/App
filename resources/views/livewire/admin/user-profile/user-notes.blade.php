@@ -46,12 +46,27 @@
                     this.editing = true;
                     this.$nextTick(() => this.$refs.editor?.focus());
                 },
+                requestAutosave() {
+                    const scope = this.$el.closest('[data-autosave-scope]');
+
+                    if (! scope) {
+                        return this.$wire.saveNote({{ $note->id }});
+                    }
+
+                    const detail = { scope, promise: null };
+                    scope.dispatchEvent(new CustomEvent('rt-autosave-flush', {
+                        bubbles: true,
+                        detail,
+                    }));
+
+                    return detail.promise ?? this.$wire.saveNote({{ $note->id }});
+                },
                 async commit() {
                     if (! this.editing || this.saving) return;
                     this.saving = true;
 
                     try {
-                        const saved = await this.$wire.saveNote({{ $note->id }});
+                        const saved = await this.requestAutosave();
                         if (saved) this.editing = false;
                     } finally {
                         this.saving = false;

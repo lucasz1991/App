@@ -17,6 +17,9 @@ class UserNotes extends Component
     /** @var array<int, string> */
     public array $noteBodies = [];
 
+    /** @var array<int, int> */
+    public array $dirtyNoteIds = [];
+
     public function mount(int $userId): void
     {
         Gate::authorize('users.profiles.view');
@@ -26,6 +29,18 @@ class UserNotes extends Component
 
         $this->userId = $userId;
         $this->syncNoteBodies();
+        $this->dirtyNoteIds = [];
+    }
+
+    public function updatedNoteBodies(mixed $value, int|string $noteId): void
+    {
+        abort_unless(ctype_digit((string) $noteId), 422);
+
+        $noteId = (int) $noteId;
+
+        if (! in_array($noteId, $this->dirtyNoteIds, true)) {
+            $this->dirtyNoteIds[] = $noteId;
+        }
     }
 
     public function addNote(): void
@@ -73,6 +88,7 @@ class UserNotes extends Component
 
         if ($body === $note->body) {
             $this->noteBodies[$noteId] = $note->body;
+            $this->forgetDirtyNoteIds([$noteId]);
             $this->resetValidation($property);
 
             return true;
@@ -83,6 +99,7 @@ class UserNotes extends Component
         ]);
 
         $this->noteBodies[$noteId] = $note->body;
+        $this->forgetDirtyNoteIds([$noteId]);
         $this->resetValidation($property);
         $this->dispatch('note-inline-saved', noteId: $noteId);
 
@@ -98,18 +115,17 @@ class UserNotes extends Component
             ->get()
             ->keyBy('id');
 
-        abort_if(array_diff(array_keys($this->noteBodies), $notes->keys()->all()) !== [], 422);
+        $requestedNoteIds = array_values(array_unique($this->dirtyNoteIds));
+        abort_if(array_diff($requestedNoteIds, $notes->keys()->all()) !== [], 422);
+        abort_if(array_diff($requestedNoteIds, array_keys($this->noteBodies)) !== [], 422);
 
-        $changedNotes = $notes->filter(function (UserNote $note): bool {
-            if (! array_key_exists($note->id, $this->noteBodies)) {
-                return false;
-            }
-
+        $changedNotes = $notes->only($requestedNoteIds)->filter(function (UserNote $note): bool {
             return trim((string) $this->noteBodies[$note->id]) !== $note->body;
         });
 
         if ($changedNotes->isEmpty()) {
             $this->syncNoteBodies();
+            $this->forgetDirtyNoteIds($requestedNoteIds);
             $this->resetValidation();
             $this->dispatch('note-inline-saved');
 
@@ -136,6 +152,7 @@ class UserNotes extends Component
         $savedNoteIds = $changedNotes->keys()->values()->all();
 
         $this->syncNoteBodies();
+        $this->forgetDirtyNoteIds($requestedNoteIds);
         $this->resetValidation();
         $this->dispatch('note-inline-saved', noteIds: $savedNoteIds);
 
@@ -152,6 +169,7 @@ class UserNotes extends Component
 
         $this->authorizeNoteMutation($note);
         $this->noteBodies[$noteId] = $note->body;
+        $this->forgetDirtyNoteIds([$noteId]);
         $this->resetValidation('noteBodies.'.$noteId);
     }
 
@@ -209,5 +227,13 @@ class UserNotes extends Component
             ->pluck('body', 'id')
             ->mapWithKeys(fn (string $body, int|string $id): array => [(int) $id => $body])
             ->all();
+    }
+
+    /**
+     * @param  array<int, int>  $noteIds
+     */
+    private function forgetDirtyNoteIds(array $noteIds): void
+    {
+        $this->dirtyNoteIds = array_values(array_diff($this->dirtyNoteIds, $noteIds));
     }
 }
