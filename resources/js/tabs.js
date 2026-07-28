@@ -307,8 +307,38 @@ export function railtimeTabs(config = {}) {
             return stops[lower] + ((stops[upper] - stops[lower]) * progress);
         },
 
-        positionForNavigationOffset(offset) {
-            const stops = this.navigationStops();
+        navigationGestureStops() {
+            const track = this.$refs.carouselTrack;
+            const tabs = Array.from(track?.querySelectorAll('[role=tab]') ?? []);
+            if (!tabs.length) return [];
+
+            // Die sichtbaren Center-Stops werden an den beiden Raendern
+            // geklemmt. Dadurch koennen z. B. Tab 1 und 2 beide den Offset 0
+            // besitzen. Fuer die Gestenabbildung waere das mehrdeutig und ein
+            // kleiner Swipe koennte direkt einen Index ueberspringen. Die
+            // ungeklemmten Tab-Mittelpunkte bleiben dagegen streng geordnet.
+            const centers = tabs.map((tab) => tab.offsetLeft + (tab.offsetWidth / 2));
+            const firstCenter = centers[0];
+
+            return centers.map((center, index) => (
+                index === 0 ? 0 : Math.max(index, center - firstCenter)
+            ));
+        },
+
+        navigationGestureOffsetForPosition(position) {
+            const stops = this.navigationGestureStops();
+            if (!stops.length) return 0;
+
+            const bounded = clamp(position, 0, stops.length - 1);
+            const lower = Math.floor(bounded);
+            const upper = Math.min(stops.length - 1, Math.ceil(bounded));
+            const progress = bounded - lower;
+
+            return stops[lower] + ((stops[upper] - stops[lower]) * progress);
+        },
+
+        positionForNavigationGestureOffset(offset) {
+            const stops = this.navigationGestureStops();
             if (stops.length < 2) return this.panelPosition;
 
             const bounded = clamp(offset, 0, stops.at(-1));
@@ -317,9 +347,8 @@ export function railtimeTabs(config = {}) {
                 const start = stops[index];
                 const end = stops[index + 1];
                 if (bounded > end && index < stops.length - 2) continue;
-                if (end <= start) continue;
 
-                return index + clamp((bounded - start) / (end - start), 0, 1);
+                return index + clamp((bounded - start) / Math.max(1, end - start), 0, 1);
             }
 
             return stops.length - 1;
@@ -399,7 +428,7 @@ export function railtimeTabs(config = {}) {
             this.gestureStartX = event.clientX;
             this.gestureStartY = event.clientY;
             this.gestureStartPosition = this.panelPosition;
-            this.gestureStartNavigationOffset = this.navigationOffsetForPosition(this.panelPosition);
+            this.gestureStartNavigationOffset = this.navigationGestureOffsetForPosition(this.panelPosition);
             this.gestureDistance = 0;
             this.gestureLastPosition = this.panelPosition;
             this.gestureLastTime = performance.now();
@@ -437,12 +466,12 @@ export function railtimeTabs(config = {}) {
 
             let nextPosition;
             if (this.gestureSource === 'navigation') {
-                const stops = this.navigationStops();
+                const stops = this.navigationGestureStops();
                 if ((stops.at(-1) ?? 0) <= 0) {
                     const width = Math.max(1, this.$refs.carousel?.clientWidth ?? 1);
                     nextPosition = this.gestureStartPosition - (distanceX / (width * 0.72));
                 } else {
-                    nextPosition = this.positionForNavigationOffset(
+                    nextPosition = this.positionForNavigationGestureOffset(
                         this.gestureStartNavigationOffset - distanceX,
                     );
                 }
@@ -505,10 +534,10 @@ export function railtimeTabs(config = {}) {
             this.cancelSettleAnimation();
             this.scrubbingTabs = true;
 
-            const stops = this.navigationStops();
-            const currentOffset = this.navigationOffsetForPosition(this.panelPosition);
+            const stops = this.navigationGestureStops();
+            const currentOffset = this.navigationGestureOffsetForPosition(this.panelPosition);
             const nextPosition = (stops.at(-1) ?? 0) > 0
-                ? this.positionForNavigationOffset(currentOffset + delta)
+                ? this.positionForNavigationGestureOffset(currentOffset + delta)
                 : this.panelPosition + (delta / Math.max(1, this.$refs.carousel?.clientWidth ?? 1));
 
             this.setCoupledPosition(nextPosition);

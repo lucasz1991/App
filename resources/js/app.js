@@ -851,6 +851,30 @@ const rtChatViewportState = {
     keyboardOpen: false,
 };
 
+// iOS kann beim Drehen, beim Resume einer installierten PWA und waehrend
+// kurzer Tastatur-Uebergaenge fuer einen Frame 0/NaN im VisualViewport
+// liefern. Solche Zwischenwerte duerfen die fixed Chatflaeche nicht auf 0px
+// zusammenziehen. Der Layout-Viewport ist in diesem Moment der beste
+// belastbare Fallback.
+function readChatViewport() {
+    const visualViewport = window.visualViewport;
+    const layoutHeight = Number(window.innerHeight || document.documentElement?.clientHeight || 0);
+    const layoutWidth = Number(window.innerWidth || document.documentElement?.clientWidth || 0);
+    const visualHeight = Number(visualViewport?.height);
+    const visualWidth = Number(visualViewport?.width);
+    const visualTop = Number(visualViewport?.offsetTop);
+
+    return {
+        height: Number.isFinite(visualHeight) && visualHeight > 0
+            ? visualHeight
+            : (Number.isFinite(layoutHeight) && layoutHeight > 0 ? layoutHeight : 1),
+        width: Number.isFinite(visualWidth) && visualWidth > 0
+            ? visualWidth
+            : (Number.isFinite(layoutWidth) && layoutWidth > 0 ? layoutWidth : 1),
+        top: Number.isFinite(visualTop) ? Math.max(0, visualTop) : 0,
+    };
+}
+
 document.addEventListener('livewire:navigating', () => {
     rtChatViewportState.stableHeight = 0;
     rtChatViewportState.stableWidth = 0;
@@ -868,18 +892,18 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
     stableViewportHeight: 0,
     stableViewportWidth: 0,
     keyboardOpen: false,
-    visualViewportHeight: Math.max(0, window.visualViewport?.height ?? window.innerHeight),
-    visualViewportTop: Math.max(0, window.visualViewport?.offsetTop ?? 0),
+    visualViewportHeight: readChatViewport().height,
+    visualViewportTop: readChatViewport().top,
     topbarInset: 70,
 
     init() {
         this.viewportHandler = () => this.queueVisualViewportSync();
         this.focusHandler = () => this.queueVisualViewportSync();
 
-        const visualViewport = window.visualViewport;
-        const viewportHeight = Math.max(0, visualViewport?.height ?? window.innerHeight);
-        const viewportWidth = Math.max(0, visualViewport?.width ?? window.innerWidth);
-        const viewportTop = Math.max(0, visualViewport?.offsetTop ?? 0);
+        const viewport = readChatViewport();
+        const viewportHeight = viewport.height;
+        const viewportWidth = viewport.width;
+        const viewportTop = viewport.top;
         this.visualViewportHeight = viewportHeight;
         this.visualViewportTop = viewportTop;
         this.topbarInset = this.resolveVisibleTopbarInset(viewportTop, viewportHeight);
@@ -901,6 +925,9 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
         window.visualViewport?.addEventListener('resize', this.viewportHandler, { passive: true });
         window.visualViewport?.addEventListener('scroll', this.viewportHandler, { passive: true });
         window.addEventListener('resize', this.viewportHandler, { passive: true });
+        window.addEventListener('orientationchange', this.viewportHandler, { passive: true });
+        window.addEventListener('pageshow', this.viewportHandler, { passive: true });
+        document.addEventListener('visibilitychange', this.viewportHandler, { passive: true });
         this.$root.addEventListener('focusin', this.focusHandler);
         this.$root.addEventListener('focusout', this.focusHandler);
 
@@ -919,10 +946,10 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
                 return;
             }
 
-            const visualViewport = window.visualViewport;
-            const viewportHeight = Math.max(0, visualViewport?.height ?? window.innerHeight);
-            const viewportWidth = Math.max(0, visualViewport?.width ?? window.innerWidth);
-            const viewportTop = Math.max(0, visualViewport?.offsetTop ?? 0);
+            const viewport = readChatViewport();
+            const viewportHeight = viewport.height;
+            const viewportWidth = viewport.width;
+            const viewportTop = viewport.top;
             const activeElement = document.activeElement;
             const editableFocused = activeElement instanceof Element
                 && this.$root.contains(activeElement)
@@ -1080,6 +1107,9 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
         window.visualViewport?.removeEventListener('resize', this.viewportHandler);
         window.visualViewport?.removeEventListener('scroll', this.viewportHandler);
         window.removeEventListener('resize', this.viewportHandler);
+        window.removeEventListener('orientationchange', this.viewportHandler);
+        window.removeEventListener('pageshow', this.viewportHandler);
+        document.removeEventListener('visibilitychange', this.viewportHandler);
         this.$root?.removeEventListener('focusin', this.focusHandler);
         this.$root?.removeEventListener('focusout', this.focusHandler);
 

@@ -45,6 +45,7 @@
     : 'calc(100% - 1.75rem)';
   $anchorConnectorSize = max(6, $anchorOffset + 2);
   $dropdownId = 'rt-dropdown-'.\Illuminate\Support\Str::uuid();
+  $dropdownPanelId = $dropdownId.'-content';
 @endphp
 
 <div
@@ -93,11 +94,15 @@
         return;
       }
 
+      // x-anchor kann beim erneuten Layouten fuer genau einen Frame (0, 0)
+      // liefern. Der letzte gueltige Punkt bleibt als sicherer Fallback
+      // erhalten, darf aber nicht als Bestaetigung fuer (0, 0) gelten.
+      this.hasAnchoredPosition = false;
       this.open = true;
       this.$dispatch('dropdown-open');
     },
 
-    close() {
+    close(restoreFocus = false) {
       if (!this.open) return;
 
       this.$refs.panel
@@ -107,6 +112,13 @@
         });
 
       this.open = false;
+
+      if (restoreFocus) {
+        this.$nextTick(() => {
+          const control = this.$refs.trigger?.querySelector('button, a, [role=button]');
+          control?.focus({ preventScroll: true });
+        });
+      }
     },
 
     syncAnchoredPanel(panel, anchorX, anchorY) {
@@ -124,9 +136,12 @@
         && trigger.getClientRects().length > 0
         && triggerRect.width > 0
         && triggerRect.height > 0;
+      const previouslyConfirmedAtOrigin = this.hasAnchoredPosition
+        && this.lastAnchorX === 0
+        && this.lastAnchorY === 0;
       const anchorIsReady = Number.isFinite(numericAnchorX)
         && Number.isFinite(numericAnchorY)
-        && (this.hasAnchoredPosition || numericAnchorX !== 0 || numericAnchorY !== 0);
+        && (numericAnchorX !== 0 || numericAnchorY !== 0 || previouslyConfirmedAtOrigin);
 
       if (!triggerIsVisible || !anchorIsReady) {
         if (Number.isFinite(this.lastAnchorX) && Number.isFinite(this.lastAnchorY)) {
@@ -206,7 +221,15 @@
       if (!trigger) return;
 
       const control = trigger.querySelector('button, a, [role=button]');
-      if (control) control.setAttribute('aria-expanded', this.open.toString());
+      if (!control) return;
+
+      control.setAttribute('aria-expanded', this.open.toString());
+      if (!control.hasAttribute('aria-controls')) {
+        control.setAttribute('aria-controls', @js($dropdownPanelId));
+      }
+      if (!control.hasAttribute('aria-haspopup')) {
+        control.setAttribute('aria-haspopup', @js($contentRole === 'dialog' ? 'dialog' : 'menu'));
+      }
     },
 
     scrollToTrigger() {
@@ -230,7 +253,10 @@
     },
   }"
   x-cloak
-  @keydown.escape.window="close()"
+  @keydown.escape.window="
+    const target = $event.target instanceof Element ? $event.target : null;
+    if (!target?.closest('[data-rt-dropdown-root], [data-rt-dropdown-panel]')) close();
+  "
   @close.window.stop="close()"
   @rt-dropdown-parent-close.stop="close()"
 >
@@ -239,6 +265,7 @@
     x-ref="trigger"
     data-rt-dropdown-trigger
     @click="toggle()"
+    @keydown.escape.stop.prevent="close(true)"
   >
     {{ $trigger }}
   </div>
@@ -272,6 +299,7 @@
       style="display:none; margin:0; max-width:calc(100vw - 24px); max-height:calc(100dvh - 24px); --rt-dropdown-caret-x:{{ $anchorCaretX }}; --rt-dropdown-connector-size:{{ $anchorConnectorSize }}px;"
       data-rt-dropdown-panel
       @click.outside="if (!$refs.trigger.contains($event.target) && !ownsNestedTeleportedTarget($event.target)) close()"
+      @keydown.escape.stop.prevent="close(true)"
       @if($trap) x-trap.inert.noscroll="open" @endif
       x-ref="panel"
     >
@@ -282,8 +310,9 @@
       ></span>
 
       <div
+        id="{{ $dropdownPanelId }}"
         x-ref="panelScroll"
-        role="{{ $contentRole }}"
+        @if(filled($contentRole)) role="{{ $contentRole }}" @endif
         class="rt-ui-surface rt-ui-dropdown-panel relative z-[2] max-h-[min(28rem,calc(100dvh-2rem))] overflow-y-auto rounded-xl border border-rt-border shadow-rt-md dark:border-rt-dark-border {{ $contentClasses }}"
         @click="handlePanelAction($event)"
       >

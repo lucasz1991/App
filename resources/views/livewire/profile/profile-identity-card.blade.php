@@ -67,14 +67,34 @@
         </div>
 
         <div
-            x-data="{ editingName: false, editingEmail: false }"
+            x-data="{
+                editor: null,
+                openEditor(field) {
+                    this.editor = field;
+                    this.$nextTick(() => {
+                        const input = field === 'name'
+                            ? this.$refs.nameInput
+                            : this.$refs.emailInput;
+
+                        input?.focus();
+                    });
+                },
+                closeEditor(field = null) {
+                    if (field === null || this.editor === field) {
+                        this.editor = null;
+                    }
+                },
+            }"
+            x-on:click.outside="closeEditor()"
+            x-on:focusin.window="if (! $el.contains($event.target)) closeEditor()"
             class="min-w-0 flex-1 pr-9"
+            data-profile-inline-identity
         >
             <div class="min-w-0">
                 <button
-                    x-show.important="! editingName"
+                    x-show.important="editor !== 'name'"
                     type="button"
-                    x-on:click="editingName = true; $nextTick(() => $refs.nameInput.focus())"
+                    x-on:click="openEditor('name')"
                     class="group/edit flex max-w-full items-center gap-2 rounded-lg text-left focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-accent/15"
                     aria-label="{{ __('app.username') }} {{ __('app.edit') }}"
                 >
@@ -86,25 +106,25 @@
 
                 <x-ui.forms.input
                     x-cloak
-                    x-show.important="editingName"
+                    x-show.important="editor === 'name'"
                     x-ref="nameInput"
                     id="profile-identity-name"
                     type="text"
                     wire:model="name"
-                    x-on:blur="editingName = false"
+                    x-on:blur="closeEditor('name')"
                     x-on:keydown.enter.prevent="$el.blur()"
                     autocomplete="name"
                     required
-                    class="max-w-sm font-semibold"
+                    class="font-semibold"
                 />
                 <x-input-error for="name" class="mt-2" />
             </div>
 
             <div class="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
                 <button
-                    x-show.important="! editingEmail"
+                    x-show.important="editor !== 'email'"
                     type="button"
-                    x-on:click="editingEmail = true; $nextTick(() => $refs.emailInput.focus())"
+                    x-on:click="openEditor('email')"
                     class="group/edit flex min-w-0 max-w-full items-center gap-2 rounded-md text-left text-sm text-rt-muted focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-accent/15 dark:text-rt-dark-muted"
                     aria-label="{{ __('app.email') }} {{ __('app.edit') }}"
                 >
@@ -114,16 +134,15 @@
 
                 <x-ui.forms.input
                     x-cloak
-                    x-show.important="editingEmail"
+                    x-show.important="editor === 'email'"
                     x-ref="emailInput"
                     id="profile-identity-email"
                     type="email"
                     wire:model="email"
-                    x-on:blur="editingEmail = false"
+                    x-on:blur="closeEditor('email')"
                     x-on:keydown.enter.prevent="$el.blur()"
                     autocomplete="username"
                     required
-                    class="max-w-sm"
                 />
                 <x-input-error for="email" class="mt-2 basis-full" />
 

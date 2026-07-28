@@ -103,6 +103,7 @@
         align="left"
         width="full"
         :match-trigger-width="true"
+        content-role=""
         trigger-classes="inline-flex w-full"
         class="w-full"
         content-classes="bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text"

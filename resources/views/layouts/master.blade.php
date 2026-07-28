@@ -92,7 +92,8 @@
                     <div @class([
                         'relative z-[1] container-fluid w-full max-w-none',
                         'px-0' => $viewportMode,
-                        'px-3 sm:px-4 md:px-5' => ! $viewportMode,
+                        'px-2' => ! $viewportMode,
+                        'md:px-5' => ! $viewportMode,
                         'flex min-h-full flex-1 flex-col' => ! $viewportMode,
                     ])>
                         @if ($viewportMode)

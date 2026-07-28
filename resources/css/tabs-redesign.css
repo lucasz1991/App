@@ -432,23 +432,21 @@ body[data-mode='dark'] .rt-tabs-v2.rt-tabs-shell {
 @media (max-width: 767.98px) {
     .rt-tabs-v2.rt-tabs-shell[data-sticky-enabled='true'] {
         /*
-         * `100vw` enthaelt in Chromium die vertikale Scrollbar. Die fruehere
-         * symmetrische Full-bleed-Margin machte die Rail deshalb 5-10px
-         * breiter als documentElement.clientWidth. Die Shell bleibt nun im
-         * Parent; der Spread-Shadow fuellt nur optisch die Layout-Gutter und
-         * vergroessert als Ink-Overflow nicht die Dokument-Scrollbreite.
+         * Die gemeinsame Mobile-Seiteneinrueckung betraegt 0.5rem. Die
+         * Navigation neutralisiert genau diesen bekannten Gutter, statt mit
+         * 100vw die Breite der Browser-Scrollbar mit einzurechnen. Dadurch
+         * ist die Rail selbst vollbreit, ohne Dokument-Overflow zu erzeugen.
          */
-        --rt-tabs-mobile-gutter: 0.75rem;
+        --rt-tabs-mobile-gutter: 0.5rem;
         top: 70px;
         box-sizing: border-box;
-        width: 100%;
-        max-width: 100%;
+        width: calc(100% + var(--rt-tabs-mobile-gutter) + var(--rt-tabs-mobile-gutter));
+        max-width: none;
         min-width: 0;
-        margin-inline: 0 !important;
+        margin-inline: calc(var(--rt-tabs-mobile-gutter) * -1) !important;
         border-right: 0;
         border-left: 0;
         box-shadow:
-            0 0 0 var(--rt-tabs-mobile-gutter) var(--rt-tabs-surface),
             0 1px 0 var(--rt-tabs-border),
             0 12px 28px -24px color-mix(in srgb, var(--rt-tabs-text) 56%, transparent);
     }
