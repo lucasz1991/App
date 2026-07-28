@@ -54,7 +54,7 @@
     <div class="relative space-y-5" data-autosave-scope>
       <x-ui.autosave-status
           event="employee-profile-field-saved"
-          target=""
+          target="savePendingInlineChanges"
           dirty-target="inlineValues"
       />
 

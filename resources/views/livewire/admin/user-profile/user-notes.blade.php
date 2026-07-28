@@ -1,7 +1,7 @@
 <div class="relative space-y-5" data-autosave-scope>
     <x-ui.autosave-status
         event="note-inline-saved"
-        target=""
+        target="savePendingNoteChanges"
         dirty-target="noteBodies"
     />
 

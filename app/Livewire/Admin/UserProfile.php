@@ -5,6 +5,7 @@ namespace App\Livewire\Admin;
 use App\Actions\Jetstream\DeleteUser;
 use App\Models\User;
 use App\Models\UserProfile as ProfileModel;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
@@ -202,6 +203,7 @@ class UserProfile extends Component
         abort_unless(in_array($field, array_merge(self::USER_FIELDS, self::PROFILE_FIELDS), true), 422);
 
         $user = User::findOrFail($this->userId);
+        $profile = ProfileModel::firstWhere('user_id', $user->id);
         $this->guardAdminAccount($user);
         $this->authorizeInlineField($field);
 
@@ -209,6 +211,17 @@ class UserProfile extends Component
         $this->validateOnly($property, [$property => $this->inlineRule($field)]);
 
         $value = $this->normalizeInlineValue($field, $this->inlineValues[$field] ?? null);
+        $persistedValues = $this->inlineValueMap($user, $profile);
+
+        abort_unless(array_key_exists($field, $persistedValues), 403);
+
+        if ($this->inlineValuesAreEquivalent($field, $value, $persistedValues[$field])) {
+            $this->user = $user;
+            $this->syncInlineValues();
+            $this->resetValidation($property);
+
+            return true;
+        }
 
         if (in_array($field, self::USER_FIELDS, true)) {
             if ($field === 'email' && $value !== $user->email) {
@@ -218,7 +231,7 @@ class UserProfile extends Component
             $user->{$field} = $value;
             $user->save();
         } else {
-            $profile = ProfileModel::firstOrCreate(['user_id' => $user->id]);
+            $profile ??= ProfileModel::firstOrCreate(['user_id' => $user->id]);
             $profile->update([$field => $value]);
         }
 
@@ -237,6 +250,95 @@ class UserProfile extends Component
         $this->dispatch('employee-profile-field-saved', field: $field);
 
         if ((int) $user->id === (int) auth()->id() && in_array($field, self::USER_FIELDS, true)) {
+            $this->dispatch('refresh-navigation-menu');
+        }
+
+        return true;
+    }
+
+    public function savePendingInlineChanges(): bool
+    {
+        $user = User::findOrFail($this->userId);
+        $profile = ProfileModel::firstWhere('user_id', $user->id);
+        $this->guardAdminAccount($user);
+
+        $persistedValues = $this->inlineValueMap($user, $profile);
+        abort_if(array_diff(array_keys($this->inlineValues), array_keys($persistedValues)) !== [], 422);
+
+        $changedFields = [];
+
+        foreach ($persistedValues as $field => $persistedValue) {
+            if (! array_key_exists($field, $this->inlineValues)) {
+                continue;
+            }
+
+            if (! $this->inlineValuesAreEquivalent($field, $this->inlineValues[$field], $persistedValue)) {
+                $changedFields[] = $field;
+            }
+        }
+
+        if ($changedFields === []) {
+            $this->user = $user;
+            $this->syncInlineValues();
+            $this->resetValidation();
+            $this->dispatch('employee-profile-field-saved');
+
+            return true;
+        }
+
+        $rules = [];
+
+        foreach ($changedFields as $field) {
+            $this->authorizeInlineField($field);
+            $rules['inlineValues.'.$field] = $this->inlineRule($field);
+        }
+
+        $this->validate($rules);
+
+        $userUpdates = [];
+        $profileUpdates = [];
+
+        foreach ($changedFields as $field) {
+            $value = $this->normalizeInlineValue($field, $this->inlineValues[$field] ?? null);
+
+            if (in_array($field, self::USER_FIELDS, true)) {
+                $userUpdates[$field] = $value;
+            } else {
+                $profileUpdates[$field] = $value;
+            }
+        }
+
+        DB::transaction(function () use ($user, $userUpdates, $profileUpdates): void {
+            if ($userUpdates !== []) {
+                if (array_key_exists('email', $userUpdates) && $userUpdates['email'] !== $user->email) {
+                    $userUpdates['email_verified_at'] = null;
+                }
+
+                $user->forceFill($userUpdates)->save();
+            }
+
+            if ($profileUpdates !== []) {
+                $profile = ProfileModel::firstOrCreate(['user_id' => $user->id]);
+                $profile->update($profileUpdates);
+            }
+        });
+
+        activity('employee-master-data')
+            ->causedBy(auth()->user())
+            ->performedOn($user)
+            ->withProperties([
+                'target_user_id' => $user->id,
+                'fields' => $changedFields,
+            ])
+            ->log('employee_profile_inline_updated');
+
+        $this->user = $user->fresh();
+        $this->syncInlineValues();
+        $this->resetValidation();
+        $this->dispatch('employee-profile-field-saved', fields: $changedFields);
+
+        if ((int) $user->id === (int) auth()->id()
+            && array_intersect($changedFields, self::USER_FIELDS) !== []) {
             $this->dispatch('refresh-navigation-menu');
         }
 
@@ -333,13 +435,44 @@ class UserProfile extends Component
         return $value;
     }
 
+    private function inlineValuesAreEquivalent(string $field, mixed $candidate, mixed $persisted): bool
+    {
+        $candidate = $this->normalizeInlineValue($field, $candidate);
+        $persisted = $this->normalizeInlineValue($field, $persisted);
+
+        if ($candidate === null || $persisted === null) {
+            return $candidate === $persisted;
+        }
+
+        if (in_array($field, ['weekly_working_hours', 'children_count', 'compensation_amount'], true)) {
+            return (float) $candidate === (float) $persisted;
+        }
+
+        if ($field === 'multiple_employment') {
+            return (bool) $candidate === (bool) $persisted;
+        }
+
+        return (string) $candidate === (string) $persisted;
+    }
+
     private function syncInlineValues(): void
     {
         $profile = ProfileModel::firstWhere('user_id', $this->user?->id);
 
-        $this->inlineValues = [
-            'name' => (string) ($this->user?->name ?? ''),
-            'email' => (string) ($this->user?->email ?? ''),
+        $this->inlineValues = $this->inlineValueMap($this->user, $profile);
+    }
+
+    /**
+     * Only expose fields the current user is allowed to view. Livewire public
+     * state must never contain encrypted master or compensation data otherwise.
+     *
+     * @return array<string, mixed>
+     */
+    private function inlineValueMap(User $user, ?ProfileModel $profile): array
+    {
+        $values = [
+            'name' => (string) $user->name,
+            'email' => (string) $user->email,
         ];
 
         foreach (self::PROFILE_FIELDS as $field) {
@@ -361,8 +494,10 @@ class UserProfile extends Component
                 $value = is_null($value) ? '' : ($value ? '1' : '0');
             }
 
-            $this->inlineValues[$field] = $value ?? '';
+            $values[$field] = $value ?? '';
         }
+
+        return $values;
     }
 
     private function employeesRoute(): string
