@@ -10,6 +10,8 @@
 
 **Zweck:** Vollausbau-Videotelefonie mit LiveKit als Media-Server (SFU), Laravel Reverb ausschließlich für Signalisierung und Benachrichtigungen, coturn als Firewall-Fallback. Dieses Dokument übersetzt den 8-Phasen-Fahrplan in konkrete, projektspezifische Arbeitsschritte mit echten Dateipfaden, Klassennamen, Ports und Konfigurationen.
 
+> **Umsetzungsstand (28.07.2026):** Die App-seitigen Phasen 4–7 (Raumverwaltung, Tokens/Beitritt, Einladungssystem, Live-Steuerung/Moderation) sind auf diesem Branch **bereits implementiert** — Migrationen, Models, Services (`app/Services/Calls/`), Events, Token-/Webhook-Controller, Livewire-UI (`CallWindow`, `IncomingCallOverlay`), `resources/js/calls.js` und die Artisan-Kommandos `railtime:livekit-keys` / `railtime:livekit-check` liegen im Repository; die Testsuite (inkl. `tests/Feature/CallFlowTest.php`) ist grün. **Offen sind die Server-Phasen 1–3 und 8** — die Schritt-für-Schritt-Anleitung dafür steht in `SERVER_SETUP.md` (+ PDF) im Grundverzeichnis.
+
 ---
 
 ## 1. Ist-Zustand (verifiziert am Codebestand)

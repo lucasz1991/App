@@ -11,6 +11,8 @@ use App\Models\ChatMessage;
 use App\Models\ChatMessageView;
 use App\Models\File;
 use App\Models\User;
+use App\Services\Calls\CallInvitationService;
+use App\Services\Calls\RoomLifecycleService;
 use App\Support\Push\PushDelivery;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -402,6 +404,33 @@ class ChatBox extends Component
         $this->markChatRead($chat);
         $this->dispatch('inbox:refresh');
         $this->dispatch('chat:scroll-bottom');
+    }
+
+    /** Videoanruf im ausgewaehlten Chat starten und alle Teilnehmer anklingeln. */
+    public function startCall(
+        RoomLifecycleService $lifecycle,
+        CallInvitationService $invitations,
+    ) {
+        abort_unless(auth()->user()->isAdmin() || auth()->user()->hasRbacPermission('calls.start'), 403);
+
+        $chat = $this->myChat((int) $this->selectedChatId);
+
+        // Laeuft bereits ein Anruf, direkt beitreten statt doppelt zu starten.
+        $existing = $chat->activeRoom()->first();
+
+        if ($existing) {
+            return redirect()->route('calls.window', $existing);
+        }
+
+        $room = $lifecycle->createForChat($chat, auth()->user());
+
+        $invitations->invite(
+            $room,
+            auth()->user(),
+            $chat->participants()->where('users.id', '!=', auth()->id())->where('users.status', true)->get(),
+        );
+
+        return redirect()->route('calls.window', $room);
     }
 
     public function startDirect(int $userId): void

@@ -204,5 +204,46 @@ trait BuildsMinimalRailTimeSchema
             $table->timestamps();
             $table->unique(['chat_message_id', 'user_id']);
         });
+
+        Schema::create('rooms', function (Blueprint $table): void {
+            $table->id();
+            $table->uuid('uuid')->unique();
+            $table->string('name');
+            $table->string('type', 16)->default('direct');
+            $table->string('status', 16)->default('pending');
+            $table->unsignedBigInteger('owner_id');
+            $table->unsignedBigInteger('chat_id')->nullable();
+            $table->unsignedBigInteger('team_id')->nullable();
+            $table->timestamp('scheduled_at')->nullable();
+            $table->timestamp('started_at')->nullable();
+            $table->timestamp('ended_at')->nullable();
+            $table->json('settings')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('room_participants', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('room_id');
+            $table->unsignedBigInteger('user_id')->nullable();
+            $table->string('guest_name')->nullable();
+            $table->string('role', 16)->default('speaker');
+            $table->string('connection', 16)->default('invited');
+            $table->string('livekit_identity')->nullable();
+            $table->timestamp('joined_at')->nullable();
+            $table->timestamp('left_at')->nullable();
+            $table->timestamps();
+            $table->unique(['room_id', 'user_id']);
+        });
+
+        Schema::create('room_invitations', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('room_id');
+            $table->unsignedBigInteger('inviter_id');
+            $table->unsignedBigInteger('invitee_id');
+            $table->string('status', 16)->default('pending');
+            $table->timestamp('expires_at');
+            $table->timestamp('responded_at')->nullable();
+            $table->timestamps();
+        });
     }
 }

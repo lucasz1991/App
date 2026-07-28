@@ -86,6 +86,37 @@
         {{ __('app.online') }}
     </span>
 
+    @if ($selectedChat->activeRoom)
+        @can('calls.join')
+            <a
+                href="{{ route('calls.window', $selectedChat->activeRoom) }}"
+                class="inline-flex h-10 shrink-0 items-center gap-2 rounded-xl bg-emerald-500/10 px-3 text-xs font-bold text-emerald-600 transition-colors hover:bg-emerald-500/20 dark:text-emerald-400"
+                title="{{ __('app.calls_join_ongoing') }}"
+                aria-label="{{ __('app.calls_join_ongoing') }}"
+                data-no-chat-swipe
+            >
+                <span class="relative flex h-2 w-2">
+                    <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75"></span>
+                    <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+                </span>
+                <span class="hidden sm:inline">{{ __('app.calls_join_ongoing') }}</span>
+                <i class="far fa-video sm:hidden" aria-hidden="true"></i>
+            </a>
+        @endcan
+    @else
+        @can('calls.start')
+            <x-chat.icon-button
+                icon="far fa-video"
+                :label="__('app.calls_start')"
+                tone="accent"
+                wire:click="startCall"
+                wire:loading.attr="disabled"
+                wire:target="startCall"
+                data-no-chat-swipe
+            />
+        @endcan
+    @endif
+
     <x-ui.dropdown.anchor-dropdown
         align="right"
         width="56"

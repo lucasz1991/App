@@ -1240,6 +1240,19 @@ rtForegroundPushHandler = (payload) => {
                 title,
                 body: text,
             });
+        })
+        // Videoanrufe: Das Klingel-Overlay (Livewire IncomingCallOverlay)
+        // uebernimmt Anzeige, Ton und Cross-Tab-Dedup – hier wird das Event
+        // nur als Window-Event weitergereicht.
+        .listen('.call.invited', (event) => {
+            window.dispatchEvent(new CustomEvent('rt:call-invited', { detail: event }));
+        })
+        .listen('.call.missed', (event) => {
+            window.dispatchEvent(new CustomEvent('rt:call-missed', { detail: event }));
+
+            window.dispatchEvent(new CustomEvent('swal:toast', {
+                detail: { text: lang.missedCall || 'Verpasster Anruf', type: 'info', sound: false },
+            }));
         });
 })();
 

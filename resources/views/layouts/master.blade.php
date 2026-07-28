@@ -21,6 +21,7 @@
                 newMessage: @json(__('app.new_message')),
                 newChatMessage: @json(__('app.new_chat_message')),
                 from: @json(__('app.from')),
+                missedCall: @json(__('app.calls_missed')),
             };
         </script>
     @endauth
@@ -105,6 +106,8 @@
         @auth
             <livewire:messages.message-viewer-modal />
             <livewire:tools.file-pools.file-preview-modal />
+            {{-- Globales Klingel-Overlay fuer eingehende Videoanrufe --}}
+            <livewire:calls.incoming-call-overlay />
         @endauth
         <!-- script -->
         {{-- EIN globales Infomodal fuer alle Info-Buttons dieser Seite. --}}
