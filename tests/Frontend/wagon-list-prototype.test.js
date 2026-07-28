@@ -47,8 +47,10 @@ const setupComponent = (stored = null) => {
     globalThis.window = {
         clearTimeout: globalThis.clearTimeout,
         setTimeout: globalThis.setTimeout,
-        confirm: () => true,
-        Swal: null,
+        dispatchEvent(event) {
+            event.detail.action();
+            return true;
+        },
     };
     globalThis.document = {
         activeElement: null,
@@ -148,6 +150,17 @@ test('deletes only after confirmation and keeps the forty-wagon limit', async ()
     component.createDraft();
     component.saveAndClose();
 
+    window.dispatchEvent = (event) => {
+        event.detail.cancel();
+        return true;
+    };
+    await component.deleteDraft(firstId);
+    assert.equal(component.drafts.length, 2);
+
+    window.dispatchEvent = (event) => {
+        event.detail.action();
+        return true;
+    };
     await component.deleteDraft(firstId);
     assert.equal(component.drafts.length, 1);
     assert.equal(component.drafts.some((draft) => draft.id === firstId), false);

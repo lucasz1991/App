@@ -42,8 +42,13 @@
                 @can('employees.delete')
                     @if ((int) $user->id !== (int) auth()->id() && ! $user->isSuperAdmin())
                         <x-dropdown-link
-                            wire:click.prevent="deleteUser()"
-                            wire:confirm="{{ __('app.delete_user_confirm') }}"
+                            x-on:click.prevent='$dispatch("rt-confirm", {
+                                title: @js(__("app.delete_user")),
+                                message: @js(__("app.delete_user_confirm")),
+                                variant: "destructive",
+                                confirmLabel: @js(__("app.delete")),
+                                action: () => $wire.deleteUser()
+                            })'
                             class="text-red-700 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-500/10"
                         >
                             <i class="far fa-trash-alt mr-2"></i>

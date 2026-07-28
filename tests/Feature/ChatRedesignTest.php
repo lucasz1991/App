@@ -27,7 +27,7 @@ class ChatRedesignTest extends TestCase
             ->map(fn (string $path): string => file_get_contents($path))
             ->implode("\n");
 
-        $this->assertStringContainsString('wire:poll.2s="pollTick"', $partials);
+        $this->assertStringContainsString('wire:poll.visible.2s="pollTick"', $partials);
         $this->assertStringContainsString('wire:submit.prevent="send"', $partials);
         $this->assertStringContainsString('x-data="chatTranscriptScroll()"', $partials);
         $this->assertStringNotContainsString('$cleanup', $partials);

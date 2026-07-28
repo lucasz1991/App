@@ -34,7 +34,7 @@ class OpenChatSoundTest extends TestCase
             ->assertNotDispatched('rt:inbox-increased');
     }
 
-    public function test_new_incoming_message_in_open_chat_dispatches_polling_sound(): void
+    public function test_new_incoming_message_in_visible_open_chat_stays_silent(): void
     {
         [$recipient, $sender, $chat] = $this->directChat();
 
@@ -47,7 +47,7 @@ class OpenChatSoundTest extends TestCase
         $component
             ->call('pollTick')
             ->assertSet('latestIncomingMessageId', $message->id)
-            ->assertDispatched('rt:inbox-increased', source: 'chat');
+            ->assertNotDispatched('rt:inbox-increased');
     }
 
     public function test_own_message_does_not_dispatch_an_incoming_sound(): void

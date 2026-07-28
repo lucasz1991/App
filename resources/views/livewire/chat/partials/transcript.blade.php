@@ -1,5 +1,5 @@
 <div
-    wire:poll.2s="pollTick"
+    wire:poll.visible.2s="pollTick"
     wire:key="chat-pane-{{ $selectedChat->id }}"
     x-data="chatTranscriptScroll()"
     x-on:chat:scroll-bottom.window="$nextTick(() => scrollToLatest(true))"

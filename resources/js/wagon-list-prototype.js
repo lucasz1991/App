@@ -319,22 +319,26 @@ export function wagonListPrototype(config = {}) {
         },
 
         async confirmDeletion({ title, text, confirmButtonText }) {
-            if (window.Swal) {
-                const result = await window.Swal.fire({
-                    title,
-                    text,
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonText,
-                    cancelButtonText: config.cancel || 'Abbrechen',
-                    confirmButtonColor: '#e4002b',
-                    focusCancel: true,
-                });
+            return new Promise((resolve) => {
+                let settled = false;
+                const finish = (value) => {
+                    if (settled) return;
+                    settled = true;
+                    resolve(value);
+                };
 
-                return result.isConfirmed;
-            }
-
-            return window.confirm(`${title}\n\n${text}`);
+                window.dispatchEvent(new CustomEvent('rt-confirm', {
+                    detail: {
+                        title,
+                        message: text,
+                        variant: 'destructive',
+                        confirmLabel: confirmButtonText,
+                        cancelLabel: config.cancel || 'Abbrechen',
+                        action: () => finish(true),
+                        cancel: () => finish(false),
+                    },
+                }));
+            });
         },
 
         async deleteDraft(id) {

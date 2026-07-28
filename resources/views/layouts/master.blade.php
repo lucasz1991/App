@@ -67,13 +67,20 @@
         ])>
             <div class="main-content group-data-[sidebar-size=sm]:ml-[70px]">
                 <div @class([
-                    'min-h-screen page-content bg-[radial-gradient(64rem_28rem_at_92%_-10rem,rgba(228,0,43,0.09),transparent_58%),linear-gradient(180deg,rgba(255,255,255,0.92),rgba(242,245,249,0.98))] shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] dark:bg-[radial-gradient(64rem_30rem_at_92%_-10rem,rgba(228,0,43,0.15),transparent_58%),linear-gradient(180deg,rgba(12,20,33,0.98),rgba(8,13,22,1))] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]',
+                    'relative isolate min-h-screen page-content bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(242,245,249,0.98))] shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] dark:bg-[linear-gradient(180deg,rgba(12,20,33,0.98),rgba(8,13,22,1))] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]',
                     'px-0' => $viewportMode,
                     'px-1' => ! $viewportMode,
                     'flex flex-col' => ! $viewportMode,
                 ])>
+                    <div class="rt-shell-ambient" data-rt-shell-ambient aria-hidden="true">
+                        <span class="rt-shell-ambient__mesh"></span>
+                        <span class="rt-shell-ambient__pointer" data-rt-shell-pointer></span>
+                        <span class="rt-shell-ambient__orb rt-shell-ambient__orb--one" data-rt-shell-orb="one"></span>
+                        <span class="rt-shell-ambient__orb rt-shell-ambient__orb--two" data-rt-shell-orb="two"></span>
+                        <span class="rt-shell-ambient__rail" data-rt-shell-rail></span>
+                    </div>
                     <div @class([
-                        'container-fluid w-full max-w-none px-0',
+                        'relative z-[1] container-fluid w-full max-w-none px-0',
                         'md:px-5' => ! $viewportMode,
                         'flex min-h-full flex-1 flex-col' => ! $viewportMode,
                     ])>
@@ -102,6 +109,8 @@
         <!-- script -->
         {{-- EIN globales Infomodal fuer alle Info-Buttons dieser Seite. --}}
         <x-ui.info-modal />
+        {{-- Eigene, zentral gesteuerte Bestätigung statt browsernativer confirm()-Dialoge. --}}
+        <x-ui.confirmation-dialog />
 
         @include('layouts.vendor-scripts')
         <!-- Scripts -->

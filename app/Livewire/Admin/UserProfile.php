@@ -16,6 +16,10 @@ class UserProfile extends Component
 
     public function mount($userId)
     {
+        // Die reduzierte Personenvorschau steht allen aktiven Kolleginnen und
+        // Kollegen offen. Vollstaendige Personalprofile bleiben dagegen
+        // ausschliesslich Administratoren und der Verwaltung vorbehalten.
+        abort_unless(auth()->user()?->canViewManagementDashboard(), 403);
         Gate::authorize('employees.view');
 
         $this->userId = $userId;

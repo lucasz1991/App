@@ -17,6 +17,10 @@ import {
     writePushDeviceBinding,
 } from '../../resources/js/pwa.js';
 import { NotificationSeenCache } from '../../resources/js/notification-seen-cache.js';
+import {
+    activeVisibleChatId,
+    NotificationPresentationContext,
+} from '../../resources/js/notification-presentation.js';
 
 test('detects iPhone and iPadOS desktop-style user agents', () => {
     assert.equal(isIosDevice({
@@ -135,6 +139,74 @@ test('broadcasts seen ids so another app window can suppress the same toast', ()
     assert.equal(first.take('chat-message:7'), true);
     listeners.forEach((listener) => listener({ data: posted[0] }));
     assert.equal(second.take('chat-message:7'), false);
+});
+
+function visibleDocument({ chatId = 0, mobilePane = 'chat', focused = true } = {}) {
+    return {
+        visibilityState: 'visible',
+        hasFocus: () => focused,
+        querySelector: () => chatId > 0
+            ? {
+                dataset: {
+                    activeChatId: String(chatId),
+                    mobilePane,
+                },
+            }
+            : null,
+    };
+}
+
+test('treats a selected mobile chat as open only while its conversation pane is visible', () => {
+    assert.equal(activeVisibleChatId({
+        documentLike: visibleDocument({ chatId: 17, mobilePane: 'chat' }),
+        windowLike: { innerWidth: 390 },
+    }), 17);
+    assert.equal(activeVisibleChatId({
+        documentLike: visibleDocument({ chatId: 17, mobilePane: 'list' }),
+        windowLike: { innerWidth: 390 },
+    }), 0);
+    assert.equal(activeVisibleChatId({
+        documentLike: visibleDocument({ chatId: 17, mobilePane: 'list' }),
+        windowLike: { innerWidth: 1280 },
+    }), 17);
+});
+
+test('suppresses chat alerts across tabs when that chat is visibly open anywhere', () => {
+    const context = new NotificationPresentationContext({
+        clientId: 'local',
+        channel: null,
+        now: () => 10_000,
+        documentLike: visibleDocument({ focused: true }),
+        windowLike: { innerWidth: 1280 },
+    });
+
+    context.receive({
+        type: 'railtime:presence',
+        clientId: 'chat-tab',
+        visible: true,
+        focused: false,
+        activeChatId: 17,
+        updatedAt: 10_000,
+    });
+
+    assert.equal(context.shouldPresent({ category: 'chat', chatId: 17 }), false);
+    assert.equal(context.shouldPresent({ category: 'chat', chatId: 18 }), true);
+});
+
+test('never presents an in-app alert from a hidden document', () => {
+    const documentLike = {
+        visibilityState: 'hidden',
+        hasFocus: () => false,
+        querySelector: () => null,
+    };
+    const context = new NotificationPresentationContext({
+        clientId: 'hidden',
+        channel: null,
+        documentLike,
+        windowLike: { innerWidth: 1280 },
+    });
+
+    assert.equal(context.shouldPresent({ category: 'messages' }), false);
 });
 
 function memoryStorage() {

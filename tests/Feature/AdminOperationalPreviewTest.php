@@ -147,12 +147,13 @@ class AdminOperationalPreviewTest extends TestCase
         $this->assertStringContainsString("<x-slot:label>{{ __('app.management_administration') }}</x-slot:label>", $sidebar);
         $this->assertStringContainsString("<x-slot:label>{{ __('app.management_dispatching') }}</x-slot:label>", $sidebar);
 
-        // Weitere aufklappbare Gruppen: Dateien & Vorlagen, Chat & Nachrichten, Profil & Support.
-        $this->assertStringContainsString("<x-slot:label>{{ __('app.files_and_templates') }}</x-slot:label>", $sidebar);
+        // Weitere aufklappbare Gruppen: Dateien, Chat & Nachrichten, Profil & Support.
+        $this->assertStringContainsString("<x-slot:label>{{ __('app.sidebar_files') }}</x-slot:label>", $sidebar);
         $this->assertStringContainsString("<x-slot:label>{{ __('app.chat_and_messages') }}</x-slot:label>", $sidebar);
         $this->assertStringContainsString("<x-slot:label>{{ __('app.profile_and_support') }}</x-slot:label>", $sidebar);
         $this->assertSame(5, substr_count($sidebar, '<x-menu.sidebar-nav-group'));
-        $this->assertStringContainsString('class="!pl-12"', $sidebar);
+        $this->assertStringContainsString('class="!pl-8"', $sidebar);
+        $this->assertStringContainsString("{{ __('app.sidebar_work_resources') }}", $sidebar);
     }
 
     public function test_dashboard_animation_waits_for_visible_kpis_and_does_not_replay_on_theme_changes(): void
@@ -163,6 +164,9 @@ class AdminOperationalPreviewTest extends TestCase
         $dashboard = file_get_contents(resource_path('views/livewire/admin/dashboard.blade.php'));
 
         $this->assertStringContainsString('data-dashboard-kpis', $dashboard);
+        preg_match('/<section[^>]*data-dashboard-kpis.*?<\/section>/s', $dashboard, $kpiSection);
+        $this->assertNotEmpty($kpiSection);
+        $this->assertStringNotContainsString('data-rt-glow', $kpiSection[0]);
         $this->assertStringContainsString('new IntersectionObserver(', $script);
         $this->assertStringContainsString("kpiGrid.querySelectorAll('[data-dashboard-count]')", $script);
         $this->assertStringContainsString('renderCharts(!this.chartsRendered)', $script);
@@ -182,6 +186,8 @@ class AdminOperationalPreviewTest extends TestCase
         $this->assertSame(1, substr_count($revealScript, "document.addEventListener('livewire:navigating'"));
         $this->assertSame(1, substr_count($revealScript, "document.addEventListener('livewire:navigated'"));
         $this->assertStringContainsString('activeMedia?.revert()', $revealScript);
+        $this->assertStringContainsString('activeAmbientMedia?.revert()', $revealScript);
+        $this->assertStringContainsString('setupShellAmbient(root)', $revealScript);
         $this->assertStringContainsString('revealGeneration += 1', $revealScript);
         $this->assertStringContainsString('generation === revealGeneration', $revealScript);
         $this->assertStringNotContainsString("querySelectorAll('[data-anim][data-anim-done]')", $revealScript);

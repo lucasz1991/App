@@ -58,25 +58,37 @@
                     aria-labelledby="rt-new-chat-tab-direct"
                 >
                     @forelse ($contacts as $contact)
-                        <button
-                            type="button"
+                        <div
                             wire:key="contact-{{ $contact->id }}"
-                            wire:click="startDirect({{ $contact->id }})"
-                            class="rt-chat-contact group flex min-h-14 w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left"
+                            class="flex items-center gap-1"
                         >
-                            <x-chat.avatar
-                                :src="$contact->profile_photo_url"
-                                :name="$contact->name"
+                            <button
+                                type="button"
+                                wire:click="startDirect({{ $contact->id }})"
+                                class="rt-chat-contact group flex min-h-14 min-w-0 flex-1 items-center gap-3 rounded-xl px-2.5 py-2 text-left"
+                            >
+                                <x-chat.avatar
+                                    :src="$contact->profile_photo_url"
+                                    :name="$contact->name"
+                                    size="sm"
+                                />
+                                <span class="min-w-0 flex-1">
+                                    <span class="block truncate text-sm font-bold tracking-[-0.02em] text-rt-text dark:text-rt-dark-text">{{ $contact->name }}</span>
+                                    <span class="mt-0.5 block truncate text-[10px] text-rt-muted dark:text-rt-dark-muted">{{ $contact->email }}</span>
+                                </span>
+                                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-rt-muted dark:text-rt-dark-muted">
+                                    <i class="far fa-arrow-right text-[10px]" aria-hidden="true"></i>
+                                </span>
+                            </button>
+
+                            <x-chat.icon-button
+                                icon="far fa-address-card"
+                                :label="__('app.open_person_preview') . ': ' . $contact->name"
                                 size="sm"
+                                wire:click="$dispatch('person-preview:open', { userId: {{ $contact->id }} })"
+                                data-no-chat-swipe
                             />
-                            <span class="min-w-0 flex-1">
-                                <span class="block truncate text-sm font-bold tracking-[-0.02em] text-rt-text dark:text-rt-dark-text">{{ $contact->name }}</span>
-                                <span class="mt-0.5 block truncate text-[10px] text-rt-muted dark:text-rt-dark-muted">{{ $contact->email }}</span>
-                            </span>
-                            <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-rt-muted dark:text-rt-dark-muted">
-                                <i class="far fa-arrow-right text-[10px]" aria-hidden="true"></i>
-                            </span>
-                        </button>
+                        </div>
                     @empty
                         <x-chat.empty-state
                             compact

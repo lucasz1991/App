@@ -52,8 +52,13 @@
                 @if ($note->author_id === auth()->id() || auth()->user()->isAdmin())
                     <button
                         type="button"
-                        wire:click="deleteNote({{ $note->id }})"
-                        wire:confirm="{{ __('app.note_delete_confirm') }}"
+                        x-on:click.prevent='$dispatch("rt-confirm", {
+                            title: @js(__("app.delete")),
+                            message: @js(__("app.note_delete_confirm")),
+                            variant: "destructive",
+                            confirmLabel: @js(__("app.delete")),
+                            action: () => $wire.deleteNote({{ $note->id }})
+                        })'
                         class="inline-flex items-center rounded-lg border border-transparent px-2 py-1 text-xs text-red-600 transition-colors duration-300 ease-rt-spring hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-500/10"
                         title="{{ __('app.delete') }}"
                     >

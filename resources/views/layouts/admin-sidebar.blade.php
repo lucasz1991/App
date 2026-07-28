@@ -33,7 +33,7 @@
                     :href="route('chat')"
                     icon="message-circle"
                     :active="request()->routeIs('chat')"
-                    class="!pl-12"
+                    class="!pl-8"
                 >
                     {{ __('app.chat') }}
                 </x-menu.sidebar-nav-link>
@@ -42,7 +42,7 @@
                     :href="route('admin.messages')"
                     icon="mail"
                     :active="request()->routeIs('admin.messages')"
-                    class="!pl-12"
+                    class="!pl-8"
                 >
                     {{ __('app.messages') }}
                 </x-menu.sidebar-nav-link>
@@ -62,7 +62,7 @@
                             :href="route('admin.employees')"
                             icon="users"
                             :active="request()->routeIs('admin.employees', 'employees.show')"
-                            class="!pl-12"
+                            class="!pl-8"
                         >
                             {{ __('app.employees') }}
                         </x-menu.sidebar-nav-link>
@@ -73,7 +73,7 @@
                             :href="route('admin.operations.preview', ['module' => 'customers'])"
                             icon="briefcase"
                             :active="request()->routeIs('admin.operations.preview') && request()->route('module') === 'customers'"
-                            class="!pl-12"
+                            class="!pl-8"
                         >
                             {{ __('app.customer_database') }}
                         </x-menu.sidebar-nav-link>
@@ -84,7 +84,7 @@
                             :href="route('admin.mail-management')"
                             icon="send"
                             :active="request()->routeIs('admin.mail-management')"
-                            class="!pl-12"
+                            class="!pl-8"
                         >
                             {{ __('app.mail_management') }}
                         </x-menu.sidebar-nav-link>
@@ -102,7 +102,7 @@
                             :href="route('admin.operations.preview', ['module' => 'orders'])"
                             icon="clipboard"
                             :active="request()->routeIs('admin.operations.preview') && request()->route('module') === 'orders'"
-                            class="!pl-12"
+                            class="!pl-8"
                         >
                             {{ __('app.operational_orders') }}
                         </x-menu.sidebar-nav-link>
@@ -111,7 +111,7 @@
                             :href="route('admin.operations.preview', ['module' => 'shift-management'])"
                             icon="clock"
                             :active="request()->routeIs('admin.operations.preview') && request()->route('module') === 'shift-management'"
-                            class="!pl-12"
+                            class="!pl-8"
                         >
                             {{ __('app.shift_management') }}
                         </x-menu.sidebar-nav-link>
@@ -120,7 +120,7 @@
                             :href="route('admin.operations.preview', ['module' => 'calendar'])"
                             icon="calendar"
                             :active="request()->routeIs('admin.operations.preview') && request()->route('module') === 'calendar'"
-                            class="!pl-12"
+                            class="!pl-8"
                         >
                             {{ __('app.operational_calendar') }}
                         </x-menu.sidebar-nav-link>
@@ -147,24 +147,24 @@
                     icon="folder"
                     :active="request()->routeIs('admin.files', 'admin.managed-documents')"
                 >
-                    <x-slot:label>{{ __('app.files_and_templates') }}</x-slot:label>
+                    <x-slot:label>{{ __('app.sidebar_files') }}</x-slot:label>
 
                     <x-menu.sidebar-nav-link
                         :href="route('admin.files')"
                         icon="folder"
                         :active="request()->routeIs('admin.files')"
-                        class="!pl-12"
+                        class="!pl-8"
                     >
-                        {{ __('app.download_files') }}
+                        {{ __('app.sidebar_files') }}
                     </x-menu.sidebar-nav-link>
 
                     <x-menu.sidebar-nav-link
                         :href="route('admin.managed-documents')"
                         icon="tool"
                         :active="request()->routeIs('admin.managed-documents')"
-                        class="!pl-12"
+                        class="!pl-8"
                     >
-                        {{ __('app.managed_documents') }}
+                        {{ __('app.sidebar_work_resources') }}
                     </x-menu.sidebar-nav-link>
                 </x-menu.sidebar-nav-group>
             </x-menu.sidebar-nav>
@@ -190,7 +190,7 @@
                     icon="user"
                     :active="request()->routeIs('profile.show')"
                     :navigate="false"
-                    class="!pl-12"
+                    class="!pl-8"
                 >
                     {{ __('app.profile') }}
                 </x-menu.sidebar-nav-link>
@@ -199,7 +199,7 @@
                     :href="route('help')"
                     icon="help-circle"
                     :active="request()->routeIs('help')"
-                    class="!pl-12"
+                    class="!pl-8"
                 >
                     {{ __('app.help') }}
                 </x-menu.sidebar-nav-link>
@@ -208,7 +208,7 @@
                     :href="route('support')"
                     icon="life-buoy"
                     :active="request()->routeIs('support')"
-                    class="!pl-12"
+                    class="!pl-8"
                 >
                     {{ __('app.it_support') }}
                 </x-menu.sidebar-nav-link>

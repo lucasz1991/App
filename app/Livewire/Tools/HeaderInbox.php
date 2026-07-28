@@ -16,6 +16,10 @@ class HeaderInbox extends Component
 
     public int $unreadChatMessagesCount = 0;
 
+    public int $latestUnreadMessageId = 0;
+
+    public int $latestUnreadChatMessageId = 0;
+
     public $receivedMessages;            // Collection (kleine Liste)
 
     public function mount(): void
@@ -30,12 +34,16 @@ class HeaderInbox extends Component
     {
         $previousUnreadMessages = $this->unreadMessagesCount;
         $previousUnreadChatMessages = $this->unreadChatMessagesCount;
+        $previousLatestUnreadMessageId = $this->latestUnreadMessageId;
+        $previousLatestUnreadChatMessageId = $this->latestUnreadChatMessageId;
 
         $user = Auth::user();
 
         if (! $user) {
             $this->unreadMessagesCount = 0;
             $this->unreadChatMessagesCount = 0;
+            $this->latestUnreadMessageId = 0;
+            $this->latestUnreadChatMessageId = 0;
             $this->receivedMessages = collect();
 
             return;
@@ -49,29 +57,76 @@ class HeaderInbox extends Component
             ->limit(3)
             ->get();
 
-        $this->unreadMessagesCount = $user->receivedMessages()
-            ->where('status', 1)
-            ->count();
+        $unreadMessages = $user->receivedMessages()->where('status', 1);
+        $latestUnreadMessage = (clone $unreadMessages)
+            ->with('sender:id,name')
+            ->orderByDesc('id')
+            ->first();
+        $this->unreadMessagesCount = (clone $unreadMessages)->count();
+        $this->latestUnreadMessageId = (int) ($latestUnreadMessage?->id ?? 0);
 
-        $this->unreadChatMessagesCount = $this->visibleChatMessagesFor($user)
+        $unreadChatMessages = $this->visibleChatMessagesFor($user)
             ->where('chat_messages.user_id', '!=', $user->id)
             ->where(function ($query) {
                 $query->whereNull('chat_user.last_read_at')
                     ->orWhereColumn('chat_messages.created_at', '>', 'chat_user.last_read_at');
-            })
-            ->count();
+            });
+        $latestUnreadChatMessage = (clone $unreadChatMessages)
+            ->select('chat_messages.*')
+            ->with('sender:id,name')
+            ->orderByDesc('chat_messages.id')
+            ->first();
+        $this->unreadChatMessagesCount = (clone $unreadChatMessages)->count();
+        $this->latestUnreadChatMessageId = (int) ($latestUnreadChatMessage?->id ?? 0);
 
-        // Polling-Fallback ohne Reverb: Steigt ein Ungelesen-Zaehler, den
-        // Nachrichtenton anstossen (app.js spielt ihn nur, wenn kein Echo
-        // verbunden ist — sonst klingelt bereits der Echtzeit-Toast). Die
-        // Quelle waehlt im Client die passende Chat-/Posteingangs-Klangsignatur.
+        // Polling-Fallback ohne Reverb: Steigt ein Ungelesen-Zaehler, bekommt
+        // app.js den stabilen Ereignisschluessel plus eine knappe Vorschau.
+        // So entstehen derselbe Suite-Alert und Klang wie ueber Echo, waehrend
+        // der Seen-Cache Web-Push-Doppelungen verhindert.
         $inboxIncreased = $this->unreadMessagesCount > $previousUnreadMessages;
         $chatIncreased = $this->unreadChatMessagesCount > $previousUnreadChatMessages;
 
         if ($notify && ($inboxIncreased || $chatIncreased)) {
+            $notifications = [];
+
+            if (
+                $inboxIncreased
+                && $latestUnreadMessage
+                && $this->latestUnreadMessageId > $previousLatestUnreadMessageId
+            ) {
+                $notifications[] = [
+                    'notification_id' => 'message:'.$latestUnreadMessage->id,
+                    'category' => 'messages',
+                    'title' => __('app.new_message'),
+                    'body' => collect([
+                        $latestUnreadMessage->sender?->name
+                            ? __('app.from').': '.$latestUnreadMessage->sender->name
+                            : null,
+                        $latestUnreadMessage->subject,
+                    ])->filter()->join(' — '),
+                ];
+            }
+
+            if (
+                $chatIncreased
+                && $latestUnreadChatMessage
+                && $this->latestUnreadChatMessageId > $previousLatestUnreadChatMessageId
+            ) {
+                $notifications[] = [
+                    'notification_id' => 'chat-message:'.$latestUnreadChatMessage->id,
+                    'category' => 'chat',
+                    'chatId' => (int) $latestUnreadChatMessage->chat_id,
+                    'title' => __('app.new_chat_message'),
+                    'body' => $latestUnreadChatMessage->sender?->name
+                        ? __('app.from').': '.$latestUnreadChatMessage->sender->name
+                        : '',
+                ];
+            }
+
             $this->dispatch(
                 'rt:inbox-increased',
                 source: $inboxIncreased && $chatIncreased ? 'both' : ($chatIncreased ? 'chat' : 'inbox'),
+                notifications: $notifications,
             );
         }
     }

@@ -176,7 +176,19 @@
                             <div class="flex shrink-0 gap-2">
                                 <button type="button" wire:click="downloadVersion({{ $version->id }})" class="rounded-lg border border-rt-border px-3 py-2 text-xs font-semibold text-rt-text dark:border-rt-dark-border dark:text-white"><i class="far fa-download mr-1"></i>{{ __('app.download') }}</button>
                                 @if(!$version->is_current)
-                                    <button type="button" wire:click="restoreVersion({{ $version->id }})" wire:confirm="{{ __('app.restore_version_confirm') }}" class="rounded-lg bg-rt-red px-3 py-2 text-xs font-semibold text-white"><i class="far fa-undo mr-1"></i>{{ __('app.restore') }}</button>
+                                    <button
+                                        type="button"
+                                        x-on:click.prevent='$dispatch("rt-confirm", {
+                                            title: @js(__("app.restore")),
+                                            message: @js(__("app.restore_version_confirm")),
+                                            variant: "default",
+                                            confirmLabel: @js(__("app.restore")),
+                                            action: () => $wire.restoreVersion({{ $version->id }})
+                                        })'
+                                        class="rounded-lg bg-rt-red px-3 py-2 text-xs font-semibold text-white"
+                                    >
+                                        <i class="far fa-undo mr-1"></i>{{ __('app.restore') }}
+                                    </button>
                                 @endif
                             </div>
                         </div>

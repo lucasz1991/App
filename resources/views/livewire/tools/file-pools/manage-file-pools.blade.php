@@ -184,9 +184,16 @@
                       <i class="far fa-shield-alt mr-2"></i>{{ __('app.permissions') }}
                     </x-dropdown-link>
                   @endif
-                  <x-dropdown-link wire:click.prevent="deleteFolder({{ $folder->id }})"
-                                   wire:confirm="{{ __('app.folder_delete_confirm') }}"
-                                   class="!text-red-600 dark:!text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10">
+                  <x-dropdown-link
+                      x-on:click.prevent='$dispatch("rt-confirm", {
+                          title: @js(__("app.delete")),
+                          message: @js(__("app.folder_delete_confirm")),
+                          variant: "destructive",
+                          confirmLabel: @js(__("app.delete")),
+                          action: () => $wire.deleteFolder({{ $folder->id }})
+                      })'
+                      class="!text-red-600 dark:!text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
+                  >
                     <i class="far fa-trash-alt mr-2"></i>{{ __('app.delete') }}
                   </x-dropdown-link>
                 </x-slot>
@@ -242,7 +249,20 @@
               <i class="far fa-shield-alt w-4 text-center"></i>{{ __('app.permissions') }}
             </button>
           @endif
-          <button type="button" @click="if (confirm('{{ __('app.folder_delete_confirm') }}')) { $wire.deleteFolder(cf); } ctx = false" class="{{ $ctxItem }} text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10">
+          <button
+              type="button"
+              x-on:click='
+                  $dispatch("rt-confirm", {
+                      title: @js(__("app.delete")),
+                      message: @js(__("app.folder_delete_confirm")),
+                      variant: "destructive",
+                      confirmLabel: @js(__("app.delete")),
+                      action: () => $wire.deleteFolder(cf)
+                  });
+                  ctx = false;
+              '
+              class="{{ $ctxItem }} text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
+          >
             <i class="far fa-trash-alt w-4 text-center"></i>{{ __('app.delete') }}
           </button>
         @endif

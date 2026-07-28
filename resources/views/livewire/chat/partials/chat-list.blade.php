@@ -61,6 +61,9 @@
                 $unread = $chat->unreadCountFor($me);
                 $latest = $chat->latestMessage;
                 $avatarUrl = $chat->avatarUrlFor($me);
+                $previewPerson = $chat->isGroup()
+                    ? null
+                    : $chat->participants->firstWhere('id', '!=', $me->id);
                 $timeLabel = $latest
                     ? ($latest->created_at->isToday() ? $latest->created_at->format('H:i') : $latest->created_at->format('d.m.'))
                     : '';
@@ -122,6 +125,18 @@
 
                         <x-slot name="content">
                             <div class="space-y-0.5 p-1.5" aria-label="{{ __('app.chat_options') }}">
+                                @if ($previewPerson)
+                                    <x-ui.dropdown.dropdown-link
+                                        wire:click="$dispatch('person-preview:open', { userId: {{ $previewPerson->id }} })"
+                                        data-no-chat-swipe
+                                    >
+                                        <span class="rt-chat-option-icon">
+                                            <i class="far fa-address-card" aria-hidden="true"></i>
+                                        </span>
+                                        <span>{{ __('app.person_preview') }}</span>
+                                    </x-ui.dropdown.dropdown-link>
+                                @endif
+
                                 <x-ui.dropdown.dropdown-link
                                     as="a"
                                     :href="route('chat.export', ['chat' => $chat])"

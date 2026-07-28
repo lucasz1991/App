@@ -158,8 +158,8 @@ class ManagedDocumentsTest extends TestCase
 
         $this->assertStringContainsString("route('admin.files')", $sidebar);
         $this->assertStringContainsString("route('admin.managed-documents')", $sidebar);
-        $this->assertStringContainsString("__('app.download_files')", $sidebar);
-        $this->assertStringContainsString("__('app.managed_documents')", $sidebar);
+        $this->assertStringContainsString("__('app.sidebar_files')", $sidebar);
+        $this->assertStringContainsString("__('app.sidebar_work_resources')", $sidebar);
     }
 
     protected function buildManagedDocumentSchema(): void

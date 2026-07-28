@@ -72,8 +72,17 @@
         <x-slot name="footer">
             @can('users.messages.delete')
                 @if ($selectedMessage)
-                    <x-ui.buttons.button-basic :mode="'danger'" wire:click="deleteMessage({{ $selectedMessage->id }})"
-                        wire:confirm="{{ __('app.note_delete_confirm') }}" class="mr-2">
+                    <x-ui.buttons.button-basic
+                        :mode="'danger'"
+                        x-on:click.prevent='$dispatch("rt-confirm", {
+                            title: @js(__("app.delete")),
+                            message: @js(__("app.note_delete_confirm")),
+                            variant: "destructive",
+                            confirmLabel: @js(__("app.delete")),
+                            action: () => $wire.deleteMessage({{ $selectedMessage->id }})
+                        })'
+                        class="mr-2"
+                    >
                         <i class="far fa-trash-alt mr-2"></i>
                         {{ __('app.delete') }}
                     </x-ui.buttons.button-basic>

@@ -1,5 +1,8 @@
 @php
     $headerAvatar = $selectedChat->avatarUrlFor($me);
+    $headerPerson = $selectedChat->isGroup()
+        ? null
+        : $selectedChat->participants->firstWhere('id', '!=', $me->id);
 @endphp
 
 <div class="rt-chat-conversation-header flex shrink-0 items-center gap-2.5 px-3 py-3 sm:gap-3 sm:px-5 sm:py-3.5">
@@ -25,29 +28,58 @@
         x-on:click="showList()"
     />
 
-    <x-chat.avatar
-        :src="$headerAvatar"
-        :name="$selectedChat->displayNameFor($me)"
-        size="lg"
-        signal
-    />
+    @if ($headerPerson)
+        <button
+            type="button"
+            wire:click="$dispatch('person-preview:open', { userId: {{ $headerPerson->id }} })"
+            class="group flex min-w-0 flex-1 items-center gap-2.5 rounded-xl text-left outline-none transition-colors hover:text-rt-red focus-visible:ring-2 focus-visible:ring-rt-red/35 sm:gap-3"
+            title="{{ __('app.open_person_preview') }}"
+            aria-label="{{ __('app.open_person_preview') }}: {{ $headerPerson->name }}"
+            data-no-chat-swipe
+        >
+            <x-chat.avatar
+                :src="$headerAvatar"
+                :name="$selectedChat->displayNameFor($me)"
+                size="lg"
+                signal
+                class="transition-transform duration-200 group-hover:scale-[1.03]"
+            />
 
-    <div class="min-w-0 flex-1">
-        <p class="truncate text-sm font-extrabold tracking-[-0.025em] text-rt-text dark:text-rt-dark-text sm:text-[15px]">
-            {{ $selectedChat->displayNameFor($me) }}
-        </p>
-        @if ($selectedChat->isGroup())
+            <span class="min-w-0 flex-1">
+                <span class="block truncate text-sm font-extrabold tracking-[-0.025em] text-rt-text transition-colors group-hover:text-rt-red dark:text-rt-dark-text dark:group-hover:text-rt-dark-accent sm:text-[15px]">
+                    {{ $selectedChat->displayNameFor($me) }}
+                </span>
+                <span
+                    x-cloak
+                    x-show.important="typingLabel"
+                    x-text="typingLabel"
+                    class="rt-chat-typing mt-0.5 block truncate text-[10px] font-bold text-rt-accent dark:text-rt-dark-accent"
+                ></span>
+            </span>
+        </button>
+    @else
+        <x-chat.avatar
+            :src="$headerAvatar"
+            :name="$selectedChat->displayNameFor($me)"
+            size="lg"
+            signal
+        />
+
+        <div class="min-w-0 flex-1">
+            <p class="truncate text-sm font-extrabold tracking-[-0.025em] text-rt-text dark:text-rt-dark-text sm:text-[15px]">
+                {{ $selectedChat->displayNameFor($me) }}
+            </p>
             <p class="mt-0.5 truncate text-[10px] font-medium uppercase tracking-[0.08em] text-rt-muted dark:text-rt-dark-muted">
                 {{ trans_choice('app.members_count', $selectedChat->participants->count()) }}
             </p>
-        @endif
-        <p
-            x-cloak
-            x-show="typingLabel"
-            x-text="typingLabel"
-            class="rt-chat-typing mt-0.5 truncate text-[10px] font-bold text-rt-accent dark:text-rt-dark-accent"
-        ></p>
-    </div>
+            <p
+                x-cloak
+                x-show.important="typingLabel"
+                x-text="typingLabel"
+                class="rt-chat-typing mt-0.5 truncate text-[10px] font-bold text-rt-accent dark:text-rt-dark-accent"
+            ></p>
+        </div>
+    @endif
 
     <span class="rt-chat-live-status hidden items-center gap-2 rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.1em] sm:inline-flex">
         <span aria-hidden="true"></span>

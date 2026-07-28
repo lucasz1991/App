@@ -34,7 +34,7 @@
     Sorgt fuer identisches Padding, denselben Seitenkopf (Titel + Aktionen +
     Info-Knopf) und vermerkt den Seitenaufruf des Nutzers.
 --}}
-<div {{ $attributes->class('space-y-6 px-2 py-6 lg:py-8') }}>
+<div {{ $attributes->class('space-y-5 px-0 py-4 lg:py-5') }}>
     @if (! is_null($title) || isset($actions))
         <x-ui.page-header
             :title="$title"

@@ -21,6 +21,11 @@
             <i data-feather="{{ $icon }}" fill="#545a6d33"></i>
         </span>
         <span class="sidebar-nav-link__label">{{ $label }}</span>
+        <span class="sidebar-nav-link__chevron" aria-hidden="true">
+            <svg viewBox="0 0 20 20" fill="none">
+                <path d="m5.75 7.75 4.25 4.25 4.25-4.25" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+        </span>
     </a>
 
     <ul @class(['mm-collapse', 'mm-show' => $active])>

@@ -4,6 +4,7 @@ const FALLBACK_TITLE = 'RailTime';
 const FALLBACK_ICON = 'pwa-icons/pwa-192.png';
 const FALLBACK_BADGE = 'pwa-icons/push-badge-96.png';
 const FOREGROUND_ACK_TYPE = 'railtime:push-received-ack';
+const FOREGROUND_CONTEXT_ACK_TYPE = 'railtime:push-context-ack';
 const FOREGROUND_ACK_TIMEOUT_MS = 750;
 
 function registrationScope() {
@@ -95,6 +96,60 @@ function requestForegroundAck(client, message) {
     });
 }
 
+function requestForegroundContext(client, message) {
+    if (typeof MessageChannel === 'undefined') {
+        return Promise.resolve(null);
+    }
+
+    return new Promise((resolve) => {
+        const channel = new MessageChannel();
+        let settled = false;
+        let timeoutId = null;
+
+        const finish = (context) => {
+            if (settled) {
+                return;
+            }
+
+            settled = true;
+            clearTimeout(timeoutId);
+            channel.port1.onmessage = null;
+            channel.port1.onmessageerror = null;
+            channel.port1.close();
+            resolve(context);
+        };
+
+        channel.port1.onmessage = (event) => {
+            const acknowledgement = event.data;
+
+            if (
+                acknowledgement?.type !== FOREGROUND_CONTEXT_ACK_TYPE
+                || acknowledgement.notification_id !== message.notification_id
+            ) {
+                finish(null);
+
+                return;
+            }
+
+            finish({
+                focused: Boolean(acknowledgement.focused),
+                activeChatId: Number(acknowledgement.active_chat_id || 0),
+            });
+        };
+        channel.port1.onmessageerror = () => finish(null);
+        channel.port1.start();
+
+        timeoutId = setTimeout(() => finish(null), FOREGROUND_ACK_TIMEOUT_MS);
+
+        try {
+            client.postMessage(message, [channel.port2]);
+        } catch (_) {
+            channel.port2.close();
+            finish(null);
+        }
+    });
+}
+
 self.addEventListener('install', () => {
     self.skipWaiting();
 });
@@ -137,8 +192,8 @@ self.addEventListener('push', (event) => {
             type: 'window',
             includeUncontrolled: true,
         });
-        const foregroundClient = windows.find((client) => {
-            if (client.visibilityState !== 'visible' || !client.focused) {
+        const visibleClients = windows.filter((client) => {
+            if (client.visibilityState !== 'visible') {
                 return false;
             }
 
@@ -149,21 +204,50 @@ self.addEventListener('push', (event) => {
             }
         });
 
-        if (foregroundClient) {
-            const acknowledged = await requestForegroundAck(
-                foregroundClient,
-                {
+        if (visibleClients.length > 0) {
+            const foregroundContexts = (await Promise.all(
+                visibleClients.map(async (client) => ({
+                    client,
+                    context: await requestForegroundContext(client, {
+                        type: 'railtime:push-context-request',
+                        notification_id: notificationId || options.tag,
+                        category,
+                        title,
+                        body: options.body,
+                        url: target.href,
+                    }),
+                }))
+            )).filter(({ context }) => context !== null);
+            const activeChatId = category === 'chat'
+                ? Number(target.searchParams.get('chat') || 0)
+                : 0;
+
+            if (
+                activeChatId > 0
+                && foregroundContexts.some(
+                    ({ context }) => context.activeChatId === activeChatId
+                )
+            ) {
+                return;
+            }
+
+            foregroundContexts.sort(
+                (left, right) => Number(right.context.focused) - Number(left.context.focused)
+            );
+
+            for (const { client } of foregroundContexts) {
+                const acknowledged = await requestForegroundAck(client, {
                     type: 'railtime:push-received',
                     notification_id: notificationId || options.tag,
                     category,
                     title,
                     body: options.body,
                     url: target.href,
-                }
-            );
+                });
 
-            if (acknowledged) {
-                return;
+                if (acknowledged) {
+                    return;
+                }
             }
         }
 

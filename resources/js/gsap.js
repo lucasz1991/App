@@ -24,6 +24,7 @@ const REVEAL_PRESETS = {
 
 let activePageRoot = null;
 let activeMedia = null;
+let activeAmbientMedia = null;
 let firstFrame = null;
 let secondFrame = null;
 let dashboardSafetyTimer = null;
@@ -72,6 +73,72 @@ function cleanupReveals() {
 
     activeMedia?.revert();
     activeMedia = null;
+    activeAmbientMedia?.revert();
+    activeAmbientMedia = null;
+}
+
+function setupShellAmbient(root) {
+    const ambient = root.querySelector('[data-rt-shell-ambient]');
+    if (!ambient) return;
+
+    const orbOne = ambient.querySelector('[data-rt-shell-orb="one"]');
+    const orbTwo = ambient.querySelector('[data-rt-shell-orb="two"]');
+    const rail = ambient.querySelector('[data-rt-shell-rail]');
+    const movingParts = [orbOne, orbTwo, rail].filter(Boolean);
+    if (!movingParts.length) return;
+
+    activeAmbientMedia = gsap.matchMedia();
+    activeAmbientMedia.add(
+        {
+            reduceMotion: '(prefers-reduced-motion: reduce)',
+            animateMotion: '(prefers-reduced-motion: no-preference)',
+        },
+        ({ conditions }) => {
+            if (conditions.reduceMotion) {
+                gsap.set(movingParts, { clearProps: 'transform' });
+                return;
+            }
+
+            const timeline = gsap.timeline({
+                repeat: -1,
+                yoyo: true,
+                defaults: { ease: 'sine.inOut' },
+            });
+
+            if (orbOne) {
+                timeline.to(orbOne, {
+                    xPercent: -7,
+                    yPercent: 9,
+                    scale: 1.055,
+                    duration: 17,
+                }, 0);
+            }
+
+            if (orbTwo) {
+                timeline.to(orbTwo, {
+                    xPercent: 9,
+                    yPercent: -7,
+                    scale: 1.08,
+                    duration: 20,
+                }, 0);
+            }
+
+            if (rail) {
+                timeline.to(rail, {
+                    xPercent: -5,
+                    yPercent: 18,
+                    opacity: 0.68,
+                    duration: 14,
+                }, 0);
+            }
+
+            return () => {
+                timeline.kill();
+                gsap.set(movingParts, { clearProps: 'transform,opacity' });
+            };
+        },
+        root,
+    );
 }
 
 function dashboardSegmentItems(segment) {
@@ -345,6 +412,7 @@ function bootReveals() {
                 && root === activePageRoot
                 && root.isConnected
             ) {
+                setupShellAmbient(root);
                 setupReveals(root);
             }
         });

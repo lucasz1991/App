@@ -4,10 +4,20 @@
     </x-slot>
 
     <x-slot name="content">
-        <x-dropdown-link href="{{ route('admin.user-profile', $item->id) }}" :can="'users.profiles.view'">
-            <i class="far fa-id-card mr-2"></i>
-            {{ __('app.view_profile') }}
+        <x-dropdown-link wire:click.prevent="$dispatch('person-preview:open', { userId: {{ $item->id }} })">
+            <i class="far fa-address-card mr-2"></i>
+            {{ __('app.person_preview') }}
         </x-dropdown-link>
+
+        @if (auth()->user()->canViewManagementDashboard())
+            <x-dropdown-link
+                href="{{ route(auth()->user()->usesAdminLayout() ? 'admin.user-profile' : 'employees.show', $item->id) }}"
+                :can="'users.profiles.view'"
+            >
+                <i class="far fa-id-card mr-2"></i>
+                {{ __('app.view_profile') }}
+            </x-dropdown-link>
+        @endif
 
         <x-dropdown-link wire:click.prevent="openMessage({{ $item->id }})" :can="'users.messages.create'">
             <i class="far fa-paper-plane mr-2"></i>
@@ -35,8 +45,13 @@
         @can('employees.delete')
             @if ((int) $item->id !== (int) auth()->id() && ! $item->isSuperAdmin())
                 <x-dropdown-link
-                    wire:click.prevent="deleteUser({{ $item->id }})"
-                    wire:confirm="{{ __('app.delete_user_confirm') }}"
+                    x-on:click.prevent='$dispatch("rt-confirm", {
+                        title: @js(__("app.delete_user")),
+                        message: @js(__("app.delete_user_confirm")),
+                        variant: "destructive",
+                        confirmLabel: @js(__("app.delete")),
+                        action: () => $wire.deleteUser({{ $item->id }})
+                    })'
                     tone="danger"
                 >
                     <i class="far fa-trash-alt mr-2"></i>

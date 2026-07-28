@@ -65,8 +65,13 @@
                             </label>
                             <button
                                 type="button"
-                                wire:click="remove('{{ $type }}')"
-                                wire:confirm="{{ __('app.employee_document_remove_confirm') }}"
+                                x-on:click.prevent='$dispatch("rt-confirm", {
+                                    title: @js(__("app.delete")),
+                                    message: @js(__("app.employee_document_remove_confirm")),
+                                    variant: "destructive",
+                                    confirmLabel: @js(__("app.delete")),
+                                    action: () => $wire.remove(@js($type))
+                                })'
                                 class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-400/35 dark:text-red-300 dark:hover:bg-red-500/10"
                                 title="{{ __('app.delete') }}"
                             >

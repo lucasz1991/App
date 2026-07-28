@@ -2,6 +2,7 @@
     class="rt-chat-page relative h-full min-h-0 overflow-hidden px-0 pb-3 pt-4 sm:pb-4 sm:pt-5 md:pb-5"
     x-data="chatPaneNavigation(@js((bool) $selectedChat))"
     data-has-selected-chat="{{ $selectedChat ? 'true' : 'false' }}"
+    data-active-chat-id="{{ $selectedChat?->id ?? 0 }}"
     data-mobile-pane="{{ $selectedChat ? 'chat' : 'list' }}"
     x-bind:data-mobile-pane="mobilePane"
     x-on:chat:pane-open.window="showChat()"
@@ -28,4 +29,5 @@
 
     @include('livewire.chat.partials.new-chat-modal')
     @include('livewire.chat.partials.chat-options-modals')
+    <livewire:people.person-preview-modal :key="'chat-person-preview-modal'" />
 </div>

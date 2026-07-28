@@ -40,8 +40,8 @@
   $anchorOffset = max(0, (int) $offset);
   $anchorDirective = 'x-anchor.' . $anchorPlacement . '.offset.' . $anchorOffset . '.fixed';
   $anchorCaretX = str_ends_with($anchorPlacement, '-start')
-    ? '1.25rem'
-    : 'calc(100% - 1.25rem)';
+    ? '1.125rem'
+    : 'calc(100% - 1.125rem)';
   $anchorConnectorSize = max(6, $anchorOffset + 2);
 @endphp
 
@@ -99,7 +99,8 @@
       const visualViewport = window.visualViewport;
       const viewportWidth = visualViewport ? visualViewport.width : (document.documentElement.clientWidth || window.innerWidth);
       const maximumViewportWidth = Math.max(0, viewportWidth - 24);
-      const triggerRect = trigger.getBoundingClientRect();
+      const triggerControl = trigger.querySelector('button, a, [role=button]');
+      const triggerRect = (triggerControl || trigger).getBoundingClientRect();
 
       if (this.matchTriggerWidth) {
         const triggerWidth = `${Math.min(triggerRect.width, maximumViewportWidth)}px`;

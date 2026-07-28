@@ -24,15 +24,36 @@ import { wagonListPrototype } from './wagon-list-prototype';
 import { numberInput } from './number-input';
 import { registerRailtimePushSettings, setupRailtimePwa } from './pwa';
 import { createNotificationSeenCache } from './notification-seen-cache';
+import { createNotificationPresentationContext } from './notification-presentation';
 import { incomingNotificationSound } from './realtime-notification-sound';
 import { sidebarScrollBehavior, sidebarScrollTarget } from './sidebar-scroll';
 
 const loadAdminDashboardECharts = () => import('./admin-dashboard-echarts');
 const rtSeenNotifications = createNotificationSeenCache(window);
+const rtNotificationContext = createNotificationPresentationContext(window);
 let rtForegroundPushHandler = null;
 
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', (event) => {
+        if (event.data?.type === 'railtime:push-context-request') {
+            if (document.visibilityState !== 'visible') {
+                return;
+            }
+
+            const contextPort = event.ports?.[0];
+            const snapshot = rtNotificationContext.publish();
+
+            contextPort?.postMessage({
+                type: 'railtime:push-context-ack',
+                notification_id: event.data.notification_id,
+                focused: snapshot.focused,
+                active_chat_id: snapshot.activeChatId,
+            });
+            contextPort?.close();
+
+            return;
+        }
+
         if (event.data?.type !== 'railtime:push-received') {
             return;
         }
@@ -40,7 +61,6 @@ if ('serviceWorker' in navigator) {
         if (
             !rtForegroundPushHandler
             || document.visibilityState !== 'visible'
-            || !document.hasFocus()
         ) {
             return;
         }
@@ -355,15 +375,21 @@ Alpine.data('chatRealtime', (config) => ({
 
         this.channel = window.Echo.private(`chat.${config.chatId}`)
             .listen('.chat.message.sent', (event) => {
-                Livewire.dispatch('chat:refresh', { chatId: Number(event.chatId) });
+                if (rtNotificationContext.isLocalChatVisible(Number(event.chatId))) {
+                    Livewire.dispatch('chat:refresh', { chatId: Number(event.chatId) });
+                }
                 Livewire.dispatch('inbox:refresh');
             })
             .listen('.chat.message.deleted', (event) => {
-                Livewire.dispatch('chat:refresh', { chatId: Number(event.chatId) });
+                if (rtNotificationContext.isLocalChatVisible(Number(event.chatId))) {
+                    Livewire.dispatch('chat:refresh', { chatId: Number(event.chatId) });
+                }
                 Livewire.dispatch('inbox:refresh');
             })
             .listen('.chat.read', (event) => {
-                Livewire.dispatch('chat:refresh', { chatId: Number(event.chatId) });
+                if (rtNotificationContext.isLocalChatVisible(Number(event.chatId))) {
+                    Livewire.dispatch('chat:refresh', { chatId: Number(event.chatId) });
+                }
             })
             .listenForWhisper('typing', (event) => {
                 if (Number(event.userId) === Number(config.userId)) {
@@ -1139,8 +1165,12 @@ function rtHandleIncomingNotification(payload, source = 'echo') {
     const category = payload.category === 'chat' ? 'chat' : 'messages';
     const notificationId = String(payload.notification_id || '').trim();
     const chatId = category === 'chat' ? rtChatIdFromNotification(payload) : 0;
-    const mayToast = source === 'service-worker'
-        || (document.visibilityState === 'visible' && document.hasFocus());
+    const normalizedPayload = { ...payload, category, chatId };
+    const chatIsAlreadyVisible = chatId > 0 && rtNotificationContext.isChatVisible(chatId);
+    const mayToast = !chatIsAlreadyVisible && rtNotificationContext.shouldPresent(
+        normalizedPayload,
+        { forceLocal: source === 'service-worker' },
+    );
 
     if (mayToast && rtSeenNotifications.take(notificationId)) {
         window.dispatchEvent(new CustomEvent('swal:toast', {
@@ -1151,9 +1181,14 @@ function rtHandleIncomingNotification(payload, source = 'echo') {
                 sound: incomingNotificationSound(category),
             },
         }));
+    } else if (chatIsAlreadyVisible) {
+        // Der sichtbare Verlauf ist bereits die Benachrichtigung. Die stabile
+        // ID wird tabuebergreifend verbraucht, damit ein spaeter eintreffender
+        // Web Push nicht doch noch einen doppelten Hinweis erzeugt.
+        rtSeenNotifications.take(notificationId);
     }
 
-    if (category === 'chat' && chatId > 0) {
+    if (category === 'chat' && rtNotificationContext.isLocalChatVisible(chatId)) {
         Livewire.dispatch('chat:refresh', { chatId });
     }
 
@@ -1224,14 +1259,34 @@ window.addEventListener('rt:inbox-increased', (event) => {
         return;
     }
 
+    const notifications = Array.isArray(event.detail?.notifications)
+        ? event.detail.notifications
+        : [];
+
+    if (notifications.length > 0) {
+        notifications.forEach((notification) => {
+            rtHandleIncomingNotification(notification, 'polling');
+        });
+
+        return;
+    }
+
     const source = event.detail?.source || 'both';
+
+    if (!rtNotificationContext.shouldPresent({
+        category: source === 'chat' ? 'chat' : 'messages',
+    })) {
+        return;
+    }
+
     window.RTSound?.play(incomingNotificationSound(source));
 });
 
 window.Swiper = Swiper;
 let sidebarCollapseTimer = null;
+let sidebarExpandTimer = null;
 let sidebarSwipeStart = null;
-const DESKTOP_SIDEBAR_COLLAPSE_DELAY = 2000;
+const DESKTOP_SIDEBAR_HOVER_DELAY = 1500;
 
 function initMetisMenu(sideMenu) {
     if (!window.MetisMenu || !sideMenu) {
@@ -1345,6 +1400,13 @@ function clearSidebarCollapseTimer() {
     }
 }
 
+function clearSidebarExpandTimer() {
+    if (sidebarExpandTimer) {
+        window.clearTimeout(sidebarExpandTimer);
+        sidebarExpandTimer = null;
+    }
+}
+
 function isDesktopHoverSidebar() {
     return window.innerWidth >= 1024 && Boolean(document.querySelector('.vertical-menu'));
 }
@@ -1446,6 +1508,7 @@ function syncSidebarToggleState() {
 
 function scheduleDesktopSidebarCollapse() {
     clearSidebarCollapseTimer();
+    clearSidebarExpandTimer();
 
     sidebarCollapseTimer = window.setTimeout(() => {
         sidebarCollapseTimer = null;
@@ -1453,7 +1516,24 @@ function scheduleDesktopSidebarCollapse() {
         if (!isSidebarHoveredOrFocused()) {
             setDesktopSidebarExpanded(false);
         }
-    }, DESKTOP_SIDEBAR_COLLAPSE_DELAY);
+    }, DESKTOP_SIDEBAR_HOVER_DELAY);
+}
+
+function scheduleDesktopSidebarExpand() {
+    clearSidebarCollapseTimer();
+    clearSidebarExpandTimer();
+
+    if (document.body.getAttribute('data-sidebar-expanded') === 'true') {
+        return;
+    }
+
+    sidebarExpandTimer = window.setTimeout(() => {
+        sidebarExpandTimer = null;
+
+        if (isSidebarHoveredOrFocused()) {
+            setDesktopSidebarExpanded(true);
+        }
+    }, DESKTOP_SIDEBAR_HOVER_DELAY);
 }
 
 function syncSidebarInteractionMode() {
@@ -1469,14 +1549,18 @@ function syncSidebarInteractionMode() {
         setMobileSidebarOpen(false);
 
         const isExpanded = document.body.getAttribute('data-sidebar-expanded') === 'true';
-        const shouldStayExpanded = isExpanded || isSidebarHoveredOrFocused();
+        document.body.setAttribute('data-sidebar-expanded', isExpanded ? 'true' : 'false');
 
-        document.body.setAttribute('data-sidebar-expanded', shouldStayExpanded ? 'true' : 'false');
+        if (!isExpanded && isSidebarHoveredOrFocused()) {
+            scheduleDesktopSidebarExpand();
+        }
+
         syncSidebarToggleState();
         return;
     }
 
     clearSidebarCollapseTimer();
+    clearSidebarExpandTimer();
     document.body.setAttribute('data-sidebar-expanded', 'false');
     syncSidebarToggleState();
 }
@@ -1494,6 +1578,7 @@ function initLeftMenuCollapse() {
 
             if (isDesktopHoverSidebar()) {
                 clearSidebarCollapseTimer();
+                clearSidebarExpandTimer();
                 setDesktopSidebarExpanded(document.body.getAttribute('data-sidebar-expanded') !== 'true');
                 return;
             }
@@ -1628,8 +1713,7 @@ function initSidebarInteractions() {
                 return;
             }
 
-            clearSidebarCollapseTimer();
-            setDesktopSidebarExpanded(true);
+            scheduleDesktopSidebarExpand();
         });
 
         element.addEventListener('mouseleave', () => {
@@ -1637,6 +1721,7 @@ function initSidebarInteractions() {
                 return;
             }
 
+            clearSidebarExpandTimer();
             scheduleDesktopSidebarCollapse();
         });
 
@@ -1646,6 +1731,7 @@ function initSidebarInteractions() {
             }
 
             clearSidebarCollapseTimer();
+            clearSidebarExpandTimer();
             setDesktopSidebarExpanded(true);
         });
 
@@ -1671,8 +1757,13 @@ function initSidebarInteractions() {
                 const target = event.target instanceof Element ? event.target : null;
 
                 if (isDesktopHoverSidebar()) {
-                    if (!target || !target.closest('.vertical-menu, .topbar-brand')) {
+                    if (target?.closest('.vertical-menu, .topbar-brand')) {
                         clearSidebarCollapseTimer();
+                        clearSidebarExpandTimer();
+                        setDesktopSidebarExpanded(true);
+                    } else {
+                        clearSidebarCollapseTimer();
+                        clearSidebarExpandTimer();
                         setDesktopSidebarExpanded(false);
                     }
 
@@ -1692,6 +1783,7 @@ function initSidebarInteractions() {
             }
 
             clearSidebarCollapseTimer();
+            clearSidebarExpandTimer();
             setDesktopSidebarExpanded(false);
             setMobileSidebarOpen(false);
         });

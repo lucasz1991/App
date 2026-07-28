@@ -5,10 +5,11 @@
 >
     <x-slot:actions>
         @if (Auth::user()->isAdmin())
-            <div class="rounded-xl bg-rt-surface px-4 py-2.5 text-right shadow-rt-xs ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
-                <p class="text-[10px] font-semibold uppercase tracking-wide text-rt-soft dark:text-rt-dark-soft">Super Admin</p>
-                <p class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ config('mail.super_admin') ?: __('app.not_set') }}</p>
-            </div>
+            <span class="inline-flex h-9 max-w-64 items-center gap-2 rounded-lg bg-rt-surface px-3 text-xs shadow-rt-xs ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+                <i class="far fa-shield-alt shrink-0 text-rt-accent dark:text-rt-dark-accent" aria-hidden="true"></i>
+                <span class="hidden shrink-0 font-semibold uppercase tracking-wide text-rt-soft dark:text-rt-dark-soft sm:inline">Super Admin</span>
+                <span class="truncate font-semibold text-rt-text dark:text-rt-dark-text">{{ config('mail.super_admin') ?: __('app.not_set') }}</span>
+            </span>
         @endif
     </x-slot:actions>
 

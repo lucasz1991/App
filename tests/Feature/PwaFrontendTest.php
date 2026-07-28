@@ -182,11 +182,15 @@ class PwaFrontendTest extends TestCase
         $this->assertStringContainsString('url.pathname.startsWith(scope.pathname)', $serviceWorker);
         $this->assertStringContainsString('includeUncontrolled: true', $serviceWorker);
         $this->assertStringContainsString(
-            "client.visibilityState !== 'visible' || !client.focused",
+            "client.visibilityState !== 'visible'",
             $serviceWorker
         );
         $this->assertStringContainsString('new MessageChannel()', $serviceWorker);
         $this->assertStringContainsString('FOREGROUND_ACK_TIMEOUT_MS', $serviceWorker);
+        $this->assertStringContainsString('await requestForegroundContext(', $serviceWorker);
+        $this->assertStringContainsString("type: 'railtime:push-context-request'", $serviceWorker);
+        $this->assertStringContainsString('context.activeChatId === activeChatId', $serviceWorker);
+        $this->assertStringContainsString('Number(right.context.focused)', $serviceWorker);
         $this->assertStringContainsString('await requestForegroundAck(', $serviceWorker);
         $this->assertStringContainsString('client.postMessage(message, [channel.port2])', $serviceWorker);
         $this->assertStringContainsString(
@@ -211,7 +215,8 @@ class PwaFrontendTest extends TestCase
 
         $this->assertStringContainsString('!rtForegroundPushHandler', $script);
         $this->assertStringContainsString("document.visibilityState !== 'visible'", $script);
-        $this->assertStringContainsString('!document.hasFocus()', $script);
+        $this->assertStringContainsString("event.data?.type === 'railtime:push-context-request'", $script);
+        $this->assertStringContainsString('active_chat_id: snapshot.activeChatId', $script);
         $this->assertStringContainsString('const acknowledgementPort = event.ports?.[0]', $script);
         $this->assertStringContainsString(
             "type: 'railtime:push-received-ack'",
@@ -225,6 +230,28 @@ class PwaFrontendTest extends TestCase
         $this->assertNotFalse($handlerCall);
         $this->assertNotFalse($ackPost);
         $this->assertGreaterThan($handlerCall, $ackPost);
+    }
+
+    public function test_visible_open_chat_is_shared_with_the_notification_presenter(): void
+    {
+        $script = file_get_contents(resource_path('js/app.js'));
+        $chatView = file_get_contents(resource_path('views/livewire/chat-box.blade.php'));
+        $transcript = file_get_contents(resource_path('views/livewire/chat/partials/transcript.blade.php'));
+
+        $this->assertStringContainsString(
+            "import { createNotificationPresentationContext } from './notification-presentation'",
+            $script
+        );
+        $this->assertStringContainsString(
+            'rtNotificationContext.isChatVisible(chatId)',
+            $script
+        );
+        $this->assertStringContainsString(
+            'rtNotificationContext.isLocalChatVisible(chatId)',
+            $script
+        );
+        $this->assertStringContainsString('data-active-chat-id=', $chatView);
+        $this->assertStringContainsString('wire:poll.visible.2s="pollTick"', $transcript);
     }
 
     public function test_browser_permission_is_only_requested_inside_the_explicit_subscribe_action(): void

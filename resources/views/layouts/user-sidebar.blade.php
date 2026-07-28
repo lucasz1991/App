@@ -21,7 +21,7 @@
                         :href="route('employees.index')"
                         icon="users"
                         :active="request()->routeIs('employees.*')"
-                        class="!pl-12"
+                        class="!pl-8"
                     >
                         {{ __('app.employees') }}
                     </x-menu.sidebar-nav-link>
@@ -40,7 +40,7 @@
                     :href="route('chat')"
                     icon="message-circle"
                     :active="request()->routeIs('chat')"
-                    class="!pl-12"
+                    class="!pl-8"
                 >
                     {{ __('app.chat') }}
                 </x-menu.sidebar-nav-link>
@@ -49,7 +49,7 @@
                     :href="route('messages')"
                     icon="mail"
                     :active="request()->routeIs('messages')"
-                    class="!pl-12"
+                    class="!pl-8"
                 >
                     {{ __('app.messages') }}
                 </x-menu.sidebar-nav-link>
@@ -68,7 +68,7 @@
                         :href="route('operations.wagon-list')"
                         icon="edit-3"
                         :active="request()->routeIs('operations.wagon-list')"
-                        class="!pl-12"
+                        class="!pl-8"
                     >
                         {{ __('app.wagon_list') }}
                     </x-menu.sidebar-nav-link>
@@ -81,13 +81,13 @@
                 icon="archive"
                 :active="request()->routeIs('files', 'email-templates.*')"
             >
-                <x-slot:label>{{ __('app.files_and_templates') }}</x-slot:label>
+                <x-slot:label>{{ __('app.sidebar_files') }}</x-slot:label>
 
                 <x-menu.sidebar-nav-link
                     :href="route('files')"
                     icon="download-cloud"
                     :active="request()->routeIs('files')"
-                    class="!pl-12"
+                    class="!pl-8"
                 >
                     {{ __('app.download_center') }}
                 </x-menu.sidebar-nav-link>
@@ -96,7 +96,7 @@
                     :href="route('email-templates.index')"
                     icon="file-text"
                     :active="request()->routeIs('email-templates.*')"
-                    class="!pl-12"
+                    class="!pl-8"
                 >
                     {{ __('app.email_templates') }}
                 </x-menu.sidebar-nav-link>
@@ -115,7 +115,7 @@
                     icon="user"
                     :active="request()->routeIs('profile.show')"
                     :navigate="false"
-                    class="!pl-12"
+                    class="!pl-8"
                 >
                     {{ __('app.profile') }}
                 </x-menu.sidebar-nav-link>
@@ -124,7 +124,7 @@
                     :href="route('help')"
                     icon="help-circle"
                     :active="request()->routeIs('help')"
-                    class="!pl-12"
+                    class="!pl-8"
                 >
                     {{ __('app.help') }}
                 </x-menu.sidebar-nav-link>
@@ -133,7 +133,7 @@
                     :href="route('support')"
                     icon="life-buoy"
                     :active="request()->routeIs('support')"
-                    class="!pl-12"
+                    class="!pl-8"
                 >
                     {{ __('app.it_support') }}
                 </x-menu.sidebar-nav-link>

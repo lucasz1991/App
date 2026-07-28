@@ -37,7 +37,9 @@ class AppShellRedesignTest extends TestCase
         $this->assertStringContainsString('data-page-header', $html);
         $this->assertStringContainsString('data-page-header-actions', $html);
         $this->assertStringContainsString('data-page-info-button', $html);
-        $this->assertStringContainsString('w-full min-w-0', $html);
+        $this->assertStringContainsString('flex-nowrap', $html);
+        $this->assertStringContainsString('truncate', $html);
+        $this->assertStringNotContainsString('Konten und Zugriffe im Blick behalten.', $html);
         $this->assertStringContainsString('Mitarbeiter öffnen', $html);
         $this->assertStringContainsString('Informationen zu dieser Seite', $html);
     }
@@ -115,12 +117,18 @@ class AppShellRedesignTest extends TestCase
     {
         $motion = file_get_contents(resource_path('js/vengeance-motion.js'));
         $styles = file_get_contents(resource_path('css/app.css'));
+        $shellStyles = file_get_contents(resource_path('css/shell-redesign.css'));
+        $layout = file_get_contents(resource_path('views/layouts/master.blade.php'));
 
         $this->assertStringContainsString("const GLOW_SELECTOR = '[data-rt-glow]'", $motion);
+        $this->assertStringContainsString("const AMBIENT_SELECTOR = '[data-rt-shell-ambient]'", $motion);
+        $this->assertStringContainsString("gsap.quickTo(ambientPointer, 'x'", $motion);
         $this->assertStringContainsString('window.cancelAnimationFrame(pendingFrame)', $motion);
         $this->assertStringContainsString("removeProperty('--rt-glow-o')", $motion);
         $this->assertStringContainsString("event.pointerType === 'touch'", $motion);
         $this->assertStringContainsString("reducedMotion.addEventListener('change', resetGlow)", $motion);
+        $this->assertStringContainsString('data-rt-shell-ambient', $layout);
+        $this->assertStringContainsString('.rt-shell-ambient__pointer', $shellStyles);
         $this->assertStringContainsString('[data-rt-glow]::after', $styles);
         $this->assertStringContainsString('[data-rt-glow] > *', $styles);
         $this->assertStringNotContainsString('.rt-admin-panel::after', $styles);

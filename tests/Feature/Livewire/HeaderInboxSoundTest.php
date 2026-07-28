@@ -60,11 +60,20 @@ class HeaderInboxSoundTest extends TestCase
             ->test(HeaderInbox::class)
             ->assertSet('unreadMessagesCount', 0);
 
-        $this->unreadMessageFor($recipient, $sender);
+        $message = $this->unreadMessageFor($recipient, $sender);
 
         $component->call('loadInbox')
             ->assertSet('unreadMessagesCount', 1)
-            ->assertDispatched('rt:inbox-increased', source: 'inbox');
+            ->assertDispatched(
+                'rt:inbox-increased',
+                source: 'inbox',
+                notifications: [[
+                    'notification_id' => 'message:'.$message->id,
+                    'category' => 'messages',
+                    'title' => __('app.new_message'),
+                    'body' => __('app.from').': '.$sender->name.' — '.$message->subject,
+                ]],
+            );
     }
 
     public function test_polling_without_new_messages_stays_silent(): void
@@ -95,7 +104,7 @@ class HeaderInboxSoundTest extends TestCase
             ->test(HeaderInbox::class)
             ->assertSet('unreadChatMessagesCount', 0);
 
-        ChatMessage::create([
+        $message = ChatMessage::create([
             'chat_id' => $chat->id,
             'user_id' => $sender->id,
             'body' => 'Hallo!',
@@ -103,6 +112,16 @@ class HeaderInboxSoundTest extends TestCase
 
         $component->call('loadInbox')
             ->assertSet('unreadChatMessagesCount', 1)
-            ->assertDispatched('rt:inbox-increased', source: 'chat');
+            ->assertDispatched(
+                'rt:inbox-increased',
+                source: 'chat',
+                notifications: [[
+                    'notification_id' => 'chat-message:'.$message->id,
+                    'category' => 'chat',
+                    'chatId' => $chat->id,
+                    'title' => __('app.new_chat_message'),
+                    'body' => __('app.from').': '.$sender->name,
+                ]],
+            );
     }
 }

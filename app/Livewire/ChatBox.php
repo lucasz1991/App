@@ -629,10 +629,9 @@ class ChatBox extends Component
     }
 
     /**
-     * Beim Polling neue fremde Nachrichten melden und den offenen Chat danach
-     * als gelesen markieren. Der Browser spielt das Event nur ab, wenn keine
-     * Reverb-Verbindung aktiv ist; Echo/Foreground-Push bleiben damit frei von
-     * Doppeltoenen.
+     * Den sichtbar offenen Chat im Polling-Fallback aktualisieren und danach
+     * als gelesen markieren. Der Verlauf selbst ist hier bereits die
+     * Benachrichtigung; Ton und Suite-Alert bleiben deshalb bewusst aus.
      */
     public function pollTick(): void
     {
@@ -646,10 +645,6 @@ class ChatBox extends Component
             }
 
             $latestIncomingMessageId = $this->latestIncomingMessageIdFor($chat);
-
-            if ($latestIncomingMessageId > $this->latestIncomingMessageId) {
-                $this->dispatch('rt:inbox-increased', source: 'chat');
-            }
 
             $this->latestIncomingMessageId = $latestIncomingMessageId;
             $this->markChatRead($chat);

@@ -92,7 +92,9 @@
                 :items="$employees"
                 :selected-items="$selectedEmployees"
                 selection-action="toggleEmployeeSelection"
-                detail-route="{{ auth()->user()->usesAdminLayout() ? 'admin.user-profile' : 'employees.show' }}"
+                :detail-route="auth()->user()->canViewManagementDashboard()
+                    ? (auth()->user()->usesAdminLayout() ? 'admin.user-profile' : 'employees.show')
+                    : null"
                 row-view="components.tables.rows.employees.employee-row"
                 actions-view="components.tables.rows.employees.employee-actions"
                 :sort-by="$sortBy ?? null"
@@ -108,4 +110,5 @@
     <livewire:admin.employees.team-rbac-modal :key="'employee-team-rbac-modal'" />
     <livewire:admin.employees.invite-employee-modal :key="'employee-invite-modal'" />
     <livewire:admin.users.messages.message-form :key="'employee-message-form'" />
+    <livewire:people.person-preview-modal :key="'employee-person-preview-modal'" />
 </div>

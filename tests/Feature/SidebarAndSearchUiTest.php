@@ -10,6 +10,8 @@ class SidebarAndSearchUiTest extends TestCase
     {
         $script = file_get_contents(resource_path('js/app.js'));
         $scrollHelper = file_get_contents(resource_path('js/sidebar-scroll.js'));
+        $group = file_get_contents(resource_path('views/components/menu/sidebar-nav-group.blade.php'));
+        $shellStyles = file_get_contents(resource_path('css/shell-redesign.css'));
 
         foreach (['admin-sidebar.blade.php', 'user-sidebar.blade.php'] as $sidebarView) {
             $sidebar = file_get_contents(resource_path('views/layouts/'.$sidebarView));
@@ -38,15 +40,21 @@ class SidebarAndSearchUiTest extends TestCase
         $this->assertStringNotContainsString('scrollIntoView(', $script);
         $this->assertStringNotContainsString('window.scrollTo(', $script);
         $this->assertStringContainsString("return prefersReducedMotion ? 'auto' : 'smooth';", $scrollHelper);
+        $this->assertStringContainsString('sidebar-nav-link__chevron', $group);
+        $this->assertStringContainsString('aria-expanded="{{ $active ? \'true\' : \'false\' }}"', $group);
+        $this->assertStringContainsString("[aria-expanded='true'] .sidebar-nav-link__chevron", $shellStyles);
+        $this->assertStringContainsString('transform: rotate(180deg)', $shellStyles);
     }
 
-    public function test_desktop_sidebar_uses_two_second_delayed_collapse_and_immediate_content_close(): void
+    public function test_desktop_sidebar_uses_equal_hover_delays_and_immediate_click_opening(): void
     {
         $script = file_get_contents(resource_path('js/app.js'));
         $styles = file_get_contents(resource_path('css/app.css'));
 
-        $this->assertStringContainsString('const DESKTOP_SIDEBAR_COLLAPSE_DELAY = 2000;', $script);
-        $this->assertStringContainsString('}, DESKTOP_SIDEBAR_COLLAPSE_DELAY);', $script);
+        $this->assertStringContainsString('const DESKTOP_SIDEBAR_HOVER_DELAY = 1500;', $script);
+        $this->assertGreaterThanOrEqual(2, substr_count($script, '}, DESKTOP_SIDEBAR_HOVER_DELAY);'));
+        $this->assertStringContainsString('scheduleDesktopSidebarExpand();', $script);
+        $this->assertStringContainsString('clearSidebarExpandTimer();', $script);
         $this->assertStringContainsString("element.addEventListener('mouseenter'", $script);
         $this->assertStringContainsString("element.addEventListener('mouseleave'", $script);
         $this->assertStringContainsString("element.addEventListener('focusin'", $script);
@@ -55,8 +63,8 @@ class SidebarAndSearchUiTest extends TestCase
             "/document\\.addEventListener\\(\\s*'pointerdown'/s",
             $script,
         );
-        $this->assertStringContainsString("!target.closest('.vertical-menu, .topbar-brand')", $script);
-        $this->assertStringContainsString('420ms cubic-bezier(0.22, 1, 0.36, 1)', $styles);
+        $this->assertStringContainsString("target?.closest('.vertical-menu, .topbar-brand')", $script);
+        $this->assertStringContainsString('520ms cubic-bezier(0.22, 1, 0.36, 1)', $styles);
         $this->assertStringContainsString('will-change: transform, opacity', $styles);
     }
 
@@ -76,7 +84,8 @@ class SidebarAndSearchUiTest extends TestCase
         $this->assertStringContainsString(".rt-expandable-search[data-search-context='topbar'] .rt-expandable-search__input:focus", $shellStyles);
         $this->assertStringContainsString('.is-expanded:focus-within', $shellStyles);
         $this->assertStringContainsString('border-color: transparent !important', $shellStyles);
-        $this->assertStringContainsString('inset 0 -2px 0 rgba(228, 0, 43, 0.52)', $shellStyles);
+        $this->assertStringNotContainsString('inset 0 -2px 0 rgba(228, 0, 43, 0.52)', $shellStyles);
+        $this->assertStringContainsString('border-radius: 999px', $shellStyles);
         $this->assertStringNotContainsString('outline: 2px solid rgba(228, 0, 43, 0.38)', $shellStyles);
         $this->assertStringContainsString('<livewire:tools.global-search />', $topbar);
         $this->assertStringContainsString('<div class="relative" data-topbar-profile>', $topbar);

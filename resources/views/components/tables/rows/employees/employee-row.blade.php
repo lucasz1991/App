@@ -25,9 +25,17 @@
         {{-- WICHTIG: min-w-0 damit truncate greift --}}
         <div class="flex flex-col min-w-0">
             <div class="flex items-center gap-1.5 min-w-0">
-                <div class="px-1 font-semibold truncate">
-                    {{ $name }}
-                </div>
+                <button
+                    type="button"
+                    wire:click="$dispatch('person-preview:open', { userId: {{ $item->id }} })"
+                    class="group min-w-0 truncate rounded-md px-1 text-left font-semibold outline-none transition-colors hover:text-rt-red focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:hover:text-rt-dark-accent"
+                    aria-label="{{ __('app.open_person_preview') }}: {{ $name }}"
+                    title="{{ __('app.open_person_preview') }}"
+                    data-table-row-ignore
+                >
+                    <span class="truncate">{{ $name }}</span>
+                    <i class="far fa-address-card ml-1 text-[10px] text-rt-soft opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 dark:text-rt-dark-soft" aria-hidden="true"></i>
+                </button>
                 @if ($item->isOnline())
                     <span class="h-2 w-2 shrink-0 rounded-full bg-green-400 dark:bg-green-500" title="{{ __('app.online') }}"></span>
                 @else

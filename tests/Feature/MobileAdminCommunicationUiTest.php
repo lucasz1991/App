@@ -119,7 +119,7 @@ class MobileAdminCommunicationUiTest extends TestCase
         $this->assertStringContainsString('rt-chat-message--own', $view);
         $this->assertStringContainsString('rt-chat-message--other', $view);
         $this->assertStringContainsString('.rt-chat-read-indicator.is-read', $styles);
-        $this->assertStringContainsString('wire:poll.2s="pollTick"', $view);
+        $this->assertStringContainsString('wire:poll.visible.2s="pollTick"', $view);
         $this->assertStringContainsString('const browserHost = window.location.hostname', $script);
         $this->assertStringContainsString('loopbackHosts.has(configuredHost)', $script);
         $this->assertStringContainsString('wsHost: reverbHost', $script);

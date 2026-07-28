@@ -31,8 +31,8 @@ class InfoModalTest extends TestCase
         $this->assertStringContainsString('rt-info:open', $html);
         $this->assertStringContainsString('Hilfe Titel', $html);
         $this->assertStringContainsString('Punkt A', $html);
-        $this->assertStringContainsString('Verwaltung', $html);
-        $this->assertStringContainsString('Konten und Zugriffe im Blick behalten.', $html);
+        $this->assertStringNotContainsString('Verwaltung', $html);
+        $this->assertStringNotContainsString('Konten und Zugriffe im Blick behalten.', $html);
     }
 
     public function test_global_modal_can_actually_be_hidden_despite_important_display_utilities(): void

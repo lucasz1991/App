@@ -3020,17 +3020,17 @@ body[data-mode='dark'] .rt-nav-overlay {
     width: 2.25rem;
     min-width: 2.25rem;
     height: 2.25rem;
-    border-radius: 0.5rem;
+    border-radius: 999px;
 }
 
 .rt-expandable-search[data-search-context='topbar'] .rt-expandable-search__trigger {
     width: 2.25rem;
-    border-radius: 0.5rem;
+    border-radius: 999px;
 }
 
 .rt-expandable-search[data-search-context='topbar'] .rt-expandable-search__input {
     height: 2.25rem;
-    border-radius: 0.5rem;
+    border-radius: 999px;
     padding-left: 2.25rem;
 }
 
@@ -3200,7 +3200,7 @@ body[data-mode='dark'] .rt-expandable-search__clear:hover {
     --webreach-sidebar-icon-size: 1rem;
     --webreach-sidebar-collapsed-padding: calc((var(--webreach-sidebar-collapsed-width) - var(--webreach-sidebar-icon-size)) / 2);
     --webreach-sidebar-expanded-padding: 1.5rem;
-    --webreach-sidebar-transition: 420ms cubic-bezier(0.22, 1, 0.36, 1);
+    --webreach-sidebar-transition: 520ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .rt-mobile-sidebar-backdrop {
@@ -3414,6 +3414,19 @@ body[data-mode='dark'] .rt-expandable-search__clear:hover {
         white-space: nowrap;
     }
 
+    body[data-sidebar-collapsible="true"] .vertical-menu .sidebar-nav-link__chevron {
+        max-width: 0;
+        margin-left: 0;
+        opacity: 0;
+        overflow: hidden;
+        transform: translateX(-6px);
+        transition:
+            max-width var(--webreach-sidebar-transition),
+            margin-left var(--webreach-sidebar-transition),
+            opacity 180ms ease,
+            transform var(--webreach-sidebar-transition);
+    }
+
     body[data-sidebar-collapsible="true"][data-sidebar-expanded="true"] .vertical-menu,
     body[data-sidebar-collapsible="true"][data-sidebar-expanded="true"] .topbar-brand .navbar-brand {
         width: var(--webreach-sidebar-expanded-width) !important;
@@ -3450,6 +3463,17 @@ body[data-mode='dark'] .rt-expandable-search__clear:hover {
         margin-left: 0.75rem;
         opacity: 1;
         transform: translateX(0);
+    }
+
+    body[data-sidebar-collapsible="true"][data-sidebar-expanded="true"] .vertical-menu .sidebar-nav-link__chevron {
+        max-width: 1rem;
+        margin-left: auto;
+        opacity: 1;
+        transform: translateX(0);
+    }
+
+    body[data-sidebar-collapsible="true"][data-sidebar-expanded="true"] .vertical-menu [data-rt-sidebar-group][aria-expanded="true"] .sidebar-nav-link__chevron {
+        transform: rotate(180deg);
     }
 
     body[data-sidebar-collapsible="true"] .vertical-menu .sidebar-nav-link__icon,

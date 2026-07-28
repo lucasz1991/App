@@ -90,8 +90,13 @@
                         {{ __('app.edit') }}
                     </x-dropdown-link>
                     <x-dropdown-link
-                        wire:click.prevent="deleteFile({{ $file->id }})"
-                        wire:confirm="{{ __('app.delete_file_confirm') }}"
+                        x-on:click.prevent='$dispatch("rt-confirm", {
+                            title: @js(__("app.delete")),
+                            message: @js(__("app.delete_file_confirm")),
+                            variant: "destructive",
+                            confirmLabel: @js(__("app.delete")),
+                            action: () => $wire.deleteFile({{ $file->id }})
+                        })'
                         tone="danger"
                     >
                         <i class="far fa-trash-alt mr-2 w-4 text-center" aria-hidden="true"></i>
