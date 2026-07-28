@@ -144,9 +144,11 @@
                     enabled: true,
                     // Ein kurzer Wisch soll den sichtbaren Nachbarbereich
                     // bewegen und nicht durch die komplette Navigation fliegen.
-                    // Die Auswahl folgt trotzdem schon waehrend der Geste dem
-                    // jeweils naechsten Swiper-Index.
-                    momentum: false,
+                    // Ein kleines Momentum ist noetig, damit Swiper den aktiven
+                    // Index bereits waehrend der Geste fortschreibt.
+                    momentum: true,
+                    momentumRatio: 0.18,
+                    momentumVelocityRatio: 0.35,
                     sticky: true,
                 },
                 threshold: 5,
