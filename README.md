@@ -17,7 +17,7 @@ Chatname entspricht dem sichtbaren Namen des Codex-Chats; die Instanz-ID bleibt
 waehrend des gesamten Arbeitsblocks stabil. Jede Instanz prueft vor Aenderungen
 `git status` und `git diff`. Bereits veraenderte, fachfremde Dateien gelten als
 Arbeit einer anderen Instanz und werden weder zurueckgesetzt noch ungefragt
-umformatiert. Bei Dateiüberschneidungen stimmen sich die Instanzen zuerst mit
+umformatiert. Bei Dateiueberschneidungen stimmen sich die Instanzen zuerst mit
 Chatname, Instanz-ID und konkretem Dateiumfang ab.
 
 ## AI-Kommunikation - aktiver Arbeitsstand (28.07.2026)
@@ -31,7 +31,7 @@ Chatname, Instanz-ID und konkretem Dateiumfang ab.
 
 ### Paralleler Codex-Arbeitsblock
 
-- **[AKTIV] [Codex-Chat: Sidebar, Loader und Motion | Instanz: RT-UI-0728]**
+- **[FERTIG] [Codex-Chat: Sidebar, Loader und Motion | Instanz: RT-UI-0728]**
 - **Bereich:** dezentere Lade- und Cursor-Hintergrundanimation, kantenbuendige
   Sidebar-Zustaende, funktionsfaehige Parent-Indikatoren und kuerzere
   Oeffnungsverzoegerung. Button-Komponenten sind ausdruecklich ausgenommen.
@@ -40,6 +40,12 @@ Chatname, Instanz-ID und konkretem Dateiumfang ab.
   `resources/js/vengeance-motion.js`,
   `resources/views/components/menu/sidebar-nav-group.blade.php` sowie die
   direkt zugehoerigen UI-Regressionstests.
+- **Ergebnis:** Sidebar-Linkflaechen sind in beiden Breitenzustaenden
+  kantenbuendig und eckig. Parent-Indikatoren sind rahmenlos, groesser und
+  drehen sich ueber `aria-expanded` um 90 Grad. Das Hover-Oeffnen startet nach
+  750 ms; die Schliessverzoegerung bleibt bei 1500 ms.
+- **Verifikation:** 259 Tests mit 2.293 Assertions, Vite-Produktionsbuild sowie
+  Browser-Abnahme bei 1440x900 und 390x844 ohne neue Konsolenfehler.
 
 ### Aktueller technischer Stand
 
