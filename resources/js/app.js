@@ -868,6 +868,8 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
     stableViewportHeight: 0,
     stableViewportWidth: 0,
     keyboardOpen: false,
+    visualViewportHeight: Math.max(0, window.visualViewport?.height ?? window.innerHeight),
+    visualViewportTop: Math.max(0, window.visualViewport?.offsetTop ?? 0),
 
     init() {
         this.viewportHandler = () => this.queueVisualViewportSync();
@@ -876,6 +878,8 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
         const visualViewport = window.visualViewport;
         const viewportHeight = Math.max(0, visualViewport?.height ?? window.innerHeight);
         const viewportWidth = Math.max(0, visualViewport?.width ?? window.innerWidth);
+        this.visualViewportHeight = viewportHeight;
+        this.visualViewportTop = Math.max(0, visualViewport?.offsetTop ?? 0);
 
         this.stableViewportHeight = Math.max(
             viewportHeight,
@@ -953,6 +957,8 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
             const nextKeyboardOpen = (editableFocused || this.keyboardOpen)
                 && keyboardDelta > keyboardThreshold;
 
+            this.visualViewportHeight = viewportHeight;
+            this.visualViewportTop = viewportTop;
             this.$root.style.setProperty('--rt-chat-visual-height', `${Math.round(viewportHeight)}px`);
             this.$root.style.setProperty('--rt-chat-visual-top', `${Math.round(viewportTop)}px`);
 

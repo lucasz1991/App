@@ -7,6 +7,7 @@
     data-keyboard-open="false"
     x-bind:data-mobile-pane="mobilePane"
     x-bind:data-keyboard-open="keyboardOpen ? 'true' : 'false'"
+    x-bind:style="`--rt-chat-visual-height: ${Math.round(visualViewportHeight)}px; --rt-chat-visual-top: ${Math.round(visualViewportTop)}px;`"
     x-on:chat:pane-open.window="showChat()"
     x-on:chat:pane-list.window="showList()"
     x-on:touchstart.passive="touchStart($event)"
