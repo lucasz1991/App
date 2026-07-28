@@ -30,8 +30,19 @@
   };
   $matchesTriggerWidth = (bool) $matchTriggerWidth || $widthClass === 'w-full';
   // A teleported fixed panel cannot use Tailwind's viewport-relative w-full.
-  // Its exact width is assigned from the trigger inside positionPanel().
+  // Its exact width is assigned from the trigger after Alpine anchored it.
   $panelWidthClass = $matchesTriggerWidth ? 'w-auto' : $widthClass;
+  $anchorPlacement = match((string) $align) {
+    'left' => 'bottom-start',
+    'top' => 'top-end',
+    default => 'bottom-end',
+  };
+  $anchorOffset = max(0, (int) $offset);
+  $anchorDirective = 'x-anchor.' . $anchorPlacement . '.offset.' . $anchorOffset . '.fixed';
+  $anchorCaretX = str_ends_with($anchorPlacement, '-start')
+    ? '1.25rem'
+    : 'calc(100% - 1.25rem)';
+  $anchorConnectorSize = max(6, $anchorOffset + 2);
 @endphp
 
 <div
@@ -39,37 +50,19 @@
   x-data="{
     open: false,
     placement: 'bottom',
-    positionFrame: null,
-    resizeHandler: null,
-    scrollHandler: null,
-    align: @js((string) $align),
-    offset: @js(max(0, (int) $offset)),
-    gutter: 12,
+    offset: @js($anchorOffset),
     scrollOnOpen: @js((bool) $scrollOnOpen),
     scrollOnTrigger: @js((bool) $scrollOnTrigger),
     headerOffset: @js((int) $headerOffset),
     matchTriggerWidth: @js($matchesTriggerWidth),
 
     init() {
-      this.resizeHandler = () => this.schedulePosition();
-      this.scrollHandler = () => this.schedulePosition();
-
-      window.addEventListener('resize', this.resizeHandler, { passive: true });
-      document.addEventListener('scroll', this.scrollHandler, true);
-
-      if (window.visualViewport) {
-        window.visualViewport.addEventListener('resize', this.resizeHandler, { passive: true });
-        window.visualViewport.addEventListener('scroll', this.scrollHandler, { passive: true });
-      }
-
       this.$watch('open', (isOpen) => {
         this.syncTriggerAccessibility();
 
         if (!isOpen) return;
 
         this.$nextTick(() => {
-          this.positionPanel();
-
           if (this.$refs.panelScroll) {
             this.$refs.panelScroll.scrollTo({ top: 0, behavior: 'auto' });
           }
@@ -77,24 +70,10 @@
           if (this.scrollOnOpen) {
             this.scrollOnTrigger ? this.scrollToTrigger() : this.scrollPanelCentered();
           }
-
-          this.schedulePosition();
         });
       });
 
       this.$nextTick(() => this.syncTriggerAccessibility());
-    },
-
-    destroy() {
-      window.removeEventListener('resize', this.resizeHandler);
-      document.removeEventListener('scroll', this.scrollHandler, true);
-
-      if (window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', this.resizeHandler);
-        window.visualViewport.removeEventListener('scroll', this.scrollHandler);
-      }
-
-      window.cancelAnimationFrame(this.positionFrame || 0);
     },
 
     clamp(value, minimum, maximum) {
@@ -113,80 +92,33 @@
       this.open = false;
     },
 
-    schedulePosition() {
-      if (!this.open) return;
-
-      window.cancelAnimationFrame(this.positionFrame || 0);
-      this.positionFrame = window.requestAnimationFrame(() => this.positionPanel());
-    },
-
-    positionPanel() {
+    syncAnchoredPanel(panel, anchorX, anchorY) {
       const trigger = this.$refs.trigger;
-      const panel = this.$refs.panel;
-      const panelScroll = this.$refs.panelScroll;
-
       if (!this.open || !trigger || !panel) return;
 
       const visualViewport = window.visualViewport;
       const viewportWidth = visualViewport ? visualViewport.width : (document.documentElement.clientWidth || window.innerWidth);
-      const viewportHeight = visualViewport ? visualViewport.height : (document.documentElement.clientHeight || window.innerHeight);
-      const viewportLeft = visualViewport ? visualViewport.offsetLeft : 0;
-      const viewportTop = visualViewport ? visualViewport.offsetTop : 0;
-      const viewportRight = viewportLeft + viewportWidth;
-      const viewportBottom = viewportTop + viewportHeight;
-      const maximumViewportWidth = Math.max(0, viewportWidth - (this.gutter * 2));
-      const maximumViewportHeight = Math.max(0, viewportHeight - (this.gutter * 2));
+      const maximumViewportWidth = Math.max(0, viewportWidth - 24);
       const triggerRect = trigger.getBoundingClientRect();
 
-      panel.style.maxWidth = `${maximumViewportWidth}px`;
-      panel.style.maxHeight = `${maximumViewportHeight}px`;
-      panel.style.width = this.matchTriggerWidth
-        ? `${Math.min(triggerRect.width, maximumViewportWidth)}px`
-        : '';
-
-      if (panelScroll) {
-        panelScroll.style.maxHeight = '';
+      if (this.matchTriggerWidth) {
+        const triggerWidth = `${Math.min(triggerRect.width, maximumViewportWidth)}px`;
+        if (panel.style.width !== triggerWidth) {
+          panel.style.width = triggerWidth;
+        }
       }
 
       const panelRect = panel.getBoundingClientRect();
       const panelWidth = Math.min(panelRect.width, maximumViewportWidth);
-      const preferredLeft = this.align === 'left' ? triggerRect.left : triggerRect.right - panelWidth;
-      const left = this.clamp(
-        preferredLeft,
-        viewportLeft + this.gutter,
-        viewportRight - this.gutter - panelWidth,
-      );
-      const spaceBelow = Math.max(0, viewportBottom - this.gutter - triggerRect.bottom - this.offset);
-      const spaceAbove = Math.max(0, triggerRect.top - viewportTop - this.gutter - this.offset);
-
-      this.placement = this.align === 'top'
-        ? ((panelRect.height <= spaceAbove || spaceAbove >= spaceBelow) ? 'top' : 'bottom')
-        : ((panelRect.height <= spaceBelow || spaceBelow >= spaceAbove) ? 'bottom' : 'top');
-
-      const availableHeight = this.placement === 'bottom' ? spaceBelow : spaceAbove;
-      const maxHeight = Math.min(maximumViewportHeight, availableHeight);
-      const panelHeight = Math.min(panelRect.height, maxHeight);
-      const preferredTop = this.placement === 'bottom'
-        ? triggerRect.bottom + this.offset
-        : triggerRect.top - this.offset - panelHeight;
-      const top = this.clamp(
-        preferredTop,
-        viewportTop + this.gutter,
-        viewportBottom - this.gutter - panelHeight,
-      );
+      const anchoredLeft = Number.isFinite(Number(anchorX)) ? Number(anchorX) : panelRect.left;
+      const anchoredTop = Number.isFinite(Number(anchorY)) ? Number(anchorY) : panelRect.top;
       const triggerCenter = triggerRect.left + (triggerRect.width / 2);
       const caretInset = Math.min(22, Math.max(8, panelWidth / 2));
-      const caretX = this.clamp(triggerCenter - left, caretInset, panelWidth - caretInset);
+      const caretX = this.clamp(triggerCenter - anchoredLeft, caretInset, panelWidth - caretInset);
 
-      panel.style.left = `${Math.round(left)}px`;
-      panel.style.top = `${Math.round(top)}px`;
-      panel.style.maxHeight = `${Math.floor(maxHeight)}px`;
+      this.placement = anchoredTop + panelRect.height <= triggerRect.top + 1 ? 'top' : 'bottom';
       panel.style.setProperty('--rt-dropdown-caret-x', `${Math.round(caretX)}px`);
       panel.style.setProperty('--rt-dropdown-connector-size', `${Math.max(6, this.offset + 2)}px`);
-
-      if (panelScroll) {
-        panelScroll.style.maxHeight = `${Math.floor(maxHeight)}px`;
-      }
     },
 
     syncTriggerAccessibility() {
@@ -239,6 +171,14 @@
   <template x-teleport="body">
     <div
       x-show="open"
+      {!! $anchorDirective !!}="$refs.trigger"
+      x-effect="
+        if (open) {
+          const anchorX = $anchor.x;
+          const anchorY = $anchor.y;
+          syncAnchoredPanel($el, anchorX, anchorY);
+        }
+      "
       x-transition:enter="transition duration-200 ease-out"
       x-transition:enter-start="translate-y-1.5 scale-[0.985] opacity-0"
       x-transition:enter-end="translate-y-0 scale-100 opacity-100"
@@ -247,7 +187,7 @@
       x-transition:leave-end="translate-y-1 scale-[0.99] opacity-0"
       x-bind:data-placement="placement"
       class="rt-viewport-dropdown fixed z-[180] {{ $panelWidthClass }} rounded-xl shadow-rt-md {{ $dropdownClasses }}"
-      style="display:none; left:12px; top:12px; margin:0; max-width:calc(100vw - 24px); max-height:calc(100dvh - 24px);"
+      style="display:none; margin:0; max-width:calc(100vw - 24px); max-height:calc(100dvh - 24px); --rt-dropdown-caret-x:{{ $anchorCaretX }}; --rt-dropdown-connector-size:{{ $anchorConnectorSize }}px;"
       data-rt-dropdown-panel
       @click.outside="if (!$refs.trigger.contains($event.target)) close()"
       @if($trap) x-trap.inert.noscroll="open" @endif

@@ -560,13 +560,15 @@ class ChatBox extends Component
         $this->dispatch('inbox:refresh');
     }
 
-    public function requestDeleteChat(): void
+    public function requestDeleteChat(?int $chatId = null): void
     {
-        if (! $this->selectedChatId) {
+        $targetChatId = $chatId ?? $this->selectedChatId;
+
+        if (! $targetChatId) {
             return;
         }
 
-        $chat = $this->myChat($this->selectedChatId);
+        $chat = $this->myChat($targetChatId);
         $this->pendingDeleteChatId = $chat->id;
         $this->showDeleteChatModal = true;
     }
@@ -613,9 +615,15 @@ class ChatBox extends Component
             ]);
         }
 
+        $deletedChatWasSelected = (int) $this->selectedChatId === (int) $chat->id;
+
         $this->showDeleteChatModal = false;
         $this->pendingDeleteChatId = null;
-        $this->resetSelectedChat();
+
+        if ($deletedChatWasSelected) {
+            $this->resetSelectedChat();
+        }
+
         $this->dispatch('swal:toast', type: 'success', text: __($toastKey === 'chat_deleted' ? 'app.chat_deleted' : 'app.'.$toastKey));
         $this->dispatch('inbox:refresh');
     }
@@ -753,6 +761,9 @@ class ChatBox extends Component
         }
 
         $selectedChat = null;
+        $pendingDeleteChat = $this->pendingDeleteChatId
+            ? $me->chats()->with('participants')->find($this->pendingDeleteChatId)
+            : null;
         $messages = collect();
 
         if ($this->selectedChatId) {
@@ -799,6 +810,7 @@ class ChatBox extends Component
         return view('livewire.chat-box', [
             'chats' => $chats,
             'selectedChat' => $selectedChat,
+            'pendingDeleteChat' => $pendingDeleteChat,
             'messages' => $messages,
             'contacts' => $contacts,
             'groupCandidates' => $groupCandidates,

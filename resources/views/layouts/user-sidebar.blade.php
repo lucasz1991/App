@@ -1,5 +1,5 @@
 <div class="metismenu pb-10 pt-2.5" id="sidebar-menu">
-    <ul id="side-menu">
+    <ul id="side-menu" x-data="rtSidebarNavigation">
         <x-menu.sidebar-nav :label="__('app.overview')">
             <x-menu.sidebar-nav-link
                 :href="route('dashboard')"

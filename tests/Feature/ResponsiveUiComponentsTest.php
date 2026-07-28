@@ -19,22 +19,29 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertStringContainsString('x-data="{', $html);
         $this->assertStringNotContainsString('viewportDropdown(', $html);
         $this->assertStringContainsString('x-teleport="body"', $html);
+        $this->assertStringContainsString('x-anchor.bottom-start.offset.8.fixed="$refs.trigger"', $html);
         $this->assertStringContainsString('data-rt-dropdown-panel', $html);
         $this->assertStringContainsString('data-rt-dropdown-caret', $html);
-        $this->assertStringContainsString('gutter: 12', $html);
+        $this->assertStringNotContainsString('left:12px; top:12px', $html);
         $this->assertStringContainsString('w-96', $html);
         $this->assertStringContainsString('role="menu"', $html);
     }
 
-    public function test_dropdown_positioner_clamps_all_edges_and_tracks_the_trigger_with_a_caret(): void
+    public function test_dropdown_uses_alpine_anchor_for_livewire_safe_fixed_positioning_and_tracks_the_trigger_with_a_caret(): void
     {
         $component = file_get_contents(resource_path('views/components/ui/dropdown/anchor-dropdown.blade.php'));
         $styles = file_get_contents(resource_path('css/app.css'));
         $shellStyles = file_get_contents(resource_path('css/shell-redesign.css'));
 
-        $this->assertStringContainsString('positionPanel()', $component);
-        $this->assertStringContainsString("this.placement === 'bottom'", $component);
-        $this->assertStringContainsString('viewportRight - this.gutter - panelWidth', $component);
+        $this->assertStringContainsString("'x-anchor.' . \$anchorPlacement . '.offset.' . \$anchorOffset . '.fixed'", $component);
+        $this->assertStringContainsString('$anchor.x', $component);
+        $this->assertStringContainsString('$anchor.y', $component);
+        $this->assertStringContainsString('syncAnchoredPanel($el, anchorX, anchorY)', $component);
+        $this->assertStringNotContainsString('positionPanel()', $component);
+        $this->assertStringNotContainsString("document.addEventListener('scroll'", $component);
+        $this->assertStringNotContainsString('left:12px; top:12px', $component);
+        $this->assertStringContainsString('--rt-dropdown-caret-x:{{ $anchorCaretX }}', $component);
+        $this->assertStringContainsString('--rt-dropdown-connector-size:{{ $anchorConnectorSize }}px', $component);
         $this->assertStringContainsString('--rt-dropdown-caret-x', $component);
         $this->assertStringContainsString('--rt-dropdown-connector-size', $component);
         $this->assertStringContainsString('Math.max(6, this.offset + 2)', $component);
@@ -44,6 +51,25 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertStringContainsString('.rt-viewport-dropdown .rt-ui-dropdown-caret::after', $shellStyles);
         $this->assertStringContainsString(".rt-viewport-dropdown[data-placement='bottom'] .rt-ui-dropdown-caret", $shellStyles);
         $this->assertStringContainsString(".rt-viewport-dropdown[data-placement='top'] .rt-ui-dropdown-caret", $shellStyles);
+    }
+
+    public function test_chat_overview_exposes_vertical_context_actions_on_hover_and_mobile(): void
+    {
+        $list = file_get_contents(resource_path('views/livewire/chat/partials/chat-list.blade.php'));
+        $trigger = file_get_contents(resource_path('views/components/ui/dropdown/action-trigger.blade.php'));
+        $styles = file_get_contents(resource_path('css/chat-redesign.css'));
+
+        $this->assertStringContainsString('rt-chat-list-entry group relative', $list);
+        $this->assertStringContainsString('rt-chat-list-options absolute right-1.5', $list);
+        $this->assertStringContainsString('orientation="vertical"', $list);
+        $this->assertStringContainsString("__('app.chat_options') . ': ' . \$chat->displayNameFor(\$me)", $list);
+        $this->assertStringContainsString('wire:click="requestDeleteChat({{ $chat->id }})"', $list);
+        $this->assertStringContainsString("route('chat.export', ['chat' => \$chat])", $list);
+        $this->assertStringContainsString("'fa-ellipsis-v' : 'fa-ellipsis-h'", $trigger);
+        $this->assertStringContainsString('x-bind:aria-expanded="open.toString()"', $trigger);
+        $this->assertStringContainsString('@media (min-width: 768px) and (hover: hover) and (pointer: fine)', $styles);
+        $this->assertStringContainsString('.rt-chat-list-entry:hover .rt-chat-list-options', $styles);
+        $this->assertStringContainsString('.rt-chat-list-entry:focus-within .rt-chat-list-options', $styles);
     }
 
     public function test_topbar_preferences_are_grouped_in_one_shared_anchor_dropdown(): void

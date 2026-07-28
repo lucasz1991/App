@@ -28,10 +28,14 @@
 </x-confirmation-modal>
 
 <x-confirmation-modal id="rt-delete-chat-modal" wire:model="showDeleteChatModal" maxWidth="sm">
+    @php
+        $deleteTargetChat = $pendingDeleteChat ?? $selectedChat;
+    @endphp
+
     <x-slot name="title">
-        @if ($selectedChat?->isGroup() && ! $selectedChat->canManageGroup($me))
+        @if ($deleteTargetChat?->isGroup() && ! $deleteTargetChat->canManageGroup($me))
             {{ __('app.leave_group') }}
-        @elseif ($selectedChat?->isGroup())
+        @elseif ($deleteTargetChat?->isGroup())
             {{ __('app.delete_group') }}
         @else
             {{ __('app.delete_chat') }}
@@ -39,9 +43,9 @@
     </x-slot>
 
     <x-slot name="content">
-        @if ($selectedChat?->isGroup() && ! $selectedChat->canManageGroup($me))
+        @if ($deleteTargetChat?->isGroup() && ! $deleteTargetChat->canManageGroup($me))
             {{ __('app.leave_group_hint') }}
-        @elseif ($selectedChat?->isGroup())
+        @elseif ($deleteTargetChat?->isGroup())
             {{ __('app.delete_group_hint') }}
         @else
             {{ __('app.delete_direct_chat_hint') }}
@@ -63,7 +67,7 @@
             wire:loading.attr="disabled"
             wire:target="confirmDeleteChat"
         >
-            @if ($selectedChat?->isGroup() && ! $selectedChat->canManageGroup($me))
+            @if ($deleteTargetChat?->isGroup() && ! $deleteTargetChat->canManageGroup($me))
                 {{ __('app.leave_group') }}
             @else
                 {{ __('app.delete') }}

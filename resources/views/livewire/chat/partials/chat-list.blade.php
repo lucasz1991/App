@@ -66,41 +66,98 @@
                     : '';
             @endphp
 
-            <button
-                type="button"
+            <div
                 wire:key="chat-item-{{ $chat->id }}"
-                wire:click="openChat({{ $chat->id }})"
-                x-on:click="showChat()"
-                data-chat-list-item
-                @if ($isActive) aria-current="page" @endif
-                class="rt-chat-list-item {{ $isActive ? 'is-active' : '' }} group flex w-full items-center gap-3 rounded-2xl px-2.5 py-2.5 text-left sm:px-3"
+                class="rt-chat-list-entry group relative"
             >
-                <x-chat.avatar
-                    :src="$avatarUrl"
-                    :name="$chat->displayNameFor($me)"
-                    :signal="$isActive"
-                />
+                <button
+                    type="button"
+                    wire:click="openChat({{ $chat->id }})"
+                    x-on:click="showChat()"
+                    data-chat-list-item
+                    @if ($isActive) aria-current="page" @endif
+                    class="rt-chat-list-item {{ $isActive ? 'is-active' : '' }} flex w-full items-center gap-3 rounded-2xl py-2.5 pl-2.5 pr-12 text-left sm:pl-3"
+                >
+                    <x-chat.avatar
+                        :src="$avatarUrl"
+                        :name="$chat->displayNameFor($me)"
+                        :signal="$isActive"
+                    />
 
-                <span class="min-w-0 flex-1">
-                    <span class="block truncate text-sm font-bold tracking-[-0.02em] text-rt-text dark:text-rt-dark-text">
-                        {{ $chat->displayNameFor($me) }}
+                    <span class="min-w-0 flex-1">
+                        <span class="block truncate text-sm font-bold tracking-[-0.02em] text-rt-text dark:text-rt-dark-text">
+                            {{ $chat->displayNameFor($me) }}
+                        </span>
+                        <span class="mt-0.5 block truncate text-[11px] leading-4 text-rt-muted dark:text-rt-dark-muted">
+                            @if ($latest)
+                                {{ (int) $latest->user_id === (int) $me->id ? __('app.you') . ': ' : '' }}{{ $latest->isVoice() ? __('app.voice_message') : (filled($latest->body) ? $latest->body : __('app.chat_attachment')) }}
+                            @endif
+                        </span>
                     </span>
-                    <span class="mt-0.5 block truncate text-[11px] leading-4 text-rt-muted dark:text-rt-dark-muted">
-                        @if ($latest)
-                            {{ (int) $latest->user_id === (int) $me->id ? __('app.you') . ': ' : '' }}{{ $latest->isVoice() ? __('app.voice_message') : (filled($latest->body) ? $latest->body : __('app.chat_attachment')) }}
+
+                    <span class="flex shrink-0 flex-col items-end gap-1.5">
+                        <span class="text-[9px] font-semibold tabular-nums text-rt-soft dark:text-rt-dark-soft">{{ $timeLabel }}</span>
+                        @if ($unread > 0)
+                            <span class="rt-chat-unread min-w-5 rounded-full px-1.5 py-1 text-center text-[9px] font-extrabold leading-none text-white">
+                                {{ $unread }}
+                            </span>
                         @endif
                     </span>
-                </span>
+                </button>
 
-                <span class="flex shrink-0 flex-col items-end gap-1.5">
-                    <span class="text-[9px] font-semibold tabular-nums text-rt-soft dark:text-rt-dark-soft">{{ $timeLabel }}</span>
-                    @if ($unread > 0)
-                        <span class="rt-chat-unread min-w-5 rounded-full px-1.5 py-1 text-center text-[9px] font-extrabold leading-none text-white">
-                            {{ $unread }}
-                        </span>
-                    @endif
-                </span>
-            </button>
+                <div class="rt-chat-list-options absolute right-1.5 top-1/2 z-[2] -translate-y-1/2">
+                    <x-ui.dropdown.anchor-dropdown
+                        align="right"
+                        width="56"
+                        :offset="6"
+                    >
+                        <x-slot name="trigger">
+                            <x-ui.dropdown.action-trigger
+                                orientation="vertical"
+                                :aria-label="__('app.chat_options') . ': ' . $chat->displayNameFor($me)"
+                                class="rt-chat-list-options-trigger h-9 w-9 rounded-xl border-0 bg-transparent px-0 shadow-none"
+                                data-no-chat-swipe
+                            />
+                        </x-slot>
+
+                        <x-slot name="content">
+                            <div class="space-y-0.5 p-1.5" aria-label="{{ __('app.chat_options') }}">
+                                <x-ui.dropdown.dropdown-link
+                                    as="a"
+                                    :href="route('chat.export', ['chat' => $chat])"
+                                    data-no-chat-swipe
+                                >
+                                    <span class="rt-chat-option-icon">
+                                        <i class="far fa-file-export" aria-hidden="true"></i>
+                                    </span>
+                                    <span>{{ __('app.export_chat') }}</span>
+                                </x-ui.dropdown.dropdown-link>
+
+                                <div class="rt-chat-option-divider my-1" role="separator"></div>
+
+                                <x-ui.dropdown.dropdown-link
+                                    wire:click="requestDeleteChat({{ $chat->id }})"
+                                    data-rt-tone="danger"
+                                    data-no-chat-swipe
+                                >
+                                    <span class="rt-chat-option-icon">
+                                        <i class="far {{ $chat->isGroup() && ! $chat->canManageGroup($me) ? 'fa-sign-out-alt' : 'fa-trash-alt' }}" aria-hidden="true"></i>
+                                    </span>
+                                    <span>
+                                        @if ($chat->isGroup() && ! $chat->canManageGroup($me))
+                                            {{ __('app.leave_group') }}
+                                        @elseif ($chat->isGroup())
+                                            {{ __('app.delete_group') }}
+                                        @else
+                                            {{ __('app.delete_chat') }}
+                                        @endif
+                                    </span>
+                                </x-ui.dropdown.dropdown-link>
+                            </div>
+                        </x-slot>
+                    </x-ui.dropdown.anchor-dropdown>
+                </div>
+            </div>
         @empty
             <x-chat.empty-state
                 compact

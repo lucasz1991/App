@@ -244,6 +244,38 @@ class ChatManagementTest extends TestCase
             ->assertDontSee('Alter Verlauf');
     }
 
+    public function test_chat_list_action_can_delete_an_unselected_chat_without_closing_the_current_chat(): void
+    {
+        $user = User::factory()->create();
+        $currentPartner = User::factory()->create();
+        $otherPartner = User::factory()->create();
+        $currentChat = $this->directChat($user, $currentPartner);
+        $otherChat = $this->directChat($user, $otherPartner);
+
+        Livewire::actingAs($user)
+            ->test(ChatBox::class)
+            ->call('openChat', $currentChat->id)
+            ->assertSet('selectedChatId', $currentChat->id)
+            ->call('requestDeleteChat', $otherChat->id)
+            ->assertSet('pendingDeleteChatId', $otherChat->id)
+            ->assertSet('showDeleteChatModal', true)
+            ->call('confirmDeleteChat')
+            ->assertSet('pendingDeleteChatId', null)
+            ->assertSet('showDeleteChatModal', false)
+            ->assertSet('selectedChatId', $currentChat->id);
+
+        $this->assertDatabaseHas('chat_user', [
+            'chat_id' => $currentChat->id,
+            'user_id' => $user->id,
+            'hidden_at' => null,
+        ]);
+        $this->assertDatabaseMissing('chat_user', [
+            'chat_id' => $otherChat->id,
+            'user_id' => $user->id,
+            'hidden_at' => null,
+        ]);
+    }
+
     public function test_message_delete_confirmation_uses_modal_state_and_only_deletes_own_message(): void
     {
         $sender = User::factory()->create();

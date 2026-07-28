@@ -1,6 +1,7 @@
 @props([
     'label' => null,
     'ariaLabel' => null,
+    'orientation' => 'horizontal',
 ])
 
 <button
@@ -11,9 +12,13 @@
     ]) }}
     aria-label="{{ $ariaLabel ?: ($label ?: __('app.actions')) }}"
     aria-haspopup="menu"
+    x-bind:aria-expanded="open.toString()"
     data-rt-action-trigger
 >
-    <i class="far fa-ellipsis-h shrink-0 leading-none" aria-hidden="true"></i>
+    <i
+        class="far {{ $orientation === 'vertical' ? 'fa-ellipsis-v' : 'fa-ellipsis-h' }} shrink-0 leading-none"
+        aria-hidden="true"
+    ></i>
     @if (filled($label))
         <span>{{ $label }}</span>
     @endif

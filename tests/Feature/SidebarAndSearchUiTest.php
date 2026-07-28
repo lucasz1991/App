@@ -6,6 +6,40 @@ use Tests\TestCase;
 
 class SidebarAndSearchUiTest extends TestCase
 {
+    public function test_sidebar_submenus_rebind_per_alpine_navigation_generation_and_scroll_locally(): void
+    {
+        $script = file_get_contents(resource_path('js/app.js'));
+        $scrollHelper = file_get_contents(resource_path('js/sidebar-scroll.js'));
+
+        foreach (['admin-sidebar.blade.php', 'user-sidebar.blade.php'] as $sidebarView) {
+            $sidebar = file_get_contents(resource_path('views/layouts/'.$sidebarView));
+
+            $this->assertStringContainsString(
+                '<ul id="side-menu" x-data="rtSidebarNavigation">',
+                $sidebar,
+                $sidebarView,
+            );
+        }
+
+        $this->assertStringContainsString("Alpine.data('rtSidebarNavigation', sidebarNavigation);", $script);
+        $this->assertStringContainsString('initMetisMenu(this.$root)', $script);
+        $this->assertStringContainsString("this.\$root.addEventListener('shown.metisMenu'", $script);
+        $this->assertStringContainsString('this.metisMenu.dispose();', $script);
+        $this->assertStringContainsString('window.__rtSidebarGlobalInteractionsBound', $script);
+        $this->assertStringContainsString(
+            "document.addEventListener('livewire:navigated', queueAdminLayoutInit);",
+            $script,
+        );
+        $this->assertStringNotContainsString("document.addEventListener('livewire:load'", $script);
+
+        $this->assertStringContainsString("sidebar?.querySelector('.simplebar-content-wrapper')", $script);
+        $this->assertStringContainsString("window.matchMedia?.('(prefers-reduced-motion: reduce)')", $script);
+        $this->assertStringContainsString('scroller.scrollTo({ top, behavior });', $script);
+        $this->assertStringNotContainsString('scrollIntoView(', $script);
+        $this->assertStringNotContainsString('window.scrollTo(', $script);
+        $this->assertStringContainsString("return prefersReducedMotion ? 'auto' : 'smooth';", $scrollHelper);
+    }
+
     public function test_desktop_sidebar_uses_two_second_delayed_collapse_and_immediate_content_close(): void
     {
         $script = file_get_contents(resource_path('js/app.js'));

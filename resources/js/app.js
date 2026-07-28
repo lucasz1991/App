@@ -25,6 +25,7 @@ import { numberInput } from './number-input';
 import { registerRailtimePushSettings, setupRailtimePwa } from './pwa';
 import { createNotificationSeenCache } from './notification-seen-cache';
 import { incomingNotificationSound } from './realtime-notification-sound';
+import { sidebarScrollBehavior, sidebarScrollTarget } from './sidebar-scroll';
 
 const loadAdminDashboardECharts = () => import('./admin-dashboard-echarts');
 const rtSeenNotifications = createNotificationSeenCache(window);
@@ -328,6 +329,7 @@ setupRailtimePwa();
 
 Alpine.data('wagonListPrototype', wagonListPrototype);
 Alpine.data('rtNumberInput', numberInput);
+Alpine.data('rtSidebarNavigation', sidebarNavigation);
 
 Alpine.data('chatRealtime', (config) => ({
     channel: null,
@@ -1231,23 +1233,109 @@ let sidebarCollapseTimer = null;
 let sidebarSwipeStart = null;
 const DESKTOP_SIDEBAR_COLLAPSE_DELAY = 2000;
 
-function initMetisMenu() {
-    if (!window.MetisMenu) {
-        return;
+function initMetisMenu(sideMenu) {
+    if (!window.MetisMenu || !sideMenu) {
+        return null;
     }
 
-    const sideMenu = document.getElementById('side-menu');
-    if (!sideMenu) {
-        return;
-    }
+    // MetisMenu animiert andernfalls den bereits serverseitig offenen Pfad
+    // waehrend seiner Initialisierung. Bei einem schnellen body swap kann
+    // dieser Zustand als "transitioning" haengen bleiben und weitere Klicks
+    // blockieren. Erst neutral initialisieren, dann den aktiven Pfad setzen.
+    sideMenu.querySelectorAll('li.mm-active').forEach((item) => item.classList.remove('mm-active'));
+    sideMenu.querySelectorAll('ul').forEach((submenu) => {
+        submenu.classList.remove('mm-show', 'mm-collapsing');
+        submenu.classList.add('mm-collapse');
+        submenu.style.removeProperty('height');
+    });
 
-    if (window.__webreachMetisMenu && typeof window.__webreachMetisMenu.dispose === 'function') {
-        window.__webreachMetisMenu.dispose();
-    }
-
-    window.__webreachMetisMenu = new window.MetisMenu('#side-menu', {
+    const metisMenu = new window.MetisMenu(sideMenu, {
         toggle: true,
     });
+
+    initActiveMenu(sideMenu);
+
+    return metisMenu;
+}
+
+function sidebarNavigation() {
+    return {
+        metisMenu: null,
+        shownHandler: null,
+        bootFrame: null,
+
+        init() {
+            this.$nextTick(() => {
+                if (!this.$root.isConnected) {
+                    return;
+                }
+
+                // Der Server liefert den aktiven Pfad bereits mit. Vor der
+                // Plugin-Initialisierung normalisieren, damit MetisMenu nicht
+                // direkt danach durch eine zweite Zustandsrunde blockiert wird.
+                initActiveMenu(this.$root);
+                this.metisMenu = initMetisMenu(this.$root);
+
+                if (!this.metisMenu) {
+                    // Klassische Vendor-Skripte koennen nach einem
+                    // wire:navigate-Bodytausch einen Frame spaeter bereit sein.
+                    this.bootFrame = window.requestAnimationFrame(() => {
+                        this.bootFrame = null;
+
+                        if (this.$root.isConnected) {
+                            this.metisMenu = initMetisMenu(this.$root);
+                            this.bindShownHandler();
+                        }
+                    });
+                } else {
+                    this.bindShownHandler();
+                }
+
+                initMenuItemScroll(this.$root);
+            });
+        },
+
+        bindShownHandler() {
+            if (!this.metisMenu || this.shownHandler) {
+                return;
+            }
+
+            this.shownHandler = (event) => {
+                const openedSubmenu = event.detail?.shownElement;
+
+                window.requestAnimationFrame(() => {
+                    if (openedSubmenu?.isConnected) {
+                        scrollSidebarBlockIntoView(openedSubmenu);
+                    }
+                });
+            };
+
+            this.$root.addEventListener('shown.metisMenu', this.shownHandler);
+            window.__webreachMetisMenu = this.metisMenu;
+        },
+
+        destroy() {
+            if (this.bootFrame !== null) {
+                window.cancelAnimationFrame(this.bootFrame);
+                this.bootFrame = null;
+            }
+
+            if (this.shownHandler) {
+                this.$root.removeEventListener('shown.metisMenu', this.shownHandler);
+                this.shownHandler = null;
+            }
+
+            if (this.metisMenu && typeof this.metisMenu.dispose === 'function') {
+                this.metisMenu.dispose();
+            }
+
+            if (window.__webreachMetisMenu === this.metisMenu) {
+                window.__webreachMetisMenu = null;
+            }
+
+            this.metisMenu = null;
+        },
+    };
 }
 
 function clearSidebarCollapseTimer() {
@@ -1416,17 +1504,22 @@ function initLeftMenuCollapse() {
     });
 }
 
-function initActiveMenu() {
+function initActiveMenu(sideMenu = document.getElementById('side-menu')) {
+    if (!sideMenu) {
+        return;
+    }
+
     const pageUrl = window.location.href.split(/[?#]/)[0];
-    const menuItems = Array.from(document.querySelectorAll('#sidebar-menu a'));
-    const nestedLists = document.querySelectorAll('#sidebar-menu ul');
+    const menuItems = Array.from(sideMenu.querySelectorAll('a'));
+    const nestedLists = sideMenu.querySelectorAll('ul');
 
     menuItems.forEach((item) => item.classList.remove('active'));
-    document.querySelectorAll('#sidebar-menu li.mm-active').forEach((item) => item.classList.remove('mm-active'));
+    sideMenu.querySelectorAll('[data-rt-sidebar-group]').forEach((trigger) => {
+        trigger.setAttribute('aria-expanded', 'false');
+    });
+    sideMenu.querySelectorAll('li.mm-active').forEach((item) => item.classList.remove('mm-active'));
     nestedLists.forEach((list) => {
-        if (list.id !== 'side-menu') {
-            list.classList.remove('mm-show');
-        }
+        list.classList.remove('mm-show');
     });
 
     const exactMatches = menuItems.filter((item) => item.href === pageUrl);
@@ -1448,23 +1541,71 @@ function initActiveMenu() {
             currentLi = parentUl ? parentUl.closest('li') : null;
         }
     });
+
+    sideMenu.querySelectorAll('[data-rt-sidebar-group]').forEach((trigger) => {
+        trigger.setAttribute(
+            'aria-expanded',
+            trigger.closest('li')?.classList.contains('mm-active') ? 'true' : 'false'
+        );
+    });
 }
 
-function initMenuItemScroll() {
-    setTimeout(() => {
-        const sidebarMenu = document.getElementById('side-menu');
-        const activeItem = sidebarMenu?.querySelector('.mm-active .active');
+function scrollSidebarBlockIntoView(element) {
+    const sidebar = element?.closest('.vertical-menu');
+    const scroller = sidebar?.querySelector('.simplebar-content-wrapper');
+    const block = element?.matches('li')
+        ? element
+        : element?.closest('li');
 
-        if (!activeItem || activeItem.offsetTop <= 300) {
+    if (!scroller || !block) {
+        return;
+    }
+
+    const scrollerRect = scroller.getBoundingClientRect();
+    const blockRect = block.getBoundingClientRect();
+    const top = sidebarScrollTarget({
+        scrollTop: scroller.scrollTop,
+        clientHeight: scroller.clientHeight,
+        scrollHeight: scroller.scrollHeight,
+        containerTop: scrollerRect.top,
+        containerBottom: scrollerRect.bottom,
+        blockTop: blockRect.top,
+        blockBottom: blockRect.bottom,
+    });
+
+    if (top === null) {
+        return;
+    }
+
+    const behavior = sidebarScrollBehavior(
+        window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
+    );
+
+    if (typeof scroller.scrollTo === 'function') {
+        scroller.scrollTo({ top, behavior });
+        return;
+    }
+
+    // Alter Browser, gleicher lokaler Scrollcontainer.
+    scroller.scrollTop = top;
+}
+
+function initMenuItemScroll(sideMenu = document.getElementById('side-menu')) {
+    window.setTimeout(() => {
+        if (!sideMenu?.isConnected) {
             return;
         }
 
-        const verticalMenu = document.querySelector('.vertical-menu');
-        const scroller = verticalMenu?.querySelector('.simplebar-content-wrapper');
+        const activeItem = sideMenu.querySelector('.mm-active .active');
 
-        if (scroller) {
-            scroller.scrollTop = activeItem.offsetTop;
+        if (!activeItem) {
+            return;
         }
+
+        const containingSubmenu = activeItem.closest('ul.mm-collapse');
+        const relevantBlock = containingSubmenu?.closest('li') || activeItem.closest('li');
+
+        scrollSidebarBlockIntoView(relevantBlock);
     }, 150);
 }
 
@@ -1475,50 +1616,54 @@ function initFeather() {
 }
 
 function initSidebarInteractions() {
-    if (document.body.dataset.webreachSidebarInteractionsBound !== '1') {
-        document.body.dataset.webreachSidebarInteractionsBound = '1';
+    document.querySelectorAll('.vertical-menu, .topbar-brand').forEach((element) => {
+        if (element.dataset.webreachSidebarHoverBound === '1') {
+            return;
+        }
 
-        document.querySelectorAll('.vertical-menu, .topbar-brand').forEach((element) => {
-            if (element.dataset.webreachSidebarHoverBound === '1') {
+        element.dataset.webreachSidebarHoverBound = '1';
+
+        element.addEventListener('mouseenter', () => {
+            if (!isDesktopHoverSidebar()) {
                 return;
             }
 
-            element.dataset.webreachSidebarHoverBound = '1';
-
-            element.addEventListener('mouseenter', () => {
-                if (!isDesktopHoverSidebar()) {
-                    return;
-                }
-
-                clearSidebarCollapseTimer();
-                setDesktopSidebarExpanded(true);
-            });
-
-            element.addEventListener('mouseleave', () => {
-                if (!isDesktopHoverSidebar()) {
-                    return;
-                }
-
-                scheduleDesktopSidebarCollapse();
-            });
-
-            element.addEventListener('focusin', () => {
-                if (!isDesktopHoverSidebar()) {
-                    return;
-                }
-
-                clearSidebarCollapseTimer();
-                setDesktopSidebarExpanded(true);
-            });
-
-            element.addEventListener('focusout', () => {
-                if (!isDesktopHoverSidebar()) {
-                    return;
-                }
-
-                scheduleDesktopSidebarCollapse();
-            });
+            clearSidebarCollapseTimer();
+            setDesktopSidebarExpanded(true);
         });
+
+        element.addEventListener('mouseleave', () => {
+            if (!isDesktopHoverSidebar()) {
+                return;
+            }
+
+            scheduleDesktopSidebarCollapse();
+        });
+
+        element.addEventListener('focusin', () => {
+            if (!isDesktopHoverSidebar()) {
+                return;
+            }
+
+            clearSidebarCollapseTimer();
+            setDesktopSidebarExpanded(true);
+        });
+
+        element.addEventListener('focusout', () => {
+            if (!isDesktopHoverSidebar()) {
+                return;
+            }
+
+            scheduleDesktopSidebarCollapse();
+        });
+    });
+
+    // document/window ueberleben den body-Tausch von wire:navigate. Der
+    // globale Marker verhindert, dass jeder Seitenwechsel weitere identische
+    // Listener stapelt; die Element-Listener oben werden je DOM-Generation
+    // dagegen bewusst neu gebunden.
+    if (window.__rtSidebarGlobalInteractionsBound !== true) {
+        window.__rtSidebarGlobalInteractionsBound = true;
 
         document.addEventListener(
             'pointerdown',
@@ -1559,15 +1704,33 @@ function initSidebarInteractions() {
 
 function initAdminLayout() {
     syncSidebarInteractionMode();
-    initMetisMenu();
     initLeftMenuCollapse();
     initMobileSidebarSwipe();
     initSidebarInteractions();
-    initActiveMenu();
     initMenuItemScroll();
     initFeather();
 }
 
-document.addEventListener('DOMContentLoaded', initAdminLayout);
-document.addEventListener('livewire:load', initAdminLayout);
-document.addEventListener('livewire:navigated', initAdminLayout);
+let sidebarLayoutFrame = null;
+
+function queueAdminLayoutInit() {
+    if (sidebarLayoutFrame !== null) {
+        window.cancelAnimationFrame(sidebarLayoutFrame);
+    }
+
+    sidebarLayoutFrame = window.requestAnimationFrame(() => {
+        sidebarLayoutFrame = null;
+        initAdminLayout();
+    });
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', queueAdminLayoutInit, { once: true });
+} else {
+    queueAdminLayoutInit();
+}
+
+// Livewire 3 ersetzt bei wire:navigate den gesamten Body samt Sidebar.
+// Alpine zerstoert/initialisiert rtSidebarNavigation je Generation; dieser
+// Frame bindet danach nur noch die globalen Shell-Interaktionen neu.
+document.addEventListener('livewire:navigated', queueAdminLayoutInit);
