@@ -60,14 +60,26 @@
         </x-dropdown>
     </x-slot:actions>
 
-    {{-- Identitaets-Card: klar, horizontal, ohne Cover/ueberlappenden Avatar --}}
-    <div class="rounded-2xl bg-rt-surface p-5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60" data-anim="fade-up">
+    {{-- Identitaets-Card: klar, horizontal, ohne Cover/ueberlappenden Avatar.
+         Die Aurora nimmt die Fluid-Farbwelt des Lade-Orbs dezent auf. --}}
+    <div class="relative overflow-hidden rounded-2xl bg-rt-surface p-5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60" data-anim="fade-up" data-rt-glow>
+        <span class="rt-profile-aurora" aria-hidden="true"></span>
         <div class="flex flex-col gap-5 sm:flex-row sm:items-center">
-            <img
-                src="{{ $user->profile_photo_url }}"
-                alt="{{ $user->name }}"
-                class="h-20 w-20 shrink-0 rounded-2xl object-cover shadow-rt-sm ring-1 ring-rt-border/60 dark:ring-rt-dark-border/60"
-            >
+            <span class="relative shrink-0">
+                <img
+                    src="{{ $user->profile_photo_url }}"
+                    alt="{{ $user->name }}"
+                    class="h-20 w-20 rounded-2xl object-cover shadow-rt-sm ring-1 ring-rt-border/60 dark:ring-rt-dark-border/60"
+                >
+                @if ($isUserOnline)
+                    <span
+                        class="absolute -bottom-1 -right-1 grid h-4 w-4 place-items-center rounded-full bg-rt-surface dark:bg-rt-dark-surface"
+                        title="{{ __('app.online') }}"
+                    >
+                        <span class="h-2.5 w-2.5 rounded-full bg-emerald-500 dark:bg-emerald-400"></span>
+                    </span>
+                @endif
+            </span>
 
             <div class="min-w-0 flex-1">
                 <div class="flex flex-wrap items-center gap-2">
@@ -133,9 +145,9 @@
         {{-- Wichtig: kein display-Utility (grid) direkt auf dem x-show-Panel,
              sonst gewinnt Tailwinds !important gegen Alpines inline display:none. --}}
         <x-ui.accordion.tab-panel for="userDetails" panelClass="space-y-4">
-          <div class="grid gap-4 lg:grid-cols-2">
+          <div class="grid gap-4 lg:grid-cols-2" data-anim-stagger>
             {{-- Persoenliche Daten --}}
-            <section class="rounded-xl bg-rt-surface p-5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+            <section class="rounded-xl bg-rt-surface p-5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60" data-rt-glow>
                 <h3 class="flex items-center gap-2 text-sm font-semibold text-rt-text dark:text-rt-dark-text">
                     <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent">
                         <i class="far fa-user text-sm"></i>
@@ -165,7 +177,7 @@
             </section>
 
             {{-- Kontakt & Anschrift --}}
-            <section class="rounded-xl bg-rt-surface p-5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+            <section class="rounded-xl bg-rt-surface p-5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60" data-rt-glow>
                 <h3 class="flex items-center gap-2 text-sm font-semibold text-rt-text dark:text-rt-dark-text">
                     <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent">
                         <i class="far fa-address-card text-sm"></i>

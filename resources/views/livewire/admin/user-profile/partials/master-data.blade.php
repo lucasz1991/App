@@ -1,8 +1,11 @@
 @php $company = \App\Support\CompanyData::all(); @endphp
-<div class="grid gap-4 lg:grid-cols-2">
-    <section class="rounded-xl bg-rt-surface p-5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+<div class="grid gap-4 lg:grid-cols-2" data-anim-stagger>
+    <section class="rounded-xl bg-rt-surface p-5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60" data-rt-glow>
         <h3 class="flex items-center gap-2 text-sm font-semibold text-rt-text dark:text-rt-dark-text">
-            <i class="far fa-user-circle text-sky-500"></i>{{ __('app.personal_master_data') }}
+            <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent">
+                <i class="far fa-user-circle text-sm"></i>
+            </span>
+            {{ __('app.personal_master_data') }}
         </h3>
         <dl class="mt-4 divide-y divide-rt-border/60 dark:divide-rt-dark-border/60">
             @foreach ([
@@ -22,9 +25,12 @@
         </dl>
     </section>
 
-    <section class="rounded-xl bg-rt-surface p-5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+    <section class="rounded-xl bg-rt-surface p-5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60" data-rt-glow>
         <h3 class="flex items-center gap-2 text-sm font-semibold text-rt-text dark:text-rt-dark-text">
-            <i class="far fa-briefcase text-sky-500"></i>{{ __('app.employment_data') }}
+            <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent">
+                <i class="far fa-briefcase text-sm"></i>
+            </span>
+            {{ __('app.employment_data') }}
         </h3>
         <dl class="mt-4 divide-y divide-rt-border/60 dark:divide-rt-dark-border/60">
             @foreach ([

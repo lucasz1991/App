@@ -2840,8 +2840,10 @@ body[data-mode='dark'] .rt-employee-mobile-header {
     }
 }
 
-/* Vengeance-inspirierter Seitenwechsel-Orb: bewusst ohne Text, Karte oder
-   modale Dialogflaeche. Der Navigations-Failsafe lebt in app.js weiter. */
+/* AI-Orb-Seitenwechsel (nach dem "Motion — AI Orb"-Shot, Fluid-Gradient-
+   Aesthetik): mattierte Glaskugel, in deren Innerem ein fluessiger
+   Blau-Violett-Verlauf treibt. Bewusst ohne Text, Karte oder modale
+   Dialogflaeche. Der Navigations-Failsafe lebt in app.js weiter. */
 .rt-nav-overlay {
     position: fixed;
     inset: 0;
@@ -2850,7 +2852,7 @@ body[data-mode='dark'] .rt-employee-mobile-header {
     place-items: center;
     opacity: 0;
     pointer-events: none;
-    background: rgba(241, 244, 248, 0.2);
+    background: rgba(240, 240, 249, 0.28);
     backdrop-filter: blur(3px) saturate(1.04);
     -webkit-backdrop-filter: blur(3px) saturate(1.04);
     transition: opacity 180ms cubic-bezier(0.32, 0.72, 0, 1);
@@ -2858,7 +2860,7 @@ body[data-mode='dark'] .rt-employee-mobile-header {
 
 html.dark .rt-nav-overlay,
 body[data-mode='dark'] .rt-nav-overlay {
-    background: rgba(8, 13, 22, 0.3);
+    background: rgba(8, 13, 22, 0.34);
 }
 
 .rt-nav-overlay.is-visible {
@@ -2868,8 +2870,8 @@ body[data-mode='dark'] .rt-nav-overlay {
 .rt-nav-loader {
     position: relative;
     display: grid;
-    width: 5.5rem;
-    height: 5.5rem;
+    width: 6.5rem;
+    height: 6.5rem;
     place-items: center;
     border: 0;
     background: transparent;
@@ -2887,89 +2889,169 @@ body[data-mode='dark'] .rt-nav-overlay {
     transform: scale(1);
 }
 
+/* Weite Aura hinter der Kugel — atmet gemeinsam mit ihr. */
+.rt-nav-loader::before {
+    position: absolute;
+    inset: -0.5rem;
+    z-index: -1;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(124, 108, 255, 0.34) 0, rgba(124, 108, 255, 0.13) 46%, transparent 72%);
+    content: '';
+    opacity: 0.75;
+    pointer-events: none;
+    will-change: transform, opacity;
+}
+
+/* Kugelschale: mattiertes Glas. overflow:hidden beschneidet die innen
+   treibenden, weich gezeichneten Verlaufsflaechen kreisrund. */
 .rt-nav-loader__orb {
     position: relative;
     display: block;
-    width: 2.75rem;
-    height: 2.75rem;
+    width: 4rem;
+    height: 4rem;
+    overflow: hidden;
     border-radius: 50%;
-    background:
-        radial-gradient(circle at 31% 27%, rgba(255, 255, 255, 0.98) 0 7%, rgba(255, 255, 255, 0.26) 14%, transparent 29%),
-        radial-gradient(circle at 62% 69%, #ff3158 0, #e4002b 38%, #97001f 70%, #3a000e 100%);
+    background: radial-gradient(
+        circle at 32% 26%,
+        rgba(255, 255, 255, 0.95) 0 8%,
+        rgba(255, 255, 255, 0.55) 26%,
+        rgba(244, 244, 253, 0.4) 52%,
+        rgba(233, 233, 248, 0.34) 100%
+    );
     box-shadow:
-        inset -0.45rem -0.55rem 0.9rem rgba(55, 0, 15, 0.42),
-        inset 0.25rem 0.3rem 0.65rem rgba(255, 255, 255, 0.24),
-        0 0 0 1px rgba(255, 104, 133, 0.36),
-        0 0 1.4rem rgba(228, 0, 43, 0.56),
-        0 0 3.4rem rgba(228, 0, 43, 0.24);
+        inset 0 0 0 1px rgba(255, 255, 255, 0.6),
+        inset -0.55rem -0.85rem 1.35rem rgba(112, 96, 246, 0.2),
+        inset 0.4rem 0.5rem 1rem rgba(255, 255, 255, 0.62),
+        0 1.3rem 2.4rem -0.85rem rgba(95, 88, 232, 0.4),
+        0 0 2.4rem rgba(124, 108, 255, 0.22);
     transform: translateZ(0);
     will-change: transform;
 }
 
-.rt-nav-loader__orb::before,
-.rt-nav-loader__orb::after {
-    position: absolute;
-    content: '';
-    border-radius: 50%;
-    pointer-events: none;
+html.dark .rt-nav-loader__orb,
+body[data-mode='dark'] .rt-nav-loader__orb {
+    background: radial-gradient(
+        circle at 32% 26%,
+        rgba(255, 255, 255, 0.3) 0 8%,
+        rgba(196, 200, 255, 0.18) 30%,
+        rgba(38, 42, 78, 0.5) 68%,
+        rgba(22, 25, 48, 0.62) 100%
+    );
+    box-shadow:
+        inset 0 0 0 1px rgba(226, 228, 255, 0.28),
+        inset -0.55rem -0.85rem 1.35rem rgba(88, 74, 214, 0.34),
+        inset 0.4rem 0.5rem 1rem rgba(233, 235, 255, 0.2),
+        0 1.3rem 2.4rem -0.85rem rgba(70, 62, 210, 0.55),
+        0 0 2.6rem rgba(124, 108, 255, 0.3);
 }
 
-.rt-nav-loader__orb::before {
-    inset: -0.72rem;
-    border: 1px solid transparent;
-    border-top-color: rgba(255, 38, 83, 0.95);
-    border-left-color: rgba(228, 0, 43, 0.38);
-    box-shadow: inset 0 0 0.65rem rgba(228, 0, 43, 0.12);
+/* Fluessige Farbflaechen: zwei gegenlaeufig rotierende, stark weich-
+   gezeichnete Verlaufs-Cluster erzeugen das Treiben aus der Vorlage. */
+.rt-nav-loader__fluid {
+    position: absolute;
+    inset: -18%;
+    border-radius: 50%;
+    filter: blur(7px) saturate(1.12);
+    pointer-events: none;
     will-change: transform;
 }
 
-.rt-nav-loader__orb::after {
-    inset: -1.2rem;
-    z-index: -1;
-    background: radial-gradient(circle, rgba(228, 0, 43, 0.34) 0, rgba(228, 0, 43, 0.12) 45%, transparent 72%);
-    opacity: 0.7;
-    transform: scale(0.84);
-    will-change: transform, opacity;
+.rt-nav-loader__fluid--drift {
+    background:
+        radial-gradient(42% 46% at 66% 38%, rgba(92, 112, 255, 0.9) 0%, rgba(92, 112, 255, 0) 68%),
+        radial-gradient(50% 55% at 68% 66%, rgba(124, 92, 246, 0.88) 0%, rgba(124, 92, 246, 0) 70%),
+        radial-gradient(38% 40% at 45% 52%, rgba(105, 220, 255, 0.8) 0%, rgba(105, 220, 255, 0) 66%);
+}
+
+.rt-nav-loader__fluid--counter {
+    opacity: 0.85;
+    background:
+        radial-gradient(46% 52% at 38% 64%, rgba(151, 128, 255, 0.72) 0%, rgba(151, 128, 255, 0) 70%),
+        radial-gradient(36% 40% at 58% 30%, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0) 62%);
+    mix-blend-mode: screen;
+}
+
+/* Frostschicht + Glanzlicht ueber den Farbflaechen. */
+.rt-nav-loader__gloss {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background:
+        radial-gradient(58% 44% at 33% 22%, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.26) 42%, rgba(255, 255, 255, 0) 68%),
+        radial-gradient(120% 120% at 50% 128%, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0) 55%);
+    box-shadow: inset 0 0 1.1rem rgba(255, 255, 255, 0.5);
+    pointer-events: none;
+}
+
+html.dark .rt-nav-loader__gloss,
+body[data-mode='dark'] .rt-nav-loader__gloss {
+    opacity: 0.62;
+}
+
+.rt-nav-overlay.is-visible .rt-nav-loader::before {
+    animation: rt-nav-orb-aura 2.6s ease-in-out infinite;
 }
 
 .rt-nav-overlay.is-visible .rt-nav-loader__orb {
-    animation: rt-nav-orb-breathe 1.15s ease-in-out infinite;
+    animation: rt-nav-orb-breathe 2.6s ease-in-out infinite;
 }
 
-.rt-nav-overlay.is-visible .rt-nav-loader__orb::before {
-    animation: rt-nav-orb-orbit 0.82s linear infinite;
+.rt-nav-overlay.is-visible .rt-nav-loader__fluid--drift {
+    animation: rt-nav-orb-fluid-drift 2.7s linear infinite;
 }
 
-.rt-nav-overlay.is-visible .rt-nav-loader__orb::after {
-    animation: rt-nav-orb-aura 1.15s ease-in-out infinite;
+.rt-nav-overlay.is-visible .rt-nav-loader__fluid--counter {
+    animation: rt-nav-orb-fluid-counter 3.9s linear infinite;
 }
 
 @keyframes rt-nav-orb-breathe {
     0%,
     100% {
-        transform: translateZ(0) scale(0.94);
+        transform: translateZ(0) scale(0.96);
     }
 
     50% {
-        transform: translateZ(0) scale(1.06);
+        transform: translateZ(0) scale(1.04);
     }
 }
 
-@keyframes rt-nav-orb-orbit {
-    to {
-        transform: rotate(1turn);
+@keyframes rt-nav-orb-fluid-drift {
+    0% {
+        transform: rotate(0turn) scale(1);
+    }
+
+    50% {
+        transform: rotate(0.5turn) scale(1.14);
+    }
+
+    100% {
+        transform: rotate(1turn) scale(1);
+    }
+}
+
+@keyframes rt-nav-orb-fluid-counter {
+    0% {
+        transform: rotate(1turn) scale(1.1);
+    }
+
+    50% {
+        transform: rotate(0.5turn) scale(0.92);
+    }
+
+    100% {
+        transform: rotate(0turn) scale(1.1);
     }
 }
 
 @keyframes rt-nav-orb-aura {
     0%,
     100% {
-        opacity: 0.52;
-        transform: scale(0.82);
+        opacity: 0.55;
+        transform: scale(0.88);
     }
 
     50% {
-        opacity: 0.82;
+        opacity: 0.85;
         transform: scale(1.08);
     }
 }
@@ -2980,13 +3062,70 @@ body[data-mode='dark'] .rt-nav-overlay {
     }
 
     .rt-nav-loader,
+    .rt-nav-loader::before,
     .rt-nav-loader__orb,
-    .rt-nav-loader__orb::before,
-    .rt-nav-loader__orb::after {
+    .rt-nav-loader__fluid,
+    .rt-nav-loader__gloss {
         animation: none !important;
         opacity: 1 !important;
         transform: none !important;
         transition: none !important;
+    }
+
+    /* Statisch bleibt die Kugel trotzdem ein vollstaendiges Standbild
+       der Vorlage — nur eben ohne Treiben. */
+    .rt-nav-loader__fluid--counter {
+        opacity: 0.85 !important;
+    }
+
+    .rt-nav-loader::before {
+        opacity: 0.7 !important;
+    }
+}
+
+/* Aurora-Akzent fuer Identitaets-Karten (Mitarbeiterprofil): nimmt die
+   Fluid-Farbwelt des Lade-Orbs sehr zurueckhaltend wieder auf. Liegt als
+   weichgezeichnete Flaeche hinter dem Karteninhalt; [data-rt-glow] > *
+   hebt den Inhalt ohnehin auf z-index 1. */
+.rt-profile-aurora {
+    position: absolute;
+    z-index: 0;
+    top: -55%;
+    right: -12%;
+    width: 26rem;
+    max-width: 85%;
+    aspect-ratio: 1.6;
+    border-radius: 50%;
+    background:
+        radial-gradient(46% 52% at 62% 46%, rgba(101, 118, 255, 0.2) 0%, rgba(101, 118, 255, 0) 70%),
+        radial-gradient(42% 48% at 40% 60%, rgba(133, 100, 248, 0.16) 0%, rgba(133, 100, 248, 0) 70%),
+        radial-gradient(34% 38% at 72% 66%, rgba(105, 220, 255, 0.14) 0%, rgba(105, 220, 255, 0) 66%);
+    filter: blur(18px);
+    pointer-events: none;
+    will-change: transform;
+}
+
+html.dark .rt-profile-aurora,
+body[data-mode='dark'] .rt-profile-aurora {
+    background:
+        radial-gradient(46% 52% at 62% 46%, rgba(101, 118, 255, 0.16) 0%, rgba(101, 118, 255, 0) 70%),
+        radial-gradient(42% 48% at 40% 60%, rgba(133, 100, 248, 0.14) 0%, rgba(133, 100, 248, 0) 70%),
+        radial-gradient(34% 38% at 72% 66%, rgba(105, 220, 255, 0.1) 0%, rgba(105, 220, 255, 0) 66%);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .rt-profile-aurora {
+        animation: rt-profile-aurora-drift 16s ease-in-out infinite alternate;
+    }
+}
+
+@keyframes rt-profile-aurora-drift {
+    from {
+        transform: translate3d(0, 0, 0) scale(1);
+    }
+
+    to {
+        transform: translate3d(-6%, 9%, 0) scale(1.12);
     }
 }
 
@@ -3466,7 +3605,7 @@ body[data-mode='dark'] .rt-expandable-search__clear:hover {
     }
 
     body[data-sidebar-collapsible="true"][data-sidebar-expanded="true"] .vertical-menu .sidebar-nav-link__chevron {
-        max-width: 1rem;
+        max-width: 1.25rem;
         margin-left: auto;
         opacity: 1;
         transform: translateX(0);

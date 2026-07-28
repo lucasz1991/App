@@ -44,6 +44,18 @@ body[data-mode='dark'] {
     --rt-shell-shadow-elevated: 0 32px 90px -34px rgba(0, 0, 0, 0.88);
 }
 
+/*
+ * Das Legacy-Theme verschiebt `.page-content` selbst noch einmal um die alte
+ * Sidebar-Breite. Der aktuelle Shell reserviert diesen Platz bereits ueber
+ * `.main-content`; ohne diesen Reset entsteht ein doppelter Offset und der
+ * eigentliche Seiteninhalt laeuft rechts aus dem Viewport.
+ */
+.page-content {
+    left: 0 !important;
+    width: 100%;
+    max-width: 100%;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Global content ambience                                                     */
 /* -------------------------------------------------------------------------- */
@@ -321,6 +333,19 @@ body[data-mode='dark'] .rt-shell-topbar-controls .rt-expandable-search[data-sear
     outline: none !important;
 }
 
+.rt-topbar-profile-trigger:focus-visible {
+    box-shadow:
+        0 0 0 1px rgba(228, 0, 43, 0.2),
+        0 10px 24px -18px rgba(15, 23, 42, 0.68) !important;
+}
+
+html.dark .rt-topbar-profile-trigger:focus-visible,
+body[data-mode='dark'] .rt-topbar-profile-trigger:focus-visible {
+    box-shadow:
+        0 0 0 1px rgba(255, 113, 137, 0.25),
+        0 12px 28px -18px rgba(0, 0, 0, 0.9) !important;
+}
+
 html.dark .rt-topbar-control:hover,
 html.dark .rt-topbar-profile-trigger:hover,
 html.dark .rt-expandable-search[data-search-context='topbar'] .rt-expandable-search__trigger:hover,
@@ -516,25 +541,32 @@ body[data-mode='dark'] .rt-shell-sidebar [data-rt-sidebar-group][data-menu-activ
 
 .rt-shell-sidebar .sidebar-nav-link__chevron {
     display: inline-flex;
-    width: 1rem;
-    height: 1rem;
-    flex: 0 0 1rem;
+    width: 1.25rem;
+    height: 1.25rem;
+    flex: 0 0 1.25rem;
     align-items: center;
     justify-content: center;
     margin-left: auto;
-    color: var(--rt-shell-soft);
+    border: 1px solid color-mix(in srgb, var(--rt-shell-line-strong) 72%, transparent);
+    border-radius: 0.45rem;
+    background: color-mix(in srgb, var(--rt-shell-panel) 78%, transparent);
+    color: var(--rt-shell-muted);
     transition:
         color 180ms ease,
+        border-color 180ms ease,
+        background-color 180ms ease,
         transform 320ms var(--rt-shell-spring),
         opacity 180ms ease;
 }
 
 .rt-shell-sidebar .sidebar-nav-link__chevron svg {
-    width: 0.9rem;
-    height: 0.9rem;
+    width: 0.82rem;
+    height: 0.82rem;
 }
 
 .rt-shell-sidebar [data-rt-sidebar-group][aria-expanded='true'] .sidebar-nav-link__chevron {
+    border-color: color-mix(in srgb, var(--rt-shell-accent) 32%, var(--rt-shell-line));
+    background: color-mix(in srgb, var(--rt-shell-accent) 9%, var(--rt-shell-panel));
     color: var(--rt-shell-accent);
     transform: rotate(180deg);
 }

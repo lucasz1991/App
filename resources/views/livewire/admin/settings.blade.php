@@ -33,7 +33,7 @@
         class="min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 sm:p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60"
         data-anim="fade-up"
     >
-        <div class="rounded-[calc(1rem-2px)] bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6">
+        <div class="rounded-[calc(1rem-2px)] bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6" data-rt-glow>
             <div class="flex min-w-0 items-start gap-3 sm:gap-4">
                 <span class="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent sm:flex">
                     <i class="fad fa-sliders fa-lg" aria-hidden="true"></i>
@@ -81,7 +81,7 @@
         aria-labelledby="sound-settings-heading"
         data-sound-settings
     >
-        <div class="rounded-[calc(1rem-2px)] bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6">
+        <div class="rounded-[calc(1rem-2px)] bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6" data-rt-glow>
             <div class="flex min-w-0 items-start gap-3 sm:gap-4">
                 <span class="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent sm:flex">
                     <i class="fad fa-volume fa-lg" aria-hidden="true"></i>
@@ -113,10 +113,10 @@
     {{-- Einladungen --}}
     <x-ui.accordion.tab-panel for="users" panel-class="space-y-6">
     <section
-        class="min-w-0 rounded-2xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60 sm:p-6"
+        class="min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 sm:p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60"
         data-anim="fade-up"
-        data-anim-delay="0.05"
     >
+        <div class="rounded-[calc(1rem-2px)] bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6" data-rt-glow>
         <div class="flex min-w-0 items-start gap-3 sm:gap-4">
             <span class="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent sm:flex">
                 <i class="fad fa-user-plus fa-lg" aria-hidden="true"></i>
@@ -159,16 +159,17 @@
                 </div>
             </div>
         </div>
+        </div>
     </section>
     </x-ui.accordion.tab-panel>
 
     {{-- E-Mails --}}
     <x-ui.accordion.tab-panel for="general" panel-class="space-y-6">
     <section
-        class="min-w-0 rounded-2xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60 sm:p-6"
+        class="min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 sm:p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60"
         data-anim="fade-up"
-        data-anim-delay="0.1"
     >
+        <div class="rounded-[calc(1rem-2px)] bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6" data-rt-glow>
         <div class="flex min-w-0 items-start gap-3 sm:gap-4">
             <span class="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent sm:flex">
                 <i class="fad fa-envelope fa-lg" aria-hidden="true"></i>
@@ -209,14 +210,16 @@
                 </div>
             </div>
         </div>
+        </div>
     </section>
     </x-ui.accordion.tab-panel>
 
     <x-ui.accordion.tab-panel for="company" panel-class="space-y-6">
         <section
-            class="min-w-0 rounded-2xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60 sm:p-6"
+            class="min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 sm:p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60"
             data-anim="fade-up"
         >
+            <div class="rounded-[calc(1rem-2px)] bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6" data-rt-glow>
             <div class="flex min-w-0 items-start gap-3 sm:gap-4">
                 <span class="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent sm:flex">
                     <i class="fad fa-building fa-lg" aria-hidden="true"></i>
@@ -273,6 +276,7 @@
                         </div>
                     </form>
                 </div>
+            </div>
             </div>
         </section>
     </x-ui.accordion.tab-panel>

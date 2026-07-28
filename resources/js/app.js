@@ -201,7 +201,11 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
             overlay.setAttribute('aria-label', 'RailTime lädt die nächste Seite');
             overlay.innerHTML = `
                 <span class="rt-nav-loader" aria-hidden="true">
-                    <span class="rt-nav-loader__orb"></span>
+                    <span class="rt-nav-loader__orb">
+                        <span class="rt-nav-loader__fluid rt-nav-loader__fluid--drift"></span>
+                        <span class="rt-nav-loader__fluid rt-nav-loader__fluid--counter"></span>
+                        <span class="rt-nav-loader__gloss"></span>
+                    </span>
                 </span>
             `;
         }
