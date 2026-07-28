@@ -3,9 +3,10 @@ const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 /**
  * Coupled RailTime tabs for Blade + Alpine.
  *
- * Desktop stays click/keyboard driven. On mobile the navigation is a native,
- * momentum-enabled horizontal scroller. Its fractional scroll position drives
- * the content track directly, so navigation and content move as one gesture.
+ * Desktop remains click/keyboard driven. Mobile uses one canonical fractional
+ * position for both rails. Navigation and panel gestures write that position
+ * in the same animation frame, preventing the visual rail, `openTab` and the
+ * rendered panel from drifting apart.
  */
 export function railtimeTabs(config = {}) {
     return {
@@ -22,18 +23,29 @@ export function railtimeTabs(config = {}) {
         items: Array.isArray(config.items) ? config.items : [],
         loadedTabs: [],
         loadingTabs: [],
+
         mobileQuery: null,
         mobileQueryHandler: null,
-        scrollFrame: null,
+        renderFrame: null,
+        settleFrame: null,
         resizeFrame: null,
-        scrollEndTimer: null,
-        programmaticTimer: null,
         preloadTimer: null,
+        wheelTimer: null,
         panelResizeObserver: null,
-        dragPointerId: null,
-        dragStartX: 0,
-        dragStartScrollLeft: 0,
-        dragDistance: 0,
+        navigationResizeObserver: null,
+        panelMutationObserver: null,
+
+        gesturePointerId: null,
+        gestureSource: null,
+        gestureTarget: null,
+        gestureStartX: 0,
+        gestureStartY: 0,
+        gestureStartPosition: 0,
+        gestureStartNavigationOffset: 0,
+        gestureDistance: 0,
+        gestureLastPosition: 0,
+        gestureLastTime: 0,
+        gestureVelocity: 0,
         suppressClick: false,
 
         init() {
@@ -47,9 +59,12 @@ export function railtimeTabs(config = {}) {
             this.stickyEnabled = !this.$root.closest('[role=dialog]');
 
             this.$nextTick(() => {
+                this.syncPanelOrder();
                 this.initResponsiveTabs();
                 this.observePanelSizes();
-                this.syncScrollEdges();
+                this.observeNavigationSize();
+                this.observePanelChanges();
+                this.renderCoupledPosition(this.panelPosition);
                 this.updatePanelHeight(false);
                 this.queueAdjacentPreload();
             });
@@ -71,7 +86,22 @@ export function railtimeTabs(config = {}) {
         },
 
         panelElement(id) {
-            return this.$refs.panelTrack?.querySelector(`#panel-${CSS.escape(id)}`) ?? null;
+            return Array.from(this.$refs.panelTrack?.querySelectorAll('[role=tabpanel]') ?? [])
+                .find((panel) => panel.dataset.tabPanelId === id) ?? null;
+        },
+
+        syncPanelOrder() {
+            const panels = Array.from(this.$refs.panelTrack?.querySelectorAll('[role=tabpanel]') ?? []);
+            const orderById = new Map(this.items.map((item, index) => [item.id, index]));
+
+            panels.forEach((panel) => {
+                const index = orderById.get(panel.dataset.tabPanelId);
+                if (typeof index !== 'number') return;
+
+                panel.style.order = String(index);
+                panel.dataset.tabIndex = String(index);
+                this.panelResizeObserver?.observe(panel);
+            });
         },
 
         isTabLoaded(id) {
@@ -93,7 +123,7 @@ export function railtimeTabs(config = {}) {
                 this.loadedTabs = [...this.loadedTabs, id];
 
                 this.$nextTick(() => {
-                    this.updatePanelHeight(true);
+                    this.updatePanelHeight(!this.scrubbingTabs);
                     this.animateLoadedPanel(id);
                     this.$dispatch('rt-tab:loaded', { id });
                 });
@@ -107,8 +137,8 @@ export function railtimeTabs(config = {}) {
                 return;
             }
 
-            // Two paint frames make the lightweight skeleton visible
-            // immediately while the already-rendered Livewire panel activates.
+            // Two paints keep the skeleton visible before the lazy panel is
+            // revealed. No timer is tied to the gesture/rendering path.
             window.requestAnimationFrame(() => window.requestAnimationFrame(reveal));
         },
 
@@ -123,32 +153,8 @@ export function railtimeTabs(config = {}) {
             }, 1200);
         },
 
-        selectTab(id, focusTab = false, revealTab = true) {
-            const nextIndex = this.items.findIndex((item) => item.id === id);
-            if (nextIndex < 0) return;
-
-            const currentIndex = this.activeIndex();
-            this.tabDirection = nextIndex >= currentIndex ? 'next' : 'previous';
-            this.openTab = id;
-            this.panelPosition = nextIndex;
-            this.scrubbingTabs = false;
-            this.loadTab(id);
-
-            this.$nextTick(() => {
-                if (revealTab) this.revealActiveTab();
-                this.updatePanelHeight(true);
-                this.animateSelection();
-                this.queueAdjacentPreload();
-                this.keepSelectedPanelVisible();
-
-                if (focusTab) {
-                    this.tabElement(id)?.focus({ preventScroll: true });
-                }
-            });
-        },
-
-        selectIndexFromNavigation(position) {
-            const nextIndex = clamp(Math.round(position), 0, Math.max(0, this.items.length - 1));
+        commitActiveIndex(index, duringGesture = false) {
+            const nextIndex = clamp(index, 0, Math.max(0, this.items.length - 1));
             const next = this.items[nextIndex];
             if (!next || next.id === this.openTab) return;
 
@@ -158,9 +164,39 @@ export function railtimeTabs(config = {}) {
             this.loadTab(next.id);
 
             this.$nextTick(() => {
+                this.updatePanelHeight(!duringGesture);
+                if (!duringGesture) this.animateSelection();
+            });
+        },
+
+        selectTab(id, focusTab = false, revealTab = true) {
+            const nextIndex = this.items.findIndex((item) => item.id === id);
+            if (nextIndex < 0) return;
+
+            if (this.mobileTabs) {
+                this.settleToIndex(nextIndex, {
+                    focusTab,
+                    keepVisible: revealTab,
+                });
+                return;
+            }
+
+            const currentIndex = this.activeIndex();
+            this.tabDirection = nextIndex >= currentIndex ? 'next' : 'previous';
+            this.openTab = id;
+            this.panelPosition = nextIndex;
+            this.scrubbingTabs = false;
+            this.loadTab(id);
+
+            this.$nextTick(() => {
                 this.updatePanelHeight(true);
                 this.animateSelection();
                 this.queueAdjacentPreload();
+                if (revealTab) this.keepSelectedPanelVisible();
+
+                if (focusTab) {
+                    this.tabElement(id)?.focus({ preventScroll: true });
+                }
             });
         },
 
@@ -177,18 +213,21 @@ export function railtimeTabs(config = {}) {
         },
 
         configureTabsForViewport(mobile) {
-            // Dialogs disable only sticky positioning, never the mobile
-            // interaction itself. Tabs in modals must remain draggable too.
+            // Dialogs disable only sticky positioning, never mobile gestures.
+            this.cancelSettleAnimation();
             this.mobileTabs = mobile;
             this.scrubbingTabs = false;
             this.programmaticNavigation = false;
             this.panelPosition = this.activeIndex();
 
             this.$nextTick(() => {
+                this.syncPanelOrder();
+
                 if (this.mobileTabs) {
-                    this.revealActiveTab('auto');
-                } else if (this.$refs.carousel) {
-                    this.$refs.carousel.scrollLeft = 0;
+                    this.renderCoupledPosition(this.panelPosition);
+                } else {
+                    this.$refs.carouselTrack?.style.removeProperty('transform');
+                    this.$refs.panelTrack?.style.removeProperty('transform');
                 }
 
                 this.updatePanelHeight(false);
@@ -205,142 +244,274 @@ export function railtimeTabs(config = {}) {
 
         navigationStops() {
             const carousel = this.$refs.carousel;
-            const tabs = Array.from(carousel?.querySelectorAll('[role=tab]') ?? []);
-            if (!carousel || !tabs.length) return [];
+            const track = this.$refs.carouselTrack;
+            const tabs = Array.from(track?.querySelectorAll('[role=tab]') ?? []);
+            if (!carousel || !track || !tabs.length) return [];
 
-            const maxScroll = Math.max(0, carousel.scrollWidth - carousel.clientWidth);
+            const maxOffset = Math.max(0, track.scrollWidth - carousel.clientWidth);
 
             return tabs.map((tab, index) => {
                 if (index === 0) return 0;
-                if (index === tabs.length - 1) return maxScroll;
+                if (index === tabs.length - 1) return maxOffset;
 
                 const centered = tab.offsetLeft + (tab.offsetWidth / 2) - (carousel.clientWidth / 2);
-                return clamp(centered, 0, maxScroll);
+                return clamp(centered, 0, maxOffset);
             });
         },
 
-        navigationPosition() {
-            const carousel = this.$refs.carousel;
+        navigationOffsetForPosition(position) {
             const stops = this.navigationStops();
-            if (!carousel || stops.length < 2) return 0;
+            if (!stops.length) return 0;
 
-            const current = clamp(carousel.scrollLeft, 0, stops.at(-1));
+            const bounded = clamp(position, 0, stops.length - 1);
+            const lower = Math.floor(bounded);
+            const upper = Math.min(stops.length - 1, Math.ceil(bounded));
+            const progress = bounded - lower;
+
+            return stops[lower] + ((stops[upper] - stops[lower]) * progress);
+        },
+
+        positionForNavigationOffset(offset) {
+            const stops = this.navigationStops();
+            if (stops.length < 2) return this.panelPosition;
+
+            const bounded = clamp(offset, 0, stops.at(-1));
 
             for (let index = 0; index < stops.length - 1; index += 1) {
                 const start = stops[index];
                 const end = stops[index + 1];
-                if (current > end && index < stops.length - 2) continue;
-                if (end <= start) return index + 1;
+                if (bounded > end && index < stops.length - 2) continue;
+                if (end <= start) continue;
 
-                return index + clamp((current - start) / (end - start), 0, 1);
+                return index + clamp((bounded - start) / (end - start), 0, 1);
             }
 
             return stops.length - 1;
         },
 
-        onNavigationScroll() {
-            this.syncScrollEdges();
-            if (!this.mobileTabs || this.programmaticNavigation) return;
+        setCoupledPosition(position, commit = true) {
+            const bounded = clamp(position, 0, Math.max(0, this.items.length - 1));
+            this.panelPosition = bounded;
+            this.renderCoupledPosition(bounded);
 
-            window.cancelAnimationFrame(this.scrollFrame || 0);
-            this.scrollFrame = window.requestAnimationFrame(() => {
-                const position = this.navigationPosition();
-                this.scrubbingTabs = true;
-                this.panelPosition = position;
-                this.selectIndexFromNavigation(position);
+            if (commit) {
+                this.commitActiveIndex(Math.round(bounded), true);
+            }
+        },
+
+        renderCoupledPosition(position) {
+            if (!this.mobileTabs) return;
+
+            window.cancelAnimationFrame(this.renderFrame || 0);
+            this.renderFrame = window.requestAnimationFrame(() => {
+                const navigationOffset = this.navigationOffsetForPosition(position);
+
+                if (this.$refs.carouselTrack) {
+                    this.$refs.carouselTrack.style.transform = `translate3d(${-navigationOffset}px, 0, 0)`;
+                }
+
+                if (this.$refs.panelTrack) {
+                    this.$refs.panelTrack.style.transform = `translate3d(${-100 * position}%, 0, 0)`;
+                }
+
+                this.syncScrollEdges(navigationOffset);
             });
-
-            window.clearTimeout(this.scrollEndTimer);
-            this.scrollEndTimer = window.setTimeout(() => this.finishNavigationScrub(), 110);
         },
 
-        finishNavigationScrub() {
-            if (!this.mobileTabs || this.programmaticNavigation) return;
-
-            this.scrubbingTabs = false;
-            this.panelPosition = this.activeIndex();
-            this.updatePanelHeight(true);
+        panelViewportStyle() {
+            if (!this.mobileTabs || !this.panelHeight) return '';
+            return `height: ${this.panelHeight}px;`;
         },
 
-        revealActiveTab(behavior = 'smooth') {
-            if (!this.mobileTabs || !this.$refs.carousel) return;
-
-            const stops = this.navigationStops();
-            const target = stops[this.activeIndex()] ?? 0;
-            const reduceMotion = this.reducedMotion();
-
-            this.programmaticNavigation = true;
-            this.$refs.carousel.scrollTo({
-                left: target,
-                behavior: reduceMotion || behavior === 'auto' ? 'auto' : 'smooth',
-            });
-
-            window.clearTimeout(this.programmaticTimer);
-            this.programmaticTimer = window.setTimeout(() => {
-                this.programmaticNavigation = false;
-                this.syncScrollEdges();
-            }, reduceMotion || behavior === 'auto' ? 0 : 420);
+        isInteractiveGestureTarget(target) {
+            return target instanceof Element
+                && Boolean(target.closest(
+                    'a, button, input, textarea, select, option, [role=button], [contenteditable=true], [data-no-tab-swipe]',
+                ));
         },
 
-        beginPointerDrag(event) {
-            if (!this.mobileTabs || event.pointerType === 'touch' || event.button !== 0) return;
+        beginCoupledDrag(event, source) {
+            if (!this.mobileTabs || !event.isPrimary) return;
+            if (event.pointerType === 'mouse' && event.button !== 0) return;
+            if (source === 'content' && this.isInteractiveGestureTarget(event.target)) return;
 
-            this.dragPointerId = event.pointerId;
-            this.dragStartX = event.clientX;
-            this.dragStartScrollLeft = this.$refs.carousel.scrollLeft;
-            this.dragDistance = 0;
+            this.cancelSettleAnimation();
+            this.gesturePointerId = event.pointerId;
+            this.gestureSource = source;
+            this.gestureTarget = event.currentTarget;
+            this.gestureStartX = event.clientX;
+            this.gestureStartY = event.clientY;
+            this.gestureStartPosition = this.panelPosition;
+            this.gestureStartNavigationOffset = this.navigationOffsetForPosition(this.panelPosition);
+            this.gestureDistance = 0;
+            this.gestureLastPosition = this.panelPosition;
+            this.gestureLastTime = performance.now();
+            this.gestureVelocity = 0;
             this.suppressClick = false;
-            this.$refs.carousel.setPointerCapture?.(event.pointerId);
+
+            event.currentTarget.setPointerCapture?.(event.pointerId);
         },
 
-        movePointerDrag(event) {
-            if (event.pointerId !== this.dragPointerId) return;
+        moveCoupledDrag(event) {
+            if (event.pointerId !== this.gesturePointerId) return;
 
-            const distance = event.clientX - this.dragStartX;
-            this.dragDistance = Math.max(this.dragDistance, Math.abs(distance));
-            if (this.dragDistance < 4) return;
+            const distanceX = event.clientX - this.gestureStartX;
+            const distanceY = event.clientY - this.gestureStartY;
+            this.gestureDistance = Math.max(this.gestureDistance, Math.abs(distanceX));
+
+            if (this.gestureDistance < 4) return;
+            if (Math.abs(distanceY) > Math.abs(distanceX) * 1.2) return;
 
             event.preventDefault();
-            this.suppressClick = true;
             this.scrubbingTabs = true;
-            this.$refs.carousel.dataset.swiping = 'true';
-            this.$refs.carousel.scrollLeft = this.dragStartScrollLeft - distance;
+            this.suppressClick = true;
+            this.$refs.carousel?.setAttribute('data-swiping', 'true');
+            this.$refs.panels?.setAttribute('data-swiping', 'true');
+
+            let nextPosition;
+            if (this.gestureSource === 'navigation') {
+                const stops = this.navigationStops();
+                if ((stops.at(-1) ?? 0) <= 0) {
+                    const width = Math.max(1, this.$refs.carousel?.clientWidth ?? 1);
+                    nextPosition = this.gestureStartPosition - (distanceX / (width * 0.72));
+                } else {
+                    nextPosition = this.positionForNavigationOffset(
+                        this.gestureStartNavigationOffset - distanceX,
+                    );
+                }
+            } else {
+                const width = Math.max(1, this.$refs.panels?.clientWidth ?? 1);
+                nextPosition = this.gestureStartPosition - (distanceX / width);
+            }
+
+            const bounded = clamp(nextPosition, 0, Math.max(0, this.items.length - 1));
+            const now = performance.now();
+            const elapsed = Math.max(1, now - this.gestureLastTime);
+            const instantVelocity = (bounded - this.gestureLastPosition) / elapsed;
+            this.gestureVelocity = (this.gestureVelocity * 0.68) + (instantVelocity * 0.32);
+            this.gestureLastPosition = bounded;
+            this.gestureLastTime = now;
+
+            this.setCoupledPosition(bounded);
         },
 
-        endPointerDrag(event) {
-            if (event.pointerId !== this.dragPointerId) return;
+        endCoupledDrag(event) {
+            if (event.pointerId !== this.gesturePointerId) return;
 
-            this.$refs.carousel.releasePointerCapture?.(event.pointerId);
-            this.$refs.carousel.dataset.swiping = 'false';
-            this.dragPointerId = null;
-            this.finishNavigationScrub();
+            if (this.gestureTarget?.hasPointerCapture?.(event.pointerId)) {
+                this.gestureTarget.releasePointerCapture(event.pointerId);
+            }
+            this.$refs.carousel?.setAttribute('data-swiping', 'false');
+            this.$refs.panels?.setAttribute('data-swiping', 'false');
+
+            const moved = this.gestureDistance >= 4;
+            const projectedPosition = this.panelPosition + (this.gestureVelocity * 150);
+            const targetIndex = moved
+                ? Math.round(clamp(projectedPosition, 0, Math.max(0, this.items.length - 1)))
+                : Math.round(this.panelPosition);
+
+            this.gesturePointerId = null;
+            this.gestureSource = null;
+            this.gestureTarget = null;
+            this.gestureVelocity = 0;
+
+            if (moved) {
+                this.settleToIndex(targetIndex);
+            } else {
+                this.scrubbingTabs = false;
+            }
 
             window.setTimeout(() => {
                 this.suppressClick = false;
             }, 0);
         },
 
-        beginTouchScrub() {
+        onNavigationWheel(event) {
             if (!this.mobileTabs) return;
+
+            const delta = Math.abs(event.deltaX) >= Math.abs(event.deltaY)
+                ? event.deltaX
+                : (event.shiftKey ? event.deltaY : 0);
+            if (!delta) return;
+
+            event.preventDefault();
+            this.cancelSettleAnimation();
             this.scrubbingTabs = true;
-            this.$refs.carousel.dataset.swiping = 'true';
+
+            const stops = this.navigationStops();
+            const currentOffset = this.navigationOffsetForPosition(this.panelPosition);
+            const nextPosition = (stops.at(-1) ?? 0) > 0
+                ? this.positionForNavigationOffset(currentOffset + delta)
+                : this.panelPosition + (delta / Math.max(1, this.$refs.carousel?.clientWidth ?? 1));
+
+            this.setCoupledPosition(nextPosition);
+
+            window.clearTimeout(this.wheelTimer);
+            this.wheelTimer = window.setTimeout(() => {
+                this.settleToIndex(Math.round(this.panelPosition));
+            }, 90);
         },
 
-        endTouchScrub() {
-            if (!this.mobileTabs) return;
-            this.$refs.carousel.dataset.swiping = 'false';
-            window.clearTimeout(this.scrollEndTimer);
-            this.scrollEndTimer = window.setTimeout(() => this.finishNavigationScrub(), 110);
+        cancelSettleAnimation() {
+            window.cancelAnimationFrame(this.settleFrame || 0);
+            this.settleFrame = null;
+            this.programmaticNavigation = false;
         },
 
-        panelTrackStyle() {
-            if (!this.mobileTabs) return '';
-            return `transform: translate3d(${-100 * this.panelPosition}%, 0, 0);`;
-        },
+        settleToIndex(index, options = {}) {
+            const targetIndex = clamp(index, 0, Math.max(0, this.items.length - 1));
+            const target = this.items[targetIndex];
+            if (!target) return;
 
-        panelViewportStyle() {
-            if (!this.mobileTabs || !this.panelHeight) return '';
-            return `height: ${this.panelHeight}px;`;
+            this.cancelSettleAnimation();
+            this.scrubbingTabs = true;
+            this.programmaticNavigation = true;
+            this.loadTab(target.id);
+
+            const startPosition = this.panelPosition;
+            const distance = Math.abs(targetIndex - startPosition);
+            const duration = this.reducedMotion()
+                ? 0
+                : clamp(190 + (distance * 105), 190, 360);
+
+            const complete = () => {
+                this.panelPosition = targetIndex;
+                this.renderCoupledPosition(targetIndex);
+                this.commitActiveIndex(targetIndex, false);
+                this.scrubbingTabs = false;
+                this.programmaticNavigation = false;
+                this.updatePanelHeight(true);
+                this.animateSelection();
+                this.queueAdjacentPreload();
+
+                if (options.keepVisible) this.keepSelectedPanelVisible();
+                if (options.focusTab) {
+                    this.tabElement(target.id)?.focus({ preventScroll: true });
+                }
+            };
+
+            if (!duration || Math.abs(targetIndex - startPosition) < 0.001) {
+                complete();
+                return;
+            }
+
+            const startedAt = performance.now();
+            const animate = (now) => {
+                const progress = clamp((now - startedAt) / duration, 0, 1);
+                const eased = 1 - ((1 - progress) ** 3);
+                this.setCoupledPosition(
+                    startPosition + ((targetIndex - startPosition) * eased),
+                );
+
+                if (progress < 1) {
+                    this.settleFrame = window.requestAnimationFrame(animate);
+                } else {
+                    this.settleFrame = null;
+                    complete();
+                }
+            };
+
+            this.settleFrame = window.requestAnimationFrame(animate);
         },
 
         updatePanelHeight(animate = true) {
@@ -352,7 +523,7 @@ export function railtimeTabs(config = {}) {
                 const nextHeight = Math.ceil(active.scrollHeight);
                 if (!nextHeight) return;
 
-                if (!animate || this.reducedMotion()) {
+                if (!animate || this.reducedMotion() || this.scrubbingTabs) {
                     this.$refs.panels?.setAttribute('data-resizing', 'false');
                 } else {
                     this.$refs.panels?.setAttribute('data-resizing', 'true');
@@ -367,13 +538,37 @@ export function railtimeTabs(config = {}) {
             if (!window.ResizeObserver || !this.$refs.panelTrack) return;
 
             this.panelResizeObserver = new ResizeObserver((entries) => {
-                if (entries.some((entry) => entry.target.id === `panel-${this.openTab}`)) {
+                if (entries.some((entry) => entry.target.dataset.tabPanelId === this.openTab)) {
                     this.updatePanelHeight(false);
                 }
             });
 
             this.$refs.panelTrack.querySelectorAll('[role=tabpanel]')
                 .forEach((panel) => this.panelResizeObserver.observe(panel));
+        },
+
+        observeNavigationSize() {
+            if (!window.ResizeObserver || !this.$refs.carousel || !this.$refs.carouselTrack) return;
+
+            this.navigationResizeObserver = new ResizeObserver(() => {
+                if (!this.mobileTabs) return;
+                this.renderCoupledPosition(this.panelPosition);
+            });
+            this.navigationResizeObserver.observe(this.$refs.carousel);
+            this.navigationResizeObserver.observe(this.$refs.carouselTrack);
+        },
+
+        observePanelChanges() {
+            if (!window.MutationObserver || !this.$refs.panelTrack) return;
+
+            this.panelMutationObserver = new MutationObserver(() => {
+                this.syncPanelOrder();
+                this.renderCoupledPosition(this.panelPosition);
+                this.updatePanelHeight(false);
+            });
+            this.panelMutationObserver.observe(this.$refs.panelTrack, {
+                childList: true,
+            });
         },
 
         keepSelectedPanelVisible() {
@@ -437,7 +632,7 @@ export function railtimeTabs(config = {}) {
         },
 
         animateLoadedPanel(id) {
-            if (!window.gsap || this.reducedMotion()) return;
+            if (!window.gsap || this.reducedMotion() || this.scrubbingTabs) return;
 
             const content = this.panelElement(id)?.querySelector('[data-rt-tab-content]');
             if (!content) return;
@@ -456,13 +651,11 @@ export function railtimeTabs(config = {}) {
             );
         },
 
-        syncScrollEdges() {
-            const carousel = this.$refs.carousel;
-            if (!carousel) return;
-
-            const maxScroll = Math.max(0, carousel.scrollWidth - carousel.clientWidth);
-            this.atScrollStart = carousel.scrollLeft <= 1;
-            this.atScrollEnd = carousel.scrollLeft >= maxScroll - 1;
+        syncScrollEdges(offset = this.navigationOffsetForPosition(this.panelPosition)) {
+            const stops = this.navigationStops();
+            const maxOffset = stops.at(-1) ?? 0;
+            this.atScrollStart = offset <= 1;
+            this.atScrollEnd = offset >= maxOffset - 1;
         },
 
         reducedMotion() {
@@ -470,17 +663,19 @@ export function railtimeTabs(config = {}) {
         },
 
         destroy() {
-            window.cancelAnimationFrame(this.scrollFrame || 0);
+            window.cancelAnimationFrame(this.renderFrame || 0);
+            window.cancelAnimationFrame(this.settleFrame || 0);
             window.cancelAnimationFrame(this.resizeFrame || 0);
-            window.clearTimeout(this.scrollEndTimer);
-            window.clearTimeout(this.programmaticTimer);
             window.clearTimeout(this.preloadTimer);
+            window.clearTimeout(this.wheelTimer);
 
             if (this.mobileQuery && this.mobileQueryHandler) {
                 this.mobileQuery.removeEventListener('change', this.mobileQueryHandler);
             }
 
             this.panelResizeObserver?.disconnect();
+            this.navigationResizeObserver?.disconnect();
+            this.panelMutationObserver?.disconnect();
 
             if (window.gsap) {
                 window.gsap.killTweensOf(

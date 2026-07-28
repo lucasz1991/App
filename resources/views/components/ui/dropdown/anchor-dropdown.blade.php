@@ -41,8 +41,8 @@
   $anchorOffset = max(0, (int) $offset);
   $anchorDirective = 'x-anchor.' . $anchorPlacement . '.offset.' . $anchorOffset . '.fixed';
   $anchorCaretX = str_ends_with($anchorPlacement, '-start')
-    ? '1.125rem'
-    : 'calc(100% - 1.125rem)';
+    ? '1.75rem'
+    : 'calc(100% - 1.75rem)';
   $anchorConnectorSize = max(6, $anchorOffset + 2);
 @endphp
 
@@ -115,7 +115,8 @@
       const anchoredLeft = Number.isFinite(Number(anchorX)) ? Number(anchorX) : panelRect.left;
       const anchoredTop = Number.isFinite(Number(anchorY)) ? Number(anchorY) : panelRect.top;
       const triggerCenter = triggerRect.left + (triggerRect.width / 2);
-      const caretInset = Math.min(22, Math.max(8, panelWidth / 2));
+      // Der Indikator bleibt ausserhalb der abgerundeten Eckbereiche.
+      const caretInset = Math.min(30, Math.max(18, panelWidth / 2));
       const caretX = this.clamp(triggerCenter - anchoredLeft, caretInset, panelWidth - caretInset);
 
       this.placement = anchoredTop + panelRect.height <= triggerRect.top + 1 ? 'top' : 'bottom';

@@ -42,13 +42,15 @@
                 </x-tables.bulk-actions>
             </x-slot:bulk>
 
-            {{-- Suche --}}
-            <x-tables.search-field
-                resultsCount="{{ $employees->count() }}"
-                wire:model.live="search"
-            />
+            <x-slot:search>
+                <x-tables.search-field
+                    resultsCount="{{ $employees->count() }}"
+                    wire:model.live="search"
+                />
+            </x-slot:search>
+
             {{-- Team-Filter --}}
-            <div class="w-full sm:!w-44">
+            <div class="w-full">
                 <x-ui.forms.select wire:model.live="teamId">
                     <option value="">{{ __('app.all_teams') }}</option>
                     @foreach($teams as $t)
@@ -57,7 +59,7 @@
                 </x-ui.forms.select>
             </div>
             {{-- Pro Seite --}}
-            <div class="w-full sm:!w-40">
+            <div class="w-full">
                 <x-ui.forms.select wire:model.live="perPage">
                     <option value="15">{{ __('app.per_page', ['count' => 15]) }}</option>
                     <option value="30">{{ __('app.per_page', ['count' => 30]) }}</option>
@@ -69,17 +71,17 @@
 
         {{-- Tabelle --}}
         <div class="w-full" data-anim="fade-up" data-anim-delay="0.05">
-            <div class="rt-employee-mobile-header grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] gap-2 px-3 py-2.5 pr-14 text-[10px] font-bold uppercase tracking-[0.08em] md:hidden">
+            <div class="rt-employee-mobile-header grid grid-cols-[minmax(0,1.3fr)_minmax(5.5rem,0.7fr)] gap-2 px-3 py-2.5 pr-14 text-[10px] font-bold uppercase tracking-[0.08em] md:hidden">
                 <span>{{ __('app.name') }}</span>
-                <span>{{ __('app.email') }}</span>
+                <span>{{ __('app.status') }}</span>
             </div>
             <x-tables.table
                 class="rt-employee-table"
                 :columns="[
-                    ['label'=>__('app.name'),'key'=>'name','width'=>'35%','sortable'=>true,'hideOn'=>'none'],
-                    ['label'=>__('app.email'),'key'=>'email','width'=>'30%','sortable'=>true,'hideOn'=>'none'],
-                    ['label'=>__('app.status'),'key'=>'team','width'=>'20%','sortable'=>false,'hideOn'=>'lg'],
-                    ['label'=>__('app.created'),'key'=>'created_at','width'=>'15%','sortable'=>true,'hideOn'=>'sm'],
+                    ['label'=>__('app.name'),'key'=>'name','width'=>'40%','sortable'=>true,'hideOn'=>'none'],
+                    ['label'=>__('app.status'),'key'=>'status','width'=>'18%','sortable'=>false,'hideOn'=>'none'],
+                    ['label'=>__('app.team'),'key'=>'team','width'=>'24%','sortable'=>false,'hideOn'=>'md'],
+                    ['label'=>__('app.created'),'key'=>'created_at','width'=>'18%','sortable'=>true,'hideOn'=>'md'],
                 ]"
                 :items="$employees"
                 :selected-items="$selectedEmployees"

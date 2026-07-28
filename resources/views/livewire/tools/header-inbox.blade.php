@@ -22,7 +22,7 @@
                     aria-haspopup="true"
                     data-inbox-trigger="true"
                     data-inbox-total="{{ $totalUnreadCount }}"
-                    class="relative w-9 px-0">
+                    class="relative h-10 w-10 px-0">
                 <i class="far fa-envelope text-base" aria-hidden="true"></i>
 
                 @if ($totalUnreadCount >= 1)

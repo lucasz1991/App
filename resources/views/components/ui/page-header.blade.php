@@ -9,12 +9,12 @@
 ])
 
 <header
-    {{ $attributes->class('relative flex min-w-0 items-start gap-3 sm:gap-4') }}
+    {{ $attributes->class('relative flex min-w-0 items-center gap-3 sm:gap-4') }}
     data-anim="fade-up"
     data-page-header
 >
     @if($showBack)
-        <x-ui.buttons.backbutton :href="$backUrl" class="mt-0.5" />
+        <x-ui.buttons.backbutton :href="$backUrl" />
     @endif
 
     <div class="min-w-0 flex-1">
@@ -62,6 +62,7 @@
                     aria-label="{{ app()->getLocale() === 'de' ? 'Informationen zu dieser Seite' : 'Information about this page' }}"
                     title="{{ app()->getLocale() === 'de' ? 'Seitenhilfe' : 'Page help' }}"
                     data-page-info-button
+                    data-page-header-control
                 >
                     <i class="far fa-info-circle text-sm" aria-hidden="true"></i>
                 </button>

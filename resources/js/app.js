@@ -841,6 +841,22 @@ Alpine.data('chatTranscriptScroll', () => ({
     },
 }));
 
+// Livewire aktualisiert den sichtbaren Verlauf alle zwei Sekunden. Wird die
+// Chat-Wurzel dabei neu initialisiert, darf der bereits verkleinerte
+// VisualViewport nicht zur neuen "stabilen" Hoehe werden. Sonst verliert das
+// mobile Layout mitten in der Eingabe nach genau einem Poll den Tastaturmodus.
+const rtChatViewportState = {
+    stableHeight: 0,
+    stableWidth: 0,
+    keyboardOpen: false,
+};
+
+document.addEventListener('livewire:navigating', () => {
+    rtChatViewportState.stableHeight = 0;
+    rtChatViewportState.stableWidth = 0;
+    rtChatViewportState.keyboardOpen = false;
+});
+
 Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
     mobilePane: initialHasSelection ? 'chat' : 'list',
     listCollapsed: localStorage.getItem('rt-chat-list-collapsed') === 'true',
@@ -858,14 +874,22 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
         this.focusHandler = () => this.queueVisualViewportSync();
 
         const visualViewport = window.visualViewport;
+        const viewportHeight = Math.max(0, visualViewport?.height ?? window.innerHeight);
+        const viewportWidth = Math.max(0, visualViewport?.width ?? window.innerWidth);
+
         this.stableViewportHeight = Math.max(
-            0,
-            visualViewport?.height ?? window.innerHeight,
+            viewportHeight,
+            rtChatViewportState.stableHeight,
         );
         this.stableViewportWidth = Math.max(
-            0,
-            visualViewport?.width ?? window.innerWidth,
+            viewportWidth,
+            rtChatViewportState.stableWidth,
         );
+
+        const keyboardThreshold = Math.max(104, this.stableViewportHeight * 0.16);
+        this.keyboardOpen = rtChatViewportState.keyboardOpen
+            && (this.stableViewportHeight - viewportHeight) > keyboardThreshold;
+        this.$root.dataset.keyboardOpen = this.keyboardOpen ? 'true' : 'false';
 
         window.visualViewport?.addEventListener('resize', this.viewportHandler, { passive: true });
         window.visualViewport?.addEventListener('scroll', this.viewportHandler, { passive: true });
@@ -940,6 +964,10 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
             if (!nextKeyboardOpen) {
                 this.stableViewportWidth = viewportWidth;
             }
+
+            rtChatViewportState.stableHeight = this.stableViewportHeight;
+            rtChatViewportState.stableWidth = this.stableViewportWidth;
+            rtChatViewportState.keyboardOpen = nextKeyboardOpen;
         });
     },
 

@@ -11,7 +11,7 @@
 @endphp
 
 @if($href)
-    <a href="{{ $href }}" {{ $attributes->class($classes) }} aria-label="{{ $label }}" title="{{ $label }}">
+    <a href="{{ $href }}" {{ $attributes->class($classes) }} aria-label="{{ $label }}" title="{{ $label }}" data-page-header-control>
         <i class="far fa-arrow-left text-sm transition-transform group-hover:-translate-x-0.5" aria-hidden="true"></i>
     </a>
 @else
@@ -22,6 +22,7 @@
         x-on:click="window.history.length > 1 ? window.history.back() : window.location.assign(@js($fallback))"
         aria-label="{{ $label }}"
         title="{{ $label }}"
+        data-page-header-control
     >
         <i class="far fa-arrow-left text-sm transition-transform group-hover:-translate-x-0.5" aria-hidden="true"></i>
     </button>

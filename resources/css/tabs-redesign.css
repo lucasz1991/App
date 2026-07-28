@@ -1,7 +1,7 @@
 /*
  * RailTime Tabs v2
- * Vengeance-inspirierte Command Rail fuer Blade + Alpine mit nativem,
- * gekoppeltem Momentum-Scrolling.
+ * Vengeance-inspirierte Command Rail fuer Blade + Alpine mit einer
+ * gemeinsamen transform-basierten Position fuer Navigation und Inhalt.
  * Alle Farbwerte werden aus den semantischen rt-* Tokens bezogen.
  */
 .rt-tabs-v2.rt-tabs-shell {
@@ -465,13 +465,13 @@ body[data-mode='dark'] .rt-tabs-v2.rt-tabs-shell {
         justify-content: flex-start;
         gap: 0.3125rem;
         padding-inline: 0;
+        will-change: transform;
     }
 
     .rt-tabs-v2 .rt-tabs-carousel {
-        overflow-x: auto;
+        overflow-x: hidden;
         overflow-y: hidden;
-        touch-action: pan-x pan-y;
-        -webkit-overflow-scrolling: touch;
+        touch-action: pan-y;
         cursor: grab;
     }
 
@@ -499,6 +499,7 @@ body[data-mode='dark'] .rt-tabs-v2.rt-tabs-shell {
 
     .rt-tab-panels {
         contain: layout paint;
+        touch-action: pan-y;
     }
 
     .rt-tab-panels-track {
@@ -513,6 +514,12 @@ body[data-mode='dark'] .rt-tabs-v2.rt-tabs-shell {
         transition-duration: 0ms;
     }
 
+    [data-tabs-scrubbing='true'] .rt-carousel-tab,
+    [data-tabs-scrubbing='true'] .rt-carousel-tab-icon,
+    [data-tabs-scrubbing='true'] .rt-tab-active-mark {
+        transition-duration: 0ms;
+    }
+
     .rt-tab-panels-track > .rt-tab-panel {
         position: relative !important;
         inset: auto !important;
@@ -521,8 +528,7 @@ body[data-mode='dark'] .rt-tabs-v2.rt-tabs-shell {
         min-width: 0;
         flex: 0 0 100%;
         transform: none;
-        content-visibility: auto;
-        contain-intrinsic-size: 1px 34rem;
+        contain: layout paint style;
     }
 
     .rt-tab-panels-track > .rt-tab-panel[data-active='false'] {

@@ -1,92 +1,71 @@
 @php
-    // Kurzhelfer pro Spaltenindex (kommt vom x-tables.table)
-    $hc = fn($i) => $hideClass($columnsMeta[$i]['hideOn'] ?? 'none');
+    $hc = fn ($index) => $hideClass($columnsMeta[$index]['hideOn'] ?? 'none');
 
     /** @var \App\Models\User $item */
-    $name   = $item->name ?? '—';
-    $email  = $item->email ?? '—';
-    $team   = $item->currentTeam?->name ?? '—';
-    $created= optional($item->created_at)->locale('de')->isoFormat('ll');
-
-    // optional: ausgewählt-Status, falls du ihn mitlieferst
-    $isSelected = in_array($item->id, $selectedItems ?? [], true);
+    $team = $item->currentTeam?->name ?? '—';
+    $created = optional($item->created_at)->locale('de')->isoFormat('ll');
+    $isSelected = in_array((int) $item->id, array_map('intval', $selectedItems ?? []), true);
+    $viewer = auth()->user();
+    $canCommunicate = $item->isActive() && ! $item->is($viewer);
+    $canCall = $canCommunicate
+        && ($viewer->isAdmin() || $viewer->hasRbacPermission('calls.start'))
+        && ($item->isAdmin() || $item->hasRbacPermission('calls.join'));
 @endphp
 
-{{-- 0: Name (mit Auswahl-Kreis wie bei Courses) --}}
-<div data-rt-table-label="{{ $columnsMeta[0]['label'] ?? '' }}" class="rt-employee-name-cell px-2 py-2 pr-4 {{ $hc(0) }}">
-    <div class="grid grid-cols-[auto_1fr] gap-2 items-center">
-        <div class="flex items-center">
-            <div
-                class="w-4 h-4 rounded-full border cursor-pointer transition-all duration-300 ease-rt-spring
-                {{ $isSelected ? 'ring-4 ring-rt-red/40 bg-rt-red/10 border-rt-red' : 'border-slate-400 dark:border-slate-500' }}">
-            </div>
-        </div>
-
-        <div class="min-w-0">
-            <x-user.person-anchor-preview
-                :user="$item"
-                :profile-url="auth()->user()->canViewManagementDashboard()
-                    ? route(auth()->user()->usesAdminLayout() ? 'admin.user-profile' : 'employees.show', $item->id)
-                    : null"
-                :can-message="auth()->user()->can('users.messages.create')"
-            />
-        </div>
-    </div>
+{{-- 0: Gemeinsame Personeninformation: Bild, Name und E-Mail --}}
+<div
+    data-rt-table-label="{{ $columnsMeta[0]['label'] ?? '' }}"
+    class="rt-employee-name-cell min-w-0 px-2 py-2 pr-4 {{ $hc(0) }}"
+>
+    <x-user.person-anchor-preview
+        :user="$item"
+        :profile-url="$viewer->canViewManagementDashboard()
+            ? route($viewer->usesAdminLayout() ? 'admin.user-profile' : 'employees.show', $item->id)
+            : null"
+        :can-message="$viewer->can('users.messages.create')"
+        :can-chat="$canCommunicate"
+        :can-call="$canCall"
+        chat-action="openDirectChat"
+        call-action="startDirectCall"
+        :selected="$isSelected"
+    />
 </div>
 
-{{-- 1: E-Mail --}}
-<div data-rt-table-label="{{ $columnsMeta[1]['label'] ?? '' }}" class="rt-employee-email-cell truncate px-2 py-2 text-rt-muted dark:text-rt-dark-muted {{ $hc(1) }}">
-    <a href="mailto:{{ $email }}" class="hover:underline">{{ $email }}</a>
+{{-- 1: Kontostatus – mobil neben der kombinierten Personeninformation sichtbar --}}
+<div
+    data-rt-table-label="{{ $columnsMeta[1]['label'] ?? '' }}"
+    class="rt-employee-status-cell flex items-center px-2 py-2 {{ $hc(1) }}"
+>
+    <span
+        @class([
+            'rt-ui-badge inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold ring-1',
+            'bg-emerald-50 text-emerald-700 ring-emerald-200/80 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20' => $item->isActive(),
+            'bg-slate-100 text-slate-600 ring-slate-200/80 dark:bg-slate-700/45 dark:text-slate-300 dark:ring-slate-600/50' => ! $item->isActive(),
+        ])
+    >
+        <span @class([
+            'h-1.5 w-1.5 rounded-full',
+            'bg-emerald-500' => $item->isActive(),
+            'bg-slate-400 dark:bg-slate-500' => ! $item->isActive(),
+        ]) aria-hidden="true"></span>
+        {{ $item->isActive() ? __('app.active') : __('app.inactive') }}
+    </span>
 </div>
 
-{{-- 2: Team (Badge) --}}
-<div data-rt-table-label="{{ $columnsMeta[2]['label'] ?? '' }}" class="flex items-center px-2 py-2 text-xs {{ $hc(2) }}">
-    <div class="flex items-center">
-        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-rt-surface-muted text-rt-muted ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted dark:ring-rt-dark-border/60 mr-2">
-            {{ $team }}
-        </span>
-                                <span title="{{ $item->status ? __('app.active') : __('app.inactive') }}" class="h-4 w-4 rounded-full flex items-center justify-center {{ $item->status ? 'bg-green-400' : 'bg-red-400' }}" >    
-                                @if ($item->status)
-                                    <!-- SVG für Aktiv (Haken) -->
-                                    <svg 
-                                        xmlns="http://www.w3.org/2000/svg" 
-                                        class="h-3 w-3 text-white" 
-                                        fill="none" 
-                                        viewBox="0 0 24 24" 
-                                        stroke-width="4" 
-                                        stroke="currentColor"
-                                    >
-                                        <path 
-                                            stroke-linecap="round" 
-                                            stroke-linejoin="round" 
-                                            d="M5 13l4 4L19 7" 
-                                        />
-                                    </svg>
-                                @else
-                                    <!-- SVG für Inaktiv (X) -->
-                                    <svg 
-                                        xmlns="http://www.w3.org/2000/svg" 
-                                        class="h-3 w-3 text-white" 
-                                        fill="none" 
-                                        viewBox="0 0 24 24" 
-                                        stroke-width="4" 
-                                        stroke="currentColor"
-                                    >
-                                        <path 
-                                            stroke-linecap="round" 
-                                            stroke-linejoin="round" 
-                                            d="M6 18L18 6M6 6l12 12" 
-                                        />
-                                    </svg>
-                                @endif
-    
-                            </span>
-    </div>
+{{-- 2: Team --}}
+<div
+    data-rt-table-label="{{ $columnsMeta[2]['label'] ?? '' }}"
+    class="flex min-w-0 items-center px-2 py-2 {{ $hc(2) }}"
+>
+    <span class="truncate rounded-lg bg-rt-surface-muted px-2.5 py-1 text-xs font-medium text-rt-muted ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted dark:ring-rt-dark-border/60">
+        {{ $team }}
+    </span>
 </div>
 
 {{-- 3: Erstellt am --}}
-<div data-rt-table-label="{{ $columnsMeta[3]['label'] ?? '' }}" class="px-2 py-2 text-rt-muted dark:text-rt-dark-muted {{ $hc(3) }} ">
-    <div class="pr-8">
-        {{ $created ?? '—' }}
-    </div>
+<div
+    data-rt-table-label="{{ $columnsMeta[3]['label'] ?? '' }}"
+    class="px-2 py-2 text-sm tabular-nums text-rt-muted dark:text-rt-dark-muted {{ $hc(3) }}"
+>
+    {{ $created ?? '—' }}
 </div>

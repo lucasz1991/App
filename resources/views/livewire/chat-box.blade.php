@@ -6,6 +6,7 @@
     data-mobile-pane="{{ $selectedChat ? 'chat' : 'list' }}"
     data-keyboard-open="false"
     x-bind:data-mobile-pane="mobilePane"
+    x-bind:data-keyboard-open="keyboardOpen ? 'true' : 'false'"
     x-on:chat:pane-open.window="showChat()"
     x-on:chat:pane-list.window="showList()"
     x-on:touchstart.passive="touchStart($event)"

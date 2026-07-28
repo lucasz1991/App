@@ -14,6 +14,7 @@
     x-transition:leave-end="rt-tab-panel-leave-end"
     role="tabpanel"
     id="panel-{{ $for }}"
+    data-tab-panel-id="{{ (string) $for }}"
     aria-labelledby="tab-{{ $for }}"
     :aria-hidden="openTab !== @js((string) $for)"
     :inert="openTab !== @js((string) $for)"

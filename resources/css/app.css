@@ -9,47 +9,6 @@
     display: none !important;
 }
 
-/* Tabellen-Toolbar: Auf Mobile ist der Filterbereich ein ausklappbares Modul
-   (Alpine x-show/x-collapse). Ab lg wird er dauerhaft als Inline-Reihe erzwungen
-   und die von x-show/x-collapse/x-cloak gesetzten Inline-Styles ueberschrieben. */
-@media (min-width: 1024px) {
-    [data-tables-toolbar] .rt-toolbar-filters {
-        display: flex !important;
-        height: auto !important;
-        overflow: visible !important;
-    }
-}
-
-/* Unter lg oeffnen die Filter als SCHWEBENDES Dropdown unter der Kompaktzeile
-   statt die Liste nach unten zu schieben. position/inset brauchen !important,
-   weil die Legacy-tailwind.min.css Utility-Klassen mit !important markiert. */
-@media (max-width: 1023.98px) {
-    [data-tables-toolbar] {
-        position: relative;
-    }
-
-    [data-tables-toolbar] .rt-toolbar-filters {
-        position: absolute !important;
-        top: 100%;
-        left: 0;
-        right: 0;
-        z-index: 40;
-        margin-top: 0.5rem;
-        padding: 0.75rem;
-        border-radius: 1rem;
-        border: 1px solid #dbe3ee;
-        background: #ffffff;
-        box-shadow: 0 4px 8px rgba(15, 23, 42, 0.06), 0 24px 64px -24px rgba(15, 23, 42, 0.28);
-    }
-
-    html.dark [data-tables-toolbar] .rt-toolbar-filters,
-    body[data-mode='dark'] [data-tables-toolbar] .rt-toolbar-filters {
-        border-color: #2a394d;
-        background: #111a27;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.35), 0 24px 64px -24px rgba(0, 0, 0, 0.7);
-    }
-}
-
 body {
     @apply bg-rt-canvas text-rt-text antialiased dark:bg-rt-dark-canvas dark:text-rt-dark-text;
     font-family: 'Plus Jakarta Sans Variable', ui-sans-serif, system-ui, sans-serif;
@@ -2889,14 +2848,14 @@ body[data-mode='dark'] .rt-employee-mobile-header {
     }
 
     .rt-employee-table .rt-table-row {
-        min-height: 3.25rem;
-        padding: 0.7rem 3.25rem 0.7rem 0.75rem;
+        min-height: 4.25rem;
+        padding: 0.65rem 3.25rem 0.65rem 0.75rem;
     }
 
     .rt-employee-table .rt-table-row-grid {
-        grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+        grid-template-columns: minmax(0, 1.3fr) minmax(5.5rem, 0.7fr);
         align-items: center;
-        gap: 0.5rem;
+        gap: 0.75rem;
     }
 
     .rt-employee-table .rt-table-row-grid > [data-rt-table-label]:not(.hidden) {
@@ -2912,19 +2871,14 @@ body[data-mode='dark'] .rt-employee-mobile-header {
         display: none;
     }
 
-    .rt-employee-table .rt-employee-name-cell > div {
-        gap: 0.4rem;
-    }
-
-    .rt-employee-table .rt-employee-name-cell .w-4 {
-        width: 0.75rem;
-        height: 0.75rem;
-    }
-
     .rt-employee-table .rt-employee-name-cell,
-    .rt-employee-table .rt-employee-email-cell {
-        white-space: nowrap;
-        text-overflow: ellipsis;
+    .rt-employee-table .rt-employee-status-cell {
+        min-width: 0;
+    }
+
+    .rt-employee-table .rt-employee-name-cell button {
+        width: 100%;
+        max-width: 100%;
     }
 }
 

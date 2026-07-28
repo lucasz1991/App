@@ -61,16 +61,17 @@
             x-ref="carousel"
             class="rt-tabs-carousel"
             data-tab-carousel
-            data-slider-library="native-linked-scroll"
-            @scroll.passive="onNavigationScroll()"
-            @pointerdown="beginPointerDrag($event)"
-            @pointermove="movePointerDrag($event)"
-            @pointerup="endPointerDrag($event)"
-            @pointercancel="endPointerDrag($event)"
-            @touchstart.passive="beginTouchScrub()"
-            @touchend.passive="endTouchScrub()"
+            data-slider-library="coupled-transform-rail"
+            @pointerdown="beginCoupledDrag($event, 'navigation')"
+            @pointermove="moveCoupledDrag($event)"
+            @pointerup="endCoupledDrag($event)"
+            @pointercancel="endCoupledDrag($event)"
+            @wheel="onNavigationWheel($event)"
         >
-            <div class="rt-tabs-carousel-track">
+            <div
+                x-ref="carouselTrack"
+                class="rt-tabs-carousel-track"
+            >
                 <template x-for="tab in items" :key="tab.id">
                     <button
                         type="button"
@@ -118,11 +119,19 @@
         class="rt-tab-panels {{ $contentClass }} relative min-w-0 overflow-hidden"
         data-tab-panels
         :style="panelViewportStyle()"
+        @pointerdown="beginCoupledDrag($event, 'content')"
+        @pointermove="moveCoupledDrag($event)"
+        @pointerup="endCoupledDrag($event)"
+        @pointercancel="endCoupledDrag($event)"
+        @click.capture="
+            if (!suppressClick) return;
+            $event.preventDefault();
+            $event.stopPropagation();
+        "
     >
         <div
             x-ref="panelTrack"
             class="rt-tab-panels-track"
-            :style="panelTrackStyle()"
         >
             {{ $slot }}
         </div>

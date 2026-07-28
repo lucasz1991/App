@@ -61,7 +61,7 @@
         x-transition:leave="transition duration-200 ease-in"
         x-transition:leave-start="translate-y-0 scale-100 opacity-100"
         x-transition:leave-end="translate-y-2 scale-[0.99] opacity-0"
-        class="rt-info-dialog w-full max-w-2xl overflow-hidden rounded-[1.75rem] bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-white/40 dark:bg-rt-dark-surface dark:text-white dark:ring-rt-dark-border/70"
+        class="rt-info-dialog w-full max-w-2xl overflow-hidden rounded-[1.75rem] bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/70"
         data-rt-info-dialog
     >
         <header class="rt-info-hero relative overflow-hidden px-5 pb-6 pt-5 sm:px-7 sm:pb-7 sm:pt-6">

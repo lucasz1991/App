@@ -172,6 +172,14 @@ body[data-mode='dark'] .rt-shell-ambient__orb--two {
     white-space: nowrap;
 }
 
+[data-page-header-control] {
+    width: 2.5rem !important;
+    min-width: 2.5rem !important;
+    height: 2.5rem !important;
+    min-height: 2.5rem !important;
+    padding: 0 !important;
+}
+
 @media (min-width: 1024px) {
     body[data-sidebar-collapsible='true'] .rt-shell-ambient {
         left: var(--webreach-sidebar-collapsed-width);
@@ -239,30 +247,44 @@ body[data-mode='dark'] .rt-shell-topbar {
 }
 
 .rt-shell-topbar-controls {
-    padding: 0.3rem;
-    border: 1px solid rgba(203, 213, 225, 0.52);
-    border-radius: 999px;
-    background: rgba(248, 250, 252, 0.68);
-    box-shadow:
-        0 1px 0 rgba(255, 255, 255, 0.88) inset,
-        0 8px 28px -24px rgba(15, 23, 42, 0.5);
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
 }
 
 html.dark .rt-shell-topbar-controls,
 body[data-mode='dark'] .rt-shell-topbar-controls {
-    border-color: rgba(71, 85, 105, 0.48);
-    background: rgba(15, 23, 42, 0.64);
-    box-shadow:
-        0 1px 0 rgba(255, 255, 255, 0.04) inset,
-        0 12px 30px -24px rgba(0, 0, 0, 0.82);
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
 }
 
 .rt-topbar-control,
-.rt-topbar-profile-trigger,
 .rt-expandable-search[data-search-context='topbar'] .rt-expandable-search__trigger {
-    border-color: transparent !important;
-    background: transparent !important;
-    box-shadow: none !important;
+    width: 2.5rem !important;
+    min-width: 2.5rem !important;
+    height: 2.5rem !important;
+    border: 1px solid var(--rt-shell-border) !important;
+    border-radius: 0.75rem !important;
+    background: var(--rt-shell-surface-solid) !important;
+    box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.8) inset,
+        0 9px 22px -18px rgba(15, 23, 42, 0.5) !important;
+}
+
+.rt-expandable-search[data-search-context='topbar'] {
+    width: 2.5rem;
+    min-width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.75rem;
+}
+
+.rt-expandable-search[data-search-context='topbar'] .rt-expandable-search__input {
+    height: 2.5rem;
+    border-radius: 0.75rem;
+    padding-left: 2.5rem;
 }
 
 .rt-shell-topbar-controls .rt-expandable-search[data-search-context='topbar'] .rt-expandable-search__input,
@@ -275,7 +297,7 @@ body[data-mode='dark'] .rt-shell-topbar-controls {
 
 .rt-shell-topbar-controls .rt-expandable-search[data-search-context='topbar'].is-expanded {
     overflow: hidden;
-    border-radius: 999px;
+    border-radius: 0.75rem;
     background: rgba(255, 255, 255, 0.72);
     box-shadow:
         0 0 0 1px rgba(148, 163, 184, 0.24) inset,
@@ -304,6 +326,30 @@ body[data-mode='dark'] .rt-shell-topbar-controls .rt-expandable-search[data-sear
     box-shadow:
         0 0 0 1px rgba(255, 113, 137, 0.24) inset,
         0 16px 32px -24px rgba(0, 0, 0, 0.92);
+}
+
+.rt-expandable-search[data-search-context='topbar'].is-expanded .rt-expandable-search__trigger {
+    border-color: transparent !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+html.dark .rt-topbar-control,
+html.dark .rt-expandable-search[data-search-context='topbar'] .rt-expandable-search__trigger,
+body[data-mode='dark'] .rt-topbar-control,
+body[data-mode='dark'] .rt-expandable-search[data-search-context='topbar'] .rt-expandable-search__trigger {
+    border-color: var(--rt-shell-border) !important;
+    background: var(--rt-shell-surface-solid) !important;
+    box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.035) inset,
+        0 12px 26px -18px rgba(0, 0, 0, 0.82) !important;
+}
+
+html.dark .rt-expandable-search[data-search-context='topbar'].is-expanded .rt-expandable-search__trigger,
+body[data-mode='dark'] .rt-expandable-search[data-search-context='topbar'].is-expanded .rt-expandable-search__trigger {
+    border-color: transparent !important;
+    background: transparent !important;
+    box-shadow: none !important;
 }
 
 .rt-topbar-control,
@@ -631,6 +677,7 @@ body[data-mode='dark'] .rt-viewport-dropdown .rt-ui-dropdown-panel {
 
 .rt-viewport-dropdown .rt-ui-dropdown-caret {
     left: var(--rt-dropdown-caret-x, 50%);
+    z-index: 4;
     width: 18px;
     height: var(--rt-dropdown-connector-size);
     border: 0 !important;
@@ -652,18 +699,18 @@ body[data-mode='dark'] .rt-viewport-dropdown .rt-ui-dropdown-panel {
 }
 
 .rt-viewport-dropdown .rt-ui-dropdown-caret::after {
-    inset: 1.5px 1.5px -1px;
+    inset: 1.5px 1.5px -2px;
     background: var(--rt-dropdown-caret-surface);
 }
 
 .rt-viewport-dropdown[data-placement='bottom'] .rt-ui-dropdown-caret {
-    top: calc((var(--rt-dropdown-connector-size) * -1) + 1px);
+    top: calc((var(--rt-dropdown-connector-size) * -1) + 2px);
     bottom: auto;
 }
 
 .rt-viewport-dropdown[data-placement='top'] .rt-ui-dropdown-caret {
     top: auto;
-    bottom: calc((var(--rt-dropdown-connector-size) * -1) + 1px);
+    bottom: calc((var(--rt-dropdown-connector-size) * -1) + 2px);
     transform: translateX(-50%) rotate(180deg);
 }
 
@@ -797,20 +844,39 @@ body[data-mode='dark'] .rt-modal-footer {
 
 .rt-info-dialog,
 .rt-welcome-card {
-    border: 1px solid rgba(255, 255, 255, 0.48);
+    border: 1px solid var(--rt-shell-border);
     box-shadow:
-        0 1px 0 rgba(255, 255, 255, 0.48) inset,
+        0 1px 0 rgba(255, 255, 255, 0.68) inset,
         0 44px 120px -42px rgba(0, 0, 0, 0.82) !important;
 }
 
 .rt-info-hero {
     min-height: 12.5rem;
+    color: #f8fafc;
     background:
         linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
         linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
         radial-gradient(30rem 18rem at 90% -25%, rgba(228, 0, 43, 0.38), transparent 64%),
-        linear-gradient(135deg, var(--rt-shell-surface-solid) 0%, var(--rt-shell-canvas) 58%, #1f0b12 100%);
+        linear-gradient(135deg, #172235 0%, #26374d 58%, #4a1020 100%);
     background-size: 24px 24px, 24px 24px, auto, auto;
+}
+
+html.dark .rt-info-dialog,
+html.dark .rt-welcome-card,
+body[data-mode='dark'] .rt-info-dialog,
+body[data-mode='dark'] .rt-welcome-card {
+    box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.04) inset,
+        0 44px 120px -42px rgba(0, 0, 0, 0.9) !important;
+}
+
+html.dark .rt-info-hero,
+body[data-mode='dark'] .rt-info-hero {
+    background:
+        linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        radial-gradient(30rem 18rem at 90% -25%, rgba(228, 0, 43, 0.32), transparent 64%),
+        linear-gradient(135deg, #090f1a 0%, #111f31 58%, #360b15 100%);
 }
 
 .rt-info-orbit {

@@ -2,11 +2,22 @@
     'user',
     'profileUrl' => null,
     'canMessage' => false,
+    'canChat' => false,
+    'canCall' => false,
+    'chatAction' => null,
+    'callAction' => null,
+    'selected' => false,
 ])
 
 @php
     $position = $user->profile?->position ?: __('app.position_not_set');
     $team = $user->currentTeam?->name ?: '—';
+    $safeChatAction = is_string($chatAction) && preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $chatAction)
+        ? $chatAction
+        : null;
+    $safeCallAction = is_string($callAction) && preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $callAction)
+        ? $callAction
+        : null;
 @endphp
 
 <x-ui.dropdown.anchor-dropdown
@@ -28,7 +39,12 @@
                 title="{{ __('app.open_person_preview') }}"
                 data-table-row-ignore
             >
-                <x-user.public-info :user="$user" :size="9" />
+                <x-user.public-info
+                    :user="$user"
+                    :size="10"
+                    :show-email="true"
+                    :selected="$selected"
+                />
             </button>
         @endisset
     </x-slot:trigger>
@@ -44,16 +60,60 @@
                         class="h-12 w-12 shrink-0 rounded-xl object-cover shadow-rt-xs ring-1 ring-rt-border/70 dark:ring-rt-dark-border/70"
                     >
                     <div class="min-w-0">
-                        <p class="text-[10px] font-bold uppercase tracking-[0.14em] text-rt-red dark:text-rt-dark-accent">
-                            {{ __('app.person_preview') }}
-                        </p>
-                        <h3 class="mt-0.5 truncate text-base font-bold tracking-tight text-rt-text dark:text-rt-dark-text">
+                        <h3 class="truncate text-base font-bold tracking-tight text-rt-text dark:text-rt-dark-text">
                             {{ $user->name }}
                         </h3>
                         <p class="truncate text-xs text-rt-muted dark:text-rt-dark-muted">{{ $position }}</p>
                     </div>
                 </div>
             </header>
+
+            @if (($canChat && $safeChatAction) || ($canCall && $safeCallAction))
+                <div class="grid grid-cols-3 gap-1.5 border-b border-rt-border/70 p-2 dark:border-rt-dark-border/70" aria-label="{{ __('app.communication_actions') }}">
+                    @if ($canChat && $safeChatAction)
+                        <button
+                            type="button"
+                            x-on:click.prevent="$wire.call(@js($safeChatAction), {{ $user->id }})"
+                            class="group flex min-w-0 flex-col items-center gap-1.5 rounded-lg px-1.5 py-2 text-center text-rt-muted outline-none transition-all duration-200 hover:bg-rt-red/10 hover:text-rt-red active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:text-rt-dark-muted dark:hover:bg-rt-dark-accent/10 dark:hover:text-rt-dark-accent"
+                            aria-label="{{ __('app.chat') }}"
+                            data-table-row-ignore
+                        >
+                            <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-rt-surface-muted text-sm ring-1 ring-rt-border/70 transition-colors group-hover:bg-rt-surface dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/70 dark:group-hover:bg-rt-dark-surface">
+                                <i class="far fa-comment-dots" aria-hidden="true"></i>
+                            </span>
+                            <span class="w-full truncate text-[10px] font-bold">{{ __('app.chat') }}</span>
+                        </button>
+                    @endif
+
+                    @if ($canCall && $safeCallAction)
+                        <button
+                            type="button"
+                            x-on:click.prevent="$wire.call(@js($safeCallAction), {{ $user->id }}, 'voice')"
+                            class="group flex min-w-0 flex-col items-center gap-1.5 rounded-lg px-1.5 py-2 text-center text-rt-muted outline-none transition-all duration-200 hover:bg-rt-red/10 hover:text-rt-red active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:text-rt-dark-muted dark:hover:bg-rt-dark-accent/10 dark:hover:text-rt-dark-accent"
+                            aria-label="{{ __('app.voice_call') }}"
+                            data-table-row-ignore
+                        >
+                            <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-rt-surface-muted text-sm ring-1 ring-rt-border/70 transition-colors group-hover:bg-rt-surface dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/70 dark:group-hover:bg-rt-dark-surface">
+                                <i class="far fa-phone-alt" aria-hidden="true"></i>
+                            </span>
+                            <span class="w-full truncate text-[10px] font-bold">{{ __('app.voice_call') }}</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            x-on:click.prevent="$wire.call(@js($safeCallAction), {{ $user->id }}, 'video')"
+                            class="group flex min-w-0 flex-col items-center gap-1.5 rounded-lg px-1.5 py-2 text-center text-rt-muted outline-none transition-all duration-200 hover:bg-rt-red/10 hover:text-rt-red active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:text-rt-dark-muted dark:hover:bg-rt-dark-accent/10 dark:hover:text-rt-dark-accent"
+                            aria-label="{{ __('app.video_call') }}"
+                            data-table-row-ignore
+                        >
+                            <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-rt-surface-muted text-sm ring-1 ring-rt-border/70 transition-colors group-hover:bg-rt-surface dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/70 dark:group-hover:bg-rt-dark-surface">
+                                <i class="far fa-video" aria-hidden="true"></i>
+                            </span>
+                            <span class="w-full truncate text-[10px] font-bold">{{ __('app.video_call') }}</span>
+                        </button>
+                    @endif
+                </div>
+            @endif
 
             <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 px-4 py-3 text-xs">
                 <dt class="font-semibold text-rt-soft dark:text-rt-dark-soft">{{ __('app.email') }}</dt>
