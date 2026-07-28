@@ -264,14 +264,14 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
                 window.gsap.killTweensOf(loader);
                 window.gsap.fromTo(loader, {
                     autoAlpha: 0,
-                    scale: 0.55,
-                    y: 16,
+                    scale: 0.82,
+                    y: 8,
                 }, {
                     autoAlpha: 1,
                     scale: 1,
                     y: 0,
-                    duration: 0.5,
-                    ease: 'back.out(1.9)',
+                    duration: 0.42,
+                    ease: 'power3.out',
                     overwrite: 'auto',
                     clearProps: 'opacity,visibility,transform',
                 });
@@ -850,6 +850,7 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
     viewportFrame: null,
     focusHandler: null,
     stableViewportHeight: 0,
+    stableViewportWidth: 0,
     keyboardOpen: false,
 
     init() {
@@ -860,6 +861,10 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
         this.stableViewportHeight = Math.max(
             0,
             visualViewport?.height ?? window.innerHeight,
+        );
+        this.stableViewportWidth = Math.max(
+            0,
+            visualViewport?.width ?? window.innerWidth,
         );
 
         window.visualViewport?.addEventListener('resize', this.viewportHandler, { passive: true });
@@ -885,11 +890,28 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
 
             const visualViewport = window.visualViewport;
             const viewportHeight = Math.max(0, visualViewport?.height ?? window.innerHeight);
+            const viewportWidth = Math.max(0, visualViewport?.width ?? window.innerWidth);
             const viewportTop = Math.max(0, visualViewport?.offsetTop ?? 0);
             const activeElement = document.activeElement;
             const editableFocused = activeElement instanceof Element
                 && this.$root.contains(activeElement)
                 && activeElement.matches('input, textarea, [contenteditable="true"]');
+
+            // Bei einer Drehung entspricht die vorherige Breite ungefaehr der
+            // neuen unbelasteten Hoehe. So bleibt die Tastaturerkennung auch
+            // dann korrekt, wenn Android gleichzeitig VisualViewport,
+            // innerHeight und Layout-Viewport verkleinert.
+            const previousStableWidth = this.stableViewportWidth || viewportWidth;
+            const previousStableHeight = this.stableViewportHeight || viewportHeight;
+            const widthChanged = Math.abs(viewportWidth - previousStableWidth)
+                > Math.max(48, previousStableWidth * 0.18);
+            const orientationChanged = widthChanged
+                && (previousStableHeight >= previousStableWidth) !== (viewportHeight >= viewportWidth);
+
+            if (orientationChanged) {
+                this.stableViewportHeight = Math.max(viewportHeight, previousStableWidth);
+                this.stableViewportWidth = viewportWidth;
+            }
 
             // Im Ruhezustand ist der sichtbare Viewport unsere stabile
             // Referenz. Beim Fokus steht dieser Wert bereits fest, bevor die
@@ -900,6 +922,7 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
 
             if (!editableFocused && (!this.keyboardOpen || viewportRecovered)) {
                 this.stableViewportHeight = viewportHeight;
+                this.stableViewportWidth = viewportWidth;
             }
 
             const keyboardDelta = this.stableViewportHeight - viewportHeight;
@@ -912,6 +935,10 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
             if (nextKeyboardOpen !== this.keyboardOpen) {
                 this.keyboardOpen = nextKeyboardOpen;
                 this.$root.dataset.keyboardOpen = nextKeyboardOpen ? 'true' : 'false';
+            }
+
+            if (!nextKeyboardOpen) {
+                this.stableViewportWidth = viewportWidth;
             }
         });
     },
@@ -1395,7 +1422,8 @@ window.Swiper = Swiper;
 let sidebarCollapseTimer = null;
 let sidebarExpandTimer = null;
 let sidebarSwipeStart = null;
-const DESKTOP_SIDEBAR_HOVER_DELAY = 1500;
+const DESKTOP_SIDEBAR_EXPAND_DELAY = 750;
+const DESKTOP_SIDEBAR_COLLAPSE_DELAY = 1500;
 
 function initMetisMenu(sideMenu) {
     if (!window.MetisMenu || !sideMenu) {
@@ -1652,7 +1680,7 @@ function scheduleDesktopSidebarCollapse() {
         if (!isSidebarHoveredOrFocused()) {
             setDesktopSidebarExpanded(false);
         }
-    }, DESKTOP_SIDEBAR_HOVER_DELAY);
+    }, DESKTOP_SIDEBAR_COLLAPSE_DELAY);
 }
 
 function scheduleDesktopSidebarExpand() {
@@ -1669,7 +1697,7 @@ function scheduleDesktopSidebarExpand() {
         if (isSidebarHoveredOrFocused()) {
             setDesktopSidebarExpanded(true);
         }
-    }, DESKTOP_SIDEBAR_HOVER_DELAY);
+    }, DESKTOP_SIDEBAR_EXPAND_DELAY);
 }
 
 function syncSidebarInteractionMode() {

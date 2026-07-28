@@ -58,9 +58,9 @@ function resolveAmbient() {
     if (!ambientPointer) return;
 
     gsap.set(ambientPointer, { xPercent: -50, yPercent: -50, opacity: 0 });
-    ambientX = gsap.quickTo(ambientPointer, 'x', { duration: 0.72, ease: 'power3.out' });
-    ambientY = gsap.quickTo(ambientPointer, 'y', { duration: 0.72, ease: 'power3.out' });
-    ambientOpacity = gsap.quickTo(ambientPointer, 'opacity', { duration: 0.32, ease: 'power2.out' });
+    ambientX = gsap.quickTo(ambientPointer, 'x', { duration: 0.9, ease: 'power3.out' });
+    ambientY = gsap.quickTo(ambientPointer, 'y', { duration: 0.9, ease: 'power3.out' });
+    ambientOpacity = gsap.quickTo(ambientPointer, 'opacity', { duration: 0.4, ease: 'power2.out' });
 
     applyAmbientSnapshot(true);
 }
@@ -108,7 +108,7 @@ function applyAmbientSnapshot(immediate = false) {
         && finePointer.matches
         && !reducedMotion.matches
         && isAmbientTargetAt(ambientSnapshot.clientX, ambientSnapshot.clientY)
-        ? 0.82
+        ? 0.42
         : 0;
 
     if (immediate) {

@@ -4,6 +4,7 @@ const PUSH_DEVICE_BINDING_STORAGE_KEY = 'railtime:webpush-device-binding:v1';
 let deferredInstallPrompt = null;
 let serviceWorkerRegistrationPromise = null;
 let lifecycleInitialized = false;
+let installConfirmedInSession = false;
 
 function currentWindow() {
     return typeof window === 'undefined' ? null : window;
@@ -215,7 +216,10 @@ function installState() {
     const navigatorLike = currentNavigator();
 
     return {
-        installed: isStandaloneMode(windowLike, navigatorLike),
+        // Nur der aktuelle Display-Modus und das echte Browser-Ereignis sind
+        // belastbar. Ein dauerhafter Storage-Marker wuerde nach einer
+        // Deinstallation veralten und den Installationsknopf blockieren.
+        installed: isStandaloneMode(windowLike, navigatorLike) || installConfirmedInSession,
         promptAvailable: Boolean(deferredInstallPrompt),
         ios: isIosDevice(navigatorLike),
         android: isAndroidDevice(navigatorLike),
@@ -345,11 +349,15 @@ export function setupRailtimePwa() {
     windowLike.addEventListener('beforeinstallprompt', (event) => {
         event.preventDefault();
         deferredInstallPrompt = event;
+        installConfirmedInSession = false;
+
         dispatchPwaState();
     });
 
     windowLike.addEventListener('appinstalled', () => {
         deferredInstallPrompt = null;
+        installConfirmedInSession = true;
+
         dispatchPwaState();
     });
 

@@ -12,6 +12,7 @@ class LoadingSkeletonUiTest extends TestCase
         $skeleton = file_get_contents(resource_path('views/components/ui/loading/skeleton.blade.php'));
 
         $this->assertStringContainsString('wire:loading.delay.long', $page);
+        $this->assertStringContainsString('wire:loading.attr.delay.long="inert"', $page);
         $this->assertStringContainsString('data-page-loading-skeleton', $page);
         $this->assertStringContainsString('data-page-live-content', $page);
         $this->assertStringContainsString("['page', 'list', 'table', 'card']", $skeleton);

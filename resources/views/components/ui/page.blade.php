@@ -76,6 +76,7 @@
 
         <div
             @if ($loadingSkeleton) wire:loading.class.delay.long="rt-page-live-content--loading" @endif
+            @if ($loadingSkeleton) wire:loading.attr.delay.long="inert" @endif
             data-page-live-content
         >
             {{ $slot }}

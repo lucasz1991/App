@@ -84,6 +84,8 @@ class ChatRedesignTest extends TestCase
         $this->assertStringContainsString('window.requestAnimationFrame', $script);
         $this->assertStringContainsString('window.cancelAnimationFrame', $script);
         $this->assertStringContainsString('stableViewportHeight', $script);
+        $this->assertStringContainsString('stableViewportWidth', $script);
+        $this->assertStringContainsString('orientationChanged', $script);
         $this->assertStringContainsString('this.$root.dataset.keyboardOpen', $script);
         $this->assertStringContainsString("'--rt-chat-visual-height'", $script);
         $this->assertStringContainsString("'--rt-chat-visual-top'", $script);

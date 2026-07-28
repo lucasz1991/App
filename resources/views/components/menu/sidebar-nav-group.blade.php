@@ -22,8 +22,8 @@
         </span>
         <span class="sidebar-nav-link__label">{{ $label }}</span>
         <span class="sidebar-nav-link__chevron" aria-hidden="true">
-            <svg viewBox="0 0 20 20" fill="none">
-                <path d="m5.75 7.75 4.25 4.25 4.25-4.25" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+            <svg viewBox="0 0 24 24" fill="none">
+                <path d="m9 18 6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
         </span>
     </a>

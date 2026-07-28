@@ -22,7 +22,6 @@ class FrontendResilienceTest extends TestCase
 
         // Jeder Weg, auf dem eine Navigation endet ODER scheitert, raeumt auf.
         foreach ([
-            "document.addEventListener('livewire:navigated', done)",
             "window.addEventListener('popstate', done)",
             "window.addEventListener('pageshow', done)",
             "window.addEventListener('offline', done)",
@@ -31,6 +30,13 @@ class FrontendResilienceTest extends TestCase
         ] as $listener) {
             $this->assertStringContainsString($listener, $script);
         }
+
+        // Nach einer erfolgreichen Navigation wird zuerst aufgeraeumt und
+        // erst danach die dezente Content-Einblendung abgespielt.
+        $this->assertMatchesRegularExpression(
+            "/document\\.addEventListener\\('livewire:navigated', function \\(\\) \\{\\s*done\\(\\);\\s*playContentEntrance\\(\\);/",
+            $script
+        );
 
         // Der Zurueck-Button stellt eine HTML-Kopie der Seite wieder her. Ein
         // darin enthaltener Overlay-Klon muss mit aufgeraeumt werden ...

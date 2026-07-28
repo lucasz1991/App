@@ -140,6 +140,7 @@ class AppShellRedesignTest extends TestCase
         $this->assertStringContainsString("const GLOW_SELECTOR = '[data-rt-glow]'", $motion);
         $this->assertStringContainsString("const AMBIENT_SELECTOR = '[data-rt-shell-ambient]'", $motion);
         $this->assertStringContainsString("gsap.quickTo(ambientPointer, 'x'", $motion);
+        $this->assertStringContainsString('? 0.42', $motion);
         $this->assertStringContainsString('window.cancelAnimationFrame(pendingFrame)', $motion);
         $this->assertStringContainsString("removeProperty('--rt-glow-o')", $motion);
         $this->assertStringContainsString("event.pointerType === 'touch'", $motion);

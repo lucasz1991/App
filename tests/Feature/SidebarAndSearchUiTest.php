@@ -104,16 +104,23 @@ class SidebarAndSearchUiTest extends TestCase
         $this->assertStringContainsString('sidebar-nav-link__chevron', $group);
         $this->assertStringContainsString('aria-expanded="{{ $active ? \'true\' : \'false\' }}"', $group);
         $this->assertStringContainsString("[aria-expanded='true'] .sidebar-nav-link__chevron", $shellStyles);
-        $this->assertStringContainsString('transform: rotate(180deg)', $shellStyles);
+        $this->assertStringContainsString('transform: rotate(90deg)', $shellStyles);
+        $this->assertMatchesRegularExpression(
+            '/\.rt-shell-sidebar \.sidebar-nav-link__chevron\s*\{[^}]*border:\s*0;[^}]*background:\s*transparent;/s',
+            $shellStyles,
+        );
     }
 
-    public function test_desktop_sidebar_uses_equal_hover_delays_and_immediate_click_opening(): void
+    public function test_desktop_sidebar_opens_after_half_the_close_delay_and_clicks_immediately(): void
     {
         $script = file_get_contents(resource_path('js/app.js'));
         $styles = file_get_contents(resource_path('css/app.css'));
+        $shellStyles = file_get_contents(resource_path('css/shell-redesign.css'));
 
-        $this->assertStringContainsString('const DESKTOP_SIDEBAR_HOVER_DELAY = 1500;', $script);
-        $this->assertGreaterThanOrEqual(2, substr_count($script, '}, DESKTOP_SIDEBAR_HOVER_DELAY);'));
+        $this->assertStringContainsString('const DESKTOP_SIDEBAR_EXPAND_DELAY = 750;', $script);
+        $this->assertStringContainsString('const DESKTOP_SIDEBAR_COLLAPSE_DELAY = 1500;', $script);
+        $this->assertStringContainsString('}, DESKTOP_SIDEBAR_EXPAND_DELAY);', $script);
+        $this->assertStringContainsString('}, DESKTOP_SIDEBAR_COLLAPSE_DELAY);', $script);
         $this->assertStringContainsString('scheduleDesktopSidebarExpand();', $script);
         $this->assertStringContainsString('clearSidebarExpandTimer();', $script);
         $this->assertStringContainsString("element.addEventListener('mouseenter'", $script);
@@ -127,6 +134,14 @@ class SidebarAndSearchUiTest extends TestCase
         $this->assertStringContainsString("target?.closest('.vertical-menu, .topbar-brand')", $script);
         $this->assertStringContainsString('520ms cubic-bezier(0.22, 1, 0.36, 1)', $styles);
         $this->assertStringContainsString('will-change: transform, opacity', $styles);
+        $this->assertMatchesRegularExpression(
+            '/\.rt-shell-sidebar #sidebar-menu\s*\{\s*padding-inline:\s*0;/s',
+            $shellStyles,
+        );
+        $this->assertMatchesRegularExpression(
+            '/\[data-rt-sidebar-group\]\s*\{[^}]*border-radius:\s*0\s*!important;/s',
+            $shellStyles,
+        );
     }
 
     public function test_shared_expandable_search_is_used_by_every_shared_data_table_and_topbar(): void

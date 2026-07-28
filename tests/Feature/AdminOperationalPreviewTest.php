@@ -44,7 +44,7 @@ class AdminOperationalPreviewTest extends TestCase
             $component = Livewire::actingAs($admin)
                 ->test(OperationalPreview::class, ['module' => $slug])
                 ->assertOk()
-                ->assertSee('data-operational-module="' . $slug . '"', escape: false)
+                ->assertSee('data-operational-module="'.$slug.'"', escape: false)
                 ->assertSee($module['title'])
                 ->assertSee($module['metric'])
                 ->assertSee($module['badge'])
@@ -101,8 +101,9 @@ class AdminOperationalPreviewTest extends TestCase
         $customersPosition = strpos($sidebar, "'module' => 'customers'");
         $mailPosition = strpos($sidebar, "route('admin.mail-management')");
         $wagonPosition = strpos($sidebar, "route('admin.operations.wagon-list')");
+        $profilePosition = strpos($sidebar, "route('profile.show')");
         $emailTemplatesPosition = strpos($sidebar, "route('email-templates.index')");
-        $profileSupportPosition = strpos($sidebar, "<x-slot:label>{{ __('app.profile_and_support') }}</x-slot:label>");
+        $supportPosition = strpos($sidebar, "<x-slot:label>{{ __('app.it_support') }}</x-slot:label>");
 
         $this->assertNotFalse($companyPosition);
         $this->assertNotFalse($communicationPosition);
@@ -116,7 +117,9 @@ class AdminOperationalPreviewTest extends TestCase
         $this->assertNotFalse($customersPosition);
         $this->assertNotFalse($mailPosition);
         $this->assertNotFalse($wagonPosition);
+        $this->assertNotFalse($profilePosition);
         $this->assertNotFalse($emailTemplatesPosition);
+        $this->assertNotFalse($supportPosition);
 
         // Firma traegt nur die Einstellungen; Kommunikation folgt direkt
         // danach und bleibt vor dem Management.
@@ -139,18 +142,21 @@ class AdminOperationalPreviewTest extends TestCase
         $this->assertStringNotContainsString("__('app.operational_control')", $sidebar);
         $this->assertStringNotContainsString("__('app.organization')", $sidebar);
 
-        // E-Mail-Vorlagen liegen im persönlichen Bereich über Profil & Support.
+        // Profil bleibt ein eigenständiger Link; E-Mail-Vorlagen folgen
+        // danach und Support bildet die abschließende aufklappbare Gruppe.
+        $this->assertLessThan($emailTemplatesPosition, $profilePosition);
         $this->assertGreaterThan($myAreaPosition, $emailTemplatesPosition);
-        $this->assertLessThan($profileSupportPosition, $emailTemplatesPosition);
+        $this->assertLessThan($supportPosition, $emailTemplatesPosition);
 
         // Management bündelt seine Einträge in zwei Untergruppen: Verwaltung und Disposition.
         $this->assertStringContainsString("<x-slot:label>{{ __('app.management_administration') }}</x-slot:label>", $sidebar);
         $this->assertStringContainsString("<x-slot:label>{{ __('app.management_dispatching') }}</x-slot:label>", $sidebar);
 
-        // Weitere aufklappbare Gruppen: Dateien, Chat & Nachrichten, Profil & Support.
+        // Weitere aufklappbare Gruppen: Dateien, Chat & Nachrichten und Support.
         $this->assertStringContainsString("<x-slot:label>{{ __('app.sidebar_files') }}</x-slot:label>", $sidebar);
         $this->assertStringContainsString("<x-slot:label>{{ __('app.chat_and_messages') }}</x-slot:label>", $sidebar);
-        $this->assertStringContainsString("<x-slot:label>{{ __('app.profile_and_support') }}</x-slot:label>", $sidebar);
+        $this->assertStringContainsString("<x-slot:label>{{ __('app.it_support') }}</x-slot:label>", $sidebar);
+        $this->assertStringNotContainsString("<x-slot:label>{{ __('app.profile_and_support') }}</x-slot:label>", $sidebar);
         $this->assertSame(5, substr_count($sidebar, '<x-menu.sidebar-nav-group'));
         $this->assertStringContainsString('class="!pl-8"', $sidebar);
         $this->assertStringContainsString("{{ __('app.sidebar_work_resources') }}", $sidebar);

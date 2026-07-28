@@ -196,7 +196,7 @@
                         <div>
                             <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.help_install_eyebrow') }}</p>
                             <h2 id="install-app-heading" class="mt-1 text-lg font-semibold tracking-tight text-rt-text dark:text-white">
-                                {{ app()->getLocale() === 'de' ? 'Realtime auf dem Smartphone' : 'Realtime on your smartphone' }}
+                                {{ __('app.help_install_title') }}
                             </h2>
                         </div>
                     </div>
