@@ -3,8 +3,13 @@
 namespace App\Livewire\Admin;
 
 use App\Actions\Jetstream\DeleteUser;
+use App\Models\Chat;
 use App\Models\Team;
 use App\Models\User;
+use App\Services\Calls\CallInfrastructureUnavailable;
+use App\Services\Calls\CallInvitationService;
+use App\Services\Calls\RoomLifecycleService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Livewire\Component;
@@ -160,6 +165,85 @@ class Employees extends Component
 
         $this->dispatch('openMailModal', payload: $id)
             ->to(\App\Livewire\Admin\Users\Messages\MessageForm::class);
+    }
+
+    /**
+     * Öffnet den bestehenden Direktchat oder legt ihn einmalig an.
+     */
+    public function openDirectChat(int $userId)
+    {
+        $viewer = auth()->user();
+        $other = User::query()->where('status', true)->findOrFail($userId);
+
+        abort_if($other->is($viewer), 422);
+
+        $chat = DB::transaction(
+            fn (): Chat => Chat::directBetween($viewer, $other)
+        );
+
+        return $this->redirectRoute('chat', ['chat' => $chat->id], navigate: true);
+    }
+
+    /**
+     * Startet einen direkten Sprach- oder Videoanruf aus der Personenkarte.
+     */
+    public function startDirectCall(
+        int $userId,
+        string $mode,
+        RoomLifecycleService $lifecycle,
+        CallInvitationService $invitations,
+    ) {
+        abort_unless(in_array($mode, ['voice', 'video'], true), 422);
+
+        $viewer = auth()->user();
+        abort_unless($viewer->isAdmin() || $viewer->hasRbacPermission('calls.start'), 403);
+
+        $other = User::query()
+            ->with('currentTeam')
+            ->where('status', true)
+            ->findOrFail($userId);
+
+        abort_if($other->is($viewer), 422);
+        abort_unless($other->isAdmin() || $other->hasRbacPermission('calls.join'), 403);
+
+        $chat = DB::transaction(
+            fn (): Chat => Chat::directBetween($viewer, $other)
+        );
+
+        try {
+            $result = DB::transaction(function () use ($chat, $viewer, $lifecycle): array {
+                Chat::query()->whereKey($chat->id)->lockForUpdate()->firstOrFail();
+
+                $existing = $chat->activeRoom()->first();
+
+                if ($existing) {
+                    return ['room' => $existing, 'created' => false];
+                }
+
+                return [
+                    'room' => $lifecycle->createForChat($chat, $viewer),
+                    'created' => true,
+                ];
+            });
+        } catch (CallInfrastructureUnavailable) {
+            $this->dispatch('swal:toast', type: 'error', text: __('app.calls_unavailable'));
+
+            return null;
+        }
+
+        $room = $result['room'];
+
+        if ($result['created']) {
+            $room->forceFill([
+                'settings' => array_merge((array) $room->settings, [
+                    'video' => $mode === 'video',
+                ]),
+            ])->save();
+
+            $invitations->invite($room, $viewer, collect([$other]));
+        }
+
+        return redirect()->route('calls.window', $room);
     }
 
     // Beispiel-Bulk-Aktionen (Platzhalter)

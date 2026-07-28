@@ -289,32 +289,45 @@ export function railtimeTabs(config = {}) {
             return stops.length - 1;
         },
 
-        setCoupledPosition(position, commit = true) {
+        setCoupledPosition(position, commit = true, immediate = false) {
             const bounded = clamp(position, 0, Math.max(0, this.items.length - 1));
             this.panelPosition = bounded;
-            this.renderCoupledPosition(bounded);
+            this.renderCoupledPosition(bounded, immediate);
 
             if (commit) {
                 this.commitActiveIndex(Math.round(bounded), true);
             }
         },
 
-        renderCoupledPosition(position) {
+        applyCoupledTransforms(position) {
+            if (!this.mobileTabs) return;
+
+            const navigationOffset = this.navigationOffsetForPosition(position);
+
+            if (this.$refs.carouselTrack) {
+                this.$refs.carouselTrack.style.transform = `translate3d(${-navigationOffset}px, 0, 0)`;
+            }
+
+            if (this.$refs.panelTrack) {
+                this.$refs.panelTrack.style.transform = `translate3d(${-100 * position}%, 0, 0)`;
+            }
+
+            this.syncScrollEdges(navigationOffset);
+        },
+
+        renderCoupledPosition(position, immediate = false) {
             if (!this.mobileTabs) return;
 
             window.cancelAnimationFrame(this.renderFrame || 0);
+            if (immediate) {
+                this.renderFrame = null;
+                this.applyCoupledTransforms(position);
+                return;
+            }
+
             this.renderFrame = window.requestAnimationFrame(() => {
-                const navigationOffset = this.navigationOffsetForPosition(position);
-
-                if (this.$refs.carouselTrack) {
-                    this.$refs.carouselTrack.style.transform = `translate3d(${-navigationOffset}px, 0, 0)`;
-                }
-
-                if (this.$refs.panelTrack) {
-                    this.$refs.panelTrack.style.transform = `translate3d(${-100 * position}%, 0, 0)`;
-                }
-
-                this.syncScrollEdges(navigationOffset);
+                this.renderFrame = null;
+                this.applyCoupledTransforms(position);
             });
         },
 
@@ -476,7 +489,7 @@ export function railtimeTabs(config = {}) {
 
             const complete = () => {
                 this.panelPosition = targetIndex;
-                this.renderCoupledPosition(targetIndex);
+                this.renderCoupledPosition(targetIndex, true);
                 this.commitActiveIndex(targetIndex, false);
                 this.scrubbingTabs = false;
                 this.programmaticNavigation = false;
@@ -501,6 +514,8 @@ export function railtimeTabs(config = {}) {
                 const eased = 1 - ((1 - progress) ** 3);
                 this.setCoupledPosition(
                     startPosition + ((targetIndex - startPosition) * eased),
+                    true,
+                    true,
                 );
 
                 if (progress < 1) {

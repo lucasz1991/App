@@ -1,8 +1,8 @@
 @props(['item'])
 
-<x-dropdown align="right" width="48">
+<x-ui.dropdown.anchor-dropdown align="right" width="48">
     <x-slot name="trigger">
-        <x-ui.dropdown.action-trigger />
+        <x-ui.dropdown.action-trigger orientation="vertical" />
     </x-slot>
 
     <x-slot name="content">
@@ -30,4 +30,4 @@
             {{ __('app.delete') }}
         </x-dropdown-link>
     </x-slot>
-</x-dropdown>
+</x-ui.dropdown.anchor-dropdown>

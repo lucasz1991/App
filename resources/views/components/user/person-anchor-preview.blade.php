@@ -73,7 +73,7 @@
                     @if ($canChat && $safeChatAction)
                         <button
                             type="button"
-                            x-on:click.prevent="$wire.call(@js($safeChatAction), {{ $user->id }})"
+                            x-on:click.prevent='$wire.call(@js($safeChatAction), {{ $user->id }})'
                             class="group flex min-w-0 flex-col items-center gap-1.5 rounded-lg px-1.5 py-2 text-center text-rt-muted outline-none transition-all duration-200 hover:bg-rt-red/10 hover:text-rt-red active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:text-rt-dark-muted dark:hover:bg-rt-dark-accent/10 dark:hover:text-rt-dark-accent"
                             aria-label="{{ __('app.chat') }}"
                             data-table-row-ignore
@@ -88,7 +88,7 @@
                     @if ($canCall && $safeCallAction)
                         <button
                             type="button"
-                            x-on:click.prevent="$wire.call(@js($safeCallAction), {{ $user->id }}, 'voice')"
+                            x-on:click.prevent='$wire.call(@js($safeCallAction), {{ $user->id }}, "voice")'
                             class="group flex min-w-0 flex-col items-center gap-1.5 rounded-lg px-1.5 py-2 text-center text-rt-muted outline-none transition-all duration-200 hover:bg-rt-red/10 hover:text-rt-red active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:text-rt-dark-muted dark:hover:bg-rt-dark-accent/10 dark:hover:text-rt-dark-accent"
                             aria-label="{{ __('app.voice_call') }}"
                             data-table-row-ignore
@@ -101,7 +101,7 @@
 
                         <button
                             type="button"
-                            x-on:click.prevent="$wire.call(@js($safeCallAction), {{ $user->id }}, 'video')"
+                            x-on:click.prevent='$wire.call(@js($safeCallAction), {{ $user->id }}, "video")'
                             class="group flex min-w-0 flex-col items-center gap-1.5 rounded-lg px-1.5 py-2 text-center text-rt-muted outline-none transition-all duration-200 hover:bg-rt-red/10 hover:text-rt-red active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:text-rt-dark-muted dark:hover:bg-rt-dark-accent/10 dark:hover:text-rt-dark-accent"
                             aria-label="{{ __('app.video_call') }}"
                             data-table-row-ignore

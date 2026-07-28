@@ -6,6 +6,7 @@
         csrf: @js(csrf_token()),
         selfIdentity: @js(\App\Services\Calls\LiveKitService::identityFor(auth()->user())),
         canPublish: @js($me?->canPublish() ?? false),
+        startWithVideo: @js((bool) data_get($room->settings, 'video', true)),
         labels: {
             connecting: @js(__('app.calls_connecting')),
             reconnecting: @js(__('app.calls_reconnecting')),

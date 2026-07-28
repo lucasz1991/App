@@ -23,6 +23,7 @@ document.addEventListener('alpine:init', () => {
         participantCount: 1,
         panelOpen: window.innerWidth >= 1024,
         canPublish: Boolean(config.canPublish),
+        startWithVideo: config.startWithVideo !== false,
         micOn: false,
         cameraOn: false,
         screenSharing: false,
@@ -100,8 +101,8 @@ document.addEventListener('alpine:init', () => {
                 try {
                     await this.room.localParticipant.setMicrophoneEnabled(true);
                     this.micOn = true;
-                    await this.room.localParticipant.setCameraEnabled(true);
-                    this.cameraOn = true;
+                    await this.room.localParticipant.setCameraEnabled(this.startWithVideo);
+                    this.cameraOn = this.startWithVideo;
                 } catch (error) {
                     // Berechtigung verweigert: Anruf laeuft als Zuhoerer weiter.
                 }

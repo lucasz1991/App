@@ -287,6 +287,17 @@ body[data-mode='dark'] .rt-shell-topbar-controls {
     padding-left: 2.5rem;
 }
 
+.rt-topbar-control > svg,
+.rt-expandable-search[data-search-context='topbar'] .rt-expandable-search__trigger > svg {
+    width: 1.125rem;
+    height: 1.125rem;
+}
+
+.rt-topbar-control > i {
+    font-size: 1.125rem;
+    line-height: 1;
+}
+
 .rt-shell-topbar-controls .rt-expandable-search[data-search-context='topbar'] .rt-expandable-search__input,
 .rt-shell-topbar-controls .rt-expandable-search[data-search-context='topbar'] .rt-expandable-search__input:hover,
 .rt-shell-topbar-controls .rt-expandable-search[data-search-context='topbar'] .rt-expandable-search__input:focus {
@@ -842,11 +853,18 @@ body[data-mode='dark'] .rt-modal-footer {
     -webkit-backdrop-filter: blur(12px) saturate(0.86);
 }
 
+.rt-info-dialog {
+    border: 1px solid var(--rt-shell-border);
+}
+
+.rt-welcome-card {
+    border: 1px solid rgba(255, 255, 255, 0.48);
+}
+
 .rt-info-dialog,
 .rt-welcome-card {
-    border: 1px solid var(--rt-shell-border);
     box-shadow:
-        0 1px 0 rgba(255, 255, 255, 0.68) inset,
+        0 1px 0 rgba(255, 255, 255, 0.48) inset,
         0 44px 120px -42px rgba(0, 0, 0, 0.82) !important;
 }
 
@@ -862,9 +880,7 @@ body[data-mode='dark'] .rt-modal-footer {
 }
 
 html.dark .rt-info-dialog,
-html.dark .rt-welcome-card,
-body[data-mode='dark'] .rt-info-dialog,
-body[data-mode='dark'] .rt-welcome-card {
+body[data-mode='dark'] .rt-info-dialog {
     box-shadow:
         0 1px 0 rgba(255, 255, 255, 0.04) inset,
         0 44px 120px -42px rgba(0, 0, 0, 0.9) !important;
