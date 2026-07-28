@@ -28,7 +28,13 @@ class CallTokenController extends Controller
 
         $participant = $room->participantFor($user);
 
-        abort_unless($participant !== null, 403, __('app.calls_permission_denied'));
+        // Nicht die blosse Teilnehmerzeile entscheidet (die entsteht schon beim
+        // Klingeln), sondern der aktuelle Einladungs- und Teilnahmestatus.
+        abort_unless(
+            $participant !== null && $room->mayJoin($user),
+            403,
+            __('app.calls_permission_denied'),
+        );
 
         if (! $livekit->isConfigured()) {
             return response()->json([

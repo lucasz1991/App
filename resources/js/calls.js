@@ -26,6 +26,7 @@ document.addEventListener('alpine:init', () => {
         micOn: false,
         cameraOn: false,
         screenSharing: false,
+        audioBlocked: false,
         tiles: new Map(),
 
         async init() {
@@ -37,6 +38,16 @@ document.addEventListener('alpine:init', () => {
             const columns = count <= 1 ? 1 : count <= 4 ? 2 : count <= 9 ? 3 : 4;
 
             return `grid-template-columns: repeat(${columns}, minmax(0, 1fr));`;
+        },
+
+        /** Muss aus einer echten Nutzergeste heraus laufen (Klick). */
+        async unlockAudio() {
+            try {
+                await this.room?.startAudio();
+                this.audioBlocked = ! this.room?.canPlaybackAudio;
+            } catch (error) {
+                console.error('[calls] Audio konnte nicht freigegeben werden.', error);
+            }
         },
 
         async connect() {
@@ -106,6 +117,12 @@ document.addEventListener('alpine:init', () => {
                 .on(RoomEvent.LocalTrackPublished, () => this.renderAllParticipants())
                 .on(RoomEvent.LocalTrackUnpublished, () => this.renderAllParticipants())
                 .on(RoomEvent.ActiveSpeakersChanged, (speakers) => this.highlightSpeakers(speakers))
+                // Browser blockieren Autoplay ohne Nutzergeste. Ohne diesen
+                // Zweig bliebe der Anruf dauerhaft stumm, ohne dass irgendetwas
+                // darauf hinweist – die Kacheln sehen voellig normal aus.
+                .on(RoomEvent.AudioPlaybackStatusChanged, () => {
+                    this.audioBlocked = ! this.room.canPlaybackAudio;
+                })
                 .on(RoomEvent.TrackMuted, (publication, participant) => {
                     if (participant === this.room.localParticipant && publication.kind === Track.Kind.Audio) {
                         this.micOn = false;

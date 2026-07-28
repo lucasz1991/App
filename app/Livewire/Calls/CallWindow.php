@@ -5,6 +5,7 @@ namespace App\Livewire\Calls;
 use App\Events\CallModerationActioned;
 use App\Models\Room;
 use App\Models\RoomParticipant;
+use App\Services\Calls\CallInvitationService;
 use App\Services\Calls\LiveKitService;
 use App\Services\Calls\RoomLifecycleService;
 use Livewire\Component;
@@ -27,7 +28,7 @@ class CallWindow extends Component
         abort_unless($user->isAdmin() || $user->hasRbacPermission('calls.join'), 403);
 
         abort_unless(
-            $room->participantFor($user) !== null || $room->canModerate($user),
+            $room->mayJoin($user) || $room->canModerate($user),
             403,
             __('app.calls_permission_denied'),
         );
@@ -43,6 +44,21 @@ class CallWindow extends Component
                 'livekit_identity' => LiveKitService::identityFor($user),
             ],
         );
+
+        // Jeder Einstiegsweg muss dieselbe Zustandsaenderung ausloesen. Der
+        // Deep-Link der Web-Push-Benachrichtigung fuehrt direkt hierher und
+        // umgeht das Overlay – ohne diesen Schritt bliebe die Einladung
+        // 'pending' und der Ring-Timeout-Job wuerde den laufenden Anruf
+        // nachtraeglich als verpasst markieren.
+        $pending = $room->invitations()
+            ->where('invitee_id', $user->id)
+            ->where('status', 'pending')
+            ->latest('id')
+            ->first();
+
+        if ($pending) {
+            app(CallInvitationService::class)->accept($pending);
+        }
 
         $this->room = $room;
     }
@@ -66,10 +82,13 @@ class CallWindow extends Component
     public function leaveCall(RoomLifecycleService $lifecycle): void
     {
         $room = $this->room->fresh(['participants']);
-        $me = $room->participantFor(auth()->user());
+        $me = $room?->participantFor(auth()->user());
 
-        if ($me && $me->connection === 'joined') {
-            $lifecycle->markParticipantLeft($room, $me->livekit_identity);
+        // Bewusst ohne Pruefung auf connection === 'joined': dieser Zustand
+        // entsteht erst durch den participant_joined-Webhook. Wer waehrend des
+        // Klingelns auflegt, waere sonst wirkungslos aufgelegt.
+        if ($room && $me) {
+            $lifecycle->leave($room, $me);
         }
 
         $this->redirectAfterCall();
@@ -90,7 +109,14 @@ class CallWindow extends Component
     {
         $target = $this->moderatableParticipant($participantId);
 
-        $livekit->muteParticipantAudio($this->room, $target->livekit_identity);
+        // Durchsetzung passiert an der SFU. Kam der Aufruf dort nicht an, darf
+        // die Oberflaeche keinen Erfolg melden – sonst haelt der Moderator
+        // jemanden fuer stumm, der weiter senden kann.
+        if (! $livekit->muteParticipantAudio($this->room, $target->livekit_identity)) {
+            $this->moderationFailed();
+
+            return;
+        }
 
         broadcast(new CallModerationActioned($this->room, (int) $target->user_id, 'mute'))->toOthers();
     }
@@ -100,9 +126,20 @@ class CallWindow extends Component
     {
         $target = $this->moderatableParticipant($participantId);
 
-        $livekit->removeParticipant($this->room, $target->livekit_identity);
+        if (! $livekit->removeParticipant($this->room, $target->livekit_identity)) {
+            $this->moderationFailed();
 
-        $target->forceFill(['connection' => 'disconnected', 'left_at' => now()])->save();
+            return;
+        }
+
+        // 'disconnected' sperrt den Wiedereintritt (Room::mayJoin); die Rolle
+        // faellt zusaetzlich auf 'viewer', damit ein noch gueltiges, bereits
+        // ausgestelltes Token an der SFU nicht mehr senden darf.
+        $target->forceFill([
+            'connection' => 'disconnected',
+            'left_at' => now(),
+            'role' => 'viewer',
+        ])->save();
 
         broadcast(new CallModerationActioned($this->room, (int) $target->user_id, 'remove'))->toOthers();
     }
@@ -113,11 +150,27 @@ class CallWindow extends Component
         $target = $this->moderatableParticipant($participantId);
 
         $newRole = $target->role === 'viewer' ? 'speaker' : 'viewer';
+
+        // Erst die SFU, dann die DB: sonst zeigt die Liste eine Rolle an, die
+        // an der Medienebene nie durchgesetzt wurde.
+        if (! $livekit->setParticipantPublishing($this->room, $target->livekit_identity, $newRole !== 'viewer')) {
+            $this->moderationFailed();
+
+            return;
+        }
+
         $target->forceFill(['role' => $newRole])->save();
 
-        $livekit->setParticipantPublishing($this->room, $target->livekit_identity, $newRole !== 'viewer');
-
         broadcast(new CallModerationActioned($this->room, (int) $target->user_id, 'role', $newRole))->toOthers();
+    }
+
+    protected function moderationFailed(): void
+    {
+        $this->dispatch(
+            'swal:toast',
+            type: 'error',
+            text: __('app.calls_moderation_failed'),
+        );
     }
 
     protected function moderatableParticipant(int $participantId): RoomParticipant

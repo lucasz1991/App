@@ -143,6 +143,9 @@ return [
     'calls_connecting' => 'Connecting …',
     'calls_reconnecting' => 'Reconnecting …',
     'calls_permission_denied' => 'You do not have permission for this action.',
+    'calls_enable_audio' => 'Enable audio',
+    'calls_moderation_failed' => 'The action could not be enforced on the media server. Please try again.',
+    'calls_unavailable' => 'The media server is currently unreachable. The call could not be started.',
 
     // Dashboards
     'welcome_name' => 'Welcome, :name!',

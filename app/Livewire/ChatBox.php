@@ -11,6 +11,7 @@ use App\Models\ChatMessage;
 use App\Models\ChatMessageView;
 use App\Models\File;
 use App\Models\User;
+use App\Services\Calls\CallInfrastructureUnavailable;
 use App\Services\Calls\CallInvitationService;
 use App\Services\Calls\RoomLifecycleService;
 use App\Support\Push\PushDelivery;
@@ -415,22 +416,39 @@ class ChatBox extends Component
 
         $chat = $this->myChat((int) $this->selectedChatId);
 
-        // Laeuft bereits ein Anruf, direkt beitreten statt doppelt zu starten.
-        $existing = $chat->activeRoom()->first();
+        // Pruefen und Anlegen unter einer Sperre auf der Chat-Zeile: ohne sie
+        // erzeugen zwei gleichzeitige Klicks zwei konkurrierende Raeume, und
+        // die beiden Haelften des Chats klingeln in getrennten Anrufen.
+        try {
+            $result = DB::transaction(function () use ($chat, $lifecycle) {
+                Chat::whereKey($chat->id)->lockForUpdate()->first();
 
-        if ($existing) {
-            return redirect()->route('calls.window', $existing);
+                $existing = $chat->activeRoom()->first();
+
+                if ($existing) {
+                    return ['room' => $existing, 'created' => false];
+                }
+
+                return ['room' => $lifecycle->createForChat($chat, auth()->user()), 'created' => true];
+            });
+        } catch (CallInfrastructureUnavailable) {
+            $this->dispatch('swal:toast', type: 'error', text: __('app.calls_unavailable'));
+
+            return null;
         }
 
-        $room = $lifecycle->createForChat($chat, auth()->user());
+        // Laeuft bereits ein Anruf, direkt beitreten statt doppelt zu starten.
+        if (! $result['created']) {
+            return redirect()->route('calls.window', $result['room']);
+        }
 
         $invitations->invite(
-            $room,
+            $result['room'],
             auth()->user(),
             $chat->participants()->where('users.id', '!=', auth()->id())->where('users.status', true)->get(),
         );
 
-        return redirect()->route('calls.window', $room);
+        return redirect()->route('calls.window', $result['room']);
     }
 
     public function startDirect(int $userId): void

@@ -51,9 +51,12 @@ class LiveKitService
             ->setCanPublishData()
             ->setCanPublish($participant->canPublish());
 
-        if ($participant->isModerator() || $room->canModerate($user)) {
-            $grant->setRoomAdmin();
-        }
+        // Bewusst KEIN roomAdmin im Browser-Token: LiveKit akzeptiert ein
+        // Teilnehmer-Token mit roomAdmin als Autorisierung fuer die komplette
+        // RoomService-API. Ein Moderator koennte damit per DevTools direkt an
+        // der SFU entfernen/stummschalten und die serverseitigen Schutzregeln
+        // (Host unantastbar, nicht sich selbst) umgehen. Moderation laeuft
+        // ausschliesslich ueber client() mit einem reinen Server-Token.
 
         return (new AccessToken(config('livekit.api_key'), config('livekit.api_secret')))
             ->init($options)
@@ -88,9 +91,9 @@ class LiveKitService
     }
 
     /** Raum serverseitig anlegen; scheitert leise, wenn LiveKit nicht erreichbar ist. */
-    public function createRoom(Room $room): void
+    public function createRoom(Room $room): bool
     {
-        $this->guarded(function () use ($room): void {
+        return $this->guarded(function () use ($room): void {
             $options = (new RoomCreateOptions())
                 ->setName($room->livekitRoomName())
                 ->setEmptyTimeout((int) config('livekit.empty_timeout'))
@@ -101,25 +104,25 @@ class LiveKitService
     }
 
     /** Raum serverseitig beenden – wirft alle Teilnehmer, room_finished folgt per Webhook. */
-    public function deleteRoom(Room $room): void
+    public function deleteRoom(Room $room): bool
     {
-        $this->guarded(function () use ($room): void {
+        return $this->guarded(function () use ($room): void {
             $this->client()->deleteRoom($room->livekitRoomName());
         }, 'deleteRoom', $room);
     }
 
     /** Audio-Track eines Teilnehmers serverseitig stummschalten. */
-    public function muteParticipant(Room $room, string $identity, string $trackSid, bool $muted = true): void
+    public function muteParticipant(Room $room, string $identity, string $trackSid, bool $muted = true): bool
     {
-        $this->guarded(function () use ($room, $identity, $trackSid, $muted): void {
+        return $this->guarded(function () use ($room, $identity, $trackSid, $muted): void {
             $this->client()->mutePublishedTrack($room->livekitRoomName(), $identity, $trackSid, $muted);
         }, 'muteParticipant', $room);
     }
 
     /** Alle Audio-Tracks eines Teilnehmers serverseitig stummschalten. */
-    public function muteParticipantAudio(Room $room, string $identity): void
+    public function muteParticipantAudio(Room $room, string $identity): bool
     {
-        $this->guarded(function () use ($room, $identity): void {
+        return $this->guarded(function () use ($room, $identity): void {
             $info = $this->client()->getParticipant($room->livekitRoomName(), $identity);
 
             foreach ($info->getTracks() as $track) {
@@ -132,17 +135,17 @@ class LiveKitService
     }
 
     /** Teilnehmer serverseitig aus dem Raum entfernen. */
-    public function removeParticipant(Room $room, string $identity): void
+    public function removeParticipant(Room $room, string $identity): bool
     {
-        $this->guarded(function () use ($room, $identity): void {
+        return $this->guarded(function () use ($room, $identity): void {
             $this->client()->removeParticipant($room->livekitRoomName(), $identity);
         }, 'removeParticipant', $room);
     }
 
     /** Publish-Rechte live umschalten (Rollenwechsel Sprecher <-> nur zuhoeren). */
-    public function setParticipantPublishing(Room $room, string $identity, bool $canPublish): void
+    public function setParticipantPublishing(Room $room, string $identity, bool $canPublish): bool
     {
-        $this->guarded(function () use ($room, $identity, $canPublish): void {
+        return $this->guarded(function () use ($room, $identity, $canPublish): void {
             $permission = (new ParticipantPermission())
                 ->setCanSubscribe(true)
                 ->setCanPublish($canPublish)
@@ -154,18 +157,24 @@ class LiveKitService
 
     protected function client(): RoomServiceClient
     {
-        return new RoomServiceClient(
+        return new TimeoutAwareRoomServiceClient(
             config('livekit.url'),
             config('livekit.api_key'),
             config('livekit.api_secret'),
+            (float) config('livekit.http_connect_timeout'),
+            (float) config('livekit.http_timeout'),
         );
     }
 
     /**
-     * Server-API-Aufrufe duerfen die UX nie hart brechen: Die DB bleibt die
-     * fuehrende Wahrheit, LiveKit heilt sich ueber Webhooks und empty_timeout.
+     * Server-API-Aufrufe brechen die UX nicht hart ab, melden aber ehrlich, ob
+     * sie durchkamen: Der Rueckgabewert unterscheidet Erfolg von Fehlschlag,
+     * damit sicherheitsrelevante Aktionen (entfernen, stummschalten) nicht
+     * faelschlich Erfolg an die Oberflaeche melden.
+     *
+     * @return bool true, wenn der Aufruf die SFU nachweislich erreicht hat.
      */
-    protected function guarded(callable $callback, string $action, Room $room): void
+    protected function guarded(callable $callback, string $action, Room $room): bool
     {
         if (! $this->isConfigured()) {
             Log::notice('LiveKit ist nicht konfiguriert – Server-Aufruf uebersprungen.', [
@@ -173,11 +182,13 @@ class LiveKitService
                 'room' => $room->uuid,
             ]);
 
-            return;
+            return false;
         }
 
         try {
             $callback();
+
+            return true;
         } catch (\Throwable $exception) {
             Log::warning('LiveKit-Server-Aufruf fehlgeschlagen.', [
                 'action' => $action,
@@ -185,6 +196,8 @@ class LiveKitService
                 'error_class' => $exception::class,
                 'error' => $exception->getMessage(),
             ]);
+
+            return false;
         }
     }
 }

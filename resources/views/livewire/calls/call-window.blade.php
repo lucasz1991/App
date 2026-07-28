@@ -50,6 +50,18 @@
         {{-- Buehne: Video-Grid + Teilnehmer-Panel --}}
         <div class="relative flex min-h-0 flex-1">
             <div class="relative min-h-0 flex-1 p-2 sm:p-3">
+                {{-- Autoplay-Sperre: ohne Nutzergeste bleibt der Anruf stumm. --}}
+                <button
+                    x-cloak
+                    x-show.important="audioBlocked"
+                    type="button"
+                    x-on:click="unlockAudio()"
+                    class="absolute inset-x-0 top-2 z-20 mx-auto flex w-max items-center gap-2 rounded-full bg-rt-accent px-4 py-2 text-sm font-bold text-white shadow-rt-lg"
+                >
+                    <i class="far fa-volume-up" aria-hidden="true"></i>
+                    {{ __('app.calls_enable_audio') }}
+                </button>
+
                 {{-- Verbindungs-Status --}}
                 <div
                     x-show.important="! connected"
@@ -59,8 +71,11 @@
                     <p class="text-sm font-bold" x-text="statusLabel"></p>
                 </div>
 
-                {{-- Kacheln legt calls.js dynamisch an --}}
+                {{-- Kacheln legt calls.js dynamisch an. wire:ignore ist
+                     zwingend: ohne das loescht jedes Livewire-Re-Render
+                     (z. B. $refresh bei call.answered) alle Video-Kacheln. --}}
                 <div
+                    wire:ignore
                     x-ref="grid"
                     class="rt-call-grid grid h-full min-h-0 content-center gap-2 sm:gap-3"
                     :style="gridStyle"
@@ -109,7 +124,7 @@
                                     ])>
                                         {{ __('app.calls_role_'.$participant->role) }}
                                     </span>
-                                    @if ($participant->connection === 'joined')
+                                    @if ($participant->isConnected())
                                         <span class="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" title="online"></span>
                                     @endif
                                 </span>
@@ -209,6 +224,13 @@
             @endif
         </div>
     </div>
-</div>
 
-@vite(['resources/js/calls.js'])
+    {{-- Muss INNERHALB des einzigen Wurzelelements liegen: ausserhalb zaehlt
+         Livewire es als zweites Wurzelelement und wirft (bei APP_DEBUG=true)
+         MultipleRootElementsDetectedException. Die Position im Dokument bleibt
+         vor @vite(app.js) im Layout, damit calls.js seinen alpine:init-Listener
+         noch vor Livewire.start() registriert. --}}
+    <div wire:ignore>
+        @vite(['resources/js/calls.js'])
+    </div>
+</div>

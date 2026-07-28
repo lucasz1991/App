@@ -27,6 +27,33 @@ class RoomParticipant extends Model
         return $this->belongsTo(User::class);
     }
 
+    /**
+     * Verbindungszustand der Teilnahme (invited|joined|left|disconnected).
+     *
+     * ACHTUNG: 'connection' heisst auch die geschuetzte Eloquent-Eigenschaft
+     * fuer den Namen der DB-Verbindung. Jede Klasse, die selbst von Model
+     * erbt (z. B. Room), darf laut PHP-Sichtbarkeitsregeln auf diese geerbte
+     * Eigenschaft zugreifen – dort liefert $participant->connection deshalb
+     * 'mysql'/'sqlite' statt des Spaltenwerts und __get() wird nie erreicht.
+     * Deswegen laeuft jeder Zugriff hier ueber getAttribute().
+     */
+    public function connectionState(): ?string
+    {
+        return $this->getAttribute('connection');
+    }
+
+    /** Von der Moderation aus dem Anruf entfernt. */
+    public function isRemoved(): bool
+    {
+        return $this->connectionState() === 'disconnected';
+    }
+
+    /** Aktuell mit der SFU verbunden (setzt der participant_joined-Webhook). */
+    public function isConnected(): bool
+    {
+        return $this->connectionState() === 'joined';
+    }
+
     public function isModerator(): bool
     {
         return in_array($this->role, ['host', 'moderator'], true);

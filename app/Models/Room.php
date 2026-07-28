@@ -82,6 +82,44 @@ class Room extends Model
         return $this->participants()->where('user_id', $userId)->first();
     }
 
+    /**
+     * Darf der Nutzer diesem Raum (wieder) beitreten?
+     *
+     * Die Teilnehmerzeile entsteht bereits beim Klingeln und ist deshalb allein
+     * kein Beitrittsrecht: Wer abgelehnt hat, wen der Ring-Timeout verpasst hat
+     * oder wen die Moderation entfernt hat, bleibt draussen, bis er erneut
+     * eingeladen wird (CallInvitationService::inviteOne oeffnet die Zeile wieder).
+     */
+    public function mayJoin(User $user): bool
+    {
+        $participant = $this->participantFor($user);
+
+        if (! $participant) {
+            return false;
+        }
+
+        // Von der Moderation entfernt – ein bereits ausgestelltes Token darf
+        // damit nicht mehr in ein neues Beitritts-Token verlaengert werden.
+        // isRemoved() statt ->connection: siehe RoomParticipant::connectionState().
+        if ($participant->isRemoved()) {
+            return false;
+        }
+
+        if ($participant->isModerator()) {
+            return true;
+        }
+
+        // Nur die juengste Einladung zaehlt, damit eine erneute Einladung nach
+        // einem Ablehnen wieder Zutritt gewaehrt.
+        $latest = $this->invitations()
+            ->where('invitee_id', $user->id)
+            ->latest('id')
+            ->first();
+
+        return $latest === null
+            || ! in_array($latest->status, ['declined', 'missed', 'expired'], true);
+    }
+
     /** Darf der Nutzer diesen Raum moderieren (auflegen, stummschalten, entfernen)? */
     public function canModerate(User $user): bool
     {
@@ -95,6 +133,37 @@ class Room extends Model
             return true;
         }
 
+        // Admins bleiben global zustaendig – dasselbe Muster wie der
+        // Gate::before-Bypass im AuthServiceProvider.
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        // Das Team-Recht 'calls.moderate' loest gegen das *eigene* currentTeam
+        // auf, nie gegen diesen Raum. Ohne die Beteiligungspruefung macht ein
+        // einziges gesetztes Flag den Nutzer zum Moderator jedes Anrufs der
+        // gesamten Installation – auch fremder Chats, in denen er nichts zu
+        // suchen hat.
+        if (! $this->involves($user)) {
+            return false;
+        }
+
         return $user->hasRbacPermission('calls.moderate');
+    }
+
+    /** Gehoert der Nutzer ueberhaupt zu diesem Anruf (Teilnahme oder Chat)? */
+    public function involves(User $user): bool
+    {
+        if ($this->participantFor($user) !== null) {
+            return true;
+        }
+
+        if ($this->chat_id === null) {
+            return false;
+        }
+
+        return $this->chat()
+            ->whereHas('participants', fn ($query) => $query->whereKey($user->id))
+            ->exists();
     }
 }

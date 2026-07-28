@@ -1,6 +1,7 @@
 /*
  * RailTime Tabs v2
- * Ruhige, Skiper-inspirierte Command Rail fuer Blade + Alpine + Swiper.
+ * Vengeance-inspirierte Command Rail fuer Blade + Alpine mit nativem,
+ * gekoppeltem Momentum-Scrolling.
  * Alle Farbwerte werden aus den semantischen rt-* Tokens bezogen.
  */
 .rt-tabs-v2.rt-tabs-shell {
@@ -86,6 +87,10 @@ body[data-mode='dark'] .rt-tabs-v2.rt-tabs-shell {
     overscroll-behavior-x: contain;
     touch-action: pan-y;
     cursor: default;
+}
+
+.rt-tabs-v2 .rt-tabs-carousel::-webkit-scrollbar {
+    display: none;
 }
 
 .rt-tabs-v2 .rt-tabs-carousel[data-swiping='true'] {
@@ -282,6 +287,23 @@ body[data-mode='dark'] .rt-tabs-v2.rt-tabs-shell {
     transform: scaleY(1);
 }
 
+.rt-tab-panels {
+    transition: height 340ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.rt-tab-panels[data-resizing='false'] {
+    transition-duration: 0ms;
+}
+
+.rt-tab-panels-track {
+    position: relative;
+    width: 100%;
+}
+
+.rt-tab-panel-content {
+    min-width: 0;
+}
+
 .rt-tab-panel-transition {
     transition:
         transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -301,20 +323,85 @@ body[data-mode='dark'] .rt-tabs-v2.rt-tabs-shell {
     transform: translate3d(0, 0, 0);
 }
 
-[data-tabs-input-policy='swiper-touch'][data-tab-direction='next'] .rt-tab-panel-enter-start,
-[data-tabs-input-policy='swiper-touch'][data-tab-direction='previous'] .rt-tab-panel-leave-end {
+[data-tab-direction='next'] .rt-tab-panel-enter-start,
+[data-tab-direction='previous'] .rt-tab-panel-leave-end {
     opacity: 0;
     transform: translate3d(0.5rem, 0, 0);
 }
 
-[data-tabs-input-policy='swiper-touch'][data-tab-direction='next'] .rt-tab-panel-leave-end,
-[data-tabs-input-policy='swiper-touch'][data-tab-direction='previous'] .rt-tab-panel-enter-start {
+[data-tab-direction='next'] .rt-tab-panel-leave-end,
+[data-tab-direction='previous'] .rt-tab-panel-enter-start {
     opacity: 0;
     transform: translate3d(-0.5rem, 0, 0);
 }
 
 [data-tabs-scrubbing='true'] .rt-tab-panel-transition {
-    transition-duration: 180ms;
+    transition-duration: 0ms;
+}
+
+.rt-tab-panel-skeleton {
+    display: grid;
+    gap: 0.75rem;
+    min-height: 15rem;
+    padding: 1.25rem;
+    overflow: hidden;
+    border: 1px solid var(--rt-tabs-border);
+    border-radius: 1rem;
+    background: var(--rt-tabs-surface);
+    box-shadow: 0 12px 30px -28px color-mix(in srgb, var(--rt-tabs-text) 42%, transparent);
+}
+
+.rt-tab-skeleton-heading,
+.rt-tab-skeleton-line,
+.rt-tab-skeleton-card {
+    position: relative;
+    display: block;
+    overflow: hidden;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--rt-tabs-surface-muted) 88%, var(--rt-tabs-border));
+}
+
+.rt-tab-skeleton-heading {
+    width: min(14rem, 52%);
+    height: 1.15rem;
+}
+
+.rt-tab-skeleton-line {
+    width: min(22rem, 72%);
+    height: 0.7rem;
+}
+
+.rt-tab-skeleton-line--wide {
+    width: min(34rem, 92%);
+}
+
+.rt-tab-skeleton-card {
+    width: 100%;
+    height: 8.5rem;
+    margin-top: 0.35rem;
+    border-radius: 0.875rem;
+}
+
+.rt-tab-skeleton-heading::after,
+.rt-tab-skeleton-line::after,
+.rt-tab-skeleton-card::after {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        105deg,
+        transparent 20%,
+        color-mix(in srgb, var(--rt-tabs-surface) 78%, transparent) 48%,
+        transparent 76%
+    );
+    content: '';
+    transform: translate3d(-100%, 0, 0);
+    animation: rt-tab-skeleton-shimmer 1.15s ease-in-out infinite;
+}
+
+@keyframes rt-tab-skeleton-shimmer {
+    to {
+        transform: translate3d(100%, 0, 0);
+    }
 }
 
 @media (min-width: 768px) {
@@ -374,13 +461,17 @@ body[data-mode='dark'] .rt-tabs-v2.rt-tabs-shell {
     }
 
     .rt-tabs-v2 .rt-tabs-carousel-track {
+        width: max-content;
         justify-content: flex-start;
-        gap: 0;
+        gap: 0.3125rem;
         padding-inline: 0;
     }
 
     .rt-tabs-v2 .rt-tabs-carousel {
-        touch-action: pan-y;
+        overflow-x: auto;
+        overflow-y: hidden;
+        touch-action: pan-x pan-y;
+        -webkit-overflow-scrolling: touch;
         cursor: grab;
     }
 
@@ -405,6 +496,38 @@ body[data-mode='dark'] .rt-tabs-v2.rt-tabs-shell {
         opacity: 1;
         transform: scale(1);
     }
+
+    .rt-tab-panels {
+        contain: layout paint;
+    }
+
+    .rt-tab-panels-track {
+        display: flex;
+        align-items: flex-start;
+        width: 100%;
+        transition: transform 380ms cubic-bezier(0.22, 1, 0.36, 1);
+        will-change: transform;
+    }
+
+    [data-tabs-scrubbing='true'] .rt-tab-panels-track {
+        transition-duration: 0ms;
+    }
+
+    .rt-tab-panels-track > .rt-tab-panel {
+        position: relative !important;
+        inset: auto !important;
+        display: block;
+        width: 100%;
+        min-width: 0;
+        flex: 0 0 100%;
+        transform: none;
+        content-visibility: auto;
+        contain-intrinsic-size: 1px 34rem;
+    }
+
+    .rt-tab-panels-track > .rt-tab-panel[data-active='false'] {
+        pointer-events: none;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -415,7 +538,15 @@ body[data-mode='dark'] .rt-tabs-v2.rt-tabs-shell {
     .rt-tabs-v2 .rt-carousel-tab,
     .rt-tabs-v2 .rt-carousel-tab-icon,
     .rt-tabs-v2 .rt-tab-active-mark,
-    .rt-tab-panel-transition {
+    .rt-tab-panel-transition,
+    .rt-tab-panels,
+    .rt-tab-panels-track {
         transition-duration: 0.001ms;
+    }
+
+    .rt-tab-skeleton-heading::after,
+    .rt-tab-skeleton-line::after,
+    .rt-tab-skeleton-card::after {
+        animation: none;
     }
 }

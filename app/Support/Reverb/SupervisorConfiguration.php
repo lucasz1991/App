@@ -32,6 +32,10 @@ class SupervisorConfiguration
         $artisan = $projectPath.'/artisan';
         $log = $projectPath.'/storage/logs/reverb.log';
 
+        // Bewusst NUR Reverb: Die Standard-Queue betreibt der Plesk-eigene
+        // Worker (siehe ReverbOperationsCommandTest::test_plesk_worker_owns_
+        // the_default_queue_without_a_second_scheduled_worker). Ein zweites
+        // queue:work-Programm hier waere ein konkurrierender Doppel-Worker.
         return implode("\n", [
             "[program:{$serviceName}]",
             'process_name=%(program_name)s',

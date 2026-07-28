@@ -30,6 +30,7 @@ Diese Anleitung ist zum **Abarbeiten von Hand** gedacht: alle Dateien sind kopie
 | 50000–60000 | udp | Medienströme (WebRTC) |
 | 3478 | udp+tcp | TURN |
 | 5349 | tcp | TURN über TLS |
+| 30000–40000 | udp | Relay des **eingebauten** LiveKit-TURN (Standardbereich von livekit-server 1.8; ohne diese Freigabe scheitert genau der Firewall-Fallback, für den TURN da ist) |
 | 49160–49960 | udp | coturn-Relay (nur bei Variante coturn) |
 
 **Fallback-Leiter für strenge Firmennetze** (handeln die Clients automatisch aus):
@@ -66,6 +67,7 @@ ufw allow 50000:60000/udp
 ufw allow 3478/udp
 ufw allow 3478/tcp
 ufw allow 5349/tcp
+ufw allow 30000:40000/udp
 ufw allow 49160:49960/udp
 ufw enable
 
@@ -92,8 +94,11 @@ Die Ausgabe enthält den fertigen `keys:`-Block für die `livekit.yaml` unten. A
 port: 7880
 bind_addresses: ["0.0.0.0"]
 rtc:
-  udp_port_range_start: 50000
-  udp_port_range_end: 60000
+  # Achtung: die Schluessel heissen port_range_start/port_range_end.
+  # Mit udp_port_range_* startet LiveKit 1.8 nicht ("field not found in
+  # type config.RTCConfig") — verifiziert gegen livekit-server v1.8.4.
+  port_range_start: 50000
+  port_range_end: 60000
   tcp_port: 7881
   use_external_ip: true
 keys:

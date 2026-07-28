@@ -15,7 +15,9 @@
                 this.channel.addEventListener('message', (event) => {
                     if (event.data?.type === 'call-ring-stop'
                         && (! this.call || event.data.invitationId === this.call.invitationId)) {
-                        this.hide();
+                        // notify=false: sonst antwortet dieser Tab mit einer
+                        // eigenen Stopp-Nachricht und die Tabs schaukeln sich auf.
+                        this.hide(false);
                     }
                 });
             }
@@ -39,7 +41,16 @@
 
         onMissed(detail) {
             if (this.call && detail?.invitationId === this.call.invitationId) {
-                this.hide();
+                this.hide(false);
+            }
+        },
+
+        // Der Server konnte die Einladung nicht annehmen (Anruf schon beendet,
+        // abgelaufen oder abgelehnt). Ohne dieses Signal bliebe die Karte nach
+        // accept() stehen und onInvited() wuerde jeden weiteren Anruf verwerfen.
+        onGone(detail) {
+            if (! this.call || detail?.invitationId === this.call.invitationId) {
+                this.hide(false);
             }
         },
 
@@ -65,25 +76,30 @@
 
         decline() {
             const id = this.call?.invitationId;
+            // hide() meldet den Stopp jetzt selbst an die anderen Tabs –
+            // vorher blieb das Geschwister-Tab nach dem Ablehnen weiterklingeln.
             this.hide();
             $wire.decline(id);
         },
 
-        stopRinging() {
+        stopRinging(notify = true) {
             clearInterval(this.countdownTimer);
             clearInterval(this.ringTimer);
-            this.channel?.postMessage({ type: 'call-ring-stop', invitationId: this.call?.invitationId });
+
+            if (notify && this.call) {
+                this.channel?.postMessage({ type: 'call-ring-stop', invitationId: this.call.invitationId });
+            }
         },
 
-        hide() {
-            clearInterval(this.countdownTimer);
-            clearInterval(this.ringTimer);
+        hide(notify = true) {
+            this.stopRinging(notify);
             this.visible = false;
             this.call = null;
         },
     }"
     x-on:rt:call-invited.window="onInvited($event.detail)"
     x-on:rt:call-missed.window="onMissed($event.detail)"
+    x-on:rt:call-gone.window="onGone($event.detail)"
 >
     <template x-teleport="body">
         <div

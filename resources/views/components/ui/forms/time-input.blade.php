@@ -24,7 +24,7 @@
 
 
 
-<div class="space-y-1" x-data="{
+<div class="space-y-1.5" x-data="{
     fp: null,
     init() {
         const el = this.$refs.input;
@@ -57,9 +57,9 @@
     }
 }">
     @if($label)
-        <label for="{{ $inputId }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300">
-            {{ $label }} @if($required)<span class="text-red-600">*</span>@endif
-        </label>
+        <x-ui.forms.label for="{{ $inputId }}">
+            {{ $label }} @if($required)<span class="text-rt-red" aria-hidden="true">*</span>@endif
+        </x-ui.forms.label>
     @endif
 
     <div class="relative">
@@ -74,22 +74,25 @@
             @if($required) required @endif
             pattern="^\d{2}:\d{2}$"
             {{ $attributes->merge([
-                'class' => 'rt-ui-control block min-h-11 w-full rounded-xl border border-rt-border bg-rt-control px-3.5 py-2.5 pr-11 text-base leading-6 text-rt-text shadow-rt-xs outline-none placeholder:text-rt-soft transition-all duration-200 ease-rt-spring hover:border-rt-accent/50 focus:border-rt-accent focus:ring-4 focus:ring-rt-accent/15 disabled:bg-rt-surface-muted disabled:text-rt-soft sm:text-sm sm:leading-5 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-text dark:placeholder:text-rt-dark-soft dark:focus:ring-rt-dark-accent/20',
+                'class' => 'rt-ui-control block min-h-11 w-full rounded-xl border border-rt-border bg-rt-control px-3.5 py-2.5 pr-11 text-base leading-6 text-rt-text shadow-rt-xs outline-none placeholder:text-rt-soft transition-[border-color,box-shadow,background-color,color] duration-200 ease-rt-spring hover:border-rt-accent/50 hover:shadow-rt-sm focus:border-rt-accent focus:shadow-rt-sm focus:ring-4 focus:ring-rt-accent/15 disabled:cursor-not-allowed disabled:bg-rt-surface-muted disabled:text-rt-soft disabled:opacity-60 disabled:shadow-none sm:text-sm sm:leading-5 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-text dark:placeholder:text-rt-dark-soft dark:hover:border-rt-dark-accent dark:focus:ring-rt-dark-accent/20 dark:disabled:bg-rt-dark-canvas',
                 // Hinweis: min/max bei Flatpickr werden via JS gesetzt; HTML-Attribute sind optional
                 'autocomplete' => 'off',
             ]) }}
         />
 
         <div class="pointer-events-none absolute inset-y-0 right-3 flex items-center">
-            <i class="fal fa-clock text-slate-500 dark:text-slate-400 fa-lg"></i>
+            <i class="fal fa-clock text-rt-muted dark:text-rt-dark-muted fa-lg"></i>
         </div>
     </div>
 
     @if($hint)
-        <p class="text-xs text-slate-500 dark:text-slate-400">{{ $hint }}</p>
+        <p class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">{{ $hint }}</p>
     @endif
 
     @error($name)
-        <p class="text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+        <p class="flex items-start gap-1.5 text-xs font-medium leading-5 text-rt-red dark:text-rt-dark-accent" role="alert">
+            <i class="far fa-circle-exclamation mt-1 shrink-0 text-[0.7rem]" aria-hidden="true"></i>
+            <span>{{ $message }}</span>
+        </p>
     @enderror
 </div>

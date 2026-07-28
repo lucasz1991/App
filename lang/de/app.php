@@ -143,6 +143,9 @@ return [
     'calls_connecting' => 'Verbindung wird hergestellt …',
     'calls_reconnecting' => 'Verbindung wird wiederhergestellt …',
     'calls_permission_denied' => 'Ihnen fehlt die Berechtigung für diese Aktion.',
+    'calls_enable_audio' => 'Ton aktivieren',
+    'calls_moderation_failed' => 'Die Aktion konnte am Medienserver nicht durchgesetzt werden. Bitte erneut versuchen.',
+    'calls_unavailable' => 'Der Medienserver ist derzeit nicht erreichbar. Der Anruf konnte nicht gestartet werden.',
 
     // Dashboards
     'welcome_name' => 'Willkommen, :name!',

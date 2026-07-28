@@ -19,11 +19,14 @@ class IncomingCallOverlay extends Component
     {
         $invitation = $this->ownInvitation($invitationId);
 
-        if (! $invitation->isPending() || ! $invitation->room->isActive()) {
+        // Ohne dieses Signal bliebe die Karte stehen: Alpine hat beim Klick
+        // bereits stopRinging() ausgefuehrt und blockiert mit visible=true
+        // jeden spaeteren eingehenden Anruf.
+        if (! $invitation->room->isActive() || ! $invitations->accept($invitation)) {
+            $this->dispatch('rt:call-gone', invitationId: $invitationId);
+
             return null;
         }
-
-        $invitations->accept($invitation);
 
         return redirect()->route('calls.window', $invitation->room);
     }
@@ -32,9 +35,9 @@ class IncomingCallOverlay extends Component
     {
         $invitation = $this->ownInvitation($invitationId);
 
-        if ($invitation->isPending()) {
-            $invitations->decline($invitation);
-        }
+        $invitations->decline($invitation);
+
+        $this->dispatch('rt:call-gone', invitationId: $invitationId);
     }
 
     protected function ownInvitation(int $invitationId): RoomInvitation

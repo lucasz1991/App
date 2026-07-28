@@ -86,7 +86,7 @@ Browser ── WSS ────▶│ Media-VM (livekit.rail-time.de)           
 |---|---|---|
 | `app.rail-time.de` | Plesk-VM | 443/tcp (besteht; Reverb-WSS darunter proxied) |
 | `livekit.rail-time.de` | Media-VM | 443/tcp (TLS→7880), 7881/tcp, 50000–60000/udp |
-| `turn.rail-time.de` | Media-VM (zweite IP oder SNI) | 3478/udp+tcp, 5349/tcp (TURN-TLS), möglichst 443/tcp; Relay 49160–49960/udp |
+| `turn.rail-time.de` | Media-VM (zweite IP oder SNI) | 3478/udp+tcp, 5349/tcp (TURN-TLS), möglichst 443/tcp; Relay **30000–40000/udp** (eingebautes TURN) bzw. 49160–49960/udp (coturn) |
 
 **Firewall-Traversal-Leiter** (für strenge Firmennetze, Reihenfolge des automatischen Fallbacks):
 1. UDP 50000–60000 (Normalfall, beste Qualität)
@@ -163,8 +163,10 @@ Alles auf der Media-VM unter `/opt/railtime-media/`. **Docker nur dort — das R
 port: 7880
 bind_addresses: ["0.0.0.0"]
 rtc:
-  udp_port_range_start: 50000
-  udp_port_range_end: 60000
+  # Schluesselnamen verifiziert gegen livekit-server v1.8.4: udp_port_range_*
+  # existiert nicht und laesst den Server beim Start abbrechen.
+  port_range_start: 50000
+  port_range_end: 60000
   tcp_port: 7881
   use_external_ip: true        # öffentliche IP per STUN ermitteln
 keys:

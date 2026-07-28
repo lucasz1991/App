@@ -46,7 +46,7 @@ class CallInvitationService
             'expires_at' => $expiresAt,
         ]);
 
-        $room->participants()->firstOrCreate(
+        $participant = $room->participants()->firstOrCreate(
             ['user_id' => $invitee->id],
             [
                 'role' => 'speaker',
@@ -54,6 +54,17 @@ class CallInvitationService
                 'livekit_identity' => LiveKitService::identityFor($invitee),
             ],
         );
+
+        // Eine erneute Einladung oeffnet eine beendete oder von der Moderation
+        // entzogene Teilnahme wieder – sonst sperrt Room::mayJoin() dauerhaft.
+        if (! $participant->wasRecentlyCreated
+            && in_array($participant->connectionState(), ['left', 'disconnected'], true)) {
+            $participant->forceFill([
+                'connection' => 'invited',
+                'left_at' => null,
+                'role' => $participant->role === 'viewer' ? 'speaker' : $participant->role,
+            ])->save();
+        }
 
         broadcast(new CallInvitationSent($invitation))->toOthers();
 
@@ -64,26 +75,53 @@ class CallInvitationService
         return $invitation;
     }
 
-    public function accept(RoomInvitation $invitation): void
+    /**
+     * Einladung annehmen.
+     *
+     * @param bool $allowExpired Nur fuer Einstiegswege, bei denen der Nutzer
+     *   nachweislich schon im Anruf-Fenster steht (Push-Deep-Link). Ueber das
+     *   Klingel-Overlay bleibt eine abgelaufene Einladung unbeantwortbar –
+     *   sonst laesst sich ein laengst verpasster Anruf noch annehmen, wenn der
+     *   Queue-Worker den Ring-Timeout nicht ausgefuehrt hat.
+     *
+     * @return bool true, wenn die Einladung jetzt 'accepted' ist.
+     */
+    public function accept(RoomInvitation $invitation, bool $allowExpired = false): bool
     {
         if (! $invitation->isPending()) {
-            return;
+            return false;
+        }
+
+        if ($invitation->isExpired() && ! $allowExpired) {
+            $this->expire($invitation);
+
+            return false;
         }
 
         $invitation->forceFill(['status' => 'accepted', 'responded_at' => now()])->save();
 
         broadcast(new CallInvitationAnswered($invitation))->toOthers();
+
+        return true;
     }
 
-    public function decline(RoomInvitation $invitation): void
+    public function decline(RoomInvitation $invitation): bool
     {
         if (! $invitation->isPending()) {
-            return;
+            return false;
+        }
+
+        if ($invitation->isExpired()) {
+            $this->expire($invitation);
+
+            return false;
         }
 
         $invitation->forceFill(['status' => 'declined', 'responded_at' => now()])->save();
 
         broadcast(new CallInvitationAnswered($invitation))->toOthers();
+
+        return true;
     }
 
     /** Ring-Timeout abgelaufen oder Anrufer hat vorher aufgelegt. */

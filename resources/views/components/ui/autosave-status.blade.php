@@ -16,11 +16,13 @@
 
 <span
     x-data="{
-        saved: true,
+        saved: false,
         dirty: false,
         saving: false,
+        visible: false,
         pendingSave: null,
         timer: null,
+        hideTimer: null,
         scope: null,
         targets: {{ \Illuminate\Support\Js::from($dirtyTargets) }},
         saveMethod: @js($saveMethod),
@@ -50,6 +52,8 @@
 
             this.dirty = true;
             this.saved = false;
+            this.visible = true;
+            window.clearTimeout(this.hideTimer);
             this.schedule();
         },
         continueIdleCountdown(event) {
@@ -66,6 +70,7 @@
 
             window.clearTimeout(this.timer);
             this.saving = true;
+            this.visible = true;
             this.pendingSave = this.$wire.call(this.saveMethod).finally(() => {
                 this.saving = false;
                 this.pendingSave = null;
@@ -90,6 +95,21 @@
             await this.flush();
             window.location.assign(link.href);
         },
+        showSavedFeedback() {
+            this.dirty = false;
+            this.saved = true;
+            this.saving = false;
+            window.clearTimeout(this.timer);
+            window.clearTimeout(this.hideTimer);
+
+            this.visible = true;
+            window.RTSound?.play('success');
+
+            this.hideTimer = window.setTimeout(() => {
+                this.visible = false;
+                this.saved = false;
+            }, 1350);
+        },
     }"
     x-on:input.window="markDirty($event)"
     x-on:change.window="markDirty($event)"
@@ -97,27 +117,32 @@
     x-on:pointerdown.window.capture="handleOutside($event)"
     x-on:click.window.capture="handleOutsideClick($event)"
     x-on:beforeunload.window="flush()"
-    x-on:{{ $event }}.window="
-        dirty = false;
-        saved = true;
-        saving = false;
-        window.clearTimeout(timer);
-    "
+    x-on:{{ $event }}.window="showSavedFeedback()"
     @class([
-        'inline-flex h-7 w-7 items-center justify-center rounded-full bg-rt-surface/90 shadow-rt-xs ring-1 ring-rt-border/80 backdrop-blur dark:bg-rt-dark-surface/90 dark:ring-rt-dark-border/80',
+        'inline-flex h-7 w-7 items-center justify-center rounded-full bg-rt-surface/90 shadow-rt-xs ring-1 ring-rt-border/80 backdrop-blur transition duration-200 ease-rt-spring dark:bg-rt-dark-surface/90 dark:ring-rt-dark-border/80',
         'absolute right-4 top-4 z-10' => $floating,
     ])
+    x-bind:class="visible
+        ? 'scale-100 opacity-100'
+        : 'pointer-events-none scale-90 opacity-0'"
     aria-live="polite"
-    x-bind:aria-label="dirty || saving ? @js(__('app.unsaved_changes')) : @js(__('app.saved_automatically'))"
-    x-bind:title="dirty || saving ? @js(__('app.unsaved_changes')) : @js(__('app.saved_automatically'))"
+    x-bind:aria-hidden="visible ? 'false' : 'true'"
+    x-bind:aria-label="dirty || saving
+        ? @js(__('app.unsaved_changes'))
+        : (saved ? @js(__('app.saved_automatically')) : '')"
+    x-bind:title="dirty || saving
+        ? @js(__('app.unsaved_changes'))
+        : (saved ? @js(__('app.saved_automatically')) : '')"
     data-autosave-status="{{ $event }}"
 >
     <span
         class="h-2.5 w-2.5 rounded-full transition-all duration-200"
         x-bind:class="dirty || saving
             ? 'bg-amber-400 shadow-[0_0_0_4px_rgba(251,191,36,0.14)]'
-            : 'bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.12)]'"
-        x-bind:data-state="dirty || saving ? 'dirty' : 'saved'"
+            : (saved
+                ? 'bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.12)]'
+                : 'bg-transparent shadow-none')"
+        x-bind:data-state="dirty || saving ? 'dirty' : (saved ? 'saved' : 'idle')"
         aria-hidden="true"
     ></span>
 </span>

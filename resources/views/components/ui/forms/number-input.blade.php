@@ -52,7 +52,7 @@
 
 @if ($stepper)
     @php
-        $shellClasses = 'rt-ui-number-input relative flex min-h-11 w-full items-stretch overflow-hidden rounded-xl border border-rt-border bg-rt-control shadow-rt-xs transition-all duration-200 ease-rt-spring hover:border-rt-accent/50 focus-within:border-rt-accent focus-within:ring-4 focus-within:ring-rt-accent/15 dark:border-rt-dark-border dark:bg-rt-dark-control dark:hover:border-rt-dark-accent dark:focus-within:ring-rt-dark-accent/20'
+        $shellClasses = 'rt-ui-number-input relative flex min-h-11 w-full items-stretch overflow-hidden rounded-xl border border-rt-border bg-rt-control shadow-rt-xs transition-[border-color,box-shadow,background-color] duration-200 ease-rt-spring hover:border-rt-accent/50 hover:shadow-rt-sm focus-within:border-rt-accent focus-within:shadow-rt-sm focus-within:ring-4 focus-within:ring-rt-accent/15 dark:border-rt-dark-border dark:bg-rt-dark-control dark:hover:border-rt-dark-accent dark:focus-within:ring-rt-dark-accent/20'
             . ($disabled ? ' cursor-not-allowed bg-rt-surface-muted opacity-70 dark:bg-rt-dark-canvas' : '');
         // Bewusst <span role="button"> statt <button>: die Komponente wird auch
         // innerhalb von <label> verwendet, und ein <button> ist ein labelable

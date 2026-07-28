@@ -34,17 +34,17 @@
                 persist-key="own-profile.tabs"
             >
             <x-ui.accordion.tab-panel for="personal" panel-class="space-y-8">
-                @livewire('profile.update-contact-information-form')
+                <livewire:profile.update-contact-information-form lazy />
             </x-ui.accordion.tab-panel>
 
             @if ($hasSecuritySettings)
                 <x-ui.accordion.tab-panel for="security" panel-class="space-y-8">
                     @if (Laravel\Fortify\Features::enabled(Laravel\Fortify\Features::updatePasswords()))
-                        @livewire('profile.update-password-form')
+                        <livewire:profile.update-password-form lazy />
                     @endif
 
                     @if (Laravel\Fortify\Features::canManageTwoFactorAuthentication())
-                        @livewire('profile.two-factor-authentication-form')
+                        <livewire:profile.two-factor-authentication-form lazy />
                     @endif
                 </x-ui.accordion.tab-panel>
             @endif
@@ -54,13 +54,13 @@
                 <x-ui.display-settings />
 
                 {{-- Persoenliche Ton-Zuordnung je Ereignis --}}
-                <livewire:settings.sound-preferences />
+                <livewire:settings.sound-preferences lazy />
 
-                <livewire:settings.push-settings />
+                <livewire:settings.push-settings lazy />
             </x-ui.accordion.tab-panel>
 
             <x-ui.accordion.tab-panel for="sessions" panel-class="space-y-8">
-                @livewire('profile.logout-other-browser-sessions-form')
+                <livewire:profile.logout-other-browser-sessions-form lazy />
             </x-ui.accordion.tab-panel>
 
             </x-ui.accordion.tabs>

@@ -14,9 +14,6 @@ import resize from '@alpinejs/resize';
 import intersect from '@alpinejs/intersect';
 import Echo from 'laravel-echo';
 import Pusher from 'pusher-js';
-import Swiper from 'swiper';
-import { FreeMode } from 'swiper/modules';
-import 'swiper/css';
 // GSAP-Setup (window.gsap/ScrollTrigger + deklarative data-anim-Reveals)
 import './gsap';
 // Vengeance-Motion (zeigergefuehrter Karten-Glow, Optik in app.css)
@@ -32,6 +29,7 @@ import { createNotificationSeenCache } from './notification-seen-cache';
 import { createNotificationPresentationContext } from './notification-presentation';
 import { incomingNotificationSound } from './realtime-notification-sound';
 import { sidebarScrollBehavior, sidebarScrollTarget } from './sidebar-scroll';
+import { railtimeTabs } from './tabs';
 
 const loadAdminDashboardECharts = () => import('./admin-dashboard-echarts');
 const rtSeenNotifications = createNotificationSeenCache(window);
@@ -124,12 +122,6 @@ Alpine.plugin(collapse);
 Alpine.plugin(mask);
 Alpine.plugin(resize);
 Alpine.plugin(intersect);
-
-// Die gemeinsame Tab-Leiste nutzt Swiper fuer echtes Touch-Dragging. Die
-// Referenzen muessen vor Livewire.start() verfuegbar sein, weil Alpine die
-// bereits gerenderte Seite waehrend des Starts sofort initialisiert.
-window.Swiper = Swiper;
-window.SwiperFreeMode = FreeMode;
 
 // Zentraler Theme-Store: liest die Einstellung beim Start aus localStorage
 // und schreibt sie beim Umschalten zurueck. Ueberlebt Reloads UND
@@ -426,6 +418,7 @@ setupRailtimePwa();
 Alpine.data('wagonListPrototype', wagonListPrototype);
 Alpine.data('rtNumberInput', numberInput);
 Alpine.data('rtSidebarNavigation', sidebarNavigation);
+Alpine.data('railtimeTabs', railtimeTabs);
 
 Alpine.data('chatRealtime', (config) => ({
     channel: null,

@@ -19,8 +19,12 @@ return [
     'api_key' => env('LIVEKIT_API_KEY'),
     'api_secret' => env('LIVEKIT_API_SECRET'),
 
-    // Gueltigkeit der Beitritts-Tokens in Sekunden (Standard: 6 Stunden).
-    'token_ttl' => (int) env('LIVEKIT_TOKEN_TTL', 21600),
+    // Gueltigkeit der Beitritts-Tokens in Sekunden (Standard: 1 Stunde).
+    // Bewusst kurz: die SFU kann unsere DB nicht befragen, ein einmal
+    // ausgestelltes Token bleibt also bis zum Ablauf gueltig – auch fuer
+    // Teilnehmer, die inzwischen entfernt wurden. Der Client holt sich
+    // unmittelbar vor room.connect() ohnehin immer ein frisches Token.
+    'token_ttl' => (int) env('LIVEKIT_TOKEN_TTL', 3600),
 
     // Klingeldauer in Sekunden, danach gilt der Anruf als verpasst.
     'ring_timeout' => (int) env('CALL_RING_TIMEOUT', 45),
@@ -29,6 +33,13 @@ return [
     'empty_timeout' => (int) env('LIVEKIT_EMPTY_TIMEOUT', 120),
 
     'max_participants' => (int) env('LIVEKIT_MAX_PARTICIPANTS', 15),
+
+    // HTTP-Grenzen fuer die Server-API. Ohne sie erbt der Twirp-Client einen
+    // Guzzle ohne jedes Timeout – ein haengender Media-Server wuerde dann
+    // PHP-FPM-Worker bis zum PHP-Timeout binden (siehe
+    // App\Services\Calls\TimeoutAwareRoomServiceClient).
+    'http_connect_timeout' => (float) env('LIVEKIT_HTTP_CONNECT_TIMEOUT', 2.0),
+    'http_timeout' => (float) env('LIVEKIT_HTTP_TIMEOUT', 5.0),
 
     /*
     |--------------------------------------------------------------------------
