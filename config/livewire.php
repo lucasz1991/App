@@ -50,7 +50,7 @@ return [
     |
     */
 
-    'lazy_placeholder' => 'components.ui.lazy-placeholder',
+    'lazy_placeholder' => null,
 
     /*
     |---------------------------------------------------------------------------

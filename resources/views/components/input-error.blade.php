@@ -1,15 +1,13 @@
 @props(['for'])
 
-<span x-data="{hasError: '{{$errors->get($for)[0] ?? ''}}' }"
-     x-init="()=> { $watch('hasError', (value)=> {
-            let errorDiv = document.getElementsByClassName('invalid-feedback')[0];
-            if(errorDiv){
-                errorDiv.scrollIntoView({behavior: 'smooth', block: 'center', inline: 'nearest'});
-            }
-    })}">
-    @error($for)
-        <span {{ $attributes->merge(['class' => 'text-red-500 dark:text-red-400 text-sm invalid-feedback']) }} role="alert" >
-            {{ $message }}
-        </span>
-    @enderror
-</span>
+@error($for)
+    <p
+        {{ $attributes->class('mt-1.5 flex items-start gap-1.5 text-xs font-medium leading-5 text-rt-red dark:text-rt-dark-accent') }}
+        id="{{ \Illuminate\Support\Str::slug($for) }}-error"
+        role="alert"
+        aria-live="polite"
+    >
+        <i class="far fa-circle-exclamation mt-1 shrink-0 text-[0.7rem]" aria-hidden="true"></i>
+        <span>{{ $message }}</span>
+    </p>
+@enderror
