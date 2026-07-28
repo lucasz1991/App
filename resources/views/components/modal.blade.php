@@ -26,14 +26,14 @@ $ariaLabel = $attributes->get('aria-label', config('app.name') . ' Dialog');
 >
     <template x-teleport="body">
         <div
-            x-show="show"
+            x-show.important="show"
             x-on:close.stop="show = false"
             id="{{ $id }}"
             class="rt-ui-modal rt-modal-shell rt-modal-center-shell jetstream-modal fixed inset-0 z-[190] overflow-hidden p-3 sm:p-6"
             style="display: none;"
             data-rt-modal-shell
         >
-            <div x-show="show" aria-hidden="true" class="rt-modal-backdrop fixed inset-0 transform transition-all" x-on:click="show = false" x-transition:enter="ease-out duration-200"
+            <div x-show.important="show" aria-hidden="true" class="rt-modal-backdrop fixed inset-0 transform transition-all" x-on:click="show = false" x-transition:enter="ease-out duration-200"
                             x-transition:enter-start="opacity-0"
                             x-transition:enter-end="opacity-100"
                             x-transition:leave="ease-in duration-200"
@@ -42,7 +42,7 @@ $ariaLabel = $attributes->get('aria-label', config('app.name') . ' Dialog');
                 <div class="absolute inset-0 bg-slate-950/55 backdrop-blur-md"></div>
             </div>
 
-            <div x-show="show"
+            <div x-show.important="show"
                             role="{{ $dialogRole }}"
                             aria-modal="true"
                             @if (filled($labelledBy))

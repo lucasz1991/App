@@ -376,6 +376,16 @@ export function railtimeTabs(config = {}) {
             if (Math.abs(distanceY) > Math.abs(distanceX) * 1.2) return;
 
             event.preventDefault();
+            if (
+                !this.scrubbingTabs
+                && document.activeElement instanceof HTMLElement
+                && this.$refs.carousel?.contains(document.activeElement)
+            ) {
+                // Ein Swipe darf den berührten, aber nicht ausgewählten Tab
+                // nicht mit einem Focus-Ring wie einen zweiten aktiven Tab
+                // aussehen lassen. Tastaturfokus bleibt davon unberührt.
+                document.activeElement.blur();
+            }
             this.scrubbingTabs = true;
             this.suppressClick = true;
             this.$refs.carousel?.setAttribute('data-swiping', 'true');

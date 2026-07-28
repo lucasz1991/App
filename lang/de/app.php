@@ -645,7 +645,7 @@ return [
     'position_not_set' => 'Position nicht hinterlegt',
     'communication_actions' => 'Kommunikationsaktionen',
     'voice_call' => 'Anruf',
-    'video_call' => 'Videochat',
+    'video_call' => 'Videoanruf',
     'send_email' => 'E-Mail senden',
     'communication_demo_unavailable' => ':action mit :name ist in dieser Vorschau noch nicht verfügbar.',
     'show_chat_overview' => 'Chatübersicht einblenden',

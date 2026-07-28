@@ -179,9 +179,11 @@ webhook:
 turn:                           # Variante A (Start): eingebautes TURN
   enabled: true
   domain: turn.rail-time.de
-  tls_port: 5349                # ideal: 443 auf dedizierter IP
   udp_port: 3478
-  external_tls: true            # Caddy terminiert TLS davor
+  # TURN-TLS erst in Stufe 2 (SERVER_SETUP.md 3.7). Dann terminiert LiveKit
+  # selbst per cert_file/key_file. `external_tls: true` waere falsch, solange
+  # kein TCP-Terminator davorsteht – Caddys reverse_proxy kann das nicht,
+  # da TURN kein HTTP ist (verifiziert gegen livekit-server v1.8.4).
 logging:
   level: info
 ```

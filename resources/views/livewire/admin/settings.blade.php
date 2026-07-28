@@ -272,7 +272,6 @@
                 </div>
             </form>
             </div>
-            </div>
         </section>
     </x-ui.accordion.tab-panel>
     </x-ui.accordion.tabs>

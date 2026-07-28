@@ -29,7 +29,7 @@ Diese Anleitung ist zum **Abarbeiten von Hand** gedacht: alle Dateien sind kopie
 | 7881 | tcp | ICE/TCP-Fallback |
 | 50000–60000 | udp | Medienströme (WebRTC) |
 | 3478 | udp+tcp | TURN |
-| 5349 | tcp | TURN über TLS |
+| 5349 | tcp | TURN über TLS — erst nach Abschnitt 3.7 nötig; vorher lauscht dort nichts |
 | 30000–40000 | udp | Relay des **eingebauten** LiveKit-TURN (Standardbereich von livekit-server 1.8; ohne diese Freigabe scheitert genau der Firewall-Fallback, für den TURN da ist) |
 | 49160–49960 | udp | coturn-Relay (nur bei Variante coturn) |
 
@@ -111,12 +111,14 @@ webhook:
 turn:
   enabled: true
   domain: turn.rail-time.de
-  tls_port: 5349
   udp_port: 3478
-  external_tls: true      # TLS terminiert Caddy (siehe Caddyfile)
 logging:
   level: info
 ```
+
+> **TURN zunächst nur über UDP.** Das deckt die meisten Netze ab und braucht
+> weder Zertifikate noch einen Proxy. TURN über TLS (für Netze, die nur 443
+> zulassen) kommt in Abschnitt 3.7 dazu — erst wenn Anrufe grundsätzlich laufen.
 
 ### 3.3 `/opt/railtime-media/Caddyfile`
 
@@ -124,13 +126,22 @@ logging:
 livekit.rail-time.de {
     reverse_proxy 127.0.0.1:7880
 }
-
-turn.rail-time.de:5349 {
-    reverse_proxy 127.0.0.1:3478
-}
 ```
 
 > Caddy besorgt und erneuert die Let's-Encrypt-Zertifikate automatisch (Port 80 muss dafür offen bleiben).
+
+> **Kein Caddy-Block für TURN.** Ein früherer Entwurf dieser Anleitung enthielt
+> `turn.rail-time.de:5349 { reverse_proxy 127.0.0.1:3478 }`. Das kann nicht
+> funktionieren, verifiziert gegen livekit-server v1.8.4:
+> 1. LiveKit lauscht auf **TCP 5349** selbst — Caddy könnte den Port gar nicht
+>    binden.
+> 2. Auf **TCP 3478 lauscht nichts**; 3478 ist ausschliesslich UDP. Das
+>    Proxy-Ziel wäre also tot.
+> 3. Caddys `reverse_proxy` spricht HTTP. TURN ist ein rohes TCP-Protokoll und
+>    lässt sich durch einen HTTP-Proxy grundsätzlich nicht durchreichen.
+>
+> TURN-TLS terminiert deshalb der jeweilige TURN-Server selbst (Abschnitt 3.7
+> für das eingebaute TURN, Abschnitt 4 für coturn).
 
 ### 3.4 `/opt/railtime-media/docker-compose.yml`
 
@@ -209,7 +220,51 @@ php artisan config:clear
 php artisan railtime:livekit-check
 ```
 
-Erwartung: „Server-API erreichbar". Damit sind Anrufe zwischen zwei Browsern bereits funktionsfähig (eingebautes LiveKit-TURN inklusive).
+Erwartung: „Server-API erreichbar". Damit sind Anrufe zwischen zwei Browsern bereits funktionsfähig (eingebautes LiveKit-TURN über UDP inklusive).
+
+### 3.7 TURN über TLS nachrüsten (optional, für Netze die nur 443 zulassen)
+
+Erst ausführen, wenn Anrufe nach Abschnitt 3.6 grundsätzlich laufen. LiveKit
+terminiert das TLS hier **selbst** — es gibt keinen Proxy davor.
+
+```bash
+apt-get -y install certbot
+systemctl stop railtime-media          # Port 80 kurz freigeben
+certbot certonly --standalone -d turn.rail-time.de
+```
+
+`livekit.yaml`: den `turn:`-Block erweitern und den Zertifikatspfad einhängen.
+
+```yaml
+turn:
+  enabled: true
+  domain: turn.rail-time.de
+  udp_port: 3478
+  tls_port: 5349
+  cert_file: /etc/letsencrypt/live/turn.rail-time.de/fullchain.pem
+  key_file: /etc/letsencrypt/live/turn.rail-time.de/privkey.pem
+```
+
+Im `docker-compose.yml` beim `livekit`-Dienst zusätzlich einhängen:
+
+```yaml
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+```
+
+> `external_tls: true` ist hier bewusst **nicht** gesetzt. Diese Option bedeutet,
+> dass LiveKit auf 5349 *unverschlüsselt* lauscht und ein externer Terminator
+> davorsteht. Ohne einen solchen Terminator wäre der Port für TLS-Clients
+> unbrauchbar — und 5349 dürfte dann nie öffentlich erreichbar sein.
+
+Renewal-Hook `/etc/letsencrypt/renewal-hooks/deploy/restart-livekit.sh`:
+
+```bash
+#!/bin/sh
+cd /opt/railtime-media && docker compose restart livekit
+```
+
+Neu starten und prüfen: `docker compose logs livekit | grep TURN` muss jetzt
+`turn.portTLS: 5349` zeigen (ohne `externalTLS`).
 
 ---
 
