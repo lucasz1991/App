@@ -16,22 +16,22 @@
     "src": "node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-vietnamese-wght-normal.woff2"
   },
   "resources/css/app.css": {
-    "file": "assets/app-2_hbEJe0.css",
+    "file": "assets/app-D9e9gy1v.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
   "resources/css/chat-redesign.css": {
-    "file": "assets/chat-redesign-DR4RFjY3.css",
+    "file": "assets/chat-redesign-CqlUnuob.css",
     "src": "resources/css/chat-redesign.css",
     "isEntry": true
   },
   "resources/css/shell-redesign.css": {
-    "file": "assets/shell-redesign-CftEEpmy.css",
+    "file": "assets/shell-redesign-wXkGAOT1.css",
     "src": "resources/css/shell-redesign.css",
     "isEntry": true
   },
   "resources/css/tabs-redesign.css": {
-    "file": "assets/tabs-redesign-CmDZuvHD.css",
+    "file": "assets/tabs-redesign-CkJDqJIX.css",
     "src": "resources/css/tabs-redesign.css",
     "isEntry": true
   },
@@ -42,7 +42,7 @@
     "isDynamicEntry": true
   },
   "resources/js/app.js": {
-    "file": "assets/app-HA0sXm0B.js",
+    "file": "assets/app-CvEi8Xe_.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
@@ -52,5 +52,11 @@
     "css": [
       "assets/app-vL0Q9Dr-.css"
     ]
+  },
+  "resources/js/calls.js": {
+    "file": "assets/calls-CBFPZPCA.js",
+    "name": "calls",
+    "src": "resources/js/calls.js",
+    "isEntry": true
   }
 }

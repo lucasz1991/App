@@ -20,3 +20,11 @@ Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
 Broadcast::channel('chat.{chatId}', function ($user, int $chatId) {
     return $user->chats()->where('chats.id', $chatId)->exists();
 });
+
+// Seitenkanal fuer Videoanrufe (Moderation/Status). Den In-Raum-Zustand
+// liefert LiveKit selbst – hier laeuft ausschliesslich Signalisierung.
+Broadcast::channel('call.{roomUuid}', function ($user, string $roomUuid) {
+    return \App\Models\Room::where('uuid', $roomUuid)
+        ->whereHas('participants', fn ($query) => $query->where('user_id', $user->id))
+        ->exists();
+});

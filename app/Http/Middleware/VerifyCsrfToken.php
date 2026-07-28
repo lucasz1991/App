@@ -12,6 +12,8 @@ class VerifyCsrfToken extends Middleware
      * @var array<int, string>
      */
     protected $except = [
-        //
+        // LiveKit signiert seine Webhooks per JWT im Authorization-Header;
+        // die Pruefung uebernimmt der LiveKitWebhookController.
+        'webhooks/livekit',
     ];
 }

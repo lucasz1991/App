@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\InvitedRegistrationController;
+use App\Http\Controllers\Calls\CallTokenController;
 use App\Http\Controllers\ChatAttachmentController;
 use App\Http\Controllers\ChatExportController;
 use App\Http\Controllers\ManagedDocumentDownloadController;
@@ -8,6 +9,7 @@ use App\Http\Controllers\ProfileEmailTemplateController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\PwaIconController;
 use App\Http\Controllers\WagonListExportController;
+use App\Http\Controllers\Webhooks\LiveKitWebhookController;
 use App\Http\Middleware\LogActivity;
 use App\Http\Middleware\RedirectAdminWagonList;
 use App\Livewire\Admin\Dashboard;
@@ -18,6 +20,7 @@ use App\Livewire\Admin\ManagedDocuments;
 use App\Livewire\Admin\OperationalPreview;
 use App\Livewire\Admin\Settings;
 use App\Livewire\Admin\UserProfile;
+use App\Livewire\Calls\CallWindow;
 use App\Livewire\ChatBox;
 use App\Livewire\HelpCenter;
 use App\Livewire\ItSupport;
@@ -106,6 +109,12 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
     Route::get('/messages', MessageBox::class)->name('messages');
     // Chat steht ALLEN angemeldeten Benutzern offen (Admin- wie Nutzerbereich).
     Route::get('/chat', ChatBox::class)->name('chat');
+    // Videoanrufe: Anruf-Fenster + Token-Ausgabe (Token immer frisch per fetch,
+    // nie im Livewire-Snapshot – siehe LIVEKIT_INTEGRATION_PLAN.md).
+    Route::get('/calls/{room:uuid}', CallWindow::class)->name('calls.window');
+    Route::post('/calls/{room:uuid}/token', [CallTokenController::class, 'store'])
+        ->middleware('throttle:20,1')
+        ->name('calls.token');
     Route::get('/chat/{chat}/export', ChatExportController::class)
         ->whereNumber('chat')
         ->middleware('throttle:30,1')
@@ -157,3 +166,8 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
         // aber weiterhin über die Komponente das Admin-Layout.
         Route::get('/messages', MessageBox::class)->name('messages');
     });
+
+// LiveKit-Webhooks: ausserhalb der Auth-Gruppe, Signaturpruefung im Controller
+// (JWT im Authorization-Header, signiert mit dem LiveKit-API-Schluesselpaar).
+Route::post('/webhooks/livekit', LiveKitWebhookController::class)
+    ->name('webhooks.livekit');

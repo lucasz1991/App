@@ -29,6 +29,7 @@ final class SoundLibrary
         // Eingaenge
         'message' => 'message',
         'chat' => 'chat',
+        'call' => 'bell',
     ];
 
     /**
