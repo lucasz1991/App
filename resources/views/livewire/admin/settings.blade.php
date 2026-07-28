@@ -46,25 +46,25 @@
                     <p class="mt-1 break-words text-sm text-rt-muted dark:text-rt-dark-muted">
                         {{ __('app.settings_overview_system_text') }}
                     </p>
-
-                    <div class="mt-4 flex flex-col gap-3 rounded-xl bg-rt-surface-muted p-3.5 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60 sm:mt-5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:p-4">
-                        <div class="min-w-0">
-                            <p class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">
-                                {{ __('app.maintenance_mode') }}
-                            </p>
-                            <p class="mt-0.5 text-xs text-rt-muted dark:text-rt-dark-muted">
-                                {{ __('app.maintenance_mode_hint') }}
-                            </p>
-                        </div>
-                        <div class="shrink-0 self-start sm:self-center">
-                            <x-ui.forms.toggle-button model="maintenanceMode" />
-                        </div>
-                    </div>
-
-                    <div class="mt-5">
-                        <x-ui.autosave-status event="system-settings-saved" target="saveSystem" />
-                    </div>
                 </div>
+            </div>
+
+            <div class="mt-4 flex flex-col gap-3 rounded-xl bg-rt-surface-muted p-3.5 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60 sm:mt-5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:p-4">
+                <div class="min-w-0">
+                    <p class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">
+                        {{ __('app.maintenance_mode') }}
+                    </p>
+                    <p class="mt-0.5 text-xs text-rt-muted dark:text-rt-dark-muted">
+                        {{ __('app.maintenance_mode_hint') }}
+                    </p>
+                </div>
+                <div class="shrink-0 self-start sm:self-center">
+                    <x-ui.forms.toggle-button model="maintenanceMode" />
+                </div>
+            </div>
+
+            <div class="mt-5">
+                <x-ui.autosave-status event="system-settings-saved" target="saveSystem" />
             </div>
         </div>
     </section>
@@ -92,15 +92,15 @@
                     <p class="mt-1 break-words text-sm text-rt-muted dark:text-rt-dark-muted">
                         {{ __('app.sound_settings_hint') }}
                     </p>
-
-                    <div class="mt-4 sm:mt-5">
-                        <x-ui.forms.sound-picker model="sounds" />
-                    </div>
-
-                    <div class="mt-5">
-                        <x-ui.autosave-status event="sound-settings-saved" target="saveSounds" dirty-target="sounds" />
-                    </div>
                 </div>
+            </div>
+
+            <div class="mt-4 sm:mt-5">
+                <x-ui.forms.sound-picker model="sounds" />
+            </div>
+
+            <div class="mt-5">
+                <x-ui.autosave-status event="sound-settings-saved" target="saveSounds" dirty-target="sounds" />
             </div>
         </div>
     </section>
@@ -122,36 +122,36 @@
                 <h2 class="text-base font-semibold tracking-tight text-rt-text dark:text-rt-dark-text sm:text-lg">
                     {{ __('app.invitations') }}
                 </h2>
-
-                <div class="mt-4 w-full sm:max-w-sm">
-                    <label for="invitation_expiry_days" class="block text-sm font-medium text-rt-text dark:text-rt-dark-text">
-                        {{ __('app.invitation_expiry_days') }}
-                    </label>
-                    <div class="mt-1.5">
-                        {{-- nullable=false: die Komponente ist an ein typisiertes
-                             int-Property gebunden, ein leeres Feld wuerde beim
-                             Speichern einen Typfehler ausloesen. --}}
-                        <x-ui.forms.number-input
-                            id="invitation_expiry_days"
-                            min="1"
-                            max="365"
-                            :nullable="false"
-                            :unit="__('app.days')"
-                            wire:model="invitationExpiryDays"
-                        />
-                    </div>
-                    @error('invitationExpiryDays')
-                        <p class="mt-1.5 text-sm text-rt-red">{{ $message }}</p>
-                    @enderror
-                    <p class="mt-2 text-xs text-rt-muted dark:text-rt-dark-muted">
-                        {{ __('app.invitation_expiry_hint') }}
-                    </p>
-                </div>
-
-                <div class="mt-5">
-                    <x-ui.autosave-status event="invitation-settings-saved" target="saveInvitations" dirty-target="invitationExpiryDays" />
-                </div>
             </div>
+        </div>
+
+        <div class="mt-4 w-full sm:max-w-sm">
+            <label for="invitation_expiry_days" class="block text-sm font-medium text-rt-text dark:text-rt-dark-text">
+                {{ __('app.invitation_expiry_days') }}
+            </label>
+            <div class="mt-1.5">
+                {{-- nullable=false: die Komponente ist an ein typisiertes
+                     int-Property gebunden, ein leeres Feld wuerde beim
+                     Speichern einen Typfehler ausloesen. --}}
+                <x-ui.forms.number-input
+                    id="invitation_expiry_days"
+                    min="1"
+                    max="365"
+                    :nullable="false"
+                    :unit="__('app.days')"
+                    wire:model="invitationExpiryDays"
+                />
+            </div>
+            @error('invitationExpiryDays')
+                <p class="mt-1.5 text-sm text-rt-red">{{ $message }}</p>
+            @enderror
+            <p class="mt-2 text-xs text-rt-muted dark:text-rt-dark-muted">
+                {{ __('app.invitation_expiry_hint') }}
+            </p>
+        </div>
+
+        <div class="mt-5">
+            <x-ui.autosave-status event="invitation-settings-saved" target="saveInvitations" dirty-target="invitationExpiryDays" />
         </div>
         </div>
     </section>
@@ -176,31 +176,31 @@
                 <p class="mt-1 break-words text-sm text-rt-muted dark:text-rt-dark-muted">
                     {{ __('app.settings_overview_mails_text') }}
                 </p>
-
-                <div class="mt-4 w-full sm:max-w-md">
-                    <label for="admin_email" class="block text-sm font-medium text-rt-text dark:text-rt-dark-text">
-                        {{ __('app.admin_email_address') }}
-                    </label>
-                    <div class="mt-1.5">
-                        <x-ui.forms.input
-                            type="email"
-                            id="admin_email"
-                            placeholder="admin@rail-time.de"
-                            wire:model="adminEmail"
-                        />
-                    </div>
-                    @error('adminEmail')
-                        <p class="mt-1.5 text-sm text-rt-red">{{ $message }}</p>
-                    @enderror
-                    <p class="mt-2 text-xs text-rt-muted dark:text-rt-dark-muted">
-                        {{ __('app.admin_email_hint') }}
-                    </p>
-                </div>
-
-                <div class="mt-5">
-                    <x-ui.autosave-status event="mail-settings-saved" target="saveMails" dirty-target="adminEmail" />
-                </div>
             </div>
+        </div>
+
+        <div class="mt-4 w-full sm:max-w-md">
+            <label for="admin_email" class="block text-sm font-medium text-rt-text dark:text-rt-dark-text">
+                {{ __('app.admin_email_address') }}
+            </label>
+            <div class="mt-1.5">
+                <x-ui.forms.input
+                    type="email"
+                    id="admin_email"
+                    placeholder="admin@rail-time.de"
+                    wire:model="adminEmail"
+                />
+            </div>
+            @error('adminEmail')
+                <p class="mt-1.5 text-sm text-rt-red">{{ $message }}</p>
+            @enderror
+            <p class="mt-2 text-xs text-rt-muted dark:text-rt-dark-muted">
+                {{ __('app.admin_email_hint') }}
+            </p>
+        </div>
+
+        <div class="mt-5">
+            <x-ui.autosave-status event="mail-settings-saved" target="saveMails" dirty-target="adminEmail" />
         </div>
         </div>
     </section>
@@ -224,9 +224,11 @@
                     <p class="mt-1 max-w-3xl break-words text-sm text-rt-muted dark:text-rt-dark-muted">
                         {{ __('app.company_data_hint') }}
                     </p>
+                </div>
+            </div>
 
-                    <form wire:submit="saveCompany" class="mt-6">
-                        <div class="grid min-w-0 gap-x-5 gap-y-4 sm:grid-cols-2">
+            <form wire:submit="saveCompany" class="mt-6">
+                <div class="grid min-w-0 gap-x-5 gap-y-4 sm:grid-cols-2">
                             @foreach ([
                                 ['name', 'company_name', 'text', 'organization'],
                                 ['email', 'company_email', 'email', 'email'],
@@ -259,17 +261,16 @@
                                     @enderror
                                 </div>
                             @endforeach
-                        </div>
-
-                        <div class="mt-6 flex flex-col border-t border-rt-border/70 pt-5 dark:border-rt-dark-border/70 sm:flex-row sm:items-center sm:justify-end">
-                            <x-ui.autosave-status
-                                event="company-settings-saved"
-                                target="saveCompany"
-                                dirty-target="company.name,company.email,company.street,company.postal_code,company.city,company.country,company.phone,company.emergency_phone,company.website,company.managing_directors,company.register_court,company.commercial_register_number,company.vat_id,company.tax_number"
-                            />
-                        </div>
-                    </form>
                 </div>
+
+                <div class="mt-6 flex flex-col border-t border-rt-border/70 pt-5 dark:border-rt-dark-border/70 sm:flex-row sm:items-center sm:justify-end">
+                    <x-ui.autosave-status
+                        event="company-settings-saved"
+                        target="saveCompany"
+                        dirty-target="company.name,company.email,company.street,company.postal_code,company.city,company.country,company.phone,company.emergency_phone,company.website,company.managing_directors,company.register_court,company.commercial_register_number,company.vat_id,company.tax_number"
+                    />
+                </div>
+            </form>
             </div>
             </div>
         </section>
