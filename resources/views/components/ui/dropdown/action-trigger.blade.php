@@ -2,6 +2,7 @@
     'label' => null,
     'ariaLabel' => null,
     'orientation' => 'horizontal',
+    'responsiveLabel' => false,
 ])
 
 <button
@@ -20,6 +21,6 @@
         aria-hidden="true"
     ></i>
     @if (filled($label))
-        <span>{{ $label }}</span>
+        <span @class(['hidden sm:inline' => $responsiveLabel])>{{ $label }}</span>
     @endif
 </button>

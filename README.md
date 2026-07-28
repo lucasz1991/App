@@ -47,6 +47,29 @@ Chatname, Instanz-ID und konkretem Dateiumfang ab.
 - **Verifikation:** 259 Tests mit 2.293 Assertions, Vite-Produktionsbuild sowie
   Browser-Abnahme bei 1440x900 und 390x844 ohne neue Konsolenfehler.
 
+### Paralleler Codex-Arbeitsblock
+
+- **[FERTIG] [Codex-Chat: Tabs, Personenanzeige und Modals | Instanz: RT-TABS-0728]**
+- **Bereich:** mobiles Tab-Dragging mit Slider-Bibliothek, visuelles
+  Tabs-Redesign, stabiles Sticky-/Scrollverhalten, Personenanzeige mit
+  Anchor-Dropdown in der Mitarbeiterliste, ein gemeinsames Optionen-
+  Anchor-Dropdown fuer Unterseiten-Aktionen und global mittig ausgerichtete
+  Modale.
+- **Dateien:** `resources/views/components/ui/accordion`,
+  `resources/css/tabs-redesign.css`, `resources/js/app.js`,
+  Mitarbeiterlisten-/Personenvorschau-Komponenten, gemeinsame Dropdown- und
+  Modal-Komponenten sowie direkt zugehoerige UI-Regressionstests.
+- **Ergebnis:** Die gemeinsame Tab-Rail nutzt die bereits installierte
+  Swiper.js-FreeMode-Engine fuer mobiles Dragging, behaelt normale Taps und
+  Tastatursteuerung bei und scrollt nur dann zur Topbar, wenn der neu gewaehlte
+  Inhalt sonst praktisch ausserhalb des Viewports liegt. Mitarbeiter werden mit
+  Bild ueber die Personenkomponente dargestellt; ihre Vorschau ist in der Liste
+  ein Anchor-Dropdown statt eines Modals. Seitenaktionen verwenden den
+  gemeinsamen Drei-Punkte-Trigger mit `Optionen` nur ab Desktopbreite.
+- **Verifikation:** 260 Tests mit 2.305 Assertions, Vite-Produktionsbuild,
+  Blade-View-Cache und Browser-Abnahme bei 390x844 (Tap, Drag, Tastatur,
+  kein horizontaler Dokument-Overflow).
+
 ### Aktueller technischer Stand
 
 - Sidebar und Shell-Ambient bleiben mit Livewire `@persist`, globalem Alpine-Store und den `wire:navigate`-Lifecycle-Events ohne sichtbares Einklappen erhalten. Die aktive Route und geoeffnete Submenus werden nach dem Seitenwechsel synchronisiert.
@@ -60,7 +83,7 @@ Chatname, Instanz-ID und konkretem Dateiumfang ab.
 
 ### Verifikation und Uebergabe
 
-- Gesamtsuite: **259 Tests, 2.288 Assertions** erfolgreich.
+- Gesamtsuite: **260 Tests, 2.305 Assertions** erfolgreich.
 - PWA-Frontend: **16 von 16 Tests** erfolgreich.
 - `php artisan view:cache`, Pint-Pruefung und Vite-Produktionsbuild sind erfolgreich.
 - Browser-Abnahme: 390x844, 844x390 und 1440x900; Sidebar blieb nach `wire:navigate` offen, aktiver Link behielt `aria-current="page"`, Ambient-Position blieb erhalten und das finale Bundle erzeugte keine neuen Konsolenfehler.

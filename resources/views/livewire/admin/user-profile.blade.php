@@ -18,46 +18,37 @@
     <x-slot:actions>
         <x-back-button :href="route($employeesRoute)" />
 
-        <x-dropdown align="right" width="48">
-            <x-slot name="trigger">
-                <x-ui.buttons.button-basic :size="'sm'" :mode="'basic'">
-                    <i class="far fa-ellipsis-v mr-2"></i>
-                    {{ __('app.options') }}
-                </x-ui.buttons.button-basic>
-            </x-slot>
+        <x-ui.dropdown.page-actions width="48">
+            @if ($user->status)
+                <x-dropdown-link wire:click.prevent="deactivateUser()" :can="'users.edit'" tone="warning">
+                    <i class="far fa-times-circle mr-2"></i>
+                    {{ __('app.deactivate') }}
+                </x-dropdown-link>
+            @else
+                <x-dropdown-link wire:click.prevent="activateUser()" :can="'users.edit'" tone="success">
+                    <i class="far fa-check-circle mr-2"></i>
+                    {{ __('app.activate') }}
+                </x-dropdown-link>
+            @endif
 
-            <x-slot name="content">
-                @if ($user->status)
-                    <x-dropdown-link wire:click.prevent="deactivateUser()" :can="'users.edit'" class="hover:bg-yellow-100 dark:hover:bg-yellow-500/10">
-                        <i class="far fa-times-circle mr-2"></i>
-                        {{ __('app.deactivate') }}
-                    </x-dropdown-link>
-                @else
-                    <x-dropdown-link wire:click.prevent="activateUser()" :can="'users.edit'" class="hover:bg-green-100 dark:hover:bg-green-500/10">
-                        <i class="far fa-check-circle mr-2"></i>
-                        {{ __('app.activate') }}
+            @can('employees.delete')
+                @if ((int) $user->id !== (int) auth()->id() && ! $user->isSuperAdmin())
+                    <x-dropdown-link
+                        x-on:click.prevent='$dispatch("rt-confirm", {
+                            title: @js(__("app.delete_user")),
+                            message: @js(__("app.delete_user_confirm")),
+                            variant: "destructive",
+                            confirmLabel: @js(__("app.delete")),
+                            action: () => $wire.deleteUser()
+                        })'
+                        tone="danger"
+                    >
+                        <i class="far fa-trash-alt mr-2"></i>
+                        {{ __('app.delete_user') }}
                     </x-dropdown-link>
                 @endif
-
-                @can('employees.delete')
-                    @if ((int) $user->id !== (int) auth()->id() && ! $user->isSuperAdmin())
-                        <x-dropdown-link
-                            x-on:click.prevent='$dispatch("rt-confirm", {
-                                title: @js(__("app.delete_user")),
-                                message: @js(__("app.delete_user_confirm")),
-                                variant: "destructive",
-                                confirmLabel: @js(__("app.delete")),
-                                action: () => $wire.deleteUser()
-                            })'
-                            class="text-red-700 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-500/10"
-                        >
-                            <i class="far fa-trash-alt mr-2"></i>
-                            {{ __('app.delete_user') }}
-                        </x-dropdown-link>
-                    @endif
-                @endcan
-            </x-slot>
-        </x-dropdown>
+            @endcan
+        </x-ui.dropdown.page-actions>
     </x-slot:actions>
 
     {{-- Identitaets-Card: klar, horizontal, ohne Cover/ueberlappenden Avatar.

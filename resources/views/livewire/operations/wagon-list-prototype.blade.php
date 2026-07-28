@@ -37,27 +37,24 @@
         :description="__('app.wagon_list_description')"
     >
         <x-slot:actions>
-            <div class="flex flex-wrap items-center justify-end gap-2">
-                <button
-                    type="button"
+            <x-ui.dropdown.page-actions>
+                <x-dropdown-link
                     x-show.important="drafts.length > 0"
                     x-cloak
-                    @click="deleteAllDrafts()"
-                    class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-rt-border bg-rt-surface px-3.5 py-2 text-sm font-semibold text-rt-muted shadow-rt-xs transition-all duration-200 hover:border-red-300 hover:bg-red-50 hover:text-red-700 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/45 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-muted dark:hover:border-red-500/40 dark:hover:bg-red-500/10 dark:hover:text-red-300"
+                    @click.prevent="deleteAllDrafts()"
+                    tone="danger"
                 >
                     <i class="far fa-trash-alt" aria-hidden="true"></i>
                     {{ $labels['deleteAll'] }}
-                </button>
-                <button
-                    type="button"
+                </x-dropdown-link>
+                <x-dropdown-link
                     x-ref="newDraftButton"
-                    @click="createDraft($event.currentTarget)"
-                    class="inline-flex min-h-11 items-center gap-2 rounded-lg bg-rt-red px-4 py-2.5 text-sm font-semibold text-white shadow-rt-xs transition-all duration-200 ease-rt-spring hover:-translate-y-0.5 hover:bg-rt-red-dark hover:shadow-rt-glow active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-rt-dark-canvas"
+                    @click.prevent="createDraft($event.currentTarget)"
                 >
                     <i class="far fa-plus" aria-hidden="true"></i>
                     {{ $labels['newDraft'] }}
-                </button>
-            </div>
+                </x-dropdown-link>
+            </x-ui.dropdown.page-actions>
         </x-slot:actions>
 
         <section class="space-y-5" aria-labelledby="wagon-drafts-title" data-wagon-draft-overview>

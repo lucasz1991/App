@@ -705,6 +705,13 @@ body[data-mode='dark'] .rt-topbar-profile-panel .rt-ui-dropdown-link:not([aria-d
     padding-block: clamp(1rem, 5vh, 4rem);
 }
 
+.rt-modal-center-shell {
+    display: flex;
+    min-height: 100%;
+    align-items: center;
+    justify-content: center;
+}
+
 .rt-modal-frame {
     isolation: isolate;
     border: 1px solid rgba(255, 255, 255, 0.72);

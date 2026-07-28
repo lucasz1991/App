@@ -102,7 +102,7 @@ class PersonPreviewModalTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_chat_and_employee_surfaces_mount_the_preview_and_expose_triggers(): void
+    public function test_chat_keeps_its_modal_while_employee_list_uses_the_anchored_preview(): void
     {
         $chat = file_get_contents(resource_path('views/livewire/chat-box.blade.php'));
         $chatList = file_get_contents(resource_path('views/livewire/chat/partials/chat-list.blade.php'));
@@ -113,13 +113,14 @@ class PersonPreviewModalTest extends TestCase
         $employeeActions = file_get_contents(resource_path('views/components/tables/rows/employees/employee-actions.blade.php'));
 
         $this->assertStringContainsString('livewire:people.person-preview-modal', $chat);
-        $this->assertStringContainsString('livewire:people.person-preview-modal', $employees);
+        $this->assertStringNotContainsString('livewire:people.person-preview-modal', $employees);
+        $this->assertStringContainsString('person-anchor-preview', $employeeRow);
+        $this->assertStringNotContainsString('person-preview:open', $employeeRow);
         $this->assertStringContainsString('canViewManagementDashboard()', $employees);
         $this->assertStringContainsString('person-preview:open', $chatList);
         $this->assertStringContainsString('person-preview:open', $chatHeader);
         $this->assertStringContainsString('person-preview:open', $newChat);
-        $this->assertStringContainsString('person-preview:open', $employeeRow);
-        $this->assertStringContainsString('person-preview:open', $employeeActions);
+        $this->assertStringNotContainsString('person-preview:open', $employeeActions);
         $this->assertStringContainsString('canViewManagementDashboard()', $employeeActions);
     }
 

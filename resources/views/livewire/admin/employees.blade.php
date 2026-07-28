@@ -4,28 +4,20 @@
         :count="number_format($employeesTotal, 0, ',', '.')"
     >
         <x-slot:actions>
-            {{-- EIN Aktionen-Dropdown fuer alle Bildschirmgroessen: nur die drei
-                 Punkte, ohne Beschriftung. Sitzt zusammen mit dem Info-Knopf
-                 rechts neben dem Titel, nie in einer zweiten Zeile. --}}
-            <x-ui.dropdown.anchor-dropdown align="right" width="64">
-                <x-slot:trigger>
-                    <x-ui.dropdown.action-trigger :title="__('app.actions')" />
-                </x-slot:trigger>
-                <x-slot:content>
-                    <x-dropdown-link wire:click.prevent="openCreate" :can="'employees.create'" :title="__('app.new_employee_hint')">
-                        <i class="far fa-plus mr-2"></i>
-                        {{ __('app.new_employee') }}
-                    </x-dropdown-link>
-                    <x-dropdown-link wire:click.prevent="openInvite" :can="'employees.create'" :title="__('app.invite_employee_hint')">
-                        <i class="far fa-paper-plane mr-2"></i>
-                        {{ __('app.invite_employee') }}
-                    </x-dropdown-link>
-                    <x-dropdown-link wire:click.prevent="openTeamRbacModal" :can="'roles.manage'" :title="__('app.teams_permissions_hint')">
-                        <i class="far fa-shield-alt mr-2"></i>
-                        {{ __('app.teams_permissions') }}
-                    </x-dropdown-link>
-                </x-slot:content>
-            </x-ui.dropdown.anchor-dropdown>
+            <x-ui.dropdown.page-actions>
+                <x-dropdown-link wire:click.prevent="openCreate" :can="'employees.create'" :title="__('app.new_employee_hint')">
+                    <i class="far fa-plus mr-2"></i>
+                    {{ __('app.new_employee') }}
+                </x-dropdown-link>
+                <x-dropdown-link wire:click.prevent="openInvite" :can="'employees.create'" :title="__('app.invite_employee_hint')">
+                    <i class="far fa-paper-plane mr-2"></i>
+                    {{ __('app.invite_employee') }}
+                </x-dropdown-link>
+                <x-dropdown-link wire:click.prevent="openTeamRbacModal" :can="'roles.manage'" :title="__('app.teams_permissions_hint')">
+                    <i class="far fa-shield-alt mr-2"></i>
+                    {{ __('app.teams_permissions') }}
+                </x-dropdown-link>
+            </x-ui.dropdown.page-actions>
         </x-slot:actions>
 
         {{-- Listen-Toolbar: links Massenauswahl, rechts Suche/Filter --}}
@@ -110,5 +102,4 @@
     <livewire:admin.employees.team-rbac-modal :key="'employee-team-rbac-modal'" />
     <livewire:admin.employees.invite-employee-modal :key="'employee-invite-modal'" />
     <livewire:admin.users.messages.message-form :key="'employee-message-form'" />
-    <livewire:people.person-preview-modal :key="'employee-person-preview-modal'" />
 </div>

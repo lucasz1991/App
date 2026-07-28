@@ -15,6 +15,7 @@ import intersect from '@alpinejs/intersect';
 import Echo from 'laravel-echo';
 import Pusher from 'pusher-js';
 import Swiper from 'swiper';
+import { FreeMode } from 'swiper/modules';
 import 'swiper/css';
 // GSAP-Setup (window.gsap/ScrollTrigger + deklarative data-anim-Reveals)
 import './gsap';
@@ -123,6 +124,12 @@ Alpine.plugin(collapse);
 Alpine.plugin(mask);
 Alpine.plugin(resize);
 Alpine.plugin(intersect);
+
+// Die gemeinsame Tab-Leiste nutzt Swiper fuer echtes Touch-Dragging. Die
+// Referenzen muessen vor Livewire.start() verfuegbar sein, weil Alpine die
+// bereits gerenderte Seite waehrend des Starts sofort initialisiert.
+window.Swiper = Swiper;
+window.SwiperFreeMode = FreeMode;
 
 // Zentraler Theme-Store: liest die Einstellung beim Start aus localStorage
 // und schreibt sie beim Umschalten zurueck. Ueberlebt Reloads UND
@@ -1418,7 +1425,6 @@ window.addEventListener('rt:inbox-increased', (event) => {
     window.RTSound?.play(incomingNotificationSound(source));
 });
 
-window.Swiper = Swiper;
 let sidebarCollapseTimer = null;
 let sidebarExpandTimer = null;
 let sidebarSwipeStart = null;

@@ -23,13 +23,7 @@
         openTab: $persist(@js($initial)).as(@js($key)),
         tabDirection: 'next',
         stickyEnabled: true,
-        touchPointerId: null,
-        touchStartX: null,
-        touchStartY: null,
-        touchStartScrollLeft: 0,
-        touchDragging: false,
-        suppressTouchClick: false,
-        suppressTouchClickTimer: null,
+        swiper: null,
         scrollFrame: null,
         atScrollStart: true,
         atScrollEnd: true,
@@ -66,33 +60,12 @@
             this.$nextTick(() => {
                 this.revealActiveTab();
                 this.animateSelection();
+                this.keepSelectedPanelVisible();
 
                 if (focusTab) {
                     this.tabElement(this.openTab)?.focus({ preventScroll: true });
                 }
             });
-        },
-        activateFromClick(event, id) {
-            // Ein echter Touch-Drag darf keinen synthetischen Klick ausloesen.
-            // Der folgende Browser-Click kann in Embedded-WebViews als
-            // MouseEvent ohne pointerType ankommen. Das Flag selbst wird
-            // ausschliesslich von einem echten Touch-Drag gesetzt.
-            if (this.suppressTouchClick) {
-                event.preventDefault();
-                event.stopPropagation();
-                this.suppressTouchClick = false;
-                return;
-            }
-
-            this.selectTab(id, true);
-        },
-        preparePointerIntent(event) {
-            // Ein echter Maus-/Pen-Klick hat stets einen eigenen PointerDown.
-            // Er darf nie von der kurzen Touch-Click-Sperre verschluckt werden.
-            if (event.pointerType === 'mouse' || event.pointerType === 'pen') {
-                window.clearTimeout(this.suppressTouchClickTimer);
-                this.suppressTouchClick = false;
-            }
         },
         moveTab(direction) {
             if (this.items.length < 2) return;
@@ -106,29 +79,107 @@
             this.selectTab(position === 'start' ? this.items[0].id : this.items[this.items.length - 1].id, true);
         },
         revealActiveTab(behavior = 'smooth') {
-            const carousel = this.$refs.carousel;
-            const active = this.tabElement(this.openTab);
-            if (!carousel || !active) return;
+            if (!this.swiper) return;
 
-            const inset = 12;
-            const activeStart = active.offsetLeft;
-            const activeEnd = activeStart + active.offsetWidth;
-            const visibleStart = carousel.scrollLeft + inset;
-            const visibleEnd = carousel.scrollLeft + carousel.clientWidth - inset;
-            let nextLeft = carousel.scrollLeft;
-
-            if (activeStart < visibleStart) {
-                nextLeft = Math.max(0, activeStart - inset);
-            } else if (activeEnd > visibleEnd) {
-                nextLeft = Math.max(0, activeEnd - carousel.clientWidth + inset);
-            }
-
-            if (Math.abs(nextLeft - carousel.scrollLeft) > 1) {
-                const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-                carousel.scrollTo({ left: nextLeft, behavior: reduceMotion ? 'auto' : behavior });
-            }
-
+            this.swiper.update();
+            const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            const duration = reduceMotion || behavior === 'auto' ? 0 : 280;
+            this.swiper.slideTo(this.activeIndex(), duration);
             this.syncScrollEdges();
+        },
+        initSwiper() {
+            if (!window.Swiper || !this.$refs.carousel) return;
+
+            this.swiper?.destroy(true, false);
+            const controller = this;
+
+            this.swiper = new window.Swiper(this.$refs.carousel, {
+                modules: window.SwiperFreeMode ? [window.SwiperFreeMode] : [],
+                slidesPerView: 'auto',
+                spaceBetween: 5,
+                freeMode: {
+                    enabled: true,
+                    momentum: true,
+                    momentumRatio: 0.72,
+                    momentumVelocityRatio: 0.78,
+                    sticky: false,
+                },
+                threshold: 5,
+                touchAngle: 42,
+                touchStartPreventDefault: false,
+                touchMoveStopPropagation: false,
+                // Buttons bleiben echte Buttons: Swiper darf normale Taps und
+                // Tastatur-Clicks nicht abfangen. Das Drag-Threshold trennt die
+                // horizontale Geste bereits von einem Tap.
+                preventClicks: false,
+                preventClicksPropagation: false,
+                watchOverflow: true,
+                centerInsufficientSlides: true,
+                observer: true,
+                observeParents: true,
+                resistanceRatio: 0.72,
+                roundLengths: true,
+                on: {
+                    init() {
+                        controller.syncScrollEdges();
+                    },
+                    progress() {
+                        controller.syncScrollEdges();
+                    },
+                    resize() {
+                        controller.revealActiveTab('auto');
+                    },
+                    touchStart() {
+                        controller.$refs.carousel?.setAttribute('data-swiping', 'pending');
+                    },
+                    sliderMove() {
+                        controller.$refs.carousel?.setAttribute('data-swiping', 'true');
+                    },
+                    touchEnd() {
+                        controller.$refs.carousel?.setAttribute('data-swiping', 'false');
+                    },
+                },
+            });
+        },
+        stickyTopOffset() {
+            const topbar = document.querySelector('.rt-shell-topbar');
+            const topbarBottom = topbar?.getBoundingClientRect().bottom;
+            return Math.max(70, Number.isFinite(topbarBottom) ? topbarBottom : 70) + 8;
+        },
+        keepSelectedPanelVisible() {
+            if (!this.stickyEnabled) return;
+
+            window.requestAnimationFrame(() => {
+                window.requestAnimationFrame(() => {
+                    const shell = this.$refs.shell;
+                    const panel = Array.from(this.$root.querySelectorAll('[role=tabpanel]'))
+                        .find(candidate => candidate.id === `panel-${this.openTab}`);
+                    if (!shell || !panel) return;
+
+                    const topOffset = this.stickyTopOffset();
+                    const shellRect = shell.getBoundingClientRect();
+                    const panelRect = panel.getBoundingClientRect();
+                    const anchored = Math.abs(shellRect.top - topOffset) <= 12;
+                    const visiblePanelHeight = Math.max(
+                        0,
+                        Math.min(panelRect.bottom, window.innerHeight) - Math.max(panelRect.top, shellRect.bottom),
+                    );
+                    const usefulContentVisible = visiblePanelHeight >= Math.min(180, window.innerHeight * 0.28);
+
+                    // Bei bereits angehefteter Rail nie erneut an den Seitenanfang
+                    // springen. Nur wenn der neue Inhalt praktisch ausserhalb des
+                    // Viewports liegt, wird die Rail exakt unter die Topbar gesetzt.
+                    if (anchored || usefulContentVisible) return;
+
+                    const target = Math.max(0, window.scrollY + shellRect.top - topOffset);
+                    if (Math.abs(target - window.scrollY) < 8) return;
+
+                    const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+                        ? 'auto'
+                        : 'smooth';
+                    window.scrollTo({ top: target, behavior });
+                });
+            });
         },
         animateSelection() {
             if (!window.gsap || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -145,113 +196,22 @@
             );
             window.gsap.fromTo(
                 marker,
-                { scaleX: 0.42, autoAlpha: 0.45 },
-                { scaleX: 1, autoAlpha: 1, duration: 0.34, ease: 'power3.out', clearProps: 'transform,opacity,visibility' },
+                { scaleY: 0.42, autoAlpha: 0.45 },
+                { scaleY: 1, autoAlpha: 1, duration: 0.34, ease: 'power3.out', clearProps: 'transform,opacity,visibility' },
             );
         },
         syncScrollEdges() {
             window.cancelAnimationFrame(this.scrollFrame || 0);
             this.scrollFrame = window.requestAnimationFrame(() => {
-                const carousel = this.$refs.carousel;
-                if (!carousel) return;
-
-                const maxScroll = Math.max(0, carousel.scrollWidth - carousel.clientWidth);
-                this.atScrollStart = carousel.scrollLeft <= 2;
-                this.atScrollEnd = maxScroll <= 2 || carousel.scrollLeft >= maxScroll - 2;
+                if (!this.swiper) return;
+                this.atScrollStart = this.swiper.isBeginning;
+                this.atScrollEnd = this.swiper.isEnd;
             });
         },
-        isTouchPointer(event) {
-            return event.pointerType === 'touch'
-                && event.isPrimary !== false;
-        },
-        touchPointerDown(event) {
-            const carousel = this.$refs.carousel;
-            if (!carousel || !this.isTouchPointer(event)) return;
-            if (carousel.scrollWidth <= carousel.clientWidth + 1) return;
-
-            window.clearTimeout(this.suppressTouchClickTimer);
-            this.suppressTouchClick = false;
-            this.touchPointerId = event.pointerId;
-            this.touchStartX = event.clientX;
-            this.touchStartY = event.clientY;
-            this.touchStartScrollLeft = carousel.scrollLeft;
-            this.touchDragging = false;
-        },
-        touchPointerMove(event) {
-            if (this.touchPointerId !== event.pointerId || !this.isTouchPointer(event)) return;
-
-            const deltaX = event.clientX - this.touchStartX;
-            const deltaY = event.clientY - this.touchStartY;
-            const absoluteX = Math.abs(deltaX);
-            const absoluteY = Math.abs(deltaY);
-            const dragThreshold = 5;
-
-            if (!this.touchDragging) {
-                // Vertikales Scrollen bleibt immer beim Browser.
-                if (absoluteY > dragThreshold && absoluteY >= absoluteX) {
-                    this.resetTouchPointer();
-                    return;
-                }
-
-                // Eine kleine Hysterese schuetzt Taps, ohne den horizontalen
-                // Fingerweg wie zuvor ueber eine grosse Deadzone auszubremsen.
-                if (absoluteX < dragThreshold || absoluteX <= absoluteY + 2) {
-                    return;
-                }
-
-                this.$refs.carousel.dataset.touchDragging = 'true';
-                this.touchDragging = true;
-                this.suppressTouchClick = true;
-                event.currentTarget.setPointerCapture?.(event.pointerId);
-            }
-
-            if (event.cancelable) event.preventDefault();
-            this.$refs.carousel.scrollLeft = this.touchStartScrollLeft - deltaX;
-        },
-        touchPointerEnd(event) {
-            if (this.touchPointerId !== event.pointerId) return;
-
-            const didDrag = this.touchDragging;
-            this.resetTouchPointer(event);
-
-            if (didDrag) {
-                // Moderne Pointer-Clicks tragen pointerType=touch. Der Timer ist
-                // nur ein Fallback, falls nach dem Drag gar kein Click folgt.
-                this.suppressTouchClickTimer = window.setTimeout(() => {
-                    this.suppressTouchClick = false;
-                }, 450);
-            } else {
-                this.suppressTouchClick = false;
-            }
-        },
-        cancelTouchPointer(event = null) {
-            window.clearTimeout(this.suppressTouchClickTimer);
-            this.suppressTouchClick = false;
-            this.resetTouchPointer(event);
-        },
-        lostTouchPointerCapture(event) {
-            // Nach einem regulaeren PointerUp ist die ID bereits geloescht.
-            // Nur ein tatsaechlich abgebrochener aktiver Drag wird bereinigt.
-            if (this.touchPointerId === event.pointerId) {
-                this.cancelTouchPointer(event);
-            }
-        },
-        resetTouchPointer(event = null) {
-            const pointerId = this.touchPointerId;
-            this.touchPointerId = null;
-            this.touchStartX = null;
-            this.touchStartY = null;
-            this.touchStartScrollLeft = 0;
-            this.$refs.carousel?.setAttribute('data-touch-dragging', 'false');
-            this.touchDragging = false;
-
-            if (event && pointerId !== null && event.currentTarget?.hasPointerCapture?.(pointerId)) {
-                event.currentTarget.releasePointerCapture(pointerId);
-            }
-        },
         destroy() {
-            window.clearTimeout(this.suppressTouchClickTimer);
             window.cancelAnimationFrame(this.scrollFrame || 0);
+            this.swiper?.destroy(true, false);
+            this.swiper = null;
 
             if (window.gsap) {
                 window.gsap.killTweensOf(this.$root.querySelectorAll('.rt-carousel-tab, [data-rt-tab-active-mark]'));
@@ -263,16 +223,18 @@
         ensureActiveTab();
         stickyEnabled = !$root.closest('[role=dialog]');
         $nextTick(() => {
+            initSwiper();
             revealActiveTab('auto');
             syncScrollEdges();
         });
     "
     :data-tab-direction="tabDirection"
     class="w-full min-w-0"
-    data-tabs-input-policy="touch-only-drag"
+    data-tabs-input-policy="swiper-touch"
     wire:key="{{ \Illuminate\Support\Str::slug($key) }}"
 >
     <div
+        x-ref="shell"
         class="rt-tabs-shell rt-tabs-v2"
         :data-sticky-enabled="stickyEnabled ? 'true' : 'false'"
         :data-scroll-start="atScrollStart ? 'true' : 'false'"
@@ -288,25 +250,18 @@
     >
         <div
             x-ref="carousel"
-            class="rt-tabs-carousel"
-            :data-touch-dragging="touchDragging ? 'true' : 'false'"
-            @scroll.passive="syncScrollEdges()"
-            @pointerdown.capture="preparePointerIntent($event)"
-            @pointerdown="touchPointerDown($event)"
-            @pointermove="touchPointerMove($event)"
-            @pointerup="touchPointerEnd($event)"
-            @pointercancel="cancelTouchPointer($event)"
-            @lostpointercapture="lostTouchPointerCapture($event)"
+            class="rt-tabs-carousel swiper"
             data-tab-carousel
+            data-slider-library="swiper"
         >
-            <div class="rt-tabs-carousel-track">
+            <div class="rt-tabs-carousel-track swiper-wrapper">
                 <template x-for="tab in items" :key="tab.id">
                     <button
                         type="button"
-                        @click="activateFromClick($event, tab.id)"
+                        @click="selectTab(tab.id, true)"
                         :data-active="openTab === tab.id ? 'true' : 'false'"
                         :data-position="openTab === tab.id ? 'active' : 'inactive'"
-                        class="rt-carousel-tab group"
+                        class="rt-carousel-tab swiper-slide group"
                         role="tab"
                         :id="`tab-${tab.id}`"
                         :data-tab-id="tab.id"

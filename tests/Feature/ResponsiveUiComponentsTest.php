@@ -194,15 +194,20 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertStringContainsString('return now - lastShownAt < 500', $script);
     }
 
-    public function test_employee_header_has_one_unified_icon_only_actions_dropdown(): void
+    public function test_employee_header_uses_the_shared_responsive_page_actions_dropdown(): void
     {
         $view = file_get_contents(resource_path('views/livewire/admin/employees.blade.php'));
+        $actions = file_get_contents(resource_path('views/components/ui/dropdown/page-actions.blade.php'));
+        $trigger = file_get_contents(resource_path('views/components/ui/dropdown/action-trigger.blade.php'));
 
         // EIN Aktionen-Dropdown fuer alle Bildschirmgroessen — nur die drei
         // Punkte, ohne Beschriftung und ohne getrennte Desktop-Buttonreihe.
-        $this->assertStringContainsString('<x-ui.dropdown.anchor-dropdown align="right" width="64">', $view);
-        $this->assertStringContainsString('<x-ui.dropdown.action-trigger :title="__(\'app.actions\')" />', $view);
-        $this->assertStringNotContainsString(':label="__(\'app.actions\')"', $view);
+        $this->assertStringContainsString('<x-ui.dropdown.page-actions>', $view);
+        $this->assertStringContainsString('<x-ui.dropdown.anchor-dropdown', $actions);
+        $this->assertStringContainsString('orientation="vertical"', $actions);
+        $this->assertStringContainsString('responsive-label', $actions);
+        $this->assertStringContainsString("'responsiveLabel' => false", $trigger);
+        $this->assertStringContainsString("'hidden sm:inline' => \$responsiveLabel", $trigger);
         $this->assertStringNotContainsString('<div class="sm:hidden">', $view);
         $this->assertStringNotContainsString('hidden items-center gap-2 sm:flex', $view);
 
@@ -281,9 +286,12 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertStringContainsString('rt-tabs-carousel-track', $html);
         $this->assertStringContainsString('rt-carousel-tab', $html);
         $this->assertStringContainsString('class="rt-tabs-shell rt-tabs-v2"', $html);
-        $this->assertStringContainsString('data-tabs-input-policy="touch-only-drag"', $html);
+        $this->assertStringContainsString('data-tabs-input-policy="swiper-touch"', $html);
+        $this->assertStringContainsString('data-slider-library="swiper"', $html);
+        $this->assertStringContainsString('swiper-wrapper', $html);
+        $this->assertStringContainsString('swiper-slide', $html);
         $this->assertStringContainsString(':data-position="openTab === tab.id ? \'active\' : \'inactive\'"', $html);
-        $this->assertStringContainsString('@click="activateFromClick($event, tab.id)"', $html);
+        $this->assertStringContainsString('@click="selectTab(tab.id, true)"', $html);
         $this->assertStringContainsString('aria-orientation="horizontal"', $html);
         $this->assertStringContainsString(':tabindex="openTab === tab.id ? 0 : -1"', $html);
         $this->assertStringContainsString('data-rt-tab-active-mark', $html);
@@ -348,7 +356,7 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertStringContainsString('background-color: #fff0f3 !important', $styles);
     }
 
-    public function test_shared_tabs_only_intercept_real_touch_drag_and_keep_clicks_and_keyboard_native(): void
+    public function test_shared_tabs_use_swiper_for_touch_drag_and_keep_clicks_and_keyboard_native(): void
     {
         $tabs = file_get_contents(resource_path('views/components/ui/accordion/tabs.blade.php'));
         $panel = file_get_contents(resource_path('views/components/ui/accordion/tab-panel.blade.php'));
@@ -356,51 +364,46 @@ class ResponsiveUiComponentsTest extends TestCase
         $script = file_get_contents(resource_path('js/app.js'));
         $wagon = file_get_contents(resource_path('js/wagon-list-prototype.js'));
 
-        $this->assertStringContainsString('data-tabs-input-policy="touch-only-drag"', $tabs);
-        $this->assertStringContainsString('@pointerdown="touchPointerDown($event)"', $tabs);
-        $this->assertStringContainsString('@pointermove="touchPointerMove($event)"', $tabs);
-        $this->assertStringContainsString('isTouchPointer(event)', $tabs);
-        $this->assertStringContainsString("event.pointerType === 'touch'", $tabs);
-        $this->assertStringNotContainsString("window.matchMedia('(pointer: coarse)').matches", $tabs);
-        $this->assertStringContainsString('const dragThreshold = 5', $tabs);
-        $this->assertStringContainsString("dataset.touchDragging = 'true'", $tabs);
-        $this->assertStringContainsString("setAttribute('data-touch-dragging', 'false')", $tabs);
-        $this->assertStringContainsString('const didDrag = this.touchDragging', $tabs);
-        $this->assertStringContainsString('event.currentTarget.setPointerCapture?.(event.pointerId)', $tabs);
-        $this->assertStringContainsString('if (this.suppressTouchClick)', $tabs);
-        $this->assertStringContainsString("event.pointerType === 'mouse' || event.pointerType === 'pen'", $tabs);
-        $this->assertStringContainsString('@pointerdown.capture="preparePointerIntent($event)"', $tabs);
-        $this->assertStringContainsString('@pointercancel="cancelTouchPointer($event)"', $tabs);
-        $this->assertStringContainsString('@lostpointercapture="lostTouchPointerCapture($event)"', $tabs);
-        $this->assertStringContainsString('@click="activateFromClick($event, tab.id)"', $tabs);
+        $this->assertStringContainsString('data-tabs-input-policy="swiper-touch"', $tabs);
+        $this->assertStringContainsString('new window.Swiper', $tabs);
+        $this->assertStringContainsString("slidesPerView: 'auto'", $tabs);
+        $this->assertStringContainsString('freeMode: {', $tabs);
+        $this->assertStringContainsString('touchStartPreventDefault: false', $tabs);
+        $this->assertStringContainsString('preventClicks: false', $tabs);
+        $this->assertStringContainsString('preventClicksPropagation: false', $tabs);
+        $this->assertStringContainsString('threshold: 5', $tabs);
+        $this->assertStringContainsString('@click="selectTab(tab.id, true)"', $tabs);
         $this->assertStringContainsString('@keydown.right.prevent.stop="moveTab(1)"', $tabs);
         $this->assertStringContainsString('@keydown.home.prevent.stop="moveToBoundary(\'start\')"', $tabs);
         $this->assertStringContainsString(':tabindex="openTab === tab.id ? 0 : -1"', $tabs);
         $this->assertStringNotContainsString('@touchstart', $tabs);
-        $this->assertStringNotContainsString("event.pointerType !== 'mouse'", $tabs);
-        $this->assertStringNotContainsString('settleCarousel()', $tabs);
+        $this->assertStringNotContainsString('@pointerdown', $tabs);
+        $this->assertStringNotContainsString('suppressTouchClick', $tabs);
+        $this->assertStringNotContainsString('setPointerCapture', $tabs);
         $this->assertStringNotContainsString('@dragstart.prevent', $tabs);
         $this->assertStringContainsString(':data-tab-direction="tabDirection"', $tabs);
+        $this->assertStringContainsString('keepSelectedPanelVisible()', $tabs);
+        $this->assertStringContainsString('if (anchored || usefulContentVisible) return', $tabs);
+        $this->assertStringContainsString('window.scrollTo({ top: target, behavior })', $tabs);
         $this->assertStringContainsString('window.gsap.fromTo(', $tabs);
         $this->assertStringContainsString("window.matchMedia('(prefers-reduced-motion: reduce)').matches", $tabs);
         $this->assertStringContainsString('x-transition:enter="rt-tab-panel-transition"', $panel);
         $this->assertStringContainsString('x-transition:leave-end="rt-tab-panel-leave-end"', $panel);
-        $this->assertStringContainsString("[data-tabs-input-policy='touch-only-drag'][data-tab-direction='next']", $styles);
-        $this->assertStringContainsString("[data-tabs-input-policy='touch-only-drag'][data-tab-direction='previous']", $styles);
-        $this->assertStringContainsString(".rt-tabs-carousel[data-touch-dragging='true']", $styles);
+        $this->assertStringContainsString("[data-tabs-input-policy='swiper-touch'][data-tab-direction='next']", $styles);
+        $this->assertStringContainsString("[data-tabs-input-policy='swiper-touch'][data-tab-direction='previous']", $styles);
+        $this->assertStringContainsString(".rt-tabs-carousel[data-swiping='true']", $styles);
         $this->assertStringContainsString('scroll-behavior: auto', $styles);
-        $this->assertStringContainsString('scroll-snap-align: center', $styles);
-        $this->assertStringNotContainsString('scroll-snap-align: nearest', $styles);
-        $this->assertStringContainsString('touch-action: pan-x pan-y', $styles);
         $this->assertStringContainsString('@media (any-pointer: coarse)', $styles);
-        $this->assertMatchesRegularExpression(
-            '/@media \(any-pointer: coarse\).*?\.rt-tabs-v2 \.rt-tabs-carousel\s*\{[^}]*scroll-snap-type:\s*none;[^}]*touch-action:\s*pan-y;/s',
-            $styles,
-        );
         $this->assertStringContainsString('touch-action: pan-y', $styles);
         $this->assertStringNotContainsString('cursor: grab', $styles);
         $this->assertStringNotContainsString('cursor: grabbing', $styles);
         $this->assertStringNotContainsString('\\"', $tabs);
+        $this->assertStringContainsString("import { FreeMode } from 'swiper/modules'", $script);
+        $this->assertStringContainsString('window.SwiperFreeMode = FreeMode', $script);
+        $this->assertLessThan(
+            strrpos($script, 'Livewire.start();'),
+            strpos($script, 'window.SwiperFreeMode = FreeMode'),
+        );
         $this->assertStringContainsString('initMobileSidebarSwipe()', $script);
         $this->assertStringContainsString('startsAtOpeningEdge', $script);
         $this->assertStringContainsString('setMobileSidebarOpen(true)', $script);
@@ -408,6 +411,26 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertStringContainsString('wagonTouchStart', $wagon);
         $this->assertStringContainsString('nextMobileWagon()', $wagon);
         $this->assertStringContainsString('previousMobileWagon()', $wagon);
+    }
+
+    public function test_employee_person_preview_is_anchored_and_shared_modals_are_centered(): void
+    {
+        $employees = file_get_contents(resource_path('views/livewire/admin/employees.blade.php'));
+        $row = file_get_contents(resource_path('views/components/tables/rows/employees/employee-row.blade.php'));
+        $preview = file_get_contents(resource_path('views/components/user/person-anchor-preview.blade.php'));
+        $modal = file_get_contents(resource_path('views/components/modal.blade.php'));
+        $confirmation = file_get_contents(resource_path('views/components/ui/confirmation-dialog.blade.php'));
+
+        $this->assertStringContainsString('<x-user.person-anchor-preview', $row);
+        $this->assertStringContainsString('<x-user.public-info', $preview);
+        $this->assertStringContainsString('<x-ui.dropdown.anchor-dropdown', $preview);
+        $this->assertStringContainsString('content-role="dialog"', $preview);
+        $this->assertStringNotContainsString('person-preview:open', $row);
+        $this->assertStringNotContainsString('person-preview-modal', $employees);
+        $this->assertStringContainsString('rt-modal-center-shell', $modal);
+        $this->assertStringContainsString('my-auto max-h-[calc(100dvh-2rem)]', $modal);
+        $this->assertStringContainsString('rt-modal-center-shell', $confirmation);
+        $this->assertStringNotContainsString('flex min-h-full items-center justify-center', $confirmation);
     }
 
     public function test_file_explorer_uses_equal_compact_cards_and_tabbed_settings(): void
