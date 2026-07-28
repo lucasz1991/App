@@ -64,6 +64,7 @@ body[data-mode='dark'] {
  */
 @media (max-width: 767.98px) {
     .page-content {
+        padding-top: calc(70px + 0.75rem) !important;
         padding-right: 0 !important;
         padding-left: 0 !important;
     }

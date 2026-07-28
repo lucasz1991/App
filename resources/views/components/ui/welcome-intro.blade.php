@@ -15,20 +15,24 @@
 
 <div
     x-data="{ open: @js((bool) $initiallyOpen) }"
-    x-show.important="open"
-    x-cloak
     x-on:rt-welcome:open.window="open = true"
     x-on:keydown.escape.window="open = false"
-    class="rt-welcome-backdrop fixed inset-0 z-[520] flex items-center justify-center p-4"
-    data-rt-welcome-intro
-    data-rt-welcome-initially-open="{{ $initiallyOpen ? 'true' : 'false' }}"
 >
-    <section
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="rt-welcome-title"
-        x-trap.inert.noscroll="open"
-        class="rt-welcome-card w-full max-w-4xl overflow-hidden rounded-[1.75rem] bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-white/45 dark:bg-rt-dark-surface dark:text-white dark:ring-rt-dark-border/70"
+    <template x-teleport="body">
+        <div
+            x-show.important="open"
+            x-cloak
+            x-on:click.self="open = false"
+            class="rt-welcome-backdrop fixed inset-0 z-[520] flex items-center justify-center p-4"
+            data-rt-welcome-intro
+            data-rt-welcome-initially-open="{{ $initiallyOpen ? 'true' : 'false' }}"
+        >
+            <section
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="rt-welcome-title"
+                x-trap.inert.noscroll="open"
+                class="rt-welcome-card w-full max-w-4xl overflow-hidden rounded-[1.75rem] bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-white/45 dark:bg-rt-dark-surface dark:text-white dark:ring-rt-dark-border/70"
     >
         <div class="rt-welcome-layout">
         {{-- Visuelle Startkarte nach Vengeance-Muster: eine ruhige, animierte
@@ -109,5 +113,7 @@
             </div>
         </div>
         </div>
-    </section>
+            </section>
+        </div>
+    </template>
 </div>

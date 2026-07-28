@@ -18,28 +18,9 @@
     @endif
 
     <div class="min-w-0 flex-1">
-        @if($eyebrow)
-            <p class="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-rt-accent dark:text-rt-dark-accent">
-                {{ $eyebrow }}
-            </p>
-        @endif
-
-        <div class="flex min-w-0 items-center gap-2">
-            <h1 class="min-w-0 truncate text-xl font-semibold leading-tight tracking-[-0.03em] text-rt-text sm:text-2xl dark:text-rt-dark-text" title="{{ $title }}">
-                {{ $title }}
-            </h1>
-            @if (! is_null($count))
-                <span class="inline-flex h-6 shrink-0 items-center justify-center rounded-lg bg-rt-accent-soft px-2 text-[11px] font-bold tabular-nums text-rt-accent ring-1 ring-inset ring-rt-accent/10 dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent">
-                    {{ $count }}
-                </span>
-            @endif
-        </div>
-
-        @if($description)
-            <p class="mt-1 max-w-3xl text-sm leading-5 text-rt-muted dark:text-rt-dark-muted">
-                {{ $description }}
-            </p>
-        @endif
+        <h1 class="min-w-0 truncate text-xl font-semibold leading-tight tracking-[-0.03em] text-rt-text sm:text-2xl dark:text-rt-dark-text" title="{{ $title }}">
+            {{ $title }}
+        </h1>
     </div>
 
     @if (isset($actions) || $help)

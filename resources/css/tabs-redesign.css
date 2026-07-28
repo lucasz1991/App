@@ -432,12 +432,12 @@ body[data-mode='dark'] .rt-tabs-v2.rt-tabs-shell {
 @media (max-width: 767.98px) {
     .rt-tabs-v2.rt-tabs-shell[data-sticky-enabled='true'] {
         /*
-         * Die gemeinsame Mobile-Seiteneinrueckung betraegt 0.5rem. Die
+         * Die gemeinsame Mobile-Seiteneinrueckung betraegt 0.25rem. Die
          * Navigation neutralisiert genau diesen bekannten Gutter, statt mit
          * 100vw die Breite der Browser-Scrollbar mit einzurechnen. Dadurch
          * ist die Rail selbst vollbreit, ohne Dokument-Overflow zu erzeugen.
          */
-        --rt-tabs-mobile-gutter: 0.5rem;
+        --rt-tabs-mobile-gutter: 0.25rem;
         top: 70px;
         box-sizing: border-box;
         width: calc(100% + var(--rt-tabs-mobile-gutter) + var(--rt-tabs-mobile-gutter));

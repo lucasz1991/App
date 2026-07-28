@@ -26,11 +26,17 @@ use Livewire\Attributes\On;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
+use Livewire\WithoutUrlPagination;
 use Livewire\WithFileUploads;
+use Livewire\WithPagination;
 
 class ChatBox extends Component
 {
     use WithFileUploads;
+    use WithoutUrlPagination;
+    use WithPagination;
+
+    private const MEMBER_PICKER_PER_PAGE = 6;
 
     #[Url(as: 'chat', history: true)]
     public ?int $selectedChatId = null;
@@ -54,6 +60,10 @@ class ChatBox extends Component
 
     public array $groupParticipants = [];
 
+    public string $directContactSearch = '';
+
+    public string $groupParticipantSearch = '';
+
     public bool $showDeleteMessageModal = false;
 
     #[Locked]
@@ -70,6 +80,8 @@ class ChatBox extends Component
 
     /** @var array<int, int|string> */
     public array $groupMemberIds = [];
+
+    public string $groupMemberSearch = '';
 
     /**
      * Letzte fremde Nachricht des offenen Chats. Der Ausgangswert wird beim
@@ -459,7 +471,15 @@ class ChatBox extends Component
 
         $chat = Chat::directBetween(auth()->user(), $other);
 
-        $this->reset(['showNewChat', 'groupName', 'groupParticipants', 'search']);
+        $this->reset([
+            'showNewChat',
+            'groupName',
+            'groupParticipants',
+            'directContactSearch',
+            'groupParticipantSearch',
+            'search',
+        ]);
+        $this->resetMemberPickerPages();
         $this->openChat($chat->id);
     }
 
@@ -508,9 +528,51 @@ class ChatBox extends Component
                 ->all()
         );
 
-        $this->reset(['showNewChat', 'groupName', 'groupParticipants', 'search']);
+        $this->reset([
+            'showNewChat',
+            'groupName',
+            'groupParticipants',
+            'directContactSearch',
+            'groupParticipantSearch',
+            'search',
+        ]);
+        $this->resetMemberPickerPages();
         $this->dispatch('swal:toast', type: 'success', text: __('app.group_created'));
         $this->openChat($chat->id);
+    }
+
+    public function updatedShowNewChat(bool $isOpen): void
+    {
+        if (! $isOpen) {
+            return;
+        }
+
+        $this->reset(['directContactSearch', 'groupParticipantSearch']);
+        $this->resetMemberPickerPages();
+    }
+
+    public function updatedNewChatTab(string $tab): void
+    {
+        if (! in_array($tab, ['direct', 'group'], true)) {
+            $this->newChatTab = 'direct';
+        }
+
+        $this->resetMemberPickerPages();
+    }
+
+    public function updatingDirectContactSearch(): void
+    {
+        $this->resetPage('directContactsPage');
+    }
+
+    public function updatingGroupParticipantSearch(): void
+    {
+        $this->resetPage('groupParticipantsPage');
+    }
+
+    public function updatingGroupMemberSearch(): void
+    {
+        $this->resetPage('groupMembersPage');
     }
 
     public function openGroupSettings(): void
@@ -530,6 +592,8 @@ class ChatBox extends Component
             ->map(fn ($id): int => (int) $id)
             ->values()
             ->all();
+        $this->groupMemberSearch = '';
+        $this->resetPage('groupMembersPage');
         $this->showGroupSettings = true;
     }
 
@@ -602,9 +666,36 @@ class ChatBox extends Component
         });
 
         $this->groupMemberIds = $validMemberIds->all();
+        $this->groupMemberSearch = '';
+        $this->resetPage('groupMembersPage');
         $this->showGroupSettings = false;
         $this->dispatch('swal:toast', type: 'success', text: __('app.group_updated'));
         $this->dispatch('inbox:refresh');
+    }
+
+    protected function resetMemberPickerPages(): void
+    {
+        $this->resetPage('directContactsPage');
+        $this->resetPage('groupParticipantsPage');
+        $this->resetPage('groupMembersPage');
+    }
+
+    protected function contactPickerQuery(string $search = '')
+    {
+        $needle = trim($search);
+
+        return User::query()
+            ->with(['profile', 'currentTeam'])
+            ->where('status', true)
+            ->where('id', '!=', auth()->id())
+            ->when($needle !== '', function ($query) use ($needle): void {
+                $query->where(function ($query) use ($needle): void {
+                    $query->where('name', 'like', '%' . $needle . '%')
+                        ->orWhere('email', 'like', '%' . $needle . '%');
+                });
+            })
+            ->orderBy('name')
+            ->orderBy('id');
     }
 
     public function requestDeleteChat(?int $chatId = null): void
@@ -823,30 +914,60 @@ class ChatBox extends Component
             }
         }
 
-        // Kontakte fuer neuen Chat: alle aktiven Benutzer ausser mir
-        $contacts = User::query()
-            ->where('status', true)
-            ->where('id', '!=', $me->id)
-            ->orderBy('name')
-            ->get(['id', 'name', 'email', 'profile_photo_path']);
+        $contacts = null;
+        $groupParticipants = null;
+        $groupCandidates = null;
 
-        $groupCandidates = $contacts;
+        if ($this->showNewChat && $this->newChatTab === 'direct') {
+            $contacts = $this->contactPickerQuery($this->directContactSearch)
+                ->paginate(
+                    self::MEMBER_PICKER_PER_PAGE,
+                    ['*'],
+                    'directContactsPage',
+                );
+        }
 
-        if ($selectedChat?->isGroup()) {
-            $existingMembers = $selectedChat->participants
+        if ($this->showNewChat && $this->newChatTab === 'group') {
+            $groupParticipants = $this->contactPickerQuery($this->groupParticipantSearch)
+                ->paginate(
+                    self::MEMBER_PICKER_PER_PAGE,
+                    ['*'],
+                    'groupParticipantsPage',
+                );
+        }
+
+        if (
+            $this->showGroupSettings
+            && $selectedChat?->isGroup()
+            && $selectedChat->canManageGroup($me)
+        ) {
+            $currentMemberIds = $selectedChat->participants
                 ->where('id', '!=', $me->id)
-                ->map(fn (User $participant): User => $participant->setVisible([
-                    'id',
-                    'name',
-                    'email',
-                    'profile_photo_path',
-                    'status',
-                ]));
-            $groupCandidates = $contacts
-                ->concat($existingMembers)
-                ->unique('id')
-                ->sortBy(fn (User $user): string => mb_strtolower($user->name))
+                ->pluck('id')
+                ->map(fn ($id): int => (int) $id)
                 ->values();
+            $needle = trim($this->groupMemberSearch);
+
+            $groupCandidates = User::query()
+                ->with(['profile', 'currentTeam'])
+                ->where('id', '!=', $me->id)
+                ->where(function ($query) use ($currentMemberIds): void {
+                    $query->where('status', true)
+                        ->orWhereIn('id', $currentMemberIds);
+                })
+                ->when($needle !== '', function ($query) use ($needle): void {
+                    $query->where(function ($query) use ($needle): void {
+                        $query->where('name', 'like', '%' . $needle . '%')
+                            ->orWhere('email', 'like', '%' . $needle . '%');
+                    });
+                })
+                ->orderBy('name')
+                ->orderBy('id')
+                ->paginate(
+                    self::MEMBER_PICKER_PER_PAGE,
+                    ['*'],
+                    'groupMembersPage',
+                );
         }
 
         return view('livewire.chat-box', [
@@ -855,6 +976,7 @@ class ChatBox extends Component
             'pendingDeleteChat' => $pendingDeleteChat,
             'messages' => $messages,
             'contacts' => $contacts,
+            'groupParticipantsPaginator' => $groupParticipants,
             'groupCandidates' => $groupCandidates,
         ])->layout('layouts.master', ['contentMode' => 'viewport']);
     }
