@@ -7,6 +7,7 @@
 
 @php
     $sizes = [
+        'xs' => 'h-8 w-8 text-[9px]',
         'sm' => 'h-9 w-9 text-[11px]',
         'md' => 'h-11 w-11 text-xs',
         'lg' => 'h-12 w-12 text-sm',
@@ -23,12 +24,12 @@
         <img
             src="{{ $src }}"
             alt="{{ $name }}"
-            class="{{ $sizes[$size] ?? $sizes['md'] }} rounded-[0.9rem] object-cover"
+            class="{{ $sizes[$size] ?? $sizes['md'] }} rounded-full object-cover"
         >
     @else
         <span
             aria-hidden="true"
-            class="{{ $sizes[$size] ?? $sizes['md'] }} flex items-center justify-center rounded-[0.9rem] font-bold tracking-[-0.04em]"
+            class="{{ $sizes[$size] ?? $sizes['md'] }} flex items-center justify-center rounded-full font-bold tracking-[-0.04em]"
         >
             {{ $initials !== '' ? $initials : 'RT' }}
         </span>

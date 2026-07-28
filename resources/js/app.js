@@ -652,6 +652,7 @@ Alpine.data('chatAudioPlayer', (config = {}) => ({
     consumed: Boolean(config.consumed),
     loading: false,
     playing: false,
+    playbackBlocked: false,
     currentTime: 0,
     duration: Math.max(0, Number(config.durationHint || 0)),
     progressFrame: null,
@@ -698,9 +699,7 @@ Alpine.data('chatAudioPlayer', (config = {}) => ({
                 this.currentTime = 0;
             }
 
-            this.$refs.audio.play().catch(() => {
-                this.playing = false;
-            });
+            this.play();
             return;
         }
 
@@ -715,11 +714,27 @@ Alpine.data('chatAudioPlayer', (config = {}) => ({
         this.sourceUrl = detail.url || '';
         this.viewOnce = Boolean(detail.viewOnce);
         this.loading = false;
+        this.playbackBlocked = false;
         this.$nextTick(() => {
             this.$refs.audio.load();
-            this.$refs.audio.play().catch(() => {
-                this.playing = false;
-            });
+            this.play();
+        });
+    },
+
+    play() {
+        const playback = this.$refs.audio?.play();
+
+        if (!playback?.catch) {
+            return;
+        }
+
+        playback.catch(() => {
+            // Safari kann die Benutzeraktivierung verlieren, waehrend Livewire
+            // den Einmal-Token anfordert. Die Quelle bleibt deshalb erhalten:
+            // der naechste direkte Klick startet dann ohne einen zweiten Request.
+            this.playing = false;
+            this.loading = false;
+            this.playbackBlocked = true;
         });
     },
 
@@ -748,6 +763,8 @@ Alpine.data('chatAudioPlayer', (config = {}) => ({
     },
 
     playbackStarted() {
+        this.loading = false;
+        this.playbackBlocked = false;
         this.playing = true;
         this.startProgressAnimation();
     },
@@ -810,16 +827,68 @@ Alpine.data('chatAudioPlayer', (config = {}) => ({
 
     destroy() {
         this.stopProgressAnimation();
+        this.$refs.audio?.pause();
     },
 }));
 
 Alpine.data('chatTranscriptScroll', () => ({
     messageObserver: null,
+    animatedRows: new WeakSet(),
 
     init() {
+        this.$el.querySelectorAll('[data-chat-message-row]').forEach((row) => {
+            this.animatedRows.add(row);
+        });
         this.scrollToLatest();
-        this.messageObserver = new MutationObserver(() => this.scrollToLatest(true));
+        this.messageObserver = new MutationObserver((mutations) => {
+            const newRows = [];
+
+            mutations.forEach((mutation) => {
+                mutation.addedNodes.forEach((node) => {
+                    if (!(node instanceof Element)) {
+                        return;
+                    }
+
+                    if (node.matches('[data-chat-message-row]')) {
+                        newRows.push(node);
+                    }
+                    node.querySelectorAll?.('[data-chat-message-row]').forEach((row) => newRows.push(row));
+                });
+            });
+
+            this.animateRows(newRows);
+            this.scrollToLatest(true);
+        });
         this.messageObserver.observe(this.$el, { childList: true, subtree: true });
+    },
+
+    animateRows(rows) {
+        const freshRows = [...new Set(rows)].filter((row) => {
+            if (this.animatedRows.has(row)) {
+                return false;
+            }
+            this.animatedRows.add(row);
+            return true;
+        });
+
+        if (!freshRows.length || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            return;
+        }
+
+        window.gsap?.fromTo(
+            freshRows,
+            { autoAlpha: 0, y: 8, scale: 0.985 },
+            {
+                autoAlpha: 1,
+                y: 0,
+                scale: 1,
+                duration: 0.3,
+                stagger: 0.035,
+                ease: 'power2.out',
+                clearProps: 'transform,opacity,visibility',
+                overwrite: 'auto',
+            }
+        );
     },
 
     scrollToLatest(smooth = false) {
@@ -838,6 +907,7 @@ Alpine.data('chatTranscriptScroll', () => ({
     destroy() {
         this.messageObserver?.disconnect();
         this.messageObserver = null;
+        window.gsap?.killTweensOf(this.$el.querySelectorAll('[data-chat-message-row]'));
     },
 }));
 

@@ -64,7 +64,10 @@ class ChatAttachmentController extends Controller
         }
         $canRenderInline = str_starts_with($mime, 'image/')
             || str_starts_with($mime, 'audio/')
-            || str_starts_with($mime, 'video/');
+            || str_starts_with($mime, 'video/')
+            || $mime === 'application/pdf'
+            || str_starts_with($mime, 'text/plain')
+            || str_starts_with($mime, 'text/csv');
 
         if ($request->boolean('download') || ! $canRenderInline) {
             return $file->download($file->disk ?: 'private', denyExpired: false);

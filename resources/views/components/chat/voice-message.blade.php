@@ -28,7 +28,7 @@
     <audio
         x-ref="audio"
         x-bind:src="sourceUrl || null"
-        preload="metadata"
+        preload="{{ $message->view_once ? 'none' : 'metadata' }}"
         class="sr-only"
         @loadedmetadata="metadataLoaded()"
         @timeupdate="timeUpdated()"
@@ -51,7 +51,8 @@
         <button
             type="button"
             @click="toggle()"
-            class="rt-voice-play flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/50"
+            :aria-busy="loading.toString()"
+            class="rt-voice-play flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/50"
             aria-label="{{ __('app.play_voice_message') }}"
         >
             <i x-show="loading" class="fas fa-spinner fa-spin" aria-hidden="true"></i>
