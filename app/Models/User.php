@@ -373,6 +373,24 @@ class User extends Authenticatable
             ->withTimestamps();
     }
 
+    /** Teilnahmen an Videoanrufen (aktuell und historisch). */
+    public function roomParticipations(): HasMany
+    {
+        return $this->hasMany(RoomParticipant::class);
+    }
+
+    /** Der Videoanruf, an dem der Benutzer aktuell aktiv teilnimmt (falls vorhanden). */
+    public function activeCall(): ?Room
+    {
+        return $this->roomParticipations()
+            ->where('connection', 'joined')
+            ->whereHas('room', fn ($q) => $q->whereIn('status', ['pending', 'active']))
+            ->with('room')
+            ->latest('joined_at')
+            ->first()
+            ?->room;
+    }
+
     /**
      * Persoenliche Ton-Zuordnung. Enthaelt nur die bewussten Abweichungen vom
      * systemweiten Standard (siehe App\Support\Sound\SoundLibrary).

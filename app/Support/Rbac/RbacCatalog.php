@@ -46,6 +46,11 @@ class RbacCatalog
                 ['key' => 'users.messages.create', 'label' => 'Benutzer-Nachrichten erstellen'],
                 ['key' => 'users.messages.delete', 'label' => 'Benutzer-Nachrichten löschen'],
             ],
+            'Anrufe' => [
+                ['key' => 'calls.start', 'label' => 'Videoanrufe starten'],
+                ['key' => 'calls.join', 'label' => 'Videoanrufen beitreten'],
+                ['key' => 'calls.moderate', 'label' => 'Videoanrufe moderieren'],
+            ],
         ];
     }
 

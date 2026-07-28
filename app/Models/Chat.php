@@ -29,6 +29,14 @@ class Chat extends Model
         return $this->hasOne(ChatMessage::class)->latestOfMany();
     }
 
+    /** Aktuell laufender oder klingelnder Videoanruf in diesem Chat, falls vorhanden. */
+    public function activeRoom(): HasOne
+    {
+        return $this->hasOne(Room::class)
+            ->whereIn('status', ['pending', 'active'])
+            ->latestOfMany();
+    }
+
     public function isGroup(): bool
     {
         return $this->type === 'group';

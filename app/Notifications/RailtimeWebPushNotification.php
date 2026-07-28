@@ -26,6 +26,7 @@ class RailtimeWebPushNotification extends Notification implements ShouldQueueAft
         public readonly PushCategory $category,
         public readonly bool $bypassPreferences = false,
         public readonly ?int $targetSubscriptionId = null,
+        public readonly ?int $ttlOverride = null,
     ) {
         $this->onQueue(config('webpush.queue', 'webpush'));
     }
@@ -72,8 +73,8 @@ class RailtimeWebPushNotification extends Notification implements ShouldQueueAft
                 'category' => $this->category->value,
             ])
             ->options([
-                'TTL' => config('webpush.default_ttl', 3600),
-                'urgency' => $this->category === PushCategory::Chat ? 'high' : 'normal',
+                'TTL' => $this->ttlOverride ?? config('webpush.default_ttl', 3600),
+                'urgency' => in_array($this->category, [PushCategory::Chat, PushCategory::Calls], true) ? 'high' : 'normal',
             ]);
     }
 }

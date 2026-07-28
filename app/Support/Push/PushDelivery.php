@@ -4,6 +4,7 @@ namespace App\Support\Push;
 
 use App\Models\ChatMessage;
 use App\Models\Message;
+use App\Models\RoomInvitation;
 use App\Models\User;
 use App\Notifications\RailtimeWebPushNotification;
 use Illuminate\Support\Facades\Log;
@@ -49,6 +50,31 @@ class PushDelivery
                     ),
                 );
             });
+    }
+
+    /** Klingel-Push fuer einen eingehenden Videoanruf. TTL = Ring-Fenster, danach ist ein spaeter zugestellter Push wertlos. */
+    public function incomingCall(RoomInvitation $invitation): void
+    {
+        $room = $invitation->room;
+        $recipient = $invitation->invitee;
+
+        if (! $recipient) {
+            return;
+        }
+
+        $ttl = max(1, (int) now()->diffInSeconds($invitation->expires_at, false));
+
+        $this->notify(
+            $recipient,
+            new RailtimeWebPushNotification(
+                notificationId: 'call:'.$invitation->getKey(),
+                title: $invitation->inviter?->name ?: __('app.push_incoming_call_title'),
+                body: __('app.push_incoming_call_body'),
+                url: 'calls/'.$room->uuid,
+                category: PushCategory::Calls,
+                ttlOverride: $ttl,
+            ),
+        );
     }
 
     protected function notify(User $recipient, RailtimeWebPushNotification $notification): void
