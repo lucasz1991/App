@@ -37,14 +37,14 @@
                     aria-label="{{ __('app.change_profile_photo') }}"
                 >
                     <img
-                        x-show="! preview"
+                        x-show.important="! preview"
                         src="{{ $this->user->profile_photo_url }}"
                         alt="{{ $this->user->name }}"
                         class="h-24 w-24 rounded-[1.35rem] object-cover shadow-rt-md ring-1 ring-rt-border/70 dark:ring-rt-dark-border/70 sm:h-28 sm:w-28"
                     >
                     <span
                         x-cloak
-                        x-show="preview"
+                        x-show.important="preview"
                         class="block h-24 w-24 rounded-[1.35rem] bg-cover bg-center shadow-rt-md ring-1 ring-rt-border/70 dark:ring-rt-dark-border/70 sm:h-28 sm:w-28"
                         x-bind:style="`background-image: url('${preview}')`"
                         aria-hidden="true"

@@ -16,9 +16,10 @@
     data-autosave-status="{{ $event }}"
 >
     <span
-        wire:loading
+        wire:loading.class.remove="!hidden"
+        wire:loading.class="!inline-flex"
         @if($target) wire:target="{{ $target }}" @endif
-        class="inline-flex items-center gap-1.5 text-rt-muted dark:text-rt-dark-muted"
+        class="!hidden items-center gap-1.5 text-rt-muted dark:text-rt-dark-muted"
     >
         <i class="far fa-spinner-third animate-spin" aria-hidden="true"></i>
         {{ __('app.saving_changes') }}
@@ -26,8 +27,7 @@
 
     <span
         x-cloak
-        x-show="saved"
-        wire:loading.remove
+        x-show.important="saved"
         @if($target) wire:target="{{ $target }}" @endif
         class="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-300"
     >
@@ -37,10 +37,11 @@
 
     @if($dirtyTarget)
         <span
-            wire:dirty
+            wire:dirty.class.remove="!hidden"
+            wire:dirty.class="!inline-flex"
             wire:target="{{ $dirtyTarget }}"
-            x-show="! saved"
-            class="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-300"
+            x-show.important="! saved"
+            class="!hidden items-center gap-1.5 text-amber-600 dark:text-amber-300"
         >
             <span class="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true"></span>
             {{ __('app.unsaved_changes') }}

@@ -142,9 +142,11 @@
                 slideToClickedSlide: true,
                 freeMode: {
                     enabled: true,
-                    momentum: true,
-                    momentumRatio: 0.72,
-                    momentumVelocityRatio: 0.78,
+                    // Ein kurzer Wisch soll den sichtbaren Nachbarbereich
+                    // bewegen und nicht durch die komplette Navigation fliegen.
+                    // Die Auswahl folgt trotzdem schon waehrend der Geste dem
+                    // jeweils naechsten Swiper-Index.
+                    momentum: false,
                     sticky: true,
                 },
                 threshold: 5,
@@ -182,8 +184,15 @@
                     sliderMove() {
                         controller.$refs.carousel?.setAttribute('data-swiping', 'true');
                     },
-                    touchEnd() {
+                    touchEnd(swiper) {
                         controller.$refs.carousel?.setAttribute('data-swiping', 'false');
+                        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                        const duration = reduceMotion ? 0 : 220;
+                        swiper.slideTo(swiper.activeIndex, duration);
+                        window.setTimeout(() => {
+                            controller.scrubbingTabs = false;
+                            controller.syncScrollEdges();
+                        }, duration + 24);
                     },
                     transitionEnd() {
                         controller.scrubbingTabs = false;
