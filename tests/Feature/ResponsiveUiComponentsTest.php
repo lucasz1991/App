@@ -327,7 +327,8 @@ class ResponsiveUiComponentsTest extends TestCase
         $view = file_get_contents(resource_path('views/livewire/admin/settings.blade.php'));
 
         $this->assertStringContainsString('content-class="mt-4 sm:mt-6"', $view);
-        $this->assertStringContainsString('p-4 shadow-rt-sm', $view);
+        $this->assertStringContainsString('p-1 sm:p-1.5 shadow-rt-sm', $view);
+        $this->assertStringContainsString('bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6', $view);
         $this->assertStringContainsString('sm:grid-cols-2', $view);
         $this->assertGreaterThanOrEqual(4, substr_count($view, 'class="w-full sm:w-auto"'));
         $this->assertGreaterThanOrEqual(4, substr_count($view, 'class="hidden h-11 w-11'));

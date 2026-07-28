@@ -250,7 +250,14 @@ class AdminDashboardRedesignTest extends TestCase
         $this->assertStringContainsString('dark:bg-slate-900/95', $dashboard);
         $this->assertStringContainsString('rt-admin-live-card', $dashboard);
         $this->assertSame(4, substr_count($dashboard, 'rt-admin-quick-link'));
-        $this->assertGreaterThanOrEqual(10, substr_count($dashboard, 'data-rt-glow'));
+        // Der zeigergefuehrte rote Glow sitzt nicht mehr auf den vier KPI-
+        // Karten, sondern als ruhige Ambient-Bewegung im globalen Content.
+        $this->assertSame(6, substr_count($dashboard, 'data-rt-glow'));
+        $kpiSection = str($dashboard)->between(
+            'data-dashboard-kpis data-dashboard-items>',
+            '{{-- Feine SVG-Diagramme',
+        )->toString();
+        $this->assertStringNotContainsString('data-rt-glow', $kpiSection);
         $this->assertStringContainsString('.dark .rt-admin-live-card', $styles);
         $this->assertStringContainsString('.dark .rt-admin-operations-card', $styles);
         $this->assertStringContainsString('.dark .rt-admin-operations-stage', $styles);

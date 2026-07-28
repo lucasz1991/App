@@ -10,6 +10,7 @@ class AppShellRedesignTest extends TestCase
     public function test_shared_content_uses_the_full_available_width(): void
     {
         $layout = file_get_contents(resource_path('views/layouts/master.blade.php'));
+        $shellStyles = file_get_contents(resource_path('css/shell-redesign.css'));
 
         $this->assertStringContainsString('container-fluid w-full max-w-none', $layout);
         $this->assertStringContainsString("'md:px-5' => ! \$viewportMode", $layout);
@@ -17,6 +18,20 @@ class AppShellRedesignTest extends TestCase
         $this->assertStringContainsString("'px-1' => ! \$viewportMode", $layout);
         $this->assertStringNotContainsString('max-w-[100rem]', $layout);
         $this->assertStringContainsString('id="main-content"', $layout);
+        $this->assertMatchesRegularExpression(
+            '/\.page-content\s*\{[^}]*left:\s*0\s*!important;[^}]*width:\s*100%;[^}]*max-width:\s*100%;/s',
+            $shellStyles,
+        );
+    }
+
+    public function test_shared_modals_escape_the_content_stacking_context(): void
+    {
+        $modal = file_get_contents(resource_path('views/components/modal.blade.php'));
+
+        $this->assertStringContainsString('<template x-teleport="body">', $modal);
+        $this->assertStringContainsString('fixed inset-0 z-[190]', $modal);
+        $this->assertStringContainsString('x-trap.inert.noscroll="show"', $modal);
+        $this->assertStringContainsString('aria-modal="true"', $modal);
     }
 
     public function test_page_header_keeps_actions_and_help_accessible_on_mobile(): void
@@ -55,7 +70,9 @@ class AppShellRedesignTest extends TestCase
         $this->assertStringNotContainsString('rt-nav-loader__label', $script);
         $this->assertStringNotContainsString('SEITENWECHSEL', $script);
         $this->assertStringContainsString("document.querySelectorAll('#rt-nav-overlay')", $script);
-        $this->assertStringContainsString('.rt-nav-loader__orb::before', $styles);
+        $this->assertStringContainsString('.rt-nav-loader::before', $styles);
+        $this->assertStringContainsString('.rt-nav-loader__fluid--drift', $styles);
+        $this->assertStringContainsString('.rt-nav-loader__fluid--counter', $styles);
         $this->assertStringContainsString('background: transparent', $styles);
         $this->assertStringNotContainsString('.rt-nav-loader__track', $styles);
         $this->assertStringContainsString('@media (prefers-reduced-motion: reduce)', $styles);
