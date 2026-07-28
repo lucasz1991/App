@@ -1,11 +1,12 @@
 # LiveKit lokal für die Entwicklung
 
-Für die Produktion gilt `SERVER_SETUP.md` (eigene Media-VM). Dieses Dokument
+Für die Produktion gilt `.lmzdev/media-server-livekit-integration/UMSETZUNGSPLAN.md`
+(eigene Media-VM). Dieses Dokument
 beschreibt nur den **lokalen Entwicklungsserver**, mit dem sich Anrufe zwischen
 zwei Browserfenstern testen lassen, bevor die VM existiert.
 
 Die Dateien liegen bewusst **außerhalb des Repositories**: laut
-`LIVEKIT_INTEGRATION_PLAN.md` (D2) bleiben Repo und Plesk-Host Docker-frei,
+dem Umsetzungsplan (D2) bleiben Repo und Plesk-Host Docker-frei,
 Docker läuft ausschließlich auf der Media-VM.
 
 ## 1. Ablageort anlegen
@@ -87,7 +88,7 @@ php artisan railtime:livekit-check
 ```
 
 > Die für die Produktion erzeugten Schlüssel (`railtime:livekit-keys`) werden
-> dabei überschrieben. Das ist unkritisch: laut `SERVER_SETUP.md` §3.1 werden
+> dabei überschrieben. Das ist unkritisch: laut Umsetzungsplan Abschnitt 5.2 werden
 > sie ohnehin **auf dem Plesk-Server** erzeugt, nicht lokal.
 
 ## 4. Grenzen des lokalen Aufbaus
@@ -96,7 +97,7 @@ php artisan railtime:livekit-check
   sicherer Kontext ist — Kamera und Mikrofon werden freigegeben. Von einem
   anderen Gerät im LAN aus geht es deshalb *nicht*.
 - **Kein TURN-Test.** Der Firewall-Fallback lässt sich lokal nicht sinnvoll
-  prüfen; das braucht die echte VM (Portmatrix in `SERVER_SETUP.md`).
+  prüfen; das braucht die echte VM (Portmatrix im Umsetzungsplan).
 - **Webhooks** erreichen die App nur, wenn XAMPP wirklich auf Port 5000 lauscht
   und die Windows-Firewall `host.docker.internal` durchlässt. Bleiben Räume
   nach dem Auflegen auf `active`, ist genau das die Ursache.

@@ -74,7 +74,7 @@ class GenerateLiveKitCredentials extends Command
         );
         $this->line('Public host: '.$host);
         $this->newLine();
-        $this->line('Diesen Block in die livekit.yaml der Media-VM uebernehmen (siehe SERVER_SETUP.md):');
+        $this->line('Diesen Block in die livekit.yaml der Media-VM uebernehmen (siehe .lmzdev/media-server-livekit-integration/UMSETZUNGSPLAN.md):');
         $this->newLine();
         $this->line('keys:');
         $this->line('  '.$values['LIVEKIT_API_KEY'].': "'.$values['LIVEKIT_API_SECRET'].'"');

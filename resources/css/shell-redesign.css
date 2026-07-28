@@ -56,6 +56,19 @@ body[data-mode='dark'] {
     max-width: 100%;
 }
 
+/*
+ * Das Legacy-Bundle bringt mobil zusaetzlich 1.125rem Seiten-Padding mit.
+ * Der aktuelle Shell setzt den gemeinsamen Mobile-Gutter bereits im inneren
+ * Container; beide Ebenen zusammen liessen Karten und Tabs unnoetig schmal
+ * wirken. Mobil ist deshalb nur noch der kompakte Container-Gutter aktiv.
+ */
+@media (max-width: 767.98px) {
+    .page-content {
+        padding-right: 0 !important;
+        padding-left: 0 !important;
+    }
+}
+
 /* -------------------------------------------------------------------------- */
 /* Global content ambience                                                     */
 /* -------------------------------------------------------------------------- */

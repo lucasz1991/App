@@ -10,7 +10,8 @@ return [
     | Reverb uebernimmt ausschliesslich Signalisierung und Benachrichtigungen;
     | saemtliche Medienstroeme laufen ueber den LiveKit-Server (SFU). `url` ist
     | die Server-API (Twirp/HTTP) fuer Laravel, `ws_url` der WebSocket-Endpunkt
-    | fuer die Browser-Clients. Details: LIVEKIT_INTEGRATION_PLAN.md.
+    | fuer die Browser-Clients. Details:
+    | .lmzdev/media-server-livekit-integration/UMSETZUNGSPLAN.md.
     |
     */
 

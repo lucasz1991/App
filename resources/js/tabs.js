@@ -501,7 +501,16 @@ export function railtimeTabs(config = {}) {
             this.$refs.panels?.setAttribute('data-swiping', 'false');
 
             const moved = this.gestureDistance >= 4;
-            const projectedPosition = this.panelPosition + (this.gestureVelocity * 150);
+            /*
+             * Ein sehr schneller Pointer-Event-Block (besonders in Chromium
+             * und installierten PWAs) kann eine unrealistisch hohe Momentan-
+             * geschwindigkeit liefern. Die reale Dragposition bleibt die
+             * Hauptquelle; Momentum darf hoechstens gut ein Drittel eines
+             * Tabs addieren. So bleibt freies Mehrfach-Dragging moeglich,
+             * ohne dass ein kurzer Swipe bis zum letzten Tab durchschiesst.
+             */
+            const projectedMomentum = clamp(this.gestureVelocity * 110, -0.35, 0.35);
+            const projectedPosition = this.panelPosition + projectedMomentum;
             const targetIndex = moved
                 ? Math.round(clamp(projectedPosition, 0, Math.max(0, this.items.length - 1)))
                 : Math.round(this.panelPosition);

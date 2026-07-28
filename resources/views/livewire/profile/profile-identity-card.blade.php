@@ -87,7 +87,7 @@
             }"
             x-on:click.outside="closeEditor()"
             x-on:focusin.window="if (! $el.contains($event.target)) closeEditor()"
-            class="min-w-0 flex-1 pr-9"
+            class="min-w-0 flex-1"
             data-profile-inline-identity
         >
             <div class="min-w-0">

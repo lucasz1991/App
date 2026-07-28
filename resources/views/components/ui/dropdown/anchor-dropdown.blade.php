@@ -129,6 +129,10 @@
       const numericAnchorY = Number(anchorY);
       const visualViewport = window.visualViewport;
       const viewportWidth = visualViewport ? visualViewport.width : (document.documentElement.clientWidth || window.innerWidth);
+      const viewportLeft = Number.isFinite(Number(visualViewport?.offsetLeft))
+        ? Number(visualViewport.offsetLeft)
+        : 0;
+      const viewportInset = 12;
       const maximumViewportWidth = Math.max(0, viewportWidth - 24);
       const triggerControl = trigger.querySelector('button, a, [role=button]');
       const triggerRect = (triggerControl || trigger).getBoundingClientRect();
@@ -164,18 +168,61 @@
       }
 
       const panelRect = panel.getBoundingClientRect();
-      const panelWidth = Math.min(panelRect.width, maximumViewportWidth);
+      // Die Enter-Transition skaliert das Panel kurz auf 98.5 %. Fuer die
+      // Viewportgrenzen muss trotzdem die untransformierte Layoutbreite
+      // gelten, sonst verliert die fertige Karte rechts einige Pixel Abstand.
+      const panelWidth = Math.min(panel.offsetWidth || panelRect.width, maximumViewportWidth);
+      const panelHeight = panel.offsetHeight || panelRect.height;
       const anchoredLeft = numericAnchorX;
       const anchoredTop = numericAnchorY;
       const triggerCenter = triggerRect.left + (triggerRect.width / 2);
-      // Der Indikator bleibt ausserhalb der abgerundeten Eckbereiche.
-      const caretInset = Math.min(30, Math.max(18, panelWidth / 2));
-      const caretX = this.clamp(triggerCenter - anchoredLeft, caretInset, panelWidth - caretInset);
+      // Normalerweise bleibt der Indikator deutlich ausserhalb der
+      // abgerundeten Eckbereiche. Nur wenn ein randnaher Trigger sonst nicht
+      // mehr exakt getroffen werden koennte, darf er bis auf 18px einruecken.
+      const preferredCaretInset = Math.min(30, Math.max(18, panelWidth / 2));
+      const minimumCaretInset = Math.min(18, panelWidth / 2);
+      const minimumViewportLeft = viewportLeft + viewportInset;
+      const maximumViewportLeft = viewportLeft + viewportWidth - viewportInset - panelWidth;
+      let resolvedLeft = this.clamp(
+        anchoredLeft,
+        minimumViewportLeft,
+        maximumViewportLeft,
+      );
+      const isMobileViewport = window.matchMedia('(max-width: 767.98px)').matches;
+      const isWideMobilePanel = isMobileViewport && panelWidth > (viewportWidth * 0.75);
 
-      this.placement = anchoredTop + panelRect.height <= triggerRect.top + 1 ? 'top' : 'bottom';
+      if (isWideMobilePanel) {
+        const centeredLeft = viewportLeft + ((viewportWidth - panelWidth) / 2);
+        // So nah wie moeglich an der Viewport-Mitte bleiben. Wenn der Trigger
+        // es zulaesst, bleibt der Caret dabei exakt auf dessen Mittelpunkt.
+        const minimumCaretLeft = triggerCenter - (panelWidth - minimumCaretInset);
+        const maximumCaretLeft = triggerCenter - minimumCaretInset;
+        const feasibleMinimumLeft = Math.max(minimumViewportLeft, minimumCaretLeft);
+        const feasibleMaximumLeft = Math.min(maximumViewportLeft, maximumCaretLeft);
+
+        resolvedLeft = feasibleMinimumLeft <= feasibleMaximumLeft
+          ? this.clamp(centeredLeft, feasibleMinimumLeft, feasibleMaximumLeft)
+          : this.clamp(centeredLeft, minimumViewportLeft, maximumViewportLeft);
+      }
+
+      const triggerX = triggerCenter - resolvedLeft;
+      const availableCaretInset = Math.min(triggerX, panelWidth - triggerX);
+      const caretInset = Math.min(
+        preferredCaretInset,
+        Math.max(minimumCaretInset, availableCaretInset),
+      );
+      const caretX = this.clamp(
+        triggerX,
+        caretInset,
+        panelWidth - caretInset,
+      );
+
+      this.placement = anchoredTop + panelHeight <= triggerRect.top + 1 ? 'top' : 'bottom';
       this.hasAnchoredPosition = true;
-      this.lastAnchorX = anchoredLeft;
+      this.lastAnchorX = resolvedLeft;
       this.lastAnchorY = anchoredTop;
+      panel.style.left = `${resolvedLeft}px`;
+      panel.dataset.wideCentered = isWideMobilePanel ? 'true' : 'false';
       panel.style.setProperty('--rt-dropdown-caret-x', `${Math.round(caretX)}px`);
       panel.style.setProperty('--rt-dropdown-connector-size', `${Math.max(6, this.offset + 2)}px`);
     },

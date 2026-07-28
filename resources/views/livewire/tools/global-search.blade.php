@@ -12,16 +12,18 @@
     </form>
 
     @if ($showResults)
-        <div
-            class="fixed inset-0 z-[70] flex items-start justify-center bg-slate-950/50 px-3 pb-4 pt-[5.25rem] backdrop-blur-sm sm:px-6 sm:pt-24"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="global-search-title"
-            wire:click.self="closeResults"
-            x-on:keydown.escape.window="$wire.closeResults()"
-            data-global-search-modal
-        >
-            <section class="flex max-h-[min(44rem,calc(100dvh-7rem))] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-white/70 bg-rt-surface shadow-[0_30px_90px_-30px_rgba(15,23,42,0.62)] dark:border-rt-dark-border dark:bg-rt-dark-surface">
+        <template x-teleport="body">
+            <div
+                class="fixed inset-0 z-[190] flex items-start justify-center overflow-hidden bg-slate-950/50 px-3 pb-4 pt-[5.25rem] backdrop-blur-sm sm:px-6 sm:pt-24"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="global-search-title"
+                wire:click.self="closeResults"
+                x-on:keydown.escape.window="$wire.closeResults()"
+                x-trap.inert.noscroll="true"
+                data-global-search-modal
+            >
+                <section class="flex max-h-[min(44rem,calc(100dvh-7rem))] min-h-0 w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-white/70 bg-rt-surface shadow-[0_30px_90px_-30px_rgba(15,23,42,0.62)] dark:border-rt-dark-border dark:bg-rt-dark-surface">
                 <header class="flex items-start justify-between gap-4 border-b border-rt-border/70 px-4 py-4 sm:px-6 dark:border-rt-dark-border/70">
                     <div class="min-w-0">
                         <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.global_search') }}</p>
@@ -42,7 +44,7 @@
                     </button>
                 </header>
 
-                <div class="overflow-y-auto px-3 py-3 sm:px-5 sm:py-5">
+                <div class="min-h-0 overflow-y-auto overscroll-contain px-3 py-3 sm:px-5 sm:py-5">
                     @if (! $queryReady)
                         <div class="rounded-xl bg-rt-surface-muted px-4 py-8 text-center dark:bg-rt-dark-surface-muted">
                             <svg class="mx-auto h-8 w-8 text-rt-soft dark:text-rt-dark-soft" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
@@ -91,7 +93,8 @@
                         </div>
                     @endif
                 </div>
-            </section>
-        </div>
+                </section>
+            </div>
+        </template>
     @endif
 </div>

@@ -22,7 +22,7 @@ Homestead.json
 /.vagrant
 .phpunit.result.cache
 /tests/
-/LMZ-Dev/
+/.lmzdev/
 
 /storage/pail
 .env.backup

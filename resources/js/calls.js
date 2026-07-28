@@ -6,7 +6,8 @@
  *
  * Zustaendigkeiten: Verbindung, Track-Rendering, Mikro/Kamera/Screenshare,
  * Reconnect. Klingeln/Einladungen laufen ueber Reverb (app.js), die
- * DB-Wahrheit ueber LiveKit-Webhooks – siehe LIVEKIT_INTEGRATION_PLAN.md.
+ * DB-Wahrheit ueber LiveKit-Webhooks – siehe
+ * .lmzdev/media-server-livekit-integration/UMSETZUNGSPLAN.md.
  */
 import {
     Room,

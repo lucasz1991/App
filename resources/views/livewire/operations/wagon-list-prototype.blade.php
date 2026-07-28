@@ -163,23 +163,24 @@
             </div>
         </section>
 
-        <section
-            x-show.important="editorOpen"
-            x-cloak
-            x-ref="editorDialog"
-            @keydown.tab="trapEditorFocus($event)"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="wagon-editor-title"
-            class="rt-wagon-editor fixed inset-0 z-[160] flex min-h-0 flex-col bg-rt-canvas text-rt-text dark:bg-rt-dark-canvas dark:text-rt-dark-text"
-            x-transition:enter="transition duration-300 ease-out"
-            x-transition:enter-start="opacity-0 scale-[0.995]"
-            x-transition:enter-end="opacity-100 scale-100"
-            x-transition:leave="transition duration-200 ease-in"
-            x-transition:leave-start="opacity-100 scale-100"
-            x-transition:leave-end="opacity-0 scale-[0.995]"
-            data-wagon-editor
-        >
+        <template x-teleport="body">
+            <section
+                x-show.important="editorOpen"
+                x-cloak
+                x-ref="editorDialog"
+                x-trap.inert.noscroll="editorOpen"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="wagon-editor-title"
+                class="rt-wagon-editor fixed inset-0 z-[190] flex min-h-0 flex-col bg-rt-canvas text-rt-text dark:bg-rt-dark-canvas dark:text-rt-dark-text"
+                x-transition:enter="transition duration-300 ease-out"
+                x-transition:enter-start="opacity-0 scale-[0.995]"
+                x-transition:enter-end="opacity-100 scale-100"
+                x-transition:leave="transition duration-200 ease-in"
+                x-transition:leave-start="opacity-100 scale-100"
+                x-transition:leave-end="opacity-0 scale-[0.995]"
+                data-wagon-editor
+            >
             <header class="rt-wagon-editor-header z-10 shrink-0 border-b border-rt-border/70 bg-rt-surface/95 px-3 py-3 shadow-rt-xs backdrop-blur-xl dark:border-rt-dark-border/70 dark:bg-rt-dark-surface/95 sm:px-5">
                 <div class="mx-auto flex max-w-[100rem] items-center gap-3">
                     <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent">
@@ -566,6 +567,7 @@
                 </button>
                 <p class="col-span-2 text-center text-[11px] leading-4 text-rt-soft dark:text-rt-dark-soft">{{ $labels['closeHint'] }}</p>
             </footer>
-        </section>
+            </section>
+        </template>
     </x-ui.page>
 </div>
