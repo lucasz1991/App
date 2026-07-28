@@ -91,11 +91,11 @@ body[data-mode='dark'] {
 .rt-shell-ambient__pointer {
     top: 0;
     left: 0;
-    width: clamp(22rem, 38vw, 40rem);
+    width: clamp(18rem, 30vw, 32rem);
     aspect-ratio: 1;
     border-radius: 999px;
     opacity: 0;
-    background: radial-gradient(circle, rgba(228, 0, 43, 0.13), rgba(228, 0, 43, 0.035) 36%, transparent 70%);
+    background: radial-gradient(circle, rgba(228, 0, 43, 0.075), rgba(228, 0, 43, 0.018) 38%, transparent 70%);
     transform: translate3d(-50%, -50%, 0);
     will-change: transform, opacity;
 }
@@ -146,7 +146,7 @@ body[data-mode='dark'] .rt-shell-ambient__mesh {
 
 html.dark .rt-shell-ambient__pointer,
 body[data-mode='dark'] .rt-shell-ambient__pointer {
-    background: radial-gradient(circle, rgba(255, 68, 103, 0.2), rgba(228, 0, 43, 0.055) 40%, transparent 70%);
+    background: radial-gradient(circle, rgba(255, 68, 103, 0.11), rgba(228, 0, 43, 0.026) 40%, transparent 70%);
 }
 
 html.dark .rt-shell-ambient__orb--one,
@@ -436,7 +436,7 @@ body[data-mode='dark'] .rt-shell-sidebar {
 }
 
 .rt-shell-sidebar #sidebar-menu {
-    padding-inline: 0.5rem;
+    padding-inline: 0;
 }
 
 @media (min-width: 1024px) {
@@ -466,17 +466,17 @@ body[data-mode='dark'] .rt-shell-sidebar {
     min-height: 2.75rem;
     margin-block: 0.14rem;
     border: 1px solid transparent;
-    border-radius: 0.85rem !important;
+    border-radius: 0 !important;
     isolation: isolate;
 }
 
 .rt-shell-sidebar [data-rt-sidebar-link]::after,
 .rt-shell-sidebar [data-rt-sidebar-group]::after {
     position: absolute;
-    inset: 0.3rem;
+    inset: 0;
     z-index: -1;
     content: '';
-    border-radius: 0.65rem;
+    border-radius: 0;
     background: transparent;
     transition:
         background-color 180ms ease,
@@ -490,7 +490,7 @@ body[data-mode='dark'] .rt-shell-sidebar {
     box-shadow:
         0 1px 0 rgba(255, 255, 255, 0.92) inset,
         0 12px 24px -22px rgba(15, 23, 42, 0.72);
-    transform: translateX(1px);
+    transform: none;
 }
 
 html.dark .rt-shell-sidebar [data-rt-sidebar-link]:hover,
@@ -541,43 +541,42 @@ body[data-mode='dark'] .rt-shell-sidebar [data-rt-sidebar-group][data-menu-activ
 
 .rt-shell-sidebar .sidebar-nav-link__chevron {
     display: inline-flex;
-    width: 1.25rem;
-    height: 1.25rem;
-    flex: 0 0 1.25rem;
+    width: 1.5rem;
+    height: 1.5rem;
+    flex: 0 0 1.5rem;
     align-items: center;
     justify-content: center;
     margin-left: auto;
-    border: 1px solid color-mix(in srgb, var(--rt-shell-line-strong) 72%, transparent);
-    border-radius: 0.45rem;
-    background: color-mix(in srgb, var(--rt-shell-panel) 78%, transparent);
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
     color: var(--rt-shell-muted);
     transition:
         color 180ms ease,
-        border-color 180ms ease,
-        background-color 180ms ease,
-        transform 320ms var(--rt-shell-spring),
+        transform 260ms var(--rt-shell-spring),
         opacity 180ms ease;
 }
 
 .rt-shell-sidebar .sidebar-nav-link__chevron svg {
-    width: 0.82rem;
-    height: 0.82rem;
+    width: 1.05rem;
+    height: 1.05rem;
 }
 
 .rt-shell-sidebar [data-rt-sidebar-group][aria-expanded='true'] .sidebar-nav-link__chevron {
-    border-color: color-mix(in srgb, var(--rt-shell-accent) 32%, var(--rt-shell-line));
-    background: color-mix(in srgb, var(--rt-shell-accent) 9%, var(--rt-shell-panel));
     color: var(--rt-shell-accent);
-    transform: rotate(180deg);
+    transform: rotate(90deg);
 }
 
 .rt-shell-sidebar li.mm-active > ul.mm-collapse,
 .rt-shell-sidebar li.mm-active > ul.mm-collapsing {
     position: relative;
-    margin-inline: 0.3rem;
+    margin-inline: 0;
     padding-block: 0.25rem 0.35rem;
     border: 1px solid rgba(228, 0, 43, 0.08);
     border-top: 0;
+    border-radius: 0 !important;
     background:
         linear-gradient(180deg, rgba(228, 0, 43, 0.035), rgba(255, 255, 255, 0.42)) !important;
 }
@@ -706,8 +705,16 @@ body[data-mode='dark'] .rt-topbar-profile-panel .rt-ui-dropdown-link:not([aria-d
     padding-block: clamp(1rem, 5vh, 4rem);
 }
 
+.rt-modal-center-shell {
+    display: flex;
+    min-height: 100%;
+    align-items: center;
+    justify-content: center;
+}
+
 .rt-modal-frame {
     isolation: isolate;
+    overflow-x: hidden;
     border: 1px solid rgba(255, 255, 255, 0.72);
     box-shadow: var(--rt-shell-shadow-elevated) !important;
 }

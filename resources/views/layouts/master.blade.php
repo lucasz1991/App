@@ -43,7 +43,15 @@
     @yield('css')
     @stack('styles')
 </head>
-    <body x-bind:data-mode="$store.theme?.dark ? 'dark' : 'light'" data-mode="light" data-sidebar-size="lg" data-sidebar-collapsible="true" data-sidebar-expanded="false" class="group font-sans bg-rt-canvas text-rt-text dark:bg-rt-dark-canvas dark:text-rt-dark-text">
+    <body
+        x-bind:data-mode="$store.theme?.dark ? 'dark' : 'light'"
+        x-bind:data-sidebar-expanded="$store.shell?.desktopSidebarExpanded ? 'true' : 'false'"
+        data-mode="light"
+        data-sidebar-size="lg"
+        data-sidebar-collapsible="true"
+        data-sidebar-expanded="false"
+        class="group font-sans bg-rt-canvas text-rt-text dark:bg-rt-dark-canvas dark:text-rt-dark-text"
+    >
         <script>
             document.body.dataset.mode = localStorage.getItem('rt-theme') === 'true' ? 'dark' : 'light';
         </script>
@@ -73,13 +81,15 @@
                     'px-1' => ! $viewportMode,
                     'flex flex-col' => ! $viewportMode,
                 ])>
-                    <div class="rt-shell-ambient" data-rt-shell-ambient aria-hidden="true">
-                        <span class="rt-shell-ambient__mesh"></span>
-                        <span class="rt-shell-ambient__pointer" data-rt-shell-pointer></span>
-                        <span class="rt-shell-ambient__orb rt-shell-ambient__orb--one" data-rt-shell-orb="one"></span>
-                        <span class="rt-shell-ambient__orb rt-shell-ambient__orb--two" data-rt-shell-orb="two"></span>
-                        <span class="rt-shell-ambient__rail" data-rt-shell-rail></span>
-                    </div>
+                    @persist('railtime-shell-ambient')
+                        <div class="rt-shell-ambient" data-rt-shell-ambient aria-hidden="true">
+                            <span class="rt-shell-ambient__mesh"></span>
+                            <span class="rt-shell-ambient__pointer" data-rt-shell-pointer></span>
+                            <span class="rt-shell-ambient__orb rt-shell-ambient__orb--one" data-rt-shell-orb="one"></span>
+                            <span class="rt-shell-ambient__orb rt-shell-ambient__orb--two" data-rt-shell-orb="two"></span>
+                            <span class="rt-shell-ambient__rail" data-rt-shell-rail></span>
+                        </div>
+                    @endpersist
                     <div @class([
                         'relative z-[1] container-fluid w-full max-w-none px-0',
                         'md:px-5' => ! $viewportMode,

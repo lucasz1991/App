@@ -198,6 +198,7 @@
 
                 <div class="border-t border-rt-border p-3 dark:border-rt-dark-border">
                     <a href="{{ $messageRoute }}"
+                       wire:navigate
                        class="block rounded-lg px-4 py-2 text-center font-medium text-rt-text shadow-rt-xs ring-1 ring-rt-border transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted hover:text-rt-accent active:scale-[0.98] dark:text-white dark:ring-rt-dark-border dark:hover:bg-rt-dark-surface-muted dark:hover:text-white">
                         {{ __('app.view_all_messages') }}
                     </a>

@@ -15,6 +15,7 @@ import intersect from '@alpinejs/intersect';
 import Echo from 'laravel-echo';
 import Pusher from 'pusher-js';
 import Swiper from 'swiper';
+import { FreeMode } from 'swiper/modules';
 import 'swiper/css';
 // GSAP-Setup (window.gsap/ScrollTrigger + deklarative data-anim-Reveals)
 import './gsap';
@@ -22,7 +23,11 @@ import './gsap';
 import './vengeance-motion';
 import { wagonListPrototype } from './wagon-list-prototype';
 import { numberInput } from './number-input';
-import { registerRailtimePushSettings, setupRailtimePwa } from './pwa';
+import {
+    registerRailtimePwaInstall,
+    registerRailtimePushSettings,
+    setupRailtimePwa,
+} from './pwa';
 import { createNotificationSeenCache } from './notification-seen-cache';
 import { createNotificationPresentationContext } from './notification-presentation';
 import { incomingNotificationSound } from './realtime-notification-sound';
@@ -120,6 +125,12 @@ Alpine.plugin(mask);
 Alpine.plugin(resize);
 Alpine.plugin(intersect);
 
+// Die gemeinsame Tab-Leiste nutzt Swiper fuer echtes Touch-Dragging. Die
+// Referenzen muessen vor Livewire.start() verfuegbar sein, weil Alpine die
+// bereits gerenderte Seite waehrend des Starts sofort initialisiert.
+window.Swiper = Swiper;
+window.SwiperFreeMode = FreeMode;
+
 // Zentraler Theme-Store: liest die Einstellung beim Start aus localStorage
 // und schreibt sie beim Umschalten zurueck. Ueberlebt Reloads UND
 // wire:navigate-Seitenwechsel (der Store lebt im Speicher weiter, Alpine
@@ -131,6 +142,19 @@ Alpine.store('theme', {
         this.dark = !this.dark;
         localStorage.setItem('rt-theme', this.dark ? 'true' : 'false');
         rtApplyTheme();
+    },
+});
+
+// Shell-Zustand liegt absichtlich ausserhalb des austauschbaren <body>.
+// Livewire 3 behaelt globale Alpine-Stores bei wire:navigate im Speicher;
+// dadurch bindet der neue Body noch im selben Navigationszyklus wieder an
+// denselben Sidebar-Zustand und die persistierte Navigation klappt nicht
+// sichtbar ein und wieder aus.
+Alpine.store('shell', {
+    desktopSidebarExpanded: document.body?.getAttribute('data-sidebar-expanded') === 'true',
+
+    setDesktopSidebarExpanded(expanded) {
+        this.desktopSidebarExpanded = Boolean(expanded);
     },
 });
 
@@ -175,6 +199,7 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
     let showTimer = null;
     let failsafeTimer = null;
     let active = false;
+    let contentEntrancePending = false;
 
     // Notbremse. Grund (verifiziert in vendor/livewire/livewire/dist/
     // livewire.esm.js, performFetch): Livewire holt die neue Seite mit
@@ -199,11 +224,26 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
             overlay.setAttribute('role', 'status');
             overlay.setAttribute('aria-hidden', 'true');
             overlay.setAttribute('aria-label', 'RailTime lädt die nächste Seite');
+
+            // Partikelkranz und Funken deterministisch erzeugen: --i steuert
+            // Startwinkel/Verzoegerung, --s die Groesse. Bewusst ohne
+            // Math.random — gleiches Bild bei jedem Seitenwechsel.
+            const particles = Array.from({ length: 8 }, (_, i) => (
+                `<span class="rt-nav-loader__particle" style="--i:${i};--s:${(0.7 + (i % 3) * 0.24).toFixed(2)}"></span>`
+            )).join('');
+            const sparks = Array.from({ length: 3 }, (_, i) => (
+                `<span class="rt-nav-loader__spark" style="--i:${i}"></span>`
+            )).join('');
+
             overlay.innerHTML = `
                 <span class="rt-nav-loader" aria-hidden="true">
+                    <span class="rt-nav-loader__particles">${particles}</span>
                     <span class="rt-nav-loader__orb">
                         <span class="rt-nav-loader__fluid rt-nav-loader__fluid--drift"></span>
                         <span class="rt-nav-loader__fluid rt-nav-loader__fluid--counter"></span>
+                        <span class="rt-nav-loader__sheen"></span>
+                        ${sparks}
+                        <span class="rt-nav-loader__core"></span>
                         <span class="rt-nav-loader__gloss"></span>
                     </span>
                 </span>
@@ -217,6 +257,7 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
 
     function start() {
         active = true;
+        contentEntrancePending = true;
         window.clearTimeout(showTimer);
         window.clearTimeout(failsafeTimer);
         showTimer = window.setTimeout(function () {
@@ -230,18 +271,45 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
                 window.gsap.killTweensOf(loader);
                 window.gsap.fromTo(loader, {
                     autoAlpha: 0,
-                    scale: 0.68,
+                    scale: 0.82,
+                    y: 8,
                 }, {
                     autoAlpha: 1,
                     scale: 1,
-                    duration: 0.38,
-                    ease: 'back.out(1.7)',
+                    y: 0,
+                    duration: 0.42,
+                    ease: 'power3.out',
                     overwrite: 'auto',
                     clearProps: 'opacity,visibility,transform',
                 });
             }
         }, 120);
         failsafeTimer = window.setTimeout(done, FAILSAFE_MS);
+    }
+
+    // Einblendeanimation fuer die fertig geladene Seite: nur nach einer
+    // tatsaechlichen wire:navigate-Navigation (Flag), nie beim ersten
+    // Seitenaufbau. Bewusst NUR Opacity, kein Transform: .page-content
+    // enthaelt position:fixed-Kinder (Shell-Ambient) — ein Transform wuerde
+    // sie zum Containing Block umhaengen und vom Viewport loesen.
+    function playContentEntrance() {
+        if (!contentEntrancePending) return;
+        contentEntrancePending = false;
+
+        if (!window.gsap || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            return;
+        }
+
+        const content = document.querySelector('#main-content .page-content');
+        if (!content) return;
+
+        window.gsap.fromTo(content, { autoAlpha: 0 }, {
+            autoAlpha: 1,
+            duration: 0.34,
+            ease: 'power1.out',
+            overwrite: 'auto',
+            clearProps: 'opacity,visibility',
+        });
     }
 
     function done() {
@@ -283,7 +351,10 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
 
     // Alle Wege, auf denen eine Navigation endet ODER scheitert. done() ist
     // idempotent, mehrfaches Aufraeumen ist deshalb unschaedlich.
-    document.addEventListener('livewire:navigated', done);
+    document.addEventListener('livewire:navigated', function () {
+        done();
+        playContentEntrance();
+    });
     window.addEventListener('popstate', done);
     window.addEventListener('pageshow', done);
     window.addEventListener('offline', done);
@@ -349,6 +420,7 @@ Livewire.hook('request', ({ fail }) => {
 window.Alpine = Alpine;
 
 registerRailtimePushSettings(Alpine);
+registerRailtimePwaInstall(Alpine);
 setupRailtimePwa();
 
 Alpine.data('wagonListPrototype', wagonListPrototype);
@@ -783,13 +855,30 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
     touchStartY: null,
     viewportHandler: null,
     viewportFrame: null,
+    focusHandler: null,
+    stableViewportHeight: 0,
+    stableViewportWidth: 0,
+    keyboardOpen: false,
 
     init() {
         this.viewportHandler = () => this.queueVisualViewportSync();
+        this.focusHandler = () => this.queueVisualViewportSync();
+
+        const visualViewport = window.visualViewport;
+        this.stableViewportHeight = Math.max(
+            0,
+            visualViewport?.height ?? window.innerHeight,
+        );
+        this.stableViewportWidth = Math.max(
+            0,
+            visualViewport?.width ?? window.innerWidth,
+        );
 
         window.visualViewport?.addEventListener('resize', this.viewportHandler, { passive: true });
         window.visualViewport?.addEventListener('scroll', this.viewportHandler, { passive: true });
         window.addEventListener('resize', this.viewportHandler, { passive: true });
+        this.$root.addEventListener('focusin', this.focusHandler);
+        this.$root.addEventListener('focusout', this.focusHandler);
 
         this.viewportHandler();
     },
@@ -808,10 +897,56 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
 
             const visualViewport = window.visualViewport;
             const viewportHeight = Math.max(0, visualViewport?.height ?? window.innerHeight);
+            const viewportWidth = Math.max(0, visualViewport?.width ?? window.innerWidth);
             const viewportTop = Math.max(0, visualViewport?.offsetTop ?? 0);
+            const activeElement = document.activeElement;
+            const editableFocused = activeElement instanceof Element
+                && this.$root.contains(activeElement)
+                && activeElement.matches('input, textarea, [contenteditable="true"]');
+
+            // Bei einer Drehung entspricht die vorherige Breite ungefaehr der
+            // neuen unbelasteten Hoehe. So bleibt die Tastaturerkennung auch
+            // dann korrekt, wenn Android gleichzeitig VisualViewport,
+            // innerHeight und Layout-Viewport verkleinert.
+            const previousStableWidth = this.stableViewportWidth || viewportWidth;
+            const previousStableHeight = this.stableViewportHeight || viewportHeight;
+            const widthChanged = Math.abs(viewportWidth - previousStableWidth)
+                > Math.max(48, previousStableWidth * 0.18);
+            const orientationChanged = widthChanged
+                && (previousStableHeight >= previousStableWidth) !== (viewportHeight >= viewportWidth);
+
+            if (orientationChanged) {
+                this.stableViewportHeight = Math.max(viewportHeight, previousStableWidth);
+                this.stableViewportWidth = viewportWidth;
+            }
+
+            // Im Ruhezustand ist der sichtbare Viewport unsere stabile
+            // Referenz. Beim Fokus steht dieser Wert bereits fest, bevor die
+            // Tastatur den VisualViewport verkleinert (auch auf Android, wo
+            // window.innerHeight parallel schrumpfen kann).
+            const keyboardThreshold = Math.max(104, this.stableViewportHeight * 0.16);
+            const viewportRecovered = viewportHeight >= this.stableViewportHeight - keyboardThreshold;
+
+            if (!editableFocused && (!this.keyboardOpen || viewportRecovered)) {
+                this.stableViewportHeight = viewportHeight;
+                this.stableViewportWidth = viewportWidth;
+            }
+
+            const keyboardDelta = this.stableViewportHeight - viewportHeight;
+            const nextKeyboardOpen = (editableFocused || this.keyboardOpen)
+                && keyboardDelta > keyboardThreshold;
 
             this.$root.style.setProperty('--rt-chat-visual-height', `${Math.round(viewportHeight)}px`);
             this.$root.style.setProperty('--rt-chat-visual-top', `${Math.round(viewportTop)}px`);
+
+            if (nextKeyboardOpen !== this.keyboardOpen) {
+                this.keyboardOpen = nextKeyboardOpen;
+                this.$root.dataset.keyboardOpen = nextKeyboardOpen ? 'true' : 'false';
+            }
+
+            if (!nextKeyboardOpen) {
+                this.stableViewportWidth = viewportWidth;
+            }
         });
     },
 
@@ -884,6 +1019,8 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
         window.visualViewport?.removeEventListener('resize', this.viewportHandler);
         window.visualViewport?.removeEventListener('scroll', this.viewportHandler);
         window.removeEventListener('resize', this.viewportHandler);
+        this.$root?.removeEventListener('focusin', this.focusHandler);
+        this.$root?.removeEventListener('focusout', this.focusHandler);
 
         if (this.viewportFrame !== null) {
             window.cancelAnimationFrame(this.viewportFrame);
@@ -892,7 +1029,9 @@ Alpine.data('chatPaneNavigation', (initialHasSelection = false) => ({
 
         this.$root?.style.removeProperty('--rt-chat-visual-height');
         this.$root?.style.removeProperty('--rt-chat-visual-top');
+        this.$root?.removeAttribute('data-keyboard-open');
         this.viewportHandler = null;
+        this.focusHandler = null;
     },
 }));
 
@@ -1299,11 +1438,11 @@ window.addEventListener('rt:inbox-increased', (event) => {
     window.RTSound?.play(incomingNotificationSound(source));
 });
 
-window.Swiper = Swiper;
 let sidebarCollapseTimer = null;
 let sidebarExpandTimer = null;
 let sidebarSwipeStart = null;
-const DESKTOP_SIDEBAR_HOVER_DELAY = 1500;
+const DESKTOP_SIDEBAR_EXPAND_DELAY = 750;
+const DESKTOP_SIDEBAR_COLLAPSE_DELAY = 1500;
 
 function initMetisMenu(sideMenu) {
     if (!window.MetisMenu || !sideMenu) {
@@ -1441,7 +1580,34 @@ function setDesktopSidebarExpanded(expanded) {
         return;
     }
 
-    document.body.setAttribute('data-sidebar-expanded', expanded ? 'true' : 'false');
+    const nextExpanded = Boolean(expanded);
+
+    Alpine.store('shell').setDesktopSidebarExpanded(nextExpanded);
+    document.body.setAttribute('data-sidebar-expanded', nextExpanded ? 'true' : 'false');
+    syncSidebarToggleState();
+}
+
+function captureDesktopSidebarState() {
+    if (!document.body || !isDesktopHoverSidebar()) {
+        return;
+    }
+
+    Alpine.store('shell').setDesktopSidebarExpanded(
+        document.body.getAttribute('data-sidebar-expanded') === 'true'
+    );
+}
+
+function restoreDesktopSidebarState() {
+    if (!document.body || !isDesktopHoverSidebar()) {
+        return;
+    }
+
+    // Direkte Zuweisung als synchroner Fallback fuer den kurzen Moment,
+    // bevor Alpine das x-bind des neuen <body> ausgewertet hat.
+    document.body.setAttribute(
+        'data-sidebar-expanded',
+        Alpine.store('shell').desktopSidebarExpanded ? 'true' : 'false'
+    );
     syncSidebarToggleState();
 }
 
@@ -1533,7 +1699,7 @@ function scheduleDesktopSidebarCollapse() {
         if (!isSidebarHoveredOrFocused()) {
             setDesktopSidebarExpanded(false);
         }
-    }, DESKTOP_SIDEBAR_HOVER_DELAY);
+    }, DESKTOP_SIDEBAR_COLLAPSE_DELAY);
 }
 
 function scheduleDesktopSidebarExpand() {
@@ -1550,7 +1716,7 @@ function scheduleDesktopSidebarExpand() {
         if (isSidebarHoveredOrFocused()) {
             setDesktopSidebarExpanded(true);
         }
-    }, DESKTOP_SIDEBAR_HOVER_DELAY);
+    }, DESKTOP_SIDEBAR_EXPAND_DELAY);
 }
 
 function syncSidebarInteractionMode() {
@@ -1614,8 +1780,16 @@ function initActiveMenu(sideMenu = document.getElementById('side-menu')) {
     const pageUrl = window.location.href.split(/[?#]/)[0];
     const menuItems = Array.from(sideMenu.querySelectorAll('a'));
     const nestedLists = sideMenu.querySelectorAll('ul');
+    // Livewires wire:current wird vor unserem navigated-Handler aktualisiert
+    // und kennt auch Unterpfade. Das ist fuer die via @persist erhaltene
+    // Sidebar die verlaessliche Quelle, wenn der Server-Link selbst nicht
+    // exakt der aktuellen Detail-URL entspricht.
+    const currentMatches = menuItems.filter((item) => item.hasAttribute('data-current'));
 
-    menuItems.forEach((item) => item.classList.remove('active'));
+    menuItems.forEach((item) => {
+        item.classList.remove('active');
+        item.removeAttribute('aria-current');
+    });
     sideMenu.querySelectorAll('[data-rt-sidebar-group]').forEach((trigger) => {
         trigger.setAttribute('aria-expanded', 'false');
     });
@@ -1626,10 +1800,13 @@ function initActiveMenu(sideMenu = document.getElementById('side-menu')) {
 
     const exactMatches = menuItems.filter((item) => item.href === pageUrl);
     const fallbackMatches = menuItems.filter((item) => item.dataset.menuActive === 'true');
-    const activeItems = exactMatches.length > 0 ? exactMatches : fallbackMatches;
+    const activeItems = exactMatches.length > 0
+        ? exactMatches
+        : (currentMatches.length > 0 ? currentMatches : fallbackMatches);
 
     activeItems.forEach((item) => {
         item.classList.add('active');
+        item.setAttribute('aria-current', 'page');
 
         let currentLi = item.closest('li');
         while (currentLi) {
@@ -1816,6 +1993,7 @@ function initAdminLayout() {
     initLeftMenuCollapse();
     initMobileSidebarSwipe();
     initSidebarInteractions();
+    initActiveMenu();
     initMenuItemScroll();
     initFeather();
 }
@@ -1839,7 +2017,11 @@ if (document.readyState === 'loading') {
     queueAdminLayoutInit();
 }
 
-// Livewire 3 ersetzt bei wire:navigate den gesamten Body samt Sidebar.
-// Alpine zerstoert/initialisiert rtSidebarNavigation je Generation; dieser
-// Frame bindet danach nur noch die globalen Shell-Interaktionen neu.
+// Livewire 3 ersetzt bei wire:navigate den Body; die Sidebar selbst wird
+// dabei via @persist weiterverwendet. Der Store stellt den
+// Breitenzustand synchron am neuen Body wieder her; danach aktualisiert der
+// Frame nur noch aktive Route, globale Shell-Interaktionen und Scrollposition.
+document.addEventListener('livewire:navigate', captureDesktopSidebarState);
+document.addEventListener('livewire:navigating', captureDesktopSidebarState);
+document.addEventListener('livewire:navigated', restoreDesktopSidebarState);
 document.addEventListener('livewire:navigated', queueAdminLayoutInit);

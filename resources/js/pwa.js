@@ -4,6 +4,7 @@ const PUSH_DEVICE_BINDING_STORAGE_KEY = 'railtime:webpush-device-binding:v1';
 let deferredInstallPrompt = null;
 let serviceWorkerRegistrationPromise = null;
 let lifecycleInitialized = false;
+let installConfirmedInSession = false;
 
 function currentWindow() {
     return typeof window === 'undefined' ? null : window;
@@ -215,7 +216,10 @@ function installState() {
     const navigatorLike = currentNavigator();
 
     return {
-        installed: isStandaloneMode(windowLike, navigatorLike),
+        // Nur der aktuelle Display-Modus und das echte Browser-Ereignis sind
+        // belastbar. Ein dauerhafter Storage-Marker wuerde nach einer
+        // Deinstallation veralten und den Installationsknopf blockieren.
+        installed: isStandaloneMode(windowLike, navigatorLike) || installConfirmedInSession,
         promptAvailable: Boolean(deferredInstallPrompt),
         ios: isIosDevice(navigatorLike),
         android: isAndroidDevice(navigatorLike),
@@ -223,6 +227,22 @@ function installState() {
         desktopFamily: desktopFamily(navigatorLike),
         macSafari: isMacSafari(navigatorLike),
     };
+}
+
+export function installationMode(state = {}) {
+    if (state.installed) {
+        return 'installed';
+    }
+
+    if (state.promptAvailable) {
+        return 'prompt';
+    }
+
+    if (state.ios || state.android || state.desktop) {
+        return 'manual';
+    }
+
+    return 'unsupported';
 }
 
 function configuredServiceWorkerUrl() {
@@ -329,11 +349,15 @@ export function setupRailtimePwa() {
     windowLike.addEventListener('beforeinstallprompt', (event) => {
         event.preventDefault();
         deferredInstallPrompt = event;
+        installConfirmedInSession = false;
+
         dispatchPwaState();
     });
 
     windowLike.addEventListener('appinstalled', () => {
         deferredInstallPrompt = null;
+        installConfirmedInSession = true;
+
         dispatchPwaState();
     });
 
@@ -381,6 +405,108 @@ export async function promptRailtimeInstall() {
         dispatchPwaState();
         throw error;
     }
+}
+
+export function registerRailtimePwaInstall(Alpine) {
+    Alpine.data('railtimePwaInstall', (config = {}) => ({
+        install: installState(),
+        busy: false,
+        notice: '',
+        error: '',
+        pwaStateListener: null,
+
+        init() {
+            this.pwaStateListener = () => {
+                this.install = installState();
+            };
+            window.addEventListener(PWA_STATE_EVENT, this.pwaStateListener);
+        },
+
+        destroy() {
+            if (this.pwaStateListener) {
+                window.removeEventListener(PWA_STATE_EVENT, this.pwaStateListener);
+            }
+        },
+
+        get mode() {
+            return installationMode(this.install);
+        },
+
+        get disabled() {
+            return this.busy || this.mode === 'installed';
+        },
+
+        statusText() {
+            if (this.mode === 'installed') {
+                return config.messages?.installed || '';
+            }
+
+            if (this.mode === 'prompt') {
+                return config.messages?.ready || '';
+            }
+
+            return config.messages?.manual || '';
+        },
+
+        guideTarget() {
+            if (this.install.ios) {
+                return config.targets?.ios;
+            }
+
+            if (this.install.android) {
+                return config.targets?.android;
+            }
+
+            return config.targets?.desktop || config.targets?.fallback;
+        },
+
+        openGuide() {
+            const target = this.guideTarget();
+
+            if (target) {
+                document.querySelector(target)?.scrollIntoView({
+                    behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+                        ? 'auto'
+                        : 'smooth',
+                    block: 'start',
+                });
+            }
+
+            this.notice = config.messages?.manual || '';
+        },
+
+        async installApp() {
+            this.notice = '';
+            this.error = '';
+
+            if (this.mode === 'installed') {
+                return;
+            }
+
+            if (this.mode !== 'prompt') {
+                this.openGuide();
+
+                return;
+            }
+
+            this.busy = true;
+
+            try {
+                const choice = await promptRailtimeInstall();
+                this.install = installState();
+
+                if (choice?.outcome === 'accepted') {
+                    this.notice = config.messages?.accepted || '';
+                } else {
+                    this.openGuide();
+                }
+            } catch (error) {
+                this.error = messageFrom(error, config.messages?.failed || '');
+            } finally {
+                this.busy = false;
+            }
+        },
+    }));
 }
 
 function browserName(navigatorLike = currentNavigator()) {
@@ -892,10 +1018,14 @@ export function registerRailtimePushSettings(Alpine) {
             this.busy = 'test';
 
             try {
+                if (!this.canTest) {
+                    throw new Error(this.text('testFailed'));
+                }
+
                 await apiRequest(this.config.urls.test, {
                     method: 'POST',
                     body: JSON.stringify({
-                        subscription_id: this.deviceBinding.subscriptionId,
+                        subscription_id: Number(this.deviceBinding.subscriptionId),
                     }),
                 });
                 this.success = this.text('testQueued');

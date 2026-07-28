@@ -15,6 +15,8 @@ class PushSettings extends Component
      */
     public bool $showTest = false;
 
+    public bool $showInstall = true;
+
     public function render(): View
     {
         $pushDiagnostics = WebPushConfiguration::diagnostics();
@@ -24,6 +26,7 @@ class PushSettings extends Component
             'clientConfig' => [
                 'serverEnabled' => $pushDiagnostics['enabled'],
                 'serverConfigured' => $pushDiagnostics['configured'],
+                'testEnabled' => (bool) config('webpush.test_enabled'),
                 'vapidPublicKey' => (string) config('webpush.vapid.public_key'),
                 'accountBinding' => WebPushConfiguration::accountBinding(auth()->id()),
                 'urls' => [
@@ -62,6 +65,8 @@ class PushSettings extends Component
                     'subscribeFailed' => __('app.push_subscribe_failed'),
                     'unsubscribed' => __('app.push_unsubscribed'),
                     'unsubscribeFailed' => __('app.push_unsubscribe_failed'),
+                    'testQueued' => __('app.push_test_queued'),
+                    'testFailed' => __('app.push_test_failed'),
                 ],
             ],
         ]);

@@ -5,10 +5,12 @@
     :count="$documents->count()"
 >
     <x-slot:actions>
-        <x-ui.buttons.button-basic mode="primary" size="sm" wire:click="openCreate" can="files.manage">
-            <i class="far fa-plus" aria-hidden="true"></i>
-            {{ __('app.add_managed_document') }}
-        </x-ui.buttons.button-basic>
+        <x-ui.dropdown.page-actions>
+            <x-dropdown-link wire:click.prevent="openCreate" can="files.manage">
+                <i class="far fa-plus" aria-hidden="true"></i>
+                {{ __('app.add_managed_document') }}
+            </x-dropdown-link>
+        </x-ui.dropdown.page-actions>
     </x-slot:actions>
 
     <section class="rounded-2xl bg-rt-surface p-5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60 sm:p-6" data-anim="fade-up">

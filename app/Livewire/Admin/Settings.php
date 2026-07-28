@@ -66,7 +66,7 @@ class Settings extends Component
             }
         }
 
-        $this->dispatch('swal:toast', type: 'success', text: __('app.sounds_saved'));
+        $this->dispatch('sound-settings-saved');
 
         // Neue wirksame Zuordnung sofort im Browser uebernehmen (rt-sounds.js).
         $this->dispatch('rt-sounds:map', map: SoundLibrary::mapFor(auth()->user()));
@@ -82,7 +82,12 @@ class Settings extends Component
         // 60s lang aus dem Cache — nach dem Umschalten sofort invalidieren.
         Cache::forget('maintenance_mode');
 
-        $this->dispatch('swal:toast', type: 'success', text: __('app.settings_saved'));
+        $this->dispatch('system-settings-saved');
+    }
+
+    public function updatedMaintenanceMode(): void
+    {
+        $this->saveSystem();
     }
 
     public function saveInvitations(): void
@@ -95,7 +100,7 @@ class Settings extends Component
 
         Setting::setValue('invitations', 'expiry_days', (int) $this->invitationExpiryDays);
 
-        $this->dispatch('swal:toast', type: 'success', text: __('app.settings_saved'));
+        $this->dispatch('invitation-settings-saved');
     }
 
     public function saveMails(): void
@@ -108,7 +113,7 @@ class Settings extends Component
 
         Setting::setValue('mails', 'admin_email', (string) $this->adminEmail);
 
-        $this->dispatch('swal:toast', type: 'success', text: __('app.settings_saved'));
+        $this->dispatch('mail-settings-saved');
     }
 
     public function saveCompany(): void
@@ -134,7 +139,7 @@ class Settings extends Component
 
         CompanyData::save($validated['company']);
 
-        $this->dispatch('swal:toast', type: 'success', text: __('app.company_data_saved'));
+        $this->dispatch('company-settings-saved');
     }
 
     public function render()

@@ -22,7 +22,7 @@
         </form>
 
         <div class="mt-6 text-center">
-            <a href="{{ route('login') }}" class="text-sm text-rt-muted underline transition-colors duration-300 hover:text-rt-red dark:text-rt-dark-muted dark:hover:text-rt-dark-accent">
+            <a href="{{ route('login') }}" wire:navigate class="text-sm text-rt-muted underline transition-colors duration-300 hover:text-rt-red dark:text-rt-dark-muted dark:hover:text-rt-dark-accent">
                 {{ __('app.back_to_login') }}
             </a>
         </div>

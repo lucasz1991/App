@@ -75,12 +75,7 @@ class UpdateContactInformationForm extends Component
             'education' => $this->education ?: null,
         ]);
 
-        $displayName = trim(implode(' ', array_filter([$this->first_name, $this->last_name])));
-        if ($displayName !== '') {
-            Auth::user()->forceFill(['name' => $displayName])->save();
-        }
-
-        $this->dispatch('saved');
+        $this->dispatch('contact-saved');
     }
 
     /**

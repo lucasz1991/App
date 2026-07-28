@@ -275,6 +275,7 @@
                 </ul>
                 @if ($profileCompletion < 100)
                     <a href="{{ route('profile.show') }}"
+                       wire:navigate
                        class="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-rt-red px-4 py-2 text-sm font-bold text-white shadow-rt-xs outline-none transition duration-200 ease-rt-spring hover:-translate-y-px hover:bg-rt-red-dark hover:shadow-rt-sm focus-visible:ring-2 focus-visible:ring-rt-red focus-visible:ring-offset-2 dark:focus-visible:ring-offset-rt-dark-surface sm:w-auto">
                         {{ __('app.complete_profile') }}
                     </a>

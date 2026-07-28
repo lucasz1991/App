@@ -9,13 +9,19 @@
     x-show.important, weil die Legacy-CSS Display-Utilities mit !important
     markiert — ohne den Modifier liesse sich das Intro nicht schliessen.
 --}}
+@props([
+    'initiallyOpen' => true,
+])
+
 <div
-    x-data="{ open: true }"
+    x-data="{ open: @js((bool) $initiallyOpen) }"
     x-show.important="open"
     x-cloak
+    x-on:rt-welcome:open.window="open = true"
     x-on:keydown.escape.window="open = false"
     class="rt-welcome-backdrop fixed inset-0 z-[520] flex items-center justify-center p-4"
     data-rt-welcome-intro
+    data-rt-welcome-initially-open="{{ $initiallyOpen ? 'true' : 'false' }}"
 >
     <section
         role="dialog"

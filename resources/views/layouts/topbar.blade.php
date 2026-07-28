@@ -11,6 +11,7 @@
         <div class="flex items-center topbar-brand">
             <a
                 href="{{ $brandHref }}"
+                wire:navigate
                 class="rt-shell-brand-mark flex h-[70px] w-14 shrink-0 items-center justify-center lg:hidden"
                 aria-label="RailTime"
             >
@@ -23,7 +24,7 @@
 
             <div
                 class="hidden lg:flex navbar-brand items-center justify-between shrink px-3 h-[70px] ltr:border-r rtl:border-l border-rt-border/60 bg-rt-topbar shadow-none dark:border-rt-dark-border/60 dark:bg-rt-dark-topbar">
-                <a href="{{ $brandHref }}"
+                <a href="{{ $brandHref }}" wire:navigate
                     class="rt-shell-brand-link flex flex-shrink-0 items-center gap-2 text-lg font-bold leading-[69px]">
                         <img class="inline-block w-10 aspect-square align-middle dark:brightness-0 dark:invert"
                             src="{{ asset('rt-brand/rt-logo.svg') }}"
@@ -175,6 +176,7 @@
                                 <div class="mt-2 border-t border-rt-border/70 px-1 pt-2 dark:border-rt-dark-border/70">
                                     <a
                                         href="{{ route('profile.show') }}"
+                                        wire:navigate
                                         class="flex min-h-10 items-center justify-between gap-2 rounded-lg px-2.5 text-sm font-medium text-rt-text transition hover:bg-rt-surface-muted hover:text-rt-accent dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted dark:hover:text-rt-dark-accent"
                                         data-topbar-more-settings="true"
                                     >

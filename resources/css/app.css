@@ -1398,6 +1398,255 @@ body[data-mode="dark"] .rt-chat-read-indicator.is-delivered {
     }
 }
 
+/* Livewire-Skeletons: layoutnah statt generischer Spinner. Die 300-ms-
+   Verzoegerung kommt aus wire:loading.delay.long; der Overlay-Hintergrund
+   verhindert Layoutspruenge, waehrend der echte Inhalt an Ort und Stelle
+   bleibt. */
+.rt-page-skeleton-overlay {
+    overflow: hidden;
+    border-radius: 1rem;
+    background: color-mix(in srgb, theme('colors.rt.canvas') 92%, transparent);
+    backdrop-filter: blur(6px);
+}
+
+html.dark .rt-page-skeleton-overlay,
+body[data-mode='dark'] .rt-page-skeleton-overlay {
+    background: color-mix(in srgb, theme('colors.rt-dark.canvas') 92%, transparent);
+}
+
+.rt-page-live-content--loading {
+    pointer-events: none;
+    user-select: none;
+}
+
+.rt-loading-skeleton {
+    position: relative;
+    min-height: 100%;
+    padding: clamp(0.875rem, 2vw, 1.35rem);
+    overflow: hidden;
+    color: theme('colors.rt.muted');
+}
+
+.rt-loading-skeleton::before {
+    position: absolute;
+    inset: -30% auto auto -12%;
+    width: min(24rem, 72vw);
+    aspect-ratio: 1;
+    border-radius: 9999px;
+    background: radial-gradient(circle, color-mix(in srgb, theme('colors.rt.accent') 5%, transparent), transparent 68%);
+    content: '';
+    pointer-events: none;
+}
+
+.rt-loading-skeleton__heading,
+.rt-loading-skeleton__cards,
+.rt-loading-skeleton__rows,
+.rt-loading-skeleton__feature-card {
+    position: relative;
+    z-index: 1;
+}
+
+.rt-loading-skeleton__heading {
+    display: grid;
+    gap: 0.55rem;
+    margin-bottom: 1rem;
+}
+
+.rt-loading-skeleton__eyebrow,
+.rt-loading-skeleton__title,
+.rt-loading-skeleton__line,
+.rt-loading-skeleton__icon,
+.rt-loading-skeleton__avatar,
+.rt-loading-skeleton__action {
+    position: relative;
+    display: block;
+    overflow: hidden;
+    background: color-mix(in srgb, theme('colors.rt.border') 62%, theme('colors.rt.surface-muted'));
+}
+
+html.dark .rt-loading-skeleton__eyebrow,
+html.dark .rt-loading-skeleton__title,
+html.dark .rt-loading-skeleton__line,
+html.dark .rt-loading-skeleton__icon,
+html.dark .rt-loading-skeleton__avatar,
+html.dark .rt-loading-skeleton__action,
+body[data-mode='dark'] .rt-loading-skeleton__eyebrow,
+body[data-mode='dark'] .rt-loading-skeleton__title,
+body[data-mode='dark'] .rt-loading-skeleton__line,
+body[data-mode='dark'] .rt-loading-skeleton__icon,
+body[data-mode='dark'] .rt-loading-skeleton__avatar,
+body[data-mode='dark'] .rt-loading-skeleton__action {
+    background: color-mix(in srgb, theme('colors.rt-dark.border') 64%, theme('colors.rt-dark.surface-muted'));
+}
+
+.rt-loading-skeleton__eyebrow {
+    width: 5rem;
+    height: 0.45rem;
+    border-radius: 0.3rem;
+}
+
+.rt-loading-skeleton__title {
+    width: min(18rem, 58vw);
+    height: 1.25rem;
+    border-radius: 0.45rem;
+}
+
+.rt-loading-skeleton__cards {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 0.9rem;
+}
+
+.rt-loading-skeleton__card,
+.rt-loading-skeleton__feature-card,
+.rt-loading-skeleton__row {
+    border: 1px solid color-mix(in srgb, theme('colors.rt.border') 68%, transparent);
+    background: color-mix(in srgb, theme('colors.rt.surface') 88%, transparent);
+    box-shadow: 0 12px 30px -28px color-mix(in srgb, theme('colors.rt-ink') 28%, transparent);
+}
+
+html.dark .rt-loading-skeleton__card,
+html.dark .rt-loading-skeleton__feature-card,
+html.dark .rt-loading-skeleton__row,
+body[data-mode='dark'] .rt-loading-skeleton__card,
+body[data-mode='dark'] .rt-loading-skeleton__feature-card,
+body[data-mode='dark'] .rt-loading-skeleton__row {
+    border-color: color-mix(in srgb, theme('colors.rt-dark.border') 72%, transparent);
+    background: color-mix(in srgb, theme('colors.rt-dark.surface') 88%, transparent);
+}
+
+.rt-loading-skeleton__card {
+    display: grid;
+    gap: 0.65rem;
+    min-height: 7.6rem;
+    padding: 0.9rem;
+    border-radius: 0.9rem;
+}
+
+.rt-loading-skeleton__feature-card {
+    display: grid;
+    gap: 0.7rem;
+    min-height: 12rem;
+    padding: 1rem;
+    border-radius: 1rem;
+}
+
+.rt-loading-skeleton__icon,
+.rt-loading-skeleton__avatar {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 0.7rem;
+}
+
+.rt-loading-skeleton__rows {
+    display: grid;
+    gap: 0.55rem;
+}
+
+.rt-loading-skeleton__row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: 4.5rem;
+    padding: 0.75rem;
+    border-radius: 0.85rem;
+}
+
+.rt-loading-skeleton__rows--table .rt-loading-skeleton__row {
+    border-radius: 0.55rem;
+}
+
+.rt-loading-skeleton__row-copy {
+    display: grid;
+    gap: 0.48rem;
+}
+
+.rt-loading-skeleton__line {
+    width: 78%;
+    height: 0.55rem;
+    border-radius: 0.35rem;
+}
+
+.rt-loading-skeleton__line--medium {
+    width: 58%;
+}
+
+.rt-loading-skeleton__line--short {
+    width: 36%;
+}
+
+.rt-loading-skeleton__action {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.6rem;
+}
+
+.rt-loading-skeleton__eyebrow::after,
+.rt-loading-skeleton__title::after,
+.rt-loading-skeleton__line::after,
+.rt-loading-skeleton__icon::after,
+.rt-loading-skeleton__avatar::after,
+.rt-loading-skeleton__action::after {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        105deg,
+        transparent 24%,
+        color-mix(in srgb, theme('colors.white') 34%, transparent) 48%,
+        transparent 72%
+    );
+    content: '';
+    transform: translateX(-125%);
+    animation: rt-skeleton-shimmer 1.75s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    will-change: transform;
+}
+
+html.dark .rt-loading-skeleton__eyebrow::after,
+html.dark .rt-loading-skeleton__title::after,
+html.dark .rt-loading-skeleton__line::after,
+html.dark .rt-loading-skeleton__icon::after,
+html.dark .rt-loading-skeleton__avatar::after,
+html.dark .rt-loading-skeleton__action::after,
+body[data-mode='dark'] .rt-loading-skeleton__eyebrow::after,
+body[data-mode='dark'] .rt-loading-skeleton__title::after,
+body[data-mode='dark'] .rt-loading-skeleton__line::after,
+body[data-mode='dark'] .rt-loading-skeleton__icon::after,
+body[data-mode='dark'] .rt-loading-skeleton__avatar::after,
+body[data-mode='dark'] .rt-loading-skeleton__action::after {
+    background: linear-gradient(105deg, transparent 24%, rgb(255 255 255 / 0.065) 48%, transparent 72%);
+}
+
+@keyframes rt-skeleton-shimmer {
+    to {
+        transform: translateX(125%);
+    }
+}
+
+@media (max-width: 639.98px) {
+    .rt-loading-skeleton__cards {
+        grid-template-columns: 1fr;
+    }
+
+    .rt-loading-skeleton__card:nth-child(n + 3) {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rt-loading-skeleton__eyebrow::after,
+    .rt-loading-skeleton__title::after,
+    .rt-loading-skeleton__line::after,
+    .rt-loading-skeleton__icon::after,
+    .rt-loading-skeleton__avatar::after,
+    .rt-loading-skeleton__action::after {
+        animation: none;
+        transform: none;
+        opacity: 0.35;
+    }
+}
+
 /* Native Vorschau der Mitarbeiter-E-Mailvorlage. Die explizite Regel gewinnt
    auch gegen globale Display-Utilities und verhindert ein offenes Modal beim
    ersten Seitenaufruf ohne jeden Alpine-/Livewire-Zustand. */
@@ -2841,8 +3090,9 @@ body[data-mode='dark'] .rt-employee-mobile-header {
 }
 
 /* AI-Orb-Seitenwechsel (nach dem "Motion — AI Orb"-Shot, Fluid-Gradient-
-   Aesthetik): mattierte Glaskugel, in deren Innerem ein fluessiger
-   Blau-Violett-Verlauf treibt. Bewusst ohne Text, Karte oder modale
+   Aesthetik, umgesetzt in der RailTime-CI): mattierte Glaskugel, in deren
+   Innerem ein fluessiger Rot-Magenta-Verlauf treibt, umkreist von einem
+   Partikelkranz und einer Lichtspur. Bewusst ohne Text, Karte oder modale
    Dialogflaeche. Der Navigations-Failsafe lebt in app.js weiter. */
 .rt-nav-overlay {
     position: fixed;
@@ -2852,7 +3102,7 @@ body[data-mode='dark'] .rt-employee-mobile-header {
     place-items: center;
     opacity: 0;
     pointer-events: none;
-    background: rgba(240, 240, 249, 0.28);
+    background: rgba(249, 243, 245, 0.3);
     backdrop-filter: blur(3px) saturate(1.04);
     -webkit-backdrop-filter: blur(3px) saturate(1.04);
     transition: opacity 180ms cubic-bezier(0.32, 0.72, 0, 1);
@@ -2861,6 +3111,27 @@ body[data-mode='dark'] .rt-employee-mobile-header {
 html.dark .rt-nav-overlay,
 body[data-mode='dark'] .rt-nav-overlay {
     background: rgba(8, 13, 22, 0.34);
+}
+
+/* Auf Shell-Seiten (fixe Topbar 70px/z-40, Sidebar z-30) deckt das Overlay
+   nur den Inhaltsbereich ab — Topbar und Sidebar bleiben sichtbar und
+   bedienbar. Seiten ohne Shell (Gast/Auth) behalten den Vollbild-Fallback. */
+body[data-sidebar-collapsible] .rt-nav-overlay {
+    top: 70px;
+    z-index: 25;
+}
+
+@media (min-width: 1024px) {
+    body[data-sidebar-collapsible='true'] .rt-nav-overlay {
+        left: var(--webreach-sidebar-collapsed-width);
+        transition:
+            opacity 180ms cubic-bezier(0.32, 0.72, 0, 1),
+            left var(--webreach-sidebar-transition);
+    }
+
+    body[data-sidebar-collapsible='true'][data-sidebar-expanded='true'] .rt-nav-overlay {
+        left: var(--webreach-sidebar-expanded-width);
+    }
 }
 
 .rt-nav-overlay.is-visible {
@@ -2895,10 +3166,57 @@ body[data-mode='dark'] .rt-nav-overlay {
     inset: -0.5rem;
     z-index: -1;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(124, 108, 255, 0.34) 0, rgba(124, 108, 255, 0.13) 46%, transparent 72%);
+    background: radial-gradient(circle, rgba(228, 0, 43, 0.18) 0, rgba(228, 0, 43, 0.055) 46%, transparent 72%);
     content: '';
-    opacity: 0.75;
+    opacity: 0.55;
     pointer-events: none;
+    will-change: transform, opacity;
+}
+
+/* Rotierende Lichtspur knapp um die Kugel: ein konischer Farbverlauf,
+   per Maske auf einen 2px-Ring beschnitten. */
+.rt-nav-loader::after {
+    position: absolute;
+    inset: 0.85rem;
+    border-radius: 50%;
+    background: conic-gradient(
+        from 90deg,
+        rgba(228, 0, 43, 0) 0deg,
+        rgba(228, 0, 43, 0.34) 68deg,
+        rgba(255, 113, 137, 0.68) 118deg,
+        rgba(228, 0, 43, 0) 196deg,
+        rgba(228, 0, 43, 0) 360deg
+    );
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1px));
+    content: '';
+    opacity: 0.62;
+    pointer-events: none;
+    will-change: transform;
+}
+
+/* Partikelkranz: acht Glimmer, die versetzt um die Kugel kreisen und dabei
+   ein- und ausblenden. --i (Winkel/Phase) und --s (Groesse) kommen als
+   Inline-Variablen aus app.js — deterministisch, ohne Zufall. */
+.rt-nav-loader__particles {
+    position: absolute;
+    inset: 0;
+    display: block;
+    pointer-events: none;
+}
+
+.rt-nav-loader__particle {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: calc(0.3rem * var(--s, 1));
+    aspect-ratio: 1;
+    margin: calc(-0.15rem * var(--s, 1));
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.8) 0%, rgba(255, 113, 137, 0.58) 55%, rgba(255, 113, 137, 0) 100%);
+    box-shadow: 0 0 0.35rem rgba(228, 0, 43, 0.32);
+    opacity: 0;
+    transform: rotate(calc(var(--i) * 45deg)) translateX(2.35rem) scale(0.55);
     will-change: transform, opacity;
 }
 
@@ -2915,15 +3233,15 @@ body[data-mode='dark'] .rt-nav-overlay {
         circle at 32% 26%,
         rgba(255, 255, 255, 0.95) 0 8%,
         rgba(255, 255, 255, 0.55) 26%,
-        rgba(244, 244, 253, 0.4) 52%,
-        rgba(233, 233, 248, 0.34) 100%
+        rgba(253, 244, 246, 0.4) 52%,
+        rgba(248, 233, 237, 0.34) 100%
     );
     box-shadow:
         inset 0 0 0 1px rgba(255, 255, 255, 0.6),
-        inset -0.55rem -0.85rem 1.35rem rgba(112, 96, 246, 0.2),
+        inset -0.55rem -0.85rem 1.35rem rgba(228, 0, 43, 0.18),
         inset 0.4rem 0.5rem 1rem rgba(255, 255, 255, 0.62),
-        0 1.3rem 2.4rem -0.85rem rgba(95, 88, 232, 0.4),
-        0 0 2.4rem rgba(124, 108, 255, 0.22);
+        0 1.3rem 2.4rem -0.85rem rgba(190, 0, 36, 0.42),
+        0 0 2.4rem rgba(228, 0, 43, 0.22);
     transform: translateZ(0);
     will-change: transform;
 }
@@ -2933,16 +3251,16 @@ body[data-mode='dark'] .rt-nav-loader__orb {
     background: radial-gradient(
         circle at 32% 26%,
         rgba(255, 255, 255, 0.3) 0 8%,
-        rgba(196, 200, 255, 0.18) 30%,
-        rgba(38, 42, 78, 0.5) 68%,
-        rgba(22, 25, 48, 0.62) 100%
+        rgba(255, 198, 210, 0.16) 30%,
+        rgba(66, 18, 32, 0.52) 68%,
+        rgba(40, 10, 20, 0.64) 100%
     );
     box-shadow:
-        inset 0 0 0 1px rgba(226, 228, 255, 0.28),
-        inset -0.55rem -0.85rem 1.35rem rgba(88, 74, 214, 0.34),
-        inset 0.4rem 0.5rem 1rem rgba(233, 235, 255, 0.2),
-        0 1.3rem 2.4rem -0.85rem rgba(70, 62, 210, 0.55),
-        0 0 2.6rem rgba(124, 108, 255, 0.3);
+        inset 0 0 0 1px rgba(255, 226, 233, 0.26),
+        inset -0.55rem -0.85rem 1.35rem rgba(180, 0, 52, 0.36),
+        inset 0.4rem 0.5rem 1rem rgba(255, 233, 238, 0.18),
+        0 1.3rem 2.4rem -0.85rem rgba(160, 0, 40, 0.6),
+        0 0 2.6rem rgba(228, 0, 43, 0.3);
 }
 
 /* Fluessige Farbflaechen: zwei gegenlaeufig rotierende, stark weich-
@@ -2958,17 +3276,68 @@ body[data-mode='dark'] .rt-nav-loader__orb {
 
 .rt-nav-loader__fluid--drift {
     background:
-        radial-gradient(42% 46% at 66% 38%, rgba(92, 112, 255, 0.9) 0%, rgba(92, 112, 255, 0) 68%),
-        radial-gradient(50% 55% at 68% 66%, rgba(124, 92, 246, 0.88) 0%, rgba(124, 92, 246, 0) 70%),
-        radial-gradient(38% 40% at 45% 52%, rgba(105, 220, 255, 0.8) 0%, rgba(105, 220, 255, 0) 66%);
+        radial-gradient(42% 46% at 66% 38%, rgba(255, 61, 94, 0.92) 0%, rgba(255, 61, 94, 0) 68%),
+        radial-gradient(50% 55% at 68% 66%, rgba(228, 0, 43, 0.9) 0%, rgba(228, 0, 43, 0) 70%),
+        radial-gradient(38% 40% at 45% 52%, rgba(255, 133, 118, 0.82) 0%, rgba(255, 133, 118, 0) 66%);
 }
 
 .rt-nav-loader__fluid--counter {
     opacity: 0.85;
     background:
-        radial-gradient(46% 52% at 38% 64%, rgba(151, 128, 255, 0.72) 0%, rgba(151, 128, 255, 0) 70%),
+        radial-gradient(46% 52% at 38% 64%, rgba(214, 0, 90, 0.7) 0%, rgba(214, 0, 90, 0) 70%),
         radial-gradient(36% 40% at 58% 30%, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0) 62%);
     mix-blend-mode: screen;
+}
+
+/* Langsam umlaufender Glanzstreifen — wie ein Lichtreflex, der ueber die
+   Glasoberflaeche wandert. */
+.rt-nav-loader__sheen {
+    position: absolute;
+    inset: -8%;
+    border-radius: 50%;
+    background: conic-gradient(
+        from 0deg,
+        rgba(255, 255, 255, 0) 0deg,
+        rgba(255, 255, 255, 0.5) 42deg,
+        rgba(255, 255, 255, 0) 92deg,
+        rgba(255, 255, 255, 0) 360deg
+    );
+    filter: blur(5px);
+    mix-blend-mode: screen;
+    opacity: 0.55;
+    pointer-events: none;
+    will-change: transform;
+}
+
+/* Aufsteigende Funken im Kugelinneren. */
+.rt-nav-loader__spark {
+    position: absolute;
+    bottom: 12%;
+    left: calc(24% + var(--i) * 22%);
+    width: 0.18rem;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 0 0.35rem rgba(255, 179, 192, 0.9);
+    filter: blur(0.5px);
+    opacity: 0;
+    pointer-events: none;
+    will-change: transform, opacity;
+}
+
+/* Pulsierender Lichtkern in der Mitte. */
+.rt-nav-loader__core {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 34%;
+    aspect-ratio: 1;
+    margin: -17% 0 0 -17%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.92) 0%, rgba(255, 164, 178, 0.55) 46%, rgba(255, 113, 137, 0) 74%);
+    filter: blur(2px);
+    pointer-events: none;
+    will-change: transform, opacity;
 }
 
 /* Frostschicht + Glanzlicht ueber den Farbflaechen. */
@@ -2992,6 +3361,10 @@ body[data-mode='dark'] .rt-nav-loader__gloss {
     animation: rt-nav-orb-aura 2.6s ease-in-out infinite;
 }
 
+.rt-nav-overlay.is-visible .rt-nav-loader::after {
+    animation: rt-nav-orb-ring 1.9s cubic-bezier(0.6, 0.12, 0.32, 0.9) infinite;
+}
+
 .rt-nav-overlay.is-visible .rt-nav-loader__orb {
     animation: rt-nav-orb-breathe 2.6s ease-in-out infinite;
 }
@@ -3002,6 +3375,24 @@ body[data-mode='dark'] .rt-nav-loader__gloss {
 
 .rt-nav-overlay.is-visible .rt-nav-loader__fluid--counter {
     animation: rt-nav-orb-fluid-counter 3.9s linear infinite;
+}
+
+.rt-nav-overlay.is-visible .rt-nav-loader__sheen {
+    animation: rt-nav-orb-sheen 5.6s linear infinite;
+}
+
+.rt-nav-overlay.is-visible .rt-nav-loader__spark {
+    animation: rt-nav-orb-spark 2.4s ease-in infinite;
+    animation-delay: calc(var(--i) * -0.8s);
+}
+
+.rt-nav-overlay.is-visible .rt-nav-loader__core {
+    animation: rt-nav-orb-core 2.6s ease-in-out infinite;
+}
+
+.rt-nav-overlay.is-visible .rt-nav-loader__particle {
+    animation: rt-nav-orb-particle 3.2s ease-in-out infinite;
+    animation-delay: calc(var(--i) * -0.4s);
 }
 
 @keyframes rt-nav-orb-breathe {
@@ -3015,44 +3406,119 @@ body[data-mode='dark'] .rt-nav-loader__gloss {
     }
 }
 
+/* Rotation + leichtes Wandern + Groessenatmung: das Zusammenspiel laesst
+   die Farbflaechen fluessig ineinanderlaufen statt sichtbar zu rotieren. */
 @keyframes rt-nav-orb-fluid-drift {
     0% {
-        transform: rotate(0turn) scale(1);
+        transform: rotate(0turn) translate(0%, 0%) scale(1);
+    }
+
+    25% {
+        transform: rotate(0.25turn) translate(2.5%, -2%) scale(1.08);
     }
 
     50% {
-        transform: rotate(0.5turn) scale(1.14);
+        transform: rotate(0.5turn) translate(-1.5%, 2.5%) scale(1.16);
+    }
+
+    75% {
+        transform: rotate(0.75turn) translate(-2.5%, -1.5%) scale(1.06);
     }
 
     100% {
-        transform: rotate(1turn) scale(1);
+        transform: rotate(1turn) translate(0%, 0%) scale(1);
     }
 }
 
 @keyframes rt-nav-orb-fluid-counter {
     0% {
-        transform: rotate(1turn) scale(1.1);
+        transform: rotate(1turn) translate(0%, 0%) scale(1.1);
+    }
+
+    25% {
+        transform: rotate(0.75turn) translate(-2%, 2%) scale(1);
     }
 
     50% {
-        transform: rotate(0.5turn) scale(0.92);
+        transform: rotate(0.5turn) translate(2.5%, 1.5%) scale(0.92);
+    }
+
+    75% {
+        transform: rotate(0.25turn) translate(1.5%, -2.5%) scale(1.02);
     }
 
     100% {
-        transform: rotate(0turn) scale(1.1);
+        transform: rotate(0turn) translate(0%, 0%) scale(1.1);
     }
 }
 
-@keyframes rt-nav-orb-aura {
+@keyframes rt-nav-orb-sheen {
+    to {
+        transform: rotate(1turn);
+    }
+}
+
+@keyframes rt-nav-orb-ring {
+    to {
+        transform: rotate(1turn);
+    }
+}
+
+@keyframes rt-nav-orb-spark {
+    0% {
+        transform: translateY(0) scale(0.7);
+        opacity: 0;
+    }
+
+    18% {
+        opacity: 0.9;
+    }
+
+    60% {
+        opacity: 0.65;
+    }
+
+    100% {
+        transform: translateY(-2.4rem) scale(1.05);
+        opacity: 0;
+    }
+}
+
+@keyframes rt-nav-orb-core {
     0%,
     100% {
-        opacity: 0.55;
-        transform: scale(0.88);
+        transform: scale(0.82);
+        opacity: 0.75;
     }
 
     50% {
-        opacity: 0.85;
-        transform: scale(1.08);
+        transform: scale(1.12);
+        opacity: 1;
+    }
+}
+
+@keyframes rt-nav-orb-particle {
+    0% {
+        transform: rotate(calc(var(--i) * 45deg)) translateX(2.2rem) scale(0.5);
+        opacity: 0;
+    }
+
+    22% {
+        opacity: 0.95;
+    }
+
+    50% {
+        transform: rotate(calc(var(--i) * 45deg + 34deg)) translateX(3.05rem) scale(1);
+        opacity: 0.72;
+    }
+
+    78% {
+        opacity: 0.9;
+    }
+
+    100% {
+        transform: rotate(calc(var(--i) * 45deg + 68deg)) translateX(2.2rem) scale(0.5);
+        opacity: 0;
     }
 }
 
@@ -3063,8 +3529,10 @@ body[data-mode='dark'] .rt-nav-loader__gloss {
 
     .rt-nav-loader,
     .rt-nav-loader::before,
+    .rt-nav-loader::after,
     .rt-nav-loader__orb,
     .rt-nav-loader__fluid,
+    .rt-nav-loader__core,
     .rt-nav-loader__gloss {
         animation: none !important;
         opacity: 1 !important;
@@ -3072,14 +3540,31 @@ body[data-mode='dark'] .rt-nav-loader__gloss {
         transition: none !important;
     }
 
-    /* Statisch bleibt die Kugel trotzdem ein vollstaendiges Standbild
-       der Vorlage — nur eben ohne Treiben. */
+    /* Statisch bleibt die Kugel ein vollstaendiges Standbild der Vorlage —
+       nur eben ohne Treiben. Reine Bewegungs-Elemente (Partikel, Funken,
+       Glanzstreifen) verschwinden ganz, statt eingefroren zu haengen. */
     .rt-nav-loader__fluid--counter {
         opacity: 0.85 !important;
     }
 
     .rt-nav-loader::before {
         opacity: 0.7 !important;
+    }
+
+    .rt-nav-loader::after {
+        opacity: 0.45 !important;
+    }
+
+    .rt-nav-loader__core {
+        opacity: 0.85 !important;
+    }
+
+    .rt-nav-loader__particle,
+    .rt-nav-loader__spark,
+    .rt-nav-loader__sheen {
+        animation: none !important;
+        opacity: 0 !important;
+        transition: none !important;
     }
 }
 
@@ -3097,9 +3582,9 @@ body[data-mode='dark'] .rt-nav-loader__gloss {
     aspect-ratio: 1.6;
     border-radius: 50%;
     background:
-        radial-gradient(46% 52% at 62% 46%, rgba(101, 118, 255, 0.2) 0%, rgba(101, 118, 255, 0) 70%),
-        radial-gradient(42% 48% at 40% 60%, rgba(133, 100, 248, 0.16) 0%, rgba(133, 100, 248, 0) 70%),
-        radial-gradient(34% 38% at 72% 66%, rgba(105, 220, 255, 0.14) 0%, rgba(105, 220, 255, 0) 66%);
+        radial-gradient(46% 52% at 62% 46%, rgba(255, 61, 94, 0.16) 0%, rgba(255, 61, 94, 0) 70%),
+        radial-gradient(42% 48% at 40% 60%, rgba(214, 0, 90, 0.12) 0%, rgba(214, 0, 90, 0) 70%),
+        radial-gradient(34% 38% at 72% 66%, rgba(255, 133, 118, 0.12) 0%, rgba(255, 133, 118, 0) 66%);
     filter: blur(18px);
     pointer-events: none;
     will-change: transform;
@@ -3108,9 +3593,9 @@ body[data-mode='dark'] .rt-nav-loader__gloss {
 html.dark .rt-profile-aurora,
 body[data-mode='dark'] .rt-profile-aurora {
     background:
-        radial-gradient(46% 52% at 62% 46%, rgba(101, 118, 255, 0.16) 0%, rgba(101, 118, 255, 0) 70%),
-        radial-gradient(42% 48% at 40% 60%, rgba(133, 100, 248, 0.14) 0%, rgba(133, 100, 248, 0) 70%),
-        radial-gradient(34% 38% at 72% 66%, rgba(105, 220, 255, 0.1) 0%, rgba(105, 220, 255, 0) 66%);
+        radial-gradient(46% 52% at 62% 46%, rgba(255, 61, 94, 0.13) 0%, rgba(255, 61, 94, 0) 70%),
+        radial-gradient(42% 48% at 40% 60%, rgba(214, 0, 90, 0.11) 0%, rgba(214, 0, 90, 0) 70%),
+        radial-gradient(34% 38% at 72% 66%, rgba(255, 133, 118, 0.09) 0%, rgba(255, 133, 118, 0) 66%);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -3605,14 +4090,14 @@ body[data-mode='dark'] .rt-expandable-search__clear:hover {
     }
 
     body[data-sidebar-collapsible="true"][data-sidebar-expanded="true"] .vertical-menu .sidebar-nav-link__chevron {
-        max-width: 1.25rem;
+        max-width: 1.5rem;
         margin-left: auto;
         opacity: 1;
         transform: translateX(0);
     }
 
     body[data-sidebar-collapsible="true"][data-sidebar-expanded="true"] .vertical-menu [data-rt-sidebar-group][aria-expanded="true"] .sidebar-nav-link__chevron {
-        transform: rotate(180deg);
+        transform: rotate(90deg);
     }
 
     body[data-sidebar-collapsible="true"] .vertical-menu .sidebar-nav-link__icon,

@@ -29,26 +29,30 @@
     />
 
     @if ($headerPerson)
-        <button
-            type="button"
-            wire:click="$dispatch('person-preview:open', { userId: {{ $headerPerson->id }} })"
-            class="group flex min-w-0 flex-1 items-center gap-2.5 rounded-xl text-left outline-none transition-colors hover:text-rt-red focus-visible:ring-2 focus-visible:ring-rt-red/35 sm:gap-3"
-            title="{{ __('app.open_person_preview') }}"
-            aria-label="{{ __('app.open_person_preview') }}: {{ $headerPerson->name }}"
-            data-no-chat-swipe
-        >
+        <div class="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3">
             <x-chat.avatar
                 :src="$headerAvatar"
                 :name="$selectedChat->displayNameFor($me)"
                 size="lg"
                 signal
-                class="transition-transform duration-200 group-hover:scale-[1.03]"
             />
 
             <span class="min-w-0 flex-1">
-                <span class="block truncate text-sm font-extrabold tracking-[-0.025em] text-rt-text transition-colors group-hover:text-rt-red dark:text-rt-dark-text dark:group-hover:text-rt-dark-accent sm:text-[15px]">
-                    {{ $selectedChat->displayNameFor($me) }}
-                </span>
+                <x-user.person-anchor-preview :user="$headerPerson">
+                    <x-slot:trigger>
+                        <button
+                            type="button"
+                            class="group block min-w-0 max-w-full rounded-lg px-0.5 py-0.5 text-left outline-none transition-colors hover:text-rt-red focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:hover:text-rt-dark-accent"
+                            title="{{ __('app.open_person_preview') }}"
+                            aria-label="{{ __('app.open_person_preview') }}: {{ $headerPerson->name }}"
+                            data-no-chat-swipe
+                        >
+                            <span class="block truncate text-sm font-extrabold tracking-[-0.025em] text-rt-text transition-colors group-hover:text-rt-red dark:text-rt-dark-text dark:group-hover:text-rt-dark-accent sm:text-[15px]">
+                                {{ $selectedChat->displayNameFor($me) }}
+                            </span>
+                        </button>
+                    </x-slot:trigger>
+                </x-user.person-anchor-preview>
                 <span
                     x-cloak
                     x-show.important="typingLabel"
@@ -56,7 +60,7 @@
                     class="rt-chat-typing mt-0.5 block truncate text-[10px] font-bold text-rt-accent dark:text-rt-dark-accent"
                 ></span>
             </span>
-        </button>
+        </div>
     @else
         <x-chat.avatar
             :src="$headerAvatar"

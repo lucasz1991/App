@@ -66,6 +66,7 @@
                                         @foreach ($groupResults as $result)
                                             <a
                                                 href="{{ $result['url'] }}"
+                                                wire:navigate
                                                 class="group flex min-h-14 items-center gap-3 rounded-xl px-3 py-2.5 transition duration-200 hover:bg-rt-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rt-red/45 active:scale-[0.995] dark:hover:bg-rt-dark-surface-muted"
                                                 wire:key="global-search-result-{{ md5($result['url']) }}"
                                             >

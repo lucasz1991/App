@@ -54,17 +54,19 @@
             </p>
 
             <div class="flex flex-wrap gap-2">
-                <button
-                    x-cloak
-                    x-show.important="canPromptInstall"
-                    type="button"
-                    class="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-rt-ink px-4 py-2 text-sm font-semibold text-white shadow-rt-sm transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-rt-accent focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60 dark:bg-white dark:text-rt-ink dark:hover:bg-slate-200"
-                    :disabled="busy !== null"
-                    @click="promptInstall()"
-                >
-                    <i class="far fa-download" aria-hidden="true"></i>
-                    {{ __('app.push_install_app') }}
-                </button>
+                @if ($showInstall)
+                    <button
+                        x-cloak
+                        x-show.important="canPromptInstall"
+                        type="button"
+                        class="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-rt-ink px-4 py-2 text-sm font-semibold text-white shadow-rt-sm transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-rt-accent focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60 dark:bg-white dark:text-rt-ink dark:hover:bg-slate-200"
+                        :disabled="busy !== null"
+                        @click="promptInstall()"
+                    >
+                        <i class="far fa-download" aria-hidden="true"></i>
+                        {{ __('app.push_install_app') }}
+                    </button>
+                @endif
 
                 <button
                     x-cloak
@@ -98,7 +100,7 @@
                 @if ($showTest)
                 <button
                     x-cloak
-                    x-show.important="canUnsubscribe"
+                    x-show.important="canTest"
                     type="button"
                     class="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-rt-border bg-rt-surface px-4 py-2 text-sm font-semibold text-rt-text shadow-rt-xs transition hover:bg-rt-nav-hover focus:outline-none focus:ring-2 focus:ring-rt-accent focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text dark:hover:bg-rt-dark-nav-hover"
                     :disabled="busy !== null"

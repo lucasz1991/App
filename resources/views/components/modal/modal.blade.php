@@ -6,6 +6,9 @@
 
 @php
     $id = $id ?? md5($attributes->wire('model'));
+    $hasStructuredSlots = isset($title) || isset($content) || isset($footer);
+    $labelledBy = $attributes->get('aria-labelledby')
+        ?? (isset($title) ? $id . '-title' : null);
 
     $maxWidthClass = [
         'sm'  => 'sm:max-w-sm',
@@ -32,15 +35,13 @@
     x-on:keydown.escape.window="close()"
     x-show="show"
     id="{{ $id }}"
-    class="rt-ui-modal jetstream-modal fixed inset-0 z-[130] overflow-y-auto px-4 py-6"
+    class="rt-ui-modal jetstream-modal fixed inset-0 z-[130] flex items-center justify-center overflow-hidden p-3 sm:p-6"
     style="display: none;"
 >
     {{-- Overlay --}}
     <div
         x-show="show"
-        role="dialog"
-        aria-modal="true"
-        aria-label="{{ $attributes->get('aria-label', config('app.name') . ' Dialog') }}"
+        aria-hidden="true"
         class="fixed inset-0 transform transition-all"
         x-on:click="close()"
         x-transition:enter="ease-out duration-300"
@@ -56,7 +57,14 @@
     {{-- Modal-Container --}}
     <div
         x-show="show"
-        class="rt-ui-surface rt-ui-modal-panel mb-6 overflow-hidden rounded-2xl border border-rt-border bg-rt-surface text-rt-text shadow-rt-lg transform transition-all dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text sm:w-full {{ $maxWidthClass }} sm:mx-auto"
+        role="dialog"
+        aria-modal="true"
+        @if($labelledBy)
+            aria-labelledby="{{ $labelledBy }}"
+        @else
+            aria-label="{{ $attributes->get('aria-label', config('app.name') . ' Dialog') }}"
+        @endif
+        class="rt-ui-surface rt-ui-modal-panel rt-modal-frame relative flex max-h-[calc(100dvh-1.5rem)] min-h-0 min-w-0 w-full max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-[1.4rem] bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-rt-border/70 transform transition-all dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/70 sm:max-h-[calc(100dvh-3rem)] {{ $maxWidthClass }}"
         x-trap.inert.noscroll="show"
         x-transition:enter="ease-out duration-300"
         x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
@@ -65,49 +73,60 @@
         x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
         x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
     >
-        <div class="relative">
+        @if($hasStructuredSlots)
             {{-- TITLE BAR --}}
-            <div class="rt-ui-surface-muted border-b border-rt-border bg-rt-surface-muted px-2 py-2 pt-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted md:px-6 md:py-3 md:pt-5">
-                <div class="text-lg font-medium text-rt-text dark:text-rt-dark-text">
-                    {{ $title }}
-                </div>
+            @isset($title)
+                <header class="rt-ui-surface-muted relative shrink-0 border-b border-rt-border bg-rt-surface-muted px-5 py-4 pr-16 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted sm:px-6 sm:py-5 sm:pr-16">
+                    <h2 id="{{ $id }}-title" class="text-balance text-lg font-semibold leading-6 tracking-tight text-rt-text dark:text-rt-dark-text">
+                        {{ $title }}
+                    </h2>
 
-                @if(!$trapClose)
-                    <button
-                        type="button"
-                        aria-label="{{ __('app.close') }}"
-                        class="rt-ui-button rt-ui-button-secondary absolute right-2 top-2 rounded-lg p-2 text-rt-muted transition hover:bg-rt-nav-hover hover:text-rt-text dark:text-rt-dark-muted dark:hover:bg-rt-dark-nav-hover dark:hover:text-white"
-                        @click="close()"
-                    >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            class="h-4 w-4"
-                            viewBox="0 0 20 20"
-                            fill="currentColor"
+                    @if(!$trapClose)
+                        <button
+                            type="button"
+                            aria-label="{{ __('app.close') }}"
+                            class="rt-ui-button rt-ui-button-secondary absolute right-3 top-1/2 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl text-rt-muted transition-all duration-200 hover:bg-rt-nav-hover hover:text-rt-text active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40 dark:text-rt-dark-muted dark:hover:bg-rt-dark-nav-hover dark:hover:text-white sm:right-4"
+                            @click="close()"
                         >
-                            <path
-                                fill-rule="evenodd"
-                                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 
-                                1.414L11.414 10l4.293 4.293a1 1 0 
-                                01-1.414 1.414L10 11.414l-4.293 
-                                4.293a1 1 0 01-1.414-1.414L8.586 
-                                10 4.293 5.707a1 1 0 010-1.414z"
-                                clip-rule="evenodd"
-                            />
-                        </svg>
-                    </button>
-                @endif
-            </div>
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                class="h-5 w-5"
+                                viewBox="0 0 20 20"
+                                fill="currentColor"
+                                aria-hidden="true"
+                            >
+                                <path
+                                    fill-rule="evenodd"
+                                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414
+                                    1.414L11.414 10l4.293 4.293a1 1 0
+                                    01-1.414 1.414L10 11.414l-4.293
+                                    4.293a1 1 0 01-1.414-1.414L8.586
+                                    10 4.293 5.707a1 1 0 010-1.414z"
+                                    clip-rule="evenodd"
+                                />
+                            </svg>
+                        </button>
+                    @endif
+                </header>
+            @endisset
 
             {{-- CONTENT --}}
-            <div class="px-2 py-2 text-sm text-rt-muted dark:text-rt-dark-muted md:px-6 md:py-4">
-                {{ $content }}
-            </div>
+            @isset($content)
+                <div class="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-5 py-5 text-sm leading-6 text-rt-muted [overflow-wrap:anywhere] [scrollbar-gutter:stable] dark:text-rt-dark-muted sm:px-6 sm:py-6 [&_iframe]:max-w-full [&_img]:max-w-full [&_video]:max-w-full">
+                    {{ $content }}
+                </div>
+            @endisset
 
             {{-- FOOTER --}}
-            <div class="rt-ui-surface-muted flex flex-row justify-end border-t border-rt-border bg-rt-surface-muted px-2 py-2 text-end dark:border-rt-dark-border dark:bg-rt-dark-surface-muted md:px-6 md:py-4">
-                {{ $footer }}
+            @isset($footer)
+                <footer class="rt-ui-surface-muted flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-rt-border bg-rt-surface-muted px-5 py-4 text-end dark:border-rt-dark-border dark:bg-rt-dark-surface-muted sm:px-6 [&>*]:max-w-full">
+                    {{ $footer }}
+                </footer>
+            @endisset
+        @else
+            <div class="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain [overflow-wrap:anywhere]">
+                {{ $slot }}
             </div>
-        </div>
+        @endif
     </div>
 </div>

@@ -4,11 +4,6 @@
     </x-slot>
 
     <x-slot name="content">
-        <x-dropdown-link wire:click.prevent="$dispatch('person-preview:open', { userId: {{ $item->id }} })">
-            <i class="far fa-address-card mr-2"></i>
-            {{ __('app.person_preview') }}
-        </x-dropdown-link>
-
         @if (auth()->user()->canViewManagementDashboard())
             <x-dropdown-link
                 href="{{ route(auth()->user()->usesAdminLayout() ? 'admin.user-profile' : 'employees.show', $item->id) }}"

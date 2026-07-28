@@ -104,21 +104,20 @@
         </x-menu.sidebar-nav>
 
         <x-menu.sidebar-nav :label="__('app.my_area')">
-            <x-menu.sidebar-nav-group
+            <x-menu.sidebar-nav-link
+                :href="route('profile.show')"
                 icon="user"
-                :active="request()->routeIs('profile.show', 'help', 'support')"
+                :active="request()->routeIs('profile.show')"
+                :navigate="false"
             >
-                <x-slot:label>{{ __('app.profile_and_support') }}</x-slot:label>
+                {{ __('app.profile') }}
+            </x-menu.sidebar-nav-link>
 
-                <x-menu.sidebar-nav-link
-                    :href="route('profile.show')"
-                    icon="user"
-                    :active="request()->routeIs('profile.show')"
-                    :navigate="false"
-                    class="!pl-8"
-                >
-                    {{ __('app.profile') }}
-                </x-menu.sidebar-nav-link>
+            <x-menu.sidebar-nav-group
+                icon="life-buoy"
+                :active="request()->routeIs('help', 'support')"
+            >
+                <x-slot:label>{{ __('app.it_support') }}</x-slot:label>
 
                 <x-menu.sidebar-nav-link
                     :href="route('help')"

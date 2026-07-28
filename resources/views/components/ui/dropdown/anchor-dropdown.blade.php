@@ -11,6 +11,7 @@
   'headerOffset'      => 0,
   'matchTriggerWidth' => false,
   'triggerClasses'    => 'inline-flex',
+  'contentRole'       => 'menu',
 ])
 
 @php
@@ -202,7 +203,7 @@
 
       <div
         x-ref="panelScroll"
-        role="menu"
+        role="{{ $contentRole }}"
         class="rt-ui-surface rt-ui-dropdown-panel relative z-[2] max-h-[min(28rem,calc(100dvh-2rem))] overflow-y-auto rounded-xl border border-rt-border shadow-rt-md dark:border-rt-dark-border {{ $contentClasses }}"
         @click="if ($event.target.closest('a, button, [role=menuitem]')) close()"
       >

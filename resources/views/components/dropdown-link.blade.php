@@ -47,11 +47,24 @@ $sanitizedAttributes = $attributesWithoutTitle->filter(function ($value, $key) u
 
     return true;
 });
+
+// Interne Links navigieren SPA-artig via wire:navigate (Livewire);
+// mit data-no-navigate kann ein Aufrufer das gezielt deaktivieren.
+$href = (string) $attributes->get('href', '');
+$shouldNavigate = $href !== ''
+    && ! $isDisabled
+    && ! $attributes->has('wire:navigate')
+    && ! $attributes->has('target')
+    && ! $attributes->has('download')
+    && ! $attributes->has('data-no-navigate')
+    && ! preg_match('~^(mailto:|tel:|#|javascript:|data:)~i', $href)
+    && (str_starts_with($href, '/') || str_starts_with($href, url('/')));
 @endphp
 
 <a
     data-rt-tone="{{ $tone }}"
     data-rt-dropdown-item
+    @if($shouldNavigate) wire:navigate @endif
     {{ $sanitizedAttributes->merge(['class' => $classes]) }}
     @if($title) title="{{ $title }}" @endif
     @if($isDisabled) aria-disabled="true" disabled tabindex="-1" x-on:click.prevent.stop @endif

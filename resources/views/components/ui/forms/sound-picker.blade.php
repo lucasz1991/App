@@ -5,6 +5,8 @@
     'allowDefault' => false,
     // Systemweite Zuordnung — zeigt bei "Systemstandard" den wirksamen Ton.
     'systemMap' => [],
+    // Optionale Livewire-Methode zum Speichern direkt nach der Auswahl.
+    'autosave' => null,
 ])
 
 @php
@@ -34,6 +36,10 @@
     @foreach ($events as $event)
         @php
             $fallback = $systemMap[$event] ?? \App\Support\Sound\SoundLibrary::defaults()[$event];
+            $changeHandler = "window.RTSound?.preview(selected || '{$fallback}')";
+            if (filled($autosave) && preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', (string) $autosave)) {
+                $changeHandler .= '; $nextTick(() => $wire.'.(string) $autosave.'())';
+            }
         @endphp
         <div
             class="group flex items-center gap-3 rounded-2xl bg-rt-surface p-3 shadow-rt-xs ring-1 ring-rt-border/60 transition-shadow hover:shadow-rt-sm dark:bg-rt-dark-surface dark:ring-rt-dark-border/60"
@@ -55,7 +61,7 @@
                              wirksame Standardton). --}}
                         <x-ui.forms.select
                             wire:model="{{ $model }}.{{ $event }}"
-                            change="window.RTSound?.preview(selected || '{{ $fallback }}')"
+                            :change="$changeHandler"
                         >
                             @if ($allowDefault)
                                 <option value="">

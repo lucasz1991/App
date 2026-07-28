@@ -26,6 +26,7 @@
             <div>
                 <a
                     href="{{ route('profile.show') }}"
+                    wire:navigate
                     class="underline text-sm text-rt-muted transition-colors duration-300 hover:text-rt-red dark:text-rt-dark-muted dark:hover:text-rt-dark-accent rounded-md focus:outline-none focus:ring-2 focus:ring-rt-red/40"
                 >
                     {{ __('Profil bearbeiten') }}</a>

@@ -93,7 +93,7 @@ class UserProfile extends Component
         if (! $user) {
             $this->dispatch('swal:toast', type: 'error', text: __('app.user_not_found'));
 
-            return $this->redirectRoute($this->employeesRoute());
+            return $this->redirectRoute($this->employeesRoute(), navigate: true);
         }
 
         $this->guardAdminAccount($user);
@@ -126,7 +126,7 @@ class UserProfile extends Component
 
         $this->dispatch('swal:toast', type: 'success', text: __('app.user_deleted'));
 
-        return $this->redirectRoute($this->employeesRoute());
+        return $this->redirectRoute($this->employeesRoute(), navigate: true);
     }
 
     public function render()

@@ -1,5 +1,96 @@
 # RailTime – interne Mitarbeiter- und Kommunikationsplattform
 
+## Verbindliche Codex-Chat- und Instanz-Kennung
+
+Mehrere Codex-Instanzen duerfen parallel am Projekt arbeiten. Damit ihre
+Arbeitsbereiche und Uebergaben eindeutig bleiben, beginnt jeder neue
+Arbeitsblock in der README und in projektbezogenen Statusmeldungen mit:
+
+```text
+[STATUS] [Codex-Chat: <sichtbarer Chatname> | Instanz: <eindeutige Kurz-ID>]
+Bereich: <kurzer Arbeitsumfang>
+Dateien: <aktuell beanspruchte Dateien oder Verzeichnisse>
+```
+
+Als Status-Indikatoren gelten `[AKTIV]`, `[BLOCKIERT]` und `[FERTIG]`. Der
+Chatname entspricht dem sichtbaren Namen des Codex-Chats; die Instanz-ID bleibt
+waehrend des gesamten Arbeitsblocks stabil. Jede Instanz prueft vor Aenderungen
+`git status` und `git diff`. Bereits veraenderte, fachfremde Dateien gelten als
+Arbeit einer anderen Instanz und werden weder zurueckgesetzt noch ungefragt
+umformatiert. Bei Dateiueberschneidungen stimmen sich die Instanzen zuerst mit
+Chatname, Instanz-ID und konkretem Dateiumfang ab.
+
+## AI-Kommunikation - aktiver Arbeitsstand (28.07.2026)
+
+- **Chat-/Task-Indikator:** `Redesign Admin- und Nutzerdashboard`
+- **Aktiver Agent:** Codex
+- **Instanz-ID:** im bestehenden Arbeitsblock noch nicht dokumentiert; bei der
+  naechsten Uebergabe nach dem obigen Schema ergaenzen.
+- **Letzte Nutzerinteraktion:** Die README ist als gemeinsame Kommunikations- und Uebergabequelle zu verwenden. Der aktuelle Umsetzungsstand und der Name des aktiven AI-Chats sollen fuer nachfolgende Agents sichtbar sein.
+- **Codex-Reaktion:** README vollstaendig gelesen, den dokumentierten Projektstand mit dem aktuellen Arbeitsbaum abgeglichen und diese Uebergabe direkt in der bestehenden AI-Kommunikation ergaenzt.
+
+### Paralleler Codex-Arbeitsblock
+
+- **[FERTIG] [Codex-Chat: Sidebar, Loader und Motion | Instanz: RT-UI-0728]**
+- **Bereich:** dezentere Lade- und Cursor-Hintergrundanimation, kantenbuendige
+  Sidebar-Zustaende, funktionsfaehige Parent-Indikatoren und kuerzere
+  Oeffnungsverzoegerung. Button-Komponenten sind ausdruecklich ausgenommen.
+- **Dateien:** `resources/css/app.css`,
+  `resources/css/shell-redesign.css`, `resources/js/app.js`,
+  `resources/js/vengeance-motion.js`,
+  `resources/views/components/menu/sidebar-nav-group.blade.php` sowie die
+  direkt zugehoerigen UI-Regressionstests.
+- **Ergebnis:** Sidebar-Linkflaechen sind in beiden Breitenzustaenden
+  kantenbuendig und eckig. Parent-Indikatoren sind rahmenlos, groesser und
+  drehen sich ueber `aria-expanded` um 90 Grad. Das Hover-Oeffnen startet nach
+  750 ms; die Schliessverzoegerung bleibt bei 1500 ms.
+- **Verifikation:** 259 Tests mit 2.293 Assertions, Vite-Produktionsbuild sowie
+  Browser-Abnahme bei 1440x900 und 390x844 ohne neue Konsolenfehler.
+
+### Paralleler Codex-Arbeitsblock
+
+- **[FERTIG] [Codex-Chat: Tabs, Personenanzeige und Modals | Instanz: RT-TABS-0728]**
+- **Bereich:** mobiles Tab-Dragging mit Slider-Bibliothek, visuelles
+  Tabs-Redesign, stabiles Sticky-/Scrollverhalten, Personenanzeige mit
+  Anchor-Dropdown in der Mitarbeiterliste, ein gemeinsames Optionen-
+  Anchor-Dropdown fuer Unterseiten-Aktionen und global mittig ausgerichtete
+  Modale.
+- **Dateien:** `resources/views/components/ui/accordion`,
+  `resources/css/tabs-redesign.css`, `resources/js/app.js`,
+  Mitarbeiterlisten-/Personenvorschau-Komponenten, gemeinsame Dropdown- und
+  Modal-Komponenten sowie direkt zugehoerige UI-Regressionstests.
+- **Ergebnis:** Die gemeinsame Tab-Rail nutzt die bereits installierte
+  Swiper.js-FreeMode-Engine fuer mobiles Dragging, behaelt normale Taps und
+  Tastatursteuerung bei und scrollt nur dann zur Topbar, wenn der neu gewaehlte
+  Inhalt sonst praktisch ausserhalb des Viewports liegt. Mitarbeiter werden mit
+  Bild ueber die Personenkomponente dargestellt; ihre Vorschau ist in der Liste
+  ein Anchor-Dropdown statt eines Modals. Seitenaktionen verwenden den
+  gemeinsamen Drei-Punkte-Trigger mit `Optionen` nur ab Desktopbreite.
+- **Verifikation:** 260 Tests mit 2.305 Assertions, Vite-Produktionsbuild,
+  Blade-View-Cache und Browser-Abnahme bei 390x844 (Tap, Drag, Tastatur,
+  kein horizontaler Dokument-Overflow).
+
+### Aktueller technischer Stand
+
+- Sidebar und Shell-Ambient bleiben mit Livewire `@persist`, globalem Alpine-Store und den `wire:navigate`-Lifecycle-Events ohne sichtbares Einklappen erhalten. Die aktive Route und geoeffnete Submenus werden nach dem Seitenwechsel synchronisiert.
+- Profil ist ein eigenstaendiger Navigationslink. Support ist eine eigene Gruppe mit den Unterpunkten Hilfe und Support.
+- Das Administrator-Dashboard besitzt im ersten Hero-/Live-Betrieb-Container einen Info-Trigger, ueber den die Willkommens-Einfuehrung erneut geoeffnet werden kann.
+- Die Hilfeseite ist im Vengeance-/Skiper-inspirierten RailTime-Stil neu gegliedert. Sie besitzt genau eine Aktion `App installieren`; der fruehere Link `App und Push oeffnen` ist entfernt.
+- Der Push-Test wird nur angezeigt, wenn `webpush.test_enabled` serverseitig freigegeben ist und eine testfaehige Subscription vorliegt. Dadurch wird der vorherige absichtliche 404 des deaktivierten Test-Endpunkts nicht mehr als Fehlerseite ausgeloest.
+- Gemeinsame Livewire-Skeletons verwenden `wire:loading.delay.long`; der verdeckte Seiteninhalt wird waehrenddessen mit `inert` aus Fokus- und Accessibility-Navigation genommen. Lazy-Komponenten koennen denselben Placeholder verwenden.
+- Der mobile Chat nutzt die volle Breite und besitzt oben keine Rundung. Die Unterhaltungskopfzeile bleibt bei geoeffneter Bildschirmtastatur ueber `VisualViewport` sichtbar; Drehungen zwischen Portrait und Landscape werden in der Hoehenreferenz beruecksichtigt.
+- Der PWA-Installationsstatus verwendet keinen dauerhaften `localStorage`-Marker, der nach einer Deinstallation veralten und den Installationsknopf blockieren koennte.
+
+### Verifikation und Uebergabe
+
+- Gesamtsuite: **260 Tests, 2.305 Assertions** erfolgreich.
+- PWA-Frontend: **16 von 16 Tests** erfolgreich.
+- `php artisan view:cache`, Pint-Pruefung und Vite-Produktionsbuild sind erfolgreich.
+- Browser-Abnahme: 390x844, 844x390 und 1440x900; Sidebar blieb nach `wire:navigate` offen, aktiver Link behielt `aria-current="page"`, Ambient-Position blieb erhalten und das finale Bundle erzeugte keine neuen Konsolenfehler.
+- Noch offen ist nur ein realer Hardware-Smoke-Test der iOS-/Android-Bildschirmtastatur. Desktop-Emulation kann deren Betriebssystemverhalten nicht vollstaendig nachbilden.
+- Bestehende Build-Hinweise betreffen eine veraltete `caniuse-lite`-Datenbasis, das bereits zuvor nicht zur Buildzeit aufloesbare Home-Slider-Bild und grosse JavaScript-Chunks.
+- Nachfolgende Agents sollen den aktuellen Arbeitsbaum erhalten, keine fachfremden Aenderungen zuruecksetzen und diese Sektion bei einer Uebergabe mit neuem Chat-/Task-Indikator aktualisieren.
+
 ## 2026-07-28 - Codex (Vengeance-/Skiper-inspiriertes App-Redesign)
 
 - Die rollenbasierten Dashboards fuer Administratoren, Verwaltung, Mitarbeiter und Teilnehmer nutzen ein gemeinsames, vollbreites App-Layout mit abgestimmten Headern, Aktionen, Info-Elementen und responsiven Karten.

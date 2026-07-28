@@ -4,6 +4,7 @@
     data-has-selected-chat="{{ $selectedChat ? 'true' : 'false' }}"
     data-active-chat-id="{{ $selectedChat?->id ?? 0 }}"
     data-mobile-pane="{{ $selectedChat ? 'chat' : 'list' }}"
+    data-keyboard-open="false"
     x-bind:data-mobile-pane="mobilePane"
     x-on:chat:pane-open.window="showChat()"
     x-on:chat:pane-list.window="showList()"
