@@ -29,7 +29,7 @@ $ariaLabel = $attributes->get('aria-label', config('app.name') . ' Dialog');
             x-show.important="show"
             x-on:close.stop="show = false"
             id="{{ $id }}"
-            class="rt-ui-modal rt-modal-shell rt-modal-center-shell jetstream-modal fixed inset-0 z-[190] overflow-hidden p-3 sm:p-6"
+            class="rt-ui-modal rt-modal-shell rt-modal-center-shell jetstream-modal fixed inset-0 z-[190] overflow-x-hidden overflow-y-auto overscroll-contain p-3 sm:p-6"
             style="display: none;"
             data-rt-modal-shell
         >
