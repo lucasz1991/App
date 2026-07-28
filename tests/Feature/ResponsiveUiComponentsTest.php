@@ -429,6 +429,8 @@ class ResponsiveUiComponentsTest extends TestCase
         $this->assertStringNotContainsString('person-preview-modal', $employees);
         $this->assertStringContainsString('rt-modal-center-shell', $modal);
         $this->assertStringContainsString('my-auto max-h-[calc(100dvh-2rem)]', $modal);
+        $this->assertStringContainsString('overflow-x-hidden', $modal);
+        $this->assertStringContainsString('max-w-[calc(100vw-2rem)]', $modal);
         $this->assertStringContainsString('rt-modal-center-shell', $confirmation);
         $this->assertStringNotContainsString('flex min-h-full items-center justify-center', $confirmation);
     }

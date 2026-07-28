@@ -102,7 +102,7 @@ class PersonPreviewModalTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_chat_keeps_its_modal_while_employee_list_uses_the_anchored_preview(): void
+    public function test_chat_header_and_employee_list_use_the_anchored_preview(): void
     {
         $chat = file_get_contents(resource_path('views/livewire/chat-box.blade.php'));
         $chatList = file_get_contents(resource_path('views/livewire/chat/partials/chat-list.blade.php'));
@@ -118,7 +118,9 @@ class PersonPreviewModalTest extends TestCase
         $this->assertStringNotContainsString('person-preview:open', $employeeRow);
         $this->assertStringContainsString('canViewManagementDashboard()', $employees);
         $this->assertStringContainsString('person-preview:open', $chatList);
-        $this->assertStringContainsString('person-preview:open', $chatHeader);
+        $this->assertStringContainsString('<x-user.person-anchor-preview :user="$headerPerson">', $chatHeader);
+        $this->assertStringNotContainsString('person-preview:open', $chatHeader);
+        $this->assertStringContainsString('data-no-chat-swipe', $chatHeader);
         $this->assertStringContainsString('person-preview:open', $newChat);
         $this->assertStringNotContainsString('person-preview:open', $employeeActions);
         $this->assertStringContainsString('canViewManagementDashboard()', $employeeActions);

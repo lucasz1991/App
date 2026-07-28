@@ -714,6 +714,7 @@ body[data-mode='dark'] .rt-topbar-profile-panel .rt-ui-dropdown-link:not([aria-d
 
 .rt-modal-frame {
     isolation: isolate;
+    overflow-x: hidden;
     border: 1px solid rgba(255, 255, 255, 0.72);
     box-shadow: var(--rt-shell-shadow-elevated) !important;
 }

@@ -56,7 +56,7 @@
     {{-- Modal-Container --}}
     <div
         x-show="show"
-        class="rt-ui-surface rt-ui-modal-panel mb-6 overflow-hidden rounded-2xl border border-rt-border bg-rt-surface text-rt-text shadow-rt-lg transform transition-all dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text sm:w-full {{ $maxWidthClass }} sm:mx-auto"
+        class="rt-ui-surface rt-ui-modal-panel mb-6 w-full max-w-[calc(100vw-2rem)] overflow-x-hidden overflow-y-auto rounded-2xl border border-rt-border bg-rt-surface text-rt-text shadow-rt-lg transform transition-all dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text sm:max-w-none {{ $maxWidthClass }} sm:mx-auto"
         x-trap.inert.noscroll="show"
         x-transition:enter="ease-out duration-300"
         x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"

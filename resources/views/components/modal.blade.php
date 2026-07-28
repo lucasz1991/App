@@ -53,7 +53,7 @@ $ariaLabel = $attributes->get('aria-label', config('app.name') . ' Dialog');
                             @if (filled($describedBy))
                                 aria-describedby="{{ $describedBy }}"
                             @endif
-                            class="rt-ui-surface rt-ui-modal-panel rt-modal-frame relative my-auto max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-[1.4rem] bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-rt-border/60 transform transition-all dark:bg-rt-dark-surface dark:text-white dark:ring-rt-dark-border/60 sm:w-full {{ $maxWidth }}"
+                            class="rt-ui-surface rt-ui-modal-panel rt-modal-frame relative my-auto max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100vw-2rem)] overflow-x-hidden overflow-y-auto rounded-[1.4rem] bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-rt-border/60 transform transition-all dark:bg-rt-dark-surface dark:text-white dark:ring-rt-dark-border/60 {{ $maxWidth }}"
                             x-trap.inert.noscroll="show"
                             x-transition:enter="ease-out duration-200"
                             x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-2 sm:scale-[0.985]"

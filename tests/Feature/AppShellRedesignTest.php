@@ -54,6 +54,13 @@ class AppShellRedesignTest extends TestCase
         $this->assertStringContainsString('data-page-info-button', $html);
         $this->assertStringContainsString('flex-nowrap', $html);
         $this->assertStringContainsString('truncate', $html);
+        $this->assertStringNotContainsString('bg-rt-surface-muted/70 p-1 ring-1', $html);
+        $this->assertStringNotContainsString('rounded-[1.05rem]', $html);
+        $this->assertStringNotContainsString('bg-rt-red" aria-hidden="true"', $html);
+        $this->assertStringContainsString('h-8 w-8', $html);
+
+        $pageActions = file_get_contents(resource_path('views/components/ui/dropdown/page-actions.blade.php'));
+        $this->assertStringContainsString('!h-8 !min-h-8 !w-8 !min-w-8 !px-0', $pageActions);
         $this->assertStringNotContainsString('Konten und Zugriffe im Blick behalten.', $html);
         $this->assertStringContainsString('Mitarbeiter öffnen', $html);
         $this->assertStringContainsString('Informationen zu dieser Seite', $html);

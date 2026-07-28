@@ -18,15 +18,19 @@
     data-person-anchor-preview
 >
     <x-slot:trigger>
-        <button
-            type="button"
-            class="group min-w-0 rounded-lg px-1 py-0.5 text-left outline-none transition-colors hover:text-rt-red focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:hover:text-rt-dark-accent"
-            aria-label="{{ __('app.open_person_preview') }}: {{ $user->name }}"
-            title="{{ __('app.open_person_preview') }}"
-            data-table-row-ignore
-        >
-            <x-user.public-info :user="$user" :size="9" />
-        </button>
+        @isset($trigger)
+            {{ $trigger }}
+        @else
+            <button
+                type="button"
+                class="group min-w-0 rounded-lg px-1 py-0.5 text-left outline-none transition-colors hover:text-rt-red focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:hover:text-rt-dark-accent"
+                aria-label="{{ __('app.open_person_preview') }}: {{ $user->name }}"
+                title="{{ __('app.open_person_preview') }}"
+                data-table-row-ignore
+            >
+                <x-user.public-info :user="$user" :size="9" />
+            </button>
+        @endisset
     </x-slot:trigger>
 
     <x-slot:content>

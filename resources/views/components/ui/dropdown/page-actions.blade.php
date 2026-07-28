@@ -19,6 +19,7 @@
             :aria-label="$resolvedLabel"
             orientation="vertical"
             responsive-label
+            class="!h-8 !min-h-8 !w-8 !min-w-8 !px-0 sm:!w-auto sm:!px-2.5"
         />
     </x-slot:trigger>
 

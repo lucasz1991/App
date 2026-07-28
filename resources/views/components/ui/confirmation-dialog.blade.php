@@ -145,7 +145,7 @@
         aria-labelledby="rt-confirmation-dialog-title"
         aria-describedby="rt-confirmation-dialog-message"
         x-bind:aria-busy="busy.toString()"
-        class="rt-ui-surface rt-ui-modal-panel relative my-auto max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-[1.4rem] bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60"
+        class="rt-ui-surface rt-ui-modal-panel relative my-auto max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100vw-2rem)] overflow-x-hidden overflow-y-auto rounded-[1.4rem] bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60 sm:max-w-md"
     >
         <div class="px-5 pb-5 pt-6 sm:px-6 sm:pb-6">
             <div class="flex items-start gap-4">
