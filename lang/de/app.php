@@ -296,6 +296,7 @@ return [
     'teams_permissions_hint' => 'Zentrale Rechtevergabe pro Team mit genau einem Rechteset je Team.',
     'created' => 'Erstellt',
     'edit' => 'Bearbeiten',
+    'double_click_to_edit' => 'Zum Bearbeiten doppelklicken',
     'activate' => 'Aktivieren',
     'deactivate' => 'Deaktivieren',
     'save' => 'Speichern',

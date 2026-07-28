@@ -13,6 +13,9 @@ class UserNotes extends Component
 
     public string $noteBody = '';
 
+    /** @var array<int, string> */
+    public array $noteBodies = [];
+
     public function mount(int $userId): void
     {
         Gate::authorize('users.profiles.view');
@@ -21,6 +24,7 @@ class UserNotes extends Component
         User::findOrFail($userId);
 
         $this->userId = $userId;
+        $this->syncNoteBodies();
     }
 
     public function addNote(): void
@@ -39,12 +43,59 @@ class UserNotes extends Component
 
         $this->reset('noteBody');
         $this->resetValidation('noteBody');
+        $this->syncNoteBodies();
 
         $this->dispatch('swal:toast', type: 'success', text: __('app.note_added'));
     }
 
+    public function saveNote(int $noteId): bool
+    {
+        Gate::authorize('users.profiles.view');
+
+        $note = UserNote::query()
+            ->where('user_id', $this->userId)
+            ->find($noteId);
+
+        if (! $note) {
+            $this->dispatch('swal:toast', type: 'error', text: __('app.note_not_found'));
+
+            return false;
+        }
+
+        $this->authorizeNoteMutation($note);
+        $property = 'noteBodies.'.$noteId;
+        $this->validateOnly($property, [
+            $property => ['required', 'string', 'max:5000'],
+        ]);
+
+        $note->update([
+            'body' => trim((string) ($this->noteBodies[$noteId] ?? '')),
+        ]);
+
+        $this->noteBodies[$noteId] = $note->body;
+        $this->resetValidation($property);
+        $this->dispatch('note-inline-saved', noteId: $noteId);
+
+        return true;
+    }
+
+    public function cancelNoteEdit(int $noteId): void
+    {
+        Gate::authorize('users.profiles.view');
+
+        $note = UserNote::query()
+            ->where('user_id', $this->userId)
+            ->findOrFail($noteId);
+
+        $this->authorizeNoteMutation($note);
+        $this->noteBodies[$noteId] = $note->body;
+        $this->resetValidation('noteBodies.'.$noteId);
+    }
+
     public function deleteNote(int $noteId): void
     {
+        Gate::authorize('users.profiles.view');
+
         $note = UserNote::query()
             ->where('user_id', $this->userId)
             ->find($noteId);
@@ -63,6 +114,7 @@ class UserNotes extends Component
         }
 
         $note->delete();
+        unset($this->noteBodies[$noteId]);
 
         $this->dispatch('swal:toast', type: 'success', text: __('app.note_deleted'));
     }
@@ -78,5 +130,21 @@ class UserNotes extends Component
         return view('livewire.admin.user-profile.user-notes', [
             'notes' => $notes,
         ]);
+    }
+
+    private function authorizeNoteMutation(UserNote $note): void
+    {
+        if ($note->author_id !== auth()->id() && ! auth()->user()->isAdmin()) {
+            abort(403);
+        }
+    }
+
+    private function syncNoteBodies(): void
+    {
+        $this->noteBodies = UserNote::query()
+            ->where('user_id', $this->userId)
+            ->pluck('body', 'id')
+            ->mapWithKeys(fn (string $body, int|string $id): array => [(int) $id => $body])
+            ->all();
     }
 }

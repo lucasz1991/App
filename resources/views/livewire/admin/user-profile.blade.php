@@ -51,9 +51,16 @@
         </x-ui.dropdown.page-actions>
     </x-slot:actions>
 
-    {{-- Identitaets-Card: klar, horizontal, ohne Cover/ueberlappenden Avatar.
-         Die Aurora nimmt die Fluid-Farbwelt des Lade-Orbs dezent auf. --}}
-    <div class="relative overflow-hidden rounded-2xl bg-rt-surface p-5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60" data-anim="fade-up" data-rt-glow>
+    <div class="relative space-y-5" data-autosave-scope>
+      <x-ui.autosave-status
+          event="employee-profile-field-saved"
+          target=""
+          dirty-target="inlineValues"
+      />
+
+      {{-- Identitaets-Card: klar, horizontal, ohne Cover/ueberlappenden Avatar.
+           Die Aurora nimmt die Fluid-Farbwelt des Lade-Orbs dezent auf. --}}
+      <div class="relative overflow-hidden rounded-2xl bg-rt-surface p-5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60" data-anim="fade-up" data-rt-glow>
         <span class="rt-profile-aurora" aria-hidden="true"></span>
         <div class="flex flex-col gap-5 sm:flex-row sm:items-center">
             <span class="relative shrink-0">
@@ -74,13 +81,35 @@
 
             <div class="min-w-0 flex-1">
                 <div class="flex flex-wrap items-center gap-2">
-                    <h2 class="text-xl font-semibold tracking-tight text-rt-text dark:text-rt-dark-text">{{ $user->name }}</h2>
+                    <div class="min-w-[12rem] max-w-full flex-1 sm:max-w-xl">
+                        <x-ui.inline-edit-field
+                            id="employee-header-name"
+                            field="name"
+                            type="text"
+                            :can-edit="$canEditEmployee"
+                            autocomplete="name"
+                            align="left"
+                        >
+                            <span class="truncate text-xl font-semibold tracking-tight">{{ $user->name }}</span>
+                        </x-ui.inline-edit-field>
+                    </div>
                     <x-ui.badge :color="$roleColor">
                         <i class="far fa-user-tag"></i>
                         {{ $roleLabel }}
                     </x-ui.badge>
                 </div>
-                <p class="mt-0.5 truncate text-sm text-rt-muted dark:text-rt-dark-muted">{{ $user->email }}</p>
+                <div class="mt-0.5 max-w-full sm:max-w-xl">
+                    <x-ui.inline-edit-field
+                        id="employee-header-email"
+                        field="email"
+                        type="email"
+                        :can-edit="$canEditEmployee"
+                        autocomplete="email"
+                        align="left"
+                    >
+                        <span class="truncate text-sm text-rt-muted dark:text-rt-dark-muted">{{ $user->email }}</span>
+                    </x-ui.inline-edit-field>
+                </div>
 
                 <div class="mt-3 flex flex-wrap items-center gap-2">
                     <x-ui.badge :color="$user->isActive() ? 'green' : 'red'">
@@ -108,7 +137,7 @@
                 </div>
             </div>
         </div>
-    </div>
+      </div>
 
     @php
         $employeeProfileTabs = [
@@ -146,23 +175,35 @@
                     {{ __('app.personal_data') }}
                 </h3>
                 <dl class="mt-4 divide-y divide-rt-border/60 dark:divide-rt-dark-border/60">
-                    <div class="flex items-baseline justify-between gap-4 py-2.5">
-                        <dt class="text-xs uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.username') }}</dt>
-                        <dd class="text-right text-sm font-medium text-rt-text dark:text-rt-dark-text">{{ $user->name }}</dd>
+                    <div class="flex items-start justify-between gap-4 py-2.5">
+                        <dt class="shrink-0 pt-2 text-xs uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.username') }}</dt>
+                        <dd class="min-w-0 flex-1">
+                            <x-ui.inline-edit-field id="employee-details-name" field="name" :can-edit="$canEditEmployee">
+                                {{ $user->name }}
+                            </x-ui.inline-edit-field>
+                        </dd>
                     </div>
-                    <div class="flex items-baseline justify-between gap-4 py-2.5">
-                        <dt class="text-xs uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.birth_date') }}</dt>
-                        <dd class="text-right text-sm font-medium text-rt-text dark:text-rt-dark-text">{{ $profile?->birth_date ? $profile->birth_date->format('d.m.Y') : '–' }}</dd>
+                    <div class="flex items-start justify-between gap-4 py-2.5">
+                        <dt class="shrink-0 pt-2 text-xs uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.birth_date') }}</dt>
+                        <dd class="min-w-0 flex-1">
+                            <x-ui.inline-edit-field id="employee-details-birth-date" field="birth_date" type="date" :can-edit="$canEditEmployee">
+                                {{ $profile?->birth_date?->format('d.m.Y') ?: __('app.not_set') }}
+                            </x-ui.inline-edit-field>
+                        </dd>
                     </div>
                     @if ($canViewMasterData)
-                        <div class="flex items-baseline justify-between gap-4 py-2.5">
-                            <dt class="text-xs uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.personnel_nr') }}</dt>
-                            <dd class="text-right text-sm font-medium text-rt-text dark:text-rt-dark-text">{{ $profile?->personnel_nr ?: '–' }}</dd>
+                        <div class="flex items-start justify-between gap-4 py-2.5">
+                            <dt class="shrink-0 pt-2 text-xs uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.personnel_nr') }}</dt>
+                            <dd class="min-w-0 flex-1">
+                                <x-ui.inline-edit-field id="employee-details-personnel-nr" field="personnel_nr" :can-edit="$canEditMasterData">
+                                    {{ $profile?->personnel_nr ?: __('app.not_set') }}
+                                </x-ui.inline-edit-field>
+                            </dd>
                         </div>
                     @endif
-                    <div class="flex items-baseline justify-between gap-4 py-2.5">
-                        <dt class="text-xs uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.registered_at') }}</dt>
-                        <dd class="text-right text-sm font-medium text-rt-text dark:text-rt-dark-text">{{ $user->created_at->format('d.m.Y') }}</dd>
+                    <div class="flex items-start justify-between gap-4 py-2.5">
+                        <dt class="shrink-0 pt-2 text-xs uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.registered_at') }}</dt>
+                        <dd class="pt-2 text-right text-sm font-medium text-rt-text dark:text-rt-dark-text">{{ $user->created_at->format('d.m.Y') }}</dd>
                     </div>
                 </dl>
             </section>
@@ -176,37 +217,40 @@
                     {{ __('app.contact') }}
                 </h3>
                 <dl class="mt-4 divide-y divide-rt-border/60 dark:divide-rt-dark-border/60">
-                    <div class="flex items-baseline justify-between gap-4 py-2.5">
-                        <dt class="text-xs uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.email') }}</dt>
-                        <dd class="flex items-center justify-end gap-2 text-right text-sm font-medium text-rt-text dark:text-rt-dark-text">
-                            <span class="break-all">{{ $user->email }}</span>
-                            @if ($user->email_verified_at)
-                                <i class="far fa-check-circle shrink-0 text-emerald-500 dark:text-emerald-400" title="{{ __('app.email_verified') }}"></i>
-                            @else
-                                <i class="far fa-exclamation-circle shrink-0 text-amber-500 dark:text-amber-400" title="{{ __('app.email_not_verified') }}"></i>
-                            @endif
-                        </dd>
-                    </div>
-                    <div class="flex items-baseline justify-between gap-4 py-2.5">
-                        <dt class="text-xs uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.phone') }}</dt>
-                        <dd class="text-right text-sm font-medium text-rt-text dark:text-rt-dark-text">{{ $profile?->phone ?: '–' }}</dd>
-                    </div>
-                    <div class="flex items-baseline justify-between gap-4 py-2.5">
-                        <dt class="text-xs uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.mobile') }}</dt>
-                        <dd class="text-right text-sm font-medium text-rt-text dark:text-rt-dark-text">{{ $profile?->mobile ?: '–' }}</dd>
-                    </div>
-                    <div class="flex items-baseline justify-between gap-4 py-2.5">
-                        <dt class="shrink-0 text-xs uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.address') }}</dt>
-                        <dd class="text-right text-sm font-medium text-rt-text dark:text-rt-dark-text">
-                            @if ($profile && ($profile->street || $profile->postal_code || $profile->city || $profile->country))
-                                {{ $profile->street ?: '' }}<br>
-                                {{ trim(($profile->postal_code ?? '') . ' ' . ($profile->city ?? '')) }}
-                                @if ($profile->country)<br>{{ $profile->country }}@endif
-                            @else
-                                <span class="text-rt-muted dark:text-rt-dark-muted">{{ __('app.no_address') }}</span>
-                            @endif
-                        </dd>
-                    </div>
+                    @foreach ([
+                        ['email', 'email', 'email', 'email'],
+                        ['phone', 'phone', 'text', 'tel'],
+                        ['mobile', 'mobile', 'text', 'tel'],
+                        ['street', 'street', 'text', 'street-address'],
+                        ['postal_code', 'postal_code', 'text', 'postal-code'],
+                        ['city', 'city', 'text', 'address-level2'],
+                        ['country', 'country', 'text', 'country-name'],
+                    ] as [$field, $label, $type, $autocomplete])
+                        @php
+                            $value = $field === 'email' ? $user->email : $profile?->{$field};
+                        @endphp
+                        <div class="flex items-start justify-between gap-4 py-2.5">
+                            <dt class="shrink-0 pt-2 text-xs uppercase tracking-wide text-rt-muted dark:text-rt-dark-muted">{{ __('app.'.$label) }}</dt>
+                            <dd class="min-w-0 flex-1">
+                                <x-ui.inline-edit-field
+                                    :id="'employee-contact-'.$field"
+                                    :field="$field"
+                                    :type="$type"
+                                    :autocomplete="$autocomplete"
+                                    :can-edit="$canEditEmployee"
+                                >
+                                    <span class="break-words">{{ $value ?: __('app.not_set') }}</span>
+                                    @if ($field === 'email')
+                                        @if ($user->email_verified_at)
+                                            <i class="far fa-check-circle shrink-0 text-emerald-500 dark:text-emerald-400" title="{{ __('app.email_verified') }}"></i>
+                                        @else
+                                            <i class="far fa-exclamation-circle shrink-0 text-amber-500 dark:text-amber-400" title="{{ __('app.email_not_verified') }}"></i>
+                                        @endif
+                                    @endif
+                                </x-ui.inline-edit-field>
+                            </dd>
+                        </div>
+                    @endforeach
                 </dl>
             </section>
           </div>
@@ -254,6 +298,7 @@
             </x-ui.accordion.tab-panel>
         @endif
     </x-ui.accordion.tabs>
+    </div>
   </x-ui.page>
 
     {{-- Compose-Modal fuer den Nachrichten-Tab --}}

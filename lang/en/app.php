@@ -296,6 +296,7 @@ return [
     'teams_permissions_hint' => 'Central permission management with exactly one permission set per team.',
     'created' => 'Created',
     'edit' => 'Edit',
+    'double_click_to_edit' => 'Double-click to edit',
     'activate' => 'Activate',
     'deactivate' => 'Deactivate',
     'save' => 'Save',

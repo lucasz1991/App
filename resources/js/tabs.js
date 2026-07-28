@@ -202,14 +202,13 @@ export function railtimeTabs(config = {}) {
             });
         },
 
-        selectTab(id, focusTab = false, revealTab = true) {
+        selectTab(id, focusTab = false) {
             const nextIndex = this.items.findIndex((item) => item.id === id);
             if (nextIndex < 0) return;
 
             if (this.mobileTabs) {
                 this.settleToIndex(nextIndex, {
                     focusTab,
-                    keepVisible: revealTab,
                 });
                 return;
             }
@@ -225,7 +224,6 @@ export function railtimeTabs(config = {}) {
                 this.updatePanelHeight(true);
                 this.animateSelection();
                 this.queueAdjacentPreload();
-                if (revealTab) this.keepSelectedPanelVisible();
 
                 if (focusTab) {
                     this.tabElement(id)?.focus({ preventScroll: true });
@@ -589,7 +587,6 @@ export function railtimeTabs(config = {}) {
                 this.animateSelection();
                 this.queueAdjacentPreload();
 
-                if (options.keepVisible !== false) this.keepSelectedPanelVisible();
                 if (options.focusTab) {
                     this.tabElement(target.id)?.focus({ preventScroll: true });
                 }
@@ -675,40 +672,6 @@ export function railtimeTabs(config = {}) {
             });
             this.panelMutationObserver.observe(this.$refs.panelTrack, {
                 childList: true,
-            });
-        },
-
-        keepSelectedPanelVisible() {
-            if (!this.stickyEnabled) return;
-
-            window.requestAnimationFrame(() => {
-                const shell = this.$refs.shell;
-                const panel = this.panelElement(this.openTab);
-                if (!shell || !panel) return;
-
-                const topbar = document.querySelector('.rt-shell-topbar');
-                const topbarBottom = topbar?.getBoundingClientRect().bottom;
-                const topOffset = Math.max(70, Number.isFinite(topbarBottom) ? topbarBottom : 70) + 8;
-                const shellRect = shell.getBoundingClientRect();
-                const panelRect = panel.getBoundingClientRect();
-                const viewportBottom = window.visualViewport
-                    ? window.visualViewport.offsetTop + window.visualViewport.height
-                    : window.innerHeight;
-                const panelFullyVisible = panelRect.top >= shellRect.bottom - 1
-                    && panelRect.bottom <= viewportBottom - 8;
-
-                if (
-                    Math.abs(shellRect.top - topOffset) <= 12
-                    || panelFullyVisible
-                ) return;
-
-                const target = Math.max(0, window.scrollY + shellRect.top - topOffset);
-                if (Math.abs(target - window.scrollY) < 8) return;
-
-                window.scrollTo({
-                    top: target,
-                    behavior: this.reducedMotion() ? 'auto' : 'smooth',
-                });
             });
         },
 
