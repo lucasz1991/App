@@ -28,7 +28,7 @@
     />
 
     <div
-        class="grid min-w-0 gap-3 sm:gap-4"
+        class="grid min-w-0 gap-5 sm:gap-6"
         x-data="adminDashboardCharts(@js($chartConfig))"
         data-admin-dashboard
     >
@@ -42,7 +42,7 @@
                 <circle class="rt-admin-route-end" cx="680" cy="58" r="5" />
             </svg>
 
-            <div class="relative z-10 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,30rem)] lg:items-center" data-dashboard-items>
+            <div class="relative z-10 grid gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,30rem)] lg:items-center" data-dashboard-items>
                 <div class="max-w-3xl">
                     <div class="mb-3 flex flex-wrap items-center gap-2.5">
                         <span class="rt-admin-hero-badge inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-semibold tracking-[0.13em] text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200">
@@ -154,7 +154,7 @@
                     </span>
                 </header>
 
-                <div class="rt-admin-operations-grid relative z-10 grid grid-cols-2 gap-2 px-3 pb-3 sm:px-4 sm:pb-4 md:grid-cols-4" data-operational-preview data-dashboard-items>
+                <div class="rt-admin-operations-grid relative z-10 grid grid-cols-2 gap-3 px-3 pb-3 sm:gap-4 sm:px-4 sm:pb-4 md:grid-cols-4" data-operational-preview data-dashboard-items>
                     @foreach ($operationalPreviews as $previewModule)
                         <a
                             href="{{ route('admin.operations.preview', ['module' => $previewModule['slug']]) }}"
@@ -181,7 +181,7 @@
         @endif
 
         {{-- Vier gleichwertige Kennzahlen in einer durchgehenden Zeile. --}}
-        <section class="order-2 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-2.5" aria-label="{{ __('app.dashboard') }}" data-dashboard-segment="kpis" data-dashboard-kpis data-dashboard-items>
+        <section class="order-2 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4" aria-label="{{ __('app.dashboard') }}" data-dashboard-segment="kpis" data-dashboard-kpis data-dashboard-items>
             <article class="rt-admin-panel rt-admin-panel-accent group relative min-w-0 overflow-hidden rounded-[1.15rem] p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md sm:p-3.5">
                 <div class="flex items-center justify-between gap-1.5">
                     <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-rt-red dark:border-slate-700 dark:bg-slate-800"><i data-feather="users" class="h-3.5 w-3.5"></i></span>
@@ -221,7 +221,7 @@
         </section>
 
         {{-- Feine SVG-Diagramme mit Apache ECharts 6. --}}
-        <section class="order-4 grid gap-3 md:grid-cols-12" aria-label="{{ __('app.user_growth') }}" data-dashboard-segment="charts" data-dashboard-items>
+        <section class="order-4 grid gap-3 sm:gap-4 md:grid-cols-12" aria-label="{{ __('app.user_growth') }}" data-dashboard-segment="charts" data-dashboard-items>
             <article class="rt-admin-panel overflow-hidden rounded-2xl p-4 md:col-span-8 xl:col-span-6">
                 <header class="flex flex-wrap items-start justify-between gap-3">
                     <div>
@@ -246,7 +246,7 @@
                     <span class="text-xs font-semibold tabular-nums text-rt-muted dark:text-rt-dark-muted">{{ $activeRate }}%</span>
                 </div>
                 <div class="rt-admin-chart h-[132px]" x-ref="statusChart" aria-label="{{ __('app.account_status') }}"></div>
-                <dl class="grid grid-cols-2 gap-2 border-t border-slate-200 pt-2.5 dark:border-slate-700">
+                <dl class="grid grid-cols-2 gap-3 border-t border-slate-200 pt-2.5 sm:gap-4 dark:border-slate-700">
                     <div>
                         <dt class="flex items-center gap-2 text-[10px] text-rt-muted dark:text-rt-dark-muted"><span class="h-2 w-2 rounded-full bg-rt-red"></span>{{ __('app.active_users') }}</dt>
                         <dd class="mt-1 text-sm font-semibold tabular-nums text-rt-text dark:text-white">{{ number_format($charts['status']['values'][0] ?? 0, 0, ',', '.') }}</dd>
@@ -269,7 +269,7 @@
             </article>
         </section>
 
-        <section class="order-5 grid gap-3 md:grid-cols-12" data-dashboard-segment="accounts" data-dashboard-items>
+        <section class="order-5 grid gap-3 sm:gap-4 md:grid-cols-12" data-dashboard-segment="accounts" data-dashboard-items>
             {{-- Neueste Benutzer --}}
             <article class="rt-admin-panel rounded-2xl md:col-span-8">
                 <header class="flex items-center justify-between gap-4 border-b border-slate-200 px-4 py-3.5 sm:px-5 dark:border-slate-700">
@@ -309,7 +309,7 @@
             <article class="rt-admin-panel rounded-2xl p-4 md:col-span-4">
                 <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.admin_control_center') }}</p>
                 <h2 class="mt-1 text-lg font-semibold text-rt-text dark:text-white">{{ __('app.quick_access') }}</h2>
-                <div class="mt-3 grid grid-cols-2 gap-2" data-dashboard-items>
+                <div class="mt-3 grid grid-cols-2 gap-3 sm:gap-4" data-dashboard-items>
                     @can('employees.view')
                         <a href="{{ route('admin.employees') }}" wire:navigate class="rt-admin-quick-link group min-h-20 rounded-xl border border-slate-200 bg-slate-50 p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red hover:bg-rt-red hover:text-white hover:shadow-rt-glow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red dark:border-slate-700 dark:bg-slate-800 dark:text-white" data-rt-glow>
                             <i data-feather="users" class="h-5 w-5 text-rt-red transition group-hover:text-white"></i>
@@ -338,7 +338,7 @@
             </article>
         </section>
 
-        <section class="order-6 grid gap-3 {{ $canViewSystemData && $system ? 'md:grid-cols-12' : '' }}" data-dashboard-segment="system" data-dashboard-items>
+        <section class="order-6 grid gap-3 sm:gap-4 {{ $canViewSystemData && $system ? 'md:grid-cols-12' : '' }}" data-dashboard-segment="system" data-dashboard-items>
             <article class="rt-admin-panel rounded-2xl p-4 {{ $canViewSystemData && $system ? 'md:col-span-5' : '' }}">
                 <div class="flex items-center justify-between gap-3">
                     <div>

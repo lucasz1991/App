@@ -75,7 +75,21 @@ class UpdateContactInformationForm extends Component
             'education' => $this->education ?: null,
         ]);
 
-        $this->dispatch('contact-saved');
+        $this->dispatch('contact-saved', fields: [
+            'first_name',
+            'last_name',
+            'phone',
+            'mobile',
+            'street',
+            'postal_code',
+            'city',
+            'country',
+            'birth_date',
+            'birth_place',
+            'birth_name',
+            'nationality',
+            'education',
+        ]);
     }
 
     /**

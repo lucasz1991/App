@@ -62,6 +62,15 @@
 
             try {
                 await this.$wire.cancelInlineField(@js($field));
+                const scope = this.$el.closest('[data-autosave-scope]');
+                scope?.dispatchEvent(new CustomEvent('rt-autosave-reset', {
+                    bubbles: true,
+                    detail: {
+                        scope,
+                        model: @js($wireModel),
+                        fieldId: @js($inputId),
+                    },
+                }));
                 this.editing = false;
             } finally {
                 this.saving = false;
@@ -70,6 +79,10 @@
     }"
     class="min-w-0 flex-1"
     data-inline-edit-field="{{ $field }}"
+    data-autosave-field
+    data-autosave-model="{{ $wireModel }}"
+    data-autosave-field-id="{{ $inputId }}"
+    data-autosave-state="idle"
 >
     @if ($canEdit)
         <button

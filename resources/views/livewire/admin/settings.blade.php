@@ -16,7 +16,7 @@
         :aria-label="__('app.settings')"
         content-class="mt-4 sm:mt-6"
     >
-    <x-ui.accordion.tab-panel for="system" panel-class="space-y-6">
+    <x-ui.accordion.tab-panel for="system" content-class="space-y-6">
     {{-- Wartungsmodus-Warnbanner --}}
     @if ($maintenanceMode)
         <div
@@ -34,6 +34,11 @@
         data-anim="fade-up"
         data-autosave-scope
     >
+        <x-ui.autosave-status
+            event="system-settings-saved"
+            target="saveSystem"
+            dirty-target="maintenanceMode"
+        />
         <div class="rounded-[calc(1rem-2px)] bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6" data-rt-glow>
             <div class="flex min-w-0 items-start gap-3 sm:gap-4">
                 <span class="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent sm:flex">
@@ -59,12 +64,8 @@
                     </p>
                 </div>
                 <div class="shrink-0 self-start sm:self-center">
-                    <x-ui.forms.toggle-button model="maintenanceMode" />
+                    <x-ui.forms.toggle-button model="maintenanceMode" data-autosave-instant="true" />
                 </div>
-            </div>
-
-            <div class="mt-5">
-                <x-ui.autosave-status event="system-settings-saved" target="saveSystem" />
             </div>
         </div>
     </section>
@@ -72,7 +73,7 @@
 
     {{-- Toene: eigener, sichtbarer Tab — systemweite Standards je Ereignis,
          mit Sofort-Vorschau beim Auswaehlen. --}}
-    <x-ui.accordion.tab-panel for="sounds" panel-class="space-y-6">
+    <x-ui.accordion.tab-panel for="sounds" content-class="space-y-6">
     <section
         class="relative min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 sm:p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60"
         data-anim="fade-up"
@@ -80,6 +81,7 @@
         data-sound-settings
         data-autosave-scope
     >
+        <x-ui.autosave-status event="sound-settings-saved" target="saveSounds" dirty-target="sounds" />
         <div class="rounded-[calc(1rem-2px)] bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6" data-rt-glow>
             <div class="flex min-w-0 items-start gap-3 sm:gap-4">
                 <span class="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent sm:flex">
@@ -98,21 +100,22 @@
             <div class="mt-4 sm:mt-5">
                 <x-ui.forms.sound-picker model="sounds" />
             </div>
-
-            <div class="mt-5">
-                <x-ui.autosave-status event="sound-settings-saved" target="saveSounds" dirty-target="sounds" />
-            </div>
         </div>
     </section>
     </x-ui.accordion.tab-panel>
 
     {{-- Einladungen --}}
-    <x-ui.accordion.tab-panel for="users" panel-class="space-y-6">
+    <x-ui.accordion.tab-panel for="users" content-class="space-y-6">
     <section
         class="relative min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 sm:p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60"
         data-anim="fade-up"
         data-autosave-scope
     >
+        <x-ui.autosave-status
+            event="invitation-settings-saved"
+            target="saveInvitations"
+            dirty-target="invitationExpiryDays"
+        />
         <div class="rounded-[calc(1rem-2px)] bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6" data-rt-glow>
         <div class="flex min-w-0 items-start gap-3 sm:gap-4">
             <span class="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent sm:flex">
@@ -149,21 +152,18 @@
                 {{ __('app.invitation_expiry_hint') }}
             </p>
         </div>
-
-        <div class="mt-5">
-            <x-ui.autosave-status event="invitation-settings-saved" target="saveInvitations" dirty-target="invitationExpiryDays" />
-        </div>
         </div>
     </section>
     </x-ui.accordion.tab-panel>
 
     {{-- E-Mails --}}
-    <x-ui.accordion.tab-panel for="general" panel-class="space-y-6">
+    <x-ui.accordion.tab-panel for="general" content-class="space-y-6">
     <section
         class="relative min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 sm:p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60"
         data-anim="fade-up"
         data-autosave-scope
     >
+        <x-ui.autosave-status event="mail-settings-saved" target="saveMails" dirty-target="adminEmail" />
         <div class="rounded-[calc(1rem-2px)] bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6" data-rt-glow>
         <div class="flex min-w-0 items-start gap-3 sm:gap-4">
             <span class="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent sm:flex">
@@ -198,20 +198,21 @@
                 {{ __('app.admin_email_hint') }}
             </p>
         </div>
-
-        <div class="mt-5">
-            <x-ui.autosave-status event="mail-settings-saved" target="saveMails" dirty-target="adminEmail" />
-        </div>
         </div>
     </section>
     </x-ui.accordion.tab-panel>
 
-    <x-ui.accordion.tab-panel for="company" panel-class="space-y-6">
+    <x-ui.accordion.tab-panel for="company" content-class="space-y-6">
         <section
             class="relative min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 sm:p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60"
             data-anim="fade-up"
             data-autosave-scope
         >
+            <x-ui.autosave-status
+                event="company-settings-saved"
+                target="saveCompany"
+                dirty-target="company.name,company.email,company.street,company.postal_code,company.city,company.country,company.phone,company.emergency_phone,company.website,company.managing_directors,company.register_court,company.commercial_register_number,company.vat_id,company.tax_number"
+            />
             <div class="rounded-[calc(1rem-2px)] bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6" data-rt-glow>
             <div class="flex min-w-0 items-start gap-3 sm:gap-4">
                 <span class="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent sm:flex">
@@ -261,14 +262,6 @@
                                     @enderror
                                 </div>
                             @endforeach
-                </div>
-
-                <div class="mt-6 flex flex-col border-t border-rt-border/70 pt-5 dark:border-rt-dark-border/70 sm:flex-row sm:items-center sm:justify-end">
-                    <x-ui.autosave-status
-                        event="company-settings-saved"
-                        target="saveCompany"
-                        dirty-target="company.name,company.email,company.street,company.postal_code,company.city,company.country,company.phone,company.emergency_phone,company.website,company.managing_directors,company.register_court,company.commercial_register_number,company.vat_id,company.tax_number"
-                    />
                 </div>
             </form>
             </div>

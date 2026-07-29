@@ -41,12 +41,14 @@ table, .tabular-nums, [data-stat] {
 
 html {
     scroll-behavior: smooth;
+    touch-action: manipulation;
 }
 
 /* iOS zoomt Formfelder unter 16 px beim Fokus automatisch. Die gemeinsamen
    Komponenten tragen text-base bereits als Klasse; diese mobile Schutzschicht
    deckt auch Flatpickr-Alt-Inputs und vereinzelte native Felder sicher ab. */
-@media (max-width: 639px) {
+@media (max-width: 767.98px), (hover: none) and (pointer: coarse) {
+    input:not([type]),
     input[type='text'],
     input[type='email'],
     input[type='password'],
@@ -59,6 +61,7 @@ html {
     input[type='datetime-local'],
     input[type='month'],
     input[type='week'],
+    input[type='file'],
     select,
     textarea {
         font-size: 1rem !important;
@@ -2841,7 +2844,7 @@ body[data-mode='dark'] .rt-employee-mobile-header {
     color: #aeb9c9;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 767.98px) {
     .rt-employee-table {
         margin-top: 0;
         border-radius: 0 0 0.75rem 0.75rem;
@@ -3753,14 +3756,52 @@ body[data-mode='dark'] .rt-expandable-search__clear:hover {
         position: static;
     }
 
-    .rt-expandable-search[data-search-context='topbar'].is-expanded {
-        position: absolute;
-        left: 0.5rem;
-        right: 0.5rem;
+    .rt-expandable-search[data-search-context='topbar'].is-mobile-layer {
+        position: fixed;
+        top: 0;
+        right: 0;
+        left: 0;
         z-index: 60;
-        width: auto;
-        filter: drop-shadow(0 16px 18px rgba(15, 23, 42, 0.18));
+        box-sizing: border-box;
+        width: 100vw;
+        width: 100dvw;
+        min-width: 100vw;
+        min-width: 100dvw;
+        height: 4.375rem;
+        padding: 0.9375rem 0.75rem;
+        border-radius: 0;
+        background: #fff;
+        filter: drop-shadow(0 16px 22px rgba(15, 23, 42, 0.16));
     }
+
+    .rt-expandable-search[data-search-context='topbar'].is-mobile-layer .rt-expandable-search__input {
+        position: absolute;
+        top: 0.9375rem;
+        right: 0.75rem;
+        left: 0.75rem;
+        width: calc(100% - 1.5rem);
+        height: 2.5rem;
+    }
+
+    .rt-expandable-search[data-search-context='topbar'].is-mobile-layer .rt-expandable-search__trigger {
+        top: 0.9375rem;
+        bottom: auto;
+        left: 0.75rem;
+        height: 2.5rem;
+    }
+
+    .rt-expandable-search[data-search-context='topbar'].is-mobile-layer .rt-expandable-search__clear {
+        top: 0.9375rem;
+        right: 0.75rem;
+        bottom: auto;
+        height: 2.5rem;
+    }
+}
+
+html.rt-topbar-search-open,
+html.rt-topbar-search-open body {
+    overflow: hidden !important;
+    overscroll-behavior: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -4179,5 +4220,52 @@ body[data-mode="dark"][data-sidebar-collapsible="true"][data-sidebar-expanded="t
 @media (prefers-reduced-motion: reduce) {
     .rt-menu-icon > span {
         transition: none;
+    }
+}
+
+/* Feldgenaues Autosave-Feedback
+   --------------------------------
+   Die Outline ist auf echte Autosave-Scopes und aktive Zustaende begrenzt.
+   Sie veraendert weder Layout noch Radius/Transitions der Form-Komponente. */
+[data-autosave-scope] [data-autosave-field][data-autosave-state="dirty"],
+[data-autosave-scope] [data-autosave-field][data-autosave-state="saving"] {
+    outline: 2px solid rgba(245, 158, 11, 0.88);
+    outline-offset: 2px;
+}
+
+[data-autosave-scope] [data-autosave-field][data-autosave-state="saving"] {
+    animation: rt-autosave-saving-ring 900ms ease-in-out infinite alternate;
+}
+
+[data-autosave-scope] [data-autosave-field][data-autosave-state="saved"] {
+    outline: 2px solid rgba(16, 185, 129, 0.9);
+    outline-offset: 2px;
+}
+
+html.dark [data-autosave-scope] [data-autosave-field][data-autosave-state="dirty"],
+html.dark [data-autosave-scope] [data-autosave-field][data-autosave-state="saving"],
+body[data-mode="dark"] [data-autosave-scope] [data-autosave-field][data-autosave-state="dirty"],
+body[data-mode="dark"] [data-autosave-scope] [data-autosave-field][data-autosave-state="saving"] {
+    outline-color: rgba(251, 191, 36, 0.94);
+}
+
+html.dark [data-autosave-scope] [data-autosave-field][data-autosave-state="saved"],
+body[data-mode="dark"] [data-autosave-scope] [data-autosave-field][data-autosave-state="saved"] {
+    outline-color: rgba(52, 211, 153, 0.94);
+}
+
+@keyframes rt-autosave-saving-ring {
+    from {
+        outline-color: rgba(245, 158, 11, 0.56);
+    }
+
+    to {
+        outline-color: rgba(245, 158, 11, 1);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    [data-autosave-scope] [data-autosave-field][data-autosave-state="saving"] {
+        animation: none;
     }
 }

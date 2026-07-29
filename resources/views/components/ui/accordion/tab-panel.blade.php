@@ -1,7 +1,16 @@
 @props([
     'for' => null,
-    'panelClass' => 'space-y-6',
+    'panelClass' => null,
+    'contentClass' => null,
 ])
+
+@php
+    // Vor dem Lazy-Loading-Wrapper lagen Slot-Inhalte direkt im Panel. Der
+    // Default-Abstand bleibt fuer Aufrufe ohne eigene Panel-Klasse erhalten;
+    // explizite Layoutklassen werden dagegen getrennt am Content angewendet.
+    $resolvedPanelClass = $panelClass ?? '';
+    $resolvedContentClass = $contentClass ?? (is_null($panelClass) ? 'space-y-6' : '');
+@endphp
 
 <div
     x-show="mobileTabs || openTab === @js((string) $for)"
@@ -20,12 +29,12 @@
     :inert="openTab !== @js((string) $for)"
     :data-active="openTab === @js((string) $for) ? 'true' : 'false'"
     :data-loaded="isTabLoaded(@js((string) $for)) ? 'true' : 'false'"
-    class="rt-tab-panel {{ $panelClass }}"
+    class="rt-tab-panel {{ $resolvedPanelClass }}"
 >
     <div
         x-show="isTabLoaded(@js((string) $for))"
         data-rt-tab-content
-        class="rt-tab-panel-content"
+        class="rt-tab-panel-content {{ $resolvedContentClass }}"
     >
         {{ $slot }}
     </div>

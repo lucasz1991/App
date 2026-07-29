@@ -1,11 +1,12 @@
 <div class="relative min-w-0" wire:loading.class="cursor-wait" data-user-dashboard>
-    <x-ui.page :auto-intro="false" class="space-y-5 sm:space-y-6">
+    <x-ui.page :auto-intro="false">
         {{-- Allererster Besuch der Anwendung: festliches Willkommens-Intro
              (ersetzt hier die automatische Seiteninfo). --}}
         @if (\App\Support\PageViews::firstVisit(auth()->user(), 'intro:welcome'))
             <x-ui.welcome-intro />
         @endif
 
+        <div class="space-y-5 sm:space-y-6" data-dashboard-stack>
         {{-- Gemeinsamer, klar markierter Einstieg fuer Mitarbeiter und Gaeste. --}}
         <x-ui.dashboard.role-hero
             :title="__('app.welcome_name', ['name' => auth()->user()->name])"
@@ -29,7 +30,7 @@
 
             <x-slot:metrics>
                 {{-- Nur echte persoenliche Kennzahlen; Vorschau-Inhalte folgen separat. --}}
-                <div class="grid gap-2.5 sm:grid-cols-3" data-anim-stagger>
+                <div class="grid gap-3 sm:grid-cols-3 sm:gap-4" data-anim-stagger>
                     <x-ui.dashboard.operational-stat
                         :label="__('app.available_files')"
                         :value="number_format($filesTotal, 0, ',', '.')"
@@ -67,7 +68,7 @@
                         <h2 id="next-order-title" class="mt-1 text-3xl font-bold tracking-[-0.04em] text-rt-text sm:text-4xl dark:text-white">{{ $nextOrder['train'] }}</h2>
                         <p class="mt-2 text-base font-semibold text-rt-muted dark:text-rt-dark-muted">{{ $nextOrder['route'] }}</p>
 
-                        <dl class="mt-5 grid gap-2.5 text-sm sm:mt-6 sm:grid-cols-3">
+                        <dl class="mt-5 grid gap-3 text-sm sm:mt-6 sm:grid-cols-3 sm:gap-4">
                             <div class="rounded-2xl bg-rt-surface-muted/70 p-3.5 ring-1 ring-inset ring-rt-border/60 dark:bg-rt-dark-surface-muted/50 dark:ring-rt-dark-border/60">
                                 <dt class="text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.time') }}</dt>
                                 <dd class="mt-1 font-bold text-rt-text dark:text-white">{{ $nextOrder['date'] }} · {{ $nextOrder['time'] }}</dd>
@@ -109,7 +110,7 @@
         </section>
 
         {{-- Dienstplan + Termine gibt es nur fuer das Team Mitarbeiter und sind klar als Vorschau markiert. --}}
-        <div class="grid gap-4 lg:grid-cols-12" data-anim="fade-up">
+        <div class="grid gap-3 sm:gap-4 lg:grid-cols-12" data-anim="fade-up">
             {{-- Naechste Schichten --}}
             <section class="min-w-0 rounded-[1.75rem] bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/70 sm:p-6 lg:col-span-8 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70" aria-labelledby="dashboard-next-shifts">
                 <x-ui.dashboard.section-heading
@@ -169,7 +170,7 @@
         @endif
 
         {{-- Möglichkeiten & Infos: Schnellzugriff, Nachrichten, Profil-Status --}}
-        <div class="grid gap-4 lg:grid-cols-12" data-anim="fade-up" data-anim-delay="0.05">
+        <div class="grid gap-3 sm:gap-4 lg:grid-cols-12" data-anim="fade-up" data-anim-delay="0.05">
             {{-- Schnellzugriff --}}
             <section class="min-w-0 rounded-[1.75rem] bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/70 sm:p-6 lg:col-span-5 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70" aria-labelledby="dashboard-quick-access">
                 <x-ui.dashboard.section-heading
@@ -178,7 +179,7 @@
                     id="dashboard-quick-access"
                     icon="zap"
                 />
-                <div class="mt-5 grid gap-3 sm:grid-cols-2">
+                <div class="mt-5 grid gap-3 sm:grid-cols-2 sm:gap-4">
                     <x-ui.dashboard.quick-action
                         :href="route('files')"
                         :title="__('app.download_center')"
@@ -242,7 +243,7 @@
             </section>
         </div>
 
-        <div class="grid gap-4 lg:grid-cols-12" data-anim="fade-up" data-anim-delay="0.08">
+        <div class="grid gap-3 sm:gap-4 lg:grid-cols-12" data-anim="fade-up" data-anim-delay="0.08">
             {{-- Profil-Status --}}
             <section class="min-w-0 rounded-[1.75rem] bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/70 sm:p-6 lg:col-span-4 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70" aria-labelledby="dashboard-profile">
                 <x-ui.dashboard.section-heading
@@ -300,7 +301,7 @@
             </x-ui.dashboard.section-heading>
 
             @if ($recentFiles->isNotEmpty())
-                <div class="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6" data-dashboard-files>
+                <div class="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 xl:grid-cols-6" data-dashboard-files>
                     @foreach ($recentFiles as $file)
                         <div class="min-w-0" wire:key="dash-file-{{ $file->id }}">
                             <x-ui.filepool.file-card :file="$file" :read-only="true" />
@@ -314,6 +315,7 @@
                 </div>
             @endif
         </section>
+        </div>
         </div>
     </x-ui.page>
 </div>

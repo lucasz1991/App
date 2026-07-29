@@ -66,7 +66,10 @@ class Settings extends Component
             }
         }
 
-        $this->dispatch('sound-settings-saved');
+        $this->dispatch(
+            'sound-settings-saved',
+            fields: array_map(fn (string $event): string => 'sounds.'.$event, SoundLibrary::events()),
+        );
 
         // Neue wirksame Zuordnung sofort im Browser uebernehmen (rt-sounds.js).
         $this->dispatch('rt-sounds:map', map: SoundLibrary::mapFor(auth()->user()));
@@ -82,7 +85,7 @@ class Settings extends Component
         // 60s lang aus dem Cache — nach dem Umschalten sofort invalidieren.
         Cache::forget('maintenance_mode');
 
-        $this->dispatch('system-settings-saved');
+        $this->dispatch('system-settings-saved', fields: ['maintenanceMode']);
     }
 
     public function updatedMaintenanceMode(): void
@@ -100,7 +103,7 @@ class Settings extends Component
 
         Setting::setValue('invitations', 'expiry_days', (int) $this->invitationExpiryDays);
 
-        $this->dispatch('invitation-settings-saved');
+        $this->dispatch('invitation-settings-saved', fields: ['invitationExpiryDays']);
     }
 
     public function saveMails(): void
@@ -113,7 +116,7 @@ class Settings extends Component
 
         Setting::setValue('mails', 'admin_email', (string) $this->adminEmail);
 
-        $this->dispatch('mail-settings-saved');
+        $this->dispatch('mail-settings-saved', fields: ['adminEmail']);
     }
 
     public function saveCompany(): void
@@ -139,7 +142,13 @@ class Settings extends Component
 
         CompanyData::save($validated['company']);
 
-        $this->dispatch('company-settings-saved');
+        $this->dispatch(
+            'company-settings-saved',
+            fields: array_map(
+                fn (string $field): string => 'company.'.$field,
+                array_keys($validated['company']),
+            ),
+        );
     }
 
     public function render()

@@ -164,7 +164,7 @@
         {{-- TAB: Details — klare zweispaltige Info-Sektionen --}}
         {{-- Wichtig: kein display-Utility (grid) direkt auf dem x-show-Panel,
              sonst gewinnt Tailwinds !important gegen Alpines inline display:none. --}}
-        <x-ui.accordion.tab-panel for="userDetails" panelClass="space-y-4">
+        <x-ui.accordion.tab-panel for="userDetails" contentClass="space-y-4">
           <div class="grid gap-4 lg:grid-cols-2" data-anim-stagger>
             {{-- Persoenliche Daten --}}
             <section class="rounded-xl bg-rt-surface p-5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60" data-rt-glow>
@@ -257,12 +257,12 @@
         </x-ui.accordion.tab-panel>
 
         {{-- TAB: Bemerkungen --}}
-        <x-ui.accordion.tab-panel for="userNotes" panelClass="space-y-4 rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 z-10 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+        <x-ui.accordion.tab-panel for="userNotes" contentClass="space-y-4" panelClass="rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 z-10 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
             <livewire:admin.user-profile.user-notes :user-id="$user->id" :key="'user-notes-'.$user->id" />
         </x-ui.accordion.tab-panel>
 
         {{-- TAB: Dateien --}}
-        <x-ui.accordion.tab-panel for="userFiles" panelClass="space-y-4 rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 z-10 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+        <x-ui.accordion.tab-panel for="userFiles" contentClass="space-y-4" panelClass="rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 z-10 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
             <livewire:tools.file-pools.manage-file-pools
                 :model-type="\App\Models\User::class"
                 :model-id="$user->id"
@@ -272,7 +272,7 @@
         </x-ui.accordion.tab-panel>
 
         {{-- TAB: Nachrichten --}}
-        <x-ui.accordion.tab-panel for="userMessages" panelClass="space-y-4 rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 z-10 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+        <x-ui.accordion.tab-panel for="userMessages" contentClass="space-y-4" panelClass="rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 z-10 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
             @if (class_exists(\App\Livewire\Admin\UserProfile\UserMessages::class))
                 <livewire:admin.user-profile.user-messages :user-id="$user->id" :key="'user-messages-'.$user->id" />
             @else
@@ -284,16 +284,16 @@
         </x-ui.accordion.tab-panel>
 
         @if ($canViewMasterData)
-            <x-ui.accordion.tab-panel for="masterData" panelClass="space-y-4">
+            <x-ui.accordion.tab-panel for="masterData" contentClass="space-y-4">
                 @include('livewire.admin.user-profile.partials.master-data', ['profile' => $profile])
             </x-ui.accordion.tab-panel>
-            <x-ui.accordion.tab-panel for="documents" panelClass="space-y-4">
+            <x-ui.accordion.tab-panel for="documents" contentClass="space-y-4">
                 <livewire:admin.user-profile.employee-documents :user-id="$user->id" :key="'employee-documents-'.$user->id" />
             </x-ui.accordion.tab-panel>
         @endif
 
         @if ($canViewCompensation)
-            <x-ui.accordion.tab-panel for="compensation" panelClass="space-y-4">
+            <x-ui.accordion.tab-panel for="compensation" contentClass="space-y-4">
                 @include('livewire.admin.user-profile.partials.compensation-data', ['profile' => $profile])
             </x-ui.accordion.tab-panel>
         @endif

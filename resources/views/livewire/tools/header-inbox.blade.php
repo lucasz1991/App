@@ -12,6 +12,9 @@
     @endphp
 
     <x-dropdown align="right" width="w-96"
+                dropdown-id="topbar-inbox"
+                layer-group="topbar"
+                wire:key="topbar-inbox-dropdown"
                 dropdown-classes="!rounded-xl !shadow-rt-md"
                 content-classes="!rounded-xl !border-rt-border/60 bg-rt-surface text-rt-text dark:!border-rt-dark-border/60 dark:bg-rt-dark-surface dark:text-white">
         {{-- Trigger: ein Icon, ein Zaehler fuer beides --}}

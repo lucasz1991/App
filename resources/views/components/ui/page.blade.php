@@ -13,6 +13,9 @@
     // Livewire-Requests, die laenger als 300 ms dauern, erhalten einen
     // layoutnahen Skeleton. Schnelle Aktionen bleiben dadurch flackerfrei.
     'loadingSkeleton' => true,
+    // Abstaende fuer den eigentlichen Seiteninhalt gehoeren auf den inneren
+    // Live-Content-Wrapper. So bleiben sie auch mit Skeleton-Overlay wirksam.
+    'contentClass' => null,
 ])
 
 @php
@@ -81,6 +84,7 @@
         <div
             @if ($loadingSkeleton) wire:loading.class.delay.long="rt-page-live-content--loading" @endif
             @if ($loadingSkeleton) wire:loading.attr.delay.long="inert" @endif
+            @class([$contentClass])
             data-page-live-content
         >
             {{ $slot }}

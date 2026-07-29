@@ -39,6 +39,10 @@
         <article
             wire:key="user-note-{{ $note->id }}"
             class="rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60"
+            data-autosave-field
+            data-autosave-model="noteBodies.{{ $note->id }}"
+            data-autosave-field-id="user-note-{{ $note->id }}"
+            data-autosave-state="idle"
             x-data="{
                 editing: false,
                 saving: false,
@@ -78,6 +82,15 @@
 
                     try {
                         await this.$wire.cancelNoteEdit({{ $note->id }});
+                        const scope = this.$el.closest('[data-autosave-scope]');
+                        scope?.dispatchEvent(new CustomEvent('rt-autosave-reset', {
+                            bubbles: true,
+                            detail: {
+                                scope,
+                                model: @js('noteBodies.'.$note->id),
+                                fieldId: @js('user-note-'.$note->id),
+                            },
+                        }));
                         this.editing = false;
                     } finally {
                         this.saving = false;

@@ -6,13 +6,20 @@
 >
     <x-ui.autosave-status
         event="identity-saved"
-        target="saveIdentity,photo,deleteProfilePhoto"
+        target="saveIdentity"
         dirty-target="name,email"
     />
 
     <div class="flex min-w-0 items-center gap-4 bg-rt-surface px-5 py-5 dark:bg-rt-dark-surface sm:px-6 sm:py-6">
         <div class="shrink-0">
-            <div x-data="{ preview: null }" class="relative shrink-0">
+            <div
+                x-data="{ preview: null }"
+                class="relative shrink-0"
+                data-autosave-field
+                data-autosave-model="photo"
+                data-autosave-field-id="profile-identity-photo"
+                data-autosave-state="idle"
+            >
                 <input
                     id="profile-identity-photo"
                     x-ref="photo"
@@ -20,6 +27,9 @@
                     class="sr-only"
                     accept="image/*"
                     wire:model="photo"
+                    data-autosave-model="photo"
+                    data-autosave-field-id="profile-identity-photo"
+                    data-autosave-instant="true"
                     x-on:change="
                         const file = $refs.photo.files?.[0];
                         if (!file) return;
@@ -57,6 +67,10 @@
                     <button
                         type="button"
                         wire:click="deleteProfilePhoto"
+                        data-autosave-action-model="photo"
+                        data-autosave-model="photo"
+                        data-autosave-field-id="profile-identity-photo"
+                        data-autosave-instant="true"
                         class="absolute -bottom-2 -right-2 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-rt-surface text-rt-muted shadow-rt-sm ring-1 ring-rt-border transition hover:text-rt-red focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/15 dark:bg-rt-dark-surface dark:text-rt-dark-muted dark:ring-rt-dark-border"
                         aria-label="{{ __('app.remove_profile_photo') }}"
                     >
@@ -69,6 +83,7 @@
         <div
             x-data="{
                 editor: null,
+                verifying: false,
                 openEditor(field) {
                     this.editor = field;
                     this.$nextTick(() => {
@@ -84,13 +99,45 @@
                         this.editor = null;
                     }
                 },
+                async requestEmailVerification() {
+                    if (this.verifying) return;
+                    this.verifying = true;
+
+                    try {
+                        if (this.editor === 'email') {
+                            this.$refs.emailInput?.blur();
+                        }
+
+                        const scope = this.$el.closest('[data-autosave-scope]');
+                        const detail = { scope, promise: null };
+                        scope?.dispatchEvent(new CustomEvent('rt-autosave-flush', {
+                            bubbles: true,
+                            detail,
+                        }));
+
+                        await (detail.promise ?? Promise.resolve(true));
+
+                        const state = this.$refs.emailField?.dataset.autosaveState ?? 'idle';
+                        if (state === 'dirty' || state === 'saving') return;
+
+                        await this.$wire.sendEmailVerification();
+                    } finally {
+                        this.verifying = false;
+                    }
+                },
             }"
             x-on:click.outside="closeEditor()"
             x-on:focusin.window="if (! $el.contains($event.target)) closeEditor()"
             class="min-w-0 flex-1"
             data-profile-inline-identity
         >
-            <div class="min-w-0">
+            <div
+                class="min-w-0"
+                data-autosave-field
+                data-autosave-model="name"
+                data-autosave-field-id="profile-identity-name"
+                data-autosave-state="idle"
+            >
                 <button
                     x-show.important="editor !== 'name'"
                     type="button"
@@ -120,7 +167,14 @@
                 <x-input-error for="name" class="mt-2" />
             </div>
 
-            <div class="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
+            <div
+                x-ref="emailField"
+                class="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5"
+                data-autosave-field
+                data-autosave-model="email"
+                data-autosave-field-id="profile-identity-email"
+                data-autosave-state="idle"
+            >
                 <button
                     x-show.important="editor !== 'email'"
                     type="button"
@@ -155,10 +209,15 @@
                     @else
                         <button
                             type="button"
-                            wire:click="sendEmailVerification"
+                            x-on:click.prevent="requestEmailVerification()"
+                            x-bind:disabled="verifying"
                             class="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-600 transition hover:text-amber-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/30 dark:text-amber-300"
                         >
-                            <i class="far fa-paper-plane" aria-hidden="true"></i>
+                            <i
+                                class="far"
+                                x-bind:class="verifying ? 'fa-spinner-third animate-spin' : 'fa-paper-plane'"
+                                aria-hidden="true"
+                            ></i>
                             {{ __('app.verify_email_now') }}
                         </button>
                     @endif

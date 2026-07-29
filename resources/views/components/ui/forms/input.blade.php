@@ -18,6 +18,16 @@
     };
 
     $allClasses = $baseClasses . ' ' . $typeClasses;
+    $wireModel = $attributes->wire('model')->value();
+    $autosaveFieldId = (string) ($attributes->get('data-autosave-field-id')
+        ?: $attributes->get('id')
+        ?: ($wireModel ? 'autosave-'.substr(md5($wireModel), 0, 10) : ''));
+    $autosaveAttributes = $wireModel ? [
+        'data-autosave-field' => '',
+        'data-autosave-model' => $wireModel,
+        'data-autosave-field-id' => $autosaveFieldId,
+        'data-autosave-state' => 'idle',
+    ] : [];
 @endphp
 
 <input
@@ -25,5 +35,5 @@
     {{ $disabled ? 'disabled' : '' }}
     {{ $readonly ? 'readonly' : '' }}
     {{ $autofocus ? 'autofocus' : '' }}
-    {!! $attributes->merge(['class' => $allClasses]) !!}
+    {!! $attributes->merge(array_merge(['class' => $allClasses], $autosaveAttributes)) !!}
 >

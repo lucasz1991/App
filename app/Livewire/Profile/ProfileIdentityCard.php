@@ -29,7 +29,7 @@ class ProfileIdentityCard extends Component
         $user = Auth::user();
 
         if ($this->name === $user->name && $this->email === $user->email) {
-            $this->dispatch('identity-saved');
+            $this->dispatch('identity-saved', fields: ['name', 'email']);
             return;
         }
 
@@ -40,7 +40,7 @@ class ProfileIdentityCard extends Component
         ]);
 
         $this->syncIdentity();
-        $this->dispatch('identity-saved');
+        $this->dispatch('identity-saved', fields: ['name', 'email']);
         $this->dispatch('refresh-navigation-menu');
     }
 
@@ -50,15 +50,14 @@ class ProfileIdentityCard extends Component
             'photo' => ['required', 'image', 'max:10240'],
         ]);
 
-        app(UpdatesUserProfileInformation::class)->update(Auth::user(), [
-            'name' => $this->name,
-            'email' => $this->email,
-            'photo' => $this->photo,
-        ]);
+        // Das Foto ist ein eigener Instant-Pfad. Noch nicht gespeicherte
+        // Inline-Aenderungen an Name/E-Mail duerfen dadurch nicht vorzeitig
+        // mitpersistiert werden.
+        Auth::user()->updateProfilePhoto($this->photo);
 
         $this->reset('photo');
         Auth::user()->refresh();
-        $this->dispatch('identity-saved');
+        $this->dispatch('identity-saved', fields: ['photo']);
         $this->dispatch('refresh-navigation-menu');
     }
 
@@ -67,13 +66,21 @@ class ProfileIdentityCard extends Component
         Auth::user()->deleteProfilePhoto();
         Auth::user()->refresh();
 
-        $this->dispatch('identity-saved');
+        $this->dispatch('identity-saved', fields: ['photo']);
         $this->dispatch('refresh-navigation-menu');
     }
 
     public function sendEmailVerification(): void
     {
-        Auth::user()->sendEmailVerificationNotification();
+        $user = Auth::user()->fresh();
+
+        // Die Verifikation darf nie an die alte persistierte Adresse gehen,
+        // waehrend im Inline-Editor bereits eine andere Adresse steht.
+        if ($this->email !== $user->email) {
+            return;
+        }
+
+        $user->sendEmailVerificationNotification();
         $this->verificationLinkSent = true;
     }
 

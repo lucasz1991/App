@@ -1,11 +1,17 @@
 <div class="rt-topbar-search-slot">
     <form
-        x-on:submit.prevent="$wire.openResults($event.currentTarget.querySelector('input')?.value || '')"
+        role="search"
+        x-on:submit.prevent="
+            window.dispatchEvent(new CustomEvent('rt-topbar-search-close', {
+                detail: { restoreFocus: false },
+            }));
+            $wire.openResults($event.currentTarget.querySelector('input')?.value || '');
+        "
         class="flex items-center"
     >
         <x-tables.search-field
             context="topbar"
-            wire:model.live.debounce.300ms="query"
+            wire:model="query"
             :placeholder="__('app.global_search_placeholder')"
         />
         <button type="submit" class="sr-only">{{ __('app.search') }}</button>

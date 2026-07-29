@@ -381,7 +381,7 @@
             @enderror
           </x-ui.accordion.tab-panel>
 
-          <x-ui.accordion.tab-panel for="fileVisibility" panel-class="space-y-4 rounded-xl border border-rt-border bg-rt-surface-muted/40 p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/30">
+          <x-ui.accordion.tab-panel for="fileVisibility" content-class="space-y-4" panel-class="rounded-xl border border-rt-border bg-rt-surface-muted/40 p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/30">
             <div>
               <x-ui.forms.label :value="__('app.visible_from')" />
               <x-ui.forms.input type="date" wire:model="selectedFileVisibleFrom" class="mt-1 block" />
@@ -417,7 +417,7 @@
 
           </x-ui.accordion.tab-panel>
 
-          <x-ui.accordion.tab-panel for="fileDeletion" panel-class="space-y-4 rounded-xl border border-rt-border bg-rt-surface-muted/40 p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/30">
+          <x-ui.accordion.tab-panel for="fileDeletion" content-class="space-y-4" panel-class="rounded-xl border border-rt-border bg-rt-surface-muted/40 p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/30">
             <div>
               <x-ui.forms.label :value="__('app.expires_date')" />
               <x-ui.forms.input type="date" wire:model="selectedFileExpiresDate" class="mt-1 block" />
@@ -467,7 +467,7 @@
             @enderror
           </x-ui.accordion.tab-panel>
 
-          <x-ui.accordion.tab-panel for="folderVisibility" panel-class="space-y-4 rounded-xl border border-rt-border bg-rt-surface-muted/40 p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/30">
+          <x-ui.accordion.tab-panel for="folderVisibility" content-class="space-y-4" panel-class="rounded-xl border border-rt-border bg-rt-surface-muted/40 p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/30">
             <div>
               <x-ui.forms.label :value="__('app.visible_from')" />
               <x-ui.forms.input type="date" wire:model="folderVisibleFrom" class="mt-1 block" />
@@ -497,7 +497,7 @@
             </div>
           </x-ui.accordion.tab-panel>
 
-          <x-ui.accordion.tab-panel for="folderDeletion" panel-class="space-y-4 rounded-xl border border-rt-border bg-rt-surface-muted/40 p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/30">
+          <x-ui.accordion.tab-panel for="folderDeletion" content-class="space-y-4" panel-class="rounded-xl border border-rt-border bg-rt-surface-muted/40 p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/30">
             <div>
               <x-ui.forms.label :value="__('app.visible_until')" />
               <x-ui.forms.input type="date" wire:model="folderVisibleUntil" class="mt-1 block" />

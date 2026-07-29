@@ -101,7 +101,11 @@ class UserNotes extends Component
         $this->noteBodies[$noteId] = $note->body;
         $this->forgetDirtyNoteIds([$noteId]);
         $this->resetValidation($property);
-        $this->dispatch('note-inline-saved', noteId: $noteId);
+        $this->dispatch(
+            'note-inline-saved',
+            noteId: $noteId,
+            savedFields: ['noteBodies.'.$noteId],
+        );
 
         return true;
     }
@@ -127,7 +131,13 @@ class UserNotes extends Component
             $this->syncNoteBodies();
             $this->forgetDirtyNoteIds($requestedNoteIds);
             $this->resetValidation();
-            $this->dispatch('note-inline-saved');
+            $this->dispatch(
+                'note-inline-saved',
+                savedFields: array_map(
+                    fn (int $noteId): string => 'noteBodies.'.$noteId,
+                    $requestedNoteIds,
+                ),
+            );
 
             return true;
         }
@@ -154,7 +164,14 @@ class UserNotes extends Component
         $this->syncNoteBodies();
         $this->forgetDirtyNoteIds($requestedNoteIds);
         $this->resetValidation();
-        $this->dispatch('note-inline-saved', noteIds: $savedNoteIds);
+        $this->dispatch(
+            'note-inline-saved',
+            noteIds: $savedNoteIds,
+            savedFields: array_map(
+                fn (int $noteId): string => 'noteBodies.'.$noteId,
+                $requestedNoteIds,
+            ),
+        );
 
         return true;
     }

@@ -4,6 +4,8 @@
     'contentClasses' => 'py-1 bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-white',
     'dropdownClasses' => '',
     'offset' => 8,
+    'dropdownId' => null,
+    'layerGroup' => null,
 ])
 
 {{-- Rueckwaertskompatibler Alias: Alle bisherigen <x-dropdown>-Aufrufe
@@ -14,6 +16,8 @@
     :content-classes="$contentClasses"
     :dropdown-classes="$dropdownClasses"
     :offset="$offset"
+    :dropdown-id="$dropdownId"
+    :layer-group="$layerGroup"
     {{ $attributes }}
 >
     <x-slot:trigger>{{ $trigger }}</x-slot:trigger>

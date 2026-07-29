@@ -49,6 +49,7 @@
         ?: 'rt-select-'.substr(md5(($wireModel ?: $xModel ?: $name ?: '').$slotHtml), 0, 10);
     $listboxId = $id.'-listbox';
     $outerClasses = trim('min-w-0 '.$attributes->get('class', ''));
+    $autosaveFieldId = (string) ($attributes->get('data-autosave-field-id') ?: $id);
 @endphp
 
 <div
@@ -92,11 +93,37 @@
     @if($change) @change="{{ $change }}" @endif
     class="{{ $outerClasses }}"
     data-rt-custom-select
+    @if($wireModel)
+        data-autosave-field
+        data-autosave-model="{{ $wireModel }}"
+        data-autosave-field-id="{{ $autosaveFieldId }}"
+        data-autosave-state="idle"
+        @if($attributes->get('data-autosave-instant') === 'true') data-autosave-instant="true" @endif
+    @endif
 >
     @if($name)
-        <input x-ref="valueInput" type="hidden" name="{{ $name }}" :value="selected ?? ''">
+        <input
+            x-ref="valueInput"
+            type="hidden"
+            name="{{ $name }}"
+            :value="selected ?? ''"
+            @if($wireModel)
+                data-autosave-model="{{ $wireModel }}"
+                data-autosave-field-id="{{ $autosaveFieldId }}"
+                @if($attributes->get('data-autosave-instant') === 'true') data-autosave-instant="true" @endif
+            @endif
+        >
     @else
-        <input x-ref="valueInput" type="hidden" :value="selected ?? ''">
+        <input
+            x-ref="valueInput"
+            type="hidden"
+            :value="selected ?? ''"
+            @if($wireModel)
+                data-autosave-model="{{ $wireModel }}"
+                data-autosave-field-id="{{ $autosaveFieldId }}"
+                @if($attributes->get('data-autosave-instant') === 'true') data-autosave-instant="true" @endif
+            @endif
+        >
     @endif
 
     <x-ui.dropdown.anchor-dropdown

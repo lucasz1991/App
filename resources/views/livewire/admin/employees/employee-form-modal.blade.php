@@ -26,7 +26,7 @@
                 :reset-on-open="true"
                 persist-key="employee-form.tabs"
             >
-                <x-ui.accordion.tab-panel for="teamSecurity" panel-class="space-y-4">
+                <x-ui.accordion.tab-panel for="teamSecurity" content-class="space-y-4">
                     <div class="grid gap-4 rounded-xl bg-rt-surface-muted p-4 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60 md:grid-cols-2">
                         <div>
                             <x-ui.forms.label :value="__('app.display_name')" />
@@ -66,7 +66,7 @@
                     </div>
                 </x-ui.accordion.tab-panel>
 
-                <x-ui.accordion.tab-panel for="personalData" panel-class="space-y-4">
+                <x-ui.accordion.tab-panel for="personalData" content-class="space-y-4">
                     <div class="grid gap-4 rounded-xl bg-rt-surface-muted p-4 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60 md:grid-cols-2">
                         @foreach ([
                             ['first_name', 'first_name', 'text', 'given-name'],
@@ -93,7 +93,7 @@
                 </x-ui.accordion.tab-panel>
 
                 @if ($canViewMasterData)
-                    <x-ui.accordion.tab-panel for="masterData" panel-class="space-y-4">
+                    <x-ui.accordion.tab-panel for="masterData" content-class="space-y-4">
                         <div class="rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs text-sky-900 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-100">
                             <i class="far fa-lock mr-2"></i>{{ $canEditMasterData ? __('app.encrypted_master_data_hint') : __('app.read_only_permission_hint') }}
                         </div>
@@ -138,7 +138,7 @@
                 @endif
 
                 @if ($canViewCompensation)
-                    <x-ui.accordion.tab-panel for="compensation" panel-class="space-y-4">
+                    <x-ui.accordion.tab-panel for="compensation" content-class="space-y-4">
                         <div class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
                             <i class="far fa-user-shield mr-2"></i>{{ __('app.compensation_confidential_hint') }}
                         </div>

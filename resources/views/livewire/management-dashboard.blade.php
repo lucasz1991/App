@@ -1,5 +1,5 @@
 <div class="relative min-w-0" data-management-dashboard>
-    <x-ui.page :auto-intro="false">
+    <x-ui.page :auto-intro="false" content-class="space-y-5 sm:space-y-6">
         <x-ui.dashboard.role-hero
             :title="__('app.welcome_name', ['name' => auth()->user()->name])"
             :eyebrow="$dashboardTeamName"
@@ -25,7 +25,7 @@
             </x-slot:aside>
 
             <x-slot:metrics>
-                <div class="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4" data-anim-stagger>
+                <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4" data-anim-stagger>
                     <x-ui.dashboard.stat-card :compact-mobile="true" :label="__('app.total_users')" :value="number_format($totalUsers, 0, ',', '.')">
                         <i data-feather="users" class="h-4 w-4 sm:h-5 sm:w-5"></i>
                     </x-ui.dashboard.stat-card>
@@ -42,7 +42,7 @@
             </x-slot:metrics>
         </x-ui.dashboard.role-hero>
 
-        <section class="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-4" aria-labelledby="operations-title" data-anim="fade-up">
+        <section class="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4" aria-labelledby="operations-title" data-anim="fade-up">
             <x-ui.dashboard.section-heading
                 class="mb-1 sm:col-span-3"
                 id="operations-title"
@@ -70,7 +70,7 @@
             />
         </section>
 
-        <div class="grid gap-4 sm:gap-6 xl:grid-cols-12" data-anim="fade-up">
+        <div class="grid gap-3 sm:gap-4 xl:grid-cols-12" data-anim="fade-up">
             <section class="rounded-[1.5rem] bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/70 sm:p-6 xl:col-span-7 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70" aria-labelledby="recent-activity-title">
                 <x-ui.dashboard.section-heading
                     id="recent-activity-title"
@@ -107,7 +107,7 @@
                     :title="__('app.quick_access')"
                 />
 
-                <nav class="mt-5 grid gap-3 sm:grid-cols-2" aria-label="{{ __('app.quick_access') }}">
+                <nav class="mt-5 grid gap-3 sm:grid-cols-2 sm:gap-4" aria-label="{{ __('app.quick_access') }}">
                     @can('employees.view')
                         <x-ui.dashboard.quick-action
                             :href="route('employees.index')"
@@ -157,7 +157,7 @@
             @endphp
 
             <section class="rounded-[1.5rem] bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/70 sm:p-6 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70" data-system-dashboard aria-labelledby="system-dashboard-title" data-anim="fade-up">
-                <div class="grid gap-5 lg:grid-cols-12 lg:gap-6">
+                <div class="grid gap-3 sm:gap-4 lg:grid-cols-12">
                     <div class="lg:col-span-4">
                         <x-ui.dashboard.section-heading
                             id="system-dashboard-title"
@@ -176,7 +176,7 @@
                         </div>
                     </div>
 
-                    <dl class="grid gap-2 sm:grid-cols-2 lg:col-span-8">
+                    <dl class="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:col-span-8">
                         @foreach ($systemFacts as $fact)
                             <div class="rounded-xl bg-rt-surface-muted/65 px-3.5 py-3 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted/45 dark:ring-rt-dark-border/60">
                                 <dt class="text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-rt-muted dark:text-rt-dark-muted">

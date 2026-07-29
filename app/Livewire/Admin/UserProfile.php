@@ -266,7 +266,11 @@ class UserProfile extends Component
         $this->inlineValues[$field] = $refreshedValues[$field];
         $this->forgetDirtyInlineFields([$field]);
         $this->resetValidation($property);
-        $this->dispatch('employee-profile-field-saved', field: $field);
+        $this->dispatch(
+            'employee-profile-field-saved',
+            field: $field,
+            savedFields: [$field],
+        );
 
         if ((int) $user->id === (int) auth()->id() && in_array($field, self::USER_FIELDS, true)) {
             $this->dispatch('refresh-navigation-menu');
@@ -302,7 +306,7 @@ class UserProfile extends Component
             $this->syncInlineValues();
             $this->forgetDirtyInlineFields($requestedFields);
             $this->resetValidation();
-            $this->dispatch('employee-profile-field-saved');
+            $this->dispatch('employee-profile-field-saved', savedFields: $requestedFields);
 
             return true;
         }
@@ -357,7 +361,11 @@ class UserProfile extends Component
         $this->syncInlineValues();
         $this->forgetDirtyInlineFields($requestedFields);
         $this->resetValidation();
-        $this->dispatch('employee-profile-field-saved', fields: $changedFields);
+        $this->dispatch(
+            'employee-profile-field-saved',
+            fields: $changedFields,
+            savedFields: $requestedFields,
+        );
 
         if ((int) $user->id === (int) auth()->id()
             && array_intersect($changedFields, self::USER_FIELDS) !== []) {

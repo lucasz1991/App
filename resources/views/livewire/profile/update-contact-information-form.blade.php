@@ -3,6 +3,11 @@
     <x-slot name="description">{{ __('app.contact_information_description') }}</x-slot>
 
     <x-slot name="form">
+        <x-ui.autosave-status
+            event="contact-saved"
+            target="save"
+            dirty-target="first_name,last_name,phone,mobile,street,postal_code,city,country,birth_date,birth_place,birth_name,nationality,education"
+        />
         <div class="col-span-6 grid w-full grid-cols-1 gap-6 md:grid-cols-2">
             <div class="md:col-span-2 rounded-xl bg-slate-50 p-4 text-sm text-slate-700 ring-1 ring-slate-200 dark:bg-slate-800/60 dark:text-slate-200 dark:ring-slate-700">
                 <span class="font-semibold">{{ __('app.position') }}:</span>
@@ -40,12 +45,4 @@
         </div>
     </x-slot>
 
-    <x-slot name="actions">
-        <x-ui.autosave-status
-            event="contact-saved"
-            target="save"
-            dirty-target="first_name,last_name,phone,mobile,street,postal_code,city,country,birth_date,birth_place,birth_name,nationality,education"
-            :floating="false"
-        />
-    </x-slot>
 </x-form-section>

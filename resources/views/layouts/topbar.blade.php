@@ -78,6 +78,9 @@
                         align="right"
                         width="64"
                         :offset="10"
+                        dropdown-id="topbar-preferences"
+                        layer-group="topbar"
+                        wire:key="topbar-preferences-dropdown"
                         content-classes="rt-topbar-preferences-panel bg-rt-surface p-1.5 text-rt-text dark:bg-rt-dark-surface dark:text-white"
                         data-topbar-preferences-dropdown="true"
                     >
@@ -174,6 +177,8 @@
                                 align="right"
                                 width="64"
                                 :offset="10"
+                                dropdown-id="topbar-profile"
+                                layer-group="topbar"
                                 dropdown-classes="rt-topbar-profile-dropdown"
                                 content-classes="rt-topbar-profile-panel bg-rt-surface p-2 text-rt-text dark:bg-rt-dark-surface dark:text-white"
                             >
@@ -239,6 +244,8 @@
                                 align="right"
                                 width="48"
                                 :offset="10"
+                                dropdown-id="topbar-profile"
+                                layer-group="topbar"
                                 dropdown-classes="rt-topbar-profile-dropdown"
                                 content-classes="rt-topbar-profile-panel bg-rt-surface p-2 text-rt-text dark:bg-rt-dark-surface dark:text-white"
                             >

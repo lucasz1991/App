@@ -12,6 +12,8 @@
   'matchTriggerWidth' => false,
   'triggerClasses'    => 'inline-flex',
   'contentRole'       => 'menu',
+  'dropdownId'        => null,
+  'layerGroup'        => null,
 ])
 
 @php
@@ -39,25 +41,42 @@
     default => 'bottom-end',
   };
   $anchorOffset = max(0, (int) $offset);
-  $anchorDirective = 'x-anchor.' . $anchorPlacement . '.offset.' . $anchorOffset . '.fixed';
+  // Alpine berechnet nur noch die Anchor-Koordinaten. Die RailTime-Routine
+  // schreibt left/top/caret gemeinsam, damit ein Scroll-Update nicht nur
+  // einzelne Teile der verbundenen Dropdown-Geometrie zuruecksetzt.
+  $anchorDirective = 'x-anchor.' . $anchorPlacement . '.offset.' . $anchorOffset . '.fixed.no-style';
   $anchorCaretX = str_ends_with($anchorPlacement, '-start')
     ? '1.75rem'
     : 'calc(100% - 1.75rem)';
   $anchorConnectorSize = max(6, $anchorOffset + 2);
-  $dropdownId = 'rt-dropdown-'.\Illuminate\Support\Str::uuid();
-  $dropdownPanelId = $dropdownId.'-content';
+  $requestedDropdownId = trim((string) $dropdownId);
+  $safeDropdownId = trim((string) preg_replace('/[^A-Za-z0-9_-]+/', '-', $requestedDropdownId), '-');
+  $resolvedDropdownId = filled($safeDropdownId)
+    ? 'rt-dropdown-'.$safeDropdownId
+    : 'rt-dropdown-'.\Illuminate\Support\Str::uuid();
+  $dropdownPanelId = $resolvedDropdownId.'-content';
+  $resolvedLayerGroup = trim((string) $layerGroup);
 @endphp
 
 <div
   {{ $attributes->class('relative inline-flex') }}
   data-rt-dropdown-root
-  data-rt-dropdown-id="{{ $dropdownId }}"
+  data-rt-dropdown-id="{{ $resolvedDropdownId }}"
   x-data="{
     open: false,
+    panelMounted: false,
     placement: 'bottom',
     hasAnchoredPosition: false,
     lastAnchorX: null,
     lastAnchorY: null,
+    anchorX: null,
+    anchorY: null,
+    positionFrame: null,
+    positionObserver: null,
+    positionListener: null,
+    unmountTimer: null,
+    layerGroup: @js($resolvedLayerGroup),
+    layerId: @js($resolvedDropdownId),
     offset: @js($anchorOffset),
     scrollOnOpen: @js((bool) $scrollOnOpen),
     scrollOnTrigger: @js((bool) $scrollOnTrigger),
@@ -68,9 +87,17 @@
       this.$watch('open', (isOpen) => {
         this.syncTriggerAccessibility();
 
-        if (!isOpen) return;
+        if (!isOpen) {
+          this.stopPositionTracking();
+          this.schedulePanelUnmount();
+          return;
+        }
 
+        this.cancelPanelUnmount();
+        this.panelMounted = true;
         this.$nextTick(() => {
+          this.startPositionTracking();
+
           if (this.$refs.panelScroll) {
             this.$refs.panelScroll.scrollTo({ top: 0, behavior: 'auto' });
           }
@@ -82,6 +109,29 @@
       });
 
       this.$nextTick(() => this.syncTriggerAccessibility());
+    },
+
+    destroy() {
+      this.stopPositionTracking();
+      this.cancelPanelUnmount();
+    },
+
+    cancelPanelUnmount() {
+      if (this.unmountTimer !== null) {
+        window.clearTimeout(this.unmountTimer);
+        this.unmountTimer = null;
+      }
+    },
+
+    schedulePanelUnmount() {
+      this.cancelPanelUnmount();
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      this.unmountTimer = window.setTimeout(() => {
+        this.unmountTimer = null;
+        if (!this.open) {
+          this.panelMounted = false;
+        }
+      }, reducedMotion ? 0 : 170);
     },
 
     clamp(value, minimum, maximum) {
@@ -98,8 +148,16 @@
       // liefern. Der letzte gueltige Punkt bleibt als sicherer Fallback
       // erhalten, darf aber nicht als Bestaetigung fuer (0, 0) gelten.
       this.hasAnchoredPosition = false;
+      this.cancelPanelUnmount();
+      this.panelMounted = true;
       this.open = true;
       this.$dispatch('dropdown-open');
+      if (this.layerGroup) {
+        this.$dispatch('rt-topbar-layer-open', {
+          group: this.layerGroup,
+          id: this.layerId,
+        });
+      }
     },
 
     close(restoreFocus = false) {
@@ -112,6 +170,7 @@
         });
 
       this.open = false;
+      this.stopPositionTracking();
 
       if (restoreFocus) {
         this.$nextTick(() => {
@@ -119,6 +178,67 @@
           control?.focus({ preventScroll: true });
         });
       }
+    },
+
+    rememberAnchor(panel, anchorX, anchorY) {
+      this.anchorX = Number(anchorX);
+      this.anchorY = Number(anchorY);
+      this.schedulePosition(panel);
+    },
+
+    schedulePosition(panel = this.$refs.panel) {
+      if (!this.open || !panel) return;
+
+      if (this.positionFrame !== null) {
+        window.cancelAnimationFrame(this.positionFrame);
+      }
+
+      this.positionFrame = window.requestAnimationFrame(() => {
+        this.positionFrame = null;
+        this.syncAnchoredPanel(panel, this.anchorX, this.anchorY);
+      });
+    },
+
+    startPositionTracking() {
+      this.stopPositionTracking();
+
+      const panel = this.$refs.panel;
+      const trigger = this.$refs.trigger;
+      if (!this.open || !panel || !trigger) return;
+
+      this.positionListener = () => this.schedulePosition(panel);
+
+      window.addEventListener('scroll', this.positionListener, true);
+      window.addEventListener('resize', this.positionListener, { passive: true });
+      window.visualViewport?.addEventListener('scroll', this.positionListener, { passive: true });
+      window.visualViewport?.addEventListener('resize', this.positionListener, { passive: true });
+
+      if (typeof ResizeObserver === 'function') {
+        this.positionObserver = new ResizeObserver(() => this.schedulePosition(panel));
+        this.positionObserver.observe(trigger);
+        this.positionObserver.observe(panel);
+      }
+
+      this.schedulePosition(panel);
+    },
+
+    stopPositionTracking() {
+      if (this.positionFrame !== null) {
+        window.cancelAnimationFrame(this.positionFrame);
+        this.positionFrame = null;
+      }
+
+      this.positionObserver?.disconnect();
+      this.positionObserver = null;
+
+      if (this.positionListener) {
+        window.removeEventListener('scroll', this.positionListener, true);
+        window.removeEventListener('resize', this.positionListener);
+        window.visualViewport?.removeEventListener('scroll', this.positionListener);
+        window.visualViewport?.removeEventListener('resize', this.positionListener);
+      }
+
+      this.positionListener = null;
     },
 
     syncAnchoredPanel(panel, anchorX, anchorY) {
@@ -129,17 +249,26 @@
       const numericAnchorY = Number(anchorY);
       const visualViewport = window.visualViewport;
       const viewportWidth = visualViewport ? visualViewport.width : (document.documentElement.clientWidth || window.innerWidth);
+      const viewportHeight = visualViewport ? visualViewport.height : (document.documentElement.clientHeight || window.innerHeight);
       const viewportLeft = Number.isFinite(Number(visualViewport?.offsetLeft))
         ? Number(visualViewport.offsetLeft)
         : 0;
+      const viewportTop = Number.isFinite(Number(visualViewport?.offsetTop))
+        ? Number(visualViewport.offsetTop)
+        : 0;
       const viewportInset = 12;
       const maximumViewportWidth = Math.max(0, viewportWidth - 24);
+      const maximumViewportHeight = Math.max(0, viewportHeight - 24);
       const triggerControl = trigger.querySelector('button, a, [role=button]');
       const triggerRect = (triggerControl || trigger).getBoundingClientRect();
       const triggerIsVisible = trigger.isConnected
         && trigger.getClientRects().length > 0
         && triggerRect.width > 0
-        && triggerRect.height > 0;
+        && triggerRect.height > 0
+        && triggerRect.right > viewportLeft
+        && triggerRect.left < viewportLeft + viewportWidth
+        && triggerRect.bottom > viewportTop
+        && triggerRect.top < viewportTop + viewportHeight;
       const previouslyConfirmedAtOrigin = this.hasAnchoredPosition
         && this.lastAnchorX === 0
         && this.lastAnchorY === 0;
@@ -147,10 +276,17 @@
         && Number.isFinite(numericAnchorY)
         && (numericAnchorX !== 0 || numericAnchorY !== 0 || previouslyConfirmedAtOrigin);
 
-      if (!triggerIsVisible || !anchorIsReady) {
+      if (!triggerIsVisible) {
+        this.close();
+        return;
+      }
+
+      if (!anchorIsReady) {
         if (Number.isFinite(this.lastAnchorX) && Number.isFinite(this.lastAnchorY)) {
-          panel.style.left = `${this.lastAnchorX}px`;
-          panel.style.top = `${this.lastAnchorY}px`;
+          Object.assign(panel.style, {
+            left: `${this.lastAnchorX}px`,
+            top: `${this.lastAnchorY}px`,
+          });
         } else {
           panel.style.visibility = 'hidden';
         }
@@ -167,14 +303,14 @@
         }
       }
 
+      const panelScroll = this.$refs.panelScroll;
+      panelScroll?.style.removeProperty('max-height');
       const panelRect = panel.getBoundingClientRect();
       // Die Enter-Transition skaliert das Panel kurz auf 98.5 %. Fuer die
       // Viewportgrenzen muss trotzdem die untransformierte Layoutbreite
       // gelten, sonst verliert die fertige Karte rechts einige Pixel Abstand.
       const panelWidth = Math.min(panel.offsetWidth || panelRect.width, maximumViewportWidth);
-      const panelHeight = panel.offsetHeight || panelRect.height;
       const anchoredLeft = numericAnchorX;
-      const anchoredTop = numericAnchorY;
       const triggerCenter = triggerRect.left + (triggerRect.width / 2);
       // Normalerweise bleibt der Indikator deutlich ausserhalb der
       // abgerundeten Eckbereiche. Nur wenn ein randnaher Trigger sonst nicht
@@ -205,6 +341,40 @@
           : this.clamp(centeredLeft, minimumViewportLeft, maximumViewportLeft);
       }
 
+      const viewportBottom = viewportTop + viewportHeight;
+      const belowTop = triggerRect.bottom + this.offset;
+      const aboveBottom = triggerRect.top - this.offset;
+      const availableBelow = Math.max(0, viewportBottom - viewportInset - belowTop);
+      const availableAbove = Math.max(0, aboveBottom - (viewportTop + viewportInset));
+      const borderHeight = panelScroll
+        ? Math.max(0, panelScroll.offsetHeight - panelScroll.clientHeight)
+        : 0;
+      const naturalPanelHeight = Math.min(
+        (panelScroll?.scrollHeight || panel.offsetHeight || panelRect.height) + borderHeight,
+        448,
+        maximumViewportHeight,
+      );
+      const anchoredPlacement = numericAnchorY < triggerRect.top ? 'top' : 'bottom';
+      let resolvedPlacement = anchoredPlacement;
+      const anchoredSpace = anchoredPlacement === 'top' ? availableAbove : availableBelow;
+      const alternateSpace = anchoredPlacement === 'top' ? availableBelow : availableAbove;
+
+      if (naturalPanelHeight > anchoredSpace && alternateSpace > anchoredSpace) {
+        resolvedPlacement = anchoredPlacement === 'top' ? 'bottom' : 'top';
+      }
+
+      const availableHeight = resolvedPlacement === 'top' ? availableAbove : availableBelow;
+      if (panelScroll) {
+        panelScroll.style.maxHeight = `${Math.max(0, Math.floor(Math.min(448, availableHeight)))}px`;
+      }
+
+      const renderedPanelHeight = Math.min(
+        panel.offsetHeight || panel.getBoundingClientRect().height,
+        availableHeight,
+      );
+      const resolvedTop = resolvedPlacement === 'top'
+        ? aboveBottom - renderedPanelHeight
+        : belowTop;
       const triggerX = triggerCenter - resolvedLeft;
       const availableCaretInset = Math.min(triggerX, panelWidth - triggerX);
       const caretInset = Math.min(
@@ -217,11 +387,15 @@
         panelWidth - caretInset,
       );
 
-      this.placement = anchoredTop + panelHeight <= triggerRect.top + 1 ? 'top' : 'bottom';
+      this.placement = resolvedPlacement;
       this.hasAnchoredPosition = true;
       this.lastAnchorX = resolvedLeft;
-      this.lastAnchorY = anchoredTop;
-      panel.style.left = `${resolvedLeft}px`;
+      this.lastAnchorY = resolvedTop;
+      Object.assign(panel.style, {
+        left: `${resolvedLeft}px`,
+        top: `${resolvedTop}px`,
+        visibility: '',
+      });
       panel.dataset.wideCentered = isWideMobilePanel ? 'true' : 'false';
       panel.style.setProperty('--rt-dropdown-caret-x', `${Math.round(caretX)}px`);
       panel.style.setProperty('--rt-dropdown-connector-size', `${Math.max(6, this.offset + 2)}px`);
@@ -258,7 +432,7 @@
       if (!action) return;
 
       const nestedDropdown = action.closest('[data-rt-dropdown-root]');
-      if (nestedDropdown && nestedDropdown.dataset.rtDropdownId !== @js($dropdownId)) return;
+      if (nestedDropdown && nestedDropdown.dataset.rtDropdownId !== @js($resolvedDropdownId)) return;
 
       this.close();
     },
@@ -306,6 +480,15 @@
   "
   @close.window.stop="close()"
   @rt-dropdown-parent-close.stop="close()"
+  @rt-topbar-layer-open.window="
+    if (
+      layerGroup
+      && $event.detail?.group === layerGroup
+      && $event.detail?.id !== layerId
+    ) {
+      close()
+    }
+  "
 >
   <div
     class="rt-ui-dropdown-trigger {{ $triggerClasses }}"
@@ -324,47 +507,49 @@
   @endif
 
   <template x-teleport="body">
-    <div
-      x-show="open"
-      {!! $anchorDirective !!}="$refs.trigger"
-      x-effect="
-        if (open) {
-          const anchorX = $anchor.x;
-          const anchorY = $anchor.y;
-          syncAnchoredPanel($el, anchorX, anchorY);
-        }
-      "
-      x-transition:enter="transition duration-200 ease-out"
-      x-transition:enter-start="translate-y-1.5 scale-[0.985] opacity-0"
-      x-transition:enter-end="translate-y-0 scale-100 opacity-100"
-      x-transition:leave="transition duration-150 ease-in"
-      x-transition:leave-start="translate-y-0 scale-100 opacity-100"
-      x-transition:leave-end="translate-y-1 scale-[0.99] opacity-0"
-      x-bind:data-placement="placement"
-      data-rt-dropdown-owner="{{ $dropdownId }}"
-      class="rt-viewport-dropdown fixed z-[180] {{ $panelWidthClass }} rounded-xl shadow-rt-md {{ $dropdownClasses }}"
-      style="display:none; margin:0; max-width:calc(100vw - 24px); max-height:calc(100dvh - 24px); --rt-dropdown-caret-x:{{ $anchorCaretX }}; --rt-dropdown-connector-size:{{ $anchorConnectorSize }}px;"
-      data-rt-dropdown-panel
-      @click.outside="if (!$refs.trigger.contains($event.target) && !ownsNestedTeleportedTarget($event.target)) close()"
-      @keydown.escape.stop.prevent="close(true)"
-      @if($trap) x-trap.inert.noscroll="open" @endif
-      x-ref="panel"
-    >
-      <span
-        aria-hidden="true"
-        class="rt-ui-dropdown-caret pointer-events-none absolute z-[1]"
-        data-rt-dropdown-caret
-      ></span>
-
+    <template x-if="panelMounted">
       <div
-        id="{{ $dropdownPanelId }}"
-        x-ref="panelScroll"
-        @if(filled($contentRole)) role="{{ $contentRole }}" @endif
-        class="rt-ui-surface rt-ui-dropdown-panel relative z-[2] max-h-[min(28rem,calc(100dvh-2rem))] overflow-y-auto rounded-xl border border-rt-border shadow-rt-md dark:border-rt-dark-border {{ $contentClasses }}"
-        @click="handlePanelAction($event)"
+        x-show="open"
+        {!! $anchorDirective !!}="$refs.trigger"
+        x-effect="
+          if (open) {
+            const anchorX = $anchor.x;
+            const anchorY = $anchor.y;
+            rememberAnchor($el, anchorX, anchorY);
+          }
+        "
+        x-transition:enter="transition duration-200 ease-out"
+        x-transition:enter-start="translate-y-1.5 scale-[0.985] opacity-0"
+        x-transition:enter-end="translate-y-0 scale-100 opacity-100"
+        x-transition:leave="transition duration-150 ease-in"
+        x-transition:leave-start="translate-y-0 scale-100 opacity-100"
+        x-transition:leave-end="translate-y-1 scale-[0.99] opacity-0"
+        x-bind:data-placement="placement"
+        data-rt-dropdown-owner="{{ $resolvedDropdownId }}"
+        class="rt-viewport-dropdown fixed z-[180] {{ $panelWidthClass }} rounded-xl shadow-rt-md {{ $dropdownClasses }}"
+        style="display:none; margin:0; max-width:calc(100vw - 24px); max-height:calc(100dvh - 24px); --rt-dropdown-caret-x:{{ $anchorCaretX }}; --rt-dropdown-connector-size:{{ $anchorConnectorSize }}px;"
+        data-rt-dropdown-panel
+        @click.outside="if (!$refs.trigger.contains($event.target) && !ownsNestedTeleportedTarget($event.target)) close()"
+        @keydown.escape.stop.prevent="close(true)"
+        @if($trap) x-trap.inert.noscroll="open" @endif
+        x-ref="panel"
       >
-        {{ $content }}
+        <span
+          aria-hidden="true"
+          class="rt-ui-dropdown-caret pointer-events-none absolute z-[1]"
+          data-rt-dropdown-caret
+        ></span>
+
+        <div
+          id="{{ $dropdownPanelId }}"
+          x-ref="panelScroll"
+          @if(filled($contentRole)) role="{{ $contentRole }}" @endif
+          class="rt-ui-surface rt-ui-dropdown-panel relative z-[2] max-h-[min(28rem,calc(100dvh-2rem))] overflow-y-auto rounded-xl border border-rt-border shadow-rt-md dark:border-rt-dark-border {{ $contentClasses }}"
+          @click="handlePanelAction($event)"
+        >
+          {{ $content }}
+        </div>
       </div>
-    </div>
+    </template>
   </template>
 </div>

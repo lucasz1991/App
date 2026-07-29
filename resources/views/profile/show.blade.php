@@ -33,21 +33,21 @@
                 :force-default="request()->filled('tab')"
                 persist-key="own-profile.tabs"
             >
-            <x-ui.accordion.tab-panel for="personal" panel-class="space-y-8">
+            <x-ui.accordion.tab-panel for="personal" content-class="space-y-8">
                 <livewire:profile.profile-tab-content tab="personal" />
             </x-ui.accordion.tab-panel>
 
             @if ($hasSecuritySettings)
-                <x-ui.accordion.tab-panel for="security" panel-class="space-y-8">
+                <x-ui.accordion.tab-panel for="security" content-class="space-y-8">
                     <livewire:profile.profile-tab-content tab="security" />
                 </x-ui.accordion.tab-panel>
             @endif
 
-            <x-ui.accordion.tab-panel for="app" panel-class="space-y-8">
+            <x-ui.accordion.tab-panel for="app" content-class="space-y-8">
                 <livewire:profile.profile-tab-content tab="app" />
             </x-ui.accordion.tab-panel>
 
-            <x-ui.accordion.tab-panel for="sessions" panel-class="space-y-8">
+            <x-ui.accordion.tab-panel for="sessions" content-class="space-y-8">
                 <livewire:profile.profile-tab-content tab="sessions" />
             </x-ui.accordion.tab-panel>
 

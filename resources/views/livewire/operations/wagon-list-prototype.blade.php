@@ -256,7 +256,7 @@
             default="wagons"
             persist-key="operations.wagon-list.tabs"
         >
-            <x-ui.accordion.tab-panel for="wagons" panel-class="space-y-4">
+            <x-ui.accordion.tab-panel for="wagons" content-class="space-y-4">
                 <section class="rt-wagon-workspace rounded-2xl p-4 shadow-rt-sm sm:p-5" aria-labelledby="wagon-meta-title">
                     <div class="flex flex-col gap-3 border-b border-rt-border/70 pb-4 sm:flex-row sm:items-center sm:justify-between dark:border-rt-dark-border/70">
                         <div class="flex items-center gap-3">
@@ -454,7 +454,7 @@
                 </section>
             </x-ui.accordion.tab-panel>
 
-            <x-ui.accordion.tab-panel for="brakeSheet" panel-class="space-y-4">
+            <x-ui.accordion.tab-panel for="brakeSheet" content-class="space-y-4">
                 <section class="grid grid-cols-2 gap-2 xl:grid-cols-4" aria-label="{{ __('app.brake_sheet_summary') }}">
                     <template x-for="item in [
                         { label: @js(__('app.total_weight')), value: formatNumber(brakeTotals.trainWeight), suffix: ' t' },

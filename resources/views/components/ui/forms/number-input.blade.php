@@ -48,6 +48,10 @@
     ];
 
     $sharedInputClasses = 'tabular-nums';
+    $wireModel = $attributes->wire('model')->value();
+    $autosaveFieldId = (string) ($attributes->get('data-autosave-field-id')
+        ?: $attributes->get('id')
+        ?: ($wireModel ? 'autosave-'.substr(md5($wireModel), 0, 10) : ''));
 @endphp
 
 @if ($stepper)
@@ -68,6 +72,13 @@
         x-data="rtNumberInput({{ \Illuminate\Support\Js::from($alpineConfig) }})"
         class="{{ $shellClasses }}"
         data-rt-number-input
+        @if($wireModel)
+            data-autosave-field
+            data-autosave-model="{{ $wireModel }}"
+            data-autosave-field-id="{{ $autosaveFieldId }}"
+            data-autosave-state="idle"
+            @if($attributes->get('data-autosave-instant') === 'true') data-autosave-instant="true" @endif
+        @endif
     >
         <span
             role="button"
@@ -131,6 +142,14 @@
             {{ $directive }}="{{ $expression }}"
         @endforeach
         data-rt-number-input
-        {!! $attributes->merge(['class' => $sharedInputClasses]) !!}
+        {!! $attributes->merge(array_merge(
+            ['class' => $sharedInputClasses],
+            $wireModel ? [
+                'data-autosave-field' => '',
+                'data-autosave-model' => $wireModel,
+                'data-autosave-field-id' => $autosaveFieldId,
+                'data-autosave-state' => 'idle',
+            ] : [],
+        )) !!}
     >
 @endif
