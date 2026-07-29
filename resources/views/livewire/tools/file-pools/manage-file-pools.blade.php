@@ -183,19 +183,6 @@
           </button>
 
           @if(!$readOnly)
-            @php
-              /*
-               * Wie bei Datei-Actions muss der Ausdruck vor dem anonymen
-               * Dropdown-Link vollständig kompiliert werden.
-               */
-              $folderDeleteConfirmationAction = '$dispatch("rt-confirm", {'
-                  . 'title: ' . \Illuminate\Support\Js::from(__('app.delete')) . ','
-                  . 'message: ' . \Illuminate\Support\Js::from(__('app.folder_delete_confirm')) . ','
-                  . 'variant: "destructive",'
-                  . 'confirmLabel: ' . \Illuminate\Support\Js::from(__('app.delete')) . ','
-                  . 'action: () => $wire.deleteFolder(' . (int) $folder->id . ')'
-                  . '})';
-            @endphp
             <div class="absolute right-1.5 top-1.5">
               <x-dropdown align="right" width="48">
                 <x-slot name="trigger">
@@ -213,7 +200,11 @@
                     </x-dropdown-link>
                   @endif
                   <x-dropdown-link
-                      x-on:click.prevent="{{ $folderDeleteConfirmationAction }}"
+                      confirm-method="deleteFolder"
+                      :confirm-arguments="[(int) $folder->id]"
+                      :confirm-title="__('app.delete')"
+                      :confirm-message="__('app.folder_delete_confirm')"
+                      :confirm-label="__('app.delete')"
                       class="!text-red-600 dark:!text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
                   >
                     <i class="far fa-trash-alt mr-2"></i>{{ __('app.delete') }}

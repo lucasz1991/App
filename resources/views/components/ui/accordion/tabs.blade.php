@@ -8,6 +8,8 @@
     'persist' => true,
     'resetOnOpen' => false,
     'persistKey' => null,
+    // Optional migration map for renamed/merged persisted tab IDs.
+    'persistAliases' => [],
     // Kept for backwards compatibility with existing call sites.
     'collapseAt' => 'md',
     'ariaLabel' => null,
@@ -38,6 +40,7 @@
         persistedTab: @if ($persist) $persist(@js($initial)).as(@js($storageKey)) @else @js($initial) @endif,
         forceDefault: @js((bool) $forceDefault),
         resetOnOpen: @js((bool) $resetOnOpen),
+        persistAliases: @js($persistAliases),
         items: @js($tabItems),
     })"
     x-effect="if (@js((bool) $resetOnOpen) && typeof show !== 'undefined') syncModalOpenState(show)"

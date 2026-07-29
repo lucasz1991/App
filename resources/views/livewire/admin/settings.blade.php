@@ -8,41 +8,64 @@
             'general' => ['label' => __('app.general'), 'icon' => 'fad fa-sliders-h'],
             'company' => ['label' => __('app.company_data'), 'icon' => 'fad fa-building'],
             'users' => ['label' => __('app.users'), 'icon' => 'fad fa-users'],
-            'sounds' => ['label' => __('app.sound_settings'), 'icon' => 'fad fa-music'],
-            'calls' => ['label' => __('app.calls_settings'), 'icon' => 'fad fa-video'],
             'system' => ['label' => __('app.system'), 'icon' => 'fad fa-server'],
         ]"
         default="general"
         persist-key="admin-settings.tabs"
+        :persist-aliases="['sounds' => 'system', 'calls' => 'system']"
         :aria-label="__('app.settings')"
         content-class="mt-4 sm:mt-6"
     >
     {{-- Anrufe: Betriebswerte, die im Alltag angepasst werden. Adresse und
          Zugangsdaten des Media-Servers bleiben bewusst in der .env. --}}
-    <x-ui.accordion.tab-panel for="calls" content-class="space-y-6">
+    <x-ui.accordion.tab-panel for="system" content-class="">
+    <div
+        x-data="{
+            openSystemSection: 'sounds',
+            toggleSystemSection(section) {
+                this.openSystemSection = this.openSystemSection === section ? null : section;
+            },
+        }"
+        class="flex flex-col gap-3"
+        data-admin-system-accordion
+    >
+    {{-- Töne: systemweite Standards je Ereignis mit Sofort-Vorschau. --}}
+    <x-admin.settings-accordion-section
+        section="sounds"
+        :label="__('app.sound_settings')"
+        :description="__('app.sound_settings_hint')"
+        icon="fad fa-volume"
+        data-anim="fade-up"
+    >
     <section
         class="relative min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 sm:p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60"
+        aria-labelledby="admin-system-sounds-trigger"
+        data-sound-settings
+        data-autosave-scope
+    >
+        <x-ui.autosave-status event="sound-settings-saved" target="saveSounds" dirty-target="sounds" />
+        <div class="rounded-[calc(1rem-2px)] bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6" data-rt-glow>
+            <x-ui.forms.sound-picker model="sounds" />
+        </div>
+    </section>
+    </x-admin.settings-accordion-section>
+
+    <x-admin.settings-accordion-section
+        section="calls"
+        :label="__('app.calls_settings')"
+        :description="__('app.calls_settings_intro')"
+        icon="fad fa-video"
         data-anim="fade-up"
+        data-anim-delay="0.04"
+    >
+    <section
+        class="relative min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 sm:p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60"
         data-autosave-scope
     >
         <x-ui.autosave-status event="call-settings-saved" target="saveCalls" dirty-target="calls" />
 
         <div class="rounded-[calc(1rem-2px)] bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6" data-rt-glow>
-            <div class="flex min-w-0 items-start gap-3 sm:gap-4">
-                <span class="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent sm:flex">
-                    <i class="fad fa-video fa-lg" aria-hidden="true"></i>
-                </span>
-                <div class="min-w-0 flex-1">
-                    <h2 class="text-base font-semibold tracking-tight text-rt-text dark:text-rt-dark-text sm:text-lg">
-                        {{ __('app.calls_settings') }}
-                    </h2>
-                    <p class="mt-1 break-words text-sm text-rt-muted dark:text-rt-dark-muted">
-                        {{ __('app.calls_settings_intro') }}
-                    </p>
-                </div>
-            </div>
-
-            <div class="mt-5 grid gap-4 sm:grid-cols-2">
+            <div class="grid gap-4 sm:grid-cols-2">
                 @foreach ([
                     'ring_timeout' => ['label' => __('app.calls_setting_ring_timeout'), 'hint' => __('app.calls_setting_ring_timeout_hint'), 'unit' => __('app.unit_seconds')],
                     'max_participants' => ['label' => __('app.calls_setting_max_participants'), 'hint' => __('app.calls_setting_max_participants_hint'), 'unit' => ''],
@@ -81,7 +104,6 @@
     @php $infra = \App\Support\Calls\CallSettings::infrastructure(); @endphp
     <section
         class="relative min-w-0 overflow-hidden rounded-2xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60 sm:p-6"
-        data-anim="fade-up"
     >
         <div class="flex min-w-0 items-start gap-3">
             <span class="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-surface-muted text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted sm:flex">
@@ -114,14 +136,20 @@
             @endforeach
         </dl>
     </section>
-    </x-ui.accordion.tab-panel>
+    </x-admin.settings-accordion-section>
 
-    <x-ui.accordion.tab-panel for="system" content-class="space-y-6">
+    <x-admin.settings-accordion-section
+        section="system"
+        :label="__('app.system')"
+        :description="__('app.maintenance_mode_hint')"
+        icon="fad fa-server"
+        data-anim="fade-up"
+        data-anim-delay="0.08"
+    >
     {{-- Wartungsmodus-Warnbanner --}}
     @if ($maintenanceMode)
         <div
             class="flex items-start gap-3 rounded-xl border-l-4 border-amber-500 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-rt-sm ring-1 ring-amber-200/70 dark:bg-amber-500/10 dark:text-amber-200 dark:ring-amber-500/25"
-            data-anim="fade-up"
         >
             <i class="fad fa-triangle-exclamation mt-0.5 fa-lg" aria-hidden="true"></i>
             <span>{{ __('app.maintenance_mode_active_banner') }}</span>
@@ -131,7 +159,6 @@
     {{-- System / Wartungsmodus --}}
     <section
         class="relative min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 sm:p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60"
-        data-anim="fade-up"
         data-autosave-scope
     >
         <x-ui.autosave-status
@@ -140,21 +167,7 @@
             dirty-target="maintenanceMode"
         />
         <div class="rounded-[calc(1rem-2px)] bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6" data-rt-glow>
-            <div class="flex min-w-0 items-start gap-3 sm:gap-4">
-                <span class="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent sm:flex">
-                    <i class="fad fa-sliders fa-lg" aria-hidden="true"></i>
-                </span>
-                <div class="min-w-0 flex-1">
-                    <h2 class="text-base font-semibold tracking-tight text-rt-text dark:text-rt-dark-text sm:text-lg">
-                        {{ __('app.system') }}
-                    </h2>
-                    <p class="mt-1 break-words text-sm text-rt-muted dark:text-rt-dark-muted">
-                        {{ __('app.settings_overview_system_text') }}
-                    </p>
-                </div>
-            </div>
-
-            <div class="mt-4 flex flex-col gap-3 rounded-xl bg-rt-surface-muted p-3.5 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60 sm:mt-5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:p-4">
+            <div class="flex flex-col gap-3 rounded-xl bg-rt-surface-muted p-3.5 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:p-4">
                 <div class="min-w-0">
                     <p class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">
                         {{ __('app.maintenance_mode') }}
@@ -169,39 +182,9 @@
             </div>
         </div>
     </section>
-    </x-ui.accordion.tab-panel>
+    </x-admin.settings-accordion-section>
 
-    {{-- Toene: eigener, sichtbarer Tab — systemweite Standards je Ereignis,
-         mit Sofort-Vorschau beim Auswaehlen. --}}
-    <x-ui.accordion.tab-panel for="sounds" content-class="space-y-6">
-    <section
-        class="relative min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 sm:p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60"
-        data-anim="fade-up"
-        aria-labelledby="sound-settings-heading"
-        data-sound-settings
-        data-autosave-scope
-    >
-        <x-ui.autosave-status event="sound-settings-saved" target="saveSounds" dirty-target="sounds" />
-        <div class="rounded-[calc(1rem-2px)] bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6" data-rt-glow>
-            <div class="flex min-w-0 items-start gap-3 sm:gap-4">
-                <span class="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent sm:flex">
-                    <i class="fad fa-volume fa-lg" aria-hidden="true"></i>
-                </span>
-                <div class="min-w-0 flex-1">
-                    <h2 id="sound-settings-heading" class="text-base font-semibold tracking-tight text-rt-text dark:text-rt-dark-text sm:text-lg">
-                        {{ __('app.sound_settings') }}
-                    </h2>
-                    <p class="mt-1 break-words text-sm text-rt-muted dark:text-rt-dark-muted">
-                        {{ __('app.sound_settings_hint') }}
-                    </p>
-                </div>
-            </div>
-
-            <div class="mt-4 sm:mt-5">
-                <x-ui.forms.sound-picker model="sounds" />
-            </div>
-        </div>
-    </section>
+    </div>
     </x-ui.accordion.tab-panel>
 
     {{-- Einladungen --}}

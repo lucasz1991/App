@@ -13,18 +13,6 @@
         || auth()->user()?->can('users.edit')
     );
 
-    /*
-     * Blade-Direktiven in Attributwerten anonymer Components werden nicht
-     * erneut kompiliert. Den vollständigen Alpine-Ausdruck deshalb bereits
-     * hier mit sicher serialisierten Texten und einer numerischen ID bauen.
-     */
-    $fileDeleteConfirmationAction = '$dispatch("rt-confirm", {'
-        . 'title: ' . \Illuminate\Support\Js::from(__('app.delete')) . ','
-        . 'message: ' . \Illuminate\Support\Js::from(__('app.delete_file_confirm')) . ','
-        . 'variant: "destructive",'
-        . 'confirmLabel: ' . \Illuminate\Support\Js::from(__('app.delete')) . ','
-        . 'action: () => $wire.deleteFile(' . (int) $file->id . ')'
-        . '})';
 @endphp
 
 <article
@@ -103,7 +91,11 @@
                         {{ __('app.edit') }}
                     </x-dropdown-link>
                     <x-dropdown-link
-                        x-on:click.prevent="{{ $fileDeleteConfirmationAction }}"
+                        confirm-method="deleteFile"
+                        :confirm-arguments="[(int) $file->id]"
+                        :confirm-title="__('app.delete')"
+                        :confirm-message="__('app.delete_file_confirm')"
+                        :confirm-label="__('app.delete')"
                         tone="danger"
                     >
                         <i class="far fa-trash-alt mr-2 w-4 text-center" aria-hidden="true"></i>

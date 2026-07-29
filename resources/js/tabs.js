@@ -50,6 +50,11 @@ export function railtimeTabs(config = {}) {
         suppressClick: false,
 
         init() {
+            const persistedAlias = config.persistAliases?.[this.openTab];
+            if (persistedAlias) {
+                this.openTab = persistedAlias;
+            }
+
             if (config.forceDefault) {
                 this.openTab = config.initial;
             }
