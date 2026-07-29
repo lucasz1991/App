@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use App\Http\Middleware\LogActivity;
+use App\Livewire\Calls\CallHistory;
 use App\Livewire\Calls\CallWindow;
 use App\Livewire\Calls\IncomingCallOverlay;
+use App\Livewire\Calls\Meetings;
 use App\Livewire\ChatBox;
 use App\Models\Chat;
 use App\Models\Room;
@@ -390,6 +392,150 @@ class CallFlowTest extends TestCase
 
         $this->assertSame('ended', $room->fresh()->status);
         $this->assertNotSame('joined', $room->fresh()->participantFor($callee)->connectionState());
+    }
+
+
+    public function test_a_voice_call_starts_without_video(): void
+    {
+        [$caller, $callee, $chat] = $this->directChatWithCallRights();
+
+        Livewire::actingAs($caller)
+            ->test(ChatBox::class, ['selectedChatId' => $chat->id])
+            ->call('startCall', false)
+            ->assertRedirect();
+
+        $room = Room::firstOrFail();
+
+        $this->assertFalse($room->startsWithVideo());
+        // Raum, Klingeln und Moderation sind identisch – nur die Kamera bleibt aus.
+        $this->assertDatabaseHas('room_invitations', [
+            'room_id' => $room->id,
+            'invitee_id' => $callee->id,
+            'status' => 'pending',
+        ]);
+    }
+
+    public function test_a_video_call_still_starts_with_video(): void
+    {
+        [$caller, $callee, $chat] = $this->directChatWithCallRights();
+
+        Livewire::actingAs($caller)
+            ->test(ChatBox::class, ['selectedChatId' => $chat->id])
+            ->call('startCall', true)
+            ->assertRedirect();
+
+        $this->assertTrue(Room::firstOrFail()->startsWithVideo());
+    }
+
+    public function test_call_history_lists_only_own_calls(): void
+    {
+        [$caller, $callee, $chat] = $this->directChatWithCallRights();
+        $mine = $this->roomWithInvitation($caller, $callee, $chat);
+
+        // Fremder Anruf, an dem der Nutzer nicht beteiligt ist.
+        $stranger = User::factory()->create();
+        $foreign = Room::create([
+            'name' => 'Fremder Anruf',
+            'type' => 'direct',
+            'status' => 'ended',
+            'owner_id' => $stranger->id,
+        ]);
+        $foreign->participants()->create([
+            'user_id' => $stranger->id,
+            'role' => 'host',
+            'connection' => 'left',
+            'livekit_identity' => 'user-'.$stranger->id,
+        ]);
+
+        Livewire::actingAs($callee)
+            ->test(CallHistory::class)
+            ->assertOk()
+            ->assertSee($mine->name)
+            ->assertDontSee('Fremder Anruf');
+    }
+
+    public function test_call_history_requires_the_join_permission(): void
+    {
+        $outsider = User::factory()->create();
+
+        Livewire::actingAs($outsider)
+            ->test(CallHistory::class)
+            ->assertForbidden();
+    }
+
+    public function test_a_meeting_room_is_created_and_joined_without_ringing(): void
+    {
+        [$caller] = $this->directChatWithCallRights();
+
+        Livewire::actingAs($caller)
+            ->test(Meetings::class)
+            ->set('name', 'Schichtuebergabe Freitag')
+            ->set('video', false)
+            ->call('createMeeting')
+            ->assertRedirect();
+
+        $room = Room::where('type', 'meeting')->firstOrFail();
+
+        $this->assertSame('Schichtuebergabe Freitag', $room->name);
+        $this->assertFalse($room->startsWithVideo());
+        $this->assertSame('host', $room->participantFor($caller)->role);
+        // Entscheidend: ein Meeting klingelt bei niemandem.
+        $this->assertSame(0, $room->invitations()->count());
+    }
+
+    public function test_meeting_requires_a_name(): void
+    {
+        [$caller] = $this->directChatWithCallRights();
+
+        Livewire::actingAs($caller)
+            ->test(Meetings::class)
+            ->set('name', 'ab')
+            ->call('createMeeting')
+            ->assertHasErrors(['name']);
+
+        $this->assertSame(0, Room::where('type', 'meeting')->count());
+    }
+
+    public function test_joining_a_meeting_creates_the_participation(): void
+    {
+        [$host, $guest] = $this->directChatWithCallRights();
+
+        $room = Room::create([
+            'name' => 'Offene Runde',
+            'type' => 'meeting',
+            'status' => 'active',
+            'owner_id' => $host->id,
+        ]);
+        $room->participants()->create([
+            'user_id' => $host->id,
+            'role' => 'host',
+            'connection' => 'joined',
+            'livekit_identity' => 'user-'.$host->id,
+        ]);
+
+        Livewire::actingAs($guest)
+            ->test(Meetings::class)
+            ->call('join', $room->id)
+            ->assertRedirect(route('calls.window', $room));
+
+        $this->assertSame('speaker', $room->fresh()->participantFor($guest)->role);
+    }
+
+
+    public function test_a_broken_socket_id_does_not_break_the_call_button(): void
+    {
+        [$caller, $callee, $chat] = $this->directChatWithCallRights();
+
+        // Genau der Zustand, der den 500er ausgeloest hat: Echo ist nicht
+        // verbunden, der Browser schickt die Zeichenfolge "undefined".
+        $this->withHeader('X-Socket-ID', 'undefined');
+
+        Livewire::actingAs($caller)
+            ->test(ChatBox::class, ['selectedChatId' => $chat->id])
+            ->call('startCall')
+            ->assertRedirect();
+
+        $this->assertSame(1, Room::count());
     }
 
     protected function configureLiveKit(): void

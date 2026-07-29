@@ -419,11 +419,23 @@ class ChatBox extends Component
         $this->dispatch('chat:scroll-bottom');
     }
 
-    /** Videoanruf im ausgewaehlten Chat starten und alle Teilnehmer anklingeln. */
-    public function startCall(
-        RoomLifecycleService $lifecycle,
-        CallInvitationService $invitations,
-    ) {
+    /**
+     * Anruf im ausgewaehlten Chat starten und alle Teilnehmer anklingeln.
+     *
+     * @param bool $video false = reiner Sprachanruf. Der Unterschied liegt
+     *   allein darin, ob die Kamera beim Beitritt aktiviert wird; Raum,
+     *   Klingeln und Moderation sind identisch. Jeder kann die Kamera im
+     *   Gespraech jederzeit zuschalten.
+     *
+     * Die Dienste werden bewusst ueber app() geholt statt per Methoden-
+     * Injection: sonst muesste der bool-Parameter hinter den Klassen stehen
+     * und liesse sich aus dem View nicht mehr sauber uebergeben.
+     */
+    public function startCall(bool $video = true)
+    {
+        $lifecycle = app(RoomLifecycleService::class);
+        $invitations = app(CallInvitationService::class);
+
         abort_unless(auth()->user()->isAdmin() || auth()->user()->hasRbacPermission('calls.start'), 403);
 
         $chat = $this->myChat((int) $this->selectedChatId);
@@ -432,7 +444,7 @@ class ChatBox extends Component
         // erzeugen zwei gleichzeitige Klicks zwei konkurrierende Raeume, und
         // die beiden Haelften des Chats klingeln in getrennten Anrufen.
         try {
-            $result = DB::transaction(function () use ($chat, $lifecycle) {
+            $result = DB::transaction(function () use ($chat, $lifecycle, $video) {
                 Chat::whereKey($chat->id)->lockForUpdate()->first();
 
                 $existing = $chat->activeRoom()->first();
@@ -441,7 +453,7 @@ class ChatBox extends Component
                     return ['room' => $existing, 'created' => false];
                 }
 
-                return ['room' => $lifecycle->createForChat($chat, auth()->user()), 'created' => true];
+                return ['room' => $lifecycle->createForChat($chat, auth()->user(), $video), 'created' => true];
             });
         } catch (CallInfrastructureUnavailable) {
             $this->dispatch('swal:toast', type: 'error', text: __('app.calls_unavailable'));

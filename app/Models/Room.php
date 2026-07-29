@@ -65,6 +65,36 @@ class Room extends Model
         return in_array($this->status, ['pending', 'active'], true);
     }
 
+    /** Wurde der Anruf als Videoanruf gestartet? (Kamera beim Beitritt an) */
+    public function startsWithVideo(): bool
+    {
+        return (bool) ($this->settings['video'] ?? true);
+    }
+
+    /** Gespraechsdauer in Sekunden, sofern der Anruf zustande kam. */
+    public function durationInSeconds(): ?int
+    {
+        if (! $this->started_at) {
+            return null;
+        }
+
+        return (int) $this->started_at->diffInSeconds($this->ended_at ?? now(), false);
+    }
+
+    /** Dauer als "m:ss" bzw. "h:mm:ss" – null, wenn nie verbunden. */
+    public function durationForHumans(): ?string
+    {
+        $seconds = $this->durationInSeconds();
+
+        if ($seconds === null || $seconds < 0) {
+            return null;
+        }
+
+        return $seconds >= 3600
+            ? sprintf('%d:%02d:%02d', intdiv($seconds, 3600), intdiv($seconds % 3600, 60), $seconds % 60)
+            : sprintf('%d:%02d', intdiv($seconds, 60), $seconds % 60);
+    }
+
     /** Der LiveKit-Raumname entspricht der öffentlichen UUID. */
     public function livekitRoomName(): string
     {

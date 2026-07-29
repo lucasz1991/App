@@ -109,11 +109,22 @@
         @endcan
     @else
         @can('calls.start')
+            {{-- Sprachanruf: derselbe Raum, nur ohne Kamera beim Beitritt. --}}
+            <x-chat.icon-button
+                icon="far fa-phone"
+                :label="__('app.calls_start_audio')"
+                tone="quiet"
+                wire:click="startCall(false)"
+                wire:loading.attr="disabled"
+                wire:target="startCall"
+                data-no-chat-swipe
+            />
+
             <x-chat.icon-button
                 icon="far fa-video"
                 :label="__('app.calls_start')"
                 tone="accent"
-                wire:click="startCall"
+                wire:click="startCall(true)"
                 wire:loading.attr="disabled"
                 wire:target="startCall"
                 data-no-chat-swipe

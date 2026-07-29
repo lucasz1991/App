@@ -25,14 +25,32 @@
                     >
                         {{ __('app.employees') }}
                     </x-menu.sidebar-nav-link>
-                </x-menu.sidebar-nav-group>
+                
+                <x-menu.sidebar-nav-link
+                    :href="route('calls.index')"
+                    icon="phone"
+                    :active="request()->routeIs('calls.index')"
+                    class="!pl-8"
+                >
+                    {{ __('app.calls_history') }}
+                </x-menu.sidebar-nav-link>
+
+                <x-menu.sidebar-nav-link
+                    :href="route('meetings')"
+                    icon="video"
+                    :active="request()->routeIs('meetings')"
+                    class="!pl-8"
+                >
+                    {{ __('app.meetings') }}
+                </x-menu.sidebar-nav-link>
+            </x-menu.sidebar-nav-group>
             </x-menu.sidebar-nav>
         @endcan
 
         <x-menu.sidebar-nav :label="__('app.communication')">
             <x-menu.sidebar-nav-group
                 icon="message-square"
-                :active="request()->routeIs('chat', 'messages')"
+                :active="request()->routeIs('chat', 'messages', 'calls.index', 'meetings')"
             >
                 <x-slot:label>{{ __('app.chat_and_messages') }}</x-slot:label>
 

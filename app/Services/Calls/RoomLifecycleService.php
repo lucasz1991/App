@@ -24,17 +24,23 @@ class RoomLifecycleService
     {
     }
 
-    /** Anruf in einem Chat starten: DB-Raum + Host-Teilnahme + LiveKit-Raum. */
-    public function createForChat(Chat $chat, User $owner): Room
+    /**
+     * Anruf in einem Chat starten: DB-Raum + Host-Teilnahme + LiveKit-Raum.
+     *
+     * @param bool $video false = Sprachanruf. Steuert nur, ob die Kamera beim
+     *   Beitritt aktiviert wird (calls.js liest settings.video); zuschalten
+     *   laesst sie sich im Gespraech jederzeit.
+     */
+    public function createForChat(Chat $chat, User $owner, bool $video = true): Room
     {
-        $room = DB::transaction(function () use ($chat, $owner): Room {
+        $room = DB::transaction(function () use ($chat, $owner, $video): Room {
             $room = Room::create([
                 'name' => $chat->displayNameFor($owner),
                 'type' => $chat->isGroup() ? 'group' : 'direct',
                 'status' => 'pending',
                 'owner_id' => $owner->id,
                 'chat_id' => $chat->id,
-                'settings' => ['video' => true],
+                'settings' => ['video' => $video],
             ]);
 
             $room->participants()->create([
