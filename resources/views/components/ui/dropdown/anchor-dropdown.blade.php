@@ -189,6 +189,8 @@
           this.schedulePosition(panel);
         });
         this.positionMutationObserver.observe(trigger, {
+          attributes: true,
+          attributeFilter: ['aria-expanded', 'aria-controls', 'aria-haspopup'],
           childList: true,
           subtree: true,
         });
@@ -432,7 +434,10 @@
       const control = trigger.querySelector('button, a, [role=button]');
       if (!control) return;
 
-      control.setAttribute('aria-expanded', this.open.toString());
+      const expanded = this.open.toString();
+      if (control.getAttribute('aria-expanded') !== expanded) {
+        control.setAttribute('aria-expanded', expanded);
+      }
       if (!control.hasAttribute('aria-controls')) {
         control.setAttribute('aria-controls', @js($dropdownPanelId));
       }
