@@ -97,6 +97,51 @@
         <x-slot name="content">
             @if ($showGroupSettings && $groupCandidates)
                 <div class="space-y-5">
+                    {{-- Gruppenbild: Vorschau (neues Bild > aktuelles Bild > Initiale)
+                         plus Dateiauswahl. Gespeichert wird erst mit "Speichern". --}}
+                    <div class="flex items-center gap-4">
+                        @php
+                            $currentGroupPhoto = $selectedChat?->avatarUrlFor($me);
+                        @endphp
+                        <span class="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-rt-surface-muted ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60">
+                            @if ($groupPhotoUpload)
+                                <img src="{{ $groupPhotoUpload->temporaryUrl() }}" alt="" class="h-full w-full object-cover" />
+                            @elseif ($currentGroupPhoto)
+                                <img src="{{ $currentGroupPhoto }}" alt="" class="h-full w-full object-cover" />
+                            @else
+                                <span class="text-xl font-extrabold text-rt-muted dark:text-rt-dark-muted">
+                                    {{ mb_substr(trim($groupEditName) !== '' ? $groupEditName : 'G', 0, 1) }}
+                                </span>
+                            @endif
+                        </span>
+                        <div class="min-w-0 flex-1">
+                            <x-ui.forms.label for="group-photo-upload" :value="__('app.group_photo')" />
+                            <label
+                                for="group-photo-upload"
+                                class="mt-1.5 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-rt-border bg-rt-control px-3 py-1.5 text-xs font-semibold text-rt-text shadow-rt-xs transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:hover:bg-rt-dark-surface-muted"
+                            >
+                                <i class="fad fa-camera" aria-hidden="true"></i>
+                                {{ __('app.group_photo_choose') }}
+                            </label>
+                            <input
+                                type="file"
+                                id="group-photo-upload"
+                                accept="image/*"
+                                wire:model="groupPhotoUpload"
+                                class="sr-only"
+                            />
+                            <p class="mt-1 text-[10px] leading-4 text-rt-muted dark:text-rt-dark-muted" wire:loading.remove wire:target="groupPhotoUpload">
+                                {{ __('app.group_photo_hint') }}
+                            </p>
+                            <p class="mt-1 text-[10px] font-semibold text-rt-accent dark:text-rt-dark-accent" wire:loading wire:target="groupPhotoUpload">
+                                {{ __('app.uploading') }}…
+                            </p>
+                            @error('groupPhotoUpload')
+                                <p class="rt-chat-field-error mt-1.5 text-xs">{{ $message }}</p>
+                            @enderror
+                        </div>
+                    </div>
+
                     <div>
                         <x-ui.forms.label for="group-edit-name" :value="__('app.group_name')" />
                         <x-ui.forms.input

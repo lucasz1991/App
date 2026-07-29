@@ -19,7 +19,6 @@ import './gsap';
 // Vengeance-Motion (zeigergefuehrter Karten-Glow, Optik in app.css)
 import './vengeance-motion';
 import { wagonListPrototype } from './wagon-list-prototype';
-import permissionSetup, { readDeviceState } from './permission-setup';
 import {
     acquireMicrophoneStream,
     holdMicrophoneStream,
@@ -425,7 +424,6 @@ Alpine.data('wagonListPrototype', wagonListPrototype);
 Alpine.data('rtNumberInput', numberInput);
 Alpine.data('rtSidebarNavigation', sidebarNavigation);
 Alpine.data('railtimeTabs', railtimeTabs);
-Alpine.data('permissionSetup', permissionSetup);
 
 Alpine.data('chatRealtime', (config) => ({
     channel: null,
@@ -527,20 +525,6 @@ Alpine.data('chatRealtime', (config) => ({
             return;
         }
 
-        // Ist das Mikrofon bereits dauerhaft blockiert, fuehrt getUserMedia nur
-        // zu einer stillen Ablehnung. Dann lieber gleich den Einrichtungsdialog
-        // zeigen – dort steht auch, wie sich eine Blockade wieder aufheben laesst.
-        // Browserübergreifende Pruefung (permissions.query + Geraetenamen).
-        if (await readDeviceState('microphone') === 'denied') {
-            window.dispatchEvent(new CustomEvent('rt:permissions-open'));
-
-            return;
-        }
-
-        if (this.destroyed) {
-            return;
-        }
-
         try {
             // Der Halter liefert einen noch offenen Stream ohne erneute
             // Browser-Abfrage – auch nach einem Chatwechsel. Das ist der
@@ -593,15 +577,19 @@ Alpine.data('chatRealtime', (config) => ({
         } catch (error) {
             releaseMicrophoneStream();
 
-            // Freigabe im Abfragefenster verweigert? Dann hilft die Anleitung
-            // im Einrichtungsdialog mehr als eine generische Fehlermeldung.
-            if (error?.name === 'NotAllowedError' || error?.name === 'SecurityError') {
-                window.dispatchEvent(new CustomEvent('rt:permissions-open'));
-                return;
-            }
+            // Kein Einrichtungsdialog mehr: getUserMedia loest die Browser-
+            // Abfrage direkt aus. Landet man hier mit NotAllowed, ist die
+            // Freigabe im Browser BLOCKIERT — dann hilft nur die Anleitung
+            // zum Schloss-Symbol.
+            const blocked = error?.name === 'NotAllowedError' || error?.name === 'SecurityError';
 
             window.dispatchEvent(new CustomEvent('swal:toast', {
-                detail: { type: 'error', text: config.microphoneErrorText || 'Das Mikrofon konnte nicht verwendet werden.' },
+                detail: {
+                    type: 'error',
+                    text: blocked
+                        ? (config.microphoneBlockedText || 'Das Mikrofon ist im Browser blockiert. Bitte über das Schloss-Symbol in der Adresszeile erlauben.')
+                        : (config.microphoneErrorText || 'Das Mikrofon konnte nicht verwendet werden.'),
+                },
             }));
         }
     },

@@ -127,7 +127,6 @@
             <livewire:tools.file-pools.file-preview-modal />
             {{-- Globales Klingel-Overlay fuer eingehende Videoanrufe --}}
             <livewire:calls.incoming-call-overlay />
-            <x-ui.permission-setup />
         @endauth
         <!-- script -->
         {{-- EIN globales Infomodal fuer alle Info-Buttons dieser Seite. --}}

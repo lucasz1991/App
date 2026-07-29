@@ -78,6 +78,9 @@ class ChatBox extends Component
 
     public string $groupEditName = '';
 
+    /** Gruppenbild-Upload in den Gruppeneinstellungen. */
+    public $groupPhotoUpload = null;
+
     /** @var array<int, int|string> */
     public array $groupMemberIds = [];
 
@@ -607,8 +610,13 @@ class ChatBox extends Component
         $chat = $this->myChat($this->selectedChatId);
         abort_unless($chat->canManageGroup(auth()->id()), 403);
 
-        $this->resetValidation(['groupEditName', 'groupMemberIds']);
+        $this->resetValidation(['groupEditName', 'groupMemberIds', 'groupPhotoUpload']);
         $this->groupEditName = (string) $chat->name;
+
+        if ($this->groupPhotoUpload instanceof TemporaryUploadedFile) {
+            $this->groupPhotoUpload->delete();
+        }
+        $this->groupPhotoUpload = null;
         $this->groupMemberIds = $chat->participants
             ->where('id', '!=', auth()->id())
             ->pluck('id')
@@ -630,6 +638,7 @@ class ChatBox extends Component
             'groupEditName' => ['required', 'string', 'max:80'],
             'groupMemberIds' => ['required', 'array', 'min:1'],
             'groupMemberIds.*' => ['integer', 'distinct'],
+            'groupPhotoUpload' => ['nullable', 'image', 'max:5120'],
         ]);
 
         $chat = $this->myChat($this->selectedChatId);
@@ -685,8 +694,30 @@ class ChatBox extends Component
             }
 
             $lockedChat->participants()->sync($pivotRows);
-            $lockedChat->forceFill(['name' => trim($this->groupEditName)])->save();
+
+            $changes = ['name' => trim($this->groupEditName)];
+
+            if ($this->groupPhotoUpload instanceof TemporaryUploadedFile) {
+                $newPath = $this->groupPhotoUpload->store('chat-photos', 'public');
+
+                // Altes Bild erst NACH erfolgreichem Ablegen des neuen
+                // entfernen — schlaegt der Upload fehl, bleibt das alte stehen.
+                if ($newPath) {
+                    if ($lockedChat->photo_path) {
+                        Storage::disk('public')->delete($lockedChat->photo_path);
+                    }
+
+                    $changes['photo_path'] = $newPath;
+                }
+            }
+
+            $lockedChat->forceFill($changes)->save();
         });
+
+        if ($this->groupPhotoUpload instanceof TemporaryUploadedFile) {
+            $this->groupPhotoUpload->delete();
+        }
+        $this->groupPhotoUpload = null;
 
         $this->groupMemberIds = $validMemberIds->all();
         $this->groupMemberSearch = '';
@@ -846,6 +877,11 @@ class ChatBox extends Component
         if ($this->voiceUpload instanceof TemporaryUploadedFile) {
             $this->voiceUpload->delete();
         }
+
+        if ($this->groupPhotoUpload instanceof TemporaryUploadedFile) {
+            $this->groupPhotoUpload->delete();
+        }
+        $this->groupPhotoUpload = null;
 
         $this->selectedChatId = null;
         $this->latestIncomingMessageId = 0;

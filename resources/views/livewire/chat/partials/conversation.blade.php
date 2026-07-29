@@ -40,6 +40,7 @@
                 recordingText: @js(__('app.recording')),
                 unsupportedText: @js(__('app.voice_recording_unsupported')),
                 microphoneErrorText: @js(__('app.voice_microphone_error')),
+                microphoneBlockedText: @js(__('app.voice_microphone_blocked')),
                 uploadErrorText: @js(__('app.voice_upload_failed'))
             })"
         >

@@ -7,10 +7,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 
 class Chat extends Model
 {
-    protected $fillable = ['type', 'name', 'created_by'];
+    protected $fillable = ['type', 'name', 'created_by', 'photo_path'];
 
     public function participants(): BelongsToMany
     {
@@ -107,11 +108,13 @@ class Chat extends Model
         return $other?->name ?? 'Chat';
     }
 
-    /** Avatar-URL aus Sicht des Betrachters (Direktchat = Gegenueber). */
+    /** Avatar-URL aus Sicht des Betrachters (Direktchat = Gegenueber, Gruppe = Gruppenbild). */
     public function avatarUrlFor(User $viewer): ?string
     {
         if ($this->isGroup()) {
-            return null;
+            return $this->photo_path
+                ? Storage::disk('public')->url($this->photo_path)
+                : null;
         }
 
         return $this->participants->firstWhere('id', '!=', $viewer->id)?->profile_photo_url;

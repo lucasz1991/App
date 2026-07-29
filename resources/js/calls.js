@@ -65,11 +65,6 @@ document.addEventListener('alpine:init', () => {
             return kind === 'camera' ? config.labels.cameraBlocked : config.labels.microphoneBlocked;
         },
 
-        /** Nur ECHTE Freigabefehler sollen den Einrichtungsdialog oeffnen. */
-        isPermissionError(error) {
-            return error?.name === 'NotAllowedError' || error?.name === 'SecurityError';
-        },
-
         /** In den Fehlerzustand wechseln und den Grund fuer Diagnose loggen. */
         fail(label, error) {
             this.connected = false;
@@ -167,12 +162,11 @@ document.addEventListener('alpine:init', () => {
                     await this.room.localParticipant.setMicrophoneEnabled(true);
                     this.micOn = true;
                 } catch (error) {
+                    // Die Freigabe-Abfrage stellt der Browser selbst — hier
+                    // landet nur, was er abgelehnt hat oder was nicht geht.
+                    // Die Meldung benennt die Ursache (blockiert/belegt/fehlt).
                     console.error('[calls] Mikrofon nicht verfuegbar:', error);
                     this.toast(this.deviceErrorLabel(error, 'microphone'), 'warning');
-
-                    if (this.isPermissionError(error)) {
-                        window.dispatchEvent(new CustomEvent('rt:permissions-open'));
-                    }
                 }
 
                 if (this.startWithVideo) {
@@ -375,10 +369,6 @@ document.addEventListener('alpine:init', () => {
                 // Ein stiller Ruecksprung des Knopfs liesse den Nutzer raten.
                 if (enable) {
                     this.toast(this.deviceErrorLabel(error, 'microphone'), 'warning');
-
-                    if (this.isPermissionError(error)) {
-                        window.dispatchEvent(new CustomEvent('rt:permissions-open'));
-                    }
                 }
             }
         },

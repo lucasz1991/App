@@ -614,10 +614,6 @@ body[data-mode='dark'] .rt-chat-message--own .rt-chat-message-meta {
     padding-inline: 0.12rem;
 }
 
-.rt-chat-message-status {
-    min-height: 1.25rem;
-}
-
 .rt-chat-read-indicator {
     font-size: 0.58rem;
 }
