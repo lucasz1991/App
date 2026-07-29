@@ -78,10 +78,52 @@
   <p id="file-pool-drag-hint-{{ $filePoolId }}" class="sr-only">
     {{ __('app.file_drag_hint') }}
   </p>
-  {{-- Toolbar: Breadcrumbs + Aktionen --}}
-  <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+  {{--
+    Explorer-Kopf:
+    - mobil stehen die Aktionen bewusst vor dem Pfad;
+    - auf breiten Ansichten teilen sich Pfad und Aktionen eine Zeile;
+    - der Pfad bleibt in beiden Fällen das letzte Element vor dem Explorer.
+  --}}
+  <div
+    class="mb-2 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"
+    data-file-explorer-header
+  >
+    <div
+      class="order-1 flex flex-wrap items-center justify-end gap-2 lg:order-2 lg:flex-nowrap"
+      data-file-explorer-actions
+    >
+      @if(!$readOnly)
+        <button wire:click="openCreateFolder" class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-semibold rounded-lg border border-rt-border bg-rt-control text-rt-text shadow-rt-xs transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-rt-accent/40 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:hover:bg-rt-dark-surface-muted">
+          <i class="fad fa-folder-plus"></i>
+          {{ __('app.new_folder') }}
+        </button>
+        <button wire:click="$toggle('openFileForm')" class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-semibold bg-rt-red text-white rounded-lg shadow-rt-xs transition-all duration-300 ease-rt-spring hover:bg-rt-red-dark hover:shadow-rt-glow active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-rt-red/40 focus:ring-offset-2 dark:focus:ring-offset-slate-900">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 3a1 1 0 011 1v4h4a1 1 0 110 2h-4v4a1 1 0 11-2 0v-4H6a1 1 0 110-2h4V4a1 1 0 011-1z"/></svg>
+          {{ __('app.add') }}
+        </button>
+      @endif
+      @if($filePool && $poolFiles->count() > 0)
+        <x-dropdown class="" :width="'w-max'">
+          <x-slot name="trigger">
+              <button type="button" class="inline-flex items-center px-2 py-2 rounded-lg border border-rt-border bg-rt-control text-rt-text shadow-rt-xs transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-rt-accent/40 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:hover:bg-rt-dark-surface-muted">
+                  <i class="fad fa-download fa-lg h-5 w-5"></i>
+              </button>
+          </x-slot>
+          <x-slot name="content">
+            <x-dropdown-link wire:click="downloadAll" class="flex items-center gap-2">
+                <i class="fad fa-file-archive fa-lg"></i>&nbsp;&nbsp;{{ __('app.download_all_files') }}
+            </x-dropdown-link>
+          </x-slot>
+        </x-dropdown>
+      @endif
+    </div>
+
     {{-- Breadcrumbs (Explorer-Pfad) --}}
-    <nav class="flex min-w-0 items-center gap-1 overflow-x-auto rounded-xl bg-rt-surface-muted px-2 py-1.5 text-sm dark:bg-rt-dark-surface-muted" aria-label="Breadcrumb">
+    <nav
+      class="order-2 flex min-w-0 items-center gap-1 overflow-x-auto rounded-xl bg-rt-surface-muted px-2 py-1.5 text-sm dark:bg-rt-dark-surface-muted lg:order-1"
+      aria-label="Breadcrumb"
+      data-file-explorer-breadcrumb
+    >
       <button type="button" wire:click="enterFolder"
               class="rt-file-drop-breadcrumb inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 font-medium transition-all duration-300 ease-rt-spring {{ $currentFolder ? 'text-rt-muted hover:bg-rt-surface hover:text-rt-accent hover:shadow-rt-xs dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface dark:hover:text-rt-dark-accent' : 'text-rt-text dark:text-rt-dark-text' }}"
               @if($canMoveFiles)
@@ -113,37 +155,10 @@
         @endif
       @endforeach
     </nav>
-
-    <div class="flex items-center gap-2">
-      @if(!$readOnly)
-        <button wire:click="openCreateFolder" class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-semibold rounded-lg border border-rt-border bg-rt-control text-rt-text shadow-rt-xs transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-rt-accent/40 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:hover:bg-rt-dark-surface-muted">
-          <i class="fad fa-folder-plus"></i>
-          {{ __('app.new_folder') }}
-        </button>
-        <button wire:click="$toggle('openFileForm')" class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-semibold bg-rt-red text-white rounded-lg shadow-rt-xs transition-all duration-300 ease-rt-spring hover:bg-rt-red-dark hover:shadow-rt-glow active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-rt-red/40 focus:ring-offset-2 dark:focus:ring-offset-slate-900">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 3a1 1 0 011 1v4h4a1 1 0 110 2h-4v4a1 1 0 11-2 0v-4H6a1 1 0 110-2h4V4a1 1 0 011-1z"/></svg>
-          {{ __('app.add') }}
-        </button>
-      @endif
-      @if($filePool && $poolFiles->count() > 0)
-        <x-dropdown class="" :width="'w-max'">
-          <x-slot name="trigger">
-              <button type="button" class="inline-flex items-center px-2 py-2 rounded-lg border border-rt-border bg-rt-control text-rt-text shadow-rt-xs transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-rt-accent/40 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:hover:bg-rt-dark-surface-muted">
-                  <i class="fad fa-download fa-lg h-5 w-5"></i>
-              </button>
-          </x-slot>
-          <x-slot name="content">
-            <x-dropdown-link wire:click="downloadAll" class="flex items-center gap-2">
-                <i class="fad fa-file-archive fa-lg"></i>&nbsp;&nbsp;{{ __('app.download_all_files') }}
-            </x-dropdown-link>
-          </x-slot>
-        </x-dropdown>
-      @endif
-    </div>
   </div>
 
   {{-- Gemeinsames Explorer-Raster: zuerst Ordner, danach Dateien --}}
-  <div class="rt-file-explorer-grid my-6" data-anim-stagger @contextmenu.prevent="openCtx($event, null)">
+  <div class="rt-file-explorer-grid mb-6 mt-0" data-anim-stagger @contextmenu.prevent="openCtx($event, null)">
     @foreach($folders as $folder)
         <div
           class="rt-file-explorer-card rt-file-drop-folder group relative rounded-lg p-1.5 transition-all duration-300 ease-rt-spring hover:bg-rt-accent/5 hover:ring-1 hover:ring-rt-accent/30 dark:hover:bg-rt-dark-accent/10 dark:hover:ring-rt-dark-accent/30"

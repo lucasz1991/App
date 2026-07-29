@@ -137,9 +137,11 @@ document.addEventListener('alpine:init', () => {
                     this.cameraOn = this.startWithVideo;
                 } catch (error) {
                     // Berechtigung verweigert: Anruf laeuft als Zuhoerer weiter,
-                    // aber der Nutzer erfaehrt jetzt, WARUM er stumm ist.
+                    // aber der Nutzer erfaehrt jetzt, WARUM er stumm ist – und
+                    // bekommt den Einrichtungsdialog, statt ratlos dazusitzen.
                     console.error('[calls] Geraetefreigabe fehlgeschlagen:', error);
                     this.toast(config.labels.deviceBlocked, 'warning');
+                    window.dispatchEvent(new CustomEvent('rt:permissions-open'));
                 }
             }
         },
