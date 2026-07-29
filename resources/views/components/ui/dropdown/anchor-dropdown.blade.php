@@ -345,7 +345,27 @@
         return;
       }
 
+      // Beim Wechsel zwischen Topbar-Layern darf die 150-ms-Leave-Transition
+      // den neu geoeffneten Layer weder ueberdecken noch Klicks abfangen.
+      this.$refs.panel?.style.setProperty('display', 'none');
       this.close();
+    },
+
+    handleWindowEscape(event) {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target?.closest('[data-rt-dropdown-root], [data-rt-dropdown-panel]')) {
+        this.close();
+      }
+    },
+
+    handleOutsideClick(event) {
+      const target = event.target;
+      if (
+        !this.$refs.trigger?.contains(target)
+        && !this.ownsNestedTeleportedTarget(target)
+      ) {
+        this.close();
+      }
     },
 
     ownsNestedTeleportedTarget(target) {
@@ -421,10 +441,7 @@
     },
   }"
   x-cloak
-  @keydown.escape.window="
-    const target = $event.target instanceof Element ? $event.target : null;
-    if (!target?.closest('[data-rt-dropdown-root], [data-rt-dropdown-panel]')) close();
-  "
+  @keydown.escape.window="handleWindowEscape($event)"
   @close.window.stop="close()"
   @rt-dropdown-parent-close.stop="close()"
   @rt-topbar-layer-open.window="handleLayerOpen($event)"
@@ -448,7 +465,7 @@
   <template x-teleport="body">
     <div
       x-show="open"
-      x-effect="if (open) schedulePosition($el)"
+      x-effect="open && schedulePosition($el)"
         x-transition:enter="transition duration-200 ease-out"
         x-transition:enter-start="translate-y-1.5 scale-[0.985] opacity-0"
         x-transition:enter-end="translate-y-0 scale-100 opacity-100"
@@ -460,7 +477,7 @@
         class="rt-viewport-dropdown fixed z-[180] {{ $panelWidthClass }} rounded-xl shadow-rt-md {{ $dropdownClasses }}"
         style="display:none; margin:0; max-width:calc(100vw - 24px); max-height:calc(100dvh - 24px); --rt-dropdown-caret-x:{{ $anchorCaretX }}; --rt-dropdown-connector-size:{{ $anchorConnectorSize }}px;"
         data-rt-dropdown-panel
-        @click.outside="if (!$refs.trigger.contains($event.target) && !ownsNestedTeleportedTarget($event.target)) close()"
+        @click.outside="handleOutsideClick($event)"
         @keydown.escape.stop.prevent="close(true)"
         @if($trap) x-trap.inert.noscroll="open" @endif
       x-ref="panel"

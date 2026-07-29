@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Support\Calls\CallSettings;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
 
@@ -21,5 +22,9 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Schema::defaultStringLength(191);
+
+        // Administrierte Anruf-Betriebswerte ueber die .env-Vorgaben legen,
+        // damit jedes bestehende config('livekit.…') sie ohne Anpassung sieht.
+        CallSettings::apply();
     }
 }

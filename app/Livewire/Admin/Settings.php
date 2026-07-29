@@ -3,6 +3,7 @@
 namespace App\Livewire\Admin;
 
 use App\Models\Setting;
+use App\Support\Calls\CallSettings;
 use App\Support\CompanyData;
 use App\Support\Sound\SoundLibrary;
 use Illuminate\Support\Facades\Cache;
@@ -25,6 +26,13 @@ class Settings extends Component
     public array $company = [];
 
     /**
+     * Betriebswerte der Anruffunktion (Klingeldauer, Token-Gueltigkeit, ...).
+     *
+     * @var array<string, int>
+     */
+    public array $calls = [];
+
+    /**
      * Systemweite Standard-Ton-Zuordnung (Ereignis => Signatur).
      *
      * @var array<string, string>
@@ -45,7 +53,29 @@ class Settings extends Component
         $days = (int) (Setting::getValueUncached('invitations', 'expiry_days') ?? 7);
         $this->invitationExpiryDays = $days > 0 ? $days : 7;
         $this->company = CompanyData::all(uncached: true);
+        $this->calls = CallSettings::all(uncached: true);
         $this->sounds = SoundLibrary::systemMap();
+    }
+
+    /** Betriebswerte der Anruffunktion speichern. */
+    public function saveCalls(): void
+    {
+        Gate::authorize('settings.manage');
+
+        $rules = [];
+
+        foreach (CallSettings::FIELDS as $key => [, $min, $max]) {
+            $rules["calls.{$key}"] = ['required', 'integer', "min:{$min}", "max:{$max}"];
+        }
+
+        $this->validate($rules);
+
+        CallSettings::save($this->calls);
+
+        // Zurueckgelesen, damit die Oberflaeche exakt zeigt, was gilt.
+        $this->calls = CallSettings::all(uncached: true);
+
+        $this->dispatch('call-settings-saved');
     }
 
     /**

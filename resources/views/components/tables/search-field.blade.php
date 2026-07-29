@@ -130,26 +130,48 @@
             this.value = '';
             this.$refs.input?.focus({ preventScroll: true });
         },
+        handleEscape() {
+            if (this.isTopbar || String(this.value ?? '').length === 0) {
+                this.close(true);
+            }
+        },
+        handleLayerOpen(event) {
+            if (
+                this.isTopbar
+                && event.detail?.group === 'topbar'
+                && event.detail?.id !== this.layerId
+            ) {
+                this.close(false);
+            }
+        },
+        handleSearchClose(event) {
+            if (this.isTopbar) {
+                this.close(event.detail?.restoreFocus !== false);
+            }
+        },
+        handleTriggerClick() {
+            if (this.isMobileLayerOpen()) {
+                this.close(true);
+                return;
+            }
+
+            if (this.isExpanded() && !this.mobile) {
+                this.submit();
+                return;
+            }
+
+            this.open();
+        },
     }"
     x-cloak
     x-bind:class="{
         'is-expanded': isExpanded(),
         'is-mobile-layer': isMobileLayerOpen(),
     }"
-    x-on:keydown.escape.stop.prevent="
-        if (isTopbar || String(value ?? '').length === 0) {
-            close(true);
-        }
-    "
-    x-on:dropdown-open.window="if (isTopbar) close(false)"
-    x-on:rt-topbar-layer-open.window="
-        if (isTopbar && $event.detail?.group === 'topbar' && $event.detail?.id !== layerId) {
-            close(false)
-        }
-    "
-    x-on:rt-topbar-search-close.window="
-        if (isTopbar) close($event.detail?.restoreFocus !== false)
-    "
+    x-on:keydown.escape.stop.prevent="handleEscape()"
+    x-on:dropdown-open.window="isTopbar && close(false)"
+    x-on:rt-topbar-layer-open.window="handleLayerOpen($event)"
+    x-on:rt-topbar-search-close.window="handleSearchClose($event)"
     class="rt-expandable-search"
     x-trap.inert.noscroll="isMobileLayerOpen()"
     x-bind:role="isMobileLayerOpen() ? 'dialog' : null"
@@ -162,15 +184,7 @@
         x-ref="trigger"
         type="button"
         @if ($isTopbarSearch)
-            x-on:click="
-                if (isMobileLayerOpen()) {
-                    close(true);
-                } else if (isExpanded() && !mobile) {
-                    submit();
-                } else {
-                    open();
-                }
-            "
+            x-on:click="handleTriggerClick()"
         @else
             x-on:click="open()"
         @endif
