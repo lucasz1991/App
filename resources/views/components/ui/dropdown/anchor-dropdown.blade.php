@@ -63,6 +63,7 @@
     placement: 'bottom',
     positionFrame: null,
     positionObserver: null,
+    positionMutationObserver: null,
     positionListener: null,
     layerGroup: @js($resolvedLayerGroup),
     layerId: @js($resolvedDropdownId),
@@ -179,6 +180,20 @@
         this.positionObserver.observe(panel);
       }
 
+      // Livewire kann den eigentlichen Button innerhalb des stabilen
+      // Trigger-Wrappers morphen. Nur solange das Dropdown offen ist, werden
+      // solche Ersetzungen beobachtet und ARIA plus Geometrie neu gebunden.
+      if (typeof MutationObserver === 'function') {
+        this.positionMutationObserver = new MutationObserver(() => {
+          this.syncTriggerAccessibility();
+          this.schedulePosition(panel);
+        });
+        this.positionMutationObserver.observe(trigger, {
+          childList: true,
+          subtree: true,
+        });
+      }
+
       this.schedulePosition(panel);
     },
 
@@ -190,6 +205,9 @@
 
       this.positionObserver?.disconnect();
       this.positionObserver = null;
+
+      this.positionMutationObserver?.disconnect();
+      this.positionMutationObserver = null;
 
       if (this.positionListener) {
         window.removeEventListener('scroll', this.positionListener, true);
@@ -254,7 +272,10 @@
       // abgerundeten Eckbereiche. Nur wenn ein randnaher Trigger sonst nicht
       // mehr exakt getroffen werden koennte, darf er bis auf 18px einruecken.
       const preferredCaretInset = Math.min(30, Math.max(18, panelWidth / 2));
-      const minimumCaretInset = Math.min(18, panelWidth / 2);
+      // 14px halten den 10px-Caret sicher ausserhalb des 12px-Eckradius,
+      // erlauben bei randnahen mobilen Triggern aber weiterhin eine exakt
+      // mittige Verbindung statt eines sichtbar versetzten Indikators.
+      const minimumCaretInset = Math.min(14, panelWidth / 2);
       const minimumViewportLeft = viewportLeft + viewportInset;
       const maximumViewportLeft = viewportLeft + viewportWidth - viewportInset - panelWidth;
       let resolvedLeft = this.clamp(
