@@ -538,6 +538,54 @@ class CallFlowTest extends TestCase
         $this->assertSame(1, Room::count());
     }
 
+
+    public function test_call_settings_are_administrable_and_take_effect(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        Livewire::actingAs($admin)
+            ->test(\App\Livewire\Admin\Settings::class)
+            ->set('calls.ring_timeout', 240)
+            ->set('calls.max_participants', 25)
+            ->call('saveCalls')
+            ->assertHasNoErrors()
+            ->assertDispatched('call-settings-saved');
+
+        // Der administrierte Wert muss die .env-Vorgabe ueberschreiben.
+        \App\Support\Calls\CallSettings::apply();
+
+        $this->assertSame(240, (int) config('livekit.ring_timeout'));
+        $this->assertSame(25, (int) config('livekit.max_participants'));
+    }
+
+    public function test_call_settings_reject_values_outside_the_safe_range(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        Livewire::actingAs($admin)
+            ->test(\App\Livewire\Admin\Settings::class)
+            // 5 Sekunden waeren unbedienbar, 99999 wuerde den Chat blockieren.
+            ->set('calls.ring_timeout', 5)
+            ->call('saveCalls')
+            ->assertHasErrors(['calls.ring_timeout']);
+    }
+
+    public function test_the_ring_timeout_setting_drives_the_invitation_window(): void
+    {
+        \App\Support\Calls\CallSettings::save(['ring_timeout' => 300]);
+        \App\Support\Calls\CallSettings::apply();
+
+        [$caller, $callee, $chat] = $this->directChatWithCallRights();
+        $room = $this->roomWithInvitation($caller, $callee, $chat);
+
+        $invitation = $room->invitations()->firstOrFail();
+        $seconds = (int) now()->diffInSeconds($invitation->expires_at, false);
+
+        // Toleranz fuer die Laufzeit des Tests.
+        $this->assertGreaterThan(290, $seconds);
+        $this->assertLessThanOrEqual(300, $seconds);
+    }
+
     protected function configureLiveKit(): void
     {
         config([
