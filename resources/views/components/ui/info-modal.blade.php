@@ -99,23 +99,23 @@
             </div>
         </header>
 
-        <div class="px-5 py-5 sm:px-7 sm:py-6">
-            <p class="max-w-xl text-pretty text-sm leading-6 text-rt-muted dark:text-rt-dark-muted" x-text="summary" x-show.important="summary"></p>
+        <div class="rt-info-body px-5 py-5 sm:px-7 sm:py-6">
+            <p class="rt-info-summary max-w-xl text-pretty text-sm leading-6 text-rt-muted dark:text-rt-dark-muted" x-text="summary" x-show.important="summary"></p>
 
             <ul class="rt-info-points mt-5 grid gap-2.5 sm:grid-cols-2" x-show.important="points.length">
                 <template x-for="(point, index) in points" :key="index">
                     <li class="rt-info-point group flex min-h-20 items-start gap-3 rounded-2xl bg-rt-surface-muted/70 px-3.5 py-3 text-sm leading-6 text-rt-text ring-1 ring-rt-border/50 dark:bg-rt-dark-surface-muted/60 dark:text-rt-dark-text dark:ring-rt-dark-border/50">
-                        <span class="mt-0.5 inline-flex h-7 min-w-7 shrink-0 items-center justify-center rounded-lg bg-white text-[10px] font-bold tabular-nums text-rt-red shadow-rt-xs ring-1 ring-rt-border/60 dark:bg-rt-dark-control dark:text-rt-dark-accent dark:ring-rt-dark-border" x-text="String(index + 1).padStart(2, '0')"></span>
-                        <span class="pt-0.5" x-text="point"></span>
+                        <span class="rt-info-point-index mt-0.5 inline-flex h-7 min-w-7 shrink-0 items-center justify-center rounded-lg bg-white text-[10px] font-bold tabular-nums text-rt-red shadow-rt-xs ring-1 ring-rt-border/60 dark:bg-rt-dark-control dark:text-rt-dark-accent dark:ring-rt-dark-border" x-text="String(index + 1).padStart(2, '0')"></span>
+                        <span class="rt-info-point-copy pt-0.5" x-text="point"></span>
                     </li>
                 </template>
             </ul>
 
-            <div class="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-rt-border/60 pt-4 dark:border-rt-dark-border/60">
+            <div class="rt-info-footer mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-rt-border/60 pt-4 dark:border-rt-dark-border/60">
                 <a
                     href="{{ route('help') }}"
                     wire:navigate
-                    class="group inline-flex min-h-10 items-center gap-2 rounded-xl px-2 text-sm font-semibold text-rt-red transition hover:bg-rt-accent-soft/60 hover:text-rt-red-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:hover:bg-rt-dark-accent-soft/50"
+                    class="rt-info-help-link group inline-flex min-h-10 items-center gap-2 rounded-xl px-2 text-sm font-semibold text-rt-red transition hover:bg-rt-accent-soft/60 hover:text-rt-red-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:hover:bg-rt-dark-accent-soft/50"
                 >
                     <i class="far fa-life-ring" aria-hidden="true"></i>
                     {{ __('app.open_all_help_topics') }}

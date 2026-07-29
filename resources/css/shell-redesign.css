@@ -879,6 +879,43 @@ body[data-mode='dark'] .rt-modal-footer {
 
 .rt-info-dialog {
     border: 1px solid var(--rt-shell-border);
+    background: var(--rt-shell-surface-solid) !important;
+    color: var(--rt-shell-text) !important;
+    color-scheme: light;
+}
+
+/*
+ * Vorder- und Hintergrundfarben gehoeren hier bewusst zusammen. Das globale
+ * Infomodal lebt neben Legacy-Utilities und uebersteht Livewire-Navigationen;
+ * ausschliesslich geerbte Text- und Dark-Utilities konnten deshalb im Light Mode
+ * eine helle Flaeche mit bereits wiederhergestellter heller Schrift kombinieren.
+ */
+.rt-info-body {
+    background: var(--rt-shell-surface-solid) !important;
+    color: var(--rt-shell-text) !important;
+}
+
+.rt-info-summary {
+    color: var(--rt-shell-muted) !important;
+}
+
+.rt-info-point,
+.rt-info-point-copy {
+    color: var(--rt-shell-text) !important;
+}
+
+.rt-info-point-index {
+    border-color: var(--rt-shell-border) !important;
+    background: var(--rt-shell-surface-solid) !important;
+    color: var(--rt-shell-accent) !important;
+}
+
+.rt-info-footer {
+    border-color: var(--rt-shell-border) !important;
+}
+
+.rt-info-help-link {
+    color: var(--rt-shell-accent) !important;
 }
 
 .rt-welcome-card {
@@ -905,6 +942,7 @@ body[data-mode='dark'] .rt-modal-footer {
 
 html.dark .rt-info-dialog,
 body[data-mode='dark'] .rt-info-dialog {
+    color-scheme: dark;
     box-shadow:
         0 1px 0 rgba(255, 255, 255, 0.04) inset,
         0 44px 120px -42px rgba(0, 0, 0, 0.9) !important;

@@ -34,13 +34,10 @@
             @can('employees.delete')
                 @if ((int) $user->id !== (int) auth()->id() && ! $user->isSuperAdmin())
                     <x-dropdown-link
-                        x-on:click.prevent='$dispatch("rt-confirm", {
-                            title: @js(__("app.delete_user")),
-                            message: @js(__("app.delete_user_confirm")),
-                            variant: "destructive",
-                            confirmLabel: @js(__("app.delete")),
-                            action: () => $wire.deleteUser()
-                        })'
+                        confirm-method="deleteUser"
+                        :confirm-title="__('app.delete_user')"
+                        :confirm-message="__('app.delete_user_confirm')"
+                        :confirm-label="__('app.delete')"
                         tone="danger"
                     >
                         <i class="far fa-trash-alt mr-2"></i>

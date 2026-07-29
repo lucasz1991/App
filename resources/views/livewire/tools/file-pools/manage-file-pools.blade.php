@@ -85,7 +85,7 @@
     - der Pfad bleibt in beiden Fällen das letzte Element vor dem Explorer.
   --}}
   <div
-    class="mb-2 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"
+    class="mb-2 grid gap-3 lg:!grid-cols-[minmax(0,1fr)_auto] lg:items-center"
     data-file-explorer-header
   >
     <div
@@ -183,6 +183,19 @@
           </button>
 
           @if(!$readOnly)
+            @php
+              /*
+               * Wie bei Datei-Actions muss der Ausdruck vor dem anonymen
+               * Dropdown-Link vollständig kompiliert werden.
+               */
+              $folderDeleteConfirmationAction = '$dispatch("rt-confirm", {'
+                  . 'title: ' . \Illuminate\Support\Js::from(__('app.delete')) . ','
+                  . 'message: ' . \Illuminate\Support\Js::from(__('app.folder_delete_confirm')) . ','
+                  . 'variant: "destructive",'
+                  . 'confirmLabel: ' . \Illuminate\Support\Js::from(__('app.delete')) . ','
+                  . 'action: () => $wire.deleteFolder(' . (int) $folder->id . ')'
+                  . '})';
+            @endphp
             <div class="absolute right-1.5 top-1.5">
               <x-dropdown align="right" width="48">
                 <x-slot name="trigger">
@@ -200,13 +213,7 @@
                     </x-dropdown-link>
                   @endif
                   <x-dropdown-link
-                      x-on:click.prevent='$dispatch("rt-confirm", {
-                          title: @js(__("app.delete")),
-                          message: @js(__("app.folder_delete_confirm")),
-                          variant: "destructive",
-                          confirmLabel: @js(__("app.delete")),
-                          action: () => $wire.deleteFolder({{ $folder->id }})
-                      })'
+                      x-on:click.prevent="{{ $folderDeleteConfirmationAction }}"
                       class="!text-red-600 dark:!text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
                   >
                     <i class="far fa-trash-alt mr-2"></i>{{ __('app.delete') }}

@@ -18,7 +18,55 @@
  * Oberflaeche diesen Hinweis gezielt fuer Firefox ein.
  */
 
-const MEDIA_KINDS = ['microphone', 'camera'];
+const DEVICE_KIND = { microphone: 'audioinput', camera: 'videoinput' };
+
+/**
+ * Status eines Geraets ermitteln – browserübergreifend.
+ *
+ * Zwei Wege, weil ein einzelner nicht reicht:
+ *
+ *  1. `permissions.query` — nur Chrome und Edge kennen 'microphone'/'camera'.
+ *     Firefox und Safari werfen dort einen Fehler.
+ *
+ *  2. `enumerateDevices()` — funktioniert ueberall: Solange keine Freigabe
+ *     vorliegt, liefert der Browser aus Datenschutzgruenden LEERE Geraetenamen.
+ *     Sobald der Nutzer erlaubt hat, stehen die echten Namen darin. Ein
+ *     gefuellter Name ist also ein verlaesslicher Beleg fuer die Freigabe.
+ *
+ * Ohne Weg 2 blieb der Status in Firefox und Safari dauerhaft auf "unbekannt" –
+ * die Oberflaeche zeigte weiter "Erlauben", obwohl die Freigabe laengst erteilt
+ * war. Genau das sah aus, als wuerde nichts gespeichert.
+ */
+export async function readDeviceState(kind) {
+    if (! navigator.mediaDevices?.getUserMedia) {
+        return 'unsupported';
+    }
+
+    // Weg 1: eindeutige Auskunft, wo verfuegbar.
+    try {
+        const status = await navigator.permissions.query({ name: kind });
+
+        if (status.state === 'granted' || status.state === 'denied') {
+            return status.state;
+        }
+    } catch (_) {
+        // Firefox/Safari: kein Fehler, nur keine Auskunft – weiter mit Weg 2.
+    }
+
+    // Weg 2: Geraetenamen verraten die Freigabe.
+    try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const matching = devices.filter((device) => device.kind === DEVICE_KIND[kind]);
+
+        if (matching.length === 0) {
+            return 'unsupported'; // Kein solches Geraet vorhanden.
+        }
+
+        return matching.some((device) => device.label !== '') ? 'granted' : 'prompt';
+    } catch (_) {
+        return 'unknown';
+    }
+}
 
 /** Liest den Status, ohne eine Abfrage auszuloesen. */
 async function readState(name) {
@@ -30,23 +78,7 @@ async function readState(name) {
         return window.Notification.permission; // granted | denied | default
     }
 
-    if (! navigator.mediaDevices?.getUserMedia) {
-        return 'unsupported';
-    }
-
-    // Firefox kennt permissions.query fuer Kamera/Mikrofon nicht. Dann bleibt
-    // der Status offen – wir zeigen ihn als "unbekannt" statt etwas zu raten.
-    if (! navigator.permissions?.query) {
-        return 'unknown';
-    }
-
-    try {
-        const status = await navigator.permissions.query({ name });
-
-        return status.state; // granted | denied | prompt
-    } catch (_) {
-        return 'unknown';
-    }
+    return readDeviceState(name);
 }
 
 export default function permissionSetup(config = {}) {
@@ -74,6 +106,32 @@ export default function permissionSetup(config = {}) {
             document.addEventListener('visibilitychange', () => {
                 if (! document.hidden) this.refresh();
             });
+
+            // Mikrofon oder Kamera nachtraeglich angesteckt? Dann aendert sich
+            // die Geraeteliste – und mit ihr unsere Statusermittlung.
+            navigator.mediaDevices?.addEventListener?.('devicechange', () => this.refresh());
+
+            this.watchPermissionChanges();
+        },
+
+        /**
+         * Aenderungen live mitbekommen, wo der Browser das anbietet.
+         *
+         * Chrome und Edge melden ueber PermissionStatus.onchange, wenn der
+         * Nutzer die Freigabe in den Browsereinstellungen aendert. Firefox und
+         * Safari kennen das fuer Geraete nicht – dort greifen visibilitychange
+         * und devicechange oben. Fehler werden bewusst verschluckt: Diese
+         * Beobachtung ist Komfort, kein Fundament.
+         */
+        async watchPermissionChanges() {
+            for (const kind of ['microphone', 'camera']) {
+                try {
+                    const status = await navigator.permissions.query({ name: kind });
+                    status.addEventListener('change', () => this.refresh());
+                } catch (_) {
+                    // Nicht unterstuetzt – kein Problem.
+                }
+            }
         },
 
         /**

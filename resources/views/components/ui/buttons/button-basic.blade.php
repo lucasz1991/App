@@ -1,4 +1,14 @@
-@props(['mode' => 'basic', 'size' => 'md', 'can' => true])
+@props([
+    'mode' => 'basic',
+    'size' => 'md',
+    'can' => true,
+    'confirmMethod' => null,
+    'confirmArguments' => [],
+    'confirmTitle' => null,
+    'confirmMessage' => null,
+    'confirmVariant' => 'destructive',
+    'confirmLabel' => null,
+])
 @php
 
 $modeClasses = match ($mode) {
@@ -51,6 +61,30 @@ $title = $isDeniedByCan
     : $attributes->get('title');
 
 $attributesWithoutTitle = $attributes->except('title');
+
+if (is_string($confirmMethod) && trim($confirmMethod) !== '') {
+    $attributesWithoutTitle = $attributesWithoutTitle
+        ->filter(function ($value, $key) {
+            foreach (['wire:click', '@click', 'x-on:click', 'onclick'] as $prefix) {
+                if ($key === $prefix || str_starts_with($key, $prefix . '.')) {
+                    return false;
+                }
+            }
+
+            return true;
+        })
+        ->merge([
+            'x-on:click.prevent' => \App\Support\Ui\ConfirmationAction::alpine(
+                method: $confirmMethod,
+                arguments: is_array($confirmArguments) ? $confirmArguments : [$confirmArguments],
+                title: $confirmTitle,
+                message: $confirmMessage,
+                variant: $confirmVariant,
+                confirmLabel: $confirmLabel,
+            ),
+        ]);
+}
+
 $interactiveAttributes = $attributesWithoutTitle->filter(function ($value, $key) use ($isDisabled) {
     if (! $isDisabled) {
         return true;
@@ -92,7 +126,7 @@ $shouldNavigate = $href !== ''
         {{ $slot }}
     </a>
 @else
-    <button {!! $attributesWithoutTitle->merge(['class' => $classes]) !!}
+    <button {!! $interactiveAttributes->merge(['class' => $classes]) !!}
         @if($title) title="{{ $title }}" @endif
         @if($isDisabled) disabled @endif>
         {{ $slot }}

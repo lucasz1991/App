@@ -19,7 +19,7 @@ import './gsap';
 // Vengeance-Motion (zeigergefuehrter Karten-Glow, Optik in app.css)
 import './vengeance-motion';
 import { wagonListPrototype } from './wagon-list-prototype';
-import permissionSetup from './permission-setup';
+import permissionSetup, { readDeviceState } from './permission-setup';
 import { numberInput } from './number-input';
 import {
     registerRailtimePwaInstall,
@@ -511,16 +511,11 @@ Alpine.data('chatRealtime', (config) => ({
         // Ist das Mikrofon bereits dauerhaft blockiert, fuehrt getUserMedia nur
         // zu einer stillen Ablehnung. Dann lieber gleich den Einrichtungsdialog
         // zeigen – dort steht auch, wie sich eine Blockade wieder aufheben laesst.
-        try {
-            const status = await navigator.permissions?.query({ name: 'microphone' });
+        // Browserübergreifende Pruefung (permissions.query + Geraetenamen).
+        if (await readDeviceState('microphone') === 'denied') {
+            window.dispatchEvent(new CustomEvent('rt:permissions-open'));
 
-            if (status?.state === 'denied') {
-                window.dispatchEvent(new CustomEvent('rt:permissions-open'));
-
-                return;
-            }
-        } catch (_) {
-            // Firefox kennt die Abfrage nicht – dann normal weiter.
+            return;
         }
 
         try {

@@ -1,19 +1,3 @@
-@php
-    /*
-     * Blade-Direktiven innerhalb eines Attributwerts eines anonymen
-     * Components werden nicht erneut kompiliert. Deshalb muss der komplette
-     * Alpine-Ausdruck einschliesslich der sicher serialisierten Texte vor dem
-     * Component-Aufruf entstehen.
-     */
-    $deleteConfirmationAction = '$dispatch("rt-confirm", {'
-        . 'title: ' . \Illuminate\Support\Js::from(__('app.delete_user')) . ','
-        . 'message: ' . \Illuminate\Support\Js::from(__('app.delete_user_confirm')) . ','
-        . 'variant: "destructive",'
-        . 'confirmLabel: ' . \Illuminate\Support\Js::from(__('app.delete')) . ','
-        . 'action: () => $wire.deleteUser(' . (int) $item->id . ')'
-        . '})';
-@endphp
-
 <x-ui.dropdown.anchor-dropdown align="right" width="48">
     <x-slot name="trigger">
         <x-ui.dropdown.action-trigger orientation="vertical" />
@@ -56,7 +40,11 @@
         @can('employees.delete')
             @if ((int) $item->id !== (int) auth()->id() && ! $item->isSuperAdmin())
                 <x-dropdown-link
-                    x-on:click.prevent="{{ $deleteConfirmationAction }}"
+                    confirm-method="deleteUser"
+                    :confirm-arguments="[(int) $item->id]"
+                    :confirm-title="__('app.delete_user')"
+                    :confirm-message="__('app.delete_user_confirm')"
+                    :confirm-label="__('app.delete')"
                     tone="danger"
                 >
                     <i class="far fa-trash-alt mr-2"></i>
