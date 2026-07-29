@@ -22,6 +22,9 @@
             $voiceFile = $message->voiceFile();
             $voiceConsumed = $message->view_once
                 && ($own || ($message->hasBeenViewedBy($me) && ! $message->hasActiveVoicePlaybackFor($me)));
+            $messageSurface = $voiceFile
+                ? 'rt-chat-message--voice'
+                : ($message->files->isNotEmpty() ? 'rt-chat-message--attachment' : 'rt-chat-message--text');
         @endphp
 
         <div wire:key="chat-msg-{{ $message->id }}" data-chat-message-row class="rt-chat-message-row flex w-full flex-col">
@@ -50,7 +53,7 @@
                     @endif
                     class="rt-chat-message {{ $own
                         ? 'rt-chat-message--own rt-chat-message--actionable rounded-br-md'
-                        : 'rt-chat-message--other rounded-bl-md' }} max-w-[calc(100vw-4.75rem)] rounded-[1.15rem] px-3.5 py-2.5 text-[13px] leading-5 sm:max-w-[min(72vw,38rem)] sm:px-4"
+                        : 'rt-chat-message--other rounded-bl-md' }} {{ $messageSurface }} max-w-[calc(100vw-4.75rem)] rounded-[1.15rem] px-3.5 py-2.5 text-[13px] leading-5 sm:max-w-[min(72vw,38rem)] sm:px-4"
                 >
                     @if ($showSender)
                         <p class="rt-chat-message-sender mb-1 text-[10px] font-extrabold tracking-[0.01em]">
@@ -59,7 +62,7 @@
                     @endif
 
                     @if (filled($message->body))
-                        <p class="whitespace-pre-wrap break-words">{{ $message->body }}</p>
+                        <p class="rt-chat-message-copy whitespace-pre-wrap break-words">{{ $message->body }}</p>
                     @endif
 
                     @if ($voiceFile)
@@ -133,7 +136,7 @@
                         </div>
                     @endif
 
-                    <p class="rt-chat-message-meta mt-1.5 flex min-h-5 items-center justify-end gap-1.5 text-right text-[9px] font-semibold leading-none">
+                    <div class="rt-chat-message-meta mt-1.5 flex min-h-5 items-center justify-end gap-1.5 text-right text-[9px] font-semibold leading-none">
                         @if ($own)
                             <button
                                 type="button"
@@ -146,15 +149,19 @@
                                 <i class="far fa-trash-alt" aria-hidden="true"></i>
                             </button>
                         @endif
-                        <span>{{ $message->created_at->format('H:i') }}</span>
-                        @if ($own)
-                            <i
-                                class="rt-chat-read-indicator far fa-check-double {{ $isRead ? 'is-read' : 'is-delivered' }}"
-                                title="{{ $isRead ? __('app.message_read') : __('app.message_delivered') }}"
-                                aria-label="{{ $isRead ? __('app.message_read') : __('app.message_delivered') }}"
-                            ></i>
-                        @endif
-                    </p>
+                        <span class="rt-chat-message-status inline-flex items-center gap-1">
+                            <time datetime="{{ $message->created_at->toIso8601String() }}">
+                                {{ $message->created_at->format('H:i') }}
+                            </time>
+                            @if ($own)
+                                <i
+                                    class="rt-chat-read-indicator far fa-check-double {{ $isRead ? 'is-read' : 'is-delivered' }}"
+                                    title="{{ $isRead ? __('app.message_read') : __('app.message_delivered') }}"
+                                    aria-label="{{ $isRead ? __('app.message_read') : __('app.message_delivered') }}"
+                                ></i>
+                            @endif
+                        </span>
+                    </div>
                 </div>
             </div>
         </div>

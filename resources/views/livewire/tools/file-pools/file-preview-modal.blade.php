@@ -49,7 +49,7 @@
           wire:click="downloadFile({{ $file->id }})"
           wire:loading.attr="disabled"
           wire:target="downloadFile"
-          class="!h-9 !min-h-9 !w-9 !p-0"
+          class="!h-9 !min-h-9 !w-9 !rounded-lg !border-transparent !bg-transparent !p-0 !shadow-none hover:!bg-rt-surface dark:hover:!bg-rt-dark-surface"
           title="{{ __('app.download') }}"
           aria-label="{{ __('app.download') }}"
           data-file-preview-action="download"
@@ -66,13 +66,31 @@
             target="_blank"
             rel="noopener noreferrer"
             data-no-navigate
-            class="!h-9 !min-h-9 !w-9 !p-0"
+            class="!h-9 !min-h-9 !w-9 !rounded-lg !border-transparent !bg-transparent !p-0 !shadow-none hover:!bg-rt-surface dark:hover:!bg-rt-dark-surface"
             title="{{ __('app.print') }}"
             aria-label="{{ __('app.print') }}"
             data-file-preview-action="print"
           >
             <i class="fas fa-print" aria-hidden="true"></i>
             <span class="sr-only">{{ __('app.print') }}</span>
+          </x-ui.buttons.button-basic>
+        @endif
+
+        @if($tempUrl)
+          <x-ui.buttons.button-basic
+            mode="basic"
+            size="sm"
+            href="{{ $tempUrl }}"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-no-navigate
+            class="!h-9 !min-h-9 !w-9 !rounded-lg !border-transparent !bg-transparent !p-0 !shadow-none hover:!bg-rt-surface dark:hover:!bg-rt-dark-surface"
+            title="{{ __('app.open_in_new_tab') }}"
+            aria-label="{{ __('app.open_in_new_tab') }}"
+            data-file-preview-action="open"
+          >
+            <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+            <span class="sr-only">{{ __('app.open_in_new_tab') }}</span>
           </x-ui.buttons.button-basic>
         @endif
       @endif
@@ -143,25 +161,6 @@
       @else
         <p class="text-sm text-rt-muted dark:text-rt-dark-muted">{{ __('app.no_file_selected') }}</p>
       @endif
-    </x-slot>
-
-    <x-slot name="footer">
-      <div class="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-end" data-file-preview-footer-actions>
-        @if($file && $open)
-          <x-ui.buttons.button-basic
-            mode="basic"
-            href="{{ $this->url }}"
-            target="_blank"
-            rel="noopener noreferrer"
-            data-no-navigate
-            size="sm"
-            class="w-full sm:w-auto"
-          >
-            <i class="fas fa-external-link-alt" aria-hidden="true"></i>
-            {{ __('app.open_in_new_tab') }}
-          </x-ui.buttons.button-basic>
-        @endif
-      </div>
     </x-slot>
 
   </x-dialog-modal>

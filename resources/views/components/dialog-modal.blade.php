@@ -20,30 +20,36 @@
         </h2>
 
         <div
-            class="flex shrink-0 flex-col items-center gap-2"
-            data-dialog-header-action-rail
+            class="flex shrink-0 items-center gap-1 rounded-xl border border-rt-border/70 bg-rt-surface-muted/65 p-1 shadow-rt-xs dark:border-rt-dark-border/70 dark:bg-rt-dark-surface-muted/45"
+            data-dialog-header-toolbar
         >
-            <button
-                type="button"
-                x-on:click="$dispatch('close')"
-                class="rt-ui-button rt-ui-button-secondary inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-rt-border bg-rt-surface text-rt-muted shadow-rt-xs transition-all duration-200 ease-rt-spring hover:border-rt-accent/30 hover:bg-rt-surface-muted hover:text-rt-accent active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-accent/15 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-muted dark:hover:border-rt-dark-accent/35 dark:hover:bg-rt-dark-surface-muted dark:hover:text-rt-dark-accent"
-                aria-label="{{ __('app.close') }}"
-                title="{{ __('app.close') }}"
-                data-dialog-close
-            >
-                <i class="far fa-times text-base" aria-hidden="true"></i>
-            </button>
-
             @isset($headerActions)
                 <div
-                    class="flex flex-col items-center gap-2 border-t border-rt-border/70 pt-2 dark:border-rt-dark-border/70"
+                    class="flex items-center gap-1"
                     role="toolbar"
                     aria-label="{{ __('app.actions') }}"
                     data-dialog-header-actions
                 >
                     {{ $headerActions }}
                 </div>
+
+                <span
+                    class="mx-0.5 h-5 w-px shrink-0 bg-rt-border/80 dark:bg-rt-dark-border/80"
+                    aria-hidden="true"
+                    data-dialog-header-separator
+                ></span>
             @endisset
+
+            <button
+                type="button"
+                x-on:click="$dispatch('close')"
+                class="rt-ui-button rt-ui-button-secondary inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-transparent bg-transparent text-rt-muted shadow-none transition-all duration-200 ease-rt-spring hover:bg-rt-surface hover:text-rt-accent active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-accent/15 dark:bg-transparent dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface dark:hover:text-rt-dark-accent"
+                aria-label="{{ __('app.close') }}"
+                title="{{ __('app.close') }}"
+                data-dialog-close
+            >
+                <i class="far fa-times text-base" aria-hidden="true"></i>
+            </button>
         </div>
     </header>
 
@@ -51,7 +57,9 @@
         {{ $content }}
     </div>
 
-    <footer class="rt-modal-footer flex shrink-0 flex-row flex-wrap items-center justify-end gap-2 border-t border-rt-border/70 bg-rt-surface-muted/55 px-5 py-4 text-end dark:border-rt-dark-border/70 dark:bg-rt-dark-surface-muted/35 sm:px-6">
-        {{ $footer }}
-    </footer>
+    @isset($footer)
+        <footer class="rt-modal-footer flex shrink-0 flex-row flex-wrap items-center justify-end gap-2 border-t border-rt-border/70 bg-rt-surface-muted/55 px-5 py-4 text-end dark:border-rt-dark-border/70 dark:bg-rt-dark-surface-muted/35 sm:px-6">
+            {{ $footer }}
+        </footer>
+    @endisset
 </x-modal>

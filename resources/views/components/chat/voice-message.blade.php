@@ -22,8 +22,11 @@
     })"
     x-on:chat:voice-ready.window="acceptSource($event.detail)"
     x-on:chat:voice-consumed.window="markConsumed($event.detail)"
+    x-bind:data-playing="playing.toString()"
+    x-bind:data-loading="loading.toString()"
+    x-bind:data-playback-blocked="playbackBlocked.toString()"
     data-no-chat-swipe
-    class="rt-voice-message w-[min(20rem,78vw)] max-w-full py-0.5"
+    class="rt-voice-message w-[min(20rem,78vw)] max-w-full"
 >
     <audio
         x-ref="audio"
@@ -39,47 +42,57 @@
         @ended="ended()"
     ></audio>
 
-    <div x-show.important="consumed" class="rt-voice-consumed flex min-h-14 items-center gap-3 rounded-xl px-2 py-1.5">
-        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
+    <div x-show.important="consumed" class="rt-voice-consumed flex min-h-16 items-center gap-3 rounded-[1rem] px-3 py-2.5">
+        <span class="rt-voice-consumed__icon flex h-11 w-11 shrink-0 items-center justify-center rounded-full">
             <i class="far fa-circle-check" aria-hidden="true"></i>
         </span>
         <span class="min-w-0">
-            <span class="block text-xs font-bold tracking-[-0.02em]">{{ $consumedLabel }}</span>
-            <span class="mt-0.5 block text-[10px] opacity-70">{{ __('app.voice_once_unavailable') }}</span>
+            <span class="block text-[0.72rem] font-bold tracking-[-0.015em]">{{ $consumedLabel }}</span>
+            <span class="mt-0.5 block text-[0.625rem] leading-4 opacity-70">{{ __('app.voice_once_unavailable') }}</span>
         </span>
     </div>
 
-    <div x-show.important="!consumed" class="flex min-w-0 items-center gap-2.5">
+    <div x-show.important="!consumed" class="rt-voice-player flex min-w-0 items-center gap-3">
         <button
             type="button"
             @click="toggle()"
             :aria-busy="loading.toString()"
-            class="rt-voice-play flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/50"
+            class="rt-voice-play flex h-[3.15rem] w-[3.15rem] shrink-0 items-center justify-center rounded-full text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/50"
             aria-label="{{ __('app.play_voice_message') }}"
         >
             <i x-show="loading" class="fas fa-spinner fa-spin" aria-hidden="true"></i>
             <i x-show="!loading" :class="playing ? 'fas fa-pause' : 'fas fa-play pl-0.5'" aria-hidden="true"></i>
         </button>
 
-        <div class="min-w-0 flex-1">
-            <div class="mb-1.5 flex items-center gap-2 text-[9px] font-bold uppercase tracking-[0.08em] opacity-80">
-                <span class="truncate">{{ $message->view_once ? __('app.voice_once') : __('app.voice_message') }}</span>
+        <div class="rt-voice-content min-w-0 flex-1">
+            <div class="rt-voice-heading flex items-center gap-1.5">
+                <span class="rt-voice-title inline-flex min-w-0 items-center gap-1.5">
+                    <i class="far fa-waveform shrink-0 text-[0.65rem]" aria-hidden="true"></i>
+                    <span class="truncate">{{ $message->view_once ? __('app.voice_once') : __('app.voice_message') }}</span>
+                </span>
                 @if ($message->view_once)
                     <span class="rt-voice-once-badge" title="{{ __('app.voice_once_hint') }}">1</span>
                 @endif
-                <span class="ml-auto shrink-0 tabular-nums" x-text="formattedTime"></span>
+                <span class="rt-voice-duration ml-auto shrink-0 tabular-nums" x-text="formattedTime"></span>
             </div>
 
-            <div class="rt-voice-waveform relative h-7 rounded-lg px-1">
-                <div class="flex h-full items-center gap-[2px] overflow-hidden" aria-hidden="true">
+            <div
+                class="rt-voice-timeline relative mt-1"
+                :style="`--rt-voice-progress: ${progress}%`"
+            >
+                <div class="rt-voice-waveform flex h-8 items-center gap-[2px] overflow-hidden px-0.5" aria-hidden="true">
                     <template x-for="(height, index) in waveform" :key="index">
                         <span
-                            class="block w-[2px] shrink-0 rounded-full bg-current opacity-25 transition-opacity duration-150"
-                            :class="((index + 1) / waveform.length) * 100 <= progress ? '!opacity-100' : ''"
+                            class="block w-[2px] shrink-0 rounded-full bg-current transition-[opacity,transform] duration-150"
+                            :class="((index + 1) / waveform.length) * 100 <= progress ? 'is-played' : ''"
                             :style="`height: ${height}px`"
                         ></span>
                     </template>
                 </div>
+                <span class="rt-voice-progress-rail" aria-hidden="true">
+                    <span class="rt-voice-progress-fill"></span>
+                    <span class="rt-voice-progress-thumb"></span>
+                </span>
                 <input
                     type="range"
                     min="0"
@@ -87,14 +100,10 @@
                     :max="duration || 0"
                     :value="currentTime"
                     @input="seek($event.target.value)"
-                    class="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                    class="rt-voice-seek absolute inset-0 h-full w-full cursor-pointer opacity-0"
                     aria-label="{{ __('app.voice_message_progress') }}"
                 >
             </div>
         </div>
-
-        <span class="rt-voice-kind flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" aria-hidden="true">
-            <i class="far fa-microphone text-[10px]"></i>
-        </span>
     </div>
 </div>
