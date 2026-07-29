@@ -18,6 +18,10 @@
             connectionFailed: @js(__('app.calls_connection_failed')),
             microphoneBlocked: @js(__('app.calls_microphone_blocked')),
             cameraBlocked: @js(__('app.calls_camera_blocked')),
+            microphoneMissing: @js(__('app.calls_microphone_missing')),
+            cameraMissing: @js(__('app.calls_camera_missing')),
+            microphoneBusy: @js(__('app.calls_microphone_busy')),
+            cameraBusy: @js(__('app.calls_camera_busy')),
         },
     })"
     x-on:beforeunload.window="disconnect()"

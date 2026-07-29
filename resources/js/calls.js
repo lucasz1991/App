@@ -40,6 +40,36 @@ document.addEventListener('alpine:init', () => {
             await this.connect();
         },
 
+        /**
+         * Geraetefehler ehrlich benennen statt pauschal "nicht freigegeben".
+         *
+         * Der Einrichtungsdialog liest den Berechtigungs-STATUS des Browsers;
+         * hier wird das Geraet tatsaechlich GEOEFFNET – und das scheitert auch
+         * bei erteilter Freigabe: Geraet von anderer Anwendung belegt oder vom
+         * Betriebssystem blockiert (NotReadableError), gar kein Geraet
+         * vorhanden (NotFoundError). Die alte Pauschalmeldung "nicht
+         * freigegeben" widersprach dann sichtbar dem Dialog ("Erteilt") und
+         * schickte den Nutzer in die falsche Richtung.
+         */
+        deviceErrorLabel(error, kind) {
+            const name = error?.name || '';
+
+            if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+                return kind === 'camera' ? config.labels.cameraMissing : config.labels.microphoneMissing;
+            }
+
+            if (name === 'NotReadableError' || name === 'AbortError') {
+                return kind === 'camera' ? config.labels.cameraBusy : config.labels.microphoneBusy;
+            }
+
+            return kind === 'camera' ? config.labels.cameraBlocked : config.labels.microphoneBlocked;
+        },
+
+        /** Nur ECHTE Freigabefehler sollen den Einrichtungsdialog oeffnen. */
+        isPermissionError(error) {
+            return error?.name === 'NotAllowedError' || error?.name === 'SecurityError';
+        },
+
         /** In den Fehlerzustand wechseln und den Grund fuer Diagnose loggen. */
         fail(label, error) {
             this.connected = false;
@@ -138,8 +168,11 @@ document.addEventListener('alpine:init', () => {
                     this.micOn = true;
                 } catch (error) {
                     console.error('[calls] Mikrofon nicht verfuegbar:', error);
-                    this.toast(config.labels.microphoneBlocked, 'warning');
-                    window.dispatchEvent(new CustomEvent('rt:permissions-open'));
+                    this.toast(this.deviceErrorLabel(error, 'microphone'), 'warning');
+
+                    if (this.isPermissionError(error)) {
+                        window.dispatchEvent(new CustomEvent('rt:permissions-open'));
+                    }
                 }
 
                 if (this.startWithVideo) {
@@ -150,7 +183,7 @@ document.addEventListener('alpine:init', () => {
                         // Kein Grund, den Anruf zu stoeren: Ton laeuft weiter,
                         // die Kamera laesst sich jederzeit nachtraeglich zuschalten.
                         console.error('[calls] Kamera nicht verfuegbar:', error);
-                        this.toast(config.labels.cameraBlocked, 'warning');
+                        this.toast(this.deviceErrorLabel(error, 'camera'), 'warning');
                     }
                 }
 
@@ -340,11 +373,12 @@ document.addEventListener('alpine:init', () => {
                 console.error('[calls] Mikrofon-Umschalten fehlgeschlagen:', error);
 
                 // Ein stiller Ruecksprung des Knopfs liesse den Nutzer raten.
-                // Einschalten scheitert fast immer an der Freigabe – also
-                // dieselbe Meldung samt Einrichtungsdialog wie beim Aufbau.
                 if (enable) {
-                    this.toast(config.labels.microphoneBlocked, 'warning');
-                    window.dispatchEvent(new CustomEvent('rt:permissions-open'));
+                    this.toast(this.deviceErrorLabel(error, 'microphone'), 'warning');
+
+                    if (this.isPermissionError(error)) {
+                        window.dispatchEvent(new CustomEvent('rt:permissions-open'));
+                    }
                 }
             }
         },
@@ -363,7 +397,7 @@ document.addEventListener('alpine:init', () => {
                 console.error('[calls] Kamera-Umschalten fehlgeschlagen:', error);
 
                 if (enable) {
-                    this.toast(config.labels.cameraBlocked, 'warning');
+                    this.toast(this.deviceErrorLabel(error, 'camera'), 'warning');
                 }
             }
         },

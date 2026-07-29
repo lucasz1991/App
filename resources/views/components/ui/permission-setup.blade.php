@@ -89,7 +89,14 @@
                                 {{ __('app.permissions_denied') }}
                             </span>
                         </template>
-                        <template x-if="states.microphone !== 'granted' && states.microphone !== 'denied'">
+                        {{-- Kein Geraet vorhanden: Ein Erlauben-Knopf waere eine
+                             leere Geste und wuerde nur Verwirrung stiften. --}}
+                        <template x-if="states.microphone === 'unsupported'">
+                            <span class="shrink-0 rounded-full bg-rt-surface px-2.5 py-1 text-[11px] font-bold text-rt-muted ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-muted dark:ring-rt-dark-border/60">
+                                {{ __('app.permissions_unavailable') }}
+                            </span>
+                        </template>
+                        <template x-if="! ['granted', 'denied', 'unsupported'].includes(states.microphone)">
                             <button
                                 type="button"
                                 x-on:click="requestMicrophone()"
@@ -124,7 +131,12 @@
                                 {{ __('app.permissions_denied') }}
                             </span>
                         </template>
-                        <template x-if="states.camera !== 'granted' && states.camera !== 'denied'">
+                        <template x-if="states.camera === 'unsupported'">
+                            <span class="shrink-0 rounded-full bg-rt-surface px-2.5 py-1 text-[11px] font-bold text-rt-muted ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-muted dark:ring-rt-dark-border/60">
+                                {{ __('app.permissions_unavailable') }}
+                            </span>
+                        </template>
+                        <template x-if="! ['granted', 'denied', 'unsupported'].includes(states.camera)">
                             <button
                                 type="button"
                                 x-on:click="requestCamera()"
@@ -156,7 +168,12 @@
                                 {{ __('app.permissions_denied') }}
                             </span>
                         </template>
-                        <template x-if="states.notifications !== 'granted' && states.notifications !== 'denied'">
+                        <template x-if="states.notifications === 'unsupported'">
+                            <span class="shrink-0 rounded-full bg-rt-surface px-2.5 py-1 text-[11px] font-bold text-rt-muted ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-muted dark:ring-rt-dark-border/60">
+                                {{ __('app.permissions_unavailable') }}
+                            </span>
+                        </template>
+                        <template x-if="! ['granted', 'denied', 'unsupported'].includes(states.notifications)">
                             <button
                                 type="button"
                                 x-on:click="requestNotifications()"
