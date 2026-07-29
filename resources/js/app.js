@@ -758,7 +758,7 @@ Alpine.data('chatRealtime', (config) => ({
      * Aussteuerung normieren (lauteste Stelle = 100). Ohne Normierung saehe
      * eine leise Nachricht aus wie Stille.
      */
-    condensedWaveform(buckets = 44) {
+    condensedWaveform(buckets = 64) {
         const samples = this.waveformSamples;
 
         if (samples.length === 0) {
@@ -808,9 +808,12 @@ Alpine.data('chatAudioPlayer', (config = {}) => ({
         : [],
 
     get waveform() {
+        // Feine Aufloesung: viele schmale Balken (44-64), laengere Nachricht
+        // = mehr Balken. Die Breite je Balken ergibt sich aus flex 1 1 —
+        // mehr Balken auf gleicher Flaeche heisst automatisch duenner.
         const barCount = this.duration > 0
-            ? Math.max(20, Math.min(48, Math.round(20 + (this.duration / 4))))
-            : 28;
+            ? Math.max(44, Math.min(64, Math.round(32 + (this.duration / 2))))
+            : 52;
 
         // Echte Pegel auf die Balkenzahl bringen; Hoehe 4-30 px.
         if (this.recordedWaveform.length >= 4) {

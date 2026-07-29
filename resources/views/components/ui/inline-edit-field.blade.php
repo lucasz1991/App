@@ -90,10 +90,11 @@
             type="button"
             x-on:dblclick.prevent="open()"
             x-on:keydown.enter.prevent="open()"
-            class="group/inline-edit flex min-h-8 w-full min-w-0 items-center {{ $justification }} gap-2 rounded-lg px-1.5 py-1 {{ $alignment }} text-sm font-medium text-rt-text transition hover:bg-rt-surface-muted focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-accent/15 dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted"
+            class="rt-inline-edit-visual group/inline-edit flex min-h-8 w-full min-w-0 items-center {{ $justification }} gap-2 rounded-lg border border-transparent px-1.5 py-1 {{ $alignment }} text-sm font-medium text-rt-text outline-none transition-[border-color,box-shadow,background-color,color] hover:bg-rt-surface-muted dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted"
             aria-label="{{ trim(strip_tags((string) $slot)) }} · {{ __('app.double_click_to_edit') }}"
             title="{{ __('app.double_click_to_edit') }}"
             data-inline-edit-display
+            data-autosave-visual
         >
             <span class="min-w-0 break-words">{{ $slot }}</span>
             <i
@@ -112,7 +113,8 @@
                     x-on:change="$nextTick(() => $el.blur())"
                     x-on:keydown.escape.prevent.stop="cancel()"
                     x-bind:disabled="saving"
-                    class="rt-ui-control min-h-11 w-full rounded-xl border border-rt-border bg-rt-control px-3.5 py-2.5 text-base leading-6 text-rt-text shadow-rt-xs outline-none transition duration-200 focus:border-rt-accent focus:ring-4 focus:ring-rt-accent/15 disabled:opacity-60 sm:text-sm dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:focus:ring-rt-dark-accent/20"
+                    data-autosave-visual
+                    class="rt-ui-control min-h-11 w-full rounded-xl border border-rt-border bg-rt-control px-3.5 py-2.5 text-base leading-6 text-rt-text shadow-rt-xs outline-none transition-[border-color,box-shadow,background-color,color] duration-200 focus:border-rt-accent disabled:opacity-60 sm:text-sm dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white"
                 >
                     @foreach ($options as $optionValue => $optionLabel)
                         <option value="{{ $optionValue }}">{{ $optionLabel }}</option>
@@ -128,7 +130,8 @@
                     x-on:keydown.escape.prevent.stop="cancel()"
                     x-on:keydown.ctrl.enter.prevent="$el.blur()"
                     x-bind:disabled="saving"
-                    class="rt-ui-control min-h-24 w-full resize-y rounded-xl border border-rt-border bg-rt-control px-3.5 py-2.5 text-base leading-6 text-rt-text shadow-rt-xs outline-none transition duration-200 focus:border-rt-accent focus:ring-4 focus:ring-rt-accent/15 disabled:opacity-60 sm:text-sm dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:focus:ring-rt-dark-accent/20"
+                    data-autosave-visual
+                    class="rt-ui-control min-h-24 w-full resize-y rounded-xl border border-rt-border bg-rt-control px-3.5 py-2.5 text-base leading-6 text-rt-text shadow-rt-xs outline-none transition-[border-color,box-shadow,background-color,color] duration-200 focus:border-rt-accent disabled:opacity-60 sm:text-sm dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white"
                 ></textarea>
             @else
                 <x-ui.forms.input

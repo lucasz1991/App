@@ -46,6 +46,12 @@
                     class="rt-chat-message-avatar mb-0.5"
                 />
 
+                @php
+                    // Textnachricht ohne Anhaenge: Zeit + Haken fliessen als
+                    // Inline-Element in die letzte Textzeile (WhatsApp-Stil)
+                    // statt eine eigene Zeile zu belegen.
+                    $metaInline = filled($message->body) && ! $voiceFile && $message->files->isEmpty();
+                @endphp
                 <div
                     data-rt-chat-message="{{ $own ? 'own' : 'other' }}"
                     @if ($own)
@@ -53,8 +59,36 @@
                     @endif
                     class="rt-chat-message {{ $own
                         ? 'rt-chat-message--own rt-chat-message--actionable rounded-br-md'
-                        : 'rt-chat-message--other rounded-bl-md' }} {{ $messageSurface }} max-w-[calc(100vw-4.75rem)] rounded-[1.15rem] px-3.5 py-2.5 text-[13px] leading-5 sm:max-w-[min(72vw,38rem)] sm:px-4"
+                        : 'rt-chat-message--other rounded-bl-md' }} {{ $messageSurface }} relative max-w-[90%] rounded-[1.15rem] px-3.5 py-2.5 text-[13px] leading-5 sm:max-w-[min(72vw,38rem)] sm:px-4"
                 >
+                    @if ($own)
+                        {{-- Loeschen wandert aus der Meta-Zeile in ein Caret-Menue
+                             oben rechts — sichtbar bei Hover/Fokus, auf Touch dezent
+                             permanent (CSS .rt-chat-message-actions). --}}
+                        <div class="rt-chat-message-actions" data-no-chat-swipe>
+                            <x-ui.dropdown.anchor-dropdown align="right" width="max" :offset="4">
+                                <x-slot name="trigger">
+                                    <button
+                                        type="button"
+                                        class="rt-chat-message-caret flex h-6 w-6 items-center justify-center rounded-full text-[10px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/50"
+                                        title="{{ __('app.message_options') }}"
+                                        aria-label="{{ __('app.message_options') }}"
+                                    >
+                                        <i class="far fa-chevron-down" aria-hidden="true"></i>
+                                    </button>
+                                </x-slot>
+                                <x-slot name="content">
+                                    <div class="space-y-0.5 p-1.5">
+                                        <x-ui.dropdown.dropdown-link wire:click="requestDeleteMessage({{ $message->id }})" data-rt-tone="danger">
+                                            <span class="rt-chat-option-icon"><i class="far fa-trash-alt" aria-hidden="true"></i></span>
+                                            <span>{{ __('app.delete_chat_message') }}</span>
+                                        </x-ui.dropdown.dropdown-link>
+                                    </div>
+                                </x-slot>
+                            </x-ui.dropdown.anchor-dropdown>
+                        </div>
+                    @endif
+
                     @if ($showSender)
                         <p class="rt-chat-message-sender mb-1 text-[10px] font-extrabold tracking-[0.01em]">
                             {{ $message->sender?->name }}
@@ -62,7 +96,7 @@
                     @endif
 
                     @if (filled($message->body))
-                        <p class="rt-chat-message-copy whitespace-pre-wrap break-words">{{ $message->body }}</p>
+                        <p class="rt-chat-message-copy whitespace-pre-wrap break-words">{{ $message->body }}@if ($metaInline)<span class="rt-chat-message-meta-inline"><time datetime="{{ $message->created_at->toIso8601String() }}">{{ $message->created_at->format('H:i') }}</time>@if ($own)<i class="rt-chat-read-indicator far fa-check-double {{ $isRead ? 'is-read' : 'is-delivered' }}" title="{{ $isRead ? __('app.message_read') : __('app.message_delivered') }}" aria-label="{{ $isRead ? __('app.message_read') : __('app.message_delivered') }}"></i>@endif</span>@endif</p>
                     @endif
 
                     @if ($voiceFile)
@@ -136,20 +170,11 @@
                         </div>
                     @endif
 
-                    <div class="rt-chat-message-meta mt-1.5 flex min-h-5 items-center justify-end gap-1.5 text-right text-[9px] font-semibold leading-none">
-                        @if ($own)
-                            <button
-                                type="button"
-                                wire:click="requestDeleteMessage({{ $message->id }})"
-                                data-no-chat-swipe
-                                class="rt-chat-message-delete mr-auto inline-flex h-6 w-6 items-center justify-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/50"
-                                title="{{ __('app.delete_chat_message') }}"
-                                aria-label="{{ __('app.delete_chat_message') }}"
-                            >
-                                <i class="far fa-trash-alt" aria-hidden="true"></i>
-                            </button>
-                        @endif
-                        <span class="rt-chat-message-status inline-flex items-center gap-1">
+                    {{-- Medien/Voice: Zeit + Haken kompakt rechts unter dem
+                         Inhalt — die fruehere Extrazeile samt Loeschen-Knopf
+                         entfaellt (Loeschen liegt im Caret-Menue). --}}
+                    @unless ($metaInline)
+                        <div class="rt-chat-message-meta mt-1 flex items-center justify-end gap-1 text-right text-[9px] font-semibold leading-none">
                             <time datetime="{{ $message->created_at->toIso8601String() }}">
                                 {{ $message->created_at->format('H:i') }}
                             </time>
@@ -160,8 +185,8 @@
                                     aria-label="{{ $isRead ? __('app.message_read') : __('app.message_delivered') }}"
                                 ></i>
                             @endif
-                        </span>
-                    </div>
+                        </div>
+                    @endunless
                 </div>
             </div>
         </div>

@@ -81,7 +81,7 @@
                 class="rt-voice-timeline relative mt-1"
                 :style="`--rt-voice-progress: ${progress}%`"
             >
-                <div class="rt-voice-waveform flex h-8 items-center gap-[2px] overflow-hidden px-0.5" aria-hidden="true">
+                <div class="rt-voice-waveform flex h-8 items-center gap-[1px] overflow-hidden px-0.5" aria-hidden="true">
                     <template x-for="(height, index) in waveform" :key="index">
                         <span
                             class="block w-[2px] shrink-0 rounded-full bg-current transition-[opacity,transform] duration-150"

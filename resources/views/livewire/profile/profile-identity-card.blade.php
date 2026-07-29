@@ -42,8 +42,9 @@
                 <button
                     type="button"
                     x-on:click="$refs.photo.click()"
-                    class="group/photo relative block rounded-2xl focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-accent/20"
+                    class="rt-inline-edit-visual group/photo relative block rounded-2xl outline-none"
                     aria-label="{{ __('app.change_profile_photo') }}"
+                    data-autosave-visual
                 >
                     <img
                         x-show.important="! preview"
@@ -142,8 +143,9 @@
                     x-show.important="editor !== 'name'"
                     type="button"
                     x-on:click="openEditor('name')"
-                    class="group/edit flex max-w-full items-center gap-2 rounded-lg text-left focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-accent/15"
+                    class="rt-inline-edit-visual group/edit flex max-w-full items-center gap-2 rounded-lg text-left outline-none"
                     aria-label="{{ __('app.username') }} {{ __('app.edit') }}"
+                    data-autosave-visual
                 >
                     <span class="truncate text-lg font-semibold tracking-tight text-rt-text dark:text-rt-dark-text">
                         {{ $name }}
@@ -179,8 +181,9 @@
                     x-show.important="editor !== 'email'"
                     type="button"
                     x-on:click="openEditor('email')"
-                    class="group/edit flex min-w-0 max-w-full items-center gap-2 rounded-md text-left text-sm text-rt-muted focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-accent/15 dark:text-rt-dark-muted"
+                    class="rt-inline-edit-visual group/edit flex min-w-0 max-w-full items-center gap-2 rounded-md text-left text-sm text-rt-muted outline-none dark:text-rt-dark-muted"
                     aria-label="{{ __('app.email') }} {{ __('app.edit') }}"
+                    data-autosave-visual
                 >
                     <span class="truncate">{{ $email }}</span>
                     <i class="far fa-pen text-[9px] text-rt-soft opacity-0 transition group-hover/edit:opacity-100 group-focus-visible/edit:opacity-100 dark:text-rt-dark-soft" aria-hidden="true"></i>

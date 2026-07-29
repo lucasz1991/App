@@ -37,9 +37,10 @@
             data-autosave-model="{{ $model }}"
             data-autosave-field-id="{{ $inputId }}"
             data-autosave-state="idle"
+            data-autosave-visual
         @endif
         aria-hidden="true"
-        class="rt-ui-toggle-control relative h-7 w-12 shrink-0 rounded-full border border-rt-border bg-slate-200 shadow-[inset_0_1px_2px_rgba(15,23,42,.12)] transition-all duration-200 ease-rt-spring after:absolute after:start-1 after:top-1 after:h-5 after:w-5 after:rounded-full after:border after:border-slate-200 after:bg-white after:shadow-[0_2px_5px_rgba(15,23,42,.28)] after:transition-transform after:duration-200 after:ease-rt-spring peer-focus-visible:ring-4 peer-focus-visible:ring-rt-accent/20 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-white peer-checked:border-rt-accent peer-checked:bg-rt-accent peer-checked:after:translate-x-full peer-disabled:shadow-none rtl:peer-checked:after:-translate-x-full dark:border-slate-600 dark:bg-slate-700 dark:after:border-slate-500 dark:peer-focus-visible:ring-rt-dark-accent/30 dark:peer-focus-visible:ring-offset-rt-dark-surface dark:peer-checked:border-rt-dark-accent dark:peer-checked:bg-rt-dark-accent"
+        class="rt-ui-toggle-control relative h-7 w-12 shrink-0 rounded-full border border-rt-border bg-slate-200 shadow-[inset_0_1px_2px_rgba(15,23,42,.12)] transition-all duration-200 ease-rt-spring after:absolute after:start-1 after:top-1 after:h-5 after:w-5 after:rounded-full after:border after:border-slate-200 after:bg-white after:shadow-[0_2px_5px_rgba(15,23,42,.28)] after:transition-transform after:duration-200 after:ease-rt-spring peer-checked:border-rt-accent peer-checked:bg-rt-accent peer-checked:after:translate-x-full peer-disabled:shadow-none rtl:peer-checked:after:-translate-x-full dark:border-slate-600 dark:bg-slate-700 dark:after:border-slate-500 dark:peer-checked:border-rt-dark-accent dark:peer-checked:bg-rt-dark-accent"
     ></span>
 
     @if($label)

@@ -548,11 +548,64 @@ body[data-mode='dark'] .rt-chat-message--own .rt-chat-message-meta {
 }
 
 .rt-chat-message-meta {
-    min-height: 1.25rem;
-    margin-top: 0.28rem;
     font-size: 0.5625rem;
     font-weight: 650;
     letter-spacing: 0.025em;
+}
+
+/* WhatsApp-Stil: Zeit + Lesehaken schwimmen in der letzten Textzeile.
+   float right laesst den Text umbrechen, wenn die Zeile zu voll ist —
+   genau das Verhalten der Vorlage, ohne eigene Meta-Zeile. */
+.rt-chat-message-meta-inline {
+    float: right;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.28rem;
+    margin: 0.62rem -0.1rem -0.1rem 0.6rem;
+    color: var(--chat-muted);
+    font-size: 0.5625rem;
+    font-weight: 650;
+    letter-spacing: 0.025em;
+    line-height: 1;
+    user-select: none;
+}
+
+/* Caret-Menue eigener Nachrichten: unsichtbar bis Hover/Fokus; auf
+   Touch-Geraeten (kein Hover moeglich) dezent permanent sichtbar. */
+.rt-chat-message-actions {
+    position: absolute;
+    top: 0.2rem;
+    right: 0.25rem;
+    z-index: 5;
+    opacity: 0;
+    transform: translateY(-0.1rem);
+    transition:
+        opacity 150ms ease,
+        transform 180ms ease;
+}
+
+.rt-chat-message--own:hover .rt-chat-message-actions,
+.rt-chat-message--own:focus-within .rt-chat-message-actions {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+@media (hover: none) {
+    .rt-chat-message-actions {
+        opacity: 0.55;
+        transform: none;
+    }
+}
+
+.rt-chat-message-caret {
+    color: var(--chat-muted);
+    background: color-mix(in srgb, var(--chat-panel) 88%, transparent);
+    box-shadow: 0 1px 4px rgb(0 0 0 / 0.14);
+}
+
+.rt-chat-message-caret:hover,
+.rt-chat-message-caret:focus-visible {
+    color: var(--chat-accent);
 }
 
 .rt-chat-message--voice .rt-chat-message-meta,
@@ -569,7 +622,6 @@ body[data-mode='dark'] .rt-chat-message--own .rt-chat-message-meta {
     font-size: 0.58rem;
 }
 
-.rt-chat-message-delete,
 .rt-chat-media-button,
 .rt-voice-play,
 .rt-chat-file-card,
@@ -578,7 +630,6 @@ body[data-mode='dark'] .rt-chat-message--own .rt-chat-message-meta {
     background: color-mix(in srgb, var(--chat-ink) 7%, transparent);
 }
 
-.rt-chat-message-delete,
 .rt-chat-upload-remove {
     transition:
         color 160ms ease,
@@ -587,26 +638,11 @@ body[data-mode='dark'] .rt-chat-message--own .rt-chat-message-meta {
         transform 180ms ease;
 }
 
-.rt-chat-message-delete {
-    pointer-events: none;
-    opacity: 0;
-    transform: translateY(0.15rem) scale(0.92);
-}
-
-.rt-chat-message--actionable:hover .rt-chat-message-delete,
-.rt-chat-message--actionable:focus-within .rt-chat-message-delete,
-.rt-chat-message-delete:focus-visible {
-    pointer-events: auto;
-    opacity: 1;
-    transform: translateY(0) scale(1);
-}
-
 .rt-chat-message--actionable:focus-visible {
     outline: 2px solid color-mix(in srgb, var(--chat-accent) 52%, transparent);
     outline-offset: 2px;
 }
 
-.rt-chat-message-delete:hover,
 .rt-chat-upload-remove:hover {
     color: var(--chat-accent);
     background: color-mix(in srgb, var(--chat-accent) 10%, transparent);

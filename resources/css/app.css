@@ -4268,49 +4268,73 @@ body[data-mode="dark"][data-sidebar-collapsible="true"][data-sidebar-expanded="t
     }
 }
 
-/* Feldgenaues Autosave-Feedback
-   --------------------------------
-   Die Outline ist auf echte Autosave-Scopes und aktive Zustaende begrenzt.
-   Sie veraendert weder Layout noch Radius/Transitions der Form-Komponente. */
-[data-autosave-scope] [data-autosave-field][data-autosave-state="dirty"],
-[data-autosave-scope] [data-autosave-field][data-autosave-state="saving"] {
-    outline: 2px solid rgba(245, 158, 11, 0.88);
-    outline-offset: 2px;
+/* Einheitlicher Fokus- und Autosave-Ring
+   ---------------------------------------
+   Jede Control besitzt genau EINE visuelle Flaeche. Fokus und Autosave
+   schreiben deshalb dieselbe border/box-shadow-Ebene statt Tailwind-Ring,
+   Shadow und zusaetzlicher Outline uebereinander zu legen. */
+.rt-ui-control:focus,
+.rt-ui-number-input:focus-within,
+.rt-inline-edit-visual:focus-visible,
+.peer:focus-visible ~ [data-toggle-control],
+.rt-ui-checkbox:focus-visible {
+    border-color: rgb(228 0 43);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(228, 0, 43, 0.16);
 }
 
-[data-autosave-scope] [data-autosave-field][data-autosave-state="saving"] {
+[data-autosave-scope] [data-autosave-visual][data-autosave-state="dirty"],
+[data-autosave-scope] [data-autosave-visual][data-autosave-state="saving"] {
+    border-color: rgba(245, 158, 11, 0.96);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25);
+}
+
+[data-autosave-scope] [data-autosave-visual][data-autosave-state="saving"] {
     animation: rt-autosave-saving-ring 900ms ease-in-out infinite alternate;
 }
 
-[data-autosave-scope] [data-autosave-field][data-autosave-state="saved"] {
-    outline: 2px solid rgba(16, 185, 129, 0.9);
-    outline-offset: 2px;
+[data-autosave-scope] [data-autosave-visual][data-autosave-state="saved"] {
+    border-color: rgba(16, 185, 129, 0.96);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.24);
 }
 
-html.dark [data-autosave-scope] [data-autosave-field][data-autosave-state="dirty"],
-html.dark [data-autosave-scope] [data-autosave-field][data-autosave-state="saving"],
-body[data-mode="dark"] [data-autosave-scope] [data-autosave-field][data-autosave-state="dirty"],
-body[data-mode="dark"] [data-autosave-scope] [data-autosave-field][data-autosave-state="saving"] {
-    outline-color: rgba(251, 191, 36, 0.94);
+html.dark [data-autosave-scope] [data-autosave-visual][data-autosave-state="dirty"],
+html.dark [data-autosave-scope] [data-autosave-visual][data-autosave-state="saving"],
+body[data-mode="dark"] [data-autosave-scope] [data-autosave-visual][data-autosave-state="dirty"],
+body[data-mode="dark"] [data-autosave-scope] [data-autosave-visual][data-autosave-state="saving"] {
+    border-color: rgba(251, 191, 36, 0.98);
+    box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.28);
 }
 
-html.dark [data-autosave-scope] [data-autosave-field][data-autosave-state="saved"],
-body[data-mode="dark"] [data-autosave-scope] [data-autosave-field][data-autosave-state="saved"] {
-    outline-color: rgba(52, 211, 153, 0.94);
+html.dark [data-autosave-scope] [data-autosave-visual][data-autosave-state="saved"],
+body[data-mode="dark"] [data-autosave-scope] [data-autosave-visual][data-autosave-state="saved"] {
+    border-color: rgba(52, 211, 153, 0.98);
+    box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.26);
+}
+
+/* Validierungsfehler haben Vorrang vor Erfolgs- oder Speicherfeedback. */
+[data-autosave-scope] [data-autosave-visual][aria-invalid="true"],
+[data-autosave-scope] [data-autosave-visual].is-invalid {
+    border-color: rgb(220 38 38);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.22);
+    animation: none;
 }
 
 @keyframes rt-autosave-saving-ring {
     from {
-        outline-color: rgba(245, 158, 11, 0.56);
+        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.16);
     }
 
     to {
-        outline-color: rgba(245, 158, 11, 1);
+        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.34);
     }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    [data-autosave-scope] [data-autosave-field][data-autosave-state="saving"] {
+    [data-autosave-scope] [data-autosave-visual][data-autosave-state="saving"] {
         animation: none;
     }
 }

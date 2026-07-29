@@ -265,11 +265,25 @@
                     && element.getAttribute('data-autosave-field-id') === entry.fieldId
                 );
 
-            // Gemeinsame Inputs koennen in einem stabilen Inline-Wrapper liegen.
-            // Dann zeichnet nur der aeusserste passende Wrapper den Ring.
-            return matches.filter(element =>
+            // Der Status gehoert zum stabilen Feld-Owner, gezeichnet wird er
+            // jedoch nur auf der expliziten visuellen Control-Flaeche. So
+            // entstehen bei Selects, Steppern und Inline-Edits keine
+            // uebereinanderliegenden Ringe auf Wrapper UND Eingabefeld.
+            const owners = matches.filter(element =>
                 !matches.some(candidate => candidate !== element && candidate.contains(element))
             );
+
+            const visuals = owners.flatMap(owner => {
+                if (owner.matches('[data-autosave-visual]')) return [owner];
+
+                const explicit = Array.from(
+                    owner.querySelectorAll('[data-autosave-visual]')
+                );
+
+                return explicit.length > 0 ? explicit : [owner];
+            });
+
+            return [...new Set(visuals)];
         },
 
         applyVisualState(entry) {
