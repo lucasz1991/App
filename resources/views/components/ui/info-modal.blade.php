@@ -43,6 +43,7 @@
         },
     }"
     x-on:rt-info:open.window="show($event.detail)"
+    x-on:rt-navigation:prepare.window="close()"
     x-on:keydown.escape.window="close()"
     x-show.important="open"
     x-cloak

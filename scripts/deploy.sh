@@ -67,9 +67,12 @@ IS_ROOT=0
 
 restore_ownership() {
     if [ "$IS_ROOT" -eq 1 ]; then
+        # node_modules MUSS mit: Vite legt dort .vite-temp an. Bleibt das
+        # root-eigen, scheitert jeder spaetere Build des Plesk-Benutzers mit
+        # "EACCES: permission denied" — genau so am 29.07.2026 passiert.
         chown -R "$APP_OWNER" \
-            storage bootstrap/cache public/build vendor \
-            app resources routes config lang 2>/dev/null || true
+            storage bootstrap/cache public/build vendor node_modules \
+            app resources routes config lang scripts 2>/dev/null || true
     fi
 }
 

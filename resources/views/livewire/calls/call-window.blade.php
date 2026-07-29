@@ -18,6 +18,8 @@
             removed: @js(__('app.calls_you_were_removed')),
             connectionFailed: @js(__('app.calls_connection_failed')),
             deviceBlocked: @js(__('app.calls_device_blocked')),
+            microphoneBlocked: @js(__('app.calls_microphone_blocked')),
+            cameraBlocked: @js(__('app.calls_camera_blocked')),
         },
     })"
     x-on:beforeunload.window="disconnect()"

@@ -245,17 +245,21 @@ body[data-mode="dark"] .rt-ui-surface-muted {
 }
 
 .rt-viewport-dropdown[data-placement="bottom"] .rt-ui-dropdown-caret {
-    top: -0.3rem;
+    top: 0;
+    bottom: auto;
     left: var(--rt-dropdown-caret-x, 50%);
     border-bottom-width: 0;
     border-right-width: 0;
+    transform: translate(-50%, -100%);
 }
 
 .rt-viewport-dropdown[data-placement="top"] .rt-ui-dropdown-caret {
-    bottom: -0.3rem;
+    top: auto;
+    bottom: 0;
     left: var(--rt-dropdown-caret-x, 50%);
     border-left-width: 0;
     border-top-width: 0;
+    transform: translate(-50%, 100%) rotate(180deg);
 }
 
 html.dark .rt-ui-topbar,

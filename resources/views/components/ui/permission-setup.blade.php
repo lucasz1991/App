@@ -50,14 +50,17 @@
                 </header>
 
                 <div class="space-y-2.5 px-5 py-5">
-                    {{-- Mikrofon und Kamera: eine Abfrage fuer beide --}}
+                    {{-- Mikrofon: Voraussetzung fuer jede Art von Anruf --}}
                     <div class="flex items-center gap-3 rounded-xl bg-rt-surface-muted p-3.5 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60">
                         <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-rt-surface text-rt-muted dark:bg-rt-dark-surface dark:text-rt-dark-muted">
                             <i class="far fa-microphone" aria-hidden="true"></i>
                         </span>
                         <div class="min-w-0 flex-1">
-                            <p class="text-sm font-bold text-rt-text dark:text-rt-dark-text">{{ __('app.permissions_media') }}</p>
-                            <p class="mt-0.5 text-[11px] leading-4 text-rt-muted dark:text-rt-dark-muted">{{ __('app.permissions_media_hint') }}</p>
+                            <p class="flex items-center gap-1.5 text-sm font-bold text-rt-text dark:text-rt-dark-text">
+                                {{ __('app.permissions_microphone') }}
+                                <span class="rounded-full bg-rt-accent-soft px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent">{{ __('app.permissions_required') }}</span>
+                            </p>
+                            <p class="mt-0.5 text-[11px] leading-4 text-rt-muted dark:text-rt-dark-muted">{{ __('app.permissions_microphone_hint') }}</p>
                         </div>
                         <template x-if="states.microphone === 'granted'">
                             <span class="shrink-0 rounded-full bg-emerald-500/15 px-2.5 py-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
@@ -72,12 +75,47 @@
                         <template x-if="states.microphone !== 'granted' && states.microphone !== 'denied'">
                             <button
                                 type="button"
-                                x-on:click="requestMedia()"
-                                :disabled="busy === 'media'"
+                                x-on:click="requestMicrophone()"
+                                :disabled="busy !== null"
                                 class="shrink-0 rounded-full bg-rt-accent px-3.5 py-1.5 text-[11px] font-bold text-white transition-colors hover:bg-rt-red-dark disabled:opacity-50"
                             >
-                                <span x-show="busy !== 'media'">{{ __('app.permissions_allow') }}</span>
-                                <span x-show="busy === 'media'" x-cloak>…</span>
+                                <span x-show="busy !== 'microphone'">{{ __('app.permissions_allow') }}</span>
+                                <span x-show="busy === 'microphone'" x-cloak>…</span>
+                            </button>
+                        </template>
+                    </div>
+
+                    {{-- Kamera: ausdruecklich optional, Sprachanrufe gehen ohne --}}
+                    <div class="flex items-center gap-3 rounded-xl bg-rt-surface-muted p-3.5 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60">
+                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-rt-surface text-rt-muted dark:bg-rt-dark-surface dark:text-rt-dark-muted">
+                            <i class="far fa-video" aria-hidden="true"></i>
+                        </span>
+                        <div class="min-w-0 flex-1">
+                            <p class="flex items-center gap-1.5 text-sm font-bold text-rt-text dark:text-rt-dark-text">
+                                {{ __('app.permissions_camera') }}
+                                <span class="rounded-full bg-rt-surface px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-rt-muted ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-muted dark:ring-rt-dark-border/60">{{ __('app.permissions_optional') }}</span>
+                            </p>
+                            <p class="mt-0.5 text-[11px] leading-4 text-rt-muted dark:text-rt-dark-muted">{{ __('app.permissions_camera_hint') }}</p>
+                        </div>
+                        <template x-if="states.camera === 'granted'">
+                            <span class="shrink-0 rounded-full bg-emerald-500/15 px-2.5 py-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                                <i class="far fa-check" aria-hidden="true"></i> {{ __('app.permissions_granted') }}
+                            </span>
+                        </template>
+                        <template x-if="states.camera === 'denied'">
+                            <span class="shrink-0 rounded-full bg-rose-500/15 px-2.5 py-1 text-[11px] font-bold text-rose-600 dark:text-rose-400">
+                                {{ __('app.permissions_denied') }}
+                            </span>
+                        </template>
+                        <template x-if="states.camera !== 'granted' && states.camera !== 'denied'">
+                            <button
+                                type="button"
+                                x-on:click="requestCamera()"
+                                :disabled="busy !== null"
+                                class="shrink-0 rounded-full bg-rt-surface px-3.5 py-1.5 text-[11px] font-bold text-rt-text ring-1 ring-rt-border/60 transition-colors hover:bg-rt-accent-soft hover:text-rt-accent dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60"
+                            >
+                                <span x-show="busy !== 'camera'">{{ __('app.permissions_allow') }}</span>
+                                <span x-show="busy === 'camera'" x-cloak>…</span>
                             </button>
                         </template>
                     </div>
@@ -134,7 +172,7 @@
                     </template>
 
                     {{-- Abgelehnt? Dann hilft nur die Browsereinstellung. --}}
-                    <template x-if="states.microphone === 'denied' || states.notifications === 'denied'">
+                    <template x-if="states.microphone === 'denied' || states.camera === 'denied' || states.notifications === 'denied'">
                         <div class="flex items-start gap-2.5 rounded-xl border-l-4 border-rose-500 bg-rose-50 px-3.5 py-3 text-[11px] leading-5 text-rose-800 dark:bg-rose-500/10 dark:text-rose-200">
                             <i class="fad fa-circle-exclamation mt-0.5" aria-hidden="true"></i>
                             <span>{{ __('app.permissions_denied_hint') }}</span>

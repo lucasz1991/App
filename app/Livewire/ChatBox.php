@@ -38,7 +38,7 @@ class ChatBox extends Component
 
     private const MEMBER_PICKER_PER_PAGE = 6;
 
-    #[Url(as: 'chat', history: true)]
+    #[Url(as: 'chat')]
     public ?int $selectedChatId = null;
 
     public string $messageText = '';

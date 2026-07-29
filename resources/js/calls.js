@@ -130,19 +130,30 @@ document.addEventListener('alpine:init', () => {
             this.renderAllParticipants();
 
             if (this.canPublish) {
+                // Mikrofon und Kamera GETRENNT behandeln: Frueher liess ein
+                // Kamerafehler auch das bereits aktive Mikrofon als "nicht
+                // verfuegbar" erscheinen – die Meldung war schlicht falsch.
                 try {
                     await this.room.localParticipant.setMicrophoneEnabled(true);
                     this.micOn = true;
-                    await this.room.localParticipant.setCameraEnabled(this.startWithVideo);
-                    this.cameraOn = this.startWithVideo;
                 } catch (error) {
-                    // Berechtigung verweigert: Anruf laeuft als Zuhoerer weiter,
-                    // aber der Nutzer erfaehrt jetzt, WARUM er stumm ist – und
-                    // bekommt den Einrichtungsdialog, statt ratlos dazusitzen.
-                    console.error('[calls] Geraetefreigabe fehlgeschlagen:', error);
-                    this.toast(config.labels.deviceBlocked, 'warning');
+                    console.error('[calls] Mikrofon nicht verfuegbar:', error);
+                    this.toast(config.labels.microphoneBlocked, 'warning');
                     window.dispatchEvent(new CustomEvent('rt:permissions-open'));
                 }
+
+                if (this.startWithVideo) {
+                    try {
+                        await this.room.localParticipant.setCameraEnabled(true);
+                        this.cameraOn = true;
+                    } catch (error) {
+                        // Kein Grund, den Anruf zu stoeren: Ton laeuft weiter,
+                        // die Kamera laesst sich jederzeit nachtraeglich zuschalten.
+                        console.error('[calls] Kamera nicht verfuegbar:', error);
+                        this.toast(config.labels.cameraBlocked, 'warning');
+                    }
+                }
+
             }
         },
 

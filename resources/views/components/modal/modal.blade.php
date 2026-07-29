@@ -32,6 +32,7 @@
         }
     }"
     x-on:close.stop="close()"
+    x-on:rt-navigation:prepare.window="close()"
     x-on:keydown.escape.window="close()"
 >
     <template x-teleport="body">

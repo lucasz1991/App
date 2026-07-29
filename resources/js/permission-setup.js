@@ -76,15 +76,29 @@ export default function permissionSetup(config = {}) {
             });
         },
 
+        /**
+         * Mikrofon und Kamera werden GETRENNT erteilt.
+         *
+         * Gebuendelt waere bequemer (nur eine Abfrage), aber fachlich falsch:
+         * Draussen an der Strecke wird meist ohne Kamera telefoniert. Wer die
+         * Kamera in einer gemeinsamen Abfrage ablehnt, verliert sonst auch das
+         * Mikrofon – und damit die Telefonie ueberhaupt.
+         *
+         * Deshalb: Mikrofon ist Voraussetzung, Kamera ausdruecklich optional.
+         */
+        isReady(state) {
+            return state === 'granted' || state === 'unsupported';
+        },
+
+        /** Nur das Noetige blockiert den Einstieg – die Kamera nicht. */
         get hasOpenItems() {
-            return Object.entries(this.states).some(
-                ([, state]) => state !== 'granted' && state !== 'unsupported',
-            );
+            return ! ['granted', 'unsupported'].includes(this.states.microphone)
+                || ! ['granted', 'unsupported'].includes(this.states.notifications);
         },
 
         get allGranted() {
-            return Object.entries(this.states).every(
-                ([, state]) => state === 'granted' || state === 'unsupported',
+            return ['microphone', 'camera', 'notifications'].every(
+                (kind) => ['granted', 'unsupported'].includes(this.states[kind]),
             );
         },
 
@@ -120,33 +134,38 @@ export default function permissionSetup(config = {}) {
         },
 
         /**
-         * Mikrofon und Kamera in EINER Abfrage anfordern.
+         * Ein Geraet einzeln anfordern.
          *
-         * Ein einzelner Dialog ist deutlich angenehmer als zwei. Scheitert die
-         * gemeinsame Anfrage, liegt das meist an einer fehlenden Kamera – dann
-         * versuchen wir das Mikrofon allein, damit wenigstens Sprachnachrichten
-         * und Sprachanrufe funktionieren.
+         * Die erteilten Spuren werden sofort wieder gestoppt: Es geht hier nur
+         * darum, die Freigabe zu erhalten – nicht darum, Mikrofon oder Kamera
+         * offen zu halten. Ein dauerhaft leuchtendes Aufnahmesymbol waere
+         * genau das Gegenteil von Vertrauen.
+         *
+         * @param {'microphone'|'camera'} kind
          */
-        async requestMedia() {
+        async request(kind) {
             if (this.busy) return;
-            this.busy = 'media';
+            this.busy = kind;
 
-            const stopAll = (stream) => stream?.getTracks().forEach((track) => track.stop());
+            const constraints = kind === 'camera' ? { video: true } : { audio: true };
 
             try {
-                stopAll(await navigator.mediaDevices.getUserMedia({ audio: true, video: true }));
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                stream.getTracks().forEach((track) => track.stop());
             } catch (error) {
-                console.warn('[permissions] Kamera+Mikrofon abgelehnt oder nicht vorhanden:', error);
-
-                try {
-                    stopAll(await navigator.mediaDevices.getUserMedia({ audio: true }));
-                } catch (audioError) {
-                    console.error('[permissions] Auch Mikrofon nicht verfuegbar:', audioError);
-                }
+                console.error(`[permissions] ${kind} nicht verfuegbar:`, error);
             } finally {
                 await this.refresh();
                 this.busy = null;
             }
+        },
+
+        requestMicrophone() {
+            return this.request('microphone');
+        },
+
+        requestCamera() {
+            return this.request('camera');
         },
 
         async requestNotifications() {

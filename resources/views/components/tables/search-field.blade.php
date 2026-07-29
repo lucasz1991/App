@@ -170,6 +170,7 @@
     }"
     x-on:keydown.escape.stop.prevent="handleEscape()"
     x-on:dropdown-open.window="isTopbar && close(false)"
+    x-on:rt-navigation:prepare.window="close(false)"
     x-on:rt-topbar-layer-open.window="handleLayerOpen($event)"
     x-on:rt-topbar-search-close.window="handleSearchClose($event)"
     class="rt-expandable-search"

@@ -11,7 +11,15 @@
 @endphp
 
 @if($href)
-    <a href="{{ $href }}" {{ $attributes->class($classes) }} aria-label="{{ $label }}" title="{{ $label }}" data-page-header-control>
+    <a
+        href="{{ $href }}"
+        {{ $attributes->class($classes) }}
+        x-data
+        x-on:click="window.RTNavigation && window.RTNavigation.closeTransientUi()"
+        aria-label="{{ $label }}"
+        title="{{ $label }}"
+        data-page-header-control
+    >
         <i class="far fa-arrow-left text-sm transition-transform group-hover:-translate-x-0.5" aria-hidden="true"></i>
     </a>
 @else
@@ -19,7 +27,7 @@
         type="button"
         {{ $attributes->class($classes) }}
         x-data
-        x-on:click="window.history.length > 1 ? window.history.back() : window.location.assign(@js($fallback))"
+        x-on:click="window.RTNavigation ? window.RTNavigation.backToPreviousPage(@js($fallback)) : window.location.assign(@js($fallback))"
         aria-label="{{ $label }}"
         title="{{ $label }}"
         data-page-header-control

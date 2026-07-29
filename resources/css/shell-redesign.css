@@ -679,6 +679,7 @@ body[data-mode='dark'] .rt-shell-sidebar li.mm-active > ul.mm-collapsing {
 
 .rt-viewport-dropdown {
     --rt-dropdown-connector-size: 10px;
+    --rt-dropdown-panel-border-width: 1px;
     --rt-dropdown-caret-border: var(--rt-shell-border);
     --rt-dropdown-caret-surface: #ffffff;
     filter: drop-shadow(0 22px 26px rgba(15, 23, 42, 0.13));
@@ -732,19 +733,20 @@ body[data-mode='dark'] .rt-viewport-dropdown .rt-ui-dropdown-panel {
 }
 
 .rt-viewport-dropdown .rt-ui-dropdown-caret::after {
-    inset: 1.5px 1.5px -2px;
+    inset: 1.5px 1.5px calc(var(--rt-dropdown-panel-border-width) * -1);
     background: var(--rt-dropdown-caret-surface);
 }
 
 .rt-viewport-dropdown[data-placement='bottom'] .rt-ui-dropdown-caret {
-    top: calc((var(--rt-dropdown-connector-size) * -1) + 2px);
+    top: 0;
     bottom: auto;
+    transform: translate(-50%, -100%);
 }
 
 .rt-viewport-dropdown[data-placement='top'] .rt-ui-dropdown-caret {
     top: auto;
-    bottom: calc((var(--rt-dropdown-connector-size) * -1) + 2px);
-    transform: translateX(-50%) rotate(180deg);
+    bottom: 0;
+    transform: translate(-50%, 100%) rotate(180deg);
 }
 
 .rt-ui-dropdown-link[data-rt-dropdown-item],

@@ -14,7 +14,7 @@
     @yield('css')
     @stack('styles')
 </head>
-<body x-data="{ sidebarOpen: false }" x-bind:data-mode="$store.theme?.dark ? 'dark' : 'light'" data-mode="light" data-sidebar-size="lg" class="group bg-rt-canvas text-rt-text antialiased dark:bg-rt-dark-canvas dark:text-rt-dark-text">
+<body x-data="{ sidebarOpen: false }" x-on:rt-navigation:prepare.window="sidebarOpen = false" x-bind:data-mode="$store.theme?.dark ? 'dark' : 'light'" data-mode="light" data-sidebar-size="lg" class="group bg-rt-canvas text-rt-text antialiased dark:bg-rt-dark-canvas dark:text-rt-dark-text">
     <script>document.body.dataset.mode = localStorage.getItem('rt-theme') === 'true' ? 'dark' : 'light';</script>
     <header class="rt-ui-topbar fixed inset-x-0 top-0 z-40 border-b border-rt-border bg-rt-topbar/95 backdrop-blur dark:border-rt-dark-border dark:bg-rt-dark-topbar/95">
         <div class="flex h-16 items-center justify-between px-4 sm:px-6">

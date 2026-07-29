@@ -524,7 +524,14 @@ Alpine.data('chatRealtime', (config) => ({
         }
 
         try {
-            this.recordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            // Noch offener Stream aus der letzten Aufnahme? Dann ohne erneute
+            // Abfrage weiterbenutzen – das ist der eigentliche Fix gegen das
+            // wiederholte Nachfragen.
+            if (! this.hasLiveMicrophone()) {
+                this.recordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            }
+
+            window.clearTimeout(this.microphoneReleaseTimer);
             const preferredMime = [
                 'audio/webm;codecs=opus',
                 'audio/ogg;codecs=opus',
@@ -594,7 +601,9 @@ Alpine.data('chatRealtime', (config) => ({
     finishRecording() {
         window.clearInterval(this.recordingTimer);
         this.recording = false;
-        this.stopRecordingTracks();
+        // Nicht sofort schliessen: sonst fragt Firefox bei der naechsten
+        // Sprachnachricht erneut nach der Freigabe.
+        this.scheduleMicrophoneRelease();
 
         const shouldSend = this.recordingIntent === 'send';
 
@@ -639,7 +648,7 @@ Alpine.data('chatRealtime', (config) => ({
 
     resetVoiceRecorder() {
         window.clearInterval(this.recordingTimer);
-        this.stopRecordingTracks();
+        this.scheduleMicrophoneRelease();
         this.recording = false;
         this.sendingVoice = false;
         this.recordingIntent = null;
@@ -650,9 +659,43 @@ Alpine.data('chatRealtime', (config) => ({
         this.viewOnce = false;
     },
 
+    /**
+     * Mikrofon SOFORT freigeben (Seitenwechsel, Fehler, Abbruch).
+     *
+     * Im Normalfall bitte scheduleMicrophoneRelease() verwenden – siehe dort.
+     */
     stopRecordingTracks() {
+        window.clearTimeout(this.microphoneReleaseTimer);
+        this.microphoneReleaseTimer = null;
         this.recordingStream?.getTracks().forEach((track) => track.stop());
         this.recordingStream = null;
+    },
+
+    /** Ist der vorhandene Stream noch verwendbar? */
+    hasLiveMicrophone() {
+        return Boolean(
+            this.recordingStream?.getAudioTracks().some((track) => track.readyState === 'live'),
+        );
+    },
+
+    /**
+     * Mikrofon nach kurzer Ruhe freigeben statt sofort.
+     *
+     * Grund: Firefox merkt sich die Freigabe nur, wenn der Nutzer im Dialog
+     * "Diese Entscheidung merken" ankreuzt. Ohne das Haekchen fragt jedes neue
+     * getUserMedia erneut – bei mehreren Sprachnachrichten hintereinander also
+     * jedes Mal. Halten wir den Stream kurz offen, entfaellt die Nachfrage
+     * innerhalb desselben Gespraechs vollstaendig.
+     *
+     * Die Verzoegerung ist bewusst kurz: Ein dauerhaft geoeffnetes Mikrofon
+     * zeigt der Browser mit einem Aufnahmesymbol an, und das soll nicht laenger
+     * leuchten als noetig.
+     */
+    scheduleMicrophoneRelease(delay = 90000) {
+        window.clearTimeout(this.microphoneReleaseTimer);
+        this.microphoneReleaseTimer = window.setTimeout(() => {
+            this.stopRecordingTracks();
+        }, delay);
     },
 
     updateRecordingLabel() {
@@ -1802,6 +1845,114 @@ function setMobileSidebarOpen(open) {
     document.body.classList.toggle('sidebar-enable', open);
     syncSidebarToggleState();
 }
+
+const RT_BACK_MAX_SAME_PAGE_STEPS = 24;
+let rtBackTraversal = null;
+
+function rtPageIdentity(locationLike = window.location) {
+    const normalizedPath = locationLike.pathname.replace(/\/+$/, '') || '/';
+
+    return `${locationLike.origin}${normalizedPath}`;
+}
+
+function closeTransientNavigationUi() {
+    clearSidebarCollapseTimer();
+    clearSidebarExpandTimer();
+    setDesktopSidebarExpanded(false);
+    setMobileSidebarOpen(false);
+
+    document.documentElement.classList.remove('rt-topbar-search-open');
+
+    // Alpine-Komponenten in teleportierten Ebenen koennen nicht verlaesslich
+    // ueber einen gemeinsamen DOM-Elternknoten geschlossen werden. Ein
+    // Fensterereignis erreicht dagegen Sidebar, Suche, Dropdowns und Modale
+    // auch dann, wenn Livewire den eigentlichen Seiten-Body gerade ersetzt.
+    window.dispatchEvent(new CustomEvent('rt-navigation:prepare'));
+    window.dispatchEvent(new CustomEvent('rt-topbar-search-close', {
+        detail: { restoreFocus: false },
+    }));
+    window.dispatchEvent(new CustomEvent('close'));
+}
+
+function finishBackTraversal() {
+    if (!rtBackTraversal) {
+        return;
+    }
+
+    window.removeEventListener('popstate', rtBackTraversal.handlePopState);
+    window.clearTimeout(rtBackTraversal.failsafe);
+    rtBackTraversal = null;
+}
+
+function closeUiAfterHistoryRestore() {
+    closeTransientNavigationUi();
+
+    // Livewire stellt bei popstate einen gespeicherten HTML-Snapshot wieder
+    // her. Deshalb nach seinem navigated-Ereignis sowie in den naechsten
+    // Frames erneut schliessen; so kann kein alter offener Shell-Zustand
+    // sichtbar zurueckkehren.
+    document.addEventListener('livewire:navigated', closeTransientNavigationUi, { once: true });
+    window.requestAnimationFrame(() => {
+        closeTransientNavigationUi();
+        window.requestAnimationFrame(closeTransientNavigationUi);
+    });
+    window.setTimeout(closeTransientNavigationUi, 180);
+}
+
+function backToPreviousPage(fallbackUrl = '/') {
+    if (rtBackTraversal) {
+        return;
+    }
+
+    const sourcePage = rtPageIdentity();
+    const fallback = String(fallbackUrl || '/');
+    let samePageSteps = 0;
+
+    closeTransientNavigationUi();
+
+    if (window.history.length <= 1) {
+        window.location.assign(fallback);
+        return;
+    }
+
+    const handlePopState = () => {
+        closeTransientNavigationUi();
+
+        if (rtPageIdentity() !== sourcePage) {
+            finishBackTraversal();
+            closeUiAfterHistoryRestore();
+            return;
+        }
+
+        samePageSteps += 1;
+
+        if (samePageSteps >= RT_BACK_MAX_SAME_PAGE_STEPS) {
+            finishBackTraversal();
+            window.location.assign(fallback);
+            return;
+        }
+
+        // Query-/Livewire-Zustaende derselben Seite sind keine echte
+        // Seitennavigation. Erst nach deren popstate-Verarbeitung weitergehen.
+        window.setTimeout(() => window.history.go(-1), 0);
+    };
+
+    rtBackTraversal = {
+        handlePopState,
+        failsafe: window.setTimeout(() => {
+            finishBackTraversal();
+            window.location.assign(fallback);
+        }, 8000),
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    window.history.go(-1);
+}
+
+window.RTNavigation = {
+    backToPreviousPage,
+    closeTransientUi: closeTransientNavigationUi,
+};
 
 function initMobileSidebarSwipe() {
     if (window.__rtMobileSidebarSwipeBound === true) {

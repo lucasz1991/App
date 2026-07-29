@@ -15,7 +15,7 @@ class MessageBox extends Component
 
     public string $search = '';
 
-    #[Url(as: 'open', history: true)]
+    #[Url(as: 'open')]
     public ?int $openMessageId = null;
 
     /** @var array<int, int> */

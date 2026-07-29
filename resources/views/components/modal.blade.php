@@ -22,6 +22,7 @@ $ariaLabel = $attributes->get('aria-label', config('app.name') . ' Dialog');
 <div
     x-data="{ show: @entangle($attributes->wire('model')) }"
     x-on:close.stop="show = false"
+    x-on:rt-navigation:prepare.window="show = false"
     x-on:keydown.escape.window="show = false"
 >
     <template x-teleport="body">

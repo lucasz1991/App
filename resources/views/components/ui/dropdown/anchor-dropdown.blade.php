@@ -65,6 +65,7 @@
     positionObserver: null,
     positionMutationObserver: null,
     positionListener: null,
+    scrollListener: null,
     layerGroup: @js($resolvedLayerGroup),
     layerId: @js($resolvedDropdownId),
     horizontalAlign: @js(str_ends_with($anchorPlacement, '-start') ? 'left' : 'right'),
@@ -168,10 +169,11 @@
       if (!this.open || !panel || !trigger) return;
 
       this.positionListener = () => this.schedulePosition(panel);
+      this.scrollListener = (event) => this.handleTrackedScroll(event);
 
-      window.addEventListener('scroll', this.positionListener, true);
+      window.addEventListener('scroll', this.scrollListener, true);
       window.addEventListener('resize', this.positionListener, { passive: true });
-      window.visualViewport?.addEventListener('scroll', this.positionListener, { passive: true });
+      window.visualViewport?.addEventListener('scroll', this.scrollListener, { passive: true });
       window.visualViewport?.addEventListener('resize', this.positionListener, { passive: true });
 
       if (typeof ResizeObserver === 'function') {
@@ -211,14 +213,39 @@
       this.positionMutationObserver?.disconnect();
       this.positionMutationObserver = null;
 
+      if (this.scrollListener) {
+        window.removeEventListener('scroll', this.scrollListener, true);
+        window.visualViewport?.removeEventListener('scroll', this.scrollListener);
+      }
+
       if (this.positionListener) {
-        window.removeEventListener('scroll', this.positionListener, true);
         window.removeEventListener('resize', this.positionListener);
-        window.visualViewport?.removeEventListener('scroll', this.positionListener);
         window.visualViewport?.removeEventListener('resize', this.positionListener);
       }
 
+      this.scrollListener = null;
       this.positionListener = null;
+    },
+
+    handleTrackedScroll(event) {
+      const target = event.target;
+      const panel = this.$refs.panel;
+
+      // Das eigene scrollbare Panel bleibt bedienbar. Teleportierte Kind-
+      // Dropdowns zaehlen logisch ebenfalls zum Parent: Scrollt das Kind,
+      // bleiben Kind und Parent offen. Scrollt dagegen der Parent-Container,
+      // liegt das Ziel ausserhalb des Kind-Panels und nur das Kind schliesst.
+      if (
+        target instanceof Node
+        && (
+          panel?.contains(target)
+          || (target instanceof Element && this.ownsNestedTeleportedTarget(target))
+        )
+      ) {
+        return;
+      }
+
+      this.close();
     },
 
     syncAnchoredPanel(panel) {
@@ -469,6 +496,7 @@
   x-cloak
   @keydown.escape.window="handleWindowEscape($event)"
   @close.window.stop="close()"
+  @rt-navigation:prepare.window="close()"
   @rt-dropdown-parent-close.stop="close()"
   @rt-topbar-layer-open.window="handleLayerOpen($event)"
 >
