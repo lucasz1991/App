@@ -5,6 +5,7 @@ namespace App\Livewire\Calls;
 use App\Events\CallModerationActioned;
 use App\Models\Room;
 use App\Models\RoomParticipant;
+use App\Models\User;
 use App\Services\Calls\CallInvitationService;
 use App\Services\Calls\LiveKitService;
 use App\Services\Calls\RoomLifecycleService;
@@ -20,6 +21,7 @@ use Livewire\Component;
 class CallWindow extends Component
 {
     public Room $room;
+    public array $inviteeIds = [];
 
     public function mount(Room $room): void
     {
@@ -164,6 +166,29 @@ class CallWindow extends Component
         broadcast(new CallModerationActioned($this->room, (int) $target->user_id, 'role', $newRole))->toOthers();
     }
 
+    public function inviteUsers(CallInvitationService $invitations): void
+    {
+        abort_unless($this->room->canModerate(auth()->user()), 403, __('app.calls_permission_denied'));
+
+        $ids = collect($this->inviteeIds)->map(fn ($id) => (int) $id)->filter()->unique();
+        $existing = $this->room->participants()->pluck('user_id');
+        $users = User::query()
+            ->whereKey($ids)
+            ->where('status', true)
+            ->get()
+            ->reject(fn (User $user) => $existing->contains($user->id));
+
+        $sent = $invitations->invite($this->room, auth()->user(), $users);
+        $this->inviteeIds = [];
+        $this->room->refresh();
+
+        $this->dispatch(
+            'swal:toast',
+            type: $sent->isEmpty() ? 'warning' : 'success',
+            text: trans_choice('app.calls_invited_count', $sent->count(), ['count' => $sent->count()]),
+        );
+    }
+
     protected function moderationFailed(): void
     {
         $this->dispatch(
@@ -202,6 +227,14 @@ class CallWindow extends Component
         return view('livewire.calls.call-window', [
             'canModerate' => $this->room->canModerate(auth()->user()),
             'me' => $this->room->participantFor(auth()->user()),
+            'inviteCandidates' => $this->room->canModerate(auth()->user())
+                ? User::query()
+                    ->where('status', true)
+                    ->whereNotIn('id', $this->room->participants->pluck('user_id')->filter())
+                    ->orderBy('name')
+                    ->get(['id', 'name', 'email', 'profile_photo_path'])
+                    ->filter(fn (User $user) => $user->isAdmin() || $user->hasRbacPermission('calls.join'))
+                : collect(),
         ])->layout('layouts.master', ['contentMode' => 'viewport', 'chrome' => false]);
     }
 }

@@ -3,7 +3,11 @@
     zusammengezaehlten Ungelesen-Zaehler (Chats + Nachrichten). Das Dropdown
     darunter zeigt beide Bereiche in je einem Abschnitt.
 --}}
-<div class="relative flex items-center" wire:poll.60s="loadInbox">
+<div
+    class="relative flex items-center"
+    wire:poll.60s="loadInbox"
+    data-app-badge-count="{{ $totalUnreadCount }}"
+>
     @php
         $viewer = auth()->user();
         $messageRoute = $viewer?->usesAdminLayout()

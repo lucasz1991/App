@@ -29,6 +29,11 @@ document.addEventListener('alpine:init', () => {
         cameraOn: false,
         screenSharing: false,
         audioBlocked: false,
+        selfVideoVisible: false,
+        selfPreviewX: 0,
+        selfPreviewY: 0,
+        selfPreviewInitialized: false,
+        selfPreviewDragCleanup: null,
         // Automatisches Einschalten der Geraete beim Beitritt gescheitert:
         // Dann zeigt die Buehne einen Aktivieren-Knopf. Der Klick ist eine
         // echte Nutzergeste — iOS Safari verweigert getUserMedia GRUNDSAETZLICH
@@ -101,10 +106,59 @@ document.addEventListener('alpine:init', () => {
         },
 
         get gridStyle() {
-            const count = Math.max(1, this.tiles.size);
+            const count = Math.max(1, this.tiles.size - (this.tiles.has(config.selfIdentity) ? 1 : 0));
             const columns = count <= 1 ? 1 : count <= 4 ? 2 : count <= 9 ? 3 : 4;
 
             return `grid-template-columns: repeat(${columns}, minmax(0, 1fr));`;
+        },
+
+        get selfPreviewStyle() {
+            return `transform: translate3d(${this.selfPreviewX}px, ${this.selfPreviewY}px, 0);`;
+        },
+
+        positionSelfPreview() {
+            const preview = this.$refs.selfPreview;
+            const stage = preview?.parentElement;
+
+            if (!preview || !stage) return;
+
+            this.selfPreviewX = Math.max(8, stage.clientWidth - preview.offsetWidth - 12);
+            this.selfPreviewY = Math.max(8, stage.clientHeight - preview.offsetHeight - 12);
+            this.selfPreviewInitialized = true;
+        },
+
+        startSelfPreviewDrag(event) {
+            if (event.button !== 0 && event.pointerType === 'mouse') return;
+
+            const preview = this.$refs.selfPreview;
+            const stage = preview?.parentElement;
+            if (!preview || !stage) return;
+
+            event.preventDefault();
+            preview.setPointerCapture?.(event.pointerId);
+            const startX = event.clientX;
+            const startY = event.clientY;
+            const originX = this.selfPreviewX;
+            const originY = this.selfPreviewY;
+
+            const move = (moveEvent) => {
+                const maxX = Math.max(8, stage.clientWidth - preview.offsetWidth - 8);
+                const maxY = Math.max(8, stage.clientHeight - preview.offsetHeight - 8);
+                this.selfPreviewX = Math.min(maxX, Math.max(8, originX + moveEvent.clientX - startX));
+                this.selfPreviewY = Math.min(maxY, Math.max(8, originY + moveEvent.clientY - startY));
+            };
+            const stop = () => {
+                window.removeEventListener('pointermove', move);
+                window.removeEventListener('pointerup', stop);
+                window.removeEventListener('pointercancel', stop);
+                this.selfPreviewDragCleanup = null;
+            };
+
+            this.selfPreviewDragCleanup?.();
+            this.selfPreviewDragCleanup = stop;
+            window.addEventListener('pointermove', move, { passive: true });
+            window.addEventListener('pointerup', stop, { once: true });
+            window.addEventListener('pointercancel', stop, { once: true });
         },
 
         /** Muss aus einer echten Nutzergeste heraus laufen (Klick). */
@@ -333,10 +387,8 @@ document.addEventListener('alpine:init', () => {
                 }
             });
 
-            // Reihenfolge stabil halten: lokale Kachel zuletzt
-            const local = this.tiles.get(this.room.localParticipant.identity);
-            if (local) {
-                grid.appendChild(local.root);
+            if (this.selfVideoVisible && !this.selfPreviewInitialized) {
+                requestAnimationFrame(() => this.positionSelfPreview());
             }
         },
 
@@ -349,7 +401,10 @@ document.addEventListener('alpine:init', () => {
             }
 
             const root = document.createElement('div');
-            root.className = 'rt-call-tile relative flex min-h-0 items-center justify-center overflow-hidden rounded-[1.1rem] bg-white/[0.04] ring-1 ring-white/10 transition-shadow';
+            const isLocal = participant === this.room.localParticipant;
+            root.className = isLocal
+                ? 'rt-call-tile rt-call-tile--local absolute inset-0 flex min-h-0 items-center justify-center overflow-hidden bg-black'
+                : 'rt-call-tile relative flex min-h-0 items-center justify-center overflow-hidden rounded-[1.1rem] bg-white/[0.04] ring-1 ring-white/10 transition-shadow';
             root.dataset.identity = participant.identity;
 
             const video = document.createElement('video');
@@ -383,7 +438,7 @@ document.addEventListener('alpine:init', () => {
             root.appendChild(placeholder);
             root.appendChild(badge);
 
-            this.$refs.grid.appendChild(root);
+            (isLocal ? this.$refs.selfPreview : this.$refs.grid).appendChild(root);
 
             tile = { root, video, audio, placeholder, name, mutedIcon };
             this.tiles.set(participant.identity, tile);
@@ -418,6 +473,10 @@ document.addEventListener('alpine:init', () => {
             tile.video.classList.toggle('hidden', !hasVideo);
             tile.placeholder.classList.toggle('hidden', hasVideo);
             tile.mutedIcon.classList.toggle('hidden', !audioMuted);
+
+            if (participant === this.room.localParticipant) {
+                this.selfVideoVisible = hasVideo;
+            }
         },
 
         highlightSpeakers(speakers) {
@@ -499,6 +558,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         destroy() {
+            this.selfPreviewDragCleanup?.();
             this.disconnect();
         },
     }));

@@ -5,6 +5,7 @@ let deferredInstallPrompt = null;
 let serviceWorkerRegistrationPromise = null;
 let lifecycleInitialized = false;
 let installConfirmedInSession = false;
+let badgeObserver = null;
 
 function currentWindow() {
     return typeof window === 'undefined' ? null : window;
@@ -211,6 +212,49 @@ function dispatchPwaState() {
     currentWindow()?.dispatchEvent(new CustomEvent(PWA_STATE_EVENT));
 }
 
+export async function updateRailtimeAppBadge(
+    count,
+    navigatorLike = currentNavigator(),
+) {
+    const normalized = Math.max(0, Math.min(999, Number(count) || 0));
+
+    try {
+        if (normalized > 0 && typeof navigatorLike?.setAppBadge === 'function') {
+            await navigatorLike.setAppBadge(normalized);
+            return true;
+        }
+
+        if (normalized === 0 && typeof navigatorLike?.clearAppBadge === 'function') {
+            await navigatorLike.clearAppBadge();
+            return true;
+        }
+    } catch (_) {
+        // Der Nutzer oder das Betriebssystem darf App-Badges deaktivieren.
+    }
+
+    return false;
+}
+
+function syncBadgeFromDocument() {
+    const source = document.querySelector('[data-app-badge-count]');
+
+    if (source) {
+        updateRailtimeAppBadge(source.dataset.appBadgeCount);
+    }
+}
+
+function observeAppBadge() {
+    badgeObserver?.disconnect();
+    syncBadgeFromDocument();
+    badgeObserver = new MutationObserver(syncBadgeFromDocument);
+    badgeObserver.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['data-app-badge-count'],
+    });
+}
+
 function installState() {
     const windowLike = currentWindow();
     const navigatorLike = currentNavigator();
@@ -381,10 +425,16 @@ export function setupRailtimePwa() {
     };
 
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', register, { once: true });
+        document.addEventListener('DOMContentLoaded', () => {
+            register();
+            observeAppBadge();
+        }, { once: true });
     } else {
         register();
+        observeAppBadge();
     }
+
+    document.addEventListener('livewire:navigated', syncBadgeFromDocument);
 }
 
 export async function promptRailtimeInstall() {

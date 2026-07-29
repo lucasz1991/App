@@ -51,6 +51,20 @@ function textValue(value, fallback = '') {
     return typeof value === 'string' && value.trim() ? value.trim() : fallback;
 }
 
+async function updateAppBadge(value) {
+    const count = Math.max(0, Math.min(999, Number(value) || 0));
+
+    try {
+        if (count > 0 && typeof self.navigator?.setAppBadge === 'function') {
+            await self.navigator.setAppBadge(count);
+        } else if (count === 0 && typeof self.navigator?.clearAppBadge === 'function') {
+            await self.navigator.clearAppBadge();
+        }
+    } catch (_) {
+        // Badge-Unterstützung ist eine progressive Erweiterung.
+    }
+}
+
 function requestForegroundAck(client, message) {
     if (typeof MessageChannel === 'undefined') {
         return Promise.resolve(false);
@@ -197,6 +211,8 @@ self.addEventListener('push', (event) => {
     }
 
     event.waitUntil((async () => {
+        await updateAppBadge(data.badge_count);
+
         const windows = await self.clients.matchAll({
             type: 'window',
             includeUncontrolled: true,

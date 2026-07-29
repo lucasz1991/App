@@ -4283,6 +4283,38 @@ body[data-mode="dark"][data-sidebar-collapsible="true"][data-sidebar-expanded="t
     box-shadow: 0 0 0 3px rgba(228, 0, 43, 0.16);
 }
 
+/* Call stage: remote participants fill a stable stage while the own portrait
+   preview floats above it. Only transforms move the preview, so video playback
+   does not trigger layout work during a drag. */
+.rt-call-grid {
+    grid-auto-rows: minmax(0, 1fr);
+}
+
+.rt-call-grid > .rt-call-tile {
+    min-height: 8rem;
+}
+
+.rt-call-self-preview {
+    will-change: transform;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.rt-call-tile video {
+    background: #07090d;
+}
+
+@media (max-width: 639px) {
+    .rt-call-grid {
+        align-content: stretch;
+        grid-template-columns: 1fr !important;
+    }
+
+    .rt-call-grid > .rt-call-tile {
+        min-height: 0;
+    }
+}
+
 [data-autosave-scope] [data-autosave-visual][data-autosave-state="dirty"],
 [data-autosave-scope] [data-autosave-visual][data-autosave-state="saving"] {
     border-color: rgba(245, 158, 11, 0.96);

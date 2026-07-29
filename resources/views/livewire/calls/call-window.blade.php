@@ -47,6 +47,64 @@
                 </p>
             </div>
 
+            @if ($canModerate)
+                <x-ui.dropdown.anchor-dropdown
+                    align="right"
+                    width="w-80"
+                    :offset="8"
+                    dropdown-id="call-invite-users"
+                    layer-group="call-window"
+                    wire:key="call-invite-users-{{ $room->id }}"
+                >
+                    <x-slot name="trigger">
+                        <button
+                            type="button"
+                            aria-label="{{ __('app.calls_invite_people') }}"
+                            title="{{ __('app.calls_invite_people') }}"
+                            class="inline-flex h-10 items-center gap-2 rounded-xl bg-white/[0.07] px-3 text-xs font-bold text-white/80 ring-1 ring-white/10 transition hover:bg-white/[0.12] hover:text-white"
+                        >
+                            <i class="far fa-user-plus" aria-hidden="true"></i>
+                            <span class="hidden sm:inline">{{ __('app.calls_invite_people') }}</span>
+                        </button>
+                    </x-slot>
+                    <x-slot name="content">
+                        <div class="w-80 max-w-[calc(100vw-1.5rem)] p-2">
+                            <div class="px-2 pb-2 pt-1">
+                                <p class="text-sm font-bold text-rt-text dark:text-rt-dark-text">{{ __('app.calls_invite_people') }}</p>
+                                <p class="mt-0.5 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.calls_invite_people_hint') }}</p>
+                            </div>
+                            <div class="scroll-container max-h-72 space-y-1 overflow-y-auto">
+                                @forelse($inviteCandidates as $candidate)
+                                    <label class="flex cursor-pointer items-center gap-3 rounded-xl px-2.5 py-2 transition hover:bg-rt-surface-muted dark:hover:bg-rt-dark-surface-muted">
+                                        <input
+                                            type="checkbox"
+                                            value="{{ $candidate->id }}"
+                                            wire:model="inviteeIds"
+                                            class="h-4 w-4 rounded border-rt-border text-rt-red focus:ring-rt-red/30 dark:border-rt-dark-border dark:bg-rt-dark-control"
+                                        >
+                                        <x-chat.avatar :src="$candidate->profile_photo_url" :name="$candidate->name" size="sm" />
+                                        <span class="min-w-0 flex-1">
+                                            <span class="block truncate text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ $candidate->name }}</span>
+                                            <span class="block truncate text-xs text-rt-muted dark:text-rt-dark-muted">{{ $candidate->email }}</span>
+                                        </span>
+                                    </label>
+                                @empty
+                                    <p class="px-2.5 py-5 text-center text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.calls_no_invite_candidates') }}</p>
+                                @endforelse
+                            </div>
+                            @if($inviteCandidates->isNotEmpty())
+                                <div class="mt-2 border-t border-rt-border/60 pt-2 dark:border-rt-dark-border/60">
+                                    <x-ui.buttons.button-basic wire:click="inviteUsers" class="w-full justify-center">
+                                        <i class="far fa-paper-plane" aria-hidden="true"></i>
+                                        {{ __('app.calls_invite_selected') }}
+                                    </x-ui.buttons.button-basic>
+                                </div>
+                            @endif
+                        </div>
+                    </x-slot>
+                </x-ui.dropdown.anchor-dropdown>
+            @endif
+
             <button
                 type="button"
                 x-on:click="panelOpen = ! panelOpen"
@@ -143,6 +201,19 @@
                     class="rt-call-grid grid h-full min-h-0 content-center gap-2 sm:gap-3"
                     :style="gridStyle"
                 ></div>
+
+                {{-- Die eigene Kamera liegt als frei verschiebbare, hochkante
+                     Vorschau über der Bühne und verschwindet ohne Videotrack. --}}
+                <div
+                    wire:ignore
+                    x-ref="selfPreview"
+                    x-show.important="selfVideoVisible"
+                    x-cloak
+                    x-on:pointerdown="startSelfPreviewDrag($event)"
+                    :style="selfPreviewStyle"
+                    class="rt-call-self-preview absolute z-30 aspect-[9/16] w-24 touch-none cursor-grab overflow-hidden rounded-2xl bg-black/70 shadow-2xl ring-1 ring-white/20 active:cursor-grabbing sm:w-32"
+                    aria-label="{{ __('app.you') }}"
+                ></div>
             </div>
 
             {{-- Teilnehmerliste (Livewire-Wahrheit aus der DB, inkl. Moderation) --}}
@@ -227,12 +298,13 @@
         </div>
 
         {{-- Steuerleiste --}}
-        <div class="flex shrink-0 items-center justify-center gap-2 px-4 pb-4 pt-2 sm:gap-3 sm:pb-5">
+        <div class="shrink-0 px-3 pb-3 pt-2 sm:px-5 sm:pb-5">
+        <div class="mx-auto flex w-max max-w-full items-center justify-center gap-1.5 rounded-2xl bg-white/[0.07] p-1.5 shadow-2xl ring-1 ring-white/10 backdrop-blur-xl sm:gap-2 sm:rounded-[1.35rem] sm:p-2">
             <button
                 type="button"
                 x-on:click="toggleMic()"
                 :disabled="! canPublish"
-                class="inline-flex h-12 w-12 items-center justify-center rounded-full text-base transition-all disabled:cursor-not-allowed disabled:opacity-40"
+                class="inline-flex h-11 w-11 items-center justify-center rounded-xl text-base transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 sm:h-12 sm:w-12 sm:rounded-2xl"
                 :class="micOn ? 'bg-slate-600 text-white hover:bg-slate-500' : 'bg-rose-600 text-white ring-2 ring-rose-400/60 hover:bg-rose-500'"
                 :title="micOn ? @js(__('app.calls_mute')) : @js(__('app.calls_unmute'))"
                 :aria-label="micOn ? @js(__('app.calls_mute')) : @js(__('app.calls_unmute'))"
@@ -244,7 +316,7 @@
                 type="button"
                 x-on:click="toggleCamera()"
                 :disabled="! canPublish"
-                class="inline-flex h-12 w-12 items-center justify-center rounded-full text-base transition-all disabled:cursor-not-allowed disabled:opacity-40"
+                class="inline-flex h-11 w-11 items-center justify-center rounded-xl text-base transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 sm:h-12 sm:w-12 sm:rounded-2xl"
                 :class="cameraOn ? 'bg-slate-600 text-white hover:bg-slate-500' : 'bg-rose-600 text-white ring-2 ring-rose-400/60 hover:bg-rose-500'"
                 :title="cameraOn ? @js(__('app.calls_camera_off')) : @js(__('app.calls_camera_on'))"
                 :aria-label="cameraOn ? @js(__('app.calls_camera_off')) : @js(__('app.calls_camera_on'))"
@@ -256,7 +328,7 @@
                 type="button"
                 x-on:click="toggleScreenShare()"
                 :disabled="! canPublish"
-                class="hidden h-12 w-12 items-center justify-center rounded-full text-base transition-all disabled:cursor-not-allowed disabled:opacity-40 sm:inline-flex"
+                class="hidden h-12 w-12 items-center justify-center rounded-2xl text-base transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 sm:inline-flex"
                 :class="screenSharing ? 'bg-emerald-500 text-white ring-2 ring-emerald-300/60 hover:bg-emerald-600' : 'bg-slate-600 text-white hover:bg-slate-500'"
                 :title="screenSharing ? @js(__('app.calls_screen_share_stop')) : @js(__('app.calls_screen_share'))"
                 :aria-label="screenSharing ? @js(__('app.calls_screen_share_stop')) : @js(__('app.calls_screen_share'))"
@@ -267,7 +339,7 @@
             <button
                 type="button"
                 x-on:click="disconnect(); $wire.leaveCall()"
-                class="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-rt-red px-6 text-sm font-bold text-white shadow-rt-glow transition-colors hover:bg-rt-red-dark"
+                class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-4 text-sm font-bold text-white shadow-rt-glow transition-all hover:bg-rt-red-dark active:scale-[0.97] sm:h-12 sm:rounded-2xl sm:px-6"
                 title="{{ __('app.calls_leave') }}"
             >
                 <i class="far fa-phone-slash" aria-hidden="true"></i>
@@ -278,13 +350,14 @@
                 <button
                     type="button"
                     x-on:click="disconnect(); $wire.endCall()"
-                    class="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-white/10 px-4 text-sm font-bold text-white/80 transition-colors hover:bg-white/20 hover:text-white"
+                    class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white/10 px-3 text-sm font-bold text-white/80 transition-all hover:bg-white/20 hover:text-white active:scale-[0.97] sm:h-12 sm:rounded-2xl sm:px-4"
                     title="{{ __('app.calls_ended') }}"
                 >
                     <i class="far fa-power-off" aria-hidden="true"></i>
                     <span class="hidden lg:inline">{{ __('app.calls_ended') }}</span>
                 </button>
             @endif
+        </div>
         </div>
     </div>
 

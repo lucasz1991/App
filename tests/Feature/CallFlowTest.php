@@ -521,6 +521,42 @@ class CallFlowTest extends TestCase
         $this->assertSame('speaker', $room->fresh()->participantFor($guest)->role);
     }
 
+    public function test_host_can_invite_an_additional_user_from_the_call_window(): void
+    {
+        [$host] = $this->directChatWithCallRights();
+        $invitee = User::factory()->create();
+        $this->allowCalls($invitee);
+
+        $room = Room::create([
+            'name' => 'Laufende Besprechung',
+            'type' => 'meeting',
+            'status' => 'active',
+            'owner_id' => $host->id,
+        ]);
+        $room->participants()->create([
+            'user_id' => $host->id,
+            'role' => 'host',
+            'connection' => 'joined',
+            'livekit_identity' => 'user-'.$host->id,
+        ]);
+
+        Livewire::actingAs($host)
+            ->test(CallWindow::class, ['room' => $room])
+            ->assertSee(__('app.calls_invite_people'))
+            ->assertSee('rt-call-self-preview', escape: false)
+            ->assertSee('call-invite-users', escape: false)
+            ->set('inviteeIds', [$invitee->id])
+            ->call('inviteUsers')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('room_invitations', [
+            'room_id' => $room->id,
+            'invitee_id' => $invitee->id,
+            'status' => 'pending',
+        ]);
+        $this->assertSame('speaker', $room->fresh()->participantFor($invitee)->role);
+    }
+
 
     public function test_a_broken_socket_id_does_not_break_the_call_button(): void
     {

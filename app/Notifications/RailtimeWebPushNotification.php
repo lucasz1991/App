@@ -27,6 +27,7 @@ class RailtimeWebPushNotification extends Notification implements ShouldQueueAft
         public readonly bool $bypassPreferences = false,
         public readonly ?int $targetSubscriptionId = null,
         public readonly ?int $ttlOverride = null,
+        public readonly ?int $badgeCount = null,
     ) {
         $this->onQueue(config('webpush.queue', 'webpush'));
     }
@@ -71,6 +72,7 @@ class RailtimeWebPushNotification extends Notification implements ShouldQueueAft
                 'notification_id' => $this->notificationId,
                 'url' => $this->url,
                 'category' => $this->category->value,
+                'badge_count' => $this->badgeCount,
             ])
             ->options([
                 'TTL' => $this->ttlOverride ?? config('webpush.default_ttl', 3600),
