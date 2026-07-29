@@ -245,11 +245,15 @@ function syncBadgeFromDocument() {
 
 function observeAppBadge() {
     badgeObserver?.disconnect();
+    const source = document.querySelector('[data-app-badge-count]');
+
+    if (!source) {
+        return;
+    }
+
     syncBadgeFromDocument();
     badgeObserver = new MutationObserver(syncBadgeFromDocument);
-    badgeObserver.observe(document.documentElement, {
-        childList: true,
-        subtree: true,
+    badgeObserver.observe(source, {
         attributes: true,
         attributeFilter: ['data-app-badge-count'],
     });
@@ -434,7 +438,7 @@ export function setupRailtimePwa() {
         observeAppBadge();
     }
 
-    document.addEventListener('livewire:navigated', syncBadgeFromDocument);
+    document.addEventListener('livewire:navigated', observeAppBadge);
 }
 
 export async function promptRailtimeInstall() {
