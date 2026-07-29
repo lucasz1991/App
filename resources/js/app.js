@@ -440,6 +440,11 @@ Alpine.data('chatRealtime', (config) => ({
     sendingVoice: false,
     viewOnce: false,
     chunks: [],
+    // Chatwechsel zerstoert die Instanz, waehrend startRecording() noch auf
+    // die Freigabe-Abfrage wartet. Ohne dieses Lebenszeichen liefe die
+    // Fortsetzung auf der toten Instanz weiter: Recorder und Interval ohne
+    // jede Abraeum-Chance, Mikrofon dauerhaft heiss.
+    destroyed: false,
 
     init() {
         this.recordingLabel = '0:00';
@@ -480,6 +485,7 @@ Alpine.data('chatRealtime', (config) => ({
     },
 
     destroy() {
+        this.destroyed = true;
         window.clearTimeout(this.typingTimer);
         window.clearInterval(this.recordingTimer);
         if (this.recorder?.state === 'recording') {
@@ -525,11 +531,24 @@ Alpine.data('chatRealtime', (config) => ({
             return;
         }
 
+        if (this.destroyed) {
+            return;
+        }
+
         try {
             // Der Halter liefert einen noch offenen Stream ohne erneute
             // Browser-Abfrage – auch nach einem Chatwechsel. Das ist der
             // eigentliche Fix gegen das wiederholte Nachfragen.
             const stream = await acquireMicrophoneStream();
+
+            // Waehrend der Freigabe-Abfrage in einen anderen Chat gewechselt?
+            // Dann keinen Recorder mehr starten – aber den frisch erteilten
+            // Stream HALTEN, damit die Aufnahme im neuen Chat ohne erneute
+            // Abfrage klappt.
+            if (this.destroyed) {
+                holdMicrophoneStream();
+                return;
+            }
 
             const preferredMime = [
                 'audio/webm;codecs=opus',

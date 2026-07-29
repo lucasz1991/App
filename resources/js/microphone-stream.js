@@ -22,6 +22,11 @@ let stream = null;
 let acquirePromise = null;
 let releaseTimer = null;
 let pagehideBound = false;
+// Jede release() erhoeht die Generation. Loest ein getUserMedia-Aufruf erst
+// DANACH auf (Freigabefenster war noch offen), gehoert sein Ergebnis zu einer
+// alten Generation: Es wird sofort gestoppt statt als unueberwachter offener
+// Stream im Halter zu landen – sonst leuchtete das Aufnahmesymbol unbegrenzt.
+let generation = 0;
 
 function hasLiveTrack(candidate) {
     return Boolean(candidate?.getAudioTracks().some((track) => track.readyState === 'live'));
@@ -46,8 +51,18 @@ export async function acquireMicrophoneStream() {
     }
 
     if (! acquirePromise) {
-        acquirePromise = navigator.mediaDevices.getUserMedia({ audio: true })
+        const myGeneration = generation;
+
+        const pending = navigator.mediaDevices.getUserMedia({ audio: true })
             .then((granted) => {
+                if (generation !== myGeneration) {
+                    granted.getTracks().forEach((track) => track.stop());
+                    throw Object.assign(
+                        new Error('The microphone was released while the request was pending.'),
+                        { name: 'AbortError' },
+                    );
+                }
+
                 stream = granted;
 
                 // Beim Verlassen der Seite darf kein Mikrofon offen bleiben –
@@ -58,10 +73,16 @@ export async function acquireMicrophoneStream() {
                 }
 
                 return granted;
-            })
-            .finally(() => {
-                acquirePromise = null;
             });
+
+        acquirePromise = pending;
+        pending.catch(() => {}).then(() => {
+            // Nur die eigene Anforderung austragen: release() kann inzwischen
+            // Platz fuer eine neue gemacht haben.
+            if (acquirePromise === pending) {
+                acquirePromise = null;
+            }
+        });
     }
 
     return acquirePromise;
@@ -87,6 +108,8 @@ export function holdMicrophoneStream(delay = DEFAULT_HOLD_MS) {
 
 /** Mikrofon SOFORT freigeben (Fehler, Seitenverlassen). */
 export function releaseMicrophoneStream() {
+    generation += 1;
+    acquirePromise = null;
     window.clearTimeout(releaseTimer);
     releaseTimer = null;
     stream?.getTracks().forEach((track) => track.stop());

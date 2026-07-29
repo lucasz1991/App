@@ -333,13 +333,16 @@ document.addEventListener('alpine:init', () => {
             try {
                 await this.room.localParticipant.setMicrophoneEnabled(enable);
             } catch (error) {
-                this.micOn = false;
+                // Auf den TATSAECHLICHEN Zustand zuruecksetzen: Scheitert das
+                // AUSschalten, laeuft das Mikrofon real weiter – ein Knopf,
+                // der dann "stumm" zeigte, waere ein Privacy-Problem.
+                this.micOn = ! enable;
+                console.error('[calls] Mikrofon-Umschalten fehlgeschlagen:', error);
 
                 // Ein stiller Ruecksprung des Knopfs liesse den Nutzer raten.
                 // Einschalten scheitert fast immer an der Freigabe – also
                 // dieselbe Meldung samt Einrichtungsdialog wie beim Aufbau.
                 if (enable) {
-                    console.error('[calls] Mikrofon nicht verfuegbar:', error);
                     this.toast(config.labels.microphoneBlocked, 'warning');
                     window.dispatchEvent(new CustomEvent('rt:permissions-open'));
                 }
@@ -354,10 +357,12 @@ document.addEventListener('alpine:init', () => {
             try {
                 await this.room.localParticipant.setCameraEnabled(enable);
             } catch (error) {
-                this.cameraOn = false;
+                // Wie beim Mikrofon: Nach Disable-Fehler laeuft die Kamera
+                // real weiter – die Anzeige muss das widerspiegeln.
+                this.cameraOn = ! enable;
+                console.error('[calls] Kamera-Umschalten fehlgeschlagen:', error);
 
                 if (enable) {
-                    console.error('[calls] Kamera nicht verfuegbar:', error);
                     this.toast(config.labels.cameraBlocked, 'warning');
                 }
             }
