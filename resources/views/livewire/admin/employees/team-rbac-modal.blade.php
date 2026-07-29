@@ -1,3 +1,4 @@
+<div data-team-rbac-livewire="{{ $embedded ? 'embedded' : 'modal' }}">
 @if($embedded)
     <x-admin.team-rbac-manager
         :teams="$teams"
@@ -32,3 +33,4 @@
     </x-slot>
 </x-dialog-modal>
 @endif
+</div>
