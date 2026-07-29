@@ -29,9 +29,38 @@ document.addEventListener('alpine:init', () => {
         cameraOn: false,
         screenSharing: false,
         audioBlocked: false,
+        // Verbindungsfehler und regulaeres Ende sind ZWEI Zustaende: ein
+        // fehlgeschlagener Aufbau zeigte frueher dieselbe Meldung wie ein
+        // beendeter Anruf — die Fehlersuche lief dadurch in die Irre.
+        failed: false,
+        everConnected: false,
         tiles: new Map(),
 
         async init() {
+            await this.connect();
+        },
+
+        /** In den Fehlerzustand wechseln und den Grund fuer Diagnose loggen. */
+        fail(label, error) {
+            this.connected = false;
+            this.failed = true;
+            this.statusLabel = label || config.labels.connectionFailed;
+
+            if (error) {
+                console.error('[calls] Verbindung fehlgeschlagen:', error);
+            }
+        },
+
+        /** Nach einem Fehlschlag neu verbinden (Button im Fehler-Panel). */
+        async retry() {
+            this.failed = false;
+            this.statusLabel = config.labels.connecting;
+
+            try { await this.room?.disconnect(); } catch (_) {}
+            this.room = null;
+            this.tiles.forEach((tile) => tile.root.remove());
+            this.tiles.clear();
+
             await this.connect();
         },
 
@@ -66,13 +95,13 @@ document.addEventListener('alpine:init', () => {
 
                 if (!response.ok) {
                     const payload = await response.json().catch(() => ({}));
-                    this.statusLabel = payload.message || config.labels.ended;
+                    this.fail(payload.message || config.labels.connectionFailed, `Token-Endpoint HTTP ${response.status}`);
                     return;
                 }
 
                 session = await response.json();
             } catch (error) {
-                this.statusLabel = config.labels.ended;
+                this.fail(config.labels.connectionFailed, error);
                 return;
             }
 
@@ -91,11 +120,13 @@ document.addEventListener('alpine:init', () => {
             try {
                 await this.room.connect(session.wsUrl, session.token);
             } catch (error) {
-                this.statusLabel = config.labels.ended;
+                this.fail(config.labels.connectionFailed, error);
                 return;
             }
 
             this.connected = true;
+            this.everConnected = true;
+            this.failed = false;
             this.renderAllParticipants();
 
             if (this.canPublish) {
@@ -105,7 +136,10 @@ document.addEventListener('alpine:init', () => {
                     await this.room.localParticipant.setCameraEnabled(this.startWithVideo);
                     this.cameraOn = this.startWithVideo;
                 } catch (error) {
-                    // Berechtigung verweigert: Anruf laeuft als Zuhoerer weiter.
+                    // Berechtigung verweigert: Anruf laeuft als Zuhoerer weiter,
+                    // aber der Nutzer erfaehrt jetzt, WARUM er stumm ist.
+                    console.error('[calls] Geraetefreigabe fehlgeschlagen:', error);
+                    this.toast(config.labels.deviceBlocked, 'warning');
                 }
             }
         },
@@ -141,8 +175,16 @@ document.addEventListener('alpine:init', () => {
                         this.connected = true;
                     }
                 })
-                .on(RoomEvent.Disconnected, () => {
+                .on(RoomEvent.Disconnected, (reason) => {
                     this.connected = false;
+
+                    // Kam nie eine Medienverbindung zustande, ist das ein
+                    // FEHLER (z. B. blockierte UDP-Ports) — kein Anrufende.
+                    if (! this.everConnected) {
+                        this.fail(config.labels.connectionFailed, `Disconnected: ${reason ?? 'unbekannt'}`);
+                        return;
+                    }
+
                     this.statusLabel = config.labels.ended;
                 });
         },

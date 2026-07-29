@@ -31,7 +31,7 @@
             this.call = detail;
             this.visible = true;
 
-            const expires = detail.expiresAt ? new Date(detail.expiresAt).getTime() : Date.now() + 45000;
+            const expires = detail.expiresAt ? new Date(detail.expiresAt).getTime() : Date.now() + 180000;
             this.tickCountdown(expires);
             this.countdownTimer = setInterval(() => this.tickCountdown(expires), 500);
 

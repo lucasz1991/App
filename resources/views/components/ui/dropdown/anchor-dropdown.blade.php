@@ -41,10 +41,6 @@
     default => 'bottom-end',
   };
   $anchorOffset = max(0, (int) $offset);
-  // Alpine berechnet nur noch die Anchor-Koordinaten. Die RailTime-Routine
-  // schreibt left/top/caret gemeinsam, damit ein Scroll-Update nicht nur
-  // einzelne Teile der verbundenen Dropdown-Geometrie zuruecksetzt.
-  $anchorDirective = 'x-anchor.' . $anchorPlacement . '.offset.' . $anchorOffset . '.fixed.no-style';
   $anchorCaretX = str_ends_with($anchorPlacement, '-start')
     ? '1.75rem'
     : 'calc(100% - 1.75rem)';
@@ -64,19 +60,14 @@
   data-rt-dropdown-id="{{ $resolvedDropdownId }}"
   x-data="{
     open: false,
-    panelMounted: false,
     placement: 'bottom',
-    hasAnchoredPosition: false,
-    lastAnchorX: null,
-    lastAnchorY: null,
-    anchorX: null,
-    anchorY: null,
     positionFrame: null,
     positionObserver: null,
     positionListener: null,
-    unmountTimer: null,
     layerGroup: @js($resolvedLayerGroup),
     layerId: @js($resolvedDropdownId),
+    horizontalAlign: @js(str_ends_with($anchorPlacement, '-start') ? 'left' : 'right'),
+    preferredPlacement: @js(str_starts_with($anchorPlacement, 'top') ? 'top' : 'bottom'),
     offset: @js($anchorOffset),
     scrollOnOpen: @js((bool) $scrollOnOpen),
     scrollOnTrigger: @js((bool) $scrollOnTrigger),
@@ -89,12 +80,9 @@
 
         if (!isOpen) {
           this.stopPositionTracking();
-          this.schedulePanelUnmount();
           return;
         }
 
-        this.cancelPanelUnmount();
-        this.panelMounted = true;
         this.$nextTick(() => {
           this.startPositionTracking();
 
@@ -113,25 +101,6 @@
 
     destroy() {
       this.stopPositionTracking();
-      this.cancelPanelUnmount();
-    },
-
-    cancelPanelUnmount() {
-      if (this.unmountTimer !== null) {
-        window.clearTimeout(this.unmountTimer);
-        this.unmountTimer = null;
-      }
-    },
-
-    schedulePanelUnmount() {
-      this.cancelPanelUnmount();
-      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      this.unmountTimer = window.setTimeout(() => {
-        this.unmountTimer = null;
-        if (!this.open) {
-          this.panelMounted = false;
-        }
-      }, reducedMotion ? 0 : 170);
     },
 
     clamp(value, minimum, maximum) {
@@ -144,12 +113,9 @@
         return;
       }
 
-      // x-anchor kann beim erneuten Layouten fuer genau einen Frame (0, 0)
-      // liefern. Der letzte gueltige Punkt bleibt als sicherer Fallback
-      // erhalten, darf aber nicht als Bestaetigung fuer (0, 0) gelten.
-      this.hasAnchoredPosition = false;
-      this.cancelPanelUnmount();
-      this.panelMounted = true;
+      if (this.$refs.panel) {
+        this.$refs.panel.style.visibility = 'hidden';
+      }
       this.open = true;
       this.$dispatch('dropdown-open');
       if (this.layerGroup) {
@@ -180,12 +146,6 @@
       }
     },
 
-    rememberAnchor(panel, anchorX, anchorY) {
-      this.anchorX = Number(anchorX);
-      this.anchorY = Number(anchorY);
-      this.schedulePosition(panel);
-    },
-
     schedulePosition(panel = this.$refs.panel) {
       if (!this.open || !panel) return;
 
@@ -195,7 +155,7 @@
 
       this.positionFrame = window.requestAnimationFrame(() => {
         this.positionFrame = null;
-        this.syncAnchoredPanel(panel, this.anchorX, this.anchorY);
+        this.syncAnchoredPanel(panel);
       });
     },
 
@@ -241,12 +201,10 @@
       this.positionListener = null;
     },
 
-    syncAnchoredPanel(panel, anchorX, anchorY) {
+    syncAnchoredPanel(panel) {
       const trigger = this.$refs.trigger;
       if (!this.open || !trigger || !panel) return;
 
-      const numericAnchorX = Number(anchorX);
-      const numericAnchorY = Number(anchorY);
       const visualViewport = window.visualViewport;
       const viewportWidth = visualViewport ? visualViewport.width : (document.documentElement.clientWidth || window.innerWidth);
       const viewportHeight = visualViewport ? visualViewport.height : (document.documentElement.clientHeight || window.innerHeight);
@@ -269,32 +227,10 @@
         && triggerRect.left < viewportLeft + viewportWidth
         && triggerRect.bottom > viewportTop
         && triggerRect.top < viewportTop + viewportHeight;
-      const previouslyConfirmedAtOrigin = this.hasAnchoredPosition
-        && this.lastAnchorX === 0
-        && this.lastAnchorY === 0;
-      const anchorIsReady = Number.isFinite(numericAnchorX)
-        && Number.isFinite(numericAnchorY)
-        && (numericAnchorX !== 0 || numericAnchorY !== 0 || previouslyConfirmedAtOrigin);
-
       if (!triggerIsVisible) {
         this.close();
         return;
       }
-
-      if (!anchorIsReady) {
-        if (Number.isFinite(this.lastAnchorX) && Number.isFinite(this.lastAnchorY)) {
-          Object.assign(panel.style, {
-            left: `${this.lastAnchorX}px`,
-            top: `${this.lastAnchorY}px`,
-          });
-        } else {
-          panel.style.visibility = 'hidden';
-        }
-
-        return;
-      }
-
-      panel.style.removeProperty('visibility');
 
       if (this.matchTriggerWidth) {
         const triggerWidth = `${Math.min(triggerRect.width, maximumViewportWidth)}px`;
@@ -310,7 +246,9 @@
       // Viewportgrenzen muss trotzdem die untransformierte Layoutbreite
       // gelten, sonst verliert die fertige Karte rechts einige Pixel Abstand.
       const panelWidth = Math.min(panel.offsetWidth || panelRect.width, maximumViewportWidth);
-      const anchoredLeft = numericAnchorX;
+      const anchoredLeft = this.horizontalAlign === 'left'
+        ? triggerRect.left
+        : triggerRect.right - panelWidth;
       const triggerCenter = triggerRect.left + (triggerRect.width / 2);
       // Normalerweise bleibt der Indikator deutlich ausserhalb der
       // abgerundeten Eckbereiche. Nur wenn ein randnaher Trigger sonst nicht
@@ -354,13 +292,12 @@
         448,
         maximumViewportHeight,
       );
-      const anchoredPlacement = numericAnchorY < triggerRect.top ? 'top' : 'bottom';
-      let resolvedPlacement = anchoredPlacement;
-      const anchoredSpace = anchoredPlacement === 'top' ? availableAbove : availableBelow;
-      const alternateSpace = anchoredPlacement === 'top' ? availableBelow : availableAbove;
+      let resolvedPlacement = this.preferredPlacement;
+      const anchoredSpace = resolvedPlacement === 'top' ? availableAbove : availableBelow;
+      const alternateSpace = resolvedPlacement === 'top' ? availableBelow : availableAbove;
 
       if (naturalPanelHeight > anchoredSpace && alternateSpace > anchoredSpace) {
-        resolvedPlacement = anchoredPlacement === 'top' ? 'bottom' : 'top';
+        resolvedPlacement = resolvedPlacement === 'top' ? 'bottom' : 'top';
       }
 
       const availableHeight = resolvedPlacement === 'top' ? availableAbove : availableBelow;
@@ -388,9 +325,6 @@
       );
 
       this.placement = resolvedPlacement;
-      this.hasAnchoredPosition = true;
-      this.lastAnchorX = resolvedLeft;
-      this.lastAnchorY = resolvedTop;
       Object.assign(panel.style, {
         left: `${resolvedLeft}px`,
         top: `${resolvedTop}px`,
@@ -399,6 +333,19 @@
       panel.dataset.wideCentered = isWideMobilePanel ? 'true' : 'false';
       panel.style.setProperty('--rt-dropdown-caret-x', `${Math.round(caretX)}px`);
       panel.style.setProperty('--rt-dropdown-connector-size', `${Math.max(6, this.offset + 2)}px`);
+      panel.style.removeProperty('visibility');
+    },
+
+    handleLayerOpen(event) {
+      if (
+        !this.layerGroup
+        || event.detail?.group !== this.layerGroup
+        || event.detail?.id === this.layerId
+      ) {
+        return;
+      }
+
+      this.close();
     },
 
     ownsNestedTeleportedTarget(target) {
@@ -480,15 +427,7 @@
   "
   @close.window.stop="close()"
   @rt-dropdown-parent-close.stop="close()"
-  @rt-topbar-layer-open.window="
-    if (
-      layerGroup
-      && $event.detail?.group === layerGroup
-      && $event.detail?.id !== layerId
-    ) {
-      close()
-    }
-  "
+  @rt-topbar-layer-open.window="handleLayerOpen($event)"
 >
   <div
     class="rt-ui-dropdown-trigger {{ $triggerClasses }}"
@@ -507,17 +446,9 @@
   @endif
 
   <template x-teleport="body">
-    <template x-if="panelMounted">
-      <div
-        x-show="open"
-        {!! $anchorDirective !!}="$refs.trigger"
-        x-effect="
-          if (open) {
-            const anchorX = $anchor.x;
-            const anchorY = $anchor.y;
-            rememberAnchor($el, anchorX, anchorY);
-          }
-        "
+    <div
+      x-show="open"
+      x-effect="if (open) schedulePosition($el)"
         x-transition:enter="transition duration-200 ease-out"
         x-transition:enter-start="translate-y-1.5 scale-[0.985] opacity-0"
         x-transition:enter-end="translate-y-0 scale-100 opacity-100"
@@ -532,8 +463,8 @@
         @click.outside="if (!$refs.trigger.contains($event.target) && !ownsNestedTeleportedTarget($event.target)) close()"
         @keydown.escape.stop.prevent="close(true)"
         @if($trap) x-trap.inert.noscroll="open" @endif
-        x-ref="panel"
-      >
+      x-ref="panel"
+    >
         <span
           aria-hidden="true"
           class="rt-ui-dropdown-caret pointer-events-none absolute z-[1]"
@@ -549,7 +480,6 @@
         >
           {{ $content }}
         </div>
-      </div>
-    </template>
+    </div>
   </template>
 </div>

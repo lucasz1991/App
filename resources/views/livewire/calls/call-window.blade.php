@@ -1,5 +1,8 @@
+{{-- Vollbild BEWUSST ueber Topbar und Sidebar (fixed + z-[200]): waehrend
+     eines Anrufs ist die App-Navigation Ablenkung, kein Werkzeug. Verlassen
+     fuehrt ohnehin ueber Auflegen zurueck in den Chat. --}}
 <div
-    class="relative h-full min-h-0 overflow-hidden px-0 pb-3 pt-4 sm:pb-4 sm:pt-5 md:pb-5"
+    class="fixed inset-0 z-[200] overflow-hidden bg-[#0b0e13]"
     x-data="callRoom({
         roomUuid: @js($room->uuid),
         tokenUrl: @js(route('calls.token', $room)),
@@ -13,11 +16,13 @@
             ended: @js(__('app.calls_ended')),
             muted: @js(__('app.calls_you_were_muted')),
             removed: @js(__('app.calls_you_were_removed')),
+            connectionFailed: @js(__('app.calls_connection_failed')),
+            deviceBlocked: @js(__('app.calls_device_blocked')),
         },
     })"
     x-on:beforeunload.window="disconnect()"
 >
-    <div class="flex h-full min-h-0 flex-col overflow-hidden rounded-[1.35rem] bg-rt-anthracite shadow-rt-lg sm:rounded-[1.75rem]">
+    <div class="flex h-full min-h-0 flex-col overflow-hidden bg-rt-anthracite">
 
         {{-- Kopfzeile --}}
         <div class="flex shrink-0 items-center gap-3 px-4 py-3 sm:px-6">
@@ -63,13 +68,48 @@
                     {{ __('app.calls_enable_audio') }}
                 </button>
 
-                {{-- Verbindungs-Status --}}
+                {{-- Verbindungsaufbau (nur solange KEIN Fehler vorliegt) --}}
                 <div
-                    x-show.important="! connected"
+                    x-show.important="! connected && ! failed"
                     class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 text-white/70"
                 >
                     <span class="inline-flex h-12 w-12 animate-spin items-center justify-center rounded-full border-2 border-white/20 border-t-white/80"></span>
                     <p class="text-sm font-bold" x-text="statusLabel"></p>
+                </div>
+
+                {{-- Fehlerzustand: klar benannt, mit Ausweg — kein endloser
+                     Ladekreis mit der Aufschrift "beendet" mehr. --}}
+                <div
+                    x-cloak
+                    x-show.important="failed"
+                    class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 px-6 text-center"
+                >
+                    <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-500/15 text-rose-400">
+                        <i class="far fa-wifi-slash text-xl" aria-hidden="true"></i>
+                    </span>
+                    <div>
+                        <p class="text-sm font-bold text-white" x-text="statusLabel"></p>
+                        <p class="mx-auto mt-1 max-w-sm text-xs leading-5 text-white/60">
+                            {{ __('app.calls_connection_failed_hint') }}
+                        </p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button
+                            type="button"
+                            x-on:click="retry()"
+                            class="inline-flex h-11 items-center gap-2 rounded-full bg-rt-red px-5 text-sm font-bold text-white transition-colors hover:bg-rt-red-dark"
+                        >
+                            <i class="far fa-rotate-right" aria-hidden="true"></i>
+                            {{ __('app.calls_retry') }}
+                        </button>
+                        <button
+                            type="button"
+                            x-on:click="disconnect(); $wire.leaveCall()"
+                            class="inline-flex h-11 items-center gap-2 rounded-full bg-white/10 px-5 text-sm font-bold text-white/80 transition-colors hover:bg-white/20"
+                        >
+                            {{ __('app.calls_back_to_chat') }}
+                        </button>
+                    </div>
                 </div>
 
                 {{-- Kacheln legt calls.js dynamisch an. wire:ignore ist
@@ -171,7 +211,7 @@
                 x-on:click="toggleMic()"
                 :disabled="! canPublish"
                 class="inline-flex h-12 w-12 items-center justify-center rounded-full text-base transition-all disabled:cursor-not-allowed disabled:opacity-40"
-                :class="micOn ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-rt-red text-white hover:bg-rt-red-dark'"
+                :class="micOn ? 'bg-slate-600 text-white hover:bg-slate-500' : 'bg-rose-600 text-white ring-2 ring-rose-400/60 hover:bg-rose-500'"
                 :title="micOn ? @js(__('app.calls_mute')) : @js(__('app.calls_unmute'))"
                 :aria-label="micOn ? @js(__('app.calls_mute')) : @js(__('app.calls_unmute'))"
             >
@@ -183,7 +223,7 @@
                 x-on:click="toggleCamera()"
                 :disabled="! canPublish"
                 class="inline-flex h-12 w-12 items-center justify-center rounded-full text-base transition-all disabled:cursor-not-allowed disabled:opacity-40"
-                :class="cameraOn ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-rt-red text-white hover:bg-rt-red-dark'"
+                :class="cameraOn ? 'bg-slate-600 text-white hover:bg-slate-500' : 'bg-rose-600 text-white ring-2 ring-rose-400/60 hover:bg-rose-500'"
                 :title="cameraOn ? @js(__('app.calls_camera_off')) : @js(__('app.calls_camera_on'))"
                 :aria-label="cameraOn ? @js(__('app.calls_camera_off')) : @js(__('app.calls_camera_on'))"
             >
@@ -195,7 +235,7 @@
                 x-on:click="toggleScreenShare()"
                 :disabled="! canPublish"
                 class="hidden h-12 w-12 items-center justify-center rounded-full text-base transition-all disabled:cursor-not-allowed disabled:opacity-40 sm:inline-flex"
-                :class="screenSharing ? 'bg-emerald-500 text-white hover:bg-emerald-600' : 'bg-white/10 text-white hover:bg-white/20'"
+                :class="screenSharing ? 'bg-emerald-500 text-white ring-2 ring-emerald-300/60 hover:bg-emerald-600' : 'bg-slate-600 text-white hover:bg-slate-500'"
                 :title="screenSharing ? @js(__('app.calls_screen_share_stop')) : @js(__('app.calls_screen_share'))"
                 :aria-label="screenSharing ? @js(__('app.calls_screen_share_stop')) : @js(__('app.calls_screen_share'))"
             >

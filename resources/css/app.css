@@ -48,6 +48,20 @@ html {
    Komponenten tragen text-base bereits als Klasse; diese mobile Schutzschicht
    deckt auch Flatpickr-Alt-Inputs und vereinzelte native Felder sicher ab. */
 @media (max-width: 767.98px), (hover: none) and (pointer: coarse) {
+    :where(
+        a,
+        button,
+        input,
+        select,
+        textarea,
+        summary,
+        [role='button'],
+        [role='tab'],
+        [contenteditable='true']
+    ) {
+        touch-action: manipulation;
+    }
+
     input:not([type]),
     input[type='text'],
     input[type='email'],

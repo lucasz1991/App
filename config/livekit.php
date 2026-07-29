@@ -28,7 +28,9 @@ return [
     'token_ttl' => (int) env('LIVEKIT_TOKEN_TTL', 3600),
 
     // Klingeldauer in Sekunden, danach gilt der Anruf als verpasst.
-    'ring_timeout' => (int) env('CALL_RING_TIMEOUT', 45),
+    // 3 Minuten: genug Zeit, das Telefon aus der Tasche zu holen — der
+    // Web-Push-TTL folgt diesem Fenster automatisch.
+    'ring_timeout' => (int) env('CALL_RING_TIMEOUT', 180),
 
     // Leere Raeume raeumt LiveKit nach dieser Zeit selbststaendig ab.
     'empty_timeout' => (int) env('LIVEKIT_EMPTY_TIMEOUT', 120),

@@ -176,6 +176,15 @@ self.addEventListener('push', (event) => {
         },
     };
 
+    if (category === 'calls') {
+        // Ein Anruf ist zeitkritisch: Benachrichtigung bleibt stehen, bis der
+        // Nutzer reagiert, vibriert und ersetzt einen aelteren Anruf-Hinweis.
+        options.requireInteraction = true;
+        options.renotify = true;
+        options.tag = notificationId || 'railtime-call';
+        options.vibrate = [300, 150, 300, 150, 300];
+    }
+
     if (Array.isArray(payload.actions)) {
         options.actions = payload.actions
             .filter((action) => action && typeof action.title === 'string' && typeof action.action === 'string')

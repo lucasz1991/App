@@ -1501,6 +1501,14 @@ function rtHandleIncomingNotification(payload, source = 'echo') {
 }
 
 rtForegroundPushHandler = (payload) => {
+    // Anruf-Pushes duerfen NICHT als generischer "messages"-Toast enden:
+    // Das Klingeln uebernimmt das Reverb-Overlay. Der Fehler hier laesst das
+    // ACK aus, damit der Service Worker die echte OS-Benachrichtigung zeigt —
+    // der Weck-Fallback, falls Reverb gerade nicht verbunden ist.
+    if (String(payload?.category || '') === 'calls') {
+        throw new Error('calls-push wird als OS-Benachrichtigung angezeigt');
+    }
+
     rtHandleIncomingNotification(payload, 'service-worker');
 };
 
