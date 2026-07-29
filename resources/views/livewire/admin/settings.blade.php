@@ -16,8 +16,8 @@
         :aria-label="__('app.settings')"
         content-class="mt-4 sm:mt-6"
     >
-    {{-- Anrufe: Betriebswerte, die im Alltag angepasst werden. Adresse und
-         Zugangsdaten des Media-Servers bleiben bewusst in der .env. --}}
+    {{-- Töne, Anrufe und System werden gemeinsam lazy geladen und innerhalb
+         dieses Tabs als drei eigenständige Accordion-Sektionen gegliedert. --}}
     <x-ui.accordion.tab-panel for="system" content-class="">
     <div
         x-data="{
@@ -141,7 +141,7 @@
     <x-admin.settings-accordion-section
         section="system"
         :label="__('app.system')"
-        :description="__('app.maintenance_mode_hint')"
+        :description="__('app.settings_overview_system_text')"
         icon="fad fa-server"
         data-anim="fade-up"
         data-anim-delay="0.08"

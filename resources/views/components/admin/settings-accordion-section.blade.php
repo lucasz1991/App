@@ -57,7 +57,7 @@
         aria-labelledby="{{ $triggerId }}"
         class="overflow-hidden"
     >
-        <div class="border-t border-rt-border/60 bg-rt-surface-muted/35 p-3.5 dark:border-rt-dark-border/60 dark:bg-rt-dark-surface-muted/25 sm:p-5">
+        <div class="space-y-3 border-t border-rt-border/60 bg-rt-surface-muted/35 p-3.5 dark:border-rt-dark-border/60 dark:bg-rt-dark-surface-muted/25 sm:space-y-4 sm:p-5">
             {{ $slot }}
         </div>
     </div>
