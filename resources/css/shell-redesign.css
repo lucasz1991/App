@@ -918,6 +918,29 @@ body[data-mode='dark'] .rt-modal-footer {
     color: var(--rt-shell-accent) !important;
 }
 
+/* Das teleportierte globale Modal darf nach Livewire-Navigation keine
+   geerbten Dark-Mode-Farben behalten. Im Light Mode bilden Hintergrund und
+   Schrift deshalb ein explizites, kontrastreiches Farbpaar. */
+html:not(.dark) .rt-info-dialog,
+html:not(.dark) .rt-info-body {
+    background: #ffffff !important;
+    color: #182435 !important;
+}
+
+html:not(.dark) .rt-info-summary {
+    color: #637188 !important;
+}
+
+html:not(.dark) .rt-info-point,
+html:not(.dark) .rt-info-point-copy {
+    color: #182435 !important;
+}
+
+html:not(.dark) .rt-info-point {
+    border-color: #d7e0ea !important;
+    background: #f4f7fa !important;
+}
+
 .rt-welcome-card {
     border: 1px solid rgba(255, 255, 255, 0.48);
 }

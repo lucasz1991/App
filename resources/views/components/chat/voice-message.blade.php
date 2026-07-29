@@ -90,10 +90,6 @@
                         ></span>
                     </template>
                 </div>
-                <span class="rt-voice-progress-rail" aria-hidden="true">
-                    <span class="rt-voice-progress-fill"></span>
-                    <span class="rt-voice-progress-thumb"></span>
-                </span>
                 <input
                     type="range"
                     min="0"

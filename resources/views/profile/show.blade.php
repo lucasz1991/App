@@ -4,20 +4,14 @@
 
 @section('content')
     @php
-        $hasSecuritySettings = Laravel\Fortify\Features::enabled(Laravel\Fortify\Features::updatePasswords())
-            || Laravel\Fortify\Features::canManageTwoFactorAuthentication();
-
         $profileTabs = [
             'personal' => ['label' => __('app.personal_data'), 'icon' => 'fad fa-user-edit'],
+            'security' => ['label' => __('app.security'), 'icon' => 'fad fa-shield-alt'],
+            'app' => ['label' => __('app.settings'), 'icon' => 'fad fa-cog'],
         ];
-
-        if ($hasSecuritySettings) {
-            $profileTabs['security'] = ['label' => __('app.security'), 'icon' => 'fad fa-shield-alt'];
-        }
-
-        $profileTabs['app'] = ['label' => __('app.settings'), 'icon' => 'fad fa-cog'];
-
-        $profileTabs['sessions'] = ['label' => __('app.sessions'), 'icon' => 'fad fa-laptop'];
+        $requestedProfileTab = request('tab', 'personal') === 'sessions'
+            ? 'security'
+            : request('tab', 'personal');
     @endphp
 
     <x-ui.page
@@ -29,26 +23,21 @@
             <x-ui.accordion.tabs
                 :tabs="$profileTabs"
                 :collapse-at="'md'"
-                :default="request('tab', 'personal')"
+                :default="$requestedProfileTab"
                 :force-default="request()->filled('tab')"
                 persist-key="own-profile.tabs"
+                :persist-aliases="['sessions' => 'security']"
             >
             <x-ui.accordion.tab-panel for="personal" content-class="space-y-8">
                 <livewire:profile.profile-tab-content tab="personal" />
             </x-ui.accordion.tab-panel>
 
-            @if ($hasSecuritySettings)
-                <x-ui.accordion.tab-panel for="security" content-class="space-y-8">
-                    <livewire:profile.profile-tab-content tab="security" />
-                </x-ui.accordion.tab-panel>
-            @endif
+            <x-ui.accordion.tab-panel for="security" content-class="space-y-8">
+                <livewire:profile.profile-tab-content tab="security" />
+            </x-ui.accordion.tab-panel>
 
             <x-ui.accordion.tab-panel for="app" content-class="space-y-8">
                 <livewire:profile.profile-tab-content tab="app" />
-            </x-ui.accordion.tab-panel>
-
-            <x-ui.accordion.tab-panel for="sessions" content-class="space-y-8">
-                <livewire:profile.profile-tab-content tab="sessions" />
             </x-ui.accordion.tab-panel>
 
             </x-ui.accordion.tabs>

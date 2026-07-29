@@ -11,6 +11,7 @@ use Livewire\Component;
 class TeamRbacModal extends Component
 {
     public bool $showModal = false;
+    public bool $embedded = false;
     public ?int $selectedTeamId = null;
 
     /**
@@ -20,22 +21,23 @@ class TeamRbacModal extends Component
      */
     public array $matrix = [];
 
+    public function mount(bool $embedded = false): void
+    {
+        $this->embedded = $embedded;
+
+        if ($embedded) {
+            Gate::authorize('roles.manage');
+            $this->prepareManager();
+        }
+    }
+
     #[On('open-team-rbac-modal')]
     public function open(): void
     {
         Gate::authorize('roles.manage');
 
         $this->showModal = true;
-        $this->loadMatrix();
-
-        if ($this->selectedTeamId === null) {
-            $firstTeamId = $this->teams()->pluck('id')->first();
-            $this->selectedTeamId = $firstTeamId ? (int) $firstTeamId : null;
-        }
-
-        if ($this->selectedTeamId !== null) {
-            $this->initializeTeam((int) $this->selectedTeamId);
-        }
+        $this->prepareManager();
     }
 
     public function close(): void
@@ -153,6 +155,20 @@ class TeamRbacModal extends Component
             }
 
             $this->matrix[(string) $team->id] = $teamPermissions;
+        }
+    }
+
+    protected function prepareManager(): void
+    {
+        $this->loadMatrix();
+
+        if ($this->selectedTeamId === null) {
+            $firstTeamId = $this->teams()->pluck('id')->first();
+            $this->selectedTeamId = $firstTeamId ? (int) $firstTeamId : null;
+        }
+
+        if ($this->selectedTeamId !== null) {
+            $this->initializeTeam((int) $this->selectedTeamId);
         }
     }
 
