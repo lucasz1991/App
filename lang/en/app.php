@@ -198,6 +198,8 @@ return [
     'calls_camera_blocked' => 'The camera is blocked in the browser. Audio continues — click the padlock in the address bar to allow it.',
     'voice_microphone_blocked' => 'The microphone is blocked in the browser. Click the padlock in the address bar to allow it.',
     'message_options' => 'Message options',
+    'calls_enable_devices' => 'Enable microphone & camera',
+    'calls_enable_microphone' => 'Enable microphone',
     'calls_microphone_missing' => 'No microphone found. Please connect one and try again.',
     'calls_camera_missing' => 'No camera found. The call continues with audio.',
     'calls_microphone_busy' => 'The microphone is in use by another application or blocked by the operating system — the browser permission itself is granted.',

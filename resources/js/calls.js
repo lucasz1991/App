@@ -29,6 +29,11 @@ document.addEventListener('alpine:init', () => {
         cameraOn: false,
         screenSharing: false,
         audioBlocked: false,
+        // Automatisches Einschalten der Geraete beim Beitritt gescheitert:
+        // Dann zeigt die Buehne einen Aktivieren-Knopf. Der Klick ist eine
+        // echte Nutzergeste — iOS Safari verweigert getUserMedia GRUNDSAETZLICH
+        // ausserhalb einer Geste, und genau ausserhalb lief der Auto-Enable.
+        deviceSetupNeeded: false,
         // Verbindungsfehler und regulaeres Ende sind ZWEI Zustaende: ein
         // fehlgeschlagener Aufbau zeigte frueher dieselbe Meldung wie ein
         // beendeter Anruf — die Fehlersuche lief dadurch in die Irre.
@@ -62,7 +67,13 @@ document.addEventListener('alpine:init', () => {
                 return kind === 'camera' ? config.labels.cameraBusy : config.labels.microphoneBusy;
             }
 
-            return kind === 'camera' ? config.labels.cameraBlocked : config.labels.microphoneBlocked;
+            const label = kind === 'camera' ? config.labels.cameraBlocked : config.labels.microphoneBlocked;
+
+            // Unbekannte Fehlerarten mit technischem Namen ausweisen: Nur so
+            // laesst sich aus einer Nutzermeldung die Ursache eingrenzen.
+            return name && name !== 'NotAllowedError' && name !== 'SecurityError'
+                ? `${label} (${name})`
+                : label;
         },
 
         /** In den Fehlerzustand wechseln und den Grund fuer Diagnose loggen. */
@@ -155,33 +166,101 @@ document.addEventListener('alpine:init', () => {
             this.renderAllParticipants();
 
             if (this.canPublish) {
-                // Mikrofon und Kamera GETRENNT behandeln: Frueher liess ein
-                // Kamerafehler auch das bereits aktive Mikrofon als "nicht
-                // verfuegbar" erscheinen – die Meldung war schlicht falsch.
+                await this.enableDevices(false);
+            }
+        },
+
+        /**
+         * Mikrofon (und ggf. Kamera) einschalten.
+         *
+         * fromGesture=false ist der automatische Versuch direkt nach dem
+         * Beitritt. Scheitert er, KEINE Fehlermeldung, sondern der
+         * Aktivieren-Knopf: iOS Safari lehnt getUserMedia ohne Nutzergeste
+         * grundsaetzlich ab — der automatische Versuch KANN dort gar nicht
+         * gelingen. Erst wenn auch der Klick-Versuch scheitert, liegt ein
+         * echtes Problem vor, und die Meldung nennt es beim Namen.
+         */
+        async enableDevices(fromGesture) {
+            let needsGesture = false;
+
+            // Mikrofon und Kamera GETRENNT behandeln: Frueher liess ein
+            // Kamerafehler auch das bereits aktive Mikrofon als "nicht
+            // verfuegbar" erscheinen – die Meldung war schlicht falsch.
+            if (! this.micOn) {
                 try {
-                    await this.room.localParticipant.setMicrophoneEnabled(true);
+                    await this.enableTrack('microphone');
                     this.micOn = true;
                 } catch (error) {
-                    // Die Freigabe-Abfrage stellt der Browser selbst — hier
-                    // landet nur, was er abgelehnt hat oder was nicht geht.
-                    // Die Meldung benennt die Ursache (blockiert/belegt/fehlt).
                     console.error('[calls] Mikrofon nicht verfuegbar:', error);
-                    this.toast(this.deviceErrorLabel(error, 'microphone'), 'warning');
-                }
 
-                if (this.startWithVideo) {
-                    try {
-                        await this.room.localParticipant.setCameraEnabled(true);
-                        this.cameraOn = true;
-                    } catch (error) {
-                        // Kein Grund, den Anruf zu stoeren: Ton laeuft weiter,
-                        // die Kamera laesst sich jederzeit nachtraeglich zuschalten.
-                        console.error('[calls] Kamera nicht verfuegbar:', error);
-                        this.toast(this.deviceErrorLabel(error, 'camera'), 'warning');
+                    if (fromGesture) {
+                        this.toast(this.deviceErrorLabel(error, 'microphone'), 'warning');
+                    } else {
+                        needsGesture = true;
                     }
                 }
-
             }
+
+            if (this.startWithVideo && ! this.cameraOn) {
+                try {
+                    await this.enableTrack('camera');
+                    this.cameraOn = true;
+                } catch (error) {
+                    // Kein Grund, den Anruf zu stoeren: Ton laeuft weiter,
+                    // die Kamera laesst sich jederzeit nachtraeglich zuschalten.
+                    console.error('[calls] Kamera nicht verfuegbar:', error);
+
+                    if (fromGesture) {
+                        this.toast(this.deviceErrorLabel(error, 'camera'), 'warning');
+                    } else {
+                        needsGesture = true;
+                    }
+                }
+            }
+
+            this.deviceSetupNeeded = needsGesture;
+        },
+
+        /** Klick auf den Aktivieren-Knopf (echte Nutzergeste). */
+        async retryDevices() {
+            this.deviceSetupNeeded = false;
+            await this.enableDevices(true);
+        },
+
+        /**
+         * Ein Geraet ueber LiveKit einschalten — und wenn dessen interner
+         * Weg (Geraeteauswahl, Constraints) scheitert, direkt ueber
+         * getUserMedia aufnehmen und den Track von Hand publizieren. Echte
+         * Freigabefehler des Browsers werden unveraendert durchgereicht,
+         * nur fuer alles andere existiert der zweite Weg.
+         */
+        async enableTrack(kind) {
+            try {
+                if (kind === 'camera') {
+                    await this.room.localParticipant.setCameraEnabled(true);
+                } else {
+                    await this.room.localParticipant.setMicrophoneEnabled(true);
+                }
+
+                return;
+            } catch (error) {
+                const name = error?.name || '';
+
+                if (name === 'NotAllowedError' || name === 'SecurityError') {
+                    throw error;
+                }
+
+                console.warn(`[calls] LiveKit-Weg fuer ${kind} scheiterte (${name || 'unbekannt'}), versuche direkten Weg:`, error);
+            }
+
+            const stream = await navigator.mediaDevices.getUserMedia(
+                kind === 'camera' ? { video: true } : { audio: true },
+            );
+            const track = kind === 'camera' ? stream.getVideoTracks()[0] : stream.getAudioTracks()[0];
+
+            await this.room.localParticipant.publishTrack(track, {
+                source: kind === 'camera' ? Track.Source.Camera : Track.Source.Microphone,
+            });
         },
 
         bindRoomEvents() {
@@ -358,7 +437,11 @@ document.addEventListener('alpine:init', () => {
             this.micOn = enable;
 
             try {
-                await this.room.localParticipant.setMicrophoneEnabled(enable);
+                if (enable) {
+                    await this.enableTrack('microphone');
+                } else {
+                    await this.room.localParticipant.setMicrophoneEnabled(false);
+                }
             } catch (error) {
                 // Auf den TATSAECHLICHEN Zustand zuruecksetzen: Scheitert das
                 // AUSschalten, laeuft das Mikrofon real weiter – ein Knopf,
@@ -379,7 +462,11 @@ document.addEventListener('alpine:init', () => {
             this.cameraOn = enable;
 
             try {
-                await this.room.localParticipant.setCameraEnabled(enable);
+                if (enable) {
+                    await this.enableTrack('camera');
+                } else {
+                    await this.room.localParticipant.setCameraEnabled(false);
+                }
             } catch (error) {
                 // Wie beim Mikrofon: Nach Disable-Fehler laeuft die Kamera
                 // real weiter – die Anzeige muss das widerspiegeln.

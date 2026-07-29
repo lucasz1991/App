@@ -198,6 +198,8 @@ return [
     'calls_camera_blocked' => 'Die Kamera ist im Browser blockiert. Ton läuft weiter — zum Erlauben auf das Schloss-Symbol in der Adresszeile klicken.',
     'voice_microphone_blocked' => 'Das Mikrofon ist im Browser blockiert. Zum Erlauben auf das Schloss-Symbol in der Adresszeile klicken.',
     'message_options' => 'Nachrichtoptionen',
+    'calls_enable_devices' => 'Mikrofon & Kamera aktivieren',
+    'calls_enable_microphone' => 'Mikrofon aktivieren',
     'calls_microphone_missing' => 'Kein Mikrofon gefunden. Bitte ein Mikrofon anschließen und erneut versuchen.',
     'calls_camera_missing' => 'Keine Kamera gefunden. Der Anruf läuft mit Ton weiter.',
     'calls_microphone_busy' => 'Das Mikrofon ist durch eine andere Anwendung belegt oder vom Betriebssystem blockiert — die Freigabe im Browser ist erteilt.',

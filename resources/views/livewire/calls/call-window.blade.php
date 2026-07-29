@@ -74,6 +74,22 @@
                     {{ __('app.calls_enable_audio') }}
                 </button>
 
+                {{-- Geraete-Aktivierung per Nutzergeste: Der automatische
+                     Einschaltversuch nach dem Beitritt laeuft ausserhalb jeder
+                     Geste — iOS Safari lehnt getUserMedia dort grundsaetzlich
+                     ab. Dieser Klick ist die Geste. --}}
+                <button
+                    x-cloak
+                    x-show.important="deviceSetupNeeded"
+                    type="button"
+                    x-on:click="retryDevices()"
+                    class="absolute inset-x-0 z-20 mx-auto flex w-max items-center gap-2 rounded-full bg-emerald-500 px-4 py-2 text-sm font-bold text-white shadow-rt-lg transition-colors hover:bg-emerald-600"
+                    :class="audioBlocked ? 'top-14' : 'top-2'"
+                >
+                    <i class="far fa-microphone" aria-hidden="true"></i>
+                    {{ data_get($room->settings, 'video', true) ? __('app.calls_enable_devices') : __('app.calls_enable_microphone') }}
+                </button>
+
                 {{-- Verbindungsaufbau (nur solange KEIN Fehler vorliegt) --}}
                 <div
                     x-show.important="! connected && ! failed"
