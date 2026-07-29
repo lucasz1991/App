@@ -45,8 +45,11 @@
 
                 <div
                     data-rt-chat-message="{{ $own ? 'own' : 'other' }}"
+                    @if ($own)
+                        tabindex="0"
+                    @endif
                     class="rt-chat-message {{ $own
-                        ? 'rt-chat-message--own rounded-br-md'
+                        ? 'rt-chat-message--own rt-chat-message--actionable rounded-br-md'
                         : 'rt-chat-message--other rounded-bl-md' }} max-w-[calc(100vw-4.75rem)] rounded-[1.15rem] px-3.5 py-2.5 text-[13px] leading-5 sm:max-w-[min(72vw,38rem)] sm:px-4"
                 >
                     @if ($showSender)
@@ -135,7 +138,8 @@
                             <button
                                 type="button"
                                 wire:click="requestDeleteMessage({{ $message->id }})"
-                                class="rt-chat-message-delete mr-auto inline-flex h-6 w-6 items-center justify-center rounded-lg opacity-55 hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/50"
+                                data-no-chat-swipe
+                                class="rt-chat-message-delete mr-auto inline-flex h-6 w-6 items-center justify-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/50"
                                 title="{{ __('app.delete_chat_message') }}"
                                 aria-label="{{ __('app.delete_chat_message') }}"
                             >

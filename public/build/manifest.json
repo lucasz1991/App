@@ -16,12 +16,12 @@
     "src": "node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-vietnamese-wght-normal.woff2"
   },
   "resources/css/app.css": {
-    "file": "assets/app-D_gLt0Nj.css",
+    "file": "assets/app-CApSXWSN.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
   "resources/css/chat-redesign.css": {
-    "file": "assets/chat-redesign-eJEghvSb.css",
+    "file": "assets/chat-redesign-D-9FzFST.css",
     "src": "resources/css/chat-redesign.css",
     "isEntry": true
   },
@@ -42,7 +42,7 @@
     "isDynamicEntry": true
   },
   "resources/js/app.js": {
-    "file": "assets/app-DU18x8Pa.js",
+    "file": "assets/app-hoKvfxQV.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
@@ -51,7 +51,7 @@
     ]
   },
   "resources/js/calls.js": {
-    "file": "assets/calls-CwELIylH.js",
+    "file": "assets/calls-BNREe1Ef.js",
     "name": "calls",
     "src": "resources/js/calls.js",
     "isEntry": true

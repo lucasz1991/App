@@ -629,6 +629,96 @@ export async function syncExistingPushSubscription({
     });
 }
 
+/**
+ * Dieses Geraet fuer Web-Push anmelden, sofern alles dafuer bereitsteht.
+ *
+ * Wird vom Einrichtungsdialog nach erteilter Benachrichtigungs-Berechtigung
+ * aufgerufen: Die Berechtigung allein zeigt noch nichts an – eingehende
+ * Anrufe laufen ueber den Service Worker, und der braucht ein beim Server
+ * registriertes Abo. Ohne diesen Schritt waere "Erteilt" ein leeres
+ * Versprechen, sobald kein Tab mehr offen ist.
+ *
+ * Kehrt still mit null zurueck, wo Push prinzipiell nicht geht (Browser ohne
+ * PushManager, iOS ohne Installation als App, fehlende Konfiguration): Der
+ * Dialog soll damit nicht belaestigen – die Einstellungsseite erklaert die
+ * Details. Echte Fehler (Netz, Server) werden geworfen.
+ */
+export async function ensureCurrentDevicePushSubscription({
+    vapidPublicKey,
+    accountBinding,
+    subscribeUrl,
+    unsubscribeUrl,
+    capabilities = runtimeCapabilities(),
+    registrationProvider = readyServiceWorkerRegistration,
+    request = apiRequest,
+    serialize = serializedSubscription,
+    reconcile = reconcilePushDeviceAccount,
+    readBinding = readPushDeviceBinding,
+    writeBinding = writePushDeviceBinding,
+} = {}) {
+    if (!vapidPublicKey || !accountBinding || !subscribeUrl) {
+        return null;
+    }
+
+    if (!capabilities.supported || capabilities.permission !== 'granted') {
+        return null;
+    }
+
+    if (capabilities.ios && !capabilities.standalone) {
+        return null;
+    }
+
+    const registration = await registrationProvider();
+
+    // Ein Abo eines anderen Kontos in diesem Browser zuerst aufloesen –
+    // dieselbe Regel wie beim Laden der Einstellungsseite.
+    await reconcile({ accountBinding, registration });
+
+    let subscription = await registration.pushManager.getSubscription();
+    const alreadyBound = Boolean(subscription)
+        && pushDeviceBindingMatches(readBinding(), accountBinding);
+    let createdLocally = false;
+
+    if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+        });
+        createdLocally = true;
+    }
+
+    try {
+        const result = await request(subscribeUrl, {
+            method: 'POST',
+            body: JSON.stringify(serialize(subscription, capabilities)),
+        });
+        const binding = writeBinding(accountBinding, result?.subscription_id);
+
+        if (!binding) {
+            // Ohne lokale Bindung wuerde refresh() das Abo als fremd einstufen
+            // und wieder abbauen – dann lieber sauber zuruecksetzen.
+            await subscription.unsubscribe().catch(() => false);
+
+            if (unsubscribeUrl && result?.subscription_id) {
+                await request(unsubscribeUrl, {
+                    method: 'DELETE',
+                    body: JSON.stringify({ subscription_id: result.subscription_id }),
+                }).catch(() => null);
+            }
+
+            throw new Error('The push device binding could not be stored.');
+        }
+
+        return { subscription, binding, alreadyBound };
+    } catch (error) {
+        if (createdLocally) {
+            await subscription.unsubscribe().catch(() => false);
+        }
+
+        throw error;
+    }
+}
+
 function messageFrom(error, fallback) {
     return typeof error?.message === 'string' && error.message && !/^HTTP \d+$/.test(error.message)
         ? error.message

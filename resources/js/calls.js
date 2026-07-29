@@ -327,18 +327,40 @@ document.addEventListener('alpine:init', () => {
 
         async toggleMic() {
             if (!this.room || !this.canPublish) return;
-            this.micOn = !this.micOn;
-            await this.room.localParticipant.setMicrophoneEnabled(this.micOn).catch(() => {
+            const enable = ! this.micOn;
+            this.micOn = enable;
+
+            try {
+                await this.room.localParticipant.setMicrophoneEnabled(enable);
+            } catch (error) {
                 this.micOn = false;
-            });
+
+                // Ein stiller Ruecksprung des Knopfs liesse den Nutzer raten.
+                // Einschalten scheitert fast immer an der Freigabe – also
+                // dieselbe Meldung samt Einrichtungsdialog wie beim Aufbau.
+                if (enable) {
+                    console.error('[calls] Mikrofon nicht verfuegbar:', error);
+                    this.toast(config.labels.microphoneBlocked, 'warning');
+                    window.dispatchEvent(new CustomEvent('rt:permissions-open'));
+                }
+            }
         },
 
         async toggleCamera() {
             if (!this.room || !this.canPublish) return;
-            this.cameraOn = !this.cameraOn;
-            await this.room.localParticipant.setCameraEnabled(this.cameraOn).catch(() => {
+            const enable = ! this.cameraOn;
+            this.cameraOn = enable;
+
+            try {
+                await this.room.localParticipant.setCameraEnabled(enable);
+            } catch (error) {
                 this.cameraOn = false;
-            });
+
+                if (enable) {
+                    console.error('[calls] Kamera nicht verfuegbar:', error);
+                    this.toast(config.labels.cameraBlocked, 'warning');
+                }
+            }
         },
 
         async toggleScreenShare() {

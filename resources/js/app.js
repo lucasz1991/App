@@ -20,6 +20,11 @@ import './gsap';
 import './vengeance-motion';
 import { wagonListPrototype } from './wagon-list-prototype';
 import permissionSetup, { readDeviceState } from './permission-setup';
+import {
+    acquireMicrophoneStream,
+    holdMicrophoneStream,
+    releaseMicrophoneStream,
+} from './microphone-stream';
 import { numberInput } from './number-input';
 import {
     registerRailtimePwaInstall,
@@ -431,7 +436,6 @@ Alpine.data('chatRealtime', (config) => ({
     recordingSeconds: 0,
     recordingLabel: '',
     recordingTimer: null,
-    recordingStream: null,
     recordingIntent: null,
     sendingVoice: false,
     viewOnce: false,
@@ -482,7 +486,10 @@ Alpine.data('chatRealtime', (config) => ({
             this.recordingIntent = 'cancel';
             this.recorder.stop();
         }
-        this.stopRecordingTracks();
+        // NICHT sofort stoppen: destroy() laeuft bei jedem Chatwechsel. Wuerde
+        // das Mikrofon hier geschlossen, fragte Firefox im naechsten Chat
+        // erneut nach der Freigabe – exakt das urspruengliche Problem.
+        holdMicrophoneStream();
 
         if (window.Echo && config.chatId) {
             window.Echo.leave(`chat.${config.chatId}`);
@@ -519,14 +526,11 @@ Alpine.data('chatRealtime', (config) => ({
         }
 
         try {
-            // Noch offener Stream aus der letzten Aufnahme? Dann ohne erneute
-            // Abfrage weiterbenutzen – das ist der eigentliche Fix gegen das
-            // wiederholte Nachfragen.
-            if (! this.hasLiveMicrophone()) {
-                this.recordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            }
+            // Der Halter liefert einen noch offenen Stream ohne erneute
+            // Browser-Abfrage – auch nach einem Chatwechsel. Das ist der
+            // eigentliche Fix gegen das wiederholte Nachfragen.
+            const stream = await acquireMicrophoneStream();
 
-            window.clearTimeout(this.microphoneReleaseTimer);
             const preferredMime = [
                 'audio/webm;codecs=opus',
                 'audio/ogg;codecs=opus',
@@ -535,8 +539,8 @@ Alpine.data('chatRealtime', (config) => ({
 
             this.chunks = [];
             this.recorder = preferredMime
-                ? new MediaRecorder(this.recordingStream, { mimeType: preferredMime })
-                : new MediaRecorder(this.recordingStream);
+                ? new MediaRecorder(stream, { mimeType: preferredMime })
+                : new MediaRecorder(stream);
 
             this.recorder.addEventListener('dataavailable', (event) => {
                 if (event.data.size > 0) {
@@ -560,7 +564,15 @@ Alpine.data('chatRealtime', (config) => ({
                 }
             }, 1000);
         } catch (error) {
-            this.stopRecordingTracks();
+            releaseMicrophoneStream();
+
+            // Freigabe im Abfragefenster verweigert? Dann hilft die Anleitung
+            // im Einrichtungsdialog mehr als eine generische Fehlermeldung.
+            if (error?.name === 'NotAllowedError' || error?.name === 'SecurityError') {
+                window.dispatchEvent(new CustomEvent('rt:permissions-open'));
+                return;
+            }
+
             window.dispatchEvent(new CustomEvent('swal:toast', {
                 detail: { type: 'error', text: config.microphoneErrorText || 'Das Mikrofon konnte nicht verwendet werden.' },
             }));
@@ -598,7 +610,7 @@ Alpine.data('chatRealtime', (config) => ({
         this.recording = false;
         // Nicht sofort schliessen: sonst fragt Firefox bei der naechsten
         // Sprachnachricht erneut nach der Freigabe.
-        this.scheduleMicrophoneRelease();
+        holdMicrophoneStream();
 
         const shouldSend = this.recordingIntent === 'send';
 
@@ -643,7 +655,7 @@ Alpine.data('chatRealtime', (config) => ({
 
     resetVoiceRecorder() {
         window.clearInterval(this.recordingTimer);
-        this.scheduleMicrophoneRelease();
+        holdMicrophoneStream();
         this.recording = false;
         this.sendingVoice = false;
         this.recordingIntent = null;
@@ -652,45 +664,6 @@ Alpine.data('chatRealtime', (config) => ({
         this.chunks = [];
         this.recorder = null;
         this.viewOnce = false;
-    },
-
-    /**
-     * Mikrofon SOFORT freigeben (Seitenwechsel, Fehler, Abbruch).
-     *
-     * Im Normalfall bitte scheduleMicrophoneRelease() verwenden – siehe dort.
-     */
-    stopRecordingTracks() {
-        window.clearTimeout(this.microphoneReleaseTimer);
-        this.microphoneReleaseTimer = null;
-        this.recordingStream?.getTracks().forEach((track) => track.stop());
-        this.recordingStream = null;
-    },
-
-    /** Ist der vorhandene Stream noch verwendbar? */
-    hasLiveMicrophone() {
-        return Boolean(
-            this.recordingStream?.getAudioTracks().some((track) => track.readyState === 'live'),
-        );
-    },
-
-    /**
-     * Mikrofon nach kurzer Ruhe freigeben statt sofort.
-     *
-     * Grund: Firefox merkt sich die Freigabe nur, wenn der Nutzer im Dialog
-     * "Diese Entscheidung merken" ankreuzt. Ohne das Haekchen fragt jedes neue
-     * getUserMedia erneut – bei mehreren Sprachnachrichten hintereinander also
-     * jedes Mal. Halten wir den Stream kurz offen, entfaellt die Nachfrage
-     * innerhalb desselben Gespraechs vollstaendig.
-     *
-     * Die Verzoegerung ist bewusst kurz: Ein dauerhaft geoeffnetes Mikrofon
-     * zeigt der Browser mit einem Aufnahmesymbol an, und das soll nicht laenger
-     * leuchten als noetig.
-     */
-    scheduleMicrophoneRelease(delay = 90000) {
-        window.clearTimeout(this.microphoneReleaseTimer);
-        this.microphoneReleaseTimer = window.setTimeout(() => {
-            this.stopRecordingTracks();
-        }, delay);
     },
 
     updateRecordingLabel() {

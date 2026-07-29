@@ -8,12 +8,13 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\HeaderUtils;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ChatAttachmentController extends Controller
 {
-    public function __invoke(Request $request, File $file): StreamedResponse
+    public function __invoke(Request $request, File $file): BinaryFileResponse|StreamedResponse
     {
         abort_unless($file->fileable_type === ChatMessage::class, 404);
 
@@ -74,9 +75,10 @@ class ChatAttachmentController extends Controller
         }
 
         $disk = $file->disk ?: 'private';
-        abort_unless(Storage::disk($disk)->exists($file->path), 404);
+        $storage = Storage::disk($disk);
+        abort_unless($storage->exists($file->path), 404);
 
-        return Storage::disk($disk)->response($file->path, $file->name, [
+        $headers = [
             'Content-Type' => $mime,
             'Content-Disposition' => HeaderUtils::makeDisposition(
                 HeaderUtils::DISPOSITION_INLINE,
@@ -85,6 +87,21 @@ class ChatAttachmentController extends Controller
             ),
             'Cache-Control' => $message->view_once ? 'private, no-store, max-age=0' : 'private, max-age=300',
             'X-Content-Type-Options' => 'nosniff',
-        ]);
+        ];
+
+        // Safari und installierte iOS-Web-Apps laden Audio fast immer ueber
+        // HTTP-Byte-Ranges. FilesystemAdapter::response() streamt dagegen
+        // stets die komplette Datei mit Status 200, wodurch WebKit den Start
+        // je nach Aufnahmeformat verweigert. Chat-Uploads liegen auf dem
+        // lokalen privaten Disk; BinaryFileResponse beantwortet Range-Requests
+        // korrekt mit 206, Content-Range und der passenden Teil-Laenge.
+        $localPath = $storage->path($file->path);
+
+        if (is_file($localPath)) {
+            return new BinaryFileResponse($localPath, 200, $headers, public: false);
+        }
+
+        // Defensive Rueckfalloption fuer spaeter angebundene Remote-Disks.
+        return $storage->response($file->path, $file->name, $headers);
     }
 }

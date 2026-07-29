@@ -18,6 +18,13 @@
  * Oberflaeche diesen Hinweis gezielt fuer Firefox ein.
  */
 
+import {
+    acquireMicrophoneStream,
+    holdMicrophoneStream,
+    releaseMicrophoneStream,
+} from './microphone-stream';
+import { ensureCurrentDevicePushSubscription } from './pwa';
+
 const DEVICE_KIND = { microphone: 'audioinput', camera: 'videoinput' };
 
 /**
@@ -154,18 +161,23 @@ export default function permissionSetup(config = {}) {
                 || ! ['granted', 'unsupported'].includes(this.states.notifications);
         },
 
-        get allGranted() {
-            return ['microphone', 'camera', 'notifications'].every(
-                (kind) => ['granted', 'unsupported'].includes(this.states[kind]),
-            );
-        },
-
         wasDismissed() {
             try {
                 return window.localStorage.getItem(this.storageKey) === '1';
             } catch (_) {
                 return false;
             }
+        },
+
+        /**
+         * Nur zuklappen, NICHT dauerhaft merken.
+         *
+         * Backdrop-Klick und Escape landen hier: Ein versehentlicher Klick
+         * neben den Dialog darf ihn nicht fuer immer unterdruecken. Dauerhaft
+         * merkt sich das nur dismiss() – der ausdrueckliche Knopf im Fuss.
+         */
+        close() {
+            this.open = false;
         },
 
         async refresh() {
@@ -192,38 +204,54 @@ export default function permissionSetup(config = {}) {
         },
 
         /**
-         * Ein Geraet einzeln anfordern.
+         * Mikrofon anfordern.
          *
-         * Die erteilten Spuren werden sofort wieder gestoppt: Es geht hier nur
-         * darum, die Freigabe zu erhalten – nicht darum, Mikrofon oder Kamera
-         * offen zu halten. Ein dauerhaft leuchtendes Aufnahmesymbol waere
-         * genau das Gegenteil von Vertrauen.
-         *
-         * @param {'microphone'|'camera'} kind
+         * In Firefox wird der Stream danach bewusst kurz OFFEN gehalten
+         * (geteilter Halter, gleiche Ruhephase wie bei Sprachnachrichten):
+         * Ohne "Diese Entscheidung merken" gilt die Freigabe dort nur fuer
+         * diese eine Anforderung – sofortiges Stoppen wuerde sie wertlos
+         * machen, und die naechste Sprachnachricht fragte doch wieder.
+         * Chrome und Edge merken sich die Antwort dauerhaft; dort wird sofort
+         * gestoppt, damit das Aufnahmesymbol nicht grundlos leuchtet.
          */
-        async request(kind) {
+        async requestMicrophone() {
             if (this.busy) return;
-            this.busy = kind;
-
-            const constraints = kind === 'camera' ? { video: true } : { audio: true };
+            this.busy = 'microphone';
 
             try {
-                const stream = await navigator.mediaDevices.getUserMedia(constraints);
-                stream.getTracks().forEach((track) => track.stop());
+                await acquireMicrophoneStream();
+
+                if (this.needsRememberHint) {
+                    holdMicrophoneStream();
+                } else {
+                    releaseMicrophoneStream();
+                }
             } catch (error) {
-                console.error(`[permissions] ${kind} nicht verfuegbar:`, error);
+                console.error('[permissions] microphone nicht verfuegbar:', error);
             } finally {
                 await this.refresh();
                 this.busy = null;
             }
         },
 
-        requestMicrophone() {
-            return this.request('microphone');
-        },
+        /**
+         * Kamera anfordern. Die erteilte Spur wird sofort wieder gestoppt: Es
+         * geht nur um die Freigabe – eine dauerhaft leuchtende Kamera waere
+         * das Gegenteil von Vertrauen.
+         */
+        async requestCamera() {
+            if (this.busy) return;
+            this.busy = 'camera';
 
-        requestCamera() {
-            return this.request('camera');
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                stream.getTracks().forEach((track) => track.stop());
+            } catch (error) {
+                console.error('[permissions] camera nicht verfuegbar:', error);
+            } finally {
+                await this.refresh();
+                this.busy = null;
+            }
         },
 
         async requestNotifications() {
@@ -231,7 +259,20 @@ export default function permissionSetup(config = {}) {
             this.busy = 'notifications';
 
             try {
-                await window.Notification.requestPermission();
+                const permission = await window.Notification.requestPermission();
+
+                // Die Berechtigung allein zeigt noch nichts an: Eingehende
+                // Anrufe kommen per Web-Push ueber den Service Worker – dafuer
+                // braucht dieses Geraet ein Abo beim Server. Ohne diesen
+                // Schritt waere "Erteilt" ein leeres Versprechen, sobald kein
+                // Tab mehr offen ist.
+                if (permission === 'granted' && config.push) {
+                    await ensureCurrentDevicePushSubscription(config.push).catch((error) => {
+                        // Kein Blocker fuer den Dialog: Die Einstellungsseite
+                        // bietet das Abo weiterhin manuell an.
+                        console.error('[permissions] Push-Abo nicht angelegt:', error);
+                    });
+                }
             } catch (error) {
                 console.error('[permissions] Benachrichtigungen:', error);
             } finally {

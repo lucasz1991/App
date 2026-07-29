@@ -4,7 +4,8 @@
     "scripts": {
         "dev": "vite",
         "build": "vite build",
-        "test:pwa": "node --test tests/Frontend/pwa.test.js"
+        "test:frontend": "node --test \"tests/Frontend/*.test.js\"",
+        "test:pwa": "node --test tests/Frontend/pwa.test.js tests/Frontend/microphone-stream.test.js"
     },
     "devDependencies": {
         "autoprefixer": "^10.4.7",

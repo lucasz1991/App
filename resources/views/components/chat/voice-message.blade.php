@@ -28,6 +28,8 @@
     <audio
         x-ref="audio"
         x-bind:src="sourceUrl || null"
+        wire:ignore
+        playsinline
         preload="{{ $message->view_once ? 'none' : 'metadata' }}"
         class="sr-only"
         @loadedmetadata="metadataLoaded()"

@@ -534,6 +534,25 @@ body[data-mode='dark'] .rt-chat-message--own .rt-chat-message-meta {
         transform 180ms ease;
 }
 
+.rt-chat-message-delete {
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(0.15rem) scale(0.92);
+}
+
+.rt-chat-message--actionable:hover .rt-chat-message-delete,
+.rt-chat-message--actionable:focus-within .rt-chat-message-delete,
+.rt-chat-message-delete:focus-visible {
+    pointer-events: auto;
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+.rt-chat-message--actionable:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--chat-accent) 52%, transparent);
+    outline-offset: 2px;
+}
+
 .rt-chat-message-delete:hover,
 .rt-chat-upload-remove:hover {
     color: var(--chat-accent);

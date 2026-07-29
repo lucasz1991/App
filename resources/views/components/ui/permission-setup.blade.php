@@ -6,9 +6,23 @@
         window.dispatchEvent(new CustomEvent('rt:permissions-open'))
 --}}
 @auth
+@php
+    // Gleiche Quelle wie die Push-Einstellungsseite (PushSettings::render):
+    // Nur wenn der Server Push wirklich anbieten kann, bekommt der Dialog die
+    // Daten fuer das automatische Geraete-Abo nach erteilter Berechtigung.
+    $pushDiagnostics = \App\Support\Push\WebPushConfiguration::diagnostics();
+    $pushClientConfig = ($pushDiagnostics['enabled'] && $pushDiagnostics['configured'])
+        ? [
+            'vapidPublicKey' => (string) config('webpush.vapid.public_key'),
+            'accountBinding' => \App\Support\Push\WebPushConfiguration::accountBinding(auth()->id()),
+            'subscribeUrl' => route('push.subscriptions.store'),
+            'unsubscribeUrl' => route('push.subscriptions.destroy'),
+        ]
+        : null;
+@endphp
 <div
-    x-data="permissionSetup({ userId: {{ auth()->id() }} })"
-    x-on:keydown.escape.window="open && dismiss()"
+    x-data="permissionSetup({ userId: {{ auth()->id() }}, push: @js($pushClientConfig) })"
+    x-on:keydown.escape.window="open && close()"
 >
     <template x-teleport="body">
         <div
@@ -24,8 +38,11 @@
                 x-transition:enter="transition duration-200 ease-out"
                 x-transition:enter-start="opacity-0"
                 x-transition:enter-end="opacity-100"
+                {{-- Nur zuklappen: Ein Klick daneben darf den Dialog nicht
+                     dauerhaft unterdruecken – das entscheidet allein der
+                     Knopf im Fuss (dismiss). --}}
                 class="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
-                x-on:click="dismiss()"
+                x-on:click="close()"
             ></div>
 
             <div
@@ -163,8 +180,12 @@
                         </div>
                     </div>
 
-                    {{-- Firefox verlangt das Haekchen, sonst fragt er jedes Mal erneut. --}}
-                    <template x-if="needsRememberHint && states.microphone !== 'granted'">
+                    {{-- Firefox verlangt das Haekchen, sonst fragt er jedes Mal erneut.
+                         Immer zeigen, solange der Dialog offen ist: Direkt nach dem
+                         Erteilen steht der Status kurz auf "Erteilt" (der Stream wird
+                         noch gehalten) – genau dann muss der Nutzer vom Haekchen
+                         erfahren, sonst wundert er sich beim naechsten Start erneut. --}}
+                    <template x-if="needsRememberHint">
                         <div class="flex items-start gap-2.5 rounded-xl border-l-4 border-amber-500 bg-amber-50 px-3.5 py-3 text-[11px] leading-5 text-amber-800 dark:bg-amber-500/10 dark:text-amber-200">
                             <i class="fad fa-lightbulb mt-0.5" aria-hidden="true"></i>
                             <span>{{ __('app.permissions_firefox_hint') }}</span>
@@ -192,7 +213,10 @@
                         type="button"
                         x-on:click="dismiss()"
                         class="rounded-full bg-rt-surface px-4 py-2 text-xs font-bold text-rt-text ring-1 ring-rt-border/60 transition-colors hover:bg-rt-surface-muted dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60"
-                        x-text="allGranted ? @js(__('app.permissions_done')) : @js(__('app.permissions_later'))"
+                        {{-- "Fertig", sobald nichts ERFORDERLICHES mehr offen ist:
+                             Die Kamera ist ausdruecklich optional, wer sie bewusst
+                             auslaesst, ist trotzdem fertig eingerichtet. --}}
+                        x-text="hasOpenItems ? @js(__('app.permissions_later')) : @js(__('app.permissions_done'))"
                     ></button>
                 </footer>
             </div>
