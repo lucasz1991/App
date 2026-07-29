@@ -2,6 +2,7 @@
     'for' => null,
     'panelClass' => null,
     'contentClass' => null,
+    'order' => null,
 ])
 
 @php
@@ -24,17 +25,20 @@
     role="tabpanel"
     id="panel-{{ $for }}"
     data-tab-panel-id="{{ (string) $for }}"
+    @if (! is_null($order)) data-tab-index="{{ (int) $order }}" style="order: {{ (int) $order }};" @endif
     aria-labelledby="tab-{{ $for }}"
     :aria-hidden="openTab !== @js((string) $for)"
     :inert="openTab !== @js((string) $for)"
     :data-active="openTab === @js((string) $for) ? 'true' : 'false'"
     :data-loaded="isTabLoaded(@js((string) $for)) ? 'true' : 'false'"
     class="rt-tab-panel {{ $resolvedPanelClass }}"
+    wire:ignore.self
 >
     <div
         x-show="isTabLoaded(@js((string) $for))"
         data-rt-tab-content
         class="rt-tab-panel-content {{ $resolvedContentClass }}"
+        wire:ignore.self
     >
         {{ $slot }}
     </div>
@@ -44,6 +48,7 @@
         class="rt-tab-panel-skeleton"
         role="status"
         aria-label="{{ __('app.loading') }}"
+        wire:ignore.self
     >
         <span class="rt-tab-skeleton-heading"></span>
         <span class="rt-tab-skeleton-line rt-tab-skeleton-line--wide"></span>

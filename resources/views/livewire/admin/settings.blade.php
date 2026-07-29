@@ -18,7 +18,7 @@
     >
     {{-- Töne, Anrufe und System werden gemeinsam lazy geladen und innerhalb
          dieses Tabs als drei eigenständige Accordion-Sektionen gegliedert. --}}
-    <x-ui.accordion.tab-panel for="system" content-class="">
+    <x-ui.accordion.tab-panel for="system" :order="3" content-class="">
     <div
         x-data="{
             openSystemSection: 'sounds',
@@ -28,6 +28,7 @@
         }"
         class="flex flex-col gap-3"
         data-admin-system-accordion
+        wire:ignore.self
     >
     {{-- Töne: systemweite Standards je Ereignis mit Sofort-Vorschau. --}}
     <x-admin.settings-accordion-section
@@ -188,7 +189,7 @@
     </x-ui.accordion.tab-panel>
 
     {{-- Einladungen --}}
-    <x-ui.accordion.tab-panel for="users" content-class="space-y-6">
+    <x-ui.accordion.tab-panel for="users" :order="2" content-class="space-y-6">
     <section
         class="relative min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 sm:p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60"
         data-anim="fade-up"
@@ -240,7 +241,7 @@
     </x-ui.accordion.tab-panel>
 
     {{-- E-Mails --}}
-    <x-ui.accordion.tab-panel for="general" content-class="space-y-6">
+    <x-ui.accordion.tab-panel for="general" :order="0" content-class="space-y-6">
     <section
         class="relative min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 sm:p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60"
         data-anim="fade-up"
@@ -285,7 +286,7 @@
     </section>
     </x-ui.accordion.tab-panel>
 
-    <x-ui.accordion.tab-panel for="company" content-class="space-y-6">
+    <x-ui.accordion.tab-panel for="company" :order="1" content-class="space-y-6">
         <section
             class="relative min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 sm:p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60"
             data-anim="fade-up"

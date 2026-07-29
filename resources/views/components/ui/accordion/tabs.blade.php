@@ -53,7 +53,12 @@
         'data-anim-delay' => '0.06',
     ]) }}
     wire:key="{{ \Illuminate\Support\Str::slug($storageKey) }}"
+    wire:ignore.self
+    data-rt-tabs-root
 >
+    {{-- Die Navigation ist vollstaendig Alpine-gesteuert und statisch.
+         x-ignore darf hier bewusst NICHT verwendet werden: Es wuerde x-data,
+         x-show und die Alpine-Templates deaktivieren. --}}
     <div
         x-ref="shell"
         class="rt-tabs-shell rt-tabs-v2"
@@ -130,6 +135,7 @@
         x-ref="panels"
         class="rt-tab-panels {{ $contentClass }} relative min-w-0 overflow-hidden"
         data-tab-panels
+        wire:ignore.self
         :style="panelViewportStyle()"
         @pointerdown="beginCoupledDrag($event, 'content')"
         @pointermove="moveCoupledDrag($event)"
@@ -144,6 +150,7 @@
         <div
             x-ref="panelTrack"
             class="rt-tab-panels-track"
+            wire:ignore.self
         >
             {{ $slot }}
         </div>
