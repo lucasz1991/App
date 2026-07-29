@@ -880,12 +880,24 @@ Alpine.data('chatAudioPlayer', (config = {}) => ({
 
 Alpine.data('chatTranscriptScroll', () => ({
     messageObserver: null,
+    scrollHandler: null,
+    stickToBottom: true,
     animatedRows: new WeakSet(),
+    knownMessageKeys: new Set(),
 
     init() {
         this.$el.querySelectorAll('[data-chat-message-row]').forEach((row) => {
             this.animatedRows.add(row);
+            const key = row.getAttribute('wire:key');
+            if (key) {
+                this.knownMessageKeys.add(key);
+            }
         });
+        this.scrollHandler = () => {
+            const bottomGap = this.$el.scrollHeight - this.$el.scrollTop - this.$el.clientHeight;
+            this.stickToBottom = bottomGap <= 96;
+        };
+        this.$el.addEventListener('scroll', this.scrollHandler, { passive: true });
         this.scrollToLatest();
         this.messageObserver = new MutationObserver((mutations) => {
             const newRows = [];
@@ -903,27 +915,41 @@ Alpine.data('chatTranscriptScroll', () => ({
                 });
             });
 
-            this.animateRows(newRows);
-            this.scrollToLatest(true);
+            const freshRows = [...new Set(newRows)].filter((row) => {
+                const key = row.getAttribute('wire:key');
+
+                if ((key && this.knownMessageKeys.has(key)) || this.animatedRows.has(row)) {
+                    return false;
+                }
+
+                if (key) {
+                    this.knownMessageKeys.add(key);
+                }
+                this.animatedRows.add(row);
+
+                return true;
+            });
+
+            if (!freshRows.length) {
+                return;
+            }
+
+            this.animateRows(freshRows);
+
+            if (this.stickToBottom) {
+                this.scrollToLatest(true);
+            }
         });
         this.messageObserver.observe(this.$el, { childList: true, subtree: true });
     },
 
     animateRows(rows) {
-        const freshRows = [...new Set(rows)].filter((row) => {
-            if (this.animatedRows.has(row)) {
-                return false;
-            }
-            this.animatedRows.add(row);
-            return true;
-        });
-
-        if (!freshRows.length || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        if (!rows.length || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
             return;
         }
 
         window.gsap?.fromTo(
-            freshRows,
+            rows,
             { autoAlpha: 0, y: 8, scale: 0.985 },
             {
                 autoAlpha: 1,
@@ -939,6 +965,8 @@ Alpine.data('chatTranscriptScroll', () => ({
     },
 
     scrollToLatest(smooth = false) {
+        this.stickToBottom = true;
+
         requestAnimationFrame(() => {
             if (! this.$el?.isConnected) {
                 return;
@@ -954,6 +982,8 @@ Alpine.data('chatTranscriptScroll', () => ({
     destroy() {
         this.messageObserver?.disconnect();
         this.messageObserver = null;
+        this.$el?.removeEventListener('scroll', this.scrollHandler);
+        this.scrollHandler = null;
         window.gsap?.killTweensOf(this.$el.querySelectorAll('[data-chat-message-row]'));
     },
 }));

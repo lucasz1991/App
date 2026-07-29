@@ -1215,6 +1215,14 @@ body[data-mode="dark"] .rt-operational-page .rt-operational-nav-icon {
 /* Viewport-Seiten wie der Messenger duerfen keinen eigenen Dokument-Scroll
    erzeugen. Die Topbar belegt 70px; den restlichen dynamischen Viewport
    erhalten die Seite und ihre Flex-Kinder ohne zusaetzlichen Footer. */
+html:has(.rt-viewport-layout),
+body:has(.rt-viewport-layout) {
+    width: 100%;
+    height: 100dvh;
+    overflow: hidden !important;
+    overscroll-behavior: none;
+}
+
 .rt-viewport-layout {
     height: 100dvh;
     overflow: hidden;
@@ -1229,6 +1237,10 @@ body[data-mode="dark"] .rt-operational-page .rt-operational-nav-icon {
 
 .rt-viewport-layout .main-content,
 .rt-viewport-layout .page-content {
+    overflow: hidden;
+}
+
+.rt-viewport-layout .container-fluid {
     overflow: hidden;
 }
 

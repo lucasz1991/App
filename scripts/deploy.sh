@@ -112,6 +112,12 @@ fi
 npm run build
 ok "npm run build"
 
+# Aufraeumen NACH dem Build: vite.config.js setzt bewusst emptyOutDir=false
+# (public/build enthaelt handgepflegte Ordner libs/, css/, fonts/, icons/),
+# weshalb jeder Build seine Vorgaenger liegen laesst. Erst nach dem Build zu
+# raeumen heisst: Es gibt kein Zeitfenster ohne auslieferbare Dateien.
+node scripts/prune-build-assets.mjs || warn "Aufraeumen der Assets fehlgeschlagen"
+
 # ---------------------------------------------------------------------------
 if [ "$RUN_MIGRATIONS" -eq 1 ]; then
     step "Datenbank"

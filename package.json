@@ -4,6 +4,8 @@
     "scripts": {
         "dev": "vite",
         "build": "vite build",
+        "build:clean": "vite build && node scripts/prune-build-assets.mjs",
+        "prune:assets": "node scripts/prune-build-assets.mjs",
         "test:frontend": "node --test \"tests/Frontend/*.test.js\"",
         "test:pwa": "node --test tests/Frontend/pwa.test.js tests/Frontend/microphone-stream.test.js"
     },

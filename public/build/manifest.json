@@ -16,12 +16,12 @@
     "src": "node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-vietnamese-wght-normal.woff2"
   },
   "resources/css/app.css": {
-    "file": "assets/app-CApSXWSN.css",
+    "file": "assets/app-CvfvaxjP.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
   "resources/css/chat-redesign.css": {
-    "file": "assets/chat-redesign-D-9FzFST.css",
+    "file": "assets/chat-redesign-CGulfCOP.css",
     "src": "resources/css/chat-redesign.css",
     "isEntry": true
   },
@@ -42,7 +42,7 @@
     "isDynamicEntry": true
   },
   "resources/js/app.js": {
-    "file": "assets/app-B58A-8HM.js",
+    "file": "assets/app-CZksUtKw.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,

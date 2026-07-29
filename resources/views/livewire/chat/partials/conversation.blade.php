@@ -1,4 +1,4 @@
-<div class="rt-chat-conversation-pane flex min-h-0 min-w-0 flex-1 flex-col" data-anim="fade">
+<div class="rt-chat-conversation-pane flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" data-anim="fade">
     @if (! $selectedChat)
         <div class="rt-chat-conversation-empty relative min-h-0 flex-1">
             <button
