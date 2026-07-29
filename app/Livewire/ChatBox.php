@@ -181,7 +181,7 @@ class ChatBox extends Component
         $this->finishSending($chat, $message);
     }
 
-    public function sendVoice(bool $viewOnce = false, int $durationSeconds = 0): void
+    public function sendVoice(bool $viewOnce = false, int $durationSeconds = 0, array $waveform = []): void
     {
         $this->validate([
             'voiceUpload' => ['required', 'file', 'max:20480'],
@@ -200,6 +200,14 @@ class ChatBox extends Component
             __('app.voice_message_invalid')
         );
 
+        // Pegelwerte der Aufnahme (Client-Eingabe): strikt auf ganze Zahlen
+        // 0-100 und eine feste Hoechstzahl begrenzen — mehr braucht keine
+        // ehrliche Wellenform, und mehr darf ein Client hier nicht ablegen.
+        $waveform = array_values(array_slice(array_map(
+            static fn ($value) => max(0, min(100, (int) $value)),
+            array_filter($waveform, 'is_numeric'),
+        ), 0, 64));
+
         $chat = $this->myChat($this->selectedChatId);
         $message = ChatMessage::create([
             'chat_id' => $chat->id,
@@ -208,6 +216,7 @@ class ChatBox extends Component
             'message_type' => 'voice',
             'view_once' => $viewOnce,
             'voice_duration_seconds' => $durationSeconds > 0 ? min(300, $durationSeconds) : null,
+            'voice_waveform' => $waveform !== [] ? $waveform : null,
         ]);
 
         try {

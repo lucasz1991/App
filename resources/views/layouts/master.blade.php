@@ -3,6 +3,11 @@
     // Ohne expliziten Wert entscheidet ausschliesslich die globale Admin-Rolle.
     $area = $area ?? (auth()->check() && auth()->user()->usesAdminLayout() ? 'admin' : 'user');
     $viewportMode = ($contentMode ?? null) === 'viewport';
+    // chrome=false: Topbar und Sidebar werden GAR NICHT gerendert (Anruf-
+    // Fenster). Bewusst kein Ueberdecken per z-Index: Vorfahren mit
+    // transform/filter machen position:fixed zum Absolut-Anker, wodurch
+    // Topbar/Sidebar wieder durchschimmern - nicht Vorhandenes gewinnt immer.
+    $chrome = $chrome ?? true;
     $documentTitle = trim($__env->yieldContent('title')) ?: __('app.dashboard');
 @endphp
 <!DOCTYPE html>
@@ -61,10 +66,12 @@
         >
             {{ app()->getLocale() === 'de' ? 'Zum Inhalt springen' : 'Skip to content' }}
         </a>
-        <!-- sidebar -->
-        @include('layouts.sidebar', ['area' => $area])
-        <!-- topbar -->
-        @include('layouts.topbar', ['area' => $area])
+        @if ($chrome)
+            <!-- sidebar -->
+            @include('layouts.sidebar', ['area' => $area])
+            <!-- topbar -->
+            @include('layouts.topbar', ['area' => $area])
+        @endif
         <!-- content -->
         {{-- Einheitliche Content-Huelle fuer BEIDE Render-Wege:
              @extends-Seiten liefern @section('content'), Livewire-Seiten via
@@ -73,6 +80,7 @@
         <main id="main-content" tabindex="-1" @class([
             'bg-rt-canvas dark:bg-rt-dark-canvas',
             'rt-viewport-layout' => $viewportMode,
+            'rt-chromeless-layout' => ! $chrome,
         ])>
             <div class="main-content group-data-[sidebar-size=sm]:ml-[70px]">
                 <div @class([

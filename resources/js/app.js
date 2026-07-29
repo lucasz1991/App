@@ -445,6 +445,11 @@ Alpine.data('chatRealtime', (config) => ({
     // Fortsetzung auf der toten Instanz weiter: Recorder und Interval ohne
     // jede Abraeum-Chance, Mikrofon dauerhaft heiss.
     destroyed: false,
+    // Pegelmessung waehrend der Aufnahme: Grundlage fuer eine Wellenform,
+    // die zur Nachricht passt statt eines Einheitsmusters.
+    waveformContext: null,
+    waveformTimer: null,
+    waveformSamples: [],
 
     init() {
         this.recordingLabel = '0:00';
@@ -488,6 +493,7 @@ Alpine.data('chatRealtime', (config) => ({
         this.destroyed = true;
         window.clearTimeout(this.typingTimer);
         window.clearInterval(this.recordingTimer);
+        this.stopWaveformCapture();
         if (this.recorder?.state === 'recording') {
             this.recordingIntent = 'cancel';
             this.recorder.stop();
@@ -561,6 +567,8 @@ Alpine.data('chatRealtime', (config) => ({
                 ? new MediaRecorder(stream, { mimeType: preferredMime })
                 : new MediaRecorder(stream);
 
+            this.startWaveformCapture(stream);
+
             this.recorder.addEventListener('dataavailable', (event) => {
                 if (event.data.size > 0) {
                     this.chunks.push(event.data);
@@ -631,6 +639,10 @@ Alpine.data('chatRealtime', (config) => ({
         // Sprachnachricht erneut nach der Freigabe.
         holdMicrophoneStream();
 
+        // Pegel VOR dem Aufraeumen einsammeln — reset leert die Messwerte.
+        this.stopWaveformCapture();
+        const waveform = this.condensedWaveform();
+
         const shouldSend = this.recordingIntent === 'send';
 
         if (!shouldSend) {
@@ -656,7 +668,7 @@ Alpine.data('chatRealtime', (config) => ({
             'voiceUpload',
             file,
             () => {
-                this.$wire.call('sendVoice', this.viewOnce, recordedDuration)
+                this.$wire.call('sendVoice', this.viewOnce, recordedDuration, waveform)
                     .then(() => this.resetVoiceRecorder())
                     .catch(() => this.voiceUploadFailed());
             },
@@ -674,6 +686,7 @@ Alpine.data('chatRealtime', (config) => ({
 
     resetVoiceRecorder() {
         window.clearInterval(this.recordingTimer);
+        this.stopWaveformCapture();
         holdMicrophoneStream();
         this.recording = false;
         this.sendingVoice = false;
@@ -683,12 +696,97 @@ Alpine.data('chatRealtime', (config) => ({
         this.chunks = [];
         this.recorder = null;
         this.viewOnce = false;
+        this.waveformSamples = [];
     },
 
     updateRecordingLabel() {
         const minutes = Math.floor(this.recordingSeconds / 60);
         const seconds = String(this.recordingSeconds % 60).padStart(2, '0');
         this.recordingLabel = `${minutes}:${seconds}`;
+    },
+
+    /**
+     * Pegel der laufenden Aufnahme mitschreiben (alle 150 ms ein Spitzenwert).
+     *
+     * Ein AnalyserNode liest den Stream nur mit — MediaRecorder und die
+     * spaetere Wiedergabe bleiben unberuehrt. Scheitert WebAudio, faellt die
+     * Wellenform stumm aus: Sie ist Komfort, keine Voraussetzung.
+     */
+    startWaveformCapture(stream) {
+        this.stopWaveformCapture();
+        this.waveformSamples = [];
+
+        try {
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+
+            if (! AudioContextClass) {
+                return;
+            }
+
+            this.waveformContext = new AudioContextClass();
+            const analyser = this.waveformContext.createAnalyser();
+            analyser.fftSize = 512;
+            this.waveformContext.createMediaStreamSource(stream).connect(analyser);
+
+            const data = new Uint8Array(analyser.fftSize);
+
+            this.waveformTimer = window.setInterval(() => {
+                analyser.getByteTimeDomainData(data);
+
+                let peak = 0;
+
+                for (let i = 0; i < data.length; i += 1) {
+                    peak = Math.max(peak, Math.abs(data[i] - 128));
+                }
+
+                this.waveformSamples.push(Math.min(100, Math.round((peak / 128) * 100)));
+            }, 150);
+        } catch (_) {
+            this.stopWaveformCapture();
+        }
+    },
+
+    stopWaveformCapture() {
+        window.clearInterval(this.waveformTimer);
+        this.waveformTimer = null;
+        this.waveformContext?.close().catch(() => {});
+        this.waveformContext = null;
+    },
+
+    /**
+     * Rohpegel auf eine feste Balkenzahl eindampfen und auf die eigene
+     * Aussteuerung normieren (lauteste Stelle = 100). Ohne Normierung saehe
+     * eine leise Nachricht aus wie Stille.
+     */
+    condensedWaveform(buckets = 44) {
+        const samples = this.waveformSamples;
+
+        if (samples.length === 0) {
+            return [];
+        }
+
+        const bucketCount = Math.min(buckets, samples.length);
+        const condensed = [];
+
+        for (let i = 0; i < bucketCount; i += 1) {
+            const start = Math.floor((i * samples.length) / bucketCount);
+            const end = Math.max(start + 1, Math.floor(((i + 1) * samples.length) / bucketCount));
+            let sum = 0;
+
+            for (let j = start; j < end; j += 1) {
+                sum += samples[j];
+            }
+
+            condensed.push(sum / (end - start));
+        }
+
+        const loudest = Math.max(...condensed);
+
+        if (loudest <= 0) {
+            return [];
+        }
+
+        return condensed.map((value) => Math.max(2, Math.round((value / loudest) * 100)));
     },
 }));
 
@@ -703,14 +801,37 @@ Alpine.data('chatAudioPlayer', (config = {}) => ({
     currentTime: 0,
     duration: Math.max(0, Number(config.durationHint || 0)),
     progressFrame: null,
-    waveformPattern: [8, 15, 11, 20, 13, 24, 17, 10, 22, 14, 26, 18, 12, 21, 9, 17, 25, 14, 20, 11, 23, 16, 10, 19, 13, 22, 15, 9, 18, 25, 12, 20, 15, 27, 11, 18, 23, 14, 21, 9, 17, 24, 13, 19, 26, 12, 18, 10],
+    // Bei der Aufnahme erfasste Pegel (0-100). Leer bei Bestandsnachrichten
+    // aus der Zeit vor der Pegelmessung.
+    recordedWaveform: Array.isArray(config.waveform)
+        ? config.waveform.map((value) => Math.max(0, Math.min(100, Number(value) || 0)))
+        : [],
 
     get waveform() {
         const barCount = this.duration > 0
-            ? Math.max(20, Math.min(this.waveformPattern.length, Math.round(20 + (this.duration / 4))))
+            ? Math.max(20, Math.min(48, Math.round(20 + (this.duration / 4))))
             : 28;
 
-        return this.waveformPattern.slice(0, barCount);
+        // Echte Pegel auf die Balkenzahl bringen; Hoehe 4-30 px.
+        if (this.recordedWaveform.length >= 4) {
+            return Array.from({ length: barCount }, (_, index) => {
+                const position = (index * (this.recordedWaveform.length - 1)) / Math.max(1, barCount - 1);
+                const value = this.recordedWaveform[Math.round(position)] ?? 0;
+
+                return 4 + Math.round((value / 100) * 26);
+            });
+        }
+
+        // Bestandsnachrichten ohne Pegel: deterministisch aus der Nachrichts-
+        // nummer gewuerfelt — jede Nachricht sieht anders aus, dieselbe aber
+        // bei jedem Rendern gleich.
+        let seed = (this.messageId || 1) * 2654435761 % 4294967296;
+
+        return Array.from({ length: barCount }, () => {
+            seed = (seed * 1103515245 + 12345) % 2147483648;
+
+            return 5 + (seed % 23);
+        });
     },
 
     get progress() {
@@ -1863,13 +1984,67 @@ function setMobileSidebarOpen(open) {
     syncSidebarToggleState();
 }
 
-const RT_BACK_MAX_SAME_PAGE_STEPS = 24;
-let rtBackTraversal = null;
+/*
+ * Zurueck-Navigation ueber einen selbst gefuehrten Seitenverlauf.
+ *
+ * Die fruehere Loesung traversierte die Browser-Historie mit history.go(-1)
+ * und kaempfte per popstate-Schleife gegen die Folgen: Livewire stellt bei
+ * popstate eingefrorene HTML-Snapshots samt altem Alpine-Zustand wieder her —
+ * offene Menues, tote Listener, veralteter Komponentenzustand. Deshalb wird
+ * der Verlauf der besuchten Seiten jetzt selbst gefuehrt (sessionStorage:
+ * pro Tab, ueberlebt Reloads) und "Zurueck" ist ein regulaerer
+ * Livewire.navigate()-Besuch der Vorseite: frischer Serverzustand, frisches
+ * Alpine, keine Snapshot-Wiederherstellung.
+ */
+const RT_BACK_STACK_KEY = 'railtime:back-stack';
+const RT_BACK_STACK_LIMIT = 50;
+let rtBackNavigationTarget = null;
 
-function rtPageIdentity(locationLike = window.location) {
-    const normalizedPath = locationLike.pathname.replace(/\/+$/, '') || '/';
+function readBackStack() {
+    try {
+        const parsed = JSON.parse(window.sessionStorage.getItem(RT_BACK_STACK_KEY) || '[]');
 
-    return `${locationLike.origin}${normalizedPath}`;
+        return Array.isArray(parsed) ? parsed.filter((entry) => typeof entry === 'string') : [];
+    } catch (_) {
+        return [];
+    }
+}
+
+function writeBackStack(stack) {
+    try {
+        window.sessionStorage.setItem(
+            RT_BACK_STACK_KEY,
+            JSON.stringify(stack.slice(-RT_BACK_STACK_LIMIT)),
+        );
+    } catch (_) {
+        // Privater Modus: Zurueck faellt dann auf den Fallback-Link zurueck.
+    }
+}
+
+function rtCurrentPageUrl() {
+    return window.location.pathname + window.location.search;
+}
+
+function recordPageVisit() {
+    const current = rtCurrentPageUrl();
+
+    // Nach einem programmatischen Zurueck-Sprung liegt die Zielseite bereits
+    // als Spitze im Verlauf — erneutes Aufsetzen ergaebe eine Schleife
+    // (zurueck, zurueck fuehrte wieder VORWAERTS).
+    if (rtBackNavigationTarget === current) {
+        rtBackNavigationTarget = null;
+
+        return;
+    }
+
+    rtBackNavigationTarget = null;
+
+    const stack = readBackStack();
+
+    if (stack[stack.length - 1] !== current) {
+        stack.push(current);
+        writeBackStack(stack);
+    }
 }
 
 function closeTransientNavigationUi() {
@@ -1891,79 +2066,49 @@ function closeTransientNavigationUi() {
     window.dispatchEvent(new CustomEvent('close'));
 }
 
-function finishBackTraversal() {
-    if (!rtBackTraversal) {
-        return;
-    }
-
-    window.removeEventListener('popstate', rtBackTraversal.handlePopState);
-    window.clearTimeout(rtBackTraversal.failsafe);
-    rtBackTraversal = null;
-}
-
-function closeUiAfterHistoryRestore() {
-    closeTransientNavigationUi();
-
-    // Livewire stellt bei popstate einen gespeicherten HTML-Snapshot wieder
-    // her. Deshalb nach seinem navigated-Ereignis sowie in den naechsten
-    // Frames erneut schliessen; so kann kein alter offener Shell-Zustand
-    // sichtbar zurueckkehren.
-    document.addEventListener('livewire:navigated', closeTransientNavigationUi, { once: true });
-    window.requestAnimationFrame(() => {
-        closeTransientNavigationUi();
-        window.requestAnimationFrame(closeTransientNavigationUi);
-    });
-    window.setTimeout(closeTransientNavigationUi, 180);
-}
-
 function backToPreviousPage(fallbackUrl = '/') {
-    if (rtBackTraversal) {
-        return;
-    }
-
-    const sourcePage = rtPageIdentity();
-    const fallback = String(fallbackUrl || '/');
-    let samePageSteps = 0;
-
     closeTransientNavigationUi();
 
-    if (window.history.length <= 1) {
-        window.location.assign(fallback);
-        return;
+    const stack = readBackStack();
+    const current = rtCurrentPageUrl();
+
+    // Spitze = aktuelle Seite; darunter liegt das Ziel.
+    if (stack[stack.length - 1] === current) {
+        stack.pop();
     }
 
-    const handlePopState = () => {
-        closeTransientNavigationUi();
+    const target = stack.length > 0
+        ? stack[stack.length - 1]
+        : String(fallbackUrl || '/');
 
-        if (rtPageIdentity() !== sourcePage) {
-            finishBackTraversal();
-            closeUiAfterHistoryRestore();
-            return;
-        }
+    // Der Verlauf soll nach dem Sprung wieder mit der Zielseite als Spitze
+    // enden — auch wenn er leer war und der Fallback greift.
+    if (stack.length === 0) {
+        stack.push(target);
+    }
 
-        samePageSteps += 1;
+    writeBackStack(stack);
+    rtBackNavigationTarget = target;
 
-        if (samePageSteps >= RT_BACK_MAX_SAME_PAGE_STEPS) {
-            finishBackTraversal();
-            window.location.assign(fallback);
-            return;
-        }
+    // Regulaerer SPA-Besuch statt history.go(-1): Livewire mountet die
+    // Vorseite frisch, nichts wird aus einem Snapshot wiederbelebt.
+    if (window.Livewire?.navigate) {
+        window.Livewire.navigate(target);
+    } else {
+        window.location.assign(target);
+    }
+}
 
-        // Query-/Livewire-Zustaende derselben Seite sind keine echte
-        // Seitennavigation. Erst nach deren popstate-Verarbeitung weitergehen.
-        window.setTimeout(() => window.history.go(-1), 0);
-    };
+// Jede angekommene Seite in den Verlauf aufnehmen: livewire:navigated feuert
+// bei SPA-Wechseln UND beim ersten Laden; der DOMContentLoaded-Fallback deckt
+// Seiten ab, auf denen Livewire nicht startet. Doppelte Eintraege verhindert
+// der Spitzen-Vergleich in recordPageVisit().
+document.addEventListener('livewire:navigated', recordPageVisit);
 
-    rtBackTraversal = {
-        handlePopState,
-        failsafe: window.setTimeout(() => {
-            finishBackTraversal();
-            window.location.assign(fallback);
-        }, 8000),
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    window.history.go(-1);
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', recordPageVisit, { once: true });
+} else {
+    recordPageVisit();
 }
 
 window.RTNavigation = {

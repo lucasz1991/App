@@ -202,6 +202,6 @@ class CallWindow extends Component
         return view('livewire.calls.call-window', [
             'canModerate' => $this->room->canModerate(auth()->user()),
             'me' => $this->room->participantFor(auth()->user()),
-        ])->layout('layouts.master', ['contentMode' => 'viewport']);
+        ])->layout('layouts.master', ['contentMode' => 'viewport', 'chrome' => false]);
     }
 }

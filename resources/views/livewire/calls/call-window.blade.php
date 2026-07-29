@@ -1,6 +1,8 @@
-{{-- Vollbild BEWUSST ueber Topbar und Sidebar (fixed + z-[200]): waehrend
-     eines Anrufs ist die App-Navigation Ablenkung, kein Werkzeug. Verlassen
-     fuehrt ohnehin ueber Auflegen zurueck in den Chat. --}}
+{{-- Echtes Vollbild: Das Layout rendert hier OHNE Topbar/Sidebar
+     (layouts.master mit chrome=false) - waehrend eines Anrufs ist die
+     App-Navigation Ablenkung, kein Werkzeug. Verlassen fuehrt ueber
+     Auflegen zurueck in den Chat. fixed+z-[200] bleibt als Absicherung
+     gegen darunterliegende Seitenreste. --}}
 <div
     class="fixed inset-0 z-[200] overflow-hidden bg-[#0b0e13]"
     x-data="callRoom({

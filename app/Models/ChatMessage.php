@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Cache;
 
 class ChatMessage extends Model
 {
-    protected $fillable = ['chat_id', 'user_id', 'body', 'message_type', 'view_once', 'voice_duration_seconds'];
+    protected $fillable = ['chat_id', 'user_id', 'body', 'message_type', 'view_once', 'voice_duration_seconds', 'voice_waveform'];
 
     /**
      * Chat-Inhalte werden mit dem App-Key verschlüsselt gespeichert.
@@ -19,6 +19,7 @@ class ChatMessage extends Model
         'body' => 'encrypted',
         'view_once' => 'boolean',
         'voice_duration_seconds' => 'integer',
+        'voice_waveform' => 'array',
     ];
 
     public function chat(): BelongsTo

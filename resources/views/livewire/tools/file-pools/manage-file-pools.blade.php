@@ -80,33 +80,46 @@
   </p>
   {{--
     Explorer-Kopf:
-    - mobil stehen die Aktionen bewusst vor dem Pfad;
-    - auf breiten Ansichten teilen sich Pfad und Aktionen eine Zeile;
-    - der Pfad bleibt in beiden Fällen das letzte Element vor dem Explorer.
+    - Aktionen als reine Icon-Knoepfe (Beschriftung via title/aria-label),
+      IMMER in eigener Zeile ueber der Verzeichnisnavigation;
+    - der Pfad bleibt das letzte Element vor dem Explorer.
   --}}
   <div
-    class="mb-2 grid gap-3 lg:!grid-cols-[minmax(0,1fr)_auto] lg:items-center"
+    class="mb-2 flex flex-col gap-2"
     data-file-explorer-header
   >
     <div
-      class="order-1 flex flex-wrap items-center justify-end gap-2 lg:order-2 lg:flex-nowrap"
+      class="flex items-center justify-end gap-2"
       data-file-explorer-actions
     >
       @if(!$readOnly)
-        <button wire:click="openCreateFolder" class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-semibold rounded-lg border border-rt-border bg-rt-control text-rt-text shadow-rt-xs transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-rt-accent/40 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:hover:bg-rt-dark-surface-muted">
-          <i class="fad fa-folder-plus"></i>
-          {{ __('app.new_folder') }}
+        <button
+          wire:click="openCreateFolder"
+          title="{{ __('app.new_folder') }}"
+          aria-label="{{ __('app.new_folder') }}"
+          class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rt-border bg-rt-control text-rt-text shadow-rt-xs transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-rt-accent/40 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:hover:bg-rt-dark-surface-muted"
+        >
+          <i class="fad fa-folder-plus fa-lg" aria-hidden="true"></i>
         </button>
-        <button wire:click="$toggle('openFileForm')" class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-semibold bg-rt-red text-white rounded-lg shadow-rt-xs transition-all duration-300 ease-rt-spring hover:bg-rt-red-dark hover:shadow-rt-glow active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-rt-red/40 focus:ring-offset-2 dark:focus:ring-offset-slate-900">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 3a1 1 0 011 1v4h4a1 1 0 110 2h-4v4a1 1 0 11-2 0v-4H6a1 1 0 110-2h4V4a1 1 0 011-1z"/></svg>
-          {{ __('app.add') }}
+        <button
+          wire:click="$toggle('openFileForm')"
+          title="{{ __('app.add') }}"
+          aria-label="{{ __('app.add') }}"
+          class="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-rt-red text-white shadow-rt-xs transition-all duration-300 ease-rt-spring hover:bg-rt-red-dark hover:shadow-rt-glow active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-rt-red/40 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 3a1 1 0 011 1v4h4a1 1 0 110 2h-4v4a1 1 0 11-2 0v-4H6a1 1 0 110-2h4V4a1 1 0 011-1z"/></svg>
         </button>
       @endif
       @if($filePool && $poolFiles->count() > 0)
         <x-dropdown class="" :width="'w-max'">
           <x-slot name="trigger">
-              <button type="button" class="inline-flex items-center px-2 py-2 rounded-lg border border-rt-border bg-rt-control text-rt-text shadow-rt-xs transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-rt-accent/40 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:hover:bg-rt-dark-surface-muted">
-                  <i class="fad fa-download fa-lg h-5 w-5"></i>
+              <button
+                type="button"
+                title="{{ __('app.download_all_files') }}"
+                aria-label="{{ __('app.download_all_files') }}"
+                class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rt-border bg-rt-control text-rt-text shadow-rt-xs transition-all duration-300 ease-rt-spring hover:bg-rt-surface-muted active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-rt-accent/40 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:hover:bg-rt-dark-surface-muted"
+              >
+                  <i class="fad fa-download fa-lg" aria-hidden="true"></i>
               </button>
           </x-slot>
           <x-slot name="content">
@@ -120,7 +133,7 @@
 
     {{-- Breadcrumbs (Explorer-Pfad) --}}
     <nav
-      class="order-2 flex min-w-0 items-center gap-1 overflow-x-auto rounded-xl bg-rt-surface-muted px-2 py-1.5 text-sm dark:bg-rt-dark-surface-muted lg:order-1"
+      class="flex min-w-0 items-center gap-1 overflow-x-auto rounded-xl bg-rt-surface-muted px-2 py-1.5 text-sm dark:bg-rt-dark-surface-muted"
       aria-label="Breadcrumb"
       data-file-explorer-breadcrumb
     >

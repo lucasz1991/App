@@ -18,7 +18,8 @@
         sourceUrl: @js($sourceUrl),
         viewOnce: @js((bool) $message->view_once),
         consumed: @js((bool) $consumed),
-        durationHint: {{ (int) ($message->voice_duration_seconds ?? 0) }}
+        durationHint: {{ (int) ($message->voice_duration_seconds ?? 0) }},
+        waveform: @js(array_values($message->voice_waveform ?? []))
     })"
     x-on:chat:voice-ready.window="acceptSource($event.detail)"
     x-on:chat:voice-consumed.window="markConsumed($event.detail)"

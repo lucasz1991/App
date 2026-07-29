@@ -1249,6 +1249,21 @@ body:has(.rt-viewport-layout) {
     padding-bottom: 0;
 }
 
+/* Ohne Shell-Chrome (Anruffenster): Topbar und Sidebar existieren nicht im
+   DOM, also darf weder deren Hoehe (padding-top 70px) noch der Sidebar-Offset
+   (margin-left mit !important aus dem Legacy-Layout) Platz reservieren. Die
+   Selektoren sind bewusst spezifischer als die Legacy-Regeln
+   (body[data-sidebar-collapsible] .main-content), damit das !important-Duell
+   nicht von der Dateireihenfolge abhaengt. */
+.rt-viewport-layout.rt-chromeless-layout .page-content {
+    padding-top: 0;
+}
+
+body[data-sidebar-collapsible] .rt-chromeless-layout .main-content,
+body .rt-chromeless-layout .main-content {
+    margin-left: 0 !important;
+}
+
 /* Ruhige Messenger-Flaeche und kontraststarke Sprechblasen. Eigene
    Nachrichten bleiben in der Markenwelt, ohne die Lesbarkeit einer vollroten
    Flaeche zu opfern. */

@@ -648,17 +648,12 @@ body[data-mode='dark'] .rt-chat-message--own .rt-chat-message-meta {
     color: inherit;
 }
 
+/* Kein eigener Kasten mehr: Die Sprechblase liefert bereits Rahmen und
+   Flaeche — ein zweiter Rahmen ergab Karte-in-Karte. Der Player fuegt sich
+   flach in die Blase ein. */
 .rt-voice-player {
     min-height: 4.25rem;
-    padding: 0.38rem 0.38rem 0.28rem 0.25rem;
-    border: 1px solid color-mix(in srgb, var(--chat-bubble-edge) 72%, transparent);
-    border-radius: 0.95rem;
-    background: color-mix(in srgb, var(--chat-panel) 38%, transparent);
-    box-shadow: 0 1px 0 color-mix(in srgb, var(--chat-glint) 65%, transparent) inset;
-}
-
-.rt-chat-message--own .rt-voice-player {
-    background: color-mix(in srgb, var(--chat-accent-soft) 38%, transparent);
+    padding: 0.15rem 0 0.1rem;
 }
 
 .rt-voice-play {
@@ -746,9 +741,12 @@ body[data-mode='dark'] .rt-chat-message--own .rt-chat-message-meta {
     color: var(--chat-muted);
 }
 
+/* Volle Breite: Jeder Balken teilt sich den Platz gleichmaessig (flex 1 1),
+   ohne max-width-Deckel — der liess die Balken frueher links zusammenruecken
+   und den Rest der Komponente leer. */
 .rt-voice-waveform > span {
     width: auto;
-    max-width: 0.16rem;
+    max-width: none;
     flex: 1 1 0%;
     min-height: 0.3rem;
     opacity: 0.24;
