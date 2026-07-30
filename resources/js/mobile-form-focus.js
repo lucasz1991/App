@@ -48,10 +48,22 @@ function controlAcceptsNativeFocus(control) {
 
 /**
  * iOS-Web-Apps verlieren nach Livewire-Morphs gelegentlich den nativen
- * Label-/Input-Fokus zwischen pointerdown und click. Der Fallback greift
- * ausschliesslich bei einem echten Touch-/Stift-pointerup und fokussiert noch
- * innerhalb derselben vertrauenswuerdigen Nutzeraktion. Er verhindert kein
- * Default-Verhalten und laesst Date-/Datums-Picker weiterhin nativ arbeiten.
+ * Label-/Input-Fokus. Dieser Fallback holt ihn zurueck — aber erst, wenn der
+ * native Weg nachweislich versagt hat.
+ *
+ * WARUM 'click' UND NICHT 'pointerup':
+ * iOS oeffnet die Bildschirmtastatur nur, wenn der Fokus als unmittelbare
+ * Folge der Beruehrung entsteht. Fokussiert ein Skript schon bei 'pointerup'
+ * — also VOR dem nativen Fokus —, dann ist das Feld beim eigentlichen Tap
+ * bereits fokussiert, iOS sieht keinen Fokuswechsel mehr und laesst die
+ * Tastatur weg. Sichtbares Ergebnis: Das Feld ist markiert, der Cursor
+ * blinkt, aber es erscheint keine Tastatur — und zwar bei JEDEM Feld.
+ *
+ * 'click' laeuft NACH dem nativen Fokus, aber noch innerhalb derselben
+ * vertrauenswuerdigen Nutzeraktion. Hat der Browser selbst fokussiert, greift
+ * die Waechterbedingung unten und wir ruehren nichts an. Nur wenn der native
+ * Weg wirklich ausgefallen ist, fokussieren wir — und weil wir dabei in der
+ * Geste sind, oeffnet iOS die Tastatur.
  */
 export function initMobileFormFocusRecovery() {
     if (window.__rtMobileFormFocusRecoveryBound === true) {
@@ -61,13 +73,19 @@ export function initMobileFormFocusRecovery() {
     window.__rtMobileFormFocusRecoveryBound = true;
 
     document.addEventListener(
-        'pointerup',
+        'click',
         (event) => {
-            if (!['touch', 'pen'].includes(event.pointerType)) {
+            // Nur echte Nutzereingaben: Ein synthetischer Klick aus Code
+            // brauchte diese Rettung nicht und duerfte keinen Fokus stehlen.
+            if (!event.isTrusted) {
                 return;
             }
 
             const control = editableControlFromTarget(event.target);
+
+            // Der Normalfall: Der Browser hat laengst selbst fokussiert.
+            // Hier auszusteigen ist der Kern des Ganzen — jedes zusaetzliche
+            // focus() waere genau der Griff, der die Tastatur verhindert.
             if (
                 !controlAcceptsNativeFocus(control)
                 || document.activeElement === control
