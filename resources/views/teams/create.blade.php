@@ -1,8 +1,11 @@
 <x-app-layout>
     <x-slot name="header">
-        <h2 class="text-xl font-semibold tracking-tight text-rt-text dark:text-rt-dark-text leading-tight">
-            {{ __('Create Team') }}
-        </h2>
+        <div class="flex min-w-0 items-center justify-between gap-3">
+            <h2 class="min-w-0 truncate text-xl font-semibold leading-tight tracking-tight text-rt-text dark:text-rt-dark-text">
+                {{ __('Create Team') }}
+            </h2>
+            <x-ui.page-info-button :title="__('Create Team')" route-name="teams.create" />
+        </div>
     </x-slot>
 
     <div>

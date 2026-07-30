@@ -22,21 +22,25 @@
     x-data="{
         editing: false,
         saving: false,
-        open() {
-            if (this.saving) return;
+        pointerKind: 'mouse',
+        prepareOpen() {
+            if (this.saving) return null;
+
             this.editing = true;
             const shell = this.$refs.editorShell;
             const editor = this.$refs.editor;
 
-            // Den Editor im selben Doppelklick/Enter-Ereignis sichtbar und
-            // fokussierbar machen. Ein ausschliessliches $nextTick-Fokus
-            // oeffnet auf iOS sonst keine Bildschirmtastatur.
+            // Der Editor muss vor der nativen Label-Aktivierung sichtbar sein.
+            // Der Browser leitet denselben vertrauenswuerdigen Tap danach an
+            // das verknuepfte Eingabefeld weiter und oeffnet so auch in einer
+            // installierten iOS-PWA die Bildschirmtastatur.
             shell?.style.removeProperty('display');
+
+            return editor;
+        },
+        openFromKeyboard() {
+            const editor = this.prepareOpen();
             editor?.focus();
-            editor?.select?.();
-            this.$nextTick(() => {
-                if (document.activeElement !== editor) editor?.focus();
-            });
         },
         requestAutosave() {
             const scope = this.$el.closest('[data-autosave-scope]');
@@ -93,15 +97,22 @@
     data-autosave-state="idle"
 >
     @if ($canEdit)
-        <button
+        <label
             x-show.important="! editing"
-            type="button"
-            x-on:dblclick.prevent="open()"
-            x-on:keydown.enter.prevent="open()"
+            for="{{ $inputId }}"
+            role="button"
+            tabindex="0"
+            x-on:pointerdown="pointerKind = $event.pointerType || 'mouse'"
+            x-on:touchstart.passive="pointerKind = 'touch'"
+            x-on:click="if (pointerKind === 'mouse') { $event.preventDefault(); } else { prepareOpen(); }"
+            x-on:dblclick.prevent="openFromKeyboard()"
+            x-on:keydown.enter.prevent="openFromKeyboard()"
+            x-on:keydown.space.prevent="openFromKeyboard()"
             class="rt-inline-edit-visual group/inline-edit flex min-h-8 w-full min-w-0 items-center {{ $justification }} gap-2 rounded-lg border border-transparent px-1.5 py-1 {{ $alignment }} text-sm font-medium text-rt-text outline-none transition-[border-color,box-shadow,background-color,color] hover:bg-rt-surface-muted dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted"
-            aria-label="{{ trim(strip_tags((string) $slot)) }} · {{ __('app.double_click_to_edit') }}"
-            title="{{ __('app.double_click_to_edit') }}"
+            aria-label="{{ trim(strip_tags((string) $slot)) }} · {{ __('app.edit') }}"
+            title="{{ __('app.edit') }}"
             data-inline-edit-display
+            data-native-inline-edit-trigger
             data-autosave-visual
         >
             <span class="min-w-0 break-words">{{ $slot }}</span>
@@ -109,7 +120,7 @@
                 class="far fa-pen shrink-0 text-[9px] text-rt-soft opacity-0 transition group-hover/inline-edit:opacity-100 group-focus-visible/inline-edit:opacity-100 dark:text-rt-dark-soft"
                 aria-hidden="true"
             ></i>
-        </button>
+        </label>
 
         <div x-cloak x-show.important="editing" x-ref="editorShell" class="min-w-0">
             @if ($type === 'select')

@@ -47,6 +47,12 @@
                 </p>
             </div>
 
+            <x-ui.page-info-button
+                :title="$room->name"
+                route-name="calls.window"
+                variant="inverse"
+            />
+
             @if ($canModerate)
                 <x-ui.dropdown.anchor-dropdown
                     align="right"

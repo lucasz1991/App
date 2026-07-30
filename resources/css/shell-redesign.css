@@ -1498,6 +1498,7 @@ body[data-mode='dark'] .rt-welcome-feature-icon {
     }
 
     .rt-welcome-slide-viewport {
+        flex: 0 0 auto;
         overflow: visible;
     }
 

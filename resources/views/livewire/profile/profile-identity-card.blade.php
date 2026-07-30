@@ -90,20 +90,22 @@
                 persistedEmail: @js($email),
                 pendingEmailChanged: false,
                 emailVerified: @js($this->user->hasVerifiedEmail()),
-                openEditor(field) {
+                prepareEditor(field) {
                     this.editor = field;
                     const input = field === 'name'
                         ? this.$refs.nameInput
                         : this.$refs.emailInput;
 
-                    // iOS oeffnet die Bildschirmtastatur nur verlaesslich,
-                    // wenn Sichtbarkeit und Fokus noch im urspruenglichen Tap
-                    // gesetzt werden. $nextTick bleibt lediglich als Fallback.
+                    // Der native Label-Klick fokussiert das zugehoerige Feld
+                    // innerhalb desselben Taps. Dafuer muss Alpine das Feld
+                    // lediglich vorher synchron sichtbar machen.
                     input?.style.removeProperty('display');
+
+                    return input;
+                },
+                openEditorFromKeyboard(field) {
+                    const input = this.prepareEditor(field);
                     input?.focus();
-                    this.$nextTick(() => {
-                        if (document.activeElement !== input) input?.focus();
-                    });
                 },
                 closeEditor(field = null) {
                     if (field === 'name') {
@@ -166,12 +168,17 @@
                 data-autosave-field-id="profile-identity-name"
                 data-autosave-state="idle"
             >
-                <button
+                <label
                     x-show.important="editor !== 'name'"
-                    type="button"
-                    x-on:click="openEditor('name')"
+                    for="profile-identity-name"
+                    role="button"
+                    tabindex="0"
+                    x-on:click="prepareEditor('name')"
+                    x-on:keydown.enter.prevent="openEditorFromKeyboard('name')"
+                    x-on:keydown.space.prevent="openEditorFromKeyboard('name')"
                     class="rt-inline-edit-visual group/edit flex max-w-full items-center gap-2 rounded-lg text-left outline-none"
                     aria-label="{{ __('app.username') }} {{ __('app.edit') }}"
+                    data-native-inline-edit-trigger
                     data-autosave-visual
                 >
                     <span
@@ -179,7 +186,7 @@
                         x-text="nameDisplay"
                     >{{ $name }}</span>
                     <i class="far fa-pen text-[10px] text-rt-soft opacity-0 transition group-hover/edit:opacity-100 group-focus-visible/edit:opacity-100 dark:text-rt-dark-soft" aria-hidden="true"></i>
-                </button>
+                </label>
 
                 <x-ui.forms.input
                     x-cloak
@@ -205,17 +212,22 @@
                 data-autosave-field-id="profile-identity-email"
                 data-autosave-state="idle"
             >
-                <button
+                <label
                     x-show.important="editor !== 'email'"
-                    type="button"
-                    x-on:click="openEditor('email')"
+                    for="profile-identity-email"
+                    role="button"
+                    tabindex="0"
+                    x-on:click="prepareEditor('email')"
+                    x-on:keydown.enter.prevent="openEditorFromKeyboard('email')"
+                    x-on:keydown.space.prevent="openEditorFromKeyboard('email')"
                     class="rt-inline-edit-visual group/edit flex min-w-0 max-w-full items-center gap-2 rounded-md text-left text-sm text-rt-muted outline-none dark:text-rt-dark-muted"
                     aria-label="{{ __('app.email') }} {{ __('app.edit') }}"
+                    data-native-inline-edit-trigger
                     data-autosave-visual
                 >
                     <span class="truncate" x-text="emailDisplay">{{ $email }}</span>
                     <i class="far fa-pen text-[9px] text-rt-soft opacity-0 transition group-hover/edit:opacity-100 group-focus-visible/edit:opacity-100 dark:text-rt-dark-soft" aria-hidden="true"></i>
-                </button>
+                </label>
 
                 <x-ui.forms.input
                     x-cloak

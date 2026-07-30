@@ -46,16 +46,19 @@
             x-data="{
                 editing: false,
                 saving: false,
-                open() {
+                pointerKind: 'mouse',
+                prepareOpen() {
                     this.editing = true;
                     const shell = this.$refs.editorShell;
                     const editor = this.$refs.editor;
 
                     shell?.style.removeProperty('display');
+
+                    return editor;
+                },
+                openFromKeyboard() {
+                    const editor = this.prepareOpen();
                     editor?.focus();
-                    this.$nextTick(() => {
-                        if (document.activeElement !== editor) editor?.focus();
-                    });
                 },
                 requestAutosave() {
                     const scope = this.$el.closest('[data-autosave-scope]');
@@ -140,22 +143,30 @@
             </div>
 
             @if ($note->author_id === auth()->id() || auth()->user()->isAdmin())
-                <button
+                <label
                     x-show.important="! editing"
-                    type="button"
-                    x-on:dblclick.prevent="open()"
-                    x-on:keydown.enter.prevent="open()"
+                    for="user-note-editor-{{ $note->id }}"
+                    role="button"
+                    tabindex="0"
+                    x-on:pointerdown="pointerKind = $event.pointerType || 'mouse'"
+                    x-on:touchstart.passive="pointerKind = 'touch'"
+                    x-on:click="if (pointerKind === 'mouse') { $event.preventDefault(); } else { prepareOpen(); }"
+                    x-on:dblclick.prevent="openFromKeyboard()"
+                    x-on:keydown.enter.prevent="openFromKeyboard()"
+                    x-on:keydown.space.prevent="openFromKeyboard()"
                     class="group/note-edit mt-3 flex w-full items-start gap-2 rounded-lg px-2 py-2 text-left text-sm text-slate-700 transition hover:bg-rt-surface-muted focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-accent/15 dark:text-slate-300 dark:hover:bg-rt-dark-surface-muted"
-                    title="{{ __('app.double_click_to_edit') }}"
-                    aria-label="{{ __('app.double_click_to_edit') }}"
+                    title="{{ __('app.edit') }}"
+                    aria-label="{{ __('app.edit') }}"
+                    data-native-inline-edit-trigger
                 >
                     <span class="min-w-0 flex-1 whitespace-pre-line break-words">{{ $note->body }}</span>
                     <i class="far fa-pen mt-1 shrink-0 text-[9px] text-rt-soft opacity-0 transition group-hover/note-edit:opacity-100 group-focus-visible/note-edit:opacity-100 dark:text-rt-dark-soft" aria-hidden="true"></i>
-                </button>
+                </label>
 
                 <div x-cloak x-show.important="editing" x-ref="editorShell" class="mt-3">
                     <textarea
                         x-ref="editor"
+                        id="user-note-editor-{{ $note->id }}"
                         wire:model="noteBodies.{{ $note->id }}"
                         rows="4"
                         x-on:blur="commit()"

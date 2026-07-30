@@ -1,8 +1,8 @@
 <div class="relative min-w-0" wire:loading.class="cursor-wait" data-user-dashboard>
     <x-ui.page :auto-intro="false" content-class="space-y-5 sm:space-y-6">
-        @if (\App\Support\PageViews::firstVisit(auth()->user(), 'intro:welcome'))
-            <x-ui.welcome-intro />
-        @endif
+        <x-ui.welcome-intro
+            :initially-open="\App\Support\PageViews::firstVisit(auth()->user(), 'intro:welcome')"
+        />
 
         <x-ui.dashboard.role-hero
             :title="__('app.welcome_name', ['name' => auth()->user()->name])"
@@ -23,9 +23,16 @@
                                 {{ $dashboardTeamName }}
                             </p>
                         </div>
-                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white ring-1 ring-inset ring-white/10" aria-hidden="true">
-                            <i data-feather="{{ $showSchedule ? 'users' : 'navigation' }}" class="h-5 w-5"></i>
-                        </span>
+                        <button
+                            type="button"
+                            x-on:click="$dispatch('rt-welcome:open')"
+                            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white ring-1 ring-inset ring-white/15 outline-none transition hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-white/75"
+                            aria-label="{{ __('app.welcome_intro_reopen') }}"
+                            title="{{ __('app.welcome_intro_reopen') }}"
+                            data-welcome-intro-trigger
+                        >
+                            <i data-feather="info" class="h-5 w-5" aria-hidden="true"></i>
+                        </button>
                     </div>
 
                     <div>

@@ -31,22 +31,11 @@
                 </div>
             @endisset
             @if ($help)
-                <button
-                    type="button"
-                    x-data
-                    x-on:click="$dispatch('rt-info:open', {{ \Illuminate\Support\Js::from([
-                        'title' => $help['title'] ?? $title,
-                        'summary' => $help['summary'] ?? null,
-                        'points' => array_values($help['points'] ?? []),
-                    ]) }})"
-                    class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-rt-border/80 bg-rt-surface text-rt-muted shadow-rt-xs transition duration-200 ease-rt-spring hover:-translate-y-px hover:bg-rt-accent-soft hover:text-rt-accent focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-accent/15 dark:border-rt-dark-border/80 dark:bg-rt-dark-surface dark:text-rt-dark-muted dark:hover:bg-rt-dark-accent-soft dark:hover:text-rt-dark-accent"
-                    aria-label="{{ app()->getLocale() === 'de' ? 'Informationen zu dieser Seite' : 'Information about this page' }}"
-                    title="{{ app()->getLocale() === 'de' ? 'Seitenhilfe' : 'Page help' }}"
-                    data-page-info-button
+                <x-ui.page-info-button
+                    :title="$title"
+                    :help="$help"
                     data-page-header-control
-                >
-                    <i class="far fa-info-circle text-sm" aria-hidden="true"></i>
-                </button>
+                />
             @endif
         </div>
     @endif

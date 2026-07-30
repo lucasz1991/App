@@ -8,6 +8,17 @@
             data-anim="fade-up"
         >
             <x-slot:actions>
+                <button
+                    type="button"
+                    x-on:click="$dispatch('rt-welcome:open')"
+                    class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white ring-1 ring-inset ring-white/15 outline-none transition duration-200 hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-white/75"
+                    aria-label="{{ __('app.welcome_intro_reopen') }}"
+                    title="{{ __('app.welcome_intro_reopen') }}"
+                    data-welcome-intro-trigger
+                >
+                    <i data-feather="info" class="h-4 w-4" aria-hidden="true"></i>
+                </button>
+
                 @can('employees.view')
                     <a
                         href="{{ route('employees.index') }}"

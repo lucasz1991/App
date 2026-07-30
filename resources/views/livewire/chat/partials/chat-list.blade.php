@@ -19,6 +19,7 @@
             </div>
 
             <div class="flex items-center gap-1.5">
+                <x-ui.page-info-button :title="__('app.chats')" route-name="chat" />
                 <x-chat.icon-button
                     icon="far fa-chevron-left"
                     :label="__('app.hide_chat_overview')"
