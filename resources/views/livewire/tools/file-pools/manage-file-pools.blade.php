@@ -170,11 +170,24 @@
     </nav>
   </div>
 
-  {{-- Gemeinsames Explorer-Raster: zuerst Ordner, danach Dateien --}}
-  <div class="rt-file-explorer-grid mb-6 mt-0" data-anim-stagger @contextmenu.prevent="openCtx($event, null)">
+  {{-- Gemeinsames Explorer-Raster: zuerst Ordner, danach Dateien.
+
+       Ladeverhalten: Beim Ordnerwechsel blendet das alte Raster kurz ab
+       (is-busy) statt zu verschwinden — das haelt die Hoehe stabil und
+       vermeidet den Sprung. Die neuen Kacheln tragen --rt-stagger und laufen
+       per CSS gestaffelt ein; das greift auch beim Ordnerwechsel, waehrend
+       die GSAP-Reveals nur bei echten Seitenwechseln feuern. --}}
+  <div
+    class="rt-file-explorer-grid mb-6 mt-0"
+    data-anim-stagger
+    wire:target="enterFolder"
+    wire:loading.class="is-busy"
+    @contextmenu.prevent="openCtx($event, null)"
+  >
     @foreach($folders as $folder)
         <div
           class="rt-file-explorer-card rt-file-drop-folder group relative rounded-lg p-1.5 transition-all duration-300 ease-rt-spring hover:bg-rt-accent/5 hover:ring-1 hover:ring-rt-accent/30 dark:hover:bg-rt-dark-accent/10 dark:hover:ring-rt-dark-accent/30"
+          style="--rt-stagger: {{ $loop->index }}"
           wire:key="folder-{{ $folder->id }}"
           @contextmenu.prevent.stop="openCtx($event, {{ $folder->id }})"
           @if($canMoveFiles)
@@ -230,7 +243,11 @@
     @endforeach
 
     @foreach($poolFiles as $file)
-      <div class="rt-file-explorer-card min-w-0" wire:key="file-{{ $file->id }}">
+      <div
+        class="rt-file-explorer-card min-w-0"
+        style="--rt-stagger: {{ $folders->count() + $loop->index }}"
+        wire:key="file-{{ $file->id }}"
+      >
         <x-ui.filepool.file-card
           :file="$file"
           :read-only="$readOnly"

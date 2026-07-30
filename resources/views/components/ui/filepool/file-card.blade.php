@@ -6,13 +6,34 @@
 ])
 
 @php
+    $currentUser = auth()->user();
+    $isFileManager = (bool) ($currentUser?->isAdmin() || $currentUser?->can('files.manage'));
+
     $canManageFile = ! $readOnly && (
         $file->is_owned_by_auth_user
-        || auth()->user()?->isAdmin()
-        || auth()->user()?->can('files.manage')
-        || auth()->user()?->can('users.edit')
+        || $isFileManager
+        || $currentUser?->can('users.edit')
     );
 
+    // Zusatzhuerde des Servers spiegeln: ManageFilePools::authorizeFileMutation()
+    // verlangt ueber authorizeSourceFolder() zusaetzlich das Team-Recht
+    // 'delete' am Ordner. Ohne diese Pruefung zeigten wir Knoepfe, die beim
+    // Klick mit 403 abbrechen. Verwaltungsrechte umgehen die Matrix (wie dort).
+    if ($canManageFile && ! $isFileManager && $file->folder) {
+        $canManageFile = $file->folder->allowsForUser($currentUser, 'delete')
+            && $file->folder->isPubliclyVisible($currentUser);
+    }
+
+    $confirmDelete = $canManageFile
+        ? \App\Support\Ui\ConfirmationAction::alpine(
+            method: 'deleteFile',
+            arguments: [(int) $file->id],
+            title: __('app.delete'),
+            message: __('app.delete_file_confirm'),
+            variant: 'destructive',
+            confirmLabel: __('app.delete'),
+        )
+        : null;
 @endphp
 
 <article
@@ -150,6 +171,37 @@
                 </svg>
                 <span class="sr-only">{{ __('app.download') }}</span>
             </button>
+
+            {{-- Bearbeiten und Loeschen gehoeren sichtbar in die Aktionsleiste.
+                 Frueher lagen sie ausschliesslich im Punkte-Menue oben rechts,
+                 das per group-hover eingeblendet wurde — auf Touch-Geraeten
+                 gibt es kein Hover, dort waren sie damit unerreichbar. --}}
+            @if($canManageFile)
+                <button
+                    type="button"
+                    data-file-action
+                    draggable="false"
+                    wire:click.prevent="editFile({{ $file->id }})"
+                    @click.stop="actionsOpen = false"
+                    title="{{ __('app.edit') }}"
+                    class="rt-file-card-action"
+                >
+                    <i class="far fa-pen text-[1.05rem]" aria-hidden="true"></i>
+                    <span class="sr-only">{{ __('app.edit') }}</span>
+                </button>
+
+                <button
+                    type="button"
+                    data-file-action
+                    draggable="false"
+                    x-on:click.prevent.stop="{{ $confirmDelete }}"
+                    title="{{ __('app.delete') }}"
+                    class="rt-file-card-action rt-file-card-action-danger"
+                >
+                    <i class="far fa-trash-alt text-[1.05rem]" aria-hidden="true"></i>
+                    <span class="sr-only">{{ __('app.delete') }}</span>
+                </button>
+            @endif
         </div>
     </div>
 </article>

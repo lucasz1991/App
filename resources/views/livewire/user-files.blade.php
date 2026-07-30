@@ -10,9 +10,35 @@
         :description="__('app.downloads_intro')"
     >
         <x-slot:actions>
-            <span class="inline-flex items-center gap-2 rounded-full bg-rt-surface px-3 py-1.5 text-xs font-semibold text-rt-text shadow-rt-xs ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60">
-                <i class="fad fa-cloud-arrow-down text-rt-accent dark:text-rt-dark-accent"></i>
-                {{ trans_choice('app.files_count', $total, ['count' => number_format($total, 0, ',', '.')]) }}
+            {{-- Suche ueber alle Bereiche: Bei vielen Freigaben war das
+                 Durchscrollen bisher der einzige Weg zu einer Datei. --}}
+            <div class="relative w-full sm:w-64">
+                <i class="far fa-magnifying-glass pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-rt-soft dark:text-rt-dark-soft" aria-hidden="true"></i>
+                <input
+                    type="search"
+                    wire:model.live.debounce.250ms="search"
+                    placeholder="{{ __('app.search_files_placeholder') }}"
+                    aria-label="{{ __('app.search_files_placeholder') }}"
+                    class="h-11 w-full rounded-xl border border-rt-border bg-rt-control pl-9 pr-9 text-base leading-6 text-rt-text shadow-rt-xs outline-none transition placeholder:text-rt-soft focus:border-rt-accent sm:text-sm dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white dark:placeholder:text-rt-dark-soft"
+                >
+                <button
+                    type="button"
+                    x-cloak
+                    wire:click="clearSearch"
+                    @if(! $isFiltered) hidden @endif
+                    class="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-rt-muted transition hover:bg-rt-surface-muted hover:text-rt-text dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted"
+                    title="{{ __('app.reset') }}"
+                    aria-label="{{ __('app.reset') }}"
+                >
+                    <i class="far fa-xmark" aria-hidden="true"></i>
+                </button>
+            </div>
+
+            <span class="inline-flex shrink-0 items-center gap-2 rounded-full bg-rt-surface px-3 py-1.5 text-xs font-semibold text-rt-text shadow-rt-xs ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60">
+                <i class="fad fa-cloud-arrow-down text-rt-accent dark:text-rt-dark-accent" aria-hidden="true"></i>
+                <span wire:loading.class="opacity-50" wire:target="search">
+                    {{ trans_choice('app.files_count', $total, ['count' => number_format($total, 0, ',', '.')]) }}
+                </span>
             </span>
         </x-slot:actions>
 
@@ -61,11 +87,28 @@
         @endif
 
         @if ($total === 0)
+            {{-- Zwei verschiedene Leerzustaende: "nichts da" ist eine andere
+                 Aussage als "nichts gefunden" und braucht einen anderen Ausweg. --}}
             <div class="flex w-full flex-col items-center gap-3 rounded-2xl border border-dashed border-rt-border bg-rt-surface-muted/60 py-16 text-center dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/40" data-anim="fade-up">
                 <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-rt-surface text-rt-soft shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-soft dark:ring-rt-dark-border/60">
-                    <i class="fad fa-folder-open text-2xl"></i>
+                    <i class="fad {{ $isFiltered ? 'fa-magnifying-glass' : 'fa-folder-open' }} text-2xl" aria-hidden="true"></i>
                 </span>
-                <p class="text-sm text-rt-muted dark:text-rt-dark-muted">{{ __('app.no_downloads_available') }}</p>
+
+                @if ($isFiltered)
+                    <p class="text-sm text-rt-muted dark:text-rt-dark-muted">
+                        {{ __('app.no_files_for_search', ['term' => $search]) }}
+                    </p>
+                    <button
+                        type="button"
+                        wire:click="clearSearch"
+                        class="inline-flex items-center gap-2 rounded-lg bg-rt-surface px-3.5 py-2 text-xs font-semibold text-rt-text shadow-rt-xs ring-1 ring-rt-border/60 transition hover:bg-rt-surface-muted dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60 dark:hover:bg-rt-dark-surface-muted"
+                    >
+                        <i class="far fa-arrow-rotate-left" aria-hidden="true"></i>
+                        {{ __('app.reset') }}
+                    </button>
+                @else
+                    <p class="text-sm text-rt-muted dark:text-rt-dark-muted">{{ __('app.no_downloads_available') }}</p>
+                @endif
             </div>
         @else
             {{-- Fuer Sie bereitgestellt (persoenlicher Pool) --}}

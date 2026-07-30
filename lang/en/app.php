@@ -792,6 +792,8 @@ return [
     'downloads_intro' => 'All documents shared with you in one place — ready to view and download.',
     'provided_for_you' => 'Provided for you',
     'company_files' => 'Company files',
+    'search_files_placeholder' => 'Search files …',
+    'no_files_for_search' => 'No file found for ":term".',
     'no_downloads_available' => 'No files are currently available for you.',
     'files_count' => ':count file|:count files',
 

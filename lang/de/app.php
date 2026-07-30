@@ -792,6 +792,8 @@ return [
     'downloads_intro' => 'Alle für Sie freigegebenen Dokumente an einem Ort — bereit zum Ansehen und Herunterladen.',
     'provided_for_you' => 'Für Sie bereitgestellt',
     'company_files' => 'Firmen-Freigaben',
+    'search_files_placeholder' => 'Dateien durchsuchen …',
+    'no_files_for_search' => 'Keine Datei gefunden für „:term".',
     'no_downloads_available' => 'Aktuell stehen keine Dateien für Sie bereit.',
     'files_count' => ':count Datei|:count Dateien',
 

@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Locked;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
@@ -74,8 +75,20 @@ class ManageFilePools extends Component
     #[Locked]
     public bool $allowTeamPermissions = false;
 
-    /** Explorer: aktuell geoeffneter Ordner (null = Wurzel) */
-    #[Locked]
+    /**
+     * Explorer: aktuell geoeffneter Ordner (null = Wurzel).
+     *
+     * Steht als ?folder=<id> in der Adresszeile, damit die Zurueck- und
+     * Vorwaerts-Tasten des Browsers Verzeichniswechsel nachvollziehen
+     * (history: true erzeugt einen echten Verlaufseintrag statt ihn zu
+     * ersetzen) und ein Ordner verlinkbar ist.
+     *
+     * Bewusst NICHT #[Locked]: Der Wert kommt jetzt aus der Adresszeile und
+     * ist damit Client-Eingabe. Die Absicherung leistet stattdessen
+     * resolveCurrentFolder() bei JEDEM Rendern — eine fremde oder veraltete
+     * Ordner-ID faellt dort auf die Wurzel zurueck.
+     */
+    #[Url(as: 'folder', history: true)]
     public ?int $currentFolderId = null;
 
     /** Ordner anlegen/umbenennen */
@@ -672,21 +685,53 @@ class ManageFilePools extends Component
         abort_unless(Auth::user()?->canAccessFile($file, $action) === true, 403);
     }
 
-    protected function authorizeFolderView(FileFolder $folder): void
+    /**
+     * Den aktuellen Ordner laden und dabei absichern.
+     *
+     * Zustaendig fuer beide Wege in den Ordner: den Klick (enterFolder) und
+     * die Adresszeile (?folder=<id>). Weil der URL-Weg Client-Eingabe ist,
+     * wird hier bei JEDEM Rendern erneut geprueft. Ein geloeschter, fremder
+     * oder nicht sichtbarer Ordner fuehrt bewusst zurueck zur Wurzel statt zu
+     * einem 403: Ein veralteter oder weitergegebener Link soll die Seite
+     * nicht unbrauchbar machen.
+     */
+    protected function resolveCurrentFolder(): ?FileFolder
+    {
+        if (! $this->currentFolderId) {
+            return null;
+        }
+
+        $folder = FileFolder::where('file_pool_id', $this->filePoolId)
+            ->find($this->currentFolderId);
+
+        if (! $folder || ! $this->mayViewFolder($folder)) {
+            $this->currentFolderId = null;
+
+            return null;
+        }
+
+        return $folder;
+    }
+
+    /** Sichtbarkeitspruefung ohne Abbruch — die Frageform von authorizeFolderView(). */
+    protected function mayViewFolder(FileFolder $folder): bool
     {
         if ($this->canBypassFileVisibility()) {
-            return;
+            return true;
         }
 
         $user = Auth::user();
 
-        abort_unless(
-            $user
-                && $this->userCanAccessPool($this->filePool)
-                && $folder->allowsForUser($user, 'view')
-                && $folder->isPubliclyVisible($user),
-            403
-        );
+        return (bool) $user
+            && $this->userCanAccessPool($this->filePool)
+            && $folder->allowsForUser($user, 'view')
+            && $folder->isPubliclyVisible($user);
+    }
+
+    /** Harte Variante fuer den Klickweg: unerlaubter Ordner -> 403. */
+    protected function authorizeFolderView(FileFolder $folder): void
+    {
+        abort_unless($this->mayViewFolder($folder), 403);
     }
 
     protected function userCanAccessPool(?FilePool $pool): bool
@@ -806,14 +851,7 @@ class ManageFilePools extends Component
     {
         $filePool = FilePool::find($this->filePoolId);
 
-        $currentFolder = $this->currentFolderId
-            ? FileFolder::where('file_pool_id', $this->filePoolId)->find($this->currentFolderId)
-            : null;
-
-        // Zustand heilen, falls der Ordner inzwischen geloescht wurde
-        if ($this->currentFolderId && ! $currentFolder) {
-            $this->currentFolderId = null;
-        }
+        $currentFolder = $this->resolveCurrentFolder();
 
         // Unterordner der aktuellen Ebene (für normale Benutzer nur erlaubte)
         $folders = $filePool

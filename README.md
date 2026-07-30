@@ -19,7 +19,7 @@ sein wie die Auftrags- und Schichtdaten darunter.
 | # | Baustein | Inhalt | Stand |
 |---|---|---|---|
 | 1 | **Plattform & Kommunikation** | Konten, Rollen und Team-Rechte, Nachrichten, Chat, Dateien, Push, Firmendaten | umgesetzt |
-| 1b | **Video- und Sprachanrufe** | Anrufe aus dem Chat, Gruppenräume, Moderation, Bildschirmfreigabe | Anwendung fertig, Media-Server ausstehend |
+| 1b | **Video- und Sprachanrufe** | Anrufe aus dem Chat, Gruppenräume, Moderation, Bildschirmfreigabe | umgesetzt |
 | 2 | **Auftragsverwaltung** | Aufträge, Kunden, Einsatzorte, Dokumente, Nachweise vor Ort | in Umsetzung |
 | 3 | **Schichtplanung & Kalender** | Dienstpläne, Qualifikationen, Verfügbarkeiten, Ruhezeiten, Abwesenheiten, Schichttausch | in Umsetzung |
 | 4 | **Assistierte Disposition** | Begründete Vorschlagsliste statt manueller Suche | geplant |
@@ -172,8 +172,9 @@ Push erfordert HTTPS. Auf iPhone und iPad muss die App zuerst über das
 Teilen-Menü zum Home-Bildschirm hinzugefügt und von dort gestartet werden; erst
 in dieser Web-App kann Push erlaubt werden.
 
-Details, Rollout und Fehlersuche:
-[`.lmzdev/web-push-und-pwa/WEB_PUSH_PWA.md`](.lmzdev/web-push-und-pwa/WEB_PUSH_PWA.md)
+Die Implementierung ist abgeschlossen. Für neue Installationen bleiben die
+einmalige VAPID-Konfiguration, HTTPS und die Berechtigungsfreigabe auf dem
+jeweiligen Endgerät erforderlich.
 
 ### 6. Scheduler
 
@@ -188,11 +189,10 @@ Auf Plesk lässt sich das über *Geplante Aufgaben* einrichten.
 
 ### 7. Media-Server für Anrufe
 
-Video- und Sprachanrufe benötigen einen LiveKit-Server auf einer eigenen kleinen
-VM mit öffentlicher IP, eigenen DNS-Einträgen und Firewall-Freigaben. Die
-vollständige, geprüfte Anleitung steht in
-[`.lmzdev/media-server-livekit-integration/UMSETZUNGSPLAN.md`](.lmzdev/media-server-livekit-integration/UMSETZUNGSPLAN.md),
-Abschnitt 5.
+Video- und Sprachanrufe verwenden LiveKit. Der Media-Server ist für RailTime
+eingerichtet und die Anwendung ist angebunden. Bei einer neuen Installation
+müssen LiveKit, die öffentliche WSS-Domain, TLS und die erforderlichen
+RTC-/TURN-Ports separat bereitgestellt werden.
 
 Schlüssel auf dem Anwendungsserver erzeugen:
 
@@ -207,9 +207,6 @@ php artisan config:clear
 php artisan railtime:livekit-check
 ```
 
-Zum Testen **ohne** eigene VM lässt sich LiveKit lokal im Docker betreiben —
-siehe Abschnitt 8 desselben Dokuments.
-
 ### 8. Deployment
 
 ```bash
@@ -219,14 +216,10 @@ php artisan migrate --force
 php artisan optimize:clear
 php artisan config:cache
 php artisan route:cache
+php artisan view:cache
 php artisan queue:restart
 php artisan reverb:restart
 ```
-
-> `php artisan view:cache` schlägt derzeit an `resources/views/teams/show.blade.php`
-> fehl und ist deshalb oben nicht enthalten. Siehe
-> [`.lmzdev/befunde-und-empfehlungen/BEFUNDE.md`](.lmzdev/befunde-und-empfehlungen/BEFUNDE.md),
-> Punkt C2.
 
 ---
 
@@ -246,25 +239,24 @@ php artisan test
 ```
 
 Die Testsuite läuft auf SQLite im Arbeitsspeicher und fasst die
-Entwicklungsdatenbank nicht an. Derzeit sind 13 von 280 Tests rot — alle
-vorbestehend und ohne Bezug zu neuen Funktionen, aufgeschlüsselt in
-[`BEFUNDE.md`](.lmzdev/befunde-und-empfehlungen/BEFUNDE.md), Punkt C1.
+Entwicklungsdatenbank nicht an. Der aktuelle Prüfstand wird in
+[`.lmzdev/STATE.md`](.lmzdev/STATE.md) festgehalten.
 
 ---
 
 ## Dokumentation
 
-Alle Entwicklungs- und Konzeptionsunterlagen liegen unter `.lmzdev/` in
-Themenverzeichnissen.
+Der lokale, bewusst gitignorierte Ordner `.lmzdev/` enthält ausschließlich den
+aktuellen Projektstand, offene Aufgaben, Entscheidungen und Agent-Handoffs.
+Abgeschlossene Themendossiers werden dort nicht dauerhaft aufbewahrt.
 
 | Dokument | Inhalt |
 |---|---|
 | [`projektuebersicht/PROJEKTUEBERSICHT.md`](.lmzdev/projektuebersicht/PROJEKTUEBERSICHT.md) | Vollständige Projektbeschreibung und Fahrplan |
-| [`media-server-livekit-integration/UMSETZUNGSPLAN.md`](.lmzdev/media-server-livekit-integration/UMSETZUNGSPLAN.md) | Videotelefonie: Architektur, Server-Einrichtung, lokale Entwicklung |
-| [`web-push-und-pwa/WEB_PUSH_PWA.md`](.lmzdev/web-push-und-pwa/WEB_PUSH_PWA.md) | Push-Benachrichtigungen, App-Installation, Rollout |
-| [`einstellungssystem/EINSTELLUNGSSYSTEM.md`](.lmzdev/einstellungssystem/EINSTELLUNGSSYSTEM.md) | Zentrales Einstellungssystem |
-| [`befunde-und-empfehlungen/BEFUNDE.md`](.lmzdev/befunde-und-empfehlungen/BEFUNDE.md) | Offene Befunde, Fehler und Optimierungsvorschläge |
-| [`.ai-sync.md`](.lmzdev/.ai-sync.md) | Übergabeprotokoll für Coding-Agents |
+| [`TASKS.md`](.lmzdev/TASKS.md) | Belegte offene Themen, Priorität und nächster Schritt |
+| [`STATE.md`](.lmzdev/STATE.md) | Bestätigter technischer Stand und Verifikation |
+| [`DECISIONS.md`](.lmzdev/DECISIONS.md) | Dauerhafte Projektentscheidungen |
+| [`COMMUNICATION.md`](.lmzdev/COMMUNICATION.md) | Append-only-Handoffs zwischen Coding-Agents |
 
 ---
 

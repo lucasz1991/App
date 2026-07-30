@@ -26,9 +26,17 @@
         </div>
     </div>
 
-    <div class="flex flex-wrap gap-4" data-anim-stagger>
+    {{-- Dasselbe Raster wie im Dateimanager: Die feste Breite w-32 im
+         flex-wrap liess auf schmalen Geraeten Luecken und auf breiten eine
+         unruhige letzte Zeile. Das Raster fuellt gleichmaessig und bringt
+         das gestaffelte Einlaufen (--rt-stagger) gleich mit. --}}
+    <div class="rt-file-explorer-grid" data-anim-stagger>
         @foreach($files as $file)
-            <div class="w-32" wire:key="dl-{{ $file->id }}">
+            <div
+                class="rt-file-explorer-card min-w-0"
+                style="--rt-stagger: {{ $loop->index }}"
+                wire:key="dl-{{ $file->id }}"
+            >
                 <x-ui.filepool.file-card :file="$file" :read-only="true" />
             </div>
         @endforeach

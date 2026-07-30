@@ -2132,6 +2132,35 @@ body[data-mode='dark'] .rt-carousel-tab-depth {
 .rt-file-explorer-card {
     width: 100%;
     min-width: 0;
+    animation: rt-file-card-in 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    /* Gestaffelt, aber gedeckelt: Bei 200 Dateien duerfen die letzten nicht
+       sekundenlang auf ihren Auftritt warten. */
+    animation-delay: min(calc(var(--rt-stagger, 0) * 18ms), 240ms);
+}
+
+@keyframes rt-file-card-in {
+    from {
+        opacity: 0;
+        transform: translateY(0.4rem) scale(0.985);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+/* Ordnerwechsel laeuft: Das alte Raster blendet ab, statt zu verschwinden —
+   die Hoehe bleibt stehen und es entsteht kein Sprung. */
+.rt-file-explorer-grid.is-busy {
+    opacity: 0.45;
+    filter: saturate(0.65);
+    pointer-events: none;
+}
+
+.rt-file-explorer-grid {
+    transition:
+        opacity 180ms ease,
+        filter 180ms ease;
 }
 
 .rt-file-card {
@@ -2258,6 +2287,19 @@ body[data-mode='dark'] .rt-carousel-tab-depth {
     transform: translateY(1px) scale(0.97);
 }
 
+/* Ohne Hover (Touch/Stift) feuert group-hover nie: Der Ausloeser bliebe
+   dauerhaft durchsichtig UND wegen pointer-events:none nicht antippbar —
+   Bearbeiten und Loeschen waeren auf dem Handy schlicht unerreichbar.
+   Dort deshalb dauerhaft sichtbar. !important, weil die Utility-Klassen in
+   file-card.blade.php dieselben Eigenschaften setzen. */
+@media (hover: none), (pointer: coarse) {
+    .rt-file-card-menu-trigger {
+        pointer-events: auto !important;
+        opacity: 1 !important;
+        transform: none !important;
+    }
+}
+
 .rt-file-card-menu-trigger:focus-visible {
     outline: 2px solid rgb(185 28 28 / 0.58);
     outline-offset: 2px;
@@ -2316,6 +2358,21 @@ body[data-mode='dark'] .rt-carousel-tab-depth {
     .rt-file-drop-breadcrumb,
     .rt-file-drop-folder {
         transition: none !important;
+    }
+
+    /* Kein Einlaufen, kein Abblenden: Wer reduzierte Bewegung eingestellt
+       hat, bekommt den Inhalt sofort und vollstaendig. */
+    .rt-file-explorer-card {
+        animation: none !important;
+    }
+
+    .rt-file-explorer-grid {
+        transition: none !important;
+    }
+
+    .rt-file-explorer-grid.is-busy {
+        opacity: 1;
+        filter: none;
     }
 }
 
