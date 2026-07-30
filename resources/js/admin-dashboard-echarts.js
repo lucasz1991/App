@@ -230,14 +230,14 @@ export function renderAdminDashboardCharts({ refs, config = {}, dark = false, an
     }
 
     if (refs.statusChart) {
-        const totalAccounts = (status.values || []).reduce((sum, value) => sum + Number(value || 0), 0);
+        const totalWorkforce = (status.values || []).reduce((sum, value) => sum + Number(value || 0), 0);
 
         mount(refs.statusChart, {
             textStyle: { fontFamily },
             aria: { enabled: true },
             title: {
-                text: numberFormatter.format(totalAccounts),
-                subtext: config.labels?.accounts || 'Konten',
+                text: numberFormatter.format(totalWorkforce),
+                subtext: config.labels?.accounts || 'Mitarbeiter',
                 left: 'center',
                 top: '34%',
                 textStyle: { color: strongText, fontFamily, fontSize: 27, fontWeight: 650 },

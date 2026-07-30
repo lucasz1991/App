@@ -35,6 +35,8 @@ import { createNotificationPresentationContext } from './notification-presentati
 import { incomingNotificationSound } from './realtime-notification-sound';
 import { sidebarScrollBehavior, sidebarScrollTarget } from './sidebar-scroll';
 import { railtimeTabs } from './tabs';
+import { initMobileFormFocusRecovery } from './mobile-form-focus';
+import { welcomeIntro } from './welcome-intro';
 
 const loadAdminDashboardECharts = () => import('./admin-dashboard-echarts');
 const rtSeenNotifications = createNotificationSeenCache(window);
@@ -424,6 +426,9 @@ Alpine.data('wagonListPrototype', wagonListPrototype);
 Alpine.data('rtNumberInput', numberInput);
 Alpine.data('rtSidebarNavigation', sidebarNavigation);
 Alpine.data('railtimeTabs', railtimeTabs);
+Alpine.data('welcomeIntro', welcomeIntro);
+
+initMobileFormFocusRecovery();
 
 Alpine.data('chatRealtime', (config) => ({
     channel: null,

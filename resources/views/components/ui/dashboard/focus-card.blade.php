@@ -42,6 +42,7 @@
     {{ $attributes->class('group relative flex min-h-48 min-w-0 flex-col overflow-hidden rounded-[1.4rem] bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/70 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md sm:min-h-52 sm:p-5 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70') }}
     data-dashboard-focus-card
     data-dashboard-focus-tone="{{ $tone }}"
+    data-dashboard-data-source="{{ $preview ? 'preview' : 'live' }}"
     @if ($preview) data-dashboard-focus-preview="true" @endif
 >
     <span class="absolute inset-x-0 top-0 h-1 {{ $toneClasses['bar'] }}" aria-hidden="true"></span>
@@ -61,9 +62,23 @@
             <i data-feather="{{ $icon }}" class="h-5 w-5"></i>
         </span>
 
-        @if (filled($badge))
-            <span class="max-w-[70%] truncate rounded-full bg-rt-surface-muted px-2.5 py-1 text-[10px] font-semibold text-rt-muted ring-1 ring-inset ring-rt-border/70 dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted dark:ring-rt-dark-border/70">
-                {{ $badge }}
+        @if ($preview || filled($badge))
+            <span class="flex min-w-0 max-w-[76%] flex-wrap justify-end gap-1.5">
+                @if ($preview)
+                    <span
+                        class="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-500/20 dark:text-amber-300"
+                        data-dashboard-preview-label
+                    >
+                        <i data-feather="eye" class="h-3 w-3" aria-hidden="true"></i>
+                        {{ __('app.demo_preview') }}
+                    </span>
+                @endif
+
+                @if (filled($badge))
+                    <span class="max-w-full truncate rounded-full bg-rt-surface-muted px-2.5 py-1 text-[10px] font-semibold text-rt-muted ring-1 ring-inset ring-rt-border/70 dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted dark:ring-rt-dark-border/70">
+                        {{ $badge }}
+                    </span>
+                @endif
             </span>
         @endif
     </div>

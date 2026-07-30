@@ -1238,6 +1238,210 @@ return [
     'welcome_intro_point_communication' => 'Chats and messages are always available via the envelope icon in the header.',
     'welcome_intro_point_help' => 'The first time you open a page, its quick info appears automatically — later at any time via the info button.',
     'welcome_intro_reopen' => 'Show the welcome introduction again',
+    'welcome_intro_progress' => 'Step :current of :total',
+    'welcome_intro_progress_label' => 'Introduction progress',
+    'welcome_intro_open_step' => 'Open step :current of :total: :title',
+    'welcome_intro_at_a_glance' => 'At a glance',
+    'welcome_intro_finish' => 'Finish introduction',
+    'welcome_intro_keyboard_hint' => 'Tip: Use the arrow keys to change page and Esc to close the introduction.',
+    'welcome_intro_content' => [
+        'admin' => [
+            'label' => 'Administration',
+            'slides' => [
+                [
+                    'id' => 'admin-overview',
+                    'eyebrow' => 'Your control centre',
+                    'title' => 'Run RailTime safely and with a clear overview',
+                    'description' => 'Your dashboard connects organisation, operations and system status. This introduction shows the most important routes for your daily overview.',
+                    'points' => [
+                        'Metrics and notices lead you first to areas that need attention.',
+                        'Global search finds pages, people and content without making you browse the navigation.',
+                        'The info button explains every page and remains available after this introduction.',
+                    ],
+                ],
+                [
+                    'id' => 'admin-people',
+                    'eyebrow' => 'Employees and permissions',
+                    'title' => 'Manage accounts, teams and access together',
+                    'description' => 'Employee management is your central workspace for invitations, profiles, teams and graduated permissions.',
+                    'points' => [
+                        'Open employee profiles directly from lists, search or dashboard activity.',
+                        'New employees can be created or onboarded with a time-limited invitation.',
+                        'Teams and permissions are maintained centrally, while critical actions remain specially protected.',
+                    ],
+                ],
+                [
+                    'id' => 'admin-operations',
+                    'eyebrow' => 'Operations in focus',
+                    'title' => 'Put orders, shifts and wagon lists into context',
+                    'description' => 'Operational modules bring dispatching and work documents together. Areas that are not connected yet are identified by their preview status.',
+                    'points' => [
+                        'Order overviews combine priorities, status and responsible teams in one area.',
+                        'Shift management focuses on staffing, handovers and open requirements.',
+                        'Wagon lists open as a focused workspace and can be exported for further use.',
+                    ],
+                ],
+                [
+                    'id' => 'admin-ready',
+                    'eyebrow' => 'Ready to begin',
+                    'title' => 'Communication and system status stay within reach',
+                    'description' => 'Messages, chat, files and settings preserve the organisational context without taking you away from your current task.',
+                    'points' => [
+                        'Messages and chats are collected in the header and the communication areas.',
+                        'Technical notices and system data are available only to teams with the required permission.',
+                        'Help, page information and this introduction can be opened again at any time.',
+                    ],
+                ],
+            ],
+        ],
+        'management' => [
+            'label' => 'Management',
+            'slides' => [
+                [
+                    'id' => 'management-overview',
+                    'eyebrow' => 'Your management area',
+                    'title' => 'Keep the team and daily work in view',
+                    'description' => 'The dashboard combines employees, recent activity and the operational functions enabled for your team.',
+                    'points' => [
+                        'Metrics provide a compact view of team size, activity and open organisational matters.',
+                        'Search and navigation move quickly between people, communication and documents.',
+                        'Only functions enabled for your team appear as usable actions.',
+                    ],
+                ],
+                [
+                    'id' => 'management-people',
+                    'eyebrow' => 'Coordinate employees',
+                    'title' => 'Open profiles and responsibilities without detours',
+                    'description' => 'The employee overview combines contact information, team assignment, status and the management actions available to you.',
+                    'points' => [
+                        'Filters and search narrow large employee lists by person or team.',
+                        'Profiles combine master data, contact options, documents and current account information.',
+                        'Invitations and changes follow the centrally assigned team permissions.',
+                    ],
+                ],
+                [
+                    'id' => 'management-work',
+                    'eyebrow' => 'Operational workflows',
+                    'title' => 'Use enabled work areas effectively',
+                    'description' => 'Wagon lists, files and further operational functions appear according to your role and lead to focused workspaces.',
+                    'points' => [
+                        'Wagon lists can be prepared on the device, resumed and then exported.',
+                        'Order or shift areas appear only after they have been enabled for your team in both function and technology.',
+                        'Recent activity helps direct questions to the right people.',
+                    ],
+                ],
+                [
+                    'id' => 'management-ready',
+                    'eyebrow' => 'Work together',
+                    'title' => 'Communication remains part of the workflow',
+                    'description' => 'Chat, messages, calls and files connect directly to your management area and are quickly available from the header.',
+                    'points' => [
+                        'Unread messages are shown centrally and lead straight to the relevant content.',
+                        'Person previews provide quick contact actions without leaving the current page.',
+                        'The info button and help centre explain unfamiliar areas step by step when needed.',
+                    ],
+                ],
+            ],
+        ],
+        'employee' => [
+            'label' => 'Employee',
+            'slides' => [
+                [
+                    'id' => 'employee-overview',
+                    'eyebrow' => 'Your personal workspace',
+                    'title' => 'Begin with the next useful step',
+                    'description' => 'Your dashboard prioritises assignments, work documents and new information so you can begin the workday without a long search.',
+                    'points' => [
+                        'Important tasks and notices appear before general files and profile settings.',
+                        'Navigation leads to messages, chat, calls, files and your personal settings.',
+                        'Search finds enabled pages and people quickly, even on small screens.',
+                    ],
+                ],
+                [
+                    'id' => 'employee-shifts',
+                    'eyebrow' => 'Assignments and shifts',
+                    'title' => 'Read time, meeting point and assignment together',
+                    'description' => 'Operational cards organise upcoming shifts and orders. Preview content is explicitly labelled until a scheduling system has been connected.',
+                    'points' => [
+                        'Before starting work, check the time, route, assignment and stated meeting point.',
+                        'Status and checklists show which steps are complete and which remain open.',
+                        'Changes also reach you through internal messages and notifications.',
+                    ],
+                ],
+                [
+                    'id' => 'employee-work',
+                    'eyebrow' => 'Work documents',
+                    'title' => 'Edit wagon lists and documents with focus',
+                    'description' => 'RailTime keeps operational input and provided files separate, while making both directly available from the dashboard.',
+                    'points' => [
+                        'Wagon lists open in a distraction-free workspace and save local drafts automatically.',
+                        'The file area combines personal, operational and team-related documents.',
+                        'New or changed documents remain traceable through messages and dashboard notices.',
+                    ],
+                ],
+                [
+                    'id' => 'employee-ready',
+                    'eyebrow' => 'Stay connected',
+                    'title' => 'Resolve questions and personal details quickly',
+                    'description' => 'Chat, messages and your profile complement the workspace without pushing operational tasks out of focus.',
+                    'points' => [
+                        'Chat and messages are available from the header or their navigation area.',
+                        'Your profile contains contact information, security, appearance and notification settings.',
+                        'Page information and the help centre support you when a workflow is not familiar yet.',
+                    ],
+                ],
+            ],
+        ],
+        'guest' => [
+            'label' => 'Guest access',
+            'slides' => [
+                [
+                    'id' => 'guest-overview',
+                    'eyebrow' => 'Welcome aboard',
+                    'title' => 'Arrive safely in your enabled area',
+                    'description' => 'Your guest access shows only information and functions intended for your team.',
+                    'points' => [
+                        'The dashboard combines new information, provided files and your profile status.',
+                        'The sidebar shows only areas for which your account has access.',
+                        'Search finds available pages and content without detours.',
+                    ],
+                ],
+                [
+                    'id' => 'guest-files',
+                    'eyebrow' => 'Files and information',
+                    'title' => 'Find provided documents centrally',
+                    'description' => 'The file area contains personal, team-related or company-wide documents made available to you.',
+                    'points' => [
+                        'Recent files also appear on the dashboard for quick access.',
+                        'File previews show supported content in RailTime before downloading it.',
+                        'Management and operational areas that are not enabled remain consistently hidden.',
+                    ],
+                ],
+                [
+                    'id' => 'guest-contact',
+                    'eyebrow' => 'Communication',
+                    'title' => 'Reach messages and contacts',
+                    'description' => 'Communication channels available to your account are accessible from the header and navigation.',
+                    'points' => [
+                        'Unread messages are collected and linked directly to their content.',
+                        'Chat and contact actions appear only when your access permits them.',
+                        'Personal contact details and security settings are maintained in your profile.',
+                    ],
+                ],
+                [
+                    'id' => 'guest-ready',
+                    'eyebrow' => 'Everything is ready',
+                    'title' => 'Help remains available on every page',
+                    'description' => 'You can now finish the introduction and explore your enabled RailTime area.',
+                    'points' => [
+                        'The info button explains the purpose and key actions of the current page.',
+                        'The help centre collects detailed guidance for installation, navigation and functions.',
+                        'If your permissions change, RailTime automatically adapts the visible areas.',
+                    ],
+                ],
+            ],
+        ],
+    ],
 
     // Profil-Einstellungen
     'language_hint' => 'Interface language for this account.',

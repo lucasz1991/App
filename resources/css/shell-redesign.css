@@ -1316,6 +1316,150 @@ body[data-mode='dark'] .rt-welcome-feature {
     transform: rotate(-3deg) scale(1.04);
 }
 
+/* Mehrseitiges, rollenbezogenes Dashboard-Onboarding. Vorder- und
+   Hintergrundfarben werden bewusst paarweise gesetzt: Der teleportierte
+   Dialog darf nach einem Theme- oder Livewire-Wechsel keine helle Schrift
+   aus dem vorherigen Modus auf einer hellen Flaeche behalten. */
+.rt-welcome-card {
+    border-color: rgba(255, 255, 255, 0.5);
+    background: #ffffff !important;
+    color: #182435 !important;
+    color-scheme: light;
+}
+
+.rt-welcome-layout {
+    min-height: min(39rem, calc(100dvh - 2rem));
+}
+
+.rt-welcome-hero {
+    color: #f8fafc !important;
+    background:
+        linear-gradient(rgba(255, 255, 255, 0.026) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.026) 1px, transparent 1px),
+        radial-gradient(30rem 22rem at 96% -12%, rgba(228, 0, 43, 0.4), transparent 66%),
+        linear-gradient(145deg, #101927 0%, #1b2b40 62%, #42101c 120%) !important;
+    background-size: 24px 24px, 24px 24px, auto, auto !important;
+}
+
+.rt-welcome-content {
+    min-width: 0;
+    background: #ffffff !important;
+    color: #182435 !important;
+}
+
+html:not(.dark) .rt-welcome-content .text-rt-text,
+html:not(.dark) .rt-welcome-content .rt-welcome-feature {
+    color: #182435 !important;
+}
+
+html:not(.dark) .rt-welcome-content .text-rt-muted {
+    color: #637188 !important;
+}
+
+html.dark .rt-welcome-card,
+body[data-mode='dark'] .rt-welcome-card {
+    border-color: var(--rt-shell-border);
+    background: #111a27 !important;
+    color: #edf2f7 !important;
+    color-scheme: dark;
+}
+
+html.dark .rt-welcome-content,
+body[data-mode='dark'] .rt-welcome-content {
+    background: #111a27 !important;
+    color: #edf2f7 !important;
+}
+
+html.dark .rt-welcome-hero,
+body[data-mode='dark'] .rt-welcome-hero {
+    background:
+        linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        radial-gradient(30rem 22rem at 96% -12%, rgba(228, 0, 43, 0.32), transparent 66%),
+        linear-gradient(145deg, #070c13 0%, #111f31 62%, #340b15 120%) !important;
+}
+
+.rt-welcome-slide-viewport {
+    display: flex;
+    flex-direction: column;
+}
+
+.rt-welcome-slide {
+    min-width: 0;
+}
+
+.rt-welcome-slide-icon,
+.rt-welcome-feature-icon {
+    border: 1px solid rgba(228, 0, 43, 0.12);
+    background: rgba(228, 0, 43, 0.08);
+    color: var(--rt-shell-accent);
+}
+
+html.dark .rt-welcome-slide-icon,
+html.dark .rt-welcome-feature-icon,
+body[data-mode='dark'] .rt-welcome-slide-icon,
+body[data-mode='dark'] .rt-welcome-feature-icon {
+    border-color: rgba(255, 113, 137, 0.16);
+    background: rgba(228, 0, 43, 0.12);
+    color: var(--rt-shell-accent);
+}
+
+.rt-welcome-journey {
+    isolation: isolate;
+}
+
+.rt-welcome-journey-track {
+    position: absolute;
+    top: 1.25rem;
+    right: 12.5%;
+    left: 12.5%;
+    z-index: -1;
+    height: 2px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.13);
+}
+
+.rt-welcome-journey-fill {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #ff7189, #e4002b);
+    transition: width 320ms var(--rt-shell-spring);
+}
+
+.rt-welcome-journey-node {
+    border-color: rgba(255, 255, 255, 0.12);
+    background: rgba(11, 18, 29, 0.9);
+    color: rgba(226, 232, 240, 0.72);
+    box-shadow: 0 10px 24px -18px rgba(0, 0, 0, 0.95);
+    backdrop-filter: blur(10px);
+}
+
+.rt-welcome-journey-node[data-state='complete'] {
+    border-color: rgba(255, 113, 137, 0.38);
+    background: rgba(228, 0, 43, 0.16);
+    color: #ff9aac;
+}
+
+.rt-welcome-journey-node[data-state='current'] {
+    border-color: rgba(255, 255, 255, 0.34);
+    background: #e4002b;
+    color: #ffffff;
+    box-shadow:
+        0 0 0 4px rgba(228, 0, 43, 0.16),
+        0 16px 30px -18px rgba(228, 0, 43, 0.95);
+}
+
+.rt-welcome-progress > span {
+    box-shadow: 0 0 14px rgba(228, 0, 43, 0.26);
+}
+
+.rt-welcome-back:disabled:hover {
+    border-color: var(--rt-shell-border);
+    background: var(--rt-shell-surface-solid);
+}
+
 @media (max-width: 767px) {
     .rt-shell-topbar-controls {
         padding: 0.2rem;
@@ -1334,15 +1478,27 @@ body[data-mode='dark'] .rt-welcome-feature {
     }
 
     .rt-welcome-layout {
+        display: flex;
+        min-height: 0;
+        max-height: calc(100dvh - 1.25rem);
+        flex-direction: column;
         grid-template-columns: minmax(0, 1fr);
     }
 
     .rt-welcome-hero {
+        flex: 0 0 auto;
         min-height: auto;
     }
 
-    .rt-welcome-map {
-        height: 7rem;
+    .rt-welcome-content {
+        min-height: 0;
+        flex: 1 1 auto;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+
+    .rt-welcome-slide-viewport {
+        overflow: visible;
     }
 
     .rt-info-hero {
@@ -1359,6 +1515,22 @@ body[data-mode='dark'] .rt-welcome-feature {
         margin-top: 1rem !important;
     }
 
+    .rt-welcome-hero {
+        padding-bottom: 1.1rem;
+    }
+
+    .rt-welcome-hero #rt-welcome-description {
+        display: none;
+    }
+
+    .rt-welcome-journey {
+        margin-top: 1rem;
+    }
+
+    .rt-welcome-feature {
+        min-height: 3.8rem;
+        padding: 0.65rem 0.75rem;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1373,7 +1545,8 @@ body[data-mode='dark'] .rt-welcome-feature {
 
     .rt-info-route-line::after,
     .rt-welcome-map-route::before,
-    .rt-welcome-map-pulse {
+    .rt-welcome-map-pulse,
+    .rt-welcome-journey-fill {
         animation: none !important;
     }
 
@@ -1385,6 +1558,9 @@ body[data-mode='dark'] .rt-welcome-feature {
     .rt-info-point,
     .rt-welcome-feature,
     .rt-welcome-feature-icon,
+    .rt-welcome-slide,
+    .rt-welcome-journey-fill,
+    .rt-welcome-progress > span,
     .rt-skiper-highlight::after {
         transition-duration: 0.01ms !important;
     }

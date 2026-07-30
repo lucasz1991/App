@@ -36,6 +36,15 @@
     $autoIntroPayload = ($autoIntro && $isFirstVisit && filled($help['summary'] ?? null))
         ? array_merge($help, ['intro' => true])
         : null;
+    // Admin sowie Mitarbeiter/Gaeste binden ihr Welcome-Intro bereits in
+    // ihren Dashboard-Views ein. Die Verwaltung teilt sich die Nutzerroute
+    // und erhaelt ihre eng begrenzte Einbindung deshalb im Seitenrahmen.
+    $dashboardAudience = auth()->user()?->dashboardAudience();
+    $mountManagementWelcome = $routeName === 'dashboard'
+        && in_array($dashboardAudience, ['administration', 'management'], true);
+    $managementWelcomeInitiallyOpen = $mountManagementWelcome
+        ? \App\Support\PageViews::firstVisit(auth()->user(), 'intro:welcome')
+        : false;
 @endphp
 
 {{--
@@ -69,6 +78,10 @@
             data-rt-intro-auto="{{ $resolvedPageKey }}"
             aria-hidden="true"
         ></div>
+    @endif
+
+    @if ($mountManagementWelcome)
+        <x-ui.welcome-intro :initially-open="$managementWelcomeInitiallyOpen" />
     @endif
 
     <div class="relative min-h-32" data-page-loading-region>

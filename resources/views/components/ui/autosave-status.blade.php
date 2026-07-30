@@ -387,20 +387,12 @@
 
             // Mobile Browser oeffnen die Bildschirmtastatur nur, wenn der
             // native Fokuswechsel ungestoert aus dem vertrauenswuerdigen Tap
-            // hervorgeht. Ein Autosave-Request im capture-pointerdown kam
-            // bisher davor und konnte den Zielknoten waehrenddessen morphen.
-            // Fokus-/Blur-Handler speichern weiterhin sofort danach.
+            // hervorgeht. Auch ein setTimeout(0) aus pointerdown kann auf iOS
+            // noch VOR pointerup/click laufen und den Zielknoten morphen.
+            // Deshalb startet ein Tap auf interaktive Elemente hier niemals
+            // einen Request; Blur, Aussenklick und Inaktivitaet bleiben die
+            // vorgesehenen Speichertrigger.
             if (nativeFocusTarget) {
-                window.setTimeout(() => {
-                    if (!target?.isConnected) return;
-
-                    if (this.shouldFlushForTarget(target)) {
-                        this.flush().catch(() => {});
-                    } else {
-                        this.continueInteraction(event);
-                    }
-                }, 0);
-
                 return;
             }
 

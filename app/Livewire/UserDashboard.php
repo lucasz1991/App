@@ -17,7 +17,7 @@ class UserDashboard extends Component
     }
 
     /**
-     * Download nur fuer Dateien, die dem Benutzer tatsaechlich bereitstehen.
+     * Download only files that are actually available to the signed-in user.
      */
     public function downloadFile(int $fileId): StreamedResponse
     {
@@ -41,78 +41,71 @@ class UserDashboard extends Component
                 [
                     'dashboardAudience' => $audience,
                     'dashboardTeamName' => $dashboardTeam?->name ?? __('app.administration'),
-                    'recentUsers' => $dashboardData->recentUsers(),
                     'recentActivity' => $dashboardData->recentActivity(),
                     'operations' => $dashboardData->operations(),
+                    'charts' => $dashboardData->charts(),
                     'canViewSystemData' => $canViewSystemData,
                     'system' => $canViewSystemData ? $dashboardData->system() : null,
                 ]
             ))->layout('layouts.master', ['area' => 'user']);
         }
 
-        // Echte Daten: bereitgestellte Dateien + ungelesene Nachrichten
+        // Real user-facing data: available files and personal messages.
         $grouped = $user->availableFilesGrouped();
-        $recentFiles = $grouped['personal']
-            ->merge($grouped['company'])
-            ->merge(collect($grouped['teams'])->flatMap(fn ($entry) => $entry['files']))
+        $teamFiles = collect($grouped['teams'])
+            ->flatMap(fn (array $entry) => $entry['files'])
             ->unique('id')
+            ->values();
+        $availableFiles = $grouped['personal']
+            ->merge($grouped['company'])
+            ->merge($teamFiles)
+            ->unique('id')
+            ->values();
+        $recentFiles = $availableFiles
             ->sortByDesc('created_at')
             ->take(6)
             ->values();
 
         $unreadMessages = $user->receivedMessages()->where('status', 1)->count();
 
-        // ------------------------------------------------------------------
-        // Beispiel-/Dummy-Daten fuer ein anschauliches Nutzer-Dashboard
-        // (Schichten & Termine — spaeter durch echte Dienstplanung ersetzbar)
-        // ------------------------------------------------------------------
-        // Die Einsatzansicht ist noch eine Vorschau, soll aber niemals mit
-        // veralteten Kalenderdaten wie ein abgelaufener Live-Auftrag wirken.
-        $shiftDates = collect([1, 2, 3, 5])
-            ->map(fn (int $offset) => now()->startOfDay()->addWeekdays($offset));
+        // The compact charts are entirely server-rendered from existing data.
+        // Orders and shifts intentionally stay marked as not connected until
+        // their productive modules provide a real data source.
+        $activityDays = collect(range(13, 0))
+            ->map(fn (int $daysAgo) => now()->subDays($daysAgo)->startOfDay());
+        $receivedMessagesByDay = $user->receivedMessages()
+            ->where('created_at', '>=', $activityDays->first()->copy()->startOfDay())
+            ->get(['id', 'created_at'])
+            ->countBy(fn ($message) => $message->created_at->toDateString());
+        $messageActivity = [
+            'labels' => $activityDays
+                ->map(fn ($day) => $day->translatedFormat('d. M'))
+                ->all(),
+            'values' => $activityDays
+                ->map(fn ($day) => (int) ($receivedMessagesByDay[$day->toDateString()] ?? 0))
+                ->all(),
+        ];
+        $messageActivity['total'] = array_sum($messageActivity['values']);
 
-        $shifts = [
-            ['day' => $shiftDates[0]->translatedFormat('D'), 'date' => $shiftDates[0]->format('d.m.'), 'time' => '05:30 – 13:45', 'title' => 'Frühdienst · RB 48', 'route' => 'Köln Hbf → Wuppertal', 'role' => 'Zugbegleitung', 'tone' => 'sky'],
-            ['day' => $shiftDates[1]->translatedFormat('D'), 'date' => $shiftDates[1]->format('d.m.'), 'time' => '13:15 – 21:30', 'title' => 'Spätdienst · RE 7', 'route' => 'Krefeld → Rheine', 'role' => 'Zugbegleitung', 'tone' => 'amber'],
-            ['day' => $shiftDates[2]->translatedFormat('D'), 'date' => $shiftDates[2]->format('d.m.'), 'time' => '06:00 – 14:10', 'title' => 'Frühdienst · S 11', 'route' => 'Düsseldorf → Bergisch Gladbach', 'role' => 'Kundenbetreuung', 'tone' => 'sky'],
-            ['day' => $shiftDates[3]->translatedFormat('D'), 'date' => $shiftDates[3]->format('d.m.'), 'time' => 'frei', 'title' => 'Ruhetag', 'route' => '—', 'role' => '', 'tone' => 'slate'],
+        $fileSources = [
+            'labels' => [
+                __('app.provided_for_you'),
+                __('app.company_files'),
+                __('app.team'),
+            ],
+            'values' => [
+                $grouped['personal']->count(),
+                $grouped['company']->count(),
+                $teamFiles->count(),
+            ],
         ];
 
-        $plans = [
-            ['date' => now()->addWeekdays(2)->format('d.m.'), 'title' => 'Sicherheitsunterweisung', 'meta' => 'Schulungsraum 2 · 09:00'],
-            ['date' => now()->addWeekdays(5)->format('d.m.'), 'title' => 'Teambesprechung', 'meta' => 'Online · 15:00'],
-            ['date' => now()->addWeekdays(8)->format('d.m.'), 'title' => 'Betriebsärztliche Untersuchung', 'meta' => 'Betriebsarzt · 11:30'],
-        ];
-
-        $nextShift = collect($shifts)->firstWhere('time', '!=', 'frei');
-
-        $nextOrder = [
-            'number' => 'RT-2407',
-            'train' => 'DGS 69342',
-            'date' => now()->addWeekdays(1)->format('d.m.Y'),
-            'time' => '06:15 – 12:40',
-            'route' => 'Maschen Rbf → Bremen Rbf',
-            'assignment' => 'Wagenprüfung & Zugvorbereitung',
-            'meetingPoint' => 'Betriebsstelle Maschen · Gleis 12',
-            'status' => __('app.preview_prepared'),
-        ];
-
-        $workChecklist = [
-            ['label' => __('app.accept_assignment'), 'done' => true],
-            ['label' => __('app.check_documents'), 'done' => true],
-            ['label' => __('app.complete_wagon_list'), 'done' => false],
-            ['label' => __('app.finish_brake_sheet'), 'done' => false],
-        ];
-
-        // Neueste interne Nachrichten (Info fuer den Mitarbeiter)
         $latestMessages = $user->receivedMessages()
             ->with('sender:id,name,profile_photo_path')
             ->latest()
             ->limit(3)
             ->get();
 
-        // Profil-Vollstaendigkeit: vollstaendige Kontaktdaten landen
-        // automatisch in den E-Mail-Vorlagen (Profil-Tab).
         $profile = $user->profile;
         $profileChecks = [
             'phone' => filled($profile?->phone),
@@ -127,12 +120,9 @@ class UserDashboard extends Component
         return view('livewire.user-dashboard', [
             'recentFiles' => $recentFiles,
             'unreadMessages' => $unreadMessages,
-            'filesTotal' => $user->availableFileIds() ? count($user->availableFileIds()) : 0,
-            'shifts' => $shifts,
-            'plans' => $plans,
-            'nextShift' => $nextShift,
-            'nextOrder' => $nextOrder,
-            'workChecklist' => $workChecklist,
+            'filesTotal' => $availableFiles->count(),
+            'messageActivity' => $messageActivity,
+            'fileSources' => $fileSources,
             'latestMessages' => $latestMessages,
             'profileChecks' => $profileChecks,
             'profileCompletion' => $profileCompletion,

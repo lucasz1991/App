@@ -68,7 +68,7 @@
                 id="workforce-overview-title"
                 icon="briefcase"
                 :title="__('app.workforce_control')"
-                :description="__('app.workforce_overview_description')"
+                :description="__('app.workforce_control_description')"
             />
 
             <div class="mt-4 grid gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-12" data-dashboard-workforce-focus>
@@ -106,6 +106,65 @@
                     :description="__('app.preview_schedule_hint')"
                     :badge="__('app.planning_not_connected')"
                     preview
+                />
+            </div>
+        </section>
+
+        <section
+            class="min-w-0"
+            aria-labelledby="management-trends-title"
+            data-dashboard-real-series
+            data-anim="fade-up"
+        >
+            <x-ui.dashboard.section-heading
+                id="management-trends-title"
+                icon="trending-up"
+                :title="__('app.user_growth')"
+                :description="__('app.last_14_days')"
+            />
+
+            <div class="mt-4 grid min-w-0 gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-12">
+                <x-ui.dashboard.trend-chart
+                    class="md:col-span-2 xl:col-span-6"
+                    :title="__('app.user_growth')"
+                    :description="__('app.last_14_days')"
+                    :labels="$charts['userGrowth']['labels']"
+                    :values="$charts['userGrowth']['totals']"
+                    type="line"
+                    tone="brand"
+                    icon="trending-up"
+                    :summary="$totalUsers"
+                    :summary-label="__('app.total_users')"
+                    data-series-source="users-growth"
+                />
+
+                <x-ui.dashboard.trend-chart
+                    class="xl:col-span-3"
+                    :title="__('app.recently_active')"
+                    :description="__('app.last_14_days')"
+                    :labels="$charts['activity']['labels']"
+                    :values="$charts['activity']['values']"
+                    type="bar"
+                    tone="success"
+                    icon="activity"
+                    :summary="collect($charts['activity']['values'])->last() ?: 0"
+                    :summary-label="__('app.current')"
+                    :empty-label="__('app.no_activity_yet')"
+                    data-series-source="activity-log"
+                />
+
+                <x-ui.dashboard.trend-chart
+                    class="xl:col-span-3"
+                    :title="__('app.active_users') . ' / ' . __('app.inactive_users')"
+                    :description="__('app.total_users')"
+                    :labels="$charts['status']['labels']"
+                    :values="$charts['status']['values']"
+                    type="bar"
+                    tone="neutral"
+                    icon="users"
+                    :summary="$totalUsers"
+                    :summary-label="__('app.total_users')"
+                    data-series-source="user-status"
                 />
             </div>
         </section>

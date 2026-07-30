@@ -1238,6 +1238,210 @@ return [
     'welcome_intro_point_communication' => 'Chats und Nachrichten erreichen Sie jederzeit über das Umschlag-Symbol in der Kopfzeile.',
     'welcome_intro_point_help' => 'Beim ersten Besuch einer Seite öffnet sich ihre Kurzinfo automatisch — spaeter jederzeit über den Info-Knopf.',
     'welcome_intro_reopen' => 'Willkommens-Einführung erneut anzeigen',
+    'welcome_intro_progress' => 'Schritt :current von :total',
+    'welcome_intro_progress_label' => 'Fortschritt der Einführung',
+    'welcome_intro_open_step' => 'Schritt :current von :total öffnen: :title',
+    'welcome_intro_at_a_glance' => 'Auf einen Blick',
+    'welcome_intro_finish' => 'Einführung abschließen',
+    'welcome_intro_keyboard_hint' => 'Tipp: Mit den Pfeiltasten wechseln Sie die Seite, mit Esc schließen Sie die Einführung.',
+    'welcome_intro_content' => [
+        'admin' => [
+            'label' => 'Administration',
+            'slides' => [
+                [
+                    'id' => 'admin-overview',
+                    'eyebrow' => 'Ihr Kontrollzentrum',
+                    'title' => 'RailTime sicher und übersichtlich steuern',
+                    'description' => 'Ihr Dashboard verbindet Organisation, Betrieb und Systemstatus. Diese Einführung zeigt Ihnen die wichtigsten Wege für den täglichen Überblick.',
+                    'points' => [
+                        'Kennzahlen und Hinweise führen Sie zuerst zu Bereichen, die Aufmerksamkeit benötigen.',
+                        'Die globale Suche findet Seiten, Personen und Inhalte, ohne dass Sie die Navigation durchsuchen müssen.',
+                        'Der Info-Knopf erklärt jede Seite und bleibt auch nach dieser Einführung erreichbar.',
+                    ],
+                ],
+                [
+                    'id' => 'admin-people',
+                    'eyebrow' => 'Mitarbeiter & Rechte',
+                    'title' => 'Konten, Teams und Zugriffe gemeinsam verwalten',
+                    'description' => 'Die Mitarbeiterverwaltung ist Ihre zentrale Arbeitsfläche für Einladungen, Profile, Teams und abgestufte Berechtigungen.',
+                    'points' => [
+                        'Öffnen Sie Mitarbeiterprofile direkt aus Listen, Suche oder Dashboard-Aktivitäten.',
+                        'Neue Mitarbeitende können angelegt oder mit einer zeitlich begrenzten Einladung aufgenommen werden.',
+                        'Teams und Rechte werden zentral gepflegt; kritische Aktionen bleiben besonders geschützt.',
+                    ],
+                ],
+                [
+                    'id' => 'admin-operations',
+                    'eyebrow' => 'Betrieb im Fokus',
+                    'title' => 'Aufträge, Schichten und Wagenlisten einordnen',
+                    'description' => 'Betriebliche Module bündeln Disposition und Arbeitsunterlagen. Noch nicht angebundene Bereiche erkennen Sie an ihrem Vorschau-Status.',
+                    'points' => [
+                        'Auftragsübersichten zeigen Prioritäten, Status und zuständige Teams in einem gemeinsamen Bereich.',
+                        'Die Schichtverwaltung stellt Besetzung, Übergaben und offene Bedarfe in den Mittelpunkt.',
+                        'Wagenlisten werden als fokussierte Arbeitsansicht geöffnet und können für die weitere Nutzung exportiert werden.',
+                    ],
+                ],
+                [
+                    'id' => 'admin-ready',
+                    'eyebrow' => 'Bereit für den Start',
+                    'title' => 'Kommunikation und Systemzustand bleiben erreichbar',
+                    'description' => 'Mit Nachrichten, Chat, Dateien und Einstellungen behalten Sie den organisatorischen Kontext, ohne den aktuellen Arbeitsbereich zu verlieren.',
+                    'points' => [
+                        'Nachrichten und Chats erscheinen gesammelt in der Kopfzeile und in den Kommunikationsbereichen.',
+                        'Technische Hinweise und Systemdaten stehen nur den dafür berechtigten Teams zur Verfügung.',
+                        'Hilfe, Seiteninfos und diese Einführung können Sie später jederzeit erneut öffnen.',
+                    ],
+                ],
+            ],
+        ],
+        'management' => [
+            'label' => 'Verwaltung',
+            'slides' => [
+                [
+                    'id' => 'management-overview',
+                    'eyebrow' => 'Ihr Verwaltungsbereich',
+                    'title' => 'Team und Tagesgeschäft im Blick behalten',
+                    'description' => 'Das Dashboard fasst Mitarbeiter, aktuelle Aktivitäten und die für Ihr Team freigegebenen betrieblichen Funktionen zusammen.',
+                    'points' => [
+                        'Kennzahlen zeigen Teamgröße, Aktivität und offene organisatorische Vorgänge kompakt an.',
+                        'Über Suche und Navigation wechseln Sie schnell zwischen Personen, Kommunikation und Unterlagen.',
+                        'Nur Funktionen, die Ihrem Team freigegeben wurden, erscheinen als bedienbare Aktionen.',
+                    ],
+                ],
+                [
+                    'id' => 'management-people',
+                    'eyebrow' => 'Mitarbeiter koordinieren',
+                    'title' => 'Profile und Zuständigkeiten ohne Umwege öffnen',
+                    'description' => 'Die Mitarbeiterübersicht verbindet Kontaktinformationen, Teamzuordnung, Status und die für Sie erlaubten Verwaltungsaktionen.',
+                    'points' => [
+                        'Filter und Suche grenzen große Mitarbeiterlisten nach Person oder Team ein.',
+                        'Profile zeigen Stammdaten, Kontaktwege, Dokumente und aktuelle Kontoinformationen gebündelt.',
+                        'Einladungen und Änderungen richten sich nach den zentral vergebenen Teamrechten.',
+                    ],
+                ],
+                [
+                    'id' => 'management-work',
+                    'eyebrow' => 'Betriebliche Abläufe',
+                    'title' => 'Freigegebene Arbeitsbereiche sinnvoll nutzen',
+                    'description' => 'Wagenlisten, Dateien und weitere betriebliche Funktionen werden entsprechend Ihrer Rolle eingeblendet und führen in fokussierte Arbeitsansichten.',
+                    'points' => [
+                        'Wagenlisten lassen sich gerätebezogen vorbereiten, fortsetzen und anschließend exportieren.',
+                        'Auftrags- oder Schichtbereiche erscheinen erst, wenn sie für Ihr Team fachlich und technisch freigegeben sind.',
+                        'Aktuelle Aktivitäten helfen dabei, Rückfragen an die richtigen Personen zu richten.',
+                    ],
+                ],
+                [
+                    'id' => 'management-ready',
+                    'eyebrow' => 'Gemeinsam arbeiten',
+                    'title' => 'Kommunikation bleibt Teil des Arbeitsflusses',
+                    'description' => 'Chat, Nachrichten, Anrufe und Dateien sind direkt mit Ihrem Verwaltungsbereich verbunden und über die Kopfzeile schnell erreichbar.',
+                    'points' => [
+                        'Ungelesene Nachrichten werden zentral angezeigt und führen direkt zum betreffenden Inhalt.',
+                        'Personenvorschauen bieten schnelle Kontaktaktionen, ohne die aktuelle Seite zu verlassen.',
+                        'Der Info-Knopf und das Hilfecenter erklären unbekannte Bereiche bei Bedarf Schritt für Schritt.',
+                    ],
+                ],
+            ],
+        ],
+        'employee' => [
+            'label' => 'Mitarbeiter',
+            'slides' => [
+                [
+                    'id' => 'employee-overview',
+                    'eyebrow' => 'Ihr persönlicher Arbeitsbereich',
+                    'title' => 'Mit dem nächsten sinnvollen Schritt beginnen',
+                    'description' => 'Ihr Dashboard priorisiert Einsätze, Arbeitsunterlagen und neue Informationen, damit Sie ohne lange Suche in den Arbeitstag starten.',
+                    'points' => [
+                        'Wichtige Aufgaben und Hinweise stehen vor allgemeinen Dateien und Profileinstellungen.',
+                        'Die Navigation führt zu Nachrichten, Chat, Anrufen, Dateien und Ihren persönlichen Einstellungen.',
+                        'Die Suche findet freigegebene Seiten und Personen auch auf kleinen Bildschirmen schnell.',
+                    ],
+                ],
+                [
+                    'id' => 'employee-shifts',
+                    'eyebrow' => 'Einsätze & Schichten',
+                    'title' => 'Zeit, Treffpunkt und Auftrag zusammen lesen',
+                    'description' => 'Betriebliche Karten ordnen die nächsten Schichten und Aufträge. Vorschau-Inhalte sind ausdrücklich gekennzeichnet, solange noch keine Dienstplanung angebunden ist.',
+                    'points' => [
+                        'Prüfen Sie vor Dienstbeginn Zeit, Laufweg, Aufgabe und angegebenen Treffpunkt.',
+                        'Status und Checklisten zeigen, welche Schritte bereits erledigt und welche noch offen sind.',
+                        'Änderungen erreichen Sie zusätzlich über interne Nachrichten und Benachrichtigungen.',
+                    ],
+                ],
+                [
+                    'id' => 'employee-work',
+                    'eyebrow' => 'Arbeitsunterlagen',
+                    'title' => 'Wagenlisten und Dokumente fokussiert bearbeiten',
+                    'description' => 'RailTime hält betriebliche Eingaben und bereitgestellte Dateien getrennt, aber über das Dashboard direkt erreichbar.',
+                    'points' => [
+                        'Wagenlisten öffnen sich in einer ablenkungsfreien Arbeitsansicht und speichern lokale Entwürfe automatisch.',
+                        'Der Dateibereich bündelt persönliche, betriebliche und teambezogene Unterlagen.',
+                        'Neue oder geänderte Dokumente bleiben über Nachrichten und die Dashboard-Hinweise nachvollziehbar.',
+                    ],
+                ],
+                [
+                    'id' => 'employee-ready',
+                    'eyebrow' => 'Gut verbunden',
+                    'title' => 'Rückfragen und persönliche Daten schnell klären',
+                    'description' => 'Chat, Nachrichten und Ihr Profil ergänzen den Arbeitsbereich, ohne betriebliche Aufgaben aus dem Fokus zu drängen.',
+                    'points' => [
+                        'Chat und Nachrichten erreichen Sie über die Kopfzeile oder den jeweiligen Navigationsbereich.',
+                        'Im Profil pflegen Sie Kontaktinformationen, Sicherheit, Darstellung und Benachrichtigungen.',
+                        'Seiteninfos und das Hilfecenter unterstützen Sie, wenn ein Ablauf noch nicht vertraut ist.',
+                    ],
+                ],
+            ],
+        ],
+        'guest' => [
+            'label' => 'Gastzugang',
+            'slides' => [
+                [
+                    'id' => 'guest-overview',
+                    'eyebrow' => 'Willkommen an Bord',
+                    'title' => 'Sicher in Ihrem freigegebenen Bereich ankommen',
+                    'description' => 'Ihr Gastzugang zeigt ausschließlich Informationen und Funktionen, die für Ihr Team vorgesehen sind.',
+                    'points' => [
+                        'Das Dashboard fasst neue Informationen, bereitgestellte Dateien und Ihren Profilstatus zusammen.',
+                        'Die Seitenleiste zeigt nur Bereiche, für die Ihr Konto eine Freigabe besitzt.',
+                        'Mit der Suche finden Sie verfügbare Seiten und Inhalte ohne Umwege.',
+                    ],
+                ],
+                [
+                    'id' => 'guest-files',
+                    'eyebrow' => 'Dateien & Informationen',
+                    'title' => 'Freigegebene Unterlagen zentral finden',
+                    'description' => 'Im Dateibereich liegen persönliche, teambezogene oder unternehmensweite Dokumente, die für Sie bereitgestellt wurden.',
+                    'points' => [
+                        'Aktuelle Dateien erscheinen zusätzlich auf dem Dashboard für einen schnellen Einstieg.',
+                        'Dateivorschauen zeigen unterstützte Inhalte zunächst in RailTime statt sie ungefragt herunterzuladen.',
+                        'Nicht freigegebene Verwaltungs- oder Betriebsbereiche bleiben konsequent ausgeblendet.',
+                    ],
+                ],
+                [
+                    'id' => 'guest-contact',
+                    'eyebrow' => 'Kommunikation',
+                    'title' => 'Nachrichten und Ansprechpartner erreichen',
+                    'description' => 'Die für Ihr Konto verfügbaren Kommunikationswege sind über die Kopfzeile und Navigation erreichbar.',
+                    'points' => [
+                        'Ungelesene Nachrichten werden gesammelt angezeigt und direkt mit dem Inhalt verknüpft.',
+                        'Chat- und Kontaktaktionen erscheinen nur, wenn Ihr Zugang dafür berechtigt ist.',
+                        'Persönliche Kontaktdaten und Sicherheitseinstellungen pflegen Sie in Ihrem Profil.',
+                    ],
+                ],
+                [
+                    'id' => 'guest-ready',
+                    'eyebrow' => 'Alles vorbereitet',
+                    'title' => 'Hilfe bleibt auf jeder Seite erreichbar',
+                    'description' => 'Sie können die Einführung jetzt abschließen und Ihren freigegebenen RailTime-Bereich erkunden.',
+                    'points' => [
+                        'Der Info-Knopf erklärt den Zweck und die wichtigsten Aktionen der aktuellen Seite.',
+                        'Das Hilfecenter bündelt ausführliche Hinweise zu Installation, Navigation und Funktionen.',
+                        'Wenn sich Ihre Berechtigungen ändern, passt RailTime die sichtbaren Bereiche automatisch an.',
+                    ],
+                ],
+            ],
+        ],
+    ],
 
     // Profil-Einstellungen
     'language_hint' => 'Sprache der Oberfläche für dieses Konto.',
