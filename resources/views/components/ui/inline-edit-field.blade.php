@@ -25,9 +25,17 @@
         open() {
             if (this.saving) return;
             this.editing = true;
+            const shell = this.$refs.editorShell;
+            const editor = this.$refs.editor;
+
+            // Den Editor im selben Doppelklick/Enter-Ereignis sichtbar und
+            // fokussierbar machen. Ein ausschliessliches $nextTick-Fokus
+            // oeffnet auf iOS sonst keine Bildschirmtastatur.
+            shell?.style.removeProperty('display');
+            editor?.focus();
+            editor?.select?.();
             this.$nextTick(() => {
-                this.$refs.editor?.focus();
-                this.$refs.editor?.select?.();
+                if (document.activeElement !== editor) editor?.focus();
             });
         },
         requestAutosave() {
@@ -103,7 +111,7 @@
             ></i>
         </button>
 
-        <div x-cloak x-show.important="editing" class="min-w-0">
+        <div x-cloak x-show.important="editing" x-ref="editorShell" class="min-w-0">
             @if ($type === 'select')
                 <select
                     x-ref="editor"

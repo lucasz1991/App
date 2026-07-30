@@ -65,6 +65,7 @@ class SoundPreferences extends Component
             fields: array_map(fn (string $event): string => 'sounds.'.$event, SoundLibrary::events()),
         );
         $this->dispatch('rt-sounds:map', map: SoundLibrary::mapFor($user));
+        $this->skipRender();
     }
 
     public function render(): View

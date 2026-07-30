@@ -85,17 +85,37 @@
             x-data="{
                 editor: null,
                 verifying: false,
+                nameDisplay: @js($name),
+                emailDisplay: @js($email),
+                persistedEmail: @js($email),
+                pendingEmailChanged: false,
+                emailVerified: @js($this->user->hasVerifiedEmail()),
                 openEditor(field) {
                     this.editor = field;
-                    this.$nextTick(() => {
-                        const input = field === 'name'
-                            ? this.$refs.nameInput
-                            : this.$refs.emailInput;
+                    const input = field === 'name'
+                        ? this.$refs.nameInput
+                        : this.$refs.emailInput;
 
-                        input?.focus();
+                    // iOS oeffnet die Bildschirmtastatur nur verlaesslich,
+                    // wenn Sichtbarkeit und Fokus noch im urspruenglichen Tap
+                    // gesetzt werden. $nextTick bleibt lediglich als Fallback.
+                    input?.style.removeProperty('display');
+                    input?.focus();
+                    this.$nextTick(() => {
+                        if (document.activeElement !== input) input?.focus();
                     });
                 },
                 closeEditor(field = null) {
+                    if (field === 'name') {
+                        this.nameDisplay = this.$refs.nameInput?.value ?? this.nameDisplay;
+                    }
+
+                    if (field === 'email') {
+                        const nextEmail = this.$refs.emailInput?.value ?? this.emailDisplay;
+                        this.emailDisplay = nextEmail;
+                        this.pendingEmailChanged = nextEmail !== this.persistedEmail;
+                    }
+
                     if (field === null || this.editor === field) {
                         this.editor = null;
                     }
@@ -127,6 +147,13 @@
                     }
                 },
             }"
+            x-on:identity-saved.window="
+                if (pendingEmailChanged) {
+                    emailVerified = false;
+                    persistedEmail = emailDisplay;
+                    pendingEmailChanged = false;
+                }
+            "
             x-on:click.outside="closeEditor()"
             x-on:focusin.window="if (! $el.contains($event.target)) closeEditor()"
             class="min-w-0 flex-1"
@@ -147,9 +174,10 @@
                     aria-label="{{ __('app.username') }} {{ __('app.edit') }}"
                     data-autosave-visual
                 >
-                    <span class="truncate text-lg font-semibold tracking-tight text-rt-text dark:text-rt-dark-text">
-                        {{ $name }}
-                    </span>
+                    <span
+                        class="truncate text-lg font-semibold tracking-tight text-rt-text dark:text-rt-dark-text"
+                        x-text="nameDisplay"
+                    >{{ $name }}</span>
                     <i class="far fa-pen text-[10px] text-rt-soft opacity-0 transition group-hover/edit:opacity-100 group-focus-visible/edit:opacity-100 dark:text-rt-dark-soft" aria-hidden="true"></i>
                 </button>
 
@@ -185,7 +213,7 @@
                     aria-label="{{ __('app.email') }} {{ __('app.edit') }}"
                     data-autosave-visual
                 >
-                    <span class="truncate">{{ $email }}</span>
+                    <span class="truncate" x-text="emailDisplay">{{ $email }}</span>
                     <i class="far fa-pen text-[9px] text-rt-soft opacity-0 transition group-hover/edit:opacity-100 group-focus-visible/edit:opacity-100 dark:text-rt-dark-soft" aria-hidden="true"></i>
                 </button>
 
@@ -204,26 +232,29 @@
                 <x-input-error for="email" class="mt-2 basis-full" />
 
                 <div class="flex shrink-0 items-center gap-2">
-                    @if($this->user->hasVerifiedEmail())
-                        <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-300">
-                            <i class="far fa-check-circle" aria-hidden="true"></i>
-                            {{ __('app.email_verified') }}
-                        </span>
-                    @else
-                        <button
-                            type="button"
-                            x-on:click.prevent="requestEmailVerification()"
-                            x-bind:disabled="verifying"
-                            class="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-600 transition hover:text-amber-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/30 dark:text-amber-300"
-                        >
-                            <i
-                                class="far"
-                                x-bind:class="verifying ? 'fa-spinner-third animate-spin' : 'fa-paper-plane'"
-                                aria-hidden="true"
-                            ></i>
-                            {{ __('app.verify_email_now') }}
-                        </button>
-                    @endif
+                    <span
+                        x-show.important="emailVerified"
+                        class="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-300"
+                    >
+                        <i class="far fa-check-circle" aria-hidden="true"></i>
+                        {{ __('app.email_verified') }}
+                    </span>
+
+                    <button
+                        x-cloak
+                        x-show.important="! emailVerified"
+                        type="button"
+                        x-on:click.prevent="requestEmailVerification()"
+                        x-bind:disabled="verifying"
+                        class="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-600 transition hover:text-amber-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/30 dark:text-amber-300"
+                    >
+                        <i
+                            class="far"
+                            x-bind:class="verifying ? 'fa-spinner-third animate-spin' : 'fa-paper-plane'"
+                            aria-hidden="true"
+                        ></i>
+                        {{ __('app.verify_email_now') }}
+                    </button>
                 </div>
             </div>
         </div>

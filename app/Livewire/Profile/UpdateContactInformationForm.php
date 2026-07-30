@@ -9,17 +9,29 @@ use Livewire\Component;
 class UpdateContactInformationForm extends Component
 {
     public $first_name;
+
     public $last_name;
+
     public $phone;
+
     public $mobile;
+
     public $street;
+
     public $postal_code;
+
     public $city;
+
     public $country;
+
     public $birth_date;
+
     public $birth_place;
+
     public $birth_name;
+
     public $nationality;
+
     public $education;
 
     public function mount(): void
@@ -90,6 +102,7 @@ class UpdateContactInformationForm extends Component
             'nationality',
             'education',
         ]);
+        $this->skipRender();
     }
 
     /**

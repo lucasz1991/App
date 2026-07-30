@@ -30,6 +30,8 @@ class ProfileIdentityCard extends Component
 
         if ($this->name === $user->name && $this->email === $user->email) {
             $this->dispatch('identity-saved', fields: ['name', 'email']);
+            $this->skipRender();
+
             return;
         }
 
@@ -42,6 +44,7 @@ class ProfileIdentityCard extends Component
         $this->syncIdentity();
         $this->dispatch('identity-saved', fields: ['name', 'email']);
         $this->dispatch('refresh-navigation-menu');
+        $this->skipRender();
     }
 
     public function updatedPhoto(): void

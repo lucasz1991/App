@@ -84,6 +84,14 @@
             this.expanded = true;
             this.syncPageScrollLock();
 
+            // Alpine aktualisiert x-bind:class in einem Microtask. Fuer iOS
+            // muss das Eingabefeld aber bereits innerhalb desselben
+            // vertrauenswuerdigen Taps sichtbar/fokussierbar sein.
+            this.$root.classList.add('is-expanded');
+            if (this.isMobileLayerOpen()) {
+                this.$root.classList.add('is-mobile-layer');
+            }
+
             // Das erste focus() bleibt im direkten, vertrauenswuerdigen
             // Klick-/Tastaturereignis. Das ist fuer die Bildschirmtastatur in
             // iOS/PWA verlaesslicher als ein ausschliessliches $nextTick.
@@ -174,7 +182,7 @@
     x-on:rt-topbar-layer-open.window="handleLayerOpen($event)"
     x-on:rt-topbar-search-close.window="handleSearchClose($event)"
     class="rt-expandable-search"
-    x-trap.inert.noscroll="isMobileLayerOpen()"
+    x-trap.noautofocus.inert.noscroll="isMobileLayerOpen()"
     x-bind:role="isMobileLayerOpen() ? 'dialog' : null"
     x-bind:aria-modal="isMobileLayerOpen() ? 'true' : null"
     x-bind:aria-label="isMobileLayerOpen() ? @js($ph) : null"

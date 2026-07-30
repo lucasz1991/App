@@ -415,7 +415,28 @@ export function railtimeTabs(config = {}) {
         isInteractiveGestureTarget(target) {
             return target instanceof Element
                 && Boolean(target.closest(
-                    'a, button, input, textarea, select, option, [role=button], [contenteditable=true], [data-no-tab-swipe]',
+                    [
+                        'a',
+                        'button',
+                        'input',
+                        'textarea',
+                        'select',
+                        'option',
+                        'label',
+                        'form',
+                        'fieldset',
+                        '[role=button]',
+                        '[role=combobox]',
+                        '[role=listbox]',
+                        '[role=option]',
+                        '[contenteditable=true]',
+                        '[data-autosave-field]',
+                        '[data-rt-custom-select]',
+                        '[data-rt-number-input]',
+                        '[data-no-tab-swipe]',
+                        '.rt-ui-control',
+                        '.flatpickr-calendar',
+                    ].join(', '),
                 ));
         },
 
@@ -438,7 +459,6 @@ export function railtimeTabs(config = {}) {
             this.gestureVelocity = 0;
             this.suppressClick = false;
 
-            event.currentTarget.setPointerCapture?.(event.pointerId);
         },
 
         moveCoupledDrag(event) {
@@ -452,6 +472,13 @@ export function railtimeTabs(config = {}) {
             if (Math.abs(distanceY) > Math.abs(distanceX) * 1.2) return;
 
             event.preventDefault();
+            if (!this.gestureTarget?.hasPointerCapture?.(event.pointerId)) {
+                // Pointer-Capture erst nach einer echten horizontalen
+                // Bewegung setzen. Beim blossen Tap bleibt dadurch der
+                // native Fokuspfad fuer Labels und Formfelder vollstaendig
+                // unangetastet.
+                this.gestureTarget?.setPointerCapture?.(event.pointerId);
+            }
             if (
                 !this.scrubbingTabs
                 && document.activeElement instanceof HTMLElement

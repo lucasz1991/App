@@ -76,6 +76,7 @@ class Settings extends Component
         $this->calls = CallSettings::all(uncached: true);
 
         $this->dispatch('call-settings-saved');
+        $this->skipRender();
     }
 
     /**
@@ -103,6 +104,7 @@ class Settings extends Component
 
         // Neue wirksame Zuordnung sofort im Browser uebernehmen (rt-sounds.js).
         $this->dispatch('rt-sounds:map', map: SoundLibrary::mapFor(auth()->user()));
+        $this->skipRender();
     }
 
     public function saveSystem(): void
@@ -134,6 +136,7 @@ class Settings extends Component
         Setting::setValue('invitations', 'expiry_days', (int) $this->invitationExpiryDays);
 
         $this->dispatch('invitation-settings-saved', fields: ['invitationExpiryDays']);
+        $this->skipRender();
     }
 
     public function saveMails(): void
@@ -147,6 +150,7 @@ class Settings extends Component
         Setting::setValue('mails', 'admin_email', (string) $this->adminEmail);
 
         $this->dispatch('mail-settings-saved', fields: ['adminEmail']);
+        $this->skipRender();
     }
 
     public function saveCompany(): void
@@ -179,6 +183,7 @@ class Settings extends Component
                 array_keys($validated['company']),
             ),
         );
+        $this->skipRender();
     }
 
     public function render()

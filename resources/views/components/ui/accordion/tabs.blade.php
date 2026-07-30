@@ -142,7 +142,7 @@
         @pointerup="endCoupledDrag($event)"
         @pointercancel="endCoupledDrag($event)"
         @click.capture="
-            if (!suppressClick) return;
+            if (!suppressClick || isInteractiveGestureTarget($event.target)) return;
             $event.preventDefault();
             $event.stopPropagation();
         "

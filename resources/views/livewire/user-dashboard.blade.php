@@ -17,15 +17,33 @@
             data-anim="fade-up"
         >
             <x-slot:aside>
-                <p class="text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-rt-red-light">
-                    {{ $showSchedule ? __('app.your_workday') : __('app.welcome_aboard') }}
-                </p>
-                <p class="mt-2 text-lg font-bold tracking-tight text-white">
-                    {{ now()->translatedFormat('l, d. F Y') }}
-                </p>
-                <p class="mt-2 text-sm leading-6 text-slate-300">
-                    {{ $showSchedule ? __('app.employee_dashboard_next_step') : __('app.guest_dashboard_next_step') }}
-                </p>
+                @if ($showSchedule && $nextShift)
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <p class="text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-rt-red-light">
+                                {{ __('app.next_shift_preview') }}
+                            </p>
+                            <p class="mt-2 text-xl font-bold tracking-[-0.025em] text-white">
+                                {{ $nextShift['day'] }}, {{ $nextShift['date'] }} · {{ $nextShift['time'] }}
+                            </p>
+                        </div>
+                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 text-rt-red-light ring-1 ring-inset ring-white/10" aria-hidden="true">
+                            <i data-feather="clock" class="h-5 w-5"></i>
+                        </span>
+                    </div>
+                    <p class="mt-2 text-sm font-semibold text-white">{{ $nextShift['title'] }}</p>
+                    <p class="mt-1 text-xs leading-5 text-slate-300">{{ $nextShift['route'] }}</p>
+                @else
+                    <p class="text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-rt-red-light">
+                        {{ __('app.welcome_aboard') }}
+                    </p>
+                    <p class="mt-2 text-lg font-bold tracking-tight text-white">
+                        {{ now()->translatedFormat('l, d. F Y') }}
+                    </p>
+                    <p class="mt-2 text-sm leading-6 text-slate-300">
+                        {{ __('app.guest_dashboard_next_step') }}
+                    </p>
+                @endif
             </x-slot:aside>
 
             <x-slot:metrics>

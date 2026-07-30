@@ -10,9 +10,10 @@
     // Beim ERSTEN Besuch die Seiteninfo automatisch oeffnen. Dashboards
     // schalten das ab, weil dort das Willkommens-Intro laeuft.
     'autoIntro' => true,
-    // Livewire-Requests, die laenger als 300 ms dauern, erhalten einen
-    // layoutnahen Skeleton. Schnelle Aktionen bleiben dadurch flackerfrei.
-    'loadingSkeleton' => true,
+    // Seiten-Skeletons sind opt-in. Ein ungezieltes wire:loading reagiert
+    // sonst auch auf Autosave-Requests und darf Formfelder weder inert setzen
+    // noch den nativen mobilen Fokus unterbrechen.
+    'loadingSkeleton' => false,
     // Abstaende fuer den eigentlichen Seiteninhalt gehoeren auf den inneren
     // Live-Content-Wrapper. So bleiben sie auch mit Skeleton-Overlay wirksam.
     'contentClass' => null,
@@ -74,8 +75,9 @@
         @if ($loadingSkeleton)
             <div
                 wire:loading.delay.long
-                class="rt-page-skeleton-overlay absolute inset-0 z-20"
+                class="rt-page-skeleton-overlay pointer-events-none absolute inset-0 z-20"
                 data-page-loading-skeleton
+                aria-hidden="true"
             >
                 <x-ui.loading.skeleton variant="page" :rows="4" />
             </div>
@@ -83,7 +85,6 @@
 
         <div
             @if ($loadingSkeleton) wire:loading.class.delay.long="rt-page-live-content--loading" @endif
-            @if ($loadingSkeleton) wire:loading.attr.delay.long="inert" @endif
             @class([$contentClass])
             data-page-live-content
         >

@@ -7,6 +7,27 @@
             icon="briefcase"
             data-anim="fade-up"
         >
+            <x-slot:actions>
+                @can('employees.view')
+                    <a
+                        href="{{ route('employees.index') }}"
+                        wire:navigate
+                        class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-4 py-2 text-sm font-bold text-white shadow-rt-sm outline-none transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:bg-rt-red-dark focus-visible:ring-2 focus-visible:ring-white/70"
+                    >
+                        <i data-feather="users" class="h-4 w-4" aria-hidden="true"></i>
+                        {{ __('app.manage_employees') }}
+                    </a>
+                @endcan
+                <a
+                    href="{{ route('operations.wagon-list') }}"
+                    wire:navigate
+                    class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white/10 px-4 py-2 text-sm font-bold text-white ring-1 ring-inset ring-white/15 outline-none transition duration-200 hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-white/70"
+                >
+                    <i data-feather="clipboard" class="h-4 w-4" aria-hidden="true"></i>
+                    {{ __('app.wagon_list') }}
+                </a>
+            </x-slot:actions>
+
             <x-slot:aside>
                 <div class="flex h-full flex-col">
                     <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-rt-accent text-white shadow-rt-sm" aria-hidden="true">
@@ -41,6 +62,53 @@
                 </div>
             </x-slot:metrics>
         </x-ui.dashboard.role-hero>
+
+        <section aria-labelledby="workforce-overview-title" data-anim="fade-up">
+            <x-ui.dashboard.section-heading
+                id="workforce-overview-title"
+                icon="briefcase"
+                :title="__('app.workforce_control')"
+                :description="__('app.workforce_overview_description')"
+            />
+
+            <div class="mt-4 grid gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-12" data-dashboard-workforce-focus>
+                @can('employees.view')
+                    <x-ui.dashboard.focus-card
+                        class="xl:col-span-5"
+                        :href="route('employees.index')"
+                        icon="users"
+                        tone="brand"
+                        :metric="number_format($totalEmployees, 0, ',', '.')"
+                        :metric-label="__('app.employees')"
+                        :title="__('app.workforce_overview')"
+                        :description="__('app.all_employees_hint')"
+                        :badge="__('app.online_now') . ': ' . number_format($operations['online'], 0, ',', '.')"
+                        :action-label="__('app.manage_employees')"
+                    />
+                @endcan
+
+                <x-ui.dashboard.focus-card
+                    class="xl:col-span-4"
+                    :href="route('operations.wagon-list')"
+                    icon="clipboard"
+                    tone="warning"
+                    :title="__('app.order_workspace')"
+                    :description="__('app.help_topic_wagon_description')"
+                    :badge="__('app.wagon_lists_available')"
+                    :action-label="__('app.wagon_list')"
+                />
+
+                <x-ui.dashboard.focus-card
+                    class="md:col-span-2 xl:col-span-3"
+                    icon="clock"
+                    tone="neutral"
+                    :title="__('app.shift_workspace')"
+                    :description="__('app.preview_schedule_hint')"
+                    :badge="__('app.planning_not_connected')"
+                    preview
+                />
+            </div>
+        </section>
 
         <section class="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4" aria-labelledby="operations-title" data-anim="fade-up">
             <x-ui.dashboard.section-heading

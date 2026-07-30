@@ -66,17 +66,22 @@ class UserDashboard extends Component
         // Beispiel-/Dummy-Daten fuer ein anschauliches Nutzer-Dashboard
         // (Schichten & Termine — spaeter durch echte Dienstplanung ersetzbar)
         // ------------------------------------------------------------------
+        // Die Einsatzansicht ist noch eine Vorschau, soll aber niemals mit
+        // veralteten Kalenderdaten wie ein abgelaufener Live-Auftrag wirken.
+        $shiftDates = collect([1, 2, 3, 5])
+            ->map(fn (int $offset) => now()->startOfDay()->addWeekdays($offset));
+
         $shifts = [
-            ['day' => 'Mo', 'date' => '21.07.', 'time' => '05:30 – 13:45', 'title' => 'Frühdienst · RB 48', 'route' => 'Köln Hbf → Wuppertal', 'role' => 'Zugbegleitung', 'tone' => 'sky'],
-            ['day' => 'Di', 'date' => '22.07.', 'time' => '13:15 – 21:30', 'title' => 'Spätdienst · RE 7', 'route' => 'Krefeld → Rheine', 'role' => 'Zugbegleitung', 'tone' => 'amber'],
-            ['day' => 'Mi', 'date' => '23.07.', 'time' => '06:00 – 14:10', 'title' => 'Frühdienst · S 11', 'route' => 'Düsseldorf → Bergisch Gladbach', 'role' => 'Kundenbetreuung', 'tone' => 'sky'],
-            ['day' => 'Fr', 'date' => '25.07.', 'time' => 'frei', 'title' => 'Ruhetag', 'route' => '—', 'role' => '', 'tone' => 'slate'],
+            ['day' => $shiftDates[0]->translatedFormat('D'), 'date' => $shiftDates[0]->format('d.m.'), 'time' => '05:30 – 13:45', 'title' => 'Frühdienst · RB 48', 'route' => 'Köln Hbf → Wuppertal', 'role' => 'Zugbegleitung', 'tone' => 'sky'],
+            ['day' => $shiftDates[1]->translatedFormat('D'), 'date' => $shiftDates[1]->format('d.m.'), 'time' => '13:15 – 21:30', 'title' => 'Spätdienst · RE 7', 'route' => 'Krefeld → Rheine', 'role' => 'Zugbegleitung', 'tone' => 'amber'],
+            ['day' => $shiftDates[2]->translatedFormat('D'), 'date' => $shiftDates[2]->format('d.m.'), 'time' => '06:00 – 14:10', 'title' => 'Frühdienst · S 11', 'route' => 'Düsseldorf → Bergisch Gladbach', 'role' => 'Kundenbetreuung', 'tone' => 'sky'],
+            ['day' => $shiftDates[3]->translatedFormat('D'), 'date' => $shiftDates[3]->format('d.m.'), 'time' => 'frei', 'title' => 'Ruhetag', 'route' => '—', 'role' => '', 'tone' => 'slate'],
         ];
 
         $plans = [
-            ['date' => '24.07.', 'title' => 'Sicherheitsunterweisung', 'meta' => 'Schulungsraum 2 · 09:00'],
-            ['date' => '28.07.', 'title' => 'Teambesprechung', 'meta' => 'Online · 15:00'],
-            ['date' => '02.08.', 'title' => 'Betriebsärztliche Untersuchung', 'meta' => 'Betriebsarzt · 11:30'],
+            ['date' => now()->addWeekdays(2)->format('d.m.'), 'title' => 'Sicherheitsunterweisung', 'meta' => 'Schulungsraum 2 · 09:00'],
+            ['date' => now()->addWeekdays(5)->format('d.m.'), 'title' => 'Teambesprechung', 'meta' => 'Online · 15:00'],
+            ['date' => now()->addWeekdays(8)->format('d.m.'), 'title' => 'Betriebsärztliche Untersuchung', 'meta' => 'Betriebsarzt · 11:30'],
         ];
 
         $nextShift = collect($shifts)->firstWhere('time', '!=', 'frei');
@@ -84,7 +89,7 @@ class UserDashboard extends Component
         $nextOrder = [
             'number' => 'RT-2407',
             'train' => 'DGS 69342',
-            'date' => '22.07.2026',
+            'date' => now()->addWeekdays(1)->format('d.m.Y'),
             'time' => '06:15 – 12:40',
             'route' => 'Maschen Rbf → Bremen Rbf',
             'assignment' => 'Wagenprüfung & Zugvorbereitung',

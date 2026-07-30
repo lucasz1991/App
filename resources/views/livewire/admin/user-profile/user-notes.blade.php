@@ -48,7 +48,14 @@
                 saving: false,
                 open() {
                     this.editing = true;
-                    this.$nextTick(() => this.$refs.editor?.focus());
+                    const shell = this.$refs.editorShell;
+                    const editor = this.$refs.editor;
+
+                    shell?.style.removeProperty('display');
+                    editor?.focus();
+                    this.$nextTick(() => {
+                        if (document.activeElement !== editor) editor?.focus();
+                    });
                 },
                 requestAutosave() {
                     const scope = this.$el.closest('[data-autosave-scope]');
@@ -146,7 +153,7 @@
                     <i class="far fa-pen mt-1 shrink-0 text-[9px] text-rt-soft opacity-0 transition group-hover/note-edit:opacity-100 group-focus-visible/note-edit:opacity-100 dark:text-rt-dark-soft" aria-hidden="true"></i>
                 </button>
 
-                <div x-cloak x-show.important="editing" class="mt-3">
+                <div x-cloak x-show.important="editing" x-ref="editorShell" class="mt-3">
                     <textarea
                         x-ref="editor"
                         wire:model="noteBodies.{{ $note->id }}"

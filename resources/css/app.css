@@ -51,15 +51,19 @@ html {
     :where(
         a,
         button,
-        input,
-        select,
-        textarea,
         summary,
         [role='button'],
-        [role='tab'],
-        [contenteditable='true']
+        [role='tab']
     ) {
         touch-action: manipulation;
+    }
+
+    /* Editierbare Controls behalten den nativen Touch-Pfad. Das ist vor
+       allem in installierten iOS-/Android-PWAs wichtig: ihr Tap darf nicht
+       mit Drag-/Fast-Tap-Optimierungen konkurrieren, bevor der Browser die
+       Bildschirmtastatur anfordert. */
+    :where(input, select, textarea, [contenteditable='true']) {
+        touch-action: auto;
     }
 
     input:not([type]),
@@ -969,6 +973,19 @@ body[data-mode="dark"] [data-admin-dashboard] .rt-admin-operations-grid {
     background-color: #2a394d !important;
 }
 
+/*
+ * Das alte Theme-Stylesheet wird parallel zur Vite/Tailwind-Ausgabe geladen
+ * und setzt responsive Grid-Utilities mit !important. Die betrieblichen
+ * Fokusbereiche brauchen deshalb einen eigenen, stabilen Desktop-Vertrag,
+ * damit die 5/4/3-Gewichtung nicht in implizite Null-Spalten zerfaellt.
+ */
+@media (min-width: 1280px) {
+    .rt-admin-operations-grid,
+    [data-dashboard-workforce-focus] {
+        grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+    }
+}
+
 .dark .rt-admin-operations-card {
     background: #182435;
 }
@@ -1422,8 +1439,8 @@ body[data-mode='dark'] .rt-page-skeleton-overlay {
 }
 
 .rt-page-live-content--loading {
-    pointer-events: none;
-    user-select: none;
+    opacity: 0.72;
+    transition: opacity 160ms ease;
 }
 
 .rt-loading-skeleton {

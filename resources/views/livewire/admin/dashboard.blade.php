@@ -11,12 +11,10 @@
             'activity' => __('app.active_users'),
         ],
     ]);
-    $previewToneClasses = [
-        'red' => 'border-slate-200 bg-slate-100 text-rt-red dark:border-slate-700 dark:bg-slate-800 dark:text-rt-dark-accent',
-        'amber' => 'border-slate-200 bg-slate-100 text-rt-red dark:border-slate-700 dark:bg-slate-800 dark:text-rt-dark-accent',
-        'blue' => 'border-slate-200 bg-slate-100 text-rt-red dark:border-slate-700 dark:bg-slate-800 dark:text-rt-dark-accent',
-        'emerald' => 'border-slate-200 bg-slate-100 text-rt-red dark:border-slate-700 dark:bg-slate-800 dark:text-rt-dark-accent',
-    ];
+    $operationalPreviewsBySlug = collect($operationalPreviews)->keyBy('slug');
+    $ordersPreview = $operationalPreviewsBySlug->get('orders');
+    $shiftsPreview = $operationalPreviewsBySlug->get('shift-management');
+    $secondaryPreviews = $operationalPreviewsBySlug->only(['calendar', 'customers']);
 @endphp
 
 <x-ui.page :auto-intro="false">
@@ -70,12 +68,18 @@
                                 {{ __('app.manage_employees') }}
                             </a>
                         @endcan
-                        @can('manage.messages')
-                            <a href="{{ route('admin.messages') }}" wire:navigate data-dashboard-hero-secondary class="rt-ui-button rt-ui-button-secondary rt-admin-hero-secondary inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-rt-surface px-3 py-2 text-xs font-semibold text-slate-800 shadow-rt-xs transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:border-slate-400 hover:bg-slate-50 active:translate-y-0 focus:outline-none focus:ring-2 focus:ring-rt-red/30 dark:border-slate-500 dark:bg-slate-800 dark:text-white dark:hover:border-slate-300 dark:hover:bg-slate-700">
-                                <i data-feather="message-square" class="h-4 w-4"></i>
-                                {{ __('app.messages') }}
+                        @if ($ordersPreview)
+                            <a href="{{ route('admin.operations.preview', ['module' => 'orders']) }}" wire:navigate data-dashboard-hero-secondary class="rt-ui-button rt-ui-button-secondary rt-admin-hero-secondary inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-rt-surface px-3 py-2 text-xs font-semibold text-slate-800 shadow-rt-xs transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:border-slate-400 hover:bg-slate-50 active:translate-y-0 focus:outline-none focus:ring-2 focus:ring-rt-red/30 dark:border-slate-500 dark:bg-slate-800 dark:text-white dark:hover:border-slate-300 dark:hover:bg-slate-700">
+                                <i data-feather="clipboard" class="h-4 w-4"></i>
+                                {{ __('app.operational_orders') }}
                             </a>
-                        @endcan
+                        @endif
+                        @if ($shiftsPreview)
+                            <a href="{{ route('admin.operations.preview', ['module' => 'shift-management']) }}" wire:navigate class="rt-ui-button rt-ui-button-secondary rt-admin-hero-secondary inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-rt-surface px-3 py-2 text-xs font-semibold text-slate-800 shadow-rt-xs transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:border-slate-400 hover:bg-slate-50 active:translate-y-0 focus:outline-none focus:ring-2 focus:ring-rt-red/30 dark:border-slate-500 dark:bg-slate-800 dark:text-white dark:hover:border-slate-300 dark:hover:bg-slate-700">
+                                <i data-feather="clock" class="h-4 w-4"></i>
+                                {{ __('app.shift_management') }}
+                            </a>
+                        @endif
                     </div>
                 </div>
 
@@ -128,11 +132,11 @@
 
         @if (auth()->user()?->role === 'admin')
             <section
-                class="rt-admin-operations-stage order-3 relative overflow-hidden rounded-[1.4rem]"
+                class="rt-admin-operations-stage order-2 relative overflow-hidden rounded-[1.4rem]"
                 aria-labelledby="operational-preview-heading"
                 data-dashboard-segment="operations"
             >
-                <div class="pointer-events-none absolute inset-y-0 right-0 hidden w-1/3 opacity-50 sm:block" aria-hidden="true">
+                <div class="pointer-events-none absolute inset-y-0 right-0 hidden w-2/5 opacity-40 sm:block" aria-hidden="true">
                     <svg class="h-full w-full" viewBox="0 0 420 170" fill="none" preserveAspectRatio="none">
                         <path d="M8 150C98 142 111 62 205 73C292 83 310 20 412 16" stroke="currentColor" class="text-slate-200 dark:text-slate-700" stroke-width="18" stroke-linecap="round"/>
                         <path d="M8 150C98 142 111 62 205 73C292 83 310 20 412 16" stroke="#e4002b" stroke-width="2.5" stroke-linecap="round"/>
@@ -141,47 +145,88 @@
 
                 <header class="relative z-10 flex flex-wrap items-start justify-between gap-3 px-4 pb-3 pt-4 sm:px-5 sm:pb-4 sm:pt-5" data-dashboard-item>
                     <div class="max-w-2xl">
-                        <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-rt-red">{{ __('app.operations') }}</p>
-                        <h2 id="operational-preview-heading" class="mt-1.5 text-lg font-semibold tracking-tight text-rt-text dark:text-white">{{ __('app.operational_control') }}</h2>
-                        <p class="mt-1 max-w-xl text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">{{ __('app.operational_preview_dashboard_hint') }}</p>
+                        <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-rt-red">{{ __('app.operational_control') }}</p>
+                        <h2 id="operational-preview-heading" class="mt-1.5 text-xl font-semibold tracking-[-0.025em] text-rt-text dark:text-white">{{ __('app.workforce_control') }}</h2>
+                        <p class="mt-1 max-w-2xl text-xs leading-5 text-rt-muted sm:text-sm dark:text-rt-dark-muted">{{ __('app.workforce_control_description') }}</p>
                     </div>
-                    <span class="rt-admin-operations-status relative z-10 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white/90 px-3 py-2 text-xs font-medium text-slate-600 shadow-rt-xs backdrop-blur dark:border-slate-600 dark:bg-slate-900/90 dark:text-slate-200">
-                        <span class="relative flex h-2 w-2">
-                            <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-60"></span>
-                            <span class="relative inline-flex h-2 w-2 rounded-full bg-amber-500"></span>
-                        </span>
-                        {{ __('app.no_database_connection') }}
+                    <span class="rt-admin-operations-status relative z-10 inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50/95 px-3 py-2 text-[11px] font-semibold text-amber-800 shadow-rt-xs backdrop-blur dark:border-amber-700/70 dark:bg-amber-950/80 dark:text-amber-200">
+                        <i data-feather="eye" class="h-3.5 w-3.5" aria-hidden="true"></i>
+                        {{ __('app.demo_preview') }}
                     </span>
                 </header>
 
-                <div class="rt-admin-operations-grid relative z-10 grid grid-cols-2 gap-3 px-3 pb-3 sm:gap-4 sm:px-4 sm:pb-4 md:grid-cols-4" data-operational-preview data-dashboard-items>
-                    @foreach ($operationalPreviews as $previewModule)
-                        <a
-                            href="{{ route('admin.operations.preview', ['module' => $previewModule['slug']]) }}"
-                            wire:navigate
-                            class="rt-admin-operations-card group min-w-0 rounded-xl border border-slate-200/90 bg-white/95 p-3 shadow-rt-xs backdrop-blur focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red sm:p-4 dark:border-slate-700 dark:bg-slate-900/95"
+                <div class="rt-admin-operations-grid relative z-10 grid gap-3 px-3 pb-3 sm:gap-4 sm:px-4 sm:pb-4 md:grid-cols-2 xl:grid-cols-12" data-operational-preview data-dashboard-items>
+                    <x-ui.dashboard.focus-card
+                        class="rt-admin-operations-card xl:col-span-5"
+                        :href="route('admin.employees')"
+                        icon="users"
+                        tone="brand"
+                        :metric="number_format($totalEmployees, 0, ',', '.')"
+                        :metric-label="__('app.employees')"
+                        :title="__('app.workforce_overview')"
+                        :description="__('app.all_employees_hint')"
+                        :badge="__('app.online_now') . ': ' . number_format($operations['online'], 0, ',', '.')"
+                        :action-label="__('app.manage_employees')"
+                        data-rt-glow
+                    />
+
+                    @if ($ordersPreview)
+                        <x-ui.dashboard.focus-card
+                            class="rt-admin-operations-card xl:col-span-4"
+                            :href="route('admin.operations.preview', ['module' => 'orders'])"
+                            icon="clipboard"
+                            tone="warning"
+                            :metric="$ordersPreview['metric']"
+                            :metric-label="$ordersPreview['metric_label']"
+                            :title="$ordersPreview['title']"
+                            :description="$ordersPreview['description']"
+                            :badge="$ordersPreview['badge']"
+                            :action-label="__('app.open')"
+                            preview
                             data-rt-glow
-                        >
-                            <div class="flex items-start justify-between gap-3">
-                                <span class="rt-admin-preview-tone flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border sm:h-10 sm:w-10 {{ $previewToneClasses[$previewModule['tone']] ?? $previewToneClasses['red'] }}" data-preview-tone="{{ $previewModule['tone'] }}">
-                                    <i data-feather="{{ $previewModule['icon'] }}" class="h-4 w-4"></i>
-                                </span>
-                                <i data-feather="arrow-up-right" class="h-4 w-4 text-slate-400 transition duration-300 ease-rt-spring group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-rt-red"></i>
-                            </div>
-                            <p class="mt-3 text-xl font-semibold tracking-[-0.04em] tabular-nums text-rt-text sm:text-2xl dark:text-white">{{ $previewModule['metric'] }}</p>
-                            <p class="mt-0.5 truncate text-[11px] text-rt-muted sm:text-xs dark:text-rt-dark-muted">{{ $previewModule['metric_label'] }}</p>
-                            <div class="mt-3 border-t border-slate-200/80 pt-2.5 dark:border-slate-700">
-                                <p class="truncate text-xs font-semibold text-rt-text sm:text-sm dark:text-white">{{ $previewModule['title'] }}</p>
-                                <p class="mt-0.5 hidden truncate text-[11px] text-rt-soft sm:block dark:text-rt-dark-soft">{{ $previewModule['badge'] }}</p>
-                            </div>
-                        </a>
-                    @endforeach
+                        />
+                    @endif
+
+                    @if ($shiftsPreview)
+                        <x-ui.dashboard.focus-card
+                            class="rt-admin-operations-card md:col-span-2 xl:col-span-3"
+                            :href="route('admin.operations.preview', ['module' => 'shift-management'])"
+                            icon="clock"
+                            tone="success"
+                            :metric="$shiftsPreview['metric']"
+                            :metric-label="$shiftsPreview['metric_label']"
+                            :title="$shiftsPreview['title']"
+                            :description="$shiftsPreview['description']"
+                            :badge="$shiftsPreview['badge']"
+                            :action-label="__('app.open')"
+                            preview
+                            data-rt-glow
+                        />
+                    @endif
                 </div>
+
+                @if ($secondaryPreviews->isNotEmpty())
+                    <nav class="relative z-10 flex flex-wrap gap-2 border-t border-slate-200/80 px-4 py-3 dark:border-slate-700/80" aria-label="{{ __('app.preview_modules') }}">
+                        @foreach ($secondaryPreviews as $previewModule)
+                            <a
+                                href="{{ route('admin.operations.preview', ['module' => $previewModule['slug']]) }}"
+                                wire:navigate
+                                class="inline-flex min-h-10 flex-1 items-center justify-between gap-3 rounded-xl bg-white/75 px-3 py-2 text-xs font-semibold text-rt-muted ring-1 ring-inset ring-slate-200 transition hover:bg-white hover:text-rt-red focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red sm:flex-none dark:bg-slate-900/70 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-900 dark:hover:text-rt-red-light"
+                            >
+                                <span class="inline-flex items-center gap-2">
+                                    <i data-feather="{{ $previewModule['icon'] }}" class="h-3.5 w-3.5" aria-hidden="true"></i>
+                                    {{ $previewModule['title'] }}
+                                </span>
+                                <span class="tabular-nums">{{ $previewModule['metric'] }}</span>
+                            </a>
+                        @endforeach
+                    </nav>
+                @endif
             </section>
         @endif
 
-        {{-- Vier gleichwertige Kennzahlen in einer durchgehenden Zeile. --}}
-        <section class="order-2 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4" aria-label="{{ __('app.dashboard') }}" data-dashboard-segment="kpis" data-dashboard-kpis data-dashboard-items>
+        {{-- Sekundaere Konten- und Kommunikationssignale nach der Einsatzsteuerung. --}}
+        <section class="order-3 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4" aria-label="{{ __('app.dashboard') }}" data-dashboard-segment="kpis" data-dashboard-kpis data-dashboard-items>
             <article class="rt-admin-panel rt-admin-panel-accent group relative min-w-0 overflow-hidden rounded-[1.15rem] p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md sm:p-3.5">
                 <div class="flex items-center justify-between gap-1.5">
                     <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-rt-red dark:border-slate-700 dark:bg-slate-800"><i data-feather="users" class="h-3.5 w-3.5"></i></span>
@@ -202,21 +247,21 @@
             </article>
 
             <article class="rt-admin-panel min-w-0 rounded-[1.15rem] p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md sm:p-3.5">
-                <span class="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"><i data-feather="user-check" class="h-3.5 w-3.5"></i></span>
-                <p class="mt-2.5 text-pretty text-[10px] leading-4 text-rt-muted dark:text-rt-dark-muted sm:text-xs">{{ __('app.active_users') }}</p>
-                <p class="mt-1 text-xl font-semibold tabular-nums text-rt-text dark:text-white sm:text-2xl" data-dashboard-count="{{ $activeUsers }}">{{ number_format($activeUsers, 0, ',', '.') }}</p>
+                <span class="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"><i data-feather="radio" class="h-3.5 w-3.5"></i></span>
+                <p class="mt-2.5 text-pretty text-[10px] leading-4 text-rt-muted dark:text-rt-dark-muted sm:text-xs">{{ __('app.online_now') }}</p>
+                <p class="mt-1 text-xl font-semibold tabular-nums text-rt-text dark:text-white sm:text-2xl" data-dashboard-count="{{ $operations['online'] }}">{{ number_format($operations['online'], 0, ',', '.') }}</p>
             </article>
 
             <article class="rt-admin-panel min-w-0 rounded-[1.15rem] p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md sm:p-3.5">
-                <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent"><i data-feather="briefcase" class="h-3.5 w-3.5"></i></span>
-                <p class="mt-2.5 text-pretty text-[10px] leading-4 text-rt-muted dark:text-rt-dark-muted sm:text-xs">{{ __('app.employees') }}</p>
-                <p class="mt-1 text-xl font-semibold tabular-nums text-rt-text dark:text-white sm:text-2xl" data-dashboard-count="{{ $totalEmployees }}">{{ number_format($totalEmployees, 0, ',', '.') }}</p>
+                <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"><i data-feather="user-plus" class="h-3.5 w-3.5"></i></span>
+                <p class="mt-2.5 text-pretty text-[10px] leading-4 text-rt-muted dark:text-rt-dark-muted sm:text-xs">{{ __('app.open_invitations') }}</p>
+                <p class="mt-1 text-xl font-semibold tabular-nums text-rt-text dark:text-white sm:text-2xl" data-dashboard-count="{{ $operations['openInvitations'] }}">{{ number_format($operations['openInvitations'], 0, ',', '.') }}</p>
             </article>
 
             <article class="rt-admin-panel min-w-0 rounded-[1.15rem] p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md sm:p-3.5">
-                <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-200"><i data-feather="layers" class="h-3.5 w-3.5"></i></span>
-                <p class="mt-2.5 text-pretty text-[10px] leading-4 text-rt-muted dark:text-rt-dark-muted sm:text-xs">{{ __('app.teams_rbac') }}</p>
-                <p class="mt-1 text-xl font-semibold tabular-nums text-rt-text dark:text-white sm:text-2xl" data-dashboard-count="{{ $totalTeams }}">{{ number_format($totalTeams, 0, ',', '.') }}</p>
+                <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent"><i data-feather="message-circle" class="h-3.5 w-3.5"></i></span>
+                <p class="mt-2.5 text-pretty text-[10px] leading-4 text-rt-muted dark:text-rt-dark-muted sm:text-xs">{{ __('app.unread_messages_total') }}</p>
+                <p class="mt-1 text-xl font-semibold tabular-nums text-rt-text dark:text-white sm:text-2xl" data-dashboard-count="{{ $operations['unreadTotal'] }}">{{ number_format($operations['unreadTotal'], 0, ',', '.') }}</p>
             </article>
         </section>
 
@@ -310,12 +355,10 @@
                 <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.admin_control_center') }}</p>
                 <h2 class="mt-1 text-lg font-semibold text-rt-text dark:text-white">{{ __('app.quick_access') }}</h2>
                 <div class="mt-3 grid grid-cols-2 gap-3 sm:gap-4" data-dashboard-items>
-                    @can('employees.view')
-                        <a href="{{ route('admin.employees') }}" wire:navigate class="rt-admin-quick-link group min-h-20 rounded-xl border border-slate-200 bg-slate-50 p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red hover:bg-rt-red hover:text-white hover:shadow-rt-glow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red dark:border-slate-700 dark:bg-slate-800 dark:text-white" data-rt-glow>
-                            <i data-feather="users" class="h-5 w-5 text-rt-red transition group-hover:text-white"></i>
-                            <span class="mt-2.5 block text-xs font-semibold leading-5">{{ __('app.manage_employees') }}</span>
-                        </a>
-                    @endcan
+                    <a href="{{ route('admin.operations.wagon-list') }}" wire:navigate class="rt-admin-quick-link group min-h-20 rounded-xl border border-slate-200 bg-slate-50 p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red hover:bg-rt-red hover:text-white hover:shadow-rt-glow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red dark:border-slate-700 dark:bg-slate-800 dark:text-white" data-rt-glow>
+                        <i data-feather="clipboard" class="h-5 w-5 text-rt-red transition group-hover:text-white"></i>
+                        <span class="mt-2.5 block text-xs font-semibold leading-5">{{ __('app.wagon_list') }}</span>
+                    </a>
                     @can('files.manage')
                         <a href="{{ route('admin.files') }}" wire:navigate class="rt-admin-quick-link group min-h-20 rounded-xl border border-slate-200 bg-slate-50 p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red hover:bg-rt-red hover:text-white hover:shadow-rt-glow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red dark:border-slate-700 dark:bg-slate-800 dark:text-white" data-rt-glow>
                             <i data-feather="folder" class="h-5 w-5 text-rt-red transition group-hover:text-white"></i>

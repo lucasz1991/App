@@ -380,6 +380,30 @@
         handlePointerDown(event) {
             if (this.markInstantAction(event)) return;
 
+            const target = event.target instanceof Element ? event.target : null;
+            const nativeFocusTarget = target?.closest?.(
+                'input, textarea, select, option, label, button, [role=combobox], [contenteditable=true]'
+            );
+
+            // Mobile Browser oeffnen die Bildschirmtastatur nur, wenn der
+            // native Fokuswechsel ungestoert aus dem vertrauenswuerdigen Tap
+            // hervorgeht. Ein Autosave-Request im capture-pointerdown kam
+            // bisher davor und konnte den Zielknoten waehrenddessen morphen.
+            // Fokus-/Blur-Handler speichern weiterhin sofort danach.
+            if (nativeFocusTarget) {
+                window.setTimeout(() => {
+                    if (!target?.isConnected) return;
+
+                    if (this.shouldFlushForTarget(target)) {
+                        this.flush().catch(() => {});
+                    } else {
+                        this.continueInteraction(event);
+                    }
+                }, 0);
+
+                return;
+            }
+
             if (this.shouldFlushForTarget(event.target)) {
                 this.flush().catch(() => {});
             } else {
@@ -388,6 +412,15 @@
         },
 
         handleFocusIn(event) {
+            const target = event.target instanceof Element ? event.target : null;
+            if (target?.matches?.('input, textarea, select, [contenteditable=true]')) {
+                // Der vorherige Feldwert wird vom focusout-Handler gesichert.
+                // Das neue Eingabefeld darf waehrend seines nativen
+                // Keyboard-Fokus dagegen keinen Request starten.
+                this.continueInteraction(event);
+                return;
+            }
+
             if (this.shouldFlushForTarget(event.target)) {
                 this.flush().catch(() => {});
             } else {
