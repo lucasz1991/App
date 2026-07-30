@@ -1493,13 +1493,17 @@ body[data-mode='dark'] .rt-welcome-feature-icon {
     .rt-welcome-content {
         min-height: 0;
         flex: 1 1 auto;
-        overflow-y: auto;
-        overscroll-behavior: contain;
+        overflow: hidden;
     }
 
     .rt-welcome-slide-viewport {
-        flex: 0 0 auto;
-        overflow: visible;
+        /* Legacy tailwind.min.css setzt .flex-1 mit !important. Der Schritt
+           behaelt deshalb bewusst den verbleibenden Platz und scrollt intern;
+           die Navigation bleibt sichtbar und kann den Inhalt nicht ueberlagern. */
+        min-height: 0;
+        flex: 1 1 0% !important;
+        overflow-y: auto;
+        overscroll-behavior: contain;
     }
 
     .rt-info-hero {

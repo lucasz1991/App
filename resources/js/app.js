@@ -36,6 +36,7 @@ import { incomingNotificationSound } from './realtime-notification-sound';
 import { sidebarScrollBehavior, sidebarScrollTarget } from './sidebar-scroll';
 import { railtimeTabs } from './tabs';
 import { initMobileFormFocusRecovery } from './mobile-form-focus';
+import { initKeyboardViewport } from './keyboard-viewport';
 import { welcomeIntro } from './welcome-intro';
 
 const loadAdminDashboardECharts = () => import('./admin-dashboard-echarts');
@@ -429,6 +430,7 @@ Alpine.data('railtimeTabs', railtimeTabs);
 Alpine.data('welcomeIntro', welcomeIntro);
 
 initMobileFormFocusRecovery();
+initKeyboardViewport();
 
 Alpine.data('chatRealtime', (config) => ({
     channel: null,
