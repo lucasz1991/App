@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="x-apple-disable-message-reformatting">
   <meta name="format-detection" content="telephone=no,address=no,email=no,date=no,url=no">
-  <title>{{FIRMENNAME}} · E-Mail-Vorlage</title>
+  <meta name="color-scheme" content="{{COLOR_SCHEME}}">
+  <meta name="supported-color-schemes" content="{{COLOR_SCHEME}}">
+  <title>{{FIRMENNAME}} · E-Mail-Vorlage · {{THEME_LABEL}}</title>
   <!--[if mso]><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->
   <style>
     html, body { margin: 0 !important; padding: 0 !important; width: 100% !important; }
@@ -20,87 +22,110 @@
       .rt-stack td + td { padding-top: 12px !important; }
       .rt-logo { width: 220px !important; }
       .rt-sign-name { font-size: 22px !important; line-height: 26px !important; }
+      .rt-sign-logo { border-left: 0 !important; padding: 22px 0 0 !important; text-align: left !important; }
+      .rt-sign-logo img { margin-left: 0 !important; }
     }
   </style>
 </head>
-<body style="margin:0;padding:0;background:#e7eaed;color:#111820;font-family:Arial,Helvetica,sans-serif;">
+<body data-rt-theme="{{THEME}}" bgcolor="{{PAGE_BG}}" style="margin:0;padding:0;background:{{PAGE_BG}};color:{{TEXT_PRIMARY}};font-family:Arial,Helvetica,sans-serif;">
   <div style="display:none;max-height:0;max-width:0;overflow:hidden;opacity:0;color:transparent;mso-hide:all;">Ihre Nachricht von {{FIRMENNAME}} · sicher, flexibel und deutschlandweit im Einsatz.</div>
-  <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" bgcolor="#e7eaed" style="width:100%;background:#e7eaed;">
+  <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" bgcolor="{{PAGE_BG}}" style="width:100%;background:{{PAGE_BG}};">
     <tr>
       <td align="left" style="padding:0;">
         <!--[if mso]><table role="presentation" width="100%"><tr><td><![endif]-->
-        <table class="rt-shell" role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;max-width:none;background:#f4f2ed;">
+        <table class="rt-shell" role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" bgcolor="{{SURFACE_BG}}" style="width:100%;max-width:none;background:{{SURFACE_BG}};">
           <tr>
-            <td class="rt-pad" bgcolor="#f4f2ed" style="padding:42px 46px 20px;background:#f4f2ed;">
+            <td class="rt-pad" bgcolor="{{SURFACE_BG}}" style="padding:42px 46px 20px;background:{{SURFACE_BG}};">
               <p style="margin:0 0 10px;color:#e4002b;font-family:Consolas,'Courier New',monospace;font-size:10px;line-height:16px;font-weight:bold;letter-spacing:1.4px;text-transform:uppercase;">RT / PERSÖNLICHE NACHRICHT</p>
-              <h1 class="rt-title" style="margin:0 0 25px;color:#111820;font-family:Arial,Helvetica,sans-serif;font-size:39px;line-height:43px;font-weight:400;letter-spacing:-1.5px;">Sicher abgestimmt.<br>Verlässlich im Einsatz.</h1>
-              <p style="margin:0 0 18px;color:#111820;font-size:16px;line-height:26px;">{{ANREDE}},</p>
-              <p style="margin:0 0 18px;color:#3f4852;font-size:16px;line-height:26px;">{{KURZE_EINLEITUNG}}</p>
-              <p style="margin:0 0 28px;color:#3f4852;font-size:16px;line-height:26px;white-space:pre-line;">{{NACHRICHT}}</p>
+              <h1 class="rt-title" style="margin:0 0 25px;color:{{TEXT_PRIMARY}};font-family:Arial,Helvetica,sans-serif;font-size:39px;line-height:43px;font-weight:400;letter-spacing:-1.5px;">Sicher abgestimmt.<br>Verlässlich im Einsatz.</h1>
+              <p style="margin:0 0 18px;color:{{TEXT_PRIMARY}};font-size:16px;line-height:26px;">{{ANREDE}},</p>
+              <p style="margin:0 0 18px;color:{{TEXT_SECONDARY}};font-size:16px;line-height:26px;">{{KURZE_EINLEITUNG}}</p>
+              <p style="margin:0 0 28px;color:{{TEXT_SECONDARY}};font-size:16px;line-height:26px;white-space:pre-line;">{{NACHRICHT}}</p>
             </td>
           </tr>
           <tr>
-            <td class="rt-pad" bgcolor="#f4f2ed" style="padding:0 46px 30px;background:#f4f2ed;">
-              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-top:3px solid #e4002b;background:#ffffff;">
+            <td class="rt-pad" bgcolor="{{SURFACE_BG}}" style="padding:0 46px 30px;background:{{SURFACE_BG}};">
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" bgcolor="{{CARD_BG}}" style="width:100%;border-top:3px solid #e4002b;background:{{CARD_BG}};">
                 <tr>
                   <td colspan="2" style="padding:17px 20px 10px;color:#e4002b;font-family:Consolas,'Courier New',monospace;font-size:9px;line-height:14px;font-weight:bold;letter-spacing:1.3px;text-transform:uppercase;">EINSATZDATEN / OPTIONAL</td>
                 </tr>
                 <tr class="rt-stack">
-                  <td width="50%" valign="top" style="width:50%;padding:10px 20px 17px;border-right:1px solid #dfe3e6;border-bottom:1px solid #dfe3e6;">
-                    <span style="display:block;margin-bottom:4px;color:#89939e;font-family:Consolas,'Courier New',monospace;font-size:9px;line-height:13px;text-transform:uppercase;">Einsatzort</span>
-                    <strong style="color:#111820;font-size:14px;line-height:20px;">{{EINSATZORT}}</strong>
+                  <td width="50%" valign="top" style="width:50%;padding:10px 20px 17px;border-right:1px solid {{BORDER}};border-bottom:1px solid {{BORDER}};">
+                    <span style="display:block;margin-bottom:4px;color:{{TEXT_MUTED}};font-family:Consolas,'Courier New',monospace;font-size:9px;line-height:13px;text-transform:uppercase;">Einsatzort</span>
+                    <strong style="color:{{TEXT_PRIMARY}};font-size:14px;line-height:20px;">{{EINSATZORT}}</strong>
                   </td>
-                  <td width="50%" valign="top" style="width:50%;padding:10px 20px 17px;border-bottom:1px solid #dfe3e6;">
-                    <span style="display:block;margin-bottom:4px;color:#89939e;font-family:Consolas,'Courier New',monospace;font-size:9px;line-height:13px;text-transform:uppercase;">Zeitraum</span>
-                    <strong style="color:#111820;font-size:14px;line-height:20px;">{{ZEITRAUM}}</strong>
+                  <td width="50%" valign="top" style="width:50%;padding:10px 20px 17px;border-bottom:1px solid {{BORDER}};">
+                    <span style="display:block;margin-bottom:4px;color:{{TEXT_MUTED}};font-family:Consolas,'Courier New',monospace;font-size:9px;line-height:13px;text-transform:uppercase;">Zeitraum</span>
+                    <strong style="color:{{TEXT_PRIMARY}};font-size:14px;line-height:20px;">{{ZEITRAUM}}</strong>
                   </td>
                 </tr>
                 <tr class="rt-stack">
-                  <td width="50%" valign="top" style="width:50%;padding:16px 20px 18px;border-right:1px solid #dfe3e6;">
-                    <span style="display:block;margin-bottom:4px;color:#89939e;font-family:Consolas,'Courier New',monospace;font-size:9px;line-height:13px;text-transform:uppercase;">Leistung</span>
-                    <strong style="color:#111820;font-size:14px;line-height:20px;">{{LEISTUNG}}</strong>
+                  <td width="50%" valign="top" style="width:50%;padding:16px 20px 18px;border-right:1px solid {{BORDER}};">
+                    <span style="display:block;margin-bottom:4px;color:{{TEXT_MUTED}};font-family:Consolas,'Courier New',monospace;font-size:9px;line-height:13px;text-transform:uppercase;">Leistung</span>
+                    <strong style="color:{{TEXT_PRIMARY}};font-size:14px;line-height:20px;">{{LEISTUNG}}</strong>
                   </td>
                   <td width="50%" valign="top" style="width:50%;padding:16px 20px 18px;">
-                    <span style="display:block;margin-bottom:4px;color:#89939e;font-family:Consolas,'Courier New',monospace;font-size:9px;line-height:13px;text-transform:uppercase;">Ansprechpartner</span>
-                    <strong style="color:#111820;font-size:14px;line-height:20px;">{{ANSPRECHPARTNER}}</strong>
+                    <span style="display:block;margin-bottom:4px;color:{{TEXT_MUTED}};font-family:Consolas,'Courier New',monospace;font-size:9px;line-height:13px;text-transform:uppercase;">Ansprechpartner</span>
+                    <strong style="color:{{TEXT_PRIMARY}};font-size:14px;line-height:20px;">{{ANSPRECHPARTNER}}</strong>
                   </td>
                 </tr>
               </table>
             </td>
           </tr>
           <tr>
-            <td class="rt-pad" bgcolor="#f4f2ed" style="padding:0 46px 42px;background:#f4f2ed;">
+            <td class="rt-pad" bgcolor="{{SURFACE_BG}}" style="padding:0 46px 42px;background:{{SURFACE_BG}};">
               <table role="presentation" border="0" cellspacing="0" cellpadding="0">
                 <tr>
                   <td bgcolor="#e4002b" style="background:#e4002b;"><a href="{{CTA_URL}}" style="display:inline-block;padding:15px 22px;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:18px;font-weight:bold;text-decoration:none;text-transform:uppercase;">{{CTA_TEXT}} &nbsp;&rarr;</a></td>
                 </tr>
               </table>
-              <p style="margin:30px 0 5px;color:#3f4852;font-size:16px;line-height:25px;">Freundliche Grüße</p>
-              <p style="margin:0;color:#111820;font-size:16px;line-height:25px;font-weight:bold;">{{VORNAME_NACHNAME}}</p>
+              <p style="margin:30px 0 5px;color:{{TEXT_SECONDARY}};font-size:16px;line-height:25px;">Freundliche Grüße</p>
+              <p style="margin:0;color:{{TEXT_PRIMARY}};font-size:16px;line-height:25px;font-weight:bold;">{{VORNAME_NACHNAME}}</p>
             </td>
           </tr>
           <tr>
             <td class="rt-pad" bgcolor="#080b10" style="padding:28px 38px;background:#080b10;border-top:5px solid #e4002b;">
               <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
-                <tr>
-                  <td colspan="2" style="padding-bottom:22px;"><img class="rt-logo" src="{{LOGO_SRC}}" width="240" alt="{{FIRMENNAME}}" style="width:240px;max-width:100%;height:auto;"></td>
-                </tr>
                 <tr class="rt-stack">
-                  <td valign="top" style="padding-right:24px;">
+                  <td width="63%" valign="top" style="width:63%;padding-right:28px;">
                     <p class="rt-sign-name" style="margin:0 0 4px;color:#ffffff;font-size:25px;line-height:29px;font-weight:bold;letter-spacing:-.5px;">{{VORNAME_NACHNAME}}</p>
-                    <p style="margin:0;color:#ff5570;font-family:Consolas,'Courier New',monospace;font-size:10px;line-height:16px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;">{{POSITION}}</p>
+                    <p style="margin:0;color:#ff5570;font-family:Consolas,'Courier New',monospace;font-size:10px;line-height:16px;font-weight:bold;letter-spacing:1.2px;text-transform:uppercase;">{{POSITION}}</p>
+
+                    <table role="presentation" border="0" cellspacing="0" cellpadding="0" style="margin-top:17px;border-collapse:collapse;">
+                      <!-- RT_PHONE_START -->
+                      <tr>
+                        <td width="30" valign="middle" style="width:30px;padding:0 8px 8px 0;"><img src="{{ICON_PHONE_SRC}}" width="22" height="22" alt="" style="display:block;width:22px;height:22px;"></td>
+                        <td valign="middle" style="padding:0 0 8px;color:#b9c1ca;font-size:12px;line-height:18px;"><a href="tel:{{DURCHWAHL_TEL}}" style="color:#ffffff;text-decoration:none;">{{DURCHWAHL}}</a></td>
+                      </tr>
+                      <!-- RT_PHONE_END -->
+                      <!-- RT_MOBILE_START -->
+                      <tr>
+                        <td width="30" valign="middle" style="width:30px;padding:0 8px 8px 0;"><img src="{{ICON_MOBILE_SRC}}" width="22" height="22" alt="" style="display:block;width:22px;height:22px;"></td>
+                        <td valign="middle" style="padding:0 0 8px;color:#b9c1ca;font-size:12px;line-height:18px;"><a href="tel:{{MOBIL_TEL}}" style="color:#ffffff;text-decoration:none;">{{MOBIL}}</a></td>
+                      </tr>
+                      <!-- RT_MOBILE_END -->
+                      <tr>
+                        <td width="30" valign="middle" style="width:30px;padding:0 8px 8px 0;"><img src="{{ICON_EMAIL_SRC}}" width="22" height="22" alt="" style="display:block;width:22px;height:22px;"></td>
+                        <td valign="middle" style="padding:0 0 8px;color:#b9c1ca;font-size:12px;line-height:18px;"><a href="mailto:{{E_MAIL}}" style="color:#ffffff;text-decoration:none;">{{E_MAIL}}</a></td>
+                      </tr>
+                      <!-- RT_WEBSITE_START -->
+                      <tr>
+                        <td width="30" valign="middle" style="width:30px;padding:0 8px 0 0;"><img src="{{ICON_WEB_SRC}}" width="22" height="22" alt="" style="display:block;width:22px;height:22px;"></td>
+                        <td valign="middle" style="padding:0;color:#b9c1ca;font-size:12px;line-height:18px;"><a href="{{FIRMEN_WEBSITE_HREF}}" style="color:#ffffff;text-decoration:none;">{{FIRMEN_WEBSITE_LABEL}}</a></td>
+                      </tr>
+                      <!-- RT_WEBSITE_END -->
+                    </table>
                   </td>
-                  <td valign="top" style="padding-left:24px;border-left:1px solid #313944;color:#b9c1ca;font-size:12px;line-height:20px;">
-                    T&nbsp; <a href="tel:{{DURCHWAHL_TEL}}" style="color:#ffffff;text-decoration:none;">{{DURCHWAHL}}</a><br>
-                    M&nbsp; <a href="tel:{{MOBIL_TEL}}" style="color:#ffffff;text-decoration:none;">{{MOBIL}}</a><br>
-                    E&nbsp; <a href="mailto:{{E_MAIL}}" style="color:#ffffff;text-decoration:none;">{{E_MAIL}}</a>
+                  <td class="rt-sign-logo" width="37%" valign="top" align="right" style="width:37%;padding-left:28px;border-left:1px solid #313944;text-align:right;">
+                    <img class="rt-logo" src="{{LOGO_SRC}}" width="240" alt="{{FIRMENNAME}}" style="display:block;width:240px;max-width:100%;height:auto;margin-left:auto;">
+                    <p style="margin:16px 0 0;color:#77818d;font-family:Consolas,'Courier New',monospace;font-size:9px;line-height:15px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;">Sicher · flexibel · deutschlandweit</p>
                   </td>
                 </tr>
               </table>
               <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-top:24px;border-top:1px solid #252c35;">
                 <tr>
                   <td style="padding-top:16px;color:#8e98a5;font-size:11px;line-height:18px;">{{FIRMENNAME}} · {{FIRMENSTRASSE}} · {{FIRMEN_PLZ_ORT}}</td>
-                  <td align="right" style="padding-top:16px;color:#ff5570;font-family:Consolas,'Courier New',monospace;font-size:9px;line-height:16px;font-weight:bold;letter-spacing:1px;">24/7 · {{NOTFALLNUMMER}}</td>
+                  <td align="right" style="padding-top:16px;color:#ff5570;font-family:Consolas,'Courier New',monospace;font-size:9px;line-height:16px;font-weight:bold;letter-spacing:1px;">24/7 · {{NOTFALLNUMMER}}<br><a href="mailto:{{FIRMEN_EMAIL}}" style="color:#8e98a5;text-decoration:none;">{{FIRMEN_EMAIL}}</a></td>
                 </tr>
               </table>
             </td>

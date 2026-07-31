@@ -62,10 +62,10 @@
         x-transition:leave="transition duration-200 ease-in"
         x-transition:leave-start="translate-y-0 scale-100 opacity-100"
         x-transition:leave-end="translate-y-2 scale-[0.99] opacity-0"
-        class="rt-info-dialog w-full max-w-2xl overflow-hidden rounded-[1.75rem] bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/70"
+        class="rt-info-dialog flex max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-[1.75rem] bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/70 sm:max-h-[calc(100dvh-3rem)]"
         data-rt-info-dialog
     >
-        <header class="rt-info-hero relative overflow-hidden px-5 pb-6 pt-5 sm:px-7 sm:pb-7 sm:pt-6">
+        <header class="rt-info-hero relative shrink-0 overflow-hidden px-5 pb-6 pt-5 sm:px-7 sm:pb-7 sm:pt-6">
             <div class="rt-info-orbit rt-info-orbit--one" aria-hidden="true"></div>
             <div class="rt-info-orbit rt-info-orbit--two" aria-hidden="true"></div>
 
@@ -99,7 +99,7 @@
             </div>
         </header>
 
-        <div class="rt-info-body px-5 py-5 sm:px-7 sm:py-6">
+        <div class="rt-info-body min-h-0 overflow-y-auto overscroll-contain px-5 py-5 sm:px-7 sm:py-6">
             <p class="rt-info-summary max-w-xl text-pretty text-sm leading-6 text-rt-muted dark:text-rt-dark-muted" x-text="summary" x-show.important="summary"></p>
 
             <ul class="rt-info-points mt-5 grid gap-2.5 sm:grid-cols-2" x-show.important="points.length">

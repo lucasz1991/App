@@ -21,13 +21,20 @@ class ProfileEmailTemplateController extends Controller
 
         return response($file['content'], 200, [
             'Content-Type' => $file['mime'],
-            'Content-Disposition' => 'attachment; filename="' . $file['filename'] . '"',
+            'Content-Disposition' => 'attachment; filename="'.$file['filename'].'"',
         ]);
     }
 
     public function preview(Request $request, string $template): Response
     {
-        abort_unless($template === 'vorlage-html', 404);
+        $definition = EmailTemplateBuilder::available()[$template] ?? null;
+
+        abort_unless(
+            ($definition['category'] ?? null) === 'mail'
+                && ($definition['format'] ?? null) === 'html'
+                && ($definition['previewable'] ?? false),
+            404
+        );
 
         $file = (new EmailTemplateBuilder($request->user()))->build($template);
 
