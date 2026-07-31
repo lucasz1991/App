@@ -50,4 +50,12 @@ return [
     'support_context_description' => 'Account, team and source page help classify the request without making you enter those details again.',
     'support_sender_label' => 'Reply address',
     'support_sender_description' => 'Support can reply directly to this address.',
+    'validation_category_required' => 'Please choose a request type.',
+    'validation_category_invalid' => 'The selected request type is invalid.',
+    'validation_subject_required' => 'Please enter a subject.',
+    'validation_subject_min' => 'The subject must contain at least 5 characters.',
+    'validation_subject_max' => 'The subject may contain no more than 160 characters.',
+    'validation_message_required' => 'Please describe your request.',
+    'validation_message_min' => 'The message must contain at least 20 characters.',
+    'validation_message_max' => 'The message may contain no more than 5,000 characters.',
 ];

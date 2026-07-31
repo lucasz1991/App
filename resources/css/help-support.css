@@ -1390,6 +1390,10 @@
     .rt-help-app,
     .rt-support-app { gap: 0.9rem; }
 
+    .rt-support-app :is(input, select, textarea) {
+        font-size: 1rem;
+    }
+
     .rt-help-hero,
     .rt-support-hero { border-radius: 1.25rem; }
 

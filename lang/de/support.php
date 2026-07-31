@@ -50,4 +50,12 @@ return [
     'support_context_description' => 'Konto, Team und Ausgangsseite helfen bei der Einordnung, ohne dass Sie diese Daten erneut eingeben müssen.',
     'support_sender_label' => 'Antwortadresse',
     'support_sender_description' => 'An diese Adresse kann der Support direkt antworten.',
+    'validation_category_required' => 'Bitte wählen Sie eine Art der Anfrage aus.',
+    'validation_category_invalid' => 'Die gewählte Art der Anfrage ist ungültig.',
+    'validation_subject_required' => 'Bitte geben Sie einen Betreff ein.',
+    'validation_subject_min' => 'Der Betreff muss mindestens 5 Zeichen enthalten.',
+    'validation_subject_max' => 'Der Betreff darf höchstens 160 Zeichen enthalten.',
+    'validation_message_required' => 'Bitte beschreiben Sie Ihr Anliegen.',
+    'validation_message_min' => 'Die Nachricht muss mindestens 20 Zeichen enthalten.',
+    'validation_message_max' => 'Die Nachricht darf höchstens 5.000 Zeichen enthalten.',
 ];

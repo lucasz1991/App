@@ -41,19 +41,21 @@
                 </div>
                 <span
                     class="inline-flex min-w-7 items-center justify-center rounded-full bg-rt-surface px-2 py-1 text-xs font-semibold tabular-nums text-rt-text ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/70"
-                    aria-label="{{ $teams->count() }} {{ __('app.team') }}"
+                    aria-label="{{ __('app.team') }}: {{ $teams->count() }}"
                 >
                     {{ $teams->count() }}
                 </span>
             </div>
 
             <div
-                class="scroll-container grid max-h-60 gap-1.5 overflow-y-auto p-2 sm:grid-cols-2 sm:p-3 lg:max-h-[36rem] lg:grid-cols-1"
+                class="scroll-container grid max-h-60 grid-cols-1 gap-1.5 overflow-y-auto p-2 sm:p-3 lg:max-h-[36rem]"
                 role="group"
                 aria-label="{{ __('app.team') }}"
             >
                 @forelse($teams as $team)
-                    @php($isSelectedTeam = (int) $selectedTeamId === (int) $team->id)
+                    @php
+                        $isSelectedTeam = (int) $selectedTeamId === (int) $team->id;
+                    @endphp
                     <button
                         type="button"
                         wire:key="team-rbac-team-{{ $team->id }}"
@@ -77,7 +79,7 @@
                         @endif
                     </button>
                 @empty
-                    <div class="flex min-h-32 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-rt-border/80 px-4 py-6 text-center dark:border-rt-dark-border/80 sm:col-span-2 lg:col-span-1">
+                    <div class="flex min-h-32 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-rt-border/80 px-4 py-6 text-center dark:border-rt-dark-border/80">
                         <span class="flex h-10 w-10 items-center justify-center rounded-full bg-rt-surface text-rt-muted ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-muted dark:ring-rt-dark-border/60">
                             <i class="far fa-users-slash" aria-hidden="true"></i>
                         </span>
@@ -156,7 +158,7 @@
                                     </div>
                                     <span
                                         class="inline-flex min-w-6 items-center justify-center rounded-full bg-rt-surface px-1.5 py-0.5 text-[0.7rem] font-semibold tabular-nums text-rt-muted ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-muted dark:ring-rt-dark-border/60"
-                                        aria-label="{{ count($permissions) }} {{ __('app.permissions') }}"
+                                        aria-label="{{ __('app.permissions') }}: {{ count($permissions) }}"
                                     >
                                         {{ count($permissions) }}
                                     </span>
@@ -196,7 +198,7 @@
         </section>
     </div>
 
-    @if($embedded)
+    @if($embedded && $selectedTeamId && $selectedTeam)
         <div class="flex flex-col gap-3 border-t border-rt-border/60 bg-rt-surface-muted/35 px-4 py-3 dark:border-rt-dark-border/60 dark:bg-rt-dark-surface-muted/30 sm:flex-row sm:items-center sm:justify-between sm:px-5">
             <div class="flex min-w-0 items-center gap-2 text-sm text-rt-muted dark:text-rt-dark-muted">
                 <i class="far fa-shield-check shrink-0 text-rt-accent dark:text-rt-dark-accent" aria-hidden="true"></i>

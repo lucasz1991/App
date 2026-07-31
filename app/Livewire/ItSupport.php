@@ -41,7 +41,7 @@ class ItSupport extends Component
             'message' => ['required', 'string', 'min:20', 'max:5000'],
         ]);
 
-        $rateLimitKey = 'it-support:' . auth()->id();
+        $rateLimitKey = 'it-support:'.auth()->id();
 
         if (RateLimiter::tooManyAttempts($rateLimitKey, 3)) {
             $seconds = RateLimiter::availableIn($rateLimitKey);
@@ -75,7 +75,7 @@ class ItSupport extends Component
             'type' => 'mail',
             'status' => false,
             'content' => [
-                'subject' => '[IT-Support] ' . trim($validated['subject']),
+                'subject' => '[IT-Support] '.trim($validated['subject']),
                 'header' => __('app.it_support_mail_heading'),
                 'body' => trim($validated['message']),
                 'lines' => array_merge([
@@ -123,6 +123,23 @@ class ItSupport extends Component
             'technical_issue' => __('app.it_support_category_technical_issue'),
             'feedback' => __('app.it_support_category_feedback'),
             'feature_request' => __('app.it_support_category_feature_request'),
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function messages(): array
+    {
+        return [
+            'category.required' => __('support.validation_category_required'),
+            'category.in' => __('support.validation_category_invalid'),
+            'subject.required' => __('support.validation_subject_required'),
+            'subject.min' => __('support.validation_subject_min'),
+            'subject.max' => __('support.validation_subject_max'),
+            'message.required' => __('support.validation_message_required'),
+            'message.min' => __('support.validation_message_min'),
+            'message.max' => __('support.validation_message_max'),
         ];
     }
 

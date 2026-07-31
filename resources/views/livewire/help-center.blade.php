@@ -89,7 +89,7 @@
                         data-help-install-action
                     >
                         <i class="far" x-bind:class="mode === 'installed' ? 'fa-check' : (busy ? 'fa-circle-notch fa-spin' : 'fa-arrow-to-bottom')" aria-hidden="true"></i>
-                        <span>{{ __('app.push_install_app') }}</span>
+                        <span x-text="mode === 'installed' ? @js(__('app.help_installed')) : @js(__('app.push_install_app'))"></span>
                     </button>
                     <p class="rt-help-install-control__notice" x-show.important="notice" x-text="notice" aria-live="polite"></p>
                     <p class="rt-help-install-control__error" x-show.important="error" x-text="error" aria-live="assertive"></p>

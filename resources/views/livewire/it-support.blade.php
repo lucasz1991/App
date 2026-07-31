@@ -2,10 +2,10 @@
 
 @php
     $categoryMeta = [
-        'question' => ['icon' => 'fa-comment-alt-question', 'description' => __('support.support_category_question_description')],
+        'question' => ['icon' => 'fa-question-circle', 'description' => __('support.support_category_question_description')],
         'technical_issue' => ['icon' => 'fa-tools', 'description' => __('support.support_category_technical_issue_description')],
-        'feedback' => ['icon' => 'fa-waveform-path', 'description' => __('support.support_category_feedback_description')],
-        'feature_request' => ['icon' => 'fa-lightbulb-on', 'description' => __('support.support_category_feature_request_description')],
+        'feedback' => ['icon' => 'fa-comment-alt', 'description' => __('support.support_category_feedback_description')],
+        'feature_request' => ['icon' => 'fa-lightbulb', 'description' => __('support.support_category_feature_request_description')],
     ];
 @endphp
 
@@ -118,7 +118,7 @@
                         wire:model="message"
                         x-on:input="characterCount = $event.target.value.length"
                         placeholder="{{ __('app.it_support_message_placeholder') }}"
-                        class="min-h-56 py-3"
+                        class="min-h-56 py-3 !text-base"
                     />
                     <p class="rt-support-field__hint">{{ __('support.support_message_hint') }}</p>
                     <x-ui.forms.input-error for="message" class="mt-1.5" />

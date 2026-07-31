@@ -23,7 +23,7 @@ class RbacCatalog
             'System' => [
                 ['key' => 'settings.manage', 'label' => 'Einstellungen verwalten'],
             ],
-            'Employees' => [
+            'Mitarbeiter' => [
                 ['key' => 'employees.view', 'label' => 'Mitarbeiter anzeigen'],
                 ['key' => 'employees.create', 'label' => 'Mitarbeiter erstellen & bearbeiten'],
                 ['key' => 'employees.master-data.view', 'label' => 'Mitarbeiter-Stammdaten anzeigen'],
