@@ -8,6 +8,7 @@
 // ---------------------------------------------------------------
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { setupHelpSupportMotion } from './help-support-motion';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -327,13 +328,14 @@ function createRevealTween(elements, fromVars, trigger, options = {}) {
 }
 
 function setupReveals(root) {
+    const helpSupportExperience = root.querySelector('[data-support-experience]');
     const dashboardSegments = Array.from(root.querySelectorAll('[data-admin-dashboard] [data-dashboard-segment]'));
     const singleTargets = Array.from(root.querySelectorAll('[data-anim]'))
         .filter((element) => !element.closest('[data-dashboard-segment]'));
     const staggerContainers = Array.from(root.querySelectorAll('[data-anim-stagger]'))
         .filter((element) => !element.closest('[data-dashboard-segment]'));
 
-    if (!singleTargets.length && !staggerContainers.length && !dashboardSegments.length) {
+    if (!singleTargets.length && !staggerContainers.length && !dashboardSegments.length && !helpSupportExperience) {
         ScrollTrigger.refresh();
         return;
     }
@@ -351,8 +353,14 @@ function setupReveals(root) {
 
             if (conditions.reduceMotion) {
                 showImmediately(allTargets);
+                setupHelpSupportMotion(root, { gsap, reduceMotion: true });
                 return;
             }
+
+            const cleanupHelpSupportMotion = setupHelpSupportMotion(root, {
+                gsap,
+                reduceMotion: false,
+            });
 
             singleTargets.forEach((element) => {
                 const preset = REVEAL_PRESETS[element.dataset.anim] || REVEAL_PRESETS['fade-up'];
@@ -374,6 +382,7 @@ function setupReveals(root) {
             scheduleDashboardVisibilitySafety(root);
 
             return () => {
+                cleanupHelpSupportMotion?.();
                 allTargets.forEach((element) => delete element.dataset.animPending);
             };
         },

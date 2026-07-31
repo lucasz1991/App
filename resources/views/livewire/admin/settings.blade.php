@@ -188,11 +188,11 @@
     </div>
     </x-ui.accordion.tab-panel>
 
-    {{-- Einladungen --}}
+    {{-- Benutzer: Einladungen und Team-Rechte bleiben funktional getrennt. --}}
     <x-ui.accordion.tab-panel for="users" :order="2" content-class="">
     <div
         x-data="{
-            openAccordionSection: 'employees',
+            openAccordionSection: 'invitations',
             toggleAccordionSection(section) {
                 this.openAccordionSection = this.openAccordionSection === section ? null : section;
             },
@@ -202,12 +202,13 @@
         wire:ignore.self
     >
     <x-ui.accordion.section
-        section="employees"
-        :label="__('app.employees')"
-        :description="__('app.teams_permissions_hint')"
-        icon="fad fa-user-shield"
+        section="invitations"
+        :label="__('app.invitations')"
+        :description="__('app.invitation_expiry_hint')"
+        icon="fad fa-user-plus"
         id-prefix="admin-users"
         data-anim="fade-up"
+        data-admin-users-section="invitations"
     >
     <section
         class="relative min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 sm:p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60"
@@ -220,18 +221,7 @@
             dirty-target="invitationExpiryDays"
         />
         <div class="rounded-[calc(1rem-2px)] bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6" data-rt-glow>
-        <div class="flex min-w-0 items-start gap-3 sm:gap-4">
-            <span class="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft/70 text-rt-accent dark:bg-rt-dark-accent-soft/60 dark:text-rt-dark-accent sm:flex">
-                <i class="fad fa-user-plus fa-lg" aria-hidden="true"></i>
-            </span>
-            <div class="min-w-0 flex-1">
-                <h2 class="text-base font-semibold tracking-tight text-rt-text dark:text-rt-dark-text sm:text-lg">
-                    {{ __('app.invitations') }}
-                </h2>
-            </div>
-        </div>
-
-        <div class="mt-4 w-full sm:max-w-sm">
+        <div class="w-full sm:max-w-sm">
             <label for="invitation_expiry_days" class="block text-sm font-medium text-rt-text dark:text-rt-dark-text">
                 {{ __('app.invitation_expiry_days') }}
             </label>
@@ -257,13 +247,25 @@
         </div>
         </div>
     </section>
-    @can('roles.manage')
-        <livewire:admin.employees.team-rbac-modal
-            :embedded="true"
-            :key="'settings-team-rbac-manager'"
-        />
-    @endcan
     </x-ui.accordion.section>
+
+    @can('roles.manage')
+        <x-ui.accordion.section
+            section="permissions"
+            :label="__('app.teams_permissions')"
+            :description="__('app.teams_permissions_hint')"
+            icon="fad fa-user-shield"
+            id-prefix="admin-users"
+            data-anim="fade-up"
+            data-anim-delay="0.04"
+            data-admin-users-section="permissions"
+        >
+            <livewire:admin.employees.team-rbac-modal
+                :embedded="true"
+                :key="'settings-team-rbac-manager'"
+            />
+        </x-ui.accordion.section>
+    @endcan
     </div>
     </x-ui.accordion.tab-panel>
 

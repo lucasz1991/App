@@ -40,6 +40,7 @@ import { initKeyboardViewport } from './keyboard-viewport';
 import { welcomeIntro } from './welcome-intro';
 
 const loadAdminDashboardECharts = () => import('./admin-dashboard-echarts');
+const loadAdminDashboardMotion = () => import('./admin-dashboard-motion');
 const rtSeenNotifications = createNotificationSeenCache(window);
 const rtNotificationContext = createNotificationPresentationContext(window);
 let rtForegroundPushHandler = null;
@@ -1398,16 +1399,19 @@ Alpine.data('adminDashboardCharts', (config = {}) => ({
     kpiMotion: null,
     kpiObserver: null,
     counterTween: null,
-    progressTween: null,
+    progressTweens: [],
     themeObserver: null,
     resizeObserver: null,
     renderTimer: null,
     renderRequest: null,
     chartsRendered: false,
+    motion: null,
+    motionRequest: null,
 
     init() {
         this.$nextTick(() => {
             this.observeKpis();
+            this.setupMotion();
             window.requestAnimationFrame(() => this.renderCharts(true));
         });
 
@@ -1423,14 +1427,33 @@ Alpine.data('adminDashboardCharts', (config = {}) => ({
 
     destroy() {
         this.renderRequest = null;
+        this.motionRequest = null;
         window.clearTimeout(this.renderTimer);
         this.themeObserver?.disconnect();
         this.kpiObserver?.disconnect();
         this.resizeObserver?.disconnect();
         this.counterTween?.kill();
-        this.progressTween?.kill();
+        this.progressTweens.forEach((tween) => tween.kill());
+        this.progressTweens = [];
         this.kpiMotion?.revert();
+        this.motion?.destroy();
+        this.motion = null;
         this.destroyCharts();
+    },
+
+    // DrawSVG-, MotionPath- und Zaehleranimationen liegen in einem eigenen
+    // Lazy-Chunk. Er wird nur auf dieser Seite geladen und beim Verlassen
+    // (Livewire-Navigation) wieder vollstaendig zurueckgenommen.
+    async setupMotion() {
+        const request = Symbol('admin-dashboard-motion');
+        this.motionRequest = request;
+
+        const { createAdminDashboardMotion } = await loadAdminDashboardMotion();
+
+        if (this.motionRequest !== request || !this.$root.isConnected) return;
+
+        this.motion?.destroy();
+        this.motion = createAdminDashboardMotion(this.$root);
     },
 
     observeKpis() {
@@ -1472,26 +1495,30 @@ Alpine.data('adminDashboardCharts', (config = {}) => ({
                 rendered: null,
             }))
             .filter((counter) => Number.isFinite(counter.target));
-        const progress = kpiGrid.querySelector('[data-dashboard-progress]');
-        const progressTarget = Math.min(100, Math.max(0, Number(progress?.dataset.dashboardProgress || 0))) / 100;
+        const meters = Array.from(kpiGrid.querySelectorAll('[data-dashboard-progress]'))
+            .map((element) => ({
+                element,
+                ratio: Math.min(100, Math.max(0, Number(element.dataset.dashboardProgress || 0))) / 100,
+            }));
 
         const renderFinalState = () => {
             counters.forEach((counter) => {
                 counter.element.textContent = formatter.format(counter.target);
             });
 
-            if (progress) {
+            meters.forEach(({ element, ratio }) => {
                 if (window.gsap) {
-                    window.gsap.set(progress, { scaleX: progressTarget, transformOrigin: 'left center' });
+                    window.gsap.set(element, { scaleX: ratio, transformOrigin: 'left center' });
                 } else {
-                    progress.style.transform = `scaleX(${progressTarget})`;
-                    progress.style.transformOrigin = 'left center';
+                    element.style.transform = `scaleX(${ratio})`;
+                    element.style.transformOrigin = 'left center';
                 }
-            }
+            });
         };
 
         this.counterTween?.kill();
-        this.progressTween?.kill();
+        this.progressTweens.forEach((tween) => tween.kill());
+        this.progressTweens = [];
         this.kpiMotion?.revert();
 
         if (!window.gsap) {
@@ -1535,18 +1562,17 @@ Alpine.data('adminDashboardCharts', (config = {}) => ({
                     onComplete: renderFinalState,
                 });
 
-                if (progress) {
-                    this.progressTween = window.gsap.fromTo(
-                        progress,
-                        { scaleX: 0, transformOrigin: 'left center' },
-                        {
-                            scaleX: progressTarget,
-                            duration: 1.05,
-                            ease: 'power3.out',
-                            overwrite: 'auto',
-                        },
-                    );
-                }
+                this.progressTweens = meters.map(({ element, ratio }, index) => window.gsap.fromTo(
+                    element,
+                    { scaleX: 0, transformOrigin: 'left center' },
+                    {
+                        scaleX: ratio,
+                        duration: 1.05,
+                        delay: index * 0.08,
+                        ease: 'power3.out',
+                        overwrite: 'auto',
+                    },
+                ));
             },
             this.$root,
         );

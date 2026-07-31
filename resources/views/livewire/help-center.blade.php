@@ -1,316 +1,324 @@
 @section('title', __('app.help'))
 
-<x-ui.page
-    :title="__('app.help')"
-    :eyebrow="__('app.help_center_eyebrow')"
-    :description="__('app.help_center_description')"
->
-    <div class="space-y-5" data-help-center>
-        <section
-            class="relative overflow-hidden rounded-[1.4rem] bg-slate-950 px-4 py-5 text-white shadow-rt-md ring-1 ring-white/10 sm:px-6 sm:py-7"
-            data-help-hero
-        >
-            <div class="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-rt-red/20 blur-3xl" aria-hidden="true"></div>
-            <svg class="pointer-events-none absolute -bottom-16 right-0 h-64 w-[55%] opacity-35" viewBox="0 0 520 230" fill="none" aria-hidden="true">
-                <path d="M12 210C121 186 131 101 239 119C335 135 352 43 510 21" stroke="rgba(255,255,255,.16)" stroke-width="22" stroke-linecap="round"/>
-                <path d="M12 210C121 186 131 101 239 119C335 135 352 43 510 21" stroke="#e4002b" stroke-width="2.5" stroke-linecap="round"/>
-                <circle cx="239" cy="119" r="6" fill="#e4002b"/>
-                <circle cx="510" cy="21" r="5" fill="white"/>
-            </svg>
+<x-ui.page :title="__('app.help')">
+    <div class="rt-help-app" data-help-center data-support-experience="help">
+        <section class="rt-help-hero" aria-labelledby="help-hero-title" data-support-hero>
+            <div class="rt-help-hero__ambient" aria-hidden="true">
+                <span class="rt-help-hero__orb rt-help-hero__orb--one"></span>
+                <span class="rt-help-hero__orb rt-help-hero__orb--two"></span>
+                <svg viewBox="0 0 760 280" preserveAspectRatio="none">
+                    <path data-support-route-path d="M-20 246C114 246 119 127 252 142C387 157 407 48 562 78C637 92 683 57 780 15" />
+                    <circle data-support-route-node cx="252" cy="142" r="7" />
+                    <circle data-support-route-node cx="562" cy="78" r="7" />
+                </svg>
+            </div>
 
-            <div class="relative grid gap-5 lg:grid-cols-12 lg:items-stretch">
-                <div class="lg:col-span-7">
-                    <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-rose-300">{{ __('app.help_quick_help') }}</p>
-                    <h2 class="mt-2 max-w-2xl text-2xl font-semibold tracking-[-0.035em] text-white sm:text-3xl">
-                        {{ __('app.help_find_answer') }}
-                    </h2>
-                    <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-300">{{ __('app.help_find_answer_description') }}</p>
+            <div class="rt-help-hero__copy" data-support-hero-copy>
+                <p class="rt-support-kicker rt-support-kicker--inverse">
+                    <span class="rt-support-kicker__mark" aria-hidden="true"></span>
+                    {{ __('support.help_route_label') }}
+                </p>
+                <h2 id="help-hero-title">{{ __('support.help_route_title') }}</h2>
+                <p class="rt-help-hero__lead">{{ __('support.help_route_description') }}</p>
 
-                    <label class="group relative mt-5 block">
-                        <span class="sr-only">{{ __('app.search_help') }}</span>
-                        <i data-feather="search" class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition group-focus-within:text-rose-300"></i>
-                        <input
-                            type="search"
-                            wire:model.live.debounce.250ms="query"
-                            class="min-h-12 w-full rounded-xl border border-white/15 bg-white/10 py-3 pl-11 pr-4 text-sm text-white outline-none backdrop-blur placeholder:text-slate-400 focus:border-rose-300 focus:bg-white/15 focus:ring-2 focus:ring-rose-300/20"
-                            placeholder="{{ __('app.search_help_placeholder') }}"
-                        >
-                    </label>
+                <label class="rt-help-search" data-support-search>
+                    <span class="sr-only">{{ __('app.search_help') }}</span>
+                    <i class="far fa-search" aria-hidden="true"></i>
+                    <input
+                        type="search"
+                        wire:model.live.debounce.300ms="query"
+                        inputmode="search"
+                        enterkeyhint="search"
+                        autocomplete="off"
+                        placeholder="{{ __('app.search_help_placeholder') }}"
+                    >
+                    @if ($query !== '')
+                        <button type="button" wire:click="$set('query', '')" aria-label="{{ __('app.reset_search') }}">
+                            <i class="far fa-times" aria-hidden="true"></i>
+                        </button>
+                    @endif
+                </label>
+
+                <p class="rt-help-search__status" aria-live="polite" aria-atomic="true">
+                    @if ($topics->isEmpty())
+                        {{ __('support.help_result_none') }}
+                    @elseif ($topics->count() === 1)
+                        {{ __('support.help_result_one') }}
+                    @else
+                        {{ __('support.help_result_many', ['count' => $topics->count()]) }}
+                    @endif
+                </p>
+            </div>
+
+            <aside
+                class="rt-help-install-control"
+                x-data="railtimePwaInstall(@js([
+                    'targets' => [
+                        'ios' => '#help-install-ios',
+                        'android' => '#help-install-android',
+                        'desktop' => '#help-install-desktop',
+                        'fallback' => '#help-install-guides',
+                    ],
+                    'messages' => [
+                        'installed' => __('app.help_installed'),
+                        'ready' => __('app.help_install_ready'),
+                        'manual' => __('app.push_install_manually_description'),
+                        'accepted' => __('app.push_install_accepted'),
+                        'failed' => __('app.push_install_failed'),
+                    ],
+                ]))"
+                data-help-install-control
+                data-support-hero-card
+            >
+                <div>
+                    <div class="rt-help-install-control__icon" aria-hidden="true">
+                        <i class="far fa-mobile-alt"></i>
+                        <span></span>
+                    </div>
+                    <p class="rt-help-install-control__label">{{ __('support.help_install_control_label') }}</p>
+                    <h3>{{ __('app.help_install_title') }}</h3>
+                    <p>{{ __('support.help_install_control_description') }}</p>
                 </div>
 
-                <aside
-                    class="relative flex min-h-[12rem] flex-col justify-between overflow-hidden rounded-2xl border border-white/15 bg-white/[0.08] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,.08)] backdrop-blur-md sm:p-5 lg:col-span-5"
-                    x-data="railtimePwaInstall(@js([
-                        'targets' => [
-                            'ios' => '#help-install-ios',
-                            'android' => '#help-install-android',
-                            'desktop' => '#help-install-desktop',
-                            'fallback' => '#help-install-guides',
-                        ],
-                        'messages' => [
-                            'installed' => __('app.help_installed'),
-                            'ready' => __('app.help_install_ready'),
-                            'manual' => __('app.push_install_manually_description'),
-                            'accepted' => __('app.push_install_accepted'),
-                            'failed' => __('app.push_install_failed'),
-                        ],
-                    ]))"
-                    data-help-install-control
-                >
-                    <div>
-                        <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-rose-300 ring-1 ring-white/15">
-                            <i class="far fa-mobile-alt" aria-hidden="true"></i>
-                        </span>
-                        <p class="mt-4 text-[10px] font-semibold uppercase tracking-[0.18em] text-rose-300">{{ __('app.help_install_eyebrow') }}</p>
-                        <h3 class="mt-1 text-lg font-semibold tracking-tight text-white">{{ __('app.help_install_title') }}</h3>
-                        <p class="mt-2 text-xs leading-5 text-slate-300" x-text="statusText()"></p>
-                    </div>
-
-                    <div class="mt-5">
-                        <button
-                            type="button"
-                            class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-rt-red px-4 py-2 text-sm font-semibold text-white shadow-rt-glow transition duration-200 hover:-translate-y-0.5 hover:bg-rt-red-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 disabled:cursor-default disabled:translate-y-0 disabled:bg-emerald-600 disabled:shadow-none"
-                            x-on:click="installApp()"
-                            x-bind:disabled="disabled"
-                            data-help-install-action
-                        >
-                            <i class="far" x-bind:class="mode === 'installed' ? 'fa-check' : (busy ? 'fa-circle-notch fa-spin' : 'fa-download')" aria-hidden="true"></i>
-                            {{ __('app.push_install_app') }}
-                        </button>
-                        <p class="mt-2 text-xs leading-5 text-emerald-200" x-show.important="notice" x-text="notice" aria-live="polite"></p>
-                        <p class="mt-2 text-xs leading-5 text-rose-200" x-show.important="error" x-text="error" aria-live="assertive"></p>
-                    </div>
-                </aside>
-            </div>
+                <div class="rt-help-install-control__action">
+                    <p x-text="statusText()"></p>
+                    <button
+                        type="button"
+                        x-on:click="installApp()"
+                        x-bind:disabled="disabled"
+                        data-help-install-action
+                    >
+                        <i class="far" x-bind:class="mode === 'installed' ? 'fa-check' : (busy ? 'fa-circle-notch fa-spin' : 'fa-arrow-to-bottom')" aria-hidden="true"></i>
+                        <span>{{ __('app.push_install_app') }}</span>
+                    </button>
+                    <p class="rt-help-install-control__notice" x-show.important="notice" x-text="notice" aria-live="polite"></p>
+                    <p class="rt-help-install-control__error" x-show.important="error" x-text="error" aria-live="assertive"></p>
+                </div>
+            </aside>
         </section>
 
-        {{-- Ein gemeinsamer Alpine-Bereich ueber ALLE Gruppen: dadurch kann
-             immer nur genau ein Thema offen sein, auch gruppenuebergreifend.
-             Die Animation kommt von x-collapse (@alpinejs/collapse, in app.js
-             registriert). Bewusst kein <details> mehr — das laesst sich weder
-             exklusiv schalten noch animieren. --}}
-        <section
-            aria-labelledby="help-topics-heading"
-            class="space-y-4"
-            x-data="{
-                openTopic: null,
-                toggle(key) {
-                    this.openTopic = this.openTopic === key ? null : key;
-                },
-            }"
-        >
-            <div class="mb-3 flex items-end justify-between gap-4">
-                <div>
-                    <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.help_topics') }}</p>
-                    <h2 id="help-topics-heading" class="mt-1 text-lg font-semibold tracking-tight text-rt-text dark:text-white">
-                        {{ app()->getLocale() === 'de' ? 'RailTime Schritt für Schritt' : 'RailTime step by step' }}
-                    </h2>
-                </div>
-                <a href="{{ route('support') }}" wire:navigate class="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-rt-red transition hover:text-rt-red-dark focus:outline-none focus:ring-2 focus:ring-rt-red/30">
-                    <i data-feather="life-buoy" class="h-4 w-4"></i>
-                    {{ __('app.contact_support') }}
-                </a>
-            </div>
+        <nav class="rt-help-quicknav" aria-label="{{ __('support.help_route_label') }}" data-support-quicknav>
+            <a href="#help-topics">
+                <span class="rt-help-quicknav__number">01</span>
+                <span>
+                    <strong>{{ __('support.help_quick_topics') }}</strong>
+                    <small>{{ __('support.help_quick_topics_description') }}</small>
+                </span>
+                <i class="far fa-arrow-down" aria-hidden="true"></i>
+            </a>
+            <a href="#help-install-guides">
+                <span class="rt-help-quicknav__number">02</span>
+                <span>
+                    <strong>{{ __('support.help_quick_install') }}</strong>
+                    <small>{{ __('support.help_quick_install_description') }}</small>
+                </span>
+                <i class="far fa-arrow-down" aria-hidden="true"></i>
+            </a>
+            <a href="#help-faq">
+                <span class="rt-help-quicknav__number">03</span>
+                <span>
+                    <strong>{{ __('support.help_quick_faq') }}</strong>
+                    <small>{{ __('support.help_quick_faq_description') }}</small>
+                </span>
+                <i class="far fa-arrow-down" aria-hidden="true"></i>
+            </a>
+        </nav>
 
-            @forelse ($topicGroups as $group => $groupTopics)
-                <section class="overflow-hidden rounded-2xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
-                    <h3 class="border-b border-rt-border/60 bg-rt-surface-muted px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-rt-muted dark:border-rt-dark-border/60 dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted">{{ $group }}</h3>
-                    @php $groupKey = \Illuminate\Support\Str::slug((string) $group); @endphp
-                    <div class="divide-y divide-rt-border/60 dark:divide-rt-dark-border/60">
-                        @foreach ($groupTopics as $topic)
-                            @php $topicKey = $groupKey.'-'.$loop->index; @endphp
-                            <div class="px-4 py-1" data-help-topic="{{ $topicKey }}">
-                                <button
-                                    type="button"
-                                    x-on:click="toggle(@js($topicKey))"
-                                    :aria-expanded="(openTopic === @js($topicKey)).toString()"
-                                    aria-controls="help-panel-{{ $topicKey }}"
-                                    class="flex min-h-14 w-full items-center gap-3 py-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent/30"
-                                >
-                                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent">
-                                        <i data-feather="{{ $topic['icon'] }}" class="h-4 w-4"></i>
-                                    </span>
-                                    <span class="min-w-0 flex-1">
-                                        <span class="block text-sm font-semibold text-rt-text dark:text-white">{{ $topic['title'] }}</span>
-                                        <span class="mt-0.5 block text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">{{ $topic['summary'] }}</span>
-                                    </span>
-                                    <i
-                                        data-feather="chevron-down"
-                                        class="h-4 w-4 shrink-0 text-rt-soft transition-transform duration-200 dark:text-rt-dark-soft"
-                                        :class="openTopic === @js($topicKey) && 'rotate-180'"
-                                    ></i>
-                                </button>
+        <div class="rt-help-workspace" id="help-topics">
+            <section
+                class="rt-help-topics"
+                aria-labelledby="help-topics-heading"
+                x-data="{
+                    openTopic: null,
+                    toggle(key) { this.openTopic = this.openTopic === key ? null : key },
+                }"
+                data-support-reveal
+            >
+                <header class="rt-section-heading">
+                    <p class="rt-support-kicker">
+                        <span class="rt-support-kicker__mark" aria-hidden="true"></span>
+                        {{ __('support.help_topics_label') }}
+                    </p>
+                    <h2 id="help-topics-heading">{{ __('support.help_topics_title') }}</h2>
+                    <p>{{ __('support.help_topics_description') }}</p>
+                </header>
 
-                                {{-- x-collapse animiert die Hoehe. Die Klassen hier
-                                     enthalten bewusst KEINE Display-Utility
-                                     (flex/block/grid): die traegt die
-                                     Legacy-CSS mit !important, wodurch x-show
-                                     nicht mehr ausblenden koennte. --}}
-                                <div
-                                    id="help-panel-{{ $topicKey }}"
-                                    x-show="openTopic === @js($topicKey)"
-                                    x-collapse
-                                    x-cloak
-                                    class="overflow-hidden pb-4 pl-12"
-                                >
-                                    <ul class="space-y-2">
-                                        @foreach ($topic['points'] as $point)
-                                            <li class="flex gap-2 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">
-                                                <i class="far fa-check-circle mt-1 shrink-0 text-rt-accent dark:text-rt-dark-accent" aria-hidden="true"></i>
-                                                <span>{{ $point }}</span>
-                                            </li>
-                                        @endforeach
-                                    </ul>
-                                    <a href="{{ $topic['href'] }}" wire:navigate class="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-rt-red hover:text-rt-red-dark">
-                                        {{ app()->getLocale() === 'de' ? 'Bereich öffnen' : 'Open area' }}
-                                        <i class="far fa-arrow-right text-xs" aria-hidden="true"></i>
-                                    </a>
-                                </div>
+                <div class="rt-help-topic-groups">
+                    @forelse ($topicGroups as $group => $groupTopics)
+                        @php $groupKey = \Illuminate\Support\Str::slug((string) $group); @endphp
+                        <section class="rt-help-topic-group" wire:key="help-group-{{ $groupKey }}">
+                            <header>
+                                <span>{{ str_pad((string) $loop->iteration, 2, '0', STR_PAD_LEFT) }}</span>
+                                <h3>{{ $group }}</h3>
+                                <small>{{ $groupTopics->count() }}</small>
+                            </header>
+
+                            <div class="rt-help-topic-group__items">
+                                @foreach ($groupTopics as $topic)
+                                    @php
+                                        $topicKey = \Illuminate\Support\Str::slug(($topic['route'] ?? 'help').'-'.$topic['title']);
+                                    @endphp
+                                    <article
+                                        class="rt-help-topic"
+                                        data-help-topic="{{ $topicKey }}"
+                                        wire:key="help-topic-{{ $topicKey }}"
+                                        :data-open="openTopic === @js($topicKey) ? 'true' : 'false'"
+                                    >
+                                        <button
+                                            type="button"
+                                            x-on:click="toggle(@js($topicKey))"
+                                            :aria-expanded="(openTopic === @js($topicKey)).toString()"
+                                            aria-controls="help-panel-{{ $topicKey }}"
+                                        >
+                                            <span class="rt-help-topic__index">{{ str_pad((string) $loop->iteration, 2, '0', STR_PAD_LEFT) }}</span>
+                                            <span class="rt-help-topic__copy">
+                                                <strong>{{ $topic['title'] }}</strong>
+                                                <small>{{ $topic['summary'] }}</small>
+                                            </span>
+                                            <span class="rt-help-topic__toggle" aria-hidden="true">
+                                                <i class="far fa-plus"></i>
+                                            </span>
+                                        </button>
+
+                                        <div
+                                            id="help-panel-{{ $topicKey }}"
+                                            x-show="openTopic === @js($topicKey)"
+                                            x-collapse
+                                            x-cloak
+                                            class="rt-help-topic__panel"
+                                        >
+                                            <ul>
+                                                @foreach ($topic['points'] as $point)
+                                                    <li>
+                                                        <i class="far fa-check-circle" aria-hidden="true"></i>
+                                                        <span>{{ $point }}</span>
+                                                    </li>
+                                                @endforeach
+                                            </ul>
+                                            <a href="{{ $topic['href'] }}" wire:navigate>
+                                                {{ __('support.help_open_area') }}
+                                                <i class="far fa-arrow-right" aria-hidden="true"></i>
+                                            </a>
+                                        </div>
+                                    </article>
+                                @endforeach
                             </div>
-                        @endforeach
-                    </div>
-                </section>
-            @empty
-                <div>
-                    <div class="rounded-2xl bg-rt-surface-muted px-5 py-8 text-center sm:col-span-2 xl:col-span-4 dark:bg-rt-dark-surface-muted">
-                        <i data-feather="search" class="mx-auto h-6 w-6 text-rt-soft dark:text-rt-dark-soft"></i>
-                        <p class="mt-3 text-sm font-semibold text-rt-text dark:text-white">{{ __('app.help_no_results') }}</p>
-                        <button type="button" wire:click="$set('query', '')" class="mt-2 text-sm font-semibold text-rt-red hover:text-rt-red-dark">
-                            {{ __('app.reset_search') }}
-                        </button>
-                    </div>
-                </div>
-            @endforelse
-        </section>
-
-        <section
-            class="overflow-hidden rounded-2xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60"
-            aria-labelledby="install-app-heading"
-        >
-            <header class="grid gap-4 border-b border-rt-border/60 bg-rt-surface-muted p-4 dark:border-rt-dark-border/60 dark:bg-rt-dark-surface-muted sm:p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-                <div>
-                    <div class="flex items-center gap-3">
-                        <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-rt-red text-white shadow-rt-glow">
-                            <i data-feather="smartphone" class="h-5 w-5"></i>
-                        </span>
-                        <div>
-                            <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.help_install_eyebrow') }}</p>
-                            <h2 id="install-app-heading" class="mt-1 text-lg font-semibold tracking-tight text-rt-text dark:text-white">
-                                {{ __('app.help_install_title') }}
-                            </h2>
+                        </section>
+                    @empty
+                        <div class="rt-help-empty" data-help-empty>
+                            <span><i class="far fa-search" aria-hidden="true"></i></span>
+                            <h3>{{ __('app.help_no_results') }}</h3>
+                            <p>{{ __('app.search_help_placeholder') }}</p>
+                            <button type="button" wire:click="$set('query', '')">{{ __('app.reset_search') }}</button>
                         </div>
-                    </div>
-                    <p class="mt-3 max-w-3xl text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">{{ __('app.help_install_description') }}</p>
+                    @endforelse
                 </div>
+            </section>
+
+            <aside class="rt-help-personal" data-support-reveal>
+                <div class="rt-help-personal__rail" aria-hidden="true"><span></span></div>
+                <p>{{ __('support.help_personal_label') }}</p>
+                <h2>{{ __('support.help_personal_title') }}</h2>
+                <p>{{ __('support.help_personal_description') }}</p>
+                <a href="{{ route('support') }}" wire:navigate>
+                    <i class="far fa-headset" aria-hidden="true"></i>
+                    {{ __('support.help_personal_action') }}
+                </a>
+                <small><i class="far fa-shield-check" aria-hidden="true"></i>{{ __('support.help_personal_tip') }}</small>
+            </aside>
+        </div>
+
+        <section class="rt-help-install" aria-labelledby="install-app-heading" data-support-reveal>
+            <header class="rt-help-install__header">
+                <div>
+                    <p class="rt-support-kicker rt-support-kicker--inverse">
+                        <span class="rt-support-kicker__mark" aria-hidden="true"></span>
+                        {{ __('app.help_install_eyebrow') }}
+                    </p>
+                    <h2 id="install-app-heading">{{ __('app.help_install_title') }}</h2>
+                    <p>{{ __('app.help_install_description') }}</p>
+                </div>
+                <span class="rt-help-install__device" aria-hidden="true">
+                    <i class="far fa-mobile-android-alt"></i>
+                    <i class="far fa-laptop"></i>
+                </span>
             </header>
 
-            {{-- Installieren und testen direkt hier, nicht nur als Verweis ins
-                 Profil. Nutzt die bestehende, getestete Push-Komponente. --}}
-            <div class="border-b border-rt-border/60 p-4 dark:border-rt-dark-border/60 sm:p-6">
-                <livewire:settings.push-settings :show-test="true" :show-install="false" />
-            </div>
+            <details class="rt-help-notifications">
+                <summary>
+                    <span class="rt-help-notifications__icon"><i class="far fa-bell" aria-hidden="true"></i></span>
+                    <span>
+                        <strong>{{ __('support.help_notifications_title') }}</strong>
+                        <small>{{ __('support.help_notifications_description') }}</small>
+                    </span>
+                    <span class="rt-help-notifications__action">
+                        {{ __('support.help_notifications_open') }}
+                        <i class="far fa-chevron-down" aria-hidden="true"></i>
+                    </span>
+                </summary>
+                <div class="rt-help-notifications__body">
+                    <livewire:settings.push-settings :show-test="true" :show-install="false" />
+                </div>
+            </details>
 
-            <div id="help-install-guides" class="grid scroll-mt-24 gap-px bg-rt-border/60 lg:grid-cols-3 dark:bg-rt-dark-border/60">
-                <article id="help-install-ios" class="scroll-mt-24 bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6">
-                    <div class="flex items-center gap-2">
-                        <i class="fab fa-apple text-xl text-rt-text dark:text-white" aria-hidden="true"></i>
-                        <h3 class="text-base font-semibold text-rt-text dark:text-white">{{ __('app.help_install_ios_title') }}</h3>
-                    </div>
-                    <ol class="mt-4 space-y-3">
-                        @foreach ([
-                            __('app.help_install_ios_step_1'),
-                            __('app.help_install_ios_step_2'),
-                            __('app.help_install_ios_step_3'),
-                            __('app.help_install_ios_step_4'),
-                        ] as $step)
-                            <li class="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-3 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">
-                                <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-rt-surface-muted text-xs font-semibold text-rt-red dark:bg-rt-dark-surface-muted">{{ $loop->iteration }}</span>
-                                <span>{{ $step }}</span>
-                            </li>
+            <div class="rt-help-install__label">{{ __('support.help_install_devices_label') }}</div>
+            <div id="help-install-guides" class="rt-help-device-grid">
+                <article id="help-install-ios" class="rt-help-device-card">
+                    <header><span><i class="fab fa-apple" aria-hidden="true"></i></span><div><small>iOS · iPadOS</small><h3>{{ __('app.help_install_ios_title') }}</h3></div></header>
+                    <ol>
+                        @foreach ([__('app.help_install_ios_step_1'), __('app.help_install_ios_step_2'), __('app.help_install_ios_step_3'), __('app.help_install_ios_step_4')] as $step)
+                            <li><span>{{ $loop->iteration }}</span><p>{{ $step }}</p></li>
                         @endforeach
                     </ol>
                 </article>
 
-                <article id="help-install-android" class="scroll-mt-24 bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6">
-                    <div class="flex items-center gap-2">
-                        <i class="fab fa-android text-xl text-rt-text dark:text-white" aria-hidden="true"></i>
-                        <h3 class="text-base font-semibold text-rt-text dark:text-white">{{ __('app.help_install_android_title') }}</h3>
-                    </div>
-                    <ol class="mt-4 space-y-3">
-                        @foreach ([
-                            __('app.help_install_android_step_1'),
-                            __('app.help_install_android_step_2'),
-                            __('app.help_install_android_step_3'),
-                            __('app.help_install_android_step_4'),
-                        ] as $step)
-                            <li class="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-3 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">
-                                <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-rt-surface-muted text-xs font-semibold text-rt-red dark:bg-rt-dark-surface-muted">{{ $loop->iteration }}</span>
-                                <span>{{ $step }}</span>
-                            </li>
+                <article id="help-install-android" class="rt-help-device-card">
+                    <header><span><i class="fab fa-android" aria-hidden="true"></i></span><div><small>Android · Chrome</small><h3>{{ __('app.help_install_android_title') }}</h3></div></header>
+                    <ol>
+                        @foreach ([__('app.help_install_android_step_1'), __('app.help_install_android_step_2'), __('app.help_install_android_step_3'), __('app.help_install_android_step_4')] as $step)
+                            <li><span>{{ $loop->iteration }}</span><p>{{ $step }}</p></li>
                         @endforeach
                     </ol>
                 </article>
 
-                {{-- Desktop: Windows und macOS. Auf Windows/Chrome/Edge greift der
-                     Installationsdialog (Button oben), Safari auf dem Mac kennt
-                     nur "Ablage > Zum Dock hinzufuegen". --}}
-                <article id="help-install-desktop" class="scroll-mt-24 bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6">
-                    <div class="flex items-center gap-2">
-                        <i class="far fa-desktop text-xl text-rt-text dark:text-white" aria-hidden="true"></i>
-                        <h3 class="text-base font-semibold text-rt-text dark:text-white">{{ __('app.help_install_desktop_title') }}</h3>
+                <article id="help-install-desktop" class="rt-help-device-card rt-help-device-card--desktop">
+                    <header><span><i class="far fa-desktop" aria-hidden="true"></i></span><div><small>Windows · macOS</small><h3>{{ __('app.help_install_desktop_title') }}</h3></div></header>
+                    <div class="rt-help-desktop-steps">
+                        <div>
+                            <h4><i class="fab fa-windows" aria-hidden="true"></i>{{ __('app.help_install_windows_subtitle') }}</h4>
+                            <ol>
+                                @foreach ([__('app.help_install_windows_step_1'), __('app.help_install_windows_step_2'), __('app.help_install_windows_step_3')] as $step)
+                                    <li><span>{{ $loop->iteration }}</span><p>{{ $step }}</p></li>
+                                @endforeach
+                            </ol>
+                        </div>
+                        <div>
+                            <h4><i class="fab fa-apple" aria-hidden="true"></i>{{ __('app.help_install_mac_subtitle') }}</h4>
+                            <ol>
+                                @foreach ([__('app.help_install_mac_step_1'), __('app.help_install_mac_step_2'), __('app.help_install_mac_step_3')] as $step)
+                                    <li><span>{{ $loop->iteration }}</span><p>{{ $step }}</p></li>
+                                @endforeach
+                            </ol>
+                        </div>
                     </div>
-
-                    <p class="mt-3 text-xs font-semibold uppercase tracking-[0.12em] text-rt-soft dark:text-rt-dark-soft">
-                        <i class="fab fa-windows mr-1" aria-hidden="true"></i>{{ __('app.help_install_windows_subtitle') }}
-                    </p>
-                    <ol class="mt-2 space-y-3">
-                        @foreach ([
-                            __('app.help_install_windows_step_1'),
-                            __('app.help_install_windows_step_2'),
-                            __('app.help_install_windows_step_3'),
-                        ] as $step)
-                            <li class="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-3 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">
-                                <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-rt-surface-muted text-xs font-semibold text-rt-red dark:bg-rt-dark-surface-muted">{{ $loop->iteration }}</span>
-                                <span>{{ $step }}</span>
-                            </li>
-                        @endforeach
-                    </ol>
-
-                    <p class="mt-4 text-xs font-semibold uppercase tracking-[0.12em] text-rt-soft dark:text-rt-dark-soft">
-                        <i class="fab fa-apple mr-1" aria-hidden="true"></i>{{ __('app.help_install_mac_subtitle') }}
-                    </p>
-                    <ol class="mt-2 space-y-3">
-                        @foreach ([
-                            __('app.help_install_mac_step_1'),
-                            __('app.help_install_mac_step_2'),
-                            __('app.help_install_mac_step_3'),
-                        ] as $step)
-                            <li class="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-3 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">
-                                <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-rt-surface-muted text-xs font-semibold text-rt-red dark:bg-rt-dark-surface-muted">{{ $loop->iteration }}</span>
-                                <span>{{ $step }}</span>
-                            </li>
-                        @endforeach
-                    </ol>
                 </article>
             </div>
-
         </section>
 
-        <section aria-labelledby="help-faq-heading">
-            <div class="mb-3">
-                <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">FAQ</p>
-                <h2 id="help-faq-heading" class="mt-1 text-lg font-semibold tracking-tight text-rt-text dark:text-white">
-                    {{ app()->getLocale() === 'de' ? 'Häufige Fragen' : 'Frequently asked questions' }}
-                </h2>
-            </div>
-            <div class="divide-y divide-rt-border/60 overflow-hidden rounded-2xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/60 dark:divide-rt-dark-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+        <section id="help-faq" class="rt-help-faq" aria-labelledby="help-faq-heading" data-support-reveal>
+            <header class="rt-section-heading">
+                <p class="rt-support-kicker"><span class="rt-support-kicker__mark" aria-hidden="true"></span>{{ __('support.help_faq_label') }}</p>
+                <h2 id="help-faq-heading">{{ __('support.help_faq_title') }}</h2>
+            </header>
+            <div class="rt-help-faq__items">
                 @foreach ($faqs as $faq)
-                    <details class="group px-4 sm:px-5">
-                        <summary class="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 py-4 text-sm font-semibold text-rt-text focus:outline-none dark:text-white">
-                            {{ $faq['question'] }}
-                            <i data-feather="plus" class="h-4 w-4 shrink-0 text-rt-muted transition group-open:rotate-45 dark:text-rt-dark-muted"></i>
+                    <details>
+                        <summary>
+                            <span>{{ str_pad((string) $loop->iteration, 2, '0', STR_PAD_LEFT) }}</span>
+                            <strong>{{ $faq['question'] }}</strong>
+                            <i class="far fa-plus" aria-hidden="true"></i>
                         </summary>
-                        <p class="pb-4 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">{{ $faq['answer'] }}</p>
+                        <p>{{ $faq['answer'] }}</p>
                     </details>
                 @endforeach
             </div>

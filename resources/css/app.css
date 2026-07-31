@@ -1,5 +1,6 @@
 /* RailTime Designsprache v2 — Premium-Grotesk, ein Akzent, weiche Tiefe */
 @import '@fontsource-variable/plus-jakarta-sans';
+@import './help-support.css';
 
 @tailwind base;
 @tailwind components;
@@ -1211,6 +1212,194 @@ body[data-mode="dark"] .rt-operational-page .rt-operational-nav-icon {
 .rt-admin-chart svg {
     width: 100% !important;
     max-width: 100% !important;
+}
+
+/*
+ * Diagrammkarten: gemeinsame Buehne fuer Kopf, Diagrammflaeche und Legende.
+ * Der Kopf sitzt auf einer minimal helleren Flaeche, damit die Datenflaeche
+ * darunter optisch zurueckfaellt, ohne eine harte Trennlinie zu brauchen.
+ */
+.rt-admin-chart-card {
+    display: flex;
+    flex-direction: column;
+    transition:
+        transform 260ms cubic-bezier(0.32, 0.72, 0, 1),
+        box-shadow 260ms cubic-bezier(0.32, 0.72, 0, 1),
+        border-color 260ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .rt-admin-chart-card:hover {
+        transform: translate3d(0, -2px, 0);
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.96),
+            0 2px 4px rgba(15, 23, 42, 0.05),
+            0 24px 48px -32px rgba(15, 23, 42, 0.55);
+    }
+
+    html.dark .rt-admin-chart-card:hover,
+    body[data-mode="dark"] .rt-admin-chart-card:hover {
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.06),
+            0 2px 4px rgba(0, 0, 0, 0.3),
+            0 22px 44px -30px rgba(0, 0, 0, 0.95);
+    }
+}
+
+.rt-admin-chart-head {
+    padding-bottom: 0.5rem;
+}
+
+.rt-admin-chart-legend {
+    border-top: 1px solid rgba(226, 232, 240, 0.9);
+    padding-top: 0.75rem;
+}
+
+html.dark .rt-admin-chart-legend,
+body[data-mode="dark"] .rt-admin-chart-legend {
+    border-top-color: #2a394d;
+}
+
+/* Gestrichelte Marke in der Legende — visuelles Gegenstueck zur Ø-Linie,
+   die ECharts als markLine in die Datenflaeche zeichnet. */
+.rt-admin-legend-dash {
+    display: inline-block;
+    width: 1.25rem;
+    height: 0;
+    border-top: 1px dashed #8a97a9;
+}
+
+html.dark .rt-admin-legend-dash,
+body[data-mode="dark"] .rt-admin-legend-dash {
+    border-top-color: #7c8ba1;
+}
+
+/* Kennwert-Chips in den Diagrammkoepfen: kompakte Bezeichnung ueber Wert. */
+.rt-admin-stat-chip {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 0;
+    padding: 0.3rem 0.6rem;
+    border: 1px solid rgba(203, 213, 225, 0.9);
+    border-radius: 0.625rem;
+    background: #f8fafc;
+    text-align: right;
+}
+
+.rt-admin-stat-chip-label {
+    font-size: 0.5625rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    line-height: 1.1;
+    text-transform: uppercase;
+    color: #8a97a9;
+}
+
+.rt-admin-stat-chip-value {
+    font-size: 0.875rem;
+    font-weight: 650;
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+    color: #182435;
+}
+
+.rt-admin-stat-chip-brand {
+    border-color: rgba(228, 0, 43, 0.28);
+    background: rgba(228, 0, 43, 0.06);
+}
+
+.rt-admin-stat-chip-brand .rt-admin-stat-chip-value {
+    color: #e4002b;
+}
+
+html.dark .rt-admin-stat-chip,
+body[data-mode="dark"] .rt-admin-stat-chip {
+    border-color: #334155 !important;
+    background-color: #182435 !important;
+}
+
+html.dark .rt-admin-stat-chip-label,
+body[data-mode="dark"] .rt-admin-stat-chip-label {
+    color: #7c8ba1 !important;
+}
+
+html.dark .rt-admin-stat-chip-value,
+body[data-mode="dark"] .rt-admin-stat-chip-value {
+    color: #f8fafc !important;
+}
+
+html.dark .rt-admin-stat-chip-brand,
+body[data-mode="dark"] .rt-admin-stat-chip-brand {
+    border-color: rgba(251, 59, 87, 0.38) !important;
+    background-color: rgba(251, 59, 87, 0.14) !important;
+}
+
+html.dark .rt-admin-stat-chip-brand .rt-admin-stat-chip-value,
+body[data-mode="dark"] .rt-admin-stat-chip-brand .rt-admin-stat-chip-value {
+    color: #fb3b57 !important;
+}
+
+.rt-admin-ring-legend {
+    padding-left: 0.75rem;
+    border-left: 2px solid rgba(226, 232, 240, 0.9);
+}
+
+html.dark .rt-admin-ring-legend,
+body[data-mode="dark"] .rt-admin-ring-legend {
+    border-left-color: #2a394d;
+}
+
+/* Kennzahlkacheln: einheitliches Anheben und ein Messbalken, dessen
+   Endzustand serverseitig als inline transform gesetzt ist. GSAP faehrt ihn
+   beim ersten Sichtkontakt von 0 aus hoch. */
+.rt-admin-kpi {
+    transition:
+        transform 220ms cubic-bezier(0.32, 0.72, 0, 1),
+        box-shadow 220ms cubic-bezier(0.32, 0.72, 0, 1),
+        border-color 220ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .rt-admin-kpi:hover {
+        transform: translate3d(0, -2px, 0);
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.96),
+            0 18px 34px -26px rgba(15, 23, 42, 0.5);
+    }
+
+    html.dark .rt-admin-kpi:hover,
+    body[data-mode="dark"] .rt-admin-kpi:hover {
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.06),
+            0 18px 34px -26px rgba(0, 0, 0, 0.95);
+    }
+}
+
+.rt-admin-kpi-meter {
+    will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rt-admin-chart-card,
+    .rt-admin-kpi {
+        transition-duration: 0.01ms;
+    }
+}
+
+/* Sobald GSAP die Strecke fuehrt (DrawSVG setzt stroke-dasharray und
+   -dashoffset selbst), darf der CSS-Fallback nicht dagegen laufen. */
+[data-rt-route][data-rt-route-motion="on"] .rt-admin-route-line {
+    animation: none;
+}
+
+.rt-admin-route-train {
+    filter: drop-shadow(0 0 6px rgba(228, 0, 43, 0.65));
+}
+
+html.dark .rt-admin-route-train,
+body[data-mode="dark"] .rt-admin-route-train {
+    filter: drop-shadow(0 0 7px rgba(251, 59, 87, 0.7));
 }
 
 @keyframes rt-admin-route {

@@ -1,6 +1,13 @@
 import * as echarts from 'echarts/core';
 import { BarChart, LineChart, PieChart } from 'echarts/charts';
-import { AriaComponent, GridComponent, TitleComponent, TooltipComponent } from 'echarts/components';
+import {
+    AriaComponent,
+    GridComponent,
+    MarkLineComponent,
+    MarkPointComponent,
+    TitleComponent,
+    TooltipComponent,
+} from 'echarts/components';
 import { LabelLayout } from 'echarts/features';
 import { SVGRenderer } from 'echarts/renderers';
 
@@ -10,34 +17,59 @@ echarts.use([
     PieChart,
     AriaComponent,
     GridComponent,
+    MarkLineComponent,
+    MarkPointComponent,
     TitleComponent,
     TooltipComponent,
     LabelLayout,
     SVGRenderer,
 ]);
 
+/**
+ * Farb- und Flaechenwerte fuer beide Themes an einer Stelle.
+ *
+ * Auf dunkler Flaeche traegt das hellere Markenrot besser (Kontrast >= 3:1),
+ * im Hellen bleibt das Original-Markenrot.
+ */
+function palette(dark) {
+    return {
+        text: dark ? '#aeb9c9' : '#637188',
+        strongText: dark ? '#f8fafc' : '#182435',
+        soft: dark ? '#7c8ba1' : '#8a97a9',
+        grid: dark ? '#2a394d' : '#e2e8f0',
+        surface: dark ? '#111a27' : '#ffffff',
+        track: dark ? '#22303f' : '#e8edf4',
+        red: dark ? '#fb3b57' : '#e4002b',
+        redSoft: dark ? 'rgba(251, 59, 87, 0.55)' : 'rgba(228, 0, 43, 0.55)',
+        redFaint: dark ? 'rgba(251, 59, 87, 0.16)' : 'rgba(228, 0, 43, 0.12)',
+        glow: dark ? 'rgba(251, 59, 87, 0.42)' : 'rgba(228, 0, 43, 0.26)',
+        areaStart: dark ? 'rgba(251, 59, 87, 0.34)' : 'rgba(228, 0, 43, 0.18)',
+        areaMid: dark ? 'rgba(251, 59, 87, 0.10)' : 'rgba(228, 0, 43, 0.06)',
+        areaEnd: dark ? 'rgba(251, 59, 87, 0.0)' : 'rgba(228, 0, 43, 0.0)',
+        totalsAreaStart: dark ? 'rgba(248, 250, 252, 0.12)' : 'rgba(23, 32, 51, 0.08)',
+        totalsAreaEnd: dark ? 'rgba(248, 250, 252, 0.0)' : 'rgba(23, 32, 51, 0.0)',
+        shadow: dark ? 'rgba(0,0,0,.44)' : 'rgba(15,23,42,.14)',
+    };
+}
+
+function verticalGradient(stops) {
+    return { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: stops };
+}
+
+function horizontalGradient(stops) {
+    return { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: stops };
+}
+
 export function renderAdminDashboardCharts({ refs, config = {}, dark = false, animate = true }) {
     const charts = [];
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const textColor = dark ? '#aeb9c9' : '#637188';
-    const strongText = dark ? '#f8fafc' : '#182435';
-    const gridColor = dark ? '#2a394d' : '#e2e8f0';
-    const surfaceColor = dark ? '#111a27' : '#ffffff';
-    const mutedSurface = dark ? '#2a394d' : '#e8edf4';
-    // Auf dunkler Flaeche traegt das hellere Markenrot besser (Kontrast >= 3:1),
-    // im Hellen bleibt das Original-Markenrot.
-    const red = dark ? '#fb3b57' : '#e4002b';
-    const redSoft = dark ? 'rgba(251, 59, 87, 0.55)' : 'rgba(228, 0, 43, 0.55)';
-    const activityPointBorder = dark ? '#111a27' : '#ffffff';
-    const activityAreaStart = dark ? 'rgba(251, 59, 87, 0.30)' : 'rgba(228, 0, 43, 0.16)';
-    const activityAreaEnd = dark ? 'rgba(251, 59, 87, 0.02)' : 'rgba(228, 0, 43, 0.01)';
-    const totalsAreaStart = dark ? 'rgba(248, 250, 252, 0.10)' : 'rgba(23, 32, 51, 0.07)';
-    const totalsAreaEnd = dark ? 'rgba(248, 250, 252, 0.0)' : 'rgba(23, 32, 51, 0.0)';
+    const c = palette(dark);
     const fontFamily = 'Plus Jakarta Sans Variable, sans-serif';
     const numberFormatter = new Intl.NumberFormat(document.documentElement.lang || 'de-DE');
     const growth = config.userGrowth || { labels: [], totals: [], registrations: [] };
     const activity = config.activity || { labels: [], values: [] };
     const status = config.status || { labels: [], values: [] };
+    const labels = config.labels || {};
     const animation = reduceMotion || !animate ? {
         animation: false,
     } : {
@@ -47,18 +79,44 @@ export function renderAdminDashboardCharts({ refs, config = {}, dark = false, an
         animationDelay: (index) => Math.min(index * 30, 260),
     };
     const tooltip = {
-        backgroundColor: surfaceColor,
-        borderColor: gridColor,
+        backgroundColor: c.surface,
+        borderColor: c.grid,
         borderWidth: 1,
         confine: true,
         padding: [10, 12],
-        textStyle: { color: strongText, fontFamily, fontSize: 12 },
-        extraCssText: `border-radius:12px;box-shadow:0 16px 38px ${dark ? 'rgba(0,0,0,.44)' : 'rgba(15,23,42,.14)'};`,
+        textStyle: { color: c.strongText, fontFamily, fontSize: 12 },
+        extraCssText: `border-radius:12px;box-shadow:0 16px 38px ${c.shadow};`,
     };
     const crosshair = {
         type: 'line',
         lineStyle: { color: dark ? '#3b4d68' : '#c4d0de', type: [4, 4], width: 1 },
     };
+    // Ø-Linie und Spitzenwert-Marker sind reine Lesehilfen: sie liegen hinter
+    // den Datenreihen, reagieren nicht auf die Maus und bleiben tonal ruhig.
+    const averageMarkLine = (name) => ({
+        silent: true,
+        symbol: 'none',
+        animation: false,
+        label: {
+            position: 'insideEndTop',
+            formatter: () => `Ø ${name}`,
+            color: c.soft,
+            fontFamily,
+            fontSize: 10,
+            padding: [0, 0, 2, 0],
+        },
+        lineStyle: { color: c.soft, type: [2, 4], width: 1, opacity: 0.75 },
+        data: [{ type: 'average' }],
+    });
+    const peakMarkPoint = () => ({
+        silent: true,
+        symbol: 'circle',
+        symbolSize: 9,
+        animation: false,
+        itemStyle: { color: c.red, borderColor: c.surface, borderWidth: 2, shadowBlur: 10, shadowColor: c.glow },
+        label: { show: false },
+        data: [{ type: 'max' }],
+    });
     const resizeHandlers = new WeakMap();
     const resizeObserver = typeof ResizeObserver === 'undefined'
         ? null
@@ -94,7 +152,7 @@ export function renderAdminDashboardCharts({ refs, config = {}, dark = false, an
     if (refs.growthChart) {
         const totals = growth.totals || [];
         const registrations = growth.registrations || [];
-        const labels = growth.labels || [];
+        const growthLabels = growth.labels || [];
         let compact = refs.growthChart.clientWidth < 560;
         // Eine Achse pro Skala: Gesamtverlauf und Neuregistrierungen teilen
         // sich die X-Achse, leben aber in zwei eigenen, klar getrennten
@@ -106,8 +164,8 @@ export function renderAdminDashboardCharts({ refs, config = {}, dark = false, an
             aria: { enabled: true },
             axisPointer: { link: [{ xAxisIndex: 'all' }] },
             grid: [
-                { top: 14, right: 10, left: yLabelWidth, height: '56%' },
-                { top: '74%', right: 10, left: yLabelWidth, bottom: 24 },
+                { top: 16, right: 12, left: yLabelWidth, height: '54%' },
+                { top: '73%', right: 12, left: yLabelWidth, bottom: 26 },
             ],
             tooltip: {
                 ...tooltip,
@@ -117,13 +175,17 @@ export function renderAdminDashboardCharts({ refs, config = {}, dark = false, an
                     const index = items?.[0]?.dataIndex;
                     if (index === undefined) return '';
 
-                    const totalLabel = config.labels?.total || 'Gesamt';
-                    const regLabel = config.labels?.registrations || 'Neu';
+                    const totalLabel = labels.total || 'Gesamt';
+                    const regLabel = labels.registrations || 'Neu';
+                    const delta = (totals[index] ?? 0) - (totals[index - 1] ?? totals[index] ?? 0);
+                    const deltaMarkup = index > 0 && delta !== 0
+                        ? ` <span style="color:${c.soft};font-size:11px;">(${delta > 0 ? '+' : ''}${numberFormatter.format(delta)})</span>`
+                        : '';
 
                     return [
-                        `<span style="color:${textColor};font-size:11px;">${labels[index] ?? ''}</span>`,
-                        `${totalLabel}: <strong>${numberFormatter.format(totals[index] ?? 0)}</strong>`,
-                        `${regLabel}: <strong>+${numberFormatter.format(registrations[index] ?? 0)}</strong>`,
+                        `<span style="color:${c.text};font-size:11px;">${growthLabels[index] ?? ''}</span>`,
+                        `<span style="display:inline-block;width:7px;height:7px;border-radius:2px;background:${c.strongText};margin-right:6px;"></span>${totalLabel}: <strong>${numberFormatter.format(totals[index] ?? 0)}</strong>${deltaMarkup}`,
+                        `<span style="display:inline-block;width:7px;height:7px;border-radius:2px;background:${c.red};margin-right:6px;"></span>${regLabel}: <strong>+${numberFormatter.format(registrations[index] ?? 0)}</strong>`,
                     ].join('<br>');
                 },
             },
@@ -131,18 +193,18 @@ export function renderAdminDashboardCharts({ refs, config = {}, dark = false, an
                 {
                     type: 'category',
                     gridIndex: 0,
-                    data: labels,
+                    data: growthLabels,
                     boundaryGap: true,
                     show: false,
                 },
                 {
                     type: 'category',
                     gridIndex: 1,
-                    data: labels,
+                    data: growthLabels,
                     boundaryGap: true,
-                    axisLine: { lineStyle: { color: gridColor } },
+                    axisLine: { lineStyle: { color: c.grid } },
                     axisTick: { show: false },
-                    axisLabel: { color: textColor, fontSize: 10, margin: 10, interval: compact ? 3 : 1 },
+                    axisLabel: { color: c.text, fontSize: 10, margin: 10, interval: compact ? 3 : 1 },
                 },
             ],
             yAxis: [
@@ -153,8 +215,8 @@ export function renderAdminDashboardCharts({ refs, config = {}, dark = false, an
                     minInterval: 1,
                     axisLine: { show: false },
                     axisTick: { show: false },
-                    axisLabel: { color: textColor, fontSize: 10, margin: 10 },
-                    splitLine: { lineStyle: { color: gridColor, width: 1, type: [3, 5] } },
+                    axisLabel: { color: c.text, fontSize: 10, margin: 10 },
+                    splitLine: { lineStyle: { color: c.grid, width: 1, type: [3, 5] } },
                 },
                 {
                     type: 'value',
@@ -166,7 +228,7 @@ export function renderAdminDashboardCharts({ refs, config = {}, dark = false, an
             ],
             series: [
                 {
-                    name: config.labels?.total || 'Gesamt',
+                    name: labels.total || 'Gesamt',
                     type: 'line',
                     xAxisIndex: 0,
                     yAxisIndex: 0,
@@ -175,37 +237,42 @@ export function renderAdminDashboardCharts({ refs, config = {}, dark = false, an
                     showSymbol: false,
                     symbol: 'circle',
                     symbolSize: 8,
-                    lineStyle: { color: strongText, width: 2, cap: 'round' },
-                    itemStyle: { color: strongText, borderColor: surfaceColor, borderWidth: 2 },
+                    lineStyle: {
+                        width: 2.4,
+                        cap: 'round',
+                        color: horizontalGradient([
+                            { offset: 0, color: dark ? 'rgba(248,250,252,.42)' : 'rgba(23,32,51,.34)' },
+                            { offset: 1, color: c.strongText },
+                        ]),
+                        shadowBlur: 12,
+                        shadowColor: dark ? 'rgba(0,0,0,.55)' : 'rgba(23,32,51,.18)',
+                        shadowOffsetY: 4,
+                    },
+                    itemStyle: { color: c.strongText, borderColor: c.surface, borderWidth: 2 },
                     areaStyle: {
-                        color: {
-                            type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-                            colorStops: [
-                                { offset: 0, color: totalsAreaStart },
-                                { offset: 1, color: totalsAreaEnd },
-                            ],
-                        },
+                        color: verticalGradient([
+                            { offset: 0, color: c.totalsAreaStart },
+                            { offset: 1, color: c.totalsAreaEnd },
+                        ]),
                     },
                     emphasis: { focus: 'series', scale: 1.2 },
                     z: 3,
                 },
                 {
-                    name: config.labels?.registrations || 'Neu',
+                    name: labels.registrations || 'Neu',
                     type: 'bar',
                     xAxisIndex: 1,
                     yAxisIndex: 1,
                     data: registrations,
-                    barWidth: compact ? 5 : 7,
+                    barWidth: compact ? 5 : 8,
                     itemStyle: {
-                        borderRadius: [3, 3, 0, 0],
-                        color: {
-                            type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-                            colorStops: [
-                                { offset: 0, color: red },
-                                { offset: 1, color: redSoft },
-                            ],
-                        },
+                        borderRadius: [4, 4, 1, 1],
+                        color: verticalGradient([
+                            { offset: 0, color: c.red },
+                            { offset: 1, color: c.redSoft },
+                        ]),
                     },
+                    markLine: averageMarkLine(labels.average || 'Ø'),
                     emphasis: { itemStyle: { color: dark ? '#ff5c73' : '#f51b3b' } },
                     z: 2,
                 },
@@ -223,89 +290,159 @@ export function renderAdminDashboardCharts({ refs, config = {}, dark = false, an
                 ],
                 series: [
                     {},
-                    { barWidth: compact ? 5 : 7 },
+                    { barWidth: compact ? 5 : 8 },
                 ],
             }, { lazyUpdate: true });
         });
     }
 
     if (refs.statusChart) {
-        const totalWorkforce = (status.values || []).reduce((sum, value) => sum + Number(value || 0), 0);
+        const values = status.values || [];
+        const totalWorkforce = values.reduce((sum, value) => sum + Number(value || 0), 0);
 
         mount(refs.statusChart, {
             textStyle: { fontFamily },
             aria: { enabled: true },
             title: {
                 text: numberFormatter.format(totalWorkforce),
-                subtext: config.labels?.accounts || 'Mitarbeiter',
+                subtext: labels.accounts || 'Mitarbeiter',
                 left: 'center',
-                top: '34%',
-                textStyle: { color: strongText, fontFamily, fontSize: 27, fontWeight: 650 },
-                subtextStyle: { color: textColor, fontFamily, fontSize: 10, lineHeight: 18 },
+                top: '33%',
+                textStyle: { color: c.strongText, fontFamily, fontSize: 30, fontWeight: 650 },
+                subtextStyle: { color: c.text, fontFamily, fontSize: 10, lineHeight: 18 },
             },
             tooltip: { ...tooltip, trigger: 'item', formatter: '{b}: <strong>{c}</strong> ({d}%)' },
-            series: [{
-                type: 'pie',
-                radius: ['72%', '86%'],
-                center: ['50%', '48%'],
-                startAngle: 90,
-                clockwise: true,
-                avoidLabelOverlap: true,
-                // 2px Flaechenluecke zwischen den Segmenten + weiche Kappen.
-                itemStyle: { borderRadius: 7, borderColor: surfaceColor, borderWidth: 2 },
-                label: { show: false },
-                emphasis: {
-                    scale: true,
-                    scaleSize: 5,
-                    itemStyle: { shadowBlur: 18, shadowColor: dark ? 'rgba(0,0,0,.5)' : 'rgba(15,23,42,.22)' },
+            series: [
+                {
+                    // Ruhige Grundspur: bleibt auch dann sichtbar, wenn noch
+                    // keine Mitarbeiterkonten existieren, und traegt die
+                    // Segmentluecken des Datenrings optisch mit.
+                    type: 'pie',
+                    radius: ['73%', '87%'],
+                    center: ['50%', '48%'],
+                    silent: true,
+                    animation: false,
+                    label: { show: false },
+                    labelLine: { show: false },
+                    emphasis: { disabled: true },
+                    data: [{ value: 1, itemStyle: { color: c.track } }],
+                    z: 1,
                 },
-                data: (status.values || []).map((value, index) => ({
-                    value,
-                    name: status.labels?.[index] || '',
-                    itemStyle: { color: index === 0 ? red : mutedSurface },
-                })),
-            }],
+                {
+                    type: 'pie',
+                    radius: ['73%', '87%'],
+                    center: ['50%', '48%'],
+                    startAngle: 90,
+                    clockwise: true,
+                    avoidLabelOverlap: true,
+                    // 2px Flaechenluecke zwischen den Segmenten + weiche Kappen.
+                    itemStyle: { borderRadius: 8, borderColor: c.surface, borderWidth: 2 },
+                    label: { show: false },
+                    labelLine: { show: false },
+                    emphasis: {
+                        scale: true,
+                        scaleSize: 5,
+                        itemStyle: { shadowBlur: 18, shadowColor: dark ? 'rgba(0,0,0,.5)' : 'rgba(15,23,42,.22)' },
+                    },
+                    data: values.map((value, index) => ({
+                        value,
+                        name: status.labels?.[index] || '',
+                        itemStyle: {
+                            color: index === 0
+                                ? horizontalGradient([
+                                    { offset: 0, color: c.redSoft },
+                                    { offset: 1, color: c.red },
+                                ])
+                                : c.track,
+                            shadowBlur: index === 0 ? 16 : 0,
+                            shadowColor: index === 0 ? c.glow : 'transparent',
+                        },
+                    })),
+                    z: 2,
+                },
+            ],
         });
     }
 
     if (refs.activityChart) {
+        const values = activity.values || [];
+        const activityLabels = activity.labels || [];
+        let compact = refs.activityChart.clientWidth < 560;
+
         mount(refs.activityChart, {
             textStyle: { fontFamily },
             aria: { enabled: true },
-            grid: { top: 12, right: 8, bottom: 8, left: 8 },
+            grid: { top: 18, right: 14, bottom: 26, left: 34 },
             tooltip: {
                 ...tooltip,
                 trigger: 'axis',
                 axisPointer: crosshair,
                 formatter: (items) => {
                     const point = items?.[0];
-                    return point ? `${activity.labels?.[point.dataIndex] || ''}<br><strong>${point.value}</strong> ${config.labels?.activity || ''}` : '';
+
+                    if (!point) return '';
+
+                    return [
+                        `<span style="color:${c.text};font-size:11px;">${activityLabels[point.dataIndex] || ''}</span>`,
+                        `<strong>${numberFormatter.format(point.value ?? 0)}</strong> ${labels.activity || ''}`,
+                    ].join('<br>');
                 },
             },
-            xAxis: { type: 'category', data: activity.labels || [], show: false, boundaryGap: false },
-            yAxis: { type: 'value', show: false, min: 0, minInterval: 1 },
+            xAxis: {
+                type: 'category',
+                data: activityLabels,
+                boundaryGap: false,
+                axisLine: { lineStyle: { color: c.grid } },
+                axisTick: { show: false },
+                axisLabel: { color: c.text, fontSize: 10, margin: 10, interval: compact ? 3 : 1 },
+            },
+            yAxis: {
+                type: 'value',
+                min: 0,
+                minInterval: 1,
+                splitNumber: 3,
+                axisLine: { show: false },
+                axisTick: { show: false },
+                axisLabel: { color: c.text, fontSize: 10, margin: 8 },
+                splitLine: { lineStyle: { color: c.grid, width: 1, type: [3, 5] } },
+            },
             series: [{
-                name: config.labels?.activity || 'Aktive Nutzer',
+                name: labels.activity || 'Aktive Nutzer',
                 type: 'line',
-                data: activity.values || [],
+                data: values,
                 smooth: 0.3,
                 symbol: 'circle',
                 symbolSize: 9,
                 showSymbol: false,
-                lineStyle: { color: red, width: 2, cap: 'round' },
-                itemStyle: { color: red, borderColor: activityPointBorder, borderWidth: 2 },
-                areaStyle: {
-                    color: {
-                        type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-                        colorStops: [
-                            { offset: 0, color: activityAreaStart },
-                            { offset: 0.65, color: dark ? 'rgba(251, 59, 87, 0.10)' : 'rgba(228, 0, 43, 0.06)' },
-                            { offset: 1, color: activityAreaEnd },
-                        ],
-                    },
+                lineStyle: {
+                    color: c.red,
+                    width: 2.4,
+                    cap: 'round',
+                    shadowBlur: 14,
+                    shadowColor: c.glow,
+                    shadowOffsetY: 5,
                 },
+                itemStyle: { color: c.red, borderColor: c.surface, borderWidth: 2 },
+                areaStyle: {
+                    color: verticalGradient([
+                        { offset: 0, color: c.areaStart },
+                        { offset: 0.65, color: c.areaMid },
+                        { offset: 1, color: c.areaEnd },
+                    ]),
+                },
+                markLine: averageMarkLine(labels.average || 'Ø'),
+                markPoint: peakMarkPoint(),
                 emphasis: { focus: 'series', scale: 1.2 },
             }],
+        }, (chart, element) => {
+            const nextCompact = element.clientWidth < 560;
+
+            if (nextCompact === compact) return;
+
+            compact = nextCompact;
+            chart.setOption({
+                xAxis: { axisLabel: { interval: compact ? 3 : 1 } },
+            }, { lazyUpdate: true });
         });
     }
 

@@ -16,7 +16,7 @@
     "src": "node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-vietnamese-wght-normal.woff2"
   },
   "resources/css/app.css": {
-    "file": "assets/app-BONy0PkW.css",
+    "file": "assets/app-DvpqQCKc.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
@@ -36,18 +36,28 @@
     "isEntry": true
   },
   "resources/js/admin-dashboard-echarts.js": {
-    "file": "assets/admin-dashboard-echarts-CyJbkqGA.js",
+    "file": "assets/admin-dashboard-echarts-DSPu8d4W.js",
     "name": "admin-dashboard-echarts",
     "src": "resources/js/admin-dashboard-echarts.js",
     "isDynamicEntry": true
   },
+  "resources/js/admin-dashboard-motion.js": {
+    "file": "assets/admin-dashboard-motion-CrHtN4RP.js",
+    "name": "admin-dashboard-motion",
+    "src": "resources/js/admin-dashboard-motion.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js"
+    ]
+  },
   "resources/js/app.js": {
-    "file": "assets/app-D2Lj9g_8.js",
+    "file": "assets/app-DFxuDPFF.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
     "dynamicImports": [
-      "resources/js/admin-dashboard-echarts.js"
+      "resources/js/admin-dashboard-echarts.js",
+      "resources/js/admin-dashboard-motion.js"
     ]
   },
   "resources/js/calls.js": {

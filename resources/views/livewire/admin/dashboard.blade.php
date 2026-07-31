@@ -11,12 +11,29 @@
             'registrations' => __('app.registrations'),
             'accounts' => __('app.employees'),
             'activity' => __('app.active_users'),
+            'average' => __('app.chart_average'),
+            'peak' => __('app.chart_peak'),
         ],
     ]);
     $operationalPreviewsBySlug = collect($operationalPreviews)->keyBy('slug');
     $ordersPreview = $operationalPreviewsBySlug->get('orders');
     $shiftsPreview = $operationalPreviewsBySlug->get('shift-management');
     $secondaryPreviews = $operationalPreviewsBySlug->only(['calendar', 'customers']);
+
+    // Lesehilfen fuer die Diagrammkoepfe. Beide Reihen liegen bereits im
+    // Render-Payload — hier wird ausschliesslich zusammengefasst, es kommt
+    // keine zusaetzliche Abfrage hinzu.
+    $activityValues = $charts['activity']['values'] ?? [];
+    $activityPeak = $activityValues ? max($activityValues) : 0;
+    $activityAverage = $activityValues ? (int) round(array_sum($activityValues) / count($activityValues)) : 0;
+    $registrationSum = array_sum($charts['userGrowth']['registrations'] ?? []);
+    $growthTotals = $charts['userGrowth']['totals'] ?? [];
+    $growthCurrent = $growthTotals ? (int) end($growthTotals) : 0;
+    // Anteil der aktiven Konten an allen Mitarbeiterkonten — dieselbe Basis
+    // wie der Ring, nur als Balken unter der Kachel.
+    $activeShare = $workforce['total'] > 0
+        ? max(0, min(100, (int) round(($workforce['active'] / $workforce['total']) * 100)))
+        : 0;
 @endphp
 
 <x-ui.page :auto-intro="false">
@@ -32,32 +49,34 @@
         x-data="adminDashboardCharts(@js($chartConfig))"
         data-admin-dashboard
     >
-        {{-- Markanter Einstieg statt eines generischen Seitenkopfs. --}}
+        {{-- Markanter Einstieg statt eines generischen Seitenkopfs. Die
+             Strecke zeichnet sich per DrawSVG ein, der Signalpunkt faehrt sie
+             danach per MotionPath ab. --}}
         <section class="rt-admin-hero order-1 relative overflow-hidden rounded-[1.4rem] px-4 py-4 text-rt-text shadow-rt-md sm:px-6 sm:py-5 lg:px-7 dark:text-white" data-dashboard-segment="hero">
-            <svg class="pointer-events-none absolute -right-20 bottom-0 h-full w-[58%] opacity-70" viewBox="0 0 720 360" fill="none" aria-hidden="true">
-                <path class="rt-admin-route-bed" d="M42 306C130 276 132 191 220 176C314 160 338 263 431 233C515 205 501 105 680 58" stroke-width="34" stroke-linecap="round" />
-                <path class="rt-admin-route-line" d="M42 306C130 276 132 191 220 176C314 160 338 263 431 233C515 205 501 105 680 58" stroke="#e4002b" stroke-width="3" stroke-linecap="round" />
+            <svg class="pointer-events-none absolute -right-20 bottom-0 h-full w-[58%] opacity-70" viewBox="0 0 720 360" fill="none" aria-hidden="true" data-rt-route>
+                <path class="rt-admin-route-bed" data-rt-route-bed d="M42 306C130 276 132 191 220 176C314 160 338 263 431 233C515 205 501 105 680 58" stroke-width="34" stroke-linecap="round" />
+                <path class="rt-admin-route-line" data-rt-route-line d="M42 306C130 276 132 191 220 176C314 160 338 263 431 233C515 205 501 105 680 58" stroke="#e4002b" stroke-width="3" stroke-linecap="round" />
                 <circle class="rt-admin-signal rt-admin-signal-neutral" cx="220" cy="176" r="8" />
                 <circle class="rt-admin-signal" cx="431" cy="233" r="8" fill="#e4002b" style="animation-delay:.7s" />
                 <circle class="rt-admin-route-end" cx="680" cy="58" r="5" />
+                <circle class="rt-admin-route-train" data-rt-route-train cx="0" cy="0" r="6" fill="#e4002b" opacity="0" />
             </svg>
 
             <div class="relative z-10 grid gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,30rem)] lg:items-center" data-dashboard-items>
                 <div class="max-w-3xl">
                     <div class="mb-3 flex flex-wrap items-center gap-2.5">
-                        <span class="rt-admin-hero-badge inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-semibold tracking-[0.13em] text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200">
+                        <span class="rt-admin-hero-badge inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-semibold tracking-[0.08em] text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200">
                             <span class="relative flex h-2 w-2">
                                 <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-rt-red opacity-70"></span>
                                 <span class="relative inline-flex h-2 w-2 rounded-full bg-rt-red"></span>
                             </span>
-                            {{ __('app.admin_control_center') }}
+                            {{ now()->translatedFormat('l, d. F Y') }}
                         </span>
-                        <span class="text-xs font-medium text-slate-500 dark:text-slate-300">{{ now()->translatedFormat('l, d. F Y') }}</span>
                     </div>
 
                     <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-rt-red dark:text-rt-red-light">{{ __('app.administrator_team') }}</p>
                     <h1 class="mt-1.5 max-w-2xl text-2xl font-semibold leading-tight tracking-[-0.04em] text-rt-text sm:text-3xl lg:text-4xl dark:text-white">
-                        {{ __('app.welcome_name', ['name' => auth()->user()->name]) }}
+                        {{ __('app.admin_control_center') }}
                     </h1>
                     <p class="rt-admin-hero-copy mt-2 max-w-2xl text-xs leading-5 text-slate-600 sm:text-sm sm:leading-6 dark:text-slate-300">
                         {{ __('app.admin_dashboard_description') }}
@@ -229,11 +248,13 @@
             </section>
         @endif
 
-        {{-- Produktive Personalsignale direkt nach der Einsatzsteuerung. --}}
+        {{-- Produktive Personalsignale direkt nach der Einsatzsteuerung.
+             Alle vier Kacheln teilen denselben Aufbau: Symbol, Bezeichnung,
+             Wert und — sofern ein Verhaeltnis existiert — ein Messbalken. --}}
         <section class="order-3 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4" aria-label="{{ __('app.workforce_overview') }}" data-dashboard-segment="kpis" data-dashboard-kpis data-dashboard-workforce-kpis data-dashboard-items>
-            <article class="rt-admin-panel rt-admin-panel-accent group relative min-w-0 overflow-hidden rounded-[1.15rem] p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md sm:p-3.5">
+            <article class="rt-admin-kpi rt-admin-panel rt-admin-panel-accent group relative min-w-0 overflow-hidden rounded-[1.15rem] p-3 sm:p-3.5" data-rt-glow>
                 <div class="flex items-center justify-between gap-1.5">
-                    <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-rt-red dark:border-slate-700 dark:bg-slate-800"><i data-feather="users" class="h-3.5 w-3.5"></i></span>
+                    <span class="rt-admin-kpi-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-rt-red dark:border-slate-700 dark:bg-slate-800"><i data-feather="users" class="h-3.5 w-3.5"></i></span>
                     <span class="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-1 text-[9px] font-semibold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 sm:text-[10px]">
                         <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
                         {{ $workforceActiveRate }}%<span class="sr-only"> {{ __('app.active_rate') }}</span>
@@ -241,87 +262,120 @@
                 </div>
                 <p class="mt-2.5 text-pretty text-[10px] leading-4 text-rt-muted dark:text-rt-dark-muted sm:text-xs">{{ __('app.employees') }}</p>
                 <p class="mt-1 text-xl font-semibold tracking-[-0.035em] tabular-nums text-rt-text dark:text-white sm:text-2xl" data-dashboard-count="{{ $workforce['total'] }}">{{ number_format($workforce['total'], 0, ',', '.') }}</p>
-                <div class="mt-2 h-1 overflow-hidden rounded-full bg-rt-surface-muted dark:bg-rt-dark-surface-muted">
+                <div class="rt-admin-kpi-track mt-2 h-1 overflow-hidden rounded-full bg-rt-surface-muted dark:bg-rt-dark-surface-muted">
                     <div
-                        class="h-full rounded-full bg-rt-red"
+                        class="rt-admin-kpi-meter h-full rounded-full bg-rt-red"
                         data-dashboard-progress="{{ $workforceActiveRate }}"
                         style="transform: scaleX({{ $workforceActiveRate / 100 }}); transform-origin: left center;"
                     ></div>
                 </div>
             </article>
 
-            <article class="rt-admin-panel min-w-0 rounded-[1.15rem] p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md sm:p-3.5">
-                <span class="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"><i data-feather="user-check" class="h-3.5 w-3.5"></i></span>
+            <article class="rt-admin-kpi rt-admin-panel min-w-0 overflow-hidden rounded-[1.15rem] p-3 sm:p-3.5" data-rt-glow>
+                <span class="rt-admin-kpi-icon flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"><i data-feather="user-check" class="h-3.5 w-3.5"></i></span>
                 <p class="mt-2.5 text-pretty text-[10px] leading-4 text-rt-muted dark:text-rt-dark-muted sm:text-xs">{{ __('app.active_users') }}</p>
                 <p class="mt-1 text-xl font-semibold tabular-nums text-rt-text dark:text-white sm:text-2xl" data-dashboard-count="{{ $workforce['active'] }}">{{ number_format($workforce['active'], 0, ',', '.') }}</p>
+                <div class="rt-admin-kpi-track mt-2 h-1 overflow-hidden rounded-full bg-rt-surface-muted dark:bg-rt-dark-surface-muted">
+                    <div
+                        class="rt-admin-kpi-meter h-full rounded-full bg-emerald-500"
+                        data-dashboard-progress="{{ $activeShare }}"
+                        style="transform: scaleX({{ $activeShare / 100 }}); transform-origin: left center;"
+                    ></div>
+                </div>
             </article>
 
-            <article class="rt-admin-panel min-w-0 rounded-[1.15rem] p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md sm:p-3.5">
-                <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent"><i data-feather="shield" class="h-3.5 w-3.5"></i></span>
+            <article class="rt-admin-kpi rt-admin-panel min-w-0 overflow-hidden rounded-[1.15rem] p-3 sm:p-3.5" data-rt-glow>
+                <span class="rt-admin-kpi-icon flex h-8 w-8 items-center justify-center rounded-lg bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent"><i data-feather="shield" class="h-3.5 w-3.5"></i></span>
                 <p class="mt-2.5 text-pretty text-[10px] leading-4 text-rt-muted dark:text-rt-dark-muted sm:text-xs">{{ __('app.teams_rbac') }}</p>
                 <p class="mt-1 text-xl font-semibold tabular-nums text-rt-text dark:text-white sm:text-2xl" data-dashboard-count="{{ $totalTeams }}">{{ number_format($totalTeams, 0, ',', '.') }}</p>
             </article>
 
-            <article class="rt-admin-panel min-w-0 rounded-[1.15rem] p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:shadow-rt-md sm:p-3.5">
-                <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"><i data-feather="user-plus" class="h-3.5 w-3.5"></i></span>
+            <article class="rt-admin-kpi rt-admin-panel min-w-0 overflow-hidden rounded-[1.15rem] p-3 sm:p-3.5" data-rt-glow>
+                <span class="rt-admin-kpi-icon flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"><i data-feather="user-plus" class="h-3.5 w-3.5"></i></span>
                 <p class="mt-2.5 text-pretty text-[10px] leading-4 text-rt-muted dark:text-rt-dark-muted sm:text-xs">{{ __('app.open_invitations') }}</p>
                 <p class="mt-1 text-xl font-semibold tabular-nums text-rt-text dark:text-white sm:text-2xl" data-dashboard-count="{{ $operations['openInvitations'] }}">{{ number_format($operations['openInvitations'], 0, ',', '.') }}</p>
             </article>
         </section>
 
-        {{-- Reale Personal- und Kontentrends mit Apache ECharts 6. --}}
+        {{-- Reale Personal- und Kontentrends mit Apache ECharts 6. Die Flaechen
+             sind bewusst grosszuegig: Verlauf und Ring liegen nebeneinander,
+             die Aktivitaetskurve bekommt die volle Breite. --}}
         <section class="order-4 grid gap-3 sm:gap-4 md:grid-cols-12" aria-label="{{ __('app.workforce_overview') }}" data-dashboard-segment="charts" data-dashboard-items>
-            <article class="rt-admin-panel rounded-2xl p-4 md:col-span-4 xl:col-span-3" data-dashboard-chart="workforce-status">
-                <div class="flex items-start justify-between gap-3">
-                    <div>
-                        <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.employees') }}</p>
-                        <h2 class="mt-1 text-lg font-semibold text-rt-text dark:text-white">{{ __('app.workforce_overview') }}</h2>
-                    </div>
-                    <span class="text-xs font-semibold tabular-nums text-rt-muted dark:text-rt-dark-muted">{{ $workforceActiveRate }}%</span>
-                </div>
-                <div class="rt-admin-chart h-[132px]" x-ref="statusChart" aria-label="{{ __('app.workforce_overview') }}"></div>
-                <dl class="grid grid-cols-2 gap-3 border-t border-slate-200 pt-2.5 sm:gap-4 dark:border-slate-700">
-                    <div>
-                        <dt class="flex items-center gap-2 text-[10px] text-rt-muted dark:text-rt-dark-muted"><span class="h-2 w-2 rounded-full bg-rt-red"></span>{{ __('app.active_users') }}</dt>
-                        <dd class="mt-1 text-sm font-semibold tabular-nums text-rt-text dark:text-white">{{ number_format($workforce['active'], 0, ',', '.') }}</dd>
-                    </div>
-                    <div>
-                        <dt class="flex items-center gap-2 text-[10px] text-rt-muted dark:text-rt-dark-muted"><span class="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-600"></span>{{ __('app.inactive_users') }}</dt>
-                        <dd class="mt-1 text-sm font-semibold tabular-nums text-rt-text dark:text-white">{{ number_format($workforce['inactive'], 0, ',', '.') }}</dd>
-                    </div>
-                </dl>
-            </article>
-
-            <article class="rt-admin-panel overflow-hidden rounded-2xl p-4 md:col-span-8 xl:col-span-3" data-dashboard-chart="activity">
-                <div class="flex items-start justify-between gap-4">
-                    <div>
-                        <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-muted dark:text-rt-dark-muted">{{ __('app.last_14_days') }}</p>
-                        <h2 class="mt-1 text-base font-semibold text-rt-text dark:text-white">{{ __('app.activity_trend') }}</h2>
-                    </div>
-                    <i data-feather="bar-chart-2" class="h-5 w-5 text-rt-red-light"></i>
-                </div>
-                <div class="rt-admin-chart mt-2 h-[132px] sm:h-[150px]" x-ref="activityChart" aria-label="{{ __('app.activity_trend') }}"></div>
-            </article>
-
-            <article class="rt-admin-panel overflow-hidden rounded-2xl p-4 md:col-span-12 xl:col-span-6" data-dashboard-chart="user-growth">
-                <header class="flex flex-wrap items-start justify-between gap-3">
-                    <div>
+            <article class="rt-admin-panel rt-admin-chart-card overflow-hidden rounded-2xl md:col-span-12 xl:col-span-7" data-dashboard-chart="user-growth" data-rt-glow>
+                <header class="rt-admin-chart-head flex flex-wrap items-start justify-between gap-3 px-4 pt-4 sm:px-5">
+                    <div class="min-w-0">
                         <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.last_14_days') }}</p>
-                        <h2 class="mt-1 text-lg font-semibold text-rt-text dark:text-white">{{ __('app.user_growth') }}</h2>
+                        <h2 class="mt-1 text-lg font-semibold tracking-[-0.02em] text-rt-text dark:text-white">{{ __('app.user_growth') }}</h2>
                     </div>
-                    <div class="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 text-[11px] font-medium text-rt-muted dark:text-rt-dark-muted">
-                        <span class="inline-flex items-center gap-2"><span class="h-0.5 w-5 rounded-full bg-rt-text dark:bg-white"></span>{{ __('app.total') }}</span>
-                        <span class="inline-flex items-center gap-2"><span class="h-3 w-1.5 rounded-sm bg-rt-red"></span>{{ __('app.registrations') }}</span>
-                        <strong class="rt-admin-chart-total rounded-md border border-slate-200 bg-slate-50 px-2 py-1 font-semibold text-rt-text dark:border-slate-700 dark:bg-slate-800 dark:text-white">+{{ array_sum($charts['userGrowth']['registrations']) }}</strong>
+                    <div class="flex shrink-0 items-stretch gap-2">
+                        <span class="rt-admin-stat-chip">
+                            <span class="rt-admin-stat-chip-label">{{ __('app.total') }}</span>
+                            <span class="rt-admin-stat-chip-value" data-dashboard-count="{{ $growthCurrent }}">{{ number_format($growthCurrent, 0, ',', '.') }}</span>
+                        </span>
+                        <span class="rt-admin-stat-chip rt-admin-stat-chip-brand">
+                            <span class="rt-admin-stat-chip-label">{{ __('app.registrations') }}</span>
+                            <span class="rt-admin-stat-chip-value">+{{ number_format($registrationSum, 0, ',', '.') }}</span>
+                        </span>
                     </div>
                 </header>
-                <div class="rt-admin-chart mt-2 h-[236px] sm:h-[252px]" x-ref="growthChart" aria-label="{{ __('app.user_growth') }}"></div>
+                <div class="rt-admin-chart mt-1 h-[248px] px-1 sm:h-[288px] sm:px-2" x-ref="growthChart" aria-label="{{ __('app.user_growth') }}"></div>
+                <footer class="rt-admin-chart-legend flex flex-wrap items-center gap-x-4 gap-y-2 px-4 pb-3.5 text-[11px] font-medium text-rt-muted sm:px-5 dark:text-rt-dark-muted">
+                    <span class="inline-flex items-center gap-2"><span class="h-0.5 w-5 rounded-full bg-rt-text dark:bg-white"></span>{{ __('app.total') }}</span>
+                    <span class="inline-flex items-center gap-2"><span class="h-3 w-1.5 rounded-sm bg-rt-red"></span>{{ __('app.registrations') }}</span>
+                    <span class="inline-flex items-center gap-2"><span class="rt-admin-legend-dash"></span>{{ __('app.chart_average') }}</span>
+                </footer>
+            </article>
+
+            <article class="rt-admin-panel rt-admin-chart-card overflow-hidden rounded-2xl md:col-span-12 xl:col-span-5" data-dashboard-chart="workforce-status" data-rt-glow>
+                <header class="rt-admin-chart-head flex flex-wrap items-start justify-between gap-3 px-4 pt-4 sm:px-5">
+                    <div class="min-w-0">
+                        <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.employees') }}</p>
+                        <h2 class="mt-1 text-lg font-semibold tracking-[-0.02em] text-rt-text dark:text-white">{{ __('app.workforce_overview') }}</h2>
+                    </div>
+                    <span class="rt-admin-stat-chip">
+                        <span class="rt-admin-stat-chip-label">{{ __('app.active_rate') }}</span>
+                        <span class="rt-admin-stat-chip-value">{{ $workforceActiveRate }}%</span>
+                    </span>
+                </header>
+                <div class="grid items-center gap-2 px-2 pb-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:px-3">
+                    <div class="rt-admin-chart h-[188px] sm:h-[212px]" x-ref="statusChart" aria-label="{{ __('app.workforce_overview') }}"></div>
+                    <dl class="grid gap-2.5 px-2 pb-3 sm:pb-0">
+                        <div class="rt-admin-ring-legend">
+                            <dt class="flex items-center gap-2 text-[11px] text-rt-muted dark:text-rt-dark-muted"><span class="h-2 w-2 rounded-full bg-rt-red"></span>{{ __('app.active_users') }}</dt>
+                            <dd class="mt-0.5 text-lg font-semibold tabular-nums text-rt-text dark:text-white" data-dashboard-count="{{ $workforce['active'] }}">{{ number_format($workforce['active'], 0, ',', '.') }}</dd>
+                        </div>
+                        <div class="rt-admin-ring-legend">
+                            <dt class="flex items-center gap-2 text-[11px] text-rt-muted dark:text-rt-dark-muted"><span class="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-600"></span>{{ __('app.inactive_users') }}</dt>
+                            <dd class="mt-0.5 text-lg font-semibold tabular-nums text-rt-text dark:text-white" data-dashboard-count="{{ $workforce['inactive'] }}">{{ number_format($workforce['inactive'], 0, ',', '.') }}</dd>
+                        </div>
+                    </dl>
+                </div>
+            </article>
+
+            <article class="rt-admin-panel rt-admin-chart-card overflow-hidden rounded-2xl md:col-span-12" data-dashboard-chart="activity" data-rt-glow>
+                <header class="rt-admin-chart-head flex flex-wrap items-start justify-between gap-3 px-4 pt-4 sm:px-5">
+                    <div class="min-w-0">
+                        <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-muted dark:text-rt-dark-muted">{{ __('app.last_14_days') }}</p>
+                        <h2 class="mt-1 text-lg font-semibold tracking-[-0.02em] text-rt-text dark:text-white">{{ __('app.activity_trend') }}</h2>
+                    </div>
+                    <div class="flex shrink-0 items-stretch gap-2">
+                        <span class="rt-admin-stat-chip">
+                            <span class="rt-admin-stat-chip-label">{{ __('app.chart_average') }}</span>
+                            <span class="rt-admin-stat-chip-value">Ø {{ number_format($activityAverage, 0, ',', '.') }}</span>
+                        </span>
+                        <span class="rt-admin-stat-chip rt-admin-stat-chip-brand">
+                            <span class="rt-admin-stat-chip-label">{{ __('app.chart_peak') }}</span>
+                            <span class="rt-admin-stat-chip-value">{{ number_format($activityPeak, 0, ',', '.') }}</span>
+                        </span>
+                    </div>
+                </header>
+                <div class="rt-admin-chart mt-1 h-[196px] px-1 pb-2 sm:h-[220px] sm:px-2" x-ref="activityChart" aria-label="{{ __('app.activity_trend') }}"></div>
             </article>
         </section>
 
         <section class="order-5 grid gap-3 sm:gap-4 md:grid-cols-12" data-dashboard-segment="accounts" data-dashboard-items>
             {{-- Neueste Benutzer --}}
-            <article class="rt-admin-panel rounded-2xl md:col-span-8">
+            <article class="rt-admin-panel overflow-hidden rounded-2xl md:col-span-8">
                 <header class="flex items-center justify-between gap-4 border-b border-slate-200 px-4 py-3.5 sm:px-5 dark:border-slate-700">
                     <div>
                         <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.accounts') }}</p>
