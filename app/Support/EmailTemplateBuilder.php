@@ -338,6 +338,16 @@ class EmailTemplateBuilder
                 'TEXT_SECONDARY' => '#c3ccd6',
                 'TEXT_MUTED' => '#8f9baa',
                 'BORDER' => '#303944',
+                'SIGNATURE_BG' => '#080b10',
+                'SIGNATURE_LEGAL_BG' => '#10161e',
+                'SIGNATURE_TEXT_PRIMARY' => '#ffffff',
+                'SIGNATURE_CONTACT_TEXT' => '#b9c1ca',
+                'SIGNATURE_META_TEXT' => '#8e98a5',
+                'SIGNATURE_TEXT_MUTED' => '#77818d',
+                'SIGNATURE_LEGAL_TEXT' => '#77818d',
+                'SIGNATURE_ACCENT' => '#ff5570',
+                'SIGNATURE_BORDER' => '#313944',
+                'SIGNATURE_RULE' => '#252c35',
             ],
             default => [
                 'THEME' => 'light',
@@ -351,8 +361,25 @@ class EmailTemplateBuilder
                 'TEXT_SECONDARY' => '#3f4852',
                 'TEXT_MUTED' => '#89939e',
                 'BORDER' => '#dfe3e6',
+                'SIGNATURE_BG' => '#ffffff',
+                'SIGNATURE_LEGAL_BG' => '#f4f2ed',
+                'SIGNATURE_TEXT_PRIMARY' => '#111820',
+                'SIGNATURE_CONTACT_TEXT' => '#5c6671',
+                'SIGNATURE_META_TEXT' => '#66717c',
+                'SIGNATURE_TEXT_MUTED' => '#7b858f',
+                'SIGNATURE_LEGAL_TEXT' => '#8a939d',
+                'SIGNATURE_ACCENT' => '#e4002b',
+                'SIGNATURE_BORDER' => '#dfe3e6',
+                'SIGNATURE_RULE' => '#dfe3e6',
             ],
         };
+    }
+
+    protected function emailLogoAsset(string $theme): string
+    {
+        return $theme === 'dark'
+            ? 'logo-mail-dark.png'
+            : 'logo-signature-light.png';
     }
 
     protected function buildEmailHtml(bool $inlineImages, string $theme = 'light'): string
@@ -365,7 +392,7 @@ class EmailTemplateBuilder
 
         return $this->substitute($html, array_merge(
             ['LOGO_SRC' => $inlineImages
-                ? $this->inlineImage('logo-mail-dark.png', 'image/png')
+                ? $this->inlineImage($this->emailLogoAsset($theme), 'image/png')
                 : 'cid:railtime-logo'],
             $this->contactIconSources($inlineImages)
         ));
@@ -510,10 +537,11 @@ TEXT;
             rtrim($html, "\r\n"),
         ];
 
+        $logoAsset = $this->emailLogoAsset($theme);
         $inlineImages = [
             'railtime-logo' => [
-                'filename' => 'logo-mail-dark.png',
-                'content' => file_get_contents($this->masterPath('assets/logo-mail-dark.png')),
+                'filename' => $logoAsset,
+                'content' => file_get_contents($this->masterPath('assets/'.$logoAsset)),
             ],
         ];
 
