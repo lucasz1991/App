@@ -1,4 +1,7 @@
-<div class="metismenu pb-10 pt-2.5" id="sidebar-menu">
+{{-- Innenabstaende: shell-redesign.css (.rt-shell-sidebar #sidebar-menu).
+     Siehe Hinweis in admin-sidebar.blade.php — Utility-Klassen greifen hier
+     wegen !important im Legacy-Bundle nicht mehr. --}}
+<div class="metismenu" id="sidebar-menu">
     <ul id="side-menu" x-data="rtSidebarNavigation">
         <x-menu.sidebar-nav :label="__('app.overview')">
             <x-menu.sidebar-nav-link

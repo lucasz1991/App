@@ -36,8 +36,10 @@
                 </div>
             @endif
 
+            {{-- Die 85-%-Grenze der Zeile steht in chat-redesign.css
+                 (.rt-chat-message-line) — dort mit Begruendung. --}}
             <div
-                class="rt-chat-message-line {{ $own ? 'rt-chat-message-line--own ml-auto flex-row-reverse' : 'mr-auto' }} flex max-w-full items-end gap-2"
+                class="rt-chat-message-line {{ $own ? 'rt-chat-message-line--own ml-auto flex-row-reverse' : 'mr-auto' }} flex items-end gap-2"
             >
                 <x-chat.avatar
                     :src="$message->sender?->profile_photo_url"
@@ -56,15 +58,23 @@
                     data-rt-chat-message="{{ $own ? 'own' : 'other' }}"
                     @if ($own)
                         tabindex="0"
+                        {{-- Ohne Hover gibt es keinen anderen Weg, das Caret-Menue
+                             anzufordern: Antippen der eigenen Nachricht blendet es
+                             ein, ein Tipp daneben wieder aus. Auf Zeigergeraeten
+                             uebernehmen weiterhin Hover und Fokus (CSS). --}}
+                        x-data="{ actionsVisible: false }"
+                        x-on:click="actionsVisible = true"
+                        x-on:click.outside="actionsVisible = false"
+                        x-bind:data-actions-visible="actionsVisible ? 'true' : 'false'"
                     @endif
                     class="rt-chat-message {{ $own
                         ? 'rt-chat-message--own rt-chat-message--actionable rounded-br-md'
-                        : 'rt-chat-message--other rounded-bl-md' }} {{ $messageSurface }} relative max-w-[90%] rounded-[1.15rem] px-3.5 py-2.5 text-[13px] leading-5 sm:max-w-[min(72vw,38rem)] sm:px-4"
+                        : 'rt-chat-message--other rounded-bl-md' }} {{ $messageSurface }} relative rounded-[1.15rem] px-3.5 py-2.5 text-[13px] leading-5 sm:px-4"
                 >
                     @if ($own)
                         {{-- Loeschen wandert aus der Meta-Zeile in ein Caret-Menue
-                             oben rechts — sichtbar bei Hover/Fokus, auf Touch dezent
-                             permanent (CSS .rt-chat-message-actions). --}}
+                             oben rechts — sichtbar bei Hover, Fokus oder Antippen
+                             (CSS .rt-chat-message-actions). --}}
                         <div class="rt-chat-message-actions" data-no-chat-swipe>
                             <x-ui.dropdown.anchor-dropdown align="right" width="max" :offset="4">
                                 <x-slot name="trigger">
@@ -120,7 +130,10 @@
                                     type="button"
                                     @click="window.dispatchEvent(new CustomEvent('filepool-preview', { detail: { id: {{ $file->id }} } }))"
                                     data-no-chat-swipe
-                                    class="{{ $isImage || $isVideo ? 'rt-chat-image-preview group/image relative block overflow-hidden rounded-2xl bg-black/10' : 'rt-chat-file-card flex items-center gap-3 rounded-xl px-2.5 py-2' }} min-w-0 max-w-[72vw] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/50 sm:max-w-full"
+                                    {{-- max-w-full statt einer vw-Breite: Die Blase ist
+                                         bereits auf 85 % der Verlaufsbreite begrenzt, ein
+                                         vw-Mass wuerde darueber hinauslaufen. --}}
+                                    class="{{ $isImage || $isVideo ? 'rt-chat-image-preview group/image relative block overflow-hidden rounded-2xl bg-black/10' : 'rt-chat-file-card flex items-center gap-3 rounded-xl px-2.5 py-2' }} min-w-0 max-w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/50"
                                     title="{{ __('app.preview') }}"
                                     aria-label="{{ __('app.preview') }}: {{ $file->name }}"
                                 >
@@ -132,7 +145,7 @@
                                             class="max-h-80 w-auto max-w-full object-contain transition duration-500 ease-rt-spring group-hover/image:scale-[1.015]"
                                         >
                                     @elseif ($isVideo)
-                                        <span class="relative flex min-h-36 w-[min(21rem,70vw)] items-center justify-center bg-black/85 text-white">
+                                        <span class="relative flex min-h-36 w-full max-w-[21rem] items-center justify-center bg-black/85 text-white">
                                             <video
                                                 src="{{ $inlineUrl }}"
                                                 preload="metadata"

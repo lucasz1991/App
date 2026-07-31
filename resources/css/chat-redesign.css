@@ -16,6 +16,17 @@
     --chat-accent-strong: theme('colors.rt-red.dark');
     --chat-accent-soft: theme('colors.rt.accent-soft');
     --chat-on-accent: theme('colors.white');
+    /*
+     * Sprechblasen bewusst ausserhalb der Markenfarbe: Rot ist in RailTime das
+     * Signal fuer Aktion und Warnung. In einem Verlauf aus hunderten Blasen liest
+     * es sich als Dauerdruck. Das gelernte Messenger-Schema — eigene Nachricht
+     * dezent gruen, Gegenueber neutral grau — bleibt ruhig und trennt die beiden
+     * Seiten trotzdem auf den ersten Blick.
+     */
+    --chat-bubble-own: #dcf5cd;
+    --chat-bubble-own-edge: #bfe3ab;
+    --chat-bubble-other: #f3f4f6;
+    --chat-bubble-other-edge: #e2e5ea;
     --chat-shadow: color-mix(in srgb, theme('colors.rt-ink') 14%, transparent);
     --chat-shadow-strong: color-mix(in srgb, theme('colors.rt-ink') 24%, transparent);
     --chat-glint: color-mix(in srgb, theme('colors.white') 78%, transparent);
@@ -38,6 +49,11 @@ body[data-mode='dark'] .rt-chat-page {
     --chat-shadow: color-mix(in srgb, theme('colors.black') 36%, transparent);
     --chat-shadow-strong: color-mix(in srgb, theme('colors.black') 62%, transparent);
     --chat-glint: color-mix(in srgb, theme('colors.white') 8%, transparent);
+    /* Dunkel: dasselbe Schema, nur tief genug, damit heller Text darauf traegt. */
+    --chat-bubble-own: #10473b;
+    --chat-bubble-own-edge: #17604f;
+    --chat-bubble-other: #232d38;
+    --chat-bubble-other-edge: #303b47;
 }
 
 .rt-chat-shell {
@@ -422,10 +438,20 @@ body[data-mode='dark'] .rt-chat-transcript {
     contain: layout style;
 }
 
+/*
+ * Eine Nachricht darf hoechstens 85 % der Verlaufsbreite belegen. Die
+ * verbleibenden 15 % auf der Gegenseite machen sofort sichtbar, wer geschrieben
+ * hat — ohne diesen Rest laufen lange Texte auf dem Telefon ueber die volle
+ * Breite und beide Seiten sehen gleich aus.
+ */
 .rt-chat-message-line {
     width: fit-content;
-    max-width: 100%;
+    max-width: 85%;
     column-gap: 0.5rem;
+}
+
+.rt-chat-message-line > .rt-chat-message {
+    max-width: 100%;
 }
 
 .rt-chat-message-avatar {
@@ -472,8 +498,8 @@ body[data-mode='dark'] .rt-chat-message {
 .rt-chat-message--own,
 html.dark .rt-chat-message--own,
 body[data-mode='dark'] .rt-chat-message--own {
-    --chat-bubble-edge: color-mix(in srgb, var(--chat-accent) 29%, var(--chat-line));
-    --chat-bubble-surface: color-mix(in srgb, var(--chat-accent-soft) 72%, var(--chat-panel));
+    --chat-bubble-edge: var(--chat-bubble-own-edge);
+    --chat-bubble-surface: var(--chat-bubble-own);
 
     border-bottom-right-radius: 0.32rem;
 }
@@ -481,14 +507,16 @@ body[data-mode='dark'] .rt-chat-message--own {
 .rt-chat-message--other,
 html.dark .rt-chat-message--other,
 body[data-mode='dark'] .rt-chat-message--other {
-    --chat-bubble-edge: color-mix(in srgb, var(--chat-line) 82%, transparent);
-    --chat-bubble-surface: color-mix(in srgb, var(--chat-panel) 94%, var(--chat-canvas));
+    --chat-bubble-edge: var(--chat-bubble-other-edge);
+    --chat-bubble-surface: var(--chat-bubble-other);
 
     border-bottom-left-radius: 0.32rem;
 }
 
 .rt-chat-message--voice {
-    width: min(21rem, calc(100vw - 4.75rem));
+    /* 100 % meint hier die 85-%-Zeile, nicht das Fenster — der Player bleibt
+       damit innerhalb derselben Grenze wie jede andere Blase. */
+    width: min(21rem, 100%);
     padding: 0.42rem 0.48rem 0.36rem;
 }
 
@@ -570,8 +598,8 @@ body[data-mode='dark'] .rt-chat-message--own .rt-chat-message-meta {
     user-select: none;
 }
 
-/* Caret-Menue eigener Nachrichten: unsichtbar bis Hover/Fokus; auf
-   Touch-Geraeten (kein Hover moeglich) dezent permanent sichtbar. */
+/* Caret-Menue eigener Nachrichten: unsichtbar, bis die Nachricht per Hover,
+   Tastaturfokus oder Antippen angesprochen wird. */
 .rt-chat-message-actions {
     position: absolute;
     top: 0.2rem;
@@ -582,18 +610,44 @@ body[data-mode='dark'] .rt-chat-message--own .rt-chat-message-meta {
     transition:
         opacity 150ms ease,
         transform 180ms ease;
+    pointer-events: none;
 }
 
 .rt-chat-message--own:hover .rt-chat-message-actions,
-.rt-chat-message--own:focus-within .rt-chat-message-actions {
+.rt-chat-message--own:focus-within .rt-chat-message-actions,
+.rt-chat-message--own[data-actions-visible='true'] .rt-chat-message-actions {
     opacity: 1;
     transform: translateY(0);
+    pointer-events: auto;
 }
 
 @media (hover: none) {
-    .rt-chat-message-actions {
-        opacity: 0.55;
-        transform: none;
+    /*
+     * Ohne Hover gab es bisher keinen Zwischenzustand — der Pfeil stand
+     * dauerhaft in jeder eigenen Blase und wirkte wie ein Fehler. Auf Touch
+     * entscheidet deshalb allein das Antippen der Nachricht
+     * (data-actions-visible, gesetzt in der Transkript-Ansicht).
+     */
+    .rt-chat-message--own:hover .rt-chat-message-actions {
+        opacity: 0;
+        transform: translateY(-0.1rem);
+        pointer-events: none;
+    }
+
+    .rt-chat-message--own[data-actions-visible='true'] .rt-chat-message-actions {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: auto;
+    }
+}
+
+/* Auf Touch braucht der Pfeil eine echte Trefferflaeche. !important, weil das
+   Legacy-Bundle build/css/tailwind.min.css .h-6/.w-6 selbst mit !important
+   ausliefert und sonst gewinnt. */
+@media (pointer: coarse) {
+    .rt-chat-message-caret {
+        width: 1.75rem !important;
+        height: 1.75rem !important;
     }
 }
 

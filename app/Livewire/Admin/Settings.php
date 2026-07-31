@@ -3,6 +3,7 @@
 namespace App\Livewire\Admin;
 
 use App\Models\Setting;
+use App\Support\Ai\OpenRouterSettings;
 use App\Support\Calls\CallSettings;
 use App\Support\CompanyData;
 use App\Support\Sound\SoundLibrary;
@@ -39,6 +40,13 @@ class Settings extends Component
      */
     public array $sounds = [];
 
+    /**
+     * OpenRouter-Zugang und Modellprofile — nur fuer den Super-Admin.
+     *
+     * @var array<string, mixed>
+     */
+    public array $openRouter = [];
+
     public function mount(): void
     {
         Gate::authorize('settings.manage');
@@ -55,6 +63,56 @@ class Settings extends Component
         $this->company = CompanyData::all(uncached: true);
         $this->calls = CallSettings::all(uncached: true);
         $this->sounds = SoundLibrary::systemMap();
+
+        if ($this->isSuperAdmin()) {
+            $this->openRouter = OpenRouterSettings::forForm();
+        }
+    }
+
+    /**
+     * Der Super-Admin-Bereich buendelt Zugangsdaten zu externen Diensten.
+     * Ein normaler Administrator soll den OpenRouter-Schluessel weder sehen
+     * noch tauschen koennen, deshalb reicht `settings.manage` hier nicht.
+     */
+    public function isSuperAdmin(): bool
+    {
+        return (bool) auth()->user()?->isSuperAdmin();
+    }
+
+    /** OpenRouter-Verbindung und Modellprofile speichern. */
+    public function saveOpenRouter(): void
+    {
+        Gate::authorize('settings.manage');
+        abort_unless($this->isSuperAdmin(), 403);
+
+        $rules = [
+            'openRouter.api_url' => ['required', 'url', 'max:2048'],
+            'openRouter.api_key' => ['nullable', 'string', 'max:512'],
+            'openRouter.referer_url' => ['nullable', 'url', 'max:2048'],
+            'openRouter.model_title' => ['nullable', 'string', 'max:255'],
+            'openRouter.stream_enabled' => ['boolean'],
+        ];
+
+        foreach (array_keys(OpenRouterSettings::MODEL_FIELDS) as $field) {
+            $rules["openRouter.{$field}"] = ['nullable', 'string', 'max:255'];
+        }
+
+        foreach (OpenRouterSettings::RUNTIME_FIELDS as $field => [, $min, $max]) {
+            $rules["openRouter.{$field}"] = $field === 'temperature'
+                ? ['required', 'numeric', "min:{$min}", "max:{$max}"]
+                : ['required', 'integer', "min:{$min}", "max:{$max}"];
+        }
+
+        $this->validate($rules);
+
+        OpenRouterSettings::save($this->openRouter);
+
+        // Zurueckgelesen, damit die Oberflaeche exakt zeigt, was gilt — und
+        // der Schluessel weiterhin nur als Maske erscheint.
+        $this->openRouter = OpenRouterSettings::forForm();
+
+        $this->dispatch('openrouter-settings-saved');
+        $this->skipRender();
     }
 
     /** Betriebswerte der Anruffunktion speichern. */
@@ -188,7 +246,8 @@ class Settings extends Component
 
     public function render()
     {
-        return view('livewire.admin.settings')
-            ->layout('layouts.master', ['area' => 'admin']);
+        return view('livewire.admin.settings', [
+            'isSuperAdmin' => $this->isSuperAdmin(),
+        ])->layout('layouts.master', ['area' => 'admin']);
     }
 }

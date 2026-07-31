@@ -1,4 +1,8 @@
-<div class="metismenu pb-10 pt-2.5" id="sidebar-menu">
+{{-- Die Innenabstaende stehen in shell-redesign.css (.rt-shell-sidebar
+     #sidebar-menu). Als Utility-Klassen waren sie hier nicht ueberschreibbar:
+     das Legacy-Bundle build/css/tailwind.min.css setzt pt-*/pb-* mit
+     !important, sodass der zusaetzliche Fussraum fuers Telefon nie ankam. --}}
+<div class="metismenu" id="sidebar-menu">
     <ul id="side-menu" x-data="rtSidebarNavigation">
         <x-menu.sidebar-nav :label="__('app.overview')">
             <x-menu.sidebar-nav-link

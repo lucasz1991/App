@@ -469,7 +469,21 @@ body[data-mode='dark'] .rt-expandable-search[data-search-context='topbar'] .rt-e
 /* -------------------------------------------------------------------------- */
 
 .rt-shell-sidebar {
-    padding-top: 1rem !important;
+    /*
+     * Kein Abstand an der Schale: Läge er hier, begänne der Scrollbereich erst
+     * darunter und die Einträge verschwänden schon vor der Oberkante — sichtbar
+     * als Lücke unter der Topbar. Der Abstand sitzt deshalb in #sidebar-menu und
+     * scrollt mit.
+     */
+    padding-top: 0 !important;
+    /*
+     * dvh folgt der ein- und ausfahrenden Browserleiste, vh nicht. Mit vh reicht
+     * die Sidebar unter die Leiste und die letzten Punkte (Hilfe, IT-Support)
+     * sind nicht erreichbar. Die vh-Zeile bleibt als Rückfall für Browser ohne
+     * dvh stehen.
+     */
+    height: calc(100vh - 70px);
+    height: calc(100dvh - 70px);
     border-right: 1px solid var(--rt-shell-line) !important;
     background:
         radial-gradient(22rem 16rem at -7rem -2rem, rgba(228, 0, 43, 0.075), transparent 68%),
@@ -516,11 +530,33 @@ body[data-mode='dark'] .rt-shell-sidebar {
 
 .rt-shell-sidebar #sidebar-menu {
     padding-inline: 0;
+    /* Der frühere Abstand des <aside> — jetzt innerhalb des Scrollbereichs. */
+    padding-top: 1.25rem;
+    padding-bottom: calc(2.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* Der Scrollbereich soll die volle Höhe der Schale nutzen. */
+.rt-shell-sidebar > [data-simplebar],
+.rt-shell-sidebar .simplebar-content-wrapper {
+    overscroll-behavior: contain;
 }
 
 @media (min-width: 1024px) {
     body[data-sidebar-collapsible='true']:not([data-sidebar-expanded='true']) .rt-shell-sidebar #sidebar-menu {
         padding-inline: 0;
+    }
+}
+
+@media (max-width: 1023.98px) {
+    /*
+     * Auf dem Telefon blendet der Browser seine Leiste beim Scrollen ein und
+     * verdeckt damit die untersten Einträge. Der zusätzliche Fußraum stellt
+     * sicher, dass „Hilfe“ und „IT-Support“ immer über die Leiste hinaus
+     * gescrollt werden können.
+     */
+    .rt-shell-sidebar #sidebar-menu {
+        padding-top: 1rem;
+        padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
     }
 }
 
