@@ -40,6 +40,7 @@ import { initKeyboardViewport } from './keyboard-viewport';
 import { welcomeIntro } from './welcome-intro';
 import { railtimeChatbot } from './chatbot';
 import { railtimeAssistantPet3d } from './assistant-pet-3d';
+import { createNavigationParticleSphere } from './navigation-particle-loader';
 
 const loadAdminDashboardECharts = () => import('./admin-dashboard-echarts');
 const loadAdminDashboardMotion = () => import('./admin-dashboard-motion');
@@ -199,10 +200,14 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
 // ---------------------------------------------------------------
 (function () {
     let overlay = null;
+    let particleSphere = null;
     let showTimer = null;
     let failsafeTimer = null;
+    let outroTimer = null;
     let active = false;
     let contentEntrancePending = false;
+    let visibleBeforeSwap = false;
+    let transitionToken = 0;
 
     // Notbremse. Grund (verifiziert in vendor/livewire/livewire/dist/
     // livewire.esm.js, performFetch): Livewire holt die neue Seite mit
@@ -220,72 +225,95 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
         if (overlay && document.body.contains(overlay)) {
             return overlay;
         }
+
         if (!overlay) {
             overlay = document.createElement('div');
             overlay.id = 'rt-nav-overlay';
             overlay.className = 'rt-nav-overlay';
             overlay.setAttribute('role', 'status');
             overlay.setAttribute('aria-hidden', 'true');
-            overlay.setAttribute('aria-label', 'RailTime lädt die nächste Seite');
+            overlay.setAttribute('aria-live', 'polite');
+            overlay.setAttribute('aria-atomic', 'true');
 
-            // Partikelkranz und Funken deterministisch erzeugen: --i steuert
-            // Startwinkel/Verzoegerung, --s die Groesse. Bewusst ohne
-            // Math.random — gleiches Bild bei jedem Seitenwechsel.
-            const particles = Array.from({ length: 8 }, (_, i) => (
-                `<span class="rt-nav-loader__particle" style="--i:${i};--s:${(0.7 + (i % 3) * 0.24).toFixed(2)}"></span>`
-            )).join('');
-            const sparks = Array.from({ length: 3 }, (_, i) => (
-                `<span class="rt-nav-loader__spark" style="--i:${i}"></span>`
-            )).join('');
+            const loader = document.createElement('span');
+            loader.className = 'rt-nav-loader';
+            loader.setAttribute('aria-hidden', 'true');
 
-            overlay.innerHTML = `
-                <span class="rt-nav-loader" aria-hidden="true">
-                    <span class="rt-nav-loader__particles">${particles}</span>
-                    <span class="rt-nav-loader__orb">
-                        <span class="rt-nav-loader__fluid rt-nav-loader__fluid--drift"></span>
-                        <span class="rt-nav-loader__fluid rt-nav-loader__fluid--counter"></span>
-                        <span class="rt-nav-loader__sheen"></span>
-                        ${sparks}
-                        <span class="rt-nav-loader__core"></span>
-                        <span class="rt-nav-loader__gloss"></span>
-                    </span>
-                </span>
-            `;
+            const canvas = document.createElement('canvas');
+            canvas.className = 'rt-nav-loader__canvas';
+            canvas.dataset.rtNavParticles = '';
+            canvas.setAttribute('aria-hidden', 'true');
+
+            const fallback = document.createElement('span');
+            fallback.className = 'rt-nav-loader__fallback';
+            fallback.setAttribute('aria-hidden', 'true');
+
+            const announcement = document.createElement('span');
+            announcement.className = 'sr-only';
+            announcement.textContent = 'RailTime lädt die nächste Seite';
+
+            loader.append(canvas, fallback);
+            overlay.append(loader, announcement);
+
+            particleSphere = createNavigationParticleSphere(canvas);
+            loader.classList.toggle('has-particle-canvas', particleSphere.available);
         }
+
         if (document.body) {
             document.body.appendChild(overlay);
         }
+
         return overlay;
     }
 
-    function start() {
-        active = true;
-        contentEntrancePending = true;
+    function clearTransitionTimers() {
         window.clearTimeout(showTimer);
         window.clearTimeout(failsafeTimer);
+        window.clearTimeout(outroTimer);
+        showTimer = null;
+        failsafeTimer = null;
+        outroTimer = null;
+    }
+
+    function removeOverlayClones() {
+        document.querySelectorAll('#rt-nav-overlay').forEach(function (node) {
+            if (node !== overlay) {
+                node.remove();
+            }
+        });
+    }
+
+    function hideImmediately() {
+        if (overlay) {
+            overlay.classList.remove('is-visible', 'is-leaving', 'is-leaving--quick', 'is-leaving--logo');
+            overlay.setAttribute('aria-hidden', 'true');
+        }
+
+        particleSphere?.stop();
+        visibleBeforeSwap = false;
+        removeOverlayClones();
+    }
+
+    function start() {
+        if (active) {
+            return;
+        }
+
+        transitionToken += 1;
+        active = true;
+        contentEntrancePending = true;
+        clearTransitionTimers();
+        hideImmediately();
+
+        const token = transitionToken;
         showTimer = window.setTimeout(function () {
-            if (!active) return;
+            if (!active || token !== transitionToken) return;
+
             const o = ensureOverlay();
+            o.classList.remove('is-leaving', 'is-leaving--quick', 'is-leaving--logo');
             o.setAttribute('aria-hidden', 'false');
             o.classList.add('is-visible');
-
-            if (window.gsap && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-                const loader = o.querySelector('.rt-nav-loader');
-                window.gsap.killTweensOf(loader);
-                window.gsap.fromTo(loader, {
-                    autoAlpha: 0,
-                    scale: 0.82,
-                    y: 8,
-                }, {
-                    autoAlpha: 1,
-                    scale: 1,
-                    y: 0,
-                    duration: 0.42,
-                    ease: 'power3.out',
-                    overwrite: 'auto',
-                    clearProps: 'opacity,visibility,transform',
-                });
-            }
+            particleSphere?.start();
         }, 120);
         failsafeTimer = window.setTimeout(done, FAILSAFE_MS);
     }
@@ -315,47 +343,87 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
         });
     }
 
-    function done() {
+    function finishOutro(token) {
+        if (token !== transitionToken) {
+            return;
+        }
+
+        window.clearTimeout(outroTimer);
+        outroTimer = null;
+        hideImmediately();
+    }
+
+    function done(options = {}) {
+        const animate = options?.animate === true;
+        const token = transitionToken;
+        const wasVisible = visibleBeforeSwap || overlay?.classList.contains('is-visible');
+
         active = false;
-        window.clearTimeout(showTimer);
-        window.clearTimeout(failsafeTimer);
+        clearTransitionTimers();
+        removeOverlayClones();
 
-        // WICHTIG: nicht nur den Knoten aus der Closure aufraeumen. Livewire
-        // legt fuer den Zurueck-Button eine HTML-Kopie der Seite im
-        // History-State ab. War das Overlay dabei im DOM, bringt die
-        // wiederhergestellte Seite einen KLON mit derselben id mit — den diese
-        // Closure nicht kennt und der sonst dauerhaft sichtbar bliebe.
-        document.querySelectorAll('#rt-nav-overlay').forEach(function (node) {
-            const loader = node.querySelector('.rt-nav-loader');
-            if (loader) {
-                window.gsap?.killTweensOf(loader);
-            }
-            node.classList.remove('is-visible');
-            node.setAttribute('aria-hidden', 'true');
+        if (!animate || !wasVisible) {
+            transitionToken += 1;
+            hideImmediately();
 
-            if (node !== overlay) {
-                node.remove();
-            }
-        });
+            return;
+        }
+
+        // livewire:navigating entfernt den Knoten vor dem History-Snapshot.
+        // onSwap setzt ihn normalerweise bereits in den neuen Body; dieser
+        // Fallback deckt Browser-/Livewire-Versionen ohne Callback ab.
+        const o = ensureOverlay();
+        o.setAttribute('aria-hidden', 'false');
+        o.classList.add('is-visible');
+
+        const outro = particleSphere?.leave() || { mode: 'fallback', duration: 160 };
+
+        if (outro.duration <= 0) {
+            finishOutro(token);
+
+            return;
+        }
+
+        o.classList.add('is-leaving');
+        o.classList.toggle('is-leaving--quick', outro.mode !== 'logo');
+        o.classList.toggle('is-leaving--logo', outro.mode === 'logo');
+        visibleBeforeSwap = false;
+        outroTimer = window.setTimeout(function () {
+            finishOutro(token);
+        }, outro.duration + 32);
     }
 
     document.addEventListener('livewire:navigate', start);
-    document.addEventListener('livewire:navigating', function () {
+    document.addEventListener('livewire:navigating', function (event) {
         start();
+
+        const token = transitionToken;
+        visibleBeforeSwap = Boolean(overlay?.classList.contains('is-visible'));
 
         // Direkt nach diesem Event sichert Livewire die HTML-Kopie der Seite.
         // Deshalb das Overlay vorher aus dem DOM nehmen — so kann es gar nicht
-        // erst als Klon in die History wandern. Dauert der Seitenwechsel
-        // laenger als 120 ms, haengt start() es an den neuen body an.
+        // erst als Klon in die History wandern. Livewires onSwap-Callback setzt
+        // denselben Canvas danach in den neuen Body, noch vor navigated. So kann
+        // die Partikelkugel ueber dem fertigen Inhalt sauber auslaufen.
         if (overlay) {
             overlay.remove();
+        }
+
+        if (visibleBeforeSwap && typeof event.detail?.onSwap === 'function') {
+            event.detail.onSwap(function () {
+                if (token !== transitionToken || !active || !overlay || !document.body) {
+                    return;
+                }
+
+                document.body.appendChild(overlay);
+            });
         }
     });
 
     // Alle Wege, auf denen eine Navigation endet ODER scheitert. done() ist
     // idempotent, mehrfaches Aufraeumen ist deshalb unschaedlich.
     document.addEventListener('livewire:navigated', function () {
-        done();
+        done({ animate: true });
         playContentEntrance();
     });
     window.addEventListener('popstate', done);

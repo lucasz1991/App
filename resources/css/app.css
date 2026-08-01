@@ -3801,11 +3801,10 @@ body[data-mode='dark'] .rt-employee-mobile-header {
     }
 }
 
-/* AI-Orb-Seitenwechsel (nach dem "Motion — AI Orb"-Shot, Fluid-Gradient-
-   Aesthetik, umgesetzt in der RailTime-CI): mattierte Glaskugel, in deren
-   Innerem ein fluessiger Rot-Magenta-Verlauf treibt, umkreist von einem
-   Partikelkranz und einer Lichtspur. Bewusst ohne Text, Karte oder modale
-   Dialogflaeche. Der Navigations-Failsafe lebt in app.js weiter. */
+/* RailTime Particle Core: Die Navigationskugel besteht vollstaendig aus
+   Canvas-Partikeln. Eine deterministische Fibonacci-Verteilung erzeugt echte
+   Tiefenwirkung; das Outro formt bei laengeren Wechseln kurz das RT-Monogramm.
+   Delay, History-Sicherheit und Failsafe werden in app.js gesteuert. */
 .rt-nav-overlay {
     position: fixed;
     inset: 0;
@@ -3814,20 +3813,19 @@ body[data-mode='dark'] .rt-employee-mobile-header {
     place-items: center;
     opacity: 0;
     pointer-events: none;
-    background: rgba(249, 243, 245, 0.3);
-    backdrop-filter: blur(3px) saturate(1.04);
-    -webkit-backdrop-filter: blur(3px) saturate(1.04);
-    transition: opacity 180ms cubic-bezier(0.32, 0.72, 0, 1);
+    background: rgba(249, 243, 245, 0.4);
+    backdrop-filter: blur(7px) saturate(1.06);
+    -webkit-backdrop-filter: blur(7px) saturate(1.06);
+    transition: opacity 230ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 html.dark .rt-nav-overlay,
 body[data-mode='dark'] .rt-nav-overlay {
-    background: rgba(8, 13, 22, 0.34);
+    background: rgba(8, 13, 22, 0.46);
 }
 
 /* Auf Shell-Seiten (fixe Topbar 70px/z-40, Sidebar z-30) deckt das Overlay
-   nur den Inhaltsbereich ab — Topbar und Sidebar bleiben sichtbar und
-   bedienbar. Seiten ohne Shell (Gast/Auth) behalten den Vollbild-Fallback. */
+   nur den Inhaltsbereich ab. Topbar und Sidebar bleiben sichtbar. */
 body[data-sidebar-collapsible] .rt-nav-overlay {
     top: 70px;
     z-index: 25;
@@ -3837,7 +3835,7 @@ body[data-sidebar-collapsible] .rt-nav-overlay {
     body[data-sidebar-collapsible='true'] .rt-nav-overlay {
         left: var(--webreach-sidebar-collapsed-width);
         transition:
-            opacity 180ms cubic-bezier(0.32, 0.72, 0, 1),
+            opacity 230ms cubic-bezier(0.32, 0.72, 0, 1),
             left var(--webreach-sidebar-transition);
     }
 
@@ -3850,433 +3848,231 @@ body[data-sidebar-collapsible] .rt-nav-overlay {
     opacity: 1;
 }
 
+.rt-nav-overlay.is-leaving {
+    opacity: 0;
+    transition-duration: 250ms;
+    transition-delay: 150ms;
+}
+
+.rt-nav-overlay.is-leaving--quick {
+    transition-duration: 170ms;
+    transition-delay: 0ms;
+}
+
 .rt-nav-loader {
     position: relative;
     display: grid;
-    width: 6.5rem;
-    height: 6.5rem;
+    width: 9rem;
+    height: 9rem;
     place-items: center;
     border: 0;
     background: transparent;
     opacity: 0;
     isolation: isolate;
-    transform: scale(0.72);
+    filter: blur(5px);
+    transform: translateY(0.35rem) scale(0.78);
     transition:
-        opacity 180ms ease,
-        transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
-    will-change: transform, opacity;
+        opacity 220ms ease,
+        filter 360ms ease,
+        transform 520ms cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: transform, opacity, filter;
 }
 
 .rt-nav-overlay.is-visible .rt-nav-loader {
     opacity: 1;
-    transform: scale(1);
+    filter: blur(0);
+    transform: translateY(0) scale(1);
 }
 
-/* Weite Aura hinter der Kugel — atmet gemeinsam mit ihr. */
-.rt-nav-loader::before {
-    position: absolute;
-    inset: -0.5rem;
-    z-index: -1;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(228, 0, 43, 0.18) 0, rgba(228, 0, 43, 0.055) 46%, transparent 72%);
-    content: '';
-    opacity: 0.55;
-    pointer-events: none;
-    will-change: transform, opacity;
+.rt-nav-overlay.is-leaving .rt-nav-loader {
+    filter: blur(2px);
+    transform: translateY(-0.12rem) scale(0.92);
+    transition-duration: 280ms;
 }
 
-/* Rotierende Lichtspur knapp um die Kugel: ein konischer Farbverlauf,
-   per Maske auf einen 2px-Ring beschnitten. */
+.rt-nav-overlay.is-leaving--quick .rt-nav-loader {
+    filter: blur(3px);
+    transform: scale(0.88);
+    transition-duration: 170ms;
+}
+
+.rt-nav-loader::before,
 .rt-nav-loader::after {
     position: absolute;
-    inset: 0.85rem;
     border-radius: 50%;
-    background: conic-gradient(
-        from 90deg,
-        rgba(228, 0, 43, 0) 0deg,
-        rgba(228, 0, 43, 0.34) 68deg,
-        rgba(255, 113, 137, 0.68) 118deg,
-        rgba(228, 0, 43, 0) 196deg,
-        rgba(228, 0, 43, 0) 360deg
-    );
-    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1px));
-    mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1px));
     content: '';
-    opacity: 0.62;
-    pointer-events: none;
-    will-change: transform;
-}
-
-/* Partikelkranz: acht Glimmer, die versetzt um die Kugel kreisen und dabei
-   ein- und ausblenden. --i (Winkel/Phase) und --s (Groesse) kommen als
-   Inline-Variablen aus app.js — deterministisch, ohne Zufall. */
-.rt-nav-loader__particles {
-    position: absolute;
-    inset: 0;
-    display: block;
     pointer-events: none;
 }
 
-.rt-nav-loader__particle {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: calc(0.3rem * var(--s, 1));
-    aspect-ratio: 1;
-    margin: calc(-0.15rem * var(--s, 1));
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(255, 255, 255, 0.8) 0%, rgba(255, 113, 137, 0.58) 55%, rgba(255, 113, 137, 0) 100%);
-    box-shadow: 0 0 0.35rem rgba(228, 0, 43, 0.32);
-    opacity: 0;
-    transform: rotate(calc(var(--i) * 45deg)) translateX(2.35rem) scale(0.55);
+/* Weite, atmende Aura. Sie bleibt hinter der Punktwolke und bildet keine
+   zweite feste Kugel. */
+.rt-nav-loader::before {
+    inset: 12%;
+    z-index: -1;
+    background: radial-gradient(
+        circle,
+        rgba(228, 0, 43, 0.22) 0,
+        rgba(228, 0, 43, 0.08) 42%,
+        transparent 72%
+    );
+    filter: blur(0.75rem);
+    opacity: 0.72;
+    transform: scale(0.9);
     will-change: transform, opacity;
 }
 
-/* Kugelschale: mattiertes Glas. overflow:hidden beschneidet die innen
-   treibenden, weich gezeichneten Verlaufsflaechen kreisrund. */
-.rt-nav-loader__orb {
-    position: relative;
-    display: block;
-    width: 4rem;
-    height: 4rem;
-    overflow: hidden;
-    border-radius: 50%;
-    background: radial-gradient(
-        circle at 32% 26%,
-        rgba(255, 255, 255, 0.95) 0 8%,
-        rgba(255, 255, 255, 0.55) 26%,
-        rgba(253, 244, 246, 0.4) 52%,
-        rgba(248, 233, 237, 0.34) 100%
-    );
-    box-shadow:
-        inset 0 0 0 1px rgba(255, 255, 255, 0.6),
-        inset -0.55rem -0.85rem 1.35rem rgba(228, 0, 43, 0.18),
-        inset 0.4rem 0.5rem 1rem rgba(255, 255, 255, 0.62),
-        0 1.3rem 2.4rem -0.85rem rgba(190, 0, 36, 0.42),
-        0 0 2.4rem rgba(228, 0, 43, 0.22);
-    transform: translateZ(0);
-    will-change: transform;
-}
-
-html.dark .rt-nav-loader__orb,
-body[data-mode='dark'] .rt-nav-loader__orb {
-    background: radial-gradient(
-        circle at 32% 26%,
-        rgba(255, 255, 255, 0.3) 0 8%,
-        rgba(255, 198, 210, 0.16) 30%,
-        rgba(66, 18, 32, 0.52) 68%,
-        rgba(40, 10, 20, 0.64) 100%
-    );
-    box-shadow:
-        inset 0 0 0 1px rgba(255, 226, 233, 0.26),
-        inset -0.55rem -0.85rem 1.35rem rgba(180, 0, 52, 0.36),
-        inset 0.4rem 0.5rem 1rem rgba(255, 233, 238, 0.18),
-        0 1.3rem 2.4rem -0.85rem rgba(160, 0, 40, 0.6),
-        0 0 2.6rem rgba(228, 0, 43, 0.3);
-}
-
-/* Fluessige Farbflaechen: zwei gegenlaeufig rotierende, stark weich-
-   gezeichnete Verlaufs-Cluster erzeugen das Treiben aus der Vorlage. */
-.rt-nav-loader__fluid {
-    position: absolute;
-    inset: -18%;
-    border-radius: 50%;
-    filter: blur(7px) saturate(1.12);
-    pointer-events: none;
-    will-change: transform;
-}
-
-.rt-nav-loader__fluid--drift {
-    background:
-        radial-gradient(42% 46% at 66% 38%, rgba(255, 61, 94, 0.92) 0%, rgba(255, 61, 94, 0) 68%),
-        radial-gradient(50% 55% at 68% 66%, rgba(228, 0, 43, 0.9) 0%, rgba(228, 0, 43, 0) 70%),
-        radial-gradient(38% 40% at 45% 52%, rgba(255, 133, 118, 0.82) 0%, rgba(255, 133, 118, 0) 66%);
-}
-
-.rt-nav-loader__fluid--counter {
-    opacity: 0.85;
-    background:
-        radial-gradient(46% 52% at 38% 64%, rgba(214, 0, 90, 0.7) 0%, rgba(214, 0, 90, 0) 70%),
-        radial-gradient(36% 40% at 58% 30%, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0) 62%);
-    mix-blend-mode: screen;
-}
-
-/* Langsam umlaufender Glanzstreifen — wie ein Lichtreflex, der ueber die
-   Glasoberflaeche wandert. */
-.rt-nav-loader__sheen {
-    position: absolute;
-    inset: -8%;
-    border-radius: 50%;
+/* Eine sehr feine gyroskopische Spur fasst die raeumliche Rotation,
+   ohne die Partikelschale wieder wie eine massive Kugel wirken zu lassen. */
+.rt-nav-loader::after {
+    inset: 17%;
+    z-index: 0;
     background: conic-gradient(
-        from 0deg,
-        rgba(255, 255, 255, 0) 0deg,
-        rgba(255, 255, 255, 0.5) 42deg,
-        rgba(255, 255, 255, 0) 92deg,
-        rgba(255, 255, 255, 0) 360deg
+        from 16deg,
+        transparent 0deg,
+        rgba(228, 0, 43, 0.04) 42deg,
+        rgba(255, 109, 133, 0.38) 92deg,
+        transparent 142deg,
+        transparent 360deg
     );
-    filter: blur(5px);
-    mix-blend-mode: screen;
-    opacity: 0.55;
-    pointer-events: none;
-    will-change: transform;
-}
-
-/* Aufsteigende Funken im Kugelinneren. */
-.rt-nav-loader__spark {
-    position: absolute;
-    bottom: 12%;
-    left: calc(24% + var(--i) * 22%);
-    width: 0.18rem;
-    aspect-ratio: 1;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.95);
-    box-shadow: 0 0 0.35rem rgba(255, 179, 192, 0.9);
-    filter: blur(0.5px);
-    opacity: 0;
-    pointer-events: none;
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 1px), #000 100%);
+    mask: radial-gradient(farthest-side, transparent calc(100% - 1px), #000 100%);
+    opacity: 0.58;
+    transform: rotate(-18deg) scaleY(0.72);
     will-change: transform, opacity;
-}
-
-/* Pulsierender Lichtkern in der Mitte. */
-.rt-nav-loader__core {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 34%;
-    aspect-ratio: 1;
-    margin: -17% 0 0 -17%;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(255, 255, 255, 0.92) 0%, rgba(255, 164, 178, 0.55) 46%, rgba(255, 113, 137, 0) 74%);
-    filter: blur(2px);
-    pointer-events: none;
-    will-change: transform, opacity;
-}
-
-/* Frostschicht + Glanzlicht ueber den Farbflaechen. */
-.rt-nav-loader__gloss {
-    position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    background:
-        radial-gradient(58% 44% at 33% 22%, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.26) 42%, rgba(255, 255, 255, 0) 68%),
-        radial-gradient(120% 120% at 50% 128%, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0) 55%);
-    box-shadow: inset 0 0 1.1rem rgba(255, 255, 255, 0.5);
-    pointer-events: none;
-}
-
-html.dark .rt-nav-loader__gloss,
-body[data-mode='dark'] .rt-nav-loader__gloss {
-    opacity: 0.62;
 }
 
 .rt-nav-overlay.is-visible .rt-nav-loader::before {
-    animation: rt-nav-orb-aura 2.6s ease-in-out infinite;
+    animation: rt-nav-particle-aura 2.9s ease-in-out infinite;
 }
 
 .rt-nav-overlay.is-visible .rt-nav-loader::after {
-    animation: rt-nav-orb-ring 1.9s cubic-bezier(0.6, 0.12, 0.32, 0.9) infinite;
+    animation: rt-nav-particle-gyro 6.8s linear infinite;
 }
 
-.rt-nav-overlay.is-visible .rt-nav-loader__orb {
-    animation: rt-nav-orb-breathe 2.6s ease-in-out infinite;
+.rt-nav-loader__canvas {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: block;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    pointer-events: none;
+    filter: drop-shadow(0 0.45rem 0.85rem rgba(174, 0, 39, 0.22));
+    transform: translateZ(0);
 }
 
-.rt-nav-overlay.is-visible .rt-nav-loader__fluid--drift {
-    animation: rt-nav-orb-fluid-drift 2.7s linear infinite;
+.rt-nav-loader.has-particle-canvas .rt-nav-loader__canvas {
+    opacity: 1;
 }
 
-.rt-nav-overlay.is-visible .rt-nav-loader__fluid--counter {
-    animation: rt-nav-orb-fluid-counter 3.9s linear infinite;
+html.dark .rt-nav-loader__canvas,
+body[data-mode='dark'] .rt-nav-loader__canvas {
+    filter:
+        drop-shadow(0 0.5rem 0.9rem rgba(117, 0, 34, 0.42))
+        drop-shadow(0 0 0.45rem rgba(228, 0, 43, 0.16));
 }
 
-.rt-nav-overlay.is-visible .rt-nav-loader__sheen {
-    animation: rt-nav-orb-sheen 5.6s linear infinite;
+/* Striktes Fallback fuer fehlendes Canvas und Forced Colors: das echte
+   Monogramm bleibt ohne Script- oder Bildinhalt erkennbar. */
+.rt-nav-loader__fallback {
+    position: relative;
+    z-index: 1;
+    display: block;
+    width: 3.3rem;
+    height: 3.3rem;
+    background: #e4002b;
+    opacity: 1;
+    -webkit-mask: url('/icons/mask-icon.svg') center / contain no-repeat;
+    mask: url('/icons/mask-icon.svg') center / contain no-repeat;
+    transition: opacity 160ms ease;
 }
 
-.rt-nav-overlay.is-visible .rt-nav-loader__spark {
-    animation: rt-nav-orb-spark 2.4s ease-in infinite;
-    animation-delay: calc(var(--i) * -0.8s);
+.rt-nav-loader.has-particle-canvas .rt-nav-loader__fallback {
+    opacity: 0;
 }
 
-.rt-nav-overlay.is-visible .rt-nav-loader__core {
-    animation: rt-nav-orb-core 2.6s ease-in-out infinite;
-}
-
-.rt-nav-overlay.is-visible .rt-nav-loader__particle {
-    animation: rt-nav-orb-particle 3.2s ease-in-out infinite;
-    animation-delay: calc(var(--i) * -0.4s);
-}
-
-@keyframes rt-nav-orb-breathe {
+@keyframes rt-nav-particle-aura {
     0%,
     100% {
-        transform: translateZ(0) scale(0.96);
+        opacity: 0.52;
+        transform: scale(0.88);
     }
 
     50% {
-        transform: translateZ(0) scale(1.04);
+        opacity: 0.86;
+        transform: scale(1.08);
     }
 }
 
-/* Rotation + leichtes Wandern + Groessenatmung: das Zusammenspiel laesst
-   die Farbflaechen fluessig ineinanderlaufen statt sichtbar zu rotieren. */
-@keyframes rt-nav-orb-fluid-drift {
-    0% {
-        transform: rotate(0turn) translate(0%, 0%) scale(1);
-    }
-
-    25% {
-        transform: rotate(0.25turn) translate(2.5%, -2%) scale(1.08);
-    }
-
-    50% {
-        transform: rotate(0.5turn) translate(-1.5%, 2.5%) scale(1.16);
-    }
-
-    75% {
-        transform: rotate(0.75turn) translate(-2.5%, -1.5%) scale(1.06);
-    }
-
-    100% {
-        transform: rotate(1turn) translate(0%, 0%) scale(1);
-    }
-}
-
-@keyframes rt-nav-orb-fluid-counter {
-    0% {
-        transform: rotate(1turn) translate(0%, 0%) scale(1.1);
-    }
-
-    25% {
-        transform: rotate(0.75turn) translate(-2%, 2%) scale(1);
-    }
-
-    50% {
-        transform: rotate(0.5turn) translate(2.5%, 1.5%) scale(0.92);
-    }
-
-    75% {
-        transform: rotate(0.25turn) translate(1.5%, -2.5%) scale(1.02);
-    }
-
-    100% {
-        transform: rotate(0turn) translate(0%, 0%) scale(1.1);
-    }
-}
-
-@keyframes rt-nav-orb-sheen {
+@keyframes rt-nav-particle-gyro {
     to {
-        transform: rotate(1turn);
+        transform: rotate(342deg) scaleY(0.72);
     }
 }
 
-@keyframes rt-nav-orb-ring {
-    to {
-        transform: rotate(1turn);
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .rt-nav-overlay {
+        background: rgba(249, 243, 245, 0.82);
+    }
+
+    html.dark .rt-nav-overlay,
+    body[data-mode='dark'] .rt-nav-overlay {
+        background: rgba(8, 13, 22, 0.86);
     }
 }
 
-@keyframes rt-nav-orb-spark {
-    0% {
-        transform: translateY(0) scale(0.7);
-        opacity: 0;
-    }
-
-    18% {
-        opacity: 0.9;
-    }
-
-    60% {
-        opacity: 0.65;
-    }
-
-    100% {
-        transform: translateY(-2.4rem) scale(1.05);
-        opacity: 0;
-    }
-}
-
-@keyframes rt-nav-orb-core {
-    0%,
-    100% {
-        transform: scale(0.82);
-        opacity: 0.75;
-    }
-
-    50% {
-        transform: scale(1.12);
-        opacity: 1;
-    }
-}
-
-@keyframes rt-nav-orb-particle {
-    0% {
-        transform: rotate(calc(var(--i) * 45deg)) translateX(2.2rem) scale(0.5);
-        opacity: 0;
-    }
-
-    22% {
-        opacity: 0.95;
-    }
-
-    50% {
-        transform: rotate(calc(var(--i) * 45deg + 34deg)) translateX(3.05rem) scale(1);
-        opacity: 0.72;
-    }
-
-    78% {
-        opacity: 0.9;
-    }
-
-    100% {
-        transform: rotate(calc(var(--i) * 45deg + 68deg)) translateX(2.2rem) scale(0.5);
-        opacity: 0;
+@media (max-width: 639px) {
+    .rt-nav-loader {
+        width: 7.75rem;
+        height: 7.75rem;
     }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .rt-nav-overlay {
-        transition: none;
-    }
-
+    .rt-nav-overlay,
     .rt-nav-loader,
     .rt-nav-loader::before,
     .rt-nav-loader::after,
-    .rt-nav-loader__orb,
-    .rt-nav-loader__fluid,
-    .rt-nav-loader__core,
-    .rt-nav-loader__gloss {
+    .rt-nav-loader__fallback {
         animation: none !important;
-        opacity: 1 !important;
-        transform: none !important;
         transition: none !important;
     }
 
-    /* Statisch bleibt die Kugel ein vollstaendiges Standbild der Vorlage —
-       nur eben ohne Treiben. Reine Bewegungs-Elemente (Partikel, Funken,
-       Glanzstreifen) verschwinden ganz, statt eingefroren zu haengen. */
-    .rt-nav-loader__fluid--counter {
-        opacity: 0.85 !important;
+    .rt-nav-loader {
+        filter: none !important;
+        transform: none !important;
     }
 
     .rt-nav-loader::before {
-        opacity: 0.7 !important;
+        opacity: 0.62;
+        transform: none;
     }
 
     .rt-nav-loader::after {
-        opacity: 0.45 !important;
+        opacity: 0.34;
+        transform: rotate(-18deg) scaleY(0.72);
+    }
+}
+
+@media (forced-colors: active) {
+    .rt-nav-overlay {
+        background: Canvas;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
     }
 
-    .rt-nav-loader__core {
-        opacity: 0.85 !important;
+    .rt-nav-loader::before,
+    .rt-nav-loader::after,
+    .rt-nav-loader__canvas {
+        display: none !important;
     }
 
-    .rt-nav-loader__particle,
-    .rt-nav-loader__spark,
-    .rt-nav-loader__sheen {
-        animation: none !important;
-        opacity: 0 !important;
-        transition: none !important;
+    .rt-nav-loader__fallback,
+    .rt-nav-loader.has-particle-canvas .rt-nav-loader__fallback {
+        background: CanvasText;
+        opacity: 1;
+        forced-color-adjust: none;
     }
 }
 

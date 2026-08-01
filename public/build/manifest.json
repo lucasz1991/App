@@ -22,7 +22,7 @@
     "isDynamicEntry": true
   },
   "resources/css/app.css": {
-    "file": "assets/app-CliNDKWn.css",
+    "file": "assets/app-BeK70aOx.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
@@ -32,7 +32,7 @@
     "isEntry": true
   },
   "resources/css/chatbot.css": {
-    "file": "assets/chatbot-BjWQrJ9l.css",
+    "file": "assets/chatbot-DVhiLJPn.css",
     "src": "resources/css/chatbot.css"
   },
   "resources/css/shell-redesign.css": {
@@ -52,7 +52,7 @@
     "isDynamicEntry": true
   },
   "resources/js/admin-dashboard-motion.js": {
-    "file": "assets/admin-dashboard-motion-Bwwn8QYJ.js",
+    "file": "assets/admin-dashboard-motion-36Rai4wr.js",
     "name": "admin-dashboard-motion",
     "src": "resources/js/admin-dashboard-motion.js",
     "isDynamicEntry": true,
@@ -61,7 +61,7 @@
     ]
   },
   "resources/js/app.js": {
-    "file": "assets/app-DPWGuOd5.js",
+    "file": "assets/app-DD4GYwum.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
