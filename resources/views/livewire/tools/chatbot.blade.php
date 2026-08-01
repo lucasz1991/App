@@ -6,10 +6,6 @@
     $history = is_array($historySource)
         ? $historySource
         : ($historySource instanceof \Traversable ? iterator_to_array($historySource, false) : []);
-    $actionSource = $quickActions ?? [];
-    $actions = is_array($actionSource)
-        ? $actionSource
-        : ($actionSource instanceof \Traversable ? iterator_to_array($actionSource, false) : []);
     $isGerman = app()->getLocale() === 'de';
     $resolvedPageRouteName = trim((string) ($pageRouteName ?? ''));
     $resolvedPageHelpHint = trim((string) ($pageHelpHint ?? ''));
@@ -131,6 +127,10 @@
             'petUnavailable' => $isGerman
                 ? 'Ich mache gerade eine kurze Pause.'
                 : 'I am taking a short break right now.',
+            'wagonHelp' => $isGerman
+                ? 'Soll ich dich per Sprache Schritt für Schritt durch diese Wagenliste führen?'
+                : 'Would you like me to guide you through this wagon list step by step by voice?',
+            'wagonVoiceStart' => $isGerman ? 'Per Sprache starten' : 'Start by voice',
         ],
     ];
 @endphp
@@ -144,6 +144,9 @@
     })"
     x-on:railtime-assistant-reply.window="handleAssistantReply($event.detail)"
     x-on:railtime-assistant-cleared.window="stopSpeaking(); resetAttachmentUi(); knownAssistantMessageKeys = []; $nextTick(() => { updateComposerState(); scrollMessages(true) })"
+    x-on:railtime-assistant-client-action.window="handleClientAction($event.detail)"
+    x-on:railtime-wagon-assistant-result.window="$wire.recordAssistantActionResult($event.detail)"
+    x-on:railtime-wagon-assistant-help.window="handleWagonHelp($event.detail)"
 >
     <button
         type="button"
@@ -159,15 +162,7 @@
         class="rt-chatbot__pet-controller"
         x-data="railtimeAssistantPet3d()"
         x-bind:data-pet-open="open.toString()"
-        x-bind:data-state="!assistantAvailable
-            ? 'offline'
-            : recording
-                ? 'listening'
-                : (speaking || ttsPlaying)
-                    ? 'speaking'
-                    : (isLoading || ttsPreparing || voiceUploading)
-                        ? 'thinking'
-                        : 'idle'"
+        x-bind:data-state="petState()"
         aria-hidden="true"
     ></span>
 
@@ -176,15 +171,7 @@
         x-cloak
         x-show="!open"
         x-transition
-        x-bind:data-state="!assistantAvailable
-            ? 'offline'
-            : recording
-                ? 'listening'
-                : (speaking || ttsPlaying)
-                    ? 'speaking'
-                    : (isLoading || ttsPreparing || voiceUploading)
-                        ? 'thinking'
-                        : 'idle'"
+        x-bind:data-state="petState()"
     >
         <div
             class="rt-chatbot__pet-bubble"
@@ -201,6 +188,14 @@
             x-bind:aria-hidden="(!petBubbleAnnounce).toString()"
         >
             <span x-text="petBubbleText"></span>
+            <button
+                type="button"
+                class="rt-chatbot__pet-bubble-action"
+                x-cloak
+                x-show="petBubbleActionKey && petBubbleActionLabel"
+                x-on:click.stop="runPetBubbleAction()"
+                x-text="petBubbleActionLabel"
+            ></button>
         </div>
 
         <button
@@ -235,7 +230,12 @@
         class="rt-chatbot__panel"
         x-cloak
         x-show="open"
-        x-transition.opacity.scale.95
+        x-transition:enter="rt-chatbot__panel-enter"
+        x-transition:enter-start="rt-chatbot__panel-enter-start"
+        x-transition:enter-end="rt-chatbot__panel-enter-end"
+        x-transition:leave="rt-chatbot__panel-leave"
+        x-transition:leave-start="rt-chatbot__panel-enter-end"
+        x-transition:leave-end="rt-chatbot__panel-enter-start"
         x-bind:role="isDesktopDocked ? 'complementary' : 'dialog'"
         x-bind:aria-modal="isDesktopDocked ? null : 'true'"
         aria-labelledby="railtime-chatbot-title"
@@ -252,12 +252,7 @@
                 >
                     <x-railtime-assistant-pet class="rt-chatbot__avatar-pet rt-assistant-pet--fallback" />
                 </span>
-                <div class="rt-chatbot__identity-copy">
-                    <span class="rt-chatbot__eyebrow">
-                        {{ $isGerman ? 'Dein RailTime-Begleiter' : 'Your RailTime companion' }}
-                    </span>
-                    <h2 id="railtime-chatbot-title" class="rt-chatbot__title">{{ $assistantLabel }}</h2>
-                </div>
+                <h2 id="railtime-chatbot-title" class="rt-chatbot__title">{{ $assistantLabel }}</h2>
             </div>
 
             <div class="rt-chatbot__header-actions">
@@ -466,8 +461,14 @@
             </div>
         </header>
 
-        <div class="rt-chatbot__control-deck">
-            <p class="rt-chatbot__status">
+        <div
+            class="rt-chatbot__service-alert"
+            x-cloak
+            x-show="!assistantAvailable || ['partial', 'offline', 'disabled'].includes(speechStatusTone())"
+            role="status"
+            aria-live="polite"
+        >
+            <p>
                 <span
                     class="rt-chatbot__status-dot {{ $assistantIsAvailable ? '' : 'rt-chatbot__status-dot--offline' }}"
                     x-bind:data-tone="assistantAvailable ? speechStatusTone() : 'offline'"
@@ -477,7 +478,6 @@
                     ? speechStatusText()
                     : @js($isGerman ? 'Momentan nicht verfügbar' : 'Currently unavailable')"></span>
             </p>
-
         </div>
 
         <div class="rt-chatbot__body">
@@ -503,6 +503,10 @@
                         $messageAttachments = is_array($entryAttachmentSource)
                             ? $entryAttachmentSource
                             : ($entryAttachmentSource instanceof \Traversable ? iterator_to_array($entryAttachmentSource, false) : []);
+                        $entryActionSource = $entry['actions'] ?? [];
+                        $messageActions = is_array($entryActionSource)
+                            ? $entryActionSource
+                            : ($entryActionSource instanceof \Traversable ? iterator_to_array($entryActionSource, false) : []);
                         $displayTime = '';
                         if ($createdAt instanceof \DateTimeInterface) {
                             $displayTime = $createdAt->format('H:i');
@@ -520,7 +524,8 @@
                                 <x-railtime-assistant-pet />
                             </span>
                         @endif
-                        <article class="rt-chatbot__message">
+                        <div class="rt-chatbot__message-stack">
+                            <article class="rt-chatbot__message">
                             <p class="rt-chatbot__message-content">{{ $content }}</p>
                             @if (count($messageAttachments) > 0)
                                 <ul
@@ -577,7 +582,46 @@
                                     @endif
                                 </span>
                             </footer>
-                        </article>
+                            </article>
+
+                            @if ($role === 'assistant' && $loop->last && count($messageActions) > 0)
+                                <div
+                                    class="rt-chatbot__message-actions"
+                                    role="group"
+                                    aria-label="{{ $isGerman ? 'Passende Optionen' : 'Suggested options' }}"
+                                >
+                                    @foreach ($messageActions as $quickAction)
+                                        @php
+                                            $action = is_array($quickAction) ? $quickAction : (array) $quickAction;
+                                            $actionKind = (string) ($action['kind'] ?? '');
+                                            $actionKey = (string) ($action['key'] ?? '');
+                                            $actionToken = (string) ($action['token'] ?? '');
+                                            $actionLabel = (string) ($action['label'] ?? $action['prompt'] ?? $actionKey);
+                                        @endphp
+                                        @continue($actionLabel === '' || ! in_array($actionKind, ['prompt', 'pending_tool'], true))
+                                        @continue($actionKind === 'prompt' && $actionKey === '')
+                                        @continue($actionKind === 'pending_tool' && ! preg_match('/\A[a-zA-Z0-9]{48}\z/', $actionToken))
+                                        <button
+                                            type="button"
+                                            class="rt-chatbot__message-action"
+                                            wire:key="railtime-chatbot-action-{{ sha1($messageKey . '|' . $actionKind . '|' . $actionKey . '|' . $actionToken) }}"
+                                            @if ($actionKind === 'pending_tool')
+                                                wire:click="confirmAssistantAction({{ \Illuminate\Support\Js::from($actionToken) }})"
+                                            @else
+                                                wire:click="quickAction({{ \Illuminate\Support\Js::from($actionKey) }})"
+                                            @endif
+                                            wire:loading.attr="disabled"
+                                            @disabled(! $assistantIsAvailable)
+                                        >
+                                            <span>{{ $actionLabel }}</span>
+                                            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                                                <path d="m7 5 5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                                            </svg>
+                                        </button>
+                                    @endforeach
+                                </div>
+                            @endif
+                        </div>
                     </div>
                 @empty
                     <div class="rt-chatbot__empty">
@@ -619,42 +663,6 @@
                     </div>
                 </div>
             </div>
-
-            @if (count($actions) > 0)
-                <section class="rt-chatbot__quick-actions" aria-labelledby="railtime-chatbot-quick-actions">
-                    <div class="rt-chatbot__quick-actions-heading">
-                        <span id="railtime-chatbot-quick-actions">
-                            {{ $isGerman ? 'Direkt loslegen' : 'Start right away' }}
-                        </span>
-                        <span aria-hidden="true">→</span>
-                    </div>
-                    <div class="rt-chatbot__quick-actions-track">
-                        @foreach ($actions as $quickAction)
-                            @php
-                                $action = is_array($quickAction) ? $quickAction : (array) $quickAction;
-                                $actionKey = (string) ($action['key'] ?? '');
-                                $actionLabel = (string) ($action['label'] ?? $action['prompt'] ?? $actionKey);
-                            @endphp
-                            @continue($actionKey === '' || $actionLabel === '')
-                            <button
-                                type="button"
-                                class="rt-chatbot__quick-action"
-                                wire:key="railtime-chatbot-action-{{ sha1($actionKey) }}"
-                                wire:click="quickAction({{ \Illuminate\Support\Js::from($actionKey) }})"
-                                wire:loading.attr="disabled"
-                                @disabled(! $assistantIsAvailable)
-                            >
-                                <span class="rt-chatbot__quick-action-mark" aria-hidden="true">
-                                    <svg viewBox="0 0 20 20" fill="none">
-                                        <path d="m7 5 5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-                                    </svg>
-                                </span>
-                                <span>{{ $actionLabel }}</span>
-                            </button>
-                        @endforeach
-                    </div>
-                </section>
-            @endif
 
             <template x-if="audioError">
                 <div class="rt-chatbot__error" role="alert">
@@ -732,15 +740,18 @@
                     <small x-text="`${Math.round(attachmentUploadProgress)} %`"></small>
                 </div>
 
-                <div class="rt-chatbot__composer-heading">
-                    <span>{{ $isGerman ? 'Deine Nachricht' : 'Your message' }}</span>
-                    <span x-cloak x-show="!recording && !voiceUploading && voiceSupported">
-                        {{ $isGerman ? 'Mikrofon verfügbar' : 'Microphone ready' }}
-                    </span>
-                    <span class="rt-chatbot__recording-label" x-cloak x-show="recording">
+                <div
+                    class="rt-chatbot__composer-state"
+                    x-cloak
+                    x-show="recording || voiceUploading"
+                    role="status"
+                    aria-live="polite"
+                    aria-atomic="true"
+                >
+                    <span class="rt-chatbot__recording-label" x-show="recording">
                         {{ $isGerman ? 'Aufnahme' : 'Recording' }} <span x-text="recordingLabel()"></span> / 0:45
                     </span>
-                    <span x-cloak x-show="voiceUploading">
+                    <span x-show="voiceUploading">
                         {{ $isGerman ? 'Sprache wird erkannt …' : 'Transcribing speech …' }}
                     </span>
                 </div>

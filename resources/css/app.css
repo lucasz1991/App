@@ -2639,6 +2639,21 @@ body.rt-wagon-editor-is-open {
     overflow: hidden;
 }
 
+/* Der Wagenlisten-Assistent gehoert zur aktiven Arbeitsflaeche. Seine eigene
+   Fokussteuerung umfasst Editor und Chatbot gemeinsam; visuell muss er deshalb
+   oberhalb des Vollbilddialogs (Basis 190) bleiben. */
+html.rt-wagon-editor-is-open .rt-chatbot__backdrop {
+    z-index: 209 !important;
+}
+
+html.rt-wagon-editor-is-open .rt-chatbot__pet-stage {
+    z-index: 210 !important;
+}
+
+html.rt-wagon-editor-is-open .rt-chatbot__panel {
+    z-index: 211 !important;
+}
+
 .rt-wagon-draft-hero {
     border: 1px solid #dbe3ee;
     background:

@@ -2,10 +2,127 @@ const PET_STATES = new Set(['idle', 'thinking', 'listening', 'speaking', 'offlin
 const MAX_DEVICE_PIXEL_RATIO = 1.75;
 const MAX_FRAMES_PER_SECOND = 30;
 
+const PET_MOTION_PROFILES = Object.freeze({
+    idle: Object.freeze({
+        baseY: 0,
+        baseScale: 1,
+        floatAmplitude: 0.05,
+        floatSpeed: 1.65,
+        breatheAmplitude: 0.014,
+        breatheSpeed: 2.05,
+        tiltAmplitude: 0.009,
+        tiltSpeed: 0.72,
+        yawAmplitude: 0.012,
+        yawSpeed: 0.58,
+        leafSpread: 1,
+        leafAmplitude: 0.022,
+        leafSpeed: 1.1,
+        eyeScale: 1,
+        mouthScale: 1,
+        mouthPulse: 0,
+        mouthSpeed: 1,
+        emissive: 0.08,
+        emissivePulse: 0,
+        emissiveSpeed: 1,
+    }),
+    thinking: Object.freeze({
+        baseY: 0.01,
+        baseScale: 1.005,
+        floatAmplitude: 0.035,
+        floatSpeed: 2.2,
+        breatheAmplitude: 0.012,
+        breatheSpeed: 2.8,
+        tiltAmplitude: 0.04,
+        tiltSpeed: 1.55,
+        yawAmplitude: 0.032,
+        yawSpeed: 1.25,
+        leafSpread: 0.92,
+        leafAmplitude: 0.06,
+        leafSpeed: 2.45,
+        eyeScale: 0.94,
+        mouthScale: 0.82,
+        mouthPulse: 0,
+        mouthSpeed: 1,
+        emissive: 0.1,
+        emissivePulse: 0.045,
+        emissiveSpeed: 2.5,
+    }),
+    listening: Object.freeze({
+        baseY: 0.025,
+        baseScale: 1.025,
+        floatAmplitude: 0.024,
+        floatSpeed: 1.3,
+        breatheAmplitude: 0.012,
+        breatheSpeed: 1.8,
+        tiltAmplitude: 0.012,
+        tiltSpeed: 0.9,
+        yawAmplitude: 0.018,
+        yawSpeed: 0.72,
+        leafSpread: 0.68,
+        leafAmplitude: 0.035,
+        leafSpeed: 2.1,
+        eyeScale: 1.12,
+        mouthScale: 0.72,
+        mouthPulse: 0,
+        mouthSpeed: 1,
+        emissive: 0.13,
+        emissivePulse: 0.025,
+        emissiveSpeed: 2,
+    }),
+    speaking: Object.freeze({
+        baseY: 0.005,
+        baseScale: 1.008,
+        floatAmplitude: 0.042,
+        floatSpeed: 3.5,
+        breatheAmplitude: 0.016,
+        breatheSpeed: 4.4,
+        tiltAmplitude: 0.018,
+        tiltSpeed: 2.8,
+        yawAmplitude: 0.016,
+        yawSpeed: 2.2,
+        leafSpread: 0.9,
+        leafAmplitude: 0.04,
+        leafSpeed: 3.2,
+        eyeScale: 1.02,
+        mouthScale: 0.9,
+        mouthPulse: 1.2,
+        mouthSpeed: 7.4,
+        emissive: 0.1,
+        emissivePulse: 0.04,
+        emissiveSpeed: 7.4,
+    }),
+    offline: Object.freeze({
+        baseY: -0.035,
+        baseScale: 0.985,
+        floatAmplitude: 0,
+        floatSpeed: 1,
+        breatheAmplitude: 0,
+        breatheSpeed: 1,
+        tiltAmplitude: 0,
+        tiltSpeed: 1,
+        yawAmplitude: 0,
+        yawSpeed: 1,
+        leafSpread: 1.08,
+        leafAmplitude: 0,
+        leafSpeed: 1,
+        eyeScale: 0.82,
+        mouthScale: 0.72,
+        mouthPulse: 0,
+        mouthSpeed: 1,
+        emissive: 0,
+        emissivePulse: 0,
+        emissiveSpeed: 1,
+    }),
+});
+
 export function normalizeAssistantPetState(state) {
     const normalized = String(state ?? '').trim().toLowerCase();
 
     return PET_STATES.has(normalized) ? normalized : 'idle';
+}
+
+export function assistantPetMotionProfile(state) {
+    return PET_MOTION_PROFILES[normalizeAssistantPetState(state)];
 }
 
 export function shouldRenderAssistantPetFrame(lastFrameAt, frameAt, framesPerSecond = MAX_FRAMES_PER_SECOND) {
@@ -135,6 +252,8 @@ function createPetModel(THREE) {
         new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), inkMaterial),
         { position: [0, -0.22, 0.585], scale: [0.115, 0.052, 0.026] },
     );
+    mouth.userData.baseScaleX = 0.115;
+    mouth.userData.baseScaleY = 0.052;
     root.add(mouth);
 
     const leafPivots = [-1, 1].map((side) => {
@@ -210,7 +329,7 @@ export function railtimeAssistantPet3d(options = {}) {
         petRoot: null,
         petScene: null,
         petSlots: [],
-        petState: 'idle',
+        petVisualState: 'idle',
         petThree: null,
         petWebglFailed: false,
 
@@ -278,14 +397,14 @@ export function railtimeAssistantPet3d(options = {}) {
         petSyncFromMarkup() {
             if (this.petDestroyed) return;
 
-            this.petState = normalizeAssistantPetState(this.$el.dataset.state);
+            this.petVisualState = normalizeAssistantPetState(this.$el.dataset.state);
             const targetName = this.$el.dataset.petOpen === 'true' ? 'header' : 'launcher';
             const target = this.petSlots.find((slot) => slot.dataset.assistantPet3dSlot === targetName)
                 ?? this.petSlots[0]
                 ?? null;
 
             this.petSlots.forEach((slot) => {
-                slot.dataset.state = this.petState;
+                slot.dataset.state = this.petVisualState;
                 slot.classList.toggle('is-webgl-failed', this.petWebglFailed);
             });
 
@@ -418,7 +537,7 @@ export function railtimeAssistantPet3d(options = {}) {
             const shouldAnimate = !this.petReducedMotion
                 && !this.petDocumentHidden
                 && this.petInViewport
-                && this.petState !== 'offline';
+                && this.petVisualState !== 'offline';
 
             if (shouldAnimate && !this.petLoopRunning) {
                 this.petLastFrameAt = 0;
@@ -436,17 +555,19 @@ export function railtimeAssistantPet3d(options = {}) {
         petRender(frameAt) {
             if (!this.petRenderer || !this.petScene || !this.petCamera || !this.petModel) return;
 
-            const state = normalizeAssistantPetState(this.petState);
+            const state = normalizeAssistantPetState(this.petVisualState);
+            const profile = assistantPetMotionProfile(state);
             const time = frameAt / 1000;
             const motion = this.petReducedMotion || state === 'offline' ? 0 : 1;
             const model = this.petModel;
-            const idleFloat = Math.sin(time * 1.65) * 0.05 * motion;
-            const breathing = 1 + Math.sin(time * 2.05) * 0.014 * motion;
+            const floating = Math.sin(time * profile.floatSpeed) * profile.floatAmplitude * motion;
+            const breathing = profile.baseScale
+                + Math.sin(time * profile.breatheSpeed) * profile.breatheAmplitude * motion;
 
-            model.root.position.y = state === 'offline' ? -0.035 : idleFloat;
-            model.root.rotation.z = Math.sin(time * 0.72) * 0.009 * motion;
-            model.root.rotation.y = Math.sin(time * 0.58) * 0.012 * motion;
-            model.root.scale.setScalar(state === 'offline' ? 0.985 : breathing);
+            model.root.position.y = profile.baseY + floating;
+            model.root.rotation.z = Math.sin(time * profile.tiltSpeed) * profile.tiltAmplitude * motion;
+            model.root.rotation.y = Math.sin(time * profile.yawSpeed) * profile.yawAmplitude * motion;
+            model.root.scale.setScalar(breathing);
 
             const blinkPhase = time % 4.65;
             const blinking = motion && blinkPhase > 4.24 && blinkPhase < 4.43;
@@ -454,17 +575,25 @@ export function railtimeAssistantPet3d(options = {}) {
                 ? Math.max(0.08, Math.abs(blinkPhase - 4.335) / 0.095)
                 : 1;
             model.eyes.forEach((eye) => {
-                eye.scale.y = eye.userData.baseScaleY * blinkAmount;
+                eye.scale.y = eye.userData.baseScaleY * profile.eyeScale * blinkAmount;
             });
 
             model.leafPivots.forEach((leaf, index) => {
                 const side = index === 0 ? -1 : 1;
-                const baseRotation = side * -0.42;
-                const idleWiggle = Math.sin(time * 1.1 + index * 0.7) * 0.022 * motion;
-                leaf.rotation.z = baseRotation + side * idleWiggle;
+                const baseRotation = side * -0.42 * profile.leafSpread;
+                const stateWiggle = Math.sin(time * profile.leafSpeed + index * 0.7)
+                    * profile.leafAmplitude
+                    * motion;
+                leaf.rotation.z = baseRotation + side * stateWiggle;
             });
 
-            model.bodyMaterial.emissiveIntensity = state === 'offline' ? 0 : 0.08;
+            const mouthPulse = Math.abs(Math.sin(time * profile.mouthSpeed))
+                * profile.mouthPulse
+                * motion;
+            model.mouth.scale.x = model.mouth.userData.baseScaleX * (1 - mouthPulse * 0.08);
+            model.mouth.scale.y = model.mouth.userData.baseScaleY * (profile.mouthScale + mouthPulse);
+            model.bodyMaterial.emissiveIntensity = profile.emissive
+                + Math.abs(Math.sin(time * profile.emissiveSpeed)) * profile.emissivePulse * motion;
             this.petRenderer.render(this.petScene, this.petCamera);
         },
 

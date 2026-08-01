@@ -23,6 +23,10 @@ class AssistantKnowledgeEntry extends Model
         'is_active',
         'include_in_baseline',
         'sort_order',
+        'source_key',
+        'source_url',
+        'source_hash',
+        'imported_at',
     ];
 
     protected $casts = [
@@ -30,6 +34,7 @@ class AssistantKnowledgeEntry extends Model
         'is_active' => 'boolean',
         'include_in_baseline' => 'boolean',
         'sort_order' => 'integer',
+        'imported_at' => 'datetime',
     ];
 
     /** @return BelongsTo<AssistantKnowledgeTopic, $this> */

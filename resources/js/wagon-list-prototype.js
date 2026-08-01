@@ -1,5 +1,67 @@
 const STORAGE_VERSION = 2;
 const MAX_WAGONS = 40;
+const ASSISTANT_EVENT_VERSION = 1;
+const ASSISTANT_COMMANDS = new Set([
+    'start',
+    'next',
+    'previous',
+    'select_wagon',
+    'save',
+    'set_field',
+]);
+const ASSISTANT_STEP_IDS = [
+    'train',
+    'identity',
+    'vehicle',
+    'brakes',
+    'route',
+    'calculation',
+    'special',
+    'review',
+];
+const ASSISTANT_META_FIELDS = [
+    'meta.trainNumber',
+    'meta.date',
+    'meta.origin',
+    'meta.destination',
+    'meta.reference',
+];
+const ASSISTANT_WAGON_FIELDS = [
+    'wagon.number',
+    'wagon.category',
+    'wagon.axlesEmpty',
+    'wagon.axlesLoaded',
+    'wagon.length',
+    'wagon.wagonWeight',
+    'wagon.loadWeight',
+    'wagon.brakeG',
+    'wagon.brakeP',
+    'wagon.shippingStation',
+    'wagon.destinationStation',
+    'wagon.brakeType',
+    'wagon.discBrake',
+    'wagon.parkingBrake',
+    'wagon.maxSpeed',
+    'wagon.remark',
+];
+const ASSISTANT_BRAKE_SHEET_FIELDS = [
+    'brakeSheet.tractionWeight',
+    'brakeSheet.tractionBrakeWeight',
+    'brakeSheet.tractionAxles',
+    'brakeSheet.minimumBrakePercentage',
+    'brakeSheet.brakedAxles',
+    'brakeSheet.lowerVehicleSpeed',
+    'brakeSheet.nbuepBrake',
+    'brakeSheet.emergencyBrakeBridge',
+    'brakeSheet.passengerFeatureHzee',
+    'brakeSheet.passengerFeatureNOe',
+    'brakeSheet.passengerFeatureTb0',
+    'brakeSheet.passengerFeatureOZub',
+    'brakeSheet.passengerFeatureOther',
+    'brakeSheet.dangerousGoods',
+    'brakeSheet.epBrake',
+    'brakeSheet.issuerName',
+];
 
 const emptyMeta = () => ({
     trainNumber: '',
@@ -108,6 +170,9 @@ export function wagonListPrototype(config = {}) {
         mobileViewportHandler: null,
         persistedAt: null,
         persistTimer: null,
+        assistantContextNonce: null,
+        assistantContextTimer: null,
+        assistantContextReason: 'updated',
         exporting: false,
         meta: emptyMeta(),
         wagons: Array.from({ length: MAX_WAGONS }, emptyWagon),
@@ -119,6 +184,7 @@ export function wagonListPrototype(config = {}) {
             const persistWhenEditing = () => {
                 if (!this.hydrating && this.editorOpen && this.activeDraftId) {
                     this.schedulePersist();
+                    this.scheduleAssistantContext('fields-updated');
                 }
             };
 
@@ -126,6 +192,10 @@ export function wagonListPrototype(config = {}) {
             this.$watch('wagons', persistWhenEditing);
             this.$watch('brakeSheet', persistWhenEditing);
             this.$watch('visibleCount', persistWhenEditing);
+            this.$watch('mobileStep', () => this.scheduleAssistantContext('step-updated'));
+            this.$watch('mobileWagon', () => this.scheduleAssistantContext('wagon-updated'));
+            this.$watch('desktopSection', () => this.scheduleAssistantContext('step-updated'));
+            this.$watch('desktopWagon', () => this.scheduleAssistantContext('wagon-updated'));
 
             if (typeof window?.visualViewport?.addEventListener === 'function') {
                 this.mobileViewportHandler = () => this.realignMobilePager();
@@ -135,6 +205,7 @@ export function wagonListPrototype(config = {}) {
 
         destroy() {
             window.clearTimeout(this.persistTimer);
+            window.clearTimeout(this.assistantContextTimer);
             window.clearTimeout(this.mobileSettleTimer);
             if (this.mobileScrollRaf !== null && typeof window.cancelAnimationFrame === 'function') {
                 window.cancelAnimationFrame(this.mobileScrollRaf);
@@ -144,7 +215,9 @@ export function wagonListPrototype(config = {}) {
             }
             if (this.editorOpen && this.activeDraftId) {
                 this.persistDraft();
+                this.dispatchAssistantContext('editor-closed', false);
             }
+            this.assistantContextNonce = null;
             this.unlockEditor();
         },
 
@@ -242,6 +315,7 @@ export function wagonListPrototype(config = {}) {
             if (!draft) return;
 
             this.hydrating = true;
+            this.assistantContextNonce = this.createAssistantContextNonce();
             this.activeDraftId = draft.id;
             this.meta = { ...emptyMeta(), ...draft.meta };
             this.wagons = Array.from({ length: MAX_WAGONS }, (_, index) => ({
@@ -269,6 +343,8 @@ export function wagonListPrototype(config = {}) {
                 this.hydrating = false;
                 this.realignMobilePager();
                 this.$refs?.editorHeading?.focus();
+                this.dispatchAssistantContext('editor-opened');
+                this.dispatchAssistantHelp();
             });
         },
 
@@ -293,14 +369,18 @@ export function wagonListPrototype(config = {}) {
 
         handleEscape(event) {
             if (!this.editorOpen || event.defaultPrevented) return;
+            if (event.target?.closest?.('[data-railtime-chatbot-root]')) return;
 
             event.preventDefault();
             this.cancelEditor();
         },
 
         finishClosingEditor() {
+            const closingNonce = this.assistantContextNonce;
             this.editorOpen = false;
             this.activeDraftId = null;
+            this.dispatchAssistantContext('editor-closed', false, closingNonce);
+            this.assistantContextNonce = null;
             this.unlockEditor();
 
             const returnFocus = this.modalReturnFocus;
@@ -322,27 +402,548 @@ export function wagonListPrototype(config = {}) {
             document.body.classList.remove('rt-wagon-editor-is-open');
         },
 
+        createAssistantContextNonce() {
+            if (typeof globalThis.crypto?.randomUUID === 'function') {
+                return globalThis.crypto.randomUUID();
+            }
+
+            if (typeof globalThis.crypto?.getRandomValues === 'function') {
+                const bytes = new Uint8Array(16);
+                globalThis.crypto.getRandomValues(bytes);
+
+                return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+            }
+
+            return `ctx-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+        },
+
+        assistantCurrentWagonIndex() {
+            const desktop = typeof window !== 'undefined' && window.innerWidth >= 1024;
+            const requested = desktop ? this.desktopWagon : this.mobileWagon;
+
+            return Math.max(0, Math.min(this.visibleCount - 1, Number(requested) || 0));
+        },
+
+        assistantCurrentStepIndex() {
+            return Math.max(0, Math.min(ASSISTANT_STEP_IDS.length - 1, Number(this.mobileStep) || 0));
+        },
+
+        assistantHasValue(value) {
+            if (typeof value === 'boolean') return value;
+
+            return String(value ?? '').trim() !== '';
+        },
+
+        assistantMetaPresence() {
+            return {
+                'meta.trainNumber': this.assistantHasValue(this.meta.trainNumber),
+                'meta.date': this.assistantHasValue(this.meta.date),
+                'meta.origin': this.assistantHasValue(this.meta.origin),
+                'meta.destination': this.assistantHasValue(this.meta.destination),
+                'meta.reference': this.assistantHasValue(this.meta.reference),
+            };
+        },
+
+        assistantCurrentWagonPresence() {
+            const wagon = this.wagons[this.assistantCurrentWagonIndex()] || emptyWagon();
+            const fullNumber = `${this.wagonDigits(wagon)}${String(wagon.checkDigit ?? '').replace(/\D/g, '')}`;
+
+            return {
+                'wagon.number': fullNumber.length === 12,
+                'wagon.category': this.assistantHasValue(wagon.category),
+                'wagon.axlesEmpty': this.assistantHasValue(wagon.axlesEmpty),
+                'wagon.axlesLoaded': this.assistantHasValue(wagon.axlesLoaded),
+                'wagon.length': this.assistantHasValue(wagon.length),
+                'wagon.wagonWeight': this.assistantHasValue(wagon.wagonWeight),
+                'wagon.loadWeight': this.assistantHasValue(wagon.loadWeight),
+                'wagon.brakeG': this.assistantHasValue(wagon.brakeG),
+                'wagon.brakeP': this.assistantHasValue(wagon.brakeP),
+                'wagon.shippingStation': this.assistantHasValue(wagon.shippingStation),
+                'wagon.destinationStation': this.assistantHasValue(wagon.destinationStation),
+                'wagon.brakeType': this.assistantHasValue(wagon.brakeType),
+                'wagon.discBrake': wagon.discBrake === true,
+                'wagon.parkingBrake': this.assistantHasValue(wagon.parkingBrake),
+                'wagon.maxSpeed': this.assistantHasValue(wagon.maxSpeed),
+                'wagon.remark': this.assistantHasValue(wagon.remark),
+            };
+        },
+
+        assistantBrakeSheetPresence() {
+            return {
+                'brakeSheet.tractionWeight': this.assistantHasValue(this.brakeSheet.tractionWeight),
+                'brakeSheet.tractionBrakeWeight': this.assistantHasValue(this.brakeSheet.tractionBrakeWeight),
+                'brakeSheet.tractionAxles': this.assistantHasValue(this.brakeSheet.tractionAxles),
+                'brakeSheet.minimumBrakePercentage': this.assistantHasValue(this.brakeSheet.minimumBrakePercentage),
+                'brakeSheet.brakedAxles': this.assistantHasValue(this.brakeSheet.brakedAxles),
+                'brakeSheet.lowerVehicleSpeed': this.assistantHasValue(this.brakeSheet.lowerVehicleSpeed),
+                'brakeSheet.nbuepBrake': this.assistantHasValue(this.brakeSheet.nbuepBrake),
+                'brakeSheet.emergencyBrakeBridge': this.assistantHasValue(this.brakeSheet.emergencyBrakeBridge),
+                'brakeSheet.passengerFeatureHzee': this.assistantHasValue(this.brakeSheet.passengerFeatureHzee),
+                'brakeSheet.passengerFeatureNOe': this.assistantHasValue(this.brakeSheet.passengerFeatureNOe),
+                'brakeSheet.passengerFeatureTb0': this.assistantHasValue(this.brakeSheet.passengerFeatureTb0),
+                'brakeSheet.passengerFeatureOZub': this.assistantHasValue(this.brakeSheet.passengerFeatureOZub),
+                'brakeSheet.passengerFeatureOther': this.assistantHasValue(this.brakeSheet.passengerFeatureOther),
+                'brakeSheet.dangerousGoods': this.assistantHasValue(this.brakeSheet.dangerousGoods),
+                'brakeSheet.epBrake': this.assistantHasValue(this.brakeSheet.epBrake),
+                'brakeSheet.issuerName': this.assistantHasValue(this.brakeSheet.issuerName),
+            };
+        },
+
+        assistantContextPayload(eventName = 'updated', editorOpen = this.editorOpen, contextNonce = this.assistantContextNonce) {
+            const stepIndex = this.assistantCurrentStepIndex();
+            const isOpen = Boolean(editorOpen && contextNonce);
+
+            return {
+                version: ASSISTANT_EVENT_VERSION,
+                event: String(eventName || 'updated'),
+                context_nonce: String(contextNonce || ''),
+                editor_open: isOpen,
+                current_step: isOpen ? ASSISTANT_STEP_IDS[stepIndex] : null,
+                current_step_index: isOpen ? stepIndex : null,
+                current_wagon_index: isOpen ? this.assistantCurrentWagonIndex() : null,
+                visible_wagons: isOpen ? this.visibleCount : 0,
+                filled_wagons: isOpen ? this.completionCount : 0,
+                presence: isOpen ? {
+                    meta: this.assistantMetaPresence(),
+                    brake_sheet: this.assistantBrakeSheetPresence(),
+                } : {
+                    meta: {},
+                    brake_sheet: {},
+                },
+                current_wagon_fields: isOpen ? this.assistantCurrentWagonPresence() : {},
+                allowed_meta_fields: isOpen ? [...ASSISTANT_META_FIELDS] : [],
+                allowed_brake_sheet_fields: isOpen ? [...ASSISTANT_BRAKE_SHEET_FIELDS] : [],
+                allowed_current_wagon_fields: isOpen ? [...ASSISTANT_WAGON_FIELDS] : [],
+            };
+        },
+
+        dispatchAssistantContext(eventName = 'updated', editorOpen = this.editorOpen, contextNonce = this.assistantContextNonce) {
+            if (typeof window?.dispatchEvent !== 'function') return;
+
+            window.dispatchEvent(new CustomEvent('railtime-wagon-context-updated', {
+                detail: this.assistantContextPayload(eventName, editorOpen, contextNonce),
+            }));
+        },
+
+        scheduleAssistantContext(eventName = 'updated') {
+            if (!this.editorOpen || !this.assistantContextNonce || this.hydrating) return;
+
+            this.assistantContextReason = String(eventName || 'updated');
+            window.clearTimeout(this.assistantContextTimer);
+            this.assistantContextTimer = window.setTimeout(() => {
+                this.assistantContextTimer = null;
+                this.dispatchAssistantContext(this.assistantContextReason);
+            }, 80);
+        },
+
+        dispatchAssistantHelp() {
+            if (!this.editorOpen || !this.assistantContextNonce || typeof window?.dispatchEvent !== 'function') return;
+
+            window.dispatchEvent(new CustomEvent('railtime-wagon-assistant-help', {
+                detail: this.assistantContextPayload('help-requested'),
+            }));
+        },
+
+        normalizeAssistantCommand(rawDetail) {
+            const detail = Array.isArray(rawDetail) ? (rawDetail[0] ?? null) : rawDetail;
+
+            return detail && typeof detail === 'object' && !Array.isArray(detail) ? detail : null;
+        },
+
+        assistantActionToken(value) {
+            const token = typeof value === 'string' ? value.trim() : '';
+
+            return /^[A-Za-z0-9._:-]{1,180}$/.test(token) ? token : '';
+        },
+
+        dispatchAssistantResult(actionToken, status, command, reason = null, contextNonce = this.assistantContextNonce) {
+            if (typeof window?.dispatchEvent !== 'function') return;
+
+            const payload = this.assistantContextPayload('command-result');
+            const detail = {
+                version: ASSISTANT_EVENT_VERSION,
+                action_token: String(actionToken || ''),
+                context_nonce: String(contextNonce || ''),
+                command: String(command || ''),
+                status,
+                current_step: payload.current_step,
+                current_step_index: payload.current_step_index,
+                current_wagon_index: payload.current_wagon_index,
+                visible_wagons: payload.visible_wagons,
+                filled_wagons: payload.filled_wagons,
+                presence: payload.presence,
+                current_wagon_fields: payload.current_wagon_fields,
+            };
+
+            if (reason) detail.reason = String(reason);
+
+            window.dispatchEvent(new CustomEvent('railtime-wagon-assistant-result', { detail }));
+        },
+
+        handleAssistantCommand(rawDetail) {
+            const detail = this.normalizeAssistantCommand(rawDetail);
+            const actionToken = this.assistantActionToken(detail?.action_token);
+            const command = typeof detail?.command === 'string' ? detail.command.trim() : '';
+            const contextNonce = typeof detail?.context_nonce === 'string' ? detail.context_nonce : '';
+
+            if (!detail || Number(detail.version) !== ASSISTANT_EVENT_VERSION || !actionToken) {
+                this.dispatchAssistantResult(actionToken, 'rejected', command, 'invalid_contract', contextNonce);
+                return;
+            }
+
+            if (!this.editorOpen || !this.activeDraftId || !this.assistantContextNonce) {
+                this.dispatchAssistantResult(actionToken, 'stale_context', command, 'editor_closed', contextNonce);
+                return;
+            }
+
+            if (contextNonce !== this.assistantContextNonce) {
+                this.dispatchAssistantResult(actionToken, 'stale_context', command, 'context_mismatch', contextNonce);
+                return;
+            }
+
+            if (!ASSISTANT_COMMANDS.has(command)) {
+                this.dispatchAssistantResult(actionToken, 'rejected', command, 'unknown_command', contextNonce);
+                return;
+            }
+
+            if (command === 'set_field') {
+                this.applyAssistantFieldCommand(detail, actionToken, contextNonce);
+                return;
+            }
+
+            if (command === 'select_wagon') {
+                this.applyAssistantWagonSelection(detail, actionToken, contextNonce);
+                return;
+            }
+
+            if (!this.persistDraft()) {
+                this.dispatchAssistantResult(actionToken, 'storage_error', command, 'draft_not_persisted', contextNonce);
+                return;
+            }
+
+            if (command === 'start') {
+                this.applyAssistantStep(0);
+                this.selectAssistantWagon(0);
+            } else if (command === 'next') {
+                this.applyAssistantStep(this.assistantCurrentStepIndex() + 1);
+            } else if (command === 'previous') {
+                this.applyAssistantStep(this.assistantCurrentStepIndex() - 1);
+            }
+
+            this.dispatchAssistantContext('command-applied');
+            this.dispatchAssistantResult(actionToken, 'applied', command, null, contextNonce);
+        },
+
+        applyAssistantStep(index) {
+            const target = Math.max(0, Math.min(ASSISTANT_STEP_IDS.length - 1, Number(index) || 0));
+            this.mobileStep = target;
+            this.mobileSwipePosition = target;
+            this.desktopSection = target >= 5 ? 'brakeSheet' : 'wagons';
+            this.goToMobileStep(target, 'auto');
+        },
+
+        selectAssistantWagon(index) {
+            const target = Math.max(0, Math.min(this.visibleCount - 1, Number(index) || 0));
+            this.openWagon = target;
+            this.desktopWagon = target;
+            this.showMobileWagon(target);
+        },
+
+        applyAssistantWagonSelection(detail, actionToken, contextNonce) {
+            const wagonIndex = Number(detail.wagon_index);
+
+            if (!Number.isInteger(wagonIndex) || wagonIndex < 0 || wagonIndex >= this.visibleCount) {
+                this.dispatchAssistantResult(actionToken, 'rejected', 'select_wagon', 'invalid_wagon_index', contextNonce);
+                return;
+            }
+
+            if (!this.persistDraft()) {
+                this.dispatchAssistantResult(actionToken, 'storage_error', 'select_wagon', 'draft_not_persisted', contextNonce);
+                return;
+            }
+
+            this.selectAssistantWagon(wagonIndex);
+            this.dispatchAssistantContext('command-applied');
+            this.dispatchAssistantResult(actionToken, 'applied', 'select_wagon', null, contextNonce);
+        },
+
+        assistantEditableSnapshot(wagonIndex) {
+            return {
+                meta: { ...this.meta },
+                wagon: { ...(this.wagons[wagonIndex] || emptyWagon()) },
+                brakeSheet: { ...this.brakeSheet },
+            };
+        },
+
+        restoreAssistantEditableSnapshot(snapshot, wagonIndex) {
+            this.meta = { ...snapshot.meta };
+            this.wagons[wagonIndex] = { ...snapshot.wagon };
+            this.brakeSheet = { ...snapshot.brakeSheet };
+        },
+
+        applyAssistantFieldCommand(detail, actionToken, contextNonce) {
+            const field = typeof detail.field === 'string' ? detail.field.trim() : '';
+            const wagonIndex = this.assistantCurrentWagonIndex();
+            const snapshot = this.assistantEditableSnapshot(wagonIndex);
+
+            if (!this.setAssistantField(field, detail.value, wagonIndex)) {
+                this.dispatchAssistantResult(actionToken, 'rejected', 'set_field', 'invalid_field_or_value', contextNonce);
+                return;
+            }
+
+            if (!this.persistDraft()) {
+                this.restoreAssistantEditableSnapshot(snapshot, wagonIndex);
+                this.dispatchAssistantResult(actionToken, 'storage_error', 'set_field', 'draft_not_persisted', contextNonce);
+                return;
+            }
+
+            this.dispatchAssistantContext('command-applied');
+            this.dispatchAssistantResult(actionToken, 'applied', 'set_field', null, contextNonce);
+        },
+
+        normalizeAssistantText(value, maxLength) {
+            if (!['string', 'number'].includes(typeof value)) return { ok: false, value: '' };
+
+            const normalized = String(value)
+                .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+                .trim();
+
+            return normalized.length <= maxLength
+                ? { ok: true, value: normalized }
+                : { ok: false, value: '' };
+        },
+
+        normalizeAssistantNumber(value) {
+            if (value === '' || value === null) return { ok: true, value: '' };
+            if (!['string', 'number'].includes(typeof value)) return { ok: false, value: '' };
+
+            const normalized = String(value).trim().replace(',', '.');
+            if (!/^(?:\d+|\d*\.\d+)$/.test(normalized)) return { ok: false, value: '' };
+
+            const parsed = Number(normalized);
+
+            return Number.isFinite(parsed) && parsed >= 0
+                ? { ok: true, value: normalized }
+                : { ok: false, value: '' };
+        },
+
+        normalizeAssistantDate(value) {
+            const text = this.normalizeAssistantText(value, 10);
+            if (!text.ok || text.value === '') return text;
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(text.value)) return { ok: false, value: '' };
+
+            const [year, month, day] = text.value.split('-').map(Number);
+            const date = new Date(Date.UTC(year, month - 1, day));
+            const valid = date.getUTCFullYear() === year
+                && date.getUTCMonth() === month - 1
+                && date.getUTCDate() === day;
+
+            return valid ? text : { ok: false, value: '' };
+        },
+
+        normalizeAssistantBoolean(value) {
+            if (value === true || value === 1 || value === '1' || value === 'yes' || value === 'true') {
+                return { ok: true, value: true };
+            }
+            if (value === false || value === 0 || value === '0' || value === 'no' || value === 'false') {
+                return { ok: true, value: false };
+            }
+
+            return { ok: false, value: false };
+        },
+
+        normalizeAssistantYesNo(value) {
+            const normalized = typeof value === 'string' ? value.trim().toLowerCase() : value;
+
+            if (normalized === '' || normalized === null) return { ok: true, value: '' };
+            if (normalized === true || normalized === 1 || normalized === '1' || normalized === 'yes' || normalized === 'ja') {
+                return { ok: true, value: 'yes' };
+            }
+            if (normalized === false || normalized === 0 || normalized === '0' || normalized === 'no' || normalized === 'nein') {
+                return { ok: true, value: 'no' };
+            }
+
+            return { ok: false, value: '' };
+        },
+
+        setAssistantField(field, rawValue, wagonIndex) {
+            const wagon = this.wagons[wagonIndex];
+            if (!wagon) return false;
+
+            let normalized;
+
+            switch (field) {
+                case 'meta.trainNumber':
+                    normalized = this.normalizeAssistantText(rawValue, 80);
+                    if (!normalized.ok) return false;
+                    this.meta.trainNumber = normalized.value;
+                    return true;
+                case 'meta.date':
+                    normalized = this.normalizeAssistantDate(rawValue);
+                    if (!normalized.ok) return false;
+                    this.meta.date = normalized.value;
+                    return true;
+                case 'meta.origin':
+                    normalized = this.normalizeAssistantText(rawValue, 120);
+                    if (!normalized.ok) return false;
+                    this.meta.origin = normalized.value;
+                    return true;
+                case 'meta.destination':
+                    normalized = this.normalizeAssistantText(rawValue, 120);
+                    if (!normalized.ok) return false;
+                    this.meta.destination = normalized.value;
+                    return true;
+                case 'meta.reference':
+                    normalized = this.normalizeAssistantText(rawValue, 160);
+                    if (!normalized.ok) return false;
+                    this.meta.reference = normalized.value;
+                    return true;
+                case 'wagon.number': {
+                    if (!['string', 'number'].includes(typeof rawValue)) return false;
+                    const source = String(rawValue).trim();
+                    if (source === '') {
+                        wagon.number12 = '';
+                        wagon.number34 = '';
+                        wagon.number58 = '';
+                        wagon.number911 = '';
+                        wagon.checkDigit = '';
+                        return true;
+                    }
+                    if (!/^[0-9\s-]+$/.test(source)) return false;
+                    const digits = source.replace(/\D/g, '');
+                    if (digits.length !== 12) return false;
+                    wagon.number12 = digits.slice(0, 2);
+                    wagon.number34 = digits.slice(2, 4);
+                    wagon.number58 = digits.slice(4, 8);
+                    wagon.number911 = digits.slice(8, 11);
+                    wagon.checkDigit = digits.slice(11, 12);
+                    return true;
+                }
+                case 'wagon.category':
+                    normalized = this.normalizeAssistantText(rawValue, 80);
+                    if (!normalized.ok) return false;
+                    wagon.category = normalized.value;
+                    return true;
+                case 'wagon.axlesEmpty':
+                case 'wagon.axlesLoaded':
+                case 'wagon.length':
+                case 'wagon.wagonWeight':
+                case 'wagon.loadWeight':
+                case 'wagon.brakeG':
+                case 'wagon.brakeP':
+                case 'wagon.parkingBrake':
+                case 'wagon.maxSpeed':
+                    normalized = this.normalizeAssistantNumber(rawValue);
+                    if (!normalized.ok) return false;
+                    if (field === 'wagon.axlesEmpty') wagon.axlesEmpty = normalized.value;
+                    else if (field === 'wagon.axlesLoaded') wagon.axlesLoaded = normalized.value;
+                    else if (field === 'wagon.length') wagon.length = normalized.value;
+                    else if (field === 'wagon.wagonWeight') wagon.wagonWeight = normalized.value;
+                    else if (field === 'wagon.loadWeight') wagon.loadWeight = normalized.value;
+                    else if (field === 'wagon.brakeG') wagon.brakeG = normalized.value;
+                    else if (field === 'wagon.brakeP') wagon.brakeP = normalized.value;
+                    else if (field === 'wagon.parkingBrake') wagon.parkingBrake = normalized.value;
+                    else wagon.maxSpeed = normalized.value;
+                    return true;
+                case 'wagon.shippingStation':
+                    normalized = this.normalizeAssistantText(rawValue, 120);
+                    if (!normalized.ok) return false;
+                    wagon.shippingStation = normalized.value;
+                    return true;
+                case 'wagon.destinationStation':
+                    normalized = this.normalizeAssistantText(rawValue, 120);
+                    if (!normalized.ok) return false;
+                    wagon.destinationStation = normalized.value;
+                    return true;
+                case 'wagon.brakeType': {
+                    const brakeType = typeof rawValue === 'string' ? rawValue.trim().toUpperCase() : '';
+                    if (!['', 'K', 'L', 'LL'].includes(brakeType)) return false;
+                    wagon.brakeType = brakeType;
+                    return true;
+                }
+                case 'wagon.discBrake':
+                    normalized = this.normalizeAssistantBoolean(rawValue);
+                    if (!normalized.ok) return false;
+                    wagon.discBrake = normalized.value;
+                    return true;
+                case 'wagon.remark':
+                    normalized = this.normalizeAssistantText(rawValue, 255);
+                    if (!normalized.ok) return false;
+                    wagon.remark = normalized.value;
+                    return true;
+                case 'brakeSheet.tractionWeight':
+                case 'brakeSheet.tractionBrakeWeight':
+                case 'brakeSheet.tractionAxles':
+                case 'brakeSheet.minimumBrakePercentage':
+                case 'brakeSheet.brakedAxles':
+                case 'brakeSheet.lowerVehicleSpeed':
+                    normalized = this.normalizeAssistantNumber(rawValue);
+                    if (!normalized.ok) return false;
+                    if (field === 'brakeSheet.tractionWeight') this.brakeSheet.tractionWeight = normalized.value;
+                    else if (field === 'brakeSheet.tractionBrakeWeight') this.brakeSheet.tractionBrakeWeight = normalized.value;
+                    else if (field === 'brakeSheet.tractionAxles') this.brakeSheet.tractionAxles = normalized.value;
+                    else if (field === 'brakeSheet.minimumBrakePercentage') this.brakeSheet.minimumBrakePercentage = normalized.value;
+                    else if (field === 'brakeSheet.brakedAxles') this.brakeSheet.brakedAxles = normalized.value;
+                    else this.brakeSheet.lowerVehicleSpeed = normalized.value;
+                    return true;
+                case 'brakeSheet.nbuepBrake':
+                case 'brakeSheet.emergencyBrakeBridge':
+                case 'brakeSheet.passengerFeatureHzee':
+                case 'brakeSheet.passengerFeatureNOe':
+                case 'brakeSheet.passengerFeatureTb0':
+                case 'brakeSheet.passengerFeatureOZub':
+                case 'brakeSheet.passengerFeatureOther':
+                case 'brakeSheet.dangerousGoods':
+                case 'brakeSheet.epBrake':
+                    normalized = this.normalizeAssistantYesNo(rawValue);
+                    if (!normalized.ok) return false;
+                    if (field === 'brakeSheet.nbuepBrake') this.brakeSheet.nbuepBrake = normalized.value;
+                    else if (field === 'brakeSheet.emergencyBrakeBridge') this.brakeSheet.emergencyBrakeBridge = normalized.value;
+                    else if (field === 'brakeSheet.passengerFeatureHzee') this.brakeSheet.passengerFeatureHzee = normalized.value;
+                    else if (field === 'brakeSheet.passengerFeatureNOe') this.brakeSheet.passengerFeatureNOe = normalized.value;
+                    else if (field === 'brakeSheet.passengerFeatureTb0') this.brakeSheet.passengerFeatureTb0 = normalized.value;
+                    else if (field === 'brakeSheet.passengerFeatureOZub') this.brakeSheet.passengerFeatureOZub = normalized.value;
+                    else if (field === 'brakeSheet.passengerFeatureOther') this.brakeSheet.passengerFeatureOther = normalized.value;
+                    else if (field === 'brakeSheet.dangerousGoods') this.brakeSheet.dangerousGoods = normalized.value;
+                    else this.brakeSheet.epBrake = normalized.value;
+                    return true;
+                case 'brakeSheet.issuerName':
+                    normalized = this.normalizeAssistantText(rawValue, 160);
+                    if (!normalized.ok) return false;
+                    this.brakeSheet.issuerName = normalized.value;
+                    return true;
+                default:
+                    return false;
+            }
+        },
+
         trapEditorFocus(event) {
-            if (!this.editorOpen || event.key !== 'Tab') return;
+            if (!this.editorOpen || event.key !== 'Tab' || event.defaultPrevented) return;
 
             const dialog = this.$refs?.editorDialog;
             if (!dialog) return;
 
-            const focusable = Array.from(dialog.querySelectorAll(
-                'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
-            )).filter((element) => element.offsetParent !== null);
+            const chatbot = typeof document?.querySelector === 'function'
+                ? document.querySelector('[data-railtime-chatbot-root]')
+                : null;
+            const selector = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+            const focusable = [dialog, chatbot]
+                .filter(Boolean)
+                .flatMap((scope) => Array.from(scope.querySelectorAll(selector)))
+                .filter((element) => (
+                    element.offsetParent !== null
+                    && !element.closest('[inert]')
+                    && element.getAttribute('aria-hidden') !== 'true'
+                ));
             if (!focusable.length) return;
 
-            const first = focusable[0];
-            const last = focusable[focusable.length - 1];
+            const currentIndex = focusable.indexOf(document.activeElement);
+            const nextIndex = event.shiftKey
+                ? (currentIndex <= 0 ? focusable.length - 1 : currentIndex - 1)
+                : (currentIndex < 0 || currentIndex >= focusable.length - 1 ? 0 : currentIndex + 1);
 
-            if (event.shiftKey && document.activeElement === first) {
-                event.preventDefault();
-                last.focus();
-            } else if (!event.shiftKey && document.activeElement === last) {
-                event.preventDefault();
-                first.focus();
-            }
+            event.preventDefault();
+            focusable[nextIndex]?.focus?.({ preventScroll: true });
         },
 
         async confirmDeletion({ title, text, confirmButtonText }) {

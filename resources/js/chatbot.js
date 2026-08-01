@@ -46,6 +46,8 @@ const DEFAULT_STRINGS = {
     petVoiceHint: 'Du kannst deine Frage auch einfach einsprechen.',
     petReplyReady: 'Ich habe eine Antwort für dich.',
     petUnavailable: 'Ich mache gerade eine kurze Pause.',
+    wagonHelp: 'Soll ich dich per Sprache Schritt für Schritt durch diese Wagenliste führen?',
+    wagonVoiceStart: 'Per Sprache starten',
 };
 
 function clamp(value, min, max, fallback) {
@@ -197,6 +199,8 @@ export function railtimeChatbot(config = {}) {
         petBubbleVisible: false,
         petBubbleAnnounce: false,
         petBubbleOrigin: null,
+        petBubbleActionKey: '',
+        petBubbleActionLabel: '',
         petHintIndex: 0,
         petBubbleTimer: null,
         petBubbleCycleTimer: null,
@@ -432,19 +436,23 @@ export function railtimeChatbot(config = {}) {
             return '';
         },
 
-        showPetBubble(text, duration = PET_BUBBLE_VISIBLE_MS, announce = false, origin = null) {
+        showPetBubble(text, duration = PET_BUBBLE_VISIBLE_MS, announce = false, origin = null, action = null) {
             const message = String(text ?? '').trim();
             if (!message || this.open) return;
 
             window.clearTimeout(this.petBubbleTimer);
             this.petBubbleAnnounce = Boolean(announce);
             this.petBubbleOrigin = origin ?? (announce ? 'reply' : 'manual');
+            this.petBubbleActionKey = String(action?.key ?? '');
+            this.petBubbleActionLabel = String(action?.label ?? '');
             this.petBubbleText = message;
             this.petBubbleVisible = true;
             this.petBubbleTimer = window.setTimeout(() => {
                 this.petBubbleVisible = false;
                 this.petBubbleAnnounce = false;
                 this.petBubbleOrigin = null;
+                this.petBubbleActionKey = '';
+                this.petBubbleActionLabel = '';
                 this.petBubbleTimer = null;
             }, Math.max(1_500, Number(duration) || PET_BUBBLE_VISIBLE_MS));
         },
@@ -455,6 +463,19 @@ export function railtimeChatbot(config = {}) {
             this.petBubbleVisible = false;
             this.petBubbleAnnounce = false;
             this.petBubbleOrigin = null;
+            this.petBubbleActionKey = '';
+            this.petBubbleActionLabel = '';
+        },
+
+        runPetBubbleAction() {
+            const actionKey = String(this.petBubbleActionKey ?? '');
+            if (actionKey !== 'wagon_voice_start') return false;
+
+            this.hidePetBubble();
+            this.setOpen(true, true);
+            this.$nextTick(() => this.$wire?.quickAction?.(actionKey));
+
+            return true;
         },
 
         schedulePetBubble(initial = false) {
@@ -889,6 +910,96 @@ export function railtimeChatbot(config = {}) {
                     this.cancelPendingAutoListen();
                 }
             });
+        },
+
+        handleClientAction(rawDetail) {
+            const detail = normalizedEventDetail(rawDetail);
+            const action = normalizedEventDetail(detail.action ?? detail);
+            const type = String(action.type ?? '');
+            const actionToken = String(action.action_token ?? '');
+
+            if (!/^[a-zA-Z0-9]{48}$/.test(actionToken)) return false;
+
+            if (type === 'navigate') {
+                const rawUrl = String(action.url ?? '').trim();
+                if (!rawUrl.startsWith('/') || rawUrl.startsWith('//')) return false;
+
+                let target;
+                try {
+                    target = new URL(rawUrl, window.location.href);
+                } catch (_) {
+                    return false;
+                }
+
+                if (target.origin !== window.location.origin) return false;
+
+                this.closeSettings(false);
+                this.abortSpeechInput();
+                this.stopSpeaking();
+                this.discardPendingAttachments();
+                this.setOpen(false);
+
+                const relativeTarget = `${target.pathname}${target.search}${target.hash}`;
+                if (typeof window.Livewire?.navigate === 'function') {
+                    window.Livewire.navigate(relativeTarget);
+                } else {
+                    window.location.assign(relativeTarget);
+                }
+
+                return true;
+            }
+
+            const allowedCommands = new Set([
+                'start',
+                'next',
+                'previous',
+                'select_wagon',
+                'save',
+                'set_field',
+            ]);
+            const command = String(action.command ?? '');
+            const contextNonce = String(action.context_nonce ?? '');
+
+            if (
+                type !== 'wagon_list'
+                || !allowedCommands.has(command)
+                || !/^[a-zA-Z0-9_-]{16,96}$/.test(contextNonce)
+            ) {
+                return false;
+            }
+
+            window.dispatchEvent(new CustomEvent('railtime-wagon-assistant-command', {
+                detail: {
+                    ...action,
+                    version: 1,
+                    action_token: actionToken,
+                    context_nonce: contextNonce,
+                    command,
+                },
+            }));
+
+            return true;
+        },
+
+        handleWagonHelp(rawDetail) {
+            if (!this.autoHelp || document.hidden) return false;
+
+            const detail = normalizedEventDetail(rawDetail);
+            const text = String(
+                detail.text
+                ?? this.strings.wagonHelp,
+            ).trim();
+
+            if (!text) return false;
+
+            if (!this.open) {
+                this.showPetBubble(text, 9_000, true, 'wagon-list', {
+                    key: 'wagon_voice_start',
+                    label: this.strings.wagonVoiceStart,
+                });
+            }
+
+            return true;
         },
 
         composerDraft() {

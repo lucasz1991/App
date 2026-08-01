@@ -19,11 +19,15 @@ class AssistantKnowledgeTopic extends Model
         'description',
         'is_active',
         'sort_order',
+        'source_key',
+        'source_hash',
+        'imported_at',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
         'sort_order' => 'integer',
+        'imported_at' => 'datetime',
     ];
 
     /** @return HasMany<AssistantKnowledgeEntry, $this> */

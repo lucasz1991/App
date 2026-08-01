@@ -2,12 +2,14 @@
 
 namespace App\Services\Ai;
 
+use App\Models\User;
 use JsonException;
 
 class AssistantKnowledgeToolRunner
 {
     public function __construct(
         private readonly AssistantKnowledgePool $knowledge,
+        private readonly AssistantApplicationTools $applicationTools,
     ) {}
 
     /**
@@ -18,8 +20,12 @@ class AssistantKnowledgeToolRunner
         OpenRouterChatClient $client,
         array $messages,
         callable $onDelta,
+        ?User $user = null,
+        string $currentRoute = 'unknown',
+        array $wagonContext = [],
+        ?callable $onEffect = null,
     ): string {
-        $tools = $this->knowledge->toolDefinitions();
+        $tools = $this->toolDefinitions($user, $currentRoute);
         $decision = $client->completeToolDecision($messages, $tools);
 
         if (! $decision->requestsTool()) {
@@ -29,7 +35,14 @@ class AssistantKnowledgeToolRunner
             return $answer;
         }
 
-        $messages = $this->appendToolResult($messages, $decision);
+        $messages = $this->appendToolResult(
+            $messages,
+            $decision,
+            $user,
+            $currentRoute,
+            $wagonContext,
+            $onEffect,
+        );
 
         // OpenRouter requires the same tool schema on the follow-up request.
         // tool_choice=none guarantees that this bounded loop cannot recurse.
@@ -50,8 +63,12 @@ class AssistantKnowledgeToolRunner
         array $messages,
         OpenRouterModelProfile $profile,
         array $plugins = [],
+        ?User $user = null,
+        string $currentRoute = 'unknown',
+        array $wagonContext = [],
+        ?callable $onEffect = null,
     ): OpenRouterChatResponse {
-        $tools = $this->knowledge->toolDefinitions();
+        $tools = $this->toolDefinitions($user, $currentRoute);
         $decision = $client->completeToolDecision($messages, $tools, $profile, $plugins);
 
         if (! $decision->requestsTool()) {
@@ -61,7 +78,14 @@ class AssistantKnowledgeToolRunner
             );
         }
 
-        $messages = $this->appendToolResult($messages, $decision);
+        $messages = $this->appendToolResult(
+            $messages,
+            $decision,
+            $user,
+            $currentRoute,
+            $wagonContext,
+            $onEffect,
+        );
         $response = $client->complete($messages, $profile, $plugins, $tools, 'none');
 
         return new OpenRouterChatResponse(
@@ -74,7 +98,14 @@ class AssistantKnowledgeToolRunner
      * @param  array<int, array<string, mixed>>  $messages
      * @return array<int, array<string, mixed>>
      */
-    private function appendToolResult(array $messages, OpenRouterToolDecision $decision): array
+    private function appendToolResult(
+        array $messages,
+        OpenRouterToolDecision $decision,
+        ?User $user,
+        string $currentRoute,
+        array $wagonContext,
+        ?callable $onEffect,
+    ): array
     {
         $toolCall = $decision->toolCalls[0];
         $messages[] = $decision->assistantMessage();
@@ -82,7 +113,14 @@ class AssistantKnowledgeToolRunner
             'role' => 'tool',
             'tool_call_id' => $toolCall['id'],
             'name' => $toolCall['function']['name'],
-            'content' => $this->execute($toolCall['function']['name'], $toolCall['function']['arguments']),
+            'content' => $this->execute(
+                $toolCall['function']['name'],
+                $toolCall['function']['arguments'],
+                $user,
+                $currentRoute,
+                $wagonContext,
+                $onEffect,
+            ),
         ];
 
         return $messages;
@@ -115,15 +153,15 @@ class AssistantKnowledgeToolRunner
         return $merged;
     }
 
-    private function execute(string $name, string $rawArguments): string
+    private function execute(
+        string $name,
+        string $rawArguments,
+        ?User $user,
+        string $currentRoute,
+        array $wagonContext,
+        ?callable $onEffect,
+    ): string
     {
-        if ($name !== AssistantKnowledgePool::TOOL_NAME) {
-            return $this->encode([
-                'error' => 'unknown_tool',
-                'message' => 'Dieses Tool ist nicht freigegeben.',
-            ]);
-        }
-
         try {
             $arguments = json_decode($rawArguments, true, 32, JSON_THROW_ON_ERROR);
         } catch (JsonException) {
@@ -133,7 +171,37 @@ class AssistantKnowledgeToolRunner
             ]);
         }
 
-        if (! is_array($arguments) || ! is_string($arguments['query'] ?? null)) {
+        if (! is_array($arguments)) {
+            return $this->encode([
+                'error' => 'invalid_arguments',
+                'message' => 'Die Tool-Parameter müssen ein JSON-Objekt sein.',
+            ]);
+        }
+
+        if ($name !== AssistantKnowledgePool::TOOL_NAME) {
+            if ($user === null) {
+                return $this->encode([
+                    'error' => 'unknown_tool',
+                    'message' => 'Dieses Tool ist nicht freigegeben.',
+                ]);
+            }
+
+            $result = $this->applicationTools->execute(
+                $name,
+                $arguments,
+                $user,
+                $currentRoute,
+                $wagonContext,
+            );
+
+            if (is_array($result['effect']) && $onEffect !== null) {
+                $onEffect($result['effect']);
+            }
+
+            return $this->encode($result['payload']);
+        }
+
+        if (! is_string($arguments['query'] ?? null)) {
             return $this->encode([
                 'error' => 'invalid_arguments',
                 'message' => 'Für die Wissenssuche ist eine konkrete query erforderlich.',
@@ -152,6 +220,20 @@ class AssistantKnowledgeToolRunner
             $topic,
             $limit,
         ));
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function toolDefinitions(?User $user, string $currentRoute): array
+    {
+        $tools = $this->knowledge->hasSearchableKnowledge()
+            ? $this->knowledge->toolDefinitions()
+            : [];
+
+        if ($user !== null) {
+            $tools = [...$tools, ...$this->applicationTools->toolDefinitions($user, $currentRoute)];
+        }
+
+        return $tools;
     }
 
     /** @param array<string, mixed> $payload */

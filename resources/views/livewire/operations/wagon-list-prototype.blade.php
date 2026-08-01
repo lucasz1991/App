@@ -37,6 +37,8 @@
     class="min-w-0"
     data-wagon-list-prototype
     @keydown.escape.window="handleEscape($event)"
+    @keydown.tab.window="trapEditorFocus($event)"
+    x-on:railtime-wagon-assistant-command.window="handleAssistantCommand($event.detail)"
 >
     @php
         $inputClass = 'rt-ui-control rt-wagon-input mt-1 block min-h-11 w-full rounded-lg border border-rt-border bg-rt-control px-3 py-2 text-base text-rt-text shadow-rt-xs outline-none transition focus:border-rt-accent focus:ring-2 focus:ring-rt-accent/20 sm:text-sm';
@@ -180,6 +182,8 @@
             state="editorOpen"
             close-action="cancelEditor()"
             escape-action="cancelEditor()"
+            :close-on-escape="false"
+            :trap="false"
             labelledby="wagon-editor-title"
             body-class="rt-wagon-editor-body min-h-0 flex-1 overflow-hidden"
             content-class="h-full min-h-0"

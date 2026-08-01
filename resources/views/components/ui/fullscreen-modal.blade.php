@@ -7,6 +7,10 @@
     'icon' => 'far fa-window-maximize',
     // Schliessen per Escape erlauben.
     'closeOnEscape' => true,
+    // Fokusfalle/Inertisierung kann fuer Arbeitsflaechen mit einem bewusst
+    // ausserhalb liegenden Begleiter deaktiviert und dort gemeinsam verwaltet
+    // werden. Standard bleibt der vollstaendig isolierte Dialog.
+    'trap' => true,
     // Eigener Lifecycle-Ausdruck, z. B. Speichern + Fokus zurueckgeben.
     'closeAction' => null,
     'escapeAction' => null,
@@ -53,7 +57,9 @@
         @if ($closeOnEscape)
             x-on:keydown.escape.window="if ({{ $state }}) { {{ $escapeExpression }} }"
         @endif
-        x-trap.inert.noscroll="{{ $state }}"
+        @if ($trap)
+            x-trap.inert.noscroll="{{ $state }}"
+        @endif
         role="dialog"
         aria-modal="true"
         aria-labelledby="{{ $labelledById }}"

@@ -3,8 +3,9 @@
 namespace App\Livewire\Tools;
 
 use App\Models\User;
-use App\Services\Ai\AssistantKnowledgePool;
+use App\Services\Ai\AssistantApplicationTools;
 use App\Services\Ai\AssistantKnowledgeToolRunner;
+use App\Services\Ai\AssistantPendingActionStore;
 use App\Services\Ai\AssistantSpeechRouter;
 use App\Services\Ai\Attachments\AssistantAttachmentBatch;
 use App\Services\Ai\Attachments\AssistantAttachmentException;
@@ -24,6 +25,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Locked;
+use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
@@ -37,7 +39,7 @@ class Chatbot extends Component
     /** @var array<int, TemporaryUploadedFile> */
     public array $attachments = [];
 
-    /** @var array<int, array{key: string, role: string, content: string, created_at: string, attachments?: array<int, array{name: string, type: string, size: int}>}> */
+    /** @var array<int, array{key: string, role: string, content: string, created_at: string, attachments?: array<int, array{name: string, type: string, size: int}>, actions?: array<int, array<string, string>>}> */
     public array $chatHistory = [];
 
     /** @var array<int, array{key: string, label: string, prompt: string}> */
@@ -64,6 +66,10 @@ class Chatbot extends Component
 
     #[Locked]
     public string $pageHelpHint = '';
+
+    /** @var array<string, mixed> */
+    #[Locked]
+    public array $wagonAssistantContext = [];
 
     public function mount(): void
     {
@@ -194,31 +200,48 @@ class Chatbot extends Component
             try {
                 $messages = $this->providerMessages($user);
                 $response = null;
+                $effects = [];
+                $collectEffect = static function (array $effect) use (&$effects): void {
+                    if ($effects === []) {
+                        $effects[] = $effect;
+                    }
+                };
 
                 if ($batch->isEmpty()) {
                     $streamDelta = function (string $delta): void {
                         $this->stream(to: 'assistant-response-stream', content: e($delta));
                     };
 
-                    $knowledge = app(AssistantKnowledgePool::class);
-                    $answer = $knowledge->hasSearchableKnowledge()
-                        ? app(AssistantKnowledgeToolRunner::class)->answer($client, $messages, $streamDelta)
-                        : $client->stream($messages, $streamDelta);
+                    $answer = app(AssistantKnowledgeToolRunner::class)->answer(
+                        $client,
+                        $messages,
+                        $streamDelta,
+                        $user,
+                        $this->pageRouteName,
+                        $this->wagonAssistantContext,
+                        $collectEffect,
+                    );
                 } else {
                     $this->replaceLatestUserContent($messages, $batch->requestContent($input));
-                    $knowledge = app(AssistantKnowledgePool::class);
-                    $response = $knowledge->hasSearchableKnowledge()
-                        ? app(AssistantKnowledgeToolRunner::class)->complete(
-                            $client,
-                            $messages,
-                            $batch->modelProfile(),
-                            $batch->plugins(),
-                        )
-                        : $client->complete($messages, $batch->modelProfile(), $batch->plugins());
+                    $response = app(AssistantKnowledgeToolRunner::class)->complete(
+                        $client,
+                        $messages,
+                        $batch->modelProfile(),
+                        $batch->plugins(),
+                        $user,
+                        $this->pageRouteName,
+                        $this->wagonAssistantContext,
+                        $collectEffect,
+                    );
                     $answer = $response->content;
                 }
 
-                $entry = $this->appendHistory('assistant', trim($answer));
+                $actions = array_map(
+                    fn (array $effect): array => app(AssistantPendingActionStore::class)
+                        ->create($user, $this->pageRouteName, $effect),
+                    $effects,
+                );
+                $entry = $this->appendHistory('assistant', trim($answer), actions: $actions);
                 if ($response instanceof OpenRouterChatResponse) {
                     $this->rememberAttachmentContext($batch, $response);
                 }
@@ -256,6 +279,113 @@ class Chatbot extends Component
         }
 
         $this->sendMessage($action['prompt']);
+    }
+
+    public function confirmAssistantAction(string $token): void
+    {
+        $user = $this->authorizeUser();
+        $token = trim($token);
+        $effect = app(AssistantPendingActionStore::class)->consume($user, $this->pageRouteName, $token);
+
+        if (! is_array($effect)) {
+            abort(422);
+        }
+
+        if (($effect['type'] ?? null) === 'navigate') {
+            $page = trim((string) ($effect['page'] ?? ''));
+            $revalidated = app(AssistantApplicationTools::class)->execute(
+                AssistantApplicationTools::OPEN_PAGE_TOOL,
+                ['page' => $page],
+                $user,
+                $this->pageRouteName,
+            );
+
+            if (! is_array($revalidated['effect'])) {
+                abort(422);
+            }
+
+            $effect = $revalidated['effect'];
+        } elseif (($effect['type'] ?? null) === 'wagon_list') {
+            abort_unless(in_array($this->pageRouteName, [
+                'operations.wagon-list',
+                'admin.operations.wagon-list',
+            ], true), 422);
+
+            $effectNonce = trim((string) ($effect['context_nonce'] ?? ''));
+            $currentNonce = trim((string) ($this->wagonAssistantContext['context_nonce'] ?? ''));
+            abort_unless(
+                preg_match('/\A[a-zA-Z0-9_-]{16,96}\z/', $effectNonce)
+                && preg_match('/\A[a-zA-Z0-9_-]{16,96}\z/', $currentNonce)
+                && hash_equals($currentNonce, $effectNonce),
+                422,
+            );
+        } else {
+            abort(422);
+        }
+
+        $effect['action_token'] = $token;
+        $this->removePendingActionFromHistory($token);
+        $this->dispatch('railtime-assistant-client-action', action: $effect);
+    }
+
+    /** @param array<string, mixed> $result */
+    public function recordAssistantActionResult(array $result): void
+    {
+        $user = $this->authorizeUser();
+        $token = trim((string) ($result['action_token'] ?? ''));
+        $status = trim((string) ($result['status'] ?? ''));
+        $receipt = app(AssistantPendingActionStore::class)->acceptReceipt($user, $token, $status);
+
+        if (! is_array($receipt)) {
+            abort(422);
+        }
+
+        $command = (string) ($receipt['effect']['command'] ?? '');
+        $message = $this->assistantActionResultMessage($command, $status);
+        $entry = $this->appendHistory('assistant', $message);
+        $this->dispatch(
+            'railtime-assistant-reply',
+            text: $entry['content'],
+            key: $entry['key'],
+            can_auto_listen: $status === 'applied',
+        );
+    }
+
+    /** @param array<string, mixed> $context */
+    #[On('railtime-wagon-context-updated')]
+    public function updateWagonAssistantContext(array $context): void
+    {
+        $this->authorizeUser();
+
+        if (! in_array($this->pageRouteName, ['operations.wagon-list', 'admin.operations.wagon-list'], true)) {
+            $this->wagonAssistantContext = [];
+
+            return;
+        }
+
+        $allowedFields = [
+            'wagon_number', 'category', 'axles_empty', 'axles_loaded', 'length',
+            'wagon_weight', 'load_weight', 'brake_weight_g', 'brake_weight_p',
+            'shipping_station', 'destination_station', 'brake_type', 'disc_brake',
+            'parking_brake', 'max_speed', 'remark',
+        ];
+        $nonce = trim((string) ($context['context_nonce'] ?? ''));
+
+        $this->wagonAssistantContext = [
+            'context_nonce' => preg_match('/\A[a-zA-Z0-9_-]{16,96}\z/', $nonce) ? $nonce : '',
+            'editor_open' => (bool) ($context['editor_open'] ?? false),
+            'active_step' => mb_substr(trim((string) ($context['active_step'] ?? 'overview')), 0, 40),
+            'selected_wagon' => max(1, min(40, (int) ($context['selected_wagon'] ?? 1))),
+            'visible_wagons' => max(1, min(40, (int) ($context['visible_wagons'] ?? 3))),
+            'completed_wagons' => max(0, min(40, (int) ($context['completed_wagons'] ?? 0))),
+            'train_number_present' => (bool) ($context['train_number_present'] ?? false),
+            'origin_present' => (bool) ($context['origin_present'] ?? false),
+            'destination_present' => (bool) ($context['destination_present'] ?? false),
+            'current_wagon_fields' => array_values(array_slice(array_intersect(
+                array_filter((array) ($context['current_wagon_fields'] ?? []), 'is_string'),
+                $allowedFields,
+            ), 0, count($allowedFields))),
+        ];
     }
 
     public function updatedAttachments(): void
@@ -297,7 +427,7 @@ class Chatbot extends Component
 
     public function clearChat(): void
     {
-        $this->authorizeUser();
+        $user = $this->authorizeUser();
         $lock = $this->conversationLock();
 
         if (! $lock->get()) {
@@ -308,6 +438,7 @@ class Chatbot extends Component
 
         try {
             $this->cleanupAttachments();
+            app(AssistantPendingActionStore::class)->forget($user);
             $this->resetHistory();
             $this->message = '';
             $this->dispatch('railtime-assistant-cleared');
@@ -360,21 +491,37 @@ class Chatbot extends Component
     private function resetHistory(): void
     {
         session()->forget($this->attachmentSessionKey());
+        $german = app()->getLocale() === 'de';
         $this->chatHistory = [[
             'key' => (string) Str::uuid(),
             'role' => 'assistant',
-            'content' => 'Hallo! Ich helfe dir bei der Bedienung von RailTime. Ich kann erklären und navigieren, aber keine Daten oder Einstellungen selbst verändern.',
+            'content' => $german
+                ? 'Hallo! Ich helfe dir kurz und direkt in RailTime. Ich kann freigegebene Seiten öffnen und dich durch eine lokale Wagenliste führen; Änderungen führe ich erst nach deiner Bestätigung aus.'
+                : 'Hello! I provide concise, direct help in RailTime. I can open approved pages and guide you through a local wagon list; changes only run after your confirmation.',
             'created_at' => now()->toIso8601String(),
+            'actions' => array_map(
+                static fn (array $action): array => [
+                    'kind' => 'prompt',
+                    'key' => $action['key'],
+                    'label' => $action['label'],
+                ],
+                $this->availableQuickActions(),
+            ),
         ]];
         $this->persistHistory();
     }
 
     /**
      * @param  array<int, array{name: string, type: string, size: int}>  $attachments
-     * @return array{key: string, role: string, content: string, created_at: string, attachments?: array<int, array{name: string, type: string, size: int}>}
+     * @param  array<int, array<string, mixed>>  $actions
+     * @return array{key: string, role: string, content: string, created_at: string, attachments?: array<int, array{name: string, type: string, size: int}>, actions?: array<int, array<string, string>>}
      */
-    private function appendHistory(string $role, string $content, array $attachments = []): array
-    {
+    private function appendHistory(
+        string $role,
+        string $content,
+        array $attachments = [],
+        array $actions = [],
+    ): array {
         $entry = [
             'key' => (string) Str::uuid(),
             'role' => $role,
@@ -386,6 +533,11 @@ class Chatbot extends Component
             $entry['attachments'] = $attachments;
         }
 
+        $safeActions = $this->sanitizeHistoryActions($actions);
+        if ($safeActions !== []) {
+            $entry['actions'] = $safeActions;
+        }
+
         $this->chatHistory[] = $entry;
         $this->chatHistory = array_values(array_slice(
             $this->chatHistory,
@@ -394,6 +546,108 @@ class Chatbot extends Component
         $this->persistHistory();
 
         return $entry;
+    }
+
+    /** @param array<int, array<string, mixed>> $actions */
+    private function sanitizeHistoryActions(array $actions): array
+    {
+        $allowedPrompts = collect($this->availableQuickActions())->keyBy('key');
+        $safe = [];
+
+        foreach (array_slice($actions, 0, 4) as $action) {
+            if (! is_array($action)) {
+                continue;
+            }
+
+            $kind = (string) ($action['kind'] ?? '');
+            $label = mb_substr(trim((string) ($action['label'] ?? '')), 0, 120);
+            if ($label === '') {
+                continue;
+            }
+
+            if ($kind === 'pending_tool') {
+                $token = trim((string) ($action['token'] ?? ''));
+                if (preg_match('/\A[a-zA-Z0-9]{48}\z/', $token)) {
+                    $safe[] = ['kind' => $kind, 'token' => $token, 'label' => $label];
+                }
+
+                continue;
+            }
+
+            if ($kind === 'prompt') {
+                $key = trim((string) ($action['key'] ?? ''));
+                if ($allowedPrompts->has($key)) {
+                    $safe[] = ['kind' => $kind, 'key' => $key, 'label' => $label];
+                }
+            }
+        }
+
+        return $safe;
+    }
+
+    private function removePendingActionFromHistory(string $token): void
+    {
+        foreach ($this->chatHistory as &$entry) {
+            if (! is_array($entry) || ! is_array($entry['actions'] ?? null)) {
+                continue;
+            }
+
+            $entry['actions'] = array_values(array_filter(
+                $entry['actions'],
+                static fn (mixed $action): bool => ! is_array($action)
+                    || ! hash_equals((string) ($action['token'] ?? ''), $token),
+            ));
+
+            if ($entry['actions'] === []) {
+                unset($entry['actions']);
+            }
+        }
+        unset($entry);
+
+        $this->persistHistory();
+    }
+
+    private function assistantActionResultMessage(string $command, string $status): string
+    {
+        $german = app()->getLocale() === 'de';
+
+        if ($status !== 'applied') {
+            return match ($status) {
+                'stale_context' => $german
+                    ? 'Der Wagenlistenentwurf hat sich inzwischen geändert. Bitte nenne den Wert oder Schritt noch einmal.'
+                    : 'The wagon-list draft changed in the meantime. Please provide the value or step again.',
+                'storage_error' => $german
+                    ? 'Die Änderung konnte nicht lokal gespeichert werden. Bitte prüfe den Browserspeicher und versuche es erneut.'
+                    : 'The change could not be stored locally. Check browser storage and try again.',
+                default => $german
+                    ? 'Die Wagenlistenaktion wurde nicht übernommen.'
+                    : 'The wagon-list action was not applied.',
+            };
+        }
+
+        return match ($command) {
+            'start' => $german
+                ? 'Die Wagenlistenführung ist geöffnet. Nenne oder diktiere zuerst die Zugnummer.'
+                : 'Wagon-list guidance is open. Say or dictate the train number first.',
+            'next' => $german
+                ? 'Der nächste Schritt ist geöffnet. Nenne den nächsten Wert oder frage kurz nach dem Status.'
+                : 'The next step is open. Provide the next value or ask for the status.',
+            'previous' => $german
+                ? 'Der vorherige Schritt ist wieder geöffnet.'
+                : 'The previous step is open again.',
+            'select_wagon' => $german
+                ? 'Der ausgewählte Wagen ist geöffnet. Du kannst jetzt den nächsten Wert nennen.'
+                : 'The selected wagon is open. You can now provide the next value.',
+            'save' => $german
+                ? 'Der Wagenlistenentwurf wurde im Browser lokal gespeichert.'
+                : 'The wagon-list draft was saved locally in the browser.',
+            'set_field' => $german
+                ? 'Der bestätigte Wert wurde lokal übernommen. Nenne den nächsten Wert oder sage „weiter“.'
+                : 'The confirmed value was applied locally. Provide the next value or say “continue”.',
+            default => $german
+                ? 'Die bestätigte Wagenlistenaktion wurde lokal ausgeführt.'
+                : 'The confirmed wagon-list action was applied locally.',
+        };
     }
 
     private function appendAssistantError(string $message): void
@@ -592,7 +846,11 @@ class Chatbot extends Component
 
         array_unshift(
             $history,
-            app(RailtimeAssistantContext::class)->systemMessage($user, $this->pageRouteName),
+            app(RailtimeAssistantContext::class)->systemMessage(
+                $user,
+                $this->pageRouteName,
+                $this->wagonAssistantContext,
+            ),
             ...$attachmentMessages,
         );
 
@@ -798,6 +1056,26 @@ class Chatbot extends Component
     /** @return array<int, array{key: string, label: string, prompt: string}> */
     private function availableQuickActions(): array
     {
+        if (in_array($this->pageRouteName, ['operations.wagon-list', 'admin.operations.wagon-list'], true)) {
+            return [
+                [
+                    'key' => 'wagon_voice_start',
+                    'label' => 'Wagenliste per Sprache starten',
+                    'prompt' => 'Starte die interaktive Wagenlistenführung und gehe mit mir knapp Schritt für Schritt vor.',
+                ],
+                [
+                    'key' => 'wagon_status',
+                    'label' => 'Aktuellen Stand erklären',
+                    'prompt' => 'Prüfe den aktuellen Wagenlistenstatus und sage mir knapp, welcher Wert als Nächstes fehlt.',
+                ],
+                [
+                    'key' => 'orientation',
+                    'label' => 'Wagenliste kurz erklären',
+                    'prompt' => 'Erkläre mir die Wagenlisteneingabe und den nächsten sinnvollen Schritt so kurz wie möglich.',
+                ],
+            ];
+        }
+
         return [
             ['key' => 'orientation', 'label' => 'Was kann ich hier tun?', 'prompt' => 'Erkläre mir kurz, wofür die aktuelle RailTime-Seite gedacht ist und welche nächsten Schritte sinnvoll sind.'],
             ['key' => 'messages', 'label' => 'Nachrichten erklären', 'prompt' => 'Erkläre mir kurz, wie Nachrichten und Chats in RailTime funktionieren.'],
