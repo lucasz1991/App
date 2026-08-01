@@ -94,6 +94,8 @@
             class="rt-welcome-backdrop fixed inset-0 z-[520] flex items-center justify-center p-2.5 sm:p-5"
             data-rt-welcome-intro
             data-rt-welcome-initially-open="{{ $initiallyOpen ? 'true' : 'false' }}"
+            data-rt-overlay-layer
+            data-rt-overlay-base="520"
         >
             <section
                 role="dialog"

@@ -66,6 +66,7 @@
     positionMutationObserver: null,
     positionListener: null,
     scrollListener: null,
+    panelLayer: 180,
     layerGroup: @js($resolvedLayerGroup),
     layerId: @js($resolvedDropdownId),
     horizontalAlign: @js(str_ends_with($anchorPlacement, '-start') ? 'left' : 'right'),
@@ -252,6 +253,9 @@
       const trigger = this.$refs.trigger;
       if (!this.open || !trigger || !panel) return;
 
+      this.attachToOverlayPortal(panel);
+      this.syncPanelLayer(panel);
+
       const visualViewport = window.visualViewport;
       const viewportWidth = visualViewport ? visualViewport.width : (document.documentElement.clientWidth || window.innerWidth);
       const viewportHeight = visualViewport ? visualViewport.height : (document.documentElement.clientHeight || window.innerHeight);
@@ -386,6 +390,49 @@
       panel.style.removeProperty('visibility');
     },
 
+    numericLayer(element) {
+      if (!(element instanceof Element)) return null;
+
+      const declared = Number.parseInt(element.dataset.rtOverlayBase || '', 10);
+      if (Number.isFinite(declared)) return declared;
+
+      const inlineLayer = Number.parseInt(element.style.zIndex || '', 10);
+      if (Number.isFinite(inlineLayer)) return inlineLayer;
+
+      const computedLayer = Number.parseInt(window.getComputedStyle(element).zIndex || '', 10);
+      return Number.isFinite(computedLayer) ? computedLayer : null;
+    },
+
+    owningOverlay() {
+      return this.$root.closest('[data-rt-overlay-layer]');
+    },
+
+    attachToOverlayPortal(panel) {
+      const overlayRoot = this.owningOverlay();
+      const portal = overlayRoot?.querySelector(':scope > [data-rt-overlay-portal]');
+
+      if (portal && panel.parentElement !== portal) {
+        portal.appendChild(panel);
+        panel.dataset.rtDropdownPortaled = 'true';
+      }
+    },
+
+    syncPanelLayer(panel) {
+      const parentPanel = this.$root.closest('[data-rt-dropdown-panel]');
+      const overlayRoot = this.owningOverlay();
+      const parentLayer = this.numericLayer(parentPanel);
+      const overlayLayer = this.numericLayer(overlayRoot);
+      const contextualLayer = Math.max(
+        170,
+        Number.isFinite(parentLayer) ? parentLayer : 0,
+        Number.isFinite(overlayLayer) ? overlayLayer : 0,
+      );
+
+      this.panelLayer = contextualLayer > 170 ? contextualLayer + 10 : 180;
+      panel.style.zIndex = String(this.panelLayer);
+      this.$refs.overlay?.style.setProperty('z-index', String(this.panelLayer - 1));
+    },
+
     handleLayerOpen(event) {
       if (
         !this.layerGroup
@@ -512,7 +559,7 @@
 
   @if($overlay)
     <template x-teleport="body">
-      <div x-show="open" x-transition.opacity class="fixed inset-0 z-[170] bg-black/40" @click="close()" style="display:none;"></div>
+      <div x-show="open" x-ref="overlay" x-transition.opacity class="fixed inset-0 z-[170] bg-black/40" @click="close()" style="display:none;"></div>
     </template>
   @endif
 
@@ -528,7 +575,7 @@
         x-transition:leave-end="translate-y-1 scale-[0.99] opacity-0"
         x-bind:data-placement="placement"
         data-rt-dropdown-owner="{{ $resolvedDropdownId }}"
-        class="rt-viewport-dropdown fixed z-[180] {{ $panelWidthClass }} rounded-xl shadow-rt-md {{ $dropdownClasses }}"
+        class="rt-viewport-dropdown pointer-events-auto fixed z-[180] {{ $panelWidthClass }} rounded-xl shadow-rt-md {{ $dropdownClasses }}"
         style="display:none; margin:0; max-width:calc(100vw - 24px); max-height:calc(100dvh - 24px); --rt-dropdown-caret-x:{{ $anchorCaretX }}; --rt-dropdown-connector-size:{{ $anchorConnectorSize }}px;"
         data-rt-dropdown-panel
         @click.outside="handleOutsideClick($event)"

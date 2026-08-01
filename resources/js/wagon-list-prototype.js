@@ -86,7 +86,6 @@ const normalizeDraft = (draft = {}, fallbackId = null) => {
 
 export function wagonListPrototype(config = {}) {
     return {
-        activeSheet: 'wagons',
         storageKey: String(config.storageKey || 'rt-wagon-list-prototype:v1'),
         drafts: [],
         activeDraftId: null,
@@ -96,12 +95,18 @@ export function wagonListPrototype(config = {}) {
         modalReturnFocus: null,
         visibleCount: 3,
         openWagon: 0,
+        desktopSection: 'wagons',
+        desktopTableMode: 'overview',
+        desktopWagon: 0,
         mobileWagon: 0,
+        mobileStep: 0,
+        mobileSteps: Array.isArray(config.mobileSteps) ? config.mobileSteps : [],
+        mobileScrollRaf: null,
+        mobileSettleTimer: null,
+        mobileViewportHandler: null,
         persistedAt: null,
         persistTimer: null,
         exporting: false,
-        wagonTouchStartX: null,
-        wagonTouchStartY: null,
         meta: emptyMeta(),
         wagons: Array.from({ length: MAX_WAGONS }, emptyWagon),
         brakeSheet: emptyBrakeSheet(),
@@ -119,10 +124,22 @@ export function wagonListPrototype(config = {}) {
             this.$watch('wagons', persistWhenEditing);
             this.$watch('brakeSheet', persistWhenEditing);
             this.$watch('visibleCount', persistWhenEditing);
+
+            if (typeof window?.visualViewport?.addEventListener === 'function') {
+                this.mobileViewportHandler = () => this.realignMobilePager();
+                window.visualViewport.addEventListener('resize', this.mobileViewportHandler, { passive: true });
+            }
         },
 
         destroy() {
             window.clearTimeout(this.persistTimer);
+            window.clearTimeout(this.mobileSettleTimer);
+            if (this.mobileScrollRaf !== null && typeof window.cancelAnimationFrame === 'function') {
+                window.cancelAnimationFrame(this.mobileScrollRaf);
+            }
+            if (this.mobileViewportHandler && typeof window?.visualViewport?.removeEventListener === 'function') {
+                window.visualViewport.removeEventListener('resize', this.mobileViewportHandler);
+            }
             if (this.editorOpen && this.activeDraftId) {
                 this.persistDraft();
             }
@@ -232,7 +249,11 @@ export function wagonListPrototype(config = {}) {
             this.brakeSheet = { ...emptyBrakeSheet(), ...draft.brakeSheet };
             this.visibleCount = Math.max(3, Math.min(MAX_WAGONS, Number(draft.visibleCount || 3)));
             this.openWagon = 0;
+            this.desktopSection = 'wagons';
+            this.desktopTableMode = 'overview';
+            this.desktopWagon = 0;
             this.mobileWagon = 0;
+            this.mobileStep = 0;
             this.persistedAt = draft.persistedAt || null;
             this.modalReturnFocus = returnFocus && typeof returnFocus.focus === 'function'
                 ? returnFocus
@@ -242,6 +263,7 @@ export function wagonListPrototype(config = {}) {
 
             this.$nextTick(() => {
                 this.hydrating = false;
+                this.realignMobilePager();
                 this.$refs?.editorHeading?.focus();
             });
         },
@@ -261,7 +283,8 @@ export function wagonListPrototype(config = {}) {
         },
 
         cancelEditor() {
-            this.saveAndClose();
+            this.persistDraft();
+            this.finishClosingEditor();
         },
 
         handleEscape(event) {
@@ -446,13 +469,17 @@ export function wagonListPrototype(config = {}) {
         addWagon() {
             if (this.visibleCount >= MAX_WAGONS) return;
             this.openWagon = this.visibleCount;
+            this.desktopWagon = this.visibleCount;
             this.mobileWagon = this.visibleCount;
             this.visibleCount += 1;
-            this.$nextTick(() => this.$root.querySelector('[data-mobile-wagon-editor]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
         },
 
         showMobileWagon(index) {
             this.mobileWagon = Math.max(0, Math.min(this.visibleCount - 1, Number(index)));
+        },
+
+        showDesktopWagon(index) {
+            this.desktopWagon = Math.max(0, Math.min(this.visibleCount - 1, Number(index)));
         },
 
         previousMobileWagon() {
@@ -463,41 +490,123 @@ export function wagonListPrototype(config = {}) {
             this.showMobileWagon(this.mobileWagon + 1);
         },
 
-        wagonTouchStart(event) {
-            if (window.innerWidth >= 1024 || event.touches.length !== 1) {
-                this.cancelWagonSwipe();
-                return;
-            }
-
-            if (event.target.closest('input, textarea, button, [contenteditable="true"], [data-no-wagon-swipe]')) {
-                this.cancelWagonSwipe();
-                return;
-            }
-
-            this.wagonTouchStartX = event.touches[0].clientX;
-            this.wagonTouchStartY = event.touches[0].clientY;
+        get mobileStepCount() {
+            return Math.max(1, this.mobileSteps.length);
         },
 
-        wagonTouchEnd(event) {
-            if (this.wagonTouchStartX === null || event.changedTouches.length !== 1) {
-                this.cancelWagonSwipe();
-                return;
-            }
-
-            const deltaX = event.changedTouches[0].clientX - this.wagonTouchStartX;
-            const deltaY = event.changedTouches[0].clientY - this.wagonTouchStartY;
-            const threshold = Math.max(54, Math.min(96, window.innerWidth * 0.18));
-
-            if (Math.abs(deltaX) >= threshold && Math.abs(deltaX) > Math.abs(deltaY) * 1.25) {
-                deltaX < 0 ? this.nextMobileWagon() : this.previousMobileWagon();
-            }
-
-            this.cancelWagonSwipe();
+        get mobileStepProgress() {
+            return ((this.mobileStep + 1) / this.mobileStepCount) * 100;
         },
 
-        cancelWagonSwipe() {
-            this.wagonTouchStartX = null;
-            this.wagonTouchStartY = null;
+        get mobileStepTitle() {
+            return this.mobileSteps[this.mobileStep]?.label || '';
+        },
+
+        get isMobileWagonStep() {
+            return this.mobileStep >= 1 && this.mobileStep <= 4;
+        },
+
+        prefersReducedMotion() {
+            return typeof window?.matchMedia === 'function'
+                && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        },
+
+        goToMobileStep(index, behavior = null) {
+            const targetStep = Math.max(0, Math.min(this.mobileStepCount - 1, Number(index) || 0));
+            this.mobileStep = targetStep;
+
+            this.$nextTick(() => {
+                const pager = this.$refs?.mobilePager;
+                if (!pager || !pager.clientWidth || typeof pager.scrollTo !== 'function') return;
+
+                pager.scrollTo({
+                    left: targetStep * pager.clientWidth,
+                    behavior: behavior || (this.prefersReducedMotion() ? 'auto' : 'smooth'),
+                });
+            });
+        },
+
+        previousMobileStep() {
+            this.goToMobileStep(this.mobileStep - 1);
+        },
+
+        nextMobileStep() {
+            this.goToMobileStep(this.mobileStep + 1);
+        },
+
+        syncMobileStepFromScroll(event) {
+            const pager = event?.currentTarget || this.$refs?.mobilePager;
+            if (!pager || !pager.clientWidth || this.mobileScrollRaf !== null) return;
+
+            const updateStep = () => {
+                const position = pager.scrollLeft / pager.clientWidth;
+                this.mobileStep = Math.max(0, Math.min(this.mobileStepCount - 1, Math.round(position)));
+                this.mobileScrollRaf = null;
+
+                window.clearTimeout(this.mobileSettleTimer);
+                this.mobileSettleTimer = window.setTimeout(() => this.settleMobilePager(pager), 110);
+            };
+
+            if (typeof window?.requestAnimationFrame === 'function') {
+                this.mobileScrollRaf = -1;
+                const frame = window.requestAnimationFrame(updateStep);
+                if (this.mobileScrollRaf !== null) {
+                    this.mobileScrollRaf = frame;
+                }
+            } else {
+                updateStep();
+            }
+        },
+
+        settleMobilePager(pager = this.$refs?.mobilePager) {
+            window.clearTimeout(this.mobileSettleTimer);
+            if (!pager || !pager.clientWidth) return;
+
+            const targetStep = Math.max(0, Math.min(
+                this.mobileStepCount - 1,
+                Math.round(pager.scrollLeft / pager.clientWidth),
+            ));
+            this.mobileStep = targetStep;
+
+            const targetLeft = targetStep * pager.clientWidth;
+            if (Math.abs(pager.scrollLeft - targetLeft) > 1 && typeof pager.scrollTo === 'function') {
+                pager.scrollTo({ left: targetLeft, behavior: 'auto' });
+            }
+        },
+
+        realignMobilePager() {
+            if (!this.editorOpen) return;
+
+            const align = () => {
+                const pager = this.$refs?.mobilePager;
+                if (!pager || !pager.clientWidth || typeof pager.scrollTo !== 'function') return;
+                pager.scrollTo({ left: this.mobileStep * pager.clientWidth, behavior: 'auto' });
+            };
+
+            if (typeof window?.requestAnimationFrame === 'function') {
+                window.requestAnimationFrame(align);
+            } else {
+                align();
+            }
+        },
+
+        handleMobileWizardKeydown(event) {
+            if (!this.editorOpen || window.innerWidth >= 1024) return;
+            if (event.target?.closest?.('input, textarea, select, button, [contenteditable="true"]')) return;
+
+            if (event.key === 'ArrowLeft') {
+                event.preventDefault();
+                this.previousMobileStep();
+            } else if (event.key === 'ArrowRight') {
+                event.preventDefault();
+                this.nextMobileStep();
+            } else if (event.key === 'Home') {
+                event.preventDefault();
+                this.goToMobileStep(0);
+            } else if (event.key === 'End') {
+                event.preventDefault();
+                this.goToMobileStep(this.mobileStepCount - 1);
+            }
         },
 
         focusNextCell(event) {
@@ -555,7 +664,25 @@ export function wagonListPrototype(config = {}) {
         },
 
         isWagonFilled(wagon) {
-            return Boolean(this.wagonDigits(wagon) || wagon.category || wagon.wagonWeight || wagon.loadWeight);
+            return Boolean(
+                this.wagonDigits(wagon)
+                || wagon.checkDigit
+                || wagon.category
+                || wagon.axlesEmpty
+                || wagon.axlesLoaded
+                || wagon.length
+                || wagon.wagonWeight
+                || wagon.loadWeight
+                || wagon.brakeG
+                || wagon.brakeP
+                || wagon.shippingStation
+                || wagon.destinationStation
+                || wagon.brakeType
+                || wagon.discBrake
+                || wagon.parkingBrake
+                || wagon.maxSpeed
+                || wagon.remark,
+            );
         },
 
         totalWeight(wagon) {
@@ -564,7 +691,7 @@ export function wagonListPrototype(config = {}) {
         },
 
         get activeWagons() {
-            return this.wagons.filter((wagon) => this.isWagonFilled(wagon));
+            return this.wagons.slice(0, this.visibleCount).filter((wagon) => this.isWagonFilled(wagon));
         },
 
         get completionCount() {

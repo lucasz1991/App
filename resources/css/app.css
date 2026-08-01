@@ -2588,9 +2588,9 @@ body.rt-wagon-editor-is-open {
     transform-origin: center;
 }
 
-.rt-wagon-editor-desktop-cancel,
 .rt-wagon-editor-desktop-save,
-.rt-wagon-editor-export-label {
+.rt-wagon-editor-export-label,
+.rt-wagon-editor-secondary-action {
     display: none !important;
 }
 
@@ -2602,17 +2602,17 @@ body.rt-wagon-editor-is-open {
     scrollbar-gutter: stable;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
     .rt-wagon-editor .rt-wagon-editor-desktop-save {
+        display: inline-flex !important;
+    }
+
+    .rt-wagon-editor .rt-wagon-editor-secondary-action {
         display: inline-flex !important;
     }
 }
 
 @media (min-width: 1024px) {
-    .rt-wagon-editor .rt-wagon-editor-desktop-cancel {
-        display: inline-flex !important;
-    }
-
     .rt-wagon-editor .rt-wagon-editor-export-label {
         display: inline !important;
     }
@@ -3011,6 +3011,447 @@ html.dark .rt-wagon-sheet [data-rt-custom-select] .rt-ui-control,
 body[data-mode='dark'] .rt-wagon-sheet [data-rt-custom-select] .rt-ui-control {
     background: transparent !important;
     border-color: transparent !important;
+}
+
+/* Wagenlisten-Editor v2: Desktop als Master/Detail-Arbeitsplatz, Mobil als
+   nativer mehrseitiger Scroll-Snap-Flow. Die Seiten folgen dem Finger direkt;
+   JavaScript synchronisiert lediglich den Schrittstatus. */
+.rt-wagon-editor {
+    width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+}
+
+.rt-wagon-editor-body,
+.rt-wagon-editor-body > div,
+.rt-wagon-editor-body main {
+    min-height: 0;
+    height: 100%;
+}
+
+.rt-wagon-section-nav {
+    box-shadow: 0 12px 30px -28px rgb(15 23 42 / 0.45);
+}
+
+.rt-wagon-section-tab {
+    color: #64748b;
+}
+
+.rt-wagon-section-tab:hover {
+    color: #0f172a;
+}
+
+.rt-wagon-section-tab[data-active='true'] {
+    background: #fff;
+    color: #b91c1c;
+    box-shadow: 0 1px 4px rgb(15 23 42 / 0.1);
+}
+
+.rt-wagon-mobile-wizard {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background:
+        radial-gradient(circle at 92% 4%, rgb(228 0 43 / 0.055), transparent 28%),
+        #f8fafc;
+}
+
+.rt-wagon-wizard-progress {
+    position: relative;
+    z-index: 3;
+}
+
+.rt-wagon-wizard-progress-bar {
+    min-width: 0.5rem;
+    transition: width 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.rt-wagon-step-dot {
+    border: 1px solid transparent;
+    background: #eef2f7;
+    color: #8491a5;
+}
+
+.rt-wagon-step-dot:hover,
+.rt-wagon-step-dot:focus-visible {
+    border-color: #cbd5e1;
+    color: #334155;
+    outline: none;
+}
+
+.rt-wagon-step-dot[data-active='true'] {
+    border-color: rgb(228 0 43 / 0.28);
+    background: #fff0f3;
+    color: #b80022;
+    box-shadow: inset 0 0 0 1px rgb(228 0 43 / 0.06);
+}
+
+.rt-wagon-selector {
+    position: relative;
+    z-index: 2;
+}
+
+.rt-wagon-index-strip {
+    scrollbar-width: none;
+    overscroll-behavior-inline: contain;
+}
+
+.rt-wagon-index-strip::-webkit-scrollbar,
+.rt-wagon-mobile-pager::-webkit-scrollbar {
+    display: none;
+}
+
+.rt-wagon-index-button {
+    position: relative;
+}
+
+.rt-wagon-index-state {
+    position: absolute;
+    right: 0.2rem;
+    bottom: 0.2rem;
+    width: 0.32rem;
+    height: 0.32rem;
+    border-radius: 999px;
+    background: #cbd5e1;
+}
+
+.rt-wagon-index-button[data-filled='true'] .rt-wagon-index-state {
+    background: #10b981;
+    box-shadow: 0 0 0 2px #fff;
+}
+
+.rt-wagon-mobile-pager {
+    display: flex;
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scroll-behavior: smooth;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+}
+
+.rt-wagon-mobile-slide {
+    flex: 0 0 100%;
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    scroll-snap-align: start;
+    scroll-snap-stop: normal;
+}
+
+.rt-wagon-mobile-slide-scroll {
+    width: 100%;
+    height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    padding: 1rem 0.75rem 1.25rem;
+    scrollbar-gutter: stable;
+    -webkit-overflow-scrolling: touch;
+}
+
+.rt-wagon-mobile-slide-scroll > * {
+    max-width: 44rem;
+    margin-inline: auto;
+}
+
+.rt-wagon-mobile-section-head {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.rt-wagon-mobile-section-head h3 {
+    color: #0f172a;
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.rt-wagon-mobile-section-head p {
+    margin-top: 0.15rem;
+    color: #64748b;
+    font-size: 0.75rem;
+    line-height: 1.25rem;
+}
+
+.rt-wagon-mobile-section-icon,
+.rt-wagon-mobile-wagon-number {
+    display: inline-flex;
+    width: 2.75rem;
+    height: 2.75rem;
+    flex: 0 0 2.75rem;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgb(228 0 43 / 0.14);
+    border-radius: 0.85rem;
+    background: #fff0f3;
+    color: #c10025;
+    font-size: 0.9rem;
+    font-weight: 800;
+    box-shadow: 0 8px 20px -18px rgb(127 29 29 / 0.55);
+}
+
+.rt-wagon-mobile-icon-action {
+    display: inline-flex;
+    width: 2.5rem;
+    height: 2.5rem;
+    flex: 0 0 2.5rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.75rem;
+    transition: background-color 180ms ease, transform 180ms ease;
+}
+
+.rt-wagon-mobile-icon-action:hover,
+.rt-wagon-mobile-icon-action:focus-visible {
+    background: #fff;
+    outline: 2px solid rgb(228 0 43 / 0.2);
+}
+
+.rt-wagon-mobile-metric,
+.rt-wagon-route-preview,
+.rt-wagon-check-card,
+.rt-wagon-special-row,
+.rt-wagon-review-train,
+.rt-wagon-review-list {
+    border: 1px solid #dbe3ee;
+    background: rgb(255 255 255 / 0.92);
+    color: #0f172a;
+    box-shadow: 0 8px 24px -24px rgb(15 23 42 / 0.6);
+}
+
+.rt-wagon-validation-state {
+    border: 1px solid #dbe3ee;
+    background: #fff;
+    color: #64748b;
+}
+
+.rt-wagon-validation-state[data-state='valid'] {
+    border-color: rgb(16 185 129 / 0.3);
+    background: #ecfdf5;
+    color: #047857;
+}
+
+.rt-wagon-validation-state[data-state='invalid'] {
+    border-color: rgb(239 68 68 / 0.3);
+    background: #fef2f2;
+    color: #b91c1c;
+}
+
+.rt-wagon-review-list dt {
+    color: #64748b;
+    font-size: 0.78rem;
+}
+
+.rt-wagon-review-list dd {
+    color: #0f172a;
+    font-size: 0.82rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.rt-wagon-wizard-footer {
+    position: relative;
+    z-index: 4;
+}
+
+.rt-wagon-wizard-action {
+    display: inline-flex;
+    min-width: 5.75rem;
+    min-height: 2.75rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border: 1px solid #dbe3ee;
+    border-radius: 0.75rem;
+    background: #fff;
+    padding-inline: 0.8rem;
+    color: #334155;
+    font-size: 0.78rem;
+    font-weight: 700;
+    transition: transform 160ms ease, border-color 160ms ease, background-color 160ms ease;
+}
+
+.rt-wagon-wizard-action:disabled {
+    opacity: 0.34;
+}
+
+.rt-wagon-wizard-action:not(:disabled):active {
+    transform: scale(0.97);
+}
+
+.rt-wagon-wizard-action-primary {
+    border-color: #e4002b;
+    background: #e4002b;
+    color: #fff;
+}
+
+html.dark .rt-wagon-section-tab,
+body[data-mode='dark'] .rt-wagon-section-tab {
+    color: #9ba8ba;
+}
+
+html.dark .rt-wagon-section-tab:hover,
+body[data-mode='dark'] .rt-wagon-section-tab:hover {
+    color: #edf2f8;
+}
+
+html.dark .rt-wagon-section-tab[data-active='true'],
+body[data-mode='dark'] .rt-wagon-section-tab[data-active='true'] {
+    background: #111a27;
+    color: #ff9aaa;
+    box-shadow: 0 2px 7px rgb(2 6 23 / 0.35);
+}
+
+html.dark .rt-wagon-mobile-wizard,
+body[data-mode='dark'] .rt-wagon-mobile-wizard {
+    background:
+        radial-gradient(circle at 92% 4%, rgb(255 79 112 / 0.075), transparent 28%),
+        #0d1521;
+}
+
+html.dark .rt-wagon-step-dot,
+body[data-mode='dark'] .rt-wagon-step-dot {
+    background: #1b2738;
+    color: #8593a7;
+}
+
+html.dark .rt-wagon-step-dot:hover,
+html.dark .rt-wagon-step-dot:focus-visible,
+body[data-mode='dark'] .rt-wagon-step-dot:hover,
+body[data-mode='dark'] .rt-wagon-step-dot:focus-visible {
+    border-color: #3b4a61;
+    color: #dbe5f1;
+}
+
+html.dark .rt-wagon-step-dot[data-active='true'],
+body[data-mode='dark'] .rt-wagon-step-dot[data-active='true'] {
+    border-color: rgb(255 99 125 / 0.34);
+    background: #351822;
+    color: #ff9aaa;
+}
+
+html.dark .rt-wagon-index-button[data-filled='true'] .rt-wagon-index-state,
+body[data-mode='dark'] .rt-wagon-index-button[data-filled='true'] .rt-wagon-index-state {
+    box-shadow: 0 0 0 2px #111a27;
+}
+
+html.dark .rt-wagon-mobile-section-head h3,
+body[data-mode='dark'] .rt-wagon-mobile-section-head h3 {
+    color: #edf2f8;
+}
+
+html.dark .rt-wagon-mobile-section-head p,
+body[data-mode='dark'] .rt-wagon-mobile-section-head p {
+    color: #9ba8ba;
+}
+
+html.dark .rt-wagon-mobile-section-icon,
+html.dark .rt-wagon-mobile-wagon-number,
+body[data-mode='dark'] .rt-wagon-mobile-section-icon,
+body[data-mode='dark'] .rt-wagon-mobile-wagon-number {
+    border-color: rgb(255 99 125 / 0.22);
+    background: #351822;
+    color: #ff9aaa;
+    box-shadow: 0 8px 20px -18px rgb(0 0 0 / 0.8);
+}
+
+html.dark .rt-wagon-mobile-metric,
+html.dark .rt-wagon-route-preview,
+html.dark .rt-wagon-check-card,
+html.dark .rt-wagon-special-row,
+html.dark .rt-wagon-review-train,
+html.dark .rt-wagon-review-list,
+body[data-mode='dark'] .rt-wagon-mobile-metric,
+body[data-mode='dark'] .rt-wagon-route-preview,
+body[data-mode='dark'] .rt-wagon-check-card,
+body[data-mode='dark'] .rt-wagon-special-row,
+body[data-mode='dark'] .rt-wagon-review-train,
+body[data-mode='dark'] .rt-wagon-review-list {
+    border-color: #2a394d;
+    background: rgb(17 26 39 / 0.94);
+    color: #edf2f8;
+    box-shadow: 0 8px 24px -24px rgb(0 0 0 / 0.95);
+}
+
+html.dark .rt-wagon-validation-state,
+body[data-mode='dark'] .rt-wagon-validation-state {
+    border-color: #334155;
+    background: #111a27;
+    color: #9ba8ba;
+}
+
+html.dark .rt-wagon-validation-state[data-state='valid'],
+body[data-mode='dark'] .rt-wagon-validation-state[data-state='valid'] {
+    border-color: rgb(52 211 153 / 0.3);
+    background: rgb(6 78 59 / 0.25);
+    color: #6ee7b7;
+}
+
+html.dark .rt-wagon-validation-state[data-state='invalid'],
+body[data-mode='dark'] .rt-wagon-validation-state[data-state='invalid'] {
+    border-color: rgb(248 113 113 / 0.32);
+    background: rgb(127 29 29 / 0.22);
+    color: #fca5a5;
+}
+
+html.dark .rt-wagon-review-list dt,
+body[data-mode='dark'] .rt-wagon-review-list dt {
+    color: #9ba8ba;
+}
+
+html.dark .rt-wagon-review-list dd,
+body[data-mode='dark'] .rt-wagon-review-list dd {
+    color: #edf2f8;
+}
+
+html.dark .rt-wagon-wizard-action,
+body[data-mode='dark'] .rt-wagon-wizard-action {
+    border-color: #334155;
+    background: #182435;
+    color: #dce5f0;
+}
+
+html.dark .rt-wagon-wizard-action-primary,
+body[data-mode='dark'] .rt-wagon-wizard-action-primary {
+    border-color: #ff4f70;
+    background: #ff4f70;
+    color: #19060b;
+}
+
+@media (max-width: 374.98px) {
+    .rt-wagon-editor-header > div > span:first-child {
+        display: none;
+    }
+
+    .rt-wagon-wizard-action {
+        min-width: 2.75rem;
+        padding-inline: 0.65rem;
+    }
+
+    .rt-wagon-wizard-action > span {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rt-wagon-mobile-pager {
+        scroll-behavior: auto;
+    }
+
+    .rt-wagon-wizard-progress-bar,
+    .rt-wagon-step-dot,
+    .rt-wagon-wizard-action,
+    .rt-wagon-mobile-icon-action {
+        transition: none !important;
+    }
 }
 
 /* Responsive Datentabellen: Smartphones erhalten lesbare Datenkarten statt

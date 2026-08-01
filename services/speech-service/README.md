@@ -62,8 +62,8 @@ Beispielantwort ohne Dateipfade:
     "piper": "ready"
   },
   "limits": {
-    "max_body_bytes": 29000000,
-    "max_audio_bytes": 20971520,
+    "max_body_bytes": 12000000,
+    "max_audio_bytes": 8388608,
     "max_audio_seconds": 60.0,
     "max_text_chars": 4000,
     "max_transcript_chars": 8000,
@@ -148,8 +148,17 @@ Relevante Statuscodes: `400`, `401`, `408`, `411`, `413`, `415`, `422`,
 ## Config-Schema
 
 [`config.example.json`](config.example.json) zeigt das vollstaendige Schema.
-Die dortigen Token-Hashes sind zufaellige, nicht nutzbare Beispielwerte und
-muessen ersetzt werden.
+Die dortigen Token-Hashes sind absichtlich ungueltige Platzhalter. Der Dienst
+startet damit nicht. Beide Werte muessen durch die getrennt erzeugten
+64-stelligen SHA-256-Hashes ersetzt werden; doppelte Hashes werden ebenfalls
+abgewiesen.
+
+Die Service-[`.gitignore`](.gitignore) blockiert lokale `config.json`-,
+`service.env`-, `.env`-, `*.token`-, `*.secret`- und Secret-Verzeichnisdateien.
+`config.example.json` sowie alle versionierten Deployment-Skripte bleiben
+dagegen ausdrücklich sichtbar. Produktive Konfiguration und Tokens gehören
+trotzdem immer außerhalb des Checkouts an die unten beschriebenen Orte; der
+Ignore ist nur die letzte Schutzschicht gegen versehentliches Versionieren.
 
 `command` ist immer ein Argument-Array. Der Dienst verwendet niemals eine
 Shell. Dadurch koennen auch Aufrufe wie `[/pfad/python3, -m, piper]` sicher
@@ -171,67 +180,224 @@ Runtime-Dateien werden in einen separaten, nur lesbaren Bestand kopiert; sie
 werden nicht aus einem App-Verzeichnis verlinkt oder dort verschoben. Damit
 bleibt ein Fehler in ffmpeg, Whisper oder Piper auf den Dienstbereich begrenzt.
 
-1. Dienstbenutzer und private Verzeichnisse ausserhalb aller Document Roots
-   anlegen:
+### 1. Dienstkonto und unveränderbare Elternverzeichnisse
 
-   ```bash
-   useradd --system --home-dir /var/lib/lmz-speech --shell /usr/sbin/nologin lmz-speech
-   install -d -o root -g lmz-speech -m 750 /opt/lmz-speech /etc/lmz-speech
-   install -d -o lmz-speech -g lmz-speech -m 700 /var/lib/lmz-speech /var/lib/lmz-speech/tmp
-   install -d -o root -g lmz-speech -m 750 /var/lib/lmz-speech/runtime
-   install -d -o lmz-speech -g lmz-speech -m 750 /var/log/lmz-speech
-   ```
+Gruppe und Benutzer einmalig anlegen. Alle Eltern-, Runtime- und
+Logverzeichnisse bleiben `root`-owned. Nur das einzelne Temp-Unterverzeichnis
+gehört dem Dienst. Dadurch kann ein kompromittierter Dienst weder den
+root-owned Runtime-Baum umbenennen/ersetzen noch Supervisor über eine
+ausgetauschte Logdatei oder einen Symlink auf ein fremdes Ziel lenken.
 
-   Falls der Benutzer bereits existiert, entfällt nur `useradd`; UID, Gruppen
-   und Rechte müssen trotzdem geprüft werden.
+```bash
+set -euo pipefail
 
-2. `speech_service.py` versioniert nach `/opt/lmz-speech/releases/<release>/`
-   kopieren und `/opt/lmz-speech/current` atomar auf das geprüfte Release
-   umschalten. Die bestehenden Followflow-Binaries und Modelle in
-   `/var/lib/lmz-speech/runtime` **kopieren**, Eigentümer `root:lmz-speech`
-   setzen und Schreibrechte für `lmz-speech` entfernen.
+getent group lmz-speech >/dev/null || groupadd --system lmz-speech
+id -u lmz-speech >/dev/null 2>&1 || useradd --system --gid lmz-speech --home-dir /var/lib/lmz-speech --shell /usr/sbin/nologin lmz-speech
 
-3. `config.example.json` nach `/etc/lmz-speech/config.json` kopieren, die
-   separaten Runtime-Pfade eintragen und als `root:lmz-speech` mit Modus `640`
-   ablegen.
+for protected_parent in /opt/lmz-speech /etc/lmz-speech /var/lib/lmz-speech /var/log/lmz-speech; do
+  if [ -L "$protected_parent" ]; then
+    printf 'Refusing symlink: %s\n' "$protected_parent" >&2
+    exit 1
+  fi
+done
+install -d -o root -g lmz-speech -m 750 /opt/lmz-speech /etc/lmz-speech /var/lib/lmz-speech /var/log/lmz-speech
 
-4. Pro Client ein langes, zufaelliges Token erzeugen. Das Klartexttoken kommt
-   nur in den jeweiligen Laravel-Secret-Store; den Hash interaktiv erzeugen:
+for protected_child in /opt/lmz-speech/releases /var/lib/lmz-speech/runtime /var/lib/lmz-speech/tmp; do
+  if [ -L "$protected_child" ]; then
+    printf 'Refusing symlink: %s\n' "$protected_child" >&2
+    exit 1
+  fi
+done
+install -d -o root -g lmz-speech -m 750 /opt/lmz-speech/releases /var/lib/lmz-speech/runtime
+install -d -o lmz-speech -g lmz-speech -m 700 /var/lib/lmz-speech/tmp
 
-   ```bash
-   /usr/bin/python3 speech_service.py --hash-token
-   ```
+if [ -L /var/log/lmz-speech/service.log ] || { [ -e /var/log/lmz-speech/service.log ] && [ ! -f /var/log/lmz-speech/service.log ]; }; then
+  printf 'Refusing unsafe log path: %s\n' /var/log/lmz-speech/service.log >&2
+  exit 1
+fi
+if [ ! -e /var/log/lmz-speech/service.log ]; then
+  install -o root -g lmz-speech -m 640 /dev/null /var/log/lmz-speech/service.log
+else
+  chown --no-dereference root:lmz-speech /var/log/lmz-speech/service.log
+  chmod 640 /var/log/lmz-speech/service.log
+fi
+```
 
-5. `/etc/lmz-speech/service.env` mit genau einer Zeile als
-   `root:lmz-speech` und Modus `640` erstellen:
+Bei einem vorhandenen Konto UID, primäre Gruppe und `nologin`-Shell trotzdem
+prüfen. Die Sicherheitsgrenze anschließend ausdrücklich verifizieren:
 
-   ```dotenv
-   LMZ_SPEECH_CONFIG=/etc/lmz-speech/config.json
-   ```
+```bash
+stat -c '%U:%G %a %n' \
+  /var/lib/lmz-speech \
+  /var/lib/lmz-speech/runtime \
+  /var/lib/lmz-speech/tmp \
+  /var/log/lmz-speech \
+  /var/log/lmz-speech/service.log
+sudo -u lmz-speech test ! -w /var/lib/lmz-speech
+sudo -u lmz-speech test ! -w /var/lib/lmz-speech/runtime
+sudo -u lmz-speech test ! -w /var/log/lmz-speech
+sudo -u lmz-speech test -w /var/lib/lmz-speech/tmp
+```
 
-   Alternativ kann Supervisor `LMZ_SPEECH_CONFIG` direkt als
-   Prozessumgebung setzen. Relative Pfade werden abgewiesen.
+Erwartet werden `root:lmz-speech 750` für die drei geschützten Verzeichnisse,
+`lmz-speech:lmz-speech 700` für `tmp` und `root:lmz-speech 640` für das Log.
 
-6. Config und Runtime als Dienstbenutzer prüfen:
+### 2. Release und Runtime bereitstellen
 
-   ```bash
-   sudo -u lmz-speech /usr/bin/python3 /opt/lmz-speech/current/speech_service.py --env-file /etc/lmz-speech/service.env --check-config
-   ```
+Den Python-Dienst in ein unveränderbares Release kopieren. Der
+Provisionierungshelfer ist absichtlich global lesbar/ausführbar: Er besitzt
+keine Privilegien und wird später als der jeweilige Plesk-PHP-Benutzer
+ausgeführt.
 
-7. [`deploy/supervisor.conf.example`](deploy/supervisor.conf.example) prüfen,
-   in die vorhandene
-   Supervisor-Konfiguration aufnehmen und mit `supervisorctl reread`,
-   `supervisorctl update` und `supervisorctl status lmz-speech-service`
-   aktivieren. Es wird bewusst keine systemd-Unit mitgeliefert.
+```bash
+set -euo pipefail
 
-8. Bindung und Prozessbenutzer kontrollieren. Es darf nur
-   `127.0.0.1:8092` erscheinen:
+release="$(date -u +%Y%m%dT%H%M%SZ)"
+release_dir="/opt/lmz-speech/releases/$release"
+next_link="/opt/lmz-speech/.current-$release"
 
-   ```bash
-   ss -ltnp | grep ':8092'
-   ps -o user,group,cmd -C python3 | grep lmz-speech
-   curl --fail --silent http://127.0.0.1:8092/healthz
-   ```
+install -d -o root -g lmz-speech -m 750 "$release_dir"
+install -o root -g lmz-speech -m 640 speech_service.py "$release_dir/speech_service.py"
+install -d -o root -g root -m 755 /usr/local/libexec/lmz-speech
+install -o root -g root -m 755 deploy/provision_client_token.py /usr/local/libexec/lmz-speech/provision_client_token.py
+ln -s "$release_dir" "$next_link"
+mv -Tf "$next_link" /opt/lmz-speech/current
+```
+
+Die bestehenden ffmpeg-/Whisper-/Piper-Binaries und Modelle in
+`/var/lib/lmz-speech/runtime` **kopieren**, rekursiv auf
+`root:lmz-speech` setzen und alle Schreibrechte für Gruppe und Andere
+entfernen. Ausführbare Engine-Dateien benötigen `750`, Modelle und
+Konfigurationen `640`. Nichts aus einem App-Verzeichnis verlinken. Danach den
+gesamten Runtime-Baum fail-closed prüfen:
+
+```bash
+set -euo pipefail
+runtime_symlink="$(find /var/lib/lmz-speech/runtime -type l -print -quit)"
+if [ -n "$runtime_symlink" ]; then
+  printf 'Refusing symlink in speech runtime\n' >&2
+  exit 1
+fi
+runtime_writable="$(sudo -u lmz-speech find /var/lib/lmz-speech/runtime -writable -print -quit)"
+if [ -n "$runtime_writable" ]; then
+  printf 'Speech runtime is writable by lmz-speech\n' >&2
+  exit 1
+fi
+```
+
+### 3. Getrennte Plesk-Tokens innerhalb von `open_basedir`
+
+RailTime und Followflow müssen unter verschiedenen Plesk-Systembenutzern und
+damit verschiedenen Unix-UIDs laufen. Teilen beide Domains dieselbe UID, ist
+eine gegenseitige Lesesperre per Dateirechten unmöglich; die Abonnements oder
+PHP-Pools müssen dann vor der Aktivierung getrennt werden.
+
+Die Token-Datei liegt jeweils außerhalb des Document Roots, aber innerhalb des
+eigenen Plesk-`WEBSPACEROOT`. Damit bleibt sie beim Plesk-Standard
+[`open_basedir={WEBSPACEROOT}{/}{:}{TMP}{/}`](https://docs.plesk.com/en-US/obsidian/administrator-guide/web-hosting/php-management/customizing-php-parameters.79190/)
+lesbar, ohne `/etc` oder
+`/run/secrets` für PHP freizugeben. Platzhalter vor Ausführung durch die realen
+Plesk-Benutzer und Webspace-Wurzeln ersetzen:
+
+```bash
+set -euo pipefail
+
+RAILTIME_PHP_USER='<railtime-plesk-system-user>'
+FOLLOWFLOW_PHP_USER='<followflow-plesk-system-user>'
+RAILTIME_WEBSPACE='/var/www/vhosts/<railtime-webspace>'
+FOLLOWFLOW_WEBSPACE='/var/www/vhosts/<followflow-webspace>'
+
+test "$(id -u "$RAILTIME_PHP_USER")" != "$(id -u "$FOLLOWFLOW_PHP_USER")"
+
+RAILTIME_SECRET_DIR="$RAILTIME_WEBSPACE/.lmz-secrets"
+FOLLOWFLOW_SECRET_DIR="$FOLLOWFLOW_WEBSPACE/.lmz-secrets"
+RAILTIME_TOKEN_FILE="$RAILTIME_SECRET_DIR/speech-service.token"
+FOLLOWFLOW_TOKEN_FILE="$FOLLOWFLOW_SECRET_DIR/speech-service.token"
+
+sudo -u "$RAILTIME_PHP_USER" /usr/bin/install -d -m 700 "$RAILTIME_SECRET_DIR"
+sudo -u "$FOLLOWFLOW_PHP_USER" /usr/bin/install -d -m 700 "$FOLLOWFLOW_SECRET_DIR"
+
+sudo -u "$RAILTIME_PHP_USER" /usr/bin/python3 /usr/local/libexec/lmz-speech/provision_client_token.py --output "$RAILTIME_TOKEN_FILE"
+sudo -u "$FOLLOWFLOW_PHP_USER" /usr/bin/python3 /usr/local/libexec/lmz-speech/provision_client_token.py --output "$FOLLOWFLOW_TOKEN_FILE"
+```
+
+Jeder Helferaufruf ersetzt die jeweilige Datei atomar mit Modus `600` und gibt
+nur `token_sha256=<64-stelliger Hash>` aus. Den Klartext zeigt er nie an. Die
+beiden Hashes in die passenden Client-Einträge der Service-Config übernehmen.
+Danach sowohl die positive als auch die gegenseitige negative Leseregel prüfen:
+
+```bash
+sudo -u "$RAILTIME_PHP_USER" test -r "$RAILTIME_TOKEN_FILE"
+sudo -u "$FOLLOWFLOW_PHP_USER" test -r "$FOLLOWFLOW_TOKEN_FILE"
+sudo -u "$RAILTIME_PHP_USER" test ! -r "$FOLLOWFLOW_TOKEN_FILE"
+sudo -u "$FOLLOWFLOW_PHP_USER" test ! -r "$RAILTIME_TOKEN_FILE"
+```
+
+Die beiden Laravel-Konfigurationen verwenden entsprechend ihren eigenen Pfad:
+
+```dotenv
+# RailTime
+SPEECH_SERVICE_TOKEN_FILE=/var/www/vhosts/<railtime-webspace>/.lmz-secrets/speech-service.token
+
+# Followflow
+SPEECH_SERVICE_TOKEN_FILE=/var/www/vhosts/<followflow-webspace>/.lmz-secrets/speech-service.token
+```
+
+### 4. Service-Config und Umgebung
+
+`config.example.json` nach `/etc/lmz-speech/config.json` kopieren, beide
+Token-Platzhalter ersetzen, die Runtime-Pfade eintragen und als
+`root:lmz-speech` mit Modus `640` ablegen. Die Config wird bewusst abgewiesen,
+solange ein Platzhalter, ein ungültiger Hash oder derselbe Hash für beide Apps
+enthalten ist.
+
+`/etc/lmz-speech/service.env` mit genau einer Zeile als `root:lmz-speech` und
+Modus `640` erstellen:
+
+```dotenv
+LMZ_SPEECH_CONFIG=/etc/lmz-speech/config.json
+```
+
+Alternativ kann Supervisor `LMZ_SPEECH_CONFIG` direkt als Prozessumgebung
+setzen. Relative Pfade werden abgewiesen. Config und Runtime anschließend als
+Dienstbenutzer prüfen:
+
+```bash
+sudo -u lmz-speech /usr/bin/python3 -I /opt/lmz-speech/current/speech_service.py --env-file /etc/lmz-speech/service.env --check-config
+```
+
+### 5. Supervisor aktivieren und jedes Release neu starten
+
+[`deploy/supervisor.conf.example`](deploy/supervisor.conf.example) prüfen und
+in die vorhandene Supervisor-Konfiguration aufnehmen. Nach **jedem** atomaren
+Umschalten von `/opt/lmz-speech/current` ist die folgende vollständige Sequenz
+erforderlich:
+
+```bash
+supervisorctl reread
+supervisorctl update
+supervisorctl restart lmz-speech-service
+supervisorctl status lmz-speech-service
+```
+
+`reread`/`update` allein laden einen neuen Symlink-Inhalt bei unveränderter
+Programmkonfiguration nicht zuverlässig in den bereits laufenden
+Python-Prozess. Der explizite `restart` ist deshalb Teil jedes Deployments. Es
+wird bewusst keine systemd-Unit mitgeliefert. Supervisor startet Python mit
+`-I`, einem absoluten Scriptpfad und root-owned `HOME`; dadurch können weder
+eine beschreibbare User-Site noch `PYTHON*`-Umgebungsvariablen Code vor dem
+unveränderbaren Release einschleusen. Nur `TMPDIR` zeigt auf das beschreibbare
+Temp-Verzeichnis.
+
+### 6. Laufzeit prüfen
+
+Es darf nur `127.0.0.1:8092` erscheinen:
+
+```bash
+ss -ltnp | grep ':8092'
+ps -o user,group,cmd -C python3 | grep lmz-speech
+curl --fail --silent http://127.0.0.1:8092/healthz
+```
 
 Keinen Apache-, nginx- oder Plesk-Reverse-Proxy auf Port `8092` einrichten und
 keine Firewall-Freigabe anlegen. Der Port ist ausschliesslich fuer lokale
@@ -246,9 +412,10 @@ Server-zu-Server-Aufrufe vorgesehen.
   auch bei Fehlern oder Timeouts automatisch entfernt.
 - ffmpeg, Whisper und Piper haben getrennte Timeouts. Audio-, Body-, Dauer-,
   Text-, Transkript- und Ausgabegrenzen werden unabhaengig erzwungen.
-- Tokenrotation: neuen Hash speichern, Config atomar ersetzen und den einen
-  Supervisor-Prozess neu starten; danach das Klartexttoken im jeweiligen
-  Laravel-Projekt aktualisieren.
+- Tokenrotation: den Helfer erneut als den betroffenen Plesk-PHP-Benutzer
+  ausführen, den neuen Hash in der root-owned Config speichern und den einen
+  Supervisor-Prozess neu starten. Die zweite App behält dabei ihr eigenes
+  unverändertes Token.
 - `/healthz` belegt nur, dass HTTP antwortet. Monitoring der Engines muss den
   authentifizierten `/v1/status`-Endpunkt verwenden.
 
@@ -259,5 +426,5 @@ verwenden gemockte Engines:
 
 ```bash
 python3 -m unittest discover -s tests -v
-python3 -m py_compile speech_service.py
+python3 -m py_compile speech_service.py deploy/provision_client_token.py
 ```

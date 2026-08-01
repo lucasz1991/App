@@ -116,6 +116,8 @@
     x-show="open"
     x-cloak
     class="rt-ui-modal rt-modal-center-shell fixed inset-0 z-[340] overflow-y-auto px-4 py-6 sm:px-0"
+    data-rt-overlay-layer
+    data-rt-overlay-base="340"
     style="display: none;"
     data-rt-confirmation-dialog
 >

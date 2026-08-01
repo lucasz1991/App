@@ -20,6 +20,16 @@
             : route('operations.wagon-list.export'),
         'exportSuccess' => __('app.wagon_export_success'),
         'exportError' => __('app.wagon_export_error'),
+        'mobileSteps' => [
+            ['id' => 'train', 'label' => __('app.train_data')],
+            ['id' => 'identity', 'label' => __('app.identification')],
+            ['id' => 'vehicle', 'label' => __('app.axles_dimensions')],
+            ['id' => 'brakes', 'label' => __('app.brakes')],
+            ['id' => 'route', 'label' => __('app.route_and_notes')],
+            ['id' => 'calculation', 'label' => __('app.brake_calculation')],
+            ['id' => 'special', 'label' => __('app.special_information')],
+            ['id' => 'review', 'label' => __('app.review_and_finish')],
+        ],
     ]))"
     class="min-w-0"
     data-wagon-list-prototype
@@ -163,411 +173,76 @@
             </div>
         </section>
 
-        <template x-teleport="body">
-            <section
-                x-show.important="editorOpen"
-                x-cloak
-                x-ref="editorDialog"
-                x-trap.inert.noscroll="editorOpen"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="wagon-editor-title"
-                class="rt-wagon-editor fixed inset-0 z-[190] flex min-h-0 flex-col bg-rt-canvas text-rt-text dark:bg-rt-dark-canvas dark:text-rt-dark-text"
-                x-transition:enter="transition duration-300 ease-out"
-                x-transition:enter-start="opacity-0 scale-[0.995]"
-                x-transition:enter-end="opacity-100 scale-100"
-                x-transition:leave="transition duration-200 ease-in"
-                x-transition:leave-start="opacity-100 scale-100"
-                x-transition:leave-end="opacity-0 scale-[0.995]"
-                data-wagon-editor
-            >
-            <header class="rt-wagon-editor-header z-10 shrink-0 border-b border-rt-border/70 bg-rt-surface/95 px-3 py-3 shadow-rt-xs backdrop-blur-xl dark:border-rt-dark-border/70 dark:bg-rt-dark-surface/95 sm:px-5">
-                <div class="mx-auto flex max-w-[100rem] items-center gap-3">
-                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent">
-                        <i class="fad fa-train" aria-hidden="true"></i>
-                    </span>
-                    <div class="min-w-0 flex-1">
-                        <p class="text-[10px] font-bold uppercase tracking-[0.1em] text-rt-soft dark:text-rt-dark-soft">{{ $labels['localDraft'] }}</p>
-                        <h2 id="wagon-editor-title" x-ref="editorHeading" tabindex="-1" class="truncate text-base font-semibold outline-none sm:text-lg" x-text="activeDraftId ? draftTitle({ meta }) : @js($labels['untitledDraft'])"></h2>
-                        <p class="mt-0.5 hidden text-xs text-rt-muted dark:text-rt-dark-muted sm:block">
-                            {{ __('app.locally_saved') }}:
-                            <span class="tabular-nums" x-text="formatSavedAt()"></span>
-                        </p>
-                    </div>
-
-                    <div class="flex shrink-0 items-center gap-1.5 sm:gap-2">
-                        <button
-                            type="button"
-                            @click="resetDraft()"
-                            class="inline-flex h-10 w-10 items-center justify-center rounded-lg text-rt-muted transition-all duration-200 hover:bg-red-50 hover:text-red-700 active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/45 dark:text-rt-dark-muted dark:hover:bg-red-500/10 dark:hover:text-red-300"
-                            title="{{ $labels['deleteDraft'] }}"
-                            aria-label="{{ $labels['deleteDraft'] }}"
-                        >
-                            <i class="far fa-trash-alt" aria-hidden="true"></i>
-                        </button>
-                        <button
-                            type="button"
-                            @click="exportWorkbook()"
-                            :disabled="exporting"
-                            class="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-rt-border bg-rt-surface px-3 text-sm font-semibold text-rt-text shadow-rt-xs transition-all duration-200 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/45 disabled:cursor-wait disabled:opacity-65 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text dark:hover:border-emerald-500/40 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-300"
-                            title="{{ __('app.export_excel') }}"
-                            aria-label="{{ __('app.export_excel') }}"
-                        >
-                            <i class="far fa-file-excel" x-show="!exporting" aria-hidden="true"></i>
-                            <i class="far fa-spinner fa-spin" x-show="exporting" x-cloak aria-hidden="true"></i>
-                            <span class="rt-wagon-editor-export-label" x-text="exporting ? @js(__('app.wagon_exporting')) : @js(__('app.export_excel'))"></span>
-                        </button>
-                        <button
-                            type="button"
-                            @click="cancelEditor()"
-                            class="rt-wagon-editor-desktop-cancel min-h-10 items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-rt-muted transition hover:bg-rt-surface-muted hover:text-rt-text active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted dark:hover:text-rt-dark-text"
-                        >
-                            {{ __('app.cancel') }}
-                        </button>
-                        <button
-                            type="button"
-                            @click="saveAndClose()"
-                            class="rt-wagon-editor-desktop-save min-h-10 items-center gap-2 rounded-lg bg-rt-red px-4 py-2 text-sm font-semibold text-white shadow-rt-xs transition-all duration-200 hover:-translate-y-0.5 hover:bg-rt-red-dark hover:shadow-rt-glow active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40"
-                        >
-                            <i class="far fa-check" aria-hidden="true"></i>
-                            {{ $labels['saveAndClose'] }}
-                        </button>
-                        <button
-                            type="button"
-                            @click="cancelEditor()"
-                            class="inline-flex h-10 w-10 items-center justify-center rounded-lg text-rt-muted transition-all duration-200 hover:bg-rt-surface-muted hover:text-rt-text active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40 dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted dark:hover:text-rt-dark-text"
-                            title="{{ $labels['closeEditor'] }}"
-                            aria-label="{{ $labels['closeEditor'] }}"
-                            data-wagon-editor-close
-                        >
-                            <i class="far fa-times" aria-hidden="true"></i>
-                        </button>
-                    </div>
-                </div>
-            </header>
-
-            <div class="rt-wagon-editor-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain">
-                <main class="mx-auto w-full max-w-[100rem] space-y-5 px-3 pb-28 pt-4 sm:px-5 sm:pt-5 md:pb-8">
-        <x-ui.accordion.tabs
-            :tabs="[
-                'wagons' => ['label' => __('app.wagon_list'), 'icon' => 'fad fa-train'],
-                'brakeSheet' => ['label' => __('app.brake_sheet'), 'icon' => 'fad fa-clipboard-check'],
-            ]"
-            default="wagons"
-            persist-key="operations.wagon-list.tabs"
+        <x-ui.fullscreen-modal
+            state="editorOpen"
+            close-action="cancelEditor()"
+            escape-action="cancelEditor()"
+            labelledby="wagon-editor-title"
+            body-class="rt-wagon-editor-body min-h-0 flex-1 overflow-hidden"
+            content-class="h-full min-h-0"
+            header-class="rt-wagon-editor-header"
+            x-ref="editorDialog"
+            class="rt-wagon-editor"
+            data-wagon-editor
         >
-            <x-ui.accordion.tab-panel for="wagons" content-class="space-y-4">
-                <section class="rt-wagon-workspace rounded-2xl p-4 shadow-rt-sm sm:p-5" aria-labelledby="wagon-meta-title">
-                    <div class="flex flex-col gap-3 border-b border-rt-border/70 pb-4 sm:flex-row sm:items-center sm:justify-between dark:border-rt-dark-border/70">
-                        <div class="flex items-center gap-3">
-                            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent">
-                                <i class="far fa-route" aria-hidden="true"></i>
-                            </span>
-                            <div>
-                                <h2 id="wagon-meta-title" class="text-base font-semibold text-rt-text dark:text-rt-dark-text">{{ __('app.train_data') }}</h2>
-                                <p class="text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.train_data_hint') }}</p>
-                            </div>
-                        </div>
-                        <div class="inline-flex items-center gap-2 self-start rounded-lg bg-rt-surface-muted px-3 py-2 text-xs font-semibold text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted">
-                            <i class="far fa-keyboard" aria-hidden="true"></i>
-                            {{ __('app.enter_advances_cell') }}
-                        </div>
-                    </div>
+            <x-slot:header>
+                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent">
+                    <i class="fad fa-train" aria-hidden="true"></i>
+                </span>
+                <div class="min-w-0 flex-1">
+                    <p class="text-[10px] font-bold uppercase tracking-[0.1em] text-rt-soft dark:text-rt-dark-soft">{{ $labels['localDraft'] }}</p>
+                    <h2 id="wagon-editor-title" x-ref="editorHeading" tabindex="-1" class="truncate text-base font-semibold outline-none sm:text-lg" x-text="activeDraftId ? draftTitle({ meta }) : @js($labels['untitledDraft'])"></h2>
+                    <p class="mt-0.5 hidden text-xs text-rt-muted dark:text-rt-dark-muted sm:block">
+                        {{ __('app.locally_saved') }}:
+                        <span class="tabular-nums" x-text="formatSavedAt()"></span>
+                    </p>
+                </div>
+            </x-slot:header>
 
-                    <div class="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
-                        <label class="{{ $labelClass }}">{{ __('app.train_number') }}
-                            <input x-model="meta.trainNumber" type="text" class="{{ $inputClass }}" autocomplete="off">
-                        </label>
-                        <label class="{{ $labelClass }}">{{ __('app.date') }}
-                            <input x-model="meta.date" type="date" class="{{ $inputClass }}">
-                        </label>
-                        <label class="{{ $labelClass }}">{{ __('app.from') }}
-                            <input x-model="meta.origin" type="text" class="{{ $inputClass }}" autocomplete="off">
-                        </label>
-                        <label class="{{ $labelClass }}">{{ __('app.to') }}
-                            <input x-model="meta.destination" type="text" class="{{ $inputClass }}" autocomplete="off">
-                        </label>
-                        <label class="{{ $labelClass }} col-span-2 lg:col-span-1">{{ __('app.reference') }}
-                            <input x-model="meta.reference" type="text" class="{{ $inputClass }}" autocomplete="off">
-                        </label>
-                    </div>
-                </section>
-
-                <section class="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6" aria-label="{{ __('app.wagon_totals') }}">
-                    <template x-for="item in [
-                        { label: @js(__('app.wagons')), value: totals.wagons, suffix: '' },
-                        { label: @js(__('app.axles')), value: totals.axles, suffix: '' },
-                        { label: @js(__('app.length_over_buffers')), value: formatNumber(totals.length), suffix: ' m' },
-                        { label: @js(__('app.total_weight')), value: formatNumber(totals.totalWeight), suffix: ' t' },
-                        { label: @js(__('app.brake_weight_g')), value: formatNumber(totals.brakeG), suffix: ' t' },
-                        { label: @js(__('app.brake_weight_p')), value: formatNumber(totals.brakeP), suffix: ' t' },
-                    ]" :key="item.label">
-                        <div class="rt-wagon-total min-w-0 rounded-xl p-3">
-                            <p class="truncate text-[10px] font-bold uppercase tracking-[0.08em] opacity-65" x-text="item.label"></p>
-                            <p class="mt-1 text-lg font-bold tabular-nums"><span x-text="item.value"></span><span x-text="item.suffix"></span></p>
-                        </div>
-                    </template>
-                </section>
-
-                {{-- Desktop: vertraute Excel-Zeilen mit fester Spaltenreihenfolge. --}}
-                @include('livewire.operations.partials.wagon-sheet-grid', ['sheetInput' => $sheetInput])
-
-                {{-- Mobile/Tablet: immer nur ein Wagen, gleiche Reihenfolge wie die Excel-Zeile. --}}
-                <section class="space-y-3 lg:hidden" data-mobile-wagon-editor>
-                    <div class="rt-wagon-mobile-nav rounded-xl p-3">
-                        <div class="flex items-center justify-between gap-3">
-                            <div>
-                                <h2 class="text-sm font-semibold">{{ __('app.wagons') }}</h2>
-                                <p class="mt-0.5 text-xs opacity-70">
-                                    <span x-text="completionCount"></span>/<span x-text="visibleCount"></span>
-                                    {{ __('app.wagons_filled') }}
-                                </p>
-                            </div>
-                            <button
-                                type="button"
-                                @click="addWagon()"
-                                :disabled="visibleCount >= 40"
-                                class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-rt-accent px-3 py-2 text-xs font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-rt-dark-accent dark:text-slate-950"
-                            >
-                                <i class="far fa-plus" aria-hidden="true"></i>
-                                {{ __('app.add_wagon') }}
-                            </button>
-                        </div>
-
-                        <div class="rt-wagon-index-strip mt-3 flex gap-2 overflow-x-auto pb-1" aria-label="{{ __('app.wagons') }}">
-                            <template x-for="(_, index) in wagons.slice(0, visibleCount)" :key="index">
-                                <button
-                                    type="button"
-                                    @click="showMobileWagon(index)"
-                                    :data-active="mobileWagon === index ? 'true' : 'false'"
-                                    class="rt-wagon-index-button flex h-10 min-w-10 shrink-0 items-center justify-center rounded-lg text-xs font-bold tabular-nums transition"
-                                >
-                                    <span x-text="index + 1"></span>
-                                </button>
-                            </template>
-                        </div>
-                    </div>
-
-                    <article
-                        class="rt-wagon-mobile-card overflow-hidden rounded-2xl shadow-rt-sm"
-                        @touchstart.passive="wagonTouchStart($event)"
-                        @touchend.passive="wagonTouchEnd($event)"
-                        @touchcancel.passive="cancelWagonSwipe()"
-                        data-wagon-swipe
-                    >
-                        <header class="flex items-center gap-3 border-b border-rt-border/70 px-4 py-3 dark:border-rt-dark-border/70">
-                            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft text-sm font-bold text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent" x-text="mobileWagon + 1"></span>
-                            <div class="min-w-0 flex-1">
-                                <p class="truncate text-sm font-semibold" x-text="wagonNumber(wagons[mobileWagon]) || @js(__('app.wagon_not_filled'))"></p>
-                                <p class="mt-0.5 truncate text-xs opacity-65">
-                                    <span x-text="wagons[mobileWagon].category || '—'"></span>
-                                    · <span x-text="formatNumber(totalWeight(wagons[mobileWagon])) + ' t'"></span>
-                                </p>
-                            </div>
-                            <button type="button" @click="clearWagon(mobileWagon)" class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-red-500 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-500/10" title="{{ __('app.clear_wagon') }}">
-                                <i class="far fa-trash-alt" aria-hidden="true"></i>
-                            </button>
-                        </header>
-
-                        <div class="space-y-4 p-4">
-                            <fieldset class="rt-wagon-fieldset rounded-xl p-3">
-                                <legend class="px-1 text-xs font-bold uppercase tracking-[0.08em]">{{ __('app.identification') }}</legend>
-                                <div class="mt-2 grid grid-cols-[1fr_1fr_1.25fr_1.25fr_0.8fr] gap-1.5">
-                                    <label class="{{ $labelClass }}">1+2<input x-model="wagons[mobileWagon].number12" inputmode="numeric" maxlength="2" class="{{ $inputClass }}"></label>
-                                    <label class="{{ $labelClass }}">3+4<input x-model="wagons[mobileWagon].number34" inputmode="numeric" maxlength="2" class="{{ $inputClass }}"></label>
-                                    <label class="{{ $labelClass }}">5–8<input x-model="wagons[mobileWagon].number58" inputmode="numeric" maxlength="4" class="{{ $inputClass }}"></label>
-                                    <label class="{{ $labelClass }}">9–11<input x-model="wagons[mobileWagon].number911" inputmode="numeric" maxlength="3" class="{{ $inputClass }}"></label>
-                                    <label class="{{ $labelClass }}">12<input x-model="wagons[mobileWagon].checkDigit" inputmode="numeric" maxlength="1" class="{{ $inputClass }}"></label>
-                                </div>
-                                <p x-show="checkState(wagons[mobileWagon]) === 'invalid'" class="mt-2 text-xs font-semibold text-red-600 dark:text-red-300">
-                                    {{ __('app.expected_check_digit') }}:
-                                    <span x-text="expectedCheckDigit(wagons[mobileWagon])"></span>
-                                </p>
-                                <div class="mt-3 grid grid-cols-2 gap-3">
-                                    <label class="{{ $labelClass }}">{{ __('app.category') }}<input x-model="wagons[mobileWagon].category" class="{{ $inputClass }}"></label>
-                                    <div>
-                                        <span class="{{ $labelClass }}">{{ __('app.brake_type') }}</span>
-                                        <div class="mt-1 grid grid-cols-4 rounded-xl border border-rt-border bg-rt-control p-1 dark:border-rt-dark-border dark:bg-rt-dark-control">
-                                            @foreach (['' => '—', 'K' => 'K', 'L' => 'L', 'LL' => 'LL'] as $value => $optionLabel)
-                                                <button
-                                                    type="button"
-                                                    @click="wagons[mobileWagon].brakeType = @js($value)"
-                                                    :data-active="wagons[mobileWagon].brakeType === @js($value) ? 'true' : 'false'"
-                                                    class="rt-wagon-choice min-h-9 rounded-lg px-2 text-xs font-semibold transition"
-                                                >{{ $optionLabel }}</button>
-                                            @endforeach
-                                        </div>
-                                    </div>
-                                </div>
-                            </fieldset>
-
-                            <fieldset class="rt-wagon-fieldset rounded-xl p-3">
-                                <legend class="px-1 text-xs font-bold uppercase tracking-[0.08em]">{{ __('app.axles_dimensions') }}</legend>
-                                <div class="mt-2 grid grid-cols-2 gap-3">
-                                    <label class="{{ $labelClass }}">{{ __('app.axles_empty') }}<x-ui.forms.number-input min="0" x-model="wagons[mobileWagon].axlesEmpty" class="mt-1" /></label>
-                                    <label class="{{ $labelClass }}">{{ __('app.axles_loaded') }}<x-ui.forms.number-input min="0" x-model="wagons[mobileWagon].axlesLoaded" class="mt-1" /></label>
-                                    <label class="{{ $labelClass }} col-span-2">{{ __('app.length_m') }}<x-ui.forms.number-input min="0" step="0.01" :decimals="2" x-model="wagons[mobileWagon].length" class="mt-1" /></label>
-                                </div>
-                            </fieldset>
-
-                            <fieldset class="rt-wagon-fieldset rounded-xl p-3">
-                                <legend class="px-1 text-xs font-bold uppercase tracking-[0.08em]">{{ __('app.weights_and_brakes') }}</legend>
-                                <div class="mt-2 grid grid-cols-2 gap-3">
-                                    <label class="{{ $labelClass }}">{{ __('app.wagon_weight_t') }}<x-ui.forms.number-input min="0" step="0.01" :decimals="2" x-model="wagons[mobileWagon].wagonWeight" class="mt-1" /></label>
-                                    <label class="{{ $labelClass }}">{{ __('app.load_weight_t') }}<x-ui.forms.number-input min="0" step="0.01" :decimals="2" x-model="wagons[mobileWagon].loadWeight" class="mt-1" /></label>
-                                    <div class="rt-wagon-calculated rounded-lg p-3">
-                                        <span class="text-[10px] font-bold uppercase tracking-[0.08em] opacity-65">{{ __('app.total_weight') }}</span>
-                                        <strong class="mt-1 block text-lg tabular-nums"><span x-text="formatNumber(totalWeight(wagons[mobileWagon]))"></span> t</strong>
-                                    </div>
-                                    <label class="flex min-h-11 items-center gap-2 self-end rounded-lg px-3 py-2 text-xs font-semibold">
-                                        <input x-model="wagons[mobileWagon].discBrake" type="checkbox" class="h-5 w-5 rounded border-rt-border text-rt-accent focus:ring-rt-accent/35 dark:border-rt-dark-border">
-                                        {{ __('app.disc_brake') }}
-                                    </label>
-                                    <label class="{{ $labelClass }}">{{ __('app.brake_weight_g') }}<x-ui.forms.number-input min="0" step="0.01" :decimals="2" x-model="wagons[mobileWagon].brakeG" class="mt-1" /></label>
-                                    <label class="{{ $labelClass }}">{{ __('app.brake_weight_p') }}<x-ui.forms.number-input min="0" step="0.01" :decimals="2" x-model="wagons[mobileWagon].brakeP" class="mt-1" /></label>
-                                </div>
-                            </fieldset>
-
-                            <fieldset class="rt-wagon-fieldset rounded-xl p-3">
-                                <legend class="px-1 text-xs font-bold uppercase tracking-[0.08em]">{{ __('app.route_and_notes') }}</legend>
-                                <div class="mt-2 grid grid-cols-2 gap-3">
-                                    <label class="{{ $labelClass }}">{{ __('app.shipping_station') }}<input x-model="wagons[mobileWagon].shippingStation" class="{{ $inputClass }}"></label>
-                                    <label class="{{ $labelClass }}">{{ __('app.destination_station') }}<input x-model="wagons[mobileWagon].destinationStation" class="{{ $inputClass }}"></label>
-                                    <label class="{{ $labelClass }}">{{ __('app.parking_brake_kn') }}<x-ui.forms.number-input min="0" step="0.1" :decimals="1" x-model="wagons[mobileWagon].parkingBrake" class="mt-1" /></label>
-                                    <label class="{{ $labelClass }}">{{ __('app.maximum_speed') }}<x-ui.forms.number-input min="0" x-model="wagons[mobileWagon].maxSpeed" class="mt-1" /></label>
-                                    <label class="{{ $labelClass }} col-span-2">{{ __('app.remark') }}<textarea x-model="wagons[mobileWagon].remark" rows="2" class="{{ $inputClass }}"></textarea></label>
-                                </div>
-                            </fieldset>
-                        </div>
-
-                        <footer class="rt-wagon-mobile-footer sticky bottom-0 grid grid-cols-2 gap-2 border-t border-rt-border/70 p-3 dark:border-rt-dark-border/70">
-                            <button type="button" @click="previousMobileWagon()" :disabled="mobileWagon === 0" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-rt-border px-3 text-sm font-semibold transition disabled:opacity-35 dark:border-rt-dark-border">
-                                <i class="far fa-arrow-left" aria-hidden="true"></i>
-                                {{ __('app.previous') }}
-                            </button>
-                            <button type="button" @click="nextMobileWagon()" :disabled="mobileWagon >= visibleCount - 1" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-rt-accent px-3 text-sm font-semibold text-white transition disabled:opacity-35 dark:bg-rt-dark-accent dark:text-slate-950">
-                                {{ __('app.next') }}
-                                <i class="far fa-arrow-right" aria-hidden="true"></i>
-                            </button>
-                        </footer>
-                    </article>
-                </section>
-            </x-ui.accordion.tab-panel>
-
-            <x-ui.accordion.tab-panel for="brakeSheet" content-class="space-y-4">
-                <section class="grid grid-cols-2 gap-2 xl:grid-cols-4" aria-label="{{ __('app.brake_sheet_summary') }}">
-                    <template x-for="item in [
-                        { label: @js(__('app.total_weight')), value: formatNumber(brakeTotals.trainWeight), suffix: ' t' },
-                        { label: @js(__('app.brake_weight')), value: formatNumber(brakeTotals.brakeWeight), suffix: ' t' },
-                        { label: @js(__('app.axles')), value: brakeTotals.axles, suffix: '' },
-                        { label: @js(__('app.available_brake_percentage')), value: brakeTotals.availablePercentage, suffix: ' %' },
-                    ]" :key="item.label">
-                        <div class="rt-wagon-total rounded-xl p-3 sm:p-4">
-                            <p class="text-[10px] font-bold uppercase tracking-[0.08em] opacity-65" x-text="item.label"></p>
-                            <p class="mt-1 text-xl font-bold tabular-nums sm:text-2xl"><span x-text="item.value"></span><span x-text="item.suffix"></span></p>
-                        </div>
-                    </template>
-                </section>
-
-                <section class="rt-wagon-workspace rounded-2xl p-4 shadow-rt-sm sm:p-5">
-                    <div class="flex flex-col gap-2 border-b border-rt-border/70 pb-4 sm:flex-row sm:items-end sm:justify-between dark:border-rt-dark-border/70">
-                        <div>
-                            <h2 class="text-xl font-semibold tracking-tight">{{ __('app.brake_sheet') }}</h2>
-                            <p class="mt-1 text-sm opacity-65"><span x-text="meta.trainNumber || '—'"></span> · <span x-text="meta.origin || '—'"></span> → <span x-text="meta.destination || '—'"></span></p>
-                        </div>
-                        <p class="text-xs font-semibold opacity-65"><span x-text="meta.date"></span></p>
-                    </div>
-
-                    <div class="mt-4 grid gap-4 xl:grid-cols-2">
-                        <fieldset class="rt-wagon-fieldset rounded-xl p-4">
-                            <legend class="px-1 text-sm font-semibold">{{ __('app.traction_vehicle') }}</legend>
-                            <div class="mt-2 grid gap-3 sm:grid-cols-3">
-                                <label class="{{ $labelClass }}">{{ __('app.weight_t') }}<x-ui.forms.number-input min="0" step="0.01" :decimals="2" x-model="brakeSheet.tractionWeight" class="mt-1" /></label>
-                                <label class="{{ $labelClass }}">{{ __('app.brake_weight_t') }}<x-ui.forms.number-input min="0" step="0.01" :decimals="2" x-model="brakeSheet.tractionBrakeWeight" class="mt-1" /></label>
-                                <label class="{{ $labelClass }}">{{ __('app.axles') }}<x-ui.forms.number-input min="0" x-model="brakeSheet.tractionAxles" class="mt-1" /></label>
-                            </div>
-                        </fieldset>
-
-                        <fieldset class="rt-wagon-fieldset rounded-xl p-4">
-                            <legend class="px-1 text-sm font-semibold">{{ __('app.brake_calculation') }}</legend>
-                            <div class="mt-2 grid grid-cols-3 gap-3">
-                                <label class="{{ $labelClass }}">{{ __('app.minimum_brake_percentage') }}<x-ui.forms.number-input min="0" x-model="brakeSheet.minimumBrakePercentage" class="mt-1" /></label>
-                                <div class="rt-wagon-calculated rounded-lg p-3"><span class="text-[10px] font-bold uppercase opacity-65">{{ __('app.available') }}</span><strong class="mt-1 block text-lg"><span x-text="brakeTotals.availablePercentage"></span> %</strong></div>
-                                <div class="rt-wagon-calculated rounded-lg p-3"><span class="text-[10px] font-bold uppercase opacity-65">{{ __('app.missing') }}</span><strong class="mt-1 block text-lg" :class="brakeTotals.missingPercentage > 0 ? 'text-red-600 dark:text-red-300' : 'text-emerald-600 dark:text-emerald-300'"><span x-text="brakeTotals.missingPercentage"></span> %</strong></div>
-                            </div>
-                        </fieldset>
-
-                        <fieldset class="rt-wagon-fieldset rounded-xl p-4">
-                            <legend class="px-1 text-sm font-semibold">{{ __('app.freight_train_data') }}</legend>
-                            <dl class="mt-2 divide-y divide-rt-border/70 text-sm dark:divide-rt-dark-border/70">
-                                <div class="flex justify-between gap-4 py-2"><dt class="opacity-65">{{ __('app.last_vehicle_number') }}</dt><dd class="text-right font-semibold" x-text="brakeTotals.lastVehicle || '—'"></dd></div>
-                                <div class="flex justify-between gap-4 py-2"><dt class="opacity-65">{{ __('app.brakes_count') }}</dt><dd class="font-semibold" x-text="totals.brakeCount"></dd></div>
-                                <div class="flex justify-between gap-4 py-2"><dt class="opacity-65">{{ __('app.disc_brakes_count') }}</dt><dd class="font-semibold" x-text="totals.discBrakes"></dd></div>
-                                <div class="flex justify-between gap-4 py-2"><dt class="opacity-65">{{ __('app.plastic_brakes_count') }}</dt><dd class="font-semibold" x-text="totals.plasticBrakes"></dd></div>
-                                <div class="flex justify-between gap-4 py-2"><dt class="opacity-65">{{ __('app.length_over_buffers') }}</dt><dd class="font-semibold"><span x-text="formatNumber(totals.length)"></span> m</dd></div>
-                            </dl>
-                            <label class="mt-3 block {{ $labelClass }}">{{ __('app.braked_axles') }}<x-ui.forms.number-input min="0" x-model="brakeSheet.brakedAxles" class="mt-1" /></label>
-                        </fieldset>
-
-                        <fieldset class="rt-wagon-fieldset rounded-xl p-4">
-                            <legend class="px-1 text-sm font-semibold">{{ __('app.special_information') }}</legend>
-                            <div class="mt-2 grid gap-3 sm:grid-cols-2">
-                                @foreach ([
-                                    'nbuepBrake' => __('app.nbuep_brake'),
-                                    'emergencyBrakeBridge' => __('app.emergency_brake_bridge'),
-                                    'passengerFeatureHzee' => __('app.passenger_feature_hzee'),
-                                    'passengerFeatureNOe' => __('app.passenger_feature_noe'),
-                                    'passengerFeatureTb0' => __('app.passenger_feature_tb0'),
-                                    'passengerFeatureOZub' => __('app.passenger_feature_ozub'),
-                                    'passengerFeatureOther' => __('app.passenger_feature_other'),
-                                    'dangerousGoods' => __('app.dangerous_goods'),
-                                    'epBrake' => __('app.ep_brake'),
-                                ] as $field => $label)
-                                    <div>
-                                        <span class="{{ $labelClass }}">{{ $label }}</span>
-                                        <div class="mt-1 grid grid-cols-3 rounded-xl border border-rt-border bg-rt-control p-1 dark:border-rt-dark-border dark:bg-rt-dark-control">
-                                            @foreach (['' => '—', 'no' => __('app.no'), 'yes' => __('app.yes')] as $value => $optionLabel)
-                                                <button
-                                                    type="button"
-                                                    @click="brakeSheet.{{ $field }} = @js($value)"
-                                                    :data-active="brakeSheet.{{ $field }} === @js($value) ? 'true' : 'false'"
-                                                    class="rt-wagon-choice min-h-9 rounded-lg px-2 text-xs font-semibold transition"
-                                                >{{ $optionLabel }}</button>
-                                            @endforeach
-                                        </div>
-                                    </div>
-                                @endforeach
-                                <label class="{{ $labelClass }}">{{ __('app.lower_vehicle_speed') }}<x-ui.forms.number-input min="0" x-model="brakeSheet.lowerVehicleSpeed" class="mt-1" /></label>
-                                <label class="{{ $labelClass }} sm:col-span-2">{{ __('app.issued_by_name') }}<input x-model="brakeSheet.issuerName" class="{{ $inputClass }}"></label>
-                            </div>
-                        </fieldset>
-                    </div>
-                </section>
-            </x-ui.accordion.tab-panel>
-        </x-ui.accordion.tabs>
-                </main>
-            </div>
-
-            <footer class="rt-wagon-editor-mobile-actions fixed inset-x-0 bottom-0 z-20 grid grid-cols-2 gap-2 border-t border-rt-border/70 bg-rt-surface/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_-18px_rgba(15,23,42,0.45)] backdrop-blur-xl dark:border-rt-dark-border/70 dark:bg-rt-dark-surface/95 md:hidden">
+            <x-slot:actions>
                 <button
                     type="button"
-                    @click="cancelEditor()"
-                    class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-rt-border bg-rt-surface px-3 py-2 text-sm font-semibold text-rt-text shadow-rt-xs transition-all duration-200 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text"
+                    @click="resetDraft()"
+                    class="rt-wagon-editor-secondary-action h-10 w-10 items-center justify-center rounded-lg text-rt-muted transition-all duration-200 hover:bg-red-50 hover:text-red-700 active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/45 dark:text-rt-dark-muted dark:hover:bg-red-500/10 dark:hover:text-red-300"
+                    title="{{ $labels['deleteDraft'] }}"
+                    aria-label="{{ $labels['deleteDraft'] }}"
                 >
-                    <i class="far fa-times" aria-hidden="true"></i>
-                    {{ __('app.cancel') }}
+                    <i class="far fa-trash-alt" aria-hidden="true"></i>
+                </button>
+                <button
+                    type="button"
+                    @click="exportWorkbook()"
+                    :disabled="exporting"
+                    class="rt-wagon-editor-secondary-action h-10 items-center justify-center gap-2 rounded-lg border border-rt-border bg-rt-surface px-3 text-sm font-semibold text-rt-text shadow-rt-xs transition-all duration-200 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/45 disabled:cursor-wait disabled:opacity-65 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text dark:hover:border-emerald-500/40 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-300"
+                    title="{{ __('app.export_excel') }}"
+                    aria-label="{{ __('app.export_excel') }}"
+                >
+                    <i class="far fa-file-excel" x-show="!exporting" aria-hidden="true"></i>
+                    <i class="far fa-spinner fa-spin" x-show="exporting" x-cloak aria-hidden="true"></i>
+                    <span class="rt-wagon-editor-export-label" x-text="exporting ? @js(__('app.wagon_exporting')) : @js(__('app.export_excel'))"></span>
                 </button>
                 <button
                     type="button"
                     @click="saveAndClose()"
-                    class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-rt-red px-3 py-2 text-sm font-semibold text-white shadow-rt-xs transition-all duration-200 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40"
+                    class="rt-wagon-editor-desktop-save min-h-10 items-center gap-2 rounded-lg bg-rt-red px-4 py-2 text-sm font-semibold text-white shadow-rt-xs transition-all duration-200 hover:-translate-y-0.5 hover:bg-rt-red-dark hover:shadow-rt-glow active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40"
                 >
                     <i class="far fa-check" aria-hidden="true"></i>
                     {{ $labels['saveAndClose'] }}
                 </button>
-                <p class="col-span-2 text-center text-[11px] leading-4 text-rt-soft dark:text-rt-dark-soft">{{ $labels['closeHint'] }}</p>
-            </footer>
-            </section>
-        </template>
+            </x-slot:actions>
+
+            <main class="h-full min-h-0">
+                @include('livewire.operations.partials.wagon-desktop-workspace', [
+                    'sheetInput' => $sheetInput,
+                    'inputClass' => $inputClass,
+                    'labelClass' => $labelClass,
+                ])
+
+                @include('livewire.operations.partials.wagon-mobile-wizard', [
+                    'inputClass' => $inputClass,
+                    'labelClass' => $labelClass,
+                ])
+            </main>
+        </x-ui.fullscreen-modal>
     </x-ui.page>
 </div>

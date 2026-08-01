@@ -39,10 +39,13 @@
         <div
             x-show.important="show"
             x-on:close.stop="close()"
+            x-trap.inert.noscroll="show"
             id="{{ $id }}"
             class="rt-ui-modal jetstream-modal fixed inset-0 z-[190] flex items-center justify-center overflow-hidden p-3 sm:p-6"
             style="display: none;"
             data-rt-modal-shell
+            data-rt-overlay-layer
+            data-rt-overlay-base="190"
         >
             {{-- Overlay --}}
             <div
@@ -71,7 +74,6 @@
                     aria-label="{{ $attributes->get('aria-label', config('app.name') . ' Dialog') }}"
                 @endif
                 class="rt-ui-surface rt-ui-modal-panel rt-modal-frame relative flex max-h-[calc(100dvh-1.5rem)] min-h-0 min-w-0 w-full max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-[1.4rem] bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-rt-border/70 transform transition-all dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/70 sm:max-h-[calc(100dvh-3rem)] {{ $maxWidthClass }}"
-                x-trap.inert.noscroll="show"
                 x-transition:enter="ease-out duration-300"
                 x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
                 x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
@@ -135,6 +137,8 @@
                     </div>
                 @endif
             </div>
+
+            <div class="pointer-events-none fixed inset-0 z-[20]" data-rt-overlay-portal></div>
         </div>
     </template>
 </div>

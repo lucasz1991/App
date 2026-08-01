@@ -16,7 +16,7 @@ const VOICE_CAPTURE_LIMIT_MS = 45_000;
 const MAX_TTS_TEXT_LENGTH = 4_000;
 const MAX_KNOWN_MESSAGE_KEYS = 500;
 const PET_BUBBLE_INITIAL_DELAY_MS = 1_200;
-const PET_BUBBLE_VISIBLE_MS = 6_500;
+const PET_BUBBLE_VISIBLE_MS = 4_800;
 const PET_BUBBLE_CYCLE_MS = 38_000;
 
 const DEFAULT_STRINGS = {
@@ -116,12 +116,14 @@ export function railtimeChatbot(config = {}) {
         dockMediaQuery: null,
         petBubbleText: '',
         petBubbleVisible: false,
+        petBubbleAnnounce: false,
         petHintIndex: 0,
         petBubbleTimer: null,
         petBubbleCycleTimer: null,
         _dockChangeHandler: null,
         _windowResizeHandler: null,
         _navigationHandler: null,
+        _visibilityHandler: null,
 
         init() {
             this.dockMediaQuery = window.matchMedia?.(CHATBOT_DESKTOP_QUERY) ?? null;
@@ -151,6 +153,14 @@ export function railtimeChatbot(config = {}) {
                 this.abortSpeechInput();
                 this.stopSpeaking();
             };
+            this._visibilityHandler = () => {
+                if (document.hidden) {
+                    this.clearPetBubbleTimers();
+                    return;
+                }
+
+                if (!this.open) this.schedulePetBubble(false);
+            };
 
             if (this.dockMediaQuery?.addEventListener) {
                 this.dockMediaQuery.addEventListener('change', this._dockChangeHandler);
@@ -159,6 +169,7 @@ export function railtimeChatbot(config = {}) {
                 window.addEventListener('resize', this._windowResizeHandler);
             }
             document.addEventListener('livewire:navigating', this._navigationHandler);
+            document.addEventListener('visibilitychange', this._visibilityHandler);
 
             this.$watch('open', (value) => {
                 safeStorage('sessionStorage')?.setItem('railtime-chatbot-open', value ? '1' : '0');
@@ -208,6 +219,9 @@ export function railtimeChatbot(config = {}) {
             if (this._navigationHandler) {
                 document.removeEventListener('livewire:navigating', this._navigationHandler);
             }
+            if (this._visibilityHandler) {
+                document.removeEventListener('visibilitychange', this._visibilityHandler);
+            }
 
             this.messageObserver?.disconnect();
             this.messageObserver = null;
@@ -236,15 +250,17 @@ export function railtimeChatbot(config = {}) {
             return hints.map((hint) => String(hint ?? '').trim()).filter(Boolean);
         },
 
-        showPetBubble(text, duration = PET_BUBBLE_VISIBLE_MS) {
+        showPetBubble(text, duration = PET_BUBBLE_VISIBLE_MS, announce = false) {
             const message = String(text ?? '').trim();
             if (!message || this.open) return;
 
             window.clearTimeout(this.petBubbleTimer);
+            this.petBubbleAnnounce = Boolean(announce);
             this.petBubbleText = message;
             this.petBubbleVisible = true;
             this.petBubbleTimer = window.setTimeout(() => {
                 this.petBubbleVisible = false;
+                this.petBubbleAnnounce = false;
                 this.petBubbleTimer = null;
             }, Math.max(1_500, Number(duration) || PET_BUBBLE_VISIBLE_MS));
         },
@@ -253,6 +269,7 @@ export function railtimeChatbot(config = {}) {
             window.clearTimeout(this.petBubbleTimer);
             this.petBubbleTimer = null;
             this.petBubbleVisible = false;
+            this.petBubbleAnnounce = false;
         },
 
         schedulePetBubble(initial = false) {
@@ -286,6 +303,7 @@ export function railtimeChatbot(config = {}) {
             this.petBubbleTimer = null;
             this.petBubbleCycleTimer = null;
             this.petBubbleVisible = false;
+            this.petBubbleAnnounce = false;
         },
 
         readBool(key, fallback) {
@@ -428,7 +446,7 @@ export function railtimeChatbot(config = {}) {
             if (!this.rememberAssistantKey(key)) return;
 
             this.$nextTick(() => this.scrollMessages(false));
-            if (!this.open) this.showPetBubble(this.strings.petReplyReady, 9_000);
+            if (!this.open) this.showPetBubble(this.strings.petReplyReady, PET_BUBBLE_VISIBLE_MS, true);
             if (this.autoRead && this.speechSupported) {
                 this.queueTtsSentence(text, key);
             }

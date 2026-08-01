@@ -5,6 +5,8 @@
      gegen darunterliegende Seitenreste. --}}
 <div
     class="fixed inset-0 z-[200] overflow-hidden bg-[#0b0e13]"
+    data-rt-overlay-layer
+    data-rt-overlay-base="200"
     x-data="callRoom({
         roomUuid: @js($room->uuid),
         tokenUrl: @js(route('calls.token', $room)),

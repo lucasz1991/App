@@ -2,6 +2,9 @@ import base64
 import io
 import json
 import os
+import shutil
+import stat
+import subprocess
 import sys
 import tempfile
 import threading
@@ -10,13 +13,16 @@ import unittest
 import wave
 from http.client import HTTPConnection
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SERVICE_ROOT))
+sys.path.insert(0, str(SERVICE_ROOT / "deploy"))
 
 import speech_service as service
+import provision_client_token as token_provisioner
 
 
 TEST_TOKEN = "unit-test-token-that-is-not-a-production-secret"
@@ -341,6 +347,14 @@ class AuthenticationAndConfigTest(unittest.TestCase):
         with self.assertRaises(service.ConfigurationError):
             service.ServiceConfig.from_mapping(raw)
 
+    def test_each_client_requires_a_distinct_token_hash(self):
+        raw = config_mapping(self.temporary.name)
+        raw["clients"]["followflow"]["token_sha256"] = raw["clients"]["railtime"][
+            "token_sha256"
+        ]
+        with self.assertRaisesRegex(service.ConfigurationError, "distinct token hash"):
+            service.ServiceConfig.from_mapping(raw)
+
     def test_lmz_speech_config_can_be_loaded_from_explicit_env_file(self):
         config_path = Path(self.temporary.name) / "config.json"
         config_path.write_text(json.dumps(config_mapping(self.temporary.name)), encoding="utf-8")
@@ -354,6 +368,28 @@ class AuthenticationAndConfigTest(unittest.TestCase):
             loaded = service.load_config_from_environment()
         self.assertEqual(8092, loaded.port)
         self.assertIn("railtime", loaded.clients)
+
+    def test_explicit_env_file_overrides_inherited_config_and_must_define_the_key(self):
+        config_path = Path(self.temporary.name) / "explicit-config.json"
+        config_path.write_text(json.dumps(config_mapping(self.temporary.name)), encoding="utf-8")
+        env_path = Path(self.temporary.name) / "explicit-service.env"
+        env_path.write_text("LMZ_SPEECH_CONFIG=%s\n" % config_path, encoding="utf-8")
+        empty_env_path = Path(self.temporary.name) / "empty-service.env"
+        empty_env_path.write_text("# no inherited fallback is allowed\n", encoding="utf-8")
+        if os.name == "posix":
+            config_path.chmod(0o600)
+            env_path.chmod(0o600)
+            empty_env_path.chmod(0o600)
+
+        inherited = str(Path(self.temporary.name) / "stale-config.json")
+        with mock.patch.dict(os.environ, {service.CONFIG_ENV: inherited}, clear=True):
+            service.load_env_file(env_path)
+            self.assertEqual(str(config_path), os.environ[service.CONFIG_ENV])
+            self.assertEqual(8092, service.load_config_from_environment().port)
+
+        with mock.patch.dict(os.environ, {service.CONFIG_ENV: str(config_path)}, clear=True):
+            with self.assertRaisesRegex(service.ConfigurationError, "does not define"):
+                service.load_env_file(empty_env_path)
 
 
 class RecordingRunner:
@@ -472,6 +508,191 @@ class EngineContractTest(unittest.TestCase):
         if stat_file.exists() and stat_file.read_text().split()[2] == "Z":
             return False
         return True
+
+
+class ClientTokenProvisioningTest(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.private_directory = Path(self.temporary.name) / "private"
+        self.private_directory.mkdir()
+        self.output = self.private_directory / "speech-service.token"
+
+    def tearDown(self):
+        self.temporary.cleanup()
+
+    def test_token_is_replaced_atomically_and_only_its_hash_is_returned(self):
+        first_token = "a" * 64
+        first_hash = token_provisioner.provision_token(
+            self.output,
+            enforce_private_parent=False,
+            token_factory=lambda _: first_token,
+        )
+
+        self.assertEqual(first_token, self.output.read_text(encoding="utf-8"))
+        self.assertEqual(service.token_sha256(first_token), first_hash)
+        if os.name == "posix":
+            self.assertEqual(0o600, stat.S_IMODE(self.output.stat().st_mode))
+
+        second_token = "b" * 64
+        second_hash = token_provisioner.provision_token(
+            self.output,
+            enforce_private_parent=False,
+            token_factory=lambda _: second_token,
+        )
+
+        self.assertEqual(second_token, self.output.read_text(encoding="utf-8"))
+        self.assertEqual(service.token_sha256(second_token), second_hash)
+        self.assertNotEqual(first_hash, second_hash)
+        self.assertEqual([self.output], list(self.private_directory.iterdir()))
+
+    def test_private_parent_policy_rejects_symlinks_wrong_owner_and_shared_modes(self):
+        safe_parent = mock.Mock()
+        safe_parent.lstat.return_value = SimpleNamespace(
+            st_mode=stat.S_IFDIR | 0o700,
+            st_uid=123,
+        )
+        token_provisioner.validate_private_parent(safe_parent, 123)
+
+        for details in (
+            SimpleNamespace(st_mode=stat.S_IFLNK | 0o700, st_uid=123),
+            SimpleNamespace(st_mode=stat.S_IFDIR | 0o700, st_uid=456),
+            SimpleNamespace(st_mode=stat.S_IFDIR | 0o750, st_uid=123),
+            SimpleNamespace(st_mode=stat.S_IFDIR | 0o707, st_uid=123),
+        ):
+            unsafe_parent = mock.Mock()
+            unsafe_parent.lstat.return_value = details
+            with self.assertRaises(token_provisioner.ProvisioningError):
+                token_provisioner.validate_private_parent(unsafe_parent, 123)
+
+    @unittest.skipUnless(os.name == "posix", "POSIX owner and mode verification requires Linux/Unix")
+    def test_posix_provisioning_enforces_real_owner_and_mode(self):
+        self.private_directory.chmod(0o700)
+        digest = token_provisioner.provision_token(
+            self.output,
+            expected_uid=os.geteuid(),
+            token_factory=lambda _: "c" * 64,
+        )
+
+        self.assertEqual(service.token_sha256("c" * 64), digest)
+        self.assertEqual(0o600, stat.S_IMODE(self.output.stat().st_mode))
+
+
+class DeploymentContractTest(unittest.TestCase):
+    def test_example_config_is_fail_closed_and_matches_application_audio_limit(self):
+        raw = json.loads((SERVICE_ROOT / "config.example.json").read_text(encoding="utf-8"))
+
+        self.assertEqual("REPLACE_WITH_RAILTIME_TOKEN_SHA256", raw["clients"]["railtime"]["token_sha256"])
+        self.assertEqual(
+            "REPLACE_WITH_FOLLOWFLOW_TOKEN_SHA256",
+            raw["clients"]["followflow"]["token_sha256"],
+        )
+        self.assertEqual(8 * 1024 * 1024, raw["limits"]["max_audio_bytes"])
+        with self.assertRaises(service.ConfigurationError):
+            service.ServiceConfig.from_mapping(raw)
+
+    def test_readme_keeps_protected_parents_root_owned_and_tokens_app_private(self):
+        readme = (SERVICE_ROOT / "README.md").read_text(encoding="utf-8")
+
+        self.assertIn(
+            "install -d -o root -g lmz-speech -m 750 /opt/lmz-speech /etc/lmz-speech /var/lib/lmz-speech /var/log/lmz-speech",
+            readme,
+        )
+        self.assertIn(
+            "install -d -o root -g lmz-speech -m 750 /opt/lmz-speech/releases /var/lib/lmz-speech/runtime",
+            readme,
+        )
+        self.assertIn('if [ -L "$protected_parent" ]', readme)
+        self.assertIn('if [ -L "$protected_child" ]', readme)
+        self.assertIn("find /var/lib/lmz-speech/runtime -type l -print -quit", readme)
+        self.assertIn("find /var/lib/lmz-speech/runtime -writable -print -quit", readme)
+        self.assertIn("Refusing unsafe log path", readme)
+        self.assertNotIn("touch /var/log/lmz-speech/service.log", readme)
+        self.assertIn(
+            "install -d -o lmz-speech -g lmz-speech -m 700 /var/lib/lmz-speech/tmp",
+            readme,
+        )
+        self.assertNotIn(
+            "install -d -o lmz-speech -g lmz-speech -m 700 /var/lib/lmz-speech /var/lib/lmz-speech/tmp",
+            readme,
+        )
+        self.assertNotIn("install -d -o lmz-speech -g lmz-speech -m 750 /var/log", readme)
+        self.assertIn('test "$(id -u "$RAILTIME_PHP_USER")" != "$(id -u "$FOLLOWFLOW_PHP_USER")"', readme)
+        self.assertIn("$RAILTIME_WEBSPACE/.lmz-secrets", readme)
+        self.assertIn("$FOLLOWFLOW_WEBSPACE/.lmz-secrets", readme)
+        self.assertIn(
+            'sudo -u "$RAILTIME_PHP_USER" /usr/bin/install -d -m 700 "$RAILTIME_SECRET_DIR"',
+            readme,
+        )
+        self.assertIn(
+            'sudo -u "$FOLLOWFLOW_PHP_USER" /usr/bin/install -d -m 700 "$FOLLOWFLOW_SECRET_DIR"',
+            readme,
+        )
+        self.assertIn('test ! -r "$FOLLOWFLOW_TOKEN_FILE"', readme)
+        self.assertIn('test ! -r "$RAILTIME_TOKEN_FILE"', readme)
+
+    def test_gitignore_blocks_local_secrets_without_hiding_templates_or_deploy_code(self):
+        gitignore = (SERVICE_ROOT / ".gitignore").read_text(encoding="utf-8")
+        for required_pattern in (
+            "/config.json",
+            "/service.env",
+            "*.token",
+            "*.secret",
+            "/.secrets/",
+            "/secrets/",
+        ):
+            self.assertIn(required_pattern, gitignore)
+
+        git = shutil.which("git")
+        repository_root = SERVICE_ROOT.parents[1]
+        if git is None or not (repository_root / ".git").exists():
+            return
+
+        def is_ignored(path):
+            result = subprocess.run(
+                [git, "check-ignore", "--no-index", "--quiet", "--", path],
+                cwd=SERVICE_ROOT,
+                check=False,
+                capture_output=True,
+            )
+            self.assertIn(result.returncode, (0, 1), result.stderr.decode("utf-8", errors="replace"))
+            return result.returncode == 0
+
+        for ignored_path in (
+            "config.json",
+            "service.env",
+            "railtime.token",
+            "local.secret",
+            ".secrets/client.token",
+            "secrets/followflow.token",
+        ):
+            self.assertTrue(is_ignored(ignored_path), ignored_path)
+        for tracked_path in (
+            "config.example.json",
+            "deploy/supervisor.conf.example",
+            "deploy/provision_client_token.py",
+        ):
+            self.assertFalse(is_ignored(tracked_path), tracked_path)
+
+    def test_supervisor_contract_uses_private_runtime_and_explicit_release_restart(self):
+        readme = (SERVICE_ROOT / "README.md").read_text(encoding="utf-8")
+        supervisor = (SERVICE_ROOT / "deploy" / "supervisor.conf.example").read_text(
+            encoding="utf-8"
+        )
+
+        switch_position = readme.index("mv -Tf \"$next_link\" /opt/lmz-speech/current")
+        restart_position = readme.index("supervisorctl restart lmz-speech-service")
+        self.assertGreater(restart_position, switch_position)
+        self.assertIn("user=lmz-speech", supervisor)
+        self.assertIn("umask=077", supervisor)
+        self.assertIn("autorestart=true", supervisor)
+        self.assertIn(
+            "command=/usr/bin/python3 -I -u /opt/lmz-speech/current/speech_service.py",
+            supervisor,
+        )
+        self.assertIn('HOME="/var/lib/lmz-speech"', supervisor)
+        self.assertNotIn('HOME="/var/lib/lmz-speech/tmp"', supervisor)
+        self.assertIn('TMPDIR="/var/lib/lmz-speech/tmp"', supervisor)
+        self.assertIn("stdout_logfile=/var/log/lmz-speech/service.log", supervisor)
 
 
 if __name__ == "__main__":

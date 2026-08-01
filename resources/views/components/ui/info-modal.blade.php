@@ -50,6 +50,8 @@
     class="rt-info-backdrop fixed inset-0 z-[500] flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-md sm:p-6"
     x-on:click.self="close()"
     data-rt-info-modal
+    data-rt-overlay-layer
+    data-rt-overlay-base="500"
 >
     <section
         role="dialog"

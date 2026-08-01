@@ -30,6 +30,8 @@
         class="fixed inset-0 z-[190] flex items-end justify-center overflow-hidden pt-4 sm:items-center sm:p-6"
         style="display: none;"
         data-rt-state-modal
+        data-rt-overlay-layer
+        data-rt-overlay-base="190"
     >
         <div
             x-show.important="{{ $state }}"

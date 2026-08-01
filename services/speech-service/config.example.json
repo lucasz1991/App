@@ -4,10 +4,10 @@
   },
   "clients": {
     "railtime": {
-      "token_sha256": "b03f051b569072f0ec351c3e5f0859c86808015fec9eb60aafcf7dad874ae0b5"
+      "token_sha256": "REPLACE_WITH_RAILTIME_TOKEN_SHA256"
     },
     "followflow": {
-      "token_sha256": "430f28230b4d6eaf9599f8e86796369996bcc2e5216afe39d6d59d12c5315f03"
+      "token_sha256": "REPLACE_WITH_FOLLOWFLOW_TOKEN_SHA256"
     }
   },
   "engines": {
@@ -37,8 +37,8 @@
     }
   },
   "limits": {
-    "max_body_bytes": 29000000,
-    "max_audio_bytes": 20971520,
+    "max_body_bytes": 12000000,
+    "max_audio_bytes": 8388608,
     "max_audio_seconds": 60,
     "max_text_chars": 4000,
     "max_transcript_chars": 8000,

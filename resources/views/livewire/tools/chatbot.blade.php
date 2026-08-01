@@ -127,8 +127,9 @@
             x-transition:leave="rt-chatbot__pet-bubble-leave"
             x-transition:leave-start="rt-chatbot__pet-bubble-enter-end"
             x-transition:leave-end="rt-chatbot__pet-bubble-enter-start"
-            role="status"
-            aria-live="polite"
+            x-bind:role="petBubbleAnnounce ? 'status' : null"
+            x-bind:aria-live="petBubbleAnnounce ? 'polite' : 'off'"
+            x-bind:aria-hidden="(!petBubbleAnnounce).toString()"
         >
             <span x-text="petBubbleText"></span>
         </div>
@@ -167,41 +168,18 @@
     >
         <header class="rt-chatbot__header">
             <div class="rt-chatbot__identity">
-                <span class="rt-chatbot__avatar" aria-hidden="true">RT</span>
+                <span class="rt-chatbot__avatar" aria-hidden="true">
+                    <x-railtime-assistant-pet class="rt-chatbot__avatar-pet" />
+                </span>
                 <div class="rt-chatbot__identity-copy">
+                    <span class="rt-chatbot__eyebrow">
+                        {{ $isGerman ? 'Dein RailTime-Begleiter' : 'Your RailTime companion' }}
+                    </span>
                     <h2 id="railtime-chatbot-title" class="rt-chatbot__title">{{ $assistantLabel }}</h2>
-                    <p class="rt-chatbot__status">
-                        <span
-                            class="rt-chatbot__status-dot {{ $assistantIsAvailable ? '' : 'rt-chatbot__status-dot--offline' }}"
-                            aria-hidden="true"
-                        ></span>
-                        {{ $assistantIsAvailable
-                            ? ($isGerman ? 'Bereit für deine Frage' : 'Ready for your question')
-                            : ($isGerman ? 'Momentan nicht verfügbar' : 'Currently unavailable') }}
-                    </p>
                 </div>
             </div>
 
             <div class="rt-chatbot__header-actions">
-                <button
-                    type="button"
-                    class="rt-chatbot__icon-button"
-                    x-show="speechSupported"
-                    x-bind:aria-pressed="autoRead.toString()"
-                    x-bind:title="autoRead
-                        ? @js($isGerman ? 'Automatisches Vorlesen ausschalten' : 'Disable automatic reading')
-                        : @js($isGerman ? 'Antworten automatisch vorlesen' : 'Read responses automatically')"
-                    x-on:click="autoRead = !autoRead"
-                >
-                    <span class="rt-chatbot__sr-only" x-text="autoRead
-                        ? @js($isGerman ? 'Automatisches Vorlesen eingeschaltet' : 'Automatic reading enabled')
-                        : @js($isGerman ? 'Automatisches Vorlesen ausgeschaltet' : 'Automatic reading disabled')"></span>
-                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                        <path d="M5 9.5v5h3.5l4.25 3.5V6L8.5 9.5H5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
-                        <path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                    </svg>
-                </button>
-
                 <button
                     type="button"
                     class="rt-chatbot__icon-button"
@@ -243,6 +221,54 @@
             </div>
         </header>
 
+        <div class="rt-chatbot__control-deck">
+            <p class="rt-chatbot__status">
+                <span
+                    class="rt-chatbot__status-dot {{ $assistantIsAvailable ? '' : 'rt-chatbot__status-dot--offline' }}"
+                    aria-hidden="true"
+                ></span>
+                <span>
+                    {{ $assistantIsAvailable
+                        ? ($speechIsAvailable
+                            ? ($isGerman ? 'Bereit für Text und Sprache' : 'Ready for text and voice')
+                            : ($isGerman ? 'Bereit für deine Frage' : 'Ready for your question'))
+                        : ($isGerman ? 'Momentan nicht verfügbar' : 'Currently unavailable') }}
+                </span>
+            </p>
+
+            @if ($speechIsAvailable)
+                <div class="rt-chatbot__voice-controls" x-show="speechSupported">
+                    <button
+                        type="button"
+                        class="rt-chatbot__auto-read"
+                        x-bind:aria-pressed="autoRead.toString()"
+                        x-bind:title="autoRead
+                            ? @js($isGerman ? 'Automatisches Vorlesen ausschalten' : 'Disable automatic reading')
+                            : @js($isGerman ? 'Antworten automatisch vorlesen' : 'Read responses automatically')"
+                        x-on:click="autoRead = !autoRead"
+                    >
+                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="M5 9.5v5h3.5l4.25 3.5V6L8.5 9.5H5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                            <path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        </svg>
+                        <span x-text="autoRead
+                            ? @js($isGerman ? 'Auto-Audio an' : 'Auto audio on')
+                            : @js($isGerman ? 'Auto-Audio aus' : 'Auto audio off')"></span>
+                    </button>
+
+                    <label class="rt-chatbot__speech-rate">
+                        <span>{{ $isGerman ? 'Tempo' : 'Speed' }}</span>
+                        <select x-model.number="speechRate" aria-label="{{ $isGerman ? 'Vorlesetempo' : 'Reading speed' }}">
+                            <option value="0.8">{{ $isGerman ? '0,8×' : '0.8×' }}</option>
+                            <option value="1">1×</option>
+                            <option value="1.2">{{ $isGerman ? '1,2×' : '1.2×' }}</option>
+                            <option value="1.4">{{ $isGerman ? '1,4×' : '1.4×' }}</option>
+                        </select>
+                    </label>
+                </div>
+            @endif
+        </div>
+
         <div class="rt-chatbot__body">
             <div
                 class="rt-chatbot__messages"
@@ -274,39 +300,62 @@
                         class="rt-chatbot__message-row rt-chatbot__message-row--{{ $role }}"
                         wire:key="railtime-chatbot-message-{{ $wireMessageKey }}"
                     >
+                        @if ($role === 'assistant')
+                            <span class="rt-chatbot__message-pet" aria-hidden="true">
+                                <x-railtime-assistant-pet />
+                            </span>
+                        @endif
                         <article class="rt-chatbot__message">
                             <p class="rt-chatbot__message-content">{{ $content }}</p>
                             <footer class="rt-chatbot__message-meta">
-                                @if ($role === 'assistant' && $speechIsAvailable)
-                                    <button
-                                        type="button"
-                                        class="rt-chatbot__message-play"
-                                        x-show="speechSupported"
-                                        x-bind:aria-pressed="(speaking && speakingKey === @js($messageKey)).toString()"
-                                        x-on:click="speaking && speakingKey === @js($messageKey)
-                                            ? stopSpeaking()
-                                            : speak(@js($content), @js($messageKey))"
-                                        title="{{ $isGerman ? 'Nachricht vorlesen' : 'Read message aloud' }}"
-                                    >
-                                        <span class="rt-chatbot__sr-only">{{ $isGerman ? 'Nachricht vorlesen' : 'Read message aloud' }}</span>
-                                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                            <path d="M7 9.5v5h3.25l4 3.25V6.25l-4 3.25H7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
-                                            <path d="M17 9.25a4 4 0 0 1 0 5.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                                        </svg>
-                                    </button>
-                                @endif
-                                @if ($displayTime !== '')
-                                    <time datetime="{{ $createdAtKey }}">{{ $displayTime }}</time>
-                                @endif
+                                <span class="rt-chatbot__message-author">
+                                    {{ $role === 'assistant' ? $assistantLabel : ($isGerman ? 'Du' : 'You') }}
+                                </span>
+                                <span class="rt-chatbot__message-meta-actions">
+                                    @if ($role === 'assistant' && $speechIsAvailable)
+                                        <button
+                                            type="button"
+                                            class="rt-chatbot__message-play"
+                                            x-show="speechSupported"
+                                            x-bind:aria-pressed="(speaking && speakingKey === @js($messageKey)).toString()"
+                                            x-on:click="speaking && speakingKey === @js($messageKey)
+                                                ? stopSpeaking()
+                                                : speak(@js($content), @js($messageKey))"
+                                            title="{{ $isGerman ? 'Nachricht vorlesen' : 'Read message aloud' }}"
+                                        >
+                                            <span class="rt-chatbot__sr-only">{{ $isGerman ? 'Nachricht vorlesen' : 'Read message aloud' }}</span>
+                                            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                                <path d="M7 9.5v5h3.25l4 3.25V6.25l-4 3.25H7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                                                <path d="M17 9.25a4 4 0 0 1 0 5.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                                            </svg>
+                                        </button>
+                                    @endif
+                                    @if ($displayTime !== '')
+                                        <time datetime="{{ $createdAtKey }}">{{ $displayTime }}</time>
+                                    @endif
+                                </span>
                             </footer>
                         </article>
                     </div>
                 @empty
                     <div class="rt-chatbot__empty">
-                        <strong>{{ $isGerman ? 'Wobei kann ich helfen?' : 'How can I help?' }}</strong>
+                        <span class="rt-chatbot__empty-pet" aria-hidden="true">
+                            <x-railtime-assistant-pet />
+                        </span>
+                        <span class="rt-chatbot__empty-kicker">
+                            {{ $speechIsAvailable
+                                ? ($isGerman ? 'Text, Sprache und Audio' : 'Text, voice, and audio')
+                                : ($isGerman ? 'Dein RailTime-Assistent' : 'Your RailTime assistant') }}
+                        </span>
+                        <strong>{{ $isGerman ? 'Womit fahren wir los?' : 'Where should we start?' }}</strong>
                         <p>{{ $isGerman
-                            ? 'Frag nach deinen Nachrichten, Terminen oder Funktionen in RailTime.'
-                            : 'Ask about your messages, appointments, or features in RailTime.' }}</p>
+                            ? 'Ich helfe dir, dich in RailTime zurechtzufinden und die nächste sinnvolle Aktion zu finden.'
+                            : 'I can help you navigate RailTime and find the next useful action.' }}</p>
+                        <span class="rt-chatbot__empty-note">
+                            {{ $speechIsAvailable
+                                ? ($isGerman ? 'Schreiben oder Mikrofon antippen' : 'Type or tap the microphone')
+                                : ($isGerman ? 'Schreib einfach deine Frage' : 'Just type your question') }}
+                        </span>
                     </div>
                 @endforelse
 
@@ -317,6 +366,9 @@
                     wire:target="sendMessage,quickAction"
                     style="display: none"
                 >
+                    <span class="rt-chatbot__message-pet rt-chatbot__message-pet--thinking" aria-hidden="true">
+                        <x-railtime-assistant-pet />
+                    </span>
                     <div class="rt-chatbot__message" aria-label="{{ $isGerman ? 'Antwort wird erstellt' : 'Preparing response' }}">
                         <p class="rt-chatbot__message-content rt-chatbot__stream" wire:stream="assistant-response-stream"></p>
                         <span class="rt-chatbot__typing" aria-hidden="true">
@@ -327,24 +379,39 @@
             </div>
 
             @if (count($actions) > 0)
-                <div class="rt-chatbot__quick-actions" aria-label="{{ $isGerman ? 'Schnellaktionen' : 'Quick actions' }}">
-                    @foreach ($actions as $quickAction)
-                        @php
-                            $action = is_array($quickAction) ? $quickAction : (array) $quickAction;
-                            $actionKey = (string) ($action['key'] ?? '');
-                            $actionLabel = (string) ($action['label'] ?? $action['prompt'] ?? $actionKey);
-                        @endphp
-                        @continue($actionKey === '' || $actionLabel === '')
-                        <button
-                            type="button"
-                            class="rt-chatbot__quick-action"
-                            wire:key="railtime-chatbot-action-{{ sha1($actionKey) }}"
-                            wire:click="quickAction({{ \Illuminate\Support\Js::from($actionKey) }})"
-                            wire:loading.attr="disabled"
-                            @disabled(! $assistantIsAvailable)
-                        >{{ $actionLabel }}</button>
-                    @endforeach
-                </div>
+                <section class="rt-chatbot__quick-actions" aria-labelledby="railtime-chatbot-quick-actions">
+                    <div class="rt-chatbot__quick-actions-heading">
+                        <span id="railtime-chatbot-quick-actions">
+                            {{ $isGerman ? 'Direkt loslegen' : 'Start right away' }}
+                        </span>
+                        <span aria-hidden="true">→</span>
+                    </div>
+                    <div class="rt-chatbot__quick-actions-track">
+                        @foreach ($actions as $quickAction)
+                            @php
+                                $action = is_array($quickAction) ? $quickAction : (array) $quickAction;
+                                $actionKey = (string) ($action['key'] ?? '');
+                                $actionLabel = (string) ($action['label'] ?? $action['prompt'] ?? $actionKey);
+                            @endphp
+                            @continue($actionKey === '' || $actionLabel === '')
+                            <button
+                                type="button"
+                                class="rt-chatbot__quick-action"
+                                wire:key="railtime-chatbot-action-{{ sha1($actionKey) }}"
+                                wire:click="quickAction({{ \Illuminate\Support\Js::from($actionKey) }})"
+                                wire:loading.attr="disabled"
+                                @disabled(! $assistantIsAvailable)
+                            >
+                                <span class="rt-chatbot__quick-action-mark" aria-hidden="true">
+                                    <svg viewBox="0 0 20 20" fill="none">
+                                        <path d="m7 5 5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                                    </svg>
+                                </span>
+                                <span>{{ $actionLabel }}</span>
+                            </button>
+                        @endforeach
+                    </div>
+                </section>
             @endif
 
             <template x-if="audioError">
@@ -355,10 +422,25 @@
             </template>
 
             <form class="rt-chatbot__composer" wire:submit.prevent="sendMessage">
+                <div class="rt-chatbot__composer-heading">
+                    <span>{{ $isGerman ? 'Deine Nachricht' : 'Your message' }}</span>
+                    <span x-cloak x-show="!recording && !voiceUploading && voiceSupported">
+                        {{ $isGerman ? 'Mikrofon verfügbar' : 'Microphone ready' }}
+                    </span>
+                    <span class="rt-chatbot__recording-label" x-cloak x-show="recording">
+                        {{ $isGerman ? 'Aufnahme' : 'Recording' }} <span x-text="recordingLabel()"></span> / 0:45
+                    </span>
+                    <span x-cloak x-show="voiceUploading">
+                        {{ $isGerman ? 'Sprache wird erkannt …' : 'Transcribing speech …' }}
+                    </span>
+                </div>
                 <label class="rt-chatbot__sr-only" for="railtime-chatbot-message">
                     {{ $isGerman ? 'Nachricht an den Assistenten' : 'Message to the assistant' }}
                 </label>
-                <div class="rt-chatbot__composer-shell">
+                <div
+                    class="rt-chatbot__composer-shell"
+                    x-bind:class="{ 'rt-chatbot__composer-shell--recording': recording }"
+                >
                     @if ($speechIsAvailable)
                         <button
                             type="button"
@@ -390,7 +472,7 @@
                         x-on:keydown.enter.exact.prevent="if (!$event.isComposing && $el.value.trim() && !isLoading) $wire.sendMessage()"
                         wire:loading.attr="disabled"
                         wire:target="sendMessage,quickAction"
-                        placeholder="{{ $isGerman ? 'Nachricht schreiben …' : 'Write a message …' }}"
+                        placeholder="{{ $isGerman ? 'Frag mich etwas zu RailTime …' : 'Ask me anything about RailTime …' }}"
                         autocomplete="off"
                         @disabled(! $assistantIsAvailable)
                     ></textarea>
@@ -416,20 +498,19 @@
                 @endif
 
                 <div class="rt-chatbot__composer-meta" aria-live="polite">
-                    <span x-show="!recording && !voiceUploading">
+                    <span>
                         {{ $isGerman ? 'Enter sendet · Shift + Enter fügt eine Zeile ein' : 'Enter sends · Shift + Enter adds a line' }}
-                    </span>
-                    <span class="rt-chatbot__recording-label" x-cloak x-show="recording">
-                        {{ $isGerman ? 'Aufnahme' : 'Recording' }} <span x-text="recordingLabel()"></span> / 0:45
-                    </span>
-                    <span x-cloak x-show="voiceUploading">
-                        {{ $isGerman ? 'Sprache wird erkannt …' : 'Transcribing speech …' }}
                     </span>
                 </div>
                 <p class="rt-chatbot__privacy">
-                    {{ $isGerman
-                        ? 'Keine personenbezogenen Daten, Betriebsgeheimnisse oder Zugangsdaten eingeben. Die Unterhaltung wird zur Antwort über OpenRouter verarbeitet.'
-                        : 'Do not enter personal data, business secrets, or credentials. The conversation is processed through OpenRouter to generate the answer.' }}
+                    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                        <path d="M6.5 8V6a3.5 3.5 0 0 1 7 0v2M5 8h10v8H5V8Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    <span>
+                        {{ $isGerman
+                            ? 'Keine personenbezogenen Daten, Betriebsgeheimnisse oder Zugangsdaten eingeben. Die Unterhaltung wird zur Antwort über OpenRouter verarbeitet.'
+                            : 'Do not enter personal data, business secrets, or credentials. The conversation is processed through OpenRouter to generate the answer.' }}
+                    </span>
                 </p>
             </form>
         </div>

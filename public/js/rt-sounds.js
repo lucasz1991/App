@@ -7,6 +7,10 @@
          gleichnamige Signatur.
      RTSound.preview('bell')     Spielt eine SIGNATUR direkt (Demo im Auswahlfeld),
                                  ohne Drossel und unabhaengig vom An/Aus-Schalter.
+     RTSound.startRinging() / stopRinging()
+         Klingelton des Ereignisses 'call' in Schleife (eingehender Anruf).
+     RTSound.startRingback() / stopRingback()
+         Freizeichen in Schleife (ausgehender Anruf, niemand hat angenommen).
      RTSound.setMap({...})       Zuordnung Ereignis -> Signatur setzen.
      RTSound.signatures          Verfuegbare Signaturen (Auswahlliste).
      RTSound.events              Zuordenbare Ereignisse.
@@ -64,7 +68,11 @@
     }
 
     // Einzelnen Ton (Oszillator + Lautstaerke-Huellkurve) einplanen.
-    // options: { type, from, to, at, duration, peak, lowpass, pan, attack }
+    // options: { type, from, to, at, duration, peak, lowpass, pan, attack, hold }
+    //
+    // 'hold' haelt die Lautstaerke nach dem Anschlag flach, statt sie ueber die
+    // ganze Dauer ausklingen zu lassen. Ohne das klingt ein langer Ton wie ein
+    // verhallender Anschlag — ein Freizeichen braucht aber eine gerade Kante.
     function scheduleTone(ctx, options) {
         var start = ctx.currentTime + (options.at || 0);
         var duration = options.duration || 0.15;
@@ -81,6 +89,9 @@
         var gain = ctx.createGain();
         gain.gain.setValueAtTime(0.0001, start);
         gain.gain.exponentialRampToValueAtTime(peak, start + attack);
+        if (options.hold) {
+            gain.gain.setValueAtTime(peak, start + Math.min(duration - 0.02, attack + options.hold));
+        }
         gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
 
         var node = oscillator;
@@ -188,6 +199,29 @@
         descend: function (ctx) {
             scheduleTone(ctx, { type: 'sine', from: 1046, to: 392, at: 0, duration: 0.28, peak: 0.085, attack: 0.01 });
         },
+        // --- Anruf ---------------------------------------------------------
+        // Klingelton: ein vollstaendiges Motiv, kein Einzelanschlag. Zwei
+        // aufsteigende Dreiklaenge mit gemeinsamem Bassfundament — lang genug,
+        // dass unmissverstaendlich ein ANRUF gemeint ist und nicht irgendeine
+        // Systemmeldung. Wird in Schleife gespielt (startRinging).
+        ring: function (ctx) {
+            [0, 0.62].forEach(function (offset) {
+                scheduleTone(ctx, { type: 'sine', from: 220, at: offset, duration: 0.52, peak: 0.05, lowpass: 640, attack: 0.02 });
+                scheduleTone(ctx, { type: 'triangle', from: 880, at: offset, duration: 0.17, peak: 0.1, lowpass: 3200, attack: 0.006, pan: -0.16 });
+                scheduleTone(ctx, { type: 'sine', from: 1760, at: offset, duration: 0.13, peak: 0.028, attack: 0.005, pan: 0.18 });
+                scheduleTone(ctx, { type: 'triangle', from: 1109, at: offset + 0.145, duration: 0.17, peak: 0.098, lowpass: 3200, attack: 0.006, pan: 0.14 });
+                scheduleTone(ctx, { type: 'triangle', from: 1319, at: offset + 0.29, duration: 0.3, peak: 0.092, lowpass: 3400, attack: 0.006, pan: -0.1 });
+                scheduleTone(ctx, { type: 'sine', from: 2637, at: offset + 0.29, duration: 0.22, peak: 0.02, attack: 0.005, pan: 0.2 });
+            });
+        },
+        // Freizeichen ("tuuut"): der gerade 425-Hz-Rufton der Telefonie, mit
+        // flacher Huellkurve statt Ausklang. Laeuft beim ANRUFER in Schleife,
+        // solange niemand angenommen hat (startRingback).
+        ringback: function (ctx) {
+            scheduleTone(ctx, { type: 'sine', from: 425, at: 0, duration: 1, peak: 0.07, attack: 0.03, hold: 0.9 });
+            scheduleTone(ctx, { type: 'sine', from: 212, at: 0, duration: 1, peak: 0.018, attack: 0.03, hold: 0.9, lowpass: 600 });
+        },
+
         // Stumm: bewusst kein Ton, damit ein Ereignis einzeln abgeschaltet
         // werden kann, ohne den globalen Schalter zu benutzen.
         silent: function () {}
@@ -361,8 +395,78 @@
          */
         preview: function (name) {
             playSignature(SIGNATURES[name] ? name : 'info', null);
+        },
+
+        /**
+         * Klingeln beim ANGERUFENEN: wiederholt den Ton des Ereignisses 'call'
+         * (Standard: die Signatur 'ring'), bis stopRinging() folgt.
+         *
+         * Stumm, solange der Tab nicht sichtbar ist — sonst klingelt bei
+         * mehreren offenen Tabs alles gleichzeitig. Der Hintergrundfall gehoert
+         * der Push-Benachrichtigung des Service Workers.
+         */
+        startRinging: function (intervalMs) {
+            api.stopRinging();
+
+            var tick = function () {
+                if (! window.__rtSoundEnabled || document.hidden) {
+                    return;
+                }
+
+                // Ohne Drossel: die Wiederholung IST beabsichtigt. Der
+                // Rueckfall auf 'ring' greift, wenn die Seite keine
+                // Ton-Zuordnung mitliefert — ein Anruf muss immer klingeln.
+                playSignature(signatureFor('call') || 'ring', null);
+            };
+
+            tick();
+            window.__rtSoundRingTimer = setInterval(tick, Math.max(1200, intervalMs || 2800));
+        },
+
+        stopRinging: function () {
+            if (window.__rtSoundRingTimer) {
+                clearInterval(window.__rtSoundRingTimer);
+                window.__rtSoundRingTimer = null;
+            }
+        },
+
+        /**
+         * Freizeichen beim ANRUFER: wiederholtes "tuuut", solange niemand
+         * angenommen hat. Laeuft auch im Hintergrundtab weiter — es ist der
+         * eigene Anruf, und das Ausbleiben des Tons ist die Information.
+         */
+        startRingback: function (intervalMs) {
+            api.stopRingback();
+
+            var tick = function () {
+                if (window.__rtSoundEnabled) {
+                    playSignature('ringback', null);
+                }
+            };
+
+            tick();
+            window.__rtSoundRingbackTimer = setInterval(tick, Math.max(1500, intervalMs || 3000));
+        },
+
+        stopRingback: function () {
+            if (window.__rtSoundRingbackTimer) {
+                clearInterval(window.__rtSoundRingbackTimer);
+                window.__rtSoundRingbackTimer = null;
+            }
         }
     };
+
+    // Ein laufender Klingel-/Freizeichen-Timer darf eine Seitennavigation nicht
+    // ueberleben: wire:navigate wertet dieses Script neu aus, der alte Timer
+    // liefe sonst ohne zugehoerige Oberflaeche weiter.
+    if (window.__rtSoundRingTimer) {
+        clearInterval(window.__rtSoundRingTimer);
+        window.__rtSoundRingTimer = null;
+    }
+    if (window.__rtSoundRingbackTimer) {
+        clearInterval(window.__rtSoundRingbackTimer);
+        window.__rtSoundRingbackTimer = null;
+    }
 
     window.RTSound = api;
 

@@ -170,7 +170,10 @@ class ServiceConfig:
                 raise ConfigurationError(
                     "clients.%s.token_sha256 must be a 64-character SHA-256 hex digest" % client_id
                 )
-            clients[client_id] = token_hash.lower()
+            normalized_token_hash = token_hash.lower()
+            if normalized_token_hash in clients.values():
+                raise ConfigurationError("each client must use a distinct token hash")
+            clients[client_id] = normalized_token_hash
 
         engines_raw = _mapping(root.get("engines"), "engines")
         ffmpeg_raw = _mapping(engines_raw.get("ffmpeg"), "engines.ffmpeg")
@@ -313,7 +316,7 @@ def load_env_file(path: Path) -> None:
     if not path.is_absolute():
         raise ConfigurationError("the env file path must be absolute")
     _assert_secure_file(path, "environment")
-    found = False
+    configured_value: Optional[str] = None
     for line_number, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         line = raw_line.strip()
         if not line or line.startswith("#"):
@@ -333,12 +336,12 @@ def load_env_file(path: Path) -> None:
             value = value[1:-1]
         if not value:
             raise ConfigurationError("%s must not be empty" % CONFIG_ENV)
-        if found:
+        if configured_value is not None:
             raise ConfigurationError("%s occurs more than once in the env file" % CONFIG_ENV)
-        os.environ.setdefault(CONFIG_ENV, value)
-        found = True
-    if not found and CONFIG_ENV not in os.environ:
+        configured_value = value
+    if configured_value is None:
         raise ConfigurationError("the env file does not define %s" % CONFIG_ENV)
+    os.environ[CONFIG_ENV] = configured_value
 
 
 def load_config_from_environment() -> ServiceConfig:

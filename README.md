@@ -217,6 +217,13 @@ verwendet. Der Assistent erhält nur Sprache, Zielgruppe und benannten
 Seitenkontext, keine personenbezogenen oder aktuellen Betriebsdaten, und führt
 selbst keine Änderungen aus.
 
+Der Einstieg ist als kleines RailTime-Pet statt als gewöhnlicher Floating
+Button gestaltet. Das Pet öffnet per Klick denselben Livewire-Chat, zeigt kurze
+Sprechblasen und spiegelt Bereitschaft, Denken, Zuhören, Sprechen sowie den
+Offline-Zustand. Das responsive Panel behält Text-Streaming, Mikrofoneingabe,
+manuelles beziehungsweise automatisches Vorlesen und ein einstellbares
+Vorlesetempo in einer gemeinsamen Oberfläche.
+
 Eingaben und der begrenzte Gesprächskontext werden für die Antwort an
 OpenRouter übertragen. Vor der produktiven Aktivierung müssen daher die
 betriebliche Datenschutz-/Aufbewahrungsfreigabe und der zulässige
@@ -238,8 +245,15 @@ RailTime-Konfiguration nach erfolgreichem Dienst-Rollout:
 SPEECH_SERVICE_ENABLED=true
 SPEECH_SERVICE_URL=http://127.0.0.1:8092
 SPEECH_SERVICE_CLIENT_ID=railtime
-SPEECH_SERVICE_TOKEN_FILE=/etc/lmz-speech/railtime.token
+SPEECH_SERVICE_TOKEN_FILE=/var/www/vhosts/<railtime-webspace>/.lmz-secrets/speech-service.token
 ```
+
+Die Token-Datei liegt außerhalb des Document Roots, aber innerhalb des eigenen
+Plesk-`WEBSPACEROOT`, damit der PHP-FPM-Pool sie trotz des standardmäßigen
+`open_basedir` lesen kann. Der zentrale
+[`services/speech-service`-Rollout](services/speech-service/README.md#3-getrennte-plesk-tokens-innerhalb-von-open_basedir)
+erzeugt sie als RailTime-Plesk-Benutzer mit Modus `600` und prüft zugleich,
+dass der getrennte Followflow-Benutzer sie nicht lesen kann.
 
 Status und optional die TTS-Pipeline prüfen, ohne Audio oder Geheimnisse auf
 die Platte zu schreiben:

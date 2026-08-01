@@ -17,19 +17,34 @@
       .rt-contact { width: auto !important; }
       .rt-contact td.rt-contact-icon, .rt-contact td.rt-contact-text { display: table-cell !important; box-sizing: content-box !important; }
       .rt-contact td.rt-contact-icon { width: 22px !important; }
-      .rt-contact td.rt-contact-text { width: auto !important; }
-      .rt-logo-cell { border-left: 0 !important; border-top: 1px solid #303844 !important; margin-top: 4px !important; padding: 20px 0 0 !important; text-align: left !important; }
-      .rt-logo-cell img { margin-left: 0 !important; width: 200px !important; }
+      .rt-contact td.rt-contact-text { width: auto !important; font-size: 13px !important; line-height: 19px !important; }
+      /* Die Markenspalte steht in der Quelle zuerst und landet beim Stapeln
+         oben. Die Trennlinie wandert deshalb von links nach unten. */
+      .rt-logo-cell { border-left: 0 !important; border-bottom: 1px solid #303844 !important; padding: 0 0 17px !important; text-align: left !important; }
+      .rt-logo-cell img { margin-left: 0 !important; width: 190px !important; }
+      .rt-sign-identity { padding: 17px 0 0 !important; }
+      /* Anschrift: breit in der Markenspalte (kostet dort keine Hoehe),
+         schmal am Ende des Personenblocks (bessere Lesefolge). */
+      .rt-only-wide { display: none !important; max-height: 0 !important; overflow: hidden !important; }
+      .rt-only-narrow { display: block !important; max-height: none !important; overflow: visible !important; font-size: 11px !important; line-height: 18px !important; }
     }
   </style>
 </head>
-<body bgcolor="#080b10" style="margin:0;padding:0;background:#080b10;font-family:Arial,Helvetica,sans-serif;">
-  <table role="presentation" width="720" border="0" cellspacing="0" cellpadding="0" bgcolor="#080b10" style="width:100%;max-width:720px;border-collapse:collapse;background:#080b10;border-top:5px solid #e4002b;">
+<body bgcolor="#0c1017" style="margin:0;padding:0;background:#0c1017;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="720" border="0" cellspacing="0" cellpadding="0" bgcolor="#0c1017" style="width:100%;max-width:720px;border-collapse:collapse;background:#0c1017;border-top:5px solid #e4002b;">
     <tr>
-      <td style="padding:28px 30px 25px;">
-        <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">
+      <td style="padding:26px 30px 24px;">
+        <!-- dir="rtl" dreht ausschliesslich die Spaltenfolge: die Markenspalte
+             steht in der Quelle zuerst (und damit mobil oben), auf breiten
+             Schirmen aber weiterhin rechts. -->
+        <table role="presentation" dir="rtl" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">
           <tr class="rt-stack">
-            <td width="63%" valign="top" style="width:63%;padding-right:28px;">
+            <td dir="ltr" class="rt-logo-cell" width="37%" valign="top" align="right" style="width:37%;padding-left:28px;border-left:1px solid #303844;text-align:right;">
+              <img src="{{LOGO_SRC}}" width="240" alt="{{FIRMENNAME}}" style="display:block;width:240px;max-width:100%;height:auto;margin-left:auto;">
+              <p style="margin:14px 0 0;color:#7f8995;font-family:Consolas,'Courier New',monospace;font-size:9px;line-height:15px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;">Sicher · flexibel · deutschlandweit</p>
+              <p class="rt-only-wide" style="margin:13px 0 0;color:#8f99a5;font-size:11px;line-height:18px;"><strong style="color:#ffffff;">{{FIRMENNAME}}</strong><br>{{FIRMENSTRASSE}} · {{FIRMEN_PLZ_ORT}}<!-- RT_COMPANY_PHONE_START --><br>T <a href="tel:{{FIRMEN_TELEFON_TEL}}" style="color:#ffffff;text-decoration:none;">{{FIRMEN_TELEFON}}</a><!-- RT_COMPANY_PHONE_END --><br><a href="mailto:{{FIRMEN_EMAIL}}" style="color:#8f99a5;text-decoration:none;">{{FIRMEN_EMAIL}}</a></p>
+            </td>
+            <td dir="ltr" class="rt-sign-identity" width="63%" valign="top" align="left" style="width:63%;padding-right:28px;text-align:left;">
               <p style="margin:0 0 5px;color:#ffffff;font-size:24px;line-height:29px;font-weight:bold;letter-spacing:-.35px;">{{VORNAME_NACHNAME}}</p>
               <p style="margin:0;color:#ff5570;font-family:Consolas,'Courier New',monospace;font-size:10px;line-height:16px;font-weight:bold;letter-spacing:1.2px;text-transform:uppercase;">{{POSITION}}</p>
 
@@ -57,21 +72,17 @@
                 </tr>
                 <!-- RT_WEBSITE_END -->
               </table>
-            </td>
-            <!-- Anschrift rechts unter dem Logo: ersetzt die frueher
-                 eigenstaendige Fusszeile und macht den Block flacher.
-                 Gezeigt wird der Festnetzanschluss, nicht die Mobilnummer. -->
-            <td class="rt-logo-cell" width="37%" valign="top" align="right" style="width:37%;padding-left:28px;border-left:1px solid #303844;text-align:right;">
-              <img src="{{LOGO_SRC}}" width="240" alt="{{FIRMENNAME}}" style="display:block;width:240px;max-width:100%;height:auto;margin-left:auto;">
-              <p style="margin:14px 0 0;color:#7f8995;font-family:Consolas,'Courier New',monospace;font-size:9px;line-height:15px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;">Sicher · flexibel · deutschlandweit</p>
-              <p style="margin:13px 0 0;color:#8f99a5;font-size:11px;line-height:18px;"><strong style="color:#ffffff;">{{FIRMENNAME}}</strong><br>{{FIRMENSTRASSE}} · {{FIRMEN_PLZ_ORT}}<!-- RT_COMPANY_PHONE_START --><br>T <a href="tel:{{FIRMEN_TELEFON_TEL}}" style="color:#ffffff;text-decoration:none;">{{FIRMEN_TELEFON}}</a><!-- RT_COMPANY_PHONE_END --><br><a href="mailto:{{FIRMEN_EMAIL}}" style="color:#8f99a5;text-decoration:none;">{{FIRMEN_EMAIL}}</a></p>
+
+              <!-- Auf dem Telefon steht die Anschrift am Ende des Personenblocks,
+                   damit nach dem Logo zuerst Name und Kontakt kommen. -->
+              <p class="rt-only-narrow" style="display:none;max-height:0;overflow:hidden;mso-hide:all;margin:17px 0 0;font-size:0;line-height:0;color:#8f99a5;"><strong style="color:#ffffff;">{{FIRMENNAME}}</strong><br>{{FIRMENSTRASSE}} · {{FIRMEN_PLZ_ORT}}<!-- RT_COMPANY_PHONE_START --><br>T <a href="tel:{{FIRMEN_TELEFON_TEL}}" style="color:#ffffff;text-decoration:none;">{{FIRMEN_TELEFON}}</a><!-- RT_COMPANY_PHONE_END --><br><a href="mailto:{{FIRMEN_EMAIL}}" style="color:#8f99a5;text-decoration:none;">{{FIRMEN_EMAIL}}</a></p>
             </td>
           </tr>
         </table>
       </td>
     </tr>
     <tr>
-      <td bgcolor="#10161e" style="padding:13px 30px;background:#10161e;border-top:1px solid #252c35;color:#69737f;font-size:8px;line-height:13px;">
+      <td bgcolor="#080b10" style="padding:13px 30px;background:#080b10;border-top:1px solid #1c232d;color:#69737f;font-size:8px;line-height:13px;">
         Geschäftsführung: {{GESCHAEFTSFUEHRUNG}} · Registergericht: {{REGISTERGERICHT}} · HRB {{HRB}} · USt-IdNr. {{UST_ID}} · Steuernummer {{STEUERNUMMER}}
       </td>
     </tr>

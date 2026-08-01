@@ -342,8 +342,11 @@ class EmailTemplateBuilder
                 'TEXT_SECONDARY' => '#c3ccd6',
                 'TEXT_MUTED' => '#8f9baa',
                 'BORDER' => '#303944',
-                'SIGNATURE_BG' => '#080b10',
-                'SIGNATURE_LEGAL_BG' => '#10161e',
+                // Signatur sitzt eine Tonstufe ueber der Nachricht, die
+                // Pflichtangaben eine Stufe darunter — dezente Staffelung
+                // statt harter Kanten.
+                'SIGNATURE_BG' => '#0c1017',
+                'SIGNATURE_LEGAL_BG' => '#080b10',
                 'SIGNATURE_TEXT_PRIMARY' => '#ffffff',
                 'SIGNATURE_CONTACT_TEXT' => '#b9c1ca',
                 'SIGNATURE_META_TEXT' => '#8e98a5',
@@ -365,8 +368,10 @@ class EmailTemplateBuilder
                 'TEXT_SECONDARY' => '#3f4852',
                 'TEXT_MUTED' => '#89939e',
                 'BORDER' => '#dfe3e6',
-                'SIGNATURE_BG' => '#ffffff',
-                'SIGNATURE_LEGAL_BG' => '#f4f2ed',
+                // Siehe dunkle Palette: Signatur heller Ton, Pflichtangaben
+                // eine Stufe kraeftiger.
+                'SIGNATURE_BG' => '#f7f6f3',
+                'SIGNATURE_LEGAL_BG' => '#efece7',
                 'SIGNATURE_TEXT_PRIMARY' => '#111820',
                 'SIGNATURE_CONTACT_TEXT' => '#5c6671',
                 'SIGNATURE_META_TEXT' => '#66717c',

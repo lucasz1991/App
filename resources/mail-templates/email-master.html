@@ -17,7 +17,7 @@
     .rt-shell { width: 100% !important; max-width: none !important; }
     @media only screen and (max-width: 680px) {
       .rt-pad { padding-left: 24px !important; padding-right: 24px !important; }
-      .rt-title { font-size: 31px !important; line-height: 35px !important; }
+      .rt-title { font-size: 27px !important; line-height: 32px !important; }
       /* Nur die direkten Zellen einer markierten Zeile brechen um. Ein
          Nachfahren-Selektor wuerde auch die verschachtelte Kontakttabelle
          der Signatur zerlegen und Symbol und Text untereinander werfen. */
@@ -30,10 +30,17 @@
       .rt-contact { width: auto !important; }
       .rt-contact td.rt-contact-icon, .rt-contact td.rt-contact-text { display: table-cell !important; box-sizing: content-box !important; padding-top: 0 !important; }
       .rt-contact td.rt-contact-icon { width: 22px !important; }
-      .rt-contact td.rt-contact-text { width: auto !important; }
+      .rt-contact td.rt-contact-text { width: auto !important; font-size: 13px !important; line-height: 19px !important; }
       .rt-sign-name { font-size: 22px !important; line-height: 26px !important; }
-      .rt-sign-logo { border-left: 0 !important; border-top: 1px solid {{SIGNATURE_BORDER}} !important; margin-top: 4px !important; padding: 20px 0 0 !important; text-align: left !important; }
-      .rt-sign-logo img { width: 200px !important; margin-left: 0 !important; }
+      /* Markenspalte steht in der Quelle zuerst und damit beim Stapeln oben.
+         Die Trennlinie wandert deshalb von links nach unten. */
+      .rt-sign-logo { border-left: 0 !important; border-bottom: 1px solid {{SIGNATURE_BORDER}} !important; padding: 0 0 17px !important; text-align: left !important; }
+      .rt-sign-logo img { width: 190px !important; margin-left: 0 !important; }
+      .rt-sign-identity { padding: 17px 0 0 !important; }
+      /* Die Anschrift sitzt breit in der Markenspalte (spart Hoehe) und
+         schmal am Ende des Personenblocks (bessere Lesefolge). */
+      .rt-only-wide { display: none !important; max-height: 0 !important; overflow: hidden !important; }
+      .rt-only-narrow { display: block !important; max-height: none !important; overflow: visible !important; font-size: 11px !important; line-height: 18px !important; }
     }
   </style>
 </head>
@@ -46,36 +53,41 @@
         <table class="rt-shell" role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" bgcolor="{{SURFACE_BG}}" style="width:100%;max-width:none;background:{{SURFACE_BG}};">
           <tr>
             <td class="rt-pad" bgcolor="{{SURFACE_BG}}" style="padding:42px 46px 20px;background:{{SURFACE_BG}};">
-              <p style="margin:0 0 10px;color:#e4002b;font-family:Consolas,'Courier New',monospace;font-size:10px;line-height:16px;font-weight:bold;letter-spacing:1.4px;text-transform:uppercase;">RT / PERSÖNLICHE NACHRICHT</p>
-              <h1 class="rt-title" style="margin:0 0 25px;color:{{TEXT_PRIMARY}};font-family:Arial,Helvetica,sans-serif;font-size:39px;line-height:43px;font-weight:400;letter-spacing:-1.5px;">Sicher abgestimmt.<br>Verlässlich im Einsatz.</h1>
-              <p style="margin:0 0 18px;color:{{TEXT_PRIMARY}};font-size:16px;line-height:26px;">{{ANREDE}},</p>
-              <p style="margin:0 0 18px;color:{{TEXT_SECONDARY}};font-size:16px;line-height:26px;">{{KURZE_EINLEITUNG}}</p>
-              <p style="margin:0 0 28px;color:{{TEXT_SECONDARY}};font-size:16px;line-height:26px;white-space:pre-line;">{{NACHRICHT}}</p>
+              <!-- Kurzer Akzentstrich statt einer weiteren Linie ueber die
+                   ganze Breite: setzt den Anfang, ohne zu dominieren. -->
+              <table role="presentation" border="0" cellspacing="0" cellpadding="0" style="margin:0 0 14px;">
+                <tr><td bgcolor="#e4002b" height="3" style="width:34px;height:3px;background:#e4002b;font-size:0;line-height:0;">&nbsp;</td></tr>
+              </table>
+              <p style="margin:0 0 9px;color:#e4002b;font-family:Consolas,'Courier New',monospace;font-size:10px;line-height:16px;font-weight:bold;letter-spacing:1.4px;text-transform:uppercase;">RT / PERSÖNLICHE NACHRICHT</p>
+              <h1 class="rt-title" style="margin:0 0 24px;color:{{TEXT_PRIMARY}};font-family:Arial,Helvetica,sans-serif;font-size:34px;line-height:40px;font-weight:400;letter-spacing:-1.1px;">Sicher abgestimmt.<br>Verlässlich im Einsatz.</h1>
+              <p style="margin:0 0 16px;color:{{TEXT_PRIMARY}};font-size:16px;line-height:27px;">{{ANREDE}},</p>
+              <p style="margin:0 0 16px;color:{{TEXT_SECONDARY}};font-size:16px;line-height:27px;">{{KURZE_EINLEITUNG}}</p>
+              <p style="margin:0 0 26px;color:{{TEXT_SECONDARY}};font-size:16px;line-height:27px;white-space:pre-line;">{{NACHRICHT}}</p>
             </td>
           </tr>
           <tr>
             <td class="rt-pad" bgcolor="{{SURFACE_BG}}" style="padding:0 46px 30px;background:{{SURFACE_BG}};">
               <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" bgcolor="{{CARD_BG}}" style="width:100%;border-top:3px solid #e4002b;background:{{CARD_BG}};">
                 <tr>
-                  <td colspan="2" style="padding:17px 20px 10px;color:#e4002b;font-family:Consolas,'Courier New',monospace;font-size:9px;line-height:14px;font-weight:bold;letter-spacing:1.3px;text-transform:uppercase;">EINSATZDATEN / OPTIONAL</td>
+                  <td colspan="2" bgcolor="{{SOFT_BG}}" style="padding:13px 22px;background:{{SOFT_BG}};border-bottom:1px solid {{BORDER}};color:#e4002b;font-family:Consolas,'Courier New',monospace;font-size:9px;line-height:14px;font-weight:bold;letter-spacing:1.3px;text-transform:uppercase;">EINSATZDATEN / OPTIONAL</td>
                 </tr>
                 <tr class="rt-stack">
-                  <td class="rt-card-cell" width="50%" valign="top" style="width:50%;padding:10px 20px 17px;border-right:1px solid {{BORDER}};border-bottom:1px solid {{BORDER}};">
-                    <span style="display:block;margin-bottom:4px;color:{{TEXT_MUTED}};font-family:Consolas,'Courier New',monospace;font-size:9px;line-height:13px;text-transform:uppercase;">Einsatzort</span>
+                  <td class="rt-card-cell" width="50%" valign="top" style="width:50%;padding:15px 22px 17px;border-right:1px solid {{BORDER}};border-bottom:1px solid {{BORDER}};">
+                    <span style="display:block;margin-bottom:5px;color:{{TEXT_MUTED}};font-family:Consolas,'Courier New',monospace;font-size:9px;line-height:13px;letter-spacing:.6px;text-transform:uppercase;">Einsatzort</span>
                     <strong style="color:{{TEXT_PRIMARY}};font-size:14px;line-height:20px;">{{EINSATZORT}}</strong>
                   </td>
-                  <td width="50%" valign="top" style="width:50%;padding:10px 20px 17px;border-bottom:1px solid {{BORDER}};">
-                    <span style="display:block;margin-bottom:4px;color:{{TEXT_MUTED}};font-family:Consolas,'Courier New',monospace;font-size:9px;line-height:13px;text-transform:uppercase;">Zeitraum</span>
+                  <td width="50%" valign="top" style="width:50%;padding:15px 22px 17px;border-bottom:1px solid {{BORDER}};">
+                    <span style="display:block;margin-bottom:5px;color:{{TEXT_MUTED}};font-family:Consolas,'Courier New',monospace;font-size:9px;line-height:13px;letter-spacing:.6px;text-transform:uppercase;">Zeitraum</span>
                     <strong style="color:{{TEXT_PRIMARY}};font-size:14px;line-height:20px;">{{ZEITRAUM}}</strong>
                   </td>
                 </tr>
                 <tr class="rt-stack">
-                  <td class="rt-card-cell" width="50%" valign="top" style="width:50%;padding:16px 20px 18px;border-right:1px solid {{BORDER}};">
-                    <span style="display:block;margin-bottom:4px;color:{{TEXT_MUTED}};font-family:Consolas,'Courier New',monospace;font-size:9px;line-height:13px;text-transform:uppercase;">Leistung</span>
+                  <td class="rt-card-cell" width="50%" valign="top" style="width:50%;padding:16px 22px 18px;border-right:1px solid {{BORDER}};">
+                    <span style="display:block;margin-bottom:5px;color:{{TEXT_MUTED}};font-family:Consolas,'Courier New',monospace;font-size:9px;line-height:13px;letter-spacing:.6px;text-transform:uppercase;">Leistung</span>
                     <strong style="color:{{TEXT_PRIMARY}};font-size:14px;line-height:20px;">{{LEISTUNG}}</strong>
                   </td>
-                  <td width="50%" valign="top" style="width:50%;padding:16px 20px 18px;">
-                    <span style="display:block;margin-bottom:4px;color:{{TEXT_MUTED}};font-family:Consolas,'Courier New',monospace;font-size:9px;line-height:13px;text-transform:uppercase;">Ansprechpartner</span>
+                  <td width="50%" valign="top" style="width:50%;padding:16px 22px 18px;">
+                    <span style="display:block;margin-bottom:5px;color:{{TEXT_MUTED}};font-family:Consolas,'Courier New',monospace;font-size:9px;line-height:13px;letter-spacing:.6px;text-transform:uppercase;">Ansprechpartner</span>
                     <strong style="color:{{TEXT_PRIMARY}};font-size:14px;line-height:20px;">{{ANSPRECHPARTNER}}</strong>
                   </td>
                 </tr>
@@ -86,18 +98,27 @@
             <td class="rt-pad" bgcolor="{{SURFACE_BG}}" style="padding:0 46px 42px;background:{{SURFACE_BG}};">
               <table role="presentation" border="0" cellspacing="0" cellpadding="0">
                 <tr>
-                  <td bgcolor="#e4002b" style="background:#e4002b;"><a href="{{CTA_URL}}" style="display:inline-block;padding:15px 22px;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:18px;font-weight:bold;text-decoration:none;text-transform:uppercase;">{{CTA_TEXT}} &nbsp;&rarr;</a></td>
+                  <td bgcolor="#e4002b" style="background:#e4002b;border-radius:4px;"><a href="{{CTA_URL}}" style="display:inline-block;padding:16px 26px;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:18px;font-weight:bold;letter-spacing:.6px;text-decoration:none;text-transform:uppercase;">{{CTA_TEXT}} &nbsp;&rarr;</a></td>
                 </tr>
               </table>
-              <p style="margin:30px 0 5px;color:{{TEXT_SECONDARY}};font-size:16px;line-height:25px;">Freundliche Grüße</p>
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="margin:30px 0 0;border-top:1px solid {{BORDER}};"><tr><td style="font-size:0;line-height:0;height:1px;">&nbsp;</td></tr></table>
+              <p style="margin:22px 0 5px;color:{{TEXT_SECONDARY}};font-size:16px;line-height:25px;">Freundliche Grüße</p>
               <p style="margin:0;color:{{TEXT_PRIMARY}};font-size:16px;line-height:25px;font-weight:bold;">{{VORNAME_NACHNAME}}</p>
             </td>
           </tr>
           <tr>
             <td class="rt-pad" bgcolor="{{SIGNATURE_BG}}" style="padding:28px 38px;background:{{SIGNATURE_BG}};border-top:5px solid #e4002b;">
-              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
+              <!-- dir="rtl" dreht ausschliesslich die Spaltenfolge: die
+                   Markenspalte steht in der Quelle zuerst (und damit beim
+                   Stapeln oben), auf breiten Schirmen aber weiterhin rechts. -->
+              <table role="presentation" dir="rtl" width="100%" border="0" cellspacing="0" cellpadding="0">
                 <tr class="rt-stack">
-                  <td width="63%" valign="top" style="width:63%;padding-right:28px;">
+                  <td dir="ltr" class="rt-sign-logo" width="37%" valign="top" align="right" style="width:37%;padding-left:28px;border-left:1px solid {{SIGNATURE_BORDER}};text-align:right;">
+                    <img class="rt-logo" src="{{LOGO_SRC}}" width="240" alt="{{FIRMENNAME}}" style="display:block;width:240px;max-width:100%;height:auto;margin-left:auto;">
+                    <p style="margin:14px 0 0;color:{{SIGNATURE_TEXT_MUTED}};font-family:Consolas,'Courier New',monospace;font-size:9px;line-height:15px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;">Sicher · flexibel · deutschlandweit</p>
+                    <p class="rt-only-wide" style="margin:13px 0 0;color:{{SIGNATURE_META_TEXT}};font-size:11px;line-height:18px;"><strong style="color:{{SIGNATURE_TEXT_PRIMARY}};">{{FIRMENNAME}}</strong><br>{{FIRMENSTRASSE}} · {{FIRMEN_PLZ_ORT}}<!-- RT_COMPANY_PHONE_START --><br>T <a href="tel:{{FIRMEN_TELEFON_TEL}}" style="color:{{SIGNATURE_TEXT_PRIMARY}};text-decoration:none;">{{FIRMEN_TELEFON}}</a><!-- RT_COMPANY_PHONE_END --><br><a href="mailto:{{FIRMEN_EMAIL}}" style="color:{{SIGNATURE_META_TEXT}};text-decoration:none;">{{FIRMEN_EMAIL}}</a></p>
+                  </td>
+                  <td dir="ltr" class="rt-sign-identity" width="63%" valign="top" align="left" style="width:63%;padding-right:28px;text-align:left;">
                     <p class="rt-sign-name" style="margin:0 0 4px;color:{{SIGNATURE_TEXT_PRIMARY}};font-size:25px;line-height:29px;font-weight:bold;letter-spacing:-.5px;">{{VORNAME_NACHNAME}}</p>
                     <p style="margin:0;color:{{SIGNATURE_ACCENT}};font-family:Consolas,'Courier New',monospace;font-size:10px;line-height:16px;font-weight:bold;letter-spacing:1.2px;text-transform:uppercase;">{{POSITION}}</p>
 
@@ -125,14 +146,11 @@
                       </tr>
                       <!-- RT_WEBSITE_END -->
                     </table>
-                  </td>
-                  <!-- Anschrift rechts unter dem Logo: ersetzt die frueher
-                       eigenstaendige Fusszeile und macht den Block flacher.
-                       Gezeigt wird der Festnetzanschluss, nicht die Mobilnummer. -->
-                  <td class="rt-sign-logo" width="37%" valign="top" align="right" style="width:37%;padding-left:28px;border-left:1px solid {{SIGNATURE_BORDER}};text-align:right;">
-                    <img class="rt-logo" src="{{LOGO_SRC}}" width="240" alt="{{FIRMENNAME}}" style="display:block;width:240px;max-width:100%;height:auto;margin-left:auto;">
-                    <p style="margin:14px 0 0;color:{{SIGNATURE_TEXT_MUTED}};font-family:Consolas,'Courier New',monospace;font-size:9px;line-height:15px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;">Sicher · flexibel · deutschlandweit</p>
-                    <p style="margin:13px 0 0;color:{{SIGNATURE_META_TEXT}};font-size:11px;line-height:18px;"><strong style="color:{{SIGNATURE_TEXT_PRIMARY}};">{{FIRMENNAME}}</strong><br>{{FIRMENSTRASSE}} · {{FIRMEN_PLZ_ORT}}<!-- RT_COMPANY_PHONE_START --><br>T <a href="tel:{{FIRMEN_TELEFON_TEL}}" style="color:{{SIGNATURE_TEXT_PRIMARY}};text-decoration:none;">{{FIRMEN_TELEFON}}</a><!-- RT_COMPANY_PHONE_END --><br><a href="mailto:{{FIRMEN_EMAIL}}" style="color:{{SIGNATURE_META_TEXT}};text-decoration:none;">{{FIRMEN_EMAIL}}</a></p>
+                    <!-- Auf dem Telefon steht die Anschrift am Ende des
+                         Personenblocks, damit nach dem Logo zuerst Name und
+                         Kontakt kommen. Auf breiten Schirmen zeigt sie die
+                         Markenspalte (rt-only-wide) ohne Zusatzhoehe. -->
+                    <p class="rt-only-narrow" style="display:none;max-height:0;overflow:hidden;mso-hide:all;margin:17px 0 0;font-size:0;line-height:0;color:{{SIGNATURE_META_TEXT}};"><strong style="color:{{SIGNATURE_TEXT_PRIMARY}};">{{FIRMENNAME}}</strong><br>{{FIRMENSTRASSE}} · {{FIRMEN_PLZ_ORT}}<!-- RT_COMPANY_PHONE_START --><br>T <a href="tel:{{FIRMEN_TELEFON_TEL}}" style="color:{{SIGNATURE_TEXT_PRIMARY}};text-decoration:none;">{{FIRMEN_TELEFON}}</a><!-- RT_COMPANY_PHONE_END --><br><a href="mailto:{{FIRMEN_EMAIL}}" style="color:{{SIGNATURE_META_TEXT}};text-decoration:none;">{{FIRMEN_EMAIL}}</a></p>
                   </td>
                 </tr>
               </table>

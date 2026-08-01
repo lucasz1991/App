@@ -29,10 +29,13 @@ $ariaLabel = $attributes->get('aria-label', config('app.name') . ' Dialog');
         <div
             x-show.important="show"
             x-on:close.stop="show = false"
+            x-trap.inert.noscroll="show"
             id="{{ $id }}"
             class="rt-ui-modal rt-modal-shell rt-modal-center-shell jetstream-modal fixed inset-0 z-[190] overflow-x-hidden overflow-y-auto overscroll-contain p-3 sm:p-6"
             style="display: none;"
             data-rt-modal-shell
+            data-rt-overlay-layer
+            data-rt-overlay-base="190"
         >
             <div x-show.important="show" aria-hidden="true" class="rt-modal-backdrop fixed inset-0 transform transition-all" x-on:click="show = false" x-transition:enter="ease-out duration-200"
                             x-transition:enter-start="opacity-0"
@@ -55,7 +58,6 @@ $ariaLabel = $attributes->get('aria-label', config('app.name') . ' Dialog');
                                 aria-describedby="{{ $describedBy }}"
                             @endif
                             class="rt-ui-surface rt-ui-modal-panel rt-modal-frame relative my-auto flex max-h-[calc(100dvh-1.5rem)] min-h-0 min-w-0 w-full max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-[1.4rem] bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-rt-border/60 transform transition-all dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60 sm:max-h-[calc(100dvh-3rem)] {{ $maxWidth }}"
-                            x-trap.inert.noscroll="show"
                             x-transition:enter="ease-out duration-200"
                             x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-2 sm:scale-[0.985]"
                             x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
@@ -65,6 +67,18 @@ $ariaLabel = $attributes->get('aria-label', config('app.name') . ' Dialog');
                             data-rt-modal-panel>
                 {{ $slot }}
             </div>
+
+            {{--
+                Teleport-Ziel fuer Selects und verschachtelte Anchor-Dropdowns.
+                Es liegt im selben Focus-Trap wie der Dialog, aber ausserhalb
+                des animierten Panels, damit fixed-Geometrie viewportbezogen
+                bleibt und Listen den Modal-Inhalt nicht aufweiten.
+            --}}
+            <div
+                class="pointer-events-none fixed inset-0 z-[20]"
+                data-rt-overlay-portal
+                data-rt-modal-portal
+            ></div>
         </div>
     </template>
 </div>
