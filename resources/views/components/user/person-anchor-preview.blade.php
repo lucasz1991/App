@@ -6,25 +6,24 @@
     'canCall' => false,
     'chatAction' => null,
     'callAction' => null,
+    'messageAction' => 'openMessage',
     'selected' => false,
     'triggerClasses' => 'inline-flex',
 ])
 
 @php
-    $position = $user->profile?->position ?: __('app.position_not_set');
-    $team = $user->currentTeam?->name ?: '—';
-    $safeChatAction = is_string($chatAction) && preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $chatAction)
-        ? $chatAction
-        : null;
-    $safeCallAction = is_string($callAction) && preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $callAction)
-        ? $callAction
-        : null;
-    $iconActionClass = 'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-rt-border/70 bg-rt-surface-muted text-sm text-rt-muted shadow-rt-xs outline-none transition duration-200 ease-rt-spring hover:-translate-y-px hover:border-rt-red/30 hover:bg-rt-red/10 hover:text-rt-red active:translate-y-0 active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-rt-red/40 dark:border-rt-dark-border/70 dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted dark:hover:border-rt-dark-accent/35 dark:hover:bg-rt-dark-accent/10 dark:hover:text-rt-dark-accent';
+    $position = $user->profile?->position;
+    $team = $user->currentTeam?->name;
+    $phone = $user->profile?->phone ?: $user->profile?->mobile;
+
+    // Kopfzeile fasst Funktion und Team zusammen; leere Werte entfallen,
+    // statt eine Zeile mit Gedankenstrich zu hinterlassen.
+    $subline = implode(' · ', array_filter([$position, $team]));
 @endphp
 
 <x-ui.dropdown.anchor-dropdown
     align="left"
-    width="80"
+    width="72"
     :offset="10"
     content-role="dialog"
     content-classes="bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text"
@@ -53,85 +52,49 @@
     </x-slot:trigger>
 
     <x-slot:content>
-        <article class="w-80 max-w-[calc(100vw-1.5rem)] overflow-hidden" aria-label="{{ __('app.person_preview') }}: {{ $user->name }}">
-            <div class="flex min-h-14 items-center justify-center gap-1.5 border-b border-rt-border/70 px-3 py-2.5 dark:border-rt-dark-border/70" aria-label="{{ __('app.communication_actions') }}">
-                @if ($canChat && $safeChatAction)
-                    <button
-                        type="button"
-                        x-on:click.prevent='$wire.call(@js($safeChatAction), {{ $user->id }})'
-                        class="{{ $iconActionClass }}"
-                        aria-label="{{ __('app.chat') }}"
-                        title="{{ __('app.chat') }}"
-                        data-table-row-ignore
-                    >
-                        <i class="far fa-comment-dots" aria-hidden="true"></i>
-                    </button>
-                @endif
-
-                @if ($canCall && $safeCallAction)
-                    <button
-                        type="button"
-                        x-on:click.prevent='$wire.call(@js($safeCallAction), {{ $user->id }}, "voice")'
-                        class="{{ $iconActionClass }}"
-                        aria-label="{{ __('app.voice_call') }}"
-                        title="{{ __('app.voice_call') }}"
-                        data-table-row-ignore
-                    >
-                        <i class="far fa-phone-alt" aria-hidden="true"></i>
-                    </button>
-
-                    <button
-                        type="button"
-                        x-on:click.prevent='$wire.call(@js($safeCallAction), {{ $user->id }}, "video")'
-                        class="{{ $iconActionClass }}"
-                        aria-label="{{ __('app.video_call') }}"
-                        title="{{ __('app.video_call') }}"
-                        data-table-row-ignore
-                    >
-                        <i class="far fa-video" aria-hidden="true"></i>
-                    </button>
-                @endif
-
-                <a
-                    href="mailto:{{ $user->email }}"
-                    class="{{ $iconActionClass }}"
-                    aria-label="{{ __('app.send_email') }}"
-                    title="{{ __('app.send_email') }}"
-                    data-no-navigate
-                    data-table-row-ignore
+        <article class="w-72 max-w-[calc(100vw-1.5rem)] overflow-hidden" aria-label="{{ __('app.person_preview') }}: {{ $user->name }}">
+            {{-- Kopf: Person auf einen Blick --}}
+            <div class="flex min-w-0 items-center gap-3 px-4 pb-3 pt-4">
+                <img
+                    src="{{ $user->profile_photo_url }}"
+                    alt=""
+                    class="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-rt-border/70 dark:ring-rt-dark-border/70"
                 >
-                    <i class="far fa-envelope" aria-hidden="true"></i>
-                </a>
-
-                @if ($profileUrl)
-                    @can('users.profiles.view')
-                        <a
-                            href="{{ $profileUrl }}"
-                            wire:navigate
-                            class="{{ $iconActionClass }}"
-                            aria-label="{{ __('app.view_profile') }}"
-                            title="{{ __('app.view_profile') }}"
-                            data-table-row-ignore
-                        >
-                            <i class="far fa-id-card" aria-hidden="true"></i>
-                        </a>
-                    @endcan
-                @endif
+                <div class="min-w-0">
+                    <p class="truncate text-sm font-semibold leading-5 text-rt-text dark:text-rt-dark-text">{{ $user->name }}</p>
+                    @if ($subline !== '')
+                        <p class="truncate text-xs leading-4 text-rt-muted dark:text-rt-dark-muted">{{ $subline }}</p>
+                    @endif
+                </div>
             </div>
 
-            <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 px-4 py-3 text-xs">
-                <dt class="font-semibold text-rt-soft dark:text-rt-dark-soft">{{ __('app.email') }}</dt>
-                <dd class="truncate text-right text-rt-text dark:text-rt-dark-text">{{ $user->email }}</dd>
-                <dt class="font-semibold text-rt-soft dark:text-rt-dark-soft">{{ __('app.team') }}</dt>
-                <dd class="truncate text-right text-rt-text dark:text-rt-dark-text">{{ $team }}</dd>
-                <dt class="font-semibold text-rt-soft dark:text-rt-dark-soft">{{ __('app.position') }}</dt>
-                <dd class="truncate text-right text-rt-text dark:text-rt-dark-text">{{ $position }}</dd>
-                <dt class="font-semibold text-rt-soft dark:text-rt-dark-soft">{{ __('app.status') }}</dt>
-                <dd class="flex items-center justify-end gap-1.5 font-semibold {{ $user->isActive() ? 'text-emerald-600 dark:text-emerald-300' : 'text-red-600 dark:text-red-300' }}">
-                    <span class="h-1.5 w-1.5 rounded-full {{ $user->isActive() ? 'bg-emerald-500' : 'bg-red-500' }}" aria-hidden="true"></span>
-                    {{ $user->isActive() ? __('app.active') : __('app.inactive') }}
-                </dd>
-            </dl>
+            {{-- Daten: nur Werte, ohne Beschriftungsspalte --}}
+            <ul class="space-y-1.5 px-4 pb-3 text-xs text-rt-muted dark:text-rt-dark-muted">
+                <li class="flex min-w-0 items-center gap-2">
+                    <i class="far fa-envelope w-3.5 shrink-0 text-center text-rt-soft dark:text-rt-dark-soft" aria-hidden="true"></i>
+                    <span class="truncate">{{ $user->email }}</span>
+                </li>
+                @if ($phone)
+                    <li class="flex min-w-0 items-center gap-2">
+                        <i class="far fa-phone-alt w-3.5 shrink-0 text-center text-rt-soft dark:text-rt-dark-soft" aria-hidden="true"></i>
+                        <span class="truncate">{{ $phone }}</span>
+                    </li>
+                @endif
+            </ul>
+
+            {{-- Aktionen: kompakte Symbolleiste am Fuss der Karte --}}
+            <x-user.quick-actions
+                :user="$user"
+                :profile-url="$profileUrl"
+                :can-chat="$canChat"
+                :can-call="$canCall"
+                :can-message="$canMessage"
+                :chat-action="$chatAction"
+                :call-action="$callAction"
+                :message-action="$messageAction"
+                variant="row"
+                class="border-t border-rt-border/70 px-2.5 py-1.5 dark:border-rt-dark-border/70"
+            />
         </article>
     </x-slot:content>
 </x-ui.dropdown.anchor-dropdown>

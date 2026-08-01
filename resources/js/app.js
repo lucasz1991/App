@@ -39,6 +39,7 @@ import { initMobileFormFocusRecovery } from './mobile-form-focus';
 import { initKeyboardViewport } from './keyboard-viewport';
 import { welcomeIntro } from './welcome-intro';
 import { railtimeChatbot } from './chatbot';
+import { railtimeAssistantPet3d } from './assistant-pet-3d';
 
 const loadAdminDashboardECharts = () => import('./admin-dashboard-echarts');
 const loadAdminDashboardMotion = () => import('./admin-dashboard-motion');
@@ -431,6 +432,7 @@ Alpine.data('rtSidebarNavigation', sidebarNavigation);
 Alpine.data('railtimeTabs', railtimeTabs);
 Alpine.data('welcomeIntro', welcomeIntro);
 Alpine.data('railtimeChatbot', railtimeChatbot);
+Alpine.data('railtimeAssistantPet3d', railtimeAssistantPet3d);
 
 initMobileFormFocusRecovery();
 initKeyboardViewport();

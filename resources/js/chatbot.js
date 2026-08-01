@@ -300,8 +300,15 @@ export function railtimeChatbot(config = {}) {
         petState() {
             if (!this.assistantAvailable) return 'offline';
             if (this.recording || this.voiceUploading) return 'listening';
-            if (this.ttsActive()) return 'speaking';
-            if (this.isLoading) return 'thinking';
+            // Mouth/speech motion must reflect audible playback, not the
+            // provider request or browser buffering phase.
+            if (this.ttsPlaying && this.speaking) return 'speaking';
+            if (
+                this.isLoading
+                || this.ttsWorkerActive
+                || this.ttsPreparing
+                || this.ttsQueue.length > 0
+            ) return 'thinking';
 
             return 'idle';
         },

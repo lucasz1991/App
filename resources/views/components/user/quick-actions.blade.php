@@ -26,11 +26,20 @@
 
     $actions = [];
 
+    // Fertiger JS-Ausdruck fuer x-on:click — Methodenname und Argumente sind
+    // beide bereits geprueft bzw. werden als JSON eingebettet.
+    $wireCall = static fn (string $method, array $arguments): string => '$wire.call('
+        .implode(', ', array_map(
+            fn (mixed $value): string => json_encode($value, JSON_THROW_ON_ERROR),
+            [$method, ...$arguments],
+        ))
+        .')';
+
     if ($canChat && $chat && ! $isSelf) {
         $actions[] = [
             'icon' => 'far fa-comment-dots',
             'label' => __('app.chat'),
-            'call' => [$chat, [$user->id]],
+            'click' => $wireCall($chat, [$user->id]),
         ];
     }
 
@@ -38,12 +47,12 @@
         $actions[] = [
             'icon' => 'far fa-phone-alt',
             'label' => __('app.voice_call'),
-            'call' => [$call, [$user->id, 'voice']],
+            'click' => $wireCall($call, [$user->id, 'voice']),
         ];
         $actions[] = [
             'icon' => 'far fa-video',
             'label' => __('app.video_call'),
-            'call' => [$call, [$user->id, 'video']],
+            'click' => $wireCall($call, [$user->id, 'video']),
         ];
     }
 
@@ -51,7 +60,7 @@
         $actions[] = [
             'icon' => 'far fa-paper-plane',
             'label' => __('app.send_message'),
-            'call' => [$message, [$user->id]],
+            'click' => $wireCall($message, [$user->id]),
         ];
     }
 
@@ -68,49 +77,43 @@
     $gridIcon = 'flex h-10 w-10 items-center justify-center rounded-xl bg-rt-surface-muted text-base shadow-rt-xs ring-1 ring-rt-border/70 transition-colors group-hover:bg-rt-surface dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/70 dark:group-hover:bg-rt-dark-surface';
 @endphp
 
+@php
+    // Statische Klassen: dynamisch zusammengesetzte Namen wuerden vom
+    // Tailwind-Build nicht gefunden und fehlten im fertigen Stylesheet.
+    $gridColumns = match (min(count($actions), 5)) {
+        1 => 'grid-cols-1',
+        2 => 'grid-cols-2',
+        3 => 'grid-cols-3',
+        5 => 'grid-cols-5',
+        default => 'grid-cols-4',
+    };
+    $wrapperClass = $variant === 'grid'
+        ? 'grid gap-2 '.$gridColumns
+        : 'flex items-center gap-0.5';
+    $buttonClass = $variant === 'grid' ? $gridButton : $rowButton;
+@endphp
+
 @if ($actions !== [])
-    <div
-        {{ $attributes->class([
-            'flex items-center gap-1' => $variant === 'row',
-            'grid gap-2 grid-cols-' . min(count($actions), 5) => $variant === 'grid',
-        ]) }}
-        aria-label="{{ __('app.quick_actions') }}"
-    >
+    <div {{ $attributes->class($wrapperClass) }} aria-label="{{ __('app.quick_actions') }}">
         @foreach ($actions as $action)
-            @if (isset($action['href']))
-                <a
-                    href="{{ $action['href'] }}"
-                    wire:navigate
-                    class="{{ $variant === 'grid' ? $gridButton : $rowButton }}"
-                    aria-label="{{ $action['label'] }}"
-                    title="{{ $action['label'] }}"
-                    data-table-row-ignore
-                >
-                    @if ($variant === 'grid')
-                        <span class="{{ $gridIcon }}"><i class="{{ $action['icon'] }}" aria-hidden="true"></i></span>
-                        <span class="w-full truncate text-[10px] font-bold">{{ $action['label'] }}</span>
-                    @else
-                        <i class="{{ $action['icon'] }}" aria-hidden="true"></i>
-                    @endif
-                </a>
-            @else
-                @php([$method, $arguments] = $action['call'])
-                <button
-                    type="button"
-                    x-on:click.prevent="$wire.call(@js($method){{ collect($arguments)->map(fn ($a) => ', '.json_encode($a))->implode('') }})"
-                    class="{{ $variant === 'grid' ? $gridButton : $rowButton }}"
-                    aria-label="{{ $action['label'] }}"
-                    title="{{ $action['label'] }}"
-                    data-table-row-ignore
-                >
-                    @if ($variant === 'grid')
-                        <span class="{{ $gridIcon }}"><i class="{{ $action['icon'] }}" aria-hidden="true"></i></span>
-                        <span class="w-full truncate text-[10px] font-bold">{{ $action['label'] }}</span>
-                    @else
-                        <i class="{{ $action['icon'] }}" aria-hidden="true"></i>
-                    @endif
-                </button>
-            @endif
+            <{{ isset($action['href']) ? 'a' : 'button' }}
+                @if (isset($action['href']))
+                    href="{{ $action['href'] }}" wire:navigate
+                @else
+                    type="button" x-on:click.prevent="{{ $action['click'] }}"
+                @endif
+                class="{{ $buttonClass }}"
+                aria-label="{{ $action['label'] }}"
+                title="{{ $action['label'] }}"
+                data-table-row-ignore
+            >
+                @if ($variant === 'grid')
+                    <span class="{{ $gridIcon }}"><i class="{{ $action['icon'] }}" aria-hidden="true"></i></span>
+                    <span class="w-full truncate text-[10px] font-bold">{{ $action['label'] }}</span>
+                @else
+                    <i class="{{ $action['icon'] }}" aria-hidden="true"></i>
+                @endif
+            </{{ isset($action['href']) ? 'a' : 'button' }}>
         @endforeach
     </div>
 @endif

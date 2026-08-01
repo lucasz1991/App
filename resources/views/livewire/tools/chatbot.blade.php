@@ -118,10 +118,20 @@
 
     <div
         class="rt-chatbot__pet-stage"
+        x-data="railtimeAssistantPet3d()"
         x-cloak
         x-show="!open"
         x-transition
-        x-bind:data-state="petState()"
+        x-bind:data-pet-open="open.toString()"
+        x-bind:data-state="!assistantAvailable
+            ? 'offline'
+            : recording
+                ? 'listening'
+                : (speaking || ttsPlaying)
+                    ? 'speaking'
+                    : (isLoading || ttsPreparing || voiceUploading)
+                        ? 'thinking'
+                        : 'idle'"
     >
         <div
             class="rt-chatbot__pet-bubble"
@@ -152,7 +162,13 @@
             aria-label="{{ $isGerman ? $assistantLabel . ' öffnen' : 'Open ' . $assistantLabel }}"
         >
             <span class="rt-chatbot__pet-halo" aria-hidden="true"></span>
-            <x-railtime-assistant-pet class="rt-chatbot__pet-figure" />
+            <span
+                class="rt-chatbot__pet-renderer rt-chatbot__pet-renderer--launcher"
+                data-assistant-pet-3d-slot="launcher"
+                aria-hidden="true"
+            >
+                <x-railtime-assistant-pet class="rt-chatbot__pet-figure rt-assistant-pet--fallback" />
+            </span>
             <span
                 class="rt-chatbot__pet-presence {{ $assistantIsAvailable ? '' : 'rt-chatbot__pet-presence--offline' }}"
                 aria-hidden="true"
@@ -174,8 +190,12 @@
     >
         <header class="rt-chatbot__header">
             <div class="rt-chatbot__identity">
-                <span class="rt-chatbot__avatar" aria-hidden="true">
-                    <x-railtime-assistant-pet class="rt-chatbot__avatar-pet" />
+                <span
+                    class="rt-chatbot__avatar"
+                    data-assistant-pet-3d-slot="header"
+                    aria-hidden="true"
+                >
+                    <x-railtime-assistant-pet class="rt-chatbot__avatar-pet rt-assistant-pet--fallback" />
                 </span>
                 <div class="rt-chatbot__identity-copy">
                     <span class="rt-chatbot__eyebrow">
@@ -471,7 +491,7 @@
                     wire:target="sendMessage,quickAction"
                     style="display: none"
                 >
-                    <span class="rt-chatbot__message-pet rt-chatbot__message-pet--thinking" aria-hidden="true">
+                    <span class="rt-chatbot__message-pet rt-chatbot__message-pet--thinking" data-state="thinking" aria-hidden="true">
                         <x-railtime-assistant-pet />
                     </span>
                     <div class="rt-chatbot__message" aria-label="{{ $isGerman ? 'Antwort wird erstellt' : 'Preparing response' }}">
