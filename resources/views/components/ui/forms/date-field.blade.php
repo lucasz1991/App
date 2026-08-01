@@ -14,21 +14,29 @@
     Warum nicht nativ: der Browser-Datepicker ist weder gestaltbar noch
     positionierbar, und seine Mindestbreite sprengt enge Raster. In der
     Wagenliste stand das Feld dadurch mit Ueberlauf in der fuenfspaltigen
-    Kopfzeile.
+    Kopfzeile, und die Auswahl liess sich im Vollbild-Modal nicht sinnvoll
+    anzeigen.
 
-    Aufbau wie bei x-ui.forms.number-input: der WERT liegt in einem
-    versteckten Feld, an dem auch gebunden wird (x-model ODER wire:model).
-    Sichtbar ist ein Textfeld mit deutscher Schreibweise; der Kalender haengt
-    per x-teleport am <body> und wird fixed positioniert, damit ihn kein
-    overflow:hidden abschneidet (Vollbild-Modal, Wizard-Folien).
+    BINDUNG: ueber Alpines x-model am Aufrufer, hier drinnen x-modelable.
+    Das ist bewusst kein verstecktes <input>: schreibt die umgebende
+    Komponente von aussen (Entwurf laden, Sprachassistent), setzt Alpine bei
+    x-model nur die value-Eigenschaft des Feldes — ohne Ereignis, das dieses
+    Bauteil sehen koennte. Mit x-modelable ist der Wert eine reaktive
+    Eigenschaft und laeuft in beide Richtungen.
+
+        <x-ui.forms.date-field x-model="meta.date" />
+
+    Fuer wire:model-Felder gibt es weiterhin x-ui.forms.date-input (flatpickr).
+
+    Der Kalender haengt per x-teleport am <body> und ist fixed positioniert —
+    sonst wuerde ihn das overflow:hidden der Wizard-Folie abschneiden.
 --}}
 
 @php
     $locale = app()->getLocale() === 'de' ? 'de-DE' : 'en-GB';
-    $fieldId = 'rt-date-'.\Illuminate\Support\Str::random(6);
     $alpineConfig = [
         'locale' => $locale,
-        'weekStart' => app()->getLocale() === 'de' ? 1 : 1,
+        'weekStart' => 1,
         'min' => $min,
         'max' => $max,
     ];
@@ -36,17 +44,11 @@
 
 <div
     x-data="rtDateField({{ \Illuminate\Support\Js::from($alpineConfig) }})"
+    x-modelable="value"
     x-on:keydown.escape.stop="closePanel(true)"
-    class="rt-ui-date-field relative"
+    {{ $attributes->merge(['class' => 'rt-ui-date-field relative']) }}
     data-rt-date-field
 >
-    <input
-        x-ref="field"
-        type="hidden"
-        @disabled($disabled)
-        {{ $attributes->except(['class']) }}
-    >
-
     <div
         x-ref="anchor"
         class="rt-ui-date-field__shell flex min-h-11 w-full items-stretch overflow-hidden rounded-xl border border-rt-border bg-rt-control shadow-rt-xs transition-[border-color,box-shadow] duration-200 ease-rt-spring hover:border-rt-accent/50 focus-within:border-rt-accent focus-within:shadow-rt-sm dark:border-rt-dark-border dark:bg-rt-dark-control dark:hover:border-rt-dark-accent"
@@ -54,7 +56,6 @@
     >
         <input
             x-ref="display"
-            id="{{ $fieldId }}"
             type="text"
             inputmode="numeric"
             autocomplete="off"
@@ -67,7 +68,7 @@
             @disabled($disabled)
             @readonly($readonly)
             @if (filled($ariaLabel)) aria-label="{{ $ariaLabel }}" @endif
-            class="{{ $attributes->get('class') }} min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-base tabular-nums leading-6 text-rt-text outline-none placeholder:text-rt-soft focus:ring-0 disabled:cursor-not-allowed sm:text-sm sm:leading-5 dark:text-rt-dark-text dark:placeholder:text-rt-dark-soft"
+            class="min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-base tabular-nums leading-6 text-rt-text outline-none placeholder:text-rt-soft focus:ring-0 disabled:cursor-not-allowed sm:text-sm sm:leading-5 dark:text-rt-dark-text dark:placeholder:text-rt-dark-soft"
         >
 
         <button
@@ -84,8 +85,12 @@
     </div>
 
     <template x-teleport="body">
+        {{-- x-show.important ist Pflicht: public/build/css/tailwind.min.css
+             setzt .flex{display:flex!important}. Ohne den Modifier verliert
+             das Inline-display:none von x-show — der Kalender liesse sich
+             nie wieder schliessen. --}}
         <div
-            x-show="open"
+            x-show.important="open"
             x-cloak
             x-transition:enter="transition duration-150 ease-out"
             x-transition:enter-start="opacity-0 translate-y-1"
@@ -102,21 +107,11 @@
             class="rt-ui-date-panel fixed z-[240] flex flex-col overflow-hidden rounded-2xl border border-rt-border bg-rt-surface shadow-rt-lg dark:border-rt-dark-border dark:bg-rt-dark-surface"
         >
             <div class="flex shrink-0 items-center justify-between gap-2 border-b border-rt-border/70 px-2.5 py-2 dark:border-rt-dark-border/70">
-                <button
-                    type="button"
-                    @click="shiftMonth(-1)"
-                    class="rt-ui-date-nav"
-                    aria-label="{{ __('app.date_previous_month') }}"
-                >
+                <button type="button" @click="shiftMonth(-1)" class="rt-ui-date-nav" aria-label="{{ __('app.date_previous_month') }}">
                     <i class="far fa-chevron-left" aria-hidden="true"></i>
                 </button>
                 <strong class="min-w-0 flex-1 truncate text-center text-sm font-semibold capitalize text-rt-text dark:text-rt-dark-text" x-text="monthLabel" aria-live="polite"></strong>
-                <button
-                    type="button"
-                    @click="shiftMonth(1)"
-                    class="rt-ui-date-nav"
-                    aria-label="{{ __('app.date_next_month') }}"
-                >
+                <button type="button" @click="shiftMonth(1)" class="rt-ui-date-nav" aria-label="{{ __('app.date_next_month') }}">
                     <i class="far fa-chevron-right" aria-hidden="true"></i>
                 </button>
             </div>

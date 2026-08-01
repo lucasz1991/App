@@ -113,7 +113,7 @@
                                     x-cloak
                                     x-show="actionOpen"
                                     x-ref="actionMenu"
-                                    x-bind:style="menuStyle"
+                                    x-bind:style="actionOpen ? menuStyle : 'display: none;'"
                                     x-on:click.outside="close()"
                                     x-on:keydown.escape.stop.prevent="close(true)"
                                     role="menu"
@@ -165,7 +165,7 @@
                                         x-cloak
                                         x-show="reactionOpen"
                                         x-ref="reactionMenu"
-                                        x-bind:style="menuStyle"
+                                        x-bind:style="reactionOpen ? menuStyle : 'display: none;'"
                                         x-on:click.outside="close()"
                                         x-on:keydown.escape.stop.prevent="close(true)"
                                         role="menu"
@@ -195,7 +195,12 @@
                                             </button>
                                         </div>
 
-                                        <div x-cloak x-show="showMore" class="mt-1 grid max-h-44 grid-cols-7 gap-1 overflow-y-auto rounded-xl p-1">
+                                        <div
+                                            x-cloak
+                                            x-show.important="showMore"
+                                            x-bind:style="showMore ? '' : 'display: none !important;'"
+                                            class="mt-1 grid max-h-44 grid-cols-7 gap-1 overflow-y-auto rounded-xl p-1"
+                                        >
                                             @foreach ($allowedReactions as $emoji)
                                                 <button
                                                     type="button"

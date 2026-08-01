@@ -5,11 +5,12 @@
 // gestalten noch zuverlaessig positionieren, und seine Mindestbreite sprengt
 // enge Raster (Wagenliste: fuenfspaltige Kopfzeile, zweispaltiges Mobilraster).
 //
-// Bauform wie bei der Zahlen-Eingabe: die Komponente BESITZT den Wert nicht.
-// Gebunden wird am versteckten <input x-ref="field"> (wire:model ODER x-model),
-// Aenderungen werden als input/change-Event gemeldet — darauf hoeren Livewire
-// und Alpine gleichermassen. Der sichtbare Text liegt in einem zweiten Feld
-// und wird nur formatiert; die Quelle der Wahrheit bleibt ISO (YYYY-MM-DD).
+// BINDUNG ueber x-modelable, nicht ueber ein verstecktes Feld: der Wert muss
+// in BEIDE Richtungen fliessen. Schreibt die umgebende Komponente von aussen
+// (Entwurf laden, Sprachassistent), meldet ein DOM-Feld das nicht zurueck —
+// Alpine setzt bei x-model nur die value-Eigenschaft, ohne Ereignis. Mit
+// x-modelable ist `value` eine reaktive Eigenschaft dieser Komponente, und
+// $watch sieht jede Aenderung, egal woher sie kommt.
 //
 // Der Kalender haengt per x-teleport am <body> und wird fixed positioniert.
 // Grund: das Feld steht in Flaechen mit overflow:hidden (Vollbild-Modal,
@@ -39,8 +40,10 @@ const parseIso = (value) => {
 };
 
 export const dateField = (config = {}) => ({
+    // Von x-modelable nach aussen gespiegelt — ISO (YYYY-MM-DD) oder ''.
+    value: '',
     locale: config.locale || 'de-DE',
-    // Erster Wochentag: 1 = Montag (de), 0 = Sonntag (en).
+    // Erster Wochentag: 1 = Montag.
     weekStart: Number.isInteger(config.weekStart) ? config.weekStart : 1,
     min: ISO_PATTERN.test(String(config.min ?? '')) ? String(config.min) : null,
     max: ISO_PATTERN.test(String(config.max ?? '')) ? String(config.max) : null,
@@ -53,24 +56,18 @@ export const dateField = (config = {}) => ({
     repositionHandler: null,
 
     init() {
-        this.syncFromValue();
+        // x-modelable traegt den Startwert erst nach dem Aufbau der Komponente
+        // ein — deshalb einmal nachziehen, sobald Alpine damit fertig ist.
+        this.$nextTick(() => this.syncFromValue());
 
-        // Aenderungen von aussen (Entwurf laden, Assistent, Livewire-Roundtrip)
-        // schreiben direkt in den Wert — der sichtbare Text muss folgen.
+        this.$watch('value', () => {
+            if (this.display !== this.formatDisplay(this.value)) this.syncFromValue();
+        });
         this.$watch('open', (isOpen) => (isOpen ? this.bindReposition() : this.unbindReposition()));
-        this.field()?.addEventListener('rt-date-sync', () => this.syncFromValue());
     },
 
     destroy() {
         this.unbindReposition();
-    },
-
-    field() {
-        return this.$refs.field ?? null;
-    },
-
-    get value() {
-        return String(this.field()?.value ?? '');
     },
 
     get hasValue() {
@@ -109,18 +106,13 @@ export const dateField = (config = {}) => ({
     },
 
     write(iso) {
-        const field = this.field();
-        if (!field) return;
-
-        field.value = iso;
-        field.dispatchEvent(new Event('input', { bubbles: true }));
-        field.dispatchEvent(new Event('change', { bubbles: true }));
+        this.value = iso;
         this.display = this.formatDisplay(iso);
     },
 
     /**
      * Getippten Text auswerten. Akzeptiert 1.8.26, 01.08.2026 und 2026-08-01;
-     * unlesbares stellt still den letzten gueltigen Wert wieder her, statt den
+     * Unlesbares stellt still den letzten gueltigen Wert wieder her, statt den
      * Entwurf mit Datenmuell zu fuellen.
      */
     commitTyped() {
@@ -215,10 +207,10 @@ export const dateField = (config = {}) => ({
     },
 
     selectToday() {
-        const iso = toIso(new Date());
-        this.viewYear = new Date().getFullYear();
-        this.viewMonth = new Date().getMonth();
-        this.select(iso);
+        const today = new Date();
+        this.viewYear = today.getFullYear();
+        this.viewMonth = today.getMonth();
+        this.select(toIso(today));
     },
 
     clear() {
@@ -237,7 +229,7 @@ export const dateField = (config = {}) => ({
     },
 
     openPanel() {
-        if (this.field()?.disabled) return;
+        if (this.$refs.display?.disabled) return;
 
         this.syncFromValue();
         this.position();
@@ -303,8 +295,6 @@ export const dateField = (config = {}) => ({
             ArrowRight: 1,
             ArrowUp: -7,
             ArrowDown: 7,
-            PageUp: null,
-            PageDown: null,
         };
 
         if (event.key === 'Escape') {
@@ -319,21 +309,23 @@ export const dateField = (config = {}) => ({
             return;
         }
 
+        if (event.key === 'PageUp' || event.key === 'PageDown') {
+            event.preventDefault();
+            this.shiftMonth(event.key === 'PageUp' ? -1 : 1);
+            this.focusedIso = toIso(new Date(this.viewYear, this.viewMonth, 1));
+            this.$nextTick(() => this.$refs.panel?.querySelector('[data-date-focused="true"]')?.focus());
+            return;
+        }
+
         if (!(event.key in moves)) return;
 
         event.preventDefault();
 
-        if (event.key === 'PageUp' || event.key === 'PageDown') {
-            this.shiftMonth(event.key === 'PageUp' ? -1 : 1);
-            const anchorDate = new Date(this.viewYear, this.viewMonth, 1);
-            this.focusedIso = toIso(anchorDate);
-        } else {
-            const current = parseIso(this.focusedIso) || new Date();
-            const next = new Date(current.getFullYear(), current.getMonth(), current.getDate() + moves[event.key]);
-            this.focusedIso = toIso(next);
-            this.viewYear = next.getFullYear();
-            this.viewMonth = next.getMonth();
-        }
+        const current = parseIso(this.focusedIso) || new Date();
+        const next = new Date(current.getFullYear(), current.getMonth(), current.getDate() + moves[event.key]);
+        this.focusedIso = toIso(next);
+        this.viewYear = next.getFullYear();
+        this.viewMonth = next.getMonth();
 
         this.$nextTick(() => this.$refs.panel?.querySelector('[data-date-focused="true"]')?.focus());
     },

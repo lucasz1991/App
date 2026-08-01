@@ -242,6 +242,21 @@ php artisan config:clear
 php artisan railtime:livekit-check
 ```
 
+#### Nachrichtenantworten und Reaktionen
+
+Normale Chats und Call-Chats unterstützen Antworten sowie gruppierte
+Emoji-Reaktionen. Ein kurzer Klick beziehungsweise der Dropdown-Pfeil öffnet
+die Nachrichtenaktionen; Rechtsklick, Tastatur-Kontextmenü oder 500 ms
+Gedrückthalten öffnen bei fremden Nachrichten sechs Schnellreaktionen. Ein
+44-Pixel-Pfeil klappt die vollständige, serverseitig identisch validierte
+Auswahl auf. Außenklick schließt beide Menüs. Eigene Nachrichten können nicht
+reagiert werden; gesetzte Emojis erscheinen ohne Chip-Hintergrund oder Rahmen.
+
+Antworten bleiben über Tombstones referenzierbar, ohne gelöschte oder
+Einmalinhalte preiszugeben. Die Unterhaltung lädt zunächst die neuesten 100
+Nachrichten und ältere Seiten cursorbasiert nach; Export und Verlauf enthalten
+den sicheren Antwortkontext und gruppierte Reaktionen.
+
 #### Call-Chat, Verlauf und verpflichtende Aufzeichnung
 
 `/calls` ist der gemeinsame Hub für Direkt- und Gruppenanrufe, Meetings,

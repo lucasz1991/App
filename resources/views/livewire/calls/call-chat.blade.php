@@ -356,7 +356,7 @@
             x-transition.opacity.duration.120ms
             x-on:click.outside="closeMenus()"
             class="fixed z-[260] w-64 max-w-[calc(100vw-1rem)] rounded-2xl bg-rt-surface p-2 shadow-2xl ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70"
-            :style="`left:${actionX}px; top:${actionY}px`"
+            :style="actionOpen ? `left:${actionX}px; top:${actionY}px` : 'display: none;'"
             role="menu"
             tabindex="-1"
             x-ref="actionMenu"
@@ -387,7 +387,7 @@
             x-transition.opacity.duration.120ms
             x-on:click.outside="closeMenus()"
             class="fixed z-[261] w-[min(22rem,calc(100vw-1rem))] rounded-2xl bg-rt-surface p-2 shadow-2xl ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70"
-            :style="`left:${actionX}px; top:${actionY}px`"
+            :style="reactionOpen ? `left:${actionX}px; top:${actionY}px` : 'display: none;'"
             role="menu"
             tabindex="-1"
             x-ref="reactionMenu"
@@ -414,7 +414,12 @@
                 </button>
             </div>
 
-            <div x-cloak x-show="expandedReactions" class="grid max-h-44 grid-cols-7 gap-1 overflow-y-auto pt-2">
+            <div
+                x-cloak
+                x-show.important="expandedReactions"
+                :style="expandedReactions ? '' : 'display: none !important;'"
+                class="grid max-h-44 grid-cols-7 gap-1 overflow-y-auto pt-2"
+            >
                 @foreach ($allReactions as $emoji)
                     <button
                         type="button"

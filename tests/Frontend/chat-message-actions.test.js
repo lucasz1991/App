@@ -107,6 +107,10 @@ test('transcript separates click actions from long-press reactions with accessib
     assert.match(source, /handleKeyboard\(\$event\)/);
     assert.match(source, /x-show="actionOpen"/);
     assert.match(source, /x-show="reactionOpen"/);
+    assert.match(source, /x-bind:style="actionOpen \? menuStyle : 'display: none;'"/);
+    assert.match(source, /x-bind:style="reactionOpen \? menuStyle : 'display: none;'"/);
+    assert.match(source, /x-show\.important="showMore"/);
+    assert.match(source, /x-bind:style="showMore \? '' : 'display: none !important;'"/);
     assert.match(source, /openReactionsFromActionMenu\(\)/);
     assert.match(source, /fa-chevron-down/);
     assert.doesNotMatch(source, /x-show="actionOpen"[\s\S]{0,800}chat_quick_reactions/);
@@ -127,6 +131,10 @@ test('call chat uses the same split menus and renders history interactions passi
     assert.match(source, /if \(!mine\) this\.openReactions\(event, id, mine, true\)/);
     assert.match(source, /x-show="actionOpen"/);
     assert.match(source, /x-show="reactionOpen"/);
+    assert.match(source, /:style="actionOpen \? `left:\$\{actionX\}px; top:\$\{actionY\}px` : 'display: none;'"/);
+    assert.match(source, /:style="reactionOpen \? `left:\$\{actionX\}px; top:\$\{actionY\}px` : 'display: none;'"/);
+    assert.match(source, /x-show\.important="expandedReactions"/);
+    assert.match(source, /:style="expandedReactions \? '' : 'display: none !important;'"/);
     assert.match(source, /x-on:click\.outside="closeMenus\(\)"/);
     assert.match(source, /fa-chevron-down/);
     assert.match(source, /@if \(\$readOnly \|\| \$mine\)/);
