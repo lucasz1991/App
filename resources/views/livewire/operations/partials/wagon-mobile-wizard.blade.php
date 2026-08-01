@@ -2,6 +2,7 @@
     class="rt-wagon-mobile-wizard min-h-0 flex-1 lg:hidden"
     data-wagon-wizard
     data-mobile-wagon-editor
+    data-no-sidebar-swipe
     @keydown="handleMobileWizardKeydown($event)"
 >
     <header class="rt-wagon-wizard-progress shrink-0 border-b border-rt-border/70 bg-rt-surface/95 px-3 py-2.5 backdrop-blur-xl dark:border-rt-dark-border/70 dark:bg-rt-dark-surface/95">

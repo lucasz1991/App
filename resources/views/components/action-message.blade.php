@@ -3,7 +3,7 @@
 {{--
     Fruehere Inline-Meldung ("Gespeichert.") — jetzt eine unsichtbare Bruecke:
     Das Livewire-Ereignis (z. B. 'saved') wird als Erfolgs-Toast gemeldet.
-    rt-toast.js zeigt ihn oben rechts und spielt automatisch den fuer 'success'
+    rt-alerts.js (SweetAlert2) zeigt ihn oben rechts und spielt automatisch den fuer 'success'
     zugeordneten Ton (rt-sounds.js). Der Slot-Text bleibt je Formular anpassbar.
 
     Achtung: keine doppelten Anfuehrungszeichen innerhalb von x-init — das

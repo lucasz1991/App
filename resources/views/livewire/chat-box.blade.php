@@ -6,6 +6,7 @@
     data-mobile-pane="{{ $selectedChat ? 'chat' : 'list' }}"
     data-keyboard-open="false"
     data-topbar-inset="70"
+    data-no-sidebar-swipe
     x-bind:data-mobile-pane="mobilePane"
     x-bind:data-keyboard-open="keyboardOpen ? 'true' : 'false'"
     x-bind:data-topbar-inset="Math.round(topbarInset)"

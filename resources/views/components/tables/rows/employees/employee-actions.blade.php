@@ -1,6 +1,6 @@
 <x-ui.dropdown.anchor-dropdown align="right" width="48">
     <x-slot name="trigger">
-        <x-ui.dropdown.action-trigger orientation="vertical" />
+        <x-ui.dropdown.action-trigger class="rt-employee-action-trigger" orientation="vertical" />
     </x-slot>
 
     <x-slot name="content">

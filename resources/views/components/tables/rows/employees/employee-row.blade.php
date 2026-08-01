@@ -14,6 +14,7 @@
     $roleLabel = __($roleKey);
     $roleLabel = $roleLabel === $roleKey ? ucfirst((string) $item->role) : $roleLabel;
     $roleColor = $item->isAdmin() ? 'purple' : 'sky';
+    $roleIcon = $item->isAdmin() ? 'fa-user-shield' : 'fa-user-tag';
 
     // Team und Rolle heissen haeufig gleich ("Mitarbeiter") — dann genuegt
     // eine Angabe.
@@ -50,15 +51,19 @@
     data-rt-table-label="{{ $columnsMeta[1]['label'] ?? '' }}"
     class="rt-employee-status-cell flex min-w-0 flex-wrap items-center gap-1.5 px-2 py-2 {{ $hc(1) }}"
 >
-    <x-ui.badge :color="$roleColor">
-        <i class="far fa-user-tag" aria-hidden="true"></i>
-        {{ $roleLabel }}
+    <x-ui.badge
+        :color="$roleColor"
+        class="rt-employee-status-badge"
+        :title="$roleLabel"
+    >
+        <i class="far {{ $roleIcon }}" aria-hidden="true"></i>
+        <span class="rt-employee-status-label">{{ $roleLabel }}</span>
     </x-ui.badge>
 
     @unless ($item->isActive())
-        <x-ui.badge color="red" :title="__('app.inactive')">
+        <x-ui.badge color="red" class="rt-employee-status-badge" :title="ucfirst(__('app.inactive'))">
             <i class="far fa-ban" aria-hidden="true"></i>
-            {{ ucfirst(__('app.inactive')) }}
+            <span class="rt-employee-status-label">{{ ucfirst(__('app.inactive')) }}</span>
         </x-ui.badge>
     @endunless
 

@@ -36,6 +36,11 @@ import {
 import { createNotificationSeenCache } from './notification-seen-cache';
 import { createNotificationPresentationContext } from './notification-presentation';
 import { incomingNotificationSound } from './realtime-notification-sound';
+import {
+    MOBILE_SIDEBAR_BREAKPOINT,
+    MOBILE_SIDEBAR_SWIPE_EXCLUSION_SELECTOR,
+    resolveMobileSidebarSwipe,
+} from './mobile-sidebar-swipe';
 import { sidebarScrollBehavior, sidebarScrollTarget } from './sidebar-scroll';
 import { railtimeTabs } from './tabs';
 import { initMobileFormFocusRecovery } from './mobile-form-focus';
@@ -2150,7 +2155,11 @@ function restoreDesktopSidebarState() {
 }
 
 function setMobileSidebarOpen(open) {
-    document.body.classList.toggle('sidebar-enable', open);
+    const sidebar = document.getElementById('app-sidebar');
+    const canOpen = window.innerWidth < MOBILE_SIDEBAR_BREAKPOINT
+        && sidebar?.isConnected === true;
+
+    document.body.classList.toggle('sidebar-enable', Boolean(open) && canOpen);
     syncSidebarToggleState();
 }
 
@@ -2294,59 +2303,75 @@ function initMobileSidebarSwipe() {
     window.__rtMobileSidebarSwipeBound = true;
 
     document.addEventListener('touchstart', (event) => {
-        if (window.innerWidth >= 1024 || event.touches.length !== 1) {
+        if (
+            window.innerWidth >= MOBILE_SIDEBAR_BREAKPOINT
+            || event.touches.length !== 1
+            || document.getElementById('app-sidebar')?.isConnected !== true
+        ) {
             sidebarSwipeStart = null;
             return;
         }
 
         const target = event.target instanceof Element ? event.target : null;
-        if (!target || target.closest('input, textarea, select, button, [contenteditable="true"], [role="dialog"], [data-no-sidebar-swipe]')) {
+        if (!target || target.closest(MOBILE_SIDEBAR_SWIPE_EXCLUSION_SELECTOR)) {
             sidebarSwipeStart = null;
             return;
         }
 
         const touch = event.touches[0];
         const sidebarOpen = document.body.classList.contains('sidebar-enable');
-        const insideSidebar = Boolean(target.closest('#app-sidebar'));
-        const startsAtOpeningEdge = touch.clientX <= Math.max(24, window.innerWidth * 0.065);
 
-        if ((!sidebarOpen && startsAtOpeningEdge) || (sidebarOpen && insideSidebar)) {
-            sidebarSwipeStart = {
-                x: touch.clientX,
-                y: touch.clientY,
-                sidebarOpen,
-            };
-            return;
-        }
-
-        sidebarSwipeStart = null;
+        sidebarSwipeStart = {
+            x: touch.clientX,
+            y: touch.clientY,
+            sidebarOpen,
+        };
     }, { passive: true });
 
     document.addEventListener('touchend', (event) => {
-        if (!sidebarSwipeStart || event.changedTouches.length !== 1 || window.innerWidth >= 1024) {
+        if (
+            !sidebarSwipeStart
+            || event.changedTouches.length !== 1
+            || window.innerWidth >= MOBILE_SIDEBAR_BREAKPOINT
+            || document.getElementById('app-sidebar')?.isConnected !== true
+        ) {
             sidebarSwipeStart = null;
             return;
         }
 
         const touch = event.changedTouches[0];
-        const deltaX = touch.clientX - sidebarSwipeStart.x;
-        const deltaY = touch.clientY - sidebarSwipeStart.y;
-        const threshold = Math.max(64, Math.min(110, window.innerWidth * 0.2));
-        const isHorizontal = Math.abs(deltaX) >= threshold && Math.abs(deltaX) > Math.abs(deltaY) * 1.25;
+        const action = resolveMobileSidebarSwipe({
+            startX: sidebarSwipeStart.x,
+            startY: sidebarSwipeStart.y,
+            endX: touch.clientX,
+            endY: touch.clientY,
+            sidebarOpen: sidebarSwipeStart.sidebarOpen,
+            viewportWidth: window.innerWidth,
+        });
 
-        if (isHorizontal && !sidebarSwipeStart.sidebarOpen && deltaX > 0) {
+        // Nur eine bestaetigte horizontale Geste unterdrueckt den synthetischen
+        // Folgeklick. Normales Tippen und vertikales Scrollen bleiben nativ.
+        if (action && event.cancelable) {
+            event.preventDefault();
+        }
+
+        if (action === 'open') {
             setMobileSidebarOpen(true);
             initMenuItemScroll();
-        } else if (isHorizontal && sidebarSwipeStart.sidebarOpen && deltaX < 0) {
+        } else if (action === 'close') {
             setMobileSidebarOpen(false);
         }
 
         sidebarSwipeStart = null;
-    }, { passive: true });
+    }, { passive: false });
 
     document.addEventListener('touchcancel', () => {
         sidebarSwipeStart = null;
     }, { passive: true });
+
+    document.addEventListener('livewire:navigating', () => {
+        sidebarSwipeStart = null;
+    });
 }
 
 function syncSidebarToggleState() {
@@ -2390,6 +2415,8 @@ function scheduleDesktopSidebarExpand() {
 }
 
 function syncSidebarInteractionMode() {
+    sidebarSwipeStart = null;
+
     const hasSidebar = Boolean(document.querySelector('.vertical-menu'));
     if (!hasSidebar) {
         return;
@@ -2641,6 +2668,29 @@ function initSidebarInteractions() {
 
                     return;
                 }
+
+                // Auf Touchgeraeten darf ein Backdrop-Tipp erst beim Click
+                // schliessen. So bleibt der Ausgangszustand fuer eine echte
+                // Rechts-nach-links-Geste bis touchend erhalten.
+                if (event.pointerType === 'touch' && document.body.classList.contains('sidebar-enable')) {
+                    return;
+                }
+
+                if (!target || !target.closest('.vertical-menu, .vertical-menu-btn')) {
+                    setMobileSidebarOpen(false);
+                }
+            },
+            true
+        );
+
+        document.addEventListener(
+            'click',
+            (event) => {
+                if (isDesktopHoverSidebar() || !document.body.classList.contains('sidebar-enable')) {
+                    return;
+                }
+
+                const target = event.target instanceof Element ? event.target : null;
 
                 if (!target || !target.closest('.vertical-menu, .vertical-menu-btn')) {
                     setMobileSidebarOpen(false);

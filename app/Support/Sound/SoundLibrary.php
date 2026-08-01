@@ -21,7 +21,7 @@ final class SoundLibrary
      * @var array<string, string>
      */
     private const EVENTS = [
-        // Rueckmeldungen der Oberflaeche (Toast-Typen aus public/js/rt-toast.js)
+        // Rueckmeldungen der Oberflaeche (Toast-Typen aus resources/js/rt-alerts.js)
         'success' => 'success',
         'error' => 'error',
         'warning' => 'warning',

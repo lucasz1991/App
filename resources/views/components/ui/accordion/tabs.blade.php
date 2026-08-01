@@ -55,6 +55,7 @@
     wire:key="{{ \Illuminate\Support\Str::slug($storageKey) }}"
     wire:ignore.self
     data-rt-tabs-root
+    data-no-sidebar-swipe
 >
     {{-- Die Navigation ist vollstaendig Alpine-gesteuert und statisch.
          x-ignore darf hier bewusst NICHT verwendet werden: Es wuerde x-data,
