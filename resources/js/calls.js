@@ -34,6 +34,18 @@ document.addEventListener('alpine:init', () => {
         selfPreviewY: 0,
         selfPreviewInitialized: false,
         selfPreviewDragCleanup: null,
+        // Hochkant nur dort, wo die Kamera wirklich hochkant aufnimmt: Handy
+        // aufrecht in der Hand. Am Rechner (und am quer gehaltenen Handy)
+        // liefert die Kamera Querformat — ein 9:16-Rahmen wuerde das Bild dann
+        // links und rechts abschneiden.
+        selfPreviewPortrait: false,
+        selfPreviewShapeCleanup: null,
+        // Wer eingeladen ist, aber weder angenommen noch abgelehnt hat.
+        // Serverwahrheit: kommt beim Aufbau aus der Konfiguration und danach
+        // ueber das Livewire-Ereignis 'rt-call-waiting'.
+        waiting: Array.isArray(config.waiting) ? config.waiting : [],
+        remoteCount: 0,
+        ringbackActive: false,
         // Automatisches Einschalten der Geraete beim Beitritt gescheitert:
         // Dann zeigt die Buehne einen Aktivieren-Knopf. Der Klick ist eine
         // echte Nutzergeste — iOS Safari verweigert getUserMedia GRUNDSAETZLICH
@@ -47,7 +59,72 @@ document.addEventListener('alpine:init', () => {
         tiles: new Map(),
 
         async init() {
+            this.watchViewportShape();
             await this.connect();
+        },
+
+        // --- Klingelzustand beim ANRUFER ----------------------------------
+
+        /**
+         * Es wird noch auf jemanden gewartet.
+         *
+         * remoteCount ist dabei die harte Grenze: sobald irgendwer wirklich im
+         * Raum ist, laeuft der Anruf – auch wenn weitere Einladungen noch
+         * offen sind. Sonst liefe das Freizeichen ueber ein bereits laufendes
+         * Gespraech.
+         */
+        get outgoingRinging() {
+            return ! this.failed && this.remoteCount === 0 && this.waiting.length > 0;
+        },
+
+        /** Mindestens ein Geraet der Gegenseite hat das Laeuten bestaetigt. */
+        get ringsThere() {
+            return this.waiting.some((entry) => entry && entry.ringing);
+        },
+
+        get ringStatusLabel() {
+            return this.ringsThere ? config.labels.ringsThere : config.labels.beingCalled;
+        },
+
+        get waitingNames() {
+            return this.waiting
+                .map((entry) => (entry && entry.name) || '')
+                .filter(Boolean)
+                .join(', ');
+        },
+
+        /** Nur beim Einzelanruf zeigt das Signal ein Gesicht statt eines Symbols. */
+        get waitingAvatar() {
+            return this.waiting.length === 1 ? (this.waiting[0].avatar || '') : '';
+        },
+
+        setWaiting(list) {
+            this.waiting = Array.isArray(list) ? list : [];
+            this.syncRingback();
+        },
+
+        /**
+         * Freizeichen an-/abschalten.
+         *
+         * Bewusst zustandsgesteuert und idempotent: dieselbe Methode laeuft
+         * nach jeder Teilnehmeraenderung, jeder Warteliste-Aktualisierung und
+         * beim Verbindungsende. Ein Vergleich mit ringbackActive verhindert,
+         * dass der Ton bei jedem Aufruf neu anfaengt und dadurch stottert.
+         */
+        syncRingback() {
+            const shouldRing = this.connected && this.outgoingRinging;
+
+            if (shouldRing === this.ringbackActive) {
+                return;
+            }
+
+            this.ringbackActive = shouldRing;
+
+            if (shouldRing) {
+                window.RTSound?.startRingback();
+            } else {
+                window.RTSound?.stopRingback();
+            }
         },
 
         /**
@@ -86,6 +163,8 @@ document.addEventListener('alpine:init', () => {
             this.connected = false;
             this.failed = true;
             this.statusLabel = label || config.labels.connectionFailed;
+            // Ein Freizeichen ueber einer Fehlermeldung waere schlicht gelogen.
+            this.syncRingback();
 
             if (error) {
                 console.error('[calls] Verbindung fehlgeschlagen:', error);
@@ -112,8 +191,54 @@ document.addEventListener('alpine:init', () => {
             return `grid-template-columns: repeat(${columns}, minmax(0, 1fr));`;
         },
 
+        /**
+         * Groesse und Seitenverhaeltnis kommen aus dem Stil, nicht aus
+         * Klassen: das vorgebaute Tailwind-Stylesheet setzt Breiten mit
+         * !important, gegen das eine Utility-Klasse nicht ankaeme. Beide
+         * Formate haben ungefaehr dieselbe Flaeche, damit der Wechsel beim
+         * Drehen des Geraets nicht springt.
+         */
         get selfPreviewStyle() {
-            return `transform: translate3d(${this.selfPreviewX}px, ${this.selfPreviewY}px, 0);`;
+            const width = this.selfPreviewPortrait ? 104 : 176;
+            const ratio = this.selfPreviewPortrait ? '9 / 16' : '16 / 9';
+
+            return `transform: translate3d(${this.selfPreviewX}px, ${this.selfPreviewY}px, 0);`
+                + ` width: ${width}px; max-width: 42vw; aspect-ratio: ${ratio};`;
+        },
+
+        /**
+         * Format der Eigenvorschau an die Geraeteform binden.
+         *
+         * 'pointer: coarse' grenzt Touch-Geraete ab; erst zusammen mit der
+         * Hochformat-Ausrichtung ergibt das "Handy aufrecht". Ein Rechner mit
+         * hochkantem Monitor bleibt damit im Querformat, ein quer gehaltenes
+         * Handy wechselt korrekt mit.
+         */
+        watchViewportShape() {
+            if (typeof window.matchMedia !== 'function') return;
+
+            const query = window.matchMedia('(orientation: portrait) and (pointer: coarse)');
+
+            const apply = () => {
+                if (query.matches === this.selfPreviewPortrait) return;
+
+                this.selfPreviewPortrait = query.matches;
+                // Neu vermessen: Das alte Eck haelt bei anderem Format nicht
+                // mehr, die Vorschau haenge sonst halb ausserhalb der Buehne.
+                this.selfPreviewInitialized = false;
+                requestAnimationFrame(() => this.positionSelfPreview());
+            };
+
+            this.selfPreviewPortrait = query.matches;
+
+            if (typeof query.addEventListener === 'function') {
+                query.addEventListener('change', apply);
+                this.selfPreviewShapeCleanup = () => query.removeEventListener('change', apply);
+            } else if (typeof query.addListener === 'function') {
+                // Safari vor 14 kennt nur den alten Weg.
+                query.addListener(apply);
+                this.selfPreviewShapeCleanup = () => query.removeListener(apply);
+            }
         },
 
         positionSelfPreview() {
@@ -121,6 +246,11 @@ document.addEventListener('alpine:init', () => {
             const stage = preview?.parentElement;
 
             if (!preview || !stage) return;
+
+            // Unsichtbar oder noch nicht gesetzt heisst Breite 0 – dann waere
+            // die Ecke falsch berechnet. selfPreviewInitialized bleibt false,
+            // der naechste Durchlauf holt es nach.
+            if (! preview.offsetWidth || ! preview.offsetHeight) return;
 
             this.selfPreviewX = Math.max(8, stage.clientWidth - preview.offsetWidth - 12);
             this.selfPreviewY = Math.max(8, stage.clientHeight - preview.offsetHeight - 12);
@@ -218,6 +348,7 @@ document.addEventListener('alpine:init', () => {
             this.everConnected = true;
             this.failed = false;
             this.renderAllParticipants();
+            this.syncRingback();
 
             if (this.canPublish) {
                 await this.enableDevices(false);
@@ -350,6 +481,7 @@ document.addEventListener('alpine:init', () => {
                 })
                 .on(RoomEvent.Disconnected, (reason) => {
                     this.connected = false;
+                    this.syncRingback();
 
                     // Kam nie eine Medienverbindung zustande, ist das ein
                     // FEHLER (z. B. blockierte UDP-Ports) — kein Anrufende.
@@ -370,6 +502,9 @@ document.addEventListener('alpine:init', () => {
             const grid = this.$refs.grid;
             const participants = [this.room.localParticipant, ...this.room.remoteParticipants.values()];
             this.participantCount = participants.length;
+            this.remoteCount = this.room.remoteParticipants.size;
+            // Sobald jemand wirklich da ist, hoert das Freizeichen auf.
+            this.syncRingback();
 
             const seen = new Set();
 
@@ -551,6 +686,12 @@ document.addEventListener('alpine:init', () => {
         },
 
         disconnect() {
+            // Immer stoppen, nicht nur ueber syncRingback: beim Auflegen faehrt
+            // die Seite gleich darauf weg, und ein weiterlaufender Timer im
+            // globalen RTSound-Objekt wuerde nach dem Anruf weiter tuten.
+            this.ringbackActive = false;
+            window.RTSound?.stopRingback();
+
             if (this.room) {
                 this.room.disconnect();
                 this.room = null;
@@ -559,6 +700,7 @@ document.addEventListener('alpine:init', () => {
 
         destroy() {
             this.selfPreviewDragCleanup?.();
+            this.selfPreviewShapeCleanup?.();
             this.disconnect();
         },
     }));

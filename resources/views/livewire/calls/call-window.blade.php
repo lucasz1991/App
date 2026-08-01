@@ -14,7 +14,10 @@
         selfIdentity: @js(\App\Services\Calls\LiveKitService::identityFor(auth()->user())),
         canPublish: @js($me?->canPublish() ?? false),
         startWithVideo: @js((bool) data_get($room->settings, 'video', true)),
+        waiting: @js($this->waitingFor()),
         labels: {
+            beingCalled: @js(__('app.calls_being_called')),
+            ringsThere: @js(__('app.calls_rings_there')),
             connecting: @js(__('app.calls_connecting')),
             reconnecting: @js(__('app.calls_reconnecting')),
             ended: @js(__('app.calls_ended')),
@@ -29,6 +32,7 @@
         },
     })"
     x-on:beforeunload.window="disconnect()"
+    x-on:rt-call-waiting.window="setWaiting($event.detail.waiting)"
 >
     <div class="flex h-full min-h-0 flex-col overflow-hidden bg-rt-anthracite">
 
@@ -156,13 +160,43 @@
                     {{ data_get($room->settings, 'video', true) ? __('app.calls_enable_devices') : __('app.calls_enable_microphone') }}
                 </button>
 
-                {{-- Verbindungsaufbau (nur solange KEIN Fehler vorliegt) --}}
+                {{-- Anrufsignal: deckt Verbindungsaufbau UND das Warten auf
+                     Annahme ab (nur solange KEIN Fehler vorliegt). Die
+                     auslaufenden Wellen sind das Signal, die Zeile darunter
+                     benennt den Zustand: "wird angerufen" solange nur die
+                     Einladung raus ist, "klingelt" sobald ein Geraet der
+                     Gegenseite das Laeuten bestaetigt hat. --}}
                 <div
-                    x-show.important="! connected && ! failed"
-                    class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 text-white/70"
+                    x-show.important="! failed && (! connected || outgoingRinging)"
+                    class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-6 px-6 text-center"
                 >
-                    <span class="inline-flex h-12 w-12 animate-spin items-center justify-center rounded-full border-2 border-white/20 border-t-white/80"></span>
-                    <p class="text-sm font-bold" x-text="statusLabel"></p>
+                    <div class="rt-call-signal" :class="ringsThere ? 'rt-call-signal--live' : ''">
+                        <span class="rt-call-signal__wave" aria-hidden="true"></span>
+                        <span class="rt-call-signal__wave" aria-hidden="true"></span>
+                        <span class="rt-call-signal__wave" aria-hidden="true"></span>
+
+                        <span class="rt-call-signal__core">
+                            <template x-if="waitingAvatar">
+                                <img :src="waitingAvatar" alt="" class="h-full w-full rounded-full object-cover">
+                            </template>
+                            <template x-if="! waitingAvatar">
+                                <i class="far fa-phone-volume rt-call-signal__icon" aria-hidden="true"></i>
+                            </template>
+                        </span>
+                    </div>
+
+                    <div class="min-w-0 max-w-sm">
+                        <p
+                            x-cloak
+                            x-show.important="outgoingRinging"
+                            class="truncate text-lg font-extrabold tracking-[-0.03em] text-white"
+                            x-text="waitingNames"
+                        ></p>
+                        <p
+                            class="mt-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-white/55"
+                            x-text="outgoingRinging ? ringStatusLabel : statusLabel"
+                        ></p>
+                    </div>
                 </div>
 
                 {{-- Fehlerzustand: klar benannt, mit Ausweg — kein endloser
@@ -210,8 +244,12 @@
                     :style="gridStyle"
                 ></div>
 
-                {{-- Die eigene Kamera liegt als frei verschiebbare, hochkante
-                     Vorschau über der Bühne und verschwindet ohne Videotrack. --}}
+                {{-- Die eigene Kamera liegt als frei verschiebbare Vorschau
+                     unten rechts über der Bühne und verschwindet ohne
+                     Videotrack. Format und Breite kommen aus dem Stil, nicht
+                     aus Klassen: am Handy hochkant, am Rechner quer — so
+                     entspricht der Ausschnitt dem, was die Kamera wirklich
+                     aufnimmt (siehe selfPreviewStyle in calls.js). --}}
                 <div
                     wire:ignore
                     x-ref="selfPreview"
@@ -219,7 +257,7 @@
                     x-cloak
                     x-on:pointerdown="startSelfPreviewDrag($event)"
                     :style="selfPreviewStyle"
-                    class="rt-call-self-preview absolute z-30 aspect-[9/16] w-24 touch-none cursor-grab overflow-hidden rounded-2xl bg-black/70 shadow-2xl ring-1 ring-white/20 active:cursor-grabbing sm:w-32"
+                    class="rt-call-self-preview absolute z-30 touch-none cursor-grab overflow-hidden rounded-2xl bg-black/70 shadow-2xl ring-1 ring-white/20 active:cursor-grabbing"
                     aria-label="{{ __('app.you') }}"
                 ></div>
             </div>
