@@ -6,6 +6,7 @@ use App\Events\ChatMessageDeleted;
 use App\Events\ChatMessageReceived;
 use App\Events\ChatMessageSent;
 use App\Events\ChatRead;
+use App\Livewire\Concerns\InteractsWithPersonQuickActions;
 use App\Models\Chat;
 use App\Models\ChatMessage;
 use App\Models\ChatMessageView;
@@ -32,6 +33,7 @@ use Livewire\WithPagination;
 
 class ChatBox extends Component
 {
+    use InteractsWithPersonQuickActions;
     use WithFileUploads;
     use WithoutUrlPagination;
     use WithPagination;

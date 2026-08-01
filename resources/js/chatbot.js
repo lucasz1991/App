@@ -18,6 +18,7 @@ const MAX_KNOWN_MESSAGE_KEYS = 500;
 const PET_BUBBLE_INITIAL_DELAY_MS = 1_200;
 const PET_BUBBLE_VISIBLE_MS = 4_800;
 const PET_BUBBLE_CYCLE_MS = 38_000;
+const SEEN_PAGE_HELP_KEYS = new Set();
 
 const DEFAULT_STRINGS = {
     audioEndpointUnavailable: 'Die Audioausgabe ist momentan nicht erreichbar.',
@@ -45,7 +46,36 @@ function clamp(value, min, max, fallback) {
 
 function safeStorage(storageName) {
     try {
-        return typeof window === 'undefined' ? null : (window[storageName] ?? null);
+        const storage = typeof window === 'undefined' ? null : (window[storageName] ?? null);
+        if (!storage) return null;
+
+        return {
+            getItem(key) {
+                try {
+                    return storage.getItem(key);
+                } catch (_) {
+                    return null;
+                }
+            },
+            setItem(key, value) {
+                try {
+                    storage.setItem(key, value);
+
+                    return true;
+                } catch (_) {
+                    return false;
+                }
+            },
+            removeItem(key) {
+                try {
+                    storage.removeItem(key);
+
+                    return true;
+                } catch (_) {
+                    return false;
+                }
+            },
+        };
     } catch (_) {
         return null;
     }
@@ -186,7 +216,12 @@ export function railtimeChatbot(config = {}) {
             document.addEventListener('visibilitychange', this._visibilityHandler);
 
             this.$watch('open', (value) => {
-                safeStorage('sessionStorage')?.setItem('railtime-chatbot-open', value ? '1' : '0');
+                const sessionStorage = safeStorage('sessionStorage');
+                if (value) {
+                    sessionStorage?.setItem('railtime-chatbot-open', '1');
+                } else {
+                    sessionStorage?.removeItem('railtime-chatbot-open');
+                }
 
                 if (!value) {
                     this.closeSettings(false);
@@ -285,16 +320,36 @@ export function railtimeChatbot(config = {}) {
             return route ? `railtime-chatbot-page-help:${route}` : '';
         },
 
+        pageHelpWasSeen(pageHelpKey) {
+            const key = String(pageHelpKey ?? '').trim();
+            if (!key) return false;
+
+            if (safeStorage('sessionStorage')?.getItem(key) === '1') {
+                SEEN_PAGE_HELP_KEYS.add(key);
+
+                return true;
+            }
+
+            return SEEN_PAGE_HELP_KEYS.has(key);
+        },
+
+        rememberPageHelp(pageHelpKey) {
+            const key = String(pageHelpKey ?? '').trim();
+            if (!key) return;
+
+            SEEN_PAGE_HELP_KEYS.add(key);
+            safeStorage('sessionStorage')?.setItem(key, '1');
+        },
+
         nextProactivePetHint() {
             const pageHelpKey = this.pageHelpStorageKey();
-            const sessionStorage = safeStorage('sessionStorage');
 
             if (
                 this.pageHelpHint
                 && pageHelpKey
-                && sessionStorage?.getItem(pageHelpKey) !== '1'
+                && !this.pageHelpWasSeen(pageHelpKey)
             ) {
-                sessionStorage?.setItem(pageHelpKey, '1');
+                this.rememberPageHelp(pageHelpKey);
 
                 return this.pageHelpHint;
             }
@@ -336,14 +391,13 @@ export function railtimeChatbot(config = {}) {
             if (
                 !this.pageHelpHint
                 || !pageHelpKey
-                || safeStorage('sessionStorage')?.getItem(pageHelpKey) === '1'
+                || this.pageHelpWasSeen(pageHelpKey)
             ) return;
 
             const delay = initial ? PET_BUBBLE_INITIAL_DELAY_MS : PET_BUBBLE_CYCLE_MS;
             this.petBubbleCycleTimer = window.setTimeout(() => {
                 this.petBubbleCycleTimer = null;
                 if (!this.autoHelp || this.open || document.hidden) return;
-                if (!this.assistantAvailable) return;
 
                 this.showPetBubble(this.nextProactivePetHint(), PET_BUBBLE_VISIBLE_MS, false, 'proactive');
             }, delay);

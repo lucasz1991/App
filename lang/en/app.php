@@ -594,6 +594,8 @@ return [
     'note_not_found' => 'Note not found.',
     'note_delete_confirm' => 'Really delete this note?',
     'no_notes' => 'No notes yet.',
+    'send_message' => 'Send message',
+    'quick_actions' => 'Quick actions',
     'view_profile' => 'View profile',
 
     'mail_management' => 'Mail management',

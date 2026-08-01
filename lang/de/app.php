@@ -594,6 +594,8 @@ return [
     'note_not_found' => 'Bemerkung nicht gefunden.',
     'note_delete_confirm' => 'Diese Bemerkung wirklich löschen?',
     'no_notes' => 'Noch keine Bemerkungen vorhanden.',
+    'send_message' => 'Nachricht senden',
+    'quick_actions' => 'Schnellaktionen',
     'view_profile' => 'Profil anzeigen',
 
     'mail_management' => 'Mailverwaltung',

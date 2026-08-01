@@ -13,6 +13,7 @@ use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\PwaIconController;
 use App\Http\Controllers\WagonListExportController;
 use App\Http\Controllers\Webhooks\LiveKitWebhookController;
+use App\Http\Middleware\EnsureAssistantAccess;
 use App\Http\Middleware\LogActivity;
 use App\Http\Middleware\RedirectAdminWagonList;
 use App\Livewire\Admin\Dashboard;
@@ -101,10 +102,10 @@ Route::view('/user/confirm-password', 'auth.confirm-password')
 
 Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session'), 'verified'])->group(function () {
     Route::post('/assistant/audio-input/transcribe', AssistantAudioInputTranscriptionController::class)
-        ->middleware('throttle:assistant-stt')
+        ->middleware(EnsureAssistantAccess::class.':assistant-stt')
         ->name('assistant.audio-input.transcribe');
     Route::post('/assistant/audio-output/stream', AssistantAudioOutputStreamController::class)
-        ->middleware('throttle:assistant-tts')
+        ->middleware(EnsureAssistantAccess::class.':assistant-tts')
         ->name('assistant.audio-output.stream');
     Route::get('/dashboard', UserDashboard::class)->name('dashboard');
     Route::get('/employees', Employees::class)->name('employees.index');

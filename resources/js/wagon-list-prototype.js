@@ -100,6 +100,7 @@ export function wagonListPrototype(config = {}) {
         desktopWagon: 0,
         mobileWagon: 0,
         mobileStep: 0,
+        mobileSwipePosition: 0,
         mobileTargetStep: null,
         mobileSteps: Array.isArray(config.mobileSteps) ? config.mobileSteps : [],
         mobileScrollRaf: null,
@@ -255,6 +256,7 @@ export function wagonListPrototype(config = {}) {
             this.desktopWagon = 0;
             this.mobileWagon = 0;
             this.mobileStep = 0;
+            this.mobileSwipePosition = 0;
             this.mobileTargetStep = null;
             this.persistedAt = draft.persistedAt || null;
             this.modalReturnFocus = returnFocus && typeof returnFocus.focus === 'function'
@@ -499,7 +501,7 @@ export function wagonListPrototype(config = {}) {
         },
 
         get mobileStepProgress() {
-            return ((this.mobileStep + 1) / this.mobileStepCount) * 100;
+            return ((this.mobileSwipePosition + 1) / this.mobileStepCount) * 100;
         },
 
         get mobileStepTitle() {
@@ -523,6 +525,7 @@ export function wagonListPrototype(config = {}) {
             this.$nextTick(() => {
                 const pager = this.$refs?.mobilePager;
                 if (!pager || !pager.clientWidth || typeof pager.scrollTo !== 'function') {
+                    this.mobileSwipePosition = targetStep;
                     this.commitMobileStep(targetStep);
                     return;
                 }
@@ -536,6 +539,7 @@ export function wagonListPrototype(config = {}) {
                 // Browser ein Scroll-Event. Smooth-Scroll dagegen uebernimmt
                 // den aktiven Zustand erst aus der real sichtbaren Position.
                 if (resolvedBehavior === 'auto') {
+                    this.mobileSwipePosition = targetStep;
                     this.commitMobileStep(targetStep);
                     this.mobileTargetStep = null;
                 }
@@ -544,10 +548,9 @@ export function wagonListPrototype(config = {}) {
 
         commitMobileStep(index) {
             const nextStep = Math.max(0, Math.min(this.mobileStepCount - 1, Number(index) || 0));
-            if (this.mobileStep !== nextStep) {
-                this.mobileStep = nextStep;
-            }
+            if (this.mobileStep === nextStep) return;
 
+            this.mobileStep = nextStep;
             this.centerMobileRailControl('mobileStepRail', `[data-mobile-step-index="${nextStep}"]`);
         },
 
@@ -578,7 +581,11 @@ export function wagonListPrototype(config = {}) {
             if (!pager || !pager.clientWidth || this.mobileScrollRaf !== null) return;
 
             const updateStep = () => {
-                const position = pager.scrollLeft / pager.clientWidth;
+                const position = Math.max(0, Math.min(
+                    this.mobileStepCount - 1,
+                    pager.scrollLeft / pager.clientWidth,
+                ));
+                this.mobileSwipePosition = position;
                 this.commitMobileStep(Math.round(position));
                 this.mobileScrollRaf = null;
 
@@ -605,6 +612,7 @@ export function wagonListPrototype(config = {}) {
                 this.mobileStepCount - 1,
                 Math.round(pager.scrollLeft / pager.clientWidth),
             ));
+            this.mobileSwipePosition = targetStep;
             this.commitMobileStep(targetStep);
             this.mobileTargetStep = null;
 
@@ -622,6 +630,7 @@ export function wagonListPrototype(config = {}) {
                 if (!pager || !pager.clientWidth || typeof pager.scrollTo !== 'function') return;
                 const targetStep = this.mobileTargetStep ?? this.mobileStep;
                 pager.scrollTo({ left: targetStep * pager.clientWidth, behavior: 'auto' });
+                this.mobileSwipePosition = targetStep;
                 this.commitMobileStep(targetStep);
             };
 

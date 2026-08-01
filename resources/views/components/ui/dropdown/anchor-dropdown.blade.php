@@ -593,7 +593,7 @@
         x-transition:leave-end="translate-y-1 scale-[0.99] opacity-0"
         x-bind:data-placement="placement"
         data-rt-dropdown-owner="{{ $resolvedDropdownId }}"
-        class="rt-viewport-dropdown pointer-events-auto fixed z-[180] {{ $panelWidthClass }} rounded-xl shadow-rt-md {{ $dropdownClasses }}"
+        class="rt-viewport-dropdown pointer-events-auto fixed z-[180] {{ $panelWidthClass }} rounded-xl {{ $dropdownClasses }}"
         style="display:none; margin:0; max-width:calc(100vw - 24px); max-height:calc(100dvh - 24px); --rt-dropdown-caret-x:{{ $anchorCaretX }}; --rt-dropdown-connector-size:{{ $anchorConnectorSize }}px;"
         data-rt-dropdown-panel
         @click.outside="handleOutsideClick($event)"
@@ -611,7 +611,7 @@
           id="{{ $dropdownPanelId }}"
           x-ref="panelScroll"
           @if(filled($contentRole)) role="{{ $contentRole }}" @endif
-          class="rt-ui-surface rt-ui-dropdown-panel relative z-[2] max-h-[min(28rem,calc(100dvh-2rem))] overflow-y-auto rounded-xl border border-rt-border shadow-rt-md dark:border-rt-dark-border {{ $contentClasses }}"
+          class="rt-ui-surface rt-ui-dropdown-panel relative z-[2] max-h-[min(28rem,calc(100dvh-2rem))] overflow-y-auto rounded-xl border border-rt-border dark:border-rt-dark-border {{ $contentClasses }}"
           @click="handlePanelAction($event)"
         >
           {{ $content }}

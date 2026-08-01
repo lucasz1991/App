@@ -68,7 +68,7 @@
         data-rt-overlay-layer
         data-rt-overlay-base="190"
     >
-        <header class="z-10 shrink-0 border-b border-rt-border/70 bg-rt-surface/95 px-3 py-3 shadow-rt-xs backdrop-blur-xl dark:border-rt-dark-border/70 dark:bg-rt-dark-surface/95 sm:px-5 {{ $headerClass }}">
+        <header class="z-10 shrink-0 border-b border-rt-border/70 bg-rt-surface/95 px-3 py-2.5 shadow-rt-xs backdrop-blur-xl dark:border-rt-dark-border/70 dark:bg-rt-dark-surface/95 sm:px-5 sm:py-3 {{ $headerClass }}">
             <div class="mx-auto flex max-w-[100rem] items-center gap-3">
                 @isset($header)
                     {{ $header }}
@@ -92,7 +92,7 @@
                     <button
                         type="button"
                         x-on:click="{{ $closeExpression }}"
-                        class="flex h-10 w-10 items-center justify-center rounded-xl border border-rt-border bg-rt-control text-rt-muted transition hover:border-rt-accent/40 hover:text-rt-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent/30 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-muted dark:hover:text-rt-dark-accent"
+                        class="flex h-10 w-10 items-center justify-center rounded-lg border border-rt-border bg-rt-control text-rt-muted transition hover:border-rt-accent/40 hover:text-rt-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent/30 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-muted dark:hover:text-rt-dark-accent"
                         aria-label="{{ __('app.close') }}"
                     >
                         <i class="far fa-times" aria-hidden="true"></i>
@@ -108,7 +108,7 @@
         </div>
 
         @isset($footer)
-            <footer class="shrink-0 border-t border-rt-border/70 bg-rt-surface/95 px-3 py-3 backdrop-blur-xl dark:border-rt-dark-border/70 dark:bg-rt-dark-surface/95 sm:px-5">
+            <footer class="shrink-0 border-t border-rt-border/70 bg-rt-surface/95 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl dark:border-rt-dark-border/70 dark:bg-rt-dark-surface/95 sm:px-5 sm:pb-3">
                 <div class="mx-auto flex max-w-[100rem] items-center justify-end gap-2">
                     {{ $footer }}
                 </div>

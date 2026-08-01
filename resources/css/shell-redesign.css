@@ -733,16 +733,12 @@ body[data-mode='dark'] .rt-viewport-dropdown {
     border-color: var(--rt-dropdown-caret-border) !important;
     border-radius: 1rem !important;
     background-clip: padding-box;
-    box-shadow:
-        0 1px 0 rgba(255, 255, 255, 0.82) inset,
-        var(--rt-shell-shadow-elevated) !important;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.82) inset !important;
 }
 
 html.dark .rt-viewport-dropdown .rt-ui-dropdown-panel,
 body[data-mode='dark'] .rt-viewport-dropdown .rt-ui-dropdown-panel {
-    box-shadow:
-        0 1px 0 rgba(255, 255, 255, 0.035) inset,
-        var(--rt-shell-shadow-elevated) !important;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.035) inset !important;
 }
 
 .rt-viewport-dropdown .rt-ui-dropdown-caret {

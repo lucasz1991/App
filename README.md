@@ -221,10 +221,11 @@ verwendet. Der Assistent erhält nur Sprache, Zielgruppe und benannten
 Seitenkontext, keine personenbezogenen oder aktuellen Betriebsdaten, und führt
 selbst keine Änderungen aus.
 
-Der Einstieg ist ein kleines rotes, textfreies KI-Wesen statt eines gewöhnlichen
-Floating Buttons. Es öffnet per Klick denselben Livewire-Chat, zeigt kurze
-Sprechblasen und spiegelt Bereitschaft, Denken, Zuhören, Sprechen sowie den
-Offline-Zustand. Das Panel erscheint am Desktop unten rechts und mobil als
+Der Einstieg ist ein kleines rotes, textfreies 3D-Babywesen mit tierartiger
+Silhouette statt eines gewöhnlichen Floating Buttons. Das eigenständige
+Virtual-Pet-Modell öffnet per Klick denselben Livewire-Chat, zeigt kurze
+Sprechblasen und reagiert mit Idle-, Denk-, Hör-, Sprech- und Offline-
+Animationen. Das Panel erscheint am Desktop unten rechts und mobil als
 Bottom-Sheet. Im Einstellungsmenü des Chats liegen automatisches Vorlesen,
 Vorlesetempo, automatisches Hören mit bestätigbarem Transkript und lokale,
 kostenfreie Seitenhinweise aus dem RailTime-Hilfekatalog.
@@ -274,6 +275,12 @@ Produktionsabnahme nur als expliziter Rollback erhalten; bei aktiviertem Dienst
 gibt es keinen stillen Fallback.
 
 ### 9. Deployment
+
+Beim Assistant-Rollout muss die Datenmigration vor dem atomaren Wechsel auf
+den neuen Release-Stand laufen. Danach werden Konfigurations-, View- und
+Anwendungscache auf dem aktiven Release erneuert. So ist `assistant.use` bereits
+in bestehenden Team-JSON-Werten vorhanden, bevor die neue Zugriffsschicht
+Anfragen bewertet.
 
 ```bash
 composer install --no-dev --optimize-autoloader

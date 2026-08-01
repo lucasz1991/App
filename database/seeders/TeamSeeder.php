@@ -12,8 +12,8 @@ class TeamSeeder extends Seeder
     /**
      * Legt die vier Basis-Teams (Rechtegruppen) an:
      *
-     * - Gäste:         keine Rechte (nur Downloads/Chat im Nutzerbereich)
-     * - Mitarbeiter:   Basisrechte (Nutzerbereich)
+     * - Gäste:         Assistent im Nutzerbereich
+     * - Mitarbeiter:   Assistent und Basiszugriff im Nutzerbereich
      * - Verwaltung:    Systemuebersicht im Nutzerbereich
      * - Administratoren: Systemuebersicht im Nutzerbereich
      */

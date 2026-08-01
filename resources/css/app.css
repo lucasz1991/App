@@ -3040,11 +3040,11 @@ body[data-mode='dark'] .rt-wagon-sheet [data-rt-custom-select] .rt-ui-control {
 }
 
 .rt-wagon-section-tab {
-    color: #64748b;
+    color: #637188;
 }
 
 .rt-wagon-section-tab:hover {
-    color: #0f172a;
+    color: #0c1421;
 }
 
 .rt-wagon-section-tab[data-active='true'] {
@@ -3066,8 +3066,8 @@ body[data-mode='dark'] .rt-wagon-sheet [data-rt-custom-select] .rt-ui-control {
 }
 
 .rt-wagon-wizard-progress-bar {
-    min-width: 0.5rem;
-    transition: width 180ms cubic-bezier(0.22, 1, 0.36, 1);
+    transform-origin: left center;
+    will-change: transform;
 }
 
 .rt-wagon-step-rail {
@@ -3083,7 +3083,7 @@ body[data-mode='dark'] .rt-wagon-sheet [data-rt-custom-select] .rt-ui-control {
 .rt-wagon-step-chip {
     border: 1px solid transparent;
     background: transparent;
-    color: #64748b;
+    color: #637188;
 }
 
 .rt-wagon-step-number {
@@ -3196,7 +3196,7 @@ body[data-mode='dark'] .rt-wagon-sheet [data-rt-custom-select] .rt-ui-control {
 }
 
 .rt-wagon-mobile-section-head h3 {
-    color: #0f172a;
+    color: #0c1421;
     font-size: 1rem;
     font-weight: 700;
     line-height: 1.35;
@@ -3204,7 +3204,7 @@ body[data-mode='dark'] .rt-wagon-sheet [data-rt-custom-select] .rt-ui-control {
 
 .rt-wagon-mobile-section-head p {
     margin-top: 0.15rem;
-    color: #64748b;
+    color: #637188;
     font-size: 0.75rem;
     line-height: 1.25rem;
 }
@@ -3251,14 +3251,14 @@ body[data-mode='dark'] .rt-wagon-sheet [data-rt-custom-select] .rt-ui-control {
 .rt-wagon-review-list {
     border: 1px solid #dbe3ee;
     background: rgb(255 255 255 / 0.92);
-    color: #0f172a;
+    color: #0c1421;
     box-shadow: 0 8px 24px -24px rgb(15 23 42 / 0.6);
 }
 
 .rt-wagon-validation-state {
     border: 1px solid #dbe3ee;
     background: #fff;
-    color: #64748b;
+    color: #637188;
 }
 
 .rt-wagon-validation-state[data-state='valid'] {
@@ -3274,12 +3274,12 @@ body[data-mode='dark'] .rt-wagon-sheet [data-rt-custom-select] .rt-ui-control {
 }
 
 .rt-wagon-review-list dt {
-    color: #64748b;
+    color: #637188;
     font-size: 0.78rem;
 }
 
 .rt-wagon-review-list dd {
-    color: #0f172a;
+    color: #0c1421;
     font-size: 0.82rem;
     font-weight: 700;
     font-variant-numeric: tabular-nums;

@@ -37,7 +37,7 @@
 
         <span class="sr-only" aria-live="polite" x-text="mobileStepTitle"></span>
         <div class="mt-2 h-0.5 overflow-hidden rounded-full bg-rt-surface-muted dark:bg-rt-dark-surface-muted" aria-hidden="true">
-            <span class="rt-wagon-wizard-progress-bar block h-full rounded-full bg-rt-red" :style="`width: ${mobileStepProgress}%`"></span>
+            <span class="rt-wagon-wizard-progress-bar block h-full w-full rounded-full bg-rt-red" :style="`transform: scaleX(${mobileStepProgress / 100})`"></span>
         </div>
     </header>
 
@@ -303,6 +303,26 @@
                     <div class="mt-2 flex items-start justify-between gap-3">
                         <div class="min-w-0"><strong class="block truncate text-xl" x-text="meta.trainNumber || @js(__('app.wagon_not_filled'))"></strong><p class="mt-1 truncate text-sm opacity-70"><span x-text="meta.origin || '—'"></span> → <span x-text="meta.destination || '—'"></span></p></div>
                         <span class="shrink-0 rounded-lg bg-rt-surface-muted px-2.5 py-1.5 text-xs font-bold tabular-nums dark:bg-rt-dark-surface-muted"><span x-text="completionCount"></span>/<span x-text="visibleCount"></span></span>
+                    </div>
+                </div>
+
+                <div class="rt-wagon-review-wagons mt-3 overflow-hidden rounded-xl border border-rt-border bg-rt-surface px-3 py-2.5 dark:border-rt-dark-border dark:bg-rt-dark-surface" aria-label="{{ __('app.choose_wagon') }}">
+                    <div class="flex items-center justify-between gap-3">
+                        <p class="text-[11px] font-semibold text-rt-muted dark:text-rt-dark-muted">{{ __('app.wagons') }}</p>
+                        <p class="text-[10px] font-medium text-rt-soft dark:text-rt-dark-soft"><span x-text="completionCount"></span>/<span x-text="visibleCount"></span> {{ $labels['filledWagons'] }}</p>
+                    </div>
+                    <div class="rt-wagon-index-strip mt-2 flex gap-1.5 overflow-x-auto">
+                        <template x-for="(wagon, index) in wagons.slice(0, visibleCount)" :key="index">
+                            <button
+                                type="button"
+                                @click="showMobileWagon(index); goToMobileStep(1)"
+                                class="relative flex h-10 min-w-10 shrink-0 items-center justify-center rounded-lg border border-rt-border bg-rt-control text-xs font-bold tabular-nums text-rt-text transition hover:border-rt-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent/35 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-text"
+                                :aria-label="`${@js(__('app.wagons'))} ${index + 1}`"
+                            >
+                                <span x-text="index + 1"></span>
+                                <span class="absolute bottom-1 right-1 h-1.5 w-1.5 rounded-full" :class="isWagonFilled(wagon) ? 'bg-emerald-500' : 'bg-amber-500'" aria-hidden="true"></span>
+                            </button>
+                        </template>
                     </div>
                 </div>
 

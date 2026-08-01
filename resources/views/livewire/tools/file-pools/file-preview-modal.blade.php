@@ -49,7 +49,7 @@
           wire:click="downloadFile({{ $file->id }})"
           wire:loading.attr="disabled"
           wire:target="downloadFile"
-          class="!h-9 !min-h-9 !w-9 !rounded-lg !border-transparent !bg-transparent !p-0 !shadow-none hover:!bg-rt-surface dark:hover:!bg-rt-dark-surface"
+          class="!h-10 !min-h-10 !w-10 !rounded-lg !border-transparent !bg-transparent !p-0 !shadow-none hover:!bg-rt-surface-muted dark:hover:!bg-rt-dark-surface-muted"
           title="{{ __('app.download') }}"
           aria-label="{{ __('app.download') }}"
           data-file-preview-action="download"
@@ -66,7 +66,7 @@
             target="_blank"
             rel="noopener noreferrer"
             data-no-navigate
-            class="!h-9 !min-h-9 !w-9 !rounded-lg !border-transparent !bg-transparent !p-0 !shadow-none hover:!bg-rt-surface dark:hover:!bg-rt-dark-surface"
+            class="!h-10 !min-h-10 !w-10 !rounded-lg !border-transparent !bg-transparent !p-0 !shadow-none hover:!bg-rt-surface-muted dark:hover:!bg-rt-dark-surface-muted"
             title="{{ __('app.print') }}"
             aria-label="{{ __('app.print') }}"
             data-file-preview-action="print"
@@ -84,7 +84,7 @@
             target="_blank"
             rel="noopener noreferrer"
             data-no-navigate
-            class="!h-9 !min-h-9 !w-9 !rounded-lg !border-transparent !bg-transparent !p-0 !shadow-none hover:!bg-rt-surface dark:hover:!bg-rt-dark-surface"
+            class="!h-10 !min-h-10 !w-10 !rounded-lg !border-transparent !bg-transparent !p-0 !shadow-none hover:!bg-rt-surface-muted dark:hover:!bg-rt-dark-surface-muted"
             title="{{ __('app.open_in_new_tab') }}"
             aria-label="{{ __('app.open_in_new_tab') }}"
             data-file-preview-action="open"
