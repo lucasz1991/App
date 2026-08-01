@@ -117,6 +117,12 @@ return [
     'calls_join' => 'Beitreten',
     'calls_incoming_title' => 'Eingehender Anruf',
     'calls_ringing' => 'Es klingelt …',
+    // Zustand beim ANRUFER: 'wird angerufen' = Einladung raus, noch keine
+    // Rueckmeldung. 'klingelt' = das Geraet der Gegenseite meldet, dass es
+    // tatsaechlich laeutet (offene Browser-Sitzung oder installierte App).
+    'calls_being_called' => 'wird angerufen',
+    'calls_rings_there' => 'klingelt',
+    'calls_waiting_for_answer' => 'Warten auf Antwort',
     'calls_accept' => 'Annehmen',
     'calls_decline' => 'Ablehnen',
     'calls_declined' => 'Anruf abgelehnt',
@@ -1300,6 +1306,8 @@ return [
     'sound_signature_glass' => 'Glas',
     'sound_signature_sweep' => 'Aufsteigend',
     'sound_signature_descend' => 'Absteigend',
+    'sound_signature_ring' => 'Klingelton',
+    'sound_signature_ringback' => 'Freizeichen',
     'sound_signature_silent' => 'Stumm',
     'sound_event_success' => 'Erfolgsmeldung',
     'sound_event_error' => 'Fehlermeldung',

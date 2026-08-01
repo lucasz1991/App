@@ -3,6 +3,7 @@
 use App\Http\Controllers\Assistant\AssistantAudioInputTranscriptionController;
 use App\Http\Controllers\Assistant\AssistantAudioOutputStreamController;
 use App\Http\Controllers\Auth\InvitedRegistrationController;
+use App\Http\Controllers\Calls\CallRingAckController;
 use App\Http\Controllers\Calls\CallTokenController;
 use App\Http\Controllers\ChatAttachmentController;
 use App\Http\Controllers\ChatExportController;
@@ -180,6 +181,15 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
         // aber weiterhin über die Komponente das Admin-Layout.
         Route::get('/messages', MessageBox::class)->name('messages');
     });
+
+// Klingel-Rueckmeldung der installierten App: der Service Worker meldet, dass
+// er die Anruf-Benachrichtigung tatsaechlich anzeigt. Ausserhalb der Auth-
+// Gruppe, weil der Service Worker keinen verlaesslichen Sitzungskontext hat —
+// autorisiert wird ueber die signierte, kurzlebige URL aus der Push-Nutzlast.
+Route::post('/calls/ring/{invitation}', CallRingAckController::class)
+    ->middleware(['signed', 'throttle:30,1'])
+    ->whereNumber('invitation')
+    ->name('calls.ring-ack');
 
 // LiveKit-Webhooks: ausserhalb der Auth-Gruppe, Signaturpruefung im Controller
 // (JWT im Authorization-Header, signiert mit dem LiveKit-API-Schluesselpaar).

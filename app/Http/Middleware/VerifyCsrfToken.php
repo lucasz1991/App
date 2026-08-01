@@ -15,5 +15,9 @@ class VerifyCsrfToken extends Middleware
         // LiveKit signiert seine Webhooks per JWT im Authorization-Header;
         // die Pruefung uebernimmt der LiveKitWebhookController.
         'webhooks/livekit',
+        // Klingel-Rueckmeldung aus dem Service Worker: der hat kein CSRF-Token
+        // (kein DOM, keine Blade-Ausgabe). Autorisiert wird ueber die signierte
+        // URL, die ausschliesslich in der Push-Nutzlast steht.
+        'calls/ring/*',
     ];
 }

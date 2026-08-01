@@ -4,6 +4,7 @@ namespace App\Services\Calls;
 
 use App\Events\CallInvitationAnswered;
 use App\Events\CallInvitationExpired;
+use App\Events\CallInvitationRinging;
 use App\Events\CallInvitationSent;
 use App\Jobs\ExpireCallInvitation;
 use App\Models\Room;
@@ -73,6 +74,34 @@ class CallInvitationService
         ExpireCallInvitation::dispatch($invitation->id)->delay($expiresAt);
 
         return $invitation;
+    }
+
+    /**
+     * Rueckmeldung der Gegenseite: das Geraet laeutet wirklich.
+     *
+     * Kommt entweder aus einer offenen Browser-Sitzung (das Klingel-Overlay
+     * meldet sich selbst) oder aus dem Service Worker der installierten App,
+     * sobald er die Anruf-Benachrichtigung anzeigt. Nur die ERSTE Meldung
+     * zaehlt: sonst wuerden mehrere Geraete desselben Nutzers denselben
+     * Zustand mehrfach broadcasten.
+     *
+     * @param string $via 'browser' (offene Sitzung) oder 'app' (Service Worker)
+     * @return bool true, wenn dies die erste Klingel-Meldung war.
+     */
+    public function markRinging(RoomInvitation $invitation, string $via = 'browser'): bool
+    {
+        if (! $invitation->isPending() || $invitation->isExpired() || $invitation->isRinging()) {
+            return false;
+        }
+
+        $invitation->forceFill([
+            'ringing_at' => now(),
+            'ringing_via' => in_array($via, ['browser', 'app'], true) ? $via : 'browser',
+        ])->save();
+
+        broadcast(new CallInvitationRinging($invitation));
+
+        return true;
     }
 
     /**

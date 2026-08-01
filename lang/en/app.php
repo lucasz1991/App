@@ -117,6 +117,12 @@ return [
     'calls_join' => 'Join',
     'calls_incoming_title' => 'Incoming call',
     'calls_ringing' => 'Ringing …',
+    // Caller-side state: 'calling' = invitation sent, no feedback yet.
+    // 'ringing' = the other device reports that it is actually ringing
+    // (open browser session or installed app).
+    'calls_being_called' => 'calling',
+    'calls_rings_there' => 'ringing',
+    'calls_waiting_for_answer' => 'Waiting for an answer',
     'calls_accept' => 'Accept',
     'calls_decline' => 'Decline',
     'calls_declined' => 'Call declined',
@@ -1300,6 +1306,8 @@ return [
     'sound_signature_glass' => 'Glass',
     'sound_signature_sweep' => 'Rising',
     'sound_signature_descend' => 'Falling',
+    'sound_signature_ring' => 'Ringtone',
+    'sound_signature_ringback' => 'Ringback tone',
     'sound_signature_silent' => 'Silent',
     'sound_event_success' => 'Success message',
     'sound_event_error' => 'Error message',

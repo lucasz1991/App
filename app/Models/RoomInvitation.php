@@ -9,11 +9,13 @@ class RoomInvitation extends Model
 {
     protected $fillable = [
         'room_id', 'inviter_id', 'invitee_id', 'status', 'expires_at', 'responded_at',
+        'ringing_at', 'ringing_via',
     ];
 
     protected $casts = [
         'expires_at' => 'datetime',
         'responded_at' => 'datetime',
+        'ringing_at' => 'datetime',
     ];
 
     public function room(): BelongsTo
@@ -39,5 +41,11 @@ class RoomInvitation extends Model
     public function isExpired(): bool
     {
         return $this->isPending() && $this->expires_at->isPast();
+    }
+
+    /** Die Gegenseite hat bestaetigt, dass ihr Geraet tatsaechlich laeutet. */
+    public function isRinging(): bool
+    {
+        return $this->ringing_at !== null;
     }
 }

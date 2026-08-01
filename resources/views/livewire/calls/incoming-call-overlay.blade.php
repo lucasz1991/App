@@ -4,7 +4,6 @@
         call: null,
         secondsLeft: 0,
         countdownTimer: null,
-        ringTimer: null,
         channel: null,
 
         init() {
@@ -35,8 +34,14 @@
             this.tickCountdown(expires);
             this.countdownTimer = setInterval(() => this.tickCountdown(expires), 500);
 
-            this.playRing();
-            this.ringTimer = setInterval(() => this.playRing(), 2600);
+            // Vollstaendiges Klingelmotiv in Schleife statt eines einzelnen
+            // Anschlags — der Ton selbst soll schon sagen, dass es ein ANRUF ist.
+            window.RTSound?.startRinging();
+
+            // Und zurueckmelden, dass hier tatsaechlich geklingelt wird: erst
+            // dadurch zeigt das Fenster des Anrufers 'klingelt' statt nur
+            // 'wird angerufen'.
+            $wire.reportRinging(detail.invitationId);
         },
 
         onMissed(detail) {
@@ -62,12 +67,6 @@
             }
         },
 
-        playRing() {
-            if (! document.hidden) {
-                window.RTSound?.play('call');
-            }
-        },
-
         accept() {
             const id = this.call?.invitationId;
             this.stopRinging();
@@ -84,7 +83,7 @@
 
         stopRinging(notify = true) {
             clearInterval(this.countdownTimer);
-            clearInterval(this.ringTimer);
+            window.RTSound?.stopRinging();
 
             if (notify && this.call) {
                 this.channel?.postMessage({ type: 'call-ring-stop', invitationId: this.call.invitationId });

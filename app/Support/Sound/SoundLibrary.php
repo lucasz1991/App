@@ -29,7 +29,10 @@ final class SoundLibrary
         // Eingaenge
         'message' => 'message',
         'chat' => 'chat',
-        'call' => 'bell',
+        // Ein Anruf braucht ein vollstaendiges Klingelmotiv, keinen
+        // Einzelanschlag – sonst ist er von einer Systemmeldung nicht zu
+        // unterscheiden.
+        'call' => 'ring',
     ];
 
     /**
@@ -52,6 +55,8 @@ final class SoundLibrary
         'glass',
         'sweep',
         'descend',
+        'ring',
+        'ringback',
         'silent',
     ];
 
