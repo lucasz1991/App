@@ -26,6 +26,7 @@ final class OperationalPreviewCatalog
     public function all(): array
     {
         $now = now();
+        $nowUtc = $now->copy()->utc();
         $activeOrderStatuses = ['requested', 'confirmed', 'planned', 'in_progress'];
         $planningShiftStatuses = ['draft', 'open', 'requested', 'staffed', 'confirmed', 'in_progress'];
         $activeAssignmentStatuses = ['requested', 'confirmed'];
@@ -38,11 +39,11 @@ final class OperationalPreviewCatalog
 
         $planningShifts = Shift::query()
             ->whereIn('status', $planningShiftStatuses)
-            ->where('ends_at', '>=', $now)
+            ->where('ends_at', '>=', $nowUtc)
             ->count();
         $understaffedShifts = Shift::query()
             ->whereIn('status', $planningShiftStatuses)
-            ->where('ends_at', '>=', $now)
+            ->where('ends_at', '>=', $nowUtc)
             ->withCount([
                 'assignments as active_assignments_count' => static fn (Builder $query): Builder => $query
                     ->whereIn('status', $activeAssignmentStatuses),
@@ -52,13 +53,13 @@ final class OperationalPreviewCatalog
             ->count();
 
         $todayShifts = Shift::query()
-            ->where('starts_at', '<', $now->copy()->endOfDay())
-            ->where('ends_at', '>', $now->copy()->startOfDay())
+            ->where('starts_at', '<', $now->copy()->endOfDay()->utc())
+            ->where('ends_at', '>', $now->copy()->startOfDay()->utc())
             ->where('status', '!=', 'cancelled')
             ->count();
         $weekShifts = Shift::query()
-            ->where('starts_at', '<', $now->copy()->endOfWeek(Carbon::SUNDAY))
-            ->where('ends_at', '>', $now->copy()->startOfWeek(Carbon::MONDAY))
+            ->where('starts_at', '<', $now->copy()->endOfWeek(Carbon::SUNDAY)->utc())
+            ->where('ends_at', '>', $now->copy()->startOfWeek(Carbon::MONDAY)->utc())
             ->where('status', '!=', 'cancelled')
             ->count();
 

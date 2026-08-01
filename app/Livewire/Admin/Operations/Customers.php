@@ -11,19 +11,33 @@ class Customers extends Component
     use SupportsOperationsUi;
 
     public string $search = '';
+
     public string $activeFilter = 'active';
+
     public ?int $selectedCustomerId = null;
+
     public bool $formOpen = false;
+
     public ?int $editingCustomerId = null;
+
     public string $companyName = '';
+
     public string $contactName = '';
+
     public string $email = '';
+
     public string $phone = '';
+
     public string $address = '';
+
     public string $postalCode = '';
+
     public string $city = '';
+
     public string $country = 'DE';
+
     public string $notes = '';
+
     public bool $isActive = true;
 
     public function mount(): void
@@ -73,11 +87,11 @@ class Customers extends Component
             'companyName' => ['required', 'string', 'max:160'],
             'contactName' => ['nullable', 'string', 'max:160'],
             'email' => ['nullable', 'email', 'max:190'],
-            'phone' => ['nullable', 'string', 'max:80'],
-            'address' => ['nullable', 'string', 'max:1000'],
+            'phone' => ['nullable', 'string', 'max:64'],
+            'address' => ['nullable', 'string', 'max:255'],
             'postalCode' => ['nullable', 'string', 'max:20'],
             'city' => ['nullable', 'string', 'max:120'],
-            'country' => ['nullable', 'string', 'size:2'],
+            'country' => ['required', 'string', 'size:2'],
             'notes' => ['nullable', 'string', 'max:5000'],
             'isActive' => ['boolean'],
         ]);
@@ -121,7 +135,7 @@ class Customers extends Component
         $customers = Customer::query()
             ->withCount('orders')
             ->when(trim($this->search) !== '', function (Builder $query): void {
-                $term = '%' . trim($this->search) . '%';
+                $term = '%'.trim($this->search).'%';
                 $query->where(function (Builder $query) use ($term): void {
                     $query->where('company_name', 'like', $term)
                         ->orWhere('customer_number', 'like', $term)

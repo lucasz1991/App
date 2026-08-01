@@ -303,10 +303,7 @@ class AssistantKnowledgeManager extends Component
         $this->authorizeSuperAdmin();
 
         $topics = AssistantKnowledgeTopic::query()
-            ->withCount([
-                'entries',
-                'entries as active_entries_count' => static fn ($query) => $query->where('is_active', true),
-            ])
+            ->withCount('entries')
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get();
@@ -332,6 +329,7 @@ class AssistantKnowledgeManager extends Component
         return view('livewire.admin.assistant-knowledge-manager', [
             'topics' => $topics,
             'entries' => $entries,
+            'totalEntryCount' => AssistantKnowledgeEntry::query()->count(),
             'activeEntryCount' => AssistantKnowledgeEntry::query()->active()->count(),
             'baselineEntryCount' => AssistantKnowledgeEntry::query()->active()->where('include_in_baseline', true)->count(),
             'baselineAssignedCount' => AssistantKnowledgeEntry::query()->where('include_in_baseline', true)->count(),

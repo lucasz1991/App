@@ -200,6 +200,8 @@ class AssistantKnowledgePool
             $baselineEntries = AssistantKnowledgeEntry::query()
                 ->active()
                 ->where('include_in_baseline', true)
+                ->whereNotNull('summary')
+                ->whereRaw("TRIM(summary) <> ''")
                 ->with('topic:id,name')
                 ->orderBy('sort_order')
                 ->orderBy('title')
@@ -252,9 +254,9 @@ class AssistantKnowledgePool
         $lines = [$header];
 
         foreach (array_slice($entries, 0, self::BASELINE_ENTRY_LIMIT) as $entry) {
-            $topic = $this->truncateText($this->compactText((string) $entry->topic?->name), 42);
-            $title = $this->truncateText($this->compactText($entry->title), 72);
-            $summary = $this->compactText((string) ($entry->summary ?: strip_tags($entry->content)));
+            $topic = $this->truncateText($this->compactText((string) $entry->topic?->name), 32);
+            $title = $this->truncateText($this->compactText($entry->title), 56);
+            $summary = $this->compactText((string) $entry->summary);
             $lines[] = $this->truncateText('- ['.$topic.'] '.$title.': '.$summary, $lineBudget);
         }
 

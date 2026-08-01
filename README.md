@@ -33,6 +33,21 @@ ist er innerhalb von Minuten besetzt oder klar abgelehnt. Jede Disposition ist
 dabei eine Rückmeldung, aus der die nächste besser wird. Die Entscheidung bleibt
 beim Menschen; das System übernimmt das Suchen, Nachtelefonieren und Nachhalten.
 
+### Aufträge und Schichtplanung
+
+Der erste produktive Vertikalschnitt bildet `Kunde → Auftrag → Schicht →
+Mitarbeiterzuweisung` in der Datenbank ab. Administratoren pflegen die vier
+zusammenhängenden Arbeitsbereiche unter **Kunden**, **Aufträge**,
+**Schichtplanung** und **Kalender**. Auftragsstatus werden nachvollziehbar
+protokolliert; die manuelle Schichtzuweisung verhindert bereits zeitliche
+Überschneidungen derselben Person. Der Kalender ist zunächst eine interne
+Wochenansicht auf diese Schichtdaten.
+
+Google Calendar, Apple Kalender beziehungsweise ICS-Abonnements sind noch kein
+Teil dieses Schritts. Die externe Synchronisation wird später auf dem internen
+Schichtmodell aufgebaut, damit RailTime die fachliche Quelle der Wahrheit
+bleibt.
+
 **Technisch:** Laravel 12, Livewire 3, Alpine, Tailwind, MySQL. Echtzeit über
 Laravel Reverb, Videotelefonie über LiveKit, Push über Web Push und Service
 Worker. Betrieb auf eigener Infrastruktur unter Plesk — die Daten bleiben im

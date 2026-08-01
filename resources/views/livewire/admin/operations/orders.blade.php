@@ -1,15 +1,15 @@
 @php
     $statusClass = static fn (string $status): string => match ($status) {
-        'confirmed', 'completed', 'invoiced' => 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300',
-        'planned', 'requested' => 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-500/10 dark:text-amber-300',
-        'in_progress' => 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-800 dark:bg-sky-500/10 dark:text-sky-300',
-        'cancelled' => 'border-slate-200 bg-slate-100 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300',
-        default => 'border-rose-200 bg-rose-50 text-rt-red dark:border-rose-900 dark:bg-rose-500/10 dark:text-rose-300',
+        'confirmed', 'completed', 'invoiced' => 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:!border-emerald-800 dark:!bg-emerald-500/10 dark:!text-emerald-300',
+        'planned', 'requested' => 'border-amber-200 bg-amber-50 text-amber-700 dark:!border-amber-800 dark:!bg-amber-500/10 dark:!text-amber-300',
+        'in_progress' => 'border-sky-200 bg-sky-50 text-sky-700 dark:!border-sky-800 dark:!bg-sky-500/10 dark:!text-sky-300',
+        'cancelled' => 'border-slate-200 bg-slate-100 text-slate-500 dark:!border-slate-700 dark:!bg-slate-800 dark:!text-slate-300',
+        default => 'border-rose-200 bg-rose-50 text-rt-red dark:!border-rose-900 dark:!bg-rose-500/10 dark:!text-rose-300',
     };
 @endphp
 
 <div class="space-y-4" data-operations-orders>
-    <section class="grid grid-cols-2 gap-3 lg:grid-cols-3" aria-label="Auftragsübersicht">
+    <section class="grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="Auftragsübersicht">
         <article class="rounded-2xl border border-rt-border/70 bg-rt-surface p-4 shadow-rt-xs dark:border-rt-dark-border/70 dark:bg-rt-dark-surface">
             <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-rt-soft dark:text-rt-dark-soft">Offene Aufträge</p>
             <p class="mt-2 text-2xl font-semibold tabular-nums text-rt-text dark:text-white">{{ $openCount }}</p>
@@ -18,7 +18,7 @@
             <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-rt-soft dark:text-rt-dark-soft">Nächste 7 Tage</p>
             <p class="mt-2 text-2xl font-semibold tabular-nums text-rt-text dark:text-white">{{ $startsSoonCount }}</p>
         </article>
-        <article class="col-span-2 rounded-2xl border border-rose-200 bg-rose-50 p-4 shadow-rt-xs dark:border-rose-900 dark:bg-rose-500/10 lg:col-span-1">
+        <article class="rounded-2xl border border-rose-200 bg-rose-50 p-4 shadow-rt-xs dark:!border-rose-900 dark:!bg-rose-500/10">
             <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-rt-red dark:text-rose-300">In dieser Auswahl</p>
             <p class="mt-2 text-2xl font-semibold tabular-nums text-rt-text dark:text-white">{{ $orders->count() }}</p>
         </article>
@@ -111,9 +111,10 @@
                             </div>
                             <label class="block w-full sm:w-56">
                                 <span class="mb-1 block text-xs font-semibold text-rt-muted dark:text-rt-dark-muted">Status ändern</span>
-                                <select wire:change="changeStatus($event.target.value)" wire:loading.attr="disabled" class="min-h-11 w-full rounded-xl border border-rt-border bg-rt-control px-3 text-base text-rt-text outline-none focus:border-rt-red disabled:opacity-60 sm:text-sm dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white">
-                                    @foreach($statusOptions as $option)
-                                        <option value="{{ $option['value'] }}" @selected($option['value'] === $selectedStatus)>{{ $option['label'] }}</option>
+                                <select wire:key="order-status-transition-{{ $selectedStatus }}" wire:change="changeStatus($event.target.value)" wire:loading.attr="disabled" @disabled(empty($transitionOptions)) class="min-h-11 w-full rounded-xl border border-rt-border bg-rt-control px-3 text-base text-rt-text outline-none focus:border-rt-red disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-white">
+                                    <option value="" selected disabled>{{ empty($transitionOptions) ? 'Kein Folgestatus verfügbar' : 'Folgestatus auswählen' }}</option>
+                                    @foreach($transitionOptions as $option)
+                                        <option value="{{ $option['value'] }}">{{ $option['label'] }}</option>
                                     @endforeach
                                 </select>
                             </label>
@@ -169,7 +170,11 @@
                                             <p class="truncate text-sm font-semibold text-rt-text dark:text-white">{{ $shift->title }}</p>
                                             <span class="rounded-md border px-2 py-0.5 text-[10px] font-semibold {{ $statusClass($shiftStatus) }}">{{ method_exists($shift->status, 'label') ? $shift->status->label() : \Illuminate\Support\Str::headline($shiftStatus) }}</span>
                                         </div>
-                                        <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $shift->starts_at?->format('d.m.Y H:i') }} · {{ $shift->assignments->whereNotIn('status', [\App\Enums\ShiftAssignmentStatus::Cancelled])->count() }}/{{ $shift->required_staff }} besetzt</p>
+                                        <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $shift->starts_at?->format('d.m.Y H:i') }} · {{ $shift->assignments->filter(fn ($assignment) => in_array(
+                                            $assignment->status instanceof \BackedEnum ? $assignment->status->value : $assignment->status,
+                                            \App\Enums\ShiftAssignmentStatus::blockingValues(),
+                                            true,
+                                        ))->count() }}/{{ $shift->required_staff }} reserviert</p>
                                     </div>
                                 @empty
                                     <p class="px-4 py-6 text-center text-sm text-rt-muted dark:text-rt-dark-muted">Noch keine Schichten angelegt.</p>

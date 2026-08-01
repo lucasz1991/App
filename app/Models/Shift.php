@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Enums\ShiftStatus;
+use App\Models\Concerns\HasZonedSchedule;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -15,6 +17,7 @@ use Illuminate\Support\Str;
 class Shift extends Model
 {
     use HasFactory;
+    use HasZonedSchedule;
     use SoftDeletes;
 
     protected $fillable = [
@@ -34,8 +37,6 @@ class Shift extends Model
     ];
 
     protected $casts = [
-        'starts_at' => 'datetime',
-        'ends_at' => 'datetime',
         'required_staff' => 'integer',
         'status' => ShiftStatus::class,
     ];
@@ -88,14 +89,14 @@ class Shift extends Model
 
     public function scopeUpcoming(Builder $query): Builder
     {
-        return $query->where('ends_at', '>=', now());
+        return $query->where('ends_at', '>=', now()->utc());
     }
 
     public function scopeDuring(Builder $query, mixed $startsAt, mixed $endsAt): Builder
     {
         return $query
-            ->where('starts_at', '<', $endsAt)
-            ->where('ends_at', '>', $startsAt);
+            ->where('starts_at', '<', CarbonImmutable::parse($endsAt)->utc())
+            ->where('ends_at', '>', CarbonImmutable::parse($startsAt)->utc());
     }
 
     public function scopeNotCancelled(Builder $query): Builder

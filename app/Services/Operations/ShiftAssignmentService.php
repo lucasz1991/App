@@ -32,6 +32,7 @@ class ShiftAssignmentService
                 ->findOrFail($assignee->getKey());
 
             $this->assertValidSchedule($lockedShift);
+            $this->assertAssigneeCanBeScheduled($lockedAssignee);
 
             if ($assignmentStatus->blocksAvailability()) {
                 $this->assertShiftCanBeStaffed($lockedShift);
@@ -130,6 +131,15 @@ class ShiftAssignmentService
         if ($shift->status === ShiftStatus::Cancelled) {
             throw ValidationException::withMessages([
                 'shift_id' => 'Eine stornierte Schicht kann nicht besetzt werden.',
+            ]);
+        }
+    }
+
+    private function assertAssigneeCanBeScheduled(User $assignee): void
+    {
+        if (! $assignee->status || $assignee->role !== 'staff') {
+            throw ValidationException::withMessages([
+                'user_id' => 'Nur aktive Mitarbeiter können einer Schicht zugewiesen werden.',
             ]);
         }
     }

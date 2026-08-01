@@ -9,6 +9,7 @@ use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use App\Models\User;
 use App\Services\Operations\ShiftAssignmentService;
+use App\Services\Operations\ShiftSchedulingService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
@@ -20,23 +21,41 @@ class ShiftManagement extends Component
     use SupportsOperationsUi;
 
     public string $rangeFrom = '';
+
     public string $rangeTo = '';
+
     public string $orderFilter = 'all';
+
     public ?int $selectedShiftId = null;
+
     public bool $formOpen = false;
+
     public ?int $editingShiftId = null;
+
     public ?int $orderId = null;
+
     public string $title = '';
+
     public string $roleName = '';
+
     public string $startsAt = '';
+
     public string $endsAt = '';
+
     public string $timezone = 'Europe/Berlin';
+
     public string $locationName = '';
+
     public int $requiredStaff = 1;
+
     public string $status = '';
+
     public string $notes = '';
+
     public ?int $employeeId = null;
+
     public string $assignmentStatus = '';
+
     public string $assignmentNote = '';
 
     public function mount(): void
@@ -87,11 +106,28 @@ class ShiftManagement extends Component
         $this->resetValidation('assignment');
     }
 
-    public function saveShift(): void
+    public function saveShift(ShiftSchedulingService $schedulingService): void
     {
         $this->ensureAdmin();
+        $currentOrderId = $this->editingShiftId
+            ? Shift::query()->whereKey($this->editingShiftId)->value('order_id')
+            : null;
+
         $validated = $this->validate([
-            'orderId' => ['required', 'integer', 'exists:orders,id'],
+            'orderId' => [
+                'required',
+                'integer',
+                Rule::exists('orders', 'id')->where(function ($query) use ($currentOrderId): void {
+                    $query->whereNull('deleted_at')
+                        ->where(function ($query) use ($currentOrderId): void {
+                            $query->where('status', '!=', 'cancelled');
+
+                            if ($currentOrderId !== null) {
+                                $query->orWhere('id', $currentOrderId);
+                            }
+                        });
+                }),
+            ],
             'title' => ['required', 'string', 'max:180'],
             'roleName' => ['required', 'string', 'max:160'],
             'startsAt' => ['required', 'date'],
@@ -107,19 +143,30 @@ class ShiftManagement extends Component
             ? Shift::query()->findOrFail($this->editingShiftId)
             : new Shift(['created_by' => auth()->id()]);
 
-        $shift->fill([
+        $attributes = [
             'order_id' => $validated['orderId'],
             'title' => trim($validated['title']),
             'role_name' => trim($validated['roleName']) ?: null,
-            'starts_at' => Carbon::parse($validated['startsAt'], $validated['timezone']),
-            'ends_at' => Carbon::parse($validated['endsAt'], $validated['timezone']),
+            'starts_at' => Carbon::parse($validated['startsAt'], $validated['timezone'])->utc(),
+            'ends_at' => Carbon::parse($validated['endsAt'], $validated['timezone'])->utc(),
             'timezone' => $validated['timezone'],
             'location_name' => trim($validated['locationName']) ?: null,
             'required_staff' => $validated['requiredStaff'],
             'status' => $validated['status'],
             'notes' => trim($validated['notes']) ?: null,
-            'updated_by' => auth()->id(),
-        ])->save();
+        ];
+
+        try {
+            $shift = $schedulingService->save($shift, $attributes, auth()->user());
+        } catch (ValidationException $exception) {
+            foreach ($exception->errors() as $field => $messages) {
+                foreach ($messages as $message) {
+                    $this->addError($field, $message);
+                }
+            }
+
+            return;
+        }
 
         $this->selectedShiftId = $shift->id;
         $this->formOpen = false;
@@ -134,7 +181,7 @@ class ShiftManagement extends Component
 
         $validated = $this->validate([
             'employeeId' => ['required', 'integer', 'exists:users,id'],
-            'assignmentStatus' => ['required', Rule::enum(ShiftAssignmentStatus::class)],
+            'assignmentStatus' => ['required', Rule::in(ShiftAssignmentStatus::blockingValues())],
             'assignmentNote' => ['nullable', 'string', 'max:2000'],
         ]);
 
@@ -183,13 +230,12 @@ class ShiftManagement extends Component
     {
         $this->ensureAdmin();
 
-        $from = Carbon::parse($this->rangeFrom ?: now()->startOfWeek()->toDateString())->startOfDay();
-        $to = Carbon::parse($this->rangeTo ?: now()->endOfWeek()->toDateString())->endOfDay();
+        [$from, $to] = $this->resolvedRange();
 
         $shifts = Shift::query()
             ->with(['order.customer', 'assignments.user'])
-            ->where('ends_at', '>=', $from)
-            ->where('starts_at', '<=', $to)
+            ->where('ends_at', '>=', $from->copy()->utc())
+            ->where('starts_at', '<=', $to->copy()->utc())
             ->when($this->orderFilter !== 'all', fn (Builder $query) => $query->where('order_id', (int) $this->orderFilter))
             ->orderBy('starts_at')
             ->get();
@@ -198,23 +244,71 @@ class ShiftManagement extends Component
             ? Shift::query()->with(['order.customer', 'assignments.user'])->find($this->selectedShiftId)
             : null;
 
-        $confirmedStatus = $this->enumDefault(ShiftAssignmentStatus::class, 'confirmed');
-        $confirmedCount = $shifts->sum(fn (Shift $shift): int => $shift->assignments
-            ->filter(fn (ShiftAssignment $assignment): bool => (string) ($assignment->status instanceof \BackedEnum ? $assignment->status->value : $assignment->status) === $confirmedStatus)
+        $activeShifts = $shifts->reject(fn (Shift $shift): bool => $shift->status === ShiftStatus::Cancelled);
+        $reservedCount = $activeShifts->sum(fn (Shift $shift): int => $shift->assignments
+            ->filter(fn (ShiftAssignment $assignment): bool => in_array(
+                (string) ($assignment->status instanceof \BackedEnum ? $assignment->status->value : $assignment->status),
+                ShiftAssignmentStatus::blockingValues(),
+                true,
+            ))
             ->count());
-        $requiredCount = (int) $shifts->sum('required_staff');
+        $requiredCount = (int) $activeShifts->sum('required_staff');
 
         return view('livewire.admin.operations.shift-management', [
             'shifts' => $shifts,
             'selectedShift' => $selectedShift,
-            'orders' => Order::query()->with('customer')->orderByDesc('starts_at')->get(),
+            'orders' => Order::query()
+                ->with('customer')
+                ->where(function (Builder $query): void {
+                    $query->where('status', '!=', 'cancelled');
+
+                    if ($this->orderId !== null) {
+                        $query->orWhere('id', $this->orderId);
+                    }
+                })
+                ->orderByDesc('starts_at')
+                ->get(),
             'employees' => User::query()->with('profile')->where('status', true)->where('role', 'staff')->orderBy('name')->get(),
             'statusOptions' => $this->enumOptions(ShiftStatus::class),
-            'assignmentStatusOptions' => $this->enumOptions(ShiftAssignmentStatus::class),
+            'assignmentStatusOptions' => collect($this->enumOptions(ShiftAssignmentStatus::class))
+                ->whereIn('value', ShiftAssignmentStatus::blockingValues())
+                ->values()
+                ->all(),
+            'shiftCount' => $activeShifts->count(),
             'requiredCount' => $requiredCount,
-            'confirmedCount' => $confirmedCount,
-            'openCount' => max(0, $requiredCount - $confirmedCount),
+            'reservedCount' => $reservedCount,
+            'openCount' => max(0, $requiredCount - $reservedCount),
         ]);
+    }
+
+    /** @return array{0: Carbon, 1: Carbon} */
+    private function resolvedRange(): array
+    {
+        try {
+            $from = Carbon::createFromFormat('Y-m-d', $this->rangeFrom)->startOfDay();
+        } catch (\Throwable) {
+            $from = now()->startOfWeek()->startOfDay();
+            $this->rangeFrom = $from->toDateString();
+        }
+
+        try {
+            $to = Carbon::createFromFormat('Y-m-d', $this->rangeTo)->endOfDay();
+        } catch (\Throwable) {
+            $to = $from->copy()->addWeeks(2)->endOfDay();
+            $this->rangeTo = $to->toDateString();
+        }
+
+        if ($to->lessThan($from)) {
+            $to = $from->copy()->endOfDay();
+            $this->rangeTo = $to->toDateString();
+        }
+
+        if ($from->diffInDays($to) > 93) {
+            $to = $from->copy()->addDays(93)->endOfDay();
+            $this->rangeTo = $to->toDateString();
+        }
+
+        return [$from, $to];
     }
 
     private function resetShiftForm(): void

@@ -20,12 +20,13 @@ class OperationalPreview extends Component
     public function render(OperationalPreviewCatalog $catalog)
     {
         abort_unless(auth()->user()?->isAdmin(), 403);
-        $moduleData = $catalog->find($this->module);
+        $allModules = $catalog->all();
+        $moduleData = $allModules[$this->module] ?? null;
         abort_unless($moduleData, 404);
 
         return view('livewire.admin.operational-preview', [
             'moduleData' => $moduleData,
-            'allModules' => $catalog->all(),
+            'allModules' => $allModules,
         ])->layout('layouts.master', ['area' => 'admin']);
     }
 }

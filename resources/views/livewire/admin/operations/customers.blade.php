@@ -1,5 +1,5 @@
 <div class="space-y-4" data-operations-customers>
-    <section class="grid grid-cols-2 gap-3 lg:grid-cols-3" aria-label="Kundenübersicht">
+    <section class="grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="Kundenübersicht">
         <article class="rounded-2xl border border-rt-border/70 bg-rt-surface p-4 shadow-rt-xs dark:border-rt-dark-border/70 dark:bg-rt-dark-surface">
             <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-rt-soft dark:text-rt-dark-soft">Aktive Kunden</p>
             <p class="mt-2 text-2xl font-semibold tabular-nums text-rt-text dark:text-white">{{ $activeCount }}</p>
@@ -8,7 +8,7 @@
             <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-rt-soft dark:text-rt-dark-soft">Gesamt</p>
             <p class="mt-2 text-2xl font-semibold tabular-nums text-rt-text dark:text-white">{{ $totalCount }}</p>
         </article>
-        <article class="col-span-2 rounded-2xl border border-rose-200 bg-rose-50 p-4 shadow-rt-xs dark:border-rose-900 dark:bg-rose-500/10 lg:col-span-1">
+        <article class="rounded-2xl border border-rose-200 bg-rose-50 p-4 shadow-rt-xs dark:!border-rose-900 dark:!bg-rose-500/10">
             <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-rt-red dark:text-rose-300">Planungsbasis</p>
             <p class="mt-2 text-sm font-semibold text-rt-text dark:text-white">Kunden &amp; Aufträge verbunden</p>
         </article>

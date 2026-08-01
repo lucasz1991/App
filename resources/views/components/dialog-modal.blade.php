@@ -43,7 +43,7 @@
             <button
                 type="button"
                 x-on:click="$dispatch('close')"
-                class="rt-ui-button rt-ui-button-secondary inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-rt-border/70 bg-rt-control text-rt-muted shadow-none transition-all duration-200 ease-rt-spring hover:border-rt-accent/35 hover:text-rt-accent active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-accent/15 dark:border-rt-dark-border/70 dark:bg-rt-dark-control dark:text-rt-dark-muted dark:hover:border-rt-dark-accent/35 dark:hover:text-rt-dark-accent"
+                class="rt-ui-button rt-ui-button-secondary inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-rt-border/70 bg-rt-control text-rt-muted shadow-none transition-all duration-200 ease-rt-spring hover:border-rt-accent/35 hover:text-rt-accent active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-accent/15 dark:border-rt-dark-border/70 dark:bg-rt-dark-control dark:text-rt-dark-muted dark:hover:border-rt-dark-accent/35 dark:hover:text-rt-dark-accent"
                 aria-label="{{ __('app.close') }}"
                 title="{{ __('app.close') }}"
                 data-dialog-close

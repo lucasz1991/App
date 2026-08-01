@@ -122,8 +122,8 @@ trait BuildsMinimalRailTimeSchema
             $table->text('description')->nullable();
             $table->string('status', 32)->default('requested')->index();
             $table->string('priority', 16)->default('normal')->index();
-            $table->timestampTz('starts_at');
-            $table->timestampTz('ends_at');
+            $table->dateTime('starts_at');
+            $table->dateTime('ends_at');
             $table->string('timezone', 64)->default('Europe/Berlin');
             $table->string('location_name')->nullable();
             $table->string('street')->nullable();
@@ -160,8 +160,8 @@ trait BuildsMinimalRailTimeSchema
             $table->foreignId('order_id')->constrained()->cascadeOnDelete();
             $table->string('title');
             $table->string('role_name');
-            $table->timestampTz('starts_at');
-            $table->timestampTz('ends_at');
+            $table->dateTime('starts_at');
+            $table->dateTime('ends_at');
             $table->string('timezone', 64)->default('Europe/Berlin');
             $table->string('location_name')->nullable();
             $table->unsignedSmallInteger('required_staff')->default(1);

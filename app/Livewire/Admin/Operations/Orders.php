@@ -7,6 +7,7 @@ use App\Enums\OrderStatus;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Services\Operations\OrderLifecycleService;
+use App\Services\Operations\OrderSchedulingService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
@@ -18,26 +19,47 @@ class Orders extends Component
     use SupportsOperationsUi;
 
     public string $search = '';
+
     public string $statusFilter = 'all';
+
     public ?int $selectedOrderId = null;
+
     public bool $formOpen = false;
+
     public ?int $editingOrderId = null;
+
     public ?int $customerId = null;
+
     public string $title = '';
+
     public string $serviceType = '';
+
     public string $description = '';
+
     public string $status = '';
+
     public string $priority = '';
+
     public string $startsAt = '';
+
     public string $endsAt = '';
+
     public string $timezone = 'Europe/Berlin';
+
     public string $locationName = '';
+
     public string $address = '';
+
     public string $postalCode = '';
+
     public string $city = '';
+
     public string $country = 'DE';
+
     public int $requiredStaff = 1;
+
     public string $requirementsText = '';
+
     public string $notes = '';
 
     public function mount(): void
@@ -94,11 +116,28 @@ class Orders extends Component
         $this->resetValidation('statusChange');
     }
 
-    public function saveOrder(): void
+    public function saveOrder(OrderSchedulingService $schedulingService): void
     {
         $this->ensureAdmin();
+        $currentCustomerId = $this->editingOrderId
+            ? Order::query()->whereKey($this->editingOrderId)->value('customer_id')
+            : null;
+
         $validated = $this->validate([
-            'customerId' => ['required', 'integer', 'exists:customers,id'],
+            'customerId' => [
+                'required',
+                'integer',
+                Rule::exists('customers', 'id')->where(function ($query) use ($currentCustomerId): void {
+                    $query->whereNull('deleted_at')
+                        ->where(function ($query) use ($currentCustomerId): void {
+                            $query->where('is_active', true);
+
+                            if ($currentCustomerId !== null) {
+                                $query->orWhere('id', $currentCustomerId);
+                            }
+                        });
+                }),
+            ],
             'title' => ['required', 'string', 'max:180'],
             'serviceType' => ['nullable', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:5000'],
@@ -108,7 +147,7 @@ class Orders extends Component
             'endsAt' => ['required', 'date', 'after:startsAt'],
             'timezone' => ['required', 'timezone'],
             'locationName' => ['nullable', 'string', 'max:180'],
-            'address' => ['nullable', 'string', 'max:1000'],
+            'address' => ['nullable', 'string', 'max:255'],
             'postalCode' => ['nullable', 'string', 'max:20'],
             'city' => ['nullable', 'string', 'max:120'],
             'country' => ['nullable', 'string', 'size:2'],
@@ -127,8 +166,8 @@ class Orders extends Component
             'service_type' => trim($validated['serviceType']) ?: null,
             'description' => trim($validated['description']) ?: null,
             'priority' => $validated['priority'],
-            'starts_at' => Carbon::parse($validated['startsAt'], $validated['timezone']),
-            'ends_at' => Carbon::parse($validated['endsAt'], $validated['timezone']),
+            'starts_at' => Carbon::parse($validated['startsAt'], $validated['timezone'])->utc(),
+            'ends_at' => Carbon::parse($validated['endsAt'], $validated['timezone'])->utc(),
             'timezone' => $validated['timezone'],
             'location_name' => trim($validated['locationName']) ?: null,
             'street' => trim($validated['address']) ?: null,
@@ -150,7 +189,17 @@ class Orders extends Component
             $payload['created_by'] = auth()->id();
         }
 
-        $order->fill($payload)->save();
+        try {
+            $order = $schedulingService->save($order, $payload, auth()->user());
+        } catch (ValidationException $exception) {
+            foreach ($exception->errors() as $field => $messages) {
+                foreach ($messages as $message) {
+                    $this->addError($field, $message);
+                }
+            }
+
+            return;
+        }
 
         $this->selectedOrderId = $order->id;
         $this->formOpen = false;
@@ -176,7 +225,7 @@ class Orders extends Component
         }
     }
 
-    public function render()
+    public function render(OrderLifecycleService $lifecycle)
     {
         $this->ensureAdmin();
 
@@ -184,7 +233,7 @@ class Orders extends Component
             ->with('customer')
             ->withCount('shifts')
             ->when(trim($this->search) !== '', function (Builder $query): void {
-                $term = '%' . trim($this->search) . '%';
+                $term = '%'.trim($this->search).'%';
                 $query->where(function (Builder $query) use ($term): void {
                     $query->where('title', 'like', $term)
                         ->orWhere('order_number', 'like', $term)
@@ -201,14 +250,31 @@ class Orders extends Component
             ? Order::query()->with(['customer', 'shifts.assignments', 'statusHistory.changedBy'])->find($this->selectedOrderId)
             : null;
 
+        $transitionOptions = $selectedOrder
+            ? collect($lifecycle->allowedTransitions($selectedOrder->status))
+                ->map(fn (OrderStatus $status): array => ['value' => $status->value, 'label' => $status->label()])
+                ->values()
+                ->all()
+            : [];
+
         return view('livewire.admin.operations.orders', [
             'orders' => $orders,
             'selectedOrder' => $selectedOrder,
-            'customers' => Customer::query()->where('is_active', true)->orderBy('company_name')->get(),
+            'customers' => Customer::query()
+                ->where(function (Builder $query): void {
+                    $query->where('is_active', true);
+
+                    if ($this->customerId !== null) {
+                        $query->orWhere('id', $this->customerId);
+                    }
+                })
+                ->orderBy('company_name')
+                ->get(),
             'statusOptions' => $this->enumOptions(OrderStatus::class),
             'priorityOptions' => $this->enumOptions(OrderPriority::class),
+            'transitionOptions' => $transitionOptions,
             'openCount' => Order::query()->whereNotIn('status', ['completed', 'invoiced', 'cancelled'])->count(),
-            'startsSoonCount' => Order::query()->whereBetween('starts_at', [now(), now()->addDays(7)])->count(),
+            'startsSoonCount' => Order::query()->whereBetween('starts_at', [now()->utc(), now()->addDays(7)->utc()])->count(),
         ]);
     }
 

@@ -3,6 +3,7 @@
 namespace App\Livewire\Admin\Operations;
 
 use App\Enums\ShiftAssignmentStatus;
+use App\Enums\ShiftStatus;
 use App\Models\Shift;
 use App\Models\ShiftAssignment;
 use Carbon\CarbonImmutable;
@@ -43,11 +44,13 @@ class Calendar extends Component
         $this->ensureAdmin();
         $weekStart = $this->resolvedWeekStart();
         $weekEnd = $weekStart->endOfWeek();
+        $nextWeekStart = $weekStart->addWeek()->startOfDay();
 
         $shifts = Shift::query()
             ->with(['order.customer', 'assignments.user'])
-            ->where('ends_at', '>=', $weekStart->startOfDay())
-            ->where('starts_at', '<=', $weekEnd->endOfDay())
+            ->where('status', '!=', ShiftStatus::Cancelled->value)
+            ->where('ends_at', '>', $weekStart->startOfDay()->utc())
+            ->where('starts_at', '<', $nextWeekStart->utc())
             ->orderBy('starts_at')
             ->get();
 
@@ -62,10 +65,13 @@ class Calendar extends Component
             ];
         });
 
-        $confirmedStatus = $this->enumDefault(ShiftAssignmentStatus::class, 'confirmed');
         $requiredCount = (int) $shifts->sum('required_staff');
-        $confirmedCount = $shifts->sum(fn (Shift $shift): int => $shift->assignments
-            ->filter(fn (ShiftAssignment $assignment): bool => (string) ($assignment->status instanceof \BackedEnum ? $assignment->status->value : $assignment->status) === $confirmedStatus)
+        $reservedCount = $shifts->sum(fn (Shift $shift): int => $shift->assignments
+            ->filter(fn (ShiftAssignment $assignment): bool => in_array(
+                (string) ($assignment->status instanceof \BackedEnum ? $assignment->status->value : $assignment->status),
+                ShiftAssignmentStatus::blockingValues(),
+                true,
+            ))
             ->count());
 
         return view('livewire.admin.operations.calendar', [
@@ -74,8 +80,8 @@ class Calendar extends Component
             'weekEndDate' => $weekEnd,
             'shiftCount' => $shifts->count(),
             'requiredCount' => $requiredCount,
-            'confirmedCount' => $confirmedCount,
-            'openCount' => max(0, $requiredCount - $confirmedCount),
+            'reservedCount' => $reservedCount,
+            'openCount' => max(0, $requiredCount - $reservedCount),
         ]);
     }
 

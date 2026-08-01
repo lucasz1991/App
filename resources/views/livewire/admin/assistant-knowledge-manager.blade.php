@@ -105,7 +105,7 @@
             id="assistant-knowledge-intro"
             wire:model="knowledgeIntro"
             x-ref="intro"
-            x-on:input="dirty = true; count = $event.target.value.length"
+            x-on:input="dirty = true; count = Array.from($event.target.value).length"
             rows="3"
             maxlength="1200"
             required
@@ -153,7 +153,7 @@
                         'rounded-full px-2 py-0.5 text-[11px]',
                         'bg-white/20 text-white' => $topicFilter === 'all',
                         'bg-rt-surface text-rt-muted dark:bg-rt-dark-surface dark:text-rt-dark-muted' => $topicFilter !== 'all',
-                    ])>{{ $activeEntryCount }}</span>
+                    ]) data-knowledge-count="all">{{ $totalEntryCount }}</span>
                 </button>
 
                 @foreach ($topics as $topic)
@@ -175,7 +175,7 @@
                                     <span class="sr-only"> · {{ $isGerman ? 'Thema inaktiv' : 'Topic inactive' }}</span>
                                 @endunless
                             </span>
-                            <span class="text-[11px] text-rt-muted dark:text-rt-dark-muted">{{ $topic->is_active ? $topic->active_entries_count : 0 }}</span>
+                            <span class="text-[11px] text-rt-muted dark:text-rt-dark-muted" data-knowledge-count="topic-{{ $topic->id }}">{{ $topic->entries_count }}</span>
                         </button>
                         <button type="button" wire:click="editTopic({{ $topic->id }})" class="absolute right-11 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-xl text-rt-muted transition hover:bg-white hover:text-rt-red focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/20 dark:hover:bg-rt-dark-surface" aria-label="{{ $isGerman ? 'Thema bearbeiten' : 'Edit topic' }}">
                             <i class="far fa-pen" aria-hidden="true"></i>
@@ -374,7 +374,7 @@
                 class="space-y-5"
                 x-data="{ count: @js(mb_strlen($entryContent)) }"
                 x-effect="
-                    if ($wire.entryEditorOpen) $nextTick(() => count = $refs.content?.value.length || 0);
+                    if ($wire.entryEditorOpen) $nextTick(() => count = Array.from($refs.content?.value || '').length);
                 "
             >
                 <div class="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,.55fr)]">
@@ -436,7 +436,7 @@
                     <x-ui.forms.textarea
                         id="knowledge-entry-content"
                         x-ref="content"
-                        x-on:input="count = $event.target.value.length"
+                        x-on:input="count = Array.from($event.target.value).length"
                         wire:model="entryContent"
                         rows="11"
                         maxlength="50000"
@@ -472,11 +472,14 @@
                     <div class="rounded-xl bg-rt-surface-muted p-3 dark:bg-rt-dark-surface-muted"><x-ui.forms.toggle-button model="entryActive" :label="$isGerman ? 'Für die Wissenssuche freigeben' : 'Enable for knowledge search'" /></div>
                     <div class="rounded-xl bg-amber-50 p-3 ring-1 ring-amber-200/60 dark:bg-amber-950/20 dark:ring-amber-800/40">
                         <x-ui.forms.toggle-button
+                            id="knowledge-entry-baseline"
                             model="entryBaseline"
                             :disabled="$baselineCapacityReached"
                             :label="$isGerman ? 'Kurzinfo immer als Basiswissen senden' : 'Always send summary as baseline'"
+                            :aria-invalid="$errors->has('entryBaseline') ? 'true' : 'false'"
+                            aria-describedby="knowledge-entry-baseline-help{{ $errors->has('entryBaseline') ? ' entrybaseline-error' : '' }}"
                         />
-                        <p class="mt-1.5 text-xs leading-5 text-amber-900 dark:text-amber-200">
+                        <p id="knowledge-entry-baseline-help" class="mt-1.5 text-xs leading-5 text-amber-900 dark:text-amber-200">
                             {{ $baselineAssignedCount }}/{{ $baselineLimit }} {{ $isGerman ? 'Basisplätze belegt.' : 'baseline slots used.' }}
                             @if ($baselineCapacityReached)
                                 {{ $isGerman ? 'Entferne zuerst die Basismarkierung bei einer anderen Information.' : 'Remove the baseline marker from another information entry first.' }}

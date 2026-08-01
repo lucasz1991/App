@@ -4,6 +4,8 @@ namespace App\Models;
 
 use App\Enums\OrderPriority;
 use App\Enums\OrderStatus;
+use App\Models\Concerns\HasZonedSchedule;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -16,6 +18,7 @@ use Illuminate\Support\Str;
 class Order extends Model
 {
     use HasFactory;
+    use HasZonedSchedule;
     use SoftDeletes;
 
     protected $fillable = [
@@ -45,8 +48,6 @@ class Order extends Model
     protected $casts = [
         'status' => OrderStatus::class,
         'priority' => OrderPriority::class,
-        'starts_at' => 'datetime',
-        'ends_at' => 'datetime',
         'required_staff' => 'integer',
         'requirements' => 'array',
     ];
@@ -113,14 +114,14 @@ class Order extends Model
 
     public function scopeUpcoming(Builder $query): Builder
     {
-        return $query->where('ends_at', '>=', now());
+        return $query->where('ends_at', '>=', now()->utc());
     }
 
     public function scopeDuring(Builder $query, mixed $startsAt, mixed $endsAt): Builder
     {
         return $query
-            ->where('starts_at', '<', $endsAt)
-            ->where('ends_at', '>', $startsAt);
+            ->where('starts_at', '<', CarbonImmutable::parse($endsAt)->utc())
+            ->where('ends_at', '>', CarbonImmutable::parse($startsAt)->utc());
     }
 
     public function scopeSearch(Builder $query, string $term): Builder
