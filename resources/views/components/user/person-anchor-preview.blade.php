@@ -14,10 +14,11 @@
 @php
     $position = $user->profile?->position;
     $team = $user->currentTeam?->name;
-    $phone = $user->profile?->phone ?: $user->profile?->mobile;
 
     // Kopfzeile fasst Funktion und Team zusammen; leere Werte entfallen,
-    // statt eine Zeile mit Gedankenstrich zu hinterlassen.
+    // statt eine Zeile mit Gedankenstrich zu hinterlassen. Telefonnummern
+    // bleiben bewusst aussen vor — die Schnellansicht steht allen Kolleginnen
+    // und Kollegen offen, Kontaktdaten gehoeren ins Profil.
     $subline = implode(' · ', array_filter([$position, $team]));
 @endphp
 
@@ -69,18 +70,10 @@
             </div>
 
             {{-- Daten: nur Werte, ohne Beschriftungsspalte --}}
-            <ul class="space-y-1.5 px-4 pb-3 text-xs text-rt-muted dark:text-rt-dark-muted">
-                <li class="flex min-w-0 items-center gap-2">
-                    <i class="far fa-envelope w-3.5 shrink-0 text-center text-rt-soft dark:text-rt-dark-soft" aria-hidden="true"></i>
-                    <span class="truncate">{{ $user->email }}</span>
-                </li>
-                @if ($phone)
-                    <li class="flex min-w-0 items-center gap-2">
-                        <i class="far fa-phone-alt w-3.5 shrink-0 text-center text-rt-soft dark:text-rt-dark-soft" aria-hidden="true"></i>
-                        <span class="truncate">{{ $phone }}</span>
-                    </li>
-                @endif
-            </ul>
+            <div class="flex min-w-0 items-center gap-2 px-4 pb-3 text-xs text-rt-muted dark:text-rt-dark-muted">
+                <i class="far fa-envelope w-3.5 shrink-0 text-center text-rt-soft dark:text-rt-dark-soft" aria-hidden="true"></i>
+                <span class="truncate">{{ $user->email }}</span>
+            </div>
 
             {{-- Aktionen: kompakte Symbolleiste am Fuss der Karte --}}
             <x-user.quick-actions

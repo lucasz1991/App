@@ -2,6 +2,7 @@
 
 namespace App\Livewire\People;
 
+use App\Livewire\Concerns\InteractsWithPersonQuickActions;
 use App\Models\Chat;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
@@ -12,6 +13,8 @@ use Livewire\Component;
 
 class PersonPreviewModal extends Component
 {
+    use InteractsWithPersonQuickActions;
+
     public bool $isOpen = false;
 
     #[Locked]
@@ -38,11 +41,16 @@ class PersonPreviewModal extends Component
         }
     }
 
-    public function startChat()
+    /**
+     * Die Schnellaktionen uebergeben stets die Benutzer-ID. Sie ist hier
+     * redundant, dient aber als Abgleich gegen eine veraltete Vorschau.
+     */
+    public function startChat(?int $userId = null)
     {
         $viewer = Auth::user();
 
         abort_unless($viewer && $this->personId, 403);
+        abort_if($userId !== null && $userId !== $this->personId, 422);
 
         $person = $this->findPreviewablePerson($this->personId);
 
@@ -58,24 +66,34 @@ class PersonPreviewModal extends Component
         return $this->redirectRoute('chat', ['chat' => $chat->id], navigate: true);
     }
 
-    public function previewCommunication(string $channel): void
+    /**
+     * Anruf aus der Vorschau: schliesst das Fenster und uebergibt an die
+     * gemeinsame Aktion, damit hier dieselbe Logik wie in der Mitarbeiter-
+     * liste greift.
+     */
+    public function startPreviewCall(int $userId, string $mode)
     {
-        abort_unless(in_array($channel, ['voice', 'video'], true), 404);
         abort_unless($this->personId, 404);
+        abort_if($userId !== $this->personId, 422);
 
-        $person = $this->findPreviewablePerson($this->personId);
-        $label = $channel === 'video'
-            ? __('app.video_call')
-            : __('app.voice_call');
+        $personId = $this->personId;
+        $this->close();
 
-        $this->dispatch(
-            'swal:toast',
-            type: 'info',
-            text: __('app.communication_demo_unavailable', [
-                'action' => $label,
-                'name' => $person->name,
-            ]),
-        );
+        return $this->startDirectCall($personId, $mode);
+    }
+
+    /**
+     * Interne Nachricht aus der Vorschau verfassen.
+     */
+    public function messagePerson(?int $userId = null): void
+    {
+        abort_unless($this->personId, 404);
+        abort_if($userId !== null && $userId !== $this->personId, 422);
+
+        $personId = $this->personId;
+        $this->close();
+
+        $this->openMessage($personId);
     }
 
     public function render()

@@ -55,10 +55,24 @@
                     />
                 @endif
 
+                @php
+                    $viewer = auth()->user();
+                    $canReach = $member->isActive() && ! $member->is($viewer);
+                    $canCallMember = $canReach
+                        && ($viewer->isAdmin() || $viewer->hasRbacPermission('calls.start'))
+                        && ($member->isAdmin() || $member->hasRbacPermission('calls.join'));
+                @endphp
+
                 <x-user.person-anchor-preview
                     :user="$member"
-                    :can-chat="$member->isActive()"
+                    :profile-url="$viewer->canViewManagementDashboard()
+                        ? route($viewer->usesAdminLayout() ? 'admin.user-profile' : 'employees.show', $member->id)
+                        : null"
+                    :can-chat="$canReach"
+                    :can-call="$canCallMember"
+                    :can-message="$canReach && $viewer->can('users.messages.create')"
                     chat-action="startDirect"
+                    call-action="startDirectCall"
                     trigger-classes="flex w-full"
                     class="min-w-0 flex-1"
                 >

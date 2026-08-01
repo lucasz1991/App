@@ -543,6 +543,7 @@ return [
     'notes' => 'Notes',
     'files' => 'Files',
     'user_details' => 'User details',
+    'member_since' => 'Member since',
     'user_id' => 'User ID',
     'username' => 'Username',
     'change_profile_photo' => 'Change profile photo',

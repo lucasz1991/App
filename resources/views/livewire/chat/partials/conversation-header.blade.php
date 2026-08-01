@@ -38,7 +38,23 @@
             />
 
             <span class="min-w-0 flex-1">
-                <x-user.person-anchor-preview :user="$headerPerson">
+                @php
+                    $headerCanReach = $headerPerson->isActive() && ! $headerPerson->is($me);
+                    $headerCanCall = $headerCanReach
+                        && ($me->isAdmin() || $me->hasRbacPermission('calls.start'))
+                        && ($headerPerson->isAdmin() || $headerPerson->hasRbacPermission('calls.join'));
+                @endphp
+
+                <x-user.person-anchor-preview
+                    :user="$headerPerson"
+                    :profile-url="$me->canViewManagementDashboard()
+                        ? route($me->usesAdminLayout() ? 'admin.user-profile' : 'employees.show', $headerPerson->id)
+                        : null"
+                    :can-chat="false"
+                    :can-call="$headerCanCall"
+                    :can-message="$headerCanReach && $me->can('users.messages.create')"
+                    call-action="startDirectCall"
+                >
                     <x-slot:trigger>
                         <button
                             type="button"

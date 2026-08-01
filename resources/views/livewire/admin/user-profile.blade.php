@@ -16,8 +16,6 @@
 
   <x-ui.page :title="$user->name" :eyebrow="__('app.employees')" :description="$user->email">
     <x-slot:actions>
-        <x-back-button :href="route($employeesRoute)" />
-
         <x-ui.dropdown.page-actions width="48">
             @if ($user->status)
                 <x-dropdown-link wire:click.prevent="deactivateUser()" :can="'users.edit'" tone="warning">
@@ -55,86 +53,7 @@
           dirty-target="inlineValues"
       />
 
-      {{-- Identitaets-Card: klar, horizontal, ohne Cover/ueberlappenden Avatar.
-           Die Aurora nimmt die Fluid-Farbwelt des Lade-Orbs dezent auf. --}}
-      <div class="relative overflow-hidden rounded-2xl bg-rt-surface p-5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60" data-anim="fade-up" data-rt-glow>
-        <span class="rt-profile-aurora" aria-hidden="true"></span>
-        <div class="flex flex-col gap-5 sm:flex-row sm:items-center">
-            <span class="relative shrink-0">
-                <img
-                    src="{{ $user->profile_photo_url }}"
-                    alt="{{ $user->name }}"
-                    class="h-20 w-20 rounded-2xl object-cover shadow-rt-sm ring-1 ring-rt-border/60 dark:ring-rt-dark-border/60"
-                >
-                @if ($isUserOnline)
-                    <span
-                        class="absolute -bottom-1 -right-1 grid h-4 w-4 place-items-center rounded-full bg-rt-surface dark:bg-rt-dark-surface"
-                        title="{{ __('app.online') }}"
-                    >
-                        <span class="h-2.5 w-2.5 rounded-full bg-emerald-500 dark:bg-emerald-400"></span>
-                    </span>
-                @endif
-            </span>
-
-            <div class="min-w-0 flex-1">
-                <div class="flex flex-wrap items-center gap-2">
-                    <div class="min-w-[12rem] max-w-full flex-1 sm:max-w-xl">
-                        <x-ui.inline-edit-field
-                            id="employee-header-name"
-                            field="name"
-                            type="text"
-                            :can-edit="$canEditEmployee"
-                            autocomplete="name"
-                            align="left"
-                        >
-                            <span class="truncate text-xl font-semibold tracking-tight">{{ $user->name }}</span>
-                        </x-ui.inline-edit-field>
-                    </div>
-                    <x-ui.badge :color="$roleColor">
-                        <i class="far fa-user-tag"></i>
-                        {{ $roleLabel }}
-                    </x-ui.badge>
-                </div>
-                <div class="mt-0.5 max-w-full sm:max-w-xl">
-                    <x-ui.inline-edit-field
-                        id="employee-header-email"
-                        field="email"
-                        type="email"
-                        :can-edit="$canEditEmployee"
-                        autocomplete="email"
-                        align="left"
-                    >
-                        <span class="truncate text-sm text-rt-muted dark:text-rt-dark-muted">{{ $user->email }}</span>
-                    </x-ui.inline-edit-field>
-                </div>
-
-                <div class="mt-3 flex flex-wrap items-center gap-2">
-                    <x-ui.badge :color="$user->isActive() ? 'green' : 'red'">
-                        <span class="h-1.5 w-1.5 rounded-full {{ $user->isActive() ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-red-500 dark:bg-red-400' }}"></span>
-                        {{ $user->isActive() ? ucfirst(__('app.active')) : ucfirst(__('app.inactive')) }}
-                    </x-ui.badge>
-
-                    @if ($isUserOnline)
-                        <x-ui.badge color="green">
-                            <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400"></span>
-                            {{ __('app.online') }}
-                        </x-ui.badge>
-                    @endif
-
-                    <span class="inline-flex items-center gap-1.5 rounded-full bg-rt-surface-muted px-2.5 py-0.5 text-xs text-rt-muted ring-1 ring-inset ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted dark:ring-rt-dark-border/60">
-                        <i class="far fa-clock"></i>
-                        {{ __('app.last_online') }}:
-                        <span class="font-semibold text-rt-text dark:text-rt-dark-text">{{ $lastActivityAt ? $lastActivityAt->format('d.m.Y H:i') : __('app.never') }}</span>
-                    </span>
-
-                    <span class="inline-flex items-center gap-1.5 rounded-full bg-rt-surface-muted px-2.5 py-0.5 text-xs text-rt-muted ring-1 ring-inset ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted dark:ring-rt-dark-border/60">
-                        <i class="far fa-hashtag"></i>
-                        {{ __('app.user_id') }}: <span class="font-semibold text-rt-text dark:text-rt-dark-text">{{ $user->id }}</span>
-                    </span>
-                </div>
-            </div>
-        </div>
-      </div>
+      @include('livewire.admin.user-profile.partials.identity-card')
 
     @php
         $employeeProfileTabs = [

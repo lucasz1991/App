@@ -35,4 +35,9 @@
     @include('livewire.chat.partials.new-chat-modal')
     @include('livewire.chat.partials.chat-options-modals')
     <livewire:people.person-preview-modal :key="'chat-person-preview-modal'" />
+
+    {{-- Traegt die Schaltflaeche "Nachricht senden" aus den Personenkarten. --}}
+    @can('users.messages.create')
+        <livewire:admin.users.messages.message-form :key="'chat-message-form'" />
+    @endcan
 </div>

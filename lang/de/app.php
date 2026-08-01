@@ -543,6 +543,7 @@ return [
     'notes' => 'Bemerkungen',
     'files' => 'Dateien',
     'user_details' => 'Benutzerdetails',
+    'member_since' => 'Mitglied seit',
     'user_id' => 'Benutzer-ID',
     'username' => 'Benutzername',
     'change_profile_photo' => 'Profilfoto ändern',

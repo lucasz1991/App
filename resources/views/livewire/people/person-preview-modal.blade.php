@@ -55,58 +55,28 @@
                     </button>
                 </header>
 
+                @php
+                    $viewer = auth()->user();
+                    $canReachPerson = $person->isActive() && ! $person->is($viewer);
+                    $canCallPerson = $canReachPerson
+                        && ($viewer->isAdmin() || $viewer->hasRbacPermission('calls.start'))
+                        && ($person->isAdmin() || $person->hasRbacPermission('calls.join'));
+                @endphp
+
                 <div class="relative border-t border-rt-border/70 px-4 py-4 dark:border-rt-dark-border/70 sm:px-6 sm:py-5">
-                    <div class="grid grid-cols-4 gap-2" aria-label="{{ __('app.communication_actions') }}">
-                        <button
-                            type="button"
-                            wire:click="startChat"
-                            wire:loading.attr="disabled"
-                            wire:target="startChat"
-                            @disabled(! $canStartChat)
-                            class="group flex min-w-0 flex-col items-center gap-2 rounded-xl px-1.5 py-3 text-center text-rt-muted transition-all duration-200 hover:-translate-y-0.5 hover:bg-rt-red/10 hover:text-rt-red active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/35 disabled:cursor-not-allowed disabled:opacity-40 dark:text-rt-dark-muted dark:hover:bg-rt-dark-accent/10 dark:hover:text-rt-dark-accent"
-                            aria-label="{{ __('app.chat') }}"
-                        >
-                            <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-rt-surface-muted text-base shadow-rt-xs ring-1 ring-rt-border/70 transition-colors group-hover:bg-rt-surface dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/70 dark:group-hover:bg-rt-dark-surface">
-                                <i class="far fa-comment-dots" aria-hidden="true"></i>
-                            </span>
-                            <span class="w-full truncate text-[10px] font-bold">{{ __('app.chat') }}</span>
-                        </button>
-
-                        <button
-                            type="button"
-                            wire:click="previewCommunication('voice')"
-                            class="group flex min-w-0 flex-col items-center gap-2 rounded-xl px-1.5 py-3 text-center text-rt-muted transition-all duration-200 hover:-translate-y-0.5 hover:bg-rt-red/10 hover:text-rt-red active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:text-rt-dark-muted dark:hover:bg-rt-dark-accent/10 dark:hover:text-rt-dark-accent"
-                            aria-label="{{ __('app.voice_call') }}"
-                        >
-                            <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-rt-surface-muted text-base shadow-rt-xs ring-1 ring-rt-border/70 transition-colors group-hover:bg-rt-surface dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/70 dark:group-hover:bg-rt-dark-surface">
-                                <i class="far fa-phone-alt" aria-hidden="true"></i>
-                            </span>
-                            <span class="w-full truncate text-[10px] font-bold">{{ __('app.voice_call') }}</span>
-                        </button>
-
-                        <button
-                            type="button"
-                            wire:click="previewCommunication('video')"
-                            class="group flex min-w-0 flex-col items-center gap-2 rounded-xl px-1.5 py-3 text-center text-rt-muted transition-all duration-200 hover:-translate-y-0.5 hover:bg-rt-red/10 hover:text-rt-red active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:text-rt-dark-muted dark:hover:bg-rt-dark-accent/10 dark:hover:text-rt-dark-accent"
-                            aria-label="{{ __('app.video_call') }}"
-                        >
-                            <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-rt-surface-muted text-base shadow-rt-xs ring-1 ring-rt-border/70 transition-colors group-hover:bg-rt-surface dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/70 dark:group-hover:bg-rt-dark-surface">
-                                <i class="far fa-video" aria-hidden="true"></i>
-                            </span>
-                            <span class="w-full truncate text-[10px] font-bold">{{ __('app.video_call') }}</span>
-                        </button>
-
-                        <a
-                            href="mailto:{{ $person->email }}"
-                            class="group flex min-w-0 flex-col items-center gap-2 rounded-xl px-1.5 py-3 text-center text-rt-muted transition-all duration-200 hover:-translate-y-0.5 hover:bg-rt-red/10 hover:text-rt-red active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:text-rt-dark-muted dark:hover:bg-rt-dark-accent/10 dark:hover:text-rt-dark-accent"
-                            aria-label="{{ __('app.send_email') }}"
-                        >
-                            <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-rt-surface-muted text-base shadow-rt-xs ring-1 ring-rt-border/70 transition-colors group-hover:bg-rt-surface dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/70 dark:group-hover:bg-rt-dark-surface">
-                                <i class="far fa-envelope" aria-hidden="true"></i>
-                            </span>
-                            <span class="w-full truncate text-[10px] font-bold">{{ __('app.email') }}</span>
-                        </a>
-                    </div>
+                    <x-user.quick-actions
+                        :user="$person"
+                        :profile-url="$viewer->canViewManagementDashboard()
+                            ? route($viewer->usesAdminLayout() ? 'admin.user-profile' : 'employees.show', $person->id)
+                            : null"
+                        :can-chat="$canReachPerson"
+                        :can-call="$canCallPerson"
+                        :can-message="$canReachPerson && $viewer->can('users.messages.create')"
+                        chat-action="startChat"
+                        call-action="startPreviewCall"
+                        message-action="messagePerson"
+                        variant="grid"
+                    />
                 </div>
             </article>
         @endif

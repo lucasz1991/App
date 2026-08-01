@@ -116,13 +116,27 @@
         x-on:click="setOpen(false)"
     ></button>
 
+    <span
+        class="rt-chatbot__pet-controller"
+        x-data="railtimeAssistantPet3d()"
+        x-bind:data-pet-open="open.toString()"
+        x-bind:data-state="!assistantAvailable
+            ? 'offline'
+            : recording
+                ? 'listening'
+                : (speaking || ttsPlaying)
+                    ? 'speaking'
+                    : (isLoading || ttsPreparing || voiceUploading)
+                        ? 'thinking'
+                        : 'idle'"
+        aria-hidden="true"
+    ></span>
+
     <div
         class="rt-chatbot__pet-stage"
-        x-data="railtimeAssistantPet3d()"
         x-cloak
         x-show="!open"
         x-transition
-        x-bind:data-pet-open="open.toString()"
         x-bind:data-state="!assistantAvailable
             ? 'offline'
             : recording
@@ -165,6 +179,7 @@
             <span
                 class="rt-chatbot__pet-renderer rt-chatbot__pet-renderer--launcher"
                 data-assistant-pet-3d-slot="launcher"
+                wire:ignore
                 aria-hidden="true"
             >
                 <x-railtime-assistant-pet class="rt-chatbot__pet-figure rt-assistant-pet--fallback" />
@@ -193,6 +208,7 @@
                 <span
                     class="rt-chatbot__avatar"
                     data-assistant-pet-3d-slot="header"
+                    wire:ignore
                     aria-hidden="true"
                 >
                     <x-railtime-assistant-pet class="rt-chatbot__avatar-pet rt-assistant-pet--fallback" />
