@@ -39,6 +39,7 @@
     @keydown.escape.window="handleEscape($event)"
     @keydown.tab.window="trapEditorFocus($event)"
     x-on:railtime-wagon-assistant-command.window="handleAssistantCommand($event.detail)"
+    x-on:railtime-wagon-context-request.window="dispatchAssistantContext('requested', editorOpen, assistantContextNonce)"
 >
     @php
         $inputClass = 'rt-ui-control rt-wagon-input mt-1 block min-h-11 w-full rounded-lg border border-rt-border bg-rt-control px-3 py-2 text-base text-rt-text shadow-rt-xs outline-none transition focus:border-rt-accent focus:ring-2 focus:ring-rt-accent/20 sm:text-sm';

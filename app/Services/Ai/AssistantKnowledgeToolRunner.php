@@ -26,6 +26,10 @@ class AssistantKnowledgeToolRunner
         ?callable $onEffect = null,
     ): string {
         $tools = $this->toolDefinitions($user, $currentRoute);
+        if ($tools === []) {
+            return $client->stream($messages, $onDelta);
+        }
+
         $decision = $client->completeToolDecision($messages, $tools);
 
         if (! $decision->requestsTool()) {
@@ -42,6 +46,7 @@ class AssistantKnowledgeToolRunner
             $currentRoute,
             $wagonContext,
             $onEffect,
+            $tools,
         );
 
         // OpenRouter requires the same tool schema on the follow-up request.
@@ -69,6 +74,10 @@ class AssistantKnowledgeToolRunner
         ?callable $onEffect = null,
     ): OpenRouterChatResponse {
         $tools = $this->toolDefinitions($user, $currentRoute);
+        if ($tools === []) {
+            return $client->complete($messages, $profile, $plugins);
+        }
+
         $decision = $client->completeToolDecision($messages, $tools, $profile, $plugins);
 
         if (! $decision->requestsTool()) {
@@ -85,6 +94,7 @@ class AssistantKnowledgeToolRunner
             $currentRoute,
             $wagonContext,
             $onEffect,
+            $tools,
         );
         $response = $client->complete($messages, $profile, $plugins, $tools, 'none');
 
@@ -105,8 +115,8 @@ class AssistantKnowledgeToolRunner
         string $currentRoute,
         array $wagonContext,
         ?callable $onEffect,
-    ): array
-    {
+        array $tools,
+    ): array {
         $toolCall = $decision->toolCalls[0];
         $messages[] = $decision->assistantMessage();
         $messages[] = [
@@ -120,6 +130,7 @@ class AssistantKnowledgeToolRunner
                 $currentRoute,
                 $wagonContext,
                 $onEffect,
+                $this->toolNames($tools),
             ),
         ];
 
@@ -160,8 +171,15 @@ class AssistantKnowledgeToolRunner
         string $currentRoute,
         array $wagonContext,
         ?callable $onEffect,
-    ): string
-    {
+        array $allowedToolNames,
+    ): string {
+        if (! in_array($name, $allowedToolNames, true)) {
+            return $this->encode([
+                'error' => 'unknown_tool',
+                'message' => 'Dieses Tool ist nicht freigegeben.',
+            ]);
+        }
+
         try {
             $arguments = json_decode($rawArguments, true, 32, JSON_THROW_ON_ERROR);
         } catch (JsonException) {
@@ -171,7 +189,7 @@ class AssistantKnowledgeToolRunner
             ]);
         }
 
-        if (! is_array($arguments)) {
+        if (! is_array($arguments) || ($arguments !== [] && array_is_list($arguments))) {
             return $this->encode([
                 'error' => 'invalid_arguments',
                 'message' => 'Die Tool-Parameter müssen ein JSON-Objekt sein.',
@@ -234,6 +252,24 @@ class AssistantKnowledgeToolRunner
         }
 
         return $tools;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $tools
+     * @return array<int, string>
+     */
+    private function toolNames(array $tools): array
+    {
+        $names = [];
+
+        foreach ($tools as $tool) {
+            $name = $tool['function']['name'] ?? null;
+            if (is_string($name) && $name !== '') {
+                $names[] = $name;
+            }
+        }
+
+        return array_values(array_unique($names));
     }
 
     /** @param array<string, mixed> $payload */

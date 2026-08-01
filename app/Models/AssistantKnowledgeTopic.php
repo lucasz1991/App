@@ -19,9 +19,10 @@ class AssistantKnowledgeTopic extends Model
         'description',
         'is_active',
         'sort_order',
-        'source_key',
+    ];
+
+    protected $hidden = [
         'source_hash',
-        'imported_at',
     ];
 
     protected $casts = [

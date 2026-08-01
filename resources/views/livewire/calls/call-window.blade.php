@@ -119,9 +119,20 @@
 
             <button
                 type="button"
-                x-on:click="panelOpen = ! panelOpen"
+                x-on:click="if (panelOpen && panelTab === 'chat') { panelOpen = false } else { panelTab = 'chat'; panelOpen = true }"
                 class="inline-flex h-10 w-10 items-center justify-center rounded-xl text-sm text-white/70 transition-colors hover:bg-white/10 hover:text-white"
-                :class="panelOpen ? 'bg-white/10 text-white' : ''"
+                :class="panelOpen && panelTab === 'chat' ? 'bg-white/10 text-white' : ''"
+                title="{{ __('app.calls_chat') }}"
+                aria-label="{{ __('app.calls_chat') }}"
+            >
+                <i class="far fa-message-dots" aria-hidden="true"></i>
+            </button>
+
+            <button
+                type="button"
+                x-on:click="if (panelOpen && panelTab === 'participants') { panelOpen = false } else { panelTab = 'participants'; panelOpen = true }"
+                class="inline-flex h-10 w-10 items-center justify-center rounded-xl text-sm text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+                :class="panelOpen && panelTab === 'participants' ? 'bg-white/10 text-white' : ''"
                 title="{{ __('app.calls_participants') }}"
                 aria-label="{{ __('app.calls_participants') }}"
             >
@@ -131,7 +142,11 @@
 
         {{-- Buehne: Video-Grid + Teilnehmer-Panel --}}
         <div class="relative flex min-h-0 flex-1">
-            <div class="relative min-h-0 flex-1 p-2 sm:p-3">
+            <div
+                x-ref="selfPreviewStage"
+                class="relative min-h-0 flex-1 overflow-hidden p-2 sm:p-3"
+                data-rt-self-preview-stage
+            >
                 {{-- Autoplay-Sperre: ohne Nutzergeste bleibt der Anruf stumm. --}}
                 <button
                     x-cloak
@@ -245,37 +260,94 @@
                 ></div>
 
                 {{-- Die eigene Kamera liegt als frei verschiebbare Vorschau
-                     unten rechts über der Bühne und verschwindet ohne
-                     Videotrack. Format und Breite kommen aus dem Stil, nicht
-                     aus Klassen: am Handy hochkant, am Rechner quer — so
-                     entspricht der Ausschnitt dem, was die Kamera wirklich
-                     aufnimmt (siehe selfPreviewStyle in calls.js). --}}
+                     über der Bühne. Wird ihr Mittelpunkt herausgezogen, bleibt
+                     an der Austrittskante ein zugänglicher Restore-Button. --}}
                 <div
                     wire:ignore
                     x-ref="selfPreview"
-                    x-show.important="selfVideoVisible"
+                    id="rt-self-preview-{{ $room->uuid }}"
+                    x-show.important="selfVideoVisible && ! selfPreviewMinimized"
                     x-cloak
                     x-on:pointerdown="startSelfPreviewDrag($event)"
+                    x-bind:data-dragging="selfPreviewDragging.toString()"
                     :style="selfPreviewStyle"
-                    class="rt-call-self-preview absolute z-30 touch-none cursor-grab overflow-hidden rounded-2xl bg-black/70 shadow-2xl ring-1 ring-white/20 active:cursor-grabbing"
+                    class="rt-call-self-preview absolute left-0 top-0 z-30 touch-none cursor-grab overflow-hidden rounded-2xl bg-black/70 shadow-2xl ring-1 ring-white/20 focus-within:ring-2 focus-within:ring-white/70 active:cursor-grabbing"
+                    role="group"
                     aria-label="{{ __('app.you') }}"
-                ></div>
+                    data-rt-self-preview
+                >
+                    <button
+                        type="button"
+                        x-ref="selfPreviewMinimize"
+                        x-on:pointerdown.stop
+                        x-on:click.stop="minimizeSelfPreview()"
+                        class="absolute right-1 top-1 z-20 inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-xl bg-black/60 text-sm text-white/85 backdrop-blur transition-colors hover:bg-black/80 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                        title="{{ __('app.calls_minimize_self_video') }}"
+                        aria-label="{{ __('app.calls_minimize_self_video') }}"
+                        aria-controls="rt-self-preview-{{ $room->uuid }}"
+                        data-rt-self-preview-minimize
+                    >
+                        <i class="far fa-compress" aria-hidden="true"></i>
+                    </button>
+                </div>
+
+                <button
+                    type="button"
+                    x-ref="selfPreviewRestore"
+                    x-show.important="selfVideoVisible && selfPreviewMinimized"
+                    x-cloak
+                    x-on:click="restoreSelfPreview()"
+                    :style="selfPreviewRestoreStyle"
+                    class="absolute left-0 top-0 z-30 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-rt-red text-sm text-white shadow-2xl ring-1 ring-white/30 transition-colors hover:bg-rt-red-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    title="{{ __('app.calls_restore_self_video') }}"
+                    aria-label="{{ __('app.calls_restore_self_video') }}"
+                    aria-controls="rt-self-preview-{{ $room->uuid }}"
+                    data-rt-self-preview-restore
+                >
+                    <i class="far fa-expand" aria-hidden="true"></i>
+                </button>
             </div>
 
-            {{-- Teilnehmerliste (Livewire-Wahrheit aus der DB, inkl. Moderation) --}}
+            {{-- Gemeinsames Seitenpanel: Teilnehmer oder persistenter Call-Chat. --}}
             <aside
                 x-cloak
                 x-show="panelOpen"
                 x-transition:enter="transition duration-200 ease-out"
                 x-transition:enter-start="translate-x-4 opacity-0"
                 x-transition:enter-end="translate-x-0 opacity-100"
-                class="absolute inset-y-2 right-2 z-20 w-72 overflow-y-auto rounded-[1.1rem] bg-rt-surface p-3 shadow-rt-lg dark:bg-rt-dark-surface sm:static sm:inset-auto sm:m-3 sm:ml-0 sm:w-80"
+                class="absolute inset-y-2 right-2 z-20 flex w-[min(24rem,calc(100vw-1rem))] min-h-0 flex-col overflow-hidden rounded-[1.1rem] bg-rt-surface shadow-rt-lg dark:bg-rt-dark-surface sm:static sm:inset-auto sm:m-3 sm:ml-0 sm:w-80"
             >
-                <p class="px-1 pb-2 text-[10px] font-bold uppercase tracking-[0.1em] text-rt-muted dark:text-rt-dark-muted">
-                    {{ __('app.calls_participants') }} ({{ $room->participants->count() }})
-                </p>
+                <div class="grid shrink-0 grid-cols-2 gap-1 border-b border-rt-border/60 p-2 dark:border-rt-dark-border/60" role="tablist" aria-label="{{ __('app.calls_panel') }}">
+                    <button
+                        type="button"
+                        x-on:click="panelTab = 'participants'"
+                        class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-2 text-xs font-bold transition"
+                        :class="panelTab === 'participants' ? 'bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent' : 'text-rt-muted hover:bg-rt-surface-muted dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted'"
+                        role="tab"
+                        :aria-selected="(panelTab === 'participants').toString()"
+                    >
+                        <i class="far fa-users" aria-hidden="true"></i>
+                        {{ __('app.calls_participants') }}
+                    </button>
+                    <button
+                        type="button"
+                        x-on:click="panelTab = 'chat'"
+                        class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-2 text-xs font-bold transition"
+                        :class="panelTab === 'chat' ? 'bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent' : 'text-rt-muted hover:bg-rt-surface-muted dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted'"
+                        role="tab"
+                        :aria-selected="(panelTab === 'chat').toString()"
+                    >
+                        <i class="far fa-message-dots" aria-hidden="true"></i>
+                        {{ __('app.calls_chat') }}
+                    </button>
+                </div>
 
-                <ul class="space-y-1">
+                <div x-show="panelTab === 'participants'" class="scroll-container min-h-0 flex-1 overflow-y-auto p-3" role="tabpanel">
+                    <p class="px-1 pb-2 text-[10px] font-bold uppercase tracking-[0.1em] text-rt-muted dark:text-rt-dark-muted">
+                        {{ __('app.calls_participants') }} ({{ $room->participants->count() }})
+                    </p>
+
+                    <ul class="space-y-1">
                     @foreach ($room->participants as $participant)
                         <li
                             class="flex items-center gap-2.5 rounded-xl p-2 transition-colors hover:bg-rt-surface-muted dark:hover:bg-rt-dark-surface-muted"
@@ -339,7 +411,14 @@
                             @endif
                         </li>
                     @endforeach
-                </ul>
+                    </ul>
+                </div>
+
+                <div x-show="panelTab === 'chat'" class="min-h-0 flex-1" role="tabpanel">
+                    @if ($room->callChat)
+                        <livewire:calls.call-chat :room="$room" :key="'active-call-chat-'.$room->id" />
+                    @endif
+                </div>
             </aside>
         </div>
 

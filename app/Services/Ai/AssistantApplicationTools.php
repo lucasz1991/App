@@ -5,6 +5,7 @@ namespace App\Services\Ai;
 use App\Models\User;
 use App\Support\PageHelpCatalog;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 
 final class AssistantApplicationTools
@@ -58,10 +59,10 @@ final class AssistantApplicationTools
             ),
         ];
 
-        if ($this->isWagonRoute($currentRoute)) {
+        if ($this->canUseWagonTools($user, $currentRoute)) {
             $tools[] = $this->functionTool(
                 self::WAGON_GUIDE_TOOL,
-                'Steuert die lokale Wagenlistenführung. Verwende start zum Öffnen eines neuen Entwurfs, status zum Prüfen, next oder previous zum Wechseln, select_wagon zur Wagenwahl und save nur auf ausdrücklichen Speicherwunsch.',
+                'Steuert die lokale Wagenlistenführung. Verwende start zum Öffnen eines neuen Entwurfs und für den ersten Schritt, status zum Prüfen, next oder previous zum Wechseln, select_wagon zur Wagenwahl und save nur auf ausdrücklichen Speicherwunsch.',
                 [
                     'type' => 'object',
                     'properties' => [
@@ -82,7 +83,7 @@ final class AssistantApplicationTools
             );
             $tools[] = $this->functionTool(
                 self::WAGON_FIELD_TOOL,
-                'Übernimmt genau einen vom Benutzer eindeutig genannten oder bestätigten Wert in den aktuellen lokalen Wagenlistenentwurf. Niemals raten, ergänzen oder mehrere Werte in einen Aufruf packen.',
+                'Übernimmt genau einen vom Benutzer eindeutig genannten oder bestätigten Wert in den aktuellen lokalen Wagenlistenentwurf. Wagenfelder gelten ausschließlich für den aktuell ausgewählten Wagen. Niemals raten, ergänzen oder mehrere Werte in einen Aufruf packen.',
                 [
                     'type' => 'object',
                     'properties' => [
@@ -92,12 +93,6 @@ final class AssistantApplicationTools
                         ],
                         'value' => [
                             'description' => 'Der ausdrücklich genannte Wert. Je nach Feld Text, Zahl oder boolescher Wert.',
-                        ],
-                        'wagon_index' => [
-                            'type' => 'integer',
-                            'minimum' => 1,
-                            'maximum' => 40,
-                            'description' => 'Für Wagenfelder erforderlich; Wagennummer ab 1.',
                         ],
                     ],
                     'required' => ['field', 'value'],
@@ -110,8 +105,8 @@ final class AssistantApplicationTools
     }
 
     /**
-     * @param array<string, mixed> $arguments
-     * @param array<string, mixed> $wagonContext
+     * @param  array<string, mixed>  $arguments
+     * @param  array<string, mixed>  $wagonContext
      * @return array{payload:array<string, mixed>,effect:?array<string, mixed>}
      */
     public function execute(
@@ -121,6 +116,13 @@ final class AssistantApplicationTools
         string $currentRoute,
         array $wagonContext = [],
     ): array {
+        if (! in_array($name, $this->allowedToolNames($user, $currentRoute), true)) {
+            return [
+                'payload' => ['error' => 'unknown_tool', 'message' => 'Dieses Tool ist nicht freigegeben.'],
+                'effect' => null,
+            ];
+        }
+
         return match ($name) {
             self::PAGE_STATUS_TOOL => $this->pageStatus($arguments, $user, $currentRoute, $wagonContext),
             self::OPEN_PAGE_TOOL => $this->openPage($arguments, $user, $currentRoute),
@@ -143,8 +145,8 @@ final class AssistantApplicationTools
             'messages' => $this->page($admin ? 'admin.messages' : 'messages'),
             'chat' => $this->page('chat'),
             'files' => $this->page($admin ? 'admin.files' : 'files'),
-            'calls' => $this->page('calls.index'),
-            'meetings' => $this->page('meetings'),
+            'calls' => $this->page('calls.index', ability: 'calls.join'),
+            'meetings' => $this->page('meetings', ability: 'calls.join'),
             'email_templates' => $this->page('email-templates.index'),
             'help' => $this->page('help'),
             'support' => $this->page('support'),
@@ -157,18 +159,18 @@ final class AssistantApplicationTools
 
         if ($admin) {
             $pages += [
-                'employees' => $this->page('admin.employees'),
+                'employees' => $this->page('admin.employees', ability: 'employees.view'),
                 'customers' => $this->page('admin.operations.preview', ['module' => 'customers']),
                 'orders' => $this->page('admin.operations.preview', ['module' => 'orders']),
                 'shift_management' => $this->page('admin.operations.preview', ['module' => 'shift-management']),
                 'calendar' => $this->page('admin.operations.preview', ['module' => 'calendar']),
-                'managed_documents' => $this->page('admin.managed-documents'),
-                'mail_management' => $this->page('admin.mail-management'),
-                'settings' => $this->page('admin.settings'),
+                'managed_documents' => $this->page('admin.managed-documents', ability: 'files.manage'),
+                'mail_management' => $this->page('admin.mail-management', ability: 'manage.messages'),
+                'settings' => $this->page('admin.settings', ability: 'settings.manage'),
             ];
         }
 
-        return array_filter($pages, fn (array $page): bool => Route::has($page['route_name']));
+        return array_filter($pages, fn (array $page): bool => $this->canAccessPage($user, $page));
     }
 
     /** @return array<int, string> */
@@ -178,21 +180,163 @@ final class AssistantApplicationTools
     }
 
     /**
-     * @param array<string, mixed> $arguments
-     * @param array<string, mixed> $wagonContext
+     * Rebuild every browser effect from server-owned allowlists before it is
+     * persisted or dispatched. Provider supplied URLs and arbitrary form paths
+     * are intentionally ignored.
+     *
+     * @param  array<string, mixed>  $effect
+     * @return array<string, mixed>|null
+     */
+    public function normalizeBrowserEffect(User $user, string $currentRoute, array $effect): ?array
+    {
+        $type = $this->argumentString($effect['type'] ?? null);
+
+        if ($type === 'navigate') {
+            $result = $this->openPage(
+                ['page' => $this->argumentString($effect['page'] ?? null)],
+                $user,
+                $currentRoute,
+            );
+
+            return is_array($result['effect']) ? $result['effect'] : null;
+        }
+
+        if ($type !== 'wagon_list' || ! $this->canUseWagonTools($user, $currentRoute)) {
+            return null;
+        }
+
+        $command = $this->argumentString($effect['command'] ?? null);
+        $contextNonce = $this->contextNonce($effect);
+        if ($contextNonce === null || ! in_array($command, [
+            'start', 'next', 'previous', 'select_wagon', 'save', 'set_field',
+        ], true)) {
+            return null;
+        }
+
+        $normalized = [
+            'type' => 'wagon_list',
+            'command' => $command,
+            'context_nonce' => $contextNonce,
+        ];
+
+        if ($command === 'select_wagon') {
+            $wagonIndex = filter_var($effect['wagon_index'] ?? null, FILTER_VALIDATE_INT);
+            if (! is_int($wagonIndex) || $wagonIndex < 1 || $wagonIndex > 40) {
+                return null;
+            }
+
+            $normalized['wagon_index'] = $wagonIndex;
+        }
+
+        if ($command === 'set_field') {
+            $field = $this->argumentString($effect['field'] ?? null);
+            $definition = $this->wagonFields()[$field] ?? null;
+            if ($definition === null || ! array_key_exists('value', $effect)) {
+                return null;
+            }
+
+            $value = $this->normalizeWagonValue($effect['value'], $definition);
+            if ($value === null) {
+                return null;
+            }
+
+            $normalized['field'] = $field;
+            $normalized['value'] = $value;
+
+            if ($definition['group'] === 'wagon') {
+                $wagonIndex = filter_var($effect['wagon_index'] ?? null, FILTER_VALIDATE_INT);
+                if (! is_int($wagonIndex) || $wagonIndex < 1 || $wagonIndex > 40) {
+                    return null;
+                }
+
+                $normalized['wagon_index'] = $wagonIndex;
+            }
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * Validate a normalized browser effect against the latest value-free form
+     * context before a pending action can become executable.
+     *
+     * @param  array<string, mixed>  $effect
+     * @param  array<string, mixed>  $wagonContext
+     */
+    public function browserEffectMatchesContext(
+        User $user,
+        string $currentRoute,
+        array $effect,
+        array $wagonContext,
+    ): bool {
+        $effect = $this->normalizeBrowserEffect($user, $currentRoute, $effect);
+        if ($effect === null) {
+            return false;
+        }
+
+        if (($effect['type'] ?? null) !== 'wagon_list') {
+            return true;
+        }
+
+        $effectNonce = $this->contextNonce($effect);
+        $currentNonce = $this->contextNonce($wagonContext);
+        if ($effectNonce === null || $currentNonce === null || ! hash_equals($currentNonce, $effectNonce)) {
+            return false;
+        }
+
+        $command = $this->argumentString($effect['command'] ?? null);
+        $editorOpen = (bool) ($wagonContext['editor_open'] ?? false);
+        if ($command !== 'start' && ! $editorOpen) {
+            return false;
+        }
+
+        if ($command === 'select_wagon') {
+            $wagonIndex = filter_var($effect['wagon_index'] ?? null, FILTER_VALIDATE_INT);
+            $visibleWagons = filter_var($wagonContext['visible_wagons'] ?? null, FILTER_VALIDATE_INT);
+
+            return is_int($wagonIndex)
+                && is_int($visibleWagons)
+                && $visibleWagons >= 1
+                && $visibleWagons <= 40
+                && $wagonIndex >= 1
+                && $wagonIndex <= $visibleWagons;
+        }
+
+        if ($command === 'set_field') {
+            $field = $this->argumentString($effect['field'] ?? null);
+            $definition = $this->wagonFields()[$field] ?? null;
+            if ($definition === null) {
+                return false;
+            }
+
+            if ($definition['group'] === 'wagon') {
+                $expectedWagon = filter_var($effect['wagon_index'] ?? null, FILTER_VALIDATE_INT);
+                $currentWagon = filter_var($wagonContext['current_wagon_index'] ?? null, FILTER_VALIDATE_INT);
+
+                return is_int($expectedWagon)
+                    && is_int($currentWagon)
+                    && $expectedWagon === $currentWagon;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     * @param  array<string, mixed>  $wagonContext
      * @return array{payload:array<string, mixed>,effect:null}
      */
     private function pageStatus(array $arguments, User $user, string $currentRoute, array $wagonContext): array
     {
         $pages = $this->pagesFor($user);
-        $requested = trim((string) ($arguments['page'] ?? ''));
+        $requested = $this->argumentString($arguments['page'] ?? null);
         $key = $requested !== '' ? $requested : $this->currentPageKey($pages, $currentRoute);
 
         if ($key === null || ! isset($pages[$key])) {
             return [
                 'payload' => [
                     'state' => 'unknown',
-                    'current_route' => $currentRoute,
                     'message' => 'Die aktuelle Seite ist keinem freigegebenen Assistenten-Ziel zugeordnet.',
                 ],
                 'effect' => null,
@@ -223,7 +367,7 @@ final class AssistantApplicationTools
     private function openPage(array $arguments, User $user, string $currentRoute): array
     {
         $pages = $this->pagesFor($user);
-        $key = trim((string) ($arguments['page'] ?? ''));
+        $key = $this->argumentString($arguments['page'] ?? null);
 
         if ($key === '' || ! isset($pages[$key])) {
             return [
@@ -266,7 +410,7 @@ final class AssistantApplicationTools
     }
 
     /**
-     * @param array<string, mixed> $wagonContext
+     * @param  array<string, mixed>  $wagonContext
      * @return array{payload:array<string, mixed>,effect:?array<string, mixed>}
      */
     private function guideWagonList(array $arguments, string $currentRoute, array $wagonContext): array
@@ -278,7 +422,7 @@ final class AssistantApplicationTools
             ];
         }
 
-        $action = trim((string) ($arguments['action'] ?? ''));
+        $action = $this->argumentString($arguments['action'] ?? null);
         if (! in_array($action, ['status', 'start', 'next', 'previous', 'select_wagon', 'save'], true)) {
             return [
                 'payload' => ['error' => 'invalid_action', 'message' => 'Diese Wagenlistenaktion ist nicht freigegeben.'],
@@ -294,7 +438,10 @@ final class AssistantApplicationTools
         }
 
         $contextNonce = $this->contextNonce($wagonContext);
-        if ($contextNonce === null) {
+        if (
+            $contextNonce === null
+            || ($action !== 'start' && ! (bool) ($wagonContext['editor_open'] ?? false))
+        ) {
             return [
                 'payload' => ['error' => 'context_unavailable', 'message' => 'Der sichere Wagenlistenstatus ist noch nicht bereit.'],
                 'effect' => null,
@@ -308,7 +455,8 @@ final class AssistantApplicationTools
         ];
         if ($action === 'select_wagon') {
             $wagonIndex = filter_var($arguments['wagon_index'] ?? null, FILTER_VALIDATE_INT);
-            if (! is_int($wagonIndex) || $wagonIndex < 1 || $wagonIndex > 40) {
+            $visible = max(1, min(40, (int) ($wagonContext['visible_wagons'] ?? 1)));
+            if (! is_int($wagonIndex) || $wagonIndex < 1 || $wagonIndex > $visible) {
                 return [
                     'payload' => ['error' => 'invalid_wagon', 'message' => 'Bitte einen Wagen zwischen 1 und 40 angeben.'],
                     'effect' => null,
@@ -328,7 +476,7 @@ final class AssistantApplicationTools
     }
 
     /**
-     * @param array<string, mixed> $wagonContext
+     * @param  array<string, mixed>  $wagonContext
      * @return array{payload:array<string, mixed>,effect:?array<string, mixed>}
      */
     private function setWagonField(array $arguments, string $currentRoute, array $wagonContext): array
@@ -347,25 +495,13 @@ final class AssistantApplicationTools
             ];
         }
 
-        $field = trim((string) ($arguments['field'] ?? ''));
+        $field = $this->argumentString($arguments['field'] ?? null);
         $fieldDefinition = $this->wagonFields()[$field] ?? null;
         if (! $fieldDefinition || ! array_key_exists('value', $arguments)) {
             return [
                 'payload' => ['error' => 'invalid_field', 'message' => 'Dieses Wagenlistenfeld ist nicht freigegeben.'],
                 'effect' => null,
             ];
-        }
-
-        $wagonIndex = null;
-        if ($fieldDefinition['group'] === 'wagon') {
-            $wagonIndex = filter_var($arguments['wagon_index'] ?? null, FILTER_VALIDATE_INT);
-            $visible = max(1, min(40, (int) ($wagonContext['visible_wagons'] ?? 3)));
-            if (! is_int($wagonIndex) || $wagonIndex < 1 || $wagonIndex > $visible) {
-                return [
-                    'payload' => ['error' => 'invalid_wagon', 'message' => 'Der gewählte Wagen ist im aktuellen Entwurf nicht sichtbar.'],
-                    'effect' => null,
-                ];
-            }
         }
 
         $value = $this->normalizeWagonValue($arguments['value'], $fieldDefinition);
@@ -382,6 +518,25 @@ final class AssistantApplicationTools
                 'payload' => ['error' => 'context_unavailable', 'message' => 'Der sichere Wagenlistenstatus ist noch nicht bereit.'],
                 'effect' => null,
             ];
+        }
+
+        $wagonIndex = null;
+        if ($fieldDefinition['group'] === 'wagon') {
+            $visibleWagons = filter_var($wagonContext['visible_wagons'] ?? null, FILTER_VALIDATE_INT);
+            $wagonIndex = filter_var($wagonContext['current_wagon_index'] ?? null, FILTER_VALIDATE_INT);
+            if (
+                ! is_int($visibleWagons)
+                || ! is_int($wagonIndex)
+                || $visibleWagons < 1
+                || $visibleWagons > 40
+                || $wagonIndex < 1
+                || $wagonIndex > $visibleWagons
+            ) {
+                return [
+                    'payload' => ['error' => 'context_unavailable', 'message' => 'Der ausgewählte Wagen ist nicht mehr eindeutig.'],
+                    'effect' => null,
+                ];
+            }
         }
 
         $effect = [
@@ -410,38 +565,43 @@ final class AssistantApplicationTools
     private function wagonFields(): array
     {
         return [
-            'train_number' => ['group' => 'meta', 'type' => 'text', 'max' => 80],
-            'date' => ['group' => 'meta', 'type' => 'date'],
-            'origin' => ['group' => 'meta', 'type' => 'text', 'max' => 120],
-            'destination' => ['group' => 'meta', 'type' => 'text', 'max' => 120],
-            'reference' => ['group' => 'meta', 'type' => 'text', 'max' => 120],
-            'wagon_number' => ['group' => 'wagon', 'type' => 'wagon_number'],
-            'category' => ['group' => 'wagon', 'type' => 'text', 'max' => 80],
-            'axles_empty' => ['group' => 'wagon', 'type' => 'number'],
-            'axles_loaded' => ['group' => 'wagon', 'type' => 'number'],
-            'length' => ['group' => 'wagon', 'type' => 'number'],
-            'wagon_weight' => ['group' => 'wagon', 'type' => 'number'],
-            'load_weight' => ['group' => 'wagon', 'type' => 'number'],
-            'brake_weight_g' => ['group' => 'wagon', 'type' => 'number'],
-            'brake_weight_p' => ['group' => 'wagon', 'type' => 'number'],
-            'shipping_station' => ['group' => 'wagon', 'type' => 'text', 'max' => 120],
-            'destination_station' => ['group' => 'wagon', 'type' => 'text', 'max' => 120],
-            'brake_type' => ['group' => 'wagon', 'type' => 'enum', 'values' => ['', 'G', 'P']],
-            'disc_brake' => ['group' => 'wagon', 'type' => 'boolean'],
-            'parking_brake' => ['group' => 'wagon', 'type' => 'number'],
-            'max_speed' => ['group' => 'wagon', 'type' => 'number'],
-            'remark' => ['group' => 'wagon', 'type' => 'text', 'max' => 500],
-            'traction_weight' => ['group' => 'brake_sheet', 'type' => 'number'],
-            'traction_brake_weight' => ['group' => 'brake_sheet', 'type' => 'number'],
-            'traction_axles' => ['group' => 'brake_sheet', 'type' => 'number'],
-            'minimum_brake_percentage' => ['group' => 'brake_sheet', 'type' => 'number'],
-            'braked_axles' => ['group' => 'brake_sheet', 'type' => 'number'],
-            'lower_vehicle_speed' => ['group' => 'brake_sheet', 'type' => 'number'],
-            'nbuep_brake' => ['group' => 'brake_sheet', 'type' => 'enum', 'values' => ['', 'no', 'yes']],
-            'emergency_brake_bridge' => ['group' => 'brake_sheet', 'type' => 'enum', 'values' => ['', 'no', 'yes']],
-            'dangerous_goods' => ['group' => 'brake_sheet', 'type' => 'enum', 'values' => ['', 'no', 'yes']],
-            'ep_brake' => ['group' => 'brake_sheet', 'type' => 'enum', 'values' => ['', 'no', 'yes']],
-            'issuer_name' => ['group' => 'brake_sheet', 'type' => 'text', 'max' => 120],
+            'meta.trainNumber' => ['group' => 'meta', 'type' => 'text', 'max' => 80],
+            'meta.date' => ['group' => 'meta', 'type' => 'date'],
+            'meta.origin' => ['group' => 'meta', 'type' => 'text', 'max' => 120],
+            'meta.destination' => ['group' => 'meta', 'type' => 'text', 'max' => 120],
+            'meta.reference' => ['group' => 'meta', 'type' => 'text', 'max' => 160],
+            'wagon.number' => ['group' => 'wagon', 'type' => 'wagon_number'],
+            'wagon.category' => ['group' => 'wagon', 'type' => 'text', 'max' => 80],
+            'wagon.axlesEmpty' => ['group' => 'wagon', 'type' => 'number'],
+            'wagon.axlesLoaded' => ['group' => 'wagon', 'type' => 'number'],
+            'wagon.length' => ['group' => 'wagon', 'type' => 'number'],
+            'wagon.wagonWeight' => ['group' => 'wagon', 'type' => 'number'],
+            'wagon.loadWeight' => ['group' => 'wagon', 'type' => 'number'],
+            'wagon.brakeG' => ['group' => 'wagon', 'type' => 'number'],
+            'wagon.brakeP' => ['group' => 'wagon', 'type' => 'number'],
+            'wagon.shippingStation' => ['group' => 'wagon', 'type' => 'text', 'max' => 120],
+            'wagon.destinationStation' => ['group' => 'wagon', 'type' => 'text', 'max' => 120],
+            'wagon.brakeType' => ['group' => 'wagon', 'type' => 'enum', 'values' => ['', 'K', 'L', 'LL']],
+            'wagon.discBrake' => ['group' => 'wagon', 'type' => 'boolean'],
+            'wagon.parkingBrake' => ['group' => 'wagon', 'type' => 'number'],
+            'wagon.maxSpeed' => ['group' => 'wagon', 'type' => 'number'],
+            'wagon.remark' => ['group' => 'wagon', 'type' => 'text', 'max' => 255],
+            'brakeSheet.tractionWeight' => ['group' => 'brake_sheet', 'type' => 'number'],
+            'brakeSheet.tractionBrakeWeight' => ['group' => 'brake_sheet', 'type' => 'number'],
+            'brakeSheet.tractionAxles' => ['group' => 'brake_sheet', 'type' => 'number'],
+            'brakeSheet.minimumBrakePercentage' => ['group' => 'brake_sheet', 'type' => 'number'],
+            'brakeSheet.brakedAxles' => ['group' => 'brake_sheet', 'type' => 'number'],
+            'brakeSheet.lowerVehicleSpeed' => ['group' => 'brake_sheet', 'type' => 'number'],
+            'brakeSheet.nbuepBrake' => ['group' => 'brake_sheet', 'type' => 'yes_no'],
+            'brakeSheet.emergencyBrakeBridge' => ['group' => 'brake_sheet', 'type' => 'yes_no'],
+            'brakeSheet.passengerFeatureHzee' => ['group' => 'brake_sheet', 'type' => 'yes_no'],
+            'brakeSheet.passengerFeatureNOe' => ['group' => 'brake_sheet', 'type' => 'yes_no'],
+            'brakeSheet.passengerFeatureTb0' => ['group' => 'brake_sheet', 'type' => 'yes_no'],
+            'brakeSheet.passengerFeatureOZub' => ['group' => 'brake_sheet', 'type' => 'yes_no'],
+            'brakeSheet.passengerFeatureOther' => ['group' => 'brake_sheet', 'type' => 'yes_no'],
+            'brakeSheet.dangerousGoods' => ['group' => 'brake_sheet', 'type' => 'yes_no'],
+            'brakeSheet.epBrake' => ['group' => 'brake_sheet', 'type' => 'yes_no'],
+            'brakeSheet.issuerName' => ['group' => 'brake_sheet', 'type' => 'text', 'max' => 120],
         ];
     }
 
@@ -453,8 +613,9 @@ final class AssistantApplicationTools
             'date' => $this->dateValue($value),
             'wagon_number' => $this->wagonNumberValue($value),
             'number' => $this->numberValue($value),
-            'boolean' => is_bool($value) ? $value : null,
-            'enum' => in_array((string) $value, $definition['values'] ?? [], true) ? (string) $value : null,
+            'boolean' => $this->booleanValue($value),
+            'enum' => $this->enumValue($value, $definition['values'] ?? []),
+            'yes_no' => $this->yesNoValue($value),
             default => null,
         };
     }
@@ -465,19 +626,35 @@ final class AssistantApplicationTools
             return null;
         }
 
-        $value = trim((string) preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $value));
+        $value = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $value);
+        if (! is_string($value)) {
+            return null;
+        }
 
-        return $value !== '' && mb_strlen($value) <= $maximum ? $value : null;
+        $value = trim($value);
+
+        return mb_strlen($value) <= $maximum ? $value : null;
     }
 
     private function dateValue(mixed $value): ?string
     {
-        if (! is_string($value) || ! preg_match('/\A\d{4}-\d{2}-\d{2}\z/', $value)) {
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+
+        if (! preg_match('/\A\d{4}-\d{2}-\d{2}\z/', $value)) {
             return null;
         }
 
         try {
-            return CarbonImmutable::createFromFormat('!Y-m-d', $value)?->format('Y-m-d');
+            $date = CarbonImmutable::createFromFormat('!Y-m-d', $value);
+
+            return $date?->format('Y-m-d') === $value ? $value : null;
         } catch (\Throwable) {
             return null;
         }
@@ -489,19 +666,32 @@ final class AssistantApplicationTools
             return null;
         }
 
-        $digits = preg_replace('/\D+/', '', (string) $value);
+        $source = trim((string) $value);
+        if ($source === '') {
+            return '';
+        }
+
+        if (! preg_match('/\A[0-9\s-]{1,32}\z/', $source)) {
+            return null;
+        }
+
+        $digits = preg_replace('/\D+/', '', $source);
 
         return strlen((string) $digits) === 12 ? $digits : null;
     }
 
-    private function numberValue(mixed $value): ?float
+    private function numberValue(mixed $value): string|float|null
     {
         if (! is_int($value) && ! is_float($value) && ! is_string($value)) {
             return null;
         }
 
         $normalized = str_replace(',', '.', trim((string) $value));
-        if ($normalized === '' || ! is_numeric($normalized)) {
+        if ($normalized === '') {
+            return '';
+        }
+
+        if (! preg_match('/\A(?:\d{1,6}(?:\.\d{1,3})?|\.\d{1,3})\z/', $normalized)) {
             return null;
         }
 
@@ -510,24 +700,101 @@ final class AssistantApplicationTools
         return is_finite($number) && $number >= 0 && $number <= 999999 ? $number : null;
     }
 
+    private function booleanValue(mixed $value): ?bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        $normalized = is_string($value) ? mb_strtolower(trim($value)) : $value;
+
+        return match ($normalized) {
+            1, '1', 'true', 'yes', 'ja' => true,
+            0, '0', 'false', 'no', 'nein' => false,
+            default => null,
+        };
+    }
+
+    /** @param array<int, string> $values */
+    private function enumValue(mixed $value, array $values): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $normalized = mb_strtoupper(trim($value));
+
+        return in_array($normalized, $values, true) ? $normalized : null;
+    }
+
+    private function yesNoValue(mixed $value): ?string
+    {
+        if (is_string($value) && trim($value) === '') {
+            return '';
+        }
+
+        $boolean = $this->booleanValue($value);
+
+        return $boolean === null ? null : ($boolean ? 'yes' : 'no');
+    }
+
     /** @param array<string, mixed> $wagonContext */
     private function safeWagonContext(array $wagonContext): array
     {
+        $editorOpen = (bool) ($wagonContext['editor_open'] ?? false);
+        $visibleWagons = $editorOpen
+            ? max(1, min(40, (int) ($wagonContext['visible_wagons'] ?? 1)))
+            : 0;
+        $currentWagon = $editorOpen
+            ? max(1, min($visibleWagons, (int) ($wagonContext['current_wagon_index'] ?? 1)))
+            : 0;
+        $steps = ['train', 'identity', 'vehicle', 'brakes', 'route', 'calculation', 'special', 'review'];
+        $currentStep = $this->argumentString($wagonContext['current_step'] ?? null);
+        if (! in_array($currentStep, $steps, true)) {
+            $currentStep = $editorOpen ? 'train' : '';
+        }
+
+        $fields = $this->wagonFields();
+        $metaFields = array_keys(array_filter($fields, fn (array $field): bool => $field['group'] === 'meta'));
+        $wagonFields = array_keys(array_filter($fields, fn (array $field): bool => $field['group'] === 'wagon'));
+        $brakeSheetFields = array_keys(array_filter($fields, fn (array $field): bool => $field['group'] === 'brake_sheet'));
+        $presence = is_array($wagonContext['presence'] ?? null) ? $wagonContext['presence'] : [];
+
         return [
-            'context_nonce' => $this->contextNonce($wagonContext) ?? '',
-            'editor_open' => (bool) ($wagonContext['editor_open'] ?? false),
-            'active_step' => mb_substr(trim((string) ($wagonContext['active_step'] ?? 'overview')), 0, 40),
-            'selected_wagon' => max(1, min(40, (int) ($wagonContext['selected_wagon'] ?? 1))),
-            'visible_wagons' => max(1, min(40, (int) ($wagonContext['visible_wagons'] ?? 3))),
-            'completed_wagons' => max(0, min(40, (int) ($wagonContext['completed_wagons'] ?? 0))),
-            'train_number_present' => (bool) ($wagonContext['train_number_present'] ?? false),
-            'origin_present' => (bool) ($wagonContext['origin_present'] ?? false),
-            'destination_present' => (bool) ($wagonContext['destination_present'] ?? false),
-            'current_wagon_fields' => array_values(array_slice(array_filter(
-                (array) ($wagonContext['current_wagon_fields'] ?? []),
-                fn (mixed $field): bool => is_string($field) && isset($this->wagonFields()[$field]),
-            ), 0, 24)),
+            'editor_open' => $editorOpen,
+            'current_step' => $currentStep,
+            'current_step_index' => $editorOpen
+                ? max(0, min(7, (int) ($wagonContext['current_step_index'] ?? array_search($currentStep, $steps, true))))
+                : null,
+            'current_wagon_index' => $currentWagon,
+            'visible_wagons' => $visibleWagons,
+            'filled_wagons' => max(0, min($visibleWagons, (int) ($wagonContext['filled_wagons'] ?? 0))),
+            'present_meta_fields' => $this->presentFields($presence['meta'] ?? [], $metaFields),
+            'present_current_wagon_fields' => $this->presentFields(
+                $wagonContext['current_wagon_fields'] ?? [],
+                $wagonFields,
+            ),
+            'present_brake_sheet_fields' => $this->presentFields(
+                $presence['brake_sheet'] ?? [],
+                $brakeSheetFields,
+            ),
         ];
+    }
+
+    /**
+     * @param  array<int, string>  $allowedFields
+     * @return array<int, string>
+     */
+    private function presentFields(mixed $presence, array $allowedFields): array
+    {
+        if (! is_array($presence)) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $allowedFields,
+            static fn (string $field): bool => ($presence[$field] ?? false) === true,
+        ));
     }
 
     /** @param array<string, mixed> $parameters */
@@ -546,15 +813,55 @@ final class AssistantApplicationTools
     /** @param array<string, mixed> $wagonContext */
     private function contextNonce(array $wagonContext): ?string
     {
-        $nonce = trim((string) ($wagonContext['context_nonce'] ?? ''));
+        $nonce = $this->argumentString($wagonContext['context_nonce'] ?? null);
 
         return preg_match('/\A[a-zA-Z0-9_-]{16,96}\z/', $nonce) ? $nonce : null;
     }
 
     /** @param array<string, string> $parameters */
-    private function page(string $routeName, array $parameters = []): array
+    private function page(string $routeName, array $parameters = [], ?string $ability = null): array
     {
-        return ['route_name' => $routeName, 'parameters' => $parameters];
+        return [
+            'route_name' => $routeName,
+            'parameters' => $parameters,
+            'ability' => $ability,
+        ];
+    }
+
+    /** @param array<string, mixed> $page */
+    private function canAccessPage(User $user, array $page): bool
+    {
+        if (! Route::has((string) ($page['route_name'] ?? ''))) {
+            return false;
+        }
+
+        $ability = $page['ability'] ?? null;
+
+        return ! is_string($ability)
+            || $ability === ''
+            || Gate::forUser($user)->allows($ability);
+    }
+
+    /** @return array<int, string> */
+    private function allowedToolNames(User $user, string $currentRoute): array
+    {
+        $names = [self::PAGE_STATUS_TOOL, self::OPEN_PAGE_TOOL];
+
+        if ($this->canUseWagonTools($user, $currentRoute)) {
+            $names[] = self::WAGON_GUIDE_TOOL;
+            $names[] = self::WAGON_FIELD_TOOL;
+        }
+
+        return $names;
+    }
+
+    private function canUseWagonTools(User $user, string $currentRoute): bool
+    {
+        $wagonPage = $this->pagesFor($user)['wagon_list'] ?? null;
+
+        return is_array($wagonPage)
+            && $this->isWagonRoute($currentRoute)
+            && $this->routeMatchesPage($currentRoute, $wagonPage);
     }
 
     /** @param array<string, array<string, mixed>> $pages */
@@ -572,11 +879,17 @@ final class AssistantApplicationTools
     /** @param array<string, mixed> $page */
     private function routeMatchesPage(string $currentRoute, array $page): bool
     {
-        return $currentRoute === $page['route_name'];
+        return ($page['parameters'] ?? []) === []
+            && $currentRoute === $page['route_name'];
     }
 
     private function isWagonRoute(string $route): bool
     {
         return in_array($route, self::WAGON_ROUTES, true);
+    }
+
+    private function argumentString(mixed $value): string
+    {
+        return is_string($value) ? trim($value) : '';
     }
 }

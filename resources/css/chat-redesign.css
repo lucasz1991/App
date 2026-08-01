@@ -450,8 +450,27 @@ body[data-mode='dark'] .rt-chat-transcript {
     column-gap: 0.5rem;
 }
 
-.rt-chat-message-line > .rt-chat-message {
+.rt-chat-message-line > .rt-chat-message-stack,
+.rt-chat-message-stack > .rt-chat-message {
     max-width: 100%;
+}
+
+.rt-chat-message-stack {
+    width: fit-content;
+}
+
+.rt-chat-load-older {
+    border: 1px solid color-mix(in srgb, var(--chat-line) 78%, transparent);
+    color: var(--chat-muted);
+    background: color-mix(in srgb, var(--chat-panel) 90%, transparent);
+    box-shadow: 0 8px 24px -20px var(--chat-shadow-strong);
+    backdrop-filter: blur(12px);
+}
+
+.rt-chat-load-older:hover,
+.rt-chat-load-older:focus-visible {
+    border-color: color-mix(in srgb, var(--chat-accent) 34%, var(--chat-line));
+    color: var(--chat-accent);
 }
 
 .rt-chat-message-avatar {
@@ -522,6 +541,27 @@ body[data-mode='dark'] .rt-chat-message--other {
 
 .rt-chat-message--attachment {
     padding: 0.5rem 0.55rem 0.4rem;
+}
+
+.rt-chat-message--deleted {
+    border-style: dashed;
+    color: var(--chat-muted);
+    background: color-mix(in srgb, var(--chat-panel-muted) 86%, transparent);
+}
+
+.rt-chat-deleted-copy {
+    min-height: 1.5rem;
+    font-size: 0.75rem;
+}
+
+.rt-chat-reply-quote {
+    border-left: 0.2rem solid var(--chat-accent);
+    color: var(--chat-muted);
+    background: color-mix(in srgb, var(--chat-ink) 6%, transparent);
+}
+
+.rt-chat-reply-quote > span:first-child {
+    color: var(--chat-accent);
 }
 
 .rt-chat-message-copy {
@@ -598,7 +638,7 @@ body[data-mode='dark'] .rt-chat-message--own .rt-chat-message-meta {
     user-select: none;
 }
 
-/* Caret-Menue eigener Nachrichten: unsichtbar, bis die Nachricht per Hover,
+/* Caret-Menue der Nachrichten: unsichtbar, bis die Nachricht per Hover,
    Tastaturfokus oder Antippen angesprochen wird. */
 .rt-chat-message-actions {
     position: absolute;
@@ -613,9 +653,8 @@ body[data-mode='dark'] .rt-chat-message--own .rt-chat-message-meta {
     pointer-events: none;
 }
 
-.rt-chat-message--own:hover .rt-chat-message-actions,
-.rt-chat-message--own:focus-within .rt-chat-message-actions,
-.rt-chat-message--own[data-actions-visible='true'] .rt-chat-message-actions {
+.rt-chat-message--actionable:hover .rt-chat-message-actions,
+.rt-chat-message--actionable:focus-within .rt-chat-message-actions {
     opacity: 1;
     transform: translateY(0);
     pointer-events: auto;
@@ -628,26 +667,22 @@ body[data-mode='dark'] .rt-chat-message--own .rt-chat-message-meta {
      * entscheidet deshalb allein das Antippen der Nachricht
      * (data-actions-visible, gesetzt in der Transkript-Ansicht).
      */
-    .rt-chat-message--own:hover .rt-chat-message-actions {
+    .rt-chat-message--actionable:hover .rt-chat-message-actions {
         opacity: 0;
         transform: translateY(-0.1rem);
         pointer-events: none;
     }
 
-    .rt-chat-message--own[data-actions-visible='true'] .rt-chat-message-actions {
-        opacity: 1;
+    /* Auf Touch ist der alternative Dropdown-Weg dauerhaft auffindbar. */
+    .rt-chat-message-caret {
+        width: 2.75rem !important;
+        height: 2.75rem !important;
+    }
+
+    .rt-chat-message--actionable .rt-chat-message-actions {
+        opacity: 0.86;
         transform: translateY(0);
         pointer-events: auto;
-    }
-}
-
-/* Auf Touch braucht der Pfeil eine echte Trefferflaeche. !important, weil das
-   Legacy-Bundle build/css/tailwind.min.css .h-6/.w-6 selbst mit !important
-   ausliefert und sonst gewinnt. */
-@media (pointer: coarse) {
-    .rt-chat-message-caret {
-        width: 1.75rem !important;
-        height: 1.75rem !important;
     }
 }
 
@@ -660,6 +695,74 @@ body[data-mode='dark'] .rt-chat-message--own .rt-chat-message-meta {
 .rt-chat-message-caret:hover,
 .rt-chat-message-caret:focus-visible {
     color: var(--chat-accent);
+}
+
+.rt-chat-message-menu {
+    border: 1px solid theme('colors.rt.border');
+    color: theme('colors.rt.text');
+    background: color-mix(in srgb, theme('colors.rt.surface') 96%, transparent);
+    box-shadow: 0 24px 64px -24px rgb(15 23 42 / 0.42);
+    backdrop-filter: blur(20px) saturate(1.15);
+}
+
+html.dark .rt-chat-message-menu,
+body[data-mode='dark'] .rt-chat-message-menu {
+    border-color: theme('colors.rt-dark.border');
+    color: theme('colors.rt-dark.text');
+    background: color-mix(in srgb, theme('colors.rt-dark.surface') 96%, transparent);
+}
+
+.rt-chat-reaction-option,
+.rt-chat-message-menu-action {
+    transition: background-color 150ms ease, color 150ms ease, transform 150ms ease;
+}
+
+.rt-chat-reaction-option:hover,
+.rt-chat-reaction-option:focus-visible,
+.rt-chat-message-menu-action:hover,
+.rt-chat-message-menu-action:focus-visible {
+    color: theme('colors.rt.accent');
+    background: theme('colors.rt.surface-muted');
+    outline: none;
+}
+
+html.dark .rt-chat-reaction-option:hover,
+html.dark .rt-chat-reaction-option:focus-visible,
+html.dark .rt-chat-message-menu-action:hover,
+html.dark .rt-chat-message-menu-action:focus-visible,
+body[data-mode='dark'] .rt-chat-reaction-option:hover,
+body[data-mode='dark'] .rt-chat-reaction-option:focus-visible,
+body[data-mode='dark'] .rt-chat-message-menu-action:hover,
+body[data-mode='dark'] .rt-chat-message-menu-action:focus-visible {
+    color: theme('colors.rt-dark.accent');
+    background: theme('colors.rt-dark.surface-muted');
+}
+
+.rt-chat-message-menu-action--danger,
+.rt-chat-message-menu-action--danger:hover,
+.rt-chat-message-menu-action--danger:focus-visible {
+    color: theme('colors.rt.accent');
+}
+
+.rt-chat-reactions {
+    position: relative;
+    z-index: 2;
+}
+
+.rt-chat-reaction-chip {
+    border: 1px solid color-mix(in srgb, var(--chat-line) 82%, transparent);
+    color: var(--chat-ink);
+    background: var(--chat-panel);
+    box-shadow: 0 5px 14px -12px var(--chat-shadow-strong);
+}
+
+.rt-chat-reaction-chip.is-mine {
+    border-color: color-mix(in srgb, var(--chat-accent) 44%, var(--chat-line));
+    background: color-mix(in srgb, var(--chat-accent-soft) 66%, var(--chat-panel));
+}
+
+.rt-chat-message-row.is-reply-target .rt-chat-message {
+    animation: rt-chat-reply-target 1.7s ease-out;
 }
 
 .rt-chat-message--voice .rt-chat-message-meta,
@@ -989,6 +1092,11 @@ body[data-mode='dark'] .rt-chat-message--own .rt-chat-message-meta {
     background: color-mix(in srgb, var(--chat-panel) 92%, transparent);
     box-shadow: 0 -14px 32px -28px var(--chat-shadow-strong);
     backdrop-filter: blur(18px) saturate(1.12);
+}
+
+.rt-chat-composer-reply {
+    border: 1px solid color-mix(in srgb, var(--chat-line) 78%, transparent);
+    background: var(--chat-panel-muted);
 }
 
 .rt-chat-composer-control,
@@ -1455,5 +1563,18 @@ body[data-mode='dark'] .rt-chat-member-page-button {
     }
     100% {
         opacity: 1;
+    }
+}
+
+@keyframes rt-chat-reply-target {
+    0%,
+    100% {
+        box-shadow: 0 12px 28px -22px var(--chat-shadow-strong);
+    }
+    22%,
+    58% {
+        box-shadow:
+            0 0 0 4px color-mix(in srgb, var(--chat-accent) 24%, transparent),
+            0 16px 34px -20px var(--chat-shadow-strong);
     }
 }

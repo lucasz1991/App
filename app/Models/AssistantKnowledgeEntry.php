@@ -3,7 +3,9 @@
 namespace App\Models;
 
 use App\Services\Ai\AssistantKnowledgePool;
+use App\Support\Ai\AssistantKnowledgeDefaults;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -23,10 +25,10 @@ class AssistantKnowledgeEntry extends Model
         'is_active',
         'include_in_baseline',
         'sort_order',
-        'source_key',
-        'source_url',
+    ];
+
+    protected $hidden = [
         'source_hash',
-        'imported_at',
     ];
 
     protected $casts = [
@@ -58,5 +60,15 @@ class AssistantKnowledgeEntry extends Model
         static::saved($flush);
         static::deleted($flush);
         static::restored($flush);
+    }
+
+    /** @return Attribute<string|null, never> */
+    protected function sourceUrl(): Attribute
+    {
+        return Attribute::get(
+            static fn (mixed $value): ?string => AssistantKnowledgeDefaults::isAllowedSourceUrl($value)
+                ? $value
+                : null,
+        );
     }
 }

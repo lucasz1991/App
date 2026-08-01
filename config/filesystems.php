@@ -64,6 +64,22 @@ return [
             'throw' => false,
         ],
 
+        // Separater, strikt privater Bucket fuer zeitlich begrenzte Call-Aufnahmen.
+        // Zugangsdaten koennen von den allgemeinen AWS-Werten abweichen, weil
+        // derselbe Satz ebenfalls an den LiveKit-Egress-Dienst uebergeben wird.
+        'call_recordings' => [
+            'driver' => 's3',
+            'key' => env('CALL_RECORDING_S3_KEY', env('AWS_ACCESS_KEY_ID')),
+            'secret' => env('CALL_RECORDING_S3_SECRET', env('AWS_SECRET_ACCESS_KEY')),
+            'token' => env('CALL_RECORDING_S3_SESSION_TOKEN', env('AWS_SESSION_TOKEN')),
+            'region' => env('CALL_RECORDING_S3_REGION', env('AWS_DEFAULT_REGION', 'eu-central-1')),
+            'bucket' => env('CALL_RECORDING_S3_BUCKET', env('AWS_BUCKET')),
+            'endpoint' => env('CALL_RECORDING_S3_ENDPOINT', env('AWS_ENDPOINT')),
+            'use_path_style_endpoint' => env('CALL_RECORDING_S3_PATH_STYLE', env('AWS_USE_PATH_STYLE_ENDPOINT', false)),
+            'visibility' => 'private',
+            'throw' => true,
+        ],
+
     ],
 
     /*

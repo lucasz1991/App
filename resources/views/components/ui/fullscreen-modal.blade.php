@@ -61,7 +61,7 @@
             x-trap.inert.noscroll="{{ $state }}"
         @endif
         role="dialog"
-        aria-modal="true"
+        aria-modal="{{ $trap ? 'true' : 'false' }}"
         aria-labelledby="{{ $labelledById }}"
         x-transition:enter="transition duration-300 ease-out"
         x-transition:enter-start="opacity-0 scale-[0.995]"

@@ -145,6 +145,7 @@
     x-on:railtime-assistant-reply.window="handleAssistantReply($event.detail)"
     x-on:railtime-assistant-cleared.window="stopSpeaking(); resetAttachmentUi(); knownAssistantMessageKeys = []; $nextTick(() => { updateComposerState(); scrollMessages(true) })"
     x-on:railtime-assistant-client-action.window="handleClientAction($event.detail)"
+    x-on:railtime-wagon-context-updated.window="if (!$event.detail?.editor_open) wagonHelpVisible = false; $wire.updateWagonAssistantContext($event.detail)"
     x-on:railtime-wagon-assistant-result.window="$wire.recordAssistantActionResult($event.detail)"
     x-on:railtime-wagon-assistant-help.window="handleWagonHelp($event.detail)"
 >
@@ -628,22 +629,39 @@
                         <span class="rt-chatbot__empty-pet" aria-hidden="true">
                             <x-railtime-assistant-pet />
                         </span>
-                        <span class="rt-chatbot__empty-kicker">
-                            {{ $speechIsAvailable
-                                ? ($isGerman ? 'Text, Sprache und Audio' : 'Text, voice, and audio')
-                                : ($isGerman ? 'Dein RailTime-Assistent' : 'Your RailTime assistant') }}
-                        </span>
                         <strong>{{ $isGerman ? 'Womit fahren wir los?' : 'Where should we start?' }}</strong>
-                        <p>{{ $isGerman
-                            ? 'Ich helfe dir, dich in RailTime zurechtzufinden und die nächste sinnvolle Aktion zu finden.'
-                            : 'I can help you navigate RailTime and find the next useful action.' }}</p>
-                        <span class="rt-chatbot__empty-note">
-                            {{ $speechIsAvailable
-                                ? ($isGerman ? 'Schreiben oder Mikrofon antippen' : 'Type or tap the microphone')
-                                : ($isGerman ? 'Schreib einfach deine Frage' : 'Just type your question') }}
-                        </span>
                     </div>
                 @endforelse
+
+                <div
+                    class="rt-chatbot__message-row rt-chatbot__message-row--assistant"
+                    x-cloak
+                    x-show="wagonHelpVisible"
+                    role="status"
+                    aria-live="polite"
+                >
+                    <span class="rt-chatbot__message-pet" aria-hidden="true">
+                        <x-railtime-assistant-pet />
+                    </span>
+                    <div class="rt-chatbot__message-stack">
+                        <article class="rt-chatbot__message">
+                            <p class="rt-chatbot__message-content" x-text="wagonHelpText"></p>
+                        </article>
+                        <div class="rt-chatbot__message-actions" role="group" aria-label="{{ $isGerman ? 'Wagenlisten-Hilfe' : 'Wagon-list help' }}">
+                            <button
+                                type="button"
+                                class="rt-chatbot__message-action"
+                                x-on:click="runWagonHelpAction()"
+                                x-bind:disabled="isLoading || !assistantAvailable"
+                            >
+                                <span x-text="strings.wagonVoiceStart"></span>
+                                <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                                    <path d="m7 5 5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
 
                 <div
                     class="rt-chatbot__message-row"

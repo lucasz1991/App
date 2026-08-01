@@ -3,6 +3,32 @@
     data-no-chat-swipe
     wire:key="chat-composer-{{ $selectedChat->id }}"
 >
+    @if ($replyingToMessage)
+        <div class="rt-chat-composer-reply mb-2 flex items-stretch gap-1 rounded-xl p-1" aria-live="polite">
+            <button
+                type="button"
+                x-on:click="$dispatch('chat:scroll-to-message', { messageId: {{ $replyingToMessage->id }} })"
+                class="min-w-0 flex-1 rounded-lg px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent/50"
+            >
+                <span class="block truncate text-[10px] font-extrabold text-rt-accent dark:text-rt-dark-accent">
+                    {{ __('app.chat_replying_to', ['name' => $replyingToMessage->sender?->name ?? __('app.unknown')]) }}
+                </span>
+                <span class="block truncate text-xs text-rt-muted dark:text-rt-dark-muted">
+                    {{ $replyingToMessage->replyPreviewText() }}
+                </span>
+            </button>
+            <button
+                type="button"
+                wire:click="cancelReply"
+                class="rt-chat-upload-remove inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg"
+                title="{{ __('app.chat_cancel_reply') }}"
+                aria-label="{{ __('app.chat_cancel_reply') }}"
+            >
+                <i class="far fa-times" aria-hidden="true"></i>
+            </button>
+        </div>
+    @endif
+
     @if ($uploads !== [])
         <div class="mb-2 flex flex-wrap gap-2 px-1" aria-live="polite">
             @foreach ($uploads as $index => $upload)
@@ -27,6 +53,7 @@
     <form
         wire:submit.prevent="send"
         x-data="{ draft: @entangle('messageText') }"
+        x-on:chat:reply-started.window="$nextTick(() => $refs.messageInput?.focus())"
         class="flex items-center"
     >
         <input
@@ -53,6 +80,7 @@
             </label>
 
             <input
+                x-ref="messageInput"
                 type="text"
                 x-model="draft"
                 @input.debounce.250ms="sendTyping()"

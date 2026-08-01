@@ -26,8 +26,8 @@ use App\Livewire\Admin\OperationalPreview;
 use App\Livewire\Admin\Settings;
 use App\Livewire\Admin\UserProfile;
 use App\Livewire\Calls\CallHistory;
+use App\Livewire\Calls\CallDetails;
 use App\Livewire\Calls\CallWindow;
-use App\Livewire\Calls\Meetings;
 use App\Livewire\ChatBox;
 use App\Livewire\HelpCenter;
 use App\Livewire\ItSupport;
@@ -129,7 +129,8 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
     // Uebersichten: Anrufverlauf und offene Besprechungsraeume. Muessen VOR
     // der {room:uuid}-Route stehen, damit /calls nicht als UUID gelesen wird.
     Route::get('/calls', CallHistory::class)->name('calls.index');
-    Route::get('/meetings', Meetings::class)->name('meetings');
+    Route::get('/meetings', fn () => redirect()->route('calls.index'))->name('meetings');
+    Route::get('/calls/{room:uuid}/history', CallDetails::class)->name('calls.history');
     Route::get('/calls/{room:uuid}', CallWindow::class)->name('calls.window');
     Route::post('/calls/{room:uuid}/token', [CallTokenController::class, 'store'])
         ->middleware('throttle:20,1')

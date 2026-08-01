@@ -43,6 +43,11 @@ class Chat extends Model
         return $this->type === 'group';
     }
 
+    public function isCall(): bool
+    {
+        return $this->type === 'call';
+    }
+
     public function participantFor(User|int $user): ?User
     {
         $userId = $user instanceof User ? $user->id : $user;
@@ -99,7 +104,7 @@ class Chat extends Model
     /** Anzeigename aus Sicht eines Betrachters (Direktchat = Gegenueber). */
     public function displayNameFor(User $viewer): string
     {
-        if ($this->isGroup()) {
+        if ($this->isGroup() || $this->isCall()) {
             return (string) ($this->name ?: 'Gruppe');
         }
 
@@ -111,7 +116,7 @@ class Chat extends Model
     /** Avatar-URL aus Sicht des Betrachters (Direktchat = Gegenueber, Gruppe = Gruppenbild). */
     public function avatarUrlFor(User $viewer): ?string
     {
-        if ($this->isGroup()) {
+        if ($this->isGroup() || $this->isCall()) {
             return $this->photo_path
                 ? Storage::disk('public')->url($this->photo_path)
                 : null;

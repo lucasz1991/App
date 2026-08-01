@@ -227,7 +227,7 @@ final class PageHelpCatalog
                 ],
                 'Kommunikation',
                 'video',
-                ['calls.index', 'calls.window', 'meetings'],
+                ['calls.index', 'calls.window', 'calls.history'],
             ),
             $this->entry(
                 'Wagenliste',

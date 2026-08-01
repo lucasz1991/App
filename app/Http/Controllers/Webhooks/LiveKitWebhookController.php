@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Webhooks;
 use Agence104\LiveKit\WebhookReceiver;
 use App\Http\Controllers\Controller;
 use App\Models\Room;
+use App\Services\Calls\CallRecordingService;
 use App\Services\Calls\RoomLifecycleService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -17,8 +18,11 @@ use Illuminate\Support\Facades\Log;
  */
 class LiveKitWebhookController extends Controller
 {
-    public function __invoke(Request $request, RoomLifecycleService $lifecycle): Response
-    {
+    public function __invoke(
+        Request $request,
+        RoomLifecycleService $lifecycle,
+        CallRecordingService $recordings,
+    ): Response {
         try {
             $receiver = new WebhookReceiver(
                 config('livekit.api_key'),
@@ -37,6 +41,19 @@ class LiveKitWebhookController extends Controller
             return response('invalid signature', 403);
         }
 
+        // Egress-Ereignisse besitzen haeufig kein room-Objekt. Sie muessen vor
+        // der bisherigen Room-Extraktion verarbeitet werden, sonst gingen
+        // ACTIVE, Abschluss und Aufnahmefehler still verloren.
+        if (in_array($event->getEvent(), CallRecordingService::EGRESS_WEBHOOK_EVENTS, true)) {
+            $roomToEnd = $recordings->handleWebhook($event);
+
+            if ($roomToEnd?->isActive()) {
+                $lifecycle->endCall($roomToEnd, 'recording_failed');
+            }
+
+            return response('ok');
+        }
+
         $roomName = $event->getRoom()?->getName();
 
         if (! $roomName) {
@@ -51,13 +68,21 @@ class LiveKitWebhookController extends Controller
 
         $identity = $event->getParticipant()?->getIdentity() ?? '';
 
-        match ($event->getEvent()) {
-            'room_started' => $lifecycle->markActive($room),
-            'room_finished' => $lifecycle->markEnded($room, 'finished'),
-            'participant_joined' => $lifecycle->markParticipantJoined($room, $identity),
-            'participant_left' => $lifecycle->markParticipantLeft($room, $identity),
-            default => null,
-        };
+        switch ($event->getEvent()) {
+            case 'room_started':
+                $lifecycle->markActive($room);
+                break;
+            case 'room_finished':
+                $lifecycle->markEnded($room, 'finished');
+                break;
+            case 'participant_joined':
+                $lifecycle->markParticipantJoined($room, $identity);
+                $recordings->unlockParticipantIfReady($room, $identity);
+                break;
+            case 'participant_left':
+                $lifecycle->markParticipantLeft($room, $identity);
+                break;
+        }
 
         return response('ok');
     }

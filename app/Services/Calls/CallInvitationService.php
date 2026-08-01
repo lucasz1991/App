@@ -19,8 +19,11 @@ use Illuminate\Support\Collection;
  */
 class CallInvitationService
 {
-    public function __construct(protected PushDelivery $push)
-    {
+    public function __construct(
+        protected PushDelivery $push,
+        protected CallConversationService $conversations,
+        protected RoomEventRecorder $events,
+    ) {
     }
 
     /**
@@ -45,6 +48,10 @@ class CallInvitationService
             'invitee_id' => $invitee->id,
             'status' => 'pending',
             'expires_at' => $expiresAt,
+        ]);
+
+        $this->events->record($room, 'invited', $inviter, [
+            'invitee_id' => (int) $invitee->id,
         ]);
 
         $participant = $room->participants()->firstOrCreate(
@@ -129,6 +136,12 @@ class CallInvitationService
 
         $invitation->forceFill(['status' => 'accepted', 'responded_at' => now()])->save();
 
+        $invitation->loadMissing(['room.callChat', 'invitee']);
+        if ($invitation->invitee) {
+            $this->conversations->attachParticipant($invitation->room, $invitation->invitee);
+            $this->events->record($invitation->room, 'accepted', $invitation->invitee);
+        }
+
         broadcast(new CallInvitationAnswered($invitation))->toOthers();
 
         return true;
@@ -148,6 +161,8 @@ class CallInvitationService
 
         $invitation->forceFill(['status' => 'declined', 'responded_at' => now()])->save();
 
+        $this->events->record($invitation->room, 'declined', $invitation->invitee_id);
+
         broadcast(new CallInvitationAnswered($invitation))->toOthers();
 
         return true;
@@ -161,6 +176,8 @@ class CallInvitationService
         }
 
         $invitation->forceFill(['status' => $status, 'responded_at' => now()])->save();
+
+        $this->events->record($invitation->room, $status, $invitation->invitee_id);
 
         broadcast(new CallInvitationExpired($invitation))->toOthers();
     }

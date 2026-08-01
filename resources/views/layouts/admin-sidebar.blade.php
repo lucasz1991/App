@@ -29,7 +29,7 @@
         <x-menu.sidebar-nav :label="__('app.communication')">
             <x-menu.sidebar-nav-group
                 icon="message-square"
-                :active="request()->routeIs('chat', 'admin.messages', 'calls.index', 'meetings')"
+                :active="request()->routeIs('chat', 'admin.messages', 'calls.*')"
             >
                 <x-slot:label>{{ __('app.chat_and_messages') }}</x-slot:label>
 
@@ -54,20 +54,12 @@
                 <x-menu.sidebar-nav-link
                     :href="route('calls.index')"
                     icon="phone"
-                    :active="request()->routeIs('calls.index')"
+                    :active="request()->routeIs('calls.*')"
                     class="!pl-8"
                 >
                     {{ __('app.calls_history') }}
                 </x-menu.sidebar-nav-link>
 
-                <x-menu.sidebar-nav-link
-                    :href="route('meetings')"
-                    icon="video"
-                    :active="request()->routeIs('meetings')"
-                    class="!pl-8"
-                >
-                    {{ __('app.meetings') }}
-                </x-menu.sidebar-nav-link>
             </x-menu.sidebar-nav-group>
         </x-menu.sidebar-nav>
 

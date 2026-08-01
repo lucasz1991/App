@@ -38,6 +38,11 @@ class ChatExportController extends Controller
             ->with([
                 'sender:id,name',
                 'files:id,fileable_id,fileable_type,name,mime_type,size',
+                'reactions:id,chat_message_id,user_id,emoji',
+                'replyTo' => fn ($query) => $query
+                    ->withTrashed()
+                    ->when($visibleSince, fn ($query) => $query->where('created_at', '>=', $visibleSince))
+                    ->with(['sender:id,name', 'files']),
             ]);
 
         $filename = sprintf(
@@ -63,6 +68,8 @@ class ChatExportController extends Controller
                     __('app.chat_export_type'),
                     __('app.chat_export_message'),
                     __('app.chat_export_attachments'),
+                    __('app.chat_export_reply'),
+                    __('app.chat_export_reactions'),
                 ]);
 
                 $messages->lazyById(250)->each(function (ChatMessage $message) use ($output): void {
@@ -75,6 +82,10 @@ class ChatExportController extends Controller
                     $attachments = $message->files
                         ->map(fn (File $file): string => $this->attachmentMetadata($file))
                         ->implode(' | ');
+                    $reactions = $message->reactions
+                        ->groupBy('emoji')
+                        ->map(fn ($items, string $emoji): string => sprintf('%s ×%d', $emoji, $items->count()))
+                        ->implode(' | ');
 
                     $this->writeCsvRow($output, [
                         $message->created_at?->format('d.m.Y') ?? '',
@@ -83,6 +94,8 @@ class ChatExportController extends Controller
                         $message->message_type ?: 'text',
                         $body,
                         $attachments,
+                        $this->replyMetadata($message),
+                        $reactions,
                     ]);
                 });
 
@@ -134,5 +147,25 @@ class ChatExportController extends Controller
 
         // Keine Speicherpfade, Tokens oder URLs in den Export aufnehmen.
         return sprintf('%s [%s, %s Bytes]', $file->name, $mime, $size);
+    }
+
+    private function replyMetadata(ChatMessage $message): string
+    {
+        if (! $message->reply_to_message_id) {
+            return '';
+        }
+
+        $reply = $message->replyTo;
+
+        if (! $reply) {
+            return __('app.chat_original_message_unavailable');
+        }
+
+        return sprintf(
+            '#%d %s: %s',
+            $reply->id,
+            $reply->sender?->name ?? __('app.unknown'),
+            $reply->replyPreviewText(),
+        );
     }
 }

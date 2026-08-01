@@ -4,13 +4,14 @@ namespace App\Console\Commands;
 
 use App\Services\Ai\AssistantKnowledgeDefaultsImporter;
 use Illuminate\Console\Command;
+use InvalidArgumentException;
+use RuntimeException;
 use Throwable;
 
 class ImportAssistantKnowledgeDefaults extends Command
 {
     protected $signature = 'railtime:assistant-knowledge-import
-        {--dry-run : Nur geplante Änderungen ermitteln}
-        {--force : Auch bewusst bearbeitete oder gelöschte Standarddatensätze überschreiben}';
+        {--dry-run : Nur geplante Änderungen ermitteln}';
 
     protected $description = 'Importiert das kuratierte RailTime-Standardwissen idempotent in den Assistenz-Wissenspool.';
 
@@ -18,11 +19,16 @@ class ImportAssistantKnowledgeDefaults extends Command
     {
         try {
             $result = $importer->import(
-                force: (bool) $this->option('force'),
                 dryRun: (bool) $this->option('dry-run'),
             );
-        } catch (Throwable $exception) {
+        } catch (InvalidArgumentException|RuntimeException $exception) {
             $this->components->error($exception->getMessage());
+
+            return self::FAILURE;
+        } catch (Throwable) {
+            // Unexpected infrastructure exceptions can contain SQL bindings.
+            // Keep command output free of imported content and source details.
+            $this->components->error('Der Standardwissensimport konnte nicht ausgeführt werden.');
 
             return self::FAILURE;
         }
@@ -39,6 +45,13 @@ class ImportAssistantKnowledgeDefaults extends Command
 
         if ((int) $result['conflicts'] > 0) {
             $this->components->warn($result['conflicts'].' Namenskonflikte wurden ohne Überschreiben übersprungen.');
+        }
+
+        if ((int) $result['customized_skipped'] > 0 || (int) $result['deleted_skipped'] > 0) {
+            $this->components->warn(
+                $result['customized_skipped'].' angepasste und '
+                .$result['deleted_skipped'].' gelöschte Standarddatensätze wurden unverändert bewahrt.',
+            );
         }
 
         return self::SUCCESS;

@@ -36,7 +36,12 @@ class LiveKitService
     }
 
     /** Signiertes Beitritts-Token mit exakt den Rechten der Teilnehmerrolle. */
-    public function issueToken(Room $room, User $user, RoomParticipant $participant): string
+    public function issueToken(
+        Room $room,
+        User $user,
+        RoomParticipant $participant,
+        bool $mediaPublishingAllowed = true,
+    ): string
     {
         $options = (new AccessTokenOptions())
             ->setIdentity(self::identityFor($user))
@@ -49,7 +54,7 @@ class LiveKitService
             ->setRoomName($room->livekitRoomName())
             ->setCanSubscribe()
             ->setCanPublishData()
-            ->setCanPublish($participant->canPublish());
+            ->setCanPublish($mediaPublishingAllowed && $participant->canPublish());
 
         // Bewusst KEIN roomAdmin im Browser-Token: LiveKit akzeptiert ein
         // Teilnehmer-Token mit roomAdmin als Autorisierung fuer die komplette

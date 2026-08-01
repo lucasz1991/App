@@ -15,6 +15,7 @@
         "laravel/reverb": "^1.10",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^2.8",
+        "league/flysystem-aws-s3-v3": "^3.0",
         "livewire/livewire": "^3.0",
         "phpoffice/phppresentation": "^1.2",
         "phpoffice/phpspreadsheet": "^4.5",

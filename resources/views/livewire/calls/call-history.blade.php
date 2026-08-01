@@ -4,12 +4,16 @@
         :eyebrow="__('app.communication')"
         :description="__('app.calls_history_intro')"
     >
+        @include('livewire.calls.partials.meeting-hub')
+
         <x-slot:actions>
             <div class="flex flex-wrap items-center gap-2">
                 @foreach ([
                     'all' => __('app.calls_filter_all'),
                     'active' => __('app.calls_filter_active'),
                     'missed' => __('app.calls_filter_missed'),
+                    'meetings' => __('app.calls_filter_meetings'),
+                    'recordings' => __('app.calls_filter_recordings'),
                 ] as $key => $label)
                     <button
                         type="button"
@@ -47,7 +51,7 @@
                                 ->map(fn ($p) => $p->user?->name ?? $p->guest_name)
                                 ->filter()
                                 ->values();
-                            $missed = ! $room->started_at && in_array($room->status, ['ended', 'cancelled'], true);
+                            $missed = ! ($room->connected_at ?? $room->started_at) && in_array($room->status, ['ended', 'cancelled'], true);
                         @endphp
 
                         <li class="flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-rt-surface-muted dark:hover:bg-rt-dark-surface-muted sm:px-6" wire:key="room-{{ $room->id }}">
@@ -98,14 +102,15 @@
                                     </span>
                                     <span class="hidden sm:inline">{{ __('app.calls_join_ongoing') }}</span>
                                 </a>
-                            @elseif ($room->chat_id)
+                            @elseif ($room->call_chat_id)
                                 <a
-                                    href="{{ route('chat', ['chat' => $room->chat_id]) }}"
+                                    href="{{ route('calls.history', $room) }}"
+                                    wire:navigate
                                     class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-rt-muted transition-colors hover:bg-rt-accent-soft hover:text-rt-accent dark:text-rt-dark-muted dark:hover:text-rt-dark-accent"
-                                    title="{{ __('app.chat') }}"
-                                    aria-label="{{ __('app.chat') }}"
+                                    title="{{ __('app.calls_open_history') }}"
+                                    aria-label="{{ __('app.calls_open_history') }}"
                                 >
-                                    <i class="far fa-message-circle" aria-hidden="true"></i>
+                                    <i class="far fa-clock-rotate-left" aria-hidden="true"></i>
                                 </a>
                             @endif
                         </li>

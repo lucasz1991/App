@@ -49,6 +49,7 @@ import { welcomeIntro } from './welcome-intro';
 import { railtimeChatbot } from './chatbot';
 import { railtimeAssistantPet3d } from './assistant-pet-3d';
 import { createNavigationParticleSphere } from './navigation-particle-loader';
+import { chatMessageActions } from './chat-message-actions';
 
 const loadAdminDashboardECharts = () => import('./admin-dashboard-echarts');
 const loadAdminDashboardMotion = () => import('./admin-dashboard-motion');
@@ -580,6 +581,7 @@ Alpine.data('railtimeTabs', railtimeTabs);
 Alpine.data('welcomeIntro', welcomeIntro);
 Alpine.data('railtimeChatbot', railtimeChatbot);
 Alpine.data('railtimeAssistantPet3d', railtimeAssistantPet3d);
+Alpine.data('chatMessageActions', chatMessageActions);
 
 initMobileFormFocusRecovery();
 initKeyboardViewport();
@@ -627,6 +629,11 @@ Alpine.data('chatRealtime', (config) => ({
                     Livewire.dispatch('chat:refresh', { chatId: Number(event.chatId) });
                 }
                 Livewire.dispatch('inbox:refresh');
+            })
+            .listen('.chat.message.reaction', (event) => {
+                if (rtNotificationContext.isLocalChatVisible(Number(event.chatId))) {
+                    Livewire.dispatch('chat:refresh', { chatId: Number(event.chatId) });
+                }
             })
             .listen('.chat.read', (event) => {
                 if (rtNotificationContext.isLocalChatVisible(Number(event.chatId))) {
@@ -1155,6 +1162,8 @@ Alpine.data('chatTranscriptScroll', () => ({
     stickToBottom: true,
     animatedRows: new WeakSet(),
     knownMessageKeys: new Set(),
+    prependSnapshot: null,
+    highlightTimer: null,
 
     init() {
         this.$el.querySelectorAll('[data-chat-message-row]').forEach((row) => {
@@ -1250,11 +1259,52 @@ Alpine.data('chatTranscriptScroll', () => ({
         });
     },
 
+    rememberPrependPosition() {
+        this.prependSnapshot = {
+            height: this.$el.scrollHeight,
+            top: this.$el.scrollTop,
+        };
+    },
+
+    restorePrependPosition() {
+        if (!this.prependSnapshot || !this.$el?.isConnected) {
+            return;
+        }
+
+        const addedHeight = this.$el.scrollHeight - this.prependSnapshot.height;
+        this.$el.scrollTop = this.prependSnapshot.top + Math.max(0, addedHeight);
+        this.prependSnapshot = null;
+    },
+
+    scrollToMessage(messageId) {
+        const numericId = Number(messageId || 0);
+        if (!numericId) {
+            return;
+        }
+
+        const row = this.$el.querySelector(`[data-chat-message-id="${numericId}"]`);
+        if (!row) {
+            return;
+        }
+
+        row.scrollIntoView({
+            block: 'center',
+            behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+        });
+        row.classList.remove('is-reply-target');
+        void row.offsetWidth;
+        row.classList.add('is-reply-target');
+        window.clearTimeout(this.highlightTimer);
+        this.highlightTimer = window.setTimeout(() => row.classList.remove('is-reply-target'), 1800);
+    },
+
     destroy() {
         this.messageObserver?.disconnect();
         this.messageObserver = null;
         this.$el?.removeEventListener('scroll', this.scrollHandler);
         this.scrollHandler = null;
+        window.clearTimeout(this.highlightTimer);
+        this.highlightTimer = null;
         window.gsap?.killTweensOf(this.$el.querySelectorAll('[data-chat-message-row]'));
     },
 }));

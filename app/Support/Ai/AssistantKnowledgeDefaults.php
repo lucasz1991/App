@@ -6,6 +6,41 @@ final class AssistantKnowledgeDefaults
 {
     public const REVISION = '2026-08-01.1';
 
+    /** @var array<int, string> */
+    public const SOURCE_HOSTS = ['rail-time.de', 'www.rail-time.de'];
+
+    public static function isAllowedSourceUrl(mixed $value): bool
+    {
+        if (! is_string($value) || $value === '' || $value !== trim($value) || strlen($value) > 2048) {
+            return false;
+        }
+
+        if (
+            preg_match('/[\x00-\x20\x7F]/', $value) === 1
+            || preg_match('/%(?:0a|0d)/i', $value) === 1
+            || filter_var($value, FILTER_VALIDATE_URL) === false
+        ) {
+            return false;
+        }
+
+        $parts = parse_url($value);
+        if (! is_array($parts)) {
+            return false;
+        }
+
+        $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+        $host = strtolower((string) ($parts['host'] ?? ''));
+        $port = isset($parts['port']) ? (int) $parts['port'] : null;
+
+        return $scheme === 'https'
+            && in_array($host, self::SOURCE_HOSTS, true)
+            && ($port === null || $port === 443)
+            && ! isset($parts['user'])
+            && ! isset($parts['pass'])
+            && ! isset($parts['query'])
+            && ! isset($parts['fragment']);
+    }
+
     /**
      * Curated from the versioned RailTime portal and WebsiteFinal sources.
      * Public facts deliberately exclude unfinished legal placeholders.

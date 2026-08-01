@@ -25,7 +25,6 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Locked;
-use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
@@ -285,32 +284,25 @@ class Chatbot extends Component
     {
         $user = $this->authorizeUser();
         $token = trim($token);
-        $effect = app(AssistantPendingActionStore::class)->consume($user, $this->pageRouteName, $token);
+        $effect = app(AssistantPendingActionStore::class)->consume(
+            $user,
+            $this->pageRouteName,
+            $token,
+            $this->wagonAssistantContext,
+        );
 
         if (! is_array($effect)) {
             abort(422);
         }
 
-        if (($effect['type'] ?? null) === 'navigate') {
-            $page = trim((string) ($effect['page'] ?? ''));
-            $revalidated = app(AssistantApplicationTools::class)->execute(
-                AssistantApplicationTools::OPEN_PAGE_TOOL,
-                ['page' => $page],
-                $user,
-                $this->pageRouteName,
-            );
+        $effect = app(AssistantApplicationTools::class)->normalizeBrowserEffect(
+            $user,
+            $this->pageRouteName,
+            $effect,
+        );
+        abort_unless(is_array($effect), 422);
 
-            if (! is_array($revalidated['effect'])) {
-                abort(422);
-            }
-
-            $effect = $revalidated['effect'];
-        } elseif (($effect['type'] ?? null) === 'wagon_list') {
-            abort_unless(in_array($this->pageRouteName, [
-                'operations.wagon-list',
-                'admin.operations.wagon-list',
-            ], true), 422);
-
+        if (($effect['type'] ?? null) === 'wagon_list') {
             $effectNonce = trim((string) ($effect['context_nonce'] ?? ''));
             $currentNonce = trim((string) ($this->wagonAssistantContext['context_nonce'] ?? ''));
             abort_unless(
@@ -319,8 +311,6 @@ class Chatbot extends Component
                 && hash_equals($currentNonce, $effectNonce),
                 422,
             );
-        } else {
-            abort(422);
         }
 
         $effect['action_token'] = $token;
@@ -334,7 +324,12 @@ class Chatbot extends Component
         $user = $this->authorizeUser();
         $token = trim((string) ($result['action_token'] ?? ''));
         $status = trim((string) ($result['status'] ?? ''));
-        $receipt = app(AssistantPendingActionStore::class)->acceptReceipt($user, $token, $status);
+        $receipt = app(AssistantPendingActionStore::class)->acceptReceipt(
+            $user,
+            $token,
+            $status,
+            $this->pageRouteName,
+        );
 
         if (! is_array($receipt)) {
             abort(422);
@@ -352,7 +347,6 @@ class Chatbot extends Component
     }
 
     /** @param array<string, mixed> $context */
-    #[On('railtime-wagon-context-updated')]
     public function updateWagonAssistantContext(array $context): void
     {
         $this->authorizeUser();
@@ -363,28 +357,81 @@ class Chatbot extends Component
             return;
         }
 
-        $allowedFields = [
-            'wagon_number', 'category', 'axles_empty', 'axles_loaded', 'length',
-            'wagon_weight', 'load_weight', 'brake_weight_g', 'brake_weight_p',
-            'shipping_station', 'destination_station', 'brake_type', 'disc_brake',
-            'parking_brake', 'max_speed', 'remark',
+        if ((int) ($context['version'] ?? 0) !== 1) {
+            $this->wagonAssistantContext = [];
+
+            return;
+        }
+
+        $metaFields = [
+            'meta.trainNumber', 'meta.date', 'meta.origin', 'meta.destination', 'meta.reference',
         ];
+        $wagonFields = [
+            'wagon.number', 'wagon.category', 'wagon.axlesEmpty', 'wagon.axlesLoaded',
+            'wagon.length', 'wagon.wagonWeight', 'wagon.loadWeight', 'wagon.brakeG',
+            'wagon.brakeP', 'wagon.shippingStation', 'wagon.destinationStation',
+            'wagon.brakeType', 'wagon.discBrake', 'wagon.parkingBrake',
+            'wagon.maxSpeed', 'wagon.remark',
+        ];
+        $brakeSheetFields = [
+            'brakeSheet.tractionWeight', 'brakeSheet.tractionBrakeWeight',
+            'brakeSheet.tractionAxles', 'brakeSheet.minimumBrakePercentage',
+            'brakeSheet.brakedAxles', 'brakeSheet.lowerVehicleSpeed',
+            'brakeSheet.nbuepBrake', 'brakeSheet.emergencyBrakeBridge',
+            'brakeSheet.passengerFeatureHzee', 'brakeSheet.passengerFeatureNOe',
+            'brakeSheet.passengerFeatureTb0', 'brakeSheet.passengerFeatureOZub',
+            'brakeSheet.passengerFeatureOther', 'brakeSheet.dangerousGoods',
+            'brakeSheet.epBrake', 'brakeSheet.issuerName',
+        ];
+        $presence = is_array($context['presence'] ?? null) ? $context['presence'] : [];
+        $sanitizePresence = static function (mixed $values, array $allowed): array {
+            if (! is_array($values)) {
+                return [];
+            }
+
+            $safe = [];
+            foreach ($allowed as $field) {
+                if (array_key_exists($field, $values)) {
+                    $safe[$field] = (bool) $values[$field];
+                }
+            }
+
+            return $safe;
+        };
         $nonce = trim((string) ($context['context_nonce'] ?? ''));
+        $nonce = preg_match('/\A[a-zA-Z0-9_-]{16,96}\z/', $nonce) ? $nonce : '';
+        $steps = ['train', 'identity', 'vehicle', 'brakes', 'route', 'calculation', 'special', 'review'];
+        $step = trim((string) ($context['current_step'] ?? ''));
+        $step = in_array($step, $steps, true) ? $step : null;
+        $editorOpen = (bool) ($context['editor_open'] ?? false) && $nonce !== '';
+        $visibleWagons = $editorOpen ? max(1, min(40, (int) ($context['visible_wagons'] ?? 3))) : 0;
 
         $this->wagonAssistantContext = [
-            'context_nonce' => preg_match('/\A[a-zA-Z0-9_-]{16,96}\z/', $nonce) ? $nonce : '',
-            'editor_open' => (bool) ($context['editor_open'] ?? false),
-            'active_step' => mb_substr(trim((string) ($context['active_step'] ?? 'overview')), 0, 40),
-            'selected_wagon' => max(1, min(40, (int) ($context['selected_wagon'] ?? 1))),
-            'visible_wagons' => max(1, min(40, (int) ($context['visible_wagons'] ?? 3))),
-            'completed_wagons' => max(0, min(40, (int) ($context['completed_wagons'] ?? 0))),
-            'train_number_present' => (bool) ($context['train_number_present'] ?? false),
-            'origin_present' => (bool) ($context['origin_present'] ?? false),
-            'destination_present' => (bool) ($context['destination_present'] ?? false),
-            'current_wagon_fields' => array_values(array_slice(array_intersect(
-                array_filter((array) ($context['current_wagon_fields'] ?? []), 'is_string'),
-                $allowedFields,
-            ), 0, count($allowedFields))),
+            'version' => 1,
+            'context_nonce' => $nonce,
+            'editor_open' => $editorOpen,
+            'current_step' => $editorOpen ? $step : null,
+            'current_step_index' => $editorOpen
+                ? max(0, min(count($steps) - 1, (int) ($context['current_step_index'] ?? 0)))
+                : null,
+            'current_wagon_index' => $editorOpen
+                ? max(1, min($visibleWagons, (int) ($context['current_wagon_index'] ?? 1)))
+                : null,
+            'visible_wagons' => $visibleWagons,
+            'filled_wagons' => $editorOpen
+                ? max(0, min($visibleWagons, (int) ($context['filled_wagons'] ?? 0)))
+                : 0,
+            'presence' => [
+                'meta' => $editorOpen
+                    ? $sanitizePresence($presence['meta'] ?? [], $metaFields)
+                    : [],
+                'brake_sheet' => $editorOpen
+                    ? $sanitizePresence($presence['brake_sheet'] ?? [], $brakeSheetFields)
+                    : [],
+            ],
+            'current_wagon_fields' => $editorOpen
+                ? $sanitizePresence($context['current_wagon_fields'] ?? [], $wagonFields)
+                : [],
         ];
     }
 

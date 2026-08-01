@@ -10,14 +10,14 @@ return new class extends Migration
     {
         Schema::table('assistant_knowledge_topics', function (Blueprint $table): void {
             $table->string('source_key', 160)->nullable()->unique('assistant_knowledge_topics_source_key_unique');
-            $table->string('source_hash', 64)->nullable();
+            $table->char('source_hash', 64)->nullable();
             $table->timestamp('imported_at')->nullable();
         });
 
         Schema::table('assistant_knowledge_entries', function (Blueprint $table): void {
             $table->string('source_key', 160)->nullable()->unique('assistant_knowledge_entries_source_key_unique');
             $table->text('source_url')->nullable();
-            $table->string('source_hash', 64)->nullable();
+            $table->char('source_hash', 64)->nullable();
             $table->timestamp('imported_at')->nullable();
         });
     }

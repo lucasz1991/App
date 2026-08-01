@@ -6,11 +6,15 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 
 class ChatMessage extends Model
 {
-    protected $fillable = ['chat_id', 'user_id', 'body', 'message_type', 'view_once', 'voice_duration_seconds', 'voice_waveform'];
+    use SoftDeletes;
+
+    protected $fillable = ['chat_id', 'user_id', 'reply_to_message_id', 'body', 'message_type', 'view_once', 'voice_duration_seconds', 'voice_waveform'];
 
     /**
      * Chat-Inhalte werden mit dem App-Key verschlüsselt gespeichert.
@@ -30,6 +34,21 @@ class ChatMessage extends Model
     public function sender(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function replyTo(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'reply_to_message_id')->withTrashed();
+    }
+
+    public function replies(): HasMany
+    {
+        return $this->hasMany(self::class, 'reply_to_message_id');
+    }
+
+    public function reactions(): HasMany
+    {
+        return $this->hasMany(ChatMessageReaction::class);
     }
 
     public function files(): MorphMany
@@ -92,5 +111,32 @@ class ChatMessage extends Model
     public function hasActiveVoicePlaybackFor(User $user): bool
     {
         return Cache::has(static::voicePlaybackCacheKey($this->id, $user->id));
+    }
+
+    public function replyPreviewText(): string
+    {
+        if ($this->trashed()) {
+            return __('app.chat_original_message_unavailable');
+        }
+
+        if ($this->view_once) {
+            return __('app.chat_view_once_voice_message');
+        }
+
+        if ($this->isVoice()) {
+            return __('app.voice_message');
+        }
+
+        $body = trim(rescue(fn (): string => (string) $this->body, '', report: false));
+
+        if ($body !== '') {
+            return Str::limit($body, 110);
+        }
+
+        $file = $this->relationLoaded('files') ? $this->files->first() : $this->files()->first();
+
+        return $file?->name
+            ? __('app.chat_attachment_named', ['name' => Str::limit((string) $file->name, 80)])
+            : __('app.chat_attachment');
     }
 }

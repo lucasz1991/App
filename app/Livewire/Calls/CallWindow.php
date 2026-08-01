@@ -8,6 +8,7 @@ use App\Models\RoomInvitation;
 use App\Models\RoomParticipant;
 use App\Models\User;
 use App\Services\Calls\CallInvitationService;
+use App\Services\Calls\CallConversationService;
 use App\Services\Calls\LiveKitService;
 use App\Services\Calls\RoomLifecycleService;
 use Livewire\Component;
@@ -24,29 +25,15 @@ class CallWindow extends Component
     public Room $room;
     public array $inviteeIds = [];
 
-    public function mount(Room $room): void
+    public function mount(Room $room, CallConversationService $conversations): void
     {
         $user = auth()->user();
 
         abort_unless($user->isAdmin() || $user->hasRbacPermission('calls.join'), 403);
 
-        abort_unless(
-            $room->mayJoin($user) || $room->canModerate($user),
-            403,
-            __('app.calls_permission_denied'),
-        );
+        abort_unless($room->mayJoin($user), 403, __('app.calls_permission_denied'));
 
         abort_unless($room->isActive(), 410, __('app.calls_ended'));
-
-        // Moderatoren ohne Einladung (z. B. Admins) erhalten eine Teilnahme.
-        $room->participants()->firstOrCreate(
-            ['user_id' => $user->id],
-            [
-                'role' => $room->canModerate($user) ? 'moderator' : 'speaker',
-                'connection' => 'invited',
-                'livekit_identity' => LiveKitService::identityFor($user),
-            ],
-        );
 
         // Jeder Einstiegsweg muss dieselbe Zustandsaenderung ausloesen. Der
         // Deep-Link der Web-Push-Benachrichtigung fuehrt direkt hierher und
@@ -62,6 +49,12 @@ class CallWindow extends Component
         if ($pending) {
             app(CallInvitationService::class)->accept($pending);
         }
+
+        $room->loadMissing('owner');
+        if (! $room->call_chat_id && $room->owner) {
+            $conversations->createForRoom($room, $room->owner);
+        }
+        $conversations->attachParticipant($room, $user);
 
         $this->room = $room;
     }
@@ -257,15 +250,17 @@ class CallWindow extends Component
     protected function redirectAfterCall(): void
     {
         $this->redirect(
-            $this->room->chat_id
-                ? route('chat', ['chat' => $this->room->chat_id])
-                : route('dashboard'),
+            $this->room->call_chat_id
+                ? route('calls.history', $this->room)
+                : ($this->room->chat_id
+                    ? route('chat', ['chat' => $this->room->chat_id])
+                    : route('calls.index')),
         );
     }
 
     public function render()
     {
-        $this->room->load(['participants.user', 'chat']);
+        $this->room->load(['participants.user', 'chat', 'callChat']);
 
         return view('livewire.calls.call-window', [
             'canModerate' => $this->room->canModerate(auth()->user()),

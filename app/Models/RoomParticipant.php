@@ -9,7 +9,7 @@ class RoomParticipant extends Model
 {
     protected $fillable = [
         'room_id', 'user_id', 'guest_name', 'role', 'connection',
-        'livekit_identity', 'joined_at', 'left_at',
+        'livekit_identity', 'call_recording_acknowledgement_id', 'joined_at', 'left_at',
     ];
 
     protected $casts = [
@@ -25,6 +25,14 @@ class RoomParticipant extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function recordingAcknowledgement(): BelongsTo
+    {
+        return $this->belongsTo(
+            CallRecordingAcknowledgement::class,
+            'call_recording_acknowledgement_id',
+        );
     }
 
     /**

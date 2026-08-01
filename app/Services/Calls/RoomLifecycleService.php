@@ -20,8 +20,12 @@ use Illuminate\Support\Facades\DB;
  */
 class RoomLifecycleService
 {
-    public function __construct(protected LiveKitService $livekit)
-    {
+    public function __construct(
+        protected LiveKitService $livekit,
+        protected CallRecordingService $recordings,
+        protected CallConversationService $conversations,
+        protected RoomEventRecorder $events,
+    ) {
     }
 
     /**
@@ -50,6 +54,12 @@ class RoomLifecycleService
                 'livekit_identity' => LiveKitService::identityFor($owner),
             ]);
 
+            $this->conversations->createForRoom($room, $owner);
+            $this->events->record($room, 'created', $owner, [
+                'type' => $room->type,
+                'video' => $video,
+            ]);
+
             return $room;
         });
 
@@ -60,7 +70,12 @@ class RoomLifecycleService
             $room->forceFill([
                 'status' => 'cancelled',
                 'ended_at' => now(),
+                'ended_reason' => 'infrastructure_unavailable',
             ])->save();
+
+            $this->events->record($room, 'cancelled', $owner, [
+                'reason' => 'infrastructure_unavailable',
+            ]);
 
             throw new CallInfrastructureUnavailable(
                 'LiveKit konnte den Raum '.$room->uuid.' nicht anlegen.',
@@ -83,11 +98,15 @@ class RoomLifecycleService
             'status' => 'active',
             'started_at' => $room->started_at ?? now(),
         ])->save();
+
+        $this->events->record($room, 'started');
     }
 
     /** Anruf beenden (UI-Aktion oder Webhook room_finished). */
     public function markEnded(Room $room, string $reason = 'ended'): void
     {
+        $this->recordings->requestStop($room);
+
         if (in_array($room->status, ['ended', 'cancelled'], true)) {
             return;
         }
@@ -95,6 +114,7 @@ class RoomLifecycleService
         $room->forceFill([
             'status' => 'ended',
             'ended_at' => $room->ended_at ?? now(),
+            'ended_reason' => $reason,
         ])->save();
 
         $this->expirePendingInvitations($room);
@@ -102,6 +122,8 @@ class RoomLifecycleService
         $room->participants()
             ->where('connection', 'joined')
             ->update(['connection' => 'left', 'left_at' => now()]);
+
+        $this->events->record($room, 'ended', metadata: ['reason' => $reason]);
 
         broadcast(new CallEnded($room, $reason))->toOthers();
     }
@@ -117,11 +139,13 @@ class RoomLifecycleService
             return;
         }
 
+        $this->recordings->requestStop($room);
         $this->livekit->deleteRoom($room);
 
         $room->forceFill([
             'status' => 'cancelled',
             'ended_at' => $room->ended_at ?? now(),
+            'ended_reason' => $reason,
         ])->save();
 
         $this->expirePendingInvitations($room);
@@ -129,6 +153,8 @@ class RoomLifecycleService
         $room->participants()
             ->whereIn('connection', ['invited', 'joined'])
             ->update(['connection' => 'left', 'left_at' => now()]);
+
+        $this->events->record($room, 'cancelled', metadata: ['reason' => $reason]);
 
         broadcast(new CallEnded($room, $reason))->toOthers();
     }
@@ -154,6 +180,8 @@ class RoomLifecycleService
             'connection' => 'left',
             'left_at' => now(),
         ])->save();
+
+        $this->events->record($room, 'participant_left', $participant->user_id);
 
         if (! $othersConnected) {
             $this->markEnded($room, 'empty');
@@ -183,6 +211,7 @@ class RoomLifecycleService
     /** Aktives Beenden durch einen Moderator/Host: erst SFU, dann DB. */
     public function endCall(Room $room, string $reason = 'ended'): void
     {
+        $this->recordings->requestStop($room);
         $this->livekit->deleteRoom($room);
         $this->markEnded($room, $reason);
     }
@@ -196,12 +225,31 @@ class RoomLifecycleService
             return;
         }
 
-        $room->participants()
+        $updated = $room->participants()
             ->where('livekit_identity', $identity)
             // 'disconnected' fehlt bewusst: wen die Moderation entfernt hat,
             // darf kein nachlaufender Webhook wieder als verbunden fuehren.
             ->whereIn('connection', ['invited', 'left'])
             ->update(['connection' => 'joined', 'joined_at' => now()]);
+
+        if ($updated > 0) {
+            $participant = $room->participants()
+                ->where('livekit_identity', $identity)
+                ->with('user')
+                ->first();
+
+            $room->forceFill([
+                'connected_at' => $room->connected_at ?? now(),
+            ])->save();
+
+            if ($participant?->user) {
+                $this->conversations->attachParticipant($room, $participant->user);
+            }
+
+            $this->events->record($room, 'participant_joined', $participant?->user_id, [
+                'identity' => $identity,
+            ]);
+        }
 
         $this->markActive($room);
     }
@@ -213,10 +261,20 @@ class RoomLifecycleService
             return;
         }
 
-        $room->participants()
+        $participant = $room->participants()
+            ->where('livekit_identity', $identity)
+            ->first();
+
+        $updated = $room->participants()
             ->where('livekit_identity', $identity)
             ->where('connection', 'joined')
             ->update(['connection' => 'left', 'left_at' => now()]);
+
+        if ($updated > 0) {
+            $this->events->record($room, 'participant_left', $participant?->user_id, [
+                'identity' => $identity,
+            ]);
+        }
 
         // War das der Letzte, ist der Anruf vorbei. Ohne diesen Schritt bliebe
         // der Raum aktiv und Chat::activeRoom() wuerde jeden neuen Anruf im

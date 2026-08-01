@@ -11,13 +11,15 @@ class Room extends Model
 {
     protected $fillable = [
         'uuid', 'name', 'type', 'status', 'owner_id', 'chat_id', 'team_id',
-        'scheduled_at', 'started_at', 'ended_at', 'settings',
+        'call_chat_id', 'scheduled_at', 'started_at', 'connected_at', 'ended_at',
+        'ended_reason', 'settings',
     ];
 
     protected $casts = [
         'settings' => 'array',
         'scheduled_at' => 'datetime',
         'started_at' => 'datetime',
+        'connected_at' => 'datetime',
         'ended_at' => 'datetime',
     ];
 
@@ -45,6 +47,11 @@ class Room extends Model
         return $this->belongsTo(Chat::class);
     }
 
+    public function callChat(): BelongsTo
+    {
+        return $this->belongsTo(Chat::class, 'call_chat_id');
+    }
+
     public function team(): BelongsTo
     {
         return $this->belongsTo(Team::class);
@@ -58,6 +65,11 @@ class Room extends Model
     public function invitations(): HasMany
     {
         return $this->hasMany(RoomInvitation::class);
+    }
+
+    public function events(): HasMany
+    {
+        return $this->hasMany(RoomEvent::class)->orderBy('occurred_at')->orderBy('id');
     }
 
     public function isActive(): bool
@@ -74,11 +86,13 @@ class Room extends Model
     /** Gespraechsdauer in Sekunden, sofern der Anruf zustande kam. */
     public function durationInSeconds(): ?int
     {
-        if (! $this->started_at) {
+        $connectedAt = $this->connected_at ?? $this->started_at;
+
+        if (! $connectedAt) {
             return null;
         }
 
-        return (int) $this->started_at->diffInSeconds($this->ended_at ?? now(), false);
+        return (int) $connectedAt->diffInSeconds($this->ended_at ?? now(), false);
     }
 
     /** Dauer als "m:ss" bzw. "h:mm:ss" – null, wenn nie verbunden. */

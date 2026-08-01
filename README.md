@@ -252,11 +252,13 @@ Profileinstellungen wird er bewusst nicht eingeblendet. Er beantwortet
 Bedien- und Orientierungsfragen über das in **Administration → Einstellungen →
 OpenRouter** gepflegte Textmodell.
 Der API-Key wird verschlüsselt gespeichert und ausschließlich serverseitig
-verwendet. Der Assistent besitzt keinen zusätzlichen Live-Zugriff auf
-personenbezogene oder aktuelle Betriebsdaten und führt selbst keine Änderungen
-aus. Er verarbeitet den sicheren Seitenkontext, Inhalte, die der Benutzer
-ausdrücklich eingibt oder anhängt, sowie freigegebene Informationen aus dem
-redaktionellen Wissenspool.
+verwendet. Der Assistent besitzt keinen zusätzlichen freien Zugriff auf
+personenbezogene oder aktuelle Betriebsdaten. Aktionen sind ausschließlich
+über serverseitig freigegebene Seitentools und bekannte Wagenlistenfelder
+möglich; Rechteprüfung, Browser-Rückmeldung und die vorhandene
+Formularvalidierung bleiben maßgeblich. Er verarbeitet den sicheren
+Seitenkontext, Inhalte, die der Benutzer ausdrücklich eingibt oder anhängt,
+sowie freigegebene Informationen aus dem redaktionellen Wissenspool.
 
 Der Wissenspool liegt ausschließlich im Superadmin-Tab unter **Administration
 → Einstellungen → Superadmin → Informationspool des Chatbot-Assistenten**.
@@ -266,6 +268,10 @@ Default-Prompt und Regeln sind vertrauenswürdige Superadmin-Vorgaben und gelten
 bei jeder Antwort; fest eingebaute RailTime-Sicherheitsregeln können sie nicht
 aufheben. Die Werte liegen unter `assistant/default_prompt` und
 `assistant/binding_rules`; fehlende Werte verwenden sichere Programmstandards.
+Der ausgelieferte Standard-Prompt verlangt möglichst kurze Antworten, höchstens
+zehn Zeilen und vorzugsweise drei bis vier kurze Sätze. Eine nachträgliche
+Migration aktualisiert nur den früheren unveränderten Programmstandard;
+individuelle Superadmin-Prompts bleiben unangetastet.
 
 Nur der Basistext, die Themenübersicht und ausdrücklich als Basisinfo markierte
 Kurzfassungen begleiten jede Anfrage als Referenzdaten. Volltexte bleiben in
@@ -276,6 +282,41 @@ Auszüge an OpenRouter. Inaktive Themen oder Einträge werden niemals geliefert;
 der Chatbot erhält keinen allgemeinen Datenbankzugriff. Auch in diesem Pool
 dürfen keine Zugangsdaten, personenbezogenen Daten oder Betriebsgeheimnisse
 abgelegt werden.
+
+RailTime liefert außerdem einen kuratierten Grundbestand zu Assistent,
+Portalnavigation, Wagenlisten und den öffentlich verifizierten Leistungen der
+RT Rail Time GmbH aus. Stabile `source_key`-Werte und Inhalts-Hashes machen den
+Import wiederholbar. Manuell bearbeitete oder soft-gelöschte Standarddatensätze
+werden bei späteren Läufen bewusst nicht überschrieben oder wiederhergestellt;
+fremde redaktionelle Einträge bleiben vollständig unberührt. Öffentliche
+Quellen sind auf HTTPS-Links zu `rail-time.de` beschränkt. Der Import vergibt
+insgesamt niemals mehr als acht Basiswissen-Markierungen; fehlt wegen bereits
+vorhandener Basisinfos Platz, bleiben die weiteren Standards ausschließlich
+über die Wissenssuche verfügbar.
+
+Die Datenmigration importiert den Grundbestand beim ersten Rollout automatisch.
+Für eine lokale Vorschau und einen nachträglichen idempotenten Abgleich:
+
+```powershell
+php artisan migrate
+php artisan railtime:assistant-knowledge-import --dry-run
+php artisan railtime:assistant-knowledge-import
+php artisan optimize:clear
+```
+
+Auf dem Server werden dieselben kuratierten Daten aus dem Release verwendet;
+es findet beim Deployment kein Website-Crawling statt. Nach der Migration kann
+der sichere Abgleich explizit wiederholt und anschließend gecacht werden:
+
+```bash
+php artisan migrate --force
+php artisan railtime:assistant-knowledge-import --dry-run --no-interaction
+php artisan railtime:assistant-knowledge-import --no-interaction
+php artisan optimize:clear
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+```
 
 Der Einstieg ist ein kleines rotes, textfreies 3D-Virtual-Pet: ein weicher,
 gedrungener Kapselkörper mit eingelassenem Gesichtsdisplay, zwei organischen

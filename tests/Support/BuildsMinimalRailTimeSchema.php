@@ -311,12 +311,23 @@ trait BuildsMinimalRailTimeSchema
             $table->id();
             $table->unsignedBigInteger('chat_id');
             $table->unsignedBigInteger('user_id');
+            $table->unsignedBigInteger('reply_to_message_id')->nullable();
             $table->text('body');
             $table->string('message_type', 24)->default('text');
             $table->boolean('view_once')->default(false);
             $table->unsignedSmallInteger('voice_duration_seconds')->nullable();
             $table->json('voice_waveform')->nullable();
             $table->timestamps();
+            $table->softDeletes();
+        });
+
+        Schema::create('chat_message_reactions', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('chat_message_id');
+            $table->unsignedBigInteger('user_id');
+            $table->string('emoji', 16);
+            $table->timestamps();
+            $table->unique(['chat_message_id', 'user_id']);
         });
 
         Schema::create('chat_message_views', function (Blueprint $table): void {

@@ -201,6 +201,8 @@ export function railtimeChatbot(config = {}) {
         petBubbleOrigin: null,
         petBubbleActionKey: '',
         petBubbleActionLabel: '',
+        wagonHelpVisible: false,
+        wagonHelpText: '',
         petHintIndex: 0,
         petBubbleTimer: null,
         petBubbleCycleTimer: null,
@@ -472,8 +474,15 @@ export function railtimeChatbot(config = {}) {
             if (actionKey !== 'wagon_voice_start') return false;
 
             this.hidePetBubble();
+            this.runWagonHelpAction();
+
+            return true;
+        },
+
+        runWagonHelpAction() {
+            this.wagonHelpVisible = false;
             this.setOpen(true, true);
-            this.$nextTick(() => this.$wire?.quickAction?.(actionKey));
+            this.$nextTick(() => this.$wire?.quickAction?.('wagon_voice_start'));
 
             return true;
         },
@@ -788,6 +797,9 @@ export function railtimeChatbot(config = {}) {
             }
 
             this.hidePetBubble();
+            if (typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
+                window.dispatchEvent(new CustomEvent('railtime-wagon-context-request'));
+            }
             void this.refreshSpeechStatus('open');
             this.$nextTick(() => {
                 this.scrollMessages(true);
@@ -997,6 +1009,10 @@ export function railtimeChatbot(config = {}) {
                     key: 'wagon_voice_start',
                     label: this.strings.wagonVoiceStart,
                 });
+            } else {
+                this.wagonHelpText = text;
+                this.wagonHelpVisible = true;
+                this.$nextTick(() => this.scrollMessages(true));
             }
 
             return true;

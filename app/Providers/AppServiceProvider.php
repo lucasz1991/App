@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Contracts\Calls\CallEgressGateway;
+use App\Services\Calls\LiveKitEgressGateway;
 use App\Support\Calls\CallSettings;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
@@ -13,7 +15,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(CallEgressGateway::class, LiveKitEgressGateway::class);
     }
 
     /**

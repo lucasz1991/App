@@ -2,6 +2,8 @@
 
 namespace App\Console;
 
+use App\Jobs\PurgeExpiredCallRecordings;
+use App\Jobs\ReconcileCallRecordings;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
@@ -16,6 +18,14 @@ class Kernel extends ConsoleKernel
         // automatisches Loeschen gesetzt sind.
         $schedule->command('files:purge-expired')
             ->hourly()
+            ->withoutOverlapping();
+
+        $schedule->job(new ReconcileCallRecordings)
+            ->everyMinute()
+            ->withoutOverlapping();
+
+        $schedule->job(new PurgeExpiredCallRecordings)
+            ->dailyAt('02:15')
             ->withoutOverlapping();
     }
 

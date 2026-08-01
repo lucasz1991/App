@@ -173,6 +173,7 @@ export function wagonListPrototype(config = {}) {
         assistantContextNonce: null,
         assistantContextTimer: null,
         assistantContextReason: 'updated',
+        assistantHandledActionTokens: [],
         exporting: false,
         meta: emptyMeta(),
         wagons: Array.from({ length: MAX_WAGONS }, emptyWagon),
@@ -180,6 +181,7 @@ export function wagonListPrototype(config = {}) {
 
         init() {
             this.restoreDrafts();
+            this.assistantContextNonce = this.createAssistantContextNonce();
 
             const persistWhenEditing = () => {
                 if (!this.hydrating && this.editorOpen && this.activeDraftId) {
@@ -201,6 +203,8 @@ export function wagonListPrototype(config = {}) {
                 this.mobileViewportHandler = () => this.realignMobilePager();
                 window.visualViewport.addEventListener('resize', this.mobileViewportHandler, { passive: true });
             }
+
+            this.$nextTick(() => this.dispatchAssistantContext('overview-ready', false));
         },
 
         destroy() {
@@ -316,6 +320,7 @@ export function wagonListPrototype(config = {}) {
 
             this.hydrating = true;
             this.assistantContextNonce = this.createAssistantContextNonce();
+            this.assistantHandledActionTokens = [];
             this.activeDraftId = draft.id;
             this.meta = { ...emptyMeta(), ...draft.meta };
             this.wagons = Array.from({ length: MAX_WAGONS }, (_, index) => ({
@@ -369,7 +374,21 @@ export function wagonListPrototype(config = {}) {
 
         handleEscape(event) {
             if (!this.editorOpen || event.defaultPrevented) return;
-            if (event.target?.closest?.('[data-railtime-chatbot-root]')) return;
+
+            const chatbotRoot = typeof document !== 'undefined' && typeof document.querySelector === 'function'
+                ? document.querySelector('[data-railtime-chatbot-root]')
+                : null;
+            const chatbotPanel = chatbotRoot?.querySelector?.('.rt-chatbot__panel');
+            const chatbotPanelVisible = Boolean(chatbotPanel && (
+                chatbotPanel.offsetParent !== null
+                || (typeof chatbotPanel.getClientRects === 'function' && chatbotPanel.getClientRects().length > 0)
+            ));
+            const escapeBelongsToChatbot = Boolean(
+                event.target?.closest?.('[data-railtime-chatbot-root]')
+                || chatbotPanelVisible,
+            );
+
+            if (escapeBelongsToChatbot) return;
 
             event.preventDefault();
             this.cancelEditor();
@@ -380,7 +399,9 @@ export function wagonListPrototype(config = {}) {
             this.editorOpen = false;
             this.activeDraftId = null;
             this.dispatchAssistantContext('editor-closed', false, closingNonce);
-            this.assistantContextNonce = null;
+            this.assistantContextNonce = this.createAssistantContextNonce();
+            this.assistantHandledActionTokens = [];
+            this.dispatchAssistantContext('overview-ready', false);
             this.unlockEditor();
 
             const returnFocus = this.modalReturnFocus;
@@ -500,7 +521,9 @@ export function wagonListPrototype(config = {}) {
                 editor_open: isOpen,
                 current_step: isOpen ? ASSISTANT_STEP_IDS[stepIndex] : null,
                 current_step_index: isOpen ? stepIndex : null,
-                current_wagon_index: isOpen ? this.assistantCurrentWagonIndex() : null,
+                // Der oeffentliche Eventvertrag ist bewusst 1-basiert; nur
+                // intern arbeitet das Array weiterhin mit 0-basierten Indizes.
+                current_wagon_index: isOpen ? this.assistantCurrentWagonIndex() + 1 : null,
                 visible_wagons: isOpen ? this.visibleCount : 0,
                 filled_wagons: isOpen ? this.completionCount : 0,
                 presence: isOpen ? {
@@ -533,7 +556,7 @@ export function wagonListPrototype(config = {}) {
             this.assistantContextTimer = window.setTimeout(() => {
                 this.assistantContextTimer = null;
                 this.dispatchAssistantContext(this.assistantContextReason);
-            }, 80);
+            }, 280);
         },
 
         dispatchAssistantHelp() {
@@ -591,11 +614,6 @@ export function wagonListPrototype(config = {}) {
                 return;
             }
 
-            if (!this.editorOpen || !this.activeDraftId || !this.assistantContextNonce) {
-                this.dispatchAssistantResult(actionToken, 'stale_context', command, 'editor_closed', contextNonce);
-                return;
-            }
-
             if (contextNonce !== this.assistantContextNonce) {
                 this.dispatchAssistantResult(actionToken, 'stale_context', command, 'context_mismatch', contextNonce);
                 return;
@@ -603,6 +621,34 @@ export function wagonListPrototype(config = {}) {
 
             if (!ASSISTANT_COMMANDS.has(command)) {
                 this.dispatchAssistantResult(actionToken, 'rejected', command, 'unknown_command', contextNonce);
+                return;
+            }
+
+            if (this.assistantHandledActionTokens.includes(actionToken)) {
+                this.dispatchAssistantResult(actionToken, 'rejected', command, 'duplicate_action', contextNonce);
+                return;
+            }
+
+            this.assistantHandledActionTokens = [
+                ...this.assistantHandledActionTokens,
+                actionToken,
+            ].slice(-120);
+
+            // Auf der Entwurfsuebersicht bestaetigt "start" das Anlegen eines
+            // neuen lokalen Entwurfs. createDraft() persistiert synchron und
+            // openDraft() vergibt danach einen frischen Editor-Nonce.
+            if (command === 'start' && !this.editorOpen) {
+                if (!this.createDraft()) {
+                    this.dispatchAssistantResult(actionToken, 'storage_error', command, 'draft_not_created', contextNonce);
+                    return;
+                }
+
+                this.dispatchAssistantResult(actionToken, 'applied', command, null, contextNonce);
+                return;
+            }
+
+            if (!this.editorOpen || !this.activeDraftId || !this.assistantContextNonce) {
+                this.dispatchAssistantResult(actionToken, 'stale_context', command, 'editor_closed', contextNonce);
                 return;
             }
 
@@ -650,12 +696,14 @@ export function wagonListPrototype(config = {}) {
         },
 
         applyAssistantWagonSelection(detail, actionToken, contextNonce) {
-            const wagonIndex = Number(detail.wagon_index);
+            const requestedWagon = Number(detail.wagon_index);
 
-            if (!Number.isInteger(wagonIndex) || wagonIndex < 0 || wagonIndex >= this.visibleCount) {
+            if (!Number.isInteger(requestedWagon) || requestedWagon < 1 || requestedWagon > this.visibleCount) {
                 this.dispatchAssistantResult(actionToken, 'rejected', 'select_wagon', 'invalid_wagon_index', contextNonce);
                 return;
             }
+
+            const wagonIndex = requestedWagon - 1;
 
             if (!this.persistDraft()) {
                 this.dispatchAssistantResult(actionToken, 'storage_error', 'select_wagon', 'draft_not_persisted', contextNonce);
@@ -684,6 +732,22 @@ export function wagonListPrototype(config = {}) {
         applyAssistantFieldCommand(detail, actionToken, contextNonce) {
             const field = typeof detail.field === 'string' ? detail.field.trim() : '';
             const wagonIndex = this.assistantCurrentWagonIndex();
+
+            if (field.startsWith('wagon.')) {
+                const expectedWagon = detail.wagon_index;
+                const currentWagon = wagonIndex + 1;
+
+                if (
+                    !Number.isInteger(expectedWagon)
+                    || expectedWagon < 1
+                    || expectedWagon > this.visibleCount
+                    || expectedWagon !== currentWagon
+                ) {
+                    this.dispatchAssistantResult(actionToken, 'stale_context', 'set_field', 'wagon_mismatch', contextNonce);
+                    return;
+                }
+            }
+
             const snapshot = this.assistantEditableSnapshot(wagonIndex);
 
             if (!this.setAssistantField(field, detail.value, wagonIndex)) {
@@ -923,7 +987,7 @@ export function wagonListPrototype(config = {}) {
             const dialog = this.$refs?.editorDialog;
             if (!dialog) return;
 
-            const chatbot = typeof document?.querySelector === 'function'
+            const chatbot = typeof document !== 'undefined' && typeof document.querySelector === 'function'
                 ? document.querySelector('[data-railtime-chatbot-root]')
                 : null;
             const selector = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -931,7 +995,10 @@ export function wagonListPrototype(config = {}) {
                 .filter(Boolean)
                 .flatMap((scope) => Array.from(scope.querySelectorAll(selector)))
                 .filter((element) => (
-                    element.offsetParent !== null
+                    (
+                        element.offsetParent !== null
+                        || (typeof element.getClientRects === 'function' && element.getClientRects().length > 0)
+                    )
                     && !element.closest('[inert]')
                     && element.getAttribute('aria-hidden') !== 'true'
                 ));

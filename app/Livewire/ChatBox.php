@@ -4,17 +4,20 @@ namespace App\Livewire;
 
 use App\Events\ChatMessageDeleted;
 use App\Events\ChatMessageReceived;
+use App\Events\ChatMessageReactionChanged;
 use App\Events\ChatMessageSent;
 use App\Events\ChatRead;
 use App\Livewire\Concerns\InteractsWithPersonQuickActions;
 use App\Models\Chat;
 use App\Models\ChatMessage;
+use App\Models\ChatMessageReaction;
 use App\Models\ChatMessageView;
 use App\Models\File;
 use App\Models\User;
 use App\Services\Calls\CallInfrastructureUnavailable;
 use App\Services\Calls\CallInvitationService;
 use App\Services\Calls\RoomLifecycleService;
+use App\Services\Chat\ChatMessageInteractionService;
 use App\Support\Push\PushDelivery;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -71,6 +74,13 @@ class ChatBox extends Component
     #[Locked]
     public ?int $pendingDeleteMessageId = null;
 
+    #[Locked]
+    public ?int $replyingToMessageId = null;
+
+    /** ID der aeltesten aktuell geladenen Nachricht (Cursor, kein Offset). */
+    #[Locked]
+    public ?int $oldestLoadedMessageId = null;
+
     public bool $showDeleteChatModal = false;
 
     #[Locked]
@@ -108,6 +118,7 @@ class ChatBox extends Component
         }
 
         $lastChatId = auth()->user()->chats()
+            ->where('chats.type', '!=', 'call')
             ->orderByDesc('chat_user.last_opened_at')
             ->orderByDesc('chats.updated_at')
             ->value('chats.id');
@@ -120,7 +131,9 @@ class ChatBox extends Component
     /** Chat des angemeldeten Nutzers laden oder 403. */
     protected function myChat(int $chatId): Chat
     {
-        $chat = Chat::with('participants')->findOrFail($chatId);
+        $chat = Chat::with('participants')
+            ->where('type', '!=', 'call')
+            ->findOrFail($chatId);
         $participant = $chat->participantFor(auth()->id());
 
         abort_unless($participant && ! $participant->pivot?->hidden_at, 403);
@@ -128,11 +141,12 @@ class ChatBox extends Component
         return $chat;
     }
 
-    protected function visibleMessagesFor(Chat $chat)
+    protected function visibleMessagesFor(Chat $chat, bool $withDeleted = false)
     {
         $visibleSince = $chat->visibleSinceFor(auth()->id());
 
         return $chat->messages()
+            ->when($withDeleted, fn ($query) => $query->withTrashed())
             ->when($visibleSince, fn ($query) => $query->where('created_at', '>=', $visibleSince));
     }
 
@@ -142,6 +156,8 @@ class ChatBox extends Component
 
         $this->selectedChatId = $chat->id;
         $this->messageText = '';
+        $this->replyingToMessageId = null;
+        $this->resetMessageWindow($chat);
         $this->latestIncomingMessageId = $this->latestIncomingMessageIdFor($chat);
 
         $chat->participants()->updateExistingPivot(auth()->id(), ['last_opened_at' => now()]);
@@ -168,10 +184,13 @@ class ChatBox extends Component
         }
 
         $chat = $this->myChat($this->selectedChatId);
+        $replyTarget = app(ChatMessageInteractionService::class)
+            ->replyTarget($chat, auth()->user(), $this->replyingToMessageId);
 
         $message = ChatMessage::create([
             'chat_id' => $chat->id,
             'user_id' => auth()->id(),
+            'reply_to_message_id' => $replyTarget?->id,
             'body' => trim($this->messageText),
             'message_type' => $this->uploads === [] ? 'text' : 'attachment',
             'view_once' => false,
@@ -183,6 +202,7 @@ class ChatBox extends Component
 
         $this->messageText = '';
         $this->uploads = [];
+        $this->replyingToMessageId = null;
         $this->finishSending($chat, $message);
     }
 
@@ -214,9 +234,12 @@ class ChatBox extends Component
         ), 0, 64));
 
         $chat = $this->myChat($this->selectedChatId);
+        $replyTarget = app(ChatMessageInteractionService::class)
+            ->replyTarget($chat, auth()->user(), $this->replyingToMessageId);
         $message = ChatMessage::create([
             'chat_id' => $chat->id,
             'user_id' => auth()->id(),
+            'reply_to_message_id' => $replyTarget?->id,
             'body' => '',
             'message_type' => 'voice',
             'view_once' => $viewOnce,
@@ -227,12 +250,13 @@ class ChatBox extends Component
         try {
             $this->storeMessageUpload($message, $this->voiceUpload, 'voice');
         } catch (\Throwable $exception) {
-            $message->delete();
+            $message->forceDelete();
 
             throw $exception;
         }
 
         $this->voiceUpload = null;
+        $this->replyingToMessageId = null;
         $this->finishSending($chat, $message);
         $this->dispatch('chat:voice-sent');
     }
@@ -244,18 +268,89 @@ class ChatBox extends Component
         }
 
         $chat = $this->myChat($this->selectedChatId);
-        $message = $this->visibleMessagesFor($chat)->with('files')->findOrFail($messageId);
-
-        abort_unless((int) $message->user_id === (int) auth()->id(), 403);
-
-        $message->files->each->delete();
-        $message->views()->delete();
-        $message->delete();
+        app(ChatMessageInteractionService::class)->tombstone($chat, auth()->user(), $messageId);
         $chat->touch();
 
         $this->broadcastChatEvent(new ChatMessageDeleted($chat->id, $messageId));
         $this->dispatch('inbox:refresh');
-        $this->dispatch('chat:scroll-bottom');
+        $this->dispatch('chat:message-deleted', messageId: $messageId);
+    }
+
+    public function beginReply(int $messageId): void
+    {
+        if (! $this->selectedChatId) {
+            return;
+        }
+
+        $chat = $this->myChat($this->selectedChatId);
+        $message = app(ChatMessageInteractionService::class)
+            ->visibleMessage($chat, auth()->user(), $messageId);
+
+        $this->replyingToMessageId = $message->id;
+        $this->dispatch('chat:reply-started');
+    }
+
+    public function cancelReply(): void
+    {
+        $this->replyingToMessageId = null;
+    }
+
+    public function toggleReaction(int $messageId, string $emoji): void
+    {
+        if (! $this->selectedChatId) {
+            return;
+        }
+
+        $chat = $this->myChat($this->selectedChatId);
+        $reaction = app(ChatMessageInteractionService::class)
+            ->toggleReaction($chat, auth()->user(), $messageId, $emoji);
+
+        $this->broadcastChatEvent(new ChatMessageReactionChanged(
+            $chat->id,
+            $messageId,
+            (int) auth()->id(),
+            $reaction?->emoji,
+        ));
+    }
+
+    public function loadOlderMessages(): void
+    {
+        if (! $this->selectedChatId) {
+            return;
+        }
+
+        $chat = $this->myChat($this->selectedChatId);
+
+        if (! $this->oldestLoadedMessageId) {
+            $this->resetMessageWindow($chat);
+        }
+
+        if (! $this->oldestLoadedMessageId) {
+            return;
+        }
+
+        $olderIds = $this->visibleMessagesFor($chat, true)
+            ->where('id', '<', $this->oldestLoadedMessageId)
+            ->orderByDesc('id')
+            ->limit(100)
+            ->pluck('id');
+
+        if ($olderIds->isEmpty()) {
+            return;
+        }
+
+        $this->oldestLoadedMessageId = (int) $olderIds->min();
+        $this->dispatch('chat:older-loaded');
+    }
+
+    protected function resetMessageWindow(Chat $chat): void
+    {
+        $ids = $this->visibleMessagesFor($chat, true)
+            ->orderByDesc('id')
+            ->limit(100)
+            ->pluck('id');
+
+        $this->oldestLoadedMessageId = $ids->isEmpty() ? null : (int) $ids->min();
     }
 
     public function requestDeleteMessage(int $messageId): void
@@ -780,7 +875,7 @@ class ChatBox extends Component
         $toastKey = 'chat_deleted';
 
         if ($chat->isGroup() && $chat->canManageGroup($me)) {
-            $messageIds = $chat->messages()->pluck('id');
+            $messageIds = $chat->messages()->withTrashed()->pluck('id');
             $fileIds = File::query()
                 ->where('fileable_type', ChatMessage::class)
                 ->whereIn('fileable_id', $messageIds)
@@ -788,7 +883,8 @@ class ChatBox extends Component
 
             DB::transaction(function () use ($chat, $messageIds): void {
                 ChatMessageView::query()->whereIn('chat_message_id', $messageIds)->delete();
-                ChatMessage::query()->whereIn('id', $messageIds)->delete();
+                ChatMessageReaction::query()->whereIn('chat_message_id', $messageIds)->delete();
+                ChatMessage::query()->withTrashed()->whereIn('id', $messageIds)->forceDelete();
                 $chat->participants()->detach();
                 $chat->delete();
             });
@@ -888,6 +984,8 @@ class ChatBox extends Component
         $this->selectedChatId = null;
         $this->latestIncomingMessageId = 0;
         $this->messageText = '';
+        $this->replyingToMessageId = null;
+        $this->oldestLoadedMessageId = null;
         $this->uploads = [];
         $this->voiceUpload = null;
         $this->showGroupSettings = false;
@@ -914,6 +1012,7 @@ class ChatBox extends Component
 
         $chats = $me->chats()
             ->with('participants')
+            ->where('chats.type', '!=', 'call')
             ->orderByDesc('chats.updated_at')
             ->get();
 
@@ -956,20 +1055,47 @@ class ChatBox extends Component
 
         $selectedChat = null;
         $pendingDeleteChat = $this->pendingDeleteChatId
-            ? $me->chats()->with('participants')->find($this->pendingDeleteChatId)
+            ? $me->chats()->with('participants')->where('chats.type', '!=', 'call')->find($this->pendingDeleteChatId)
             : null;
         $messages = collect();
+        $hasOlderMessages = false;
+        $replyingToMessage = null;
 
         if ($this->selectedChatId) {
             $selectedChat = $chats->firstWhere('id', $this->selectedChatId)
-                ?? $me->chats()->with('participants')->find($this->selectedChatId);
+                ?? $me->chats()->with('participants')->where('chats.type', '!=', 'call')->find($this->selectedChatId);
 
             if ($selectedChat) {
-                $messages = $this->visibleMessagesFor($selectedChat)
-                    ->with(['sender:id,name,profile_photo_path', 'files', 'views:id,chat_message_id,user_id,viewed_at'])
+                $visibleSince = $selectedChat->visibleSinceFor($me);
+                $messages = $this->visibleMessagesFor($selectedChat, true)
+                    ->when($this->oldestLoadedMessageId, fn ($query) => $query->where('id', '>=', $this->oldestLoadedMessageId))
+                    ->with([
+                        'sender:id,name,profile_photo_path',
+                        'files',
+                        'views:id,chat_message_id,user_id,viewed_at',
+                        'reactions:id,chat_message_id,user_id,emoji',
+                        'replyTo' => fn ($query) => $query
+                            ->withTrashed()
+                            ->when($visibleSince, fn ($query) => $query->where('created_at', '>=', $visibleSince))
+                            ->with(['sender:id,name', 'files']),
+                    ])
                     ->orderBy('id')
-                    ->limit(200)
                     ->get();
+
+                $firstMessageId = $messages->first()?->id;
+                $hasOlderMessages = $firstMessageId
+                    ? $this->visibleMessagesFor($selectedChat, true)->where('id', '<', $firstMessageId)->exists()
+                    : false;
+
+                if ($this->replyingToMessageId) {
+                    $replyingToMessage = $this->visibleMessagesFor($selectedChat, true)
+                        ->with(['sender:id,name', 'files'])
+                        ->find($this->replyingToMessageId);
+
+                    if (! $replyingToMessage) {
+                        $this->replyingToMessageId = null;
+                    }
+                }
             } else {
                 $this->selectedChatId = null;
             }
@@ -1036,6 +1162,10 @@ class ChatBox extends Component
             'selectedChat' => $selectedChat,
             'pendingDeleteChat' => $pendingDeleteChat,
             'messages' => $messages,
+            'hasOlderMessages' => $hasOlderMessages,
+            'replyingToMessage' => $replyingToMessage,
+            'quickReactions' => ChatMessageInteractionService::QUICK_REACTIONS,
+            'allowedReactions' => ChatMessageInteractionService::ALLOWED_REACTIONS,
             'contacts' => $contacts,
             'groupParticipantsPaginator' => $groupParticipants,
             'groupCandidates' => $groupCandidates,

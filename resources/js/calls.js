@@ -15,6 +15,12 @@ import {
     Track,
     ConnectionState,
 } from 'livekit-client';
+import {
+    clampSelfPreviewPosition,
+    isSelfPreviewCenterOutside,
+    nearestSelfPreviewEdge,
+    selfPreviewDockPosition,
+} from './call-self-preview.js';
 
 document.addEventListener('alpine:init', () => {
     window.Alpine.data('callRoom', (config) => ({
@@ -23,6 +29,7 @@ document.addEventListener('alpine:init', () => {
         statusLabel: config.labels.connecting,
         participantCount: 1,
         panelOpen: window.innerWidth >= 1024,
+        panelTab: 'participants',
         canPublish: Boolean(config.canPublish),
         startWithVideo: config.startWithVideo !== false,
         micOn: false,
@@ -32,8 +39,19 @@ document.addEventListener('alpine:init', () => {
         selfVideoVisible: false,
         selfPreviewX: 0,
         selfPreviewY: 0,
+        selfPreviewLastSafeX: 0,
+        selfPreviewLastSafeY: 0,
+        selfPreviewWidth: 176,
+        selfPreviewHeight: 99,
         selfPreviewInitialized: false,
+        selfPreviewMinimized: false,
+        selfPreviewDockEdge: 'right',
+        selfPreviewDockX: 8,
+        selfPreviewDockY: 8,
+        selfPreviewDragging: false,
         selfPreviewDragCleanup: null,
+        selfPreviewResizeCleanup: null,
+        selfPreviewGeometryFrame: null,
         // Hochkant nur dort, wo die Kamera wirklich hochkant aufnimmt: Handy
         // aufrecht in der Hand. Am Rechner (und am quer gehaltenen Handy)
         // liefert die Kamera Querformat — ein 9:16-Rahmen wuerde das Bild dann
@@ -60,6 +78,10 @@ document.addEventListener('alpine:init', () => {
 
         async init() {
             this.watchViewportShape();
+            this.$nextTick(() => {
+                this.observeSelfPreviewStage();
+                this.queueSelfPreviewGeometry();
+            });
             await this.connect();
         },
 
@@ -206,6 +228,10 @@ document.addEventListener('alpine:init', () => {
                 + ` width: ${width}px; max-width: 42vw; aspect-ratio: ${ratio};`;
         },
 
+        get selfPreviewRestoreStyle() {
+            return `transform: translate3d(${this.selfPreviewDockX}px, ${this.selfPreviewDockY}px, 0);`;
+        },
+
         /**
          * Format der Eigenvorschau an die Geraeteform binden.
          *
@@ -223,10 +249,9 @@ document.addEventListener('alpine:init', () => {
                 if (query.matches === this.selfPreviewPortrait) return;
 
                 this.selfPreviewPortrait = query.matches;
-                // Neu vermessen: Das alte Eck haelt bei anderem Format nicht
-                // mehr, die Vorschau haenge sonst halb ausserhalb der Buehne.
-                this.selfPreviewInitialized = false;
-                requestAnimationFrame(() => this.positionSelfPreview());
+                // Das neue Format wird vermessen und die letzte Position
+                // innerhalb der nun verfuegbaren Buehne gehalten.
+                this.$nextTick(() => this.queueSelfPreviewGeometry());
             };
 
             this.selfPreviewPortrait = query.matches;
@@ -241,54 +266,245 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
-        positionSelfPreview() {
+        observeSelfPreviewStage() {
+            const stage = this.$refs.selfPreviewStage;
+            if (!stage) return;
+
+            this.selfPreviewResizeCleanup?.();
+
+            const refresh = () => this.queueSelfPreviewGeometry();
+            const cleanups = [];
+
+            if (typeof ResizeObserver === 'function') {
+                const observer = new ResizeObserver(refresh);
+                observer.observe(stage);
+                cleanups.push(() => observer.disconnect());
+            } else {
+                window.addEventListener('resize', refresh, { passive: true });
+                cleanups.push(() => window.removeEventListener('resize', refresh));
+            }
+
+            window.addEventListener('orientationchange', refresh, { passive: true });
+            cleanups.push(() => window.removeEventListener('orientationchange', refresh));
+
+            this.selfPreviewResizeCleanup = () => {
+                cleanups.forEach((cleanup) => cleanup());
+                this.selfPreviewResizeCleanup = null;
+            };
+        },
+
+        queueSelfPreviewGeometry() {
+            if (this.selfPreviewGeometryFrame !== null) {
+                cancelAnimationFrame(this.selfPreviewGeometryFrame);
+            }
+
+            this.selfPreviewGeometryFrame = requestAnimationFrame(() => {
+                this.selfPreviewGeometryFrame = null;
+                this.positionSelfPreview();
+            });
+        },
+
+        selfPreviewMetrics() {
             const preview = this.$refs.selfPreview;
-            const stage = preview?.parentElement;
+            const stage = this.$refs.selfPreviewStage;
+            if (!preview || !stage || !stage.clientWidth || !stage.clientHeight) return null;
 
-            if (!preview || !stage) return;
+            const desiredWidth = this.selfPreviewPortrait ? 104 : 176;
+            const viewportWidth = Number(window.innerWidth) || stage.clientWidth;
+            const fallbackWidth = Math.min(desiredWidth, viewportWidth * 0.42);
+            const fallbackHeight = fallbackWidth * (this.selfPreviewPortrait ? 16 / 9 : 9 / 16);
+            const previewWidth = preview.offsetWidth || fallbackWidth || this.selfPreviewWidth;
+            const previewHeight = preview.offsetHeight || fallbackHeight || this.selfPreviewHeight;
 
-            // Unsichtbar oder noch nicht gesetzt heisst Breite 0 – dann waere
-            // die Ecke falsch berechnet. selfPreviewInitialized bleibt false,
-            // der naechste Durchlauf holt es nach.
-            if (! preview.offsetWidth || ! preview.offsetHeight) return;
+            this.selfPreviewWidth = previewWidth;
+            this.selfPreviewHeight = previewHeight;
 
-            this.selfPreviewX = Math.max(8, stage.clientWidth - preview.offsetWidth - 12);
-            this.selfPreviewY = Math.max(8, stage.clientHeight - preview.offsetHeight - 12);
+            return {
+                stage: { width: stage.clientWidth, height: stage.clientHeight },
+                preview: { width: previewWidth, height: previewHeight },
+            };
+        },
+
+        positionSelfPreview() {
+            const metrics = this.selfPreviewMetrics();
+            if (!metrics) return;
+
+            const candidate = this.selfPreviewInitialized
+                ? { x: this.selfPreviewLastSafeX, y: this.selfPreviewLastSafeY }
+                : {
+                    x: metrics.stage.width - metrics.preview.width - 12,
+                    y: metrics.stage.height - metrics.preview.height - 12,
+                };
+            const safe = clampSelfPreviewPosition(candidate, metrics.stage, metrics.preview);
+
+            this.selfPreviewLastSafeX = safe.x;
+            this.selfPreviewLastSafeY = safe.y;
+
+            if (!this.selfPreviewMinimized) {
+                this.selfPreviewX = safe.x;
+                this.selfPreviewY = safe.y;
+            }
+
+            this.updateSelfPreviewDock(
+                this.selfPreviewMinimized
+                    ? { x: this.selfPreviewLastSafeX, y: this.selfPreviewLastSafeY }
+                    : safe,
+                metrics,
+                this.selfPreviewDockEdge,
+            );
             this.selfPreviewInitialized = true;
+        },
+
+        updateSelfPreviewDock(candidate, metrics = this.selfPreviewMetrics(), edge = null) {
+            if (!metrics) return;
+
+            this.selfPreviewDockEdge = edge
+                || nearestSelfPreviewEdge(candidate, metrics.stage, metrics.preview);
+            const dock = selfPreviewDockPosition(
+                this.selfPreviewDockEdge,
+                candidate,
+                metrics.stage,
+                metrics.preview,
+            );
+
+            this.selfPreviewDockX = dock.x;
+            this.selfPreviewDockY = dock.y;
+        },
+
+        rememberSafeSelfPreviewPosition(candidate, metrics) {
+            const safe = clampSelfPreviewPosition(candidate, metrics.stage, metrics.preview);
+            this.selfPreviewLastSafeX = safe.x;
+            this.selfPreviewLastSafeY = safe.y;
+
+            return safe;
+        },
+
+        minimizeSelfPreview(candidate = null) {
+            if (!this.selfPreviewInitialized) {
+                this.positionSelfPreview();
+            }
+
+            const metrics = this.selfPreviewMetrics();
+            if (!metrics || !this.selfVideoVisible) return;
+
+            const current = candidate || { x: this.selfPreviewX, y: this.selfPreviewY };
+
+            if (!isSelfPreviewCenterOutside(current, metrics.stage, metrics.preview)) {
+                this.rememberSafeSelfPreviewPosition(current, metrics);
+            }
+
+            this.updateSelfPreviewDock(current, metrics);
+            this.selfPreviewMinimized = true;
+
+            this.$nextTick(() => this.$refs.selfPreviewRestore?.focus());
+        },
+
+        restoreSelfPreview() {
+            const metrics = this.selfPreviewMetrics();
+            if (!metrics) return;
+
+            const safe = clampSelfPreviewPosition(
+                { x: this.selfPreviewLastSafeX, y: this.selfPreviewLastSafeY },
+                metrics.stage,
+                metrics.preview,
+            );
+
+            this.selfPreviewX = safe.x;
+            this.selfPreviewY = safe.y;
+            this.selfPreviewLastSafeX = safe.x;
+            this.selfPreviewLastSafeY = safe.y;
+            this.selfPreviewMinimized = false;
+            this.selfPreviewInitialized = true;
+
+            this.$nextTick(() => {
+                this.queueSelfPreviewGeometry();
+                this.$refs.selfPreviewMinimize?.focus();
+            });
         },
 
         startSelfPreviewDrag(event) {
             if (event.button !== 0 && event.pointerType === 'mouse') return;
+            if (this.selfPreviewMinimized || this.selfPreviewDragging) return;
+
+            if (!this.selfPreviewInitialized) {
+                this.positionSelfPreview();
+            }
 
             const preview = this.$refs.selfPreview;
-            const stage = preview?.parentElement;
-            if (!preview || !stage) return;
+            const metrics = this.selfPreviewMetrics();
+            if (!preview || !metrics) return;
 
             event.preventDefault();
             preview.setPointerCapture?.(event.pointerId);
+            const pointerId = event.pointerId;
             const startX = event.clientX;
             const startY = event.clientY;
             const originX = this.selfPreviewX;
             const originY = this.selfPreviewY;
+            this.selfPreviewDragging = true;
 
             const move = (moveEvent) => {
-                const maxX = Math.max(8, stage.clientWidth - preview.offsetWidth - 8);
-                const maxY = Math.max(8, stage.clientHeight - preview.offsetHeight - 8);
-                this.selfPreviewX = Math.min(maxX, Math.max(8, originX + moveEvent.clientX - startX));
-                this.selfPreviewY = Math.min(maxY, Math.max(8, originY + moveEvent.clientY - startY));
+                if (moveEvent.pointerId !== pointerId) return;
+
+                const candidate = {
+                    x: originX + moveEvent.clientX - startX,
+                    y: originY + moveEvent.clientY - startY,
+                };
+
+                // Waehrend des Ziehens darf die Kachel die Buehne verlassen.
+                // Erst beim Loslassen entscheidet ihr Mittelpunkt ueber Dock
+                // oder Rueckkehr in den voll sichtbaren Bereich.
+                this.selfPreviewX = candidate.x;
+                this.selfPreviewY = candidate.y;
+
+                if (!isSelfPreviewCenterOutside(candidate, metrics.stage, metrics.preview)) {
+                    this.rememberSafeSelfPreviewPosition(candidate, metrics);
+                }
             };
-            const stop = () => {
+
+            const removeListeners = () => {
                 window.removeEventListener('pointermove', move);
-                window.removeEventListener('pointerup', stop);
-                window.removeEventListener('pointercancel', stop);
+                window.removeEventListener('pointerup', finish);
+                window.removeEventListener('pointercancel', finish);
+                try { preview.releasePointerCapture?.(pointerId); } catch (_) {}
+            };
+
+            const finish = (finishEvent) => {
+                if (finishEvent?.pointerId !== pointerId) return;
+
+                removeListeners();
+                this.selfPreviewDragging = false;
                 this.selfPreviewDragCleanup = null;
+
+                if (finishEvent.type === 'pointercancel') {
+                    this.selfPreviewX = this.selfPreviewLastSafeX;
+                    this.selfPreviewY = this.selfPreviewLastSafeY;
+                    return;
+                }
+
+                const candidate = { x: this.selfPreviewX, y: this.selfPreviewY };
+
+                if (isSelfPreviewCenterOutside(candidate, metrics.stage, metrics.preview)) {
+                    this.minimizeSelfPreview(candidate);
+                    return;
+                }
+
+                const safe = this.rememberSafeSelfPreviewPosition(candidate, metrics);
+                this.selfPreviewX = safe.x;
+                this.selfPreviewY = safe.y;
             };
 
             this.selfPreviewDragCleanup?.();
-            this.selfPreviewDragCleanup = stop;
+            this.selfPreviewDragCleanup = () => {
+                removeListeners();
+                this.selfPreviewDragging = false;
+                this.selfPreviewX = this.selfPreviewLastSafeX;
+                this.selfPreviewY = this.selfPreviewLastSafeY;
+                this.selfPreviewDragCleanup = null;
+            };
             window.addEventListener('pointermove', move, { passive: true });
-            window.addEventListener('pointerup', stop, { once: true });
-            window.addEventListener('pointercancel', stop, { once: true });
+            window.addEventListener('pointerup', finish);
+            window.addEventListener('pointercancel', finish);
         },
 
         /** Muss aus einer echten Nutzergeste heraus laufen (Klick). */
@@ -522,8 +738,8 @@ document.addEventListener('alpine:init', () => {
                 }
             });
 
-            if (this.selfVideoVisible && !this.selfPreviewInitialized) {
-                requestAnimationFrame(() => this.positionSelfPreview());
+            if (this.selfVideoVisible) {
+                this.queueSelfPreviewGeometry();
             }
         },
 
@@ -582,7 +798,9 @@ document.addEventListener('alpine:init', () => {
         },
 
         attachTracks(participant, tile) {
-            let hasVideo = false;
+            const isLocal = participant === this.room.localParticipant;
+            const preferredVideoSource = isLocal ? Track.Source.Camera : Track.Source.ScreenShare;
+            let selectedVideoPublication = null;
             let audioMuted = true;
 
             participant.trackPublications.forEach((publication) => {
@@ -597,13 +815,28 @@ document.addEventListener('alpine:init', () => {
                 }
 
                 if (publication.kind === Track.Kind.Video && track && !publication.isMuted) {
-                    // Screenshare hat Vorrang vor der Kamera
-                    if (!hasVideo || publication.source === Track.Source.ScreenShare) {
-                        track.attach(tile.video);
-                        hasVideo = true;
+                    if (!selectedVideoPublication
+                        || (publication.source === preferredVideoSource
+                            && selectedVideoPublication.source !== preferredVideoSource)) {
+                        selectedVideoPublication = publication;
                     }
                 }
             });
+
+            // Im eigenen PiP bleibt die Kamera sichtbar, waehrend der Screen-
+            // Track publiziert bleibt. Bei anderen Teilnehmern hat deren
+            // Bildschirmfreigabe weiterhin Vorrang in der grossen Kachel.
+            participant.trackPublications.forEach((publication) => {
+                if (publication.kind !== Track.Kind.Video || !publication.track) return;
+
+                if (publication === selectedVideoPublication) {
+                    publication.track.attach(tile.video);
+                } else {
+                    publication.track.detach(tile.video);
+                }
+            });
+
+            const hasVideo = selectedVideoPublication !== null;
 
             tile.video.classList.toggle('hidden', !hasVideo);
             tile.placeholder.classList.toggle('hidden', hasVideo);
@@ -701,6 +934,13 @@ document.addEventListener('alpine:init', () => {
         destroy() {
             this.selfPreviewDragCleanup?.();
             this.selfPreviewShapeCleanup?.();
+            this.selfPreviewResizeCleanup?.();
+
+            if (this.selfPreviewGeometryFrame !== null) {
+                cancelAnimationFrame(this.selfPreviewGeometryFrame);
+                this.selfPreviewGeometryFrame = null;
+            }
+
             this.disconnect();
         },
     }));
