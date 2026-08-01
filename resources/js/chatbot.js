@@ -18,9 +18,18 @@ const MAX_KNOWN_MESSAGE_KEYS = 500;
 const PET_BUBBLE_INITIAL_DELAY_MS = 1_200;
 const PET_BUBBLE_VISIBLE_MS = 4_800;
 const PET_BUBBLE_CYCLE_MS = 38_000;
+const PET_PRIMER_VISIBLE_MS = 14_000;
+const PET_REACTION_MIN_DELAY_MS = 7_000;
+const PET_REACTION_DELAY_RANGE_MS = 9_000;
 const SPEECH_STATUS_RETRY_DELAYS_MS = [2_000, 5_000, 15_000, 30_000];
 const ATTACHMENT_UPLOAD_LIMIT = 3;
+const PHRASE_AUDIO_CACHE_TTL_MS = 10 * 60 * 1_000;
+const PHRASE_AUDIO_CACHE_MAX_ITEMS = 8;
+const PHRASE_AUDIO_CACHE_MAX_BYTES = 16 * 1024 * 1024;
 const SEEN_PAGE_HELP_KEYS = new Set();
+const PET_REACTIONS = Object.freeze(['curious', 'happy', 'wave']);
+const PHRASE_AUDIO_CACHE = new Map();
+let phraseAudioCacheBytes = 0;
 
 const DEFAULT_STRINGS = {
     audioEndpointUnavailable: 'Die Audioausgabe ist momentan nicht erreichbar.',
@@ -46,9 +55,84 @@ const DEFAULT_STRINGS = {
     petVoiceHint: 'Du kannst deine Frage auch einfach einsprechen.',
     petReplyReady: 'Ich habe eine Antwort für dich.',
     petUnavailable: 'Ich mache gerade eine kurze Pause.',
+    petStatusChecking: 'Ich prüfe kurz, was hier bereit ist …',
+    petReadyQuestion: 'Ich bin bereit. Wobei soll ich dir helfen?',
+    petTextOnlyQuestion: 'Schreiben ist bereit. Möchtest du mir deine Frage tippen?',
+    petPageQuestion: 'Brauchst du Hilfe bei „:page“?',
+    petNextStepQuestion: 'Soll ich dir auf „:page“ den nächsten Schritt zeigen?',
+    petHelpQuestion: 'Soll ich dich dabei unterstützen?',
+    petOpenChat: 'Chat öffnen',
+    petAskByVoice: 'Frage sprechen',
+    petReadAloud: 'Vorlesen',
+    petCheckAgain: 'Erneut prüfen',
     wagonHelp: 'Soll ich dich per Sprache Schritt für Schritt durch diese Wagenliste führen?',
     wagonVoiceStart: 'Per Sprache starten',
 };
+
+function deletePhraseAudioCacheEntry(key) {
+    const existing = PHRASE_AUDIO_CACHE.get(key);
+    if (!existing) return;
+
+    phraseAudioCacheBytes = Math.max(0, phraseAudioCacheBytes - existing.size);
+    PHRASE_AUDIO_CACHE.delete(key);
+}
+
+function prunePhraseAudioCache(now = Date.now()) {
+    PHRASE_AUDIO_CACHE.forEach((entry, key) => {
+        if (entry.expiresAt <= now) deletePhraseAudioCacheEntry(key);
+    });
+
+    while (
+        PHRASE_AUDIO_CACHE.size > PHRASE_AUDIO_CACHE_MAX_ITEMS
+        || phraseAudioCacheBytes > PHRASE_AUDIO_CACHE_MAX_BYTES
+    ) {
+        const oldestKey = PHRASE_AUDIO_CACHE.keys().next().value;
+        if (oldestKey === undefined) break;
+        deletePhraseAudioCacheEntry(oldestKey);
+    }
+}
+
+export function clearAssistantPhraseAudioCache() {
+    PHRASE_AUDIO_CACHE.clear();
+    phraseAudioCacheBytes = 0;
+}
+
+export function cachedAssistantPhraseAudio(key, now = Date.now()) {
+    const normalized = String(key ?? '').trim();
+    if (!normalized) return null;
+
+    prunePhraseAudioCache(now);
+    const entry = PHRASE_AUDIO_CACHE.get(normalized);
+    if (!entry) return null;
+
+    PHRASE_AUDIO_CACHE.delete(normalized);
+    PHRASE_AUDIO_CACHE.set(normalized, entry);
+
+    return entry.blob;
+}
+
+export function rememberAssistantPhraseAudio(key, blob, now = Date.now()) {
+    const normalized = String(key ?? '').trim();
+    const size = Number(blob?.size) || 0;
+    if (!normalized || !blob || size <= 0 || size > PHRASE_AUDIO_CACHE_MAX_BYTES) return false;
+
+    deletePhraseAudioCacheEntry(normalized);
+    PHRASE_AUDIO_CACHE.set(normalized, {
+        blob,
+        size,
+        expiresAt: now + PHRASE_AUDIO_CACHE_TTL_MS,
+    });
+    phraseAudioCacheBytes += size;
+    prunePhraseAudioCache(now);
+
+    return PHRASE_AUDIO_CACHE.has(normalized);
+}
+
+export function chooseAssistantPetReaction(randomValue = Math.random()) {
+    const normalized = Math.min(0.999999, Math.max(0, Number(randomValue) || 0));
+
+    return PET_REACTIONS[Math.floor(normalized * PET_REACTIONS.length)];
+}
 
 function clamp(value, min, max, fallback) {
     const parsed = Number(value);
@@ -135,8 +219,16 @@ export function railtimeChatbot(config = {}) {
         ttsEndpoint: String(config.ttsEndpoint ?? ''),
         sttEndpoint: String(config.sttEndpoint ?? ''),
         csrfToken: String(config.csrfToken ?? ''),
+        locale: String(
+            config.locale
+            ?? (typeof document !== 'undefined' ? document.documentElement?.lang : '')
+            ?? 'de',
+        ).trim().toLowerCase() || 'de',
         pageRouteName: String(config.pageRouteName ?? ''),
         pageHelpHint: String(config.pageHelpHint ?? '').trim(),
+        pageHelpHints: Array.isArray(config.pageHelpHints)
+            ? config.pageHelpHints.map((entry) => String(entry ?? '').trim()).filter(Boolean).slice(0, 5)
+            : [],
         strings,
 
         settingsOpen: false,
@@ -163,6 +255,7 @@ export function railtimeChatbot(config = {}) {
         ttsPlaybackCancel: null,
         ttsObjectUrls: [],
         ttsCurrentGeneration: 0,
+        ttsProgress: 0,
         speaking: false,
         speakingKey: null,
 
@@ -201,11 +294,18 @@ export function railtimeChatbot(config = {}) {
         petBubbleOrigin: null,
         petBubbleActionKey: '',
         petBubbleActionLabel: '',
+        petBubbleActions: [],
+        petBubblePhraseKey: '',
+        petPrimed: false,
+        petStatusChecking: false,
+        petReaction: '',
         wagonHelpVisible: false,
         wagonHelpText: '',
-        petHintIndex: 0,
+        petHintIndex: -1,
         petBubbleTimer: null,
         petBubbleCycleTimer: null,
+        petReactionTimer: null,
+        petReactionClearTimer: null,
         autoListenTimer: null,
         autoListenGeneration: 0,
         autoListenChecking: false,
@@ -248,6 +348,8 @@ export function railtimeChatbot(config = {}) {
                 this.stopSpeaking();
                 this.cancelSpeechStatusRefresh(true);
                 this.discardPendingAttachments();
+                this.clearPetReactionTimers();
+                clearAssistantPhraseAudioCache();
             };
             this._visibilityHandler = () => {
                 if (document.hidden) {
@@ -255,11 +357,13 @@ export function railtimeChatbot(config = {}) {
                     this.abortSpeechInput();
                     this.cancelSpeechStatusRefresh(true);
                     this.clearPetBubbleTimers();
+                    this.clearPetReactionTimers();
                     return;
                 }
 
                 void this.refreshSpeechStatus('visibility');
                 if (!this.open && this.autoHelp) this.schedulePetBubble(false);
+                this.scheduleRandomPetReaction();
             };
             this._onlineHandler = () => {
                 void this.refreshSpeechStatus('online');
@@ -287,10 +391,13 @@ export function railtimeChatbot(config = {}) {
                     this.closeSettings(false);
                     this.abortSpeechInput();
                     this.stopSpeaking();
+                    this.petPrimed = false;
                     if (this.autoHelp) this.schedulePetBubble(false);
+                    this.scheduleRandomPetReaction();
                     return;
                 }
 
+                this.petPrimed = false;
                 this.hidePetBubble();
                 void this.refreshSpeechStatus('open');
                 this.$nextTick(() => {
@@ -321,6 +428,7 @@ export function railtimeChatbot(config = {}) {
                     this.speechRate = normalized;
                     return;
                 }
+                clearAssistantPhraseAudioCache();
                 safeStorage('localStorage')?.setItem('railtime-chatbot-speech-rate', String(normalized));
             });
 
@@ -334,6 +442,7 @@ export function railtimeChatbot(config = {}) {
 
             void this.refreshSpeechStatus('init');
             if (this.autoHelp) this.schedulePetBubble(true);
+            this.scheduleRandomPetReaction();
         },
 
         destroy() {
@@ -367,6 +476,8 @@ export function railtimeChatbot(config = {}) {
             this.cancelWireAttachmentUpload();
             this.clearAttachmentUploadState();
             this.clearPetBubbleTimers();
+            this.clearPetReactionTimers();
+            clearAssistantPhraseAudioCache();
             this.settingsOpen = false;
             releaseMicrophoneStream();
         },

@@ -12,6 +12,7 @@ use App\Services\Calls\CallConversationService;
 use App\Services\Calls\LiveKitService;
 use App\Services\Calls\RoomEventRecorder;
 use App\Services\Calls\RoomLifecycleService;
+use Livewire\Attributes\Renderless;
 use Livewire\Component;
 
 /**
@@ -82,6 +83,7 @@ class CallWindow extends Component
      * Re-Render aber NICHT neu aus – die aktuelle Liste muss deshalb als
      * Browser-Ereignis kommen, nicht nur als neu gerendertes Markup.
      */
+    #[Renderless]
     public function onWaitingChanged(): void
     {
         $this->dispatch('rt-call-waiting', waiting: $this->waitingFor());

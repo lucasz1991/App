@@ -11,7 +11,9 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Throwable;
 
 class PurgeExpiredCallRecordings implements ShouldBeUnique, ShouldQueue
 {
@@ -50,7 +52,11 @@ class PurgeExpiredCallRecordings implements ShouldBeUnique, ShouldQueue
                 $disk = Storage::disk($recording->storage_disk);
 
                 if ($recording->storage_key && $disk->exists($recording->storage_key)) {
-                    $disk->delete($recording->storage_key);
+                    $deleted = $disk->delete($recording->storage_key);
+
+                    if (! $deleted || $disk->exists($recording->storage_key)) {
+                        throw new \RuntimeException('S3 bestaetigte die Loeschung der Call-Aufzeichnung nicht.');
+                    }
                 }
 
                 $recording->forceFill([
@@ -68,5 +74,12 @@ class PurgeExpiredCallRecordings implements ShouldBeUnique, ShouldQueue
                     externalId: 'recording:'.$recording->uuid.':expired',
                 );
             }, 50);
+    }
+
+    public function failed(?Throwable $exception): void
+    {
+        Log::critical('Abgelaufene Call-Aufzeichnungen konnten nach allen Versuchen nicht geloescht werden.', [
+            'error_class' => $exception ? $exception::class : null,
+        ]);
     }
 }

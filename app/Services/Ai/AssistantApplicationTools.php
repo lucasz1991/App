@@ -879,8 +879,75 @@ final class AssistantApplicationTools
     /** @param array<string, mixed> $page */
     private function routeMatchesPage(string $currentRoute, array $page): bool
     {
-        return ($page['parameters'] ?? []) === []
-            && $currentRoute === $page['route_name'];
+        $routeName = (string) ($page['route_name'] ?? '');
+        if ($currentRoute !== $routeName) {
+            return false;
+        }
+
+        $parameters = is_array($page['parameters'] ?? null) ? $page['parameters'] : [];
+        if ($parameters === []) {
+            return true;
+        }
+
+        $currentPath = $this->currentBrowserPath($currentRoute);
+        $expectedPath = parse_url(route($routeName, $parameters, false), PHP_URL_PATH);
+
+        return is_string($expectedPath)
+            && ($expectedPath = $this->normalizePath($expectedPath)) !== null
+            && $currentPath !== null
+            && hash_equals($expectedPath, $currentPath);
+    }
+
+    private function currentBrowserPath(string $currentRoute): ?string
+    {
+        $request = request();
+
+        if ($request->route()?->getName() === $currentRoute) {
+            return $this->normalizePath($request->getPathInfo());
+        }
+
+        // Livewire actions run through its update endpoint. The browser page is
+        // therefore recovered from a strictly same-origin Referer. A missing or
+        // forged header stays fail-closed and never guesses between modules that
+        // share one parameterised route name.
+        $referer = trim((string) $request->headers->get('referer'));
+        $parts = $referer !== '' ? parse_url($referer) : false;
+        if (
+            ! is_array($parts)
+            || ! in_array(strtolower((string) ($parts['scheme'] ?? '')), ['http', 'https'], true)
+            || ! is_string($parts['path'] ?? null)
+            || isset($parts['user'])
+            || isset($parts['pass'])
+            || isset($parts['fragment'])
+        ) {
+            return null;
+        }
+
+        $refererScheme = strtolower((string) $parts['scheme']);
+        $refererHost = strtolower((string) ($parts['host'] ?? ''));
+        $refererPort = (int) ($parts['port'] ?? ($refererScheme === 'https' ? 443 : 80));
+
+        if (
+            $refererHost === ''
+            || ! hash_equals(strtolower($request->getHost()), $refererHost)
+            || ! hash_equals(strtolower($request->getScheme()), $refererScheme)
+            || $request->getPort() !== $refererPort
+        ) {
+            return null;
+        }
+
+        return $this->normalizePath($parts['path']);
+    }
+
+    private function normalizePath(string $path): ?string
+    {
+        if ($path === '' || ! str_starts_with($path, '/') || preg_match('/[\x00-\x20\x7F]/', $path) === 1) {
+            return null;
+        }
+
+        $path = rtrim($path, '/');
+
+        return $path !== '' ? $path : '/';
     }
 
     private function isWagonRoute(string $route): bool

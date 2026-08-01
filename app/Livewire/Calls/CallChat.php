@@ -2,9 +2,9 @@
 
 namespace App\Livewire\Calls;
 
-use App\Events\ChatMessageReceived;
 use App\Events\ChatMessageDeleted;
 use App\Events\ChatMessageReactionChanged;
+use App\Events\ChatMessageReceived;
 use App\Events\ChatMessageSent;
 use App\Models\Chat;
 use App\Models\ChatMessage;
@@ -26,6 +26,7 @@ class CallChat extends Component
 
     public Room $room;
 
+    #[Locked]
     public bool $readOnly = false;
 
     public string $messageText = '';
@@ -42,11 +43,17 @@ class CallChat extends Component
     public function mount(Room $room, bool $readOnly = false): void
     {
         $this->room = $room;
-        $this->readOnly = $readOnly || ! $room->isActive();
+        $this->readOnly = $readOnly;
+        $this->syncReadOnlyState();
 
         $chat = $this->authorizedChat();
         $this->initializeCursor($chat);
         $this->markRead($chat);
+    }
+
+    public function hydrate(): void
+    {
+        $this->syncReadOnlyState();
     }
 
     /** @return array<string, string> */
@@ -63,6 +70,7 @@ class CallChat extends Component
 
     public function refreshMessages(): void
     {
+        $this->syncReadOnlyState();
         $this->markRead($this->authorizedChat());
     }
 
@@ -92,6 +100,7 @@ class CallChat extends Component
 
     public function startReply(int $messageId): void
     {
+        $this->assertWritable();
         $message = $this->visibleMessagesQuery($this->authorizedChat())->findOrFail($messageId);
         $this->replyToMessageId = (int) $message->id;
         $this->dispatch('call-chat:focus-composer');
@@ -218,17 +227,27 @@ class CallChat extends Component
 
     protected function assertWritable(): void
     {
-        $room = $this->room->fresh();
-        $participant = $room?->participantFor(auth()->id());
+        $this->syncReadOnlyState();
+        $participant = $this->room->participantFor(auth()->id());
 
         abort_unless(
             ! $this->readOnly
-                && $room?->isActive()
+                && $this->room->isActive()
                 && $participant
                 && ! $participant->isRemoved(),
             403,
             __('app.calls_chat_read_only'),
         );
+    }
+
+    protected function syncReadOnlyState(): void
+    {
+        $room = $this->room->fresh();
+
+        abort_unless($room, 404);
+
+        $this->room = $room;
+        $this->readOnly = $this->readOnly || ! $room->isActive();
     }
 
     protected function visibleMessagesQuery(Chat $chat): Builder
@@ -282,6 +301,7 @@ class CallChat extends Component
 
     public function render()
     {
+        $this->syncReadOnlyState();
         $chat = $this->authorizedChat();
         $query = $this->visibleMessagesQuery($chat);
 

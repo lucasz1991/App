@@ -2,8 +2,9 @@
 
 namespace App\Livewire\Calls;
 
+use App\Events\CallInvitationAnswered;
 use App\Models\Room;
-use App\Models\RoomParticipant;
+use App\Models\RoomInvitation;
 use App\Services\Calls\CallConversationService;
 use App\Services\Calls\LiveKitService;
 use App\Services\Calls\RoomEventRecorder;
@@ -67,6 +68,7 @@ class CallHistory extends Component
                 'type' => 'meeting',
                 'status' => 'pending',
                 'owner_id' => $user->id,
+                'team_id' => $user->current_team_id,
                 'settings' => ['video' => $this->video],
             ]);
 
@@ -111,20 +113,88 @@ class CallHistory extends Component
 
         abort_unless($user->isAdmin() || $user->hasRbacPermission('calls.join'), 403);
 
-        $room = Room::query()->where('type', 'meeting')->findOrFail($roomId);
-        abort_unless($room->isActive(), 410, __('app.calls_ended'));
+        [$room, $answeredInvitation, $recordAccepted] = DB::transaction(function () use ($roomId, $user): array {
+            $room = Room::query()
+                ->where('type', 'meeting')
+                ->lockForUpdate()
+                ->findOrFail($roomId);
 
-        RoomParticipant::firstOrCreate(
-            ['room_id' => $room->id, 'user_id' => $user->id],
-            [
-                'role' => 'speaker',
-                'connection' => 'invited',
-                'livekit_identity' => LiveKitService::identityFor($user),
-            ],
-        );
+            abort_unless($room->isActive(), 410, __('app.calls_ended'));
 
+            $participant = $room->participants()
+                ->where('user_id', $user->id)
+                ->lockForUpdate()
+                ->first();
+
+            // Eine Moderationsentfernung ist eine ausdrueckliche Sperre. Der
+            // offene Meeting-Hub darf sie weder zuruecksetzen noch durch einen
+            // Call-Chat-Anhang faktisch umgehen.
+            abort_if($participant?->isRemoved(), 403, __('app.calls_permission_denied'));
+
+            $participantWasCreated = false;
+
+            if (! $participant) {
+                $participant = $room->participants()->create([
+                    'user_id' => $user->id,
+                    'role' => 'speaker',
+                    'connection' => 'invited',
+                    'livekit_identity' => LiveKitService::identityFor($user),
+                ]);
+                $participantWasCreated = true;
+            } elseif ($participant->connectionState() === 'left') {
+                $participant->forceFill([
+                    'connection' => 'invited',
+                    'left_at' => null,
+                ])->save();
+            }
+
+            $latestInvitation = $room->invitations()
+                ->where('invitee_id', $user->id)
+                ->latest('id')
+                ->lockForUpdate()
+                ->first();
+            $answeredInvitation = null;
+            $recordAccepted = $participantWasCreated;
+
+            if ($latestInvitation?->status === 'pending') {
+                // Ein ausdruecklicher Klick im offenen Hub gilt auch bei einer
+                // inzwischen abgelaufenen Klingel-Einladung als Annahme.
+                $latestInvitation->forceFill([
+                    'status' => 'accepted',
+                    'responded_at' => now(),
+                ])->save();
+                $answeredInvitation = $latestInvitation;
+                $recordAccepted = true;
+            } elseif ($latestInvitation && in_array($latestInvitation->status, ['declined', 'missed', 'expired'], true)) {
+                // Den alten Versuch unveraendert lassen. Der bewusste spaetere
+                // Open-Meeting-Beitritt ist ein neuer, nachvollziehbarer
+                // akzeptierter Versuch und wird dadurch zur neuesten Wahrheit
+                // fuer Room::mayJoin().
+                $answeredInvitation = $room->invitations()->create([
+                    'inviter_id' => $room->owner_id,
+                    'invitee_id' => $user->id,
+                    'status' => 'accepted',
+                    'expires_at' => now(),
+                    'responded_at' => now(),
+                ]);
+                $recordAccepted = true;
+            }
+
+            return [$room, $answeredInvitation, $recordAccepted];
+        });
+
+        // Erst nach der gesperrten Zustands- und Entfernungspruefung wird der
+        // persistente Call-Chat freigeschaltet.
+        abort_unless($room->mayJoin($user), 403, __('app.calls_permission_denied'));
         $conversations->attachParticipant($room, $user);
-        $events->record($room, 'accepted', $user);
+
+        if ($recordAccepted) {
+            $events->record($room, 'accepted', $user, ['source' => 'open_meeting']);
+        }
+
+        if ($answeredInvitation instanceof RoomInvitation) {
+            broadcast(new CallInvitationAnswered($answeredInvitation))->toOthers();
+        }
 
         return redirect()->route('calls.window', $room);
     }
@@ -135,13 +205,29 @@ class CallHistory extends Component
         $userId = auth()->id();
 
         return Room::query()
-            ->with(['owner', 'chat', 'callChat', 'participants.user', 'recording'])
+            ->with([
+                'owner',
+                'chat',
+                'callChat.participants:id,name,profile_photo_path',
+                'participants.user',
+                'recording',
+                'invitations' => fn ($query) => $query->where('invitee_id', $userId)->latest('id'),
+            ])
             ->whereHas('participants', fn ($q) => $q->where('user_id', $userId))
             ->when($this->filter === 'active', fn ($q) => $q->whereIn('status', ['pending', 'active']))
             ->when($this->filter === 'meetings', fn ($q) => $q->where('type', 'meeting'))
             ->when($this->filter === 'missed', fn ($q) => $q->whereHas(
                 'invitations',
-                fn ($i) => $i->where('invitee_id', $userId)->whereIn('status', ['missed', 'declined', 'expired']),
+                fn ($i) => $i
+                    ->where('invitee_id', $userId)
+                    ->whereIn('status', ['missed', 'declined', 'expired'])
+                    ->whereNotExists(function ($newer): void {
+                        $newer->selectRaw('1')
+                            ->from('room_invitations as newer_invitation')
+                            ->whereColumn('newer_invitation.room_id', 'room_invitations.room_id')
+                            ->whereColumn('newer_invitation.invitee_id', 'room_invitations.invitee_id')
+                            ->whereColumn('newer_invitation.id', '>', 'room_invitations.id');
+                    }),
             ))
             ->when($this->filter === 'recordings', fn ($q) => $q->whereHas('recording'))
             ->latest('id')

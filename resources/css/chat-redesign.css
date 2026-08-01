@@ -770,15 +770,20 @@ body[data-mode='dark'] .rt-chat-message-menu-action:focus-visible {
 }
 
 .rt-chat-reaction-chip {
-    border: 1px solid color-mix(in srgb, var(--chat-line) 82%, transparent);
+    border: 0;
     color: var(--chat-ink);
-    background: var(--chat-panel);
-    box-shadow: 0 5px 14px -12px var(--chat-shadow-strong);
+    background: transparent;
+    box-shadow: none;
 }
 
 .rt-chat-reaction-chip.is-mine {
-    border-color: color-mix(in srgb, var(--chat-accent) 44%, var(--chat-line));
-    background: color-mix(in srgb, var(--chat-accent-soft) 66%, var(--chat-panel));
+    color: var(--chat-accent);
+}
+
+button.rt-chat-reaction-chip:hover,
+button.rt-chat-reaction-chip:focus-visible {
+    outline: none;
+    transform: scale(1.08);
 }
 
 .rt-chat-message-row.is-reply-target .rt-chat-message {

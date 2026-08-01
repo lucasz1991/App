@@ -63,7 +63,7 @@
             <div
                 x-cloak
                 x-show="recordingEnabled"
-                class="hidden min-h-10 items-center gap-2 rounded-xl bg-white/[0.07] px-3 text-[11px] font-bold text-white/80 ring-1 ring-white/10 sm:inline-flex"
+                class="inline-flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-white/[0.07] text-[11px] font-bold text-white/80 ring-1 ring-white/10 sm:h-auto sm:min-h-10 sm:w-auto sm:px-3"
                 role="status"
                 aria-live="polite"
             >
@@ -72,7 +72,8 @@
                     :class="recordingStatus === 'active' ? 'animate-pulse bg-red-500' : (['failed', 'aborted', 'unavailable'].includes(recordingStatus) ? 'bg-rose-400' : 'bg-amber-400')"
                     aria-hidden="true"
                 ></span>
-                <span x-text="recordingStatusLabel"></span>
+                <span class="sr-only" x-text="recordingStatusLabel"></span>
+                <span class="hidden sm:inline" x-text="recordingStatusLabel" aria-hidden="true"></span>
             </div>
 
             <x-ui.page-info-button

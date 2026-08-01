@@ -62,7 +62,11 @@
         @else
             <ul class="divide-y divide-rt-border/60 dark:divide-rt-dark-border/60">
                 @foreach ($liveMeetings as $liveRoom)
-                    @php $joined = $liveRoom->participants->filter->isConnected()->count(); @endphp
+                    @php
+                        $joined = $liveRoom->participants->filter->isConnected()->count();
+                        $currentParticipant = $liveRoom->participants->firstWhere('user_id', $currentUserId);
+                        $mayRequestJoin = ! $currentParticipant?->isRemoved();
+                    @endphp
                     <li class="flex items-center gap-3 px-4 py-3.5 sm:px-5" wire:key="live-meeting-{{ $liveRoom->id }}">
                         <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                             <i @class(['far', 'fa-video' => $liveRoom->startsWithVideo(), 'fa-phone' => ! $liveRoom->startsWithVideo()]) aria-hidden="true"></i>
@@ -74,15 +78,17 @@
                                 · {{ trans_choice('app.meetings_participants_count', $joined, ['count' => $joined]) }}
                             </p>
                         </div>
-                        <button
-                            type="button"
-                            wire:click="join({{ $liveRoom->id }})"
-                            wire:loading.attr="disabled"
-                            class="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl bg-emerald-500/10 px-3 text-xs font-bold text-emerald-600 transition hover:bg-emerald-500/20 dark:text-emerald-400"
-                        >
-                            <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-                            {{ __('app.calls_join') }}
-                        </button>
+                        @if ($mayRequestJoin)
+                            <button
+                                type="button"
+                                wire:click="join({{ $liveRoom->id }})"
+                                wire:loading.attr="disabled"
+                                class="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl bg-emerald-500/10 px-3 text-xs font-bold text-emerald-600 transition hover:bg-emerald-500/20 dark:text-emerald-400"
+                            >
+                                <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+                                {{ __('app.calls_join') }}
+                            </button>
+                        @endif
                     </li>
                 @endforeach
             </ul>

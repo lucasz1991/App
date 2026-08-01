@@ -41,6 +41,7 @@ document.addEventListener('alpine:init', () => {
         recordingAcknowledgementError: '',
         recordingPollTimer: null,
         recordingPollInFlight: false,
+        recordingUnlockAttempts: 0,
         sessionAbortController: null,
         connectionGeneration: 0,
         startWithVideo: config.startWithVideo !== false,
@@ -544,6 +545,10 @@ document.addEventListener('alpine:init', () => {
 
                     if (generation !== this.connectionGeneration) return;
 
+                    if (payload.recording) {
+                        this.applyRecordingSession(payload.recording);
+                    }
+
                     if (response.status === 428 && payload.recording?.requiresAcknowledgement) {
                         this.recordingEnabled = true;
                         this.recordingStatus = 'acknowledgement_required';
@@ -727,6 +732,10 @@ document.addEventListener('alpine:init', () => {
                     if (generation !== this.connectionGeneration || ! this.room) return;
 
                     if (! response.ok) {
+                        if (payload.recording) {
+                            this.applyRecordingSession(payload.recording);
+                        }
+
                         if (response.status === 428 && payload.recording?.requiresAcknowledgement) {
                             this.recordingRequiresAcknowledgement = true;
                             this.recordingPolicyVersion = payload.recording.policyVersion || this.recordingPolicyVersion;
@@ -747,6 +756,7 @@ document.addEventListener('alpine:init', () => {
 
                         if (this.recordingStatus === 'active'
                             && (! this.participantMayPublish || this.canPublish)) {
+                            this.recordingUnlockAttempts = 0;
                             this.stopRecordingPolling();
 
                             if (this.canPublish && generation === this.connectionGeneration && this.room) {
@@ -754,6 +764,18 @@ document.addEventListener('alpine:init', () => {
                             }
 
                             return;
+                        }
+
+                        if (this.recordingStatus === 'active' && this.participantMayPublish) {
+                            this.recordingUnlockAttempts += 1;
+
+                            if (this.recordingUnlockAttempts >= 5) {
+                                this.recordingStatus = 'failed';
+                                this.disconnect();
+                                this.fail(config.labels.recordingFailed, 'LiveKit publishing permission was not confirmed');
+
+                                return;
+                            }
                         }
                     }
                 } catch (error) {
@@ -767,7 +789,9 @@ document.addEventListener('alpine:init', () => {
                     this.recordingPollInFlight = false;
                 }
 
-                if (this.recordingStartDeadlineAt && Date.now() > Date.parse(this.recordingStartDeadlineAt) + 1000) {
+                if (this.recordingStatus !== 'active'
+                    && this.recordingStartDeadlineAt
+                    && Date.now() > Date.parse(this.recordingStartDeadlineAt) + 1000) {
                     this.disconnect();
                     this.fail(config.labels.recordingFailed, 'Recording start deadline exceeded');
 
@@ -927,6 +951,11 @@ document.addEventListener('alpine:init', () => {
                     }
                 })
                 .on(RoomEvent.Disconnected, (reason) => {
+                    this.stopRecordingPolling();
+                    this.connectionGeneration += 1;
+                    this.sessionAbortController?.abort();
+                    this.sessionAbortController = null;
+                    this.room = null;
                     this.connected = false;
                     this.syncRingback();
 

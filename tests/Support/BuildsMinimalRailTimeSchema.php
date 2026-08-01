@@ -61,6 +61,7 @@ trait BuildsMinimalRailTimeSchema
 
         Schema::create('teams', function (Blueprint $table): void {
             $table->id();
+            $table->uuid('recording_storage_uuid')->nullable()->unique();
             $table->unsignedBigInteger('user_id');
             $table->string('name');
             $table->boolean('personal_team')->default(false);

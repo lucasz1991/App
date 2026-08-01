@@ -915,6 +915,7 @@ return [
     'chat_view_once_voice_message' => 'Einmalig abspielbare Sprachnachricht',
     'chat_message_deleted' => 'Diese Nachricht wurde gelöscht.',
     'chat_quick_reactions' => 'Schnellreaktionen',
+    'chat_react' => 'Reagieren',
     'chat_more_reactions' => 'Mehr Reaktionen',
     'chat_message_reactions' => 'Reaktionen auf die Nachricht',
     'chat_react_with' => 'Mit :emoji reagieren',

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Http\Middleware\LogActivity;
 use App\Livewire\Calls\CallHistory;
+use App\Livewire\Calls\CallDetails;
 use App\Livewire\Calls\CallWindow;
 use App\Livewire\Calls\IncomingCallOverlay;
 use App\Livewire\Calls\Meetings;
@@ -12,6 +13,7 @@ use App\Models\Chat;
 use App\Models\Room;
 use App\Models\User;
 use App\Services\Calls\CallInvitationService;
+use App\Services\Calls\CallConversationService;
 use App\Services\Calls\LiveKitService;
 use App\Services\Calls\RoomLifecycleService;
 use App\Support\Rbac\RbacCatalog;
@@ -86,6 +88,10 @@ class CallFlowTest extends TestCase
         $this->assertSame($chat->id, $room->chat_id);
         $this->assertSame($caller->id, $room->owner_id);
         $this->assertSame('host', $room->participantFor($caller)->role);
+        $this->assertNotNull($room->call_chat_id);
+        $this->assertSame('call', $room->callChat->type);
+        $this->assertNotNull($room->callChat->participantFor($caller));
+        $this->assertNull($room->callChat->participantFor($callee));
 
         $this->assertDatabaseHas('room_invitations', [
             'room_id' => $room->id,
@@ -116,6 +122,7 @@ class CallFlowTest extends TestCase
             ->assertRedirect(route('calls.window', $room));
 
         $this->assertSame('accepted', $invitation->fresh()->status);
+        $this->assertNotNull($room->fresh('callChat.participants')->callChat->participantFor($callee));
     }
 
     public function test_declining_an_invitation_marks_it_declined(): void
@@ -187,7 +194,9 @@ class CallFlowTest extends TestCase
             ->assertForbidden();
 
         $this->assertSame('missed', $invitation->fresh()->status);
-        $this->assertNull($room->fresh()->call_chat_id);
+        $callChat = $room->fresh('callChat.participants')->callChat;
+        $this->assertNotNull($callChat);
+        $this->assertNull($callChat->participantFor($callee));
     }
 
     public function test_ended_rooms_do_not_issue_tokens(): void
@@ -323,6 +332,20 @@ class CallFlowTest extends TestCase
         $this->assertSame('ended', $room->fresh()->status);
     }
 
+    public function test_direct_call_duration_starts_when_the_other_party_joins(): void
+    {
+        [$caller, $callee, $chat] = $this->directChatWithCallRights();
+        $room = $this->roomWithInvitation($caller, $callee, $chat);
+        app(CallInvitationService::class)->accept($room->invitations()->firstOrFail());
+
+        $lifecycle = app(RoomLifecycleService::class);
+        $lifecycle->markParticipantJoined($room, 'user-'.$caller->id);
+        $this->assertNull($room->fresh()->connected_at);
+
+        $lifecycle->markParticipantJoined($room->fresh(), 'user-'.$callee->id);
+        $this->assertNotNull($room->fresh()->connected_at);
+    }
+
     public function test_accept_join_race_does_not_abort_while_livekit_still_has_a_participant(): void
     {
         $this->fakeLiveKit(['hasConnectedParticipants' => true]);
@@ -340,6 +363,25 @@ class CallFlowTest extends TestCase
         $lifecycle->markParticipantLeft($room->fresh(), 'user-'.$caller->id);
 
         $this->assertSame('active', $room->fresh()->status);
+
+        $lifecycle->markParticipantJoined($room->fresh(), 'user-'.$callee->id);
+        $this->assertSame('active', $room->fresh()->status);
+    }
+
+    public function test_accept_join_race_waits_for_the_accepted_participant_even_before_sfu_join(): void
+    {
+        $this->fakeLiveKit(['hasConnectedParticipants' => false]);
+
+        [$caller, $callee, $chat] = $this->directChatWithCallRights();
+        $room = $this->roomWithInvitation($caller, $callee, $chat);
+        app(CallInvitationService::class)->accept($room->invitations()->firstOrFail());
+
+        $lifecycle = app(RoomLifecycleService::class);
+        $lifecycle->markParticipantJoined($room, 'user-'.$caller->id);
+        $lifecycle->markParticipantLeft($room->fresh(), 'user-'.$caller->id);
+
+        $this->assertSame('active', $room->fresh()->status);
+        $this->assertSame('invited', $room->fresh()->participantFor($callee)->connectionState());
 
         $lifecycle->markParticipantJoined($room->fresh(), 'user-'.$callee->id);
         $this->assertSame('active', $room->fresh()->status);
@@ -504,6 +546,93 @@ class CallFlowTest extends TestCase
             ->assertDontSee('Fremder Anruf');
     }
 
+    public function test_call_hub_does_not_offer_a_join_link_to_a_declined_invitee(): void
+    {
+        [$caller, $callee, $chat] = $this->directChatWithCallRights();
+        $room = $this->roomWithInvitation($caller, $callee, $chat);
+        app(CallInvitationService::class)->decline($room->invitations()->firstOrFail());
+
+        Livewire::actingAs($callee)
+            ->test(CallHistory::class)
+            ->assertDontSeeHtml('href="'.route('calls.window', $room).'"')
+            ->assertDontSeeHtml('href="'.route('calls.history', $room).'"');
+    }
+
+    public function test_declined_invitee_can_explicitly_join_an_open_meeting(): void
+    {
+        [$caller, $callee, $chat] = $this->directChatWithCallRights();
+        $room = $this->roomWithInvitation($caller, $callee, $chat);
+        $room->forceFill(['type' => 'meeting', 'status' => 'active'])->save();
+
+        $declinedInvitation = $room->invitations()->firstOrFail();
+        app(CallInvitationService::class)->decline($declinedInvitation);
+
+        $this->assertNull(
+            $room->fresh('callChat.participants')->callChat->participantFor($callee),
+        );
+
+        Livewire::actingAs($callee)
+            ->test(CallHistory::class)
+            ->assertSeeHtml('wire:click="join('.$room->id.')"')
+            ->call('join', $room->id)
+            ->assertRedirect(route('calls.window', $room));
+
+        $latestInvitation = $room->invitations()
+            ->where('invitee_id', $callee->id)
+            ->latest('id')
+            ->firstOrFail();
+
+        $this->assertSame('declined', $declinedInvitation->fresh()->status);
+        $this->assertNotSame($declinedInvitation->id, $latestInvitation->id);
+        $this->assertSame('accepted', $latestInvitation->status);
+        $this->assertNotNull($latestInvitation->responded_at);
+        $this->assertNotNull(
+            $room->fresh('callChat.participants')->callChat->participantFor($callee),
+        );
+    }
+
+    public function test_removed_user_cannot_rejoin_an_open_meeting_or_gain_call_chat_access(): void
+    {
+        [$caller, $callee, $chat] = $this->directChatWithCallRights();
+        $room = $this->roomWithInvitation($caller, $callee, $chat);
+        $room->forceFill(['type' => 'meeting', 'status' => 'active'])->save();
+
+        $declinedInvitation = $room->invitations()->firstOrFail();
+        app(CallInvitationService::class)->decline($declinedInvitation);
+        $room->participantFor($callee)->forceFill([
+            'connection' => 'disconnected',
+            'left_at' => now(),
+        ])->save();
+
+        Livewire::actingAs($callee)
+            ->test(CallHistory::class)
+            ->assertDontSeeHtml('wire:click="join('.$room->id.')"')
+            ->call('join', $room->id)
+            ->assertForbidden();
+
+        $this->assertSame('declined', $declinedInvitation->fresh()->status);
+        $this->assertSame(1, $room->invitations()->where('invitee_id', $callee->id)->count());
+        $this->assertNull(
+            $room->fresh('callChat.participants')->callChat->participantFor($callee),
+        );
+    }
+
+    public function test_missed_filter_uses_only_the_latest_invitation_attempt(): void
+    {
+        [$caller, $callee, $chat] = $this->directChatWithCallRights();
+        $room = $this->roomWithInvitation($caller, $callee, $chat);
+        app(CallInvitationService::class)->expire($room->invitations()->firstOrFail());
+        app(CallInvitationService::class)->inviteOne($room->fresh(), $caller, $callee);
+        app(CallInvitationService::class)->accept(
+            $room->invitations()->where('status', 'pending')->latest('id')->firstOrFail(),
+        );
+
+        Livewire::actingAs($callee)
+            ->test(CallHistory::class)
+            ->call('setFilter', 'missed')
+            ->assertDontSee('Testanruf');
+    }
+
     public function test_call_history_requires_the_join_permission(): void
     {
         $outsider = User::factory()->create();
@@ -511,6 +640,32 @@ class CallFlowTest extends TestCase
         Livewire::actingAs($outsider)
             ->test(CallHistory::class)
             ->assertForbidden();
+    }
+
+    public function test_call_detail_allows_participants_but_not_foreign_administrators(): void
+    {
+        [$caller, $callee, $chat] = $this->directChatWithCallRights();
+        $room = $this->roomWithInvitation($caller, $callee, $chat);
+        app(CallInvitationService::class)->accept($room->invitations()->firstOrFail());
+
+        Livewire::actingAs($callee)
+            ->test(CallDetails::class, ['room' => $room])
+            ->assertOk();
+
+        $foreignAdmin = User::factory()->create(['role' => 'admin']);
+
+        Livewire::actingAs($foreignAdmin)
+            ->test(CallDetails::class, ['room' => $room])
+            ->assertForbidden();
+    }
+
+    public function test_legacy_meetings_route_redirects_to_the_unified_call_hub(): void
+    {
+        [$user] = $this->directChatWithCallRights();
+
+        $this->actingAs($user)
+            ->get(route('meetings'))
+            ->assertRedirect(route('calls.index'));
     }
 
     public function test_a_meeting_room_is_created_and_joined_without_ringing(): void
@@ -719,7 +874,9 @@ class CallFlowTest extends TestCase
 
         app(CallInvitationService::class)->inviteOne($room, $caller, $callee);
 
-        return $room;
+        app(CallConversationService::class)->createForRoom($room, $caller);
+
+        return $room->fresh(['callChat.participants']);
     }
 
     protected function allowCalls(User $user): void

@@ -7,10 +7,18 @@ use Laravel\Jetstream\Events\TeamCreated;
 use Laravel\Jetstream\Events\TeamDeleted;
 use Laravel\Jetstream\Events\TeamUpdated;
 use Laravel\Jetstream\Team as JetstreamTeam;
+use Illuminate\Support\Str;
 
 class Team extends JetstreamTeam
 {
     use HasFactory;
+
+    protected static function booted(): void
+    {
+        static::creating(function (Team $team): void {
+            $team->recording_storage_uuid ??= (string) Str::uuid();
+        });
+    }
 
     /**
      * The attributes that should be cast.

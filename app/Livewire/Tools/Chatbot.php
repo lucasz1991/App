@@ -33,6 +33,10 @@ class Chatbot extends Component
 {
     use WithFileUploads;
 
+    private const PAGE_HELP_HINT_LIMIT = 5;
+
+    private const PAGE_HELP_HINT_MAX_CHARACTERS = 160;
+
     public string $message = '';
 
     /** @var array<int, TemporaryUploadedFile> */
@@ -66,6 +70,10 @@ class Chatbot extends Component
     #[Locked]
     public string $pageHelpHint = '';
 
+    /** @var array<int, string> */
+    #[Locked]
+    public array $pageHelpHints = [];
+
     /** @var array<string, mixed> */
     #[Locked]
     public array $wagonAssistantContext = [];
@@ -75,8 +83,7 @@ class Chatbot extends Component
         $this->authorizeUser();
         $this->assistantName = (string) config('assistant.name', 'RailTime Assist');
         $this->pageRouteName = request()->route()?->getName() ?? 'unknown';
-        $this->pageHelpHint = (string) (app(PageHelpCatalog::class)
-            ->forRoute($this->pageRouteName)['summary'] ?? '');
+        $this->refreshPageHelpHints();
         $this->quickActions = $this->availableQuickActions();
         $this->refreshAvailability();
         $this->loadHistory();
@@ -89,6 +96,7 @@ class Chatbot extends Component
     public function hydrate(): void
     {
         $this->authorizeUser();
+        $this->refreshPageHelpHints();
         $this->quickActions = $this->availableQuickActions();
         $this->refreshAvailability();
         $this->loadHistory();
@@ -502,6 +510,50 @@ class Chatbot extends Component
     private function authorizeUser(): User
     {
         return app(AssistantAccess::class)->authorize();
+    }
+
+    private function refreshPageHelpHints(): void
+    {
+        $help = app(PageHelpCatalog::class)->forRoute($this->pageRouteName);
+        $this->pageHelpHint = (string) ($help['summary'] ?? '');
+        $points = is_array($help['points'] ?? null) ? $help['points'] : [];
+        $candidates = [
+            $help['title'] ?? '',
+            $this->pageHelpHint,
+            ...$points,
+        ];
+        $hints = [];
+        $seen = [];
+
+        foreach ($candidates as $candidate) {
+            if (! is_scalar($candidate)) {
+                continue;
+            }
+
+            $hint = Str::limit(
+                Str::squish(strip_tags((string) $candidate)),
+                self::PAGE_HELP_HINT_MAX_CHARACTERS,
+                '...',
+            );
+
+            if ($hint === '') {
+                continue;
+            }
+
+            $key = mb_strtolower($hint, 'UTF-8');
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $hints[] = $hint;
+
+            if (count($hints) >= self::PAGE_HELP_HINT_LIMIT) {
+                break;
+            }
+        }
+
+        $this->pageHelpHints = $hints;
     }
 
     private function refreshAvailability(): void

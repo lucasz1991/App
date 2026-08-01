@@ -167,10 +167,15 @@ class Room extends Model
 
         // Nur die juengste Einladung zaehlt, damit eine erneute Einladung nach
         // einem Ablehnen wieder Zutritt gewaehrt.
-        $latest = $this->invitations()
-            ->where('invitee_id', $user->id)
-            ->latest('id')
-            ->first();
+        $latest = $this->relationLoaded('invitations')
+            ? $this->invitations
+                ->where('invitee_id', $user->id)
+                ->sortByDesc('id')
+                ->first()
+            : $this->invitations()
+                ->where('invitee_id', $user->id)
+                ->latest('id')
+                ->first();
 
         // Eine Einladung wird erst durch die ausdrueckliche Annahme zum
         // Medienrecht. Insbesondere darf ein direkter POST auf den Token-

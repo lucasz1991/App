@@ -51,7 +51,13 @@
                                 ->map(fn ($p) => $p->user?->name ?? $p->guest_name)
                                 ->filter()
                                 ->values();
-                            $missed = ! $room->connected_at && in_array($room->status, ['ended', 'cancelled'], true);
+                            $currentInvitation = $room->invitations->first();
+                            $currentParticipant = $room->participants->firstWhere('user_id', $currentUserId);
+                            $missed = in_array($currentInvitation?->status, ['missed', 'declined', 'expired'], true)
+                                || $currentParticipant?->isRemoved();
+                            $joinable = $live && $room->mayJoin(auth()->user());
+                            $hasHistoryAccess = $room->callChat?->participants
+                                ?->contains(fn ($participant) => (int) $participant->id === (int) $currentUserId) ?? false;
                         @endphp
 
                         <li class="flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-rt-surface-muted dark:hover:bg-rt-dark-surface-muted sm:px-6" wire:key="room-{{ $room->id }}">
@@ -91,7 +97,7 @@
                                 </p>
                             </div>
 
-                            @if ($live)
+                            @if ($joinable)
                                 <a
                                     href="{{ route('calls.window', $room) }}"
                                     class="inline-flex h-9 shrink-0 items-center gap-2 rounded-xl bg-emerald-500/10 px-3 text-xs font-bold text-emerald-600 transition-colors hover:bg-emerald-500/20 dark:text-emerald-400"
@@ -102,7 +108,7 @@
                                     </span>
                                     <span class="hidden sm:inline">{{ __('app.calls_join_ongoing') }}</span>
                                 </a>
-                            @elseif ($room->call_chat_id)
+                            @elseif (! $live && $hasHistoryAccess)
                                 <a
                                     href="{{ route('calls.history', $room) }}"
                                     wire:navigate

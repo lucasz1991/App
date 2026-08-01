@@ -1,6 +1,7 @@
 const STORAGE_VERSION = 2;
 const MAX_WAGONS = 40;
 const ASSISTANT_EVENT_VERSION = 1;
+const ASSISTANT_FIELD_PRESENCE_VERSION = 1;
 const ASSISTANT_COMMANDS = new Set([
     'start',
     'next',
@@ -88,7 +89,7 @@ const emptyWagon = () => ({
     shippingStation: '',
     destinationStation: '',
     brakeType: '',
-    discBrake: false,
+    discBrake: null,
     parkingBrake: '',
     maxSpeed: '',
     remark: '',
@@ -131,16 +132,26 @@ const createDraftId = () => {
 const normalizeDraft = (draft = {}, fallbackId = null) => {
     const now = new Date().toISOString();
     const visibleCount = Math.max(3, Math.min(MAX_WAGONS, Number(draft.visibleCount || 3)));
+    const hasAssistantFieldPresence = Number(draft.assistantFieldPresenceVersion || 0)
+        >= ASSISTANT_FIELD_PRESENCE_VERSION;
 
     return {
         id: String(draft.id || fallbackId || createDraftId()),
         createdAt: draft.createdAt || draft.persistedAt || now,
         persistedAt: draft.persistedAt || draft.createdAt || now,
+        assistantFieldPresenceVersion: ASSISTANT_FIELD_PRESENCE_VERSION,
         meta: { ...emptyMeta(), ...(draft.meta || {}) },
-        wagons: Array.from({ length: MAX_WAGONS }, (_, index) => ({
-            ...emptyWagon(),
-            ...(draft.wagons?.[index] || {}),
-        })),
+        wagons: Array.from({ length: MAX_WAGONS }, (_, index) => {
+            const wagon = draft.wagons?.[index] || {};
+            const hasExplicitDiscBrakeAnswer = wagon.discBrake === true
+                || (hasAssistantFieldPresence && wagon.discBrake === false);
+
+            return {
+                ...emptyWagon(),
+                ...wagon,
+                discBrake: hasExplicitDiscBrakeAnswer ? wagon.discBrake : null,
+            };
+        }),
         brakeSheet: { ...emptyBrakeSheet(), ...(draft.brakeSheet || {}) },
         visibleCount,
     };
@@ -267,6 +278,7 @@ export function wagonListPrototype(config = {}) {
                 id: this.activeDraftId,
                 createdAt: current?.createdAt || persistedAt,
                 persistedAt,
+                assistantFieldPresenceVersion: ASSISTANT_FIELD_PRESENCE_VERSION,
                 meta: this.meta,
                 wagons: this.wagons,
                 brakeSheet: this.brakeSheet,
@@ -446,7 +458,17 @@ export function wagonListPrototype(config = {}) {
         },
 
         assistantCurrentStepIndex() {
-            return Math.max(0, Math.min(ASSISTANT_STEP_IDS.length - 1, Number(this.mobileStep) || 0));
+            const mobileStep = Math.max(0, Math.min(
+                ASSISTANT_STEP_IDS.length - 1,
+                Number(this.mobileStep) || 0,
+            ));
+            const desktop = typeof window !== 'undefined' && window.innerWidth >= 1024;
+            const brakeSheetStep = ASSISTANT_STEP_IDS.indexOf('calculation');
+
+            if (!desktop) return mobileStep;
+            if (this.desktopSection === 'brakeSheet') return Math.max(brakeSheetStep, mobileStep);
+
+            return mobileStep < brakeSheetStep ? mobileStep : 0;
         },
 
         assistantHasValue(value) {
@@ -482,7 +504,7 @@ export function wagonListPrototype(config = {}) {
                 'wagon.shippingStation': this.assistantHasValue(wagon.shippingStation),
                 'wagon.destinationStation': this.assistantHasValue(wagon.destinationStation),
                 'wagon.brakeType': this.assistantHasValue(wagon.brakeType),
-                'wagon.discBrake': wagon.discBrake === true,
+                'wagon.discBrake': typeof wagon.discBrake === 'boolean',
                 'wagon.parkingBrake': this.assistantHasValue(wagon.parkingBrake),
                 'wagon.maxSpeed': this.assistantHasValue(wagon.maxSpeed),
                 'wagon.remark': this.assistantHasValue(wagon.remark),

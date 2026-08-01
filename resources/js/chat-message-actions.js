@@ -138,7 +138,6 @@ export function chatMessageActions(config = {}) {
         startLongPress(event) {
             if (
                 this.disabled
-                || !this.canReact
                 || !['touch', 'pen'].includes(event.pointerType)
                 || this.isInteractiveTarget(event.target)
             ) {
@@ -152,8 +151,11 @@ export function chatMessageActions(config = {}) {
             this.longPressTimer = window.setTimeout(() => {
                 this.longPressTimer = null;
                 this.suppressClickUntil = Date.now() + 800;
-                this.openReactionsAt(this.longPressStartX, this.longPressStartY);
-                window.navigator?.vibrate?.(10);
+
+                if (this.canReact) {
+                    this.openReactionsAt(this.longPressStartX, this.longPressStartY);
+                    window.navigator?.vibrate?.(10);
+                }
             }, LONG_PRESS_DELAY_MS);
         },
 

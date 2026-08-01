@@ -74,20 +74,20 @@
                 />
 
                 <div
-                    x-data="chatMessageActions({ messageId: {{ $message->id }}, disabled: @js($deleted) })"
+                    x-data="chatMessageActions({ messageId: {{ $message->id }}, disabled: @js($deleted), canReact: @js(! $own && ! $deleted) })"
                     class="rt-chat-message-stack {{ $own ? 'items-end' : 'items-start' }} flex min-w-0 max-w-full flex-col"
                 >
                     <div
                         data-rt-chat-message="{{ $own ? 'own' : 'other' }}"
                         tabindex="{{ $deleted ? '-1' : '0' }}"
                         x-ref="messageBubble"
-                        x-on:contextmenu.stop="openAtPointer($event)"
+                        x-on:contextmenu.stop="openActionsAtPointer($event)"
                         x-on:pointerdown="startLongPress($event)"
                         x-on:pointermove="moveLongPress($event)"
                         x-on:pointerup="finishLongPress($event)"
                         x-on:pointercancel="cancelLongPress()"
                         x-on:keydown="handleKeyboard($event)"
-                        x-on:click.capture="suppressSyntheticClick($event)"
+                        x-on:click="handleClick($event)"
                         class="rt-chat-message {{ $own
                             ? 'rt-chat-message--own rt-chat-message--actionable rounded-br-md'
                             : 'rt-chat-message--other rt-chat-message--actionable rounded-bl-md' }} {{ $messageSurface }} relative rounded-[1.15rem] px-3.5 py-2.5 text-[13px] leading-5 sm:px-4"
@@ -97,11 +97,11 @@
                                 <button
                                     type="button"
                                     x-ref="messageActionTrigger"
-                                    x-on:click.stop="openAtTrigger($el)"
+                                    x-on:click.stop="openActionsAtTrigger($el)"
                                     class="rt-chat-message-caret flex h-11 w-11 items-center justify-center rounded-full text-[10px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/50"
                                     title="{{ __('app.message_options') }}"
                                     aria-label="{{ __('app.message_options') }}"
-                                    x-bind:aria-expanded="open.toString()"
+                                    x-bind:aria-expanded="actionOpen.toString()"
                                     aria-haspopup="menu"
                                 >
                                     <i class="far fa-chevron-down" aria-hidden="true"></i>
@@ -111,54 +111,27 @@
                             <template x-teleport="body">
                                 <div
                                     x-cloak
-                                    x-show="open"
-                                    x-ref="menu"
+                                    x-show="actionOpen"
+                                    x-ref="actionMenu"
                                     x-bind:style="menuStyle"
                                     x-on:click.outside="close()"
                                     x-on:keydown.escape.stop.prevent="close(true)"
                                     role="menu"
                                     aria-label="{{ __('app.message_options') }}"
                                     data-no-chat-swipe
-                                    class="rt-chat-message-menu fixed z-[210] w-[min(19rem,calc(100vw-1.5rem))] rounded-2xl p-2"
+                                    class="rt-chat-message-menu fixed z-[210] w-[min(16rem,calc(100vw-1.5rem))] rounded-2xl p-2"
                                 >
-                                    <div class="grid grid-cols-6 gap-1" aria-label="{{ __('app.chat_quick_reactions') }}">
-                                        @foreach ($quickReactions as $emoji)
-                                            <button
-                                                type="button"
-                                                role="menuitem"
-                                                wire:click="toggleReaction({{ $message->id }}, @js($emoji))"
-                                                x-on:click="close()"
-                                                class="rt-chat-reaction-option flex min-h-11 min-w-11 items-center justify-center rounded-xl text-xl"
-                                                aria-label="{{ __('app.chat_react_with', ['emoji' => $emoji]) }}"
-                                            >{{ $emoji }}</button>
-                                        @endforeach
-                                    </div>
-
-                                    <button
-                                        type="button"
-                                        x-on:click="showMore = !showMore; $nextTick(() => positionMenu())"
-                                        x-bind:aria-expanded="showMore.toString()"
-                                        class="rt-chat-message-menu-action mt-1 flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold"
-                                    >
-                                        <span class="rt-chat-option-icon"><i class="far fa-face-smile" aria-hidden="true"></i></span>
-                                        <span class="flex-1">{{ __('app.chat_more_reactions') }}</span>
-                                        <i class="far fa-chevron-down text-xs transition" x-bind:class="showMore && 'rotate-180'" aria-hidden="true"></i>
-                                    </button>
-
-                                    <div x-cloak x-show="showMore" class="mt-1 grid max-h-44 grid-cols-6 gap-1 overflow-y-auto rounded-xl p-1">
-                                        @foreach ($allowedReactions as $emoji)
-                                            <button
-                                                type="button"
-                                                role="menuitem"
-                                                wire:click="toggleReaction({{ $message->id }}, @js($emoji))"
-                                                x-on:click="close()"
-                                                class="rt-chat-reaction-option flex min-h-11 min-w-11 items-center justify-center rounded-xl text-xl"
-                                                aria-label="{{ __('app.chat_react_with', ['emoji' => $emoji]) }}"
-                                            >{{ $emoji }}</button>
-                                        @endforeach
-                                    </div>
-
-                                    <div class="rt-chat-option-divider my-1"></div>
+                                    @unless ($own)
+                                        <button
+                                            type="button"
+                                            role="menuitem"
+                                            x-on:click.stop="openReactionsFromActionMenu()"
+                                            class="rt-chat-message-menu-action flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold"
+                                        >
+                                            <span class="rt-chat-option-icon"><i class="far fa-face-smile" aria-hidden="true"></i></span>
+                                            <span>{{ __('app.chat_react') }}</span>
+                                        </button>
+                                    @endunless
 
                                     <button
                                         type="button"
@@ -185,6 +158,58 @@
                                     @endif
                                 </div>
                             </template>
+
+                            @unless ($own)
+                                <template x-teleport="body">
+                                    <div
+                                        x-cloak
+                                        x-show="reactionOpen"
+                                        x-ref="reactionMenu"
+                                        x-bind:style="menuStyle"
+                                        x-on:click.outside="close()"
+                                        x-on:keydown.escape.stop.prevent="close(true)"
+                                        role="menu"
+                                        aria-label="{{ __('app.chat_quick_reactions') }}"
+                                        data-no-chat-swipe
+                                        class="rt-chat-message-menu fixed z-[211] w-[min(22rem,calc(100vw-1.5rem))] rounded-2xl p-2"
+                                    >
+                                        <div class="grid grid-cols-7 gap-1">
+                                            @foreach ($quickReactions as $emoji)
+                                                <button
+                                                    type="button"
+                                                    role="menuitem"
+                                                    wire:click="toggleReaction({{ $message->id }}, @js($emoji))"
+                                                    x-on:click="close()"
+                                                    class="rt-chat-reaction-option flex min-h-11 min-w-11 items-center justify-center rounded-xl text-xl"
+                                                    aria-label="{{ __('app.chat_react_with', ['emoji' => $emoji]) }}"
+                                                >{{ $emoji }}</button>
+                                            @endforeach
+                                            <button
+                                                type="button"
+                                                x-on:click.stop="showMore = ! showMore; $nextTick(() => positionMenu())"
+                                                x-bind:aria-expanded="showMore.toString()"
+                                                class="rt-chat-reaction-option flex min-h-11 min-w-11 items-center justify-center rounded-xl text-sm"
+                                                aria-label="{{ __('app.chat_more_reactions') }}"
+                                            >
+                                                <i class="far fa-chevron-down transition" x-bind:class="showMore && 'rotate-180'" aria-hidden="true"></i>
+                                            </button>
+                                        </div>
+
+                                        <div x-cloak x-show="showMore" class="mt-1 grid max-h-44 grid-cols-7 gap-1 overflow-y-auto rounded-xl p-1">
+                                            @foreach ($allowedReactions as $emoji)
+                                                <button
+                                                    type="button"
+                                                    role="menuitem"
+                                                    wire:click="toggleReaction({{ $message->id }}, @js($emoji))"
+                                                    x-on:click="close()"
+                                                    class="rt-chat-reaction-option flex min-h-11 min-w-11 items-center justify-center rounded-xl text-xl"
+                                                    aria-label="{{ __('app.chat_react_with', ['emoji' => $emoji]) }}"
+                                                >{{ $emoji }}</button>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                </template>
+                            @endunless
                         @endunless
 
                         @if ($showSender)
@@ -292,18 +317,28 @@
                                     @php
                                         $count = $reactionGroups->get($emoji)->count();
                                     @endphp
-                                    <button
-                                        type="button"
-                                        wire:click="toggleReaction({{ $message->id }}, @js($emoji))"
-                                        wire:loading.attr="disabled"
-                                        wire:target="toggleReaction"
-                                        class="rt-chat-reaction-chip {{ $myReaction === $emoji ? 'is-mine' : '' }} inline-flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-full px-2 text-sm"
-                                        aria-pressed="{{ $myReaction === $emoji ? 'true' : 'false' }}"
-                                        aria-label="{{ trans_choice('app.chat_reaction_count', $count, ['emoji' => $emoji, 'count' => $count]) }}"
-                                    >
-                                        <span aria-hidden="true">{{ $emoji }}</span>
-                                        @if ($count > 1)<span class="text-[10px] font-extrabold tabular-nums">{{ $count }}</span>@endif
-                                    </button>
+                                    @if ($own)
+                                        <span
+                                            class="rt-chat-reaction-chip inline-flex items-center justify-center gap-1 px-0.5 text-sm"
+                                            aria-label="{{ trans_choice('app.chat_reaction_count', $count, ['emoji' => $emoji, 'count' => $count]) }}"
+                                        >
+                                            <span aria-hidden="true">{{ $emoji }}</span>
+                                            @if ($count > 1)<span class="text-[10px] font-extrabold tabular-nums">{{ $count }}</span>@endif
+                                        </span>
+                                    @else
+                                        <button
+                                            type="button"
+                                            wire:click="toggleReaction({{ $message->id }}, @js($emoji))"
+                                            wire:loading.attr="disabled"
+                                            wire:target="toggleReaction"
+                                            class="rt-chat-reaction-chip {{ $myReaction === $emoji ? 'is-mine' : '' }} inline-flex min-h-11 min-w-11 items-center justify-center gap-1 px-0.5 text-sm"
+                                            aria-pressed="{{ $myReaction === $emoji ? 'true' : 'false' }}"
+                                            aria-label="{{ trans_choice('app.chat_reaction_count', $count, ['emoji' => $emoji, 'count' => $count]) }}"
+                                        >
+                                            <span aria-hidden="true">{{ $emoji }}</span>
+                                            @if ($count > 1)<span class="text-[10px] font-extrabold tabular-nums">{{ $count }}</span>@endif
+                                        </button>
+                                    @endif
                                 @endif
                             @endforeach
                         </div>

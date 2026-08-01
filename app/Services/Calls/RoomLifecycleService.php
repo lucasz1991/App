@@ -43,6 +43,7 @@ class RoomLifecycleService
                 'status' => 'pending',
                 'owner_id' => $owner->id,
                 'chat_id' => $chat->id,
+                'team_id' => $owner->current_team_id,
                 'settings' => ['video' => $video],
             ]);
 
@@ -308,7 +309,23 @@ class RoomLifecycleService
             ? true
             : $this->livekit->hasConnectedParticipants($room);
 
-        if (! $stillConnected && $sfuHasParticipants === false && $room->isActive()) {
+        $acceptedParticipantStillJoining = ! $stillConnected
+            && $room->participants()
+                ->where('connection', 'invited')
+                ->whereIn(
+                    'user_id',
+                    $room->invitations()
+                        ->select('invitee_id')
+                        ->where('status', 'accepted'),
+                )
+                ->exists();
+
+        if (
+            ! $stillConnected
+            && ! $acceptedParticipantStillJoining
+            && $sfuHasParticipants === false
+            && $room->isActive()
+        ) {
             $this->markEnded($room, 'empty');
         }
     }

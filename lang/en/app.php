@@ -915,6 +915,7 @@ return [
     'chat_view_once_voice_message' => 'View-once voice message',
     'chat_message_deleted' => 'This message was deleted.',
     'chat_quick_reactions' => 'Quick reactions',
+    'chat_react' => 'React',
     'chat_more_reactions' => 'More reactions',
     'chat_message_reactions' => 'Message reactions',
     'chat_react_with' => 'React with :emoji',

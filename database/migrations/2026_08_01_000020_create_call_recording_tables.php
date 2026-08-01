@@ -3,11 +3,28 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 return new class extends Migration
 {
     public function up(): void
     {
+        Schema::table('teams', function (Blueprint $table): void {
+            $table->uuid('recording_storage_uuid')->nullable()->unique()->after('id');
+        });
+
+        DB::table('teams')
+            ->whereNull('recording_storage_uuid')
+            ->orderBy('id')
+            ->chunkById(100, function ($teams): void {
+                foreach ($teams as $team) {
+                    DB::table('teams')->where('id', $team->id)->update([
+                        'recording_storage_uuid' => (string) Str::uuid(),
+                    ]);
+                }
+            });
+
         Schema::create('call_recording_acknowledgements', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
@@ -72,5 +89,10 @@ return new class extends Migration
         });
 
         Schema::dropIfExists('call_recording_acknowledgements');
+
+        Schema::table('teams', function (Blueprint $table): void {
+            $table->dropUnique(['recording_storage_uuid']);
+            $table->dropColumn('recording_storage_uuid');
+        });
     }
 };

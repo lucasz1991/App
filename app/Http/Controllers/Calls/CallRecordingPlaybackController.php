@@ -25,7 +25,21 @@ class CallRecordingPlaybackController extends Controller
         abort_unless($recording->isPlayable(), 410);
 
         try {
-            $url = Storage::disk($recording->storage_disk)->temporaryUrl(
+            $disk = Storage::disk($recording->storage_disk);
+            $exists = $disk->exists($recording->storage_key);
+        } catch (Throwable $exception) {
+            Log::warning('Call-Aufzeichnungsdatei konnte nicht geprueft werden.', [
+                'recording_uuid' => $recording->uuid,
+                'error_class' => $exception::class,
+            ]);
+
+            abort(503, 'Die Aufzeichnung ist momentan nicht verfuegbar.');
+        }
+
+        abort_unless($exists, 410);
+
+        try {
+            $url = $disk->temporaryUrl(
                 $recording->storage_key,
                 now()->addMinutes(5),
                 [

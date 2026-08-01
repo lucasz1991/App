@@ -111,7 +111,8 @@ class CallRecordingService
 
             $created = true;
             $uuid = (string) Str::uuid();
-            $scopeUuid = (string) Str::uuid();
+            $room->loadMissing('team');
+            $scopeUuid = (string) ($room->team?->recording_storage_uuid ?: Str::uuid());
             $requestedAt = now();
 
             return RoomRecording::create([
