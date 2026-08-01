@@ -4,27 +4,19 @@
     data-mobile-wagon-editor
     @keydown="handleMobileWizardKeydown($event)"
 >
-    <header class="rt-wagon-wizard-progress shrink-0 border-b border-rt-border/70 bg-rt-surface/95 px-3 pb-2.5 pt-3 backdrop-blur-xl dark:border-rt-dark-border/70 dark:bg-rt-dark-surface/95">
-        <div class="flex items-center justify-between gap-3">
-            <div class="min-w-0">
-                <p class="text-[10px] font-bold uppercase tracking-[0.1em] text-rt-soft dark:text-rt-dark-soft">
-                    <span x-text="mobileStep + 1"></span>/<span x-text="mobileStepCount"></span>
-                    · {{ __('app.wagon_wizard') }}
-                </p>
-                <h3 class="mt-0.5 truncate text-sm font-semibold text-rt-text dark:text-rt-dark-text" x-text="mobileStepTitle" aria-live="polite"></h3>
-            </div>
-            <p class="shrink-0 text-[11px] font-medium text-rt-muted dark:text-rt-dark-muted">
-                <i class="far fa-hand-pointer mr-1" aria-hidden="true"></i>{{ __('app.swipe_to_continue') }}
-            </p>
-        </div>
+    <header class="rt-wagon-wizard-progress shrink-0 border-b border-rt-border/70 bg-rt-surface/95 px-3 py-2.5 backdrop-blur-xl dark:border-rt-dark-border/70 dark:bg-rt-dark-surface/95">
+        <div class="flex min-w-0 items-center gap-2">
+            <span class="flex h-9 min-w-9 shrink-0 items-center justify-center rounded-lg bg-rt-surface-muted px-2 text-[11px] font-bold tabular-nums text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted">
+                <span x-text="mobileStep + 1"></span>/<span x-text="mobileStepCount"></span>
+            </span>
 
-        <div class="mt-2.5 h-1 overflow-hidden rounded-full bg-rt-surface-muted dark:bg-rt-dark-surface-muted" aria-hidden="true">
-            <span class="rt-wagon-wizard-progress-bar block h-full rounded-full bg-rt-red" :style="`width: ${mobileStepProgress}%`"></span>
-        </div>
-
-        <ol class="mt-2 grid grid-cols-8 gap-1" aria-label="{{ __('app.wagon_wizard_steps') }}">
+            <ol
+                x-ref="mobileStepRail"
+                class="rt-wagon-step-rail flex min-w-0 flex-1 gap-1.5 overflow-x-auto"
+                aria-label="{{ __('app.wagon_wizard_steps') }}"
+            >
             <template x-for="(step, index) in mobileSteps" :key="step.id">
-                <li>
+                <li class="shrink-0">
                     <button
                         type="button"
                         @click="goToMobileStep(index)"
@@ -32,58 +24,71 @@
                         :aria-label="`${index + 1}. ${step.label}`"
                         :title="step.label"
                         :data-active="mobileStep === index ? 'true' : 'false'"
-                        class="rt-wagon-step-dot flex h-7 w-full items-center justify-center rounded-md text-[10px] font-bold tabular-nums transition"
+                        :data-mobile-step-index="index"
+                        class="rt-wagon-step-chip flex min-h-11 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold transition"
                     >
-                        <span x-text="index + 1"></span>
+                        <span class="rt-wagon-step-number flex h-6 min-w-6 items-center justify-center rounded-md text-[10px] font-bold tabular-nums" x-text="index + 1"></span>
+                        <span class="whitespace-nowrap" x-text="step.label"></span>
                     </button>
                 </li>
             </template>
-        </ol>
+            </ol>
+        </div>
+
+        <span class="sr-only" aria-live="polite" x-text="mobileStepTitle"></span>
+        <div class="mt-2 h-0.5 overflow-hidden rounded-full bg-rt-surface-muted dark:bg-rt-dark-surface-muted" aria-hidden="true">
+            <span class="rt-wagon-wizard-progress-bar block h-full rounded-full bg-rt-red" :style="`width: ${mobileStepProgress}%`"></span>
+        </div>
     </header>
 
     <div
-        x-show.important="isMobileWagonStep"
-        class="rt-wagon-selector shrink-0 border-b border-rt-border/70 bg-rt-canvas px-3 py-2 dark:border-rt-dark-border/70 dark:bg-rt-dark-canvas"
-    >
-        <div class="flex items-center gap-2">
-            <div class="rt-wagon-index-strip flex min-w-0 flex-1 gap-1.5 overflow-x-auto" aria-label="{{ __('app.choose_wagon') }}">
-                <template x-for="(wagon, index) in wagons.slice(0, visibleCount)" :key="index">
-                    <button
-                        type="button"
-                        @click="showMobileWagon(index)"
-                        :data-active="mobileWagon === index ? 'true' : 'false'"
-                        :data-filled="isWagonFilled(wagon) ? 'true' : 'false'"
-                        class="rt-wagon-index-button relative flex h-10 min-w-10 shrink-0 items-center justify-center rounded-lg text-xs font-bold tabular-nums transition"
-                        :aria-label="`${@js(__('app.wagons'))} ${index + 1}`"
-                    >
-                        <span x-text="index + 1"></span>
-                        <span class="rt-wagon-index-state" aria-hidden="true"></span>
-                    </button>
-                </template>
-            </div>
-            <button
-                type="button"
-                @click="addWagon()"
-                :disabled="visibleCount >= 40"
-                class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-rt-accent text-white shadow-rt-xs transition active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-40 dark:bg-rt-dark-accent dark:text-slate-950"
-                title="{{ __('app.add_wagon') }}"
-                aria-label="{{ __('app.add_wagon') }}"
-            >
-                <i class="far fa-plus" aria-hidden="true"></i>
-            </button>
-        </div>
-    </div>
-
-    <div
         x-ref="mobilePager"
-        class="rt-wagon-mobile-pager min-h-0 flex-1"
+        class="rt-wagon-mobile-pager relative min-h-0 flex-1"
         @scroll.passive="syncMobileStepFromScroll($event)"
         @scrollend="settleMobilePager($event.currentTarget)"
         @resize.window.debounce.100ms="realignMobilePager()"
+        role="region"
         aria-roledescription="carousel"
         aria-label="{{ __('app.wagon_wizard_steps') }}"
     >
-        <section class="rt-wagon-mobile-slide" data-wagon-step="train" :aria-hidden="mobileStep !== 0" :inert="mobileStep !== 0" aria-labelledby="wagon-mobile-step-train">
+        <div
+            x-show.important="isMobileWagonStep"
+            x-transition.opacity.duration.150ms
+            class="rt-wagon-selector pointer-events-auto absolute inset-x-0 top-0 z-[4] border-b border-rt-border/70 bg-rt-canvas/95 px-3 py-2 backdrop-blur-xl dark:border-rt-dark-border/70 dark:bg-rt-dark-canvas/95"
+        >
+            <div class="mx-auto flex max-w-[44rem] items-center gap-2">
+                <span class="shrink-0 text-[10px] font-bold uppercase tracking-[0.08em] text-rt-soft dark:text-rt-dark-soft">{{ __('app.wagons') }}</span>
+                <div x-ref="mobileWagonRail" class="rt-wagon-index-strip flex min-w-0 flex-1 gap-1.5 overflow-x-auto" aria-label="{{ __('app.choose_wagon') }}">
+                    <template x-for="(wagon, index) in wagons.slice(0, visibleCount)" :key="index">
+                        <button
+                            type="button"
+                            @click="showMobileWagon(index)"
+                            :data-active="mobileWagon === index ? 'true' : 'false'"
+                            :data-filled="isWagonFilled(wagon) ? 'true' : 'false'"
+                            :data-wagon-index="index"
+                            :aria-current="mobileWagon === index ? 'true' : null"
+                            class="rt-wagon-index-button relative flex h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-xs font-bold tabular-nums transition"
+                            :aria-label="`${@js(__('app.wagons'))} ${index + 1}`"
+                        >
+                            <span x-text="index + 1"></span>
+                            <span class="rt-wagon-index-state" aria-hidden="true"></span>
+                        </button>
+                    </template>
+                </div>
+                <button
+                    type="button"
+                    @click="addWagon()"
+                    :disabled="visibleCount >= 40"
+                    class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-rt-accent text-white shadow-rt-xs transition active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-40 dark:bg-rt-dark-accent dark:text-slate-950"
+                    title="{{ __('app.add_wagon') }}"
+                    aria-label="{{ __('app.add_wagon') }}"
+                >
+                    <i class="far fa-plus" aria-hidden="true"></i>
+                </button>
+            </div>
+        </div>
+
+        <section id="wagon-mobile-panel-train" role="group" aria-roledescription="{{ __('app.wagon_wizard') }}" aria-label="1 / 8 · {{ __('app.train_data') }}" class="rt-wagon-mobile-slide" data-wagon-step="train" :aria-hidden="mobileStep !== 0" :inert="mobileStep !== 0" aria-labelledby="wagon-mobile-step-train">
             <div class="rt-wagon-mobile-slide-scroll">
                 <div class="rt-wagon-mobile-section-head">
                     <span class="rt-wagon-mobile-section-icon"><i class="far fa-route" aria-hidden="true"></i></span>
@@ -101,7 +106,7 @@
                     <label class="{{ $labelClass }} col-span-2">{{ __('app.reference') }}<input x-model="meta.reference" type="text" class="{{ $inputClass }}" autocomplete="off"></label>
                 </div>
 
-                <div class="mt-4 grid grid-cols-3 gap-2" aria-label="{{ __('app.wagon_totals') }}">
+                <div class="mt-4 grid grid-cols-2 gap-2" aria-label="{{ __('app.wagon_totals') }}">
                     <template x-for="item in [
                         { label: @js(__('app.wagons')), value: totals.wagons, suffix: '' },
                         { label: @js(__('app.axles')), value: totals.axles, suffix: '' },
@@ -110,16 +115,16 @@
                         { label: @js(__('app.brake_weight_g')), value: formatNumber(totals.brakeG), suffix: ' t' },
                         { label: @js(__('app.brake_weight_p')), value: formatNumber(totals.brakeP), suffix: ' t' },
                     ]" :key="item.label">
-                        <div class="rt-wagon-mobile-metric min-w-0 rounded-xl p-2.5">
-                            <p class="truncate text-[9px] font-bold uppercase tracking-[0.05em] opacity-60" x-text="item.label"></p>
-                            <p class="mt-1 truncate text-base font-bold tabular-nums"><span x-text="item.value"></span><span x-text="item.suffix"></span></p>
+                        <div class="rt-wagon-mobile-metric min-w-0 rounded-xl px-3 py-2.5">
+                            <p class="text-[11px] font-medium leading-4 opacity-65" x-text="item.label"></p>
+                            <p class="mt-0.5 text-lg font-bold tabular-nums"><span x-text="item.value"></span><span x-text="item.suffix"></span></p>
                         </div>
                     </template>
                 </div>
             </div>
         </section>
 
-        <section class="rt-wagon-mobile-slide" data-wagon-step="identity" :aria-hidden="mobileStep !== 1" :inert="mobileStep !== 1" aria-labelledby="wagon-mobile-step-identity">
+        <section id="wagon-mobile-panel-identity" role="group" aria-roledescription="{{ __('app.wagon_wizard') }}" aria-label="2 / 8 · {{ __('app.identification') }}" class="rt-wagon-mobile-slide rt-wagon-mobile-slide-with-selector" data-wagon-step="identity" :aria-hidden="mobileStep !== 1" :inert="mobileStep !== 1" aria-labelledby="wagon-mobile-step-identity">
             <div class="rt-wagon-mobile-slide-scroll">
                 <div class="rt-wagon-mobile-section-head">
                     <span class="rt-wagon-mobile-wagon-number" x-text="mobileWagon + 1"></span>
@@ -151,7 +156,7 @@
             </div>
         </section>
 
-        <section class="rt-wagon-mobile-slide" data-wagon-step="vehicle" :aria-hidden="mobileStep !== 2" :inert="mobileStep !== 2" aria-labelledby="wagon-mobile-step-vehicle">
+        <section id="wagon-mobile-panel-vehicle" role="group" aria-roledescription="{{ __('app.wagon_wizard') }}" aria-label="3 / 8 · {{ __('app.axles_dimensions') }}" class="rt-wagon-mobile-slide rt-wagon-mobile-slide-with-selector" data-wagon-step="vehicle" :aria-hidden="mobileStep !== 2" :inert="mobileStep !== 2" aria-labelledby="wagon-mobile-step-vehicle">
             <div class="rt-wagon-mobile-slide-scroll">
                 <div class="rt-wagon-mobile-section-head">
                     <span class="rt-wagon-mobile-section-icon"><i class="far fa-weight-hanging" aria-hidden="true"></i></span>
@@ -178,7 +183,7 @@
             </div>
         </section>
 
-        <section class="rt-wagon-mobile-slide" data-wagon-step="brakes" :aria-hidden="mobileStep !== 3" :inert="mobileStep !== 3" aria-labelledby="wagon-mobile-step-brakes">
+        <section id="wagon-mobile-panel-brakes" role="group" aria-roledescription="{{ __('app.wagon_wizard') }}" aria-label="4 / 8 · {{ __('app.brakes') }}" class="rt-wagon-mobile-slide rt-wagon-mobile-slide-with-selector" data-wagon-step="brakes" :aria-hidden="mobileStep !== 3" :inert="mobileStep !== 3" aria-labelledby="wagon-mobile-step-brakes">
             <div class="rt-wagon-mobile-slide-scroll">
                 <div class="rt-wagon-mobile-section-head">
                     <span class="rt-wagon-mobile-section-icon"><i class="far fa-gauge-high" aria-hidden="true"></i></span>
@@ -189,7 +194,7 @@
                     <span class="{{ $labelClass }}">{{ __('app.brake_type') }}</span>
                     <div class="mt-1 grid grid-cols-4 rounded-xl border border-rt-border bg-rt-control p-1 dark:border-rt-dark-border dark:bg-rt-dark-control">
                         @foreach (['' => '—', 'K' => 'K', 'L' => 'L', 'LL' => 'LL'] as $value => $optionLabel)
-                            <button type="button" @click="wagons[mobileWagon].brakeType = @js($value)" :data-active="wagons[mobileWagon].brakeType === @js($value) ? 'true' : 'false'" class="rt-wagon-choice min-h-10 rounded-lg px-2 text-xs font-semibold transition">{{ $optionLabel }}</button>
+                            <button type="button" @click="wagons[mobileWagon].brakeType = @js($value)" :aria-pressed="wagons[mobileWagon].brakeType === @js($value)" :data-active="wagons[mobileWagon].brakeType === @js($value) ? 'true' : 'false'" class="rt-wagon-choice min-h-10 rounded-lg px-2 text-xs font-semibold transition">{{ $optionLabel }}</button>
                         @endforeach
                     </div>
                 </div>
@@ -208,7 +213,7 @@
             </div>
         </section>
 
-        <section class="rt-wagon-mobile-slide" data-wagon-step="route" :aria-hidden="mobileStep !== 4" :inert="mobileStep !== 4" aria-labelledby="wagon-mobile-step-route">
+        <section id="wagon-mobile-panel-route" role="group" aria-roledescription="{{ __('app.wagon_wizard') }}" aria-label="5 / 8 · {{ __('app.route_and_notes') }}" class="rt-wagon-mobile-slide rt-wagon-mobile-slide-with-selector" data-wagon-step="route" :aria-hidden="mobileStep !== 4" :inert="mobileStep !== 4" aria-labelledby="wagon-mobile-step-route">
             <div class="rt-wagon-mobile-slide-scroll">
                 <div class="rt-wagon-mobile-section-head">
                     <span class="rt-wagon-mobile-section-icon"><i class="far fa-location-dot" aria-hidden="true"></i></span>
@@ -228,7 +233,7 @@
             </div>
         </section>
 
-        <section class="rt-wagon-mobile-slide" data-wagon-step="calculation" :aria-hidden="mobileStep !== 5" :inert="mobileStep !== 5" aria-labelledby="wagon-mobile-step-calculation">
+        <section id="wagon-mobile-panel-calculation" role="group" aria-roledescription="{{ __('app.wagon_wizard') }}" aria-label="6 / 8 · {{ __('app.brake_calculation') }}" class="rt-wagon-mobile-slide" data-wagon-step="calculation" :aria-hidden="mobileStep !== 5" :inert="mobileStep !== 5" aria-labelledby="wagon-mobile-step-calculation">
             <div class="rt-wagon-mobile-slide-scroll">
                 <div class="rt-wagon-mobile-section-head">
                     <span class="rt-wagon-mobile-section-icon"><i class="far fa-calculator" aria-hidden="true"></i></span>
@@ -250,14 +255,14 @@
             </div>
         </section>
 
-        <section class="rt-wagon-mobile-slide" data-wagon-step="special" :aria-hidden="mobileStep !== 6" :inert="mobileStep !== 6" aria-labelledby="wagon-mobile-step-special">
+        <section id="wagon-mobile-panel-special" role="group" aria-roledescription="{{ __('app.wagon_wizard') }}" aria-label="7 / 8 · {{ __('app.special_information') }}" class="rt-wagon-mobile-slide" data-wagon-step="special" :aria-hidden="mobileStep !== 6" :inert="mobileStep !== 6" aria-labelledby="wagon-mobile-step-special">
             <div class="rt-wagon-mobile-slide-scroll">
                 <div class="rt-wagon-mobile-section-head">
                     <span class="rt-wagon-mobile-section-icon"><i class="far fa-shield-check" aria-hidden="true"></i></span>
                     <div><h3 id="wagon-mobile-step-special">{{ __('app.special_information') }}</h3><p>{{ __('app.wagon_step_special_hint') }}</p></div>
                 </div>
 
-                <div class="mt-4 grid gap-2 sm:grid-cols-2">
+                <div class="rt-wagon-special-list mt-4 divide-y divide-rt-border/70 overflow-hidden rounded-xl dark:divide-rt-dark-border/70">
                     @foreach ([
                         'nbuepBrake' => __('app.nbuep_brake'),
                         'emergencyBrakeBridge' => __('app.emergency_brake_bridge'),
@@ -269,11 +274,11 @@
                         'dangerousGoods' => __('app.dangerous_goods'),
                         'epBrake' => __('app.ep_brake'),
                     ] as $field => $label)
-                        <div class="rt-wagon-special-row rounded-xl p-2.5">
+                        <div class="rt-wagon-special-row grid grid-cols-[minmax(0,1fr)_8.75rem] items-center gap-3 px-3 py-2.5">
                             <span class="block text-xs font-semibold leading-4">{{ $label }}</span>
-                            <div class="mt-2 grid grid-cols-3 rounded-lg border border-rt-border bg-rt-control p-1 dark:border-rt-dark-border dark:bg-rt-dark-control">
+                            <div class="grid grid-cols-3 rounded-lg border border-rt-border bg-rt-control p-1 dark:border-rt-dark-border dark:bg-rt-dark-control">
                                 @foreach (['' => '—', 'no' => __('app.no'), 'yes' => __('app.yes')] as $value => $optionLabel)
-                                    <button type="button" @click="brakeSheet.{{ $field }} = @js($value)" :data-active="brakeSheet.{{ $field }} === @js($value) ? 'true' : 'false'" class="rt-wagon-choice min-h-9 rounded-md px-1 text-[11px] font-semibold transition">{{ $optionLabel }}</button>
+                                    <button type="button" @click="brakeSheet.{{ $field }} = @js($value)" :aria-pressed="brakeSheet.{{ $field }} === @js($value)" :data-active="brakeSheet.{{ $field }} === @js($value) ? 'true' : 'false'" class="rt-wagon-choice min-h-9 rounded-md px-1 text-[11px] font-semibold transition">{{ $optionLabel }}</button>
                                 @endforeach
                             </div>
                         </div>
@@ -286,7 +291,7 @@
             </div>
         </section>
 
-        <section class="rt-wagon-mobile-slide" data-wagon-step="review" :aria-hidden="mobileStep !== 7" :inert="mobileStep !== 7" aria-labelledby="wagon-mobile-step-review">
+        <section id="wagon-mobile-panel-review" role="group" aria-roledescription="{{ __('app.wagon_wizard') }}" aria-label="8 / 8 · {{ __('app.review_and_finish') }}" class="rt-wagon-mobile-slide" data-wagon-step="review" :aria-hidden="mobileStep !== 7" :inert="mobileStep !== 7" aria-labelledby="wagon-mobile-step-review">
             <div class="rt-wagon-mobile-slide-scroll">
                 <div class="rt-wagon-mobile-section-head">
                     <span class="rt-wagon-mobile-section-icon"><i class="far fa-clipboard-check" aria-hidden="true"></i></span>
@@ -323,11 +328,10 @@
     </div>
 
     <footer class="rt-wagon-wizard-footer shrink-0 border-t border-rt-border/70 bg-rt-surface/95 px-3 pt-2.5 shadow-[0_-8px_24px_-18px_rgba(15,23,42,0.45)] backdrop-blur-xl dark:border-rt-dark-border/70 dark:bg-rt-dark-surface/95">
-        <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-2 pb-[max(0.65rem,env(safe-area-inset-bottom))]">
+        <div class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 pb-[max(0.65rem,env(safe-area-inset-bottom))]">
             <button type="button" @click="previousMobileStep()" :disabled="mobileStep === 0" class="rt-wagon-wizard-action justify-self-start" aria-label="{{ __('app.previous') }}">
                 <i class="far fa-arrow-left" aria-hidden="true"></i><span>{{ __('app.previous') }}</span>
             </button>
-            <span class="min-w-16 text-center text-[11px] font-semibold tabular-nums text-rt-muted dark:text-rt-dark-muted"><span x-text="mobileStep + 1"></span> / <span x-text="mobileStepCount"></span></span>
             <button x-show.important="mobileStep < mobileStepCount - 1" type="button" @click="nextMobileStep()" class="rt-wagon-wizard-action rt-wagon-wizard-action-primary justify-self-end">
                 <span>{{ __('app.next') }}</span><i class="far fa-arrow-right" aria-hidden="true"></i>
             </button>

@@ -220,6 +220,7 @@
                         x-transition:leave="rt-chatbot__settings-leave"
                         x-transition:leave-start="rt-chatbot__settings-enter-end"
                         x-transition:leave-end="rt-chatbot__settings-enter-start"
+                        x-trap="settingsOpen"
                         x-on:keydown.escape.stop.prevent="closeSettings(true)"
                         role="dialog"
                         aria-labelledby="railtime-chatbot-settings-title"
@@ -268,7 +269,7 @@
                                     class="rt-chatbot__setting-input"
                                     x-bind:checked="autoListen"
                                     x-bind:disabled="!voiceSupported"
-                                    x-on:change="setAutoListen($event.target.checked)"
+                                    x-on:change="setAutoListen($event.target.checked, $event.target)"
                                 >
                                 <span class="rt-chatbot__setting-switch" aria-hidden="true"></span>
                             </label>

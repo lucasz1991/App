@@ -13,9 +13,9 @@ final class AssistantSettings
 
     /**
      * Der Assistent bleibt bei Bestandsinstallationen ohne gespeicherten Wert
-     * aktiv. Bei einer voruebergehend nicht erreichbaren Settings-Tabelle
-     * gilt derselbe kompatible Standard; die eigentliche Nutzerfreigabe wird
-     * weiterhin separat durch AssistantAccess geprueft.
+     * aktiv. Technische Lesefehler sind davon strikt getrennt und schalten
+     * den Assistenten fail-closed ab, damit kein Provider ohne belastbare
+     * globale Freigabe erreicht wird.
      */
     public static function enabled(bool $uncached = false): bool
     {
@@ -24,7 +24,7 @@ final class AssistantSettings
                 ? Setting::getValueUncached(self::GROUP, self::KEY)
                 : Setting::getValue(self::GROUP, self::KEY);
         } catch (Throwable) {
-            return true;
+            return false;
         }
 
         return $value === null ? true : (bool) $value;

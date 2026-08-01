@@ -3,10 +3,10 @@
     $quickHeaderClass = 'flex min-h-11 items-center border-b border-r border-rt-border px-2 text-[10px] font-bold uppercase tracking-[0.06em] text-rt-muted dark:border-rt-dark-border dark:text-rt-dark-muted';
 @endphp
 
-<section class="rt-wagon-sheet-shell hidden overflow-hidden rounded-2xl shadow-rt-sm lg:block" aria-labelledby="wagon-sheet-title">
-    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-rt-border/70 px-4 py-3 dark:border-rt-dark-border/70">
+<section class="rt-wagon-sheet-shell hidden h-full min-h-0 flex-col overflow-hidden rounded-xl lg:flex" aria-labelledby="wagon-sheet-title">
+    <div class="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-rt-border/70 px-4 py-2.5 dark:border-rt-dark-border/70">
         <div class="min-w-0">
-            <h2 id="wagon-sheet-title" class="text-base font-semibold text-rt-text dark:text-rt-dark-text">{{ __('app.wagon_overview') }}</h2>
+            <h2 id="wagon-sheet-title" class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ __('app.wagons') }}</h2>
             <p class="mt-0.5 text-xs text-rt-muted dark:text-rt-dark-muted" x-text="desktopTableMode === 'quick' ? @js(__('app.quick_entry_hint')) : @js(__('app.wagon_cards_hint'))"></p>
         </div>
 
@@ -53,12 +53,12 @@
     {{-- Standardansicht: Wagen links waehlen, Details rechts ohne breites Tabellen-Panning bearbeiten. --}}
     <div
         x-show.important="desktopTableMode === 'overview'"
-        class="grid min-h-0 grid-cols-[minmax(19rem,0.72fr)_minmax(0,1.28fr)]"
+        class="grid min-h-0 flex-1 grid-cols-[clamp(17rem,21vw,21rem)_minmax(0,1fr)]"
         data-wagon-desktop-overview
     >
-        <div class="max-h-[64dvh] min-h-[30rem] overflow-y-auto border-r border-rt-border/70 bg-rt-surface-muted/45 p-3 dark:border-rt-dark-border/70 dark:bg-rt-dark-surface-muted/25">
+        <div class="h-full min-h-0 overflow-y-auto border-r border-rt-border/70 bg-rt-surface-muted/45 p-2.5 dark:border-rt-dark-border/70 dark:bg-rt-dark-surface-muted/25">
             <div
-                class="space-y-2"
+                class="space-y-1.5"
                 role="listbox"
                 aria-label="{{ __('app.wagons') }}"
                 :aria-activedescendant="`wagon-overview-option-${desktopWagon}`"
@@ -74,7 +74,7 @@
                         :class="desktopWagon === index
                             ? 'border-rt-accent bg-rt-surface shadow-rt-sm ring-1 ring-rt-accent/15 dark:border-rt-dark-accent dark:bg-rt-dark-surface'
                             : 'border-rt-border bg-rt-surface/75 hover:border-rt-accent/45 hover:bg-rt-surface dark:border-rt-dark-border dark:bg-rt-dark-surface/65 dark:hover:border-rt-dark-accent/45 dark:hover:bg-rt-dark-surface'"
-                        class="group block w-full rounded-xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent/40"
+                        class="group block w-full rounded-lg border px-2.5 py-2 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent/40"
                     >
                         <span class="flex min-w-0 items-start gap-3">
                             <span
@@ -87,18 +87,18 @@
                             <span class="min-w-0 flex-1">
                                 <span class="flex min-w-0 items-center justify-between gap-2">
                                     <strong class="truncate text-sm font-semibold text-rt-text dark:text-rt-dark-text" x-text="wagonNumber(wagon) || (@js(__('app.wagons')) + ' ' + (index + 1))"></strong>
-                                    <span
-                                        x-show="!isWagonFilled(wagon)"
-                                        class="shrink-0 rounded-md bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-300"
-                                    >{{ __('app.wagon_empty') }}</span>
-                                    <span
-                                        x-show="isWagonFilled(wagon) && checkState(wagon) === 'valid' && wagon.category && wagon.length && (wagon.wagonWeight || wagon.loadWeight)"
-                                        class="shrink-0 rounded-md bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300"
-                                    >{{ __('app.wagon_complete') }}</span>
-                                    <span
-                                        x-show="isWagonFilled(wagon) && !(checkState(wagon) === 'valid' && wagon.category && wagon.length && (wagon.wagonWeight || wagon.loadWeight))"
-                                        class="shrink-0 rounded-md bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-700 dark:bg-amber-500/10 dark:text-amber-300"
-                                    >{{ __('app.wagon_not_filled') }}</span>
+                                    <span class="flex shrink-0 items-center gap-1.5 text-[10px] font-semibold text-rt-muted dark:text-rt-dark-muted">
+                                        <span
+                                            :class="!isWagonFilled(wagon)
+                                                ? 'bg-slate-400'
+                                                : (checkState(wagon) === 'valid' && wagon.category && wagon.length && (wagon.wagonWeight || wagon.loadWeight) ? 'bg-emerald-500' : 'bg-amber-500')"
+                                            class="h-2 w-2 rounded-full"
+                                            aria-hidden="true"
+                                        ></span>
+                                        <span x-show="!isWagonFilled(wagon)">{{ __('app.wagon_empty') }}</span>
+                                        <span x-show="isWagonFilled(wagon) && checkState(wagon) === 'valid' && wagon.category && wagon.length && (wagon.wagonWeight || wagon.loadWeight)">{{ __('app.wagon_complete') }}</span>
+                                        <span x-show="isWagonFilled(wagon) && !(checkState(wagon) === 'valid' && wagon.category && wagon.length && (wagon.wagonWeight || wagon.loadWeight))">{{ __('app.wagon_not_filled') }}</span>
+                                    </span>
                                 </span>
                                 <span class="mt-1 flex min-w-0 items-center gap-2 text-xs text-rt-muted dark:text-rt-dark-muted">
                                     <span class="truncate" x-text="wagon.category || '—'"></span>
@@ -114,11 +114,11 @@
             </div>
         </div>
 
-        <div class="max-h-[64dvh] min-h-[30rem] overflow-y-auto bg-rt-surface p-4 dark:bg-rt-dark-surface" data-wagon-detail-inspector>
-            <div class="flex items-start justify-between gap-4 border-b border-rt-border/70 pb-4 dark:border-rt-dark-border/70">
+        <div class="h-full min-h-0 overflow-y-auto bg-rt-surface px-4 pb-4 dark:bg-rt-dark-surface" data-wagon-detail-inspector>
+            <div class="sticky top-0 z-10 -mx-4 flex items-center justify-between gap-4 border-b border-rt-border/70 bg-rt-surface/95 px-4 py-3 backdrop-blur-xl dark:border-rt-dark-border/70 dark:bg-rt-dark-surface/95">
                 <div class="min-w-0">
-                    <p class="text-[10px] font-bold uppercase tracking-[0.08em] text-rt-soft dark:text-rt-dark-soft">{{ __('app.edit_wagon_details') }}</p>
-                    <h3 class="mt-1 truncate text-lg font-semibold text-rt-text dark:text-rt-dark-text">
+                    <p class="text-[11px] font-medium text-rt-soft dark:text-rt-dark-soft">{{ __('app.edit_wagon_details') }}</p>
+                    <h3 class="mt-0.5 truncate text-base font-semibold text-rt-text dark:text-rt-dark-text">
                         {{ __('app.selected_wagon') }} <span class="tabular-nums" x-text="desktopWagon + 1"></span>
                     </h3>
                     <p class="mt-1 truncate text-xs text-rt-muted dark:text-rt-dark-muted" x-text="wagonNumber(wagons[desktopWagon]) || @js(__('app.wagon_empty'))"></p>
@@ -134,9 +134,9 @@
                 </button>
             </div>
 
-            <div class="mt-4 grid gap-4 xl:grid-cols-2">
-                <fieldset class="rt-wagon-fieldset rounded-xl p-4">
-                    <legend class="px-1 text-xs font-bold uppercase tracking-[0.08em]">{{ __('app.identification') }}</legend>
+            <div class="mt-3 grid gap-3 xl:grid-cols-2">
+                <fieldset class="rt-wagon-fieldset rounded-xl p-4 xl:col-span-2">
+                    <legend class="px-1 text-xs font-semibold">{{ __('app.identification') }}</legend>
                     <div class="mt-2 grid grid-cols-[1fr_1fr_1.25fr_1.25fr_0.8fr] gap-2">
                         <label class="{{ $labelClass }}">1+2
                             <input x-model="wagons[desktopWagon].number12" inputmode="numeric" maxlength="2" class="{{ $inputClass }}" x-bind:aria-label="@js(__('app.selected_wagon')) + ' ' + (desktopWagon + 1) + ', 1+2'">
@@ -170,7 +170,7 @@
                 </fieldset>
 
                 <fieldset class="rt-wagon-fieldset rounded-xl p-4">
-                    <legend class="px-1 text-xs font-bold uppercase tracking-[0.08em]">{{ __('app.axles_dimensions') }}</legend>
+                    <legend class="px-1 text-xs font-semibold">{{ __('app.axles_dimensions') }}</legend>
                     <div class="mt-2 grid grid-cols-2 gap-3">
                         <label class="{{ $labelClass }}">{{ __('app.axles_empty') }}
                             <x-ui.forms.number-input min="0" x-model="wagons[desktopWagon].axlesEmpty" class="mt-1" />
@@ -198,7 +198,7 @@
                 </fieldset>
 
                 <fieldset class="rt-wagon-fieldset rounded-xl p-4">
-                    <legend class="px-1 text-xs font-bold uppercase tracking-[0.08em]">{{ __('app.brakes') }}</legend>
+                    <legend class="px-1 text-xs font-semibold">{{ __('app.brakes') }}</legend>
                     <div class="mt-2 grid grid-cols-2 gap-3">
                         <label class="{{ $labelClass }}">{{ __('app.brake_weight_g') }}
                             <x-ui.forms.number-input min="0" step="0.01" :decimals="2" x-model="wagons[desktopWagon].brakeG" class="mt-1" />
@@ -230,8 +230,8 @@
                     </div>
                 </fieldset>
 
-                <fieldset class="rt-wagon-fieldset rounded-xl p-4">
-                    <legend class="px-1 text-xs font-bold uppercase tracking-[0.08em]">{{ __('app.route_and_notes') }}</legend>
+                <fieldset class="rt-wagon-fieldset rounded-xl p-4 xl:col-span-2">
+                    <legend class="px-1 text-xs font-semibold">{{ __('app.route_and_notes') }}</legend>
                     <div class="mt-2 grid grid-cols-2 gap-3">
                         <label class="{{ $labelClass }}">{{ __('app.shipping_station') }}
                             <input x-model="wagons[desktopWagon].shippingStation" class="{{ $inputClass }}">
@@ -249,8 +249,8 @@
     </div>
 
     {{-- Schnellmodus: volle Excel-nahe Eingabe, aber mit klaren Spaltengruppen. --}}
-    <div x-show="desktopTableMode === 'quick'" x-cloak data-wagon-desktop-quick>
-        <div class="rt-table-scroll max-h-[64dvh]" data-wagon-sheet role="table" aria-label="{{ __('app.quick_entry') }}">
+    <div x-show="desktopTableMode === 'quick'" x-cloak class="min-h-0 flex-1" data-wagon-desktop-quick>
+        <div class="rt-table-scroll h-full" data-wagon-sheet role="table" aria-label="{{ __('app.quick_entry') }}">
             <div class="sticky top-0 z-20" style="min-width: 133rem;">
                 <div class="rt-wagon-sheet-grid rt-wagon-sheet-grid-header" role="row" style="{{ $quickGridStyle }}">
                     <div role="columnheader" aria-colspan="7" style="grid-column: 1 / span 7;" class="{{ $quickHeaderClass }} min-h-9 bg-slate-100/80 dark:bg-slate-800/80">{{ __('app.identification') }}</div>

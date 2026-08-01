@@ -20,6 +20,9 @@
             : route('operations.wagon-list.export'),
         'exportSuccess' => __('app.wagon_export_success'),
         'exportError' => __('app.wagon_export_error'),
+        'clearWagonTitle' => __('app.wagon_clear_title'),
+        'clearWagonText' => __('app.wagon_clear_text'),
+        'clearWagonConfirm' => __('app.clear_wagon'),
         'mobileSteps' => [
             ['id' => 'train', 'label' => __('app.train_data')],
             ['id' => 'identity', 'label' => __('app.identification')],
@@ -186,15 +189,14 @@
             data-wagon-editor
         >
             <x-slot:header>
-                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent">
+                <span class="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent sm:flex">
                     <i class="fad fa-train" aria-hidden="true"></i>
                 </span>
                 <div class="min-w-0 flex-1">
-                    <p class="text-[10px] font-bold uppercase tracking-[0.1em] text-rt-soft dark:text-rt-dark-soft">{{ $labels['localDraft'] }}</p>
-                    <h2 id="wagon-editor-title" x-ref="editorHeading" tabindex="-1" class="truncate text-base font-semibold outline-none sm:text-lg" x-text="activeDraftId ? draftTitle({ meta }) : @js($labels['untitledDraft'])"></h2>
-                    <p class="mt-0.5 hidden text-xs text-rt-muted dark:text-rt-dark-muted sm:block">
-                        {{ __('app.locally_saved') }}:
-                        <span class="tabular-nums" x-text="formatSavedAt()"></span>
+                    <p class="hidden text-[10px] font-bold uppercase tracking-[0.1em] text-rt-soft dark:text-rt-dark-soft sm:block">{{ $labels['localDraft'] }}</p>
+                    <h2 id="wagon-editor-title" x-ref="editorHeading" tabindex="-1" class="truncate text-sm font-semibold outline-none sm:text-lg" x-text="activeDraftId ? draftTitle({ meta }) : @js($labels['untitledDraft'])"></h2>
+                    <p class="mt-0.5 truncate text-[10px] text-rt-muted dark:text-rt-dark-muted sm:text-xs">
+                        {{ __('app.locally_saved') }} · <span class="tabular-nums" x-text="formatSavedAt()"></span>
                     </p>
                 </div>
             </x-slot:header>
@@ -203,7 +205,7 @@
                 <button
                     type="button"
                     @click="resetDraft()"
-                    class="rt-wagon-editor-secondary-action h-10 w-10 items-center justify-center rounded-lg text-rt-muted transition-all duration-200 hover:bg-red-50 hover:text-red-700 active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/45 dark:text-rt-dark-muted dark:hover:bg-red-500/10 dark:hover:text-red-300"
+                    class="rt-wagon-editor-secondary-action h-10 w-10 items-center justify-center rounded-lg border border-transparent text-rt-muted transition-all duration-200 hover:border-red-200 hover:bg-red-50 hover:text-red-700 active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/45 dark:text-rt-dark-muted dark:hover:border-red-500/25 dark:hover:bg-red-500/10 dark:hover:text-red-300"
                     title="{{ $labels['deleteDraft'] }}"
                     aria-label="{{ $labels['deleteDraft'] }}"
                 >
@@ -213,7 +215,7 @@
                     type="button"
                     @click="exportWorkbook()"
                     :disabled="exporting"
-                    class="rt-wagon-editor-secondary-action h-10 items-center justify-center gap-2 rounded-lg border border-rt-border bg-rt-surface px-3 text-sm font-semibold text-rt-text shadow-rt-xs transition-all duration-200 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/45 disabled:cursor-wait disabled:opacity-65 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text dark:hover:border-emerald-500/40 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-300"
+                    class="rt-wagon-editor-secondary-action h-10 items-center justify-center gap-2 rounded-lg border border-rt-border bg-rt-surface px-3 text-sm font-semibold text-rt-text shadow-rt-xs transition-all duration-200 hover:border-rt-accent/35 hover:bg-rt-surface-muted hover:text-rt-accent active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent/35 disabled:cursor-wait disabled:opacity-65 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text dark:hover:border-rt-dark-accent/35 dark:hover:bg-rt-dark-surface-muted dark:hover:text-rt-dark-accent"
                     title="{{ __('app.export_excel') }}"
                     aria-label="{{ __('app.export_excel') }}"
                 >

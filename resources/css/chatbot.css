@@ -228,6 +228,8 @@
     stroke: var(--rt-pet-ink);
     stroke-width: 2.2;
     stroke-linecap: round;
+    transform-box: fill-box;
+    transform-origin: center;
 }
 
 .rt-chatbot .rt-assistant-pet__antenna-stem {
@@ -433,7 +435,8 @@
 }
 
 .rt-chatbot__settings {
-    display: contents;
+    display: block;
+    flex: 0 0 auto;
 }
 
 .rt-chatbot__settings-trigger[aria-expanded='true'] {
@@ -626,10 +629,17 @@
     outline-offset: 3px;
 }
 
-.rt-chatbot__setting-input:disabled ~ .rt-chatbot__setting-copy,
 .rt-chatbot__setting-input:disabled + .rt-chatbot__setting-switch {
     opacity: 0.46;
     cursor: not-allowed;
+}
+
+.rt-chatbot__setting-row:has(.rt-chatbot__setting-input:disabled) {
+    cursor: not-allowed;
+}
+
+.rt-chatbot__setting-row:has(.rt-chatbot__setting-input:disabled) .rt-chatbot__setting-copy {
+    opacity: 0.46;
 }
 
 .rt-chatbot__setting-select {

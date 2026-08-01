@@ -1,6 +1,6 @@
 <section class="hidden h-full min-h-0 flex-col lg:flex" data-wagon-desktop-workspace>
-    <nav class="rt-wagon-section-nav shrink-0 border-b border-rt-border/70 bg-rt-surface/95 px-5 py-3 backdrop-blur-xl dark:border-rt-dark-border/70 dark:bg-rt-dark-surface/95" aria-label="{{ __('app.wagon_workspace') }}">
-        <div class="mx-auto flex max-w-[100rem] items-center justify-between gap-4">
+    <nav class="rt-wagon-section-nav shrink-0 border-b border-rt-border/70 bg-rt-surface/95 px-5 py-2 backdrop-blur-xl dark:border-rt-dark-border/70 dark:bg-rt-dark-surface/95" aria-label="{{ __('app.wagon_workspace') }}">
+        <div class="mx-auto flex max-w-[100rem] items-center gap-4">
             <div class="inline-flex rounded-xl border border-rt-border bg-rt-surface-muted p-1 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted" role="tablist">
                 <button
                     type="button"
@@ -8,7 +8,7 @@
                     :aria-selected="desktopSection === 'wagons'"
                     :data-active="desktopSection === 'wagons' ? 'true' : 'false'"
                     @click="desktopSection = 'wagons'"
-                    class="rt-wagon-section-tab inline-flex min-h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold transition"
+                    class="rt-wagon-section-tab inline-flex min-h-9 items-center gap-2 rounded-lg px-4 text-sm font-semibold transition"
                 >
                     <i class="fad fa-train" aria-hidden="true"></i>
                     {{ __('app.wagon_list') }}
@@ -19,41 +19,28 @@
                     :aria-selected="desktopSection === 'brakeSheet'"
                     :data-active="desktopSection === 'brakeSheet' ? 'true' : 'false'"
                     @click="desktopSection = 'brakeSheet'"
-                    class="rt-wagon-section-tab inline-flex min-h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold transition"
+                    class="rt-wagon-section-tab inline-flex min-h-9 items-center gap-2 rounded-lg px-4 text-sm font-semibold transition"
                 >
                     <i class="fad fa-clipboard-check" aria-hidden="true"></i>
                     {{ __('app.brake_sheet') }}
                 </button>
             </div>
 
-            <p class="hidden items-center gap-2 text-xs font-medium text-rt-muted xl:flex dark:text-rt-dark-muted">
-                <i class="far fa-cloud-check text-emerald-500" aria-hidden="true"></i>
-                {{ __('app.locally_saved') }} · <span class="tabular-nums" x-text="formatSavedAt()"></span>
-            </p>
         </div>
     </nav>
 
-    <div class="rt-wagon-desktop-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <div class="mx-auto w-full max-w-[100rem] px-5 py-5">
-            <div x-show.important="desktopSection === 'wagons'" class="space-y-4" role="tabpanel">
-                <section class="rt-wagon-workspace rounded-2xl p-5 shadow-rt-sm" aria-labelledby="wagon-meta-title">
-                    <div class="flex items-center justify-between gap-4 border-b border-rt-border/70 pb-4 dark:border-rt-dark-border/70">
-                        <div class="flex items-center gap-3">
-                            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent">
-                                <i class="far fa-route" aria-hidden="true"></i>
-                            </span>
-                            <div>
-                                <h2 id="wagon-meta-title" class="text-base font-semibold text-rt-text dark:text-rt-dark-text">{{ __('app.train_data') }}</h2>
-                                <p class="text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.train_data_hint') }}</p>
-                            </div>
-                        </div>
-                        <div class="inline-flex items-center gap-2 rounded-lg bg-rt-surface-muted px-3 py-2 text-xs font-semibold text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted">
-                            <i class="far fa-keyboard" aria-hidden="true"></i>
-                            {{ __('app.enter_advances_cell') }}
+    <div class="rt-wagon-desktop-scroll min-h-0 flex-1 overflow-hidden">
+        <div class="mx-auto h-full min-h-0 w-full max-w-[100rem] px-5 py-4">
+            <div x-show.important="desktopSection === 'wagons'" class="grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-3" role="tabpanel">
+                <section class="rt-wagon-workspace rounded-xl px-4 py-3" aria-labelledby="wagon-meta-title">
+                    <div class="flex items-end justify-between gap-4">
+                        <div>
+                            <h2 id="wagon-meta-title" class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ __('app.train_data') }}</h2>
+                            <p class="mt-0.5 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.train_data_hint') }}</p>
                         </div>
                     </div>
 
-                    <div class="mt-4 grid grid-cols-5 gap-3">
+                    <div class="mt-3 grid grid-cols-5 gap-3">
                         <label class="{{ $labelClass }}">{{ __('app.train_number') }}
                             <input x-model="meta.trainNumber" type="text" class="{{ $inputClass }}" autocomplete="off">
                         </label>
@@ -72,7 +59,7 @@
                     </div>
                 </section>
 
-                <section class="grid grid-cols-3 gap-3 xl:grid-cols-6" aria-label="{{ __('app.wagon_totals') }}">
+                <section class="rt-wagon-summary-band grid grid-cols-6 divide-x divide-rt-border/70 overflow-hidden rounded-xl dark:divide-rt-dark-border/70" aria-label="{{ __('app.wagon_totals') }}">
                     <template x-for="item in [
                         { label: @js(__('app.wagons')), value: totals.wagons, suffix: '' },
                         { label: @js(__('app.axles')), value: totals.axles, suffix: '' },
@@ -81,9 +68,9 @@
                         { label: @js(__('app.brake_weight_g')), value: formatNumber(totals.brakeG), suffix: ' t' },
                         { label: @js(__('app.brake_weight_p')), value: formatNumber(totals.brakeP), suffix: ' t' },
                     ]" :key="item.label">
-                        <div class="rt-wagon-total min-w-0 rounded-xl p-3">
-                            <p class="truncate text-[10px] font-bold uppercase tracking-[0.08em] opacity-65" x-text="item.label"></p>
-                            <p class="mt-1 text-lg font-bold tabular-nums"><span x-text="item.value"></span><span x-text="item.suffix"></span></p>
+                        <div class="min-w-0 px-3 py-2.5">
+                            <p class="text-[11px] font-medium leading-4 opacity-65" x-text="item.label"></p>
+                            <p class="mt-0.5 text-base font-bold tabular-nums"><span x-text="item.value"></span><span x-text="item.suffix"></span></p>
                         </div>
                     </template>
                 </section>
@@ -95,7 +82,7 @@
                 ])
             </div>
 
-            <div x-show.important="desktopSection === 'brakeSheet'" x-cloak class="space-y-4" role="tabpanel">
+            <div x-show.important="desktopSection === 'brakeSheet'" x-cloak class="h-full space-y-4 overflow-y-auto overscroll-contain pr-1" role="tabpanel">
                 <section class="grid grid-cols-4 gap-3" aria-label="{{ __('app.brake_sheet_summary') }}">
                     <template x-for="item in [
                         { label: @js(__('app.total_weight')), value: formatNumber(brakeTotals.trainWeight), suffix: ' t' },

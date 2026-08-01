@@ -100,6 +100,7 @@ export function wagonListPrototype(config = {}) {
         desktopWagon: 0,
         mobileWagon: 0,
         mobileStep: 0,
+        mobileTargetStep: null,
         mobileSteps: Array.isArray(config.mobileSteps) ? config.mobileSteps : [],
         mobileScrollRaf: null,
         mobileSettleTimer: null,
@@ -254,6 +255,7 @@ export function wagonListPrototype(config = {}) {
             this.desktopWagon = 0;
             this.mobileWagon = 0;
             this.mobileStep = 0;
+            this.mobileTargetStep = null;
             this.persistedAt = draft.persistedAt || null;
             this.modalReturnFocus = returnFocus && typeof returnFocus.focus === 'function'
                 ? returnFocus
@@ -468,14 +470,16 @@ export function wagonListPrototype(config = {}) {
 
         addWagon() {
             if (this.visibleCount >= MAX_WAGONS) return;
-            this.openWagon = this.visibleCount;
-            this.desktopWagon = this.visibleCount;
-            this.mobileWagon = this.visibleCount;
+            const nextIndex = this.visibleCount;
             this.visibleCount += 1;
+            this.openWagon = nextIndex;
+            this.desktopWagon = nextIndex;
+            this.showMobileWagon(nextIndex);
         },
 
         showMobileWagon(index) {
             this.mobileWagon = Math.max(0, Math.min(this.visibleCount - 1, Number(index)));
+            this.centerMobileRailControl('mobileWagonRail', `[data-wagon-index="${this.mobileWagon}"]`);
         },
 
         showDesktopWagon(index) {
@@ -513,15 +517,50 @@ export function wagonListPrototype(config = {}) {
 
         goToMobileStep(index, behavior = null) {
             const targetStep = Math.max(0, Math.min(this.mobileStepCount - 1, Number(index) || 0));
-            this.mobileStep = targetStep;
+            const resolvedBehavior = behavior || (this.prefersReducedMotion() ? 'auto' : 'smooth');
+            this.mobileTargetStep = targetStep;
 
             this.$nextTick(() => {
                 const pager = this.$refs?.mobilePager;
-                if (!pager || !pager.clientWidth || typeof pager.scrollTo !== 'function') return;
+                if (!pager || !pager.clientWidth || typeof pager.scrollTo !== 'function') {
+                    this.commitMobileStep(targetStep);
+                    return;
+                }
 
                 pager.scrollTo({
                     left: targetStep * pager.clientWidth,
-                    behavior: behavior || (this.prefersReducedMotion() ? 'auto' : 'smooth'),
+                    behavior: resolvedBehavior,
+                });
+
+                // Bei einer unmittelbaren Ausrichtung gibt es nicht in jedem
+                // Browser ein Scroll-Event. Smooth-Scroll dagegen uebernimmt
+                // den aktiven Zustand erst aus der real sichtbaren Position.
+                if (resolvedBehavior === 'auto') {
+                    this.commitMobileStep(targetStep);
+                    this.mobileTargetStep = null;
+                }
+            });
+        },
+
+        commitMobileStep(index) {
+            const nextStep = Math.max(0, Math.min(this.mobileStepCount - 1, Number(index) || 0));
+            if (this.mobileStep !== nextStep) {
+                this.mobileStep = nextStep;
+            }
+
+            this.centerMobileRailControl('mobileStepRail', `[data-mobile-step-index="${nextStep}"]`);
+        },
+
+        centerMobileRailControl(refName, selector) {
+            this.$nextTick(() => {
+                const rail = this.$refs?.[refName];
+                const control = rail?.querySelector?.(selector);
+                if (!rail || !control || typeof rail.scrollTo !== 'function') return;
+
+                const left = Math.max(0, control.offsetLeft - ((rail.clientWidth - control.offsetWidth) / 2));
+                rail.scrollTo({
+                    left,
+                    behavior: this.prefersReducedMotion() ? 'auto' : 'smooth',
                 });
             });
         },
@@ -540,7 +579,7 @@ export function wagonListPrototype(config = {}) {
 
             const updateStep = () => {
                 const position = pager.scrollLeft / pager.clientWidth;
-                this.mobileStep = Math.max(0, Math.min(this.mobileStepCount - 1, Math.round(position)));
+                this.commitMobileStep(Math.round(position));
                 this.mobileScrollRaf = null;
 
                 window.clearTimeout(this.mobileSettleTimer);
@@ -566,7 +605,8 @@ export function wagonListPrototype(config = {}) {
                 this.mobileStepCount - 1,
                 Math.round(pager.scrollLeft / pager.clientWidth),
             ));
-            this.mobileStep = targetStep;
+            this.commitMobileStep(targetStep);
+            this.mobileTargetStep = null;
 
             const targetLeft = targetStep * pager.clientWidth;
             if (Math.abs(pager.scrollLeft - targetLeft) > 1 && typeof pager.scrollTo === 'function') {
@@ -580,7 +620,9 @@ export function wagonListPrototype(config = {}) {
             const align = () => {
                 const pager = this.$refs?.mobilePager;
                 if (!pager || !pager.clientWidth || typeof pager.scrollTo !== 'function') return;
-                pager.scrollTo({ left: this.mobileStep * pager.clientWidth, behavior: 'auto' });
+                const targetStep = this.mobileTargetStep ?? this.mobileStep;
+                pager.scrollTo({ left: targetStep * pager.clientWidth, behavior: 'auto' });
+                this.commitMobileStep(targetStep);
             };
 
             if (typeof window?.requestAnimationFrame === 'function') {
@@ -624,7 +666,14 @@ export function wagonListPrototype(config = {}) {
             }
         },
 
-        clearWagon(index) {
+        async clearWagon(index) {
+            const confirmed = await this.confirmDeletion({
+                title: config.clearWagonTitle || 'Wagen wirklich leeren?',
+                text: config.clearWagonText || 'Alle Eingaben dieses Wagens werden entfernt.',
+                confirmButtonText: config.clearWagonConfirm || 'Wagen leeren',
+            });
+            if (!confirmed) return;
+
             this.wagons[index] = emptyWagon();
             this.schedulePersist();
         },

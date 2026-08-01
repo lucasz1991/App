@@ -1095,6 +1095,8 @@ return [
     'maximum_speed' => 'V/max in km/h',
     'remark' => 'Bemerkung',
     'clear_wagon' => 'Wagen leeren',
+    'wagon_clear_title' => 'Wagen wirklich leeren?',
+    'wagon_clear_text' => 'Alle Eingaben dieses Wagens werden entfernt. Diese Aktion kann nicht rückgängig gemacht werden.',
     'brake_sheet' => 'Bremszettel',
     'brake_sheet_summary' => 'Zusammenfassung des Bremszettels',
     'brake_weight' => 'Bremsgewicht',

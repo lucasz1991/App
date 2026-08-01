@@ -122,6 +122,7 @@ export function railtimeChatbot(config = {}) {
         petBubbleText: '',
         petBubbleVisible: false,
         petBubbleAnnounce: false,
+        petBubbleOrigin: null,
         petHintIndex: 0,
         petBubbleTimer: null,
         petBubbleCycleTimer: null,
@@ -301,17 +302,19 @@ export function railtimeChatbot(config = {}) {
             return '';
         },
 
-        showPetBubble(text, duration = PET_BUBBLE_VISIBLE_MS, announce = false) {
+        showPetBubble(text, duration = PET_BUBBLE_VISIBLE_MS, announce = false, origin = null) {
             const message = String(text ?? '').trim();
             if (!message || this.open) return;
 
             window.clearTimeout(this.petBubbleTimer);
             this.petBubbleAnnounce = Boolean(announce);
+            this.petBubbleOrigin = origin ?? (announce ? 'reply' : 'manual');
             this.petBubbleText = message;
             this.petBubbleVisible = true;
             this.petBubbleTimer = window.setTimeout(() => {
                 this.petBubbleVisible = false;
                 this.petBubbleAnnounce = false;
+                this.petBubbleOrigin = null;
                 this.petBubbleTimer = null;
             }, Math.max(1_500, Number(duration) || PET_BUBBLE_VISIBLE_MS));
         },
@@ -321,6 +324,7 @@ export function railtimeChatbot(config = {}) {
             this.petBubbleTimer = null;
             this.petBubbleVisible = false;
             this.petBubbleAnnounce = false;
+            this.petBubbleOrigin = null;
         },
 
         schedulePetBubble(initial = false) {
@@ -341,13 +345,14 @@ export function railtimeChatbot(config = {}) {
                 if (!this.autoHelp || this.open || document.hidden) return;
                 if (!this.assistantAvailable) return;
 
-                this.showPetBubble(this.nextProactivePetHint());
+                this.showPetBubble(this.nextProactivePetHint(), PET_BUBBLE_VISIBLE_MS, false, 'proactive');
             }, delay);
         },
 
         stopProactivePetBubbles() {
             window.clearTimeout(this.petBubbleCycleTimer);
             this.petBubbleCycleTimer = null;
+            if (this.petBubbleOrigin === 'proactive') this.hidePetBubble();
         },
 
         clearPetBubbleTimers() {
@@ -357,6 +362,7 @@ export function railtimeChatbot(config = {}) {
             this.petBubbleCycleTimer = null;
             this.petBubbleVisible = false;
             this.petBubbleAnnounce = false;
+            this.petBubbleOrigin = null;
         },
 
         readBool(key, fallback) {
@@ -576,15 +582,19 @@ export function railtimeChatbot(config = {}) {
             this.autoListenTimer = window.setTimeout(attempt, 0);
         },
 
-        async setAutoListen(value) {
+        async setAutoListen(value, input = null) {
             const enabled = Boolean(value);
             if (!enabled) {
                 this.cancelPendingAutoListen();
                 this.autoListen = false;
                 this.abortSpeechInput();
+                if (input) input.checked = false;
                 return false;
             }
-            if (this.autoListen || this.autoListenChecking) return this.autoListen;
+            if (this.autoListen || this.autoListenChecking) {
+                if (input) input.checked = this.autoListen;
+                return this.autoListen;
+            }
 
             this.voiceSupported = this.recordedVoiceSupported();
             if (!this.voiceSupported) {
@@ -592,6 +602,7 @@ export function railtimeChatbot(config = {}) {
                 this.audioError = this.sttEndpoint
                     ? this.strings.recordingUnsupported
                     : this.strings.speechEndpointUnavailable;
+                if (input) input.checked = false;
                 return false;
             }
 
@@ -624,6 +635,7 @@ export function railtimeChatbot(config = {}) {
                 return false;
             } finally {
                 if (generation === this.autoListenGeneration) this.autoListenChecking = false;
+                if (input) input.checked = this.autoListen;
             }
         },
 

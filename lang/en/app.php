@@ -1095,6 +1095,8 @@ return [
     'maximum_speed' => 'Maximum speed in km/h',
     'remark' => 'Remark',
     'clear_wagon' => 'Clear wagon',
+    'wagon_clear_title' => 'Clear this wagon?',
+    'wagon_clear_text' => 'All entries for this wagon will be removed. This action cannot be undone.',
     'brake_sheet' => 'Brake sheet',
     'brake_sheet_summary' => 'Brake sheet summary',
     'brake_weight' => 'Brake weight',
