@@ -176,7 +176,7 @@
                         ])>
                             <div class="flex items-start gap-3">
                                 <span class="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rt-surface-muted text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted">
-                                    <i class="fad fa-file-lines" aria-hidden="true"></i>
+                                    <i class="fad fa-file-alt" aria-hidden="true"></i>
                                 </span>
                                 <div class="min-w-0 flex-1">
                                     <div class="flex flex-wrap items-center gap-2">

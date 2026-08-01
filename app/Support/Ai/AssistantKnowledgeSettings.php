@@ -12,7 +12,7 @@ final class AssistantKnowledgeSettings
 
     public const KEY = 'knowledge_intro';
 
-    public const DEFAULT_INTRO = 'Der RailTime-Wissenspool enth\u00e4lt redaktionell gepr\u00fcfte Hinweise zu Bedienung, Abl\u00e4ufen und internen Begriffen. Nutze Detailwissen nur, wenn es zur Frage passt.';
+    public const DEFAULT_INTRO = 'Der RailTime-Wissenspool enthält redaktionell geprüfte Hinweise zu Bedienung, Abläufen und internen Begriffen. Nutze Detailwissen nur, wenn es zur Frage passt.';
 
     public static function intro(bool $uncached = false): string
     {

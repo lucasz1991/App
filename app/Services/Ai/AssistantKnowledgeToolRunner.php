@@ -59,14 +59,14 @@ class AssistantKnowledgeToolRunner
         } catch (JsonException) {
             return $this->encode([
                 'error' => 'invalid_arguments',
-                'message' => 'Die Suchparameter sind kein g\u00fcltiges JSON-Objekt.',
+                'message' => 'Die Suchparameter sind kein gültiges JSON-Objekt.',
             ]);
         }
 
         if (! is_array($arguments) || ! is_string($arguments['query'] ?? null)) {
             return $this->encode([
                 'error' => 'invalid_arguments',
-                'message' => 'F\u00fcr die Wissenssuche ist eine konkrete query erforderlich.',
+                'message' => 'Für die Wissenssuche ist eine konkrete query erforderlich.',
             ]);
         }
 
