@@ -75,6 +75,7 @@ $ariaLabel = $attributes->get('aria-label', config('app.name') . ' Dialog');
                 bleibt und Listen den Modal-Inhalt nicht aufweiten.
             --}}
             <div
+                wire:ignore
                 class="pointer-events-none fixed inset-0 z-[20]"
                 data-rt-overlay-portal
                 data-rt-modal-portal

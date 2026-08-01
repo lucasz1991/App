@@ -114,6 +114,7 @@
     x-on:rt-navigation:prepare.window="if (open && !busy) close(false)"
     x-on:keydown.escape.window="if (open && !busy) close()"
     x-show="open"
+    x-trap.inert.noscroll="open"
     x-cloak
     class="rt-ui-modal rt-modal-center-shell fixed inset-0 z-[340] overflow-y-auto px-4 py-6 sm:px-0"
     data-rt-overlay-layer
@@ -136,7 +137,6 @@
 
     <div
         x-show="open"
-        x-trap.inert.noscroll="open"
         x-transition:enter="ease-out duration-200"
         x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-2 sm:scale-[0.985]"
         x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
@@ -243,4 +243,6 @@
             </button>
         </div>
     </div>
+
+    <div wire:ignore class="pointer-events-none fixed inset-0 z-[20]" data-rt-overlay-portal></div>
 </div>

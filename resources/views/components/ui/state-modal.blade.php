@@ -27,6 +27,7 @@
         x-cloak
         x-on:keydown.escape.window="if ({{ $state }}) { {{ $closeExpression }} }"
         x-on:rt-navigation:prepare.window="{{ $state }} = false"
+        x-trap.inert.noscroll="{{ $state }}"
         class="fixed inset-0 z-[190] flex items-end justify-center overflow-hidden pt-4 sm:items-center sm:p-6"
         style="display: none;"
         data-rt-state-modal
@@ -50,7 +51,6 @@
             id="{{ $id }}"
             x-show.important="{{ $state }}"
             x-effect="if ({{ $state }}) { $nextTick(() => document.getElementById(@js($titleId))?.focus()) }"
-            x-trap.inert.noscroll="{{ $state }}"
             x-transition:enter="transition duration-300 ease-out"
             x-transition:enter-start="translate-y-5 opacity-0 sm:translate-y-2 sm:scale-[0.985]"
             x-transition:enter-end="translate-y-0 opacity-100 sm:scale-100"
@@ -115,5 +115,7 @@
                 </footer>
             @endisset
         </section>
+
+        <div wire:ignore class="pointer-events-none fixed inset-0 z-[20]" data-rt-overlay-portal></div>
     </div>
 </template>

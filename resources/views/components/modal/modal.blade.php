@@ -138,7 +138,7 @@
                 @endif
             </div>
 
-            <div class="pointer-events-none fixed inset-0 z-[20]" data-rt-overlay-portal></div>
+            <div wire:ignore class="pointer-events-none fixed inset-0 z-[20]" data-rt-overlay-portal></div>
         </div>
     </template>
 </div>

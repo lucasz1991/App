@@ -4968,6 +4968,124 @@ body[data-mode="dark"][data-sidebar-collapsible="true"][data-sidebar-expanded="t
     background: #07090d;
 }
 
+/* Anrufsignal: konzentrische Wellen laufen aus dem Kern nach aussen. Ruhig und
+   rot, solange nur die Einladung draussen ist ("wird angerufen"); schneller und
+   grün, sobald ein Gerät der Gegenseite das Läuten bestätigt hat ("klingelt").
+   Der Farb- und Tempowechsel ist damit selbst schon die Statusmeldung. */
+.rt-call-signal {
+    position: relative;
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 9rem;
+    height: 9rem;
+}
+
+.rt-call-signal__wave {
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    border: 2px solid rgba(228, 0, 43, 0.55);
+    opacity: 0;
+    transform: scale(0.5);
+    animation: rt-call-wave 2.6s cubic-bezier(0.24, 0.6, 0.32, 1) infinite;
+}
+
+.rt-call-signal__wave:nth-child(2) {
+    animation-delay: 0.87s;
+}
+
+.rt-call-signal__wave:nth-child(3) {
+    animation-delay: 1.73s;
+}
+
+.rt-call-signal__core {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 5.25rem;
+    height: 5.25rem;
+    overflow: hidden;
+    border-radius: 9999px;
+    color: #fff;
+    background:
+        radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.03) 62%),
+        rgba(228, 0, 43, 0.92);
+    box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.16),
+        0 18px 40px -14px rgba(228, 0, 43, 0.85);
+    animation: rt-call-breathe 2.6s ease-in-out infinite;
+}
+
+.rt-call-signal__icon {
+    font-size: 1.6rem;
+}
+
+.rt-call-signal--live .rt-call-signal__wave {
+    border-color: rgba(16, 185, 129, 0.6);
+    animation-duration: 1.5s;
+}
+
+.rt-call-signal--live .rt-call-signal__wave:nth-child(2) {
+    animation-delay: 0.5s;
+}
+
+.rt-call-signal--live .rt-call-signal__wave:nth-child(3) {
+    animation-delay: 1s;
+}
+
+.rt-call-signal--live .rt-call-signal__core {
+    background:
+        radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.03) 62%),
+        rgba(16, 185, 129, 0.92);
+    box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.18),
+        0 18px 40px -14px rgba(16, 185, 129, 0.85);
+    animation-duration: 1.5s;
+}
+
+@keyframes rt-call-wave {
+    0% {
+        transform: scale(0.5);
+        opacity: 0;
+    }
+
+    12% {
+        opacity: 0.85;
+    }
+
+    100% {
+        transform: scale(1.05);
+        opacity: 0;
+    }
+}
+
+@keyframes rt-call-breathe {
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.06);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rt-call-signal__wave {
+        animation: none;
+        opacity: 0.45;
+        transform: scale(1);
+    }
+
+    .rt-call-signal__core {
+        animation: none;
+    }
+}
+
 @media (max-width: 639px) {
     .rt-call-grid {
         align-content: stretch;
@@ -4976,6 +5094,16 @@ body[data-mode="dark"][data-sidebar-collapsible="true"][data-sidebar-expanded="t
 
     .rt-call-grid > .rt-call-tile {
         min-height: 0;
+    }
+
+    .rt-call-signal {
+        width: 7.5rem;
+        height: 7.5rem;
+    }
+
+    .rt-call-signal__core {
+        width: 4.5rem;
+        height: 4.5rem;
     }
 }
 

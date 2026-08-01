@@ -52,7 +52,7 @@
 
     {{-- Standardansicht: Wagen links waehlen, Details rechts ohne breites Tabellen-Panning bearbeiten. --}}
     <div
-        x-show="desktopTableMode === 'overview'"
+        x-show.important="desktopTableMode === 'overview'"
         class="grid min-h-0 grid-cols-[minmax(19rem,0.72fr)_minmax(0,1.28fr)]"
         data-wagon-desktop-overview
     >

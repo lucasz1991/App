@@ -244,6 +244,8 @@ trait BuildsMinimalRailTimeSchema
             $table->string('status', 16)->default('pending');
             $table->timestamp('expires_at');
             $table->timestamp('responded_at')->nullable();
+            $table->timestamp('ringing_at')->nullable();
+            $table->string('ringing_via', 20)->nullable();
             $table->timestamps();
         });
     }

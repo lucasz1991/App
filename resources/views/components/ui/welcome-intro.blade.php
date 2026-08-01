@@ -91,6 +91,7 @@
             x-show.important="open"
             x-cloak
             x-on:click.self="skip()"
+            x-trap.inert.noscroll="open"
             class="rt-welcome-backdrop fixed inset-0 z-[520] flex items-center justify-center p-2.5 sm:p-5"
             data-rt-welcome-intro
             data-rt-welcome-initially-open="{{ $initiallyOpen ? 'true' : 'false' }}"
@@ -102,7 +103,6 @@
                 aria-modal="true"
                 aria-labelledby="rt-welcome-title"
                 aria-describedby="rt-welcome-description"
-                x-trap.inert.noscroll="open"
                 x-on:keydown="handleKey($event)"
                 class="rt-welcome-card w-full max-w-5xl overflow-hidden rounded-[1.5rem] bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-white/45 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/70 sm:rounded-[1.75rem]"
             >
@@ -258,6 +258,8 @@
                     </div>
                 </div>
             </section>
+
+            <div wire:ignore class="pointer-events-none fixed inset-0 z-[20]" data-rt-overlay-portal></div>
         </div>
     </template>
 </div>

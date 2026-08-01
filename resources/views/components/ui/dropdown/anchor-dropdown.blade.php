@@ -411,9 +411,27 @@
       const overlayRoot = this.owningOverlay();
       const portal = overlayRoot?.querySelector(':scope > [data-rt-overlay-portal]');
 
-      if (portal && panel.parentElement !== portal) {
-        portal.appendChild(panel);
-        panel.dataset.rtDropdownPortaled = 'true';
+      if (portal) {
+        if (panel.parentElement !== portal) {
+          portal.appendChild(panel);
+          panel.dataset.rtDropdownPortaled = 'true';
+        }
+
+        // x-trap.inert kann das noch am body liegende Teleport-Ziel beim
+        // Oeffnen des Modals als Geschwister ausblenden. Nach dem Reparenting
+        // gehoert das Panel zum Trap und darf fuer Screenreader nicht mehr
+        // aria-hidden sein.
+        panel.removeAttribute('aria-hidden');
+      }
+
+      // Ein optionales Dropdown-Backdrop muss in derselben Stacking-Context
+      // wie das Panel liegen. Als body-Geschwister wuerde es mit z-index 199
+      // ueber einem Modal (z-index 190) liegen, waehrend das im Modal-Portal
+      // gerenderte Panel diese aeussere Ebene nicht ueberholen kann.
+      const dropdownOverlay = this.$refs.overlay;
+      if (portal && dropdownOverlay && dropdownOverlay.parentElement !== portal) {
+        portal.appendChild(dropdownOverlay);
+        dropdownOverlay.dataset.rtDropdownPortaled = 'true';
       }
     },
 
@@ -468,7 +486,7 @@
     ownsNestedTeleportedTarget(target) {
       if (!(target instanceof Element) || !this.$refs.panel) return false;
 
-      let dropdownPanel = target.closest('[data-rt-dropdown-panel][data-rt-dropdown-owner]');
+      let dropdownPanel = target.closest('[data-rt-dropdown-owner]');
       const visitedOwners = new Set();
 
       while (dropdownPanel) {
@@ -559,7 +577,7 @@
 
   @if($overlay)
     <template x-teleport="body">
-      <div x-show="open" x-ref="overlay" x-transition.opacity class="fixed inset-0 z-[170] bg-black/40" @click="close()" style="display:none;"></div>
+      <div x-show="open" x-ref="overlay" x-transition.opacity data-rt-dropdown-owner="{{ $resolvedDropdownId }}" class="pointer-events-auto fixed inset-0 z-[170] bg-black/40" @click="close()" style="display:none;" aria-hidden="true"></div>
     </template>
   @endif
 

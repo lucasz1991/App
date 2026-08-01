@@ -46,6 +46,7 @@
     x-on:rt-navigation:prepare.window="close()"
     x-on:keydown.escape.window="close()"
     x-show.important="open"
+    x-trap.inert.noscroll="open"
     x-cloak
     class="rt-info-backdrop fixed inset-0 z-[500] flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-md sm:p-6"
     x-on:click.self="close()"
@@ -57,7 +58,6 @@
         role="dialog"
         aria-modal="true"
         aria-labelledby="rt-info-modal-title"
-        x-trap.inert.noscroll="open"
         x-transition:enter="transition duration-300 ease-out"
         x-transition:enter-start="translate-y-3 scale-[0.985] opacity-0"
         x-transition:enter-end="translate-y-0 scale-100 opacity-100"
@@ -138,4 +138,6 @@
             </div>
         </div>
     </section>
+
+    <div wire:ignore class="pointer-events-none fixed inset-0 z-[20]" data-rt-overlay-portal></div>
 </div>
