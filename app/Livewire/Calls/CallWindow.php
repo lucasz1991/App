@@ -7,8 +7,8 @@ use App\Models\Room;
 use App\Models\RoomInvitation;
 use App\Models\RoomParticipant;
 use App\Models\User;
-use App\Services\Calls\CallInvitationService;
 use App\Services\Calls\CallConversationService;
+use App\Services\Calls\CallInvitationService;
 use App\Services\Calls\LiveKitService;
 use App\Services\Calls\RoomEventRecorder;
 use App\Services\Calls\RoomLifecycleService;
@@ -25,6 +25,7 @@ use Livewire\Component;
 class CallWindow extends Component
 {
     public Room $room;
+
     public array $inviteeIds = [];
 
     public function mount(Room $room, CallConversationService $conversations): void
@@ -168,8 +169,7 @@ class CallWindow extends Component
         int $participantId,
         LiveKitService $livekit,
         RoomEventRecorder $events,
-    ): void
-    {
+    ): void {
         $target = $this->moderatableParticipant($participantId);
 
         if (! $livekit->removeParticipant($this->room, $target->livekit_identity)) {

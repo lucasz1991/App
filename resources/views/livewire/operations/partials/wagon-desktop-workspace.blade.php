@@ -45,7 +45,7 @@
                             <input x-model="meta.trainNumber" type="text" class="{{ $inputClass }}" autocomplete="off">
                         </label>
                         <label class="{{ $labelClass }}">{{ __('app.date') }}
-                            <input x-model="meta.date" type="date" class="{{ $inputClass }}">
+                            <x-ui.forms.date-field x-model="meta.date" class="mt-1" :aria-label="__('app.date')" />
                         </label>
                         <label class="{{ $labelClass }}">{{ __('app.from') }}
                             <input x-model="meta.origin" type="text" class="{{ $inputClass }}" autocomplete="off">
@@ -137,32 +137,19 @@
                             <label class="mt-3 block {{ $labelClass }}">{{ __('app.braked_axles') }}<x-ui.forms.number-input min="0" x-model="brakeSheet.brakedAxles" class="mt-1" /></label>
                         </fieldset>
 
-                        <fieldset class="rt-wagon-fieldset rounded-xl p-4">
+                        <fieldset class="rt-wagon-fieldset rounded-xl p-4 xl:col-span-2">
                             <legend class="px-1 text-sm font-semibold">{{ __('app.special_information') }}</legend>
-                            <div class="mt-2 grid gap-3 sm:grid-cols-2">
-                                @foreach ([
-                                    'nbuepBrake' => __('app.nbuep_brake'),
-                                    'emergencyBrakeBridge' => __('app.emergency_brake_bridge'),
-                                    'passengerFeatureHzee' => __('app.passenger_feature_hzee'),
-                                    'passengerFeatureNOe' => __('app.passenger_feature_noe'),
-                                    'passengerFeatureTb0' => __('app.passenger_feature_tb0'),
-                                    'passengerFeatureOZub' => __('app.passenger_feature_ozub'),
-                                    'passengerFeatureOther' => __('app.passenger_feature_other'),
-                                    'dangerousGoods' => __('app.dangerous_goods'),
-                                    'epBrake' => __('app.ep_brake'),
-                                ] as $field => $label)
-                                    <div>
-                                        <span class="{{ $labelClass }}">{{ $label }}</span>
-                                        <div class="mt-1 grid grid-cols-3 rounded-xl border border-rt-border bg-rt-control p-1 dark:border-rt-dark-border dark:bg-rt-dark-control">
-                                            @foreach (['' => '—', 'no' => __('app.no'), 'yes' => __('app.yes')] as $value => $optionLabel)
-                                                <button type="button" @click="brakeSheet.{{ $field }} = @js($value)" :data-active="brakeSheet.{{ $field }} === @js($value) ? 'true' : 'false'" class="rt-wagon-choice min-h-9 rounded-lg px-2 text-xs font-semibold transition">{{ $optionLabel }}</button>
-                                            @endforeach
-                                        </div>
-                                    </div>
-                                @endforeach
-                                <label class="{{ $labelClass }}">{{ __('app.lower_vehicle_speed') }}<x-ui.forms.number-input min="0" x-model="brakeSheet.lowerVehicleSpeed" class="mt-1" /></label>
-                                <label class="{{ $labelClass }} sm:col-span-2">{{ __('app.issued_by_name') }}<input x-model="brakeSheet.issuerName" class="{{ $inputClass }}"></label>
-                            </div>
+                            <p class="mb-3 mt-1 px-1 text-xs text-rt-muted dark:text-rt-dark-muted">
+                                <span x-text="`${specialAnsweredCount}/${specialFieldCount}`" class="font-semibold tabular-nums"></span>
+                                · {{ __('app.wagon_step_special_hint') }}
+                            </p>
+
+                            @include('livewire.operations.partials.wagon-special-information', [
+                                'inputClass' => $inputClass,
+                                'labelClass' => $labelClass,
+                                'columns' => 2,
+                                'scope' => 'desktop',
+                            ])
                         </fieldset>
                     </div>
                 </section>

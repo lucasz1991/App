@@ -3,11 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\MorphOne;
+use Illuminate\Support\Str;
 use Laravel\Jetstream\Events\TeamCreated;
 use Laravel\Jetstream\Events\TeamDeleted;
 use Laravel\Jetstream\Events\TeamUpdated;
 use Laravel\Jetstream\Team as JetstreamTeam;
-use Illuminate\Support\Str;
 
 class Team extends JetstreamTeam
 {
@@ -55,7 +56,7 @@ class Team extends JetstreamTeam
     /**
      * Dateipool des Teams (Standard-Downloadbereich fuer Teammitglieder).
      */
-    public function filePool(): \Illuminate\Database\Eloquent\Relations\MorphOne
+    public function filePool(): MorphOne
     {
         return $this->morphOne(FilePool::class, 'filepoolable');
     }

@@ -9,6 +9,18 @@
     $isGerman = app()->getLocale() === 'de';
     $resolvedPageRouteName = trim((string) ($pageRouteName ?? ''));
     $resolvedPageHelpHint = trim((string) ($pageHelpHint ?? ''));
+    $pageHelpHintsSource = $pageHelpHints ?? [];
+    $resolvedPageHelpHints = collect(
+        is_array($pageHelpHintsSource)
+            ? $pageHelpHintsSource
+            : ($pageHelpHintsSource instanceof \Traversable ? iterator_to_array($pageHelpHintsSource, false) : [])
+    )
+        ->filter(fn ($hint): bool => is_scalar($hint) && trim((string) $hint) !== '')
+        ->map(fn ($hint): string => trim((string) $hint))
+        ->unique()
+        ->take(5)
+        ->values()
+        ->all();
     $pendingAttachmentSource = $attachments ?? [];
     $pendingAttachments = is_array($pendingAttachmentSource)
         ? $pendingAttachmentSource
@@ -25,6 +37,8 @@
         : '';
     $resolvedSttConfigured = (bool) ($sttConfigured ?? ($speechIsAvailable && $sttEndpoint !== ''));
     $resolvedTtsConfigured = (bool) ($ttsConfigured ?? ($speechIsAvailable && $ttsEndpoint !== ''));
+    $canRenderSttControls = $sttEndpoint !== '';
+    $canRenderTtsControls = $ttsEndpoint !== '';
     $resolvedSpeechRoutingLabel = trim((string) ($speechRoutingLabel
         ?? ($isGerman ? 'Lokaler Dienst mit externem Fallback' : 'Local service with external fallback')));
     $resolvedExternalFallback = (bool) ($externalFallback ?? false);
@@ -56,8 +70,10 @@
         'ttsEndpoint' => $ttsEndpoint,
         'sttEndpoint' => $sttEndpoint,
         'csrfToken' => csrf_token(),
+        'locale' => app()->getLocale(),
         'pageRouteName' => $resolvedPageRouteName,
         'pageHelpHint' => $resolvedPageHelpHint,
+        'pageHelpHints' => $resolvedPageHelpHints,
         'autoReadDefault' => false,
         'autoListenDefault' => false,
         'autoHelpDefault' => true,
@@ -109,6 +125,9 @@
             'attachmentUploadCancelled' => $isGerman
                 ? 'Der Datei-Upload wurde abgebrochen.'
                 : 'The file upload was cancelled.',
+            'attachmentCleanupFailed' => $isGerman
+                ? 'Die Anhänge konnten vor dem Seitenwechsel nicht sicher entfernt werden.'
+                : 'The attachments could not be safely removed before leaving this page.',
             'attachmentTooMany' => $isGerman
                 ? 'Es können maximal drei Dateien angehängt werden.'
                 : 'You can attach up to three files.',
@@ -127,6 +146,28 @@
             'petUnavailable' => $isGerman
                 ? 'Ich mache gerade eine kurze Pause.'
                 : 'I am taking a short break right now.',
+            'petStatusChecking' => $isGerman
+                ? 'Ich prüfe kurz, was hier bereit ist …'
+                : 'I am quickly checking what is ready here …',
+            'petReadyQuestion' => $isGerman
+                ? 'Ich bin bereit. Wobei soll ich dir helfen?'
+                : 'I am ready. What can I help you with?',
+            'petTextOnlyQuestion' => $isGerman
+                ? 'Schreiben ist bereit. Möchtest du mir deine Frage tippen?'
+                : 'Text chat is ready. Would you like to type your question?',
+            'petPageQuestion' => $isGerman
+                ? 'Brauchst du Hilfe bei „:page“?'
+                : 'Would you like help with “:page”?',
+            'petNextStepQuestion' => $isGerman
+                ? 'Soll ich dir auf „:page“ den nächsten Schritt zeigen?'
+                : 'Should I show you the next step on “:page”?',
+            'petHelpQuestion' => $isGerman
+                ? 'Soll ich dich dabei unterstützen?'
+                : 'Would you like me to help with that?',
+            'petOpenChat' => $isGerman ? 'Chat öffnen' : 'Open chat',
+            'petAskByVoice' => $isGerman ? 'Frage sprechen' : 'Ask by voice',
+            'petReadAloud' => $isGerman ? 'Vorlesen' : 'Read aloud',
+            'petCheckAgain' => $isGerman ? 'Erneut prüfen' : 'Check again',
             'wagonHelp' => $isGerman
                 ? 'Soll ich dich per Sprache Schritt für Schritt durch diese Wagenliste führen?'
                 : 'Would you like me to guide you through this wagon list step by step by voice?',
@@ -143,7 +184,7 @@
         isLoading: $wire.entangle('isLoading')
     })"
     x-on:railtime-assistant-reply.window="handleAssistantReply($event.detail)"
-    x-on:railtime-assistant-cleared.window="stopSpeaking(); resetAttachmentUi(); knownAssistantMessageKeys = []; $nextTick(() => { updateComposerState(); scrollMessages(true) })"
+    x-on:railtime-assistant-cleared.window="stopSpeaking(); clearPhraseAudioCache(); resetAttachmentUi(); knownAssistantMessageKeys = []; $nextTick(() => { updateComposerState(); scrollMessages(true) })"
     x-on:railtime-assistant-client-action.window="handleClientAction($event.detail)"
     x-on:railtime-wagon-context-updated.window="if (!$event.detail?.editor_open) wagonHelpVisible = false; $wire.updateWagonAssistantContext($event.detail)"
     x-on:railtime-wagon-assistant-result.window="$wire.recordAssistantActionResult($event.detail)"
@@ -184,19 +225,27 @@
             x-transition:leave="rt-chatbot__pet-bubble-leave"
             x-transition:leave-start="rt-chatbot__pet-bubble-enter-end"
             x-transition:leave-end="rt-chatbot__pet-bubble-enter-start"
-            x-bind:role="petBubbleAnnounce ? 'status' : null"
+            x-bind:role="petBubbleActions.length ? 'group' : (petBubbleAnnounce ? 'status' : null)"
             x-bind:aria-live="petBubbleAnnounce ? 'polite' : 'off'"
-            x-bind:aria-hidden="(!petBubbleAnnounce).toString()"
+            x-bind:aria-hidden="(!petBubbleAnnounce && petBubbleActions.length === 0).toString()"
+            aria-label="{{ $isGerman ? 'Aktionen des Assistenten' : 'Assistant actions' }}"
         >
             <span x-text="petBubbleText"></span>
-            <button
-                type="button"
-                class="rt-chatbot__pet-bubble-action"
+            <div
+                class="rt-chatbot__pet-bubble-actions"
                 x-cloak
-                x-show="petBubbleActionKey && petBubbleActionLabel"
-                x-on:click.stop="runPetBubbleAction()"
-                x-text="petBubbleActionLabel"
-            ></button>
+                x-show="petBubbleActions.length"
+            >
+                <template x-for="action in petBubbleActions" x-bind:key="action.key">
+                    <button
+                        type="button"
+                        class="rt-chatbot__pet-bubble-action"
+                        x-bind:data-primary="action.primary.toString()"
+                        x-on:click.stop="runPetBubbleAction(action)"
+                        x-text="action.label"
+                    ></button>
+                </template>
+            </div>
         </div>
 
         <button
@@ -205,7 +254,7 @@
             x-ref="launcher"
             x-on:mouseenter="showPetBubble(strings.petHint, 4_500)"
             x-on:focus="showPetBubble(strings.petHint, 4_500)"
-            x-on:click="setOpen(true, true)"
+            x-on:click="handlePetClick()"
             aria-controls="railtime-chatbot-panel"
             x-bind:aria-expanded="open.toString()"
             aria-label="{{ $isGerman ? $assistantLabel . ' öffnen' : 'Open ' . $assistantLabel }}"
@@ -229,6 +278,8 @@
     <section
         id="railtime-chatbot-panel"
         class="rt-chatbot__panel"
+        data-empty-chat="{{ count($history) === 0 ? 'true' : 'false' }}"
+        x-bind:data-settings-open="settingsOpen.toString()"
         x-cloak
         x-show="open"
         x-transition:enter="rt-chatbot__panel-enter"
@@ -514,6 +565,21 @@
                         } elseif (is_string($createdAt) && $createdAt !== '' && strtotime($createdAt) !== false) {
                             $displayTime = date('H:i', strtotime($createdAt));
                         }
+                        $messageCharacterLength = max(1, mb_strlen($content));
+                        $speechTokens = [];
+                        if ($role === 'assistant' && $canRenderTtsControls) {
+                            $tokenParts = preg_split('/(\s+)/u', $content, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY) ?: [];
+                            $tokenOffset = 0;
+                            foreach ($tokenParts as $tokenPart) {
+                                $tokenLength = mb_strlen($tokenPart);
+                                $speechTokens[] = [
+                                    'text' => $tokenPart,
+                                    'start' => $tokenOffset,
+                                    'end' => $tokenOffset + $tokenLength,
+                                ];
+                                $tokenOffset += $tokenLength;
+                            }
+                        }
                     @endphp
 
                     <div
@@ -521,13 +587,26 @@
                         wire:key="railtime-chatbot-message-{{ $wireMessageKey }}"
                     >
                         @if ($role === 'assistant')
-                            <span class="rt-chatbot__message-pet" aria-hidden="true">
+                            <span
+                                class="rt-chatbot__message-pet"
+                                x-bind:data-state="ttsActiveKey === @js($messageKey)
+                                    ? (speaking ? 'speaking' : 'thinking')
+                                    : 'idle'"
+                                aria-hidden="true"
+                            >
                                 <x-railtime-assistant-pet />
                             </span>
                         @endif
                         <div class="rt-chatbot__message-stack">
                             <article class="rt-chatbot__message">
-                            <p class="rt-chatbot__message-content">{{ $content }}</p>
+                            @if ($role === 'assistant' && $canRenderTtsControls)
+                                <p
+                                    class="rt-chatbot__message-content rt-chatbot__message-content--readable"
+                                    x-bind:data-reading="(ttsActiveKey === @js($messageKey) && ttsActive()).toString()"
+                                >@foreach ($speechTokens as $speechToken)<span class="rt-chatbot__speech-token" x-bind:data-read-state="ttsTokenState(@js($messageKey), {{ $speechToken['start'] }}, {{ $speechToken['end'] }}, {{ $messageCharacterLength }})">{{ $speechToken['text'] }}</span>@endforeach</p>
+                            @else
+                                <p class="rt-chatbot__message-content">{{ $content }}</p>
+                            @endif
                             @if (count($messageAttachments) > 0)
                                 <ul
                                     class="rt-chatbot__message-attachments"
@@ -559,7 +638,7 @@
                                     {{ $role === 'assistant' ? $assistantLabel : ($isGerman ? 'Du' : 'You') }}
                                 </span>
                                 <span class="rt-chatbot__message-meta-actions">
-                                    @if ($role === 'assistant' && $resolvedTtsConfigured)
+                                    @if ($role === 'assistant' && $canRenderTtsControls)
                                         <button
                                             type="button"
                                             class="rt-chatbot__message-play"
@@ -810,7 +889,7 @@
                         </svg>
                     </button>
 
-                    @if ($resolvedSttConfigured)
+                    @if ($canRenderSttControls)
                         <button
                             type="button"
                             class="rt-chatbot__voice"

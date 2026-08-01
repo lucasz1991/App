@@ -22,17 +22,17 @@
     "isDynamicEntry": true
   },
   "resources/css/app.css": {
-    "file": "assets/app-D6IodDeQ.css",
+    "file": "assets/app-CDrfUyIA.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
   "resources/css/chat-redesign.css": {
-    "file": "assets/chat-redesign-bGmQzURj.css",
+    "file": "assets/chat-redesign-CtCQ6G7e.css",
     "src": "resources/css/chat-redesign.css",
     "isEntry": true
   },
   "resources/css/chatbot.css": {
-    "file": "assets/chatbot-CNgOpX6I.css",
+    "file": "assets/chatbot-BrOUXuRX.css",
     "src": "resources/css/chatbot.css"
   },
   "resources/css/shell-redesign.css": {
@@ -52,7 +52,7 @@
     "isDynamicEntry": true
   },
   "resources/js/admin-dashboard-motion.js": {
-    "file": "assets/admin-dashboard-motion-0CjLM3Gg.js",
+    "file": "assets/admin-dashboard-motion-1TVYiF31.js",
     "name": "admin-dashboard-motion",
     "src": "resources/js/admin-dashboard-motion.js",
     "isDynamicEntry": true,
@@ -61,7 +61,7 @@
     ]
   },
   "resources/js/app.js": {
-    "file": "assets/app-C22jecmK.js",
+    "file": "assets/app-DXQ8d9FA.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
@@ -75,7 +75,7 @@
     ]
   },
   "resources/js/calls.js": {
-    "file": "assets/calls-vu44LTJs.js",
+    "file": "assets/calls-Cc9gZQrv.js",
     "name": "calls",
     "src": "resources/js/calls.js",
     "isEntry": true

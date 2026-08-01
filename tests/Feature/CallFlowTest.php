@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use App\Http\Middleware\LogActivity;
-use App\Livewire\Calls\CallHistory;
+use App\Jobs\ExpireCallInvitation;
+use App\Livewire\Admin\Settings;
 use App\Livewire\Calls\CallDetails;
+use App\Livewire\Calls\CallHistory;
 use App\Livewire\Calls\CallWindow;
 use App\Livewire\Calls\IncomingCallOverlay;
 use App\Livewire\Calls\Meetings;
@@ -12,11 +14,13 @@ use App\Livewire\ChatBox;
 use App\Models\Chat;
 use App\Models\Room;
 use App\Models\User;
-use App\Services\Calls\CallInvitationService;
 use App\Services\Calls\CallConversationService;
+use App\Services\Calls\CallInvitationService;
 use App\Services\Calls\LiveKitService;
 use App\Services\Calls\RoomLifecycleService;
+use App\Support\Calls\CallSettings;
 use App\Support\Rbac\RbacCatalog;
+use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
@@ -37,7 +41,7 @@ class CallFlowTest extends TestCase
         config(['broadcasting.default' => 'log']);
 
         // Der verzoegerte Ring-Timeout-Job wuerde auf der Sync-Queue sofort laufen.
-        \Illuminate\Support\Facades\Queue::fake();
+        Queue::fake();
 
         // Kein Test darf einen echten Media-Server brauchen. Ohne diesen Fake
         // wuerde LiveKitService gegen LIVEKIT_URL aus der .env sprechen und die
@@ -100,7 +104,7 @@ class CallFlowTest extends TestCase
             'status' => 'pending',
         ]);
 
-        \Illuminate\Support\Facades\Queue::assertPushed(\App\Jobs\ExpireCallInvitation::class);
+        Queue::assertPushed(ExpireCallInvitation::class);
 
         $this->assertDatabaseHas('room_participants', [
             'room_id' => $room->id,
@@ -486,7 +490,6 @@ class CallFlowTest extends TestCase
         $this->assertNotSame('joined', $room->fresh()->participantFor($callee)->connectionState());
     }
 
-
     public function test_a_voice_call_starts_without_video(): void
     {
         [$caller, $callee, $chat] = $this->directChatWithCallRights();
@@ -762,7 +765,6 @@ class CallFlowTest extends TestCase
         $this->assertSame('speaker', $room->fresh()->participantFor($invitee)->role);
     }
 
-
     public function test_a_broken_socket_id_does_not_break_the_call_button(): void
     {
         [$caller, $callee, $chat] = $this->directChatWithCallRights();
@@ -779,13 +781,12 @@ class CallFlowTest extends TestCase
         $this->assertSame(1, Room::count());
     }
 
-
     public function test_call_settings_are_administrable_and_take_effect(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
 
         Livewire::actingAs($admin)
-            ->test(\App\Livewire\Admin\Settings::class)
+            ->test(Settings::class)
             ->set('calls.ring_timeout', 240)
             ->set('calls.max_participants', 25)
             ->call('saveCalls')
@@ -793,7 +794,7 @@ class CallFlowTest extends TestCase
             ->assertDispatched('call-settings-saved');
 
         // Der administrierte Wert muss die .env-Vorgabe ueberschreiben.
-        \App\Support\Calls\CallSettings::apply();
+        CallSettings::apply();
 
         $this->assertSame(240, (int) config('livekit.ring_timeout'));
         $this->assertSame(25, (int) config('livekit.max_participants'));
@@ -804,7 +805,7 @@ class CallFlowTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
 
         Livewire::actingAs($admin)
-            ->test(\App\Livewire\Admin\Settings::class)
+            ->test(Settings::class)
             // 5 Sekunden waeren unbedienbar, 99999 wuerde den Chat blockieren.
             ->set('calls.ring_timeout', 5)
             ->call('saveCalls')
@@ -813,8 +814,8 @@ class CallFlowTest extends TestCase
 
     public function test_the_ring_timeout_setting_drives_the_invitation_window(): void
     {
-        \App\Support\Calls\CallSettings::save(['ring_timeout' => 300]);
-        \App\Support\Calls\CallSettings::apply();
+        CallSettings::save(['ring_timeout' => 300]);
+        CallSettings::apply();
 
         [$caller, $callee, $chat] = $this->directChatWithCallRights();
         $room = $this->roomWithInvitation($caller, $callee, $chat);

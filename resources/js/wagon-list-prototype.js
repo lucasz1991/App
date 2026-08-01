@@ -64,6 +64,21 @@ const ASSISTANT_BRAKE_SHEET_FIELDS = [
     'brakeSheet.issuerName',
 ];
 
+// Die Ja/Nein-Fragen der besonderen Angaben — Reihenfolge wie im Bremszettel.
+// Dient dem Fortschritt ("x von 9 beantwortet"); die Anzeige gruppiert sie in
+// resources/views/.../partials/wagon-special-information.blade.php.
+const SPECIAL_FIELDS = [
+    'nbuepBrake',
+    'emergencyBrakeBridge',
+    'epBrake',
+    'dangerousGoods',
+    'passengerFeatureHzee',
+    'passengerFeatureNOe',
+    'passengerFeatureTb0',
+    'passengerFeatureOZub',
+    'passengerFeatureOther',
+];
+
 const emptyMeta = () => ({
     trainNumber: '',
     date: new Date().toISOString().slice(0, 10),
@@ -228,6 +243,7 @@ export function wagonListPrototype(config = {}) {
             if (this.mobileViewportHandler && typeof window?.visualViewport?.removeEventListener === 'function') {
                 window.visualViewport.removeEventListener('resize', this.mobileViewportHandler);
             }
+            this.motion()?.dispose();
             if (this.editorOpen && this.activeDraftId) {
                 this.persistDraft();
                 this.dispatchAssistantContext('editor-closed', false);
@@ -360,6 +376,8 @@ export function wagonListPrototype(config = {}) {
                 this.hydrating = false;
                 this.realignMobilePager();
                 this.$refs?.editorHeading?.focus();
+                this.motion()?.editorOpened(this.$refs?.editorDialog);
+                this.animateStep(0);
                 this.dispatchAssistantContext('editor-opened');
                 this.dispatchAssistantHelp();
             });
@@ -408,6 +426,7 @@ export function wagonListPrototype(config = {}) {
 
         finishClosingEditor() {
             const closingNonce = this.assistantContextNonce;
+            this.motion()?.dispose();
             this.editorOpen = false;
             this.activeDraftId = null;
             this.dispatchAssistantContext('editor-closed', false, closingNonce);
@@ -1167,6 +1186,32 @@ export function wagonListPrototype(config = {}) {
             this.openWagon = nextIndex;
             this.desktopWagon = nextIndex;
             this.showMobileWagon(nextIndex);
+
+            this.$nextTick(() => this.motion()?.pop(
+                this.$refs?.mobileWagonRail?.querySelector(`[data-wagon-index="${nextIndex}"]`),
+            ));
+        },
+
+        /**
+         * Wagen aus der Liste im Pruefschritt heraus oeffnen. Ohne diesen Weg
+         * war nicht erkennbar, dass die Eintraege dort dieselben Wagen sind,
+         * die vorne in den Schritten 2 bis 5 erfasst werden.
+         */
+        openWagonForEditing(index) {
+            this.showMobileWagon(index);
+            this.desktopWagon = Math.max(0, Math.min(this.visibleCount - 1, Number(index) || 0));
+            this.goToMobileStep(ASSISTANT_STEP_IDS.indexOf('identity'));
+        },
+
+        addWagonAndOpen() {
+            if (this.visibleCount >= MAX_WAGONS) {
+                this.notify(config.wagonLimitReached || '', 'info', 2600);
+
+                return;
+            }
+
+            this.addWagon();
+            this.openWagonForEditing(this.visibleCount - 1);
         },
 
         showMobileWagon(index) {
@@ -1200,6 +1245,31 @@ export function wagonListPrototype(config = {}) {
 
         get isMobileWagonStep() {
             return this.mobileStep >= 1 && this.mobileStep <= 4;
+        },
+
+        /**
+         * Bewegungsmodul, falls vorhanden. Der Editor muss ohne es vollstaendig
+         * bedienbar bleiben — deshalb ueberall nur optional aufrufen.
+         */
+        motion() {
+            return typeof window !== 'undefined' ? window.RailTimeWagonMotion || null : null;
+        },
+
+        animateStep(index) {
+            const pager = this.$refs?.mobilePager;
+            const panel = typeof pager?.querySelector === 'function'
+                ? pager.querySelector(`[data-wagon-step-index="${index}"]`)
+                : null;
+            if (panel) this.motion()?.stepEntered(panel);
+
+            this.motion()?.progressTo(
+                this.$refs?.mobileProgressBar,
+                (Number(index) + 1) / this.mobileStepCount,
+            );
+
+            if (this.mobileSteps[index]?.id === 'review') {
+                this.$nextTick(() => this.motion()?.listReveal(this.$refs?.reviewWagonList));
+            }
         },
 
         prefersReducedMotion() {
@@ -1242,6 +1312,7 @@ export function wagonListPrototype(config = {}) {
 
             this.mobileStep = nextStep;
             this.centerMobileRailControl('mobileStepRail', `[data-mobile-step-index="${nextStep}"]`);
+            this.$nextTick(() => this.animateStep(nextStep));
         },
 
         centerMobileRailControl(refName, selector) {
@@ -1431,6 +1502,40 @@ export function wagonListPrototype(config = {}) {
                 || wagon.maxSpeed
                 || wagon.remark,
             );
+        },
+
+        /**
+         * Ampel eines Wagens fuer Listen und Kacheln. Die Bedingung stand
+         * bisher dreimal wortgleich im Blade — jede Ansicht bewertete den
+         * gleichen Wagen also aus einer eigenen Kopie derselben Regel.
+         */
+        wagonStatus(wagon) {
+            if (!this.isWagonFilled(wagon)) return 'empty';
+
+            const complete = this.checkState(wagon) === 'valid'
+                && Boolean(wagon.category)
+                && Boolean(wagon.length)
+                && Boolean(wagon.wagonWeight || wagon.loadWeight);
+
+            return complete ? 'complete' : 'partial';
+        },
+
+        wagonRouteLabel(wagon) {
+            const from = String(wagon?.shippingStation || '').trim();
+            const to = String(wagon?.destinationStation || '').trim();
+
+            if (!from && !to) return '';
+
+            return `${from || '—'} → ${to || '—'}`;
+        },
+
+        /** Besondere Angaben: wie viele der Ja/Nein-Fragen sind beantwortet? */
+        get specialAnsweredCount() {
+            return SPECIAL_FIELDS.filter((field) => String(this.brakeSheet[field] ?? '') !== '').length;
+        },
+
+        get specialFieldCount() {
+            return SPECIAL_FIELDS.length;
         },
 
         totalWeight(wagon) {

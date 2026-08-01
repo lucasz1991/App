@@ -1,4 +1,13 @@
-const PET_STATES = new Set(['idle', 'thinking', 'listening', 'speaking', 'offline']);
+const PET_STATES = new Set([
+    'idle',
+    'thinking',
+    'listening',
+    'speaking',
+    'curious',
+    'happy',
+    'wave',
+    'offline',
+]);
 const MAX_DEVICE_PIXEL_RATIO = 1.75;
 const MAX_FRAMES_PER_SECOND = 30;
 
@@ -90,6 +99,84 @@ const PET_MOTION_PROFILES = Object.freeze({
         emissive: 0.1,
         emissivePulse: 0.04,
         emissiveSpeed: 7.4,
+    }),
+    curious: Object.freeze({
+        baseY: 0.035,
+        baseScale: 1.02,
+        floatAmplitude: 0.04,
+        floatSpeed: 3.2,
+        breatheAmplitude: 0.012,
+        breatheSpeed: 3.4,
+        tiltAmplitude: 0.075,
+        tiltSpeed: 2.4,
+        yawAmplitude: 0.085,
+        yawSpeed: 1.8,
+        leafSpread: 0.78,
+        leafAmplitude: 0.11,
+        leafSpeed: 3.8,
+        eyeScale: 1.14,
+        mouthScale: 0.9,
+        mouthPulse: 0.3,
+        mouthSpeed: 4.4,
+        emissive: 0.11,
+        emissivePulse: 0.03,
+        emissiveSpeed: 4,
+        armAmplitude: 0.08,
+        armSpeed: 3.2,
+        footAmplitude: 0.025,
+        footSpeed: 3.2,
+    }),
+    happy: Object.freeze({
+        baseY: 0.08,
+        baseScale: 1.025,
+        floatAmplitude: 0.115,
+        floatSpeed: 5.1,
+        breatheAmplitude: 0.026,
+        breatheSpeed: 5.4,
+        tiltAmplitude: 0.035,
+        tiltSpeed: 4.1,
+        yawAmplitude: 0.03,
+        yawSpeed: 3.5,
+        leafSpread: 0.84,
+        leafAmplitude: 0.13,
+        leafSpeed: 5.4,
+        eyeScale: 0.86,
+        mouthScale: 1.22,
+        mouthPulse: 0.75,
+        mouthSpeed: 7.2,
+        emissive: 0.13,
+        emissivePulse: 0.055,
+        emissiveSpeed: 6.2,
+        armAmplitude: 0.15,
+        armSpeed: 5.8,
+        footAmplitude: 0.12,
+        footSpeed: 6.4,
+    }),
+    wave: Object.freeze({
+        baseY: 0.025,
+        baseScale: 1.015,
+        floatAmplitude: 0.055,
+        floatSpeed: 3.6,
+        breatheAmplitude: 0.016,
+        breatheSpeed: 3.8,
+        tiltAmplitude: 0.045,
+        tiltSpeed: 3.4,
+        yawAmplitude: 0.045,
+        yawSpeed: 2.7,
+        leafSpread: 0.9,
+        leafAmplitude: 0.075,
+        leafSpeed: 4.2,
+        eyeScale: 1.04,
+        mouthScale: 1.08,
+        mouthPulse: 0.42,
+        mouthSpeed: 5.6,
+        emissive: 0.11,
+        emissivePulse: 0.035,
+        emissiveSpeed: 5,
+        armAmplitude: 0.42,
+        armSpeed: 8.2,
+        footAmplitude: 0.045,
+        footSpeed: 4.8,
     }),
     offline: Object.freeze({
         baseY: -0.035,
@@ -268,12 +355,14 @@ function createPetModel(THREE) {
                 scale: [0.31, 0.13, 0.23],
             },
         );
+        foot.userData.baseRotationZ = side * -0.24;
+        foot.userData.baseY = -0.9;
         root.add(foot);
 
         return foot;
     });
 
-    [-1, 1].forEach((side) => {
+    const arms = [-1, 1].map((side) => {
         const arm = applyTransform(
             new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), accentMaterial),
             {
@@ -282,7 +371,11 @@ function createPetModel(THREE) {
                 scale: [0.24, 0.1, 0.17],
             },
         );
+        arm.userData.baseRotationZ = side * -0.48;
+        arm.userData.baseY = -0.05;
         root.add(arm);
+
+        return arm;
     });
 
     root.rotation.x = -0.015;
@@ -295,6 +388,7 @@ function createPetModel(THREE) {
         leafPivots,
         eyes,
         feet,
+        arms,
         mouth,
     };
 }
@@ -577,6 +671,30 @@ export function railtimeAssistantPet3d(options = {}) {
                     * profile.leafAmplitude
                     * motion;
                 leaf.rotation.z = baseRotation + side * stateWiggle;
+            });
+
+            model.arms.forEach((arm, index) => {
+                const side = index === 0 ? -1 : 1;
+                const amplitude = Number(profile.armAmplitude) || 0;
+                const speed = Number(profile.armSpeed) || 1;
+                const emphasis = state === 'wave' && side === 1 ? 1 : 0.34;
+                const wave = Math.sin(time * speed + index * 0.48)
+                    * amplitude
+                    * emphasis
+                    * motion;
+                arm.rotation.z = arm.userData.baseRotationZ + side * wave;
+                arm.position.y = arm.userData.baseY + Math.abs(wave) * 0.12;
+            });
+
+            model.feet.forEach((foot, index) => {
+                const side = index === 0 ? -1 : 1;
+                const amplitude = Number(profile.footAmplitude) || 0;
+                const speed = Number(profile.footSpeed) || 1;
+                const kick = Math.sin(time * speed + index * Math.PI)
+                    * amplitude
+                    * motion;
+                foot.rotation.z = foot.userData.baseRotationZ + side * kick;
+                foot.position.y = foot.userData.baseY + Math.abs(kick) * 0.08;
             });
 
             const mouthPulse = Math.abs(Math.sin(time * profile.mouthSpeed))

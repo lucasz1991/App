@@ -50,6 +50,7 @@ const DEFAULT_STRINGS = {
     localSpeechProvider: 'Lokaler Sprachdienst',
     attachmentUploadFailed: 'Die Datei konnte nicht hochgeladen werden.',
     attachmentUploadCancelled: 'Der Datei-Upload wurde abgebrochen.',
+    attachmentCleanupFailed: 'Die Anhänge konnten vor dem Seitenwechsel nicht sicher entfernt werden.',
     petGreeting: 'Hi, ich bin dein RailTime-Begleiter.',
     petHint: 'Was möchtest du heute in RailTime erledigen?',
     petVoiceHint: 'Du kannst deine Frage auch einfach einsprechen.',
@@ -280,6 +281,7 @@ export function railtimeChatbot(config = {}) {
         attachmentUploadProgress: 0,
         attachmentUploadError: '',
         attachmentCount: Math.max(0, Number(config.attachmentCount) || 0),
+        navigationCleanupInFlight: false,
         composerHasText: false,
         attachmentSyncTimer: null,
         attachmentObserver: null,
@@ -310,6 +312,7 @@ export function railtimeChatbot(config = {}) {
         autoListenGeneration: 0,
         autoListenChecking: false,
         _dockChangeHandler: null,
+        _navigateIntentHandler: null,
         _windowResizeHandler: null,
         _navigationHandler: null,
         _visibilityHandler: null,
@@ -341,6 +344,9 @@ export function railtimeChatbot(config = {}) {
             this._dockChangeHandler = (event) => {
                 this.isDesktopDocked = Boolean(event.matches);
                 this.$nextTick(() => this.scrollMessages(false));
+            };
+            this._navigateIntentHandler = (event) => {
+                void this.handleNavigationIntent(event);
             };
             this._navigationHandler = () => {
                 this.closeSettings(false);
@@ -375,6 +381,7 @@ export function railtimeChatbot(config = {}) {
                 this._windowResizeHandler = () => this.syncDockLayout();
                 window.addEventListener('resize', this._windowResizeHandler);
             }
+            document.addEventListener('livewire:navigate', this._navigateIntentHandler);
             document.addEventListener('livewire:navigating', this._navigationHandler);
             document.addEventListener('visibilitychange', this._visibilityHandler);
             window.addEventListener('online', this._onlineHandler);
@@ -453,6 +460,10 @@ export function railtimeChatbot(config = {}) {
                 window.removeEventListener('resize', this._windowResizeHandler);
                 this._windowResizeHandler = null;
             }
+            if (this._navigateIntentHandler) {
+                document.removeEventListener('livewire:navigate', this._navigateIntentHandler);
+                this._navigateIntentHandler = null;
+            }
             if (this._navigationHandler) {
                 document.removeEventListener('livewire:navigating', this._navigationHandler);
             }
@@ -490,10 +501,12 @@ export function railtimeChatbot(config = {}) {
             if (this.ttsPlaying && this.speaking) return 'speaking';
             if (
                 this.isLoading
+                || this.petStatusChecking
                 || this.ttsWorkerActive
                 || this.ttsPreparing
                 || this.ttsQueue.length > 0
             ) return 'thinking';
+            if (PET_REACTIONS.includes(this.petReaction)) return this.petReaction;
 
             return 'idle';
         },
@@ -533,44 +546,132 @@ export function railtimeChatbot(config = {}) {
             safeStorage('sessionStorage')?.setItem(key, '1');
         },
 
+        hasPageHelp() {
+            return Boolean(this.pageHelpHint || this.pageHelpHints.length);
+        },
+
+        formatPetPageString(template, page) {
+            return String(template ?? '').replace(':page', String(page ?? '').trim());
+        },
+
+        pagePetQuestionCandidates() {
+            const supplied = this.pageHelpHints
+                .map((entry) => String(entry ?? '').trim())
+                .filter(Boolean);
+            const pageTitle = supplied[0] ?? '';
+            const details = supplied.length > 1
+                ? supplied.slice(1)
+                : [this.pageHelpHint].filter(Boolean);
+            const candidates = [];
+
+            if (pageTitle) {
+                candidates.push(this.formatPetPageString(this.strings.petPageQuestion, pageTitle));
+                candidates.push(this.formatPetPageString(this.strings.petNextStepQuestion, pageTitle));
+            }
+
+            details.slice(0, 3).forEach((detail) => {
+                const concise = String(detail).trim().slice(0, 220);
+                if (concise) candidates.push(`${concise} ${this.strings.petHelpQuestion}`.trim());
+            });
+
+            if (!candidates.length && this.pageHelpHint) candidates.push(this.pageHelpHint);
+
+            return [...new Set(candidates.map((entry) => entry.trim()).filter(Boolean))];
+        },
+
+        nextPagePetQuestion() {
+            const candidates = this.pagePetQuestionCandidates();
+            if (!candidates.length) return '';
+
+            let index = Math.floor(Math.random() * candidates.length);
+            if (candidates.length > 1 && index === this.petHintIndex) {
+                index = (index + 1) % candidates.length;
+            }
+            this.petHintIndex = index;
+
+            return candidates[index];
+        },
+
+        petStatusQuestion() {
+            if (!this.assistantAvailable) return this.strings.petUnavailable;
+
+            const contextual = this.nextPagePetQuestion();
+            const tone = this.speechStatusTone();
+            if (['offline', 'disabled'].includes(tone)) {
+                return contextual || this.strings.petTextOnlyQuestion;
+            }
+
+            return contextual || this.strings.petReadyQuestion;
+        },
+
         nextProactivePetHint() {
             const pageHelpKey = this.pageHelpStorageKey();
 
             if (
-                this.pageHelpHint
+                this.hasPageHelp()
                 && pageHelpKey
                 && !this.pageHelpWasSeen(pageHelpKey)
             ) {
                 this.rememberPageHelp(pageHelpKey);
 
-                return this.pageHelpHint;
+                return this.pageHelpHints.length
+                    ? (this.nextPagePetQuestion() || this.pageHelpHint)
+                    : this.pageHelpHint;
             }
 
             return '';
         },
 
-        showPetBubble(text, duration = PET_BUBBLE_VISIBLE_MS, announce = false, origin = null, action = null) {
+        normalizePetBubbleActions(actions = null) {
+            const source = Array.isArray(actions) ? actions : (actions ? [actions] : []);
+
+            return source
+                .map((action) => ({
+                    key: String(action?.key ?? '').trim(),
+                    label: String(action?.label ?? '').trim(),
+                    primary: Boolean(action?.primary),
+                }))
+                .filter((action) => action.key && action.label)
+                .slice(0, 3);
+        },
+
+        showPetBubble(
+            text,
+            duration = PET_BUBBLE_VISIBLE_MS,
+            announce = false,
+            origin = null,
+            actions = null,
+            phraseKey = '',
+        ) {
             const message = String(text ?? '').trim();
             if (!message || this.open) return;
 
             window.clearTimeout(this.petBubbleTimer);
+            const normalizedActions = this.normalizePetBubbleActions(actions);
             this.petBubbleAnnounce = Boolean(announce);
             this.petBubbleOrigin = origin ?? (announce ? 'reply' : 'manual');
-            this.petBubbleActionKey = String(action?.key ?? '');
-            this.petBubbleActionLabel = String(action?.label ?? '');
+            this.petBubbleActions = normalizedActions;
+            this.petBubbleActionKey = normalizedActions[0]?.key ?? '';
+            this.petBubbleActionLabel = normalizedActions[0]?.label ?? '';
+            this.petBubblePhraseKey = String(phraseKey ?? '').trim();
             this.petBubbleText = message;
             this.petBubbleVisible = true;
             this.petBubbleTimer = window.setTimeout(() => {
+                const resetPrimer = this.petBubbleOrigin === 'pet-status';
                 this.petBubbleVisible = false;
                 this.petBubbleAnnounce = false;
                 this.petBubbleOrigin = null;
                 this.petBubbleActionKey = '';
                 this.petBubbleActionLabel = '';
+                this.petBubbleActions = [];
+                this.petBubblePhraseKey = '';
+                if (resetPrimer) this.petPrimed = false;
                 this.petBubbleTimer = null;
             }, Math.max(1_500, Number(duration) || PET_BUBBLE_VISIBLE_MS));
         },
 
         hidePetBubble() {
+            const resetPrimer = this.petBubbleOrigin === 'pet-status';
             window.clearTimeout(this.petBubbleTimer);
             this.petBubbleTimer = null;
             this.petBubbleVisible = false;
@@ -578,10 +679,113 @@ export function railtimeChatbot(config = {}) {
             this.petBubbleOrigin = null;
             this.petBubbleActionKey = '';
             this.petBubbleActionLabel = '';
+            this.petBubbleActions = [];
+            this.petBubblePhraseKey = '';
+            if (resetPrimer) this.petPrimed = false;
         },
 
-        runPetBubbleAction() {
-            const actionKey = String(this.petBubbleActionKey ?? '');
+        petStatusActions() {
+            const actions = [];
+            const wagonRoute = ['operations.wagon-list', 'admin.operations.wagon-list']
+                .includes(this.pageRouteName);
+
+            if (wagonRoute && this.manualVoiceAvailable()) {
+                actions.push({
+                    key: 'wagon_voice_start',
+                    label: this.strings.wagonVoiceStart,
+                    primary: true,
+                });
+            }
+            actions.push({
+                key: 'open_chat',
+                label: this.strings.petOpenChat,
+                primary: !wagonRoute,
+            });
+            if (!wagonRoute && this.manualVoiceAvailable()) {
+                actions.push({
+                    key: 'start_voice',
+                    label: this.strings.petAskByVoice,
+                });
+            }
+            if (this.manualTtsAvailable()) {
+                actions.push({
+                    key: 'read_pet_phrase',
+                    label: this.strings.petReadAloud,
+                });
+            } else if (['offline', 'disabled'].includes(this.speechStatusTone())) {
+                actions.push({
+                    key: 'check_status',
+                    label: this.strings.petCheckAgain,
+                });
+            }
+
+            return actions.slice(0, 3);
+        },
+
+        async handlePetClick() {
+            if (this.petPrimed) {
+                this.triggerPetReaction('happy', 900);
+                this.setOpen(true, true);
+
+                return true;
+            }
+
+            this.petPrimed = true;
+            this.petStatusChecking = true;
+            this.triggerPetReaction('curious', 1_050);
+            this.showPetBubble(
+                this.strings.petStatusChecking,
+                PET_PRIMER_VISIBLE_MS,
+                true,
+                'pet-status',
+            );
+
+            await this.refreshSpeechStatus('pet-click');
+            this.petStatusChecking = false;
+            if (!this.petPrimed || this.open || document.hidden) return false;
+
+            const question = this.petStatusQuestion();
+            const phraseKey = `${this.pageRouteName || 'page'}:${this.hashMessage(question)}`;
+            this.showPetBubble(
+                question,
+                PET_PRIMER_VISIBLE_MS,
+                true,
+                'pet-status',
+                this.petStatusActions(),
+                phraseKey,
+            );
+            if (this.autoRead && this.manualTtsAvailable()) this.speakPetBubble();
+
+            return true;
+        },
+
+        runPetBubbleAction(action = null) {
+            const actionKey = String(action?.key ?? action ?? this.petBubbleActionKey ?? '');
+            if (actionKey === 'read_pet_phrase') {
+                this.triggerPetReaction('wave', 900);
+                this.speakPetBubble();
+
+                return true;
+            }
+            if (actionKey === 'check_status') {
+                this.petPrimed = false;
+                void this.handlePetClick();
+
+                return true;
+            }
+            if (actionKey === 'open_chat') {
+                this.triggerPetReaction('happy', 900);
+                this.setOpen(true, true);
+
+                return true;
+            }
+            if (actionKey === 'start_voice') {
+                this.triggerPetReaction('happy', 900);
+                this.setOpen(true, true);
+                this.$nextTick(() => void this.toggleVoice());
+
+                return true;
+            }
             if (actionKey !== 'wagon_voice_start') return false;
 
             this.hidePetBubble();
@@ -605,7 +809,7 @@ export function railtimeChatbot(config = {}) {
             if (!this.autoHelp || this.open || document.hidden) return;
             const pageHelpKey = this.pageHelpStorageKey();
             if (
-                !this.pageHelpHint
+                !this.hasPageHelp()
                 || !pageHelpKey
                 || this.pageHelpWasSeen(pageHelpKey)
             ) return;
@@ -633,6 +837,61 @@ export function railtimeChatbot(config = {}) {
             this.petBubbleVisible = false;
             this.petBubbleAnnounce = false;
             this.petBubbleOrigin = null;
+            this.petBubbleActionKey = '';
+            this.petBubbleActionLabel = '';
+            this.petBubbleActions = [];
+            this.petBubblePhraseKey = '';
+            this.petPrimed = false;
+            this.petStatusChecking = false;
+        },
+
+        triggerPetReaction(reaction, duration = 900) {
+            if (
+                !PET_REACTIONS.includes(reaction)
+                || !this.assistantAvailable
+                || document.hidden
+                || this.prefersReducedMotion()
+            ) return false;
+
+            window.clearTimeout(this.petReactionClearTimer);
+            this.petReaction = reaction;
+            this.petReactionClearTimer = window.setTimeout(() => {
+                this.petReaction = '';
+                this.petReactionClearTimer = null;
+            }, Math.max(500, Number(duration) || 900));
+
+            return true;
+        },
+
+        scheduleRandomPetReaction() {
+            window.clearTimeout(this.petReactionTimer);
+            this.petReactionTimer = null;
+            if (
+                !this.assistantAvailable
+                || document.hidden
+                || this.prefersReducedMotion()
+            ) return;
+
+            const delay = PET_REACTION_MIN_DELAY_MS
+                + Math.floor(Math.random() * PET_REACTION_DELAY_RANGE_MS);
+            this.petReactionTimer = window.setTimeout(() => {
+                this.petReactionTimer = null;
+                const busy = this.recording
+                    || this.voiceUploading
+                    || this.ttsActive()
+                    || this.isLoading
+                    || this.petStatusChecking;
+                if (!busy) this.triggerPetReaction(chooseAssistantPetReaction(), 1_050);
+                this.scheduleRandomPetReaction();
+            }, delay);
+        },
+
+        clearPetReactionTimers() {
+            window.clearTimeout(this.petReactionTimer);
+            window.clearTimeout(this.petReactionClearTimer);
+            this.petReactionTimer = null;
+            this.petReactionClearTimer = null;
+            this.petReaction = '';
         },
 
         readBool(key, fallback) {
@@ -725,6 +984,7 @@ export function railtimeChatbot(config = {}) {
         },
 
         applySpeechStatus(payload = {}) {
+            const previousTtsProvider = this.ttsProviderSignature();
             const capabilities = payload?.capabilities ?? {};
             const stt = capabilities?.stt ?? {};
             const tts = capabilities?.tts ?? {};
@@ -772,6 +1032,10 @@ export function railtimeChatbot(config = {}) {
                 && window.URL,
             );
             this.voiceSupported = this.recordedVoiceSupported();
+            if (
+                previousTtsProvider
+                && previousTtsProvider !== this.ttsProviderSignature()
+            ) clearAssistantPhraseAudioCache();
         },
 
         async speechResponseError(response) {
@@ -832,6 +1096,7 @@ export function railtimeChatbot(config = {}) {
         },
 
         applySpeechResponseHeaders(response, kind) {
+            const previousTtsProvider = this.ttsProviderSignature();
             const provider = response?.headers?.get?.('X-Speech-Provider');
             const fallback = response?.headers?.get?.('X-Speech-Fallback');
             if (provider) {
@@ -845,6 +1110,11 @@ export function railtimeChatbot(config = {}) {
             if (kind === 'stt') this.sttReady = true;
             if (kind === 'tts') this.ttsReady = true;
             this.speechStatusState = this.sttReady && this.ttsReady ? 'ready' : 'partial';
+            if (
+                kind === 'tts'
+                && previousTtsProvider
+                && previousTtsProvider !== this.ttsProviderSignature()
+            ) clearAssistantPhraseAudioCache();
         },
 
         handleSpeechRequestFailure(kind, error) {
@@ -899,6 +1169,7 @@ export function railtimeChatbot(config = {}) {
             const wasOpen = this.open;
             this.open = Boolean(value);
             if (!this.open) {
+                this.petPrimed = false;
                 this.closeSettings(false);
                 this.abortSpeechInput();
                 this.cancelSpeechStatusRefresh(true);
@@ -907,6 +1178,7 @@ export function railtimeChatbot(config = {}) {
                 return;
             }
 
+            this.petPrimed = false;
             this.hidePetBubble();
             if (typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
                 window.dispatchEvent(new CustomEvent('railtime-wagon-context-request'));
@@ -1020,6 +1292,7 @@ export function railtimeChatbot(config = {}) {
             if (!this.rememberAssistantKey(key)) return;
 
             this.resetAttachmentUi();
+            this.triggerPetReaction('happy', 1_050);
             if (!this.open) this.showPetBubble(this.strings.petReplyReady, PET_BUBBLE_VISIBLE_MS, true);
             if (this.autoRead && this.manualTtsAvailable()) {
                 this.queueTtsSentence(text, key);
@@ -1059,12 +1332,19 @@ export function railtimeChatbot(config = {}) {
                 this.closeSettings(false);
                 this.abortSpeechInput();
                 this.stopSpeaking();
-                this.discardPendingAttachments();
                 this.setOpen(false);
 
                 const relativeTarget = `${target.pathname}${target.search}${target.hash}`;
                 if (typeof window.Livewire?.navigate === 'function') {
                     window.Livewire.navigate(relativeTarget);
+                } else if (this.attachmentCount > 0) {
+                    void this.discardPendingAttachments(true)
+                        .then(() => window.location.assign(relativeTarget))
+                        .catch(() => {
+                            this.syncAttachmentCount();
+                            this.attachmentUploadError = this.strings.attachmentCleanupFailed;
+                            this.setOpen(true);
+                        });
                 } else {
                     window.location.assign(relativeTarget);
                 }
@@ -1233,7 +1513,59 @@ export function railtimeChatbot(config = {}) {
                 || this.ttsQueue.length > 0;
         },
 
-        speak(text, key = null) {
+        ttsProviderSignature() {
+            return [
+                this.speechTtsProvider,
+                this.speechActiveProvider,
+                this.speechRoutingLabel,
+            ].map((entry) => String(entry ?? '').trim().toLowerCase()).filter(Boolean).join('|');
+        },
+
+        clearPhraseAudioCache() {
+            clearAssistantPhraseAudioCache();
+        },
+
+        phraseAudioCacheKey(text, phraseKey = '') {
+            const source = [
+                'v1',
+                this.locale,
+                this.clampSpeechRate(this.speechRate),
+                this.ttsProviderSignature() || 'configured',
+                String(phraseKey ?? '').trim(),
+                String(text ?? '').trim(),
+            ].join('|');
+
+            return `pet-phrase:${this.hashMessage(source)}`;
+        },
+
+        speakPetBubble() {
+            const text = String(this.petBubbleText ?? '').trim();
+            if (!text) return false;
+
+            const phraseKey = this.petBubblePhraseKey || `manual:${this.hashMessage(text)}`;
+            this.speak(text, `pet:${phraseKey}`, {
+                cacheKey: this.phraseAudioCacheKey(text, phraseKey),
+            });
+
+            return true;
+        },
+
+        ttsTokenState(key, start, end, total) {
+            if (String(this.ttsActiveKey ?? '') !== String(key ?? '') || !this.ttsActive()) {
+                return 'idle';
+            }
+
+            const length = Math.max(1, Number(total) || 1);
+            const progress = Math.min(1, Math.max(0, Number(this.ttsProgress) || 0));
+            const startRatio = Math.max(0, Number(start) || 0) / length;
+            const endRatio = Math.max(startRatio, Number(end) || 0) / length;
+            if (progress >= endRatio - 0.0001) return 'read';
+            if (progress > startRatio) return 'current';
+
+            return 'unread';
+        },
+
+        speak(text, key = null, options = {}) {
             if (!this.manualTtsAvailable()) {
                 this.audioError = this.strings.audioEndpointUnavailable;
                 void this.refreshSpeechStatus('tts-unavailable');
@@ -1247,12 +1579,13 @@ export function railtimeChatbot(config = {}) {
 
             this.stopSpeaking();
             this.audioError = '';
-            this.queueTtsSentence(cleanText, key);
+            this.queueTtsSentence(cleanText, key, options);
         },
 
-        queueTtsSentence(text, key = null) {
+        queueTtsSentence(text, key = null, options = {}) {
             const cleanText = String(text ?? '').trim().slice(0, MAX_TTS_TEXT_LENGTH);
             if (!cleanText || !this.manualTtsAvailable()) return;
+            const cacheKey = String(options?.cacheKey ?? '').trim();
 
             const duplicateIsActive = this.ttsActiveKey === key && this.ttsActiveText === cleanText;
             const duplicateIsQueued = this.ttsQueue.some((item) => (
@@ -1266,6 +1599,7 @@ export function railtimeChatbot(config = {}) {
             this.ttsQueue.push({
                 text: cleanText,
                 key,
+                cacheKey,
                 generation: this.ttsCurrentGeneration,
             });
             void this.playNextTts();
@@ -1287,9 +1621,10 @@ export function railtimeChatbot(config = {}) {
             this.speakingKey = null;
             this.ttsActiveKey = item.key;
             this.ttsActiveText = item.text;
+            this.ttsProgress = 0;
 
             try {
-                await this.playTtsViaBlob(item.text, item.key, item.generation);
+                await this.playTtsViaBlob(item.text, item.key, item.generation, item.cacheKey);
             } catch (error) {
                 if (item.generation === this.ttsCurrentGeneration && error?.name !== 'AbortError') {
                     if (error?.speechProviderFailure) this.handleSpeechRequestFailure('tts', error);
@@ -1303,6 +1638,7 @@ export function railtimeChatbot(config = {}) {
                 this.ttsPlaying = false;
                 this.speaking = false;
                 this.speakingKey = null;
+                this.ttsProgress = 0;
 
                 if (this.ttsQueue.length) {
                     void this.playNextTts();
@@ -1342,7 +1678,7 @@ export function railtimeChatbot(config = {}) {
             if (generation !== this.ttsCurrentGeneration) throw this.ttsAbortError();
         },
 
-        async playTtsViaBlob(text, key, generation) {
+        async playTtsViaBlob(text, key, generation, cacheKey = '') {
             if (!this.ttsEndpoint) throw new Error(this.strings.audioEndpointUnavailable);
 
             const abortController = new AbortController();
@@ -1350,23 +1686,30 @@ export function railtimeChatbot(config = {}) {
             let objectUrl = null;
 
             try {
-                let response;
-                try {
-                    response = await fetch(this.ttsEndpoint, this.ttsFetchOptions(text, abortController));
-                } catch (error) {
-                    if (error?.name !== 'AbortError') error.speechProviderFailure = true;
-                    throw error;
-                }
-                this.assertTtsGeneration(generation);
+                let blob = cachedAssistantPhraseAudio(cacheKey);
+                if (!blob) {
+                    let response;
+                    try {
+                        response = await fetch(this.ttsEndpoint, this.ttsFetchOptions(text, abortController));
+                    } catch (error) {
+                        if (error?.name !== 'AbortError') error.speechProviderFailure = true;
+                        throw error;
+                    }
+                    this.assertTtsGeneration(generation);
 
-                if (!response.ok) {
-                    const error = await this.speechResponseError(response);
-                    error.speechProviderFailure = true;
-                    throw error;
-                }
-                this.applySpeechResponseHeaders(response, 'tts');
+                    if (!response.ok) {
+                        const error = await this.speechResponseError(response);
+                        error.speechProviderFailure = true;
+                        if ([401, 403].includes(error.status)) clearAssistantPhraseAudioCache();
+                        throw error;
+                    }
+                    this.applySpeechResponseHeaders(response, 'tts');
 
-                const blob = await response.blob();
+                    blob = await response.blob();
+                    this.assertTtsGeneration(generation);
+                    if (cacheKey) rememberAssistantPhraseAudio(cacheKey, blob);
+                }
+
                 this.assertTtsGeneration(generation);
                 objectUrl = URL.createObjectURL(blob);
                 this.ttsObjectUrls.push(objectUrl);
@@ -1394,6 +1737,7 @@ export function railtimeChatbot(config = {}) {
                     this.ttsPlaying = false;
                     this.speaking = false;
                     this.speakingKey = null;
+                    this.ttsProgress = 0;
                 };
                 const cleanup = () => {
                     audio.onplaying = null;
@@ -1401,6 +1745,8 @@ export function railtimeChatbot(config = {}) {
                     audio.onpause = null;
                     audio.onended = null;
                     audio.onerror = null;
+                    audio.ontimeupdate = null;
+                    audio.ondurationchange = null;
                     if (this.ttsAudio === audio) this.ttsAudio = null;
                     if (this.ttsPlaybackCancel === cancelPlayback) this.ttsPlaybackCancel = null;
                 };
@@ -1424,6 +1770,17 @@ export function railtimeChatbot(config = {}) {
                     this.speaking = true;
                     this.speakingKey = key;
                 };
+                const updateProgress = () => {
+                    if (generation !== this.ttsCurrentGeneration) return;
+
+                    const duration = Number(audio.duration);
+                    const currentTime = Number(audio.currentTime);
+                    if (!Number.isFinite(duration) || duration <= 0 || !Number.isFinite(currentTime)) return;
+
+                    this.ttsProgress = Math.min(1, Math.max(0, currentTime / duration));
+                };
+                audio.ontimeupdate = updateProgress;
+                audio.ondurationchange = updateProgress;
                 audio.onwaiting = () => {
                     if (generation !== this.ttsCurrentGeneration) return;
                     this.ttsPreparing = true;
@@ -1436,6 +1793,7 @@ export function railtimeChatbot(config = {}) {
                     cancelPlayback();
                 };
                 audio.onended = () => {
+                    if (generation === this.ttsCurrentGeneration) this.ttsProgress = 1;
                     resetPlaybackState();
                     settle(resolve);
                 };
@@ -1509,6 +1867,7 @@ export function railtimeChatbot(config = {}) {
             this.ttsPlaying = false;
             this.ttsActiveKey = null;
             this.ttsActiveText = null;
+            this.ttsProgress = 0;
             this.speaking = false;
             this.speakingKey = null;
         },
@@ -1865,11 +2224,79 @@ export function railtimeChatbot(config = {}) {
             this.$wire?.cancelUpload?.('attachments');
         },
 
-        discardPendingAttachments() {
+        async handleNavigationIntent(event) {
+            if (this.attachmentCount <= 0 || this.navigationCleanupInFlight) return false;
+
+            const rawUrl = String(event?.detail?.url ?? '').trim();
+            let target;
+
+            try {
+                target = new URL(rawUrl, window.location.href);
+            } catch (_) {
+                return false;
+            }
+
+            if (target.origin !== window.location.origin || typeof event?.preventDefault !== 'function') {
+                return false;
+            }
+
+            event.preventDefault();
+            this.navigationCleanupInFlight = true;
+            this.attachmentUploadError = '';
+
+            try {
+                await this.discardPendingAttachments(true);
+
+                const relativeTarget = `${target.pathname}${target.search}${target.hash}`;
+                if (typeof window.Livewire?.navigate === 'function') {
+                    window.Livewire.navigate(relativeTarget);
+                } else {
+                    window.location.assign(relativeTarget);
+                }
+
+                return true;
+            } catch (_) {
+                this.syncAttachmentCount();
+                this.attachmentUploadError = this.strings.attachmentCleanupFailed;
+
+                return false;
+            } finally {
+                this.navigationCleanupInFlight = false;
+            }
+        },
+
+        discardPendingAttachments(waitForServer = false) {
             this.cancelWireAttachmentUpload();
-            if (this.attachmentCount > 0) this.$wire?.discardAttachments?.();
+            const hasAttachments = this.attachmentCount > 0;
+            let discardRequest = null;
+            let discardError = null;
+
+            if (hasAttachments) {
+                try {
+                    if (typeof this.$wire?.discardAttachments !== 'function') {
+                        throw new Error('Attachment cleanup is unavailable.');
+                    }
+
+                    discardRequest = this.$wire.discardAttachments();
+                } catch (error) {
+                    discardError = error;
+                }
+            }
+
             this.attachmentCount = 0;
             this.clearAttachmentUploadState();
+
+            if (!waitForServer) {
+                if (discardRequest && typeof discardRequest.catch === 'function') {
+                    discardRequest.catch(() => {});
+                }
+
+                return discardError ? Promise.resolve(false) : Promise.resolve(true);
+            }
+
+            if (discardError) return Promise.reject(discardError);
+
+            return Promise.resolve(discardRequest).then(() => true);
         },
 
         clearAttachmentUploadState() {

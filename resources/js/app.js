@@ -28,6 +28,8 @@ import {
     releaseMicrophoneStream,
 } from './microphone-stream';
 import { numberInput } from './number-input';
+import { dateField } from './date-field';
+import { createWagonListMotion } from './wagon-list-motion';
 import {
     registerRailtimePwaInstall,
     registerRailtimePushSettings,
@@ -570,12 +572,18 @@ Livewire.hook('request', ({ fail }) => {
 
 window.Alpine = Alpine;
 
+// Bewegung des Wagenlisten-Editors. Global, weil die Alpine-Komponente sie
+// bewusst nur defensiv anspricht — ohne dieses Objekt bleibt der Editor
+// vollstaendig bedienbar, nur eben ohne Uebergaenge.
+window.RailTimeWagonMotion = createWagonListMotion();
+
 registerRailtimePushSettings(Alpine);
 registerRailtimePwaInstall(Alpine);
 setupRailtimePwa();
 
 Alpine.data('wagonListPrototype', wagonListPrototype);
 Alpine.data('rtNumberInput', numberInput);
+Alpine.data('rtDateField', dateField);
 Alpine.data('rtSidebarNavigation', sidebarNavigation);
 Alpine.data('railtimeTabs', railtimeTabs);
 Alpine.data('welcomeIntro', welcomeIntro);
