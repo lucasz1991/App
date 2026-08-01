@@ -200,14 +200,17 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
 // ---------------------------------------------------------------
 (function () {
     let overlay = null;
+    let announcement = null;
     let particleSphere = null;
     let showTimer = null;
     let failsafeTimer = null;
     let outroTimer = null;
+    let announcementTimer = null;
     let active = false;
     let contentEntrancePending = false;
     let visibleBeforeSwap = false;
     let transitionToken = 0;
+    let pendingNavigations = 0;
 
     // Notbremse. Grund (verifiziert in vendor/livewire/livewire/dist/
     // livewire.esm.js, performFetch): Livewire holt die neue Seite mit
@@ -220,9 +223,42 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
     // dauerhaft sichtbar — wegen pointer-events:none sogar bedienbar dahinter.
     const FAILSAFE_MS = 10000;
 
+    function syncAnnouncement({ announce = false } = {}) {
+        if (!announcement) {
+            return;
+        }
+
+        const language = String(document.documentElement.lang || 'de').toLowerCase();
+        const message = language.startsWith('de')
+            ? 'RailTime lädt die nächste Seite'
+            : 'RailTime is loading the next page';
+
+        window.clearTimeout(announcementTimer);
+        announcementTimer = null;
+
+        if (!announce) {
+            announcement.textContent = message;
+
+            return;
+        }
+
+        // Eine echte Textmutation macht die wiederholte Statusansage fuer
+        // Screenreader verlaesslicher als nur aria-hidden umzuschalten.
+        announcement.textContent = '';
+        announcementTimer = window.setTimeout(function () {
+            announcementTimer = null;
+
+            if (active && announcement) {
+                announcement.textContent = message;
+            }
+        }, 0);
+    }
+
     function ensureOverlay() {
         // Livewire tauscht bei wire:navigate den <body> aus -> ggf. neu anhaengen.
         if (overlay && document.body.contains(overlay)) {
+            syncAnnouncement();
+
             return overlay;
         }
 
@@ -248,9 +284,9 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
             fallback.className = 'rt-nav-loader__fallback';
             fallback.setAttribute('aria-hidden', 'true');
 
-            const announcement = document.createElement('span');
+            announcement = document.createElement('span');
             announcement.className = 'sr-only';
-            announcement.textContent = 'RailTime lädt die nächste Seite';
+            syncAnnouncement();
 
             loader.append(canvas, fallback);
             overlay.append(loader, announcement);
@@ -270,9 +306,11 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
         window.clearTimeout(showTimer);
         window.clearTimeout(failsafeTimer);
         window.clearTimeout(outroTimer);
+        window.clearTimeout(announcementTimer);
         showTimer = null;
         failsafeTimer = null;
         outroTimer = null;
+        announcementTimer = null;
     }
 
     function removeOverlayClones() {
@@ -295,13 +333,18 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
     }
 
     function start() {
+        pendingNavigations += 1;
+        contentEntrancePending = true;
+
         if (active) {
+            window.clearTimeout(failsafeTimer);
+            failsafeTimer = window.setTimeout(done, FAILSAFE_MS);
+
             return;
         }
 
         transitionToken += 1;
         active = true;
-        contentEntrancePending = true;
         clearTransitionTimers();
         hideImmediately();
 
@@ -313,6 +356,7 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
             o.classList.remove('is-leaving', 'is-leaving--quick', 'is-leaving--logo');
             o.setAttribute('aria-hidden', 'false');
             o.classList.add('is-visible');
+            syncAnnouncement({ announce: true });
             particleSphere?.start();
         }, 120);
         failsafeTimer = window.setTimeout(done, FAILSAFE_MS);
@@ -358,6 +402,7 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
         const token = transitionToken;
         const wasVisible = visibleBeforeSwap || overlay?.classList.contains('is-visible');
 
+        pendingNavigations = 0;
         active = false;
         clearTransitionTimers();
         removeOverlayClones();
@@ -393,9 +438,23 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
         }, outro.duration + 32);
     }
 
-    document.addEventListener('livewire:navigate', start);
-    document.addEventListener('livewire:navigating', function (event) {
+    document.addEventListener('livewire:navigate', function (event) {
+        // Ein frueher Listener (z. B. Autosave) darf den Besuch aufschieben.
+        // In diesem Fall gibt es noch keinen Request und damit auch nichts,
+        // wofuer die Ladeanimation erscheinen sollte.
+        if (event.defaultPrevented) {
+            return;
+        }
+
         start();
+    });
+    document.addEventListener('livewire:navigating', function (event) {
+        // Normalerweise lief livewire:navigate bereits. Der Fallback schuetzt
+        // programmatische/abweichende Livewire-Pfade, ohne eine Navigation
+        // doppelt in pendingNavigations zu zaehlen.
+        if (!active) {
+            start();
+        }
 
         const token = transitionToken;
         visibleBeforeSwap = Boolean(overlay?.classList.contains('is-visible'));
@@ -416,6 +475,7 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
                 }
 
                 document.body.appendChild(overlay);
+                syncAnnouncement();
             });
         }
     });
@@ -423,6 +483,17 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
     // Alle Wege, auf denen eine Navigation endet ODER scheitert. done() ist
     // idempotent, mehrfaches Aufraeumen ist deshalb unschaedlich.
     document.addEventListener('livewire:navigated', function () {
+        if (pendingNavigations > 0) {
+            pendingNavigations -= 1;
+        }
+
+        // Livewire kann mehrere Navigate-Fetches parallel abschliessen. Die
+        // fruehere Antwort darf den Loader der noch offenen Navigation nicht
+        // ausblenden; das Outro gehoert ausschliesslich zum letzten Abschluss.
+        if (pendingNavigations > 0 || !active) {
+            return;
+        }
+
         done({ animate: true });
         playContentEntrance();
     });

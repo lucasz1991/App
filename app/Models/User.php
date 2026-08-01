@@ -191,6 +191,10 @@ class User extends Authenticatable
      */
     public function isOnline(int $minutes = 5): bool
     {
+        if ($this->hasPreloadedLastActivity()) {
+            return $this->lastActivityAt()?->gte(now()->subMinutes($minutes)) ?? false;
+        }
+
         return $this->activities()
             ->where('created_at', '>=', now()->subMinutes($minutes))
             ->exists();
@@ -201,9 +205,25 @@ class User extends Authenticatable
      */
     public function lastActivityAt(): ?Carbon
     {
+        if ($this->hasPreloadedLastActivity()) {
+            $value = $this->attributes['last_activity_at'];
+
+            return $value ? Carbon::parse($value) : null;
+        }
+
         $timestamp = $this->activities()->latest('created_at')->value('created_at');
 
         return $timestamp ? Carbon::parse($timestamp) : null;
+    }
+
+    /**
+     * Listen laden den Zeitstempel als Aggregat mit
+     * (`withMax('activities as last_activity_at', 'created_at')`). Ist er
+     * vorhanden, entfaellt je Zeile eine eigene Abfrage.
+     */
+    protected function hasPreloadedLastActivity(): bool
+    {
+        return array_key_exists('last_activity_at', $this->attributes);
     }
 
     /**

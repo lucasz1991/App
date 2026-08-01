@@ -5,9 +5,33 @@
   <span class="rt-profile-aurora" aria-hidden="true"></span>
 
   @php
+      $teamName = $user->currentTeam?->name;
+
+      // Rolle, Funktion und Team stehen als Badges beieinander. Ein Team
+      // heisst haeufig genauso wie die Rolle ("Mitarbeiter") — dann waere
+      // dieselbe Angabe zweimal zu sehen.
+      $identityBadges = [];
+      $seen = [];
+
+      foreach ([
+          ['value' => $roleLabel, 'color' => $roleColor, 'icon' => 'far fa-user-tag', 'title' => __('app.role')],
+          ['value' => $profile?->position, 'color' => 'slate', 'icon' => 'far fa-briefcase', 'title' => __('app.position')],
+          ['value' => $teamName, 'color' => 'slate', 'icon' => 'far fa-users', 'title' => __('app.team')],
+      ] as $badge) {
+          $value = trim((string) $badge['value']);
+          $key = mb_strtolower($value);
+
+          if ($value === '' || in_array($key, $seen, true)) {
+              continue;
+          }
+
+          $seen[] = $key;
+          $identityBadges[] = ['value' => $value] + $badge;
+      }
+
+      // Funktion und Team stehen links als Badges — rechts bleiben nur die
+      // Angaben, die dort nicht schon zu sehen sind.
       $identityFacts = array_values(array_filter([
-          $profile?->position ? ['icon' => 'far fa-user-tag', 'label' => __('app.position'), 'value' => $profile->position] : null,
-          ['icon' => 'far fa-users', 'label' => __('app.team'), 'value' => $user->currentTeam?->name ?: '—'],
           $canViewMasterData && $profile?->personnel_nr
               ? ['icon' => 'far fa-id-badge', 'label' => __('app.personnel_nr'), 'value' => $profile->personnel_nr]
               : null,
@@ -18,22 +42,41 @@
   @endphp
 
   <div class="relative grid gap-4 sm:grid-cols-2 sm:gap-6">
-      {{-- Spalte 1: Person --}}
+      {{-- Spalte 1: Person. Der Kontostatus haengt am Bild statt als Badge
+           unter der Adresse: gruener oder grauer Punkt fuer die Anwesenheit,
+           ein rotes Zeichen nur dann, wenn das Konto gesperrt ist. --}}
       <div class="flex min-w-0 items-center gap-3 sm:gap-4">
           <span class="relative shrink-0">
               <img
                   src="{{ $user->profile_photo_url }}"
                   alt="{{ $user->name }}"
-                  class="h-14 w-14 rounded-2xl object-cover shadow-rt-sm ring-1 ring-rt-border/60 dark:ring-rt-dark-border/60 sm:h-20 sm:w-20"
+                  @class([
+                      'h-14 w-14 rounded-2xl object-cover shadow-rt-sm ring-1 ring-rt-border/60 dark:ring-rt-dark-border/60 sm:h-20 sm:w-20',
+                      'opacity-60 grayscale' => ! $user->isActive(),
+                  ])
               >
-              @if ($isUserOnline)
+
+              @unless ($user->isActive())
                   <span
-                      class="absolute -bottom-1 -right-1 grid h-4 w-4 place-items-center rounded-full bg-rt-surface dark:bg-rt-dark-surface"
-                      title="{{ __('app.online') }}"
+                      class="absolute -right-1 -top-1 grid h-5 w-5 place-items-center rounded-full bg-rt-red text-[10px] text-white ring-2 ring-rt-surface dark:ring-rt-dark-surface"
+                      title="{{ ucfirst(__('app.inactive')) }}"
                   >
-                      <span class="h-2.5 w-2.5 rounded-full bg-emerald-500 dark:bg-emerald-400"></span>
+                      <i class="far fa-ban" aria-hidden="true"></i>
+                      <span class="sr-only">{{ ucfirst(__('app.inactive')) }}</span>
                   </span>
-              @endif
+              @endunless
+
+              <span
+                  class="absolute -bottom-1 -right-1 grid h-4 w-4 place-items-center rounded-full bg-rt-surface dark:bg-rt-dark-surface"
+                  title="{{ $isUserOnline ? __('app.online') : __('app.offline') }}"
+              >
+                  <span @class([
+                      'h-2.5 w-2.5 rounded-full',
+                      'bg-emerald-500 dark:bg-emerald-400' => $isUserOnline,
+                      'bg-slate-300 dark:bg-slate-600' => ! $isUserOnline,
+                  ])></span>
+                  <span class="sr-only">{{ $isUserOnline ? __('app.online') : __('app.offline') }}</span>
+              </span>
           </span>
 
           <div class="min-w-0 flex-1">
@@ -63,24 +106,16 @@
                   </x-ui.inline-edit-field>
               </div>
 
-              <div class="mt-2 flex flex-wrap items-center gap-1.5">
-                  <x-ui.badge :color="$roleColor">
-                      <i class="far fa-user-tag"></i>
-                      {{ $roleLabel }}
-                  </x-ui.badge>
-
-                  <x-ui.badge :color="$user->isActive() ? 'green' : 'red'">
-                      <span class="h-1.5 w-1.5 rounded-full {{ $user->isActive() ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-red-500 dark:bg-red-400' }}"></span>
-                      {{ $user->isActive() ? ucfirst(__('app.active')) : ucfirst(__('app.inactive')) }}
-                  </x-ui.badge>
-
-                  @if ($isUserOnline)
-                      <x-ui.badge color="green">
-                          <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400"></span>
-                          {{ __('app.online') }}
-                      </x-ui.badge>
-                  @endif
-              </div>
+              @if ($identityBadges !== [])
+                  <div class="mt-1.5 flex flex-wrap items-center gap-1">
+                      @foreach ($identityBadges as $badge)
+                          <x-ui.badge :color="$badge['color']" class="!px-2 !py-0.5 !text-[11px]" :title="$badge['title']">
+                              <i class="{{ $badge['icon'] }}" aria-hidden="true"></i>
+                              {{ $badge['value'] }}
+                          </x-ui.badge>
+                      @endforeach
+                  </div>
+              @endif
           </div>
       </div>
 

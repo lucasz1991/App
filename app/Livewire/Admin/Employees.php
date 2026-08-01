@@ -24,7 +24,9 @@ class Employees extends Component
 
     // Filter / Suche / Sortierung
     public string $search = '';
-    public ?int $teamId = null; // Team-Filter (optional)
+    public ?int $teamId = null;   // Team-Filter (optional)
+    public string $role = '';     // '' | 'admin' | 'staff'
+    public string $accountStatus = ''; // '' | 'active' | 'inactive'
     public string $sortBy = 'created_at';
     public string $sortDir = 'desc';
     public int $perPage = 15;
@@ -33,7 +35,7 @@ class Employees extends Component
     public int $employeesTotal = 0;
 
     /** Spalten, nach denen sortiert werden darf */
-    private const SORTABLE_COLUMNS = ['id', 'name', 'email', 'created_at'];
+    private const SORTABLE_COLUMNS = ['id', 'name', 'email', 'created_at', 'last_activity_at'];
 
     protected $listeners = [
         'employeeSaved' => '$refresh',
@@ -78,6 +80,33 @@ class Employees extends Component
 
     public function updatingTeamId()
     {
+        $this->resetPage();
+    }
+
+    public function updatingRole()
+    {
+        $this->resetPage();
+    }
+
+    public function updatingAccountStatus()
+    {
+        $this->resetPage();
+    }
+
+    /** Anzahl der gesetzten Filter — steuert die Anzeige in der Toolbar. */
+    public function getActiveFilterCountProperty(): int
+    {
+        return count(array_filter([
+            trim($this->search) !== '',
+            $this->teamId !== null && $this->teamId !== '',
+            $this->role !== '',
+            $this->accountStatus !== '',
+        ]));
+    }
+
+    public function resetFilters(): void
+    {
+        $this->reset(['search', 'teamId', 'role', 'accountStatus']);
         $this->resetPage();
     }
 
@@ -259,6 +288,9 @@ class Employees extends Component
                 'currentTeam',
                 'profile:id,user_id,first_name,last_name,position',
             ])
+            // Ein Aggregat statt einer Abfrage je Zeile: liefert zugleich die
+            // Spalte "Zuletzt aktiv" und die Online-Kennzeichnung.
+            ->withMax('activities as last_activity_at', 'created_at')
             ->whereIn('role', $allowedRoles)
             // Super-Admin (#1) wird nicht als Mitarbeiter gefuehrt
             ->where('id', '!=', 1)
@@ -268,7 +300,15 @@ class Employees extends Component
                     ->orWhere('email', 'like', $s)
                     ->orWhere('id', $this->search);
             }))
-            ->when($this->teamId, fn ($q) => $q->whereHas('teams', fn ($qq) => $qq->where('teams.id', $this->teamId)));
+            ->when($this->teamId, fn ($q) => $q->whereHas('teams', fn ($qq) => $qq->where('teams.id', $this->teamId)))
+            ->when(
+                in_array($this->role, $allowedRoles, true),
+                fn ($q) => $q->where('role', $this->role),
+            )
+            ->when(
+                in_array($this->accountStatus, ['active', 'inactive'], true),
+                fn ($q) => $q->where('status', $this->accountStatus === 'active'),
+            );
 
         // Gesamtanzahl vor Pagination
         $this->employeesTotal = (clone $base)->count();

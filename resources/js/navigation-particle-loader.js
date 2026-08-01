@@ -1,10 +1,6 @@
 const TAU = Math.PI * 2;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
-const RT_RED_PATH = 'M0 0H738L862 152V462L755 583H617L1000 1000H731L460 658V410H675L715 364V206L673 160H0Z';
-const RT_RED_STEM_PATH = 'M0 410H205V1000H0Z';
-const RT_DARK_PATH = 'M0 200H670V370H420V1000H245V370H0Z';
-
 const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
 const mix = (from, to, progress) => from + ((to - from) * progress);
 const easeOutQuint = (value) => 1 - Math.pow(1 - clamp(value), 5);
@@ -68,17 +64,21 @@ export function createFibonacciSphere(count) {
     });
 }
 
-function fallbackLogoTargets(count) {
+function createLogoTargets(count) {
     const segments = [
-        { from: [-0.58, -0.62], to: [-0.58, 0.62], tone: 'red' },
-        { from: [-0.58, -0.62], to: [0.02, -0.62], tone: 'red' },
-        { from: [0.02, -0.62], to: [0.2, -0.43], tone: 'red' },
-        { from: [0.2, -0.43], to: [0.2, -0.08], tone: 'red' },
-        { from: [0.2, -0.08], to: [0, 0.1], tone: 'red' },
-        { from: [-0.58, 0.1], to: [0, 0.1], tone: 'red' },
-        { from: [-0.02, 0.1], to: [0.48, 0.62], tone: 'red' },
-        { from: [-0.48, -0.34], to: [0.55, -0.34], tone: 'slate' },
-        { from: [0.04, -0.34], to: [0.04, 0.62], tone: 'slate' },
+        // Offenes, linienbasiertes R bleibt auch in einer nur rund 90 px
+        // grossen Partikelwolke klarer als eine gefuellte Logo-Silhouette.
+        { from: [-0.61, -0.62], to: [-0.61, 0.62], tone: 'red' },
+        { from: [-0.61, -0.62], to: [-0.14, -0.62], tone: 'red' },
+        { from: [-0.14, -0.62], to: [0.02, -0.46], tone: 'red' },
+        { from: [0.02, -0.46], to: [0.02, -0.16], tone: 'red' },
+        { from: [0.02, -0.16], to: [-0.14, 0], tone: 'red' },
+        { from: [-0.61, 0], to: [-0.14, 0], tone: 'red' },
+        { from: [-0.19, 0], to: [0.08, 0.62], tone: 'red' },
+        // Das T steht bewusst separat: RailTime-Monogramm statt dichter
+        // Ueberlagerung beider Originalflaechen.
+        { from: [0.14, -0.62], to: [0.66, -0.62], tone: 'slate' },
+        { from: [0.4, -0.62], to: [0.4, 0.62], tone: 'slate' },
     ];
     const pointsPerSegment = Math.ceil(count / segments.length);
 
@@ -95,83 +95,9 @@ function fallbackLogoTargets(count) {
     });
 }
 
-function shuffleDeterministically(values) {
-    const shuffled = [...values];
-    let seed = 0x52a17e1;
-
-    for (let index = shuffled.length - 1; index > 0; index -= 1) {
-        seed = ((seed * 1664525) + 1013904223) >>> 0;
-        const swapIndex = seed % (index + 1);
-        [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
-    }
-
-    return shuffled;
-}
-
-function createLogoTargets(canvas, count) {
-    const view = canvas.ownerDocument?.defaultView || window;
-    const Path = view.Path2D;
-
-    if (typeof Path !== 'function') {
-        return fallbackLogoTargets(count);
-    }
-
-    try {
-        const scratch = canvas.ownerDocument.createElement('canvas');
-        const scratchContext = scratch.getContext('2d');
-
-        if (!scratchContext || typeof scratchContext.isPointInPath !== 'function') {
-            return fallbackLogoTargets(count);
-        }
-
-        const redFace = new Path(RT_RED_PATH);
-        const redStem = new Path(RT_RED_STEM_PATH);
-        const darkFace = new Path(RT_DARK_PATH);
-        const candidates = [];
-
-        for (let y = 14; y <= 986; y += 24) {
-            for (let x = 14; x <= 986; x += 24) {
-                const inDark = scratchContext.isPointInPath(darkFace, x, y);
-                const inRed = scratchContext.isPointInPath(redFace, x, y)
-                    || scratchContext.isPointInPath(redStem, x, y);
-
-                if (!inRed && !inDark) {
-                    continue;
-                }
-
-                candidates.push({
-                    x: ((x / 1000) - 0.5) * 1.34,
-                    y: ((y / 1000) - 0.5) * 1.34,
-                    // Das T liegt im echten Logo ueber dem roten R.
-                    tone: inDark ? 'slate' : 'red',
-                });
-            }
-        }
-
-        if (candidates.length < 20) {
-            return fallbackLogoTargets(count);
-        }
-
-        const shuffled = shuffleDeterministically(candidates);
-
-        return Array.from({ length: count }, (_, index) => {
-            const source = shuffled[index % shuffled.length];
-            const jitter = index >= shuffled.length ? 0.006 : 0;
-
-            return {
-                x: source.x + ((deterministicNoise(index, 17) - 0.5) * jitter),
-                y: source.y + ((deterministicNoise(index, 23) - 0.5) * jitter),
-                tone: source.tone,
-            };
-        });
-    } catch (_) {
-        return fallbackLogoTargets(count);
-    }
-}
-
-function createParticles(canvas, count) {
+function createParticles(count) {
     const sphere = createFibonacciSphere(count);
-    const logoTargets = createLogoTargets(canvas, count);
+    const logoTargets = createLogoTargets(count);
 
     return sphere.map((point, index) => {
         const galaxyRadius = Math.sqrt((index + 0.5) / count);
@@ -234,7 +160,7 @@ export function createNavigationParticleSphere(canvas, options = {}) {
         saveData: connection?.saveData === true,
         hardwareConcurrency: view.navigator?.hardwareConcurrency || 8,
     });
-    const particles = createParticles(canvas, particleCount);
+    const particles = createParticles(particleCount);
     const drawOrder = [...particles];
     let animationFrame = null;
     let phase = 'idle';
@@ -246,15 +172,34 @@ export function createNavigationParticleSphere(canvas, options = {}) {
     let isDark = false;
     let themeCheckedAt = 0;
     let outroDuration = 0;
+    let resizePending = true;
 
-    function resizeCanvas() {
-        const rect = canvas.getBoundingClientRect();
-        const nextSize = Math.max(1, Math.min(rect.width || 144, rect.height || rect.width || 144));
+    function resizeCanvas(force = false) {
         const nextDpr = clampParticleDpr(view.devicePixelRatio);
+
+        // Die Loader-Huelle skaliert beim Ein-/Ausblenden per transform. Ein
+        // getBoundingClientRect() pro Frame wuerde diese Animation als echte
+        // Groessenaenderung missverstehen und den Canvas-Backbuffer staendig
+        // neu allozieren. clientWidth bleibt transform-unabhaengig und wird
+        // nur nach einem realen Viewport-Wechsel erneut gelesen.
+        if (!force && !resizePending && nextDpr === pixelRatio) {
+            return;
+        }
+
+        const measuredWidth = canvas.clientWidth;
+        const measuredHeight = canvas.clientHeight;
+        const nextSize = Math.max(
+            1,
+            Math.min(
+                measuredWidth || cssSize || 144,
+                measuredHeight || measuredWidth || cssSize || 144
+            )
+        );
         const pixelSize = Math.max(1, Math.round(nextSize * nextDpr));
 
         cssSize = nextSize;
         pixelRatio = nextDpr;
+        resizePending = false;
 
         if (canvas.width !== pixelSize || canvas.height !== pixelSize) {
             canvas.width = pixelSize;
@@ -316,7 +261,7 @@ export function createNavigationParticleSphere(canvas, options = {}) {
     }
 
     function updateSphereParticle(particle, timestamp, assemble) {
-        const radius = cssSize * 0.31;
+        const radius = cssSize * 0.35;
         const center = cssSize / 2;
         const projected = projectSphere(particle, timestamp);
         const elapsed = timestamp - startedAt;
@@ -470,7 +415,7 @@ export function createNavigationParticleSphere(canvas, options = {}) {
     }
 
     function renderStaticSphere() {
-        resizeCanvas();
+        resizeCanvas(true);
         startedAt = view.performance.now() - 800;
         updateTheme(view.performance.now());
         particles.forEach((particle) => updateSphereParticle(particle, startedAt + 800, 1));
@@ -494,13 +439,14 @@ export function createNavigationParticleSphere(canvas, options = {}) {
         }
 
         if (clear) {
-            resizeCanvas();
+            resizeCanvas(true);
             context.clearRect(0, 0, cssSize, cssSize);
         }
     }
 
     function start() {
         stop();
+        resizePending = true;
         startedAt = view.performance.now();
         phaseStartedAt = startedAt;
         isDark = documentObject.documentElement.classList.contains('dark')
@@ -556,7 +502,20 @@ export function createNavigationParticleSphere(canvas, options = {}) {
         queueFrame();
     }
 
+    function handleViewportResize() {
+        resizePending = true;
+
+        if (phase === 'static') {
+            renderStaticSphere();
+
+            return;
+        }
+
+        queueFrame();
+    }
+
     documentObject.addEventListener('visibilitychange', handleVisibilityChange);
+    view.addEventListener?.('resize', handleViewportResize, { passive: true });
 
     return {
         available: true,
