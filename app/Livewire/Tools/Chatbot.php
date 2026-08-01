@@ -7,6 +7,8 @@ use App\Services\Ai\OpenRouterChatClient;
 use App\Services\Ai\OpenRouterChatException;
 use App\Services\Ai\RailtimeAssistantContext;
 use App\Services\Ai\SpeechServiceClient;
+use App\Support\Ai\AssistantAccess;
+use App\Support\PageHelpCatalog;
 use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -36,12 +38,17 @@ class Chatbot extends Component
     #[Locked]
     public string $pageRouteName = 'unknown';
 
+    #[Locked]
+    public string $pageHelpHint = '';
+
     public function mount(): void
     {
         $this->authorizeUser();
         $this->assistantName = (string) config('assistant.name', 'RailTime Assist');
-        $this->quickActions = $this->availableQuickActions();
         $this->pageRouteName = request()->route()?->getName() ?? 'unknown';
+        $this->pageHelpHint = (string) (app(PageHelpCatalog::class)
+            ->forRoute($this->pageRouteName)['summary'] ?? '');
+        $this->quickActions = $this->availableQuickActions();
         $this->refreshAvailability();
         $this->loadHistory();
 
@@ -192,10 +199,7 @@ class Chatbot extends Component
 
     private function authorizeUser(): User
     {
-        $user = auth()->user();
-        abort_unless($user instanceof User && $user->isActive(), 403);
-
-        return $user;
+        return app(AssistantAccess::class)->authorize();
     }
 
     private function refreshAvailability(): void

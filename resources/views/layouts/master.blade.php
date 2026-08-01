@@ -9,6 +9,12 @@
     // Topbar/Sidebar wieder durchschimmern - nicht Vorhandenes gewinnt immer.
     $chrome = $chrome ?? true;
     $documentTitle = trim($__env->yieldContent('title')) ?: __('app.dashboard');
+    $assistantShouldRender = auth()->check()
+        && app(\App\Support\Ai\AssistantAccess::class)->shouldRender(
+            auth()->user(),
+            request()->route()?->getName(),
+            (bool) $chrome,
+        );
 @endphp
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" dir="ltr"
@@ -127,8 +133,9 @@
             <livewire:tools.file-pools.file-preview-modal />
             {{-- Globales Klingel-Overlay fuer eingehende Videoanrufe --}}
             <livewire:calls.incoming-call-overlay />
-            @if ($chrome)
-                {{-- Seitenweiter RailTime-Assistent; chromelose Anruffenster bleiben bewusst frei. --}}
+            @if ($assistantShouldRender)
+                {{-- Zentral autorisierter RailTime-Assistent; ausgeschlossene
+                     Seiten und chromelose Anruffenster bleiben bewusst frei. --}}
                 <livewire:tools.chatbot />
             @endif
         @endauth

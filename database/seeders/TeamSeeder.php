@@ -39,9 +39,14 @@ class TeamSeeder extends Seeder
         $all = RbacCatalog::allPermissions();
 
         $teams = [
-            'Gäste' => [],
-            'Mitarbeiter' => [],
+            'Gäste' => [
+                'assistant.use',
+            ],
+            'Mitarbeiter' => [
+                'assistant.use',
+            ],
             'Verwaltung' => [
+                'assistant.use',
                 'employees.view',
                 'users.view',
                 'users.profiles.view',
@@ -73,15 +78,16 @@ class TeamSeeder extends Seeder
                 $permissions[$permission] = in_array($permission, $granted, true);
             }
 
-            $team = Team::firstOrCreate(
-                ['name' => $name, 'personal_team' => false],
-                [
+            $team = Team::firstOrNew(['name' => $name, 'personal_team' => false]);
+
+            if (! $team->exists) {
+                // user_id ist aus gutem Grund nicht mass-assignable; Seeder
+                // setzen den System-Owner deshalb ausdruecklich.
+                $team->forceFill([
                     'user_id' => $owner->id,
                     'rbac_permissions' => $permissions,
-                ]
-            );
-
-            if ($team->wasRecentlyCreated === false && $team->rbac_permissions !== $permissions) {
+                ])->save();
+            } elseif ($team->rbac_permissions !== $permissions) {
                 $team->forceFill(['rbac_permissions' => $permissions])->save();
             }
         }

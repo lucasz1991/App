@@ -23,6 +23,9 @@ class RbacCatalog
             'System' => [
                 ['key' => 'settings.manage', 'label' => 'Einstellungen verwalten'],
             ],
+            'Assistenz' => [
+                ['key' => 'assistant.use', 'label' => 'Chatbot-Assistent verwenden'],
+            ],
             'Mitarbeiter' => [
                 ['key' => 'employees.view', 'label' => 'Mitarbeiter anzeigen'],
                 ['key' => 'employees.create', 'label' => 'Mitarbeiter erstellen & bearbeiten'],

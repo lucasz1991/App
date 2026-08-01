@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Assistant;
 use App\Http\Controllers\Controller;
 use App\Services\Ai\SpeechServiceClient;
 use App\Services\Ai\SpeechServiceException;
+use App\Support\Ai\AssistantAccess;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
@@ -14,6 +15,8 @@ class AssistantAudioOutputStreamController extends Controller
 {
     public function __invoke(Request $request, SpeechServiceClient $speech): Response
     {
+        app(AssistantAccess::class)->authorize($request->user());
+
         $validated = $request->validate([
             'text' => [
                 'required',

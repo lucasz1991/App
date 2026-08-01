@@ -73,9 +73,14 @@ export function railtimeChatbot(config = {}) {
         ttsEndpoint: String(config.ttsEndpoint ?? ''),
         sttEndpoint: String(config.sttEndpoint ?? ''),
         csrfToken: String(config.csrfToken ?? ''),
+        pageRouteName: String(config.pageRouteName ?? ''),
+        pageHelpHint: String(config.pageHelpHint ?? '').trim(),
         strings,
 
+        settingsOpen: false,
         autoRead: Boolean(config.autoReadDefault),
+        autoListen: Boolean(config.autoListenDefault),
+        autoHelp: config.autoHelpDefault !== false,
         speechRate: clamp(config.speechRate, 0.5, 2, 1),
         speechSupported: false,
         voiceSupported: false,
@@ -120,6 +125,9 @@ export function railtimeChatbot(config = {}) {
         petHintIndex: 0,
         petBubbleTimer: null,
         petBubbleCycleTimer: null,
+        autoListenTimer: null,
+        autoListenGeneration: 0,
+        autoListenChecking: false,
         _dockChangeHandler: null,
         _windowResizeHandler: null,
         _navigationHandler: null,
@@ -132,6 +140,8 @@ export function railtimeChatbot(config = {}) {
                 : window.innerWidth >= 1140;
 
             this.autoRead = this.readBool('railtime-chatbot-auto-read', this.autoRead);
+            this.autoListen = this.readBool('railtime-chatbot-auto-listen', this.autoListen);
+            this.autoHelp = this.readBool('railtime-chatbot-auto-help', this.autoHelp);
             this.speechRate = this.readNumber('railtime-chatbot-speech-rate', this.speechRate);
             this.open = this.isDesktopDocked
                 && safeStorage('sessionStorage')?.getItem('railtime-chatbot-open') === '1';
@@ -150,16 +160,19 @@ export function railtimeChatbot(config = {}) {
                 this.$nextTick(() => this.scrollMessages(false));
             };
             this._navigationHandler = () => {
+                this.closeSettings(false);
                 this.abortSpeechInput();
                 this.stopSpeaking();
             };
             this._visibilityHandler = () => {
                 if (document.hidden) {
+                    this.closeSettings(false);
+                    this.abortSpeechInput();
                     this.clearPetBubbleTimers();
                     return;
                 }
 
-                if (!this.open) this.schedulePetBubble(false);
+                if (!this.open && this.autoHelp) this.schedulePetBubble(false);
             };
 
             if (this.dockMediaQuery?.addEventListener) {
@@ -175,9 +188,10 @@ export function railtimeChatbot(config = {}) {
                 safeStorage('sessionStorage')?.setItem('railtime-chatbot-open', value ? '1' : '0');
 
                 if (!value) {
+                    this.closeSettings(false);
                     this.abortSpeechInput();
                     this.stopSpeaking();
-                    this.schedulePetBubble(false);
+                    if (this.autoHelp) this.schedulePetBubble(false);
                     return;
                 }
 
@@ -190,6 +204,19 @@ export function railtimeChatbot(config = {}) {
             this.$watch('autoRead', (value) => {
                 safeStorage('localStorage')?.setItem('railtime-chatbot-auto-read', value ? '1' : '0');
                 if (!value) this.stopSpeaking();
+            });
+            this.$watch('autoListen', (value) => {
+                safeStorage('localStorage')?.setItem('railtime-chatbot-auto-listen', value ? '1' : '0');
+                if (!value) this.abortSpeechInput();
+            });
+            this.$watch('autoHelp', (value) => {
+                safeStorage('localStorage')?.setItem('railtime-chatbot-auto-help', value ? '1' : '0');
+                if (!value) {
+                    this.stopProactivePetBubbles();
+                    return;
+                }
+
+                if (!this.open && !document.hidden) this.schedulePetBubble(true);
             });
             this.$watch('speechRate', (value) => {
                 const normalized = this.clampSpeechRate(value);
@@ -205,7 +232,7 @@ export function railtimeChatbot(config = {}) {
                 this.scrollMessages(false, true);
             });
 
-            this.schedulePetBubble(true);
+            if (this.autoHelp) this.schedulePetBubble(true);
         },
 
         destroy() {
@@ -230,6 +257,7 @@ export function railtimeChatbot(config = {}) {
             this.abortSpeechInput();
             this.stopSpeaking();
             this.clearPetBubbleTimers();
+            this.settingsOpen = false;
             releaseMicrophoneStream();
         },
 
@@ -248,6 +276,29 @@ export function railtimeChatbot(config = {}) {
             if (this.voiceSupported) hints.push(this.strings.petVoiceHint);
 
             return hints.map((hint) => String(hint ?? '').trim()).filter(Boolean);
+        },
+
+        pageHelpStorageKey() {
+            const route = String(this.pageRouteName ?? '').trim();
+
+            return route ? `railtime-chatbot-page-help:${route}` : '';
+        },
+
+        nextProactivePetHint() {
+            const pageHelpKey = this.pageHelpStorageKey();
+            const sessionStorage = safeStorage('sessionStorage');
+
+            if (
+                this.pageHelpHint
+                && pageHelpKey
+                && sessionStorage?.getItem(pageHelpKey) !== '1'
+            ) {
+                sessionStorage?.setItem(pageHelpKey, '1');
+
+                return this.pageHelpHint;
+            }
+
+            return '';
         },
 
         showPetBubble(text, duration = PET_BUBBLE_VISIBLE_MS, announce = false) {
@@ -276,25 +327,27 @@ export function railtimeChatbot(config = {}) {
             window.clearTimeout(this.petBubbleCycleTimer);
             this.petBubbleCycleTimer = null;
 
-            if (this.open || document.hidden) return;
+            if (!this.autoHelp || this.open || document.hidden) return;
+            const pageHelpKey = this.pageHelpStorageKey();
+            if (
+                !this.pageHelpHint
+                || !pageHelpKey
+                || safeStorage('sessionStorage')?.getItem(pageHelpKey) === '1'
+            ) return;
 
             const delay = initial ? PET_BUBBLE_INITIAL_DELAY_MS : PET_BUBBLE_CYCLE_MS;
             this.petBubbleCycleTimer = window.setTimeout(() => {
                 this.petBubbleCycleTimer = null;
-                if (this.open || document.hidden) return;
+                if (!this.autoHelp || this.open || document.hidden) return;
+                if (!this.assistantAvailable) return;
 
-                if (!this.assistantAvailable) {
-                    this.showPetBubble(this.strings.petUnavailable);
-                } else {
-                    const hints = this.petHints();
-                    if (hints.length) {
-                        this.showPetBubble(hints[this.petHintIndex % hints.length]);
-                        this.petHintIndex = (this.petHintIndex + 1) % hints.length;
-                    }
-                }
-
-                this.schedulePetBubble(false);
+                this.showPetBubble(this.nextProactivePetHint());
             }, delay);
+        },
+
+        stopProactivePetBubbles() {
+            window.clearTimeout(this.petBubbleCycleTimer);
+            this.petBubbleCycleTimer = null;
         },
 
         clearPetBubbleTimers() {
@@ -322,6 +375,34 @@ export function railtimeChatbot(config = {}) {
             return clamp(value, 0.5, 2, 1);
         },
 
+        toggleSettings() {
+            if (this.settingsOpen) {
+                this.closeSettings(true);
+                return;
+            }
+
+            this.settingsOpen = true;
+            this.$nextTick(() => {
+                const panel = this.$refs?.settingsPanel;
+                const focusTarget = panel?.querySelector?.(
+                    '[autofocus], button:not([disabled]), select:not([disabled]), input:not([disabled])',
+                );
+                focusTarget?.focus?.({ preventScroll: true });
+            });
+        },
+
+        closeSettings(restoreFocus = false) {
+            if (!this.settingsOpen) return;
+
+            this.settingsOpen = false;
+            if (!restoreFocus) return;
+
+            this.$nextTick(() => {
+                const trigger = this.$refs?.settingsTrigger ?? this.$refs?.settingsButton;
+                trigger?.focus?.({ preventScroll: true });
+            });
+        },
+
         syncDockLayout() {
             this.isDesktopDocked = this.dockMediaQuery
                 ? this.dockMediaQuery.matches
@@ -332,7 +413,9 @@ export function railtimeChatbot(config = {}) {
             const wasOpen = this.open;
             this.open = Boolean(value);
             if (!this.open) {
-                this.schedulePetBubble(false);
+                this.closeSettings(false);
+                this.abortSpeechInput();
+                if (this.autoHelp) this.schedulePetBubble(false);
                 if (wasOpen) this.$nextTick(() => this.$refs.launcher?.focus({ preventScroll: true }));
                 return;
             }
@@ -445,10 +528,102 @@ export function railtimeChatbot(config = {}) {
 
             if (!this.rememberAssistantKey(key)) return;
 
-            this.$nextTick(() => this.scrollMessages(false));
             if (!this.open) this.showPetBubble(this.strings.petReplyReady, PET_BUBBLE_VISIBLE_MS, true);
             if (this.autoRead && this.speechSupported) {
                 this.queueTtsSentence(text, key);
+            }
+            this.$nextTick(() => {
+                this.scrollMessages(false);
+                this.scheduleAutoListenAfterReply();
+            });
+        },
+
+        composerDraft() {
+            const value = this.$refs?.composer?.value ?? this.$wire?.message ?? '';
+
+            return String(value ?? '').trim();
+        },
+
+        cancelPendingAutoListen() {
+            this.autoListenGeneration += 1;
+            window.clearTimeout(this.autoListenTimer);
+            this.autoListenTimer = null;
+            this.autoListenChecking = false;
+        },
+
+        scheduleAutoListenAfterReply() {
+            this.cancelPendingAutoListen();
+            if (!this.autoListen) return;
+
+            const generation = this.autoListenGeneration;
+            const attempt = () => {
+                this.autoListenTimer = null;
+                if (generation !== this.autoListenGeneration || !this.autoListen) return;
+                if (!this.open || document.hidden) return;
+
+                this.voiceSupported = this.recordedVoiceSupported();
+                if (!this.voiceSupported || this.recording || this.voiceUploading) return;
+
+                if (this.isLoading || this.ttsActive()) {
+                    this.autoListenTimer = window.setTimeout(attempt, 120);
+                    return;
+                }
+                if (this.composerDraft()) return;
+
+                void this.toggleVoice();
+            };
+
+            this.autoListenTimer = window.setTimeout(attempt, 0);
+        },
+
+        async setAutoListen(value) {
+            const enabled = Boolean(value);
+            if (!enabled) {
+                this.cancelPendingAutoListen();
+                this.autoListen = false;
+                this.abortSpeechInput();
+                return false;
+            }
+            if (this.autoListen || this.autoListenChecking) return this.autoListen;
+
+            this.voiceSupported = this.recordedVoiceSupported();
+            if (!this.voiceSupported) {
+                this.autoListen = false;
+                this.audioError = this.sttEndpoint
+                    ? this.strings.recordingUnsupported
+                    : this.strings.speechEndpointUnavailable;
+                return false;
+            }
+
+            this.cancelPendingAutoListen();
+            const generation = this.autoListenGeneration;
+            this.autoListenChecking = true;
+            this.audioError = '';
+
+            try {
+                await acquireMicrophoneStream();
+                if (generation !== this.autoListenGeneration) {
+                    releaseMicrophoneStream();
+                    return false;
+                }
+
+                // The toggle only verifies consent/capability. Do not keep an
+                // invisible live track open before a visible recording starts.
+                releaseMicrophoneStream();
+                this.autoListen = true;
+
+                return true;
+            } catch (error) {
+                if (generation !== this.autoListenGeneration || error?.name === 'AbortError') return false;
+
+                releaseMicrophoneStream();
+                this.autoListen = false;
+                const blocked = error?.name === 'NotAllowedError' || error?.name === 'SecurityError';
+                this.audioError = `${this.strings.speechPrefix}: ${blocked ? this.strings.microphoneBlocked : this.strings.microphoneFailed}`;
+
+                return false;
+            } finally {
+                if (generation === this.autoListenGeneration) this.autoListenChecking = false;
             }
         },
 
@@ -766,7 +941,7 @@ export function railtimeChatbot(config = {}) {
                 return;
             }
 
-            if (this.voiceUploading || this.isLoading) return;
+            if (this.voiceUploading || this.isLoading || this.ttsActive()) return;
 
             this.voiceSupported = this.recordedVoiceSupported();
             if (!this.voiceSupported) {
@@ -954,6 +1129,7 @@ export function railtimeChatbot(config = {}) {
         },
 
         abortSpeechInput() {
+            this.cancelPendingAutoListen();
             this.cancelVoiceCapture();
             this.sttAbortController?.abort();
             this.sttAbortController = null;

@@ -209,20 +209,25 @@ php artisan railtime:livekit-check
 
 ### 8. RailTime Assist und gemeinsamer Sprachdienst
 
-Der seitenweite Livewire-Assistent steht allen aktiven, verifizierten
-Benutzern zur Verfügung. Er beantwortet Bedien- und Orientierungsfragen über
-das in **Administration → Einstellungen → OpenRouter** gepflegte Textmodell.
+Der seitenweite Livewire-Assistent steht aktiven, verifizierten Benutzern mit
+dem Teamrecht **Chatbot-Assistent verwenden** zur Verfügung. Zusätzlich lässt
+er sich unter **Administration → Einstellungen → System → Chatbot-Assistent**
+global deaktivieren. Auf der Chatseite sowie in den Admin- und persönlichen
+Profileinstellungen wird er bewusst nicht eingeblendet. Er beantwortet
+Bedien- und Orientierungsfragen über das in **Administration → Einstellungen →
+OpenRouter** gepflegte Textmodell.
 Der API-Key wird verschlüsselt gespeichert und ausschließlich serverseitig
 verwendet. Der Assistent erhält nur Sprache, Zielgruppe und benannten
 Seitenkontext, keine personenbezogenen oder aktuellen Betriebsdaten, und führt
 selbst keine Änderungen aus.
 
-Der Einstieg ist als kleines RailTime-Pet statt als gewöhnlicher Floating
-Button gestaltet. Das Pet öffnet per Klick denselben Livewire-Chat, zeigt kurze
+Der Einstieg ist ein kleines rotes, textfreies KI-Wesen statt eines gewöhnlichen
+Floating Buttons. Es öffnet per Klick denselben Livewire-Chat, zeigt kurze
 Sprechblasen und spiegelt Bereitschaft, Denken, Zuhören, Sprechen sowie den
-Offline-Zustand. Das responsive Panel behält Text-Streaming, Mikrofoneingabe,
-manuelles beziehungsweise automatisches Vorlesen und ein einstellbares
-Vorlesetempo in einer gemeinsamen Oberfläche.
+Offline-Zustand. Das Panel erscheint am Desktop unten rechts und mobil als
+Bottom-Sheet. Im Einstellungsmenü des Chats liegen automatisches Vorlesen,
+Vorlesetempo, automatisches Hören mit bestätigbarem Transkript und lokale,
+kostenfreie Seitenhinweise aus dem RailTime-Hilfekatalog.
 
 Eingaben und der begrenzte Gesprächskontext werden für die Antwort an
 OpenRouter übertragen. Vor der produktiven Aktivierung müssen daher die

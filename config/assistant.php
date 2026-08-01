@@ -7,6 +7,14 @@ return [
     'max_input_characters' => 4000,
     'max_context_characters' => 60000,
 
+    // Auf diesen Arbeitsflaechen konkurriert ein globales Chatfenster mit der
+    // primaeren Kommunikation bzw. mit sensiblen Einstellungsdialogen.
+    'excluded_routes' => [
+        'chat',
+        'admin.settings',
+        'profile.show',
+    ],
+
     'chat_limits' => [
         'user_per_minute' => (int) env('RAILTIME_ASSISTANT_USER_PER_MINUTE', 6),
         'user_per_hour' => (int) env('RAILTIME_ASSISTANT_USER_PER_HOUR', 30),

@@ -11,6 +11,8 @@
         ? $actionSource
         : ($actionSource instanceof \Traversable ? iterator_to_array($actionSource, false) : []);
     $isGerman = app()->getLocale() === 'de';
+    $resolvedPageRouteName = trim((string) ($pageRouteName ?? ''));
+    $resolvedPageHelpHint = trim((string) ($pageHelpHint ?? ''));
 
     $ttsEndpoint = \Illuminate\Support\Facades\Route::has('assistant.audio-output.stream')
         ? route('assistant.audio-output.stream', [], false)
@@ -41,7 +43,11 @@
         'ttsEndpoint' => $ttsEndpoint,
         'sttEndpoint' => $sttEndpoint,
         'csrfToken' => csrf_token(),
+        'pageRouteName' => $resolvedPageRouteName,
+        'pageHelpHint' => $resolvedPageHelpHint,
         'autoReadDefault' => false,
+        'autoListenDefault' => false,
+        'autoHelpDefault' => true,
         'speechRate' => 1,
         'initialAssistantKeys' => $initialAssistantKeys,
         'strings' => [
@@ -164,7 +170,7 @@
         x-bind:aria-modal="isDesktopDocked ? null : 'true'"
         aria-labelledby="railtime-chatbot-title"
         x-trap.inert.noscroll="open && !isDesktopDocked"
-        x-on:keydown.escape.window="if (open) setOpen(false)"
+        x-on:keydown.escape.window="if (settingsOpen) closeSettings(true); else if (open) setOpen(false)"
     >
         <header class="rt-chatbot__header">
             <div class="rt-chatbot__identity">
@@ -180,6 +186,135 @@
             </div>
 
             <div class="rt-chatbot__header-actions">
+                <div
+                    class="rt-chatbot__settings"
+                    x-on:click.outside="if (settingsOpen) closeSettings(false)"
+                >
+                    <button
+                        type="button"
+                        class="rt-chatbot__icon-button rt-chatbot__settings-trigger"
+                        x-ref="settingsTrigger"
+                        x-bind:aria-expanded="settingsOpen.toString()"
+                        x-on:click="toggleSettings()"
+                        aria-controls="railtime-chatbot-settings"
+                        aria-haspopup="dialog"
+                        title="{{ $isGerman ? 'Assistent einstellen' : 'Assistant settings' }}"
+                    >
+                        <span class="rt-chatbot__sr-only">{{ $isGerman ? 'Assistent einstellen' : 'Assistant settings' }}</span>
+                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M7 14v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                            <circle cx="14" cy="7" r="2" stroke="currentColor" stroke-width="1.8" />
+                            <circle cx="7" cy="17" r="2" stroke="currentColor" stroke-width="1.8" />
+                        </svg>
+                    </button>
+
+                    <div
+                        id="railtime-chatbot-settings"
+                        class="rt-chatbot__settings-popover"
+                        x-ref="settingsPanel"
+                        x-cloak
+                        x-show="settingsOpen"
+                        x-transition:enter="rt-chatbot__settings-enter"
+                        x-transition:enter-start="rt-chatbot__settings-enter-start"
+                        x-transition:enter-end="rt-chatbot__settings-enter-end"
+                        x-transition:leave="rt-chatbot__settings-leave"
+                        x-transition:leave-start="rt-chatbot__settings-enter-end"
+                        x-transition:leave-end="rt-chatbot__settings-enter-start"
+                        x-on:keydown.escape.stop.prevent="closeSettings(true)"
+                        role="dialog"
+                        aria-labelledby="railtime-chatbot-settings-title"
+                        tabindex="-1"
+                    >
+                        <div class="rt-chatbot__settings-heading">
+                            <div>
+                                <span class="rt-chatbot__settings-kicker">{{ $isGerman ? 'Persönlich auf diesem Gerät' : 'Personal on this device' }}</span>
+                                <h3 id="railtime-chatbot-settings-title">{{ $isGerman ? 'Assistenz-Einstellungen' : 'Assistant settings' }}</h3>
+                            </div>
+                            <button
+                                type="button"
+                                class="rt-chatbot__settings-close"
+                                x-on:click="closeSettings(true)"
+                                title="{{ $isGerman ? 'Einstellungen schließen' : 'Close settings' }}"
+                            >
+                                <span class="rt-chatbot__sr-only">{{ $isGerman ? 'Einstellungen schließen' : 'Close settings' }}</span>
+                                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                    <path d="m7 7 10 10M17 7 7 17" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div class="rt-chatbot__settings-list">
+                            <label class="rt-chatbot__setting-row">
+                                <span class="rt-chatbot__setting-copy">
+                                    <strong>{{ $isGerman ? 'Automatische Sprachausgabe' : 'Automatic voice output' }}</strong>
+                                    <small>{{ $isGerman ? 'Neue Antworten direkt vorlesen.' : 'Read new responses aloud.' }}</small>
+                                </span>
+                                <input
+                                    type="checkbox"
+                                    class="rt-chatbot__setting-input"
+                                    x-model="autoRead"
+                                    x-bind:disabled="!speechSupported"
+                                >
+                                <span class="rt-chatbot__setting-switch" aria-hidden="true"></span>
+                            </label>
+
+                            <label class="rt-chatbot__setting-row">
+                                <span class="rt-chatbot__setting-copy">
+                                    <strong>{{ $isGerman ? 'Automatisches Hören' : 'Automatic listening' }}</strong>
+                                    <small>{{ $isGerman ? 'Nach einer Antwort das Mikrofon vorbereiten.' : 'Prepare the microphone after a response.' }}</small>
+                                </span>
+                                <input
+                                    type="checkbox"
+                                    class="rt-chatbot__setting-input"
+                                    x-bind:checked="autoListen"
+                                    x-bind:disabled="!voiceSupported"
+                                    x-on:change="setAutoListen($event.target.checked)"
+                                >
+                                <span class="rt-chatbot__setting-switch" aria-hidden="true"></span>
+                            </label>
+
+                            <label class="rt-chatbot__setting-row">
+                                <span class="rt-chatbot__setting-copy">
+                                    <strong>{{ $isGerman ? 'Automatisches Helfen' : 'Automatic help' }}</strong>
+                                    <small>{{ $isGerman ? 'Einmal pro Seite einen passenden Hinweis zeigen.' : 'Show one useful hint per page.' }}</small>
+                                </span>
+                                <input
+                                    type="checkbox"
+                                    class="rt-chatbot__setting-input"
+                                    x-model="autoHelp"
+                                >
+                                <span class="rt-chatbot__setting-switch" aria-hidden="true"></span>
+                            </label>
+
+                            <label class="rt-chatbot__setting-select">
+                                <span>
+                                    <strong>{{ $isGerman ? 'Sprechtempo' : 'Reading speed' }}</strong>
+                                    <small>{{ $isGerman ? 'Tempo der Audioausgabe' : 'Voice output speed' }}</small>
+                                </span>
+                                <select
+                                    x-model.number="speechRate"
+                                    x-bind:disabled="!speechSupported"
+                                    aria-label="{{ $isGerman ? 'Sprechtempo auswählen' : 'Choose reading speed' }}"
+                                >
+                                    <option value="0.8">{{ $isGerman ? '0,8×' : '0.8×' }}</option>
+                                    <option value="1">1×</option>
+                                    <option value="1.2">{{ $isGerman ? '1,2×' : '1.2×' }}</option>
+                                    <option value="1.4">{{ $isGerman ? '1,4×' : '1.4×' }}</option>
+                                </select>
+                            </label>
+                        </div>
+
+                        <p class="rt-chatbot__settings-privacy">
+                            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                                <path d="M6.5 8V6a3.5 3.5 0 0 1 7 0v2M5 8h10v8H5V8Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            <span>{{ $isGerman
+                                ? 'Bitte keine persönlichen Daten, Betriebsgeheimnisse oder Zugangsdaten eingeben.'
+                                : 'Please do not enter personal data, business secrets, or credentials.' }}</span>
+                        </p>
+                    </div>
+                </div>
+
                 <button
                     type="button"
                     class="rt-chatbot__icon-button"
@@ -236,37 +371,6 @@
                 </span>
             </p>
 
-            @if ($speechIsAvailable)
-                <div class="rt-chatbot__voice-controls" x-show="speechSupported">
-                    <button
-                        type="button"
-                        class="rt-chatbot__auto-read"
-                        x-bind:aria-pressed="autoRead.toString()"
-                        x-bind:title="autoRead
-                            ? @js($isGerman ? 'Automatisches Vorlesen ausschalten' : 'Disable automatic reading')
-                            : @js($isGerman ? 'Antworten automatisch vorlesen' : 'Read responses automatically')"
-                        x-on:click="autoRead = !autoRead"
-                    >
-                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                            <path d="M5 9.5v5h3.5l4.25 3.5V6L8.5 9.5H5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
-                            <path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                        </svg>
-                        <span x-text="autoRead
-                            ? @js($isGerman ? 'Auto-Audio an' : 'Auto audio on')
-                            : @js($isGerman ? 'Auto-Audio aus' : 'Auto audio off')"></span>
-                    </button>
-
-                    <label class="rt-chatbot__speech-rate">
-                        <span>{{ $isGerman ? 'Tempo' : 'Speed' }}</span>
-                        <select x-model.number="speechRate" aria-label="{{ $isGerman ? 'Vorlesetempo' : 'Reading speed' }}">
-                            <option value="0.8">{{ $isGerman ? '0,8×' : '0.8×' }}</option>
-                            <option value="1">1×</option>
-                            <option value="1.2">{{ $isGerman ? '1,2×' : '1.2×' }}</option>
-                            <option value="1.4">{{ $isGerman ? '1,4×' : '1.4×' }}</option>
-                        </select>
-                    </label>
-                </div>
-            @endif
         </div>
 
         <div class="rt-chatbot__body">
@@ -497,21 +601,6 @@
                     @enderror
                 @endif
 
-                <div class="rt-chatbot__composer-meta" aria-live="polite">
-                    <span>
-                        {{ $isGerman ? 'Enter sendet · Shift + Enter fügt eine Zeile ein' : 'Enter sends · Shift + Enter adds a line' }}
-                    </span>
-                </div>
-                <p class="rt-chatbot__privacy">
-                    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                        <path d="M6.5 8V6a3.5 3.5 0 0 1 7 0v2M5 8h10v8H5V8Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-                    </svg>
-                    <span>
-                        {{ $isGerman
-                            ? 'Keine personenbezogenen Daten, Betriebsgeheimnisse oder Zugangsdaten eingeben. Die Unterhaltung wird zur Antwort über OpenRouter verarbeitet.'
-                            : 'Do not enter personal data, business secrets, or credentials. The conversation is processed through OpenRouter to generate the answer.' }}
-                    </span>
-                </p>
             </form>
         </div>
     </section>

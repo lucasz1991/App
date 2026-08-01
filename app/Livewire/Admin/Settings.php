@@ -3,6 +3,7 @@
 namespace App\Livewire\Admin;
 
 use App\Models\Setting;
+use App\Support\Ai\AssistantSettings;
 use App\Support\Ai\OpenRouterSettings;
 use App\Support\Calls\CallSettings;
 use App\Support\CompanyData;
@@ -16,6 +17,9 @@ class Settings extends Component
 {
     /** Wartungsmodus: nur Admins koennen die App nutzen, alle anderen sehen die Wartungsseite. */
     public bool $maintenanceMode = false;
+
+    /** Systemweite Freigabe fuer RailTime Assist. */
+    public bool $assistantEnabled = true;
 
     /** Empfaengeradresse fuer Systemnachrichten / Testmails aus der Mailverwaltung. */
     public string $adminEmail = '';
@@ -56,6 +60,7 @@ class Settings extends Component
     public function loadSettings(): void
     {
         $this->maintenanceMode = (bool) (Setting::getValueUncached('system', 'maintenance_mode') ?? false);
+        $this->assistantEnabled = AssistantSettings::enabled(uncached: true);
         $this->adminEmail = (string) (Setting::getValueUncached('mails', 'admin_email') ?? '');
 
         $days = (int) (Setting::getValueUncached('invitations', 'expiry_days') ?? 7);
@@ -181,6 +186,20 @@ class Settings extends Component
     public function updatedMaintenanceMode(): void
     {
         $this->saveSystem();
+    }
+
+    public function saveAssistant(): void
+    {
+        Gate::authorize('settings.manage');
+
+        AssistantSettings::setEnabled($this->assistantEnabled);
+
+        $this->dispatch('assistant-settings-saved', fields: ['assistantEnabled']);
+    }
+
+    public function updatedAssistantEnabled(): void
+    {
+        $this->saveAssistant();
     }
 
     public function saveInvitations(): void
