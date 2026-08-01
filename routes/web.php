@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Assistant\AssistantAudioInputTranscriptionController;
 use App\Http\Controllers\Assistant\AssistantAudioOutputStreamController;
+use App\Http\Controllers\Assistant\AssistantSpeechStatusController;
 use App\Http\Controllers\Auth\InvitedRegistrationController;
 use App\Http\Controllers\Calls\CallRingAckController;
 use App\Http\Controllers\Calls\CallTokenController;
@@ -107,6 +108,8 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
     Route::post('/assistant/audio-output/stream', AssistantAudioOutputStreamController::class)
         ->middleware(EnsureAssistantAccess::class.':assistant-tts')
         ->name('assistant.audio-output.stream');
+    Route::get('/assistant/speech/status', AssistantSpeechStatusController::class)
+        ->name('assistant.speech.status');
     Route::get('/dashboard', UserDashboard::class)->name('dashboard');
     Route::get('/employees', Employees::class)->name('employees.index');
     Route::get('/employees/{userId}', UserProfile::class)->name('employees.show');

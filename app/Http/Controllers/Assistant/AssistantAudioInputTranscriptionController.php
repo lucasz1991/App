@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Assistant;
 
 use App\Http\Controllers\Controller;
-use App\Services\Ai\SpeechServiceClient;
-use App\Services\Ai\SpeechServiceException;
+use App\Services\Ai\AssistantSpeechException;
+use App\Services\Ai\AssistantSpeechRouter;
 use App\Support\Ai\AssistantAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,7 +13,7 @@ use Illuminate\Support\Str;
 
 class AssistantAudioInputTranscriptionController extends Controller
 {
-    public function __invoke(Request $request, SpeechServiceClient $speech): JsonResponse
+    public function __invoke(Request $request, AssistantSpeechRouter $speech): JsonResponse
     {
         app(AssistantAccess::class)->authorize($request->user());
 
@@ -35,14 +35,19 @@ class AssistantAudioInputTranscriptionController extends Controller
             ])->withHeaders([
                 'Cache-Control' => 'no-store, private',
                 'X-Content-Type-Options' => 'nosniff',
+                'X-Request-ID' => $result['request_id'] ?? '',
+                'X-Speech-Provider' => $result['provider'],
+                'X-Speech-Fallback' => $result['fallback'] ? 'true' : 'false',
             ]);
-        } catch (SpeechServiceException $exception) {
+        } catch (AssistantSpeechException $exception) {
             $requestId = $exception->requestId ?: (string) Str::uuid();
 
             Log::warning('RailTime assistant transcription failed.', [
                 'request_id' => $requestId,
                 'reason_code' => $exception->reasonCode,
                 'upstream_status' => $exception->upstreamStatus,
+                'provider' => $exception->provider,
+                'fallback_attempted' => $exception->fallbackAttempted,
             ]);
 
             return response()->json([

@@ -187,6 +187,7 @@ export function railtimeChatbot(config = {}) {
         attachmentCount: Math.max(0, Number(config.attachmentCount) || 0),
         composerHasText: false,
         attachmentSyncTimer: null,
+        attachmentObserver: null,
 
         messagesPinned: true,
         messageObserver: null,
@@ -240,7 +241,7 @@ export function railtimeChatbot(config = {}) {
                 this.abortSpeechInput();
                 this.stopSpeaking();
                 this.cancelSpeechStatusRefresh(true);
-                this.clearAttachmentUploadState();
+                this.discardPendingAttachments();
             };
             this._visibilityHandler = () => {
                 if (document.hidden) {
@@ -320,6 +321,7 @@ export function railtimeChatbot(config = {}) {
             this.$nextTick(() => {
                 this.observeMessages();
                 this.scrollMessages(false, true);
+                this.observeAttachments();
                 this.syncAttachmentCount();
                 this.updateComposerState();
             });
@@ -349,11 +351,14 @@ export function railtimeChatbot(config = {}) {
 
             this.messageObserver?.disconnect();
             this.messageObserver = null;
+            this.attachmentObserver?.disconnect();
+            this.attachmentObserver = null;
             window.cancelAnimationFrame(this.scrollFrame);
             this.scrollFrame = null;
             this.abortSpeechInput();
             this.stopSpeaking();
             this.cancelSpeechStatusRefresh(true);
+            this.cancelWireAttachmentUpload();
             this.clearAttachmentUploadState();
             this.clearPetBubbleTimers();
             this.settingsOpen = false;
@@ -1590,12 +1595,37 @@ export function railtimeChatbot(config = {}) {
             return this.attachmentCount;
         },
 
+        observeAttachments() {
+            this.attachmentObserver?.disconnect();
+            this.attachmentObserver = null;
+
+            if (!this.$refs?.attachmentList || typeof MutationObserver === 'undefined') return;
+
+            this.attachmentObserver = new MutationObserver(() => this.syncAttachmentCount());
+            this.attachmentObserver.observe(this.$refs.attachmentList, {
+                childList: true,
+                subtree: true,
+            });
+        },
+
         markAttachmentRemoval() {
             this.attachmentUploadError = '';
             this.attachmentCount = Math.max(0, this.attachmentCount - 1);
         },
 
         resetAttachmentUi() {
+            this.attachmentCount = 0;
+            this.clearAttachmentUploadState();
+        },
+
+        cancelWireAttachmentUpload() {
+            if (!this.attachmentUploadActive) return;
+            this.$wire?.cancelUpload?.('attachments');
+        },
+
+        discardPendingAttachments() {
+            this.cancelWireAttachmentUpload();
+            if (this.attachmentCount > 0) this.$wire?.discardAttachments?.();
             this.attachmentCount = 0;
             this.clearAttachmentUploadState();
         },

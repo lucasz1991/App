@@ -13,6 +13,10 @@
     $isGerman = app()->getLocale() === 'de';
     $resolvedPageRouteName = trim((string) ($pageRouteName ?? ''));
     $resolvedPageHelpHint = trim((string) ($pageHelpHint ?? ''));
+    $pendingAttachmentSource = $attachments ?? [];
+    $pendingAttachments = is_array($pendingAttachmentSource)
+        ? $pendingAttachmentSource
+        : ($pendingAttachmentSource instanceof \Traversable ? iterator_to_array($pendingAttachmentSource, false) : []);
 
     $ttsEndpoint = \Illuminate\Support\Facades\Route::has('assistant.audio-output.stream')
         ? route('assistant.audio-output.stream', [], false)
@@ -20,6 +24,14 @@
     $sttEndpoint = \Illuminate\Support\Facades\Route::has('assistant.audio-input.transcribe')
         ? route('assistant.audio-input.transcribe', [], false)
         : '';
+    $speechStatusEndpoint = \Illuminate\Support\Facades\Route::has('assistant.speech.status')
+        ? route('assistant.speech.status', [], false)
+        : '';
+    $resolvedSttConfigured = (bool) ($sttConfigured ?? ($speechIsAvailable && $sttEndpoint !== ''));
+    $resolvedTtsConfigured = (bool) ($ttsConfigured ?? ($speechIsAvailable && $ttsEndpoint !== ''));
+    $resolvedSpeechRoutingLabel = trim((string) ($speechRoutingLabel
+        ?? ($isGerman ? 'Lokaler Dienst mit externem Fallback' : 'Local service with external fallback')));
+    $resolvedExternalFallback = (bool) ($externalFallback ?? false);
 
     $initialAssistantKeys = [];
     foreach ($history as $historyEntry) {
@@ -40,6 +52,11 @@
     $chatbotConfig = [
         'assistantAvailable' => $assistantIsAvailable,
         'speechAvailable' => $speechIsAvailable,
+        'speechStatusEndpoint' => $speechStatusEndpoint,
+        'sttConfigured' => $resolvedSttConfigured,
+        'ttsConfigured' => $resolvedTtsConfigured,
+        'speechRoutingLabel' => $resolvedSpeechRoutingLabel,
+        'externalFallback' => $resolvedExternalFallback,
         'ttsEndpoint' => $ttsEndpoint,
         'sttEndpoint' => $sttEndpoint,
         'csrfToken' => csrf_token(),
@@ -49,6 +66,7 @@
         'autoListenDefault' => false,
         'autoHelpDefault' => true,
         'speechRate' => 1,
+        'attachmentCount' => count($pendingAttachments),
         'initialAssistantKeys' => $initialAssistantKeys,
         'strings' => [
             'audioEndpointUnavailable' => $isGerman
@@ -77,6 +95,27 @@
                 ? 'Es wurde kein gesprochener Text erkannt.'
                 : 'No spoken text was detected.',
             'speechPrefix' => $isGerman ? 'Spracheingabe' : 'Speech input',
+            'speechChecking' => $isGerman ? 'Sprachdienst wird geprüft …' : 'Checking speech service …',
+            'speechReady' => $isGerman ? 'Text und Sprache sind bereit.' : 'Text and speech are ready.',
+            'speechPartiallyReady' => $isGerman
+                ? 'Der Sprachdienst ist teilweise verfügbar.'
+                : 'The speech service is partially available.',
+            'speechOffline' => $isGerman
+                ? 'Text ist bereit, Sprache momentan nicht.'
+                : 'Text is ready, but speech is currently unavailable.',
+            'speechDisabled' => $isGerman
+                ? 'Sprachfunktionen sind nicht eingerichtet.'
+                : 'Speech features are not configured.',
+            'localSpeechProvider' => $isGerman ? 'Lokaler Sprachdienst' : 'Local speech service',
+            'attachmentUploadFailed' => $isGerman
+                ? 'Die Datei konnte nicht hochgeladen werden.'
+                : 'The file could not be uploaded.',
+            'attachmentUploadCancelled' => $isGerman
+                ? 'Der Datei-Upload wurde abgebrochen.'
+                : 'The file upload was cancelled.',
+            'attachmentTooMany' => $isGerman
+                ? 'Es können maximal drei Dateien angehängt werden.'
+                : 'You can attach up to three files.',
             'petGreeting' => $isGerman
                 ? 'Hi, ich bin dein RailTime-Begleiter.'
                 : 'Hi, I am your RailTime companion.',
@@ -104,7 +143,7 @@
         isLoading: $wire.entangle('isLoading')
     })"
     x-on:railtime-assistant-reply.window="handleAssistantReply($event.detail)"
-    x-on:railtime-assistant-cleared.window="stopSpeaking(); knownAssistantMessageKeys = []; $nextTick(() => scrollMessages(true))"
+    x-on:railtime-assistant-cleared.window="stopSpeaking(); resetAttachmentUi(); knownAssistantMessageKeys = []; $nextTick(() => { updateComposerState(); scrollMessages(true) })"
 >
     <button
         type="button"
@@ -280,6 +319,33 @@
                             </button>
                         </div>
 
+                        <div
+                            class="rt-chatbot__speech-card"
+                            x-bind:data-tone="speechStatusTone()"
+                            role="status"
+                            aria-live="polite"
+                        >
+                            <div class="rt-chatbot__speech-card-heading">
+                                <span class="rt-chatbot__speech-card-dot" aria-hidden="true"></span>
+                                <span x-text="speechStatusText()"></span>
+                            </div>
+                            <p>
+                                <span>{{ $resolvedSpeechRoutingLabel }}</span>
+                                <span x-cloak x-show="speechProviderName()" x-text="speechProviderName()"></span>
+                            </p>
+                            <div class="rt-chatbot__speech-capabilities" aria-label="{{ $isGerman ? 'Verfügbare Sprachfunktionen' : 'Available speech features' }}">
+                                <span x-bind:data-ready="sttReady.toString()">
+                                    {{ $isGerman ? 'Diktieren' : 'Dictation' }}
+                                </span>
+                                <span x-bind:data-ready="ttsReady.toString()">
+                                    {{ $isGerman ? 'Vorlesen' : 'Read aloud' }}
+                                </span>
+                                <span x-cloak x-show="speechFallbackActive" data-fallback="true">
+                                    {{ $isGerman ? 'Fallback aktiv' : 'Fallback active' }}
+                                </span>
+                            </div>
+                        </div>
+
                         <div class="rt-chatbot__settings-list">
                             <label class="rt-chatbot__setting-row">
                                 <span class="rt-chatbot__setting-copy">
@@ -345,9 +411,16 @@
                             <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
                                 <path d="M6.5 8V6a3.5 3.5 0 0 1 7 0v2M5 8h10v8H5V8Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
                             </svg>
-                            <span>{{ $isGerman
-                                ? 'Bitte keine persönlichen Daten, Betriebsgeheimnisse oder Zugangsdaten eingeben.'
-                                : 'Please do not enter personal data, business secrets, or credentials.' }}</span>
+                            <span>
+                                <span>{{ $isGerman
+                                    ? 'Bitte keine persönlichen Daten, Betriebsgeheimnisse oder Zugangsdaten eingeben.'
+                                    : 'Please do not enter personal data, business secrets, or credentials.' }}</span>
+                                <span x-cloak x-show="externalFallback">
+                                    {{ $isGerman
+                                        ? ' Bei aktiviertem Fallback können Sprache, Vorlesetext und angehängte Dateien an OpenRouter übertragen werden.'
+                                        : ' When fallback is enabled, speech, read-aloud text, and attached files may be sent to OpenRouter.' }}
+                                </span>
+                            </span>
                         </p>
                     </div>
                 </div>
@@ -397,15 +470,12 @@
             <p class="rt-chatbot__status">
                 <span
                     class="rt-chatbot__status-dot {{ $assistantIsAvailable ? '' : 'rt-chatbot__status-dot--offline' }}"
+                    x-bind:data-tone="assistantAvailable ? speechStatusTone() : 'offline'"
                     aria-hidden="true"
                 ></span>
-                <span>
-                    {{ $assistantIsAvailable
-                        ? ($speechIsAvailable
-                            ? ($isGerman ? 'Bereit für Text und Sprache' : 'Ready for text and voice')
-                            : ($isGerman ? 'Bereit für deine Frage' : 'Ready for your question'))
-                        : ($isGerman ? 'Momentan nicht verfügbar' : 'Currently unavailable') }}
-                </span>
+                <span x-text="assistantAvailable
+                    ? speechStatusText()
+                    : @js($isGerman ? 'Momentan nicht verfügbar' : 'Currently unavailable')"></span>
             </p>
 
         </div>
@@ -429,6 +499,10 @@
                         $entryKey = $entryKey !== '' ? $entryKey : 'fallback:' . sha1($createdAtKey . '|' . $content);
                         $messageKey = $role . ':' . $entryKey;
                         $wireMessageKey = sha1($messageKey);
+                        $entryAttachmentSource = $entry['attachments'] ?? [];
+                        $messageAttachments = is_array($entryAttachmentSource)
+                            ? $entryAttachmentSource
+                            : ($entryAttachmentSource instanceof \Traversable ? iterator_to_array($entryAttachmentSource, false) : []);
                         $displayTime = '';
                         if ($createdAt instanceof \DateTimeInterface) {
                             $displayTime = $createdAt->format('H:i');
@@ -448,16 +522,43 @@
                         @endif
                         <article class="rt-chatbot__message">
                             <p class="rt-chatbot__message-content">{{ $content }}</p>
+                            @if (count($messageAttachments) > 0)
+                                <ul
+                                    class="rt-chatbot__message-attachments"
+                                    aria-label="{{ $isGerman ? 'Anhänge dieser Nachricht' : 'Attachments in this message' }}"
+                                >
+                                    @foreach ($messageAttachments as $messageAttachment)
+                                        @php
+                                            $attachmentMeta = is_array($messageAttachment) ? $messageAttachment : (array) $messageAttachment;
+                                            $attachmentName = trim((string) ($attachmentMeta['name'] ?? ''));
+                                            $attachmentSize = max(0, (int) ($attachmentMeta['size'] ?? 0));
+                                            $attachmentSizeLabel = $attachmentSize >= 1048576
+                                                ? number_format($attachmentSize / 1048576, 1, $isGerman ? ',' : '.', '') . ' MB'
+                                                : number_format(max(1, $attachmentSize) / 1024, 0, $isGerman ? ',' : '.', '') . ' KB';
+                                        @endphp
+                                        @continue($attachmentName === '')
+                                        <li wire:key="railtime-chatbot-message-attachment-{{ sha1($messageKey . '|' . $attachmentName . '|' . $loop->index) }}">
+                                            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                                                <path d="M6.5 2.75h5L15 6.25v10.5H6.5V2.75Z" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round" />
+                                                <path d="M11.5 2.75v3.5H15" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round" />
+                                            </svg>
+                                            <span title="{{ $attachmentName }}">{{ $attachmentName }}</span>
+                                            <small>{{ $attachmentSizeLabel }}</small>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            @endif
                             <footer class="rt-chatbot__message-meta">
                                 <span class="rt-chatbot__message-author">
                                     {{ $role === 'assistant' ? $assistantLabel : ($isGerman ? 'Du' : 'You') }}
                                 </span>
                                 <span class="rt-chatbot__message-meta-actions">
-                                    @if ($role === 'assistant' && $speechIsAvailable)
+                                    @if ($role === 'assistant' && $resolvedTtsConfigured)
                                         <button
                                             type="button"
                                             class="rt-chatbot__message-play"
                                             x-show="speechSupported"
+                                            x-bind:disabled="!manualTtsAvailable()"
                                             x-bind:aria-pressed="(speaking && speakingKey === @js($messageKey)).toString()"
                                             x-on:click="speaking && speakingKey === @js($messageKey)
                                                 ? stopSpeaking()
@@ -562,7 +663,75 @@
                 </div>
             </template>
 
+            <template x-if="attachmentUploadError">
+                <div class="rt-chatbot__error" role="alert">
+                    <span aria-hidden="true">!</span>
+                    <span x-text="attachmentUploadError"></span>
+                </div>
+            </template>
+
             <form class="rt-chatbot__composer" wire:submit.prevent="sendMessage">
+                <div
+                    class="rt-chatbot__attachments"
+                    x-ref="attachmentList"
+                    aria-live="polite"
+                    aria-label="{{ $isGerman ? 'Ausgewählte Anhänge' : 'Selected attachments' }}"
+                >
+                    @foreach ($pendingAttachments as $attachmentIndex => $pendingAttachment)
+                        @php
+                            $pendingAttachmentName = method_exists($pendingAttachment, 'getClientOriginalName')
+                                ? trim((string) $pendingAttachment->getClientOriginalName())
+                                : '';
+                            $pendingAttachmentSize = method_exists($pendingAttachment, 'getSize')
+                                ? max(0, (int) $pendingAttachment->getSize())
+                                : 0;
+                            $pendingAttachmentSizeLabel = $pendingAttachmentSize >= 1048576
+                                ? number_format($pendingAttachmentSize / 1048576, 1, $isGerman ? ',' : '.', '') . ' MB'
+                                : number_format(max(1024, $pendingAttachmentSize) / 1024, 0, $isGerman ? ',' : '.', '') . ' KB';
+                        @endphp
+                        @continue($pendingAttachmentName === '')
+                        <span
+                            class="rt-chatbot__attachment-chip"
+                            data-chatbot-attachment-chip
+                            wire:key="railtime-chatbot-pending-attachment-{{ sha1($pendingAttachmentName . '|' . $pendingAttachmentSize . '|' . $attachmentIndex) }}"
+                        >
+                            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                                <path d="M7.5 10.75 11.9 6.3a2.2 2.2 0 1 1 3.1 3.12l-6.1 6.12a3.45 3.45 0 0 1-4.88-4.88l6.3-6.32" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            <span class="rt-chatbot__attachment-chip-copy">
+                                <strong title="{{ $pendingAttachmentName }}">{{ $pendingAttachmentName }}</strong>
+                                <small>{{ $pendingAttachmentSizeLabel }}</small>
+                            </span>
+                            <button
+                                type="button"
+                                wire:click="removeAttachment({{ (int) $attachmentIndex }})"
+                                wire:loading.attr="disabled"
+                                wire:target="removeAttachment({{ (int) $attachmentIndex }})"
+                                x-on:click="markAttachmentRemoval()"
+                                aria-label="{{ $isGerman ? 'Anhang entfernen: ' : 'Remove attachment: ' }}{{ $pendingAttachmentName }}"
+                            >
+                                <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                                    <path d="m6 6 8 8M14 6l-8 8" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" />
+                                </svg>
+                            </button>
+                        </span>
+                    @endforeach
+                </div>
+
+                <div
+                    class="rt-chatbot__upload-progress"
+                    x-cloak
+                    x-show="attachmentUploadActive"
+                    role="progressbar"
+                    aria-valuemin="0"
+                    aria-valuemax="100"
+                    x-bind:aria-valuenow="Math.round(attachmentUploadProgress)"
+                    aria-label="{{ $isGerman ? 'Dateien werden hochgeladen' : 'Uploading files' }}"
+                >
+                    <span style="--rt-chatbot-upload-progress: 0%" x-bind:style="`--rt-chatbot-upload-progress: ${attachmentUploadProgress}%`"></span>
+                    <small x-text="`${Math.round(attachmentUploadProgress)} %`"></small>
+                </div>
+
                 <div class="rt-chatbot__composer-heading">
                     <span>{{ $isGerman ? 'Deine Nachricht' : 'Your message' }}</span>
                     <span x-cloak x-show="!recording && !voiceUploading && voiceSupported">
@@ -582,13 +751,43 @@
                     class="rt-chatbot__composer-shell"
                     x-bind:class="{ 'rt-chatbot__composer-shell--recording': recording }"
                 >
-                    @if ($speechIsAvailable)
+                    <input
+                        id="railtime-chatbot-attachments"
+                        class="rt-chatbot__sr-only"
+                        type="file"
+                        multiple
+                        accept=".txt,.md,.csv,.json,.pdf,.jpg,.jpeg,.png,.webp,.docx,.xlsx,.pptx,text/plain,text/markdown,text/csv,application/json,application/pdf,image/jpeg,image/png,image/webp,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                        tabindex="-1"
+                        x-ref="attachmentInput"
+                        wire:model="attachments"
+                        x-on:change="handleAttachmentSelection($event)"
+                        x-on:livewire-upload-start="beginAttachmentUpload()"
+                        x-on:livewire-upload-progress="updateAttachmentUpload($event.detail)"
+                        x-on:livewire-upload-finish="completeAttachmentUpload()"
+                        x-on:livewire-upload-error="failAttachmentUpload()"
+                        x-on:livewire-upload-cancel="cancelAttachmentUpload()"
+                        x-bind:disabled="isLoading || attachmentUploadActive || attachmentCount >= 3 || !assistantAvailable"
+                    >
+                    <button
+                        type="button"
+                        class="rt-chatbot__attach"
+                        x-on:click="$refs.attachmentInput?.click()"
+                        x-bind:disabled="isLoading || attachmentUploadActive || attachmentCount >= 3 || !assistantAvailable"
+                        title="{{ $isGerman ? 'Dateien anhängen' : 'Attach files' }}"
+                    >
+                        <span class="rt-chatbot__sr-only">{{ $isGerman ? 'Dateien anhängen' : 'Attach files' }}</span>
+                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="m8.25 12.75 6.15-6.16a3.25 3.25 0 0 1 4.6 4.6l-8.12 8.12a5 5 0 0 1-7.07-7.07l8.4-8.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                    </button>
+
+                    @if ($resolvedSttConfigured)
                         <button
                             type="button"
                             class="rt-chatbot__voice"
                             x-bind:class="{ 'rt-chatbot__voice--recording': recording }"
                             x-bind:aria-pressed="recording.toString()"
-                            x-bind:disabled="!voiceSupported || voiceUploading || isLoading"
+                            x-bind:disabled="!manualVoiceAvailable() || voiceUploading || isLoading"
                             wire:loading.attr="disabled"
                             wire:target="sendMessage,quickAction"
                             x-on:click="toggleVoice()"
@@ -609,8 +808,8 @@
                         maxlength="4000"
                         x-ref="composer"
                         wire:model="message"
-                        x-on:input="resizeComposer()"
-                        x-on:keydown.enter.exact.prevent="if (!$event.isComposing && $el.value.trim() && !isLoading) $wire.sendMessage()"
+                        x-on:input="resizeComposer(); updateComposerState()"
+                        x-on:keydown.enter.exact.prevent="handleComposerEnter($event)"
                         wire:loading.attr="disabled"
                         wire:target="sendMessage,quickAction"
                         placeholder="{{ $isGerman ? 'Frag mich etwas zu RailTime …' : 'Ask me anything about RailTime …' }}"
@@ -622,7 +821,7 @@
                         type="submit"
                         class="rt-chatbot__send"
                         wire:loading.attr="disabled"
-                        x-bind:disabled="isLoading || !assistantAvailable"
+                        x-bind:disabled="!canSubmit()"
                         title="{{ $isGerman ? 'Nachricht senden' : 'Send message' }}"
                     >
                         <span class="rt-chatbot__sr-only">{{ $isGerman ? 'Nachricht senden' : 'Send message' }}</span>
@@ -634,6 +833,12 @@
 
                 @if (isset($errors))
                     @error('message')
+                        <p class="rt-chatbot__validation" role="alert">{{ $message }}</p>
+                    @enderror
+                    @error('attachments')
+                        <p class="rt-chatbot__validation" role="alert">{{ $message }}</p>
+                    @enderror
+                    @error('attachments.*')
                         <p class="rt-chatbot__validation" role="alert">{{ $message }}</p>
                     @enderror
                 @endif

@@ -223,7 +223,7 @@ class Settings extends Component
             'assistantSpeechRouting' => [
                 'required',
                 'string',
-                Rule::in(array_keys(AssistantSpeechSettings::modes())),
+                Rule::in(AssistantSpeechSettings::modes()),
             ],
         ]);
 

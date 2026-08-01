@@ -20,9 +20,14 @@ class OpenRouterChatClient
 
     public function isConfigured(): bool
     {
+        return $this->isConfiguredFor(OpenRouterModelProfile::Text);
+    }
+
+    public function isConfiguredFor(OpenRouterModelProfile $profile): bool
+    {
         $settings = OpenRouterSettings::all();
 
-        if (trim((string) $settings['api_key']) === '' || trim((string) $settings['text_model']) === '') {
+        if (trim((string) $settings['api_key']) === '' || $this->modelFor($settings, $profile) === '') {
             return false;
         }
 
@@ -86,6 +91,73 @@ class OpenRouterChatClient
             : $this->consumeJsonResponse($response, $onDelta);
     }
 
+    /**
+     * Non-streaming completion for locally extracted documents and multimodal
+     * message content. The existing stream() contract remains unchanged.
+     *
+     * @param  array<int, array<string, mixed>>  $messages
+     * @param  array<int, array<string, mixed>>  $plugins
+     */
+    public function complete(
+        array $messages,
+        OpenRouterModelProfile $profile,
+        array $plugins = [],
+    ): OpenRouterChatResponse {
+        $settings = OpenRouterSettings::all(uncached: true);
+        $endpoint = $this->validatedEndpoint((string) ($settings['api_url'] ?? ''));
+        $apiKey = trim((string) ($settings['api_key'] ?? ''));
+        $model = $this->modelFor($settings, $profile);
+
+        if ($apiKey === '' || $model === '') {
+            throw new OpenRouterChatException('not_configured');
+        }
+
+        $payload = [
+            'model' => $model,
+            'messages' => $messages,
+            'temperature' => (float) $settings['temperature'],
+            'max_completion_tokens' => min(
+                (int) $settings['max_completion_tokens'],
+                max(1, (int) config('assistant.openrouter.max_completion_tokens', 4000)),
+            ),
+            'stream' => false,
+        ];
+
+        if ($plugins !== []) {
+            $payload['plugins'] = $plugins;
+        }
+
+        try {
+            $response = $this->http->request('POST', $endpoint, [
+                'allow_redirects' => false,
+                'connect_timeout' => min(10.0, (float) $settings['timeout']),
+                'timeout' => (float) $settings['timeout'],
+                'headers' => $this->headers($settings, $apiKey, false),
+                'json' => $payload,
+                'http_errors' => false,
+            ]);
+        } catch (GuzzleException $exception) {
+            throw new OpenRouterChatException('transport_error', previous: $exception);
+        }
+
+        $status = $response->getStatusCode();
+        if ($status < 200 || $status >= 300) {
+            throw new OpenRouterChatException('upstream_http_error', $status);
+        }
+
+        $payload = $this->decodeJsonResponse($response);
+        $content = $payload['choices'][0]['message']['content'] ?? null;
+
+        if (! is_string($content) || trim($content) === '') {
+            throw new OpenRouterChatException(isset($payload['error']) ? 'upstream_payload_error' : 'empty_response');
+        }
+
+        return new OpenRouterChatResponse(
+            trim($content),
+            $this->fileAnnotations($payload['choices'][0]['message']['annotations'] ?? []),
+        );
+    }
+
     /** @param array<string, mixed> $settings */
     private function headers(array $settings, string $apiKey, bool $stream): array
     {
@@ -135,11 +207,7 @@ class OpenRouterChatClient
     /** @param callable(string): void $onDelta */
     private function consumeJsonResponse(ResponseInterface $response, callable $onDelta): string
     {
-        try {
-            $payload = json_decode((string) $response->getBody(), true, 512, JSON_THROW_ON_ERROR);
-        } catch (Throwable $exception) {
-            throw new OpenRouterChatException('invalid_json', previous: $exception);
-        }
+        $payload = $this->decodeJsonResponse($response);
 
         $content = $payload['choices'][0]['message']['content'] ?? null;
 
@@ -150,6 +218,107 @@ class OpenRouterChatClient
         $onDelta($content);
 
         return $content;
+    }
+
+    /** @param array<string, mixed> $settings */
+    private function modelFor(array $settings, OpenRouterModelProfile $profile): string
+    {
+        return match ($profile) {
+            OpenRouterModelProfile::Text => trim((string) ($settings['text_model'] ?? '')),
+            OpenRouterModelProfile::Data => trim((string) ($settings['data_model'] ?? ''))
+                ?: trim((string) ($settings['text_model'] ?? '')),
+            OpenRouterModelProfile::ImageUnderstanding => trim((string) ($settings['image_understanding_model'] ?? '')),
+        };
+    }
+
+    /** @return array<string, mixed> */
+    private function decodeJsonResponse(ResponseInterface $response): array
+    {
+        $maxBytes = max(1024, (int) config('assistant.openrouter.max_response_bytes', 8 * 1024 * 1024));
+        $declaredLength = (int) $response->getHeaderLine('Content-Length');
+
+        if ($declaredLength > $maxBytes) {
+            throw new OpenRouterChatException('response_too_large');
+        }
+
+        $body = (string) $response->getBody();
+        if (strlen($body) > $maxBytes) {
+            throw new OpenRouterChatException('response_too_large');
+        }
+
+        try {
+            $payload = json_decode($body, true, 512, JSON_THROW_ON_ERROR);
+        } catch (Throwable $exception) {
+            throw new OpenRouterChatException('invalid_json', previous: $exception);
+        }
+
+        if (! is_array($payload)) {
+            throw new OpenRouterChatException('invalid_json');
+        }
+
+        return $payload;
+    }
+
+    /**
+     * Keep only the documented file-annotation shape. The caller applies its
+     * own tighter session budget before persisting parsed PDF content.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function fileAnnotations(mixed $annotations): array
+    {
+        if (! is_array($annotations)) {
+            return [];
+        }
+
+        $result = [];
+        $seen = [];
+
+        foreach ($annotations as $annotation) {
+            if (! is_array($annotation) || ($annotation['type'] ?? null) !== 'file' || ! is_array($annotation['file'] ?? null)) {
+                continue;
+            }
+
+            $hash = mb_substr(trim((string) ($annotation['file']['hash'] ?? '')), 0, 256);
+            $content = $annotation['file']['content'] ?? null;
+
+            if ($hash === '' || isset($seen[$hash]) || ! is_array($content)) {
+                continue;
+            }
+
+            $parts = [];
+            foreach ($content as $part) {
+                if (! is_array($part) || ! in_array($part['type'] ?? null, ['text', 'image_url'], true)) {
+                    continue;
+                }
+
+                if ($part['type'] === 'text' && is_string($part['text'] ?? null)) {
+                    $parts[] = ['type' => 'text', 'text' => $part['text']];
+                } elseif (
+                    $part['type'] === 'image_url'
+                    && is_array($part['image_url'] ?? null)
+                    && is_string($part['image_url']['url'] ?? null)
+                ) {
+                    $parts[] = ['type' => 'image_url', 'image_url' => ['url' => $part['image_url']['url']]];
+                }
+            }
+
+            if ($parts === []) {
+                continue;
+            }
+
+            $seen[$hash] = true;
+            $result[] = [
+                'type' => 'file',
+                'file' => [
+                    'hash' => $hash,
+                    'name' => mb_substr(trim((string) ($annotation['file']['name'] ?? '')), 0, 180),
+                    'content' => $parts,
+                ],
+            ];
+        }
+
+        return $result;
     }
 
     /** @param callable(string): void $onDelta */

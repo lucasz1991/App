@@ -1,0 +1,97 @@
+   Die Farbwelt entspricht der frueheren Eigenbau-Variante, damit sich am
+   Erscheinungsbild nichts aendert ausser der Qualitaet der Darstellung. */
+.rt-swal-toast.swal2-popup {
+    width: 22rem;
+    max-width: calc(100vw - 2rem);
+    padding: 0.8rem 0.9rem;
+    grid-column-gap: 0.65rem;
+    color: #182435;
+    background-color: #ffffff;
+    border: 1px solid #dbe3ee;
+    border-left: 4px solid #0284c7;
+    border-radius: 0.75rem;
+    box-shadow: 0 16px 40px -16px rgba(15, 23, 42, 0.3);
+    font-family: inherit;
+}
+
+.rt-swal-toast .rt-swal-toast__title {
+    margin: 0;
+    padding: 0;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: inherit;
+}
+
+.rt-swal-toast .rt-swal-toast__message {
+    margin: 0.15rem 0 0;
+    padding: 0;
+    font-size: 0.875rem;
+    line-height: 1.35;
+    text-align: left;
+    color: #637188;
+}
+
+.rt-swal-toast .rt-swal-toast__close {
+    align-self: flex-start;
+    margin: -0.15rem -0.1rem 0 0;
+    font-size: 1.25rem;
+    color: #91a0b4;
+    box-shadow: none;
+}
+
+.rt-swal-toast .rt-swal-toast__close:hover { color: #e4002b; }
+
+.rt-swal-toast .rt-swal-toast__progress { background: rgba(145, 160, 180, 0.45); }
+
+/* Randfarbe und Fortschrittsbalken folgen der Art der Meldung. */
+.rt-swal-toast.swal2-icon-success { border-left-color: #16a34a; }
+.rt-swal-toast.swal2-icon-info { border-left-color: #0284c7; }
+.rt-swal-toast.swal2-icon-warning { border-left-color: #d97706; }
+.rt-swal-toast.swal2-icon-error { border-left-color: #dc2626; }
+
+.rt-swal-toast .swal2-icon {
+    width: 1.5rem;
+    min-width: 1.5rem;
+    height: 1.5rem;
+    margin: 0.1rem 0 0;
+    border-width: 2px;
+}
+
+.rt-swal-toast .swal2-icon .swal2-icon-content { font-size: 1rem; }
+
+html.dark .rt-swal-toast.swal2-popup,
+body[data-mode="dark"] .rt-swal-toast.swal2-popup {
+    color: #edf2f8;
+    background-color: #111a27;
+    /* Bewusst ohne die border-color-Kurzform: die wuerde auch den farbigen
+       linken Rand ueberschreiben, der die Art der Meldung anzeigt. */
+    border-top-color: #334155;
+    border-right-color: #334155;
+    border-bottom-color: #334155;
+}
+
+html.dark .rt-swal-toast .rt-swal-toast__message,
+body[data-mode="dark"] .rt-swal-toast .rt-swal-toast__message { color: #aeb9c9; }
+
+html.dark .rt-swal-toast .rt-swal-toast__close,
+body[data-mode="dark"] .rt-swal-toast .rt-swal-toast__close { color: #637188; }
+
+/* Auf dem Telefon oben mittig ueber die volle Breite. Links/rechts explizit,
+   damit die Meldung unabhaengig von Randabstaenden der Seite mittig sitzt. */
+@media (max-width: 640px) {
+    /* SweetAlert2 setzt die Breite ueber `body.swal2-toast-shown
+       .swal2-container` (Spezifitaet 0,3,1) auf feste 360 px. Die gleiche
+       Selektortiefe ist noetig, sonst bleibt die Meldung rechts versetzt. */
+    body.swal2-toast-shown .swal2-container.swal2-top-end {
+        inset: 0 0 auto 0;
+        width: 100%;
+        box-sizing: border-box;
+        justify-content: center;
+        padding: 0.75rem;
+    }
+
+    .rt-swal-toast.swal2-popup { width: 100%; max-width: 100%; }
+}
+
+/* Admin Command Center: eigenstaendige RailTime-Strecke, dezentes Raster und

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>RT SWAL Probe</title>
+<link rel="stylesheet" href="sweetalert2.min.css">
+<link rel="stylesheet" href="rt-theme.css">
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; padding: 1rem; background: #fff; }
+  html.dark body { background: #0b1220; color: #fff; }
+  #out { white-space: pre; font-family: monospace; font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>Probe</h1>
+<div id="out">warte…</div>
+<script src="sweetalert2.all.min.js"></script>
+<script>
+const toast = Swal.mixin({
+  toast: true,
+  position: 'top-end',
+  showConfirmButton: false,
+  showCloseButton: true,
+  timerProgressBar: true,
+  customClass: {
+    popup: 'rt-swal-toast',
+    title: 'rt-swal-toast__title',
+    htmlContainer: 'rt-swal-toast__message',
+    timerProgressBar: 'rt-swal-toast__progress',
+    closeButton: 'rt-swal-toast__close',
+  },
+});
+
+window.__results = {};
+
+function measure(type) {
+  return new Promise((resolve) => {
+    toast.fire({
+      icon: type,
+      title: 'Titel ' + type,
+      text: 'Nachricht zum Typ ' + type,
+      timer: 400,
+      didOpen: () => {
+        const popup = Swal.getPopup();
+        const icon = popup.querySelector('.swal2-icon');
+        const cs = getComputedStyle(popup);
+        const ics = getComputedStyle(icon);
+        const res = {
+          popupClasses: popup.className,
+          iconClasses: icon ? icon.className : null,
+          borderLeftColor: cs.borderLeftColor,
+          popupBg: cs.backgroundColor,
+          iconBorderColor: ics.borderTopColor,
+          iconColor: ics.color,
+          iconW: ics.width,
+          iconH: ics.height,
+          iconBorderWidth: ics.borderTopWidth,
+          iconRect: JSON.stringify(icon.getBoundingClientRect().toJSON()),
+        };
+        const line = icon.querySelector('[class^=swal2-x-mark-line], [class^=swal2-success-line]');
+        if (line) res.lineBg = getComputedStyle(line).backgroundColor;
+        const ring = icon.querySelector('.swal2-success-ring');
+        if (ring) res.ringBorder = getComputedStyle(ring).borderTopColor;
+        const content = icon.querySelector('.swal2-icon-content');
+        if (content) {
+          res.contentColor = getComputedStyle(content).color;
+          res.contentFontSize = getComputedStyle(content).fontSize;
+          res.contentText = content.textContent;
+          res.contentRect = JSON.stringify(content.getBoundingClientRect().toJSON());
+        }
+        window.__results[type] = res;
+      },
+      didClose: () => resolve(),
+    });
+  });
+}
+
+(async () => {
+  for (const t of ['success', 'info', 'warning', 'error']) {
+    await measure(t);
+  }
+  document.getElementById('out').textContent = JSON.stringify(window.__results, null, 2);
+  window.__done = true;
+})();
+</script>
+</body>
+</html>

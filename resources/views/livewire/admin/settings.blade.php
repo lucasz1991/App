@@ -462,12 +462,15 @@
 
                 <div class="mt-4 grid gap-3 md:grid-cols-2">
                     @foreach ([
-                        ['label' => __('app.assistant_speech_local_status'), 'provider' => $localSpeech, 'icon' => 'fad fa-server'],
-                        ['label' => __('app.assistant_speech_external_status'), 'provider' => $externalSpeech, 'icon' => 'fad fa-cloud'],
+                        ['label' => __('app.assistant_speech_local_status'), 'provider' => $localSpeech, 'icon' => 'fad fa-server', 'external' => false],
+                        ['label' => __('app.assistant_speech_external_status'), 'provider' => $externalSpeech, 'icon' => 'fad fa-cloud', 'external' => true],
                     ] as $speechProvider)
                         @php
                             $providerReady = (bool) ($speechProvider['provider']['stt_available'] ?? false)
                                 || (bool) ($speechProvider['provider']['tts_available'] ?? false);
+                            $providerStateLabel = $speechProvider['external']
+                                ? ($providerReady ? __('app.assistant_speech_configured') : __('app.assistant_speech_not_configured'))
+                                : $speechStateLabel($speechProvider['provider']);
                         @endphp
                         <div class="rounded-xl bg-rt-surface p-3.5 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
                             <div class="flex items-center justify-between gap-3">
@@ -479,14 +482,14 @@
                                     'shrink-0 rounded-full px-2.5 py-1 text-[0.7rem] font-semibold ring-1',
                                     'bg-emerald-50 text-emerald-700 ring-emerald-200/80 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/25' => $providerReady,
                                     'bg-rt-surface-muted text-rt-muted ring-rt-border/70 dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted dark:ring-rt-dark-border/70' => ! $providerReady,
-                                ])>{{ $speechStateLabel($speechProvider['provider']) }}</span>
+                                ])>{{ $providerStateLabel }}</span>
                             </div>
                             <div class="mt-3 flex flex-wrap gap-2 text-xs text-rt-muted dark:text-rt-dark-muted">
                                 <span class="rounded-md bg-rt-surface-muted px-2 py-1 dark:bg-rt-dark-surface-muted">
-                                    {{ __('app.assistant_speech_stt') }}: {{ ($speechProvider['provider']['stt_available'] ?? false) ? __('app.assistant_speech_ready') : __('app.assistant_speech_unavailable') }}
+                                    {{ __('app.assistant_speech_stt') }}: {{ ($speechProvider['provider']['stt_available'] ?? false) ? ($speechProvider['external'] ? __('app.assistant_speech_configured') : __('app.assistant_speech_ready')) : ($speechProvider['external'] ? __('app.assistant_speech_not_configured') : __('app.assistant_speech_unavailable')) }}
                                 </span>
                                 <span class="rounded-md bg-rt-surface-muted px-2 py-1 dark:bg-rt-dark-surface-muted">
-                                    {{ __('app.assistant_speech_tts') }}: {{ ($speechProvider['provider']['tts_available'] ?? false) ? __('app.assistant_speech_ready') : __('app.assistant_speech_unavailable') }}
+                                    {{ __('app.assistant_speech_tts') }}: {{ ($speechProvider['provider']['tts_available'] ?? false) ? ($speechProvider['external'] ? __('app.assistant_speech_configured') : __('app.assistant_speech_ready')) : ($speechProvider['external'] ? __('app.assistant_speech_not_configured') : __('app.assistant_speech_unavailable')) }}
                                 </span>
                             </div>
                         </div>
