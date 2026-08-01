@@ -142,6 +142,30 @@ trait BuildsMinimalRailTimeSchema
             $table->timestamps();
         });
 
+        Schema::create('assistant_knowledge_topics', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name', 120);
+            $table->string('description', 500)->nullable();
+            $table->boolean('is_active')->default(true);
+            $table->unsignedInteger('sort_order')->default(0);
+            $table->timestamps();
+            $table->softDeletes();
+        });
+
+        Schema::create('assistant_knowledge_entries', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('topic_id');
+            $table->string('title', 180);
+            $table->text('summary')->nullable();
+            $table->longText('content');
+            $table->json('keywords')->nullable();
+            $table->boolean('is_active')->default(true);
+            $table->boolean('include_in_baseline')->default(false);
+            $table->unsignedInteger('sort_order')->default(0);
+            $table->timestamps();
+            $table->softDeletes();
+        });
+
         // Gehoert zum Minimalschema, weil x-ui.page auf JEDER Seite den ersten
         // Aufruf des Nutzers vermerkt (Intro-/Seiteninfo-Automatik).
         Schema::create('user_page_views', function (Blueprint $table): void {

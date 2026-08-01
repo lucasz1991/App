@@ -3,6 +3,9 @@
 namespace App\Livewire\Tools;
 
 use App\Models\User;
+use App\Services\Ai\AssistantKnowledgePool;
+use App\Services\Ai\AssistantKnowledgeToolRunner;
+use App\Services\Ai\AssistantSpeechRouter;
 use App\Services\Ai\Attachments\AssistantAttachmentBatch;
 use App\Services\Ai\Attachments\AssistantAttachmentException;
 use App\Services\Ai\Attachments\AssistantAttachmentKind;
@@ -11,11 +14,12 @@ use App\Services\Ai\OpenRouterChatClient;
 use App\Services\Ai\OpenRouterChatException;
 use App\Services\Ai\OpenRouterChatResponse;
 use App\Services\Ai\RailtimeAssistantContext;
-use App\Services\Ai\SpeechServiceClient;
 use App\Support\Ai\AssistantAccess;
+use App\Support\Ai\AssistantSpeechSettings;
 use App\Support\PageHelpCatalog;
 use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
@@ -46,6 +50,14 @@ class Chatbot extends Component
     public bool $assistantAvailable = false;
 
     public bool $speechAvailable = false;
+
+    public bool $sttConfigured = false;
+
+    public bool $ttsConfigured = false;
+
+    public string $speechRoutingLabel = '';
+
+    public bool $externalFallback = false;
 
     #[Locked]
     public string $pageRouteName = 'unknown';
@@ -184,9 +196,14 @@ class Chatbot extends Component
                 $response = null;
 
                 if ($batch->isEmpty()) {
-                    $answer = $client->stream($messages, function (string $delta): void {
+                    $streamDelta = function (string $delta): void {
                         $this->stream(to: 'assistant-response-stream', content: e($delta));
-                    });
+                    };
+
+                    $knowledge = app(AssistantKnowledgePool::class);
+                    $answer = $knowledge->hasSearchableKnowledge()
+                        ? app(AssistantKnowledgeToolRunner::class)->answer($client, $messages, $streamDelta)
+                        : $client->stream($messages, $streamDelta);
                 } else {
                     $this->replaceLatestUserContent($messages, $batch->requestContent($input));
                     $response = $client->complete($messages, $batch->modelProfile(), $batch->plugins());
@@ -304,7 +321,24 @@ class Chatbot extends Component
     private function refreshAvailability(): void
     {
         $this->assistantAvailable = app(OpenRouterChatClient::class)->isConfigured();
-        $this->speechAvailable = app(SpeechServiceClient::class)->isConfigured();
+        $capabilities = app(AssistantSpeechRouter::class)->capabilities();
+        $this->sttConfigured = (bool) ($capabilities['stt_configured'] ?? false);
+        $this->ttsConfigured = (bool) ($capabilities['tts_configured'] ?? false);
+        $this->speechAvailable = $this->sttConfigured || $this->ttsConfigured;
+
+        $mode = (string) ($capabilities['mode'] ?? AssistantSpeechSettings::mode());
+        $this->externalFallback = $mode === AssistantSpeechSettings::LOCAL_WITH_EXTERNAL_FALLBACK;
+        $this->speechRoutingLabel = match ($mode) {
+            AssistantSpeechSettings::LOCAL_ONLY => app()->getLocale() === 'de'
+                ? 'Nur lokaler Sprachdienst'
+                : 'Local speech service only',
+            AssistantSpeechSettings::EXTERNAL_ONLY => app()->getLocale() === 'de'
+                ? 'Nur OpenRouter'
+                : 'OpenRouter only',
+            default => app()->getLocale() === 'de'
+                ? 'Lokaler Dienst mit OpenRouter-Fallback'
+                : 'Local service with OpenRouter fallback',
+        };
     }
 
     private function loadHistory(): void
@@ -357,7 +391,12 @@ class Chatbot extends Component
     private function appendAssistantError(string $message): void
     {
         $entry = $this->appendHistory('assistant', $message);
-        $this->dispatch('railtime-assistant-reply', text: $entry['content'], key: $entry['key']);
+        $this->dispatch(
+            'railtime-assistant-reply',
+            text: $entry['content'],
+            key: $entry['key'],
+            can_auto_listen: false,
+        );
     }
 
     private function persistHistory(): void
@@ -480,10 +519,7 @@ class Chatbot extends Component
             $context['summary'] = mb_substr($this->cleanContextText($response->content), 0, min(4000, $remaining));
         }
 
-        $stored = session()->get($this->attachmentSessionKey(), []);
-        $contexts = is_array($stored)
-            ? array_values(array_filter($stored, 'is_array'))
-            : [];
+        $contexts = $this->loadAttachmentContexts();
         $contexts[] = $context;
         $contexts = array_slice(
             $contexts,
@@ -494,7 +530,7 @@ class Chatbot extends Component
             array_shift($contexts);
         }
 
-        session()->put($this->attachmentSessionKey(), $contexts);
+        $this->storeAttachmentContexts($contexts);
     }
 
     /** @param array<int, array<string, mixed>> $contexts */
@@ -558,8 +594,8 @@ class Chatbot extends Component
     /** @return array<int, array<string, mixed>> */
     private function attachmentContextMessages(int &$remainingCharacters): array
     {
-        $stored = session()->get($this->attachmentSessionKey(), []);
-        if (! is_array($stored) || $stored === []) {
+        $stored = $this->loadAttachmentContexts();
+        if ($stored === []) {
             return [];
         }
 
@@ -611,6 +647,45 @@ class Chatbot extends Component
         }
 
         return $messages;
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function loadAttachmentContexts(): array
+    {
+        $stored = session()->get($this->attachmentSessionKey());
+
+        // Rolling-deployment compatibility for contexts created immediately
+        // before encryption was introduced.
+        if (is_array($stored)) {
+            return array_values(array_filter($stored, 'is_array'));
+        }
+
+        if (! is_string($stored) || $stored === '') {
+            return [];
+        }
+
+        try {
+            $decoded = json_decode(Crypt::decryptString($stored), true, 128, JSON_THROW_ON_ERROR);
+        } catch (\Throwable) {
+            session()->forget($this->attachmentSessionKey());
+
+            return [];
+        }
+
+        return is_array($decoded)
+            ? array_values(array_filter($decoded, 'is_array'))
+            : [];
+    }
+
+    /** @param array<int, array<string, mixed>> $contexts */
+    private function storeAttachmentContexts(array $contexts): void
+    {
+        $json = json_encode(
+            $contexts,
+            JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
+        );
+
+        session()->put($this->attachmentSessionKey(), Crypt::encryptString($json));
     }
 
     /**

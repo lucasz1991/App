@@ -22,7 +22,7 @@
     "isDynamicEntry": true
   },
   "resources/css/app.css": {
-    "file": "assets/app-COgsBx6i.css",
+    "file": "assets/app-gyvhq1Rv.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
@@ -52,7 +52,7 @@
     "isDynamicEntry": true
   },
   "resources/js/admin-dashboard-motion.js": {
-    "file": "assets/admin-dashboard-motion-CdGdWfj1.js",
+    "file": "assets/admin-dashboard-motion-C-NApqHi.js",
     "name": "admin-dashboard-motion",
     "src": "resources/js/admin-dashboard-motion.js",
     "isDynamicEntry": true,
@@ -61,7 +61,7 @@
     ]
   },
   "resources/js/app.js": {
-    "file": "assets/app-Bkb0_nnr.js",
+    "file": "assets/app-DjrQde1V.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,

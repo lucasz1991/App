@@ -219,8 +219,22 @@ OpenRouter** gepflegte Textmodell.
 Der API-Key wird verschlüsselt gespeichert und ausschließlich serverseitig
 verwendet. Der Assistent besitzt keinen zusätzlichen Live-Zugriff auf
 personenbezogene oder aktuelle Betriebsdaten und führt selbst keine Änderungen
-aus. Er verarbeitet ausschließlich den Seitenkontext sowie Inhalte, die der
-Benutzer ausdrücklich eingibt oder anhängt.
+aus. Er verarbeitet den sicheren Seitenkontext, Inhalte, die der Benutzer
+ausdrücklich eingibt oder anhängt, sowie freigegebene Informationen aus dem
+redaktionellen Wissenspool.
+
+Der Wissenspool liegt ausschließlich im Superadmin-Tab unter **Administration
+→ Einstellungen → Superadmin → Informationspool des Chatbot-Assistenten**.
+Dort werden ein kompakter Basistext, frei anlegbare Themen und einzelne
+Wissenseinträge gepflegt. Nur der Basistext, die Themenübersicht und ausdrücklich
+als Basisinfo markierte Kurzfassungen begleiten jede Anfrage. Volltexte bleiben
+in RailTime, bis das Textmodell bei einer passenden Frage das serverseitig
+validierte Tool `search_assistant_knowledge` anfordert. RailTime führt die Suche
+lokal aus, begrenzt Treffer und Textmenge und sendet erst danach die passenden
+Auszüge an OpenRouter. Inaktive Themen oder Einträge werden niemals geliefert;
+der Chatbot erhält keinen allgemeinen Datenbankzugriff. Auch in diesem Pool
+dürfen keine Zugangsdaten, personenbezogenen Daten oder Betriebsgeheimnisse
+abgelegt werden.
 
 Der Einstieg ist ein kleines rotes, textfreies 3D-Virtual-Pet: ein weicher,
 gedrungener Kapselkörper mit eingelassenem Gesichtsdisplay, zwei organischen

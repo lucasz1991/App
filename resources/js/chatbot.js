@@ -883,7 +883,11 @@ export function railtimeChatbot(config = {}) {
             this.$nextTick(() => {
                 this.updateComposerState();
                 this.scrollMessages(false);
-                this.scheduleAutoListenAfterReply();
+                if (detail.can_auto_listen !== false && detail.canAutoListen !== false) {
+                    this.scheduleAutoListenAfterReply();
+                } else {
+                    this.cancelPendingAutoListen();
+                }
             });
         },
 

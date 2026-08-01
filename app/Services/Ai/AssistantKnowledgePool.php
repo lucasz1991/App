@@ -6,7 +6,6 @@ use App\Models\AssistantKnowledgeEntry;
 use App\Models\AssistantKnowledgeTopic;
 use App\Support\Ai\AssistantKnowledgeSettings;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Throwable;
@@ -201,7 +200,7 @@ class AssistantKnowledgePool
             $lines[] = 'Freigegebene Kurzinfos:';
             foreach ($baselineEntries as $entry) {
                 $summary = $this->cleanText(
-                    (string) ($entry->summary ?: Str::limit(strip_tags($entry->content), 280, '')), 
+                    (string) ($entry->summary ?: Str::limit(strip_tags($entry->content), 280, '')),
                     360,
                 );
                 $lines[] = '- ['.$entry->topic->name.'] '.$entry->title.': '.$summary;

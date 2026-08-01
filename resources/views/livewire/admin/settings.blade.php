@@ -707,6 +707,17 @@
             >
                 @include('livewire.admin.settings.partials.openrouter')
             </x-admin.settings-accordion-section>
+
+            <x-admin.settings-accordion-section
+                section="assistant-knowledge"
+                :label="app()->getLocale() === 'de' ? 'Informationspool des Chatbot-Assistenten' : 'Chatbot assistant knowledge pool'"
+                :description="app()->getLocale() === 'de' ? 'Themen, Basiswissen und gezielt abrufbare Informationen redaktionell verwalten.' : 'Manage topics, baseline knowledge and information retrieved on demand.'"
+                icon="fad fa-books"
+                data-anim="fade-up"
+                data-anim-delay="0.08"
+            >
+                <livewire:admin.assistant-knowledge-manager />
+            </x-admin.settings-accordion-section>
         </div>
         </x-ui.accordion.tab-panel>
     @endif
