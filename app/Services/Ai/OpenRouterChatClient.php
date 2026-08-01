@@ -43,9 +43,14 @@ class OpenRouterChatClient
     /**
      * @param  array<int, array{role: string, content: string}>  $messages
      * @param  callable(string): void  $onDelta
+     * @param  array<int, array<string, mixed>>  $tools
      */
-    public function stream(array $messages, callable $onDelta): string
-    {
+    public function stream(
+        array $messages,
+        callable $onDelta,
+        array $tools = [],
+        string|array|null $toolChoice = null,
+    ): string {
         $settings = OpenRouterSettings::all(uncached: true);
         $endpoint = $this->validatedEndpoint((string) ($settings['api_url'] ?? ''));
         $apiKey = trim((string) ($settings['api_key'] ?? ''));
@@ -57,6 +62,23 @@ class OpenRouterChatClient
 
         $stream = (bool) ($settings['stream_enabled'] ?? true);
 
+        $payload = [
+            'model' => $model,
+            'messages' => $messages,
+            'temperature' => (float) $settings['temperature'],
+            'max_completion_tokens' => min(
+                (int) $settings['max_completion_tokens'],
+                max(1, (int) config('assistant.openrouter.max_completion_tokens', 4000)),
+            ),
+            'stream' => $stream,
+        ];
+
+        if ($tools !== []) {
+            $payload['tools'] = $tools;
+            $payload['tool_choice'] = $toolChoice ?? 'auto';
+            $payload['parallel_tool_calls'] = false;
+        }
+
         try {
             $response = $this->http->request('POST', $endpoint, [
                 'allow_redirects' => false,
@@ -64,16 +86,7 @@ class OpenRouterChatClient
                 'timeout' => (float) $settings['timeout'],
                 'stream' => $stream,
                 'headers' => $this->headers($settings, $apiKey, $stream),
-                'json' => [
-                    'model' => $model,
-                    'messages' => $messages,
-                    'temperature' => (float) $settings['temperature'],
-                    'max_completion_tokens' => min(
-                        (int) $settings['max_completion_tokens'],
-                        max(1, (int) config('assistant.openrouter.max_completion_tokens', 4000)),
-                    ),
-                    'stream' => $stream,
-                ],
+                'json' => $payload,
                 'http_errors' => false,
             ]);
         } catch (GuzzleException $exception) {
@@ -89,6 +102,73 @@ class OpenRouterChatClient
         return $stream
             ? $this->consumeEventStream($response, $onDelta)
             : $this->consumeJsonResponse($response, $onDelta);
+    }
+
+    /**
+     * First, non-streaming step of the knowledge-tool loop. The returned tool
+     * call is only a model proposal; execution remains entirely server-side.
+     *
+     * @param  array<int, array<string, mixed>>  $messages
+     * @param  array<int, array<string, mixed>>  $tools
+     */
+    public function completeToolDecision(
+        array $messages,
+        array $tools,
+    ): OpenRouterToolDecision {
+        $settings = OpenRouterSettings::all(uncached: true);
+        $endpoint = $this->validatedEndpoint((string) ($settings['api_url'] ?? ''));
+        $apiKey = trim((string) ($settings['api_key'] ?? ''));
+        $model = trim((string) ($settings['text_model'] ?? ''));
+
+        if ($apiKey === '' || $model === '' || $tools === []) {
+            throw new OpenRouterChatException('not_configured');
+        }
+
+        try {
+            $response = $this->http->request('POST', $endpoint, [
+                'allow_redirects' => false,
+                'connect_timeout' => min(10.0, (float) $settings['timeout']),
+                'timeout' => (float) $settings['timeout'],
+                'headers' => $this->headers($settings, $apiKey, false),
+                'json' => [
+                    'model' => $model,
+                    'messages' => $messages,
+                    'temperature' => (float) $settings['temperature'],
+                    'max_completion_tokens' => min(
+                        (int) $settings['max_completion_tokens'],
+                        max(1, (int) config('assistant.openrouter.max_completion_tokens', 4000)),
+                    ),
+                    'stream' => false,
+                    'tools' => $tools,
+                    'tool_choice' => 'auto',
+                    'parallel_tool_calls' => false,
+                ],
+                'http_errors' => false,
+            ]);
+        } catch (GuzzleException $exception) {
+            throw new OpenRouterChatException('transport_error', previous: $exception);
+        }
+
+        if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {
+            throw new OpenRouterChatException('upstream_http_error', $response->getStatusCode());
+        }
+
+        $payload = $this->decodeJsonResponse($response);
+        $message = $payload['choices'][0]['message'] ?? null;
+        if (! is_array($message)) {
+            throw new OpenRouterChatException('invalid_tool_response');
+        }
+
+        $content = is_string($message['content'] ?? null)
+            ? trim($message['content'])
+            : null;
+        $toolCalls = $this->toolCalls($message['tool_calls'] ?? []);
+
+        if (($content === null || $content === '') && $toolCalls === []) {
+            throw new OpenRouterChatException('empty_response');
+        }
+
+        return new OpenRouterToolDecision($content ?: null, $toolCalls);
     }
 
     /**
@@ -314,6 +394,48 @@ class OpenRouterChatClient
                     'hash' => $hash,
                     'name' => mb_substr(trim((string) ($annotation['file']['name'] ?? '')), 0, 180),
                     'content' => $parts,
+                ],
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return array<int, array{id: string, type: string, function: array{name: string, arguments: string}}>
+     */
+    private function toolCalls(mixed $toolCalls): array
+    {
+        if (! is_array($toolCalls)) {
+            return [];
+        }
+
+        $result = [];
+        foreach (array_slice($toolCalls, 0, 3) as $toolCall) {
+            if (! is_array($toolCall) || ! is_array($toolCall['function'] ?? null)) {
+                continue;
+            }
+
+            $id = trim((string) ($toolCall['id'] ?? ''));
+            $name = trim((string) ($toolCall['function']['name'] ?? ''));
+            $arguments = (string) ($toolCall['function']['arguments'] ?? '');
+
+            if (
+                $id === ''
+                || mb_strlen($id) > 255
+                || preg_match('/[\x00-\x20\x7F]/', $id) === 1
+                || ! preg_match('/^[A-Za-z0-9_.:-]{1,120}$/', $name)
+                || strlen($arguments) > 20000
+            ) {
+                continue;
+            }
+
+            $result[] = [
+                'id' => $id,
+                'type' => 'function',
+                'function' => [
+                    'name' => $name,
+                    'arguments' => $arguments,
                 ],
             ];
         }

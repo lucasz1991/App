@@ -71,7 +71,7 @@
          zwei Badges nebeneinander wuerden dort umbrechen und die Zeilen
          unterschiedlich hoch machen. Das Team steht in der Schnellansicht. --}}
     @if ($showTeam)
-        <x-ui.badge color="slate" class="hidden md:inline-flex">
+        <x-ui.badge color="slate" class="hidden md:inline-flex" data-rt-employee-team-badge>
             <i class="far fa-users" aria-hidden="true"></i>
             {{ $team }}
         </x-ui.badge>
