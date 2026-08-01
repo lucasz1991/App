@@ -118,6 +118,14 @@ class SpeechServiceClient
             'allow_redirects' => false,
             'connect_timeout' => (float) config('assistant.speech.connect_timeout', 2),
             'http_errors' => false,
+            // Ein global gesetztes http_proxy/all_proxy wuerde diesen Aufruf
+            // sonst samt Bearer-Token ueber einen fremden Host schicken:
+            // Guzzle zieht die Proxy-Variablen im Handler unabhaengig vom SAPI
+            // aus der Prozessumgebung. Der leere Wert pinnt "kein Proxy" fest
+            // und unterdrueckt dabei auch diesen Fallback. Der Kanal ist
+            // ausdruecklich nur fuer Loopback gedacht und darf den Server
+            // unter keinen Umstaenden verlassen.
+            'proxy' => '',
             'headers' => [
                 'Authorization' => 'Bearer '.$this->token(),
                 'X-Client-ID' => trim((string) config('assistant.speech.client_id')),
