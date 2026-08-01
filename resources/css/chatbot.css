@@ -13,11 +13,8 @@
     --rt-chatbot-shadow: 0 34px 90px -36px rgba(19, 33, 50, 0.52);
     --rt-pet-body: #e21d3f;
     --rt-pet-body-deep: #a90f2d;
-    --rt-pet-body-light: #ff526d;
-    --rt-pet-belly: #ffadb8;
     --rt-pet-inner: #ffd1d7;
     --rt-pet-ink: #28111a;
-    --rt-pet-glow: #ff96a9;
     color: var(--rt-chatbot-text);
     color-scheme: light;
 }
@@ -37,11 +34,8 @@
     --rt-chatbot-shadow: 0 38px 100px -38px rgba(0, 0, 0, 0.82);
     --rt-pet-body: #ff4968;
     --rt-pet-body-deep: #bc1939;
-    --rt-pet-body-light: #ff7890;
-    --rt-pet-belly: #ffb1bc;
     --rt-pet-inner: #ffd9de;
     --rt-pet-ink: #2a1019;
-    --rt-pet-glow: #ff9daf;
     color-scheme: dark;
 }
 
@@ -169,21 +163,9 @@
     opacity: 1;
 }
 
-.rt-chatbot__pet-launcher:hover .rt-chatbot__pet-renderer {
-    filter: drop-shadow(0 14px 11px rgba(29, 37, 48, 0.26));
-}
-
 .rt-chatbot__pet-launcher:hover .rt-chatbot__pet-halo {
     opacity: 1;
     transform: scale(1.03);
-}
-
-.rt-chatbot__pet-launcher:hover .rt-assistant-pet--fallback {
-    transform: translateY(-0.3rem) rotate(-1.5deg) scale(1.045);
-}
-
-.rt-chatbot__pet-launcher:active .rt-assistant-pet--fallback {
-    transform: translateY(0.08rem) scale(0.97);
 }
 
 .rt-chatbot__pet-presence {
@@ -253,32 +235,40 @@
     transform: translate(0, 0) scale(1);
 }
 
-/* Organic virtual-pet SVG used while WebGL loads and for small chat avatars. */
+/* Leaf-capsule SVG used while WebGL loads and for small chat avatars. */
 .rt-chatbot .rt-assistant-pet__shadow {
     fill: rgba(42, 16, 25, 0.16);
 }
 
-.rt-chatbot .rt-assistant-pet__body {
+.rt-chatbot .rt-assistant-pet__capsule {
     fill: var(--rt-pet-body-deep);
 }
 
-.rt-chatbot .rt-assistant-pet__body-highlight,
-.rt-chatbot .rt-assistant-pet__ear-body {
+.rt-chatbot .rt-assistant-pet__capsule-highlight,
+.rt-chatbot .rt-assistant-pet__leaf-body {
     fill: var(--rt-pet-body);
 }
 
-.rt-chatbot .rt-assistant-pet__ear-inner {
-    fill: var(--rt-pet-inner);
+.rt-chatbot .rt-assistant-pet__leaf {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
 }
 
-.rt-chatbot .rt-assistant-pet__belly {
-    fill: var(--rt-pet-belly);
+.rt-chatbot .rt-assistant-pet__leaf-vein {
+    fill: none;
+    stroke: var(--rt-pet-body-deep);
+    stroke-width: 1.6;
+    stroke-linecap: round;
 }
 
-.rt-chatbot .rt-assistant-pet__tuft,
-.rt-chatbot .rt-assistant-pet__feet,
-.rt-chatbot .rt-assistant-pet__flipper {
+.rt-chatbot .rt-assistant-pet__bezel {
     fill: var(--rt-pet-body-deep);
+}
+
+.rt-chatbot .rt-assistant-pet__face-screen {
+    fill: var(--rt-pet-inner);
+    stroke: color-mix(in srgb, var(--rt-pet-body-deep) 20%, transparent);
+    stroke-width: 1;
 }
 
 .rt-chatbot .rt-assistant-pet__eye {
@@ -292,93 +282,37 @@
     fill: #ffffff;
 }
 
-.rt-chatbot .rt-assistant-pet__cheek {
-    fill: var(--rt-pet-body-light);
-    opacity: 0.76;
-}
-
 .rt-chatbot .rt-assistant-pet__mouth {
     fill: var(--rt-pet-ink);
-    transform-box: fill-box;
-    transform-origin: center;
 }
 
-.rt-chatbot .rt-assistant-pet__tongue {
-    fill: none;
-    stroke: var(--rt-pet-inner);
-    stroke-width: 1.5;
-    stroke-linecap: round;
+.rt-chatbot .rt-assistant-pet__feet {
+    fill: var(--rt-pet-ink);
 }
 
-.rt-chatbot .rt-assistant-pet__gem path {
-    fill: #ffe1e5;
-    stroke: var(--rt-pet-glow);
-    stroke-width: 1;
-}
-
-.rt-chatbot .rt-assistant-pet__gem-ring {
-    fill: none;
-    stroke: var(--rt-pet-glow);
-    stroke-width: 1.5;
-    opacity: 0;
-    transform-box: fill-box;
-    transform-origin: center;
-}
-
-.rt-chatbot .rt-assistant-pet__aura {
-    fill: var(--rt-pet-glow);
-    opacity: 0;
-    transform-origin: center;
-}
-
-.rt-chatbot [data-state='idle'] .rt-assistant-pet--fallback,
+.rt-chatbot__pet-figure,
+.rt-chatbot__avatar-pet,
 .rt-chatbot__empty-pet .rt-assistant-pet,
-.rt-chatbot__message-pet:not([data-state]) .rt-assistant-pet {
+.rt-chatbot__message-pet .rt-assistant-pet {
     animation: rt-chatbot-pet-float 3.2s ease-in-out infinite;
 }
 
-.rt-chatbot [data-state='thinking'] .rt-assistant-pet--fallback,
-.rt-chatbot__message-pet--thinking .rt-assistant-pet {
-    animation: rt-chatbot-pet-think 1.2s ease-in-out infinite;
+.rt-chatbot .rt-assistant-pet__leaf--left {
+    animation: rt-chatbot-pet-leaf-left 4.1s ease-in-out infinite;
 }
 
-.rt-chatbot [data-state='thinking'] .rt-assistant-pet__gem,
-.rt-chatbot [data-state='thinking'] .rt-assistant-pet__aura,
-.rt-chatbot__message-pet--thinking .rt-assistant-pet__gem,
-.rt-chatbot__message-pet--thinking .rt-assistant-pet__aura {
-    opacity: 1;
-    animation: rt-chatbot-pet-glow 1.15s ease-in-out infinite;
-}
-
-.rt-chatbot [data-state='listening'] .rt-chatbot__pet-halo {
-    animation: rt-chatbot-pet-listen 1.35s ease-out infinite;
-}
-
-.rt-chatbot [data-state='listening'] .rt-assistant-pet__ear--left {
-    animation: rt-chatbot-pet-ear-left 0.82s ease-in-out infinite;
-}
-
-.rt-chatbot [data-state='listening'] .rt-assistant-pet__ear--right {
-    animation: rt-chatbot-pet-ear-right 0.82s ease-in-out infinite;
-}
-
-.rt-chatbot [data-state='listening'] .rt-assistant-pet__gem-ring {
-    opacity: 1;
-    animation: rt-chatbot-pet-listen-ring 1.2s ease-out infinite;
-}
-
-.rt-chatbot [data-state='speaking'] .rt-assistant-pet--fallback {
-    animation: rt-chatbot-pet-speak 0.72s ease-in-out infinite;
-}
-
-.rt-chatbot [data-state='speaking'] .rt-assistant-pet__mouth {
-    animation: rt-chatbot-pet-mouth 0.38s ease-in-out infinite;
+.rt-chatbot .rt-assistant-pet__leaf--right {
+    animation: rt-chatbot-pet-leaf-right 4.1s ease-in-out infinite;
 }
 
 .rt-chatbot [data-state='offline'] .rt-assistant-pet--fallback,
 .rt-chatbot [data-state='offline'] .rt-assistant-pet-3d__canvas {
     filter: grayscale(0.72) saturate(0.5);
     opacity: 0.72;
+}
+
+.rt-chatbot [data-state='offline'] .rt-assistant-pet--fallback {
+    animation: none;
 }
 
 /* Chat panel */
@@ -936,10 +870,6 @@
     transform: translateY(0.2rem);
 }
 
-.rt-chatbot__message-pet--thinking .rt-assistant-pet {
-    animation: rt-chatbot-pet-think 1.05s ease-in-out infinite;
-}
-
 .rt-chatbot__message {
     position: relative;
     width: fit-content;
@@ -1306,45 +1236,14 @@
     47% { transform: scaleY(0.12); }
 }
 
-@keyframes rt-chatbot-pet-think {
-    0%, 100% { transform: translateY(0) rotate(-2deg); }
-    50% { transform: translateY(-0.24rem) rotate(3deg); }
+@keyframes rt-chatbot-pet-leaf-left {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(-2.5deg); }
 }
 
-@keyframes rt-chatbot-pet-listen {
-    0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--rt-chatbot-accent) 20%, transparent); }
-    70% { box-shadow: 0 0 0 0.72rem color-mix(in srgb, var(--rt-chatbot-accent) 0%, transparent); }
-    100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--rt-chatbot-accent) 0%, transparent); }
-}
-
-@keyframes rt-chatbot-pet-glow {
-    0%, 100% { opacity: 0.38; transform: scale(0.9) rotate(-2deg); }
-    50% { opacity: 1; transform: scale(1.08) rotate(2deg); }
-}
-
-@keyframes rt-chatbot-pet-ear-left {
-    0%, 100% { transform: rotate(0deg) scaleY(1); }
-    50% { transform: rotate(-7deg) scaleY(1.08); }
-}
-
-@keyframes rt-chatbot-pet-ear-right {
-    0%, 100% { transform: rotate(0deg) scaleY(1); }
-    50% { transform: rotate(7deg) scaleY(1.08); }
-}
-
-@keyframes rt-chatbot-pet-listen-ring {
-    0% { opacity: 0.78; transform: scale(0.58); }
-    80%, 100% { opacity: 0; transform: scale(1.55); }
-}
-
-@keyframes rt-chatbot-pet-speak {
-    0%, 100% { transform: translateY(0) scale(1); }
-    50% { transform: translateY(-0.13rem) scale(1.018, 0.985); }
-}
-
-@keyframes rt-chatbot-pet-mouth {
-    0%, 100% { transform: scale(1, 0.72); }
-    50% { transform: scale(0.88, 1.65); }
+@keyframes rt-chatbot-pet-leaf-right {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(2.5deg); }
 }
 
 @keyframes rt-chatbot-typing {

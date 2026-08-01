@@ -405,7 +405,6 @@ class UserProfile extends Component
             'canViewCompensation' => Gate::allows('employees.compensation.view'),
             'canEditCompensation' => Gate::allows('employees.compensation.view')
                 && Gate::allows('employees.compensation.edit'),
-            'employeesRoute' => $this->employeesRoute(),
         ])->layout('layouts.master', ['area' => auth()->user()->usesAdminLayout() ? 'admin' : 'user']);
     }
 

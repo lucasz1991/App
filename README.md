@@ -221,11 +221,13 @@ verwendet. Der Assistent erhält nur Sprache, Zielgruppe und benannten
 Seitenkontext, keine personenbezogenen oder aktuellen Betriebsdaten, und führt
 selbst keine Änderungen aus.
 
-Der Einstieg ist ein kleines rotes, textfreies 3D-Babywesen mit tierartiger
-Silhouette statt eines gewöhnlichen Floating Buttons. Das eigenständige
-Virtual-Pet-Modell öffnet per Klick denselben Livewire-Chat, zeigt kurze
-Sprechblasen und reagiert mit Idle-, Denk-, Hör-, Sprech- und Offline-
-Animationen. Das Panel erscheint am Desktop unten rechts und mobil als
+Der Einstieg ist ein kleines rotes, textfreies 3D-Virtual-Pet: ein weicher,
+gedrungener Kapselkörper mit eingelassenem Gesichtsdisplay, zwei organischen
+Blattfühlern und winzigen Füßen statt eines gewöhnlichen Floating Buttons. Das
+eigenständige Modell öffnet per Klick denselben Livewire-Chat, zeigt kurze
+Sprechblasen und besitzt eine ruhige Idle-Animation aus Schweben, Atmen,
+Blinzeln und dezentem Blattwippen; offline wird es entsättigt dargestellt. Das
+Panel erscheint am Desktop unten rechts und mobil als
 Bottom-Sheet. Im Einstellungsmenü des Chats liegen automatisches Vorlesen,
 Vorlesetempo, automatisches Hören mit bestätigbarem Transkript und lokale,
 kostenfreie Seitenhinweise aus dem RailTime-Hilfekatalog.

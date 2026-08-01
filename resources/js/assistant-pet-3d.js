@@ -24,93 +24,149 @@ function applyTransform(object, { position, rotation, scale } = {}) {
     return object;
 }
 
+function createRoundedPanelGeometry(THREE, width, height, depth, radius) {
+    const halfWidth = width / 2;
+    const halfHeight = height / 2;
+    const shape = new THREE.Shape();
+
+    shape.moveTo(-halfWidth + radius, -halfHeight);
+    shape.lineTo(halfWidth - radius, -halfHeight);
+    shape.quadraticCurveTo(halfWidth, -halfHeight, halfWidth, -halfHeight + radius);
+    shape.lineTo(halfWidth, halfHeight - radius);
+    shape.quadraticCurveTo(halfWidth, halfHeight, halfWidth - radius, halfHeight);
+    shape.lineTo(-halfWidth + radius, halfHeight);
+    shape.quadraticCurveTo(-halfWidth, halfHeight, -halfWidth, halfHeight - radius);
+    shape.lineTo(-halfWidth, -halfHeight + radius);
+    shape.quadraticCurveTo(-halfWidth, -halfHeight, -halfWidth + radius, -halfHeight);
+
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+        bevelEnabled: true,
+        bevelSegments: 5,
+        bevelSize: 0.065,
+        bevelThickness: 0.055,
+        curveSegments: 16,
+        depth,
+        steps: 1,
+    });
+    geometry.center();
+
+    return geometry;
+}
+
 function createPetModel(THREE) {
     const root = new THREE.Group();
-    root.name = 'railtime-assistant-organic-baby';
+    root.name = 'railtime-assistant-leaf-capsule';
 
     const bodyMaterial = new THREE.MeshPhysicalMaterial({
-        color: 0xf13b55,
-        roughness: 0.52,
+        color: 0xef3b53,
+        roughness: 0.48,
         metalness: 0,
-        clearcoat: 0.2,
-        clearcoatRoughness: 0.72,
-        sheen: 0.55,
-        sheenColor: 0xff9aad,
+        clearcoat: 0.24,
+        clearcoatRoughness: 0.68,
+        sheen: 0.48,
+        sheenColor: 0xffa0ad,
         emissive: 0x3d020e,
-        emissiveIntensity: 0.08,
+        emissiveIntensity: 0.06,
     });
-    const bodyDeepMaterial = new THREE.MeshPhysicalMaterial({
-        color: 0xb91636,
-        roughness: 0.6,
+    const bezelMaterial = new THREE.MeshPhysicalMaterial({
+        color: 0xa81331,
+        roughness: 0.56,
         metalness: 0,
-        clearcoat: 0.12,
-        clearcoatRoughness: 0.8,
+        clearcoat: 0.18,
+        clearcoatRoughness: 0.76,
     });
-    const bellyMaterial = new THREE.MeshPhysicalMaterial({
-        color: 0xffa2ac,
-        roughness: 0.64,
+    const faceMaterial = new THREE.MeshPhysicalMaterial({
+        color: 0xffc0c8,
+        roughness: 0.58,
         metalness: 0,
-        clearcoat: 0.08,
+        clearcoat: 0.14,
+        clearcoatRoughness: 0.72,
     });
-    const innerEarMaterial = new THREE.MeshPhysicalMaterial({
-        color: 0xffc4ca,
-        roughness: 0.7,
+    const leafMaterial = new THREE.MeshPhysicalMaterial({
+        color: 0xff687b,
+        roughness: 0.62,
         metalness: 0,
+        clearcoat: 0.1,
     });
     const inkMaterial = new THREE.MeshPhysicalMaterial({
-        color: 0x251219,
-        roughness: 0.28,
+        color: 0x241218,
+        roughness: 0.34,
         metalness: 0,
-        clearcoat: 0.72,
-        clearcoatRoughness: 0.18,
+        clearcoat: 0.62,
+        clearcoatRoughness: 0.24,
     });
     const eyeShineMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    const cheekMaterial = new THREE.MeshPhysicalMaterial({
-        color: 0xff7187,
-        roughness: 0.72,
-        transparent: true,
-        opacity: 0.78,
-    });
-    const glowMaterial = new THREE.MeshPhysicalMaterial({
-        color: 0xffe1e5,
-        emissive: 0xff3158,
-        emissiveIntensity: 1.2,
-        roughness: 0.3,
-        metalness: 0,
-        clearcoat: 0.5,
-    });
-    const particleMaterial = new THREE.MeshBasicMaterial({
-        color: 0xff8da1,
-        transparent: true,
-        opacity: 0,
-        depthWrite: false,
-    });
-    const signalMaterial = new THREE.MeshBasicMaterial({
-        color: 0xffa6b5,
-        transparent: true,
-        opacity: 0,
-        depthWrite: false,
-    });
 
     const body = applyTransform(
-        new THREE.Mesh(new THREE.SphereGeometry(1, 40, 28), bodyMaterial),
-        { position: [0, -0.03, 0], scale: [1.08, 1.08, 0.88], rotation: [-0.04, 0, 0] },
+        new THREE.Mesh(createRoundedPanelGeometry(THREE, 2.2, 1.7, 0.56, 0.43), bodyMaterial),
+        { position: [0, -0.06, 0], rotation: [-0.025, 0.035, -0.012], scale: [1, 1, 1] },
     );
     root.add(body);
 
-    const belly = applyTransform(
-        new THREE.Mesh(new THREE.SphereGeometry(1, 30, 20), bellyMaterial),
-        { position: [0, -0.35, 0.72], scale: [0.63, 0.55, 0.13] },
+    const bezel = applyTransform(
+        new THREE.Mesh(createRoundedPanelGeometry(THREE, 1.72, 1.23, 0.13, 0.3), bezelMaterial),
+        { position: [0, -0.045, 0.36] },
     );
-    root.add(belly);
+    root.add(bezel);
+
+    const face = applyTransform(
+        new THREE.Mesh(createRoundedPanelGeometry(THREE, 1.52, 1.03, 0.11, 0.25), faceMaterial),
+        { position: [0, -0.045, 0.46] },
+    );
+    root.add(face);
+
+    const eyes = [-1, 1].map((side) => {
+        const eye = applyTransform(
+            new THREE.Mesh(new THREE.SphereGeometry(1, 24, 18), inkMaterial),
+            { position: [side * 0.34, 0.13, 0.57], scale: [0.105, 0.145, 0.045] },
+        );
+        eye.userData.baseScaleY = 0.145;
+
+        const shine = applyTransform(
+            new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), eyeShineMaterial),
+            { position: [side * 0.315, 0.175, 0.61], scale: [0.027, 0.036, 0.012] },
+        );
+        root.add(eye, shine);
+
+        return eye;
+    });
+
+    const mouth = applyTransform(
+        new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), inkMaterial),
+        { position: [0, -0.22, 0.585], scale: [0.115, 0.052, 0.026] },
+    );
+    root.add(mouth);
+
+    const leafPivots = [-1, 1].map((side) => {
+        const pivot = new THREE.Group();
+        pivot.position.set(side * 0.28, 0.86, -0.04);
+        pivot.rotation.z = side * -0.42;
+
+        const leaf = applyTransform(
+            new THREE.Mesh(new THREE.SphereGeometry(1, 28, 18), leafMaterial),
+            {
+                position: [side * 0.05, 0.24, 0],
+                rotation: [0.12, side * -0.12, 0],
+                scale: [0.19, 0.43, 0.115],
+            },
+        );
+        const vein = applyTransform(
+            new THREE.Mesh(new THREE.SphereGeometry(1, 18, 12), bezelMaterial),
+            { position: [side * 0.04, 0.23, 0.105], scale: [0.025, 0.31, 0.012] },
+        );
+        pivot.add(leaf, vein);
+        root.add(pivot);
+
+        return pivot;
+    });
 
     const feet = [-1, 1].map((side) => {
         const foot = applyTransform(
-            new THREE.Mesh(new THREE.SphereGeometry(1, 28, 18), bodyDeepMaterial),
+            new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), inkMaterial),
             {
-                position: [side * 0.56, -0.94, 0.16],
-                rotation: [0.08, side * -0.18, side * -0.08],
-                scale: [0.48, 0.24, 0.48],
+                position: [side * 0.63, -0.96, -0.02],
+                rotation: [0.08, side * -0.2, side * -0.24],
+                scale: [0.3, 0.12, 0.22],
             },
         );
         root.add(foot);
@@ -118,122 +174,17 @@ function createPetModel(THREE) {
         return foot;
     });
 
-    const earPivots = [-1, 1].map((side) => {
-        const pivot = new THREE.Group();
-        pivot.position.set(side * 0.82, 0.5, -0.01);
-        pivot.rotation.z = side * -0.52;
-
-        const ear = applyTransform(
-            new THREE.Mesh(new THREE.SphereGeometry(1, 28, 20), bodyMaterial),
-            { position: [side * 0.22, 0.08, 0], scale: [0.38, 0.69, 0.24] },
-        );
-        const innerEar = applyTransform(
-            new THREE.Mesh(new THREE.SphereGeometry(1, 22, 16), innerEarMaterial),
-            { position: [side * 0.24, 0.09, 0.2], scale: [0.2, 0.45, 0.055] },
-        );
-        pivot.add(ear, innerEar);
-        root.add(pivot);
-
-        return pivot;
-    });
-
-    const eyes = [-1, 1].map((side) => {
-        const eye = applyTransform(
-            new THREE.Mesh(new THREE.SphereGeometry(1, 24, 18), inkMaterial),
-            { position: [side * 0.38, 0.26, 0.81], scale: [0.16, 0.22, 0.095] },
-        );
-        eye.userData.baseScaleY = 0.22;
-
-        const shine = applyTransform(
-            new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), eyeShineMaterial),
-            { position: [side * 0.34, 0.34, 0.9], scale: [0.045, 0.06, 0.025] },
-        );
-        root.add(eye, shine);
-
-        return eye;
-    });
-
-    const cheeks = [-1, 1].map((side) => {
-        const cheek = applyTransform(
-            new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14), cheekMaterial),
-            { position: [side * 0.67, -0.02, 0.76], scale: [0.19, 0.1, 0.045] },
-        );
-        root.add(cheek);
-
-        return cheek;
-    });
-
-    const mouth = applyTransform(
-        new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), inkMaterial),
-        { position: [0, -0.16, 0.91], scale: [0.17, 0.075, 0.045] },
-    );
-    mouth.userData.baseScaleY = 0.075;
-    const tongue = applyTransform(
-        new THREE.Mesh(new THREE.SphereGeometry(1, 18, 12), cheekMaterial),
-        { position: [0, -0.19, 0.95], scale: [0.085, 0.035, 0.018] },
-    );
-    root.add(mouth, tongue);
-
-    const gem = applyTransform(
-        new THREE.Mesh(new THREE.OctahedronGeometry(0.14, 2), glowMaterial),
-        { position: [0, 0.78, 0.69], rotation: [0.12, 0, Math.PI / 4], scale: [1, 1.18, 0.7] },
-    );
-    root.add(gem);
-
-    const tuft = new THREE.Group();
-    [-1, 0, 1].forEach((offset) => {
-        const tuftLobe = applyTransform(
-            new THREE.Mesh(new THREE.SphereGeometry(1, 18, 14), bodyDeepMaterial),
-            {
-                position: [offset * 0.14, 0.97 - Math.abs(offset) * 0.035, -0.04],
-                rotation: [0, 0, offset * -0.28],
-                scale: [0.14, 0.3 - Math.abs(offset) * 0.04, 0.12],
-            },
-        );
-        tuft.add(tuftLobe);
-    });
-    root.add(tuft);
-
-    const particles = [];
-    const particleGroup = new THREE.Group();
-    for (let index = 0; index < 7; index += 1) {
-        const particle = new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 10), particleMaterial.clone());
-        particle.userData.angle = (Math.PI * 2 * index) / 7;
-        particle.userData.radius = 1.32 + (index % 2) * 0.13;
-        particleGroup.add(particle);
-        particles.push(particle);
-    }
-    root.add(particleGroup);
-
-    const listeningRings = [-1, 1].map((side) => {
-        const ring = applyTransform(
-            new THREE.Mesh(new THREE.TorusGeometry(0.33, 0.022, 8, 40), signalMaterial.clone()),
-            { position: [side * 1.16, 0.48, 0.05], scale: [0.65, 1, 1] },
-        );
-        ring.userData.side = side;
-        root.add(ring);
-
-        return ring;
-    });
-
-    root.rotation.x = -0.03;
+    root.rotation.x = -0.015;
 
     return {
         root,
         body,
         bodyMaterial,
-        cheeks,
-        earPivots,
+        face,
+        leafPivots,
         eyes,
         feet,
-        gem,
-        glowMaterial,
-        listeningRings,
         mouth,
-        particleGroup,
-        particles,
-        tongue,
-        tuft,
     };
 }
 
@@ -245,7 +196,6 @@ export function railtimeAssistantPet3d(options = {}) {
         petCanvas: null,
         petDestroyed: false,
         petDocumentHidden: false,
-        petHovered: false,
         petInViewport: false,
         petIntersectionObserver: null,
         petLastFrameAt: 0,
@@ -253,8 +203,6 @@ export function railtimeAssistantPet3d(options = {}) {
         petLoopRunning: false,
         petModel: null,
         petMutationObserver: null,
-        petReactionStartedAt: 0,
-        petReactionUntil: 0,
         petReducedMotion: false,
         petReducedMotionQuery: null,
         petRenderer: null,
@@ -284,26 +232,10 @@ export function railtimeAssistantPet3d(options = {}) {
                 this.petUpdateAnimationLoop();
             };
             this.petWindowResizeHandler = () => this.petResize();
-            this.petPointerEnterHandler = () => {
-                this.petHovered = true;
-            };
-            this.petPointerLeaveHandler = () => {
-                this.petHovered = false;
-            };
-            this.petPointerDownHandler = () => {
-                const now = performance.now();
-                this.petReactionStartedAt = now;
-                this.petReactionUntil = now + 560;
-            };
 
             document.addEventListener('visibilitychange', this.petVisibilityHandler);
             this.petReducedMotionQuery?.addEventListener?.('change', this.petReducedMotionHandler);
             window.addEventListener('resize', this.petWindowResizeHandler, { passive: true });
-            this.petSlots.forEach((slot) => {
-                slot.addEventListener('pointerenter', this.petPointerEnterHandler);
-                slot.addEventListener('pointerleave', this.petPointerLeaveHandler);
-                slot.addEventListener('pointerdown', this.petPointerDownHandler);
-            });
 
             this.petMutationObserver = new MutationObserver(() => this.petSyncFromMarkup());
             this.petMutationObserver.observe(this.$el, {
@@ -337,11 +269,6 @@ export function railtimeAssistantPet3d(options = {}) {
             document.removeEventListener('visibilitychange', this.petVisibilityHandler);
             this.petReducedMotionQuery?.removeEventListener?.('change', this.petReducedMotionHandler);
             window.removeEventListener('resize', this.petWindowResizeHandler);
-            this.petSlots.forEach((slot) => {
-                slot.removeEventListener('pointerenter', this.petPointerEnterHandler);
-                slot.removeEventListener('pointerleave', this.petPointerLeaveHandler);
-                slot.removeEventListener('pointerdown', this.petPointerDownHandler);
-            });
             this.petDisposeRenderer();
             this.petSlots = [];
             this.petActiveSlot = null;
@@ -433,8 +360,8 @@ export function railtimeAssistantPet3d(options = {}) {
             renderer.outputColorSpace = THREE.SRGBColorSpace;
 
             const scene = new THREE.Scene();
-            const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 50);
-            camera.position.set(0, 0.02, 5.25);
+            const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
+            camera.position.set(0, 0.02, 5.55);
             camera.lookAt(0, -0.03, 0);
 
             scene.add(new THREE.HemisphereLight(0xfff1f3, 0x6b1025, 2.25));
@@ -511,50 +438,15 @@ export function railtimeAssistantPet3d(options = {}) {
 
             const state = normalizeAssistantPetState(this.petState);
             const time = frameAt / 1000;
-            const motion = this.petReducedMotion ? 0 : 1;
+            const motion = this.petReducedMotion || state === 'offline' ? 0 : 1;
             const model = this.petModel;
-            const idleFloat = Math.sin(time * 1.8) * 0.055 * motion;
-            const breathing = 1 + Math.sin(time * 2.15) * 0.018 * motion;
-            const hoverLift = this.petHovered ? 0.07 : 0;
-            const hoverScale = this.petHovered ? 1.045 : 1;
-            const reactionDuration = Math.max(1, this.petReactionUntil - this.petReactionStartedAt);
-            const reactionProgress = Math.min(1, Math.max(0, (frameAt - this.petReactionStartedAt) / reactionDuration));
-            const reactionBounce = frameAt < this.petReactionUntil
-                ? Math.sin(reactionProgress * Math.PI) * 0.18 * motion
-                : 0;
+            const idleFloat = Math.sin(time * 1.65) * 0.05 * motion;
+            const breathing = 1 + Math.sin(time * 2.05) * 0.014 * motion;
 
-            let stateLift = idleFloat;
-            let stateTilt = 0;
-            let stateTurn = 0;
-            let stateScale = breathing;
-            let eyeOpenness = 1;
-            let mouthScale = 1;
-
-            if (state === 'thinking') {
-                stateLift += Math.sin(time * 2.8) * 0.045 * motion;
-                stateTilt = Math.sin(time * 1.7) * 0.105 * motion;
-                stateTurn = Math.sin(time * 1.15) * 0.11 * motion;
-                stateScale += 0.012;
-            } else if (state === 'listening') {
-                stateLift *= 0.35;
-                stateTilt = Math.sin(time * 3.2) * 0.025 * motion;
-                eyeOpenness = 1.08;
-            } else if (state === 'speaking') {
-                stateLift += Math.abs(Math.sin(time * 6.4)) * 0.06 * motion;
-                stateTilt = Math.sin(time * 4.4) * 0.035 * motion;
-                mouthScale = 1.1 + Math.abs(Math.sin(time * 9.2)) * 1.15 * motion;
-            } else if (state === 'offline') {
-                stateLift = -0.055;
-                stateTilt = -0.06;
-                stateScale = 0.97;
-                eyeOpenness = 0.68;
-                mouthScale = 0.68;
-            }
-
-            model.root.position.y = stateLift + hoverLift + reactionBounce;
-            model.root.rotation.z = stateTilt + (this.petHovered ? -0.035 : 0);
-            model.root.rotation.y = stateTurn;
-            model.root.scale.setScalar(stateScale * hoverScale);
+            model.root.position.y = state === 'offline' ? -0.035 : idleFloat;
+            model.root.rotation.z = Math.sin(time * 0.72) * 0.009 * motion;
+            model.root.rotation.y = Math.sin(time * 0.58) * 0.012 * motion;
+            model.root.scale.setScalar(state === 'offline' ? 0.985 : breathing);
 
             const blinkPhase = time % 4.65;
             const blinking = motion && blinkPhase > 4.24 && blinkPhase < 4.43;
@@ -562,49 +454,14 @@ export function railtimeAssistantPet3d(options = {}) {
                 ? Math.max(0.08, Math.abs(blinkPhase - 4.335) / 0.095)
                 : 1;
             model.eyes.forEach((eye) => {
-                eye.scale.y = eye.userData.baseScaleY * eyeOpenness * blinkAmount;
+                eye.scale.y = eye.userData.baseScaleY * blinkAmount;
             });
 
-            model.mouth.scale.y = model.mouth.userData.baseScaleY * mouthScale;
-            model.tongue.visible = state === 'speaking';
-            model.body.scale.x = 1.08 * (1 + (state === 'speaking' ? Math.sin(time * 6.4) * 0.015 * motion : 0));
-            model.body.scale.y = 1.08 * (1 + (breathing - 1) * 0.8);
-            model.glowMaterial.emissiveIntensity = state === 'thinking'
-                ? 1.65 + Math.sin(time * 4.2) * 0.7 * motion
-                : state === 'listening'
-                    ? 1.35 + Math.sin(time * 5.1) * 0.35 * motion
-                    : 1.05;
-            model.gem.rotation.y = time * 0.72 * motion;
-
-            model.earPivots.forEach((ear, index) => {
+            model.leafPivots.forEach((leaf, index) => {
                 const side = index === 0 ? -1 : 1;
-                const baseRotation = side * -0.52;
-                const listenWiggle = state === 'listening'
-                    ? Math.sin(time * 5.3 + index * Math.PI) * 0.13 * motion
-                    : Math.sin(time * 1.55 + index) * 0.025 * motion;
-                ear.rotation.z = baseRotation + side * listenWiggle;
-                ear.scale.y = state === 'listening' ? 1.08 : 1;
-            });
-
-            model.listeningRings.forEach((ring, index) => {
-                const signalPhase = (time * 1.7 + index * 0.28) % 1;
-                const visible = state === 'listening' && motion;
-                const scale = 0.78 + signalPhase * 0.72;
-                ring.material.opacity = visible ? (1 - signalPhase) * 0.62 : 0;
-                ring.scale.set(0.65 * scale, scale, scale);
-            });
-
-            model.particles.forEach((particle, index) => {
-                const visible = state === 'thinking' && motion;
-                const angle = particle.userData.angle + time * (0.72 + index * 0.025);
-                const radius = particle.userData.radius;
-                particle.position.set(
-                    Math.cos(angle) * radius,
-                    Math.sin(angle * 1.18) * 0.78 + 0.12,
-                    0.18 + Math.sin(angle * 0.7) * 0.18,
-                );
-                particle.material.opacity = visible ? 0.34 + Math.sin(time * 4 + index) * 0.2 : 0;
-                particle.scale.setScalar(0.74 + Math.sin(time * 3.2 + index) * 0.22);
+                const baseRotation = side * -0.42;
+                const idleWiggle = Math.sin(time * 1.1 + index * 0.7) * 0.022 * motion;
+                leaf.rotation.z = baseRotation + side * idleWiggle;
             });
 
             model.bodyMaterial.emissiveIntensity = state === 'offline' ? 0 : 0.08;
