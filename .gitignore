@@ -23,6 +23,7 @@ Homestead.json
 .phpunit.result.cache
 /tests/
 /.lmzdev/
+/railtime
 
 /storage/pail
 .env.backup
