@@ -4,6 +4,7 @@ namespace App\Livewire\Admin;
 
 use App\Models\AssistantKnowledgeEntry;
 use App\Models\AssistantKnowledgeTopic;
+use App\Services\Ai\AssistantKnowledgePool;
 use App\Support\Ai\AssistantKnowledgeSettings;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -49,6 +50,8 @@ class AssistantKnowledgeManager extends Component
 
     public bool $entryBaseline = false;
 
+    public bool $entryOriginallyBaseline = false;
+
     public function mount(): void
     {
         $this->authorizeSuperAdmin();
@@ -73,13 +76,18 @@ class AssistantKnowledgeManager extends Component
     public function saveIntro(): void
     {
         $this->authorizeSuperAdmin();
+        $this->knowledgeIntro = trim($this->knowledgeIntro);
         $this->validate([
             'knowledgeIntro' => ['required', 'string', 'max:1200'],
         ]);
 
         AssistantKnowledgeSettings::setIntro($this->knowledgeIntro);
         $this->knowledgeIntro = AssistantKnowledgeSettings::intro(uncached: true);
-        $this->dispatch('knowledge-pool-saved', fields: ['knowledgeIntro']);
+        $this->dispatch(
+            'knowledge-pool-saved',
+            fields: ['knowledgeIntro'],
+            message: $this->localized('Basistext gespeichert.', 'Baseline text saved.'),
+        );
     }
 
     public function createTopic(): void
@@ -105,8 +113,19 @@ class AssistantKnowledgeManager extends Component
     public function saveTopic(): void
     {
         $this->authorizeSuperAdmin();
+        $this->topicName = trim($this->topicName);
+        $this->topicDescription = trim($this->topicDescription);
+        $wasEditing = $this->editingTopicId !== null;
         $validated = $this->validate([
-            'topicName' => ['required', 'string', 'min:2', 'max:120'],
+            'topicName' => [
+                'required',
+                'string',
+                'min:2',
+                'max:120',
+                Rule::unique('assistant_knowledge_topics', 'name')
+                    ->ignore($this->editingTopicId)
+                    ->whereNull('deleted_at'),
+            ],
             'topicDescription' => ['nullable', 'string', 'max:500'],
             'topicActive' => ['boolean'],
         ]);
@@ -124,8 +143,17 @@ class AssistantKnowledgeManager extends Component
         ])->save();
 
         $this->topicEditorOpen = false;
+        $this->search = '';
+        $this->topicFilter = (string) $topic->getKey();
+        $this->resetPage();
         $this->resetTopicForm();
-        $this->dispatch('knowledge-pool-saved', fields: ['topic']);
+        $this->dispatch(
+            'knowledge-pool-saved',
+            fields: ['topic'],
+            message: $wasEditing
+                ? $this->localized('Thema aktualisiert.', 'Topic updated.')
+                : $this->localized('Thema angelegt.', 'Topic created.'),
+        );
     }
 
     public function deleteTopic(int $topicId): void
@@ -137,13 +165,18 @@ class AssistantKnowledgeManager extends Component
             $topic->entries()->eachById(static fn (AssistantKnowledgeEntry $entry) => $entry->delete());
             $topic->delete();
         });
+        app(AssistantKnowledgePool::class)->forgetCache();
 
         if ($this->topicFilter === (string) $topicId) {
             $this->topicFilter = 'all';
         }
 
         $this->resetPage();
-        $this->dispatch('knowledge-pool-saved', fields: ['topic']);
+        $this->dispatch(
+            'knowledge-pool-saved',
+            fields: ['topic'],
+            message: $this->localized('Thema und enthaltene Informationen entfernt.', 'Topic and contained information removed.'),
+        );
     }
 
     public function createEntry(?int $topicId = null): void
@@ -154,6 +187,7 @@ class AssistantKnowledgeManager extends Component
         $preferredTopic = $topicId
             ?: (ctype_digit($this->topicFilter) ? (int) $this->topicFilter : null);
         $this->entryTopicId = $preferredTopic
+            ?: AssistantKnowledgeTopic::query()->active()->orderBy('sort_order')->value('id')
             ?: AssistantKnowledgeTopic::query()->orderBy('sort_order')->value('id');
         $this->entryEditorOpen = true;
     }
@@ -171,6 +205,7 @@ class AssistantKnowledgeManager extends Component
         $this->entryKeywords = implode(', ', (array) $entry->keywords);
         $this->entryActive = $entry->is_active;
         $this->entryBaseline = $entry->include_in_baseline;
+        $this->entryOriginallyBaseline = $entry->include_in_baseline;
         $this->entryEditorOpen = true;
         $this->resetValidation();
     }
@@ -178,6 +213,11 @@ class AssistantKnowledgeManager extends Component
     public function saveEntry(): void
     {
         $this->authorizeSuperAdmin();
+        $this->entryTitle = trim($this->entryTitle);
+        $this->entrySummary = trim($this->entrySummary);
+        $this->entryContent = trim($this->entryContent);
+        $this->entryKeywords = trim($this->entryKeywords);
+        $wasEditing = $this->editingEntryId !== null;
         $validated = $this->validate([
             'entryTopicId' => [
                 'required',
@@ -189,7 +229,29 @@ class AssistantKnowledgeManager extends Component
             'entryContent' => ['required', 'string', 'min:3', 'max:50000'],
             'entryKeywords' => ['nullable', 'string', 'max:1000'],
             'entryActive' => ['boolean'],
-            'entryBaseline' => ['boolean'],
+            'entryBaseline' => [
+                'boolean',
+                function (string $attribute, mixed $value, $fail): void {
+                    if (! (bool) $value) {
+                        return;
+                    }
+
+                    $assigned = AssistantKnowledgeEntry::query()
+                        ->where('include_in_baseline', true)
+                        ->when(
+                            $this->editingEntryId !== null,
+                            fn ($query) => $query->whereKeyNot($this->editingEntryId),
+                        )
+                        ->count();
+
+                    if ($assigned >= AssistantKnowledgePool::BASELINE_ENTRY_LIMIT) {
+                        $fail($this->localized(
+                            'Es können höchstens '.AssistantKnowledgePool::BASELINE_ENTRY_LIMIT.' Kurzinfos als Basiswissen markiert werden.',
+                            'At most '.AssistantKnowledgePool::BASELINE_ENTRY_LIMIT.' summaries can be marked as baseline knowledge.',
+                        ));
+                    }
+                },
+            ],
         ]);
 
         $entry = $this->editingEntryId
@@ -211,8 +273,17 @@ class AssistantKnowledgeManager extends Component
         ])->save();
 
         $this->entryEditorOpen = false;
+        $this->search = '';
+        $this->topicFilter = (string) $entry->topic_id;
+        $this->resetPage();
         $this->resetEntryForm();
-        $this->dispatch('knowledge-pool-saved', fields: ['entry']);
+        $this->dispatch(
+            'knowledge-pool-saved',
+            fields: ['entry'],
+            message: $wasEditing
+                ? $this->localized('Information aktualisiert.', 'Information updated.')
+                : $this->localized('Information angelegt.', 'Information created.'),
+        );
     }
 
     public function deleteEntry(int $entryId): void
@@ -220,7 +291,11 @@ class AssistantKnowledgeManager extends Component
         $this->authorizeSuperAdmin();
         AssistantKnowledgeEntry::query()->findOrFail($entryId)->delete();
         $this->resetPage();
-        $this->dispatch('knowledge-pool-saved', fields: ['entry']);
+        $this->dispatch(
+            'knowledge-pool-saved',
+            fields: ['entry'],
+            message: $this->localized('Information entfernt.', 'Information removed.'),
+        );
     }
 
     public function render()
@@ -250,8 +325,8 @@ class AssistantKnowledgeManager extends Component
                         ->orWhere('keywords', 'like', $like);
                 });
             })
-            ->orderBy('sort_order')
             ->orderByDesc('updated_at')
+            ->orderBy('sort_order')
             ->paginate(10);
 
         return view('livewire.admin.assistant-knowledge-manager', [
@@ -259,7 +334,53 @@ class AssistantKnowledgeManager extends Component
             'entries' => $entries,
             'activeEntryCount' => AssistantKnowledgeEntry::query()->active()->count(),
             'baselineEntryCount' => AssistantKnowledgeEntry::query()->active()->where('include_in_baseline', true)->count(),
+            'baselineAssignedCount' => AssistantKnowledgeEntry::query()->where('include_in_baseline', true)->count(),
+            'baselineLimit' => AssistantKnowledgePool::BASELINE_ENTRY_LIMIT,
         ]);
+    }
+
+    /** @return array<string, string> */
+    protected function messages(): array
+    {
+        return [
+            'knowledgeIntro.required' => $this->localized('Bitte einen kurzen Basistext eintragen.', 'Please enter a short baseline text.'),
+            'knowledgeIntro.max' => $this->localized('Der Basistext darf höchstens 1.200 Zeichen enthalten.', 'The baseline text may contain at most 1,200 characters.'),
+            'topicName.required' => $this->localized('Bitte einen Namen für das Thema eintragen.', 'Please enter a topic name.'),
+            'topicName.min' => $this->localized('Der Themenname muss mindestens 2 Zeichen enthalten.', 'The topic name must contain at least 2 characters.'),
+            'topicName.max' => $this->localized('Der Themenname darf höchstens 120 Zeichen enthalten.', 'The topic name may contain at most 120 characters.'),
+            'topicName.unique' => $this->localized('Ein Thema mit diesem Namen ist bereits vorhanden.', 'A topic with this name already exists.'),
+            'topicDescription.max' => $this->localized('Die Themenbeschreibung darf höchstens 500 Zeichen enthalten.', 'The topic description may contain at most 500 characters.'),
+            'entryTopicId.required' => $this->localized('Bitte ein Thema auswählen.', 'Please select a topic.'),
+            'entryTopicId.integer' => $this->localized('Das gewählte Thema ist ungültig.', 'The selected topic is invalid.'),
+            'entryTopicId.exists' => $this->localized('Das gewählte Thema ist nicht mehr verfügbar.', 'The selected topic is no longer available.'),
+            'entryTitle.required' => $this->localized('Bitte einen Titel für die Information eintragen.', 'Please enter a title for the information.'),
+            'entryTitle.min' => $this->localized('Der Titel muss mindestens 2 Zeichen enthalten.', 'The title must contain at least 2 characters.'),
+            'entryTitle.max' => $this->localized('Der Titel darf höchstens 180 Zeichen enthalten.', 'The title may contain at most 180 characters.'),
+            'entrySummary.required' => $this->localized('Für Basiswissen ist eine Kurzinfo erforderlich.', 'A summary is required for baseline knowledge.'),
+            'entrySummary.max' => $this->localized('Die Kurzinfo darf höchstens 1.000 Zeichen enthalten.', 'The summary may contain at most 1,000 characters.'),
+            'entryContent.required' => $this->localized('Bitte die vollständige Information eintragen.', 'Please enter the full information.'),
+            'entryContent.min' => $this->localized('Die vollständige Information muss mindestens 3 Zeichen enthalten.', 'The full information must contain at least 3 characters.'),
+            'entryContent.max' => $this->localized('Die vollständige Information darf höchstens 50.000 Zeichen enthalten.', 'The full information may contain at most 50,000 characters.'),
+            'entryKeywords.max' => $this->localized('Die Suchbegriffe dürfen zusammen höchstens 1.000 Zeichen enthalten.', 'Search keywords may contain at most 1,000 characters in total.'),
+        ];
+    }
+
+    /** @return array<string, string> */
+    protected function validationAttributes(): array
+    {
+        return [
+            'knowledgeIntro' => $this->localized('Basistext', 'baseline text'),
+            'topicName' => $this->localized('Themenname', 'topic name'),
+            'topicDescription' => $this->localized('Themenbeschreibung', 'topic description'),
+            'topicActive' => $this->localized('Themenfreigabe', 'topic availability'),
+            'entryTopicId' => $this->localized('Thema', 'topic'),
+            'entryTitle' => $this->localized('Titel', 'title'),
+            'entrySummary' => $this->localized('Kurzinfo', 'summary'),
+            'entryContent' => $this->localized('vollständige Information', 'full information'),
+            'entryKeywords' => $this->localized('Suchbegriffe', 'search keywords'),
+            'entryActive' => $this->localized('Wissensfreigabe', 'knowledge availability'),
+            'entryBaseline' => $this->localized('Basiswissen', 'baseline knowledge'),
+        ];
     }
 
     private function authorizeSuperAdmin(): void
@@ -287,6 +408,7 @@ class AssistantKnowledgeManager extends Component
         $this->entryKeywords = '';
         $this->entryActive = true;
         $this->entryBaseline = false;
+        $this->entryOriginallyBaseline = false;
         $this->resetValidation();
     }
 
@@ -300,5 +422,10 @@ class AssistantKnowledgeManager extends Component
             ->take(16)
             ->values()
             ->all();
+    }
+
+    private function localized(string $german, string $english): string
+    {
+        return app()->getLocale() === 'de' ? $german : $english;
     }
 }

@@ -15,10 +15,10 @@
             'peak' => __('app.chart_peak'),
         ],
     ]);
-    $operationalPreviewsBySlug = collect($operationalPreviews)->keyBy('slug');
-    $ordersPreview = $operationalPreviewsBySlug->get('orders');
-    $shiftsPreview = $operationalPreviewsBySlug->get('shift-management');
-    $secondaryPreviews = $operationalPreviewsBySlug->only(['calendar', 'customers']);
+    $operationalModulesBySlug = collect($operationalModules)->keyBy('slug');
+    $ordersModule = $operationalModulesBySlug->get('orders');
+    $shiftsModule = $operationalModulesBySlug->get('shift-management');
+    $secondaryModules = $operationalModulesBySlug->only(['calendar', 'customers']);
 
     // Lesehilfen fuer die Diagrammkoepfe. Beide Reihen liegen bereits im
     // Render-Payload — hier wird ausschliesslich zusammengefasst, es kommt
@@ -146,7 +146,7 @@
         @if (auth()->user()?->role === 'admin')
             <section
                 class="rt-admin-operations-stage order-2 relative overflow-hidden rounded-[1.4rem]"
-                aria-labelledby="operational-preview-heading"
+                aria-labelledby="operational-workspace-heading"
                 data-dashboard-segment="operations"
             >
                 <div class="pointer-events-none absolute inset-y-0 right-0 hidden w-2/5 opacity-40 sm:block" aria-hidden="true">
@@ -159,7 +159,7 @@
                 <header class="relative z-10 flex flex-wrap items-start justify-between gap-3 px-4 pb-3 pt-4 sm:px-5 sm:pb-4 sm:pt-5" data-dashboard-item>
                     <div class="max-w-2xl">
                         <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-rt-red">{{ __('app.operational_control') }}</p>
-                        <h2 id="operational-preview-heading" class="mt-1.5 text-xl font-semibold tracking-[-0.025em] text-rt-text dark:text-white">{{ __('app.workforce_control') }}</h2>
+                        <h2 id="operational-workspace-heading" class="mt-1.5 text-xl font-semibold tracking-[-0.025em] text-rt-text dark:text-white">{{ __('app.workforce_control') }}</h2>
                         <p class="mt-1 max-w-2xl text-xs leading-5 text-rt-muted sm:text-sm dark:text-rt-dark-muted">{{ __('app.workforce_control_description') }}</p>
                     </div>
                     <span class="relative z-10 flex flex-wrap items-center justify-end gap-2" data-dashboard-data-legend>
@@ -167,14 +167,10 @@
                             <span class="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true"></span>
                             {{ __('app.live_operations') }}
                         </span>
-                        <span class="rt-admin-operations-status inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50/95 px-3 py-2 text-[11px] font-semibold text-amber-800 shadow-rt-xs backdrop-blur dark:border-amber-700/70 dark:bg-amber-950/80 dark:text-amber-200" data-dashboard-preview-source>
-                            <i data-feather="eye" class="h-3.5 w-3.5" aria-hidden="true"></i>
-                            {{ __('app.demo_preview') }}
-                        </span>
                     </span>
                 </header>
 
-                <div class="rt-admin-operations-grid relative z-10 grid gap-3 px-3 pb-3 sm:gap-4 sm:px-4 sm:pb-4 md:grid-cols-2 xl:grid-cols-12" data-operational-preview data-dashboard-items>
+                <div class="rt-admin-operations-grid relative z-10 grid gap-3 px-3 pb-3 sm:gap-4 sm:px-4 sm:pb-4 md:grid-cols-2 xl:grid-cols-12" data-operational-workspace data-dashboard-items>
                     <x-ui.dashboard.focus-card
                         class="rt-admin-operations-card xl:col-span-6"
                         :href="route('admin.employees')"
@@ -189,57 +185,54 @@
                         data-rt-glow
                     />
 
-                    @if ($ordersPreview)
+                    @if ($ordersModule)
                         <x-ui.dashboard.focus-card
                             class="rt-admin-operations-card xl:col-span-3"
                             :href="route('admin.operations.preview', ['module' => 'orders'])"
                             icon="clipboard"
                             tone="warning"
-                            :metric="$ordersPreview['metric']"
-                            :metric-label="$ordersPreview['metric_label']"
-                            :title="$ordersPreview['title']"
-                            :description="$ordersPreview['description']"
-                            :badge="$ordersPreview['badge']"
+                            :metric="$ordersModule['metric']"
+                            :metric-label="$ordersModule['metric_label']"
+                            :title="$ordersModule['title']"
+                            :description="$ordersModule['description']"
+                            :badge="$ordersModule['badge']"
                             :action-label="__('app.open')"
-                            preview
                             data-rt-glow
                         />
                     @endif
 
-                    @if ($shiftsPreview)
+                    @if ($shiftsModule)
                         <x-ui.dashboard.focus-card
                             class="rt-admin-operations-card md:col-span-2 xl:col-span-3"
                             :href="route('admin.operations.preview', ['module' => 'shift-management'])"
                             icon="clock"
                             tone="success"
-                            :metric="$shiftsPreview['metric']"
-                            :metric-label="$shiftsPreview['metric_label']"
-                            :title="$shiftsPreview['title']"
-                            :description="$shiftsPreview['description']"
-                            :badge="$shiftsPreview['badge']"
+                            :metric="$shiftsModule['metric']"
+                            :metric-label="$shiftsModule['metric_label']"
+                            :title="$shiftsModule['title']"
+                            :description="$shiftsModule['description']"
+                            :badge="$shiftsModule['badge']"
                             :action-label="__('app.open')"
-                            preview
                             data-rt-glow
                         />
                     @endif
                 </div>
 
-                @if ($secondaryPreviews->isNotEmpty())
+                @if ($secondaryModules->isNotEmpty())
                     <nav class="relative z-10 flex flex-wrap gap-2 border-t border-slate-200/80 px-4 py-3 dark:border-slate-700/80" aria-label="{{ __('app.preview_modules') }}">
-                        @foreach ($secondaryPreviews as $previewModule)
+                        @foreach ($secondaryModules as $module)
                             <a
-                                href="{{ route('admin.operations.preview', ['module' => $previewModule['slug']]) }}"
+                                href="{{ route('admin.operations.preview', ['module' => $module['slug']]) }}"
                                 wire:navigate
-                                data-dashboard-preview-link
+                                data-dashboard-operations-link
                                 class="inline-flex min-h-10 flex-1 items-center justify-between gap-3 rounded-xl bg-white/75 px-3 py-2 text-xs font-semibold text-rt-muted ring-1 ring-inset ring-slate-200 transition hover:bg-white hover:text-rt-red focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red sm:flex-none dark:bg-slate-900/70 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-900 dark:hover:text-rt-red-light"
                             >
                                 <span class="inline-flex items-center gap-2">
-                                    <i data-feather="{{ $previewModule['icon'] }}" class="h-3.5 w-3.5" aria-hidden="true"></i>
-                                    {{ $previewModule['title'] }}
+                                    <i data-feather="{{ $module['icon'] }}" class="h-3.5 w-3.5" aria-hidden="true"></i>
+                                    {{ $module['title'] }}
                                 </span>
                                 <span class="inline-flex items-center gap-2">
-                                    <span class="text-[9px] font-semibold uppercase tracking-[0.08em] text-amber-700 dark:text-amber-300">{{ __('app.demo_preview') }}</span>
-                                    <span class="tabular-nums">{{ $previewModule['metric'] }}</span>
+                                    <span class="tabular-nums">{{ $module['metric'] }}</span>
                                 </span>
                             </a>
                         @endforeach

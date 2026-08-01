@@ -11,6 +11,7 @@ class OperationalPreview extends Component
 
     public function mount(string $module): void
     {
+        abort_unless(auth()->user()?->isAdmin(), 403);
         abort_unless(in_array($module, OperationalPreviewCatalog::slugs(), true), 404);
 
         $this->module = $module;
@@ -19,13 +20,12 @@ class OperationalPreview extends Component
     public function render(OperationalPreviewCatalog $catalog)
     {
         abort_unless(auth()->user()?->isAdmin(), 403);
-
-        $module = $catalog->find($this->module);
-        abort_unless($module, 404);
+        $moduleData = $catalog->find($this->module);
+        abort_unless($moduleData, 404);
 
         return view('livewire.admin.operational-preview', [
-            'moduleData' => $module,
-            'allModules' => $catalog->dashboard(),
+            'moduleData' => $moduleData,
+            'allModules' => $catalog->all(),
         ])->layout('layouts.master', ['area' => 'admin']);
     }
 }

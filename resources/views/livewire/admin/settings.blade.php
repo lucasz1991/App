@@ -7,6 +7,9 @@
         // Der Übersicht-Tab spiegelt genau die Tabs, die danach folgen. Eine
         // gemeinsame Definition verhindert, dass Teaser und Tableiste
         // auseinanderlaufen, sobald ein Bereich dazukommt oder wegfällt.
+        $assistantKnowledgeLabel = app()->getLocale() === 'de'
+            ? 'Informationspool des Chatbot-Assistenten'
+            : 'Chatbot assistant knowledge pool';
         $settingsTabs = [
             'overview' => ['label' => __('app.settings_overview'), 'icon' => 'fad fa-th-large'],
             'company' => ['label' => __('app.company_data'), 'icon' => 'fad fa-building'],
@@ -61,7 +64,7 @@
                 'label' => __('app.settings_superadmin'),
                 'description' => __('app.settings_overview_superadmin_text'),
                 'icon' => 'fad fa-shield-alt',
-                'items' => [__('app.openrouter_settings'), __('app.openrouter_models')],
+                'items' => [__('app.openrouter_settings'), __('app.openrouter_models'), $assistantKnowledgeLabel],
             ];
         }
     @endphp
@@ -710,7 +713,7 @@
 
             <x-admin.settings-accordion-section
                 section="assistant-knowledge"
-                :label="app()->getLocale() === 'de' ? 'Informationspool des Chatbot-Assistenten' : 'Chatbot assistant knowledge pool'"
+                :label="$assistantKnowledgeLabel"
                 :description="app()->getLocale() === 'de' ? 'Themen, Basiswissen und gezielt abrufbare Informationen redaktionell verwalten.' : 'Manage topics, baseline knowledge and information retrieved on demand.'"
                 icon="fad fa-books"
                 data-anim="fade-up"

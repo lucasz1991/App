@@ -37,7 +37,7 @@ class Dashboard extends Component
             'operations' => $dashboardData->operations(),
             'charts' => $dashboardData->charts(),
             'workforce' => $workforce,
-            'operationalPreviews' => auth()->user()?->role === 'admin'
+            'operationalModules' => auth()->user()?->role === 'admin'
                 ? $previewCatalog->dashboard()
                 : [],
             'canViewSystemData' => $canViewSystemData,
@@ -48,10 +48,10 @@ class Dashboard extends Component
     /**
      * Produktive Personalkennzahlen fuer den Admin-Einstieg.
      *
-     * Auftrags- und Schichtwerte bleiben bewusst im getrennten
-     * OperationalPreviewCatalog. Dadurch kann das Dashboard echte
-     * Mitarbeiterdaten anzeigen, ohne Vorschauwerte als Live-Daten
-     * erscheinen zu lassen.
+     * Auftrags- und Schichtwerte werden über den getrennten Operations-Katalog
+     * geladen. Dadurch bleibt die Dashboard-Abfrage kompakt, während alle
+     * Kennzahlen aus denselben produktiven Modellen wie die Arbeitsbereiche
+     * stammen.
      *
      * @return array{
      *     total:int,

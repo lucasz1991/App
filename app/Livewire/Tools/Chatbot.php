@@ -206,7 +206,15 @@ class Chatbot extends Component
                         : $client->stream($messages, $streamDelta);
                 } else {
                     $this->replaceLatestUserContent($messages, $batch->requestContent($input));
-                    $response = $client->complete($messages, $batch->modelProfile(), $batch->plugins());
+                    $knowledge = app(AssistantKnowledgePool::class);
+                    $response = $knowledge->hasSearchableKnowledge()
+                        ? app(AssistantKnowledgeToolRunner::class)->complete(
+                            $client,
+                            $messages,
+                            $batch->modelProfile(),
+                            $batch->plugins(),
+                        )
+                        : $client->complete($messages, $batch->modelProfile(), $batch->plugins());
                     $answer = $response->content;
                 }
 

@@ -48,6 +48,9 @@
     $id = $attributes->get('id')
         ?: 'rt-select-'.substr(md5(($wireModel ?: $xModel ?: $name ?: '').$slotHtml), 0, 10);
     $listboxId = $id.'-listbox';
+    $controlAriaLabel = $attributes->get('aria-label');
+    $controlAriaDescribedBy = $attributes->get('aria-describedby');
+    $controlAriaInvalid = $attributes->get('aria-invalid');
     $outerClasses = trim('min-w-0 '.$attributes->get('class', ''));
     $autosaveFieldId = (string) ($attributes->get('data-autosave-field-id') ?: $id);
 @endphp
@@ -143,7 +146,13 @@
                 aria-haspopup="listbox"
                 aria-controls="{{ $listboxId }}"
                 :aria-activedescendant="activeIndex >= 0 ? @js($listboxId) + '-option-' + activeIndex : null"
-                :aria-label="selectedLabel"
+                @if (filled($controlAriaLabel))
+                    aria-label="{{ $controlAriaLabel }}"
+                @else
+                    :aria-label="selectedLabel"
+                @endif
+                @if (filled($controlAriaDescribedBy)) aria-describedby="{{ $controlAriaDescribedBy }}" @endif
+                @if ($controlAriaInvalid !== null) aria-invalid="{{ $controlAriaInvalid }}" @endif
                 @if($attributes->has('required')) aria-required="true" @endif
                 @disabled($disabled)
                 @if($wireModel) data-autosave-visual data-autosave-state="idle" @endif

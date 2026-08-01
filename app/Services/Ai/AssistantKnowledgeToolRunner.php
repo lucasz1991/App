@@ -29,20 +29,90 @@ class AssistantKnowledgeToolRunner
             return $answer;
         }
 
-        $messages[] = $decision->assistantMessage();
-
-        foreach ($decision->toolCalls as $toolCall) {
-            $messages[] = [
-                'role' => 'tool',
-                'tool_call_id' => $toolCall['id'],
-                'name' => $toolCall['function']['name'],
-                'content' => $this->execute($toolCall['function']['name'], $toolCall['function']['arguments']),
-            ];
-        }
+        $messages = $this->appendToolResult($messages, $decision);
 
         // OpenRouter requires the same tool schema on the follow-up request.
         // tool_choice=none guarantees that this bounded loop cannot recurse.
         return $client->stream($messages, $onDelta, $tools, 'none');
+    }
+
+    /**
+     * Attachment-aware knowledge round. The first completion both parses the
+     * attachment and decides whether one local lookup is needed. PDF
+     * annotations are replayed on the assistant message and retained for the
+     * encrypted follow-up context.
+     *
+     * @param  array<int, array<string, mixed>>  $messages
+     * @param  array<int, array<string, mixed>>  $plugins
+     */
+    public function complete(
+        OpenRouterChatClient $client,
+        array $messages,
+        OpenRouterModelProfile $profile,
+        array $plugins = [],
+    ): OpenRouterChatResponse {
+        $tools = $this->knowledge->toolDefinitions();
+        $decision = $client->completeToolDecision($messages, $tools, $profile, $plugins);
+
+        if (! $decision->requestsTool()) {
+            return new OpenRouterChatResponse(
+                trim((string) $decision->content),
+                $decision->fileAnnotations,
+            );
+        }
+
+        $messages = $this->appendToolResult($messages, $decision);
+        $response = $client->complete($messages, $profile, $plugins, $tools, 'none');
+
+        return new OpenRouterChatResponse(
+            $response->content,
+            $this->mergeFileAnnotations($decision->fileAnnotations, $response->fileAnnotations),
+        );
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $messages
+     * @return array<int, array<string, mixed>>
+     */
+    private function appendToolResult(array $messages, OpenRouterToolDecision $decision): array
+    {
+        $toolCall = $decision->toolCalls[0];
+        $messages[] = $decision->assistantMessage();
+        $messages[] = [
+            'role' => 'tool',
+            'tool_call_id' => $toolCall['id'],
+            'name' => $toolCall['function']['name'],
+            'content' => $this->execute($toolCall['function']['name'], $toolCall['function']['arguments']),
+        ];
+
+        return $messages;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $first
+     * @param  array<int, array<string, mixed>>  $second
+     * @return array<int, array<string, mixed>>
+     */
+    private function mergeFileAnnotations(array $first, array $second): array
+    {
+        $merged = [];
+        $seen = [];
+
+        foreach ([...$first, ...$second] as $annotation) {
+            if (! is_array($annotation) || ! is_array($annotation['file'] ?? null)) {
+                continue;
+            }
+
+            $hash = trim((string) ($annotation['file']['hash'] ?? ''));
+            if ($hash === '' || isset($seen[$hash])) {
+                continue;
+            }
+
+            $seen[$hash] = true;
+            $merged[] = $annotation;
+        }
+
+        return $merged;
     }
 
     private function execute(string $name, string $rawArguments): string

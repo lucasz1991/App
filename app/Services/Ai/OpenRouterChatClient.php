@@ -110,18 +110,39 @@ class OpenRouterChatClient
      *
      * @param  array<int, array<string, mixed>>  $messages
      * @param  array<int, array<string, mixed>>  $tools
+     * @param  array<int, array<string, mixed>>  $plugins
      */
     public function completeToolDecision(
         array $messages,
         array $tools,
+        OpenRouterModelProfile $profile = OpenRouterModelProfile::Text,
+        array $plugins = [],
     ): OpenRouterToolDecision {
         $settings = OpenRouterSettings::all(uncached: true);
         $endpoint = $this->validatedEndpoint((string) ($settings['api_url'] ?? ''));
         $apiKey = trim((string) ($settings['api_key'] ?? ''));
-        $model = trim((string) ($settings['text_model'] ?? ''));
+        $model = $this->modelFor($settings, $profile);
 
         if ($apiKey === '' || $model === '' || $tools === []) {
             throw new OpenRouterChatException('not_configured');
+        }
+
+        $payload = [
+            'model' => $model,
+            'messages' => $messages,
+            'temperature' => (float) $settings['temperature'],
+            'max_completion_tokens' => min(
+                (int) $settings['max_completion_tokens'],
+                max(1, (int) config('assistant.openrouter.max_completion_tokens', 4000)),
+            ),
+            'stream' => false,
+            'tools' => $tools,
+            'tool_choice' => 'auto',
+            'parallel_tool_calls' => false,
+        ];
+
+        if ($plugins !== []) {
+            $payload['plugins'] = $plugins;
         }
 
         try {
@@ -130,19 +151,7 @@ class OpenRouterChatClient
                 'connect_timeout' => min(10.0, (float) $settings['timeout']),
                 'timeout' => (float) $settings['timeout'],
                 'headers' => $this->headers($settings, $apiKey, false),
-                'json' => [
-                    'model' => $model,
-                    'messages' => $messages,
-                    'temperature' => (float) $settings['temperature'],
-                    'max_completion_tokens' => min(
-                        (int) $settings['max_completion_tokens'],
-                        max(1, (int) config('assistant.openrouter.max_completion_tokens', 4000)),
-                    ),
-                    'stream' => false,
-                    'tools' => $tools,
-                    'tool_choice' => 'auto',
-                    'parallel_tool_calls' => false,
-                ],
+                'json' => $payload,
                 'http_errors' => false,
             ]);
         } catch (GuzzleException $exception) {
@@ -168,7 +177,11 @@ class OpenRouterChatClient
             throw new OpenRouterChatException('empty_response');
         }
 
-        return new OpenRouterToolDecision($content ?: null, $toolCalls);
+        return new OpenRouterToolDecision(
+            $content ?: null,
+            $toolCalls,
+            $this->fileAnnotations($message['annotations'] ?? []),
+        );
     }
 
     /**
@@ -177,11 +190,14 @@ class OpenRouterChatClient
      *
      * @param  array<int, array<string, mixed>>  $messages
      * @param  array<int, array<string, mixed>>  $plugins
+     * @param  array<int, array<string, mixed>>  $tools
      */
     public function complete(
         array $messages,
         OpenRouterModelProfile $profile,
         array $plugins = [],
+        array $tools = [],
+        string|array|null $toolChoice = null,
     ): OpenRouterChatResponse {
         $settings = OpenRouterSettings::all(uncached: true);
         $endpoint = $this->validatedEndpoint((string) ($settings['api_url'] ?? ''));
@@ -205,6 +221,12 @@ class OpenRouterChatClient
 
         if ($plugins !== []) {
             $payload['plugins'] = $plugins;
+        }
+
+        if ($tools !== []) {
+            $payload['tools'] = $tools;
+            $payload['tool_choice'] = $toolChoice ?? 'auto';
+            $payload['parallel_tool_calls'] = false;
         }
 
         try {
@@ -411,7 +433,7 @@ class OpenRouterChatClient
         }
 
         $result = [];
-        foreach (array_slice($toolCalls, 0, 3) as $toolCall) {
+        foreach (array_slice($toolCalls, 0, 1) as $toolCall) {
             if (! is_array($toolCall) || ! is_array($toolCall['function'] ?? null)) {
                 continue;
             }
