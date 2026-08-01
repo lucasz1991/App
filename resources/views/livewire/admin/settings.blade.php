@@ -714,7 +714,7 @@
             <x-admin.settings-accordion-section
                 section="assistant-knowledge"
                 :label="$assistantKnowledgeLabel"
-                :description="app()->getLocale() === 'de' ? 'Themen, Basiswissen und gezielt abrufbare Informationen redaktionell verwalten.' : 'Manage topics, baseline knowledge and information retrieved on demand.'"
+                :description="app()->getLocale() === 'de' ? 'Default-Prompt, verbindliche Regeln, Themen und gezielt abrufbares Wissen verwalten.' : 'Manage the default prompt, binding rules, topics and knowledge retrieved on demand.'"
                 icon="fad fa-books"
                 data-anim="fade-up"
                 data-anim-delay="0.08"

@@ -3,6 +3,7 @@
 namespace App\Services\Operations;
 
 use App\Enums\OrderStatus;
+use App\Enums\ShiftStatus;
 use App\Models\Order;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -47,6 +48,10 @@ class OrderLifecycleService
                 ]);
             }
 
+            if ($targetStatus === OrderStatus::Cancelled) {
+                $this->assertAllShiftsCancelled($lockedOrder);
+            }
+
             $lockedOrder->forceFill([
                 'status' => $targetStatus,
                 'updated_by' => $actor->getKey(),
@@ -76,6 +81,20 @@ class OrderLifecycleService
             static fn (string $value): OrderStatus => OrderStatus::from($value),
             self::TRANSITIONS[$status->value],
         );
+    }
+
+    private function assertAllShiftsCancelled(Order $order): void
+    {
+        $hasActiveShift = $order->shifts()
+            ->lockForUpdate()
+            ->get(['shifts.id', 'shifts.status'])
+            ->contains(fn ($shift): bool => $shift->status !== ShiftStatus::Cancelled);
+
+        if ($hasActiveShift) {
+            throw ValidationException::withMessages([
+                'status' => 'Der Auftrag kann erst storniert werden, wenn alle zugehörigen Schichten storniert sind.',
+            ]);
+        }
     }
 
     private function normalizeStatus(OrderStatus|string $status): OrderStatus

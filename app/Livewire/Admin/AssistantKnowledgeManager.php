@@ -18,6 +18,10 @@ class AssistantKnowledgeManager extends Component
 
     public string $knowledgeIntro = '';
 
+    public string $assistantDefaultPrompt = '';
+
+    public string $assistantRules = '';
+
     public string $search = '';
 
     public string $topicFilter = 'all';
@@ -55,6 +59,8 @@ class AssistantKnowledgeManager extends Component
     public function mount(): void
     {
         $this->authorizeSuperAdmin();
+        $this->assistantDefaultPrompt = AssistantKnowledgeSettings::defaultPrompt(uncached: true);
+        $this->assistantRules = AssistantKnowledgeSettings::rules(uncached: true);
         $this->knowledgeIntro = AssistantKnowledgeSettings::intro(uncached: true);
     }
 
@@ -71,6 +77,37 @@ class AssistantKnowledgeManager extends Component
     public function updatedTopicFilter(): void
     {
         $this->resetPage();
+    }
+
+    public function savePromptConfiguration(): void
+    {
+        $this->authorizeSuperAdmin();
+        $this->assistantDefaultPrompt = trim($this->assistantDefaultPrompt);
+        $this->assistantRules = trim($this->assistantRules);
+        $this->validate([
+            'assistantDefaultPrompt' => [
+                'required',
+                'string',
+                'max:'.AssistantKnowledgeSettings::DEFAULT_PROMPT_MAX_CHARACTERS,
+            ],
+            'assistantRules' => [
+                'required',
+                'string',
+                'max:'.AssistantKnowledgeSettings::RULES_MAX_CHARACTERS,
+            ],
+        ]);
+
+        AssistantKnowledgeSettings::setPromptConfiguration(
+            $this->assistantDefaultPrompt,
+            $this->assistantRules,
+        );
+        $this->assistantDefaultPrompt = AssistantKnowledgeSettings::defaultPrompt(uncached: true);
+        $this->assistantRules = AssistantKnowledgeSettings::rules(uncached: true);
+        $this->dispatch(
+            'knowledge-pool-saved',
+            fields: ['assistantDefaultPrompt', 'assistantRules'],
+            message: $this->localized('Default-Prompt und Regeln gespeichert.', 'Default prompt and rules saved.'),
+        );
     }
 
     public function saveIntro(): void
@@ -341,6 +378,10 @@ class AssistantKnowledgeManager extends Component
     protected function messages(): array
     {
         return [
+            'assistantDefaultPrompt.required' => $this->localized('Bitte einen Default-Prompt eintragen.', 'Please enter a default prompt.'),
+            'assistantDefaultPrompt.max' => $this->localized('Der Default-Prompt darf höchstens '.AssistantKnowledgeSettings::DEFAULT_PROMPT_MAX_CHARACTERS.' Zeichen enthalten.', 'The default prompt may contain at most '.AssistantKnowledgeSettings::DEFAULT_PROMPT_MAX_CHARACTERS.' characters.'),
+            'assistantRules.required' => $this->localized('Bitte mindestens eine verbindliche Regel eintragen.', 'Please enter at least one binding rule.'),
+            'assistantRules.max' => $this->localized('Die Regeln dürfen zusammen höchstens '.AssistantKnowledgeSettings::RULES_MAX_CHARACTERS.' Zeichen enthalten.', 'The rules may contain at most '.AssistantKnowledgeSettings::RULES_MAX_CHARACTERS.' characters in total.'),
             'knowledgeIntro.required' => $this->localized('Bitte einen kurzen Basistext eintragen.', 'Please enter a short baseline text.'),
             'knowledgeIntro.max' => $this->localized('Der Basistext darf höchstens 1.200 Zeichen enthalten.', 'The baseline text may contain at most 1,200 characters.'),
             'topicName.required' => $this->localized('Bitte einen Namen für das Thema eintragen.', 'Please enter a topic name.'),
@@ -367,6 +408,8 @@ class AssistantKnowledgeManager extends Component
     protected function validationAttributes(): array
     {
         return [
+            'assistantDefaultPrompt' => $this->localized('Default-Prompt', 'default prompt'),
+            'assistantRules' => $this->localized('verbindliche Regeln', 'binding rules'),
             'knowledgeIntro' => $this->localized('Basistext', 'baseline text'),
             'topicName' => $this->localized('Themenname', 'topic name'),
             'topicDescription' => $this->localized('Themenbeschreibung', 'topic description'),

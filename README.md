@@ -48,6 +48,26 @@ Teil dieses Schritts. Die externe Synchronisation wird später auf dem internen
 Schichtmodell aufgebaut, damit RailTime die fachliche Quelle der Wahrheit
 bleibt.
 
+Planbare Zeitpunkte werden als UTC in `DATETIME`-Spalten gespeichert; die
+jeweilige IANA-Zeitzone bleibt am Auftrag und an der Schicht erhalten. Eingaben
+und Ausgaben werden dadurch lokal dargestellt, ohne den eindeutigen Zeitpunkt
+für spätere Kalenderadapter zu verlieren. Änderungen an Auftrags- und
+Schichtzeiträumen laufen über zentrale Services: Ein Auftrag darf bestehende
+aktive Schichten nicht ausschließen und eine bereits belegte Schicht darf keine
+zeitliche Doppelbelegung erzeugen.
+
+Nach dem Aktualisieren des Codes muss das neue Fachschema angelegt werden:
+
+```bash
+php artisan migrate
+```
+
+Die derzeit für Teilstringsuche benötigten geschäftlichen Kundenkontakte werden
+noch unverschlüsselt gespeichert. Vor einem produktiven Rollout ist die
+Entscheidung zwischen verschlüsseltem Suchindex beziehungsweise Blindindex und
+einer dokumentierten betrieblichen Ausnahme samt Löschkonzept verbindlich zu
+treffen.
+
 **Technisch:** Laravel 12, Livewire 3, Alpine, Tailwind, MySQL. Echtzeit über
 Laravel Reverb, Videotelefonie über LiveKit, Push über Web Push und Service
 Worker. Betrieb auf eigener Infrastruktur unter Plesk — die Daten bleiben im
@@ -240,10 +260,16 @@ redaktionellen Wissenspool.
 
 Der Wissenspool liegt ausschließlich im Superadmin-Tab unter **Administration
 → Einstellungen → Superadmin → Informationspool des Chatbot-Assistenten**.
-Dort werden ein kompakter Basistext, frei anlegbare Themen und einzelne
-Wissenseinträge gepflegt. Nur der Basistext, die Themenübersicht und ausdrücklich
-als Basisinfo markierte Kurzfassungen begleiten jede Anfrage. Volltexte bleiben
-in RailTime, bis das Textmodell bei einer passenden Frage das serverseitig
+Dort werden der **Default-Prompt** für Rolle und Ton, **Wichtige Regeln**, ein
+kompakter Basistext, frei anlegbare Themen und einzelne Wissenseinträge gepflegt.
+Default-Prompt und Regeln sind vertrauenswürdige Superadmin-Vorgaben und gelten
+bei jeder Antwort; fest eingebaute RailTime-Sicherheitsregeln können sie nicht
+aufheben. Die Werte liegen unter `assistant/default_prompt` und
+`assistant/binding_rules`; fehlende Werte verwenden sichere Programmstandards.
+
+Nur der Basistext, die Themenübersicht und ausdrücklich als Basisinfo markierte
+Kurzfassungen begleiten jede Anfrage als Referenzdaten. Volltexte bleiben in
+RailTime, bis das Textmodell bei einer passenden Frage das serverseitig
 validierte Tool `search_assistant_knowledge` anfordert. RailTime führt die Suche
 lokal aus, begrenzt Treffer und Textmenge und sendet erst danach die passenden
 Auszüge an OpenRouter. Inaktive Themen oder Einträge werden niemals geliefert;

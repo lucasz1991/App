@@ -41,12 +41,12 @@
                     {{ $isGerman ? 'RailTime Assist · kuratiertes Wissen' : 'RailTime Assist · curated knowledge' }}
                 </div>
                 <h3 class="mt-2 [text-wrap:balance] text-xl font-semibold tracking-[-0.025em] sm:text-2xl">
-                    {{ $isGerman ? 'Kleine Basis, gezielte Details' : 'Small baseline, precise details' }}
+                    {{ $isGerman ? 'Klare Leitplanken, gezielte Details' : 'Clear guardrails, precise details' }}
                 </h3>
                 <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
                     {{ $isGerman
-                        ? 'Nur der Basistext und markierte Kurzinfos begleiten jede Anfrage. Vollständige Einträge ruft der Chatbot ausschließlich über das freigegebene Such-Tool ab, wenn sie wirklich benötigt werden.'
-                        : 'Only the baseline and selected summaries accompany every request. The chatbot retrieves full entries through the approved search tool only when needed.' }}
+                        ? 'Default-Prompt und verbindliche Regeln steuern jede Antwort. Der kompakte Wissenskontext begleitet die Anfrage; vollständige Einträge ruft der Chatbot nur bei Bedarf über das freigegebene Such-Tool ab.'
+                        : 'The default prompt and binding rules guide every answer. Compact knowledge accompanies the request; full entries are retrieved through the approved search tool only when needed.' }}
                 </p>
             </div>
 
@@ -68,9 +68,134 @@
     </section>
 
     <section
+        class="overflow-hidden rounded-2xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70"
+        x-data="{
+            dirty: false,
+            promptCount: @js(mb_strlen($assistantDefaultPrompt)),
+            rulesCount: @js(mb_strlen($assistantRules)),
+        }"
+        x-on:knowledge-pool-saved.window="
+            if (($event.detail.fields || []).some(field => ['assistantDefaultPrompt', 'assistantRules'].includes(field))) dirty = false
+        "
+        data-assistant-prompt-rules
+        data-assistant-instruction-settings
+        data-assistant-trust-level="system"
+    >
+        <div class="border-b border-rt-border/70 bg-gradient-to-r from-rt-accent-soft/60 via-transparent to-amber-50/70 px-4 py-4 dark:border-rt-dark-border/70 dark:from-rt-dark-accent-soft/35 dark:to-amber-950/15 sm:px-5">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div class="flex min-w-0 items-start gap-3">
+                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rt-red text-white shadow-sm">
+                        <i class="fad fa-shield-alt" aria-hidden="true"></i>
+                    </span>
+                    <div class="min-w-0">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <h4 id="assistant-prompt-rules-heading" class="font-semibold text-rt-text dark:text-rt-dark-text">
+                                {{ $isGerman ? 'Verhalten & wichtige Regeln' : 'Behavior & important rules' }}
+                            </h4>
+                            <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
+                                <span class="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true"></span>
+                                {{ $isGerman ? 'Immer aktiv' : 'Always active' }}
+                            </span>
+                        </div>
+                        <p class="mt-1 max-w-3xl text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
+                            {{ $isGerman
+                                ? 'Diese vertrauenswürdigen Superadmin-Vorgaben werden vor dem Wissenskontext an jede Modellanfrage übergeben. Wissenseinträge bleiben davon getrennte Referenzdaten.'
+                                : 'These trusted Superadmin instructions precede the knowledge context in every model request. Knowledge entries remain separate reference data.' }}
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex w-full items-center gap-3 lg:w-auto lg:justify-end">
+                    <span x-cloak x-show="dirty" class="text-xs font-semibold text-amber-700 dark:text-amber-300" role="status">
+                        <i class="far fa-circle-exclamation mr-1" aria-hidden="true"></i>{{ $isGerman ? 'Nicht gespeichert' : 'Unsaved' }}
+                    </span>
+                    <x-button
+                        type="submit"
+                        form="assistant-prompt-rules-form"
+                        class="ml-auto min-h-11 w-full sm:w-auto lg:ml-0"
+                        wire:loading.attr="disabled"
+                        wire:target="savePromptConfiguration"
+                    >
+                        <span wire:loading.remove wire:target="savePromptConfiguration"><i class="far fa-save mr-1.5" aria-hidden="true"></i>{{ $isGerman ? 'Prompt & Regeln speichern' : 'Save prompt & rules' }}</span>
+                        <span wire:loading wire:target="savePromptConfiguration">{{ $isGerman ? 'Speichert …' : 'Saving …' }}</span>
+                    </x-button>
+                </div>
+            </div>
+        </div>
+
+        <form id="assistant-prompt-rules-form" wire:submit="savePromptConfiguration" class="grid gap-4 p-4 xl:grid-cols-2 sm:p-5">
+            <article class="flex min-w-0 flex-col rounded-2xl bg-rt-surface-muted/60 p-4 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted/25 dark:ring-rt-dark-border/60" data-prompt-layer="trusted-default">
+                <div class="flex items-start gap-3">
+                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft text-rt-red dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent">
+                        <i class="fad fa-brain" aria-hidden="true"></i>
+                    </span>
+                    <div class="min-w-0">
+                        <x-ui.forms.label for="assistant-default-prompt" :value="$isGerman ? 'Default-Prompt' : 'Default prompt'" />
+                        <p id="assistant-default-prompt-help" class="mt-0.5 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
+                            {{ $isGerman ? 'Beschreibt Rolle, Ton und Hauptaufgabe des Assistenten. Keine Zugangsdaten oder personenbezogenen Daten eintragen.' : 'Defines the assistant’s role, tone and primary task. Do not enter credentials or personal data.' }}
+                        </p>
+                    </div>
+                </div>
+                <x-ui.forms.textarea
+                    id="assistant-default-prompt"
+                    wire:model="assistantDefaultPrompt"
+                    x-on:input="dirty = true; promptCount = Array.from($event.target.value).length"
+                    rows="7"
+                    maxlength="3000"
+                    required
+                    aria-required="true"
+                    :aria-invalid="$errors->has('assistantDefaultPrompt') ? 'true' : 'false'"
+                    aria-describedby="assistant-default-prompt-help{{ $errors->has('assistantDefaultPrompt') ? ' assistantdefaultprompt-error' : '' }}"
+                    class="mt-4 min-h-44"
+                />
+                <div class="mt-2 flex items-start justify-between gap-3 text-xs text-rt-muted dark:text-rt-dark-muted">
+                    <x-input-error for="assistantDefaultPrompt" />
+                    <span class="shrink-0" aria-live="off"><span x-text="promptCount">{{ mb_strlen($assistantDefaultPrompt) }}</span>/3000</span>
+                </div>
+            </article>
+
+            <article class="flex min-w-0 flex-col rounded-2xl bg-amber-50/75 p-4 ring-1 ring-amber-200/70 dark:bg-amber-950/15 dark:ring-amber-800/40" data-prompt-layer="trusted-rules">
+                <div class="flex items-start gap-3">
+                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                        <i class="fad fa-gavel" aria-hidden="true"></i>
+                    </span>
+                    <div class="min-w-0">
+                        <x-ui.forms.label for="assistant-important-rules" :value="$isGerman ? 'Wichtige Regeln' : 'Important rules'" />
+                        <p id="assistant-important-rules-help" class="mt-0.5 text-xs leading-5 text-amber-900/80 dark:text-amber-200/80">
+                            {{ $isGerman ? 'Am besten eine eindeutige Regel pro Zeile. Diese Regeln haben Vorrang vor Wissenseinträgen, nicht aber vor dem fest eingebauten Plattform-Schutz.' : 'Prefer one unambiguous rule per line. These rules take precedence over knowledge entries, but not over built-in platform protection.' }}
+                        </p>
+                    </div>
+                </div>
+                <x-ui.forms.textarea
+                    id="assistant-important-rules"
+                    wire:model="assistantRules"
+                    x-on:input="dirty = true; rulesCount = Array.from($event.target.value).length"
+                    rows="7"
+                    maxlength="4000"
+                    required
+                    aria-required="true"
+                    :aria-invalid="$errors->has('assistantRules') ? 'true' : 'false'"
+                    aria-describedby="assistant-important-rules-help{{ $errors->has('assistantRules') ? ' assistantrules-error' : '' }}"
+                    class="mt-4 min-h-44 border-amber-300/80 focus:border-amber-500 focus:ring-amber-500/25 dark:border-amber-800/70"
+                />
+                <div class="mt-2 flex items-start justify-between gap-3 text-xs text-amber-900/75 dark:text-amber-200/75">
+                    <x-input-error for="assistantRules" />
+                    <span class="shrink-0" aria-live="off"><span x-text="rulesCount">{{ mb_strlen($assistantRules) }}</span>/4000</span>
+                </div>
+            </article>
+
+            <div class="xl:col-span-2 flex items-start gap-2.5 rounded-xl bg-slate-950 px-3.5 py-3 text-xs leading-5 text-slate-300" role="note">
+                <i class="fad fa-lock mt-0.5 shrink-0 text-red-300" aria-hidden="true"></i>
+                <span>{{ $isGerman ? 'RailTime ergänzt weiterhin feste Sicherheitsregeln: keine erfundenen Aktionen, kein Zugriff auf Live- oder Personaldaten und keine Geheimnisse. Diese Schutzebene ist absichtlich nicht editierbar.' : 'RailTime still adds fixed safety rules: no fabricated actions, no access to live or personal data, and no secrets. This protection layer is intentionally not editable.' }}</span>
+            </div>
+        </form>
+    </section>
+
+    <section
         class="rounded-2xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70 sm:p-5"
         x-data="{ dirty: false, count: @js(mb_strlen($knowledgeIntro)) }"
         x-on:knowledge-pool-saved.window="if (($event.detail.fields || []).includes('knowledgeIntro')) dirty = false"
+        data-assistant-trust-level="reference"
     >
         <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div class="min-w-0 max-w-2xl">
@@ -79,9 +204,9 @@
                         <i class="fad fa-sparkles" aria-hidden="true"></i>
                     </span>
                     <div>
-                        <h4 class="font-semibold text-rt-text dark:text-rt-dark-text">{{ $isGerman ? 'Kompakter Basistext' : 'Compact baseline text' }}</h4>
+                        <h4 class="font-semibold text-rt-text dark:text-rt-dark-text">{{ $isGerman ? 'Kompakter Wissenskontext' : 'Compact knowledge context' }}</h4>
                         <p id="assistant-knowledge-intro-help" class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
-                            {{ $isGerman ? 'Wird bei jeder Chat-Anfrage mitgegeben. Präzise, zeitlos und ohne sensible Daten halten.' : 'Sent with every chat request. Keep it precise, durable and free of sensitive data.' }}
+                            {{ $isGerman ? 'Wird als reine Referenz bei jeder Anfrage mitgegeben und darf Prompt oder Regeln niemals überschreiben. Präzise, zeitlos und ohne sensible Daten halten.' : 'Sent as reference data with every request and can never override the prompt or rules. Keep it precise, durable and free of sensitive data.' }}
                         </p>
                     </div>
                 </div>
@@ -120,7 +245,7 @@
         </div>
     </section>
 
-    <section class="grid min-h-[32rem] overflow-hidden rounded-2xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70 lg:grid-cols-[18rem_minmax(0,1fr)]">
+    <section class="grid min-h-[32rem] overflow-hidden rounded-2xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70 lg:grid-cols-[18rem_minmax(0,1fr)]" data-assistant-trust-level="reference">
         <aside class="border-b border-rt-border/70 bg-rt-surface-muted/50 p-4 dark:border-rt-dark-border/70 dark:bg-rt-dark-surface-muted/25 lg:border-b-0 lg:border-r">
             <div class="flex items-center justify-between gap-3">
                 <div>
