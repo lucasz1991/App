@@ -241,6 +241,7 @@
                         type="button"
                         class="rt-chatbot__pet-bubble-action"
                         x-bind:data-primary="action.primary.toString()"
+                        x-bind:disabled="navigationCleanupInFlight && ['start_voice', 'wagon_voice_start'].includes(action.key)"
                         x-on:click.stop="runPetBubbleAction(action)"
                         x-text="action.label"
                     ></button>
@@ -491,6 +492,7 @@
                     class="rt-chatbot__icon-button"
                     wire:click="clearChat"
                     wire:loading.attr="disabled"
+                    x-bind:disabled="navigationCleanupInFlight"
                     title="{{ $isGerman ? 'Unterhaltung leeren' : 'Clear conversation' }}"
                 >
                     <span class="rt-chatbot__sr-only">{{ $isGerman ? 'Unterhaltung leeren' : 'Clear conversation' }}</span>
@@ -691,6 +693,7 @@
                                                 wire:click="quickAction({{ \Illuminate\Support\Js::from($actionKey) }})"
                                             @endif
                                             wire:loading.attr="disabled"
+                                            x-bind:disabled="navigationCleanupInFlight || isLoading || !assistantAvailable"
                                             @disabled(! $assistantIsAvailable)
                                         >
                                             <span>{{ $actionLabel }}</span>
@@ -731,7 +734,7 @@
                                 type="button"
                                 class="rt-chatbot__message-action"
                                 x-on:click="runWagonHelpAction()"
-                                x-bind:disabled="isLoading || !assistantAvailable"
+                                x-bind:disabled="navigationCleanupInFlight || isLoading || !assistantAvailable"
                             >
                                 <span x-text="strings.wagonVoiceStart"></span>
                                 <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -812,6 +815,7 @@
                                 wire:click="removeAttachment({{ (int) $attachmentIndex }})"
                                 wire:loading.attr="disabled"
                                 wire:target="removeAttachment({{ (int) $attachmentIndex }})"
+                                x-bind:disabled="navigationCleanupInFlight"
                                 x-on:click="markAttachmentRemoval()"
                                 aria-label="{{ $isGerman ? 'Anhang entfernen: ' : 'Remove attachment: ' }}{{ $pendingAttachmentName }}"
                             >
@@ -874,13 +878,13 @@
                         x-on:livewire-upload-finish="completeAttachmentUpload()"
                         x-on:livewire-upload-error="failAttachmentUpload()"
                         x-on:livewire-upload-cancel="cancelAttachmentUpload()"
-                        x-bind:disabled="isLoading || attachmentUploadActive || attachmentCount >= 3 || !assistantAvailable"
+                        x-bind:disabled="isLoading || attachmentUploadActive || navigationCleanupInFlight || attachmentCount >= 3 || !assistantAvailable"
                     >
                     <button
                         type="button"
                         class="rt-chatbot__attach"
                         x-on:click="$refs.attachmentInput?.click()"
-                        x-bind:disabled="isLoading || attachmentUploadActive || attachmentCount >= 3 || !assistantAvailable"
+                        x-bind:disabled="isLoading || attachmentUploadActive || navigationCleanupInFlight || attachmentCount >= 3 || !assistantAvailable"
                         title="{{ $isGerman ? 'Dateien anhängen' : 'Attach files' }}"
                     >
                         <span class="rt-chatbot__sr-only">{{ $isGerman ? 'Dateien anhängen' : 'Attach files' }}</span>
@@ -895,7 +899,7 @@
                             class="rt-chatbot__voice"
                             x-bind:class="{ 'rt-chatbot__voice--recording': recording }"
                             x-bind:aria-pressed="recording.toString()"
-                            x-bind:disabled="!manualVoiceAvailable() || voiceUploading || isLoading"
+                            x-bind:disabled="!manualVoiceAvailable() || voiceUploading || isLoading || navigationCleanupInFlight"
                             wire:loading.attr="disabled"
                             wire:target="sendMessage,quickAction"
                             x-on:click="toggleVoice()"
@@ -918,6 +922,7 @@
                         wire:model="message"
                         x-on:input="resizeComposer(); updateComposerState()"
                         x-on:keydown.enter.exact.prevent="handleComposerEnter($event)"
+                        x-bind:disabled="isLoading || navigationCleanupInFlight || !assistantAvailable"
                         wire:loading.attr="disabled"
                         wire:target="sendMessage,quickAction"
                         placeholder="{{ $isGerman ? 'Frag mich etwas zu RailTime …' : 'Ask me anything about RailTime …' }}"

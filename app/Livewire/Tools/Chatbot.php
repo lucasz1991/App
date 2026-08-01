@@ -165,7 +165,9 @@ class Chatbot extends Component
             }
         } finally {
             if ($hasAttachments) {
-                $this->cleanupAttachments();
+                if ($this->cleanupAttachments() > 0) {
+                    $this->addError('attachments', 'Mindestens eine temporäre Datei konnte nicht gelöscht werden. Bitte erneut entfernen.');
+                }
             }
         }
     }
@@ -452,7 +454,9 @@ class Chatbot extends Component
             app(AssistantAttachmentProcessor::class)->validate($this->attachments);
         } catch (AssistantAttachmentException $exception) {
             $this->addError($exception->validationKey, $exception->userMessage);
-            $this->cleanupAttachments();
+            if ($this->cleanupAttachments() > 0) {
+                $this->addError('attachments', 'Mindestens eine temporäre Datei konnte nicht gelöscht werden. Bitte erneut entfernen.');
+            }
         }
     }
 
@@ -465,8 +469,10 @@ class Chatbot extends Component
         }
 
         $attachment = $this->attachments[$index];
-        if ($attachment instanceof TemporaryUploadedFile) {
-            $attachment->delete();
+        if (! $attachment instanceof TemporaryUploadedFile || ! $attachment->delete()) {
+            $this->addError('attachments', 'Die temporäre Datei konnte nicht gelöscht werden. Bitte erneut versuchen.');
+
+            return;
         }
 
         unset($this->attachments[$index]);
@@ -474,10 +480,23 @@ class Chatbot extends Component
         $this->resetValidation(['attachments', 'attachments.*']);
     }
 
-    public function discardAttachments(): void
+    /** @return array{cleanup_id: string, remaining: int} */
+    public function discardAttachments(string $cleanupId = ''): array
     {
         $this->authorizeUser();
-        $this->cleanupAttachments();
+        $remaining = $this->cleanupAttachments();
+
+        $cleanupId = trim($cleanupId);
+        $acknowledgement = [
+            'cleanup_id' => $cleanupId,
+            'remaining' => $remaining,
+        ];
+
+        if (preg_match('/\A[a-zA-Z0-9_-]{16,96}\z/', $cleanupId) === 1) {
+            $this->dispatch('railtime-assistant-attachments-discarded', ...$acknowledgement);
+        }
+
+        return $acknowledgement;
     }
 
     public function clearChat(): void
@@ -492,7 +511,11 @@ class Chatbot extends Component
         }
 
         try {
-            $this->cleanupAttachments();
+            if ($this->cleanupAttachments() > 0) {
+                $this->addError('attachments', 'Mindestens eine temporäre Datei konnte nicht gelöscht werden. Bitte erneut versuchen.');
+
+                return;
+            }
             app(AssistantPendingActionStore::class)->forget($user);
             $this->resetHistory();
             $this->message = '';
@@ -775,15 +798,19 @@ class Chatbot extends Component
         return 'railtime_assistant_attachment_context_'.auth()->id();
     }
 
-    private function cleanupAttachments(): void
+    private function cleanupAttachments(): int
     {
+        $remaining = [];
+
         foreach ($this->attachments as $attachment) {
-            if ($attachment instanceof TemporaryUploadedFile) {
-                $attachment->delete();
+            if (! $attachment instanceof TemporaryUploadedFile || ! $attachment->delete()) {
+                $remaining[] = $attachment;
             }
         }
 
-        $this->attachments = [];
+        $this->attachments = $remaining;
+
+        return count($remaining);
     }
 
     private function attachmentOnlyPrompt(): string

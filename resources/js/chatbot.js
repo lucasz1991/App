@@ -3,6 +3,7 @@ import {
     holdMicrophoneStream,
     releaseMicrophoneStream,
 } from './microphone-stream.js';
+import { ensureRailTimeNavigationCoordinator } from './navigation-coordinator.js';
 
 // Keep the assistant presentation isolated from the already dense app/chat
 // styles. Vite still discovers and bundles this lazy CSS import, while Node's
@@ -23,6 +24,7 @@ const PET_REACTION_MIN_DELAY_MS = 7_000;
 const PET_REACTION_DELAY_RANGE_MS = 9_000;
 const SPEECH_STATUS_RETRY_DELAYS_MS = [2_000, 5_000, 15_000, 30_000];
 const ATTACHMENT_UPLOAD_LIMIT = 3;
+const ATTACHMENT_CLEANUP_TIMEOUT_MS = 12_000;
 const PHRASE_AUDIO_CACHE_TTL_MS = 10 * 60 * 1_000;
 const PHRASE_AUDIO_CACHE_MAX_ITEMS = 8;
 const PHRASE_AUDIO_CACHE_MAX_BYTES = 16 * 1024 * 1024;
@@ -281,7 +283,30 @@ export function railtimeChatbot(config = {}) {
         attachmentUploadProgress: 0,
         attachmentUploadError: '',
         attachmentCount: Math.max(0, Number(config.attachmentCount) || 0),
+        attachmentsMayExistOnServer: Math.max(0, Number(config.attachmentCount) || 0) > 0,
+        attachmentMutationVersion: 0,
+        attachmentCleanupPromise: null,
+        attachmentCleanupResolve: null,
+        attachmentCleanupReject: null,
+        attachmentCleanupToken: '',
+        attachmentCleanupVersion: 0,
+        attachmentCleanupTimer: null,
+        attachmentCleanupTimedOutToken: '',
+        attachmentCleanupTimedOutVersion: 0,
+        attachmentFlushPromise: null,
+        attachmentFinishCommitsInFlight: 0,
+        attachmentCommitBarrierTimeoutMs: Math.max(
+            500,
+            Number(config.attachmentCommitBarrierTimeoutMs) || ATTACHMENT_CLEANUP_TIMEOUT_MS,
+        ),
+        attachmentCleanupTimeoutMs: Math.max(
+            50,
+            Number(config.attachmentCleanupTimeoutMs) || ATTACHMENT_CLEANUP_TIMEOUT_MS,
+        ),
         navigationCleanupInFlight: false,
+        navigationCoordinator: null,
+        navigationController: null,
+        navigationUnregister: null,
         composerHasText: false,
         attachmentSyncTimer: null,
         attachmentObserver: null,
@@ -312,11 +337,13 @@ export function railtimeChatbot(config = {}) {
         autoListenGeneration: 0,
         autoListenChecking: false,
         _dockChangeHandler: null,
-        _navigateIntentHandler: null,
         _windowResizeHandler: null,
         _navigationHandler: null,
         _visibilityHandler: null,
         _onlineHandler: null,
+        _attachmentCleanupAckHandler: null,
+        _attachmentCleanupEventUnsubscribe: null,
+        _attachmentCommitUnhook: null,
 
         init() {
             this.dockMediaQuery = window.matchMedia?.(CHATBOT_DESKTOP_QUERY) ?? null;
@@ -345,15 +372,12 @@ export function railtimeChatbot(config = {}) {
                 this.isDesktopDocked = Boolean(event.matches);
                 this.$nextTick(() => this.scrollMessages(false));
             };
-            this._navigateIntentHandler = (event) => {
-                void this.handleNavigationIntent(event);
-            };
             this._navigationHandler = () => {
                 this.closeSettings(false);
                 this.abortSpeechInput();
                 this.stopSpeaking();
                 this.cancelSpeechStatusRefresh(true);
-                this.discardPendingAttachments();
+                this.resetAttachmentUi();
                 this.clearPetReactionTimers();
                 clearAssistantPhraseAudioCache();
             };
@@ -375,13 +399,35 @@ export function railtimeChatbot(config = {}) {
                 void this.refreshSpeechStatus('online');
             };
 
+            this.navigationCoordinator = ensureRailTimeNavigationCoordinator(window, document);
+            this.navigationController = {
+                hasPendingWork: () => this.hasPendingAttachmentWork(),
+                flush: () => this.flushPendingAttachments(),
+                onFlushError: () => this.handleAttachmentFlushError(),
+            };
+            this.navigationUnregister = this.navigationCoordinator?.register(this.navigationController) ?? null;
+            this._attachmentCleanupAckHandler = (event) => {
+                this.handleAttachmentCleanupAck(event);
+            };
+            this._attachmentCleanupEventUnsubscribe = this.$wire?.$on?.(
+                'railtime-assistant-attachments-discarded',
+                this._attachmentCleanupAckHandler,
+            ) ?? null;
+            this._attachmentCommitUnhook = this.$wire?.$hook?.(
+                'commit',
+                (payload) => this.handleAttachmentCommit(payload),
+            ) ?? null;
+            window.addEventListener(
+                'railtime-assistant-attachments-discarded',
+                this._attachmentCleanupAckHandler,
+            );
+
             if (this.dockMediaQuery?.addEventListener) {
                 this.dockMediaQuery.addEventListener('change', this._dockChangeHandler);
             } else {
                 this._windowResizeHandler = () => this.syncDockLayout();
                 window.addEventListener('resize', this._windowResizeHandler);
             }
-            document.addEventListener('livewire:navigate', this._navigateIntentHandler);
             document.addEventListener('livewire:navigating', this._navigationHandler);
             document.addEventListener('visibilitychange', this._visibilityHandler);
             window.addEventListener('online', this._onlineHandler);
@@ -460,10 +506,6 @@ export function railtimeChatbot(config = {}) {
                 window.removeEventListener('resize', this._windowResizeHandler);
                 this._windowResizeHandler = null;
             }
-            if (this._navigateIntentHandler) {
-                document.removeEventListener('livewire:navigate', this._navigateIntentHandler);
-                this._navigateIntentHandler = null;
-            }
             if (this._navigationHandler) {
                 document.removeEventListener('livewire:navigating', this._navigationHandler);
             }
@@ -474,6 +516,23 @@ export function railtimeChatbot(config = {}) {
                 window.removeEventListener('online', this._onlineHandler);
                 this._onlineHandler = null;
             }
+            if (this._attachmentCleanupAckHandler) {
+                window.removeEventListener(
+                    'railtime-assistant-attachments-discarded',
+                    this._attachmentCleanupAckHandler,
+                );
+                this._attachmentCleanupAckHandler = null;
+            }
+            if (typeof this._attachmentCleanupEventUnsubscribe === 'function') {
+                this._attachmentCleanupEventUnsubscribe();
+            }
+            this._attachmentCleanupEventUnsubscribe = null;
+            if (typeof this._attachmentCommitUnhook === 'function') this._attachmentCommitUnhook();
+            this._attachmentCommitUnhook = null;
+            if (typeof this.navigationUnregister === 'function') this.navigationUnregister();
+            this.navigationUnregister = null;
+            this.navigationController = null;
+            this.navigationCoordinator = null;
 
             this.messageObserver?.disconnect();
             this.messageObserver = null;
@@ -484,6 +543,11 @@ export function railtimeChatbot(config = {}) {
             this.abortSpeechInput();
             this.stopSpeaking();
             this.cancelSpeechStatusRefresh(true);
+            this.failPendingAttachmentCleanup(
+                new Error('Assistant attachment cleanup was interrupted.'),
+                '',
+                false,
+            );
             this.cancelWireAttachmentUpload();
             this.clearAttachmentUploadState();
             this.clearPetBubbleTimers();
@@ -761,6 +825,11 @@ export function railtimeChatbot(config = {}) {
 
         runPetBubbleAction(action = null) {
             const actionKey = String(action?.key ?? action ?? this.petBubbleActionKey ?? '');
+            if (
+                this.navigationCleanupInFlight
+                && ['start_voice', 'wagon_voice_start'].includes(actionKey)
+            ) return false;
+
             if (actionKey === 'read_pet_phrase') {
                 this.triggerPetReaction('wave', 900);
                 this.speakPetBubble();
@@ -795,6 +864,10 @@ export function railtimeChatbot(config = {}) {
         },
 
         runWagonHelpAction() {
+            if (this.navigationCleanupInFlight || this.isLoading || !this.assistantAvailable) {
+                return false;
+            }
+
             this.wagonHelpVisible = false;
             this.setOpen(true, true);
             this.$nextTick(() => this.$wire?.quickAction?.('wagon_voice_start'));
@@ -1337,14 +1410,8 @@ export function railtimeChatbot(config = {}) {
                 const relativeTarget = `${target.pathname}${target.search}${target.hash}`;
                 if (typeof window.Livewire?.navigate === 'function') {
                     window.Livewire.navigate(relativeTarget);
-                } else if (this.attachmentCount > 0) {
-                    void this.discardPendingAttachments(true)
-                        .then(() => window.location.assign(relativeTarget))
-                        .catch(() => {
-                            this.syncAttachmentCount();
-                            this.attachmentUploadError = this.strings.attachmentCleanupFailed;
-                            this.setOpen(true);
-                        });
+                } else if (this.navigationCoordinator && this.hasPendingAttachmentWork()) {
+                    void this.navigationCoordinator.navigate(relativeTarget, false).catch(() => {});
                 } else {
                     window.location.assign(relativeTarget);
                 }
@@ -2130,6 +2197,7 @@ export function railtimeChatbot(config = {}) {
                 this.assistantAvailable
                 && !this.isLoading
                 && !this.attachmentUploadActive
+                && !this.navigationCleanupInFlight
                 && (this.composerHasText || this.attachmentCount > 0),
             );
         },
@@ -2143,20 +2211,38 @@ export function railtimeChatbot(config = {}) {
         },
 
         handleAttachmentSelection(event) {
+            if (this.navigationCleanupInFlight) {
+                if (event?.target) event.target.value = '';
+
+                return false;
+            }
+
             const files = Array.from(event?.target?.files ?? []);
             this.attachmentUploadError = '';
+            if (files.length > 0) this.markAttachmentMutation();
             if (files.length > ATTACHMENT_UPLOAD_LIMIT) {
                 this.attachmentUploadError = this.strings.attachmentTooMany
                     || `Es können maximal ${ATTACHMENT_UPLOAD_LIMIT} Dateien angehängt werden.`;
             }
+
+            return true;
         },
 
         beginAttachmentUpload() {
+            if (this.navigationCleanupInFlight) {
+                this.$wire?.cancelUpload?.('attachments');
+
+                return false;
+            }
+
             window.clearTimeout(this.attachmentSyncTimer);
             this.attachmentSyncTimer = null;
+            this.markAttachmentMutation();
             this.attachmentUploadActive = true;
             this.attachmentUploadProgress = 0;
             this.attachmentUploadError = '';
+
+            return true;
         },
 
         updateAttachmentUpload(rawDetail) {
@@ -2165,6 +2251,7 @@ export function railtimeChatbot(config = {}) {
         },
 
         completeAttachmentUpload() {
+            this.markAttachmentMutation();
             this.attachmentUploadActive = false;
             this.attachmentUploadProgress = 100;
             window.clearTimeout(this.attachmentSyncTimer);
@@ -2192,6 +2279,7 @@ export function railtimeChatbot(config = {}) {
                 ?.querySelectorAll?.('[data-chatbot-attachment-chip]')
                 ?.length;
             if (Number.isFinite(count)) this.attachmentCount = Number(count);
+            if (this.attachmentCount > 0) this.attachmentsMayExistOnServer = true;
 
             return this.attachmentCount;
         },
@@ -2210,93 +2298,297 @@ export function railtimeChatbot(config = {}) {
         },
 
         markAttachmentRemoval() {
+            if (this.navigationCleanupInFlight) return false;
+
+            this.markAttachmentMutation();
             this.attachmentUploadError = '';
             this.attachmentCount = Math.max(0, this.attachmentCount - 1);
+
+            return true;
         },
 
         resetAttachmentUi() {
+            this.attachmentsMayExistOnServer = false;
             this.attachmentCount = 0;
             this.clearAttachmentUploadState();
         },
 
-        cancelWireAttachmentUpload() {
-            if (!this.attachmentUploadActive) return;
-            this.$wire?.cancelUpload?.('attachments');
+        markAttachmentMutation() {
+            this.attachmentMutationVersion += 1;
+            this.attachmentsMayExistOnServer = true;
+            this.attachmentCleanupTimedOutToken = '';
+            this.attachmentCleanupTimedOutVersion = 0;
         },
 
-        async handleNavigationIntent(event) {
-            if (this.attachmentCount <= 0 || this.navigationCleanupInFlight) return false;
+        hasPendingAttachmentWork() {
+            return Boolean(
+                this.attachmentUploadActive
+                || this.attachmentsMayExistOnServer
+                || this.attachmentCount > 0
+                || this.attachmentCleanupPromise
+                || this.attachmentFlushPromise,
+            );
+        },
 
-            const rawUrl = String(event?.detail?.url ?? '').trim();
-            let target;
+        cancelWireAttachmentUpload() {
+            if (!this.attachmentUploadActive) return true;
+            if (typeof this.$wire?.cancelUpload !== 'function') return false;
 
             try {
-                target = new URL(rawUrl, window.location.href);
+                this.$wire.cancelUpload('attachments');
+                this.attachmentUploadActive = false;
+
+                return true;
             } catch (_) {
                 return false;
             }
+        },
 
-            if (target.origin !== window.location.origin || typeof event?.preventDefault !== 'function') {
-                return false;
+        attachmentCleanupId() {
+            const uuid = window.crypto?.randomUUID?.();
+            if (uuid) return uuid;
+
+            return `cleanup_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}_${Math.random().toString(36).slice(2)}`;
+        },
+
+        attachmentCleanupCallMatches(commit, cleanupId) {
+            return Boolean(commit?.calls?.some?.((call) => (
+                call?.method === 'discardAttachments'
+                && String(call?.params?.[0] ?? '') === String(cleanupId)
+            )));
+        },
+
+        attachmentFinishCallMatches(commit) {
+            return Boolean(commit?.calls?.some?.((call) => (
+                call?.method === '_finishUpload'
+                && String(call?.params?.[0] ?? '') === 'attachments'
+            )));
+        },
+
+        handleAttachmentCommit({ commit, succeed, fail } = {}) {
+            if (this.attachmentFinishCallMatches(commit)) {
+                this.attachmentFinishCommitsInFlight += 1;
+                this.markAttachmentMutation();
+                let settled = false;
+                const settle = () => {
+                    if (settled) return;
+                    settled = true;
+                    this.attachmentFinishCommitsInFlight = Math.max(
+                        0,
+                        this.attachmentFinishCommitsInFlight - 1,
+                    );
+                    this.markAttachmentMutation();
+                };
+                succeed?.(settle);
+                fail?.(settle);
             }
 
-            event.preventDefault();
+            const cleanupId = this.attachmentCleanupToken;
+            if (!cleanupId || !this.attachmentCleanupCallMatches(commit, cleanupId)) return;
+
+            fail?.(() => this.failPendingAttachmentCleanup(
+                new Error('Livewire attachment cleanup request failed.'),
+                cleanupId,
+            ));
+        },
+
+        async waitForAttachmentCommitBarrier() {
+            const startedAt = Date.now();
+            let observedVersion = this.attachmentMutationVersion;
+            let quietSince = startedAt;
+
+            while (Date.now() - startedAt < this.attachmentCommitBarrierTimeoutMs) {
+                await new Promise((resolve) => window.setTimeout(resolve, 20));
+                const now = Date.now();
+                if (observedVersion !== this.attachmentMutationVersion) {
+                    observedVersion = this.attachmentMutationVersion;
+                    quietSince = now;
+                }
+
+                if (this.attachmentUploadActive || this.attachmentFinishCommitsInFlight > 0) {
+                    quietSince = now;
+
+                    continue;
+                }
+
+                // Livewire buffers a newly queued component commit for five
+                // milliseconds. A wider quiet window covers that queue and
+                // prevents an already-started _finishUpload from arriving
+                // after the final server-confirmed sweep.
+                if (now - quietSince >= 75) return true;
+            }
+
+            throw new Error('Attachment upload commits did not settle in time.');
+        },
+
+        releaseAttachmentCleanupRequest(cleanupId = '') {
+            if (cleanupId && cleanupId !== this.attachmentCleanupToken) return null;
+
+            window.clearTimeout(this.attachmentCleanupTimer);
+            this.attachmentCleanupTimer = null;
+
+            const request = {
+                token: this.attachmentCleanupToken,
+                version: this.attachmentCleanupVersion,
+                resolve: this.attachmentCleanupResolve,
+                reject: this.attachmentCleanupReject,
+            };
+            this.attachmentCleanupPromise = null;
+            this.attachmentCleanupResolve = null;
+            this.attachmentCleanupReject = null;
+            this.attachmentCleanupToken = '';
+            this.attachmentCleanupVersion = 0;
+
+            return request;
+        },
+
+        handleAttachmentCleanupAck(rawDetail) {
+            const eventDetail = rawDetail?.detail ?? rawDetail;
+            const detail = normalizedEventDetail(eventDetail);
+            const cleanupId = String(detail?.cleanup_id ?? detail?.cleanupId ?? '').trim();
+            if (!cleanupId) return false;
+
+            if (cleanupId === this.attachmentCleanupToken) {
+                const request = this.releaseAttachmentCleanupRequest(cleanupId);
+                request?.resolve?.({
+                    cleanupId,
+                    version: request.version,
+                    remaining: Number(detail?.remaining ?? 0),
+                });
+
+                return true;
+            }
+
+            if (cleanupId !== this.attachmentCleanupTimedOutToken) return false;
+
+            const unchanged = this.attachmentMutationVersion === this.attachmentCleanupTimedOutVersion;
+            this.attachmentCleanupTimedOutToken = '';
+            this.attachmentCleanupTimedOutVersion = 0;
+            if (unchanged && Number(detail?.remaining ?? 0) === 0) {
+                this.attachmentsMayExistOnServer = false;
+                this.attachmentCount = 0;
+                this.clearAttachmentUploadState();
+            }
+
+            return true;
+        },
+
+        failPendingAttachmentCleanup(error, cleanupId = '', rememberLateAck = true) {
+            if (!this.attachmentCleanupPromise) return false;
+            if (cleanupId && cleanupId !== this.attachmentCleanupToken) return false;
+
+            const request = this.releaseAttachmentCleanupRequest(cleanupId);
+            if (!request) return false;
+            if (rememberLateAck) {
+                this.attachmentCleanupTimedOutToken = request.token;
+                this.attachmentCleanupTimedOutVersion = request.version;
+            }
+            request.reject?.(error instanceof Error ? error : new Error(String(error || 'Attachment cleanup failed.')));
+
+            return true;
+        },
+
+        requestAttachmentCleanupSweep(version) {
+            if (this.attachmentCleanupPromise) return this.attachmentCleanupPromise;
+            if (typeof this.$wire?.discardAttachments !== 'function') {
+                return Promise.reject(new Error('Attachment cleanup is unavailable.'));
+            }
+
+            const cleanupId = this.attachmentCleanupId();
+            this.attachmentCleanupToken = cleanupId;
+            this.attachmentCleanupVersion = version;
+            this.attachmentCleanupPromise = new Promise((resolve, reject) => {
+                this.attachmentCleanupResolve = resolve;
+                this.attachmentCleanupReject = reject;
+            });
+            const cleanupPromise = this.attachmentCleanupPromise;
+
+            this.attachmentCleanupTimer = window.setTimeout(() => {
+                this.failPendingAttachmentCleanup(
+                    new Error('Livewire attachment cleanup confirmation timed out.'),
+                    cleanupId,
+                );
+            }, this.attachmentCleanupTimeoutMs);
+
+            try {
+                const callResult = this.$wire.discardAttachments(cleanupId);
+                if (callResult && typeof callResult.then === 'function') {
+                    callResult.then(
+                        (result) => this.handleAttachmentCleanupAck(result),
+                        (error) => this.failPendingAttachmentCleanup(error, cleanupId),
+                    );
+                }
+            } catch (error) {
+                this.failPendingAttachmentCleanup(error, cleanupId, false);
+            }
+
+            return cleanupPromise;
+        },
+
+        async performAttachmentFlush() {
+            if (!this.hasPendingAttachmentWork()) return true;
+
             this.navigationCleanupInFlight = true;
             this.attachmentUploadError = '';
 
             try {
-                await this.discardPendingAttachments(true);
+                for (let sweep = 0; sweep < 3; sweep += 1) {
+                    if (!this.cancelWireAttachmentUpload()) {
+                        throw new Error('Active attachment upload could not be cancelled.');
+                    }
 
-                const relativeTarget = `${target.pathname}${target.search}${target.hash}`;
-                if (typeof window.Livewire?.navigate === 'function') {
-                    window.Livewire.navigate(relativeTarget);
-                } else {
-                    window.location.assign(relativeTarget);
+                    await this.waitForAttachmentCommitBarrier();
+                    const version = this.attachmentMutationVersion;
+                    const acknowledgement = await this.requestAttachmentCleanupSweep(version);
+                    if (Number(acknowledgement?.remaining ?? 0) !== 0) {
+                        throw new Error('Attachment cleanup left raw files on the server.');
+                    }
+                    await this.waitForAttachmentCommitBarrier();
+
+                    if (version === this.attachmentMutationVersion && !this.attachmentUploadActive) {
+                        this.attachmentsMayExistOnServer = false;
+                        this.attachmentCount = 0;
+                        this.clearAttachmentUploadState();
+
+                        return true;
+                    }
                 }
 
-                return true;
-            } catch (_) {
+                throw new Error('Attachment state changed during cleanup.');
+            } catch (error) {
+                this.attachmentsMayExistOnServer = true;
                 this.syncAttachmentCount();
                 this.attachmentUploadError = this.strings.attachmentCleanupFailed;
 
-                return false;
+                throw error;
             } finally {
                 this.navigationCleanupInFlight = false;
             }
         },
 
+        flushPendingAttachments() {
+            if (this.attachmentFlushPromise) return this.attachmentFlushPromise;
+
+            this.attachmentFlushPromise = this.performAttachmentFlush()
+                .finally(() => {
+                    this.attachmentFlushPromise = null;
+                });
+
+            return this.attachmentFlushPromise;
+        },
+
+        handleAttachmentFlushError() {
+            this.attachmentsMayExistOnServer = true;
+            this.syncAttachmentCount();
+            this.attachmentUploadError = this.strings.attachmentCleanupFailed;
+            this.setOpen(true);
+        },
+
         discardPendingAttachments(waitForServer = false) {
-            this.cancelWireAttachmentUpload();
-            const hasAttachments = this.attachmentCount > 0;
-            let discardRequest = null;
-            let discardError = null;
+            const cleanup = this.flushPendingAttachments();
+            if (!waitForServer) cleanup.catch(() => {});
 
-            if (hasAttachments) {
-                try {
-                    if (typeof this.$wire?.discardAttachments !== 'function') {
-                        throw new Error('Attachment cleanup is unavailable.');
-                    }
-
-                    discardRequest = this.$wire.discardAttachments();
-                } catch (error) {
-                    discardError = error;
-                }
-            }
-
-            this.attachmentCount = 0;
-            this.clearAttachmentUploadState();
-
-            if (!waitForServer) {
-                if (discardRequest && typeof discardRequest.catch === 'function') {
-                    discardRequest.catch(() => {});
-                }
-
-                return discardError ? Promise.resolve(false) : Promise.resolve(true);
-            }
-
-            if (discardError) return Promise.reject(discardError);
-
-            return Promise.resolve(discardRequest).then(() => true);
+            return cleanup;
         },
 
         clearAttachmentUploadState() {

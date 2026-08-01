@@ -51,7 +51,10 @@ import { welcomeIntro } from './welcome-intro';
 import { railtimeChatbot } from './chatbot';
 import { railtimeAssistantPet3d } from './assistant-pet-3d';
 import { createNavigationParticleSphere } from './navigation-particle-loader';
+import { ensureRailTimeNavigationCoordinator } from './navigation-coordinator';
 import { chatMessageActions } from './chat-message-actions';
+
+ensureRailTimeNavigationCoordinator(window, document);
 
 const loadAdminDashboardECharts = () => import('./admin-dashboard-echarts');
 const loadAdminDashboardMotion = () => import('./admin-dashboard-motion');
