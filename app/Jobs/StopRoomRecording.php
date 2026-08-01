@@ -27,9 +27,7 @@ class StopRoomRecording implements ShouldBeUnique, ShouldQueue
 
     public int $uniqueFor = 120;
 
-    public function __construct(public readonly int $recordingId)
-    {
-    }
+    public function __construct(public readonly int $recordingId) {}
 
     public function uniqueId(): string
     {

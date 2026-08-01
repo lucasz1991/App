@@ -4,6 +4,8 @@ use App\Http\Controllers\Assistant\AssistantAudioInputTranscriptionController;
 use App\Http\Controllers\Assistant\AssistantAudioOutputStreamController;
 use App\Http\Controllers\Assistant\AssistantSpeechStatusController;
 use App\Http\Controllers\Auth\InvitedRegistrationController;
+use App\Http\Controllers\Calls\CallRecordingAcknowledgementController;
+use App\Http\Controllers\Calls\CallRecordingPlaybackController;
 use App\Http\Controllers\Calls\CallRingAckController;
 use App\Http\Controllers\Calls\CallTokenController;
 use App\Http\Controllers\ChatAttachmentController;
@@ -135,6 +137,12 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
     Route::post('/calls/{room:uuid}/token', [CallTokenController::class, 'store'])
         ->middleware('throttle:20,1')
         ->name('calls.token');
+    Route::post('/calls/recording/acknowledge', CallRecordingAcknowledgementController::class)
+        ->middleware('throttle:10,1')
+        ->name('calls.recording.acknowledge');
+    Route::get('/calls/{room:uuid}/recordings/{recording:uuid}/play', CallRecordingPlaybackController::class)
+        ->middleware('throttle:30,1')
+        ->name('calls.recording.play');
     Route::get('/chat/{chat}/export', ChatExportController::class)
         ->whereNumber('chat')
         ->middleware('throttle:30,1')

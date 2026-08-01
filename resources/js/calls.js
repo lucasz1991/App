@@ -30,7 +30,19 @@ document.addEventListener('alpine:init', () => {
         participantCount: 1,
         panelOpen: window.innerWidth >= 1024,
         panelTab: 'participants',
+        participantMayPublish: Boolean(config.canPublish),
         canPublish: Boolean(config.canPublish),
+        recordingEnabled: false,
+        recordingStatus: 'disabled',
+        recordingPolicyVersion: null,
+        recordingStartDeadlineAt: null,
+        recordingRequiresAcknowledgement: false,
+        recordingAcknowledgementSubmitting: false,
+        recordingAcknowledgementError: '',
+        recordingPollTimer: null,
+        recordingPollInFlight: false,
+        sessionAbortController: null,
+        connectionGeneration: 0,
         startWithVideo: config.startWithVideo !== false,
         micOn: false,
         cameraOn: false,
@@ -182,6 +194,7 @@ document.addEventListener('alpine:init', () => {
 
         /** In den Fehlerzustand wechseln und den Grund fuer Diagnose loggen. */
         fail(label, error) {
+            this.stopRecordingPolling();
             this.connected = false;
             this.failed = true;
             this.statusLabel = label || config.labels.connectionFailed;
@@ -195,6 +208,7 @@ document.addEventListener('alpine:init', () => {
 
         /** Nach einem Fehlschlag neu verbinden (Button im Fehler-Panel). */
         async retry() {
+            this.stopRecordingPolling();
             this.failed = false;
             this.statusLabel = config.labels.connecting;
 
@@ -518,28 +532,45 @@ document.addEventListener('alpine:init', () => {
         },
 
         async connect() {
+            const generation = ++this.connectionGeneration;
+            let response;
             let session;
 
             try {
-                const response = await fetch(config.tokenUrl, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRF-TOKEN': config.csrf,
-                        Accept: 'application/json',
-                    },
-                });
+                response = await this.requestSession();
 
                 if (!response.ok) {
                     const payload = await response.json().catch(() => ({}));
+
+                    if (generation !== this.connectionGeneration) return;
+
+                    if (response.status === 428 && payload.recording?.requiresAcknowledgement) {
+                        this.recordingEnabled = true;
+                        this.recordingStatus = 'acknowledgement_required';
+                        this.recordingPolicyVersion = payload.recording.policyVersion || config.recordingPolicyVersion;
+                        this.recordingRequiresAcknowledgement = true;
+                        this.recordingAcknowledgementError = '';
+                        this.canPublish = false;
+                        this.statusLabel = config.labels.recordingAcknowledgementRequired;
+
+                        return;
+                    }
+
                     this.fail(payload.message || config.labels.connectionFailed, `Token-Endpoint HTTP ${response.status}`);
                     return;
                 }
 
                 session = await response.json();
             } catch (error) {
+                if (generation !== this.connectionGeneration || error?.name === 'AbortError') return;
+
                 this.fail(config.labels.connectionFailed, error);
                 return;
             }
+
+            if (generation !== this.connectionGeneration) return;
+
+            this.applyRecordingSession(session.recording);
 
             const options = {
                 adaptiveStream: true,
@@ -556,7 +587,15 @@ document.addEventListener('alpine:init', () => {
             try {
                 await this.room.connect(session.wsUrl, session.token);
             } catch (error) {
+                if (generation !== this.connectionGeneration) return;
+
                 this.fail(config.labels.connectionFailed, error);
+                return;
+            }
+
+            if (generation !== this.connectionGeneration) {
+                await this.room?.disconnect().catch(() => {});
+
                 return;
             }
 
@@ -566,8 +605,185 @@ document.addEventListener('alpine:init', () => {
             this.renderAllParticipants();
             this.syncRingback();
 
-            if (this.canPublish) {
+            if (this.recordingEnabled && this.recordingStatus !== 'active') {
+                this.startRecordingPolling();
+            } else if (this.canPublish) {
                 await this.enableDevices(false);
+            }
+        },
+
+        async requestSession() {
+            this.sessionAbortController?.abort();
+            const controller = new AbortController();
+            this.sessionAbortController = controller;
+
+            try {
+                return await fetch(config.tokenUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': config.csrf,
+                        Accept: 'application/json',
+                    },
+                    signal: controller.signal,
+                });
+            } finally {
+                if (this.sessionAbortController === controller) {
+                    this.sessionAbortController = null;
+                }
+            }
+        },
+
+        applyRecordingSession(recording) {
+            this.recordingEnabled = Boolean(recording?.enabled);
+            this.recordingStatus = recording?.status || (this.recordingEnabled ? 'requested' : 'disabled');
+            this.recordingPolicyVersion = recording?.policyVersion || this.recordingPolicyVersion || config.recordingPolicyVersion;
+            this.recordingStartDeadlineAt = recording?.startDeadlineAt || this.recordingStartDeadlineAt;
+            this.recordingRequiresAcknowledgement = Boolean(recording?.requiresAcknowledgement);
+            this.canPublish = this.recordingEnabled
+                ? Boolean(recording?.canPublish)
+                : this.participantMayPublish;
+        },
+
+        get recordingStatusLabel() {
+            if (this.recordingRequiresAcknowledgement) {
+                return config.labels.recordingAcknowledgementRequired;
+            }
+
+            if (this.recordingStatus === 'active') {
+                return config.labels.recordingActive;
+            }
+
+            if (['failed', 'aborted', 'unavailable'].includes(this.recordingStatus)) {
+                return config.labels.recordingFailed;
+            }
+
+            return config.labels.recordingPreparing;
+        },
+
+        async acknowledgeRecording() {
+            if (this.recordingAcknowledgementSubmitting || ! this.recordingPolicyVersion) return;
+
+            const generation = this.connectionGeneration;
+            this.recordingAcknowledgementSubmitting = true;
+            this.recordingAcknowledgementError = '';
+
+            try {
+                const response = await fetch(config.recordingAcknowledgementUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': config.csrf,
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        accepted: true,
+                        policyVersion: this.recordingPolicyVersion,
+                    }),
+                });
+
+                if (! response.ok) {
+                    const payload = await response.json().catch(() => ({}));
+                    this.recordingAcknowledgementError = payload.message || config.labels.recordingAcknowledgementFailed;
+
+                    return;
+                }
+
+                if (generation !== this.connectionGeneration) return;
+
+                this.recordingRequiresAcknowledgement = false;
+                this.recordingStatus = 'requested';
+                this.statusLabel = config.labels.connecting;
+                await this.connect();
+            } catch (error) {
+                console.error('[calls] Aufnahmehinweis konnte nicht bestaetigt werden.', error);
+                this.recordingAcknowledgementError = config.labels.recordingAcknowledgementFailed;
+            } finally {
+                this.recordingAcknowledgementSubmitting = false;
+            }
+        },
+
+        startRecordingPolling() {
+            this.stopRecordingPolling();
+            const generation = this.connectionGeneration;
+
+            const poll = async () => {
+                if (! this.room || generation !== this.connectionGeneration) return;
+
+                // Reconnect darf den Aufnahme-Waechter nicht dauerhaft
+                // verlieren. Solange die Room-Instanz lebt, wird nach kurzer
+                // Pause erneut geprueft.
+                if (! this.connected || this.recordingPollInFlight) {
+                    this.recordingPollTimer = window.setTimeout(poll, 1000);
+
+                    return;
+                }
+
+                this.recordingPollInFlight = true;
+
+                try {
+                    const response = await this.requestSession();
+                    const payload = await response.json().catch(() => ({}));
+
+                    if (generation !== this.connectionGeneration || ! this.room) return;
+
+                    if (! response.ok) {
+                        if (response.status === 428 && payload.recording?.requiresAcknowledgement) {
+                            this.recordingRequiresAcknowledgement = true;
+                            this.recordingPolicyVersion = payload.recording.policyVersion || this.recordingPolicyVersion;
+                            this.recordingStatus = 'acknowledgement_required';
+                            this.disconnect();
+
+                            return;
+                        }
+
+                        if (response.status !== 429) {
+                            this.disconnect();
+                            this.fail(payload.message || config.labels.recordingFailed, `Recording-Status HTTP ${response.status}`);
+
+                            return;
+                        }
+                    } else {
+                        this.applyRecordingSession(payload.recording);
+
+                        if (this.recordingStatus === 'active'
+                            && (! this.participantMayPublish || this.canPublish)) {
+                            this.stopRecordingPolling();
+
+                            if (this.canPublish && generation === this.connectionGeneration && this.room) {
+                                await this.enableDevices(false);
+                            }
+
+                            return;
+                        }
+                    }
+                } catch (error) {
+                    if (generation !== this.connectionGeneration || error?.name === 'AbortError') return;
+
+                    // Der serverseitige 30-Sekunden-Waechter bleibt die harte
+                    // Grenze. Ein einzelner Netzfehler darf den Client davor
+                    // nicht in einen unaufgezeichneten Ersatzmodus schicken.
+                    console.warn('[calls] Aufnahme-Status konnte nicht abgefragt werden.', error);
+                } finally {
+                    this.recordingPollInFlight = false;
+                }
+
+                if (this.recordingStartDeadlineAt && Date.now() > Date.parse(this.recordingStartDeadlineAt) + 1000) {
+                    this.disconnect();
+                    this.fail(config.labels.recordingFailed, 'Recording start deadline exceeded');
+
+                    return;
+                }
+
+                this.recordingPollTimer = window.setTimeout(poll, 2000);
+            };
+
+            this.recordingPollTimer = window.setTimeout(poll, 1000);
+        },
+
+        stopRecordingPolling() {
+            if (this.recordingPollTimer !== null) {
+                window.clearTimeout(this.recordingPollTimer);
+                this.recordingPollTimer = null;
             }
         },
 
@@ -636,11 +852,17 @@ document.addEventListener('alpine:init', () => {
          * nur fuer alles andere existiert der zweite Weg.
          */
         async enableTrack(kind) {
+            const activeRoom = this.room;
+
+            if (! activeRoom || ! this.canPublish) {
+                throw new DOMException('Call is no longer publishable.', 'AbortError');
+            }
+
             try {
                 if (kind === 'camera') {
-                    await this.room.localParticipant.setCameraEnabled(true);
+                    await activeRoom.localParticipant.setCameraEnabled(true);
                 } else {
-                    await this.room.localParticipant.setMicrophoneEnabled(true);
+                    await activeRoom.localParticipant.setMicrophoneEnabled(true);
                 }
 
                 return;
@@ -654,12 +876,21 @@ document.addEventListener('alpine:init', () => {
                 console.warn(`[calls] LiveKit-Weg fuer ${kind} scheiterte (${name || 'unbekannt'}), versuche direkten Weg:`, error);
             }
 
+            if (this.room !== activeRoom || ! this.canPublish) {
+                throw new DOMException('Call was closed while enabling media.', 'AbortError');
+            }
+
             const stream = await navigator.mediaDevices.getUserMedia(
                 kind === 'camera' ? { video: true } : { audio: true },
             );
             const track = kind === 'camera' ? stream.getVideoTracks()[0] : stream.getAudioTracks()[0];
 
-            await this.room.localParticipant.publishTrack(track, {
+            if (this.room !== activeRoom || ! this.canPublish) {
+                stream.getTracks().forEach((mediaTrack) => mediaTrack.stop());
+                throw new DOMException('Call was closed while opening media.', 'AbortError');
+            }
+
+            await activeRoom.localParticipant.publishTrack(track, {
                 source: kind === 'camera' ? Track.Source.Camera : Track.Source.Microphone,
             });
         },
@@ -919,6 +1150,10 @@ document.addEventListener('alpine:init', () => {
         },
 
         disconnect() {
+            this.stopRecordingPolling();
+            this.connectionGeneration += 1;
+            this.sessionAbortController?.abort();
+            this.sessionAbortController = null;
             // Immer stoppen, nicht nur ueber syncRingback: beim Auflegen faehrt
             // die Seite gleich darauf weg, und ein weiterlaufender Timer im
             // globalen RTSound-Objekt wuerde nach dem Anruf weiter tuten.

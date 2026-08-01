@@ -27,9 +27,7 @@ class StartRoomRecording implements ShouldBeUnique, ShouldQueue
 
     public int $uniqueFor = 60;
 
-    public function __construct(public readonly int $recordingId)
-    {
-    }
+    public function __construct(public readonly int $recordingId) {}
 
     public function uniqueId(): string
     {

@@ -56,6 +56,7 @@ class ChatMessageInteractionService
         abort_unless(in_array($emoji, self::ALLOWED_REACTIONS, true), 422);
 
         $message = $this->visibleMessage($chat, $user, $messageId);
+        abort_if((int) $message->user_id === (int) $user->id, 403);
 
         return DB::transaction(function () use ($message, $user, $emoji): ?ChatMessageReaction {
             $reaction = ChatMessageReaction::query()

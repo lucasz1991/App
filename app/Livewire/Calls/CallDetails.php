@@ -27,6 +27,7 @@ class CallDetails extends Component
             'participants.user',
             'events.actor',
             'callChat',
+            'recording',
         ]);
 
         return view('livewire.calls.call-details')

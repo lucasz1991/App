@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Str;
 
 class Room extends Model
@@ -72,6 +73,17 @@ class Room extends Model
         return $this->hasMany(RoomEvent::class)->orderBy('occurred_at')->orderBy('id');
     }
 
+    public function recording(): HasOne
+    {
+        return $this->hasOne(RoomRecording::class);
+    }
+
+    /** Fuer Laravels implizite, gescopedte {recording:uuid}-Route. */
+    public function recordings(): HasMany
+    {
+        return $this->hasMany(RoomRecording::class);
+    }
+
     public function isActive(): bool
     {
         return in_array($this->status, ['pending', 'active'], true);
@@ -86,7 +98,7 @@ class Room extends Model
     /** Gespraechsdauer in Sekunden, sofern der Anruf zustande kam. */
     public function durationInSeconds(): ?int
     {
-        $connectedAt = $this->connected_at ?? $this->started_at;
+        $connectedAt = $this->connected_at;
 
         if (! $connectedAt) {
             return null;
@@ -160,8 +172,20 @@ class Room extends Model
             ->latest('id')
             ->first();
 
-        return $latest === null
-            || ! in_array($latest->status, ['declined', 'missed', 'expired'], true);
+        // Eine Einladung wird erst durch die ausdrueckliche Annahme zum
+        // Medienrecht. Insbesondere darf ein direkter POST auf den Token-
+        // Endpunkt weder ein noch laufendes Klingeln noch einen verspaeteten
+        // Queue-Timeout umgehen.
+        if ($latest) {
+            return $latest->status === 'accepted';
+        }
+
+        // Offene Meetings besitzen bewusst keine Einladung. Ebenso duerfen
+        // historische/tatsaechlich bereits beigetretene Teilnehmer erneut
+        // verbinden, auch wenn alte Daten noch keine Invitation-Zeile hatten.
+        return $this->type === 'meeting'
+            || $participant->joined_at !== null
+            || in_array($participant->connectionState(), ['joined', 'left'], true);
     }
 
     /** Darf der Nutzer diesen Raum moderieren (auflegen, stummschalten, entfernen)? */

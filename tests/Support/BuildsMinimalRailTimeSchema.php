@@ -347,12 +347,24 @@ trait BuildsMinimalRailTimeSchema
             $table->string('status', 16)->default('pending');
             $table->unsignedBigInteger('owner_id');
             $table->unsignedBigInteger('chat_id')->nullable();
+            $table->unsignedBigInteger('call_chat_id')->nullable();
             $table->unsignedBigInteger('team_id')->nullable();
             $table->timestamp('scheduled_at')->nullable();
             $table->timestamp('started_at')->nullable();
+            $table->timestamp('connected_at')->nullable();
             $table->timestamp('ended_at')->nullable();
+            $table->string('ended_reason', 64)->nullable();
             $table->json('settings')->nullable();
             $table->timestamps();
+        });
+
+        Schema::create('call_recording_acknowledgements', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('user_id');
+            $table->string('policy_version', 100);
+            $table->dateTime('accepted_at');
+            $table->timestamps();
+            $table->unique(['user_id', 'policy_version']);
         });
 
         Schema::create('room_participants', function (Blueprint $table): void {
@@ -363,10 +375,52 @@ trait BuildsMinimalRailTimeSchema
             $table->string('role', 16)->default('speaker');
             $table->string('connection', 16)->default('invited');
             $table->string('livekit_identity')->nullable();
+            $table->unsignedBigInteger('call_recording_acknowledgement_id')->nullable();
             $table->timestamp('joined_at')->nullable();
             $table->timestamp('left_at')->nullable();
             $table->timestamps();
             $table->unique(['room_id', 'user_id']);
+        });
+
+        Schema::create('room_recordings', function (Blueprint $table): void {
+            $table->id();
+            $table->uuid('uuid')->unique();
+            $table->unsignedBigInteger('room_id')->unique();
+            $table->uuid('storage_scope_uuid');
+            $table->string('livekit_egress_id')->nullable()->unique();
+            $table->string('status', 24)->default('requested');
+            $table->string('storage_disk', 64)->default('call_recordings');
+            $table->string('storage_key')->nullable()->unique();
+            $table->string('mime_type', 100)->nullable();
+            $table->unsignedBigInteger('size_bytes')->nullable();
+            $table->unsignedBigInteger('duration_ms')->nullable();
+            $table->dateTime('requested_at');
+            $table->dateTime('start_deadline_at');
+            $table->dateTime('started_at')->nullable();
+            $table->dateTime('completed_at')->nullable();
+            $table->dateTime('expires_at')->nullable();
+            $table->string('error_code', 100)->nullable();
+            $table->text('error_message')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('livekit_webhook_receipts', function (Blueprint $table): void {
+            $table->id();
+            $table->string('event_id')->unique();
+            $table->string('event_type', 64);
+            $table->dateTime('received_at');
+            $table->timestamps();
+        });
+
+        Schema::create('room_events', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('room_id');
+            $table->unsignedBigInteger('user_id')->nullable();
+            $table->string('type', 64);
+            $table->string('external_id')->nullable()->unique();
+            $table->json('metadata')->nullable();
+            $table->timestamp('occurred_at');
+            $table->timestamps();
         });
 
         Schema::create('room_invitations', function (Blueprint $table): void {

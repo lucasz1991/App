@@ -51,7 +51,7 @@
                                 ->map(fn ($p) => $p->user?->name ?? $p->guest_name)
                                 ->filter()
                                 ->values();
-                            $missed = ! ($room->connected_at ?? $room->started_at) && in_array($room->status, ['ended', 'cancelled'], true);
+                            $missed = ! $room->connected_at && in_array($room->status, ['ended', 'cancelled'], true);
                         @endphp
 
                         <li class="flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-rt-surface-muted dark:hover:bg-rt-dark-surface-muted sm:px-6" wire:key="room-{{ $room->id }}">

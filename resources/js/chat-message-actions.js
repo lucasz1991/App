@@ -14,7 +14,9 @@ export function chatMessageActions(config = {}) {
     return {
         messageId: Number(config.messageId || 0),
         disabled: Boolean(config.disabled),
-        open: false,
+        canReact: Boolean(config.canReact),
+        actionOpen: false,
+        reactionOpen: false,
         showMore: false,
         menuStyle: 'left:12px;top:12px;visibility:hidden;',
         anchorPoint: null,
@@ -23,6 +25,7 @@ export function chatMessageActions(config = {}) {
         longPressStartX: 0,
         longPressStartY: 0,
         suppressClickUntil: 0,
+        shouldFocusMenu: false,
 
         isInteractiveTarget(target) {
             return target instanceof Element && Boolean(target.closest(
@@ -30,39 +33,61 @@ export function chatMessageActions(config = {}) {
             ));
         },
 
-        openAtPointer(event) {
+        openActionsAtPointer(event) {
             if (this.disabled || this.isInteractiveTarget(event.target)) {
                 return;
             }
 
             event.preventDefault();
-            this.openAt(Number(event.clientX), Number(event.clientY));
+            this.openActionsAt(Number(event.clientX), Number(event.clientY));
         },
 
-        openAtTrigger(trigger) {
+        openActionsAtTrigger(trigger) {
             if (this.disabled) {
                 return;
             }
 
             const rect = trigger?.getBoundingClientRect();
-            this.openAt(
+            this.openActionsAt(
                 rect ? rect.right : window.innerWidth / 2,
                 rect ? rect.bottom + 4 : window.innerHeight / 2,
             );
         },
 
-        openAt(x, y) {
+        openActionsAt(x, y) {
+            this.openMenuAt('actions', x, y);
+        },
+
+        openReactionsAt(x, y) {
+            if (!this.canReact) {
+                return;
+            }
+
+            this.openMenuAt('reactions', x, y);
+        },
+
+        openReactionsFromActionMenu() {
+            if (!this.anchorPoint) {
+                return;
+            }
+
+            this.openReactionsAt(this.anchorPoint.x, this.anchorPoint.y);
+        },
+
+        openMenuAt(kind, x, y) {
             this.cancelLongPress();
             this.anchorPoint = { x, y };
             this.showMore = false;
             this.menuStyle = `left:${x}px;top:${y}px;visibility:hidden;`;
-            this.open = true;
+            this.shouldFocusMenu = true;
+            this.actionOpen = kind === 'actions';
+            this.reactionOpen = kind === 'reactions';
             this.$nextTick(() => window.requestAnimationFrame(() => this.positionMenu()));
         },
 
         positionMenu() {
-            const menu = this.$refs.menu;
-            if (!this.open || !menu || !this.anchorPoint) {
+            const menu = this.actionOpen ? this.$refs.actionMenu : this.$refs.reactionMenu;
+            if ((!this.actionOpen && !this.reactionOpen) || !menu || !this.anchorPoint) {
                 return;
             }
 
@@ -90,13 +115,20 @@ export function chatMessageActions(config = {}) {
             );
 
             this.menuStyle = `left:${Math.round(left)}px;top:${Math.round(top)}px;visibility:visible;`;
+
+            if (this.shouldFocusMenu) {
+                this.shouldFocusMenu = false;
+                this.$nextTick(() => menu.querySelector('[role="menuitem"], button')?.focus());
+            }
         },
 
         close(restoreFocus = false) {
             this.cancelLongPress();
-            this.open = false;
+            this.actionOpen = false;
+            this.reactionOpen = false;
             this.showMore = false;
             this.anchorPoint = null;
+            this.shouldFocusMenu = false;
 
             if (restoreFocus) {
                 this.$nextTick(() => this.$refs.messageActionTrigger?.focus());
@@ -106,6 +138,7 @@ export function chatMessageActions(config = {}) {
         startLongPress(event) {
             if (
                 this.disabled
+                || !this.canReact
                 || !['touch', 'pen'].includes(event.pointerType)
                 || this.isInteractiveTarget(event.target)
             ) {
@@ -119,7 +152,7 @@ export function chatMessageActions(config = {}) {
             this.longPressTimer = window.setTimeout(() => {
                 this.longPressTimer = null;
                 this.suppressClickUntil = Date.now() + 800;
-                this.openAt(this.longPressStartX, this.longPressStartY);
+                this.openReactionsAt(this.longPressStartX, this.longPressStartY);
                 window.navigator?.vibrate?.(10);
             }, LONG_PRESS_DELAY_MS);
         },
@@ -153,13 +186,28 @@ export function chatMessageActions(config = {}) {
 
         suppressSyntheticClick(event) {
             if (Date.now() >= this.suppressClickUntil) {
-                return;
+                return false;
             }
 
             event.preventDefault();
             event.stopPropagation();
             event.stopImmediatePropagation?.();
             this.suppressClickUntil = 0;
+
+            return true;
+        },
+
+        handleClick(event) {
+            if (this.suppressSyntheticClick(event) || this.disabled || this.isInteractiveTarget(event.target)) {
+                return;
+            }
+
+            const rect = this.$refs.messageBubble?.getBoundingClientRect();
+            const keyboardClick = Number(event.detail) === 0;
+            this.openActionsAt(
+                keyboardClick && rect ? rect.left + (rect.width / 2) : Number(event.clientX),
+                keyboardClick && rect ? rect.top + Math.min(rect.height, 44) : Number(event.clientY),
+            );
         },
 
         handleKeyboard(event) {
@@ -173,7 +221,7 @@ export function chatMessageActions(config = {}) {
 
             event.preventDefault();
             const rect = this.$refs.messageBubble.getBoundingClientRect();
-            this.openAt(rect.left + (rect.width / 2), rect.top + Math.min(rect.height, 44));
+            this.openActionsAt(rect.left + (rect.width / 2), rect.top + Math.min(rect.height, 44));
         },
 
         destroy() {

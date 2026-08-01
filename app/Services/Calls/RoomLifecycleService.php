@@ -25,15 +25,14 @@ class RoomLifecycleService
         protected CallRecordingService $recordings,
         protected CallConversationService $conversations,
         protected RoomEventRecorder $events,
-    ) {
-    }
+    ) {}
 
     /**
      * Anruf in einem Chat starten: DB-Raum + Host-Teilnahme + LiveKit-Raum.
      *
-     * @param bool $video false = Sprachanruf. Steuert nur, ob die Kamera beim
-     *   Beitritt aktiviert wird (calls.js liest settings.video); zuschalten
-     *   laesst sie sich im Gespraech jederzeit.
+     * @param  bool  $video  false = Sprachanruf. Steuert nur, ob die Kamera beim
+     *                       Beitritt aktiviert wird (calls.js liest settings.video); zuschalten
+     *                       laesst sie sich im Gespraech jederzeit.
      */
     public function createForChat(Chat $chat, User $owner, bool $video = true): Room
     {
@@ -204,6 +203,13 @@ class RoomLifecycleService
                     'responded_at' => now(),
                 ])->save();
 
+                $this->events->record(
+                    $invitation->room,
+                    'missed',
+                    $invitation->invitee_id,
+                    externalId: 'invitation:'.$invitation->id.':missed',
+                );
+
                 broadcast(new CallInvitationExpired($invitation))->toOthers();
             });
     }
@@ -238,9 +244,17 @@ class RoomLifecycleService
                 ->with('user')
                 ->first();
 
-            $room->forceFill([
-                'connected_at' => $room->connected_at ?? now(),
-            ])->save();
+            $joinedCount = $room->participants()
+                ->where('connection', 'joined')
+                ->count();
+
+            // Bei Direkt- und Gruppenanrufen beginnt die echte Gespraechs-
+            // dauer mit der ersten Gegenstelle, nicht waehrend der Host noch
+            // das Freizeichen hoert. Ein offenes Meeting ist bereits mit dem
+            // ersten tatsaechlichen Beitritt zustande gekommen.
+            if (! $room->connected_at && ($room->type === 'meeting' || $joinedCount >= 2)) {
+                $room->forceFill(['connected_at' => now()])->save();
+            }
 
             if ($participant?->user) {
                 $this->conversations->attachParticipant($room, $participant->user);
@@ -270,11 +284,15 @@ class RoomLifecycleService
             ->where('connection', 'joined')
             ->update(['connection' => 'left', 'left_at' => now()]);
 
-        if ($updated > 0) {
-            $this->events->record($room, 'participant_left', $participant?->user_id, [
-                'identity' => $identity,
-            ]);
+        // Doppelte oder ungeordnet zugestellte LEFT-Webhooks duerfen niemals
+        // einen Raum beenden, dessen JOIN in der DB noch nicht angekommen ist.
+        if ($updated === 0) {
+            return;
         }
+
+        $this->events->record($room, 'participant_left', $participant?->user_id, [
+            'identity' => $identity,
+        ]);
 
         // War das der Letzte, ist der Anruf vorbei. Ohne diesen Schritt bliebe
         // der Raum aktiv und Chat::activeRoom() wuerde jeden neuen Anruf im
@@ -283,7 +301,14 @@ class RoomLifecycleService
             ->where('connection', 'joined')
             ->exists();
 
-        if (! $stillConnected && $room->isActive()) {
+        // Zwischen LEFT und dem JOIN der Gegenstelle besteht ein reales
+        // Webhook-Rennen (besonders genau beim Annehmen). Nur die SFU darf in
+        // dieser Luecke bestaetigen, dass der Raum tatsaechlich leer ist.
+        $sfuHasParticipants = $stillConnected
+            ? true
+            : $this->livekit->hasConnectedParticipants($room);
+
+        if (! $stillConnected && $sfuHasParticipants === false && $room->isActive()) {
             $this->markEnded($room, 'empty');
         }
     }

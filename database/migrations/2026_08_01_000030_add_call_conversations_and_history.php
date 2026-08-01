@@ -66,7 +66,14 @@ return new class extends Migration
                         'updated_at' => $room->updated_at,
                     ]);
 
-                    DB::table('rooms')->where('id', $room->id)->update(['call_chat_id' => $chatId]);
+                    DB::table('rooms')->where('id', $room->id)->update([
+                        'call_chat_id' => $chatId,
+                        // Vor dieser Migration existierte keine getrennte
+                        // Antwort-/Verbindungszeit. Fuer bestehende, bereits
+                        // gestartete Gespraeche ist started_at die einzig
+                        // belastbare historische Naeherung.
+                        'connected_at' => $room->connected_at ?? $room->started_at,
+                    ]);
 
                     $participantIds = DB::table('room_participants')
                         ->where('room_id', $room->id)

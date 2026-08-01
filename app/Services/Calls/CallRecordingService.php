@@ -8,7 +8,6 @@ use App\Jobs\EnforceCallRecordingStartDeadline;
 use App\Jobs\StartRoomRecording;
 use App\Jobs\StopRoomRecording;
 use App\Models\CallRecordingAcknowledgement;
-use App\Models\LiveKitWebhookReceipt;
 use App\Models\Room;
 use App\Models\RoomParticipant;
 use App\Models\RoomRecording;
@@ -35,8 +34,7 @@ class CallRecordingService
         protected CallEgressGateway $egress,
         protected LiveKitService $livekit,
         protected RoomEventRecorder $events,
-    ) {
-    }
+    ) {}
 
     public function enabled(): bool
     {
@@ -97,6 +95,11 @@ class CallRecordingService
         $created = false;
 
         $recording = DB::transaction(function () use ($room, &$created): RoomRecording {
+            // Sperrt auch den "noch keine Aufnahme"-Fall. Nur die
+            // room_recordings-Zeile zu sperren schuetzt bei zwei gleichzeitigen
+            // ersten Token-Requests nicht, weil es diese Zeile noch nicht gibt.
+            Room::query()->whereKey($room->id)->lockForUpdate()->firstOrFail();
+
             $existing = RoomRecording::query()
                 ->where('room_id', $room->id)
                 ->lockForUpdate()
@@ -292,53 +295,53 @@ class CallRecordingService
             (string) $event->getCreatedAt(),
         ]));
 
-        if (LiveKitWebhookReceipt::where('event_id', $eventId)->exists()) {
-            return null;
-        }
+        /** @var array{room: ?Room, recording_id: ?int}|null $result */
+        $result = DB::transaction(function () use ($snapshot, $event, $eventId): ?array {
+            $timestamp = now();
+            $claimed = DB::table('livekit_webhook_receipts')->insertOrIgnore([
+                'event_id' => $eventId,
+                'event_type' => $event->getEvent(),
+                'received_at' => $timestamp,
+                'created_at' => $timestamp,
+                'updated_at' => $timestamp,
+            ]);
 
-        $recording = RoomRecording::query()
-            ->where('livekit_egress_id', $snapshot->egressId)
-            ->first();
-
-        if (! $recording && $snapshot->roomName !== '') {
-            $recording = RoomRecording::query()
-                ->whereHas('room', fn ($query) => $query->where('uuid', $snapshot->roomName))
-                ->first();
-        }
-
-        if (! $recording) {
-            LiveKitWebhookReceipt::firstOrCreate(
-                ['event_id' => $eventId],
-                ['event_type' => $event->getEvent(), 'received_at' => now()],
-            );
-
-            return null;
-        }
-
-        $room = DB::transaction(function () use ($recording, $snapshot, $event, $eventId): ?Room {
-            if (LiveKitWebhookReceipt::where('event_id', $eventId)->lockForUpdate()->exists()) {
+            if ($claimed === 0) {
                 return null;
             }
 
-            $locked = RoomRecording::query()->lockForUpdate()->findOrFail($recording->id);
-            $roomToEnd = $this->persistSnapshot($locked, $snapshot);
+            $recording = RoomRecording::query()
+                ->where('livekit_egress_id', $snapshot->egressId)
+                ->lockForUpdate()
+                ->first();
 
-            LiveKitWebhookReceipt::create([
-                'event_id' => $eventId,
-                'event_type' => $event->getEvent(),
-                'received_at' => now(),
-            ]);
+            // Webhook kann den Start-Response ueberholen. Dann wird die durch
+            // room_id eindeutige Aufnahme anhand des nicht personenbezogenen
+            // LiveKit-Raumnamens adoptiert und mit der Egress-ID verknuepft.
+            if (! $recording && $snapshot->roomName !== '') {
+                $recording = RoomRecording::query()
+                    ->whereHas('room', fn ($query) => $query->where('uuid', $snapshot->roomName))
+                    ->lockForUpdate()
+                    ->first();
+            }
 
-            return $roomToEnd;
+            return [
+                'room' => $recording ? $this->persistSnapshot($recording, $snapshot) : null,
+                'recording_id' => $recording?->id,
+            ];
         });
 
-        $recording->refresh();
+        if (! $result || ! $result['recording_id']) {
+            return null;
+        }
+
+        $recording = RoomRecording::findOrFail($result['recording_id']);
 
         if ($recording->status === RoomRecordingStatus::Active) {
             $this->unlockJoinedPublishers($recording->room);
         }
 
-        return $room;
+        return $result['room'];
     }
 
     public function reconcile(RoomRecording $recording): ?Room
@@ -413,21 +416,23 @@ class CallRecordingService
         return null;
     }
 
-    public function unlockParticipantIfReady(Room $room, string $identity): void
+    public function unlockParticipantIfReady(Room $room, string $identity): bool
     {
         $recording = RoomRecording::query()->where('room_id', $room->id)->first();
 
         if (! $recording || $recording->status !== RoomRecordingStatus::Active) {
-            return;
+            return false;
         }
 
         $participant = $room->participants()
             ->where('livekit_identity', $identity)
             ->first();
 
-        if ($participant?->canPublish()) {
-            $this->livekit->setParticipantPublishing($room, $identity, true);
+        if (! $participant?->canPublish()) {
+            return false;
         }
+
+        return $this->livekit->setParticipantPublishing($room, $identity, true);
     }
 
     protected function applySnapshot(RoomRecording $recording, EgressSnapshot $snapshot): ?Room
@@ -467,9 +472,16 @@ class CallRecordingService
             default => RoomRecordingStatus::Failed,
         };
 
-        // Ein finaler Zustand darf durch ein verspaetetes STARTING/ACTIVE-Ereignis
-        // nie wieder geoeffnet werden.
-        if ($recording->status->isTerminal() && ! $status->isTerminal()) {
+        // Webhooks und der synchrone Start-Response koennen sich ueberholen.
+        // Weder STARTING nach ACTIVE noch ACTIVE nach ENDING darf den Zustand
+        // zuruecksetzen. COMPLETE darf einen zuvor angenommenen Fehler dagegen
+        // korrigieren, falls LiveKit die Datei spaeter doch bestaetigt.
+        if (
+            $recording->status === RoomRecordingStatus::Complete
+            || (in_array($recording->status, [RoomRecordingStatus::Failed, RoomRecordingStatus::Aborted], true)
+                && $status !== RoomRecordingStatus::Complete)
+            || (! $status->isTerminal() && $this->statusRank($status) < $this->statusRank($recording->status))
+        ) {
             return null;
         }
 
@@ -561,6 +573,20 @@ class CallRecordingService
             ],
             externalId: 'recording:'.$recording->uuid.':'.$status->value,
         );
+    }
+
+    protected function statusRank(RoomRecordingStatus $status): int
+    {
+        return match ($status) {
+            RoomRecordingStatus::Requested => 0,
+            RoomRecordingStatus::Starting => 1,
+            RoomRecordingStatus::Active => 2,
+            RoomRecordingStatus::Ending => 3,
+            RoomRecordingStatus::Complete,
+            RoomRecordingStatus::Failed,
+            RoomRecordingStatus::Aborted,
+            RoomRecordingStatus::Expired => 4,
+        };
     }
 
     protected function sanitizeError(string $value, int $limit): string

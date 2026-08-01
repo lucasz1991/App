@@ -50,15 +50,8 @@
 .rt-swal-toast.swal2-icon-warning { border-left-color: #d97706; }
 .rt-swal-toast.swal2-icon-error { border-left-color: #dc2626; }
 
-.rt-swal-toast .swal2-icon {
-    width: 1.5rem;
-    min-width: 1.5rem;
-    height: 1.5rem;
-    margin: 0.1rem 0 0;
-    border-width: 2px;
-}
-
-.rt-swal-toast .swal2-icon .swal2-icon-content { font-size: 1rem; }
+/* Die Icon-Geometrie bleibt bei SweetAlert2, damit Ring, Linien und
+   Keyframes im gemeinsamen 2-em-Koordinatensystem bleiben. */
 
 html.dark .rt-swal-toast.swal2-popup,
 body[data-mode="dark"] .rt-swal-toast.swal2-popup {

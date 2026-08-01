@@ -53,6 +53,7 @@ class CallFlowTest extends TestCase
                 'removeParticipant' => true,
                 'muteParticipantAudio' => true,
                 'setParticipantPublishing' => true,
+                'hasConnectedParticipants' => false,
             ];
 
             foreach (array_merge($defaults, $results) as $method => $result) {
@@ -160,6 +161,33 @@ class CallFlowTest extends TestCase
         $this->actingAs($stranger)
             ->postJson(route('calls.token', $room))
             ->assertForbidden();
+    }
+
+    public function test_pending_invitation_cannot_bypass_acceptance_via_token_endpoint(): void
+    {
+        [$caller, $callee, $chat] = $this->directChatWithCallRights();
+        $room = $this->roomWithInvitation($caller, $callee, $chat);
+
+        $this->actingAs($callee)
+            ->postJson(route('calls.token', $room))
+            ->assertForbidden();
+
+        $this->assertSame('pending', $room->invitations()->firstOrFail()->status);
+    }
+
+    public function test_expired_pending_deep_link_does_not_grant_call_chat_access(): void
+    {
+        [$caller, $callee, $chat] = $this->directChatWithCallRights();
+        $room = $this->roomWithInvitation($caller, $callee, $chat);
+        $invitation = $room->invitations()->firstOrFail();
+        $invitation->forceFill(['expires_at' => now()->subSecond()])->save();
+
+        Livewire::actingAs($callee)
+            ->test(CallWindow::class, ['room' => $room])
+            ->assertForbidden();
+
+        $this->assertSame('missed', $invitation->fresh()->status);
+        $this->assertNull($room->fresh()->call_chat_id);
     }
 
     public function test_ended_rooms_do_not_issue_tokens(): void
@@ -293,6 +321,28 @@ class CallFlowTest extends TestCase
 
         $lifecycle->markParticipantLeft($room, 'user-'.$callee->id);
         $this->assertSame('ended', $room->fresh()->status);
+    }
+
+    public function test_accept_join_race_does_not_abort_while_livekit_still_has_a_participant(): void
+    {
+        $this->fakeLiveKit(['hasConnectedParticipants' => true]);
+
+        [$caller, $callee, $chat] = $this->directChatWithCallRights();
+        $room = $this->roomWithInvitation($caller, $callee, $chat);
+        app(CallInvitationService::class)->accept($room->invitations()->firstOrFail());
+
+        $lifecycle = app(RoomLifecycleService::class);
+        $lifecycle->markParticipantJoined($room, 'user-'.$caller->id);
+
+        // LEFT des bisherigen Tabs kann vor JOIN der annehmenden Gegenstelle
+        // eintreffen. Die SFU sieht diese aber bereits; der Raum muss aktiv
+        // bleiben, statt genau beim Klick auf "Annehmen" abzubrechen.
+        $lifecycle->markParticipantLeft($room->fresh(), 'user-'.$caller->id);
+
+        $this->assertSame('active', $room->fresh()->status);
+
+        $lifecycle->markParticipantJoined($room->fresh(), 'user-'.$callee->id);
+        $this->assertSame('active', $room->fresh()->status);
     }
 
     public function test_a_cancelled_room_no_longer_blocks_new_calls_in_the_chat(): void

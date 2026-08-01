@@ -20,8 +20,7 @@ final readonly class EgressSnapshot
         public ?int $durationMs = null,
         public ?string $errorCode = null,
         public ?string $errorMessage = null,
-    ) {
-    }
+    ) {}
 
     public static function fromLiveKit(EgressInfo $info): self
     {

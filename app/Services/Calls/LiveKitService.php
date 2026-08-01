@@ -41,15 +41,14 @@ class LiveKitService
         User $user,
         RoomParticipant $participant,
         bool $mediaPublishingAllowed = true,
-    ): string
-    {
-        $options = (new AccessTokenOptions())
+    ): string {
+        $options = (new AccessTokenOptions)
             ->setIdentity(self::identityFor($user))
             ->setName($user->name)
             ->setTtl((int) config('livekit.token_ttl'))
             ->setMetadata(json_encode(['role' => $participant->role]));
 
-        $grant = (new VideoGrant())
+        $grant = (new VideoGrant)
             ->setRoomJoin()
             ->setRoomName($room->livekitRoomName())
             ->setCanSubscribe()
@@ -99,7 +98,7 @@ class LiveKitService
     public function createRoom(Room $room): bool
     {
         return $this->guarded(function () use ($room): void {
-            $options = (new RoomCreateOptions())
+            $options = (new RoomCreateOptions)
                 ->setName($room->livekitRoomName())
                 ->setEmptyTimeout((int) config('livekit.empty_timeout'))
                 ->setMaxParticipants((int) ($room->settings['max_participants'] ?? config('livekit.max_participants')));
@@ -151,13 +150,40 @@ class LiveKitService
     public function setParticipantPublishing(Room $room, string $identity, bool $canPublish): bool
     {
         return $this->guarded(function () use ($room, $identity, $canPublish): void {
-            $permission = (new ParticipantPermission())
+            $permission = (new ParticipantPermission)
                 ->setCanSubscribe(true)
                 ->setCanPublish($canPublish)
                 ->setCanPublishData(true);
 
             $this->client()->updateParticipant($room->livekitRoomName(), $identity, null, $permission);
         }, 'setParticipantPublishing', $room);
+    }
+
+    /**
+     * Fragt die SFU als letzte Wahrheit, ob noch jemand im Raum verbunden ist.
+     * null bedeutet: Status konnte nicht sicher ermittelt werden. In diesem
+     * Fall darf der Webhook-Pfad den Anruf nicht vorschnell beenden.
+     */
+    public function hasConnectedParticipants(Room $room): ?bool
+    {
+        if (! $this->isConfigured()) {
+            return null;
+        }
+
+        try {
+            return $this->client()
+                ->listParticipants($room->livekitRoomName())
+                ->getParticipants()
+                ->count() > 0;
+        } catch (\Throwable $exception) {
+            Log::warning('LiveKit-Teilnehmerstatus konnte nicht abgefragt werden.', [
+                'action' => 'listParticipants',
+                'room' => $room->uuid,
+                'error_class' => $exception::class,
+            ]);
+
+            return null;
+        }
     }
 
     protected function client(): RoomServiceClient

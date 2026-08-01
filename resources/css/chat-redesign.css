@@ -667,27 +667,38 @@ body[data-mode='dark'] .rt-chat-message--own .rt-chat-message-meta {
      * entscheidet deshalb allein das Antippen der Nachricht
      * (data-actions-visible, gesetzt in der Transkript-Ansicht).
      */
-    .rt-chat-message--actionable:hover .rt-chat-message-actions {
-        opacity: 0;
-        transform: translateY(-0.1rem);
-        pointer-events: none;
-    }
-
     /* Auf Touch ist der alternative Dropdown-Weg dauerhaft auffindbar. */
     .rt-chat-message-caret {
         width: 2.75rem !important;
         height: 2.75rem !important;
     }
 
-    .rt-chat-message--actionable .rt-chat-message-actions {
+    .rt-chat-message--actionable .rt-chat-message-actions,
+    .rt-chat-message--actionable:hover .rt-chat-message-actions {
         opacity: 0.86;
         transform: translateY(0);
         pointer-events: auto;
+    }
+
+    .rt-chat-message--actionable {
+        touch-action: pan-y;
+        -webkit-touch-callout: none;
+        user-select: none;
     }
 }
 
 .rt-chat-message-caret {
     color: var(--chat-muted);
+    background: transparent;
+}
+
+.rt-chat-message-caret > i {
+    display: inline-flex;
+    width: 1.75rem;
+    height: 1.75rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
     background: color-mix(in srgb, var(--chat-panel) 88%, transparent);
     box-shadow: 0 1px 4px rgb(0 0 0 / 0.14);
 }
@@ -710,6 +721,15 @@ body[data-mode='dark'] .rt-chat-message-menu {
     border-color: theme('colors.rt-dark.border');
     color: theme('colors.rt-dark.text');
     background: color-mix(in srgb, theme('colors.rt-dark.surface') 96%, transparent);
+}
+
+.rt-chat-message-menu .rt-chat-option-divider {
+    background: theme('colors.rt.border');
+}
+
+html.dark .rt-chat-message-menu .rt-chat-option-divider,
+body[data-mode='dark'] .rt-chat-message-menu .rt-chat-option-divider {
+    background: theme('colors.rt-dark.border');
 }
 
 .rt-chat-reaction-option,

@@ -248,6 +248,7 @@ class GlobalSearch extends Component
     {
         return $user->chats()
             ->with('participants:id,name,profile_photo_path')
+            ->where('chats.type', '!=', 'call')
             ->latest('chats.updated_at')
             ->limit(100)
             ->get()

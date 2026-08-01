@@ -3,8 +3,8 @@
 namespace App\Livewire;
 
 use App\Events\ChatMessageDeleted;
-use App\Events\ChatMessageReceived;
 use App\Events\ChatMessageReactionChanged;
+use App\Events\ChatMessageReceived;
 use App\Events\ChatMessageSent;
 use App\Events\ChatRead;
 use App\Livewire\Concerns\InteractsWithPersonQuickActions;
@@ -30,8 +30,8 @@ use Livewire\Attributes\On;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
-use Livewire\WithoutUrlPagination;
 use Livewire\WithFileUploads;
+use Livewire\WithoutUrlPagination;
 use Livewire\WithPagination;
 
 class ChatBox extends Component
@@ -170,7 +170,11 @@ class ChatBox extends Component
         $this->validate([
             'messageText' => ['nullable', 'string', 'max:5000'],
             'uploads' => ['array', 'max:5'],
-            'uploads.*' => ['file', 'max:20480'],
+            'uploads.*' => [
+                'file',
+                'max:20480',
+                'mimetypes:audio/*,video/*,image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain,application/zip,application/x-zip-compressed',
+            ],
         ]);
 
         if (trim($this->messageText) === '' && $this->uploads === []) {
@@ -196,8 +200,15 @@ class ChatBox extends Component
             'view_once' => false,
         ]);
 
-        foreach ($this->uploads as $uploadedFile) {
-            $this->storeMessageUpload($message, $uploadedFile);
+        try {
+            foreach ($this->uploads as $uploadedFile) {
+                $this->storeMessageUpload($message, $uploadedFile);
+            }
+        } catch (\Throwable $exception) {
+            $message->files()->get()->each->delete();
+            $message->forceDelete();
+
+            throw $exception;
         }
 
         $this->messageText = '';
@@ -531,10 +542,10 @@ class ChatBox extends Component
     /**
      * Anruf im ausgewaehlten Chat starten und alle Teilnehmer anklingeln.
      *
-     * @param bool $video false = reiner Sprachanruf. Der Unterschied liegt
-     *   allein darin, ob die Kamera beim Beitritt aktiviert wird; Raum,
-     *   Klingeln und Moderation sind identisch. Jeder kann die Kamera im
-     *   Gespraech jederzeit zuschalten.
+     * @param  bool  $video  false = reiner Sprachanruf. Der Unterschied liegt
+     *                       allein darin, ob die Kamera beim Beitritt aktiviert wird; Raum,
+     *                       Klingeln und Moderation sind identisch. Jeder kann die Kamera im
+     *                       Gespraech jederzeit zuschalten.
      *
      * Die Dienste werden bewusst ueber app() geholt statt per Methoden-
      * Injection: sonst muesste der bool-Parameter hinter den Klassen stehen
@@ -841,8 +852,8 @@ class ChatBox extends Component
             ->where('id', '!=', auth()->id())
             ->when($needle !== '', function ($query) use ($needle): void {
                 $query->where(function ($query) use ($needle): void {
-                    $query->where('name', 'like', '%' . $needle . '%')
-                        ->orWhere('email', 'like', '%' . $needle . '%');
+                    $query->where('name', 'like', '%'.$needle.'%')
+                        ->orWhere('email', 'like', '%'.$needle.'%');
                 });
             })
             ->orderBy('name')
@@ -1144,8 +1155,8 @@ class ChatBox extends Component
                 })
                 ->when($needle !== '', function ($query) use ($needle): void {
                     $query->where(function ($query) use ($needle): void {
-                        $query->where('name', 'like', '%' . $needle . '%')
-                            ->orWhere('email', 'like', '%' . $needle . '%');
+                        $query->where('name', 'like', '%'.$needle.'%')
+                            ->orWhere('email', 'like', '%'.$needle.'%');
                     });
                 })
                 ->orderBy('name')

@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\Calls\CallInvitationService;
 use App\Services\Calls\CallConversationService;
 use App\Services\Calls\LiveKitService;
+use App\Services\Calls\RoomEventRecorder;
 use App\Services\Calls\RoomLifecycleService;
 use Livewire\Component;
 
@@ -31,8 +32,6 @@ class CallWindow extends Component
 
         abort_unless($user->isAdmin() || $user->hasRbacPermission('calls.join'), 403);
 
-        abort_unless($room->mayJoin($user), 403, __('app.calls_permission_denied'));
-
         abort_unless($room->isActive(), 410, __('app.calls_ended'));
 
         // Jeder Einstiegsweg muss dieselbe Zustandsaenderung ausloesen. Der
@@ -47,8 +46,14 @@ class CallWindow extends Component
             ->first();
 
         if ($pending) {
-            app(CallInvitationService::class)->accept($pending);
+            abort_unless(
+                app(CallInvitationService::class)->accept($pending),
+                403,
+                __('app.calls_permission_denied'),
+            );
         }
+
+        abort_unless($room->mayJoin($user), 403, __('app.calls_permission_denied'));
 
         $room->loadMissing('owner');
         if (! $room->call_chat_id && $room->owner) {
@@ -157,7 +162,11 @@ class CallWindow extends Component
     }
 
     /** Teilnehmer aus dem Anruf entfernen. */
-    public function removeParticipant(int $participantId, LiveKitService $livekit): void
+    public function removeParticipant(
+        int $participantId,
+        LiveKitService $livekit,
+        RoomEventRecorder $events,
+    ): void
     {
         $target = $this->moderatableParticipant($participantId);
 
@@ -175,6 +184,10 @@ class CallWindow extends Component
             'left_at' => now(),
             'role' => 'viewer',
         ])->save();
+
+        $events->record($this->room, 'removed', $target->user_id, [
+            'removed_by' => (int) auth()->id(),
+        ]);
 
         broadcast(new CallModerationActioned($this->room, (int) $target->user_id, 'remove'))->toOthers();
     }

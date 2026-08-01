@@ -556,18 +556,9 @@ body[data-mode="dark"] .rt-pagination [aria-current="page"] > span {
 .rt-swal-toast.swal2-icon-warning .rt-swal-toast__progress { background: rgba(217, 119, 6, 0.55); }
 .rt-swal-toast.swal2-icon-error .rt-swal-toast__progress { background: rgba(220, 38, 38, 0.55); }
 
-.rt-swal-toast.swal2-toast .swal2-icon {
-    width: 1.5rem;
-    min-width: 1.5rem;
-    height: 1.5rem;
-    margin: 0.1rem 0 0;
-    border-width: 2px;
-}
-
-.rt-swal-toast.swal2-toast .swal2-icon .swal2-icon-content {
-    font-size: 1rem;
-    line-height: 1.5rem;
-}
+/* Die Icon-Geometrie bleibt vollstaendig bei SweetAlert2. Ring, Linien und
+   Keyframes teilen sich dort dasselbe 2-em-Koordinatensystem; eine isolierte
+   Breiten- oder Randanpassung verzieht insbesondere Erfolgs-Haken und Fehler-X. */
 
 /* Die Symbolfarben der Bibliothek sind pastellig und beissen sich mit der
    Randfarbe. Selektoren eine Stufe ueber div:where(.swal2-icon).swal2-*. */

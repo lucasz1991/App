@@ -94,6 +94,16 @@ class CallTokenController extends Controller
             // aber keine Kamera-/Mikrofon-Tracks an LiveKit publizieren.
             $mediaPublishingAllowed = $recording->status->permitsPublishing()
                 && $participant->canPublish();
+
+            // Der Browser ist waehrend des Egress-Starts bereits mit einem
+            // receive-only Token verbunden. Sobald ACTIVE erreicht ist,
+            // schaltet diese Abfrage deshalb auch die bestehende LiveKit-
+            // Teilnahme frei; nur ein neues Token zurueckzugeben wuerde die
+            // laufende Verbindung nicht nachtraeglich berechtigen.
+            if ($mediaPublishingAllowed) {
+                $mediaPublishingAllowed = (bool) $participant->livekit_identity
+                    && $recordings->unlockParticipantIfReady($room, $participant->livekit_identity);
+            }
         }
 
         return response()->json([

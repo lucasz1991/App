@@ -1,0 +1,31 @@
+services:
+  egress:
+    # Exakter, vor Aktivierung gegen die installierte LiveKit-Version zu
+    # pruefender Release-Tag; niemals `latest` verwenden.
+    image: livekit/egress:v1.12.0
+    restart: unless-stopped
+    cap_add:
+      - SYS_ADMIN
+    cpus: 4.0
+    mem_limit: 4g
+    environment:
+      EGRESS_CONFIG_BODY: |
+        api_key: ${LIVEKIT_API_KEY}
+        api_secret: ${LIVEKIT_API_SECRET}
+        ws_url: ${LIVEKIT_WS_URL}
+        redis:
+          address: ${LIVEKIT_REDIS_ADDRESS}
+          username: ${LIVEKIT_REDIS_USERNAME:-}
+          password: ${LIVEKIT_REDIS_PASSWORD}
+          db: ${LIVEKIT_REDIS_DB:-0}
+        health_port: 8080
+        prometheus_port: 9090
+        log_level: info
+        enable_chrome_sandbox: true
+    networks:
+      - livekit_internal
+
+networks:
+  livekit_internal:
+    external: true
+    name: ${LIVEKIT_INTERNAL_NETWORK}

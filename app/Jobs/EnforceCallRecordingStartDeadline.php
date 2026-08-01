@@ -25,9 +25,7 @@ class EnforceCallRecordingStartDeadline implements ShouldBeUnique, ShouldQueue
 
     public int $uniqueFor = 90;
 
-    public function __construct(public readonly int $recordingId)
-    {
-    }
+    public function __construct(public readonly int $recordingId) {}
 
     public function uniqueId(): string
     {

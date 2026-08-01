@@ -141,38 +141,9 @@ function applyTransform(object, { position, rotation, scale } = {}) {
     return object;
 }
 
-function createRoundedPanelGeometry(THREE, width, height, depth, radius) {
-    const halfWidth = width / 2;
-    const halfHeight = height / 2;
-    const shape = new THREE.Shape();
-
-    shape.moveTo(-halfWidth + radius, -halfHeight);
-    shape.lineTo(halfWidth - radius, -halfHeight);
-    shape.quadraticCurveTo(halfWidth, -halfHeight, halfWidth, -halfHeight + radius);
-    shape.lineTo(halfWidth, halfHeight - radius);
-    shape.quadraticCurveTo(halfWidth, halfHeight, halfWidth - radius, halfHeight);
-    shape.lineTo(-halfWidth + radius, halfHeight);
-    shape.quadraticCurveTo(-halfWidth, halfHeight, -halfWidth, halfHeight - radius);
-    shape.lineTo(-halfWidth, -halfHeight + radius);
-    shape.quadraticCurveTo(-halfWidth, -halfHeight, -halfWidth + radius, -halfHeight);
-
-    const geometry = new THREE.ExtrudeGeometry(shape, {
-        bevelEnabled: true,
-        bevelSegments: 5,
-        bevelSize: 0.065,
-        bevelThickness: 0.055,
-        curveSegments: 16,
-        depth,
-        steps: 1,
-    });
-    geometry.center();
-
-    return geometry;
-}
-
 function createPetModel(THREE) {
     const root = new THREE.Group();
-    root.name = 'railtime-assistant-leaf-capsule';
+    root.name = 'railtime-assistant-red-baby-creature';
 
     const bodyMaterial = new THREE.MeshPhysicalMaterial({
         color: 0xef3b53,
@@ -185,12 +156,12 @@ function createPetModel(THREE) {
         emissive: 0x3d020e,
         emissiveIntensity: 0.06,
     });
-    const bezelMaterial = new THREE.MeshPhysicalMaterial({
+    const accentMaterial = new THREE.MeshPhysicalMaterial({
         color: 0xa81331,
-        roughness: 0.56,
+        roughness: 0.62,
         metalness: 0,
-        clearcoat: 0.18,
-        clearcoatRoughness: 0.76,
+        clearcoat: 0.12,
+        clearcoatRoughness: 0.8,
     });
     const faceMaterial = new THREE.MeshPhysicalMaterial({
         color: 0xffc0c8,
@@ -213,35 +184,36 @@ function createPetModel(THREE) {
         clearcoatRoughness: 0.24,
     });
     const eyeShineMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const cheekMaterial = new THREE.MeshPhysicalMaterial({
+        color: 0xf37386,
+        roughness: 0.68,
+        metalness: 0,
+        transparent: true,
+        opacity: 0.72,
+    });
 
     const body = applyTransform(
-        new THREE.Mesh(createRoundedPanelGeometry(THREE, 2.2, 1.7, 0.56, 0.43), bodyMaterial),
-        { position: [0, -0.06, 0], rotation: [-0.025, 0.035, -0.012], scale: [1, 1, 1] },
+        new THREE.Mesh(new THREE.SphereGeometry(1, 48, 32), bodyMaterial),
+        { position: [0, -0.04, 0], rotation: [-0.025, 0.035, -0.012], scale: [1.12, 0.98, 0.72] },
     );
     root.add(body);
 
-    const bezel = applyTransform(
-        new THREE.Mesh(createRoundedPanelGeometry(THREE, 1.72, 1.23, 0.13, 0.3), bezelMaterial),
-        { position: [0, -0.045, 0.36] },
-    );
-    root.add(bezel);
-
     const face = applyTransform(
-        new THREE.Mesh(createRoundedPanelGeometry(THREE, 1.52, 1.03, 0.11, 0.25), faceMaterial),
-        { position: [0, -0.045, 0.46] },
+        new THREE.Mesh(new THREE.SphereGeometry(1, 40, 28), faceMaterial),
+        { position: [0, 0.01, 0.63], scale: [0.73, 0.57, 0.105] },
     );
     root.add(face);
 
     const eyes = [-1, 1].map((side) => {
         const eye = applyTransform(
             new THREE.Mesh(new THREE.SphereGeometry(1, 24, 18), inkMaterial),
-            { position: [side * 0.34, 0.13, 0.57], scale: [0.105, 0.145, 0.045] },
+            { position: [side * 0.3, 0.16, 0.745], scale: [0.1, 0.14, 0.045] },
         );
         eye.userData.baseScaleY = 0.145;
 
         const shine = applyTransform(
             new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), eyeShineMaterial),
-            { position: [side * 0.315, 0.175, 0.61], scale: [0.027, 0.036, 0.012] },
+            { position: [side * 0.278, 0.202, 0.785], scale: [0.025, 0.034, 0.012] },
         );
         root.add(eye, shine);
 
@@ -250,28 +222,36 @@ function createPetModel(THREE) {
 
     const mouth = applyTransform(
         new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), inkMaterial),
-        { position: [0, -0.22, 0.585], scale: [0.115, 0.052, 0.026] },
+        { position: [0, -0.2, 0.765], scale: [0.1, 0.035, 0.02] },
     );
-    mouth.userData.baseScaleX = 0.115;
-    mouth.userData.baseScaleY = 0.052;
+    mouth.userData.baseScaleX = 0.1;
+    mouth.userData.baseScaleY = 0.035;
     root.add(mouth);
+
+    [-1, 1].forEach((side) => {
+        const cheek = applyTransform(
+            new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14), cheekMaterial),
+            { position: [side * 0.48, -0.08, 0.724], scale: [0.105, 0.065, 0.018] },
+        );
+        root.add(cheek);
+    });
 
     const leafPivots = [-1, 1].map((side) => {
         const pivot = new THREE.Group();
-        pivot.position.set(side * 0.28, 0.86, -0.04);
-        pivot.rotation.z = side * -0.42;
+        pivot.position.set(side * 0.57, 0.74, -0.08);
+        pivot.rotation.z = side * -0.62;
 
         const leaf = applyTransform(
             new THREE.Mesh(new THREE.SphereGeometry(1, 28, 18), leafMaterial),
             {
-                position: [side * 0.05, 0.24, 0],
-                rotation: [0.12, side * -0.12, 0],
-                scale: [0.19, 0.43, 0.115],
+                position: [side * 0.03, 0.22, 0],
+                rotation: [0.14, side * -0.16, 0],
+                scale: [0.22, 0.38, 0.14],
             },
         );
         const vein = applyTransform(
-            new THREE.Mesh(new THREE.SphereGeometry(1, 18, 12), bezelMaterial),
-            { position: [side * 0.04, 0.23, 0.105], scale: [0.025, 0.31, 0.012] },
+            new THREE.Mesh(new THREE.SphereGeometry(1, 18, 12), accentMaterial),
+            { position: [side * 0.035, 0.22, 0.125], scale: [0.022, 0.27, 0.012] },
         );
         pivot.add(leaf, vein);
         root.add(pivot);
@@ -281,16 +261,28 @@ function createPetModel(THREE) {
 
     const feet = [-1, 1].map((side) => {
         const foot = applyTransform(
-            new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), inkMaterial),
+            new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), accentMaterial),
             {
-                position: [side * 0.63, -0.96, -0.02],
+                position: [side * 0.59, -0.9, -0.01],
                 rotation: [0.08, side * -0.2, side * -0.24],
-                scale: [0.3, 0.12, 0.22],
+                scale: [0.31, 0.13, 0.23],
             },
         );
         root.add(foot);
 
         return foot;
+    });
+
+    [-1, 1].forEach((side) => {
+        const arm = applyTransform(
+            new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), accentMaterial),
+            {
+                position: [side * 1.02, -0.05, -0.03],
+                rotation: [0.12, side * -0.2, side * -0.48],
+                scale: [0.24, 0.1, 0.17],
+            },
+        );
+        root.add(arm);
     });
 
     root.rotation.x = -0.015;
@@ -580,7 +572,7 @@ export function railtimeAssistantPet3d(options = {}) {
 
             model.leafPivots.forEach((leaf, index) => {
                 const side = index === 0 ? -1 : 1;
-                const baseRotation = side * -0.42 * profile.leafSpread;
+                const baseRotation = side * -0.62 * profile.leafSpread;
                 const stateWiggle = Math.sin(time * profile.leafSpeed + index * 0.7)
                     * profile.leafAmplitude
                     * motion;

@@ -242,6 +242,58 @@ php artisan config:clear
 php artisan railtime:livekit-check
 ```
 
+#### Call-Chat, Verlauf und verpflichtende Aufzeichnung
+
+`/calls` ist der gemeinsame Hub für Direkt- und Gruppenanrufe, Meetings,
+verpasste Gespräche, Aufzeichnungen und den persistenten Verlauf. Jeder Raum
+erhält einen eigenen Call-Chat, der während des Gesprächs Text und bis zu fünf
+Dateien zu je 20 MB annimmt und danach schreibgeschützt bleibt. `/meetings`
+leitet aus Kompatibilitätsgründen auf `/calls` weiter.
+
+Die automatische RoomComposite-MP4-Aufzeichnung ist technisch implementiert,
+aber standardmäßig **fail-closed deaktiviert**. Sie darf erst aktiviert werden,
+wenn Aufnahmehinweis und Rechtsgrundlage, S3-Auftragsverarbeitung,
+Beschäftigtendatenschutz und gegebenenfalls Betriebsrat freigegeben sind. Die
+versionierte Einmalbestätigung in RailTime ersetzt diese Prüfungen nicht.
+
+Erforderliche Anwendungskonfiguration:
+
+```dotenv
+CALL_RECORDING_ENABLED=false
+CALL_RECORDING_POLICY_VERSION=2026-08-01
+CALL_RECORDING_START_DEADLINE=30
+CALL_RECORDING_RETENTION_DAYS=90
+CALL_RECORDING_QUEUE=calls
+CALL_RECORDING_DISK=call_recordings
+CALL_RECORDING_S3_KEY=
+CALL_RECORDING_S3_SECRET=
+CALL_RECORDING_S3_REGION=eu-central-1
+CALL_RECORDING_S3_BUCKET=
+CALL_RECORDING_S3_ENDPOINT=
+CALL_RECORDING_S3_PATH_STYLE=false
+```
+
+Der Bucket muss in der EU liegen, Block Public Access/öffentliche ACLs sperren
+und serverseitige Verschlüsselung als Bucket-Standard erzwingen. Zugangsdaten
+liegen ausschließlich im Deployment-Secret-Store. Der Scheduler gleicht jede
+Minute Egress-Zustände ab und löscht fertige Dateien nach 90 Tagen; Metadaten,
+Call-Chat und Ereignisse bleiben erhalten. Der Queue-Worker muss deshalb neben
+`default` auch `calls` bedienen:
+
+```bash
+php artisan queue:work database --queue=default,calls --tries=4 --backoff=30 --timeout=90
+```
+
+Self-hosting benötigt einen separaten Egress-Dienst am selben privaten Redis
+wie LiveKit. Eine auf `livekit/egress:v1.12.0` festgelegte Compose-Vorlage liegt
+unter [`deploy/livekit-egress/compose.yml`](deploy/livekit-egress/compose.yml)
+und reserviert mindestens 4 CPU/4 GB. Vor `CALL_RECORDING_ENABLED=true` muss
+dieser Tag gegen die **tatsächlich in Staging installierte** LiveKit-Version
+geprüft werden: Audio, mehrere Kameras, Screen Share, später Beitritt, zwei
+parallele Räume sowie Redis-, Worker- und Bucket-Ausfall. Ohne ACTIVE innerhalb
+von 30 Sekunden oder bei unerwartetem Egress-Ende beendet RailTime den
+Medienraum; es gibt keinen unaufgezeichneten Fallback.
+
 ### 8. RailTime Assist und gemeinsamer Sprachdienst
 
 Der seitenweite Livewire-Assistent steht aktiven, verifizierten Benutzern mit

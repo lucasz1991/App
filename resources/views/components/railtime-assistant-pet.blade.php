@@ -8,25 +8,32 @@
     <ellipse cx="60" cy="108" rx="34" ry="6" class="rt-assistant-pet__shadow" />
 
     <g class="rt-assistant-pet__leaf rt-assistant-pet__leaf--left" aria-hidden="true">
-        <path d="M52 30C40 28 34 18 38 9c10 1 18 8 20 18l-6 3Z" class="rt-assistant-pet__leaf-body" />
-        <path d="M41 13c5 4 9 8 13 15" class="rt-assistant-pet__leaf-vein" />
+        <path d="M48 31C35 31 27 23 29 12c11-1 20 5 25 16l-6 3Z" class="rt-assistant-pet__leaf-body" />
+        <path d="M34 17c7 2 12 6 17 12" class="rt-assistant-pet__leaf-vein" />
     </g>
     <g class="rt-assistant-pet__leaf rt-assistant-pet__leaf--right" aria-hidden="true">
-        <path d="M68 30c12-2 18-12 14-21-10 1-18 8-20 18l6 3Z" class="rt-assistant-pet__leaf-body" />
-        <path d="M79 13c-5 4-9 8-13 15" class="rt-assistant-pet__leaf-vein" />
+        <path d="M72 31c13 0 21-8 19-19-11-1-20 5-25 16l6 3Z" class="rt-assistant-pet__leaf-body" />
+        <path d="M86 17c-7 2-12 6-17 12" class="rt-assistant-pet__leaf-vein" />
     </g>
 
     <path
-        d="M18 48c0-15 10-24 25-26h34c15 2 25 11 25 26v32c0 16-10 25-25 27H43c-15-2-25-11-25-27V48Z"
+        d="M18 53c0-19 15-32 34-34 5-1 11-1 16 0 19 2 34 15 34 34v24c0 19-14 31-34 33-5 1-11 1-16 0-20-2-34-14-34-33V53Z"
         class="rt-assistant-pet__capsule"
     />
     <path
-        d="M24 49c0-12 8-20 21-21h30c13 1 21 9 21 21v29c0 13-8 20-21 22H45c-13-2-21-9-21-22V49Z"
+        d="M23 52c0-16 13-27 30-29 5-1 10-1 15 0 17 2 29 13 29 29v24c0 16-12 27-29 29-5 1-10 1-15 0-17-2-30-13-30-29V52Z"
         class="rt-assistant-pet__capsule-highlight"
     />
 
-    <rect x="30" y="40" width="60" height="48" rx="16" class="rt-assistant-pet__bezel" />
-    <rect x="34" y="44" width="52" height="40" rx="13" class="rt-assistant-pet__face-screen" />
+    <path
+        d="M32 52c2-11 12-18 28-18s26 7 28 18v17c-2 12-12 19-28 19s-26-7-28-19V52Z"
+        class="rt-assistant-pet__face-screen"
+    />
+
+    <g class="rt-assistant-pet__arms" aria-hidden="true">
+        <path d="M24 63c-8 1-13 6-12 13 6 2 11 0 16-5l-4-8Z" />
+        <path d="M96 63c8 1 13 6 12 13-6 2-11 0-16-5l4-8Z" />
+    </g>
 
     <g class="rt-assistant-pet__face">
         <g class="rt-assistant-pet__eye rt-assistant-pet__eye--left">
@@ -37,11 +44,13 @@
             <ellipse cx="72" cy="59" rx="5" ry="6.5" />
             <circle cx="70.5" cy="57" r="1.35" class="rt-assistant-pet__eye-shine" />
         </g>
-        <ellipse cx="60" cy="73" rx="4.5" ry="2.6" class="rt-assistant-pet__mouth" />
+        <circle cx="43" cy="69" r="3.2" class="rt-assistant-pet__cheek" />
+        <circle cx="77" cy="69" r="3.2" class="rt-assistant-pet__cheek" />
+        <path d="M55 73c2 3 8 3 10 0" class="rt-assistant-pet__mouth" />
     </g>
 
     <g class="rt-assistant-pet__feet" aria-hidden="true">
-        <path d="M38 101c-5 2-9 6-9 10 7 1 13-1 18-6l-9-4Z" />
-        <path d="M82 101c5 2 9 6 9 10-7 1-13-1-18-6l9-4Z" />
+        <path d="M39 101c-6 2-10 6-10 10 8 1 14-1 19-6l-9-4Z" />
+        <path d="M81 101c6 2 10 6 10 10-8 1-14-1-19-6l9-4Z" />
     </g>
 </svg>

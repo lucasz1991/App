@@ -135,7 +135,7 @@ class CallHistory extends Component
         $userId = auth()->id();
 
         return Room::query()
-            ->with(['owner', 'chat', 'callChat', 'participants.user'])
+            ->with(['owner', 'chat', 'callChat', 'participants.user', 'recording'])
             ->whereHas('participants', fn ($q) => $q->where('user_id', $userId))
             ->when($this->filter === 'active', fn ($q) => $q->whereIn('status', ['pending', 'active']))
             ->when($this->filter === 'meetings', fn ($q) => $q->where('type', 'meeting'))
@@ -143,6 +143,7 @@ class CallHistory extends Component
                 'invitations',
                 fn ($i) => $i->where('invitee_id', $userId)->whereIn('status', ['missed', 'declined', 'expired']),
             ))
+            ->when($this->filter === 'recordings', fn ($q) => $q->whereHas('recording'))
             ->latest('id')
             ->paginate(15);
     }

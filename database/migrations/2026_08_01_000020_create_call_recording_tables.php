@@ -12,7 +12,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
             $table->string('policy_version', 100);
-            $table->timestamp('accepted_at');
+            $table->dateTime('accepted_at');
             $table->timestamps();
 
             $table->unique(['user_id', 'policy_version'], 'call_recording_ack_user_policy_unique');
@@ -38,11 +38,11 @@ return new class extends Migration
             $table->string('mime_type', 100)->nullable();
             $table->unsignedBigInteger('size_bytes')->nullable();
             $table->unsignedBigInteger('duration_ms')->nullable();
-            $table->timestamp('requested_at');
-            $table->timestamp('start_deadline_at');
-            $table->timestamp('started_at')->nullable();
-            $table->timestamp('completed_at')->nullable();
-            $table->timestamp('expires_at')->nullable();
+            $table->dateTime('requested_at');
+            $table->dateTime('start_deadline_at');
+            $table->dateTime('started_at')->nullable();
+            $table->dateTime('completed_at')->nullable();
+            $table->dateTime('expires_at')->nullable();
             $table->string('error_code', 100)->nullable();
             $table->text('error_message')->nullable();
             $table->timestamps();
@@ -57,7 +57,7 @@ return new class extends Migration
             $table->id();
             $table->string('event_id')->unique();
             $table->string('event_type', 64);
-            $table->timestamp('received_at');
+            $table->dateTime('received_at');
             $table->timestamps();
         });
     }

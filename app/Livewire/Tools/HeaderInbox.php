@@ -150,6 +150,7 @@ class HeaderInbox extends Component
 
         $chats = $user->chats()
             ->with('participants')
+            ->where('chats.type', '!=', 'call')
             ->orderByDesc('chats.updated_at')
             ->limit(3)
             ->get();
@@ -220,6 +221,8 @@ class HeaderInbox extends Component
                 $join->on('chat_user.chat_id', '=', 'chat_messages.chat_id')
                     ->where('chat_user.user_id', '=', $user->id);
             })
+            ->join('chats', 'chats.id', '=', 'chat_messages.chat_id')
+            ->where('chats.type', '!=', 'call')
             ->whereNull('chat_user.hidden_at')
             ->where(function ($query): void {
                 $query->whereNull('chat_user.joined_at')

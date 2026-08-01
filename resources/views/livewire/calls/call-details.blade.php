@@ -42,6 +42,50 @@
             </section>
 
             <div class="space-y-5">
+                @if ($room->recording)
+                    @php($recording = $room->recording)
+                    <section class="overflow-hidden rounded-2xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+                        <header class="border-b border-rt-border/60 px-5 py-3.5 dark:border-rt-dark-border/60">
+                            <h2 class="text-sm font-bold text-rt-text dark:text-rt-dark-text">{{ __('app.calls_recording') }}</h2>
+                        </header>
+                        <div class="space-y-3 px-5 py-4">
+                            <div class="flex items-center gap-2 text-sm font-semibold text-rt-text dark:text-rt-dark-text">
+                                <span @class([
+                                    'h-2.5 w-2.5 rounded-full',
+                                    'bg-red-500' => $recording->status->value === 'active',
+                                    'bg-emerald-500' => $recording->status->value === 'complete',
+                                    'bg-amber-400' => in_array($recording->status->value, ['requested', 'starting', 'ending'], true),
+                                    'bg-rose-500' => in_array($recording->status->value, ['failed', 'aborted'], true),
+                                    'bg-slate-400' => $recording->status->value === 'expired',
+                                ])></span>
+                                {{ __('app.calls_recording_status_'.$recording->status->value) }}
+                            </div>
+
+                            @if ($recording->expires_at && $recording->status->value !== 'expired')
+                                <p class="text-xs text-rt-muted dark:text-rt-dark-muted">
+                                    {{ __('app.calls_recording_expires', ['date' => $recording->expires_at->translatedFormat('d.m.Y H:i')]) }}
+                                </p>
+                            @elseif ($recording->status->value === 'expired')
+                                <p class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">{{ __('app.calls_recording_expired') }}</p>
+                            @endif
+
+                            @if ((int) $room->owner_id === (int) auth()->id() && $recording->isPlayable())
+                                <a
+                                    href="{{ route('calls.recording.play', [$room, $recording]) }}"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-rt-accent px-4 text-sm font-bold text-white transition hover:bg-rt-accent-hover"
+                                >
+                                    <i class="far fa-play" aria-hidden="true"></i>
+                                    {{ __('app.calls_recording_play') }}
+                                </a>
+                            @elseif ((int) $room->owner_id !== (int) auth()->id())
+                                <p class="text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">{{ __('app.calls_recording_owner_only') }}</p>
+                            @endif
+                        </div>
+                    </section>
+                @endif
+
                 <section class="overflow-hidden rounded-2xl bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
                     <header class="border-b border-rt-border/60 px-5 py-3.5 dark:border-rt-dark-border/60">
                         <h2 class="text-sm font-bold text-rt-text dark:text-rt-dark-text">{{ __('app.calls_participants') }}</h2>

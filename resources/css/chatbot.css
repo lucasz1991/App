@@ -262,7 +262,7 @@
     transform: translate(0, 0) scale(1);
 }
 
-/* Leaf-capsule SVG used while WebGL loads and for small chat avatars. */
+/* Soft creature SVG used while WebGL loads and for small chat avatars. */
 .rt-chatbot .rt-assistant-pet__shadow {
     fill: rgba(42, 16, 25, 0.16);
 }
@@ -288,14 +288,10 @@
     stroke-linecap: round;
 }
 
-.rt-chatbot .rt-assistant-pet__bezel {
-    fill: var(--rt-pet-body-deep);
-}
-
 .rt-chatbot .rt-assistant-pet__face-screen {
     fill: var(--rt-pet-inner);
-    stroke: color-mix(in srgb, var(--rt-pet-body-deep) 20%, transparent);
-    stroke-width: 1;
+    stroke: color-mix(in srgb, #ffffff 42%, transparent);
+    stroke-width: 1.4;
 }
 
 .rt-chatbot .rt-assistant-pet__eye {
@@ -310,11 +306,22 @@
 }
 
 .rt-chatbot .rt-assistant-pet__mouth {
-    fill: var(--rt-pet-ink);
+    fill: none;
+    stroke: var(--rt-pet-ink);
+    stroke-width: 2.4;
+    stroke-linecap: round;
+}
+
+.rt-chatbot .rt-assistant-pet__cheek {
+    fill: color-mix(in srgb, var(--rt-pet-body) 45%, transparent);
+}
+
+.rt-chatbot .rt-assistant-pet__arms {
+    fill: var(--rt-pet-body-deep);
 }
 
 .rt-chatbot .rt-assistant-pet__feet {
-    fill: var(--rt-pet-ink);
+    fill: var(--rt-pet-body-deep);
 }
 
 .rt-chatbot__pet-figure,
