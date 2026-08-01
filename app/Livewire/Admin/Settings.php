@@ -3,6 +3,8 @@
 namespace App\Livewire\Admin;
 
 use App\Models\Setting;
+use App\Services\Ai\AssistantSpeechRouter;
+use App\Support\Ai\AssistantSpeechSettings;
 use App\Support\Ai\AssistantSettings;
 use App\Support\Ai\OpenRouterSettings;
 use App\Support\Calls\CallSettings;
@@ -20,6 +22,12 @@ class Settings extends Component
 
     /** Systemweite Freigabe fuer RailTime Assist. */
     public bool $assistantEnabled = true;
+
+    /** Globaler, nur vom Superadmin aenderbarer Sprachweg. */
+    public string $assistantSpeechRouting = AssistantSpeechSettings::DEFAULT_MODE;
+
+    /** @var array<string, mixed> Normalisierte Diagnose ohne Geheimnisse. */
+    public array $assistantSpeechStatus = [];
 
     /** Empfaengeradresse fuer Systemnachrichten / Testmails aus der Mailverwaltung. */
     public string $adminEmail = '';
@@ -61,6 +69,8 @@ class Settings extends Component
     {
         $this->maintenanceMode = (bool) (Setting::getValueUncached('system', 'maintenance_mode') ?? false);
         $this->assistantEnabled = AssistantSettings::enabled(uncached: true);
+        $this->assistantSpeechRouting = AssistantSpeechSettings::mode(uncached: true);
+        $this->assistantSpeechStatus = app(AssistantSpeechRouter::class)->capabilities(refresh: true);
         $this->adminEmail = (string) (Setting::getValueUncached('mails', 'admin_email') ?? '');
 
         $days = (int) (Setting::getValueUncached('invitations', 'expiry_days') ?? 7);
@@ -96,6 +106,7 @@ class Settings extends Component
             'openRouter.referer_url' => ['nullable', 'url', 'max:2048'],
             'openRouter.model_title' => ['nullable', 'string', 'max:255'],
             'openRouter.stream_enabled' => ['boolean'],
+            'openRouter.tts_voice' => ['nullable', 'string', 'max:255'],
         ];
 
         foreach (array_keys(OpenRouterSettings::MODEL_FIELDS) as $field) {
@@ -111,6 +122,7 @@ class Settings extends Component
         $this->validate($rules);
 
         OpenRouterSettings::save($this->openRouter);
+        $this->assistantSpeechStatus = app(AssistantSpeechRouter::class)->capabilities(refresh: true);
 
         // Zurueckgelesen, damit die Oberflaeche exakt zeigt, was gilt — und
         // der Schluessel weiterhin nur als Maske erscheint.
@@ -200,6 +212,37 @@ class Settings extends Component
     public function updatedAssistantEnabled(): void
     {
         $this->saveAssistant();
+    }
+
+    public function saveAssistantSpeechRouting(): void
+    {
+        Gate::authorize('settings.manage');
+        abort_unless($this->isSuperAdmin(), 403);
+
+        $this->validate([
+            'assistantSpeechRouting' => [
+                'required',
+                'string',
+                Rule::in(array_keys(AssistantSpeechSettings::modes())),
+            ],
+        ]);
+
+        AssistantSpeechSettings::setMode($this->assistantSpeechRouting);
+        $this->assistantSpeechRouting = AssistantSpeechSettings::mode(uncached: true);
+        $this->assistantSpeechStatus = app(AssistantSpeechRouter::class)->capabilities(refresh: true);
+
+        $this->dispatch('assistant-speech-settings-saved', fields: ['assistantSpeechRouting']);
+    }
+
+    public function updatedAssistantSpeechRouting(): void
+    {
+        $this->saveAssistantSpeechRouting();
+    }
+
+    public function refreshAssistantSpeechStatus(): void
+    {
+        Gate::authorize('settings.manage');
+        $this->assistantSpeechStatus = app(AssistantSpeechRouter::class)->capabilities(refresh: true);
     }
 
     public function saveInvitations(): void

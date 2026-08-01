@@ -7,5 +7,6 @@
      Kopien fest — z. B. ein rt-sounds.js ohne die waehlbaren Signaturen und
      ohne preview(), wodurch neue Toene schlicht nie ankommen. --}}
 <script src="{{ URL::asset('js/rt-sounds.js') }}?v={{ filemtime(public_path('js/rt-sounds.js')) }}"></script>
-<script src="{{ URL::asset('js/rt-toast.js') }}?v={{ filemtime(public_path('js/rt-toast.js')) }}"></script>
+{{-- Die Meldungen liegen seit der Umstellung auf SweetAlert2 im Vite-Bundle
+     (resources/js/rt-alerts.js) und brauchen hier kein eigenes Skript mehr. --}}
 @yield('scripts')

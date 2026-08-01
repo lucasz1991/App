@@ -163,6 +163,29 @@
                         </p>
                     </div>
                 @endforeach
+
+                <div class="flex min-w-0 flex-col rounded-xl bg-rt-surface p-3.5 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60 sm:p-4">
+                    <label
+                        for="openrouter-tts-voice"
+                        class="flex items-center gap-2 text-sm font-medium text-rt-text dark:text-rt-dark-text"
+                    >
+                        <i class="fad fa-microphone-alt text-rt-muted dark:text-rt-dark-muted" aria-hidden="true"></i>
+                        {{ __('app.openrouter_tts_voice') }}
+                    </label>
+                    <x-ui.forms.input
+                        id="openrouter-tts-voice"
+                        type="text"
+                        autocomplete="off"
+                        spellcheck="false"
+                        placeholder="alloy"
+                        wire:model="openRouter.tts_voice"
+                        class="mt-1.5 font-mono text-sm"
+                    />
+                    <x-input-error for="openRouter.tts_voice" class="mt-1.5" />
+                    <p class="mt-1.5 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
+                        {{ __('app.openrouter_tts_voice_hint') }}
+                    </p>
+                </div>
             </div>
         </div>
 

@@ -3,6 +3,9 @@
 // einem dieser Module wird dadurch bereits erfasst (siehe alpine-watchdog.js).
 import './alpine-watchdog';
 import './bootstrap';
+// Meldungen (swal:toast/swal:alert/showAlert) auf SweetAlert2. Frueh
+// importieren, damit auch Meldungen aus dem Seitenaufbau ankommen.
+import './rt-alerts';
 // Manuelles Livewire-Bundling (offizieller Livewire-3-Weg fuer eigene
 // Alpine-Plugins/Stores): Livewire + Alpine aus dem Livewire-ESM-Bundle
 // importieren, alles registrieren, DANN Livewire.start(). Die Layouts

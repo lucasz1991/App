@@ -28,10 +28,34 @@ return [
 
     'openrouter' => [
         'max_completion_tokens' => (int) env('RAILTIME_ASSISTANT_MAX_COMPLETION_TOKENS', 4000),
+        'max_response_bytes' => 8 * 1024 * 1024,
         'allowed_hosts' => array_values(array_filter(array_map(
             static fn (string $host): string => strtolower(trim($host)),
             explode(',', (string) env('OPENROUTER_ALLOWED_HOSTS', 'openrouter.ai')),
         ))),
+    ],
+
+    'attachments' => [
+        'max_count' => 3,
+        'max_total_kilobytes' => 15 * 1024,
+        'max_text_kilobytes' => 2 * 1024,
+        'max_image_kilobytes' => 5 * 1024,
+        'max_document_kilobytes' => 10 * 1024,
+        'max_extracted_characters' => 20000,
+        'max_session_characters' => 30000,
+        'max_session_batches' => 3,
+        'max_zip_entries' => 2500,
+        'max_zip_uncompressed_bytes' => 50 * 1024 * 1024,
+        'max_zip_entry_bytes' => 16 * 1024 * 1024,
+        'max_zip_compression_ratio' => 100,
+        'max_image_dimension' => 2048,
+        'max_image_pixels' => 40000000,
+        'allowed_extensions' => [
+            'txt', 'md', 'csv', 'json',
+            'pdf',
+            'jpg', 'jpeg', 'png', 'webp',
+            'docx', 'xlsx', 'pptx',
+        ],
     ],
 
     'speech' => [

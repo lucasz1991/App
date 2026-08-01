@@ -217,9 +217,10 @@ Profileinstellungen wird er bewusst nicht eingeblendet. Er beantwortet
 Bedien- und Orientierungsfragen über das in **Administration → Einstellungen →
 OpenRouter** gepflegte Textmodell.
 Der API-Key wird verschlüsselt gespeichert und ausschließlich serverseitig
-verwendet. Der Assistent erhält nur Sprache, Zielgruppe und benannten
-Seitenkontext, keine personenbezogenen oder aktuellen Betriebsdaten, und führt
-selbst keine Änderungen aus.
+verwendet. Der Assistent besitzt keinen zusätzlichen Live-Zugriff auf
+personenbezogene oder aktuelle Betriebsdaten und führt selbst keine Änderungen
+aus. Er verarbeitet ausschließlich den Seitenkontext sowie Inhalte, die der
+Benutzer ausdrücklich eingibt oder anhängt.
 
 Der Einstieg ist ein kleines rotes, textfreies 3D-Virtual-Pet: ein weicher,
 gedrungener Kapselkörper mit eingelassenem Gesichtsdisplay, zwei organischen
@@ -232,6 +233,15 @@ Bottom-Sheet. Im Einstellungsmenü des Chats liegen automatisches Vorlesen,
 Vorlesetempo, automatisches Hören mit bestätigbarem Transkript und lokale,
 kostenfreie Seitenhinweise aus dem RailTime-Hilfekatalog.
 
+Der Composer akzeptiert bis zu drei Text-, PDF-, Bild- oder moderne
+Office-Dateien (`docx`, `xlsx`, `pptx`). Text und Office-Inhalte werden
+serverseitig rein lesend extrahiert; Bilder werden vor der Analyse neu kodiert
+und von Metadaten befreit. PDF- und Bildoriginale werden nur für die aktuelle
+OpenRouter-Anfrage übertragen und danach zusammen mit allen übrigen temporären
+Uploads gelöscht. In der verschlüsselten Sitzung verbleiben lediglich
+begrenzte Metadaten und abgeleiteter Kontext bis zum Leeren des Chats oder zum
+Sitzungsablauf.
+
 Eingaben und der begrenzte Gesprächskontext werden für die Antwort an
 OpenRouter übertragen. Vor der produktiven Aktivierung müssen daher die
 betriebliche Datenschutz-/Aufbewahrungsfreigabe und der zulässige
@@ -239,13 +249,17 @@ Nutzungsrahmen festgelegt sein. Die Oberfläche weist ausdrücklich darauf hin,
 keine personenbezogenen Daten, Betriebsgeheimnisse oder Zugangsdaten
 einzugeben.
 
-TTS und STT laufen nicht direkt im Browser und nicht in einem der beiden
+TTS und STT laufen bevorzugt nicht direkt im Browser oder in einem der beiden
 Laravel-Prozesse. RailTime und Followflow verwenden den gemeinsamen,
 loopback-gebundenen Dienst unter [`services/speech-service`](services/speech-service/README.md).
 Jede App besitzt eine eigene Client-ID und ein eigenes Token. Der Dienst darf
 weder per nginx/Apache veröffentlicht noch an eine öffentliche Adresse gebunden
 werden. Er läuft unter dem eigenen unprivilegierten Benutzer `lmz-speech`, der
-keine Schreibrechte in RailTime oder Followflow besitzt.
+keine Schreibrechte in RailTime oder Followflow besitzt. RailTime kann der
+Superadmin zusätzlich auf `Nur lokal`, `Nur extern` oder standardmäßig
+`Lokal, bei Ausfall extern` stellen. Beim automatischen Fallback werden nur die
+aktuelle Mikrofonaufnahme beziehungsweise der aktuelle Vorlesetext über die
+konfigurierten OpenRouter-STT-/TTS-Modelle verarbeitet.
 
 RailTime-Konfiguration nach erfolgreichem Dienst-Rollout:
 
@@ -273,8 +287,9 @@ php artisan railtime:speech-service-status --smoke
 ```
 
 Die bisherigen Followflow-CLI-Provider bleiben bis zur gemeinsamen
-Produktionsabnahme nur als expliziter Rollback erhalten; bei aktiviertem Dienst
-gibt es keinen stillen Fallback.
+Produktionsabnahme nur als expliziter Rollback erhalten. RailTimes externer
+Fallback ist davon getrennt, wird zentral protokolliert und kann nur vom
+Superadmin geändert werden.
 
 ### 9. Deployment
 

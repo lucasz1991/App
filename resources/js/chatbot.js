@@ -18,6 +18,8 @@ const MAX_KNOWN_MESSAGE_KEYS = 500;
 const PET_BUBBLE_INITIAL_DELAY_MS = 1_200;
 const PET_BUBBLE_VISIBLE_MS = 4_800;
 const PET_BUBBLE_CYCLE_MS = 38_000;
+const SPEECH_STATUS_RETRY_DELAYS_MS = [2_000, 5_000, 15_000, 30_000];
+const ATTACHMENT_UPLOAD_LIMIT = 3;
 const SEEN_PAGE_HELP_KEYS = new Set();
 
 const DEFAULT_STRINGS = {
@@ -31,6 +33,14 @@ const DEFAULT_STRINGS = {
     speechEndpointUnavailable: 'Die Spracheingabe ist momentan nicht erreichbar.',
     speechNoText: 'Es wurde kein gesprochener Text erkannt.',
     speechPrefix: 'Spracheingabe',
+    speechChecking: 'Sprachdienst wird geprüft …',
+    speechReady: 'Text und Sprache sind bereit.',
+    speechPartiallyReady: 'Der Sprachdienst ist teilweise verfügbar.',
+    speechOffline: 'Text ist bereit, Sprache momentan nicht.',
+    speechDisabled: 'Sprachfunktionen sind nicht eingerichtet.',
+    localSpeechProvider: 'Lokaler Sprachdienst',
+    attachmentUploadFailed: 'Die Datei konnte nicht hochgeladen werden.',
+    attachmentUploadCancelled: 'Der Datei-Upload wurde abgebrochen.',
     petGreeting: 'Hi, ich bin dein RailTime-Begleiter.',
     petHint: 'Was möchtest du heute in RailTime erledigen?',
     petVoiceHint: 'Du kannst deine Frage auch einfach einsprechen.',
@@ -99,6 +109,26 @@ export function railtimeChatbot(config = {}) {
         isDesktopDocked: false,
         assistantAvailable: config.assistantAvailable !== false,
         speechAvailable: config.speechAvailable !== false,
+        speechStatusEndpoint: String(config.speechStatusEndpoint ?? ''),
+        sttConfigured: config.sttConfigured === undefined
+            ? Boolean(config.speechAvailable !== false && config.sttEndpoint)
+            : Boolean(config.sttConfigured),
+        ttsConfigured: config.ttsConfigured === undefined
+            ? Boolean(config.speechAvailable !== false && config.ttsEndpoint)
+            : Boolean(config.ttsConfigured),
+        sttReady: config.sttReady === undefined
+            ? Boolean(!config.speechStatusEndpoint && config.speechAvailable !== false && config.sttEndpoint)
+            : Boolean(config.sttReady),
+        ttsReady: config.ttsReady === undefined
+            ? Boolean(!config.speechStatusEndpoint && config.speechAvailable !== false && config.ttsEndpoint)
+            : Boolean(config.ttsReady),
+        speechStatusState: config.speechStatusEndpoint ? 'checking' : 'static',
+        speechRoutingLabel: String(config.speechRoutingLabel ?? '').trim(),
+        externalFallback: Boolean(config.externalFallback),
+        speechFallbackActive: false,
+        speechActiveProvider: '',
+        speechSttProvider: '',
+        speechTtsProvider: '',
         isLoading: config.isLoading ?? false,
         ttsEndpoint: String(config.ttsEndpoint ?? ''),
         sttEndpoint: String(config.sttEndpoint ?? ''),
@@ -145,6 +175,19 @@ export function railtimeChatbot(config = {}) {
         voiceUploading: false,
         sttAbortController: null,
 
+        speechStatusAbortController: null,
+        speechStatusRetryTimer: null,
+        speechStatusRetryAttempt: 0,
+        speechStatusGeneration: 0,
+        speechFailureGeneration: 0,
+
+        attachmentUploadActive: false,
+        attachmentUploadProgress: 0,
+        attachmentUploadError: '',
+        attachmentCount: Math.max(0, Number(config.attachmentCount) || 0),
+        composerHasText: false,
+        attachmentSyncTimer: null,
+
         messagesPinned: true,
         messageObserver: null,
         scrollFrame: null,
@@ -163,6 +206,7 @@ export function railtimeChatbot(config = {}) {
         _windowResizeHandler: null,
         _navigationHandler: null,
         _visibilityHandler: null,
+        _onlineHandler: null,
 
         init() {
             this.dockMediaQuery = window.matchMedia?.(CHATBOT_DESKTOP_QUERY) ?? null;
@@ -178,13 +222,14 @@ export function railtimeChatbot(config = {}) {
                 && safeStorage('sessionStorage')?.getItem('railtime-chatbot-open') === '1';
 
             this.speechSupported = Boolean(
-                this.speechAvailable
+                this.ttsConfigured
                 && this.ttsEndpoint
                 && window.fetch
                 && window.Audio
                 && window.URL,
             );
             this.voiceSupported = this.recordedVoiceSupported();
+            this.composerHasText = Boolean(this.composerDraft());
 
             this._dockChangeHandler = (event) => {
                 this.isDesktopDocked = Boolean(event.matches);
@@ -194,16 +239,23 @@ export function railtimeChatbot(config = {}) {
                 this.closeSettings(false);
                 this.abortSpeechInput();
                 this.stopSpeaking();
+                this.cancelSpeechStatusRefresh(true);
+                this.clearAttachmentUploadState();
             };
             this._visibilityHandler = () => {
                 if (document.hidden) {
                     this.closeSettings(false);
                     this.abortSpeechInput();
+                    this.cancelSpeechStatusRefresh(true);
                     this.clearPetBubbleTimers();
                     return;
                 }
 
+                void this.refreshSpeechStatus('visibility');
                 if (!this.open && this.autoHelp) this.schedulePetBubble(false);
+            };
+            this._onlineHandler = () => {
+                void this.refreshSpeechStatus('online');
             };
 
             if (this.dockMediaQuery?.addEventListener) {
@@ -214,6 +266,7 @@ export function railtimeChatbot(config = {}) {
             }
             document.addEventListener('livewire:navigating', this._navigationHandler);
             document.addEventListener('visibilitychange', this._visibilityHandler);
+            window.addEventListener('online', this._onlineHandler);
 
             this.$watch('open', (value) => {
                 const sessionStorage = safeStorage('sessionStorage');
@@ -232,6 +285,7 @@ export function railtimeChatbot(config = {}) {
                 }
 
                 this.hidePetBubble();
+                void this.refreshSpeechStatus('open');
                 this.$nextTick(() => {
                     this.observeMessages();
                     this.scrollMessages(true);
@@ -266,8 +320,11 @@ export function railtimeChatbot(config = {}) {
             this.$nextTick(() => {
                 this.observeMessages();
                 this.scrollMessages(false, true);
+                this.syncAttachmentCount();
+                this.updateComposerState();
             });
 
+            void this.refreshSpeechStatus('init');
             if (this.autoHelp) this.schedulePetBubble(true);
         },
 
@@ -285,6 +342,10 @@ export function railtimeChatbot(config = {}) {
             if (this._visibilityHandler) {
                 document.removeEventListener('visibilitychange', this._visibilityHandler);
             }
+            if (this._onlineHandler) {
+                window.removeEventListener('online', this._onlineHandler);
+                this._onlineHandler = null;
+            }
 
             this.messageObserver?.disconnect();
             this.messageObserver = null;
@@ -292,6 +353,8 @@ export function railtimeChatbot(config = {}) {
             this.scrollFrame = null;
             this.abortSpeechInput();
             this.stopSpeaking();
+            this.cancelSpeechStatusRefresh(true);
+            this.clearAttachmentUploadState();
             this.clearPetBubbleTimers();
             this.settingsOpen = false;
             releaseMicrophoneStream();
@@ -442,6 +505,216 @@ export function railtimeChatbot(config = {}) {
             return clamp(value, 0.5, 2, 1);
         },
 
+        manualTtsAvailable() {
+            return Boolean(this.speechSupported && this.ttsReady);
+        },
+
+        manualVoiceAvailable() {
+            return Boolean(this.voiceSupported && this.sttReady);
+        },
+
+        speechStatusTone() {
+            if (this.speechStatusState === 'checking') return 'checking';
+            if (!this.sttConfigured && !this.ttsConfigured) return 'disabled';
+            if (this.sttReady && this.ttsReady) return this.speechFallbackActive ? 'fallback' : 'ready';
+            if (this.sttReady || this.ttsReady) return 'partial';
+
+            return 'offline';
+        },
+
+        speechStatusText() {
+            const tone = this.speechStatusTone();
+            if (tone === 'checking') return this.strings.speechChecking;
+            if (tone === 'disabled') return this.strings.speechDisabled;
+            if (tone === 'ready' || tone === 'fallback') return this.strings.speechReady;
+            if (tone === 'partial') return this.strings.speechPartiallyReady;
+
+            return this.strings.speechOffline;
+        },
+
+        speechProviderName() {
+            const providers = [...new Set([
+                this.speechSttProvider,
+                this.speechTtsProvider,
+                this.speechActiveProvider,
+            ].map((entry) => String(entry ?? '').trim().toLowerCase()).filter(Boolean))];
+            if (providers.length > 1) {
+                return providers.map((provider) => (
+                    provider === 'openrouter' ? 'OpenRouter' : (this.strings.localSpeechProvider || 'Lokaler Sprachdienst')
+                )).join(' / ');
+            }
+
+            const provider = providers[0] ?? '';
+            if (provider === 'openrouter' || provider === 'external') return 'OpenRouter';
+            if (provider === 'local' || provider === 'shared' || provider === 'speech-service') {
+                return this.strings.localSpeechProvider || 'Lokaler Sprachdienst';
+            }
+
+            return this.speechRoutingLabel;
+        },
+
+        cancelSpeechStatusRefresh(invalidate = false) {
+            window.clearTimeout(this.speechStatusRetryTimer);
+            this.speechStatusRetryTimer = null;
+            this.speechStatusAbortController?.abort();
+            this.speechStatusAbortController = null;
+            if (invalidate) this.speechStatusGeneration += 1;
+        },
+
+        scheduleSpeechStatusRetry() {
+            window.clearTimeout(this.speechStatusRetryTimer);
+            this.speechStatusRetryTimer = null;
+            if (!this.speechStatusEndpoint || document.hidden || !this.assistantAvailable) return;
+
+            const attempt = Math.min(
+                this.speechStatusRetryAttempt,
+                SPEECH_STATUS_RETRY_DELAYS_MS.length - 1,
+            );
+            const delay = SPEECH_STATUS_RETRY_DELAYS_MS[attempt];
+            this.speechStatusRetryAttempt += 1;
+            this.speechStatusRetryTimer = window.setTimeout(() => {
+                this.speechStatusRetryTimer = null;
+                void this.refreshSpeechStatus('retry');
+            }, delay);
+        },
+
+        applySpeechStatus(payload = {}) {
+            const capabilities = payload?.capabilities ?? {};
+            const stt = capabilities?.stt ?? {};
+            const tts = capabilities?.tts ?? {};
+            const sttAvailable = payload?.stt_available ?? stt?.available;
+            const ttsAvailable = payload?.tts_available ?? tts?.available;
+            const sttConfigured = payload?.stt_configured ?? stt?.configured;
+            const ttsConfigured = payload?.tts_configured ?? tts?.configured;
+
+            if (typeof sttConfigured === 'boolean') this.sttConfigured = sttConfigured;
+            if (typeof ttsConfigured === 'boolean') this.ttsConfigured = ttsConfigured;
+            if (typeof sttAvailable === 'boolean') this.sttReady = this.sttConfigured && sttAvailable;
+            if (typeof ttsAvailable === 'boolean') this.ttsReady = this.ttsConfigured && ttsAvailable;
+
+            const activeProviders = payload?.active_provider;
+            this.speechSttProvider = String(
+                payload?.stt_provider
+                ?? (activeProviders && typeof activeProviders === 'object' ? activeProviders.stt : '')
+                ?? '',
+            ).trim();
+            this.speechTtsProvider = String(
+                payload?.tts_provider
+                ?? (activeProviders && typeof activeProviders === 'object' ? activeProviders.tts : '')
+                ?? '',
+            ).trim();
+            this.speechActiveProvider = this.speechSttProvider === this.speechTtsProvider
+                ? this.speechSttProvider
+                : '';
+            const fallbackActive = payload?.fallback_active ?? payload?.fallback ?? payload?.using_fallback;
+            this.speechFallbackActive = fallbackActive && typeof fallbackActive === 'object'
+                ? Object.values(fallbackActive).some(Boolean)
+                : Boolean(fallbackActive);
+            const fallbackAvailable = payload?.fallback_available;
+            if (fallbackAvailable !== undefined) {
+                this.externalFallback = fallbackAvailable && typeof fallbackAvailable === 'object'
+                    ? Object.values(fallbackAvailable).some(Boolean)
+                    : Boolean(fallbackAvailable);
+            }
+            this.speechStatusState = String(payload?.state ?? '').trim()
+                || (this.sttReady && this.ttsReady ? 'ready' : (this.sttReady || this.ttsReady ? 'partial' : 'offline'));
+            this.speechSupported = Boolean(
+                this.ttsConfigured
+                && this.ttsEndpoint
+                && window.fetch
+                && window.Audio
+                && window.URL,
+            );
+            this.voiceSupported = this.recordedVoiceSupported();
+        },
+
+        async speechResponseError(response) {
+            const error = new Error(await this.responseError(response));
+            error.status = Number(response?.status) || 0;
+
+            return error;
+        },
+
+        async refreshSpeechStatus(reason = 'manual') {
+            if (!this.speechStatusEndpoint || !window.fetch) {
+                this.speechStatusState = this.sttReady || this.ttsReady ? 'static' : 'disabled';
+                return null;
+            }
+
+            this.cancelSpeechStatusRefresh(false);
+            const generation = ++this.speechStatusGeneration;
+            const abortController = new AbortController();
+            this.speechStatusAbortController = abortController;
+            if (!this.sttReady && !this.ttsReady) this.speechStatusState = 'checking';
+
+            try {
+                const response = await fetch(this.speechStatusEndpoint, {
+                    method: 'GET',
+                    headers: {
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    credentials: 'same-origin',
+                    signal: abortController.signal,
+                });
+                if (!response.ok) throw await this.speechResponseError(response);
+
+                const payload = await response.json();
+                if (generation !== this.speechStatusGeneration) return null;
+
+                this.applySpeechStatus(payload);
+                this.speechStatusRetryAttempt = 0;
+
+                return payload;
+            } catch (error) {
+                if (generation !== this.speechStatusGeneration || error?.name === 'AbortError') return null;
+
+                this.sttReady = false;
+                this.ttsReady = false;
+                this.speechStatusState = error?.status === 401 || error?.status === 403
+                    ? 'disabled'
+                    : 'offline';
+                if (error?.status !== 401 && error?.status !== 403) this.scheduleSpeechStatusRetry();
+
+                return null;
+            } finally {
+                if (this.speechStatusAbortController === abortController) {
+                    this.speechStatusAbortController = null;
+                }
+            }
+        },
+
+        applySpeechResponseHeaders(response, kind) {
+            const provider = response?.headers?.get?.('X-Speech-Provider');
+            const fallback = response?.headers?.get?.('X-Speech-Fallback');
+            if (provider) {
+                this.speechActiveProvider = String(provider);
+                if (kind === 'stt') this.speechSttProvider = String(provider);
+                if (kind === 'tts') this.speechTtsProvider = String(provider);
+            }
+            if (fallback !== null && fallback !== undefined) {
+                this.speechFallbackActive = ['1', 'true', 'yes'].includes(String(fallback).toLowerCase());
+            }
+            if (kind === 'stt') this.sttReady = true;
+            if (kind === 'tts') this.ttsReady = true;
+            this.speechStatusState = this.sttReady && this.ttsReady ? 'ready' : 'partial';
+        },
+
+        handleSpeechRequestFailure(kind, error) {
+            this.speechFailureGeneration += 1;
+            this.cancelPendingAutoListen();
+
+            const status = Number(error?.status) || 0;
+            const transient = status === 0 || status >= 500;
+            if (transient && kind === 'stt') this.sttReady = false;
+            if (transient && kind === 'tts') this.ttsReady = false;
+            if (transient) {
+                this.speechStatusState = this.sttReady || this.ttsReady ? 'partial' : 'offline';
+                this.scheduleSpeechStatusRetry();
+            }
+        },
+
         toggleSettings() {
             if (this.settingsOpen) {
                 this.closeSettings(true);
@@ -482,12 +755,14 @@ export function railtimeChatbot(config = {}) {
             if (!this.open) {
                 this.closeSettings(false);
                 this.abortSpeechInput();
+                this.cancelSpeechStatusRefresh(true);
                 if (this.autoHelp) this.schedulePetBubble(false);
                 if (wasOpen) this.$nextTick(() => this.$refs.launcher?.focus({ preventScroll: true }));
                 return;
             }
 
             this.hidePetBubble();
+            void this.refreshSpeechStatus('open');
             this.$nextTick(() => {
                 this.scrollMessages(true);
                 if (focusComposer) {
@@ -595,11 +870,13 @@ export function railtimeChatbot(config = {}) {
 
             if (!this.rememberAssistantKey(key)) return;
 
+            this.resetAttachmentUi();
             if (!this.open) this.showPetBubble(this.strings.petReplyReady, PET_BUBBLE_VISIBLE_MS, true);
-            if (this.autoRead && this.speechSupported) {
+            if (this.autoRead && this.manualTtsAvailable()) {
                 this.queueTtsSentence(text, key);
             }
             this.$nextTick(() => {
+                this.updateComposerState();
                 this.scrollMessages(false);
                 this.scheduleAutoListenAfterReply();
             });
@@ -623,13 +900,15 @@ export function railtimeChatbot(config = {}) {
             if (!this.autoListen) return;
 
             const generation = this.autoListenGeneration;
+            const failureGeneration = this.speechFailureGeneration;
             const attempt = () => {
                 this.autoListenTimer = null;
                 if (generation !== this.autoListenGeneration || !this.autoListen) return;
+                if (failureGeneration !== this.speechFailureGeneration) return;
                 if (!this.open || document.hidden) return;
 
                 this.voiceSupported = this.recordedVoiceSupported();
-                if (!this.voiceSupported || this.recording || this.voiceUploading) return;
+                if (!this.manualVoiceAvailable() || this.recording || this.voiceUploading) return;
 
                 if (this.isLoading || this.ttsActive()) {
                     this.autoListenTimer = window.setTimeout(attempt, 120);
@@ -708,8 +987,9 @@ export function railtimeChatbot(config = {}) {
         },
 
         speak(text, key = null) {
-            if (!this.speechSupported) {
+            if (!this.manualTtsAvailable()) {
                 this.audioError = this.strings.audioEndpointUnavailable;
+                void this.refreshSpeechStatus('tts-unavailable');
                 return;
             }
 
@@ -725,7 +1005,7 @@ export function railtimeChatbot(config = {}) {
 
         queueTtsSentence(text, key = null) {
             const cleanText = String(text ?? '').trim().slice(0, MAX_TTS_TEXT_LENGTH);
-            if (!cleanText || !this.speechSupported) return;
+            if (!cleanText || !this.manualTtsAvailable()) return;
 
             const duplicateIsActive = this.ttsActiveKey === key && this.ttsActiveText === cleanText;
             const duplicateIsQueued = this.ttsQueue.some((item) => (
@@ -765,6 +1045,7 @@ export function railtimeChatbot(config = {}) {
                 await this.playTtsViaBlob(item.text, item.key, item.generation);
             } catch (error) {
                 if (item.generation === this.ttsCurrentGeneration && error?.name !== 'AbortError') {
+                    if (error?.speechProviderFailure) this.handleSpeechRequestFailure('tts', error);
                     this.audioError = this.audioErrorMessage(error);
                 }
             } finally {
@@ -790,7 +1071,7 @@ export function railtimeChatbot(config = {}) {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Accept: 'audio/wav, application/json',
+                    Accept: 'audio/wav, audio/mpeg, application/json',
                     'X-CSRF-TOKEN': this.csrfToken,
                     'X-Requested-With': 'XMLHttpRequest',
                 },
@@ -822,10 +1103,21 @@ export function railtimeChatbot(config = {}) {
             let objectUrl = null;
 
             try {
-                const response = await fetch(this.ttsEndpoint, this.ttsFetchOptions(text, abortController));
+                let response;
+                try {
+                    response = await fetch(this.ttsEndpoint, this.ttsFetchOptions(text, abortController));
+                } catch (error) {
+                    if (error?.name !== 'AbortError') error.speechProviderFailure = true;
+                    throw error;
+                }
                 this.assertTtsGeneration(generation);
 
-                if (!response.ok) throw new Error(await this.responseError(response));
+                if (!response.ok) {
+                    const error = await this.speechResponseError(response);
+                    error.speechProviderFailure = true;
+                    throw error;
+                }
+                this.applySpeechResponseHeaders(response, 'tts');
 
                 const blob = await response.blob();
                 this.assertTtsGeneration(generation);
@@ -976,7 +1268,7 @@ export function railtimeChatbot(config = {}) {
 
         recordedVoiceSupported() {
             return Boolean(
-                this.speechAvailable
+                this.sttConfigured
                 && this.sttEndpoint
                 && window.fetch
                 && window.FormData
@@ -1017,10 +1309,11 @@ export function railtimeChatbot(config = {}) {
             if (this.voiceUploading || this.isLoading || this.ttsActive()) return;
 
             this.voiceSupported = this.recordedVoiceSupported();
-            if (!this.voiceSupported) {
+            if (!this.voiceSupported || !this.sttReady) {
                 this.audioError = this.sttEndpoint
-                    ? this.strings.recordingUnsupported
+                    ? (this.voiceSupported ? this.strings.speechEndpointUnavailable : this.strings.recordingUnsupported)
                     : this.strings.speechEndpointUnavailable;
+                if (this.voiceSupported) void this.refreshSpeechStatus('stt-unavailable');
                 return;
             }
 
@@ -1134,19 +1427,30 @@ export function railtimeChatbot(config = {}) {
                     `railtime-assistant-audio.${this.recordedAudioExtension(blob.type)}`,
                 );
 
-                const response = await fetch(this.sttEndpoint, {
-                    method: 'POST',
-                    headers: {
-                        Accept: 'application/json',
-                        'X-CSRF-TOKEN': this.csrfToken,
-                        'X-Requested-With': 'XMLHttpRequest',
-                    },
-                    credentials: 'same-origin',
-                    signal: abortController.signal,
-                    body: formData,
-                });
+                let response;
+                try {
+                    response = await fetch(this.sttEndpoint, {
+                        method: 'POST',
+                        headers: {
+                            Accept: 'application/json',
+                            'X-CSRF-TOKEN': this.csrfToken,
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        credentials: 'same-origin',
+                        signal: abortController.signal,
+                        body: formData,
+                    });
+                } catch (error) {
+                    if (error?.name !== 'AbortError') error.speechProviderFailure = true;
+                    throw error;
+                }
 
-                if (!response.ok) throw new Error(await this.responseError(response));
+                if (!response.ok) {
+                    const error = await this.speechResponseError(response);
+                    error.speechProviderFailure = true;
+                    throw error;
+                }
+                this.applySpeechResponseHeaders(response, 'stt');
 
                 const payload = await response.json();
                 const transcript = String(payload?.text ?? '').trim();
@@ -1155,9 +1459,11 @@ export function railtimeChatbot(config = {}) {
                 const currentDraft = String(this.$refs.composer?.value ?? '').trim();
                 const combinedDraft = [currentDraft, transcript].filter(Boolean).join(' ');
                 await this.$wire.set('message', combinedDraft);
+                this.composerHasText = Boolean(combinedDraft.trim());
                 this.$nextTick(() => this.resizeComposer());
             } catch (error) {
                 if (error?.name !== 'AbortError') {
+                    if (error?.speechProviderFailure) this.handleSpeechRequestFailure('stt', error);
                     this.audioError = `${this.strings.speechPrefix}: ${this.audioErrorMessage(error)}`;
                 }
             } finally {
@@ -1207,6 +1513,100 @@ export function railtimeChatbot(config = {}) {
             this.sttAbortController?.abort();
             this.sttAbortController = null;
             this.voiceUploading = false;
+        },
+
+        updateComposerState() {
+            this.composerHasText = Boolean(this.composerDraft());
+        },
+
+        canSubmit() {
+            return Boolean(
+                this.assistantAvailable
+                && !this.isLoading
+                && !this.attachmentUploadActive
+                && (this.composerHasText || this.attachmentCount > 0),
+            );
+        },
+
+        handleComposerEnter(event) {
+            if (event?.isComposing || !this.canSubmit()) return false;
+
+            this.$wire.sendMessage();
+
+            return true;
+        },
+
+        handleAttachmentSelection(event) {
+            const files = Array.from(event?.target?.files ?? []);
+            this.attachmentUploadError = '';
+            if (files.length > ATTACHMENT_UPLOAD_LIMIT) {
+                this.attachmentUploadError = this.strings.attachmentTooMany
+                    || `Es können maximal ${ATTACHMENT_UPLOAD_LIMIT} Dateien angehängt werden.`;
+            }
+        },
+
+        beginAttachmentUpload() {
+            window.clearTimeout(this.attachmentSyncTimer);
+            this.attachmentSyncTimer = null;
+            this.attachmentUploadActive = true;
+            this.attachmentUploadProgress = 0;
+            this.attachmentUploadError = '';
+        },
+
+        updateAttachmentUpload(rawDetail) {
+            const detail = normalizedEventDetail(rawDetail);
+            this.attachmentUploadProgress = clamp(detail?.progress, 0, 100, 0);
+        },
+
+        completeAttachmentUpload() {
+            this.attachmentUploadActive = false;
+            this.attachmentUploadProgress = 100;
+            window.clearTimeout(this.attachmentSyncTimer);
+            this.attachmentSyncTimer = window.setTimeout(() => {
+                this.attachmentSyncTimer = null;
+                this.syncAttachmentCount();
+                this.attachmentUploadProgress = 0;
+                if (this.$refs?.attachmentInput) this.$refs.attachmentInput.value = '';
+            }, 0);
+        },
+
+        failAttachmentUpload(message = '') {
+            this.attachmentUploadActive = false;
+            this.attachmentUploadProgress = 0;
+            this.attachmentUploadError = String(message || this.strings.attachmentUploadFailed);
+            if (this.$refs?.attachmentInput) this.$refs.attachmentInput.value = '';
+        },
+
+        cancelAttachmentUpload() {
+            this.failAttachmentUpload(this.strings.attachmentUploadCancelled);
+        },
+
+        syncAttachmentCount() {
+            const count = this.$refs?.attachmentList
+                ?.querySelectorAll?.('[data-chatbot-attachment-chip]')
+                ?.length;
+            if (Number.isFinite(count)) this.attachmentCount = Number(count);
+
+            return this.attachmentCount;
+        },
+
+        markAttachmentRemoval() {
+            this.attachmentUploadError = '';
+            this.attachmentCount = Math.max(0, this.attachmentCount - 1);
+        },
+
+        resetAttachmentUi() {
+            this.attachmentCount = 0;
+            this.clearAttachmentUploadState();
+        },
+
+        clearAttachmentUploadState() {
+            window.clearTimeout(this.attachmentSyncTimer);
+            this.attachmentSyncTimer = null;
+            this.attachmentUploadActive = false;
+            this.attachmentUploadProgress = 0;
+            this.attachmentUploadError = '';
+            if (this.$refs?.attachmentInput) this.$refs.attachmentInput.value = '';
         },
 
         resizeComposer() {

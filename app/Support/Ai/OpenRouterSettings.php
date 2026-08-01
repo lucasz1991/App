@@ -58,6 +58,17 @@ class OpenRouterSettings
     ];
 
     /**
+     * Modellabhaengige Sprachoptionen. Der Wert dient der Oberflaeche als
+     * Platzhalter; ohne ausdruecklich gespeicherte Stimme bleibt externes TTS
+     * fail-closed, weil nicht jedes Modell eine Provider-Standardstimme kennt.
+     *
+     * @var array<string, string>
+     */
+    public const SPEECH_FIELDS = [
+        'tts_voice' => 'alloy',
+    ];
+
+    /**
      * Laufzeitgrenzen: Schluessel => [Standard, Minimum, Maximum].
      *
      * @var array<string, array{0: int|float, 1: int|float, 2: int|float}>
@@ -99,6 +110,10 @@ class OpenRouterSettings
         $values['api_key'] = self::decodeApiKey((string) ($stored['api_key'] ?? ''));
 
         foreach (self::MODEL_FIELDS as $key => $default) {
+            $values[$key] = trim((string) ($stored[$key] ?? ''));
+        }
+
+        foreach (self::SPEECH_FIELDS as $key => $default) {
             $values[$key] = trim((string) ($stored[$key] ?? ''));
         }
 
@@ -160,6 +175,12 @@ class OpenRouterSettings
         }
 
         foreach (array_keys(self::MODEL_FIELDS) as $key) {
+            if (array_key_exists($key, $values)) {
+                $clean[$key] = trim((string) $values[$key]);
+            }
+        }
+
+        foreach (array_keys(self::SPEECH_FIELDS) as $key) {
             if (array_key_exists($key, $values)) {
                 $clean[$key] = trim((string) $values[$key]);
             }

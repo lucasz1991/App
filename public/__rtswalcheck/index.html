@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>swal check</title>
+<!-- Reihenfolge wie in der Anwendung: app.css-Eintrag zuerst, dann der
+     CSS-Anteil des app.js-Eintrags (dort steckt sweetalert2.min.css). -->
+<link rel="stylesheet" href="../build/assets/app-Dw3d7IBw.css">
+<link rel="stylesheet" href="../build/assets/app-CZUL1IjZ.css">
+<style>*{transition:none !important;animation:none !important}</style>
+</head>
+<body data-mode="light">
+<pre id="out">warte...</pre>
+<script src="./sweetalert2.js"></script>
+<script>
+const toast = Swal.mixin({
+    toast: true,
+    position: 'top-end',
+    showConfirmButton: false,
+    showCloseButton: true,
+    timerProgressBar: true,
+    showClass: { popup: '', backdrop: '', icon: '' },
+    hideClass: { popup: '', backdrop: '', icon: '' },
+    customClass: {
+        popup: 'rt-swal-toast',
+        title: 'rt-swal-toast__title',
+        htmlContainer: 'rt-swal-toast__message',
+        timerProgressBar: 'rt-swal-toast__progress',
+        closeButton: 'rt-swal-toast__close',
+    },
+});
+
+function pick(el, props) {
+    if (!el) return null;
+    const cs = getComputedStyle(el);
+    const o = {};
+    props.forEach(p => o[p] = cs.getPropertyValue(p));
+    return o;
+}
+
+window.measure = function (icon, mode) {
+    document.body.setAttribute('data-mode', mode);
+    document.documentElement.classList.toggle('dark', mode === 'dark');
+    toast.fire({ icon, title: 'Titel', text: 'Meldungstext', timer: 999999 });
+    const popup = document.querySelector('.swal2-popup');
+    const iconEl = document.querySelector('.swal2-icon');
+    const content = document.querySelector('.swal2-icon-content');
+    const close = document.querySelector('.swal2-close');
+    const bar = document.querySelector('.swal2-timer-progress-bar');
+    const title = document.querySelector('.swal2-title');
+    const msg = document.querySelector('.swal2-html-container');
+    return {
+        popup: pick(popup, ['width','background-color','color','border-left-color','border-left-width','border-top-color','border-radius','padding-top','column-gap','box-shadow']),
+        icon: pick(iconEl, ['width','height','margin-right','margin-top','border-color','color','border-width','box-sizing']),
+        iconRect: iconEl ? [iconEl.getBoundingClientRect().width, iconEl.getBoundingClientRect().height] : null,
+        iconContent: pick(content, ['font-size','font-weight']),
+        close: pick(close, ['width','height','font-size','color','align-self','margin-top']),
+        bar: pick(bar, ['background-color','height']),
+        title: pick(title, ['font-size','font-weight','color','margin-left']),
+        msg: pick(msg, ['font-size','color','text-align','margin-left']),
+    };
+};
+
+window.measureMobile = function () {
+    const c = document.querySelector('.swal2-container');
+    const popup = document.querySelector('.swal2-popup');
+    return {
+        container: pick(c, ['width','inset-inline-start','inset-inline-end','justify-content','padding-left']),
+        containerRect: c ? [c.getBoundingClientRect().left, c.getBoundingClientRect().width] : null,
+        popupRect: popup ? [popup.getBoundingClientRect().left, popup.getBoundingClientRect().width] : null,
+    };
+};
+
+document.getElementById('out').textContent = 'bereit';
+</script>
+</body>
+</html>
