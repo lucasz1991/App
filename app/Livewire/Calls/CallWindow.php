@@ -4,6 +4,7 @@ namespace App\Livewire\Calls;
 
 use App\Events\CallModerationActioned;
 use App\Models\Room;
+use App\Models\RoomInvitation;
 use App\Models\RoomParticipant;
 use App\Models\User;
 use App\Services\Calls\CallInvitationService;
@@ -69,15 +70,54 @@ class CallWindow extends Component
     public function getListeners(): array
     {
         return [
-            "echo-private:call.{$this->room->uuid},.call.answered" => '$refresh',
+            "echo-private:call.{$this->room->uuid},.call.answered" => 'onWaitingChanged',
+            "echo-private:call.{$this->room->uuid},.call.ringing" => 'onWaitingChanged',
+            "echo-private:call.{$this->room->uuid},.call.missed" => 'onWaitingChanged',
             "echo-private:call.{$this->room->uuid},.call.moderated" => '$refresh',
             "echo-private:call.{$this->room->uuid},.call.ended" => 'onCallEnded',
         ];
     }
 
+    /**
+     * Wer noch klingelt, ist Server-Wahrheit; die Anzeige (Animation, Text,
+     * Freizeichen) gehoert Alpine. Alpine wertet x-data nach einem Livewire-
+     * Re-Render aber NICHT neu aus – die aktuelle Liste muss deshalb als
+     * Browser-Ereignis kommen, nicht nur als neu gerendertes Markup.
+     */
+    public function onWaitingChanged(): void
+    {
+        $this->dispatch('rt-call-waiting', waiting: $this->waitingFor());
+    }
+
     public function onCallEnded(): void
     {
         $this->redirectAfterCall();
+    }
+
+    /**
+     * Eingeladene, die weder angenommen noch abgelehnt haben.
+     *
+     * 'ringing' unterscheidet die zwei Zustaende, die den Anrufer wirklich
+     * interessieren: Einladung nur verschickt ("wird angerufen") oder von der
+     * Gegenseite als laeutend bestaetigt ("klingelt").
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function waitingFor(): array
+    {
+        return $this->room->invitations()
+            ->where('status', 'pending')
+            ->where('expires_at', '>', now())
+            ->with('invitee')
+            ->get()
+            ->map(fn (RoomInvitation $invitation): array => [
+                'id' => (int) $invitation->id,
+                'name' => (string) ($invitation->invitee?->name ?? ''),
+                'avatar' => $invitation->invitee?->profile_photo_url,
+                'ringing' => $invitation->isRinging(),
+            ])
+            ->values()
+            ->all();
     }
 
     /** Selbst auflegen; als letzter Moderator/Host beendet das den Anruf fuer alle. */
@@ -181,6 +221,9 @@ class CallWindow extends Component
         $sent = $invitations->invite($this->room, auth()->user(), $users);
         $this->inviteeIds = [];
         $this->room->refresh();
+
+        // Nachtraeglich Eingeladene gehoeren sofort in die Klingel-Anzeige.
+        $this->onWaitingChanged();
 
         $this->dispatch(
             'swal:toast',

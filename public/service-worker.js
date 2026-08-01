@@ -164,6 +164,45 @@ function requestForegroundContext(client, message) {
     });
 }
 
+/**
+ * Dem Anrufer melden, dass hier gerade tatsächlich geklingelt wird.
+ *
+ * Erst dadurch kann sein Fenster "klingelt" statt nur "wird angerufen" zeigen —
+ * auch dann, wenn dieses Gerät gar keinen Tab offen hat und nur die
+ * installierte App die Benachrichtigung anzeigt. Die URL ist serverseitig
+ * signiert und kommt ausschließlich aus der verschlüsselten Push-Nutzlast;
+ * geprüft wird trotzdem, dass sie im eigenen Scope liegt.
+ */
+async function reportRinging(value) {
+    if (typeof value !== 'string' || !value.trim()) {
+        return;
+    }
+
+    let target;
+
+    try {
+        target = new URL(value, registrationScope());
+    } catch (_) {
+        return;
+    }
+
+    if (!isInsideRegistrationScope(target)) {
+        return;
+    }
+
+    try {
+        await fetch(target.href, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { Accept: 'application/json' },
+        });
+    } catch (_) {
+        // Die Rückmeldung ist eine Zusatzinformation: schlägt sie fehl, bleibt
+        // beim Anrufer "wird angerufen" stehen — die Benachrichtigung selbst
+        // ist davon unberührt.
+    }
+}
+
 self.addEventListener('install', () => {
     self.skipWaiting();
 });
@@ -277,6 +316,14 @@ self.addEventListener('push', (event) => {
         }
 
         await self.registration.showNotification(title, options);
+
+        // Erst NACH dem Anzeigen melden: gemeldet wird, dass es hier klingelt,
+        // nicht dass eine Nachricht ankam. Übernimmt stattdessen ein sichtbares
+        // Fenster den Anruf (return oben), meldet dessen Klingel-Overlay den
+        // Zustand selbst über Livewire.
+        if (category === 'calls') {
+            await reportRinging(data.ring_ack_url);
+        }
     })());
 });
 

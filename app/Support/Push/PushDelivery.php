@@ -8,6 +8,7 @@ use App\Models\RoomInvitation;
 use App\Models\User;
 use App\Notifications\RailtimeWebPushNotification;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 
 class PushDelivery
@@ -76,6 +77,18 @@ class PushDelivery
                 category: PushCategory::Calls,
                 ttlOverride: $ttl,
                 badgeCount: $this->unreadCount($recipient),
+                // Der Service Worker meldet ueber diese signierte URL zurueck,
+                // dass er die Anruf-Benachrichtigung tatsaechlich anzeigt —
+                // erst dadurch sieht der Anrufer "klingelt" statt nur "wird
+                // angerufen", auch wenn die Gegenseite keinen Tab offen hat.
+                // Die Gueltigkeit endet mit dem Klingel-Zeitfenster.
+                extraData: [
+                    'ring_ack_url' => URL::temporarySignedRoute(
+                        'calls.ring-ack',
+                        $invitation->expires_at->copy()->addMinute(),
+                        ['invitation' => $invitation->getKey()],
+                    ),
+                ],
             ),
         );
     }

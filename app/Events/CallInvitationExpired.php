@@ -9,7 +9,11 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-/** Stoppt das Klingeln in allen offenen Tabs des Eingeladenen. */
+/**
+ * Stoppt das Klingeln in allen offenen Tabs des Eingeladenen — und nimmt die
+ * Person im Fenster des Anrufers aus der Warteliste, sonst bliebe dort "wird
+ * angerufen" mitsamt Freizeichen stehen, obwohl niemand mehr klingelt.
+ */
 class CallInvitationExpired implements ShouldBroadcastNow
 {
     use Dispatchable;
@@ -20,9 +24,13 @@ class CallInvitationExpired implements ShouldBroadcastNow
     {
     }
 
-    public function broadcastOn(): PrivateChannel
+    /** @return array<int, PrivateChannel> */
+    public function broadcastOn(): array
     {
-        return new PrivateChannel('App.Models.User.'.$this->invitation->invitee_id);
+        return [
+            new PrivateChannel('App.Models.User.'.$this->invitation->invitee_id),
+            new PrivateChannel('call.'.$this->invitation->room->uuid),
+        ];
     }
 
     public function broadcastAs(): string
