@@ -1,0 +1,57 @@
+{
+  "server": {
+    "port": 8092
+  },
+  "clients": {
+    "railtime": {
+      "token_sha256": "b03f051b569072f0ec351c3e5f0859c86808015fec9eb60aafcf7dad874ae0b5"
+    },
+    "followflow": {
+      "token_sha256": "430f28230b4d6eaf9599f8e86796369996bcc2e5216afe39d6d59d12c5315f03"
+    }
+  },
+  "engines": {
+    "ffmpeg": {
+      "command": [
+        "/usr/bin/ffmpeg"
+      ],
+      "timeout_seconds": 60
+    },
+    "whisper": {
+      "command": [
+        "/var/lib/lmz-speech/runtime/whisper.cpp-1.9.1/build/bin/whisper-cli"
+      ],
+      "model": "/var/lib/lmz-speech/runtime/models/whisper/ggml-small.bin",
+      "language": "de",
+      "threads": 0,
+      "timeout_seconds": 240
+    },
+    "piper": {
+      "command": [
+        "/var/lib/lmz-speech/runtime/piper-1.4.2/bin/piper"
+      ],
+      "model": "/var/lib/lmz-speech/runtime/models/piper/de_DE-thorsten-medium/de_DE-thorsten-medium.onnx",
+      "config": "/var/lib/lmz-speech/runtime/models/piper/de_DE-thorsten-medium/de_DE-thorsten-medium.onnx.json",
+      "mode": "cli",
+      "timeout_seconds": 120
+    }
+  },
+  "limits": {
+    "max_body_bytes": 29000000,
+    "max_audio_bytes": 20971520,
+    "max_audio_seconds": 60,
+    "max_text_chars": 4000,
+    "max_transcript_chars": 8000,
+    "max_output_audio_bytes": 33554432,
+    "request_read_timeout_seconds": 15
+  },
+  "concurrency": {
+    "whisper": 1,
+    "piper": 1,
+    "http_threads": 8,
+    "queue_wait_seconds": 3
+  },
+  "runtime": {
+    "temp_dir": "/var/lib/lmz-speech/tmp"
+  }
+}

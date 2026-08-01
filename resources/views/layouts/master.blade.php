@@ -127,6 +127,10 @@
             <livewire:tools.file-pools.file-preview-modal />
             {{-- Globales Klingel-Overlay fuer eingehende Videoanrufe --}}
             <livewire:calls.incoming-call-overlay />
+            @if ($chrome)
+                {{-- Seitenweiter RailTime-Assistent; chromelose Anruffenster bleiben bewusst frei. --}}
+                <livewire:tools.chatbot />
+            @endif
         @endauth
         <!-- script -->
         {{-- EIN globales Infomodal fuer alle Info-Buttons dieser Seite. --}}

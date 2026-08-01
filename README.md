@@ -207,7 +207,54 @@ php artisan config:clear
 php artisan railtime:livekit-check
 ```
 
-### 8. Deployment
+### 8. RailTime Assist und gemeinsamer Sprachdienst
+
+Der seitenweite Livewire-Assistent steht allen aktiven, verifizierten
+Benutzern zur Verfügung. Er beantwortet Bedien- und Orientierungsfragen über
+das in **Administration → Einstellungen → OpenRouter** gepflegte Textmodell.
+Der API-Key wird verschlüsselt gespeichert und ausschließlich serverseitig
+verwendet. Der Assistent erhält nur Sprache, Zielgruppe und benannten
+Seitenkontext, keine personenbezogenen oder aktuellen Betriebsdaten, und führt
+selbst keine Änderungen aus.
+
+Eingaben und der begrenzte Gesprächskontext werden für die Antwort an
+OpenRouter übertragen. Vor der produktiven Aktivierung müssen daher die
+betriebliche Datenschutz-/Aufbewahrungsfreigabe und der zulässige
+Nutzungsrahmen festgelegt sein. Die Oberfläche weist ausdrücklich darauf hin,
+keine personenbezogenen Daten, Betriebsgeheimnisse oder Zugangsdaten
+einzugeben.
+
+TTS und STT laufen nicht direkt im Browser und nicht in einem der beiden
+Laravel-Prozesse. RailTime und Followflow verwenden den gemeinsamen,
+loopback-gebundenen Dienst unter [`services/speech-service`](services/speech-service/README.md).
+Jede App besitzt eine eigene Client-ID und ein eigenes Token. Der Dienst darf
+weder per nginx/Apache veröffentlicht noch an eine öffentliche Adresse gebunden
+werden. Er läuft unter dem eigenen unprivilegierten Benutzer `lmz-speech`, der
+keine Schreibrechte in RailTime oder Followflow besitzt.
+
+RailTime-Konfiguration nach erfolgreichem Dienst-Rollout:
+
+```dotenv
+SPEECH_SERVICE_ENABLED=true
+SPEECH_SERVICE_URL=http://127.0.0.1:8092
+SPEECH_SERVICE_CLIENT_ID=railtime
+SPEECH_SERVICE_TOKEN_FILE=/etc/lmz-speech/railtime.token
+```
+
+Status und optional die TTS-Pipeline prüfen, ohne Audio oder Geheimnisse auf
+die Platte zu schreiben:
+
+```bash
+php artisan config:clear
+php artisan railtime:speech-service-status
+php artisan railtime:speech-service-status --smoke
+```
+
+Die bisherigen Followflow-CLI-Provider bleiben bis zur gemeinsamen
+Produktionsabnahme nur als expliziter Rollback erhalten; bei aktiviertem Dienst
+gibt es keinen stillen Fallback.
+
+### 9. Deployment
 
 ```bash
 composer install --no-dev --optimize-autoloader

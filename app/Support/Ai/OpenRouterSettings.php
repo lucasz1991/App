@@ -4,6 +4,7 @@ namespace App\Support\Ai;
 
 use App\Models\Setting;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
 use Throwable;
 
 /**
@@ -11,9 +12,8 @@ use Throwable;
  *
  * Der Umfang der erfassten Werte ist bewusst identisch zur AiUserFactory
  * (FollowFlow), damit eine spaetere KI-Anbindung in RailTime dieselbe
- * Konfiguration vorfindet. In dieser Ausbaustufe werden die Werte
- * ausschliesslich erfasst und gespeichert — es findet noch kein Aufruf
- * gegen OpenRouter statt.
+ * Konfiguration vorfindet. Der serverseitige RailTime-Assistent verwendet
+ * diese Werte; das Geheimnis wird verschluesselt in der Datenbank abgelegt.
  *
  * Sichtbar und aenderbar nur fuer den Super-Admin: Der API-Key ist ein
  * abrechnungsrelevantes Geheimnis, das kein weiterer Administrator
@@ -26,6 +26,8 @@ class OpenRouterSettings
     public const KEY = 'openrouter';
 
     private const CACHE_KEY = 'settings.services.openrouter.values';
+
+    private const SECRET_PREFIX = 'enc:v1:';
 
     /** Platzhalter, der einen bereits gespeicherten Schluessel in der Oberflaeche vertritt. */
     public const SECRET_MASK = '••••••••••••';
@@ -77,38 +79,38 @@ class OpenRouterSettings
             Cache::forget(self::CACHE_KEY);
         }
 
-        return Cache::remember(self::CACHE_KEY, now()->addHour(), function (): array {
-            $stored = [];
+        $stored = [];
 
-            try {
-                $stored = (array) (Setting::getValueUncached(self::GROUP, self::KEY) ?? []);
-            } catch (Throwable) {
-                // Vor der ersten Migration oder bei Wartungsarbeiten an der DB
-                // gelten schlicht die Standardwerte.
-            }
+        try {
+            $stored = (array) (Setting::getValueUncached(self::GROUP, self::KEY) ?? []);
+        } catch (Throwable) {
+            // Vor der ersten Migration oder bei Wartungsarbeiten an der DB
+            // gelten schlicht die Standardwerte.
+        }
 
-            $values = [];
+        $values = [];
 
-            foreach (self::CONNECTION_FIELDS as $key => $default) {
-                $values[$key] = trim((string) ($stored[$key] ?? $default));
-            }
+        foreach (self::CONNECTION_FIELDS as $key => $default) {
+            $values[$key] = trim((string) ($stored[$key] ?? $default));
+        }
 
-            $values['api_key'] = trim((string) ($stored['api_key'] ?? ''));
+        // Das entschluesselte Geheimnis wird absichtlich nicht im Laravel-
+        // Cache abgelegt. Damit bleibt es nur fuer die aktuelle Anfrage im RAM.
+        $values['api_key'] = self::decodeApiKey((string) ($stored['api_key'] ?? ''));
 
-            foreach (self::MODEL_FIELDS as $key => $default) {
-                $values[$key] = trim((string) ($stored[$key] ?? ''));
-            }
+        foreach (self::MODEL_FIELDS as $key => $default) {
+            $values[$key] = trim((string) ($stored[$key] ?? ''));
+        }
 
-            foreach (self::RUNTIME_FIELDS as $key => [$default, $min, $max]) {
-                $value = $stored[$key] ?? $default;
-                $value = $key === 'temperature' ? (float) $value : (int) $value;
-                $values[$key] = max($min, min($max, $value));
-            }
+        foreach (self::RUNTIME_FIELDS as $key => [$default, $min, $max]) {
+            $value = $stored[$key] ?? $default;
+            $value = $key === 'temperature' ? (float) $value : (int) $value;
+            $values[$key] = max($min, min($max, $value));
+        }
 
-            $values['stream_enabled'] = (bool) ($stored['stream_enabled'] ?? true);
+        $values['stream_enabled'] = (bool) ($stored['stream_enabled'] ?? true);
 
-            return $values;
-        });
+        return $values;
     }
 
     /**
@@ -175,14 +177,51 @@ class OpenRouterSettings
         }
 
         $submittedKey = trim((string) ($values['api_key'] ?? ''));
+        $existingKey = (string) ($existing['api_key'] ?? '');
 
         if ($submittedKey !== '' && $submittedKey !== self::SECRET_MASK) {
-            $clean['api_key'] = $submittedKey;
+            $clean['api_key'] = self::encodeApiKey($submittedKey);
         } else {
-            $clean['api_key'] = (string) ($existing['api_key'] ?? '');
+            $decodedExistingKey = self::decodeApiKey($existingKey);
+
+            // Ein alter Klartextwert wird beim naechsten Speichern automatisch
+            // migriert. Bereits verschluesselte Werte bleiben bytegenau erhalten.
+            $clean['api_key'] = $decodedExistingKey === ''
+                ? $existingKey
+                : (str_starts_with($existingKey, self::SECRET_PREFIX)
+                    ? $existingKey
+                    : self::encodeApiKey($decodedExistingKey));
         }
 
         Setting::setValue(self::GROUP, self::KEY, $clean);
         Cache::forget(self::CACHE_KEY);
+    }
+
+    private static function encodeApiKey(string $apiKey): string
+    {
+        return self::SECRET_PREFIX.Crypt::encryptString($apiKey);
+    }
+
+    private static function decodeApiKey(string $stored): string
+    {
+        $stored = trim($stored);
+
+        if ($stored === '') {
+            return '';
+        }
+
+        // Abwaertskompatibilitaet fuer Installationen, die den Key bereits vor
+        // Einfuehrung der Verschluesselung gespeichert haben.
+        if (! str_starts_with($stored, self::SECRET_PREFIX)) {
+            return $stored;
+        }
+
+        try {
+            return trim(Crypt::decryptString(substr($stored, strlen(self::SECRET_PREFIX))));
+        } catch (Throwable) {
+            // Fail closed: Ein beschaedigtes oder mit anderem APP_KEY
+            // verschluesseltes Geheimnis darf nie als Provider-Key dienen.
+            return '';
+        }
     }
 }

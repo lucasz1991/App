@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Assistant\AssistantAudioInputTranscriptionController;
+use App\Http\Controllers\Assistant\AssistantAudioOutputStreamController;
 use App\Http\Controllers\Auth\InvitedRegistrationController;
 use App\Http\Controllers\Calls\CallTokenController;
 use App\Http\Controllers\ChatAttachmentController;
@@ -97,6 +99,12 @@ Route::view('/user/confirm-password', 'auth.confirm-password')
     ->name('password.confirm');
 
 Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session'), 'verified'])->group(function () {
+    Route::post('/assistant/audio-input/transcribe', AssistantAudioInputTranscriptionController::class)
+        ->middleware('throttle:assistant-stt')
+        ->name('assistant.audio-input.transcribe');
+    Route::post('/assistant/audio-output/stream', AssistantAudioOutputStreamController::class)
+        ->middleware('throttle:assistant-tts')
+        ->name('assistant.audio-output.stream');
     Route::get('/dashboard', UserDashboard::class)->name('dashboard');
     Route::get('/employees', Employees::class)->name('employees.index');
     Route::get('/employees/{userId}', UserProfile::class)->name('employees.show');

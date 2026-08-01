@@ -1,0 +1,18 @@
+[program:lmz-speech-service]
+directory=/opt/lmz-speech/current
+command=/usr/bin/python3 -u speech_service.py --env-file /etc/lmz-speech/service.env
+user=lmz-speech
+numprocs=1
+autostart=true
+autorestart=unexpected
+startsecs=5
+startretries=3
+stopsignal=TERM
+stopwaitsecs=15
+stopasgroup=true
+killasgroup=true
+environment=PYTHONUNBUFFERED="1"
+redirect_stderr=true
+stdout_logfile=/var/log/lmz-speech/service.log
+stdout_logfile_maxbytes=10MB
+stdout_logfile_backups=5

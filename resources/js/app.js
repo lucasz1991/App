@@ -38,6 +38,7 @@ import { railtimeTabs } from './tabs';
 import { initMobileFormFocusRecovery } from './mobile-form-focus';
 import { initKeyboardViewport } from './keyboard-viewport';
 import { welcomeIntro } from './welcome-intro';
+import { railtimeChatbot } from './chatbot';
 
 const loadAdminDashboardECharts = () => import('./admin-dashboard-echarts');
 const loadAdminDashboardMotion = () => import('./admin-dashboard-motion');
@@ -429,6 +430,7 @@ Alpine.data('rtNumberInput', numberInput);
 Alpine.data('rtSidebarNavigation', sidebarNavigation);
 Alpine.data('railtimeTabs', railtimeTabs);
 Alpine.data('welcomeIntro', welcomeIntro);
+Alpine.data('railtimeChatbot', railtimeChatbot);
 
 initMobileFormFocusRecovery();
 initKeyboardViewport();
