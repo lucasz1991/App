@@ -17,8 +17,10 @@ a { color: inherit; }
 .rt-pad { padding-left: 24px !important; padding-right: 24px !important; }
 .rt-logo { width: 200px !important; }
 .rt-title { font-size: 26px !important; line-height: 31px !important; }
-.rt-stack, .rt-stack td { display: block !important; width: 100% !important; }
-.rt-stack td + td { padding-top: 12px !important; }
+{{-- Nur direkte Zellen umbrechen: ein Nachfahren-Selektor wuerde auch
+     verschachtelte Tabellen (z. B. Kontaktzeilen) zerlegen. --}}
+tr.rt-stack > td { box-sizing: border-box !important; display: block !important; width: 100% !important; }
+tr.rt-stack > td + td { padding-top: 12px !important; }
 }
 </style>
 </head>

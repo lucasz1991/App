@@ -71,6 +71,21 @@
                 ? 'Es wurde kein gesprochener Text erkannt.'
                 : 'No spoken text was detected.',
             'speechPrefix' => $isGerman ? 'Spracheingabe' : 'Speech input',
+            'petGreeting' => $isGerman
+                ? 'Hi, ich bin dein RailTime-Begleiter.'
+                : 'Hi, I am your RailTime companion.',
+            'petHint' => $isGerman
+                ? 'Was möchtest du heute in RailTime erledigen?'
+                : 'What would you like to do in RailTime today?',
+            'petVoiceHint' => $isGerman
+                ? 'Du kannst deine Frage auch einfach einsprechen.'
+                : 'You can also speak your question.',
+            'petReplyReady' => $isGerman
+                ? 'Ich habe eine Antwort für dich.'
+                : 'I have an answer for you.',
+            'petUnavailable' => $isGerman
+                ? 'Ich mache gerade eine kurze Pause.'
+                : 'I am taking a short break right now.',
         ],
     ];
 @endphp
@@ -95,23 +110,48 @@
         x-on:click="setOpen(false)"
     ></button>
 
-    <button
-        type="button"
-        class="rt-chatbot__launcher"
-        x-ref="launcher"
+    <div
+        class="rt-chatbot__pet-stage"
         x-cloak
         x-show="!open"
         x-transition
-        x-on:click="setOpen(true, true)"
-        aria-controls="railtime-chatbot-panel"
-        x-bind:aria-expanded="open.toString()"
+        x-bind:data-state="petState()"
     >
-        <svg class="rt-chatbot__launcher-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M5.5 5.75h13a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-7l-4.75 3v-3H5.5a2 2 0 0 1-2-2v-7.5a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
-            <path d="M8 10h8M8 13.25h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-        </svg>
-        <span class="rt-chatbot__launcher-label">{{ $assistantLabel }}</span>
-    </button>
+        <div
+            class="rt-chatbot__pet-bubble"
+            x-cloak
+            x-show="petBubbleVisible"
+            x-transition:enter="rt-chatbot__pet-bubble-enter"
+            x-transition:enter-start="rt-chatbot__pet-bubble-enter-start"
+            x-transition:enter-end="rt-chatbot__pet-bubble-enter-end"
+            x-transition:leave="rt-chatbot__pet-bubble-leave"
+            x-transition:leave-start="rt-chatbot__pet-bubble-enter-end"
+            x-transition:leave-end="rt-chatbot__pet-bubble-enter-start"
+            role="status"
+            aria-live="polite"
+        >
+            <span x-text="petBubbleText"></span>
+        </div>
+
+        <button
+            type="button"
+            class="rt-chatbot__pet-launcher"
+            x-ref="launcher"
+            x-on:mouseenter="showPetBubble(strings.petHint, 4_500)"
+            x-on:focus="showPetBubble(strings.petHint, 4_500)"
+            x-on:click="setOpen(true, true)"
+            aria-controls="railtime-chatbot-panel"
+            x-bind:aria-expanded="open.toString()"
+            aria-label="{{ $isGerman ? $assistantLabel . ' öffnen' : 'Open ' . $assistantLabel }}"
+        >
+            <span class="rt-chatbot__pet-halo" aria-hidden="true"></span>
+            <x-railtime-assistant-pet class="rt-chatbot__pet-figure" />
+            <span
+                class="rt-chatbot__pet-presence {{ $assistantIsAvailable ? '' : 'rt-chatbot__pet-presence--offline' }}"
+                aria-hidden="true"
+            ></span>
+        </button>
+    </div>
 
     <section
         id="railtime-chatbot-panel"

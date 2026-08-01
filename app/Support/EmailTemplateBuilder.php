@@ -181,6 +181,9 @@ class EmailTemplateBuilder
             'MOBIL' => $mobile,
             'MOBIL_TEL' => $this->telHref($mobile),
             'E_MAIL' => $this->user->email,
+            // Firmenanschrift zeigt bewusst den Festnetzanschluss, nicht die
+            // Notfall-Mobilnummer. Ohne gepflegten Anschluss entfaellt die Zeile.
+            'FIRMEN_TELEFON_TEL' => $this->telHref($companyValues['FIRMEN_TELEFON']),
             'FIRMEN_WEBSITE_HREF' => $this->webHref($website),
             'FIRMEN_WEBSITE_LABEL' => $this->webLabel($website),
         ]);
@@ -280,6 +283,7 @@ class EmailTemplateBuilder
             'PHONE' => 'DURCHWAHL',
             'MOBILE' => 'MOBIL',
             'WEBSITE' => 'FIRMEN_WEBSITE_HREF',
+            'COMPANY_PHONE' => 'FIRMEN_TELEFON',
         ] as $marker => $valueKey) {
             if (($values[$valueKey] ?? '') !== '') {
                 continue;
@@ -293,7 +297,7 @@ class EmailTemplateBuilder
         }
 
         return preg_replace(
-            '/<!-- RT_(?:PHONE|MOBILE|WEBSITE)_(?:START|END) -->/',
+            '/<!-- RT_(?:PHONE|MOBILE|WEBSITE|COMPANY_PHONE)_(?:START|END) -->/',
             '',
             $html
         ) ?? $html;
@@ -420,6 +424,10 @@ class EmailTemplateBuilder
             $values['MOBIL'] !== '' ? "M {$values['MOBIL']}" : null,
         ]);
         $phoneLine = $phoneParts === [] ? '' : implode(' · ', $phoneParts)."\n";
+        // Wie in den HTML-Fassungen: Festnetzanschluss statt Notfall-Mobilnummer.
+        $companyPhoneLine = $values['FIRMEN_TELEFON'] !== ''
+            ? "Telefon (Zentrale): {$values['FIRMEN_TELEFON']}\n"
+            : '';
 
         return <<<TEXT
 {{ANREDE}},
@@ -443,8 +451,7 @@ Freundliche Grüße
 {$values['FIRMENNAME']}
 {$values['FIRMENSTRASSE']} · {$values['FIRMEN_PLZ_ORT']}
 {$phoneLine}E {$values['E_MAIL']}
-Notfalldienst 24/7: {$values['NOTFALLNUMMER']}
-
+{$companyPhoneLine}
 Geschäftsführung: {$values['GESCHAEFTSFUEHRUNG']}
 Registergericht: {$values['REGISTERGERICHT']} · HRB {$values['HRB']}
 USt-IdNr.: {$values['UST_ID']} · Steuernummer: {$values['STEUERNUMMER']}
@@ -459,6 +466,10 @@ TEXT;
             $values['DURCHWAHL'] !== '' ? "T {$values['DURCHWAHL']}\n" : null,
             $values['MOBIL'] !== '' ? "M {$values['MOBIL']}\n" : null,
         ]));
+        // Wie in den HTML-Fassungen: Festnetzanschluss statt Notfall-Mobilnummer.
+        $companyPhoneLine = $values['FIRMEN_TELEFON'] !== ''
+            ? "Telefon (Zentrale): {$values['FIRMEN_TELEFON']}\n"
+            : '';
 
         return <<<TEXT
 {$values['VORNAME_NACHNAME']}
@@ -469,8 +480,7 @@ TEXT;
 {$values['FIRMEN_PLZ_ORT']}
 
 {$contactLines}E {$values['E_MAIL']}
-Notfalldienst 24/7: {$values['NOTFALLNUMMER']}
-Zentrale E-Mail: {$values['FIRMEN_EMAIL']}
+{$companyPhoneLine}Zentrale E-Mail: {$values['FIRMEN_EMAIL']}
 
 Geschäftsführung: {$values['GESCHAEFTSFUEHRUNG']}
 Registergericht: {$values['REGISTERGERICHT']} · HRB {$values['HRB']}

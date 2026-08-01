@@ -10,9 +10,16 @@
     table, td { border-collapse: collapse; }
     img { border: 0; display: block; outline: none; }
     @media only screen and (max-width: 620px) {
-      .rt-stack, .rt-stack > tbody, .rt-stack > tbody > tr, .rt-stack > tbody > tr > td { display: block !important; width: 100% !important; }
-      .rt-logo-cell { border-left: 0 !important; padding: 22px 0 0 !important; text-align: left !important; }
-      .rt-logo-cell img { margin-left: 0 !important; width: 220px !important; }
+      /* Nur die direkten Zellen der markierten Zeile brechen um — ein
+         Nachfahren-Selektor wuerde auch die Kontakttabelle zerlegen. */
+      tr.rt-stack > td { box-sizing: border-box !important; display: block !important; width: 100% !important; }
+      /* Schutzregel: Symbol und Kontaktzeile bleiben nebeneinander. */
+      .rt-contact { width: auto !important; }
+      .rt-contact td.rt-contact-icon, .rt-contact td.rt-contact-text { display: table-cell !important; box-sizing: content-box !important; }
+      .rt-contact td.rt-contact-icon { width: 22px !important; }
+      .rt-contact td.rt-contact-text { width: auto !important; }
+      .rt-logo-cell { border-left: 0 !important; border-top: 1px solid #303844 !important; margin-top: 4px !important; padding: 20px 0 0 !important; text-align: left !important; }
+      .rt-logo-cell img { margin-left: 0 !important; width: 200px !important; }
     }
   </style>
 </head>
@@ -20,53 +27,51 @@
   <table role="presentation" width="720" border="0" cellspacing="0" cellpadding="0" bgcolor="#080b10" style="width:100%;max-width:720px;border-collapse:collapse;background:#080b10;border-top:5px solid #e4002b;">
     <tr>
       <td style="padding:28px 30px 25px;">
-        <table class="rt-stack" role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">
-          <tr>
+        <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">
+          <tr class="rt-stack">
             <td width="63%" valign="top" style="width:63%;padding-right:28px;">
               <p style="margin:0 0 5px;color:#ffffff;font-size:24px;line-height:29px;font-weight:bold;letter-spacing:-.35px;">{{VORNAME_NACHNAME}}</p>
               <p style="margin:0;color:#ff5570;font-family:Consolas,'Courier New',monospace;font-size:10px;line-height:16px;font-weight:bold;letter-spacing:1.2px;text-transform:uppercase;">{{POSITION}}</p>
 
-              <table role="presentation" border="0" cellspacing="0" cellpadding="0" style="margin-top:18px;border-collapse:collapse;">
+              <table class="rt-contact" role="presentation" border="0" cellspacing="0" cellpadding="0" style="margin-top:18px;border-collapse:collapse;">
                 <!-- RT_PHONE_START -->
                 <tr>
-                  <td width="22" align="center" valign="middle" style="width:22px;padding:0 0 8px;font-size:0;line-height:0;mso-line-height-rule:exactly;text-align:center;"><img src="{{ICON_PHONE_SRC}}" width="22" height="22" alt="" style="display:block;width:22px;height:22px;margin:0 auto;"></td>
-                  <td valign="middle" style="padding:0 0 8px 9px;color:#aeb7c2;font-size:12px;line-height:18px;"><a href="tel:{{DURCHWAHL_TEL}}" style="color:#ffffff;text-decoration:none;">{{DURCHWAHL}}</a></td>
+                  <td width="22" align="center" valign="middle" class="rt-contact-icon" style="width:22px;padding:0 0 8px;font-size:0;line-height:0;mso-line-height-rule:exactly;text-align:center;"><img src="{{ICON_PHONE_SRC}}" width="22" height="22" alt="" style="display:block;width:22px;height:22px;margin:0 auto;"></td>
+                  <td valign="middle" class="rt-contact-text" style="padding:0 0 8px 9px;color:#aeb7c2;font-size:12px;line-height:18px;"><a href="tel:{{DURCHWAHL_TEL}}" style="color:#ffffff;text-decoration:none;">{{DURCHWAHL}}</a></td>
                 </tr>
                 <!-- RT_PHONE_END -->
                 <!-- RT_MOBILE_START -->
                 <tr>
-                  <td width="22" align="center" valign="middle" style="width:22px;padding:0 0 8px;font-size:0;line-height:0;mso-line-height-rule:exactly;text-align:center;"><img src="{{ICON_MOBILE_SRC}}" width="22" height="22" alt="" style="display:block;width:22px;height:22px;margin:0 auto;"></td>
-                  <td valign="middle" style="padding:0 0 8px 9px;color:#aeb7c2;font-size:12px;line-height:18px;"><a href="tel:{{MOBIL_TEL}}" style="color:#ffffff;text-decoration:none;">{{MOBIL}}</a></td>
+                  <td width="22" align="center" valign="middle" class="rt-contact-icon" style="width:22px;padding:0 0 8px;font-size:0;line-height:0;mso-line-height-rule:exactly;text-align:center;"><img src="{{ICON_MOBILE_SRC}}" width="22" height="22" alt="" style="display:block;width:22px;height:22px;margin:0 auto;"></td>
+                  <td valign="middle" class="rt-contact-text" style="padding:0 0 8px 9px;color:#aeb7c2;font-size:12px;line-height:18px;"><a href="tel:{{MOBIL_TEL}}" style="color:#ffffff;text-decoration:none;">{{MOBIL}}</a></td>
                 </tr>
                 <!-- RT_MOBILE_END -->
                 <tr>
-                  <td width="22" align="center" valign="middle" style="width:22px;padding:0 0 8px;font-size:0;line-height:0;mso-line-height-rule:exactly;text-align:center;"><img src="{{ICON_EMAIL_SRC}}" width="22" height="22" alt="" style="display:block;width:22px;height:22px;margin:0 auto;"></td>
-                  <td valign="middle" style="padding:0 0 8px 9px;color:#aeb7c2;font-size:12px;line-height:18px;"><a href="mailto:{{E_MAIL}}" style="color:#ffffff;text-decoration:none;">{{E_MAIL}}</a></td>
+                  <td width="22" align="center" valign="middle" class="rt-contact-icon" style="width:22px;padding:0 0 8px;font-size:0;line-height:0;mso-line-height-rule:exactly;text-align:center;"><img src="{{ICON_EMAIL_SRC}}" width="22" height="22" alt="" style="display:block;width:22px;height:22px;margin:0 auto;"></td>
+                  <td valign="middle" class="rt-contact-text" style="padding:0 0 8px 9px;color:#aeb7c2;font-size:12px;line-height:18px;"><a href="mailto:{{E_MAIL}}" style="color:#ffffff;text-decoration:none;">{{E_MAIL}}</a></td>
                 </tr>
                 <!-- RT_WEBSITE_START -->
                 <tr>
-                  <td width="22" align="center" valign="middle" style="width:22px;padding:0;font-size:0;line-height:0;mso-line-height-rule:exactly;text-align:center;"><img src="{{ICON_WEB_SRC}}" width="22" height="22" alt="" style="display:block;width:22px;height:22px;margin:0 auto;"></td>
-                  <td valign="middle" style="padding:0 0 0 9px;color:#aeb7c2;font-size:12px;line-height:18px;"><a href="{{FIRMEN_WEBSITE_HREF}}" style="color:#ffffff;text-decoration:none;">{{FIRMEN_WEBSITE_LABEL}}</a></td>
+                  <td width="22" align="center" valign="middle" class="rt-contact-icon" style="width:22px;padding:0;font-size:0;line-height:0;mso-line-height-rule:exactly;text-align:center;"><img src="{{ICON_WEB_SRC}}" width="22" height="22" alt="" style="display:block;width:22px;height:22px;margin:0 auto;"></td>
+                  <td valign="middle" class="rt-contact-text" style="padding:0 0 0 9px;color:#aeb7c2;font-size:12px;line-height:18px;"><a href="{{FIRMEN_WEBSITE_HREF}}" style="color:#ffffff;text-decoration:none;">{{FIRMEN_WEBSITE_LABEL}}</a></td>
                 </tr>
                 <!-- RT_WEBSITE_END -->
               </table>
             </td>
+            <!-- Anschrift rechts unter dem Logo: ersetzt die frueher
+                 eigenstaendige Fusszeile und macht den Block flacher.
+                 Gezeigt wird der Festnetzanschluss, nicht die Mobilnummer. -->
             <td class="rt-logo-cell" width="37%" valign="top" align="right" style="width:37%;padding-left:28px;border-left:1px solid #303844;text-align:right;">
               <img src="{{LOGO_SRC}}" width="240" alt="{{FIRMENNAME}}" style="display:block;width:240px;max-width:100%;height:auto;margin-left:auto;">
-              <p style="margin:16px 0 0;color:#7f8995;font-family:Consolas,'Courier New',monospace;font-size:9px;line-height:15px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;">Sicher · flexibel · deutschlandweit</p>
+              <p style="margin:14px 0 0;color:#7f8995;font-family:Consolas,'Courier New',monospace;font-size:9px;line-height:15px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;">Sicher · flexibel · deutschlandweit</p>
+              <p style="margin:13px 0 0;color:#8f99a5;font-size:11px;line-height:18px;"><strong style="color:#ffffff;">{{FIRMENNAME}}</strong><br>{{FIRMENSTRASSE}} · {{FIRMEN_PLZ_ORT}}<!-- RT_COMPANY_PHONE_START --><br>T <a href="tel:{{FIRMEN_TELEFON_TEL}}" style="color:#ffffff;text-decoration:none;">{{FIRMEN_TELEFON}}</a><!-- RT_COMPANY_PHONE_END --><br><a href="mailto:{{FIRMEN_EMAIL}}" style="color:#8f99a5;text-decoration:none;">{{FIRMEN_EMAIL}}</a></p>
             </td>
           </tr>
         </table>
       </td>
     </tr>
     <tr>
-      <td bgcolor="#10161e" style="padding:15px 30px;background:#10161e;border-top:1px solid #252c35;color:#8f99a5;font-size:10px;line-height:17px;">
-        <strong style="color:#ffffff;">{{FIRMENNAME}}</strong> · {{FIRMENSTRASSE}} · {{FIRMEN_PLZ_ORT}}<br>
-        <strong style="color:#ff5570;">24/7 NOTFALLDIENST</strong> · {{NOTFALLNUMMER}} · <a href="mailto:{{FIRMEN_EMAIL}}" style="color:#8f99a5;text-decoration:none;">{{FIRMEN_EMAIL}}</a>
-      </td>
-    </tr>
-    <tr>
-      <td bgcolor="#10161e" style="padding:0 30px 13px;background:#10161e;color:#69737f;font-size:8px;line-height:13px;">
+      <td bgcolor="#10161e" style="padding:13px 30px;background:#10161e;border-top:1px solid #252c35;color:#69737f;font-size:8px;line-height:13px;">
         Geschäftsführung: {{GESCHAEFTSFUEHRUNG}} · Registergericht: {{REGISTERGERICHT}} · HRB {{HRB}} · USt-IdNr. {{UST_ID}} · Steuernummer {{STEUERNUMMER}}
       </td>
     </tr>
