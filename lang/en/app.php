@@ -942,6 +942,7 @@ return [
     'chat_live_location_foreground_hint' => 'Updates run while RailTime is open and resume automatically or through “Resume” when you return.',
     'chat_live_location_resume' => 'Resume',
     'chat_live_location_resume_hint' => 'An active location share is waiting for your permission to resume updates on this device.',
+    'chat_live_location_resume_dismiss' => 'Dismiss location notice',
     'minutes' => 'Minutes',
     'chat_reply' => 'Reply',
     'chat_replying_to' => 'Replying to :name',

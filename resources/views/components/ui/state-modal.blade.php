@@ -6,12 +6,14 @@
     'icon' => 'far fa-window-maximize',
     'maxWidth' => '4xl',
     'closeAction' => null,
+    'layer' => 190,
 ])
 
 @php
     $titleId = $id.'-title';
     $descriptionId = $id.'-description';
     $closeExpression = filled($closeAction) ? $closeAction : $state.' = false';
+    $resolvedLayer = max(1, (int) $layer);
     $maxWidthClass = [
         '2xl' => 'sm:max-w-2xl',
         '3xl' => 'sm:max-w-3xl',
@@ -29,10 +31,10 @@
         x-on:rt-navigation:prepare.window="{{ $state }} = false"
         x-trap.inert.noscroll="{{ $state }}"
         class="fixed inset-0 z-[190] flex items-end justify-center overflow-hidden pt-4 sm:items-center sm:p-6"
-        style="display: none;"
+        style="display: none; z-index: {{ $resolvedLayer }} !important;"
         data-rt-state-modal
         data-rt-overlay-layer
-        data-rt-overlay-base="190"
+        data-rt-overlay-base="{{ $resolvedLayer }}"
     >
         <div
             x-show.important="{{ $state }}"

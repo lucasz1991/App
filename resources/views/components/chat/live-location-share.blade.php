@@ -70,8 +70,9 @@
 
             <div
                 x-cloak
-                x-show="!$store.liveLocation.supported"
+                x-show.important="!$store.liveLocation.supported"
                 class="flex items-start gap-3 rounded-2xl bg-amber-50 p-4 text-sm text-amber-900 ring-1 ring-inset ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-200 dark:ring-amber-500/25"
+                style="display: none;"
                 role="status"
             >
                 <i class="far fa-triangle-exclamation mt-0.5 shrink-0" aria-hidden="true"></i>

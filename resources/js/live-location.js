@@ -356,6 +356,8 @@ export class LiveLocationCoordinator {
         this.supported = this.secureContext && Boolean(this.navigator?.geolocation);
         this.permissionState = 'unknown';
         this.needsResume = false;
+        this.resumeError = '';
+        this.resumeErrorCode = '';
         this.busy = null;
         this.error = '';
         this.errorCode = '';
@@ -369,6 +371,9 @@ export class LiveLocationCoordinator {
         this._permissionListener = null;
         this._listeners = new Set();
         this._lifecycleListeners = [];
+        this._resumePromptDismissed = false;
+        this._resumePromise = null;
+        this._reconcileGeneration = 0;
         this._initialized = false;
         this._initializePromise = null;
         this._updateInFlight = false;
@@ -377,11 +382,20 @@ export class LiveLocationCoordinator {
     }
 
     snapshot() {
+        const canRetryDeniedPermission = !this._permissionStatus;
+
         return {
             supported: this.supported,
             secureContext: this.secureContext,
             permissionState: this.permissionState,
             needsResume: this.needsResume,
+            resumePromptVisible: this.needsResume
+                && !this._resumePromptDismissed
+                && this.activeShares.length > 0,
+            canResume: this.supported
+                && (this.permissionState !== 'denied' || canRetryDeniedPermission),
+            resumeError: this.resumeError,
+            resumeErrorCode: this.resumeErrorCode,
             busy: this.busy,
             error: this.error,
             errorCode: this.errorCode,
@@ -413,6 +427,41 @@ export class LiveLocationCoordinator {
         this.error = stringValue(error?.message, 'Der Live-Standort konnte nicht aktualisiert werden.');
         this.errorCode = code;
         this._emit();
+    }
+
+    _setResumeNeeded(value, { reveal = false } = {}) {
+        const next = Boolean(value) && this.activeShares.length > 0;
+        this.needsResume = next;
+
+        if (!next || reveal) {
+            this._resumePromptDismissed = false;
+        }
+    }
+
+    _setResumeError(error, code = 'resume_failed') {
+        this.resumeError = stringValue(
+            error?.message,
+            'Der Live-Standort konnte nicht fortgesetzt werden.',
+        );
+        this.resumeErrorCode = code;
+        this._setError(error, code);
+    }
+
+    _clearResumeError() {
+        this.resumeError = '';
+        this.resumeErrorCode = '';
+    }
+
+    dismissResumePrompt() {
+        if (!this.needsResume) {
+            return false;
+        }
+
+        this._resumePromptDismissed = true;
+        this._clearResumeError();
+        this._emit();
+
+        return true;
     }
 
     async initialize() {
@@ -498,14 +547,22 @@ export class LiveLocationCoordinator {
             this._permissionStatus = permission;
             this.permissionState = permission.state || 'unknown';
             this._permissionListener = () => {
+                const previousState = this.permissionState;
                 this.permissionState = permission.state || 'unknown';
 
-                if (this.permissionState === 'granted' && this.activeShares.length > 0) {
-                    this.needsResume = false;
+                if (this.activeShares.length === 0) {
+                    this._setResumeNeeded(false);
+                } else if (this.permissionState === 'granted') {
+                    this._setResumeNeeded(false);
+                    this._clearResumeError();
                     this._ensureWatch();
-                } else if (this.permissionState === 'denied') {
-                    this.needsResume = false;
+                } else if (this.supported) {
+                    this._setResumeNeeded(true, {
+                        reveal: previousState !== this.permissionState,
+                    });
                     this._clearWatch();
+                } else {
+                    this._setResumeNeeded(false);
                 }
 
                 this._emit();
@@ -530,6 +587,8 @@ export class LiveLocationCoordinator {
             return this.snapshot();
         }
 
+        const generation = ++this._reconcileGeneration;
+
         if (!quiet) {
             this.busy = 'reconcile';
             this._emit();
@@ -537,6 +596,11 @@ export class LiveLocationCoordinator {
 
         try {
             const payload = await this.request(this.activeUrl, { method: 'GET' });
+            if (this._destroyed || generation !== this._reconcileGeneration) {
+                return this.snapshot();
+            }
+
+            const hadActiveShares = this.activeShares.length > 0;
             const shares = normalizeLiveLocationList(payload)
                 .filter((share) => isLiveLocationActive(share, this.now()));
             this.activeShares = shares.map((share) => ({
@@ -554,15 +618,22 @@ export class LiveLocationCoordinator {
             this._scheduleExpiry();
 
             if (this.activeShares.length === 0) {
-                this.needsResume = false;
+                this._setResumeNeeded(false);
+                this._clearResumeError();
                 this._clearWatch();
             } else if (this.permissionState === 'granted') {
-                this.needsResume = false;
+                this._setResumeNeeded(false);
+                this._clearResumeError();
                 this._ensureWatch();
+            } else if (this.supported) {
+                this._setResumeNeeded(true, { reveal: !hadActiveShares });
+                this._clearWatch();
             } else {
-                // Rehydrating a PWA must never create a surprise permission
-                // prompt. A deliberate resume tap can request it again.
-                this.needsResume = this.permissionState !== 'denied';
+                // Unsupported or insecure contexts cannot satisfy a resume
+                // action and therefore must never create a permanent CTA.
+                this._setResumeNeeded(false);
+                this._clearResumeError();
+                this._clearWatch();
             }
         } catch (error) {
             if (!quiet) {
@@ -589,11 +660,43 @@ export class LiveLocationCoordinator {
                 return;
             }
 
-            this.navigator.geolocation.getCurrentPosition(
-                resolve,
-                reject,
-                this.positionOptions,
+            let settled = false;
+            let timeoutId = null;
+            const finish = (callback, value) => {
+                if (settled) {
+                    return;
+                }
+
+                settled = true;
+
+                if (timeoutId !== null) {
+                    this.clearTimeout?.(timeoutId);
+                }
+
+                callback(value);
+            };
+            const configuredTimeout = Math.max(
+                1_000,
+                finiteNumber(this.positionOptions.timeout) ?? POSITION_OPTIONS.timeout,
             );
+
+            if (this.setTimeout) {
+                timeoutId = this.setTimeout(() => {
+                    const error = new Error('Der aktuelle Standort antwortet nicht. Bitte versuchen Sie es erneut.');
+                    error.code = 3;
+                    finish(reject, error);
+                }, configuredTimeout + 1_000);
+            }
+
+            try {
+                this.navigator.geolocation.getCurrentPosition(
+                    (position) => finish(resolve, position),
+                    (error) => finish(reject, error),
+                    this.positionOptions,
+                );
+            } catch (error) {
+                finish(reject, error);
+            }
         });
     }
 
@@ -613,6 +716,7 @@ export class LiveLocationCoordinator {
         this.busy = 'start';
         this.error = '';
         this.errorCode = '';
+        this._clearResumeError();
         this._emit();
 
         try {
@@ -644,9 +748,13 @@ export class LiveLocationCoordinator {
                 longitude: finiteNumber(share.longitude) ?? payload.longitude,
                 publishedAt: this.now(),
             };
+            this.activeShares = this.activeShares.filter((activeShare) => (
+                activeShare.chatId !== share.chatId || activeShare.id === share.id
+            ));
             this._upsertShare(share);
             this.permissionState = 'granted';
-            this.needsResume = false;
+            this._setResumeNeeded(false);
+            this._clearResumeError();
             this._ensureWatch();
             this._scheduleExpiry();
             dispatchWindowEvent(
@@ -658,6 +766,12 @@ export class LiveLocationCoordinator {
             return publicShare(share);
         } catch (error) {
             const code = error?.code === 1 ? 'permission_denied' : 'start_failed';
+
+            if (code === 'permission_denied') {
+                this.permissionState = 'denied';
+                this._clearWatch();
+            }
+
             this._setError(error, code);
             throw error;
         } finally {
@@ -668,7 +782,8 @@ export class LiveLocationCoordinator {
 
     async resume() {
         if (this.activeShares.length === 0) {
-            this.needsResume = false;
+            this._setResumeNeeded(false);
+            this._clearResumeError();
             this._emit();
             return false;
         }
@@ -676,20 +791,28 @@ export class LiveLocationCoordinator {
         this.busy = 'resume';
         this.error = '';
         this.errorCode = '';
+        this._clearResumeError();
+        this._resumePromptDismissed = false;
         this._emit();
 
         try {
             const position = await this._positionOnce();
             this.permissionState = 'granted';
-            this.needsResume = false;
+            this._setResumeNeeded(false);
+            this._clearResumeError();
             await this._handlePosition(position, { force: true });
             this._ensureWatch();
             return true;
         } catch (error) {
-            this._setError(
-                error,
-                error?.code === 1 ? 'permission_denied' : 'resume_failed',
-            );
+            const code = error?.code === 1 ? 'permission_denied' : 'resume_failed';
+
+            if (code === 'permission_denied') {
+                this.permissionState = 'denied';
+                this._clearWatch();
+            }
+
+            this._setResumeNeeded(this.supported, { reveal: true });
+            this._setResumeError(error, code);
             throw error;
         } finally {
             this.busy = null;
@@ -710,8 +833,11 @@ export class LiveLocationCoordinator {
             (error) => {
                 if (error?.code === 1) {
                     this.permissionState = 'denied';
-                    this.needsResume = false;
+                    this._setResumeNeeded(this.supported, { reveal: true });
                     this._clearWatch();
+                    this._setResumeError(error, 'permission_denied');
+
+                    return;
                 }
 
                 this._setError(error, error?.code === 1 ? 'permission_denied' : 'watch_failed');
@@ -827,6 +953,8 @@ export class LiveLocationCoordinator {
             return;
         }
 
+        this._reconcileGeneration += 1;
+
         const index = this.activeShares.findIndex((share) => identifier(share.id) === nextId);
 
         if (index === -1) {
@@ -842,12 +970,14 @@ export class LiveLocationCoordinator {
 
     _removeShare(shareId) {
         const normalizedId = identifier(shareId);
+        this._reconcileGeneration += 1;
         this.activeShares = this.activeShares.filter(
             (share) => identifier(share.id) !== normalizedId,
         );
 
         if (this.activeShares.length === 0) {
-            this.needsResume = false;
+            this._setResumeNeeded(false);
+            this._clearResumeError();
             this._clearWatch();
         }
 
@@ -908,9 +1038,11 @@ export class LiveLocationCoordinator {
     }
 
     handleLogout() {
+        this._reconcileGeneration += 1;
         this.activeShares = [];
         this._pendingPosition = null;
-        this.needsResume = false;
+        this._setResumeNeeded(false);
+        this._clearResumeError();
         this._clearWatch();
         this._scheduleExpiry();
         this._emit();
@@ -932,20 +1064,46 @@ export class LiveLocationCoordinator {
     }
 
     async _resumeAfterVisibility() {
-        if (this.activeShares.length === 0 || this.permissionState !== 'granted') {
-            return;
+        if (this._resumePromise) {
+            return this._resumePromise;
         }
 
-        this.needsResume = false;
-        this._ensureWatch();
+        this._resumePromise = (async () => {
+            if (this.activeShares.length === 0) {
+                this._setResumeNeeded(false);
+                this._emit();
 
-        try {
-            const position = await this._positionOnce();
-            await this._handlePosition(position, { force: true });
-        } catch (_) {
-            // watchPosition remains the normal recovery path. A one-off refresh
-            // may legitimately time out when the PWA has just resumed.
-        }
+                return false;
+            }
+
+            if (this.permissionState !== 'granted') {
+                this._setResumeNeeded(this.supported);
+                this._emit();
+
+                return false;
+            }
+
+            this._setResumeNeeded(false);
+            // Mobile browsers may retain a stale native watch id while the OS
+            // has suspended its callbacks. Recreate exactly one watcher after
+            // returning to the foreground.
+            this._clearWatch();
+            this._ensureWatch();
+
+            try {
+                const position = await this._positionOnce();
+                await this._handlePosition(position, { force: true });
+            } catch (_) {
+                // watchPosition remains the normal recovery path. A one-off
+                // refresh may legitimately time out immediately after resume.
+            }
+
+            return true;
+        })().finally(() => {
+            this._resumePromise = null;
+        });
+
+        return this._resumePromise;
     }
 
     _scheduleExpiry() {
@@ -975,6 +1133,8 @@ export class LiveLocationCoordinator {
         });
 
         if (this.activeShares.length === 0) {
+            this._setResumeNeeded(false);
+            this._clearResumeError();
             this._clearWatch();
             return;
         }
@@ -1000,6 +1160,7 @@ export class LiveLocationCoordinator {
 
     destroy() {
         this._destroyed = true;
+        this._reconcileGeneration += 1;
         this._clearWatch();
 
         if (this._expiryTimer !== null) {
@@ -1027,6 +1188,10 @@ export function createLiveLocationStore(coordinator) {
         secureContext: false,
         permissionState: 'unknown',
         needsResume: false,
+        resumePromptVisible: false,
+        canResume: false,
+        resumeError: '',
+        resumeErrorCode: '',
         busy: null,
         error: '',
         errorCode: '',
@@ -1049,6 +1214,10 @@ export function createLiveLocationStore(coordinator) {
 
         resume() {
             return coordinator.resume();
+        },
+
+        dismissResumePrompt() {
+            return coordinator.dismissResumePrompt();
         },
 
         reconcile(options = {}) {
@@ -1381,21 +1550,28 @@ export function railtimeLiveLocationCard(config = {}) {
                 latitude: this.latitude,
                 longitude: this.longitude,
                 accuracy: this.accuracy,
-            });
+            }, { recenter: true });
             dispatchWindowEvent(config.windowLike ?? globalThis.window, 'railtime:live-location-card-updated', {
                 share: normalizeLiveLocationShare(componentShare(this)),
             });
         },
 
         async ensureMap() {
-            if (this._destroyed
-                || this._map
-                || this._mapLoading
-                || !validLiveLocationCoordinates(this.latitude, this.longitude)
-                || !this.$refs?.map) {
+            if (this._map) {
                 return this._map;
             }
 
+            if (this._mapLoading) {
+                return this._mapLoading;
+            }
+
+            if (this._destroyed
+                || !validLiveLocationCoordinates(this.latitude, this.longitude)
+                || !this.$refs?.map) {
+                return null;
+            }
+
+            const windowLike = config.windowLike ?? globalThis.window;
             this._mapLoading = this._mapFactory({
                 element: this.$refs.map,
                 latitude: this.latitude,
@@ -1403,10 +1579,12 @@ export function railtimeLiveLocationCard(config = {}) {
                 accuracy: this.accuracy,
                 interactive: false,
                 mapConfig: this._mapConfig || readLiveLocationMapConfig(),
+                windowLike,
             });
+            const loading = this._mapLoading;
 
             try {
-                const map = await this._mapLoading;
+                const map = await loading;
 
                 if (this._destroyed) {
                     map.destroy();
@@ -1414,6 +1592,12 @@ export function railtimeLiveLocationCard(config = {}) {
                 }
 
                 this._map = map;
+                map.update({
+                    latitude: this.latitude,
+                    longitude: this.longitude,
+                    accuracy: this.accuracy,
+                }, { recenter: true });
+                map.invalidate({ recenter: true });
                 this.mapReady = true;
                 this.mapError = '';
                 return map;
@@ -1424,7 +1608,9 @@ export function railtimeLiveLocationCard(config = {}) {
                 );
                 return null;
             } finally {
-                this._mapLoading = null;
+                if (this._mapLoading === loading) {
+                    this._mapLoading = null;
+                }
             }
         },
 
@@ -1596,7 +1782,11 @@ export function railtimeLiveLocationPreview(config = {}) {
                 latitude: this.latitude,
                 longitude: this.longitude,
                 accuracy: this.accuracy,
-            });
+            }, { recenter: true });
+
+            if (this._map) {
+                this._mappedShareId = this.shareId;
+            }
         },
 
         openWith(payload) {
@@ -1613,29 +1803,32 @@ export function railtimeLiveLocationPreview(config = {}) {
                 return false;
             }
 
-            if (this._mappedShareId && identifier(this._mappedShareId) !== identifier(share.id)) {
-                this._map?.destroy();
-                this._map = null;
-                this.mapReady = false;
-            }
-
             this.applyShare(share);
             this.error = '';
             this.open = true;
             this.nowMs = Date.now();
             const windowLike = config.windowLike ?? globalThis.window;
-            const schedule = windowLike?.requestAnimationFrame
-                ? (callback) => windowLike.requestAnimationFrame(callback)
-                : (callback) => Promise.resolve().then(callback);
-            schedule(() => this.ensureMap());
+            const renderMap = () => this.ensureMap()
+                .then((map) => map?.invalidate({ recenter: true }));
+
+            if (typeof this.$nextTick === 'function') {
+                this.$nextTick(renderMap);
+            } else if (typeof windowLike?.requestAnimationFrame === 'function') {
+                windowLike.requestAnimationFrame(renderMap);
+            } else {
+                Promise.resolve().then(renderMap);
+            }
 
             return true;
         },
 
         async ensureMap() {
+            if (this._mapLoading) {
+                return this._mapLoading;
+            }
+
             if (!this.open
                 || this._destroyed
-                || this._mapLoading
                 || !validLiveLocationCoordinates(this.latitude, this.longitude)
                 || !this.$refs?.map) {
                 return this._map;
@@ -1646,11 +1839,12 @@ export function railtimeLiveLocationPreview(config = {}) {
                     latitude: this.latitude,
                     longitude: this.longitude,
                     accuracy: this.accuracy,
-                });
-                this._map.invalidate();
+                }, { recenter: true });
+                this._map.invalidate({ recenter: true });
                 return this._map;
             }
 
+            const windowLike = config.windowLike ?? globalThis.window;
             this._mapLoading = this._mapFactory({
                 element: this.$refs.map,
                 latitude: this.latitude,
@@ -1658,10 +1852,12 @@ export function railtimeLiveLocationPreview(config = {}) {
                 accuracy: this.accuracy,
                 interactive: true,
                 mapConfig: this._mapConfig || readLiveLocationMapConfig(),
+                windowLike,
             });
+            const loading = this._mapLoading;
 
             try {
-                const map = await this._mapLoading;
+                const map = await loading;
 
                 if (this._destroyed || !this.open) {
                     map.destroy();
@@ -1669,10 +1865,15 @@ export function railtimeLiveLocationPreview(config = {}) {
                 }
 
                 this._map = map;
+                map.update({
+                    latitude: this.latitude,
+                    longitude: this.longitude,
+                    accuracy: this.accuracy,
+                }, { recenter: true });
                 this._mappedShareId = this.shareId;
                 this.mapReady = true;
                 this.mapError = '';
-                map.invalidate();
+                map.invalidate({ recenter: true });
                 return map;
             } catch (_) {
                 this.mapError = messageTemplate(
@@ -1682,7 +1883,9 @@ export function railtimeLiveLocationPreview(config = {}) {
                 );
                 return null;
             } finally {
-                this._mapLoading = null;
+                if (this._mapLoading === loading) {
+                    this._mapLoading = null;
+                }
             }
         },
 
@@ -1740,6 +1943,7 @@ export function railtimeLiveLocationPreview(config = {}) {
             windowLike?.clearInterval?.(this._clockTimer);
             this._map?.destroy();
             this._map = null;
+            this._mappedShareId = null;
             this.mapReady = false;
         },
     };

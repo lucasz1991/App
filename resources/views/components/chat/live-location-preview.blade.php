@@ -15,12 +15,16 @@
     <template x-teleport="body">
         <div
             x-cloak
-            x-show="$store.liveLocation.needsResume && $store.liveLocation.activeCount > 0"
+            x-show.important="$store.liveLocation.resumePromptVisible"
+            x-on:keydown.escape.window="if ($store.liveLocation.resumePromptVisible) { $store.liveLocation.dismissResumePrompt() }"
             x-transition:enter="transition duration-200 ease-out"
             x-transition:enter-start="translate-y-3 opacity-0"
             x-transition:enter-end="translate-y-0 opacity-100"
-            class="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[175] mx-auto flex max-w-xl items-center gap-3 rounded-2xl bg-slate-950/95 p-3 text-white shadow-2xl ring-1 ring-white/10 backdrop-blur-xl sm:p-4"
+            class="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[175] mx-auto flex max-w-xl items-start gap-3 rounded-2xl bg-slate-950/95 p-3 pr-12 text-white shadow-2xl ring-1 ring-white/10 backdrop-blur-xl sm:p-4 sm:pr-14"
+            style="display: none;"
             role="status"
+            aria-live="polite"
+            data-live-location-resume-banner
         >
             <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 text-rt-dark-accent">
                 <i class="far fa-location-dot" aria-hidden="true"></i>
@@ -29,22 +33,35 @@
                 <p class="text-xs leading-5 sm:text-sm">{{ __('app.chat_live_location_resume_hint') }}</p>
                 <p
                     x-cloak
-                    x-show="$store.liveLocation.error"
-                    x-text="$store.liveLocation.errorCode === 'permission_denied'
+                    x-show.important="$store.liveLocation.permissionState === 'denied' || $store.liveLocation.resumeError"
+                    x-text="$store.liveLocation.permissionState === 'denied' || $store.liveLocation.resumeErrorCode === 'permission_denied'
                         ? @js(__('app.chat_live_location_permission_denied'))
-                        : ($store.liveLocation.error || @js(__('app.chat_live_location_unavailable')))"
+                        : ($store.liveLocation.resumeError || @js(__('app.chat_live_location_unavailable')))"
                     class="mt-1 text-[11px] font-semibold leading-4 text-red-200"
+                    style="display: none;"
                     role="alert"
                 ></p>
+                <button
+                    x-cloak
+                    x-show.important="$store.liveLocation.canResume"
+                    type="button"
+                    x-on:click="$store.liveLocation.resume().catch(() => null)"
+                    x-bind:disabled="$store.liveLocation.busy"
+                    class="mt-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white px-3 text-xs font-extrabold text-slate-950 transition hover:bg-slate-100 disabled:cursor-wait disabled:opacity-60 sm:px-4"
+                    style="display: none;"
+                >
+                    <i x-bind:class="$store.liveLocation.busy === 'resume' ? 'fas fa-spinner fa-spin' : 'far fa-play'" aria-hidden="true"></i>
+                    <span>{{ __('app.chat_live_location_resume') }}</span>
+                </button>
             </div>
             <button
                 type="button"
-                x-on:click="$store.liveLocation.resume().catch(() => null)"
-                x-bind:disabled="$store.liveLocation.busy"
-                class="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-3 text-xs font-extrabold text-slate-950 transition hover:bg-slate-100 disabled:cursor-wait disabled:opacity-60 sm:px-4"
+                x-on:click="$store.liveLocation.dismissResumePrompt()"
+                class="absolute right-1.5 top-1.5 inline-flex h-11 w-11 items-center justify-center rounded-xl text-white/70 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/20 sm:right-2 sm:top-2"
+                title="{{ __('app.chat_live_location_resume_dismiss') }}"
+                aria-label="{{ __('app.chat_live_location_resume_dismiss') }}"
             >
-                <i x-bind:class="$store.liveLocation.busy ? 'fas fa-spinner fa-spin' : 'far fa-play'" aria-hidden="true"></i>
-                <span>{{ __('app.chat_live_location_resume') }}</span>
+                <i class="far fa-times" aria-hidden="true"></i>
             </button>
         </div>
     </template>
@@ -57,6 +74,7 @@
         icon="fad fa-map-location-dot"
         max-width="6xl"
         close-action="close()"
+        :layer="230"
         class="h-[calc(100dvh-1rem)] sm:h-[min(52rem,calc(100dvh-3rem))]"
     >
         <div class="grid h-full min-h-[28rem] gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
@@ -71,7 +89,7 @@
                         <span x-text="isActive ? @js(__('app.chat_live_location_live')) : ((status === 'expired' || (status === 'active' && remainingSeconds === 0)) ? @js(__('app.chat_live_location_expired')) : @js(__('app.chat_live_location_stopped')))"></span>
                     </span>
                     <span
-                        x-show="isActive"
+                        x-show.important="isActive"
                         class="inline-flex min-h-9 items-center rounded-xl bg-white/90 px-3 text-xs font-extrabold tabular-nums text-slate-900 shadow-lg backdrop-blur dark:bg-slate-950/85 dark:text-white"
                         x-text="remainingLabel"
                     ></span>
@@ -115,7 +133,7 @@
 
                     <button
                         x-cloak
-                        x-show="canStop && isActive"
+                        x-show.important="canStop && isActive"
                         type="button"
                         x-on:click="stopSharing()"
                         x-bind:disabled="stopping"

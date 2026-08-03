@@ -290,6 +290,10 @@ Service-Worker-Hintergrund aktualisieren. Nach Rückkehr in die geöffnete App
 wird eine noch aktive Freigabe bei weiterhin erteilter Berechtigung automatisch
 wieder aufgenommen; andernfalls zeigt RailTime eine bewusste
 **Fortsetzen**-Aktion, statt überraschend eine Berechtigungsabfrage zu öffnen.
+Diese Wiederaufnahme ist an die Browser-Sitzung gebunden, in der die Freigabe
+gestartet wurde: Ein zweites angemeldetes Gerät kann die Position daher nicht
+unbemerkt überschreiben. Der Hinweis bleibt schließbar und erscheint innerhalb
+derselben Navigation nach dem Schließen nicht erneut.
 
 Leaflet wird erst beim Anzeigen einer Karte geladen. Der voreingestellte
 OpenStreetMap-Tile-Endpunkt darf nur für normale interaktive Nutzung verwendet

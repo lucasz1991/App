@@ -22,11 +22,21 @@ class ChatLiveLocationService
         protected PushDelivery $push,
     ) {}
 
-    /** @return Collection<int, ChatLiveLocation> */
-    public function activeFor(User $user): Collection
+    /**
+     * Return only shares that belong to the current browser session.
+     *
+     * @param  list<string>  $shareIds
+     * @return Collection<int, ChatLiveLocation>
+     */
+    public function activeFor(User $user, array $shareIds): Collection
     {
+        if ($shareIds === []) {
+            return new Collection;
+        }
+
         return ChatLiveLocation::query()
             ->where('user_id', $user->id)
+            ->whereIn('uuid', $shareIds)
             ->whereNull('stopped_at')
             ->where('expires_at', '>', now())
             ->whereHas('message', fn ($query) => $query->whereNull('deleted_at'))

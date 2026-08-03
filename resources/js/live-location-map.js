@@ -81,6 +81,7 @@ export async function createLiveLocationMap({
     zoom = interactive ? 16 : 15,
     mapConfig = null,
     documentLike = globalThis.document,
+    windowLike = globalThis.window,
     leafletLoader = loadLeaflet,
 } = {}) {
     if (!element) {
@@ -141,6 +142,67 @@ export async function createLiveLocationMap({
         accuracy: positiveAccuracy(accuracy),
     };
     let removed = false;
+    let resizeFrame = null;
+    let resizeObserver = null;
+    let resizeListener = null;
+
+    const currentPoint = () => point(current.latitude, current.longitude);
+    const currentZoom = () => map.getZoom?.() ?? zoom;
+    const hasLayout = () => {
+        const rectangle = element.getBoundingClientRect?.();
+
+        return !rectangle || (rectangle.width > 0 && rectangle.height > 0);
+    };
+    const refreshLayout = ({ recenter = true } = {}) => {
+        if (removed || !hasLayout()) {
+            return false;
+        }
+
+        map.invalidateSize({
+            animate: false,
+            debounceMoveend: true,
+            pan: true,
+        });
+
+        if (recenter) {
+            map.setView(currentPoint(), currentZoom(), { animate: false });
+        }
+
+        return true;
+    };
+    const scheduleLayout = () => {
+        if (removed || resizeFrame !== null) {
+            return;
+        }
+
+        const callback = () => {
+            resizeFrame = null;
+            refreshLayout();
+        };
+
+        if (typeof windowLike?.requestAnimationFrame === 'function') {
+            resizeFrame = windowLike.requestAnimationFrame(callback);
+        } else {
+            resizeFrame = windowLike?.setTimeout?.(callback, 0) ?? null;
+
+            if (resizeFrame === null) {
+                Promise.resolve().then(callback);
+            }
+        }
+    };
+    const ResizeObserverConstructor = windowLike?.ResizeObserver
+        ?? globalThis.ResizeObserver;
+
+    if (typeof ResizeObserverConstructor === 'function') {
+        resizeObserver = new ResizeObserverConstructor(scheduleLayout);
+        resizeObserver.observe(element);
+    } else if (windowLike?.addEventListener) {
+        resizeListener = scheduleLayout;
+        windowLike.addEventListener('resize', resizeListener, { passive: true });
+        windowLike.addEventListener('orientationchange', resizeListener, { passive: true });
+    }
+
+    scheduleLayout();
 
     return {
         get map() {
@@ -168,7 +230,7 @@ export async function createLiveLocationMap({
             accuracyCircle.setRadius(current.accuracy);
 
             if (recenter) {
-                map.panTo(nextPoint, { animate: true, duration: 0.35 });
+                map.setView(nextPoint, currentZoom(), { animate: false });
             }
 
             return true;
@@ -176,17 +238,12 @@ export async function createLiveLocationMap({
 
         recenter() {
             if (!removed) {
-                map.panTo(point(current.latitude, current.longitude), {
-                    animate: true,
-                    duration: 0.35,
-                });
+                map.setView(currentPoint(), currentZoom(), { animate: false });
             }
         },
 
-        invalidate() {
-            if (!removed) {
-                map.invalidateSize({ animate: false, pan: false });
-            }
+        invalidate(options = {}) {
+            return refreshLayout(options);
         },
 
         destroy() {
@@ -195,6 +252,23 @@ export async function createLiveLocationMap({
             }
 
             removed = true;
+            resizeObserver?.disconnect();
+
+            if (resizeListener) {
+                windowLike?.removeEventListener?.('resize', resizeListener);
+                windowLike?.removeEventListener?.('orientationchange', resizeListener);
+            }
+
+            if (resizeFrame !== null) {
+                if (typeof windowLike?.cancelAnimationFrame === 'function') {
+                    windowLike.cancelAnimationFrame(resizeFrame);
+                } else {
+                    windowLike?.clearTimeout?.(resizeFrame);
+                }
+
+                resizeFrame = null;
+            }
+
             tileLayer.remove?.();
             marker.remove?.();
             accuracyCircle.remove?.();

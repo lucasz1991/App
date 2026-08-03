@@ -313,7 +313,7 @@ test('starts multiple shares with one watcher and uses only server-authored upda
     );
 });
 
-test('rehydrates active shares without prompting when geolocation permission is undecided', async () => {
+test('rehydrates an active session share without prompting and keeps a dismissed resume notice closed', async () => {
     const geo = geolocationHarness();
     const timers = coordinatorTimers();
     const coordinator = new LiveLocationCoordinator({
@@ -339,8 +339,124 @@ test('rehydrates active shares without prompting when geolocation permission is 
 
     assert.equal(coordinator.snapshot().activeCount, 1);
     assert.equal(coordinator.snapshot().needsResume, true);
+    assert.equal(coordinator.snapshot().resumePromptVisible, true);
+    assert.equal(coordinator.snapshot().canResume, true);
     assert.equal(geo.currentCalls(), 0);
     assert.equal(geo.watchCalls(), 0);
+
+    assert.equal(coordinator.dismissResumePrompt(), true);
+    assert.equal(coordinator.snapshot().resumePromptVisible, false);
+    assert.equal(coordinator.snapshot().needsResume, true);
+
+    await coordinator.reconcile({ quiet: true });
+    assert.equal(coordinator.snapshot().resumePromptVisible, false);
+    coordinator.destroy();
+});
+
+test('permission denial leaves a closeable notice instead of an endless resume loop', async () => {
+    const timers = coordinatorTimers();
+    const coordinator = new LiveLocationCoordinator({
+        activeUrl: '/chat/live-locations/active',
+        windowLike: coordinatorWindow(),
+        documentLike: null,
+        navigatorLike: {
+            onLine: true,
+            permissions: {
+                query: async () => ({
+                    state: 'prompt',
+                    addEventListener() {},
+                    removeEventListener() {},
+                }),
+            },
+            geolocation: {
+                getCurrentPosition(_success, failure) {
+                    failure({ code: 1, message: 'Permission denied' });
+                },
+                watchPosition() {
+                    throw new Error('A denied permission must not start a watcher.');
+                },
+                clearWatch() {},
+            },
+        },
+        ...timers,
+        request: async () => ({ live_locations: [responseShare().live_location] }),
+    });
+
+    await coordinator.initialize();
+    await assert.rejects(
+        () => coordinator.resume(),
+        (error) => error?.code === 1 && error?.message === 'Permission denied',
+    );
+
+    assert.equal(coordinator.snapshot().permissionState, 'denied');
+    assert.equal(coordinator.snapshot().needsResume, true);
+    assert.equal(coordinator.snapshot().resumePromptVisible, true);
+    assert.equal(coordinator.snapshot().canResume, false);
+    assert.equal(coordinator.snapshot().resumeErrorCode, 'permission_denied');
+    assert.equal(coordinator.snapshot().busy, null);
+
+    coordinator.dismissResumePrompt();
+    assert.equal(coordinator.snapshot().resumePromptVisible, false);
+    coordinator.destroy();
+});
+
+test('an insecure context never exposes an impossible resume action', async () => {
+    const timers = coordinatorTimers();
+    const windowLike = coordinatorWindow();
+    windowLike.isSecureContext = false;
+    const coordinator = new LiveLocationCoordinator({
+        activeUrl: '/chat/live-locations/active',
+        windowLike,
+        documentLike: null,
+        navigatorLike: { geolocation: geolocationHarness().api, onLine: true },
+        ...timers,
+        request: async () => ({ live_locations: [responseShare().live_location] }),
+    });
+
+    await coordinator.initialize();
+
+    assert.equal(coordinator.snapshot().permissionState, 'insecure');
+    assert.equal(coordinator.snapshot().needsResume, false);
+    assert.equal(coordinator.snapshot().resumePromptVisible, false);
+    assert.equal(coordinator.snapshot().canResume, false);
+    coordinator.destroy();
+});
+
+test('foreground recovery recreates a potentially stale native watcher exactly once', async () => {
+    const geo = geolocationHarness();
+    const timers = coordinatorTimers();
+    const coordinator = new LiveLocationCoordinator({
+        activeUrl: '/chat/live-locations/active',
+        windowLike: coordinatorWindow(),
+        documentLike: null,
+        navigatorLike: {
+            geolocation: geo.api,
+            onLine: true,
+            permissions: {
+                query: async () => ({
+                    state: 'granted',
+                    addEventListener() {},
+                    removeEventListener() {},
+                }),
+            },
+        },
+        ...timers,
+        request: async (url, options) => (options.method === 'PATCH'
+            ? responseShare()
+            : { live_locations: [responseShare().live_location] }),
+    });
+
+    await coordinator.initialize();
+    assert.equal(geo.watchCalls(), 1);
+
+    await Promise.all([
+        coordinator._resumeAfterVisibility(),
+        coordinator._resumeAfterVisibility(),
+    ]);
+
+    assert.equal(geo.clearCalls(), 1);
+    assert.equal(geo.watchCalls(), 2);
+    assert.equal(geo.currentCalls(), 1);
     coordinator.destroy();
 });
 
@@ -382,9 +498,10 @@ function fakeLeaflet() {
         remove() { calls.push(`${kind}:remove`); },
     });
     const map = {
-        setView(value) { calls.push(['map:view', value]); return this; },
+        setView(value, zoom, options) { calls.push(['map:view', value, zoom, options]); return this; },
+        getZoom() { return 15; },
         panTo(value) { calls.push(['map:pan', value]); },
-        invalidateSize() { calls.push('map:invalidate'); },
+        invalidateSize(options) { calls.push(['map:invalidate', options]); },
         remove() { calls.push('map:remove'); },
     };
 
@@ -420,11 +537,125 @@ test('lazy map adapter updates, recenters and completely removes Leaflet state',
     assert.equal(validLiveLocationCoordinates(50, 8), true);
     assert.equal(validLiveLocationCoordinates(100, 8), false);
     assert.equal(leaflet.calls[0][2].dragging, false);
-    assert.equal(adapter.update({ latitude: 50.1, longitude: 8.1, accuracy: 5 }), true);
+    assert.equal(adapter.update(
+        { latitude: 50.1, longitude: 8.1, accuracy: 5 },
+        { recenter: true },
+    ), true);
     adapter.recenter();
     adapter.invalidate();
+    assert.ok(leaflet.calls.some((call) => Array.isArray(call)
+        && call[0] === 'map:invalidate'
+        && call[1].pan === true
+        && call[1].debounceMoveend === true));
+    assert.ok(leaflet.calls.some((call) => Array.isArray(call)
+        && call[0] === 'map:view'
+        && call[1][0] === 50.1
+        && call[1][1] === 8.1));
     adapter.destroy();
     assert.ok(leaflet.calls.includes('map:remove'));
+});
+
+test('map adapter repairs hidden-to-visible resizes, recenters, and disconnects its observer', async () => {
+    const leaflet = fakeLeaflet();
+    const frames = [];
+    let resizeCallback = null;
+    let disconnected = 0;
+    let rectangle = { width: 0, height: 0 };
+    const element = {
+        getBoundingClientRect() { return rectangle; },
+    };
+    const windowLike = {
+        requestAnimationFrame(callback) {
+            frames.push(callback);
+            return frames.length;
+        },
+        cancelAnimationFrame() {},
+        ResizeObserver: class ResizeObserver {
+            constructor(callback) { resizeCallback = callback; }
+            observe(target) { assert.equal(target, element); }
+            disconnect() { disconnected += 1; }
+        },
+    };
+    const adapter = await createLiveLocationMap({
+        element,
+        latitude: 52.52,
+        longitude: 13.405,
+        accuracy: 6,
+        windowLike,
+        leafletLoader: async () => leaflet.api,
+    });
+
+    frames.shift()?.();
+    assert.equal(leaflet.calls.some((call) => call[0] === 'map:invalidate'), false);
+
+    rectangle = { width: 320, height: 160 };
+    resizeCallback();
+    frames.shift()?.();
+
+    const invalidation = leaflet.calls.find((call) => call[0] === 'map:invalidate');
+    assert.deepEqual(invalidation[1], {
+        animate: false,
+        debounceMoveend: true,
+        pan: true,
+    });
+    assert.ok(leaflet.calls.some((call) => call[0] === 'map:view'
+        && call[1][0] === 52.52
+        && call[1][1] === 13.405));
+
+    adapter.destroy();
+    assert.equal(disconnected, 1);
+});
+
+test('mini-card and preview apply the latest coordinates after an asynchronous map load', async () => {
+    const calls = [];
+    let resolveCardMap;
+    const cardMap = {
+        update(position, options) { calls.push(['card:update', position, options]); },
+        invalidate(options) { calls.push(['card:invalidate', options]); },
+        destroy() { calls.push(['card:destroy']); },
+    };
+    const card = railtimeLiveLocationCard({
+        share_id: 'card-location',
+        latitude: 50,
+        longitude: 8,
+        mapFactory: () => new Promise((resolve) => { resolveCardMap = resolve; }),
+    });
+    card.$refs = { map: {} };
+    const cardLoading = card.ensureMap();
+    card.latitude = 51;
+    card.longitude = 9;
+    resolveCardMap(cardMap);
+    await cardLoading;
+
+    assert.deepEqual(calls.find((call) => call[0] === 'card:update'), [
+        'card:update',
+        { latitude: 51, longitude: 9, accuracy: null },
+        { recenter: true },
+    ]);
+
+    let resolvePreviewMap;
+    const previewMap = {
+        update(position, options) { calls.push(['preview:update', position, options]); },
+        invalidate(options) { calls.push(['preview:invalidate', options]); },
+        destroy() { calls.push(['preview:destroy']); },
+    };
+    const preview = railtimeLiveLocationPreview({
+        mapFactory: () => new Promise((resolve) => { resolvePreviewMap = resolve; }),
+    });
+    preview.$refs = { map: {} };
+    preview.open = true;
+    preview.applyShare(responseShare({ id: 'share-a', latitude: 50, longitude: 8 }));
+    const previewLoading = preview.ensureMap();
+    preview.applyShare(responseShare({ id: 'share-b', latitude: 53, longitude: 10 }));
+    resolvePreviewMap(previewMap);
+    await previewLoading;
+
+    assert.equal(preview._mappedShareId, 'share-b');
+    assert.deepEqual(calls.find((call) => call[0] === 'preview:update'), [
+        'preview:update',
+        { latitude: 53, longitude: 10, accuracy: 8.5 },
+        { recenter: true },
+    ]);
 });
 
 test('Alpine factories expose the stable launcher, mini-card and global preview contract', () => {
@@ -493,6 +724,32 @@ test('the Echo listener forwards only identifiers and status before authorized r
     assert.match(listener, /Livewire\.dispatch\('chat:refresh'/);
     assert.match(listener, /liveLocationId/);
     assert.doesNotMatch(listener, /event\.(?:latitude|longitude|position|accuracy)/);
+});
+
+test('live-location markup uses important visibility, a dismiss action, and a call-safe preview layer', async () => {
+    const [preview, sharePicker, stateModal] = await Promise.all([
+        readFile(new URL(
+            '../../resources/views/components/chat/live-location-preview.blade.php',
+            import.meta.url,
+        ), 'utf8'),
+        readFile(new URL(
+            '../../resources/views/components/chat/live-location-share.blade.php',
+            import.meta.url,
+        ), 'utf8'),
+        readFile(new URL(
+            '../../resources/views/components/ui/state-modal.blade.php',
+            import.meta.url,
+        ), 'utf8'),
+    ]);
+
+    assert.match(preview, /x-show\.important="\$store\.liveLocation\.resumePromptVisible"/);
+    assert.match(preview, /data-live-location-resume-banner/);
+    assert.match(preview, /dismissResumePrompt\(\)/);
+    assert.match(preview, /chat_live_location_resume_dismiss/);
+    assert.match(preview, /:layer="230"/);
+    assert.match(sharePicker, /x-show\.important="!\$store\.liveLocation\.supported"/);
+    assert.match(stateModal, /z-index: \{\{ \$resolvedLayer \}\} !important/);
+    assert.match(stateModal, /data-rt-overlay-base="\{\{ \$resolvedLayer \}\}"/);
 });
 
 test('live-location runtime never writes coordinates to local or session storage', async () => {

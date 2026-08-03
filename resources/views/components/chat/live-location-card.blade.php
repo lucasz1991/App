@@ -102,7 +102,7 @@
 
                 <button
                     x-cloak
-                    x-show="canStop && isActive"
+                    x-show.important="canStop && isActive"
                     type="button"
                     x-on:click.stop="stopSharing()"
                     x-bind:disabled="stopping"

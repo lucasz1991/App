@@ -70,6 +70,10 @@ class ChatLiveLocationTest extends TestCase
         $this->assertPrivateNoStore($response->headers->get('Cache-Control'));
 
         $location = ChatLiveLocation::query()->with('message')->firstOrFail();
+        $response->assertSessionHas(
+            'chat.live_location_share_ids',
+            fn (array $ids): bool => $ids === [$location->uuid],
+        );
         $this->assertSame('live_location', $location->message->message_type);
         $this->assertSame($sender->id, (int) $location->user_id);
         $this->assertSame(5400, $location->remainingSeconds());
@@ -182,6 +186,39 @@ class ChatLiveLocationTest extends TestCase
         $this->assertPrivateNoStore($response->headers->get('Cache-Control'));
         $this->assertSame('active', $response->json('live_locations.0.status'));
         $this->assertDatabaseCount('chat_messages', 2);
+    }
+
+    public function test_active_resume_and_coordinate_updates_are_limited_to_the_originating_session(): void
+    {
+        [$sender, , $chat] = $this->directChat();
+        $location = $this->startLocation($sender, $chat, 30);
+        $originalPosition = $location->position();
+
+        $this->flushSession();
+
+        $this->actingAs($sender)
+            ->getJson(route('chat.live-locations.active'))
+            ->assertOk()
+            ->assertJsonCount(0, 'live_locations');
+
+        $this->actingAs($sender)
+            ->patchJson(
+                route('chat.live-locations.update', $location),
+                $this->position([
+                    'latitude' => 48.775846,
+                    'longitude' => 9.182932,
+                ]),
+            )
+            ->assertForbidden();
+
+        $this->assertSame($originalPosition, $location->refresh()->position());
+
+        // The account owner may still explicitly stop the share from another
+        // signed-in device; only passive resume and coordinate writes are bound.
+        $this->actingAs($sender)
+            ->deleteJson(route('chat.live-locations.destroy', $location))
+            ->assertOk()
+            ->assertJsonPath('live_location.status', 'stopped');
     }
 
     public function test_only_owner_can_sync_or_stop_and_stop_is_idempotent(): void

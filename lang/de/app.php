@@ -942,6 +942,7 @@ return [
     'chat_live_location_foreground_hint' => 'Die Aktualisierung läuft, solange RailTime geöffnet ist. Nach der Rückkehr wird sie automatisch oder über „Fortsetzen“ wieder aufgenommen.',
     'chat_live_location_resume' => 'Fortsetzen',
     'chat_live_location_resume_hint' => 'Eine aktive Standortfreigabe wartet auf Ihre Freigabe, um Aktualisierungen auf diesem Gerät fortzusetzen.',
+    'chat_live_location_resume_dismiss' => 'Standorthinweis schließen',
     'minutes' => 'Minuten',
     'chat_reply' => 'Antworten',
     'chat_replying_to' => 'Antwort an :name',
