@@ -38,6 +38,12 @@ class Chat extends Model
             ->latestOfMany();
     }
 
+    /** The isolated call room that owns this conversation, if this is a call chat. */
+    public function callRoom(): HasOne
+    {
+        return $this->hasOne(Room::class, 'call_chat_id');
+    }
+
     public function isGroup(): bool
     {
         return $this->type === 'group';

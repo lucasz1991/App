@@ -27,6 +27,10 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     @auth
         <meta name="rt-user-id" content="{{ auth()->id() }}">
+        <meta name="rt-live-location-active-url" content="{{ route('chat.live-locations.active') }}">
+        <meta name="rt-live-location-tile-url" content="{{ config('chat.live_location.tile_url') }}">
+        <meta name="rt-live-location-tile-attribution" content="{{ config('chat.live_location.tile_attribution') }}">
+        <meta name="rt-live-location-tile-max-zoom" content="{{ config('chat.live_location.tile_max_zoom') }}">
         <script>
             window.rtLang = {
                 newMessage: @json(__('app.new_message')),
@@ -131,6 +135,7 @@
         @auth
             <livewire:messages.message-viewer-modal />
             <livewire:tools.file-pools.file-preview-modal />
+            <x-chat.live-location-preview />
             {{-- Globales Klingel-Overlay fuer eingehende Videoanrufe --}}
             <livewire:calls.incoming-call-overlay />
             @if ($assistantShouldRender)

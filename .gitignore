@@ -31,11 +31,14 @@ Homestead.json
 !/tests/Feature/CallRingingSignalTest.php
 !/tests/Feature/CallChatInteractionSecurityTest.php
 !/tests/Feature/ChatRepliesAndReactionsTest.php
+!/tests/Feature/ChatLiveLocationTest.php
+!/tests/Feature/RememberMeAuthenticationTest.php
 !/tests/Frontend/
 /tests/Frontend/*
 !/tests/Frontend/call-recording-gate.test.js
 !/tests/Frontend/call-self-preview.test.js
 !/tests/Frontend/chat-message-actions.test.js
+!/tests/Frontend/live-location.test.js
 /.lmzdev/
 /railtime
 

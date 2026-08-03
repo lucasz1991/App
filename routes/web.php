@@ -10,6 +10,7 @@ use App\Http\Controllers\Calls\CallRingAckController;
 use App\Http\Controllers\Calls\CallTokenController;
 use App\Http\Controllers\ChatAttachmentController;
 use App\Http\Controllers\ChatExportController;
+use App\Http\Controllers\ChatLiveLocationController;
 use App\Http\Controllers\ManagedDocumentDownloadController;
 use App\Http\Controllers\ProfileEmailTemplateController;
 use App\Http\Controllers\PushSubscriptionController;
@@ -27,8 +28,8 @@ use App\Livewire\Admin\ManagedDocuments;
 use App\Livewire\Admin\OperationalPreview;
 use App\Livewire\Admin\Settings;
 use App\Livewire\Admin\UserProfile;
-use App\Livewire\Calls\CallHistory;
 use App\Livewire\Calls\CallDetails;
+use App\Livewire\Calls\CallHistory;
 use App\Livewire\Calls\CallWindow;
 use App\Livewire\ChatBox;
 use App\Livewire\HelpCenter;
@@ -126,6 +127,19 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
     Route::get('/messages', MessageBox::class)->name('messages');
     // Chat steht ALLEN angemeldeten Benutzern offen (Admin- wie Nutzerbereich).
     Route::get('/chat', ChatBox::class)->name('chat');
+    Route::get('/chat/live-locations/active', [ChatLiveLocationController::class, 'active'])
+        ->middleware('throttle:chat-live-location-sync')
+        ->name('chat.live-locations.active');
+    Route::post('/chat/{chat}/live-locations', [ChatLiveLocationController::class, 'store'])
+        ->whereNumber('chat')
+        ->middleware('throttle:chat-live-location-start')
+        ->name('chat.live-locations.store');
+    Route::patch('/chat/live-locations/{liveLocation:uuid}', [ChatLiveLocationController::class, 'update'])
+        ->middleware('throttle:chat-live-location-sync')
+        ->name('chat.live-locations.update');
+    Route::delete('/chat/live-locations/{liveLocation:uuid}', [ChatLiveLocationController::class, 'destroy'])
+        ->middleware('throttle:chat-live-location-sync')
+        ->name('chat.live-locations.destroy');
     // Videoanrufe: Anruf-Fenster + Token-Ausgabe (Token immer frisch per fetch,
     // nie im Livewire-Snapshot – siehe LIVEKIT_INTEGRATION_PLAN.md).
     // Uebersichten: Anrufverlauf und offene Besprechungsraeume. Muessen VOR

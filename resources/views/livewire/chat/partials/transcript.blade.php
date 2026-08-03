@@ -38,15 +38,18 @@
                 : ($message->created_at->isYesterday() ? __('app.yesterday') : $message->created_at->format('d.m.Y'));
             $showSender = $selectedChat->isGroup() && ! $own;
             $isRead = $own && ! $deleted && $selectedChat->messageReadByAllRecipients($message, $me);
+            $isLiveLocation = ! $deleted && $message->isLiveLocation();
             $voiceFile = $deleted ? null : $message->voiceFile();
             $voiceConsumed = $voiceFile && $message->view_once
                 && ($own || ($message->hasBeenViewedBy($me) && ! $message->hasActiveVoicePlaybackFor($me)));
             $messageSurface = $deleted
                 ? 'rt-chat-message--deleted'
-                : ($voiceFile
+                : ($isLiveLocation
+                    ? 'rt-chat-message--live-location'
+                    : ($voiceFile
                     ? 'rt-chat-message--voice'
-                    : ($message->files->isNotEmpty() ? 'rt-chat-message--attachment' : 'rt-chat-message--text'));
-            $metaInline = ! $deleted && filled($message->body) && ! $voiceFile && $message->files->isEmpty();
+                    : ($message->files->isNotEmpty() ? 'rt-chat-message--attachment' : 'rt-chat-message--text')));
+            $metaInline = ! $deleted && ! $isLiveLocation && filled($message->body) && ! $voiceFile && $message->files->isEmpty();
             $reactionGroups = $message->reactions->groupBy('emoji');
             $myReaction = $message->reactions->firstWhere('user_id', $me->id)?->emoji;
         @endphp
@@ -140,13 +143,16 @@
                                 <span>{{ __('app.chat_message_deleted') }}</span>
                             </p>
                         @else
-                            @if (filled($message->body))
-                                <p class="rt-chat-message-copy whitespace-pre-wrap break-words">{{ $message->body }}@if ($metaInline)<span class="rt-chat-message-meta-inline"><time datetime="{{ $message->created_at->toIso8601String() }}">{{ $message->created_at->format('H:i') }}</time>@if ($own)<i class="rt-chat-read-indicator far fa-check-double {{ $isRead ? 'is-read' : 'is-delivered' }}" title="{{ $isRead ? __('app.message_read') : __('app.message_delivered') }}" aria-label="{{ $isRead ? __('app.message_read') : __('app.message_delivered') }}"></i>@endif</span>@endif</p>
-                            @endif
+                            @if ($isLiveLocation)
+                                <x-chat.live-location-card :message="$message" :own="$own" />
+                            @else
+                                @if (filled($message->body))
+                                    <p class="rt-chat-message-copy whitespace-pre-wrap break-words">{{ $message->body }}@if ($metaInline)<span class="rt-chat-message-meta-inline"><time datetime="{{ $message->created_at->toIso8601String() }}">{{ $message->created_at->format('H:i') }}</time>@if ($own)<i class="rt-chat-read-indicator far fa-check-double {{ $isRead ? 'is-read' : 'is-delivered' }}" title="{{ $isRead ? __('app.message_read') : __('app.message_delivered') }}" aria-label="{{ $isRead ? __('app.message_read') : __('app.message_delivered') }}"></i>@endif</span>@endif</p>
+                                @endif
 
-                            @if ($voiceFile)
-                                <x-chat.voice-message :message="$message" :file="$voiceFile" :own="$own" :consumed="$voiceConsumed" />
-                            @elseif ($message->files->isNotEmpty())
+                                @if ($voiceFile)
+                                    <x-chat.voice-message :message="$message" :file="$voiceFile" :own="$own" :consumed="$voiceConsumed" />
+                                @elseif ($message->files->isNotEmpty())
                                 <div class="space-y-2 {{ filled($message->body) ? 'mt-2' : '' }}">
                                     @foreach ($message->files as $file)
                                         @php
@@ -192,6 +198,7 @@
                                         </button>
                                     @endforeach
                                 </div>
+                                @endif
                             @endif
                         @endif
 

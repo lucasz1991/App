@@ -7,8 +7,10 @@ use App\Actions\Fortify\ResetUserPassword;
 use App\Actions\Fortify\UpdateUserPassword;
 use App\Actions\Fortify\UpdateUserProfileInformation;
 use App\Models\User;
+use Illuminate\Auth\SessionGuard;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -31,6 +33,12 @@ class FortifyServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $guard = Auth::guard((string) config('fortify.guard', 'web'));
+
+        if ($guard instanceof SessionGuard) {
+            $guard->setRememberDuration((int) config('auth.remember_lifetime', 576000));
+        }
+
         Fortify::createUsersUsing(CreateNewUser::class);
         Fortify::updateUserProfileInformationUsing(UpdateUserProfileInformation::class);
         Fortify::updateUserPasswordsUsing(UpdateUserPassword::class);

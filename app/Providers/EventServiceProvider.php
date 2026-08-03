@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use App\Listeners\HandleWebPushFailed;
 use App\Listeners\HandleWebPushSent;
+use App\Listeners\StopChatLiveLocationsOnLogout;
+use Illuminate\Auth\Events\Logout;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
@@ -21,6 +23,9 @@ class EventServiceProvider extends ServiceProvider
     protected $listen = [
         Registered::class => [
             SendEmailVerificationNotification::class,
+        ],
+        Logout::class => [
+            StopChatLiveLocationsOnLogout::class,
         ],
         NotificationSent::class => [
             HandleWebPushSent::class,

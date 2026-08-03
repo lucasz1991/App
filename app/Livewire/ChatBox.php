@@ -9,6 +9,7 @@ use App\Events\ChatMessageSent;
 use App\Events\ChatRead;
 use App\Livewire\Concerns\InteractsWithPersonQuickActions;
 use App\Models\Chat;
+use App\Models\ChatLiveLocation;
 use App\Models\ChatMessage;
 use App\Models\ChatMessageReaction;
 use App\Models\ChatMessageView;
@@ -17,6 +18,7 @@ use App\Models\User;
 use App\Services\Calls\CallInfrastructureUnavailable;
 use App\Services\Calls\CallInvitationService;
 use App\Services\Calls\RoomLifecycleService;
+use App\Services\Chat\ChatLiveLocationService;
 use App\Services\Chat\ChatMessageInteractionService;
 use App\Support\Push\PushDelivery;
 use Illuminate\Support\Carbon;
@@ -909,7 +911,7 @@ class ChatBox extends Component
         $this->showDeleteChatModal = true;
     }
 
-    public function confirmDeleteChat(): void
+    public function confirmDeleteChat(ChatLiveLocationService $liveLocations): void
     {
         if (! $this->pendingDeleteChatId) {
             $this->showDeleteChatModal = false;
@@ -929,6 +931,7 @@ class ChatBox extends Component
                 ->pluck('id');
 
             DB::transaction(function () use ($chat, $messageIds): void {
+                ChatLiveLocation::query()->whereIn('chat_message_id', $messageIds)->delete();
                 ChatMessageView::query()->whereIn('chat_message_id', $messageIds)->delete();
                 ChatMessageReaction::query()->whereIn('chat_message_id', $messageIds)->delete();
                 ChatMessage::query()->withTrashed()->whereIn('id', $messageIds)->forceDelete();
@@ -939,10 +942,12 @@ class ChatBox extends Component
             File::query()->whereIn('id', $fileIds)->get()->each->delete();
             $toastKey = 'group_deleted';
         } elseif ($chat->isGroup()) {
+            $liveLocations->stopForUserInChat($chat, $me, ChatLiveLocation::STOP_CHAT_LEFT);
             $chat->participants()->detach($me->id);
             $chat->touch();
             $toastKey = 'group_left';
         } else {
+            $liveLocations->stopForUserInChat($chat, $me, ChatLiveLocation::STOP_CHAT_LEFT);
             $timestamp = now();
             $chat->participants()->updateExistingPivot($me->id, [
                 'last_read_at' => $timestamp,
@@ -1083,7 +1088,7 @@ class ChatBox extends Component
                 ->selectRaw('MAX(chat_messages.id) as latest_message_id')
                 ->pluck('latest_message_id');
             $latestMessages = ChatMessage::query()
-                ->with(['sender', 'files'])
+                ->with(['sender', 'files', 'liveLocation'])
                 ->whereKey($latestMessageIds)
                 ->get()
                 ->keyBy('chat_id');
@@ -1119,6 +1124,7 @@ class ChatBox extends Component
                     ->with([
                         'sender:id,name,profile_photo_path',
                         'files',
+                        'liveLocation',
                         'views:id,chat_message_id,user_id,viewed_at',
                         'reactions' => fn ($query) => $query
                             ->select(['id', 'chat_message_id', 'user_id', 'emoji'])

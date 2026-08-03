@@ -79,6 +79,13 @@
                 <span class="sr-only">{{ __('app.add_attachment') }}</span>
             </label>
 
+            <x-chat.live-location-share
+                :chat-id="$selectedChat->id"
+                :start-url="route('chat.live-locations.store', ['chat' => $selectedChat])"
+                :reply-to-message-id="$replyingToMessage?->id"
+                context="chat"
+            />
+
             <input
                 x-ref="messageInput"
                 type="text"

@@ -120,21 +120,7 @@ class PushDelivery
 
     protected function chatPreview(ChatMessage $message): string
     {
-        $body = $this->previewText($message->body);
-
-        if ($body !== '') {
-            return $body;
-        }
-
-        if ($message->isVoice()) {
-            return __('app.voice_message');
-        }
-
-        if ($message->files()->exists()) {
-            return __('app.chat_attachment');
-        }
-
-        return __('app.push_new_chat_body');
+        return $message->previewText();
     }
 
     protected function previewText(?string $value, int $limit = 160): string

@@ -116,6 +116,17 @@ php artisan migrate --seed
 npm run build
 ```
 
+Normale, nicht gemerkte Anmeldungen behalten die bestehende Leerlaufzeit von
+120 Minuten. Das bewusst gesetzte Häkchen **Angemeldet bleiben** verwendet
+dagegen ein separates, widerrufbares Remember-Cookie für maximal 400 Tage. Das
+gilt im Browser ebenso wie für die installierte PWA; Abmelden widerruft Cookie
+und Remember-Token.
+
+```dotenv
+SESSION_LIFETIME=120
+AUTH_REMEMBER_LIFETIME=576000
+```
+
 ### 3. Queue-Worker
 
 RailTime verwendet die Datenbank-Queue.
@@ -259,6 +270,39 @@ Antworten bleiben über Tombstones referenzierbar, ohne gelöschte oder
 Einmalinhalte preiszugeben. Die Unterhaltung lädt zunächst die neuesten 100
 Nachrichten und ältere Seiten cursorbasiert nach; Export und Verlauf enthalten
 den sicheren Antwortkontext und gruppierte Reaktionen.
+
+#### Zeitlich begrenzte Live-Standorte
+
+Normale Chats und aktive Call-Chats können einen Live-Standort für exakt 15,
+30, 45, 60 oder 90 Minuten teilen. Die Bubble zeigt eine kompakte Karte,
+Restlaufzeit, Genauigkeit und Aktualisierungszeit; die große Vorschau bietet
+eine interaktive Karte und erneutes Zentrieren. Eine eigene Freigabe lässt sich
+jederzeit stoppen. Beim Ende eines Anrufs sowie beim Verlassen oder Entfernen
+eines Teilnehmers werden zugehörige Call-Freigaben serverseitig beendet.
+
+RailTime speichert nur die jeweils letzte Position im verschlüsselten
+`chat_live_locations`-Datensatz. Koordinaten stehen weder in Reverb-Ereignissen
+noch in Push-Texten, Exporten, URLs oder Browser-Speichern. Das Löschen einer
+Standortnachricht entfernt auch ihre präzise Position. Geolocation benötigt im
+Produktivbetrieb HTTPS und eine Gerätefreigabe. Browser und installierte PWAs
+können Geolocation nicht verlässlich aus einem geschlossenen
+Service-Worker-Hintergrund aktualisieren. Nach Rückkehr in die geöffnete App
+wird eine noch aktive Freigabe bei weiterhin erteilter Berechtigung automatisch
+wieder aufgenommen; andernfalls zeigt RailTime eine bewusste
+**Fortsetzen**-Aktion, statt überraschend eine Berechtigungsabfrage zu öffnen.
+
+Leaflet wird erst beim Anzeigen einer Karte geladen. Der voreingestellte
+OpenStreetMap-Tile-Endpunkt darf nur für normale interaktive Nutzung verwendet
+werden: Attribution bleibt sichtbar, und RailTime lädt oder cached keine Tiles
+vorab. Für höheres Volumen oder strengere Datenschutzvorgaben muss ein eigener
+beziehungsweise vertraglich passender Tile-Dienst konfiguriert werden, da der
+Tile-Anbieter den angefragten Kartenausschnitt technisch sehen kann.
+
+```dotenv
+CHAT_LIVE_LOCATION_TILE_URL="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+CHAT_LIVE_LOCATION_TILE_ATTRIBUTION='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+CHAT_LIVE_LOCATION_TILE_MAX_ZOOM=19
+```
 
 #### Call-Chat, Verlauf und verpflichtende Aufzeichnung
 

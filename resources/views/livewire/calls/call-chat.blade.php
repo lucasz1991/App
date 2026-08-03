@@ -51,6 +51,7 @@
                 $reactionGroups = $message->reactions->groupBy('emoji');
                 $myReaction = $message->reactions->firstWhere('user_id', auth()->id())?->emoji;
                 $reply = $message->replyTo;
+                $isLiveLocation = $message->isLiveLocation();
             @endphp
             <article
                 wire:key="call-chat-message-{{ $message->id }}"
@@ -80,6 +81,7 @@
                     <div class="flex items-start gap-1 {{ $mine ? 'flex-row-reverse' : '' }}">
                         <div @class([
                             'min-w-0 rounded-2xl px-3.5 py-2.5 shadow-sm',
+                            'rt-chat-message--live-location' => $isLiveLocation,
                             'rounded-br-md bg-rt-accent text-white' => $mine,
                             'rounded-bl-md bg-rt-surface-muted text-rt-text dark:bg-rt-dark-surface-muted dark:text-rt-dark-text' => ! $mine,
                         ])>
@@ -95,22 +97,21 @@
                                             {{ __('app.chat_original_message_unavailable') }}
                                         @elseif ($reply->view_once)
                                             {{ __('app.chat_view_once_voice_message') }}
-                                        @elseif ($reply->isVoice())
-                                            {{ __('app.voice_message') }}
-                                        @elseif ($reply->files->isNotEmpty() && blank($reply->body))
-                                            {{ __('app.file') }}: {{ $reply->files->first()->name }}
                                         @else
-                                            {{ \Illuminate\Support\Str::limit($reply->body, 100) }}
+                                            {{ $reply->replyPreviewText() }}
                                         @endif
                                     </span>
                                 </button>
                             @endif
 
-                            @if (filled($message->body))
-                                <p class="whitespace-pre-wrap break-words text-sm leading-5">{{ $message->body }}</p>
-                            @endif
+                            @if ($isLiveLocation)
+                                <x-chat.live-location-card :message="$message" :own="$mine" :can-stop="! $readOnly && $mine" />
+                            @else
+                                @if (filled($message->body))
+                                    <p class="whitespace-pre-wrap break-words text-sm leading-5">{{ $message->body }}</p>
+                                @endif
 
-                            @if ($message->files->isNotEmpty())
+                                @if ($message->files->isNotEmpty())
                                 <div class="mt-2 space-y-1.5">
                                     @foreach ($message->files as $file)
                                         <a
@@ -125,6 +126,7 @@
                                         </a>
                                     @endforeach
                                 </div>
+                                @endif
                             @endif
 
                             <p class="mt-1 text-right text-[9px] font-semibold opacity-60">{{ $message->created_at?->format('H:i') }}</p>
@@ -201,7 +203,7 @@
                     <span class="min-w-0 flex-1">
                         <span class="block truncate text-[11px] font-bold text-rt-text dark:text-rt-dark-text">{{ $replyingTo->sender?->name }}</span>
                         <span class="block truncate text-[10px] text-rt-muted dark:text-rt-dark-muted">
-                            {{ $replyingTo->view_once ? __('app.chat_view_once_voice_message') : (filled($replyingTo->body) ? \Illuminate\Support\Str::limit($replyingTo->body, 100) : __('app.file')) }}
+                            {{ $replyingTo->replyPreviewText() }}
                         </span>
                     </span>
                     <button type="button" wire:click="cancelReply" class="inline-flex h-11 w-11 items-center justify-center rounded-xl text-rt-muted" aria-label="{{ __('app.cancel') }}">
@@ -235,6 +237,13 @@
                     >
                     <i class="far fa-paperclip" aria-hidden="true"></i>
                 </label>
+                <x-chat.live-location-share
+                    :chat-id="$room->call_chat_id"
+                    :start-url="route('chat.live-locations.store', ['chat' => $room->call_chat_id])"
+                    :reply-to-message-id="$replyingTo?->id"
+                    context="call"
+                    class="[&_.rt-chat-composer-action]:h-11 [&_.rt-chat-composer-action]:w-11 [&_.rt-chat-composer-action]:text-rt-muted"
+                />
                 <textarea
                     x-ref="composer"
                     wire:model="messageText"

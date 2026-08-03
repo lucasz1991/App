@@ -46,6 +46,20 @@ class RouteServiceProvider extends ServiceProvider
             return Limit::perMinutes(10, 3)->by($request->user()?->id ?: $request->ip());
         });
 
+        RateLimiter::for('chat-live-location-start', function (Request $request) {
+            $actor = $request->user()?->id ?: $request->ip();
+
+            return [
+                Limit::perMinute(6)->by('chat-live-location-start-minute:'.$actor),
+                Limit::perHour(30)->by('chat-live-location-start-hour:'.$actor),
+            ];
+        });
+
+        RateLimiter::for('chat-live-location-sync', function (Request $request) {
+            return Limit::perMinute(120)
+                ->by('chat-live-location-sync:'.($request->user()?->id ?: $request->ip()));
+        });
+
         RateLimiter::for('assistant-stt', function (Request $request) {
             $actor = $request->user()?->id ?: $request->ip();
 

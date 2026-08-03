@@ -21,8 +21,18 @@
                 <x-ui.forms.input id="password" class="mt-1 block" type="password" name="password" required autocomplete="current-password" />
             </div>
 
-            <div class="flex items-center justify-between">
-                <x-ui.forms.checkbox id="remember" name="remember" :label="__('app.remember_me')" />
+            <div class="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div class="min-w-0">
+                    <x-ui.forms.checkbox
+                        id="remember"
+                        name="remember"
+                        :label="__('app.remember_me')"
+                        aria-describedby="remember-help"
+                    />
+                    <p id="remember-help" class="mt-1 pl-8 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
+                        {{ __('app.remember_me_hint') }}
+                    </p>
+                </div>
                 <a href="{{ route('password.request') }}" wire:navigate class="text-sm text-rt-muted underline transition-colors duration-300 hover:text-rt-red dark:text-rt-dark-muted dark:hover:text-rt-dark-accent">
                     {{ __('app.forgot_password') }}
                 </a>

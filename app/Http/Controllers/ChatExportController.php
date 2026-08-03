@@ -38,6 +38,7 @@ class ChatExportController extends Controller
             ->with([
                 'sender:id,name',
                 'files:id,fileable_id,fileable_type,name,mime_type,size',
+                'liveLocation:id,chat_message_id,duration_minutes,expires_at,stopped_at,stop_reason',
                 'reactions:id,chat_message_id,user_id,emoji',
                 'replyTo' => fn ($query) => $query
                     ->withTrashed()
@@ -73,11 +74,13 @@ class ChatExportController extends Controller
                 ]);
 
                 $messages->lazyById(250)->each(function (ChatMessage $message) use ($output): void {
-                    $body = rescue(
-                        fn (): string => (string) $message->body,
-                        __('app.chat_export_decrypt_error'),
-                        report: false,
-                    );
+                    $body = $message->isLiveLocation()
+                        ? $message->liveLocationExportText()
+                        : rescue(
+                            fn (): string => (string) $message->body,
+                            __('app.chat_export_decrypt_error'),
+                            report: false,
+                        );
 
                     $attachments = $message->files
                         ->map(fn (File $file): string => $this->attachmentMetadata($file))

@@ -56,6 +56,7 @@ import {
 } from './navigation-particle-loader';
 import { ensureRailTimeNavigationCoordinator } from './navigation-coordinator';
 import { chatMessageActions } from './chat-message-actions';
+import { registerRailtimeLiveLocation } from './live-location';
 
 ensureRailTimeNavigationCoordinator(window, document);
 
@@ -622,6 +623,7 @@ window.RailTimeWagonMotion = createWagonListMotion();
 registerRailtimePushSettings(Alpine);
 registerRailtimePwaInstall(Alpine);
 setupRailtimePwa();
+const rtLiveLocation = registerRailtimeLiveLocation(Alpine);
 
 Alpine.data('wagonListPrototype', wagonListPrototype);
 Alpine.data('rtNumberInput', numberInput);
@@ -683,6 +685,32 @@ Alpine.data('chatRealtime', (config) => ({
             .listen('.chat.message.reaction', (event) => {
                 if (rtNotificationContext.isLocalChatVisible(Number(event.chatId))) {
                     Livewire.dispatch('chat:refresh', { chatId: Number(event.chatId) });
+                }
+            })
+            .listen('.chat.live-location.changed', (event) => {
+                // The broadcast is deliberately only a refresh signal. Exact
+                // coordinates are fetched through the authorized Livewire
+                // message response and never copied out of this event.
+                const signal = {
+                    chatId: Number(event.chatId || event.chat_id || 0),
+                    messageId: Number(event.messageId || event.message_id || 0),
+                    shareId: String(
+                        event.liveLocationId
+                        || event.live_location_id
+                        || event.shareId
+                        || event.share_id
+                        || '',
+                    ),
+                    status: String(event.status || ''),
+                };
+
+                rtLiveLocation.handleRealtimeSignal(signal);
+                window.dispatchEvent(new CustomEvent('railtime:live-location-changed', {
+                    detail: signal,
+                }));
+
+                if (signal.chatId > 0 && rtNotificationContext.isLocalChatVisible(signal.chatId)) {
+                    Livewire.dispatch('chat:refresh', { chatId: signal.chatId });
                 }
             })
             .listen('.chat.read', (event) => {

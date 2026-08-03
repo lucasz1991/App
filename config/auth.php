@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\User;
+
 return [
 
     /*
@@ -17,6 +19,22 @@ return [
         'guard' => 'web',
         'passwords' => 'users',
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Remember Me Lifetime
+    |--------------------------------------------------------------------------
+    |
+    | Persistent browser logins use a separate encrypted recaller cookie. The
+    | value is expressed in minutes and intentionally capped at 400 days, the
+    | maximum lifetime supported consistently by current Chromium browsers.
+    |
+    */
+
+    'remember_lifetime' => min(
+        max((int) env('AUTH_REMEMBER_LIFETIME', 576000), 1),
+        576000,
+    ),
 
     /*
     |--------------------------------------------------------------------------
@@ -62,7 +80,7 @@ return [
     'providers' => [
         'users' => [
             'driver' => 'eloquent',
-            'model' => App\Models\User::class,
+            'model' => User::class,
         ],
 
         // 'users' => [

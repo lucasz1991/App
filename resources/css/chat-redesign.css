@@ -413,6 +413,186 @@ body[data-mode='dark'] .rt-chat-page {
     background: color-mix(in srgb, theme('colors.rt.border') 76%, transparent);
 }
 
+/* Timed live-location sharing -------------------------------------------- */
+.rt-chat-message--live-location {
+    padding: 0.25rem !important;
+}
+
+.rt-live-location-card {
+    width: min(20rem, calc(100vw - 6.75rem));
+    color: inherit;
+}
+
+.rt-live-location-card.is-own {
+    background: rgb(255 255 255 / 0.08);
+}
+
+.rt-live-location-card.is-other {
+    background: rgb(255 255 255 / 0.72);
+    box-shadow: inset 0 0 0 1px rgb(15 23 42 / 0.06);
+}
+
+.dark .rt-live-location-card.is-other {
+    background: rgb(15 23 42 / 0.54);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.07);
+}
+
+.rt-live-location-map-button,
+.rt-live-location-preview-map {
+    background:
+        radial-gradient(circle at 22% 28%, rgb(250 83 79 / 0.2), transparent 22%),
+        linear-gradient(135deg, #dbe4e8, #eef2f3);
+}
+
+.dark .rt-live-location-map-button,
+.dark .rt-live-location-preview-map {
+    background:
+        radial-gradient(circle at 22% 28%, rgb(250 83 79 / 0.22), transparent 24%),
+        linear-gradient(135deg, #162332, #0b121c);
+}
+
+.rt-live-location-map-button .leaflet-container,
+.rt-live-location-preview-map .leaflet-container,
+.rt-live-location-preview-map.leaflet-container {
+    height: 100%;
+    width: 100%;
+    background: transparent;
+    font-family: inherit;
+}
+
+.rt-live-location-map-button .leaflet-control-attribution {
+    max-width: calc(100% - 3.5rem);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 7px;
+}
+
+.rt-live-location-marker {
+    position: relative;
+    display: grid;
+    height: 2.25rem;
+    width: 2.25rem;
+    place-items: center;
+    border: 3px solid white;
+    border-radius: 999px;
+    background: #ef4444;
+    color: white;
+    box-shadow: 0 8px 24px rgb(15 23 42 / 0.28);
+}
+
+.rt-live-location-marker::after {
+    position: absolute;
+    inset: -0.5rem;
+    content: '';
+    border: 1px solid rgb(239 68 68 / 0.36);
+    border-radius: inherit;
+    animation: rt-live-location-marker-pulse 2s ease-out infinite;
+}
+
+.rt-live-location-marker > i {
+    font-size: 0.8rem;
+}
+
+.rt-live-location-pulse {
+    background: currentColor;
+    opacity: 0.38;
+}
+
+.rt-live-location-pulse.is-active {
+    background: #22c55e;
+    box-shadow: 0 0 0 4px rgb(34 197 94 / 0.14);
+    opacity: 1;
+}
+
+.rt-live-location-status {
+    background: rgb(100 116 139 / 0.12);
+}
+
+.rt-live-location-status.is-active {
+    background: rgb(34 197 94 / 0.16);
+    color: #15803d;
+}
+
+.rt-live-location-card.is-own .rt-live-location-status.is-active {
+    background: rgb(255 255 255 / 0.16);
+    color: white;
+}
+
+.dark .rt-live-location-card.is-other .rt-live-location-status.is-active {
+    color: #86efac;
+}
+
+.rt-live-location-secondary,
+.rt-live-location-stop {
+    background: rgb(15 23 42 / 0.07);
+    transition: transform 160ms ease, background-color 160ms ease;
+}
+
+.rt-live-location-card.is-own .rt-live-location-secondary,
+.rt-live-location-card.is-own .rt-live-location-stop {
+    background: rgb(255 255 255 / 0.14);
+}
+
+.rt-live-location-secondary:hover,
+.rt-live-location-stop:hover {
+    background: rgb(15 23 42 / 0.12);
+    transform: translateY(-1px);
+}
+
+.rt-live-location-card.is-own .rt-live-location-secondary:hover,
+.rt-live-location-card.is-own .rt-live-location-stop:hover {
+    background: rgb(255 255 255 / 0.22);
+}
+
+.rt-live-location-duration {
+    color: var(--rt-chat-text, #182333);
+    background: var(--rt-chat-panel-muted, #f4f6f8);
+    box-shadow: inset 0 0 0 1px var(--rt-chat-border, rgb(148 163 184 / 0.3));
+}
+
+.dark .rt-live-location-duration {
+    color: #f8fafc;
+    background: #111c2a;
+    box-shadow: inset 0 0 0 1px rgb(148 163 184 / 0.18);
+}
+
+.rt-live-location-duration > span:first-child {
+    color: #e34845;
+    background: rgb(227 72 69 / 0.1);
+}
+
+.rt-live-location-duration:hover,
+.rt-live-location-duration:focus-visible {
+    outline: none;
+    color: #b42320;
+    background: rgb(227 72 69 / 0.08);
+    box-shadow: inset 0 0 0 2px rgb(227 72 69 / 0.3), 0 12px 24px rgb(15 23 42 / 0.08);
+    transform: translateY(-1px);
+}
+
+.rt-live-location-preview-map {
+    min-height: 18rem;
+}
+
+@keyframes rt-live-location-marker-pulse {
+    0% {
+        opacity: 0.8;
+        transform: scale(0.62);
+    }
+    75%,
+    100% {
+        opacity: 0;
+        transform: scale(1.35);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rt-live-location-marker::after {
+        animation: none;
+    }
+}
+
 html.dark .rt-chat-option-divider,
 body[data-mode='dark'] .rt-chat-option-divider {
     background: color-mix(in srgb, theme('colors.rt-dark.border') 76%, transparent);

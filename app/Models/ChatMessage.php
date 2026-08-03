@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Cache;
@@ -59,6 +60,16 @@ class ChatMessage extends Model
     public function views(): HasMany
     {
         return $this->hasMany(ChatMessageView::class);
+    }
+
+    public function liveLocation(): HasOne
+    {
+        return $this->hasOne(ChatLiveLocation::class);
+    }
+
+    public function isLiveLocation(): bool
+    {
+        return $this->message_type === 'live_location';
     }
 
     public function isVoice(): bool
@@ -119,6 +130,10 @@ class ChatMessage extends Model
             return __('app.chat_original_message_unavailable');
         }
 
+        if ($this->isLiveLocation()) {
+            return __('app.chat_live_location');
+        }
+
         if ($this->view_once) {
             return __('app.chat_view_once_voice_message');
         }
@@ -138,5 +153,56 @@ class ChatMessage extends Model
         return $file?->name
             ? __('app.chat_attachment_named', ['name' => Str::limit((string) $file->name, 80)])
             : __('app.chat_attachment');
+    }
+
+    public function previewText(int $limit = 160): string
+    {
+        if ($this->isLiveLocation()) {
+            return __('app.chat_live_location');
+        }
+
+        if ($this->isVoice()) {
+            return __('app.voice_message');
+        }
+
+        $body = trim(rescue(fn (): string => (string) $this->body, '', report: false));
+        if ($body !== '') {
+            return Str::limit($body, $limit);
+        }
+
+        if ($this->relationLoaded('files') ? $this->files->isNotEmpty() : $this->files()->exists()) {
+            return __('app.chat_attachment');
+        }
+
+        return __('app.push_new_chat_body');
+    }
+
+    /** Export metadata deliberately excludes exact coordinates. */
+    public function liveLocationExportText(): string
+    {
+        if (! $this->isLiveLocation()) {
+            return '';
+        }
+
+        $location = $this->relationLoaded('liveLocation')
+            ? $this->liveLocation
+            : $this->liveLocation()->first();
+
+        if (! $location) {
+            return __('app.chat_live_location');
+        }
+
+        $status = match ($location->status()) {
+            'active' => __('app.chat_live_location_live'),
+            'stopped' => __('app.chat_live_location_stopped'),
+            default => __('app.chat_live_location_expired'),
+        };
+
+        return sprintf(
+            '%s (%d min; %s)',
+            __('app.chat_live_location'),
+            (int) $location->duration_minutes,
+            $status,
+        );
     }
 }

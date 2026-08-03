@@ -66,6 +66,7 @@ class CallChat extends Component
             "echo-private:chat.{$chatId},.chat.message.sent" => 'refreshMessages',
             "echo-private:chat.{$chatId},.chat.message.deleted" => 'refreshMessages',
             "echo-private:chat.{$chatId},.chat.message.reaction" => 'refreshMessages',
+            "echo-private:chat.{$chatId},.chat.live-location.changed" => 'refreshMessages',
         ];
     }
 
@@ -357,6 +358,7 @@ class CallChat extends Component
                 ->with([
                     'sender:id,name,profile_photo_path',
                     'files',
+                    'liveLocation',
                     'replyTo' => fn ($relation) => $relation->withTrashed()->with('sender:id,name'),
                     'reactions.user:id,name',
                 ])
@@ -367,6 +369,7 @@ class CallChat extends Component
                 ->with([
                     'sender:id,name,profile_photo_path',
                     'files',
+                    'liveLocation',
                     'replyTo' => fn ($relation) => $relation->withTrashed()->with('sender:id,name'),
                     'reactions.user:id,name',
                 ])

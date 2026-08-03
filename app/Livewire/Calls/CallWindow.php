@@ -3,6 +3,7 @@
 namespace App\Livewire\Calls;
 
 use App\Events\CallModerationActioned;
+use App\Models\ChatLiveLocation;
 use App\Models\Room;
 use App\Models\RoomInvitation;
 use App\Models\RoomParticipant;
@@ -12,6 +13,7 @@ use App\Services\Calls\CallInvitationService;
 use App\Services\Calls\LiveKitService;
 use App\Services\Calls\RoomEventRecorder;
 use App\Services\Calls\RoomLifecycleService;
+use App\Services\Chat\ChatLiveLocationService;
 use Livewire\Attributes\Renderless;
 use Livewire\Component;
 
@@ -169,6 +171,7 @@ class CallWindow extends Component
         int $participantId,
         LiveKitService $livekit,
         RoomEventRecorder $events,
+        ChatLiveLocationService $liveLocations,
     ): void {
         $target = $this->moderatableParticipant($participantId);
 
@@ -186,6 +189,14 @@ class CallWindow extends Component
             'left_at' => now(),
             'role' => 'viewer',
         ])->save();
+
+        if ($this->room->call_chat_id && $target->user_id) {
+            $liveLocations->stopForUserInChat(
+                (int) $this->room->call_chat_id,
+                (int) $target->user_id,
+                ChatLiveLocation::STOP_CALL_REMOVED,
+            );
+        }
 
         $events->record($this->room, 'removed', $target->user_id, [
             'removed_by' => (int) auth()->id(),

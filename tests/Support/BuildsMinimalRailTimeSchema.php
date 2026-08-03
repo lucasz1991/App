@@ -322,6 +322,22 @@ trait BuildsMinimalRailTimeSchema
             $table->softDeletes();
         });
 
+        Schema::create('chat_live_locations', function (Blueprint $table): void {
+            $table->id();
+            $table->uuid('uuid')->unique();
+            $table->unsignedBigInteger('chat_message_id')->unique();
+            $table->unsignedBigInteger('user_id');
+            $table->unsignedTinyInteger('duration_minutes');
+            $table->longText('latest_position');
+            $table->timestamp('last_position_at')->nullable();
+            $table->timestamp('expires_at');
+            $table->timestamp('stopped_at')->nullable();
+            $table->string('stop_reason', 32)->nullable();
+            $table->unsignedBigInteger('version')->default(1);
+            $table->timestamps();
+            $table->index(['user_id', 'stopped_at', 'expires_at']);
+        });
+
         Schema::create('chat_message_reactions', function (Blueprint $table): void {
             $table->id();
             $table->unsignedBigInteger('chat_message_id');

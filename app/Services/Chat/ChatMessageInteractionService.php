@@ -145,6 +145,10 @@ class ChatMessageInteractionService
 
             $message->loadMissing('files');
             $message->files->each->delete();
+            // A soft-deleted message does not trigger the database FK cascade.
+            // Remove precise coordinates explicitly so the tombstone is truly
+            // content-free.
+            $message->liveLocation()->delete();
             $message->views()->delete();
             $message->reactions()->delete();
             $message->forceFill([

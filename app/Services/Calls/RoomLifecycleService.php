@@ -6,9 +6,11 @@ use App\Events\CallEnded;
 use App\Events\CallInvitationExpired;
 use App\Events\CallStarted;
 use App\Models\Chat;
+use App\Models\ChatLiveLocation;
 use App\Models\Room;
 use App\Models\RoomParticipant;
 use App\Models\User;
+use App\Services\Chat\ChatLiveLocationService;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -25,6 +27,7 @@ class RoomLifecycleService
         protected CallRecordingService $recordings,
         protected CallConversationService $conversations,
         protected RoomEventRecorder $events,
+        protected ChatLiveLocationService $liveLocations,
     ) {}
 
     /**
@@ -107,6 +110,13 @@ class RoomLifecycleService
     {
         $this->recordings->requestStop($room);
 
+        if ($room->call_chat_id) {
+            $this->liveLocations->stopForChat(
+                (int) $room->call_chat_id,
+                ChatLiveLocation::STOP_CALL_ENDED,
+            );
+        }
+
         if (in_array($room->status, ['ended', 'cancelled'], true)) {
             return;
         }
@@ -135,6 +145,13 @@ class RoomLifecycleService
      */
     public function cancel(Room $room, string $reason = 'cancelled'): void
     {
+        if ($room->call_chat_id) {
+            $this->liveLocations->stopForChat(
+                (int) $room->call_chat_id,
+                ChatLiveLocation::STOP_CALL_ENDED,
+            );
+        }
+
         if (in_array($room->status, ['ended', 'cancelled'], true)) {
             return;
         }
@@ -180,6 +197,14 @@ class RoomLifecycleService
             'connection' => 'left',
             'left_at' => now(),
         ])->save();
+
+        if ($room->call_chat_id && $participant->user_id) {
+            $this->liveLocations->stopForUserInChat(
+                (int) $room->call_chat_id,
+                (int) $participant->user_id,
+                ChatLiveLocation::STOP_CALL_LEFT,
+            );
+        }
 
         $this->events->record($room, 'participant_left', $participant->user_id);
 

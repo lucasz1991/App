@@ -94,7 +94,7 @@
                         </span>
                         <span class="mt-0.5 block truncate text-[11px] leading-4 text-rt-muted dark:text-rt-dark-muted">
                             @if ($latest)
-                                {{ (int) $latest->user_id === (int) $me->id ? __('app.you') . ': ' : '' }}{{ $latest->isVoice() ? __('app.voice_message') : (filled($latest->body) ? $latest->body : __('app.chat_attachment')) }}
+                                {{ (int) $latest->user_id === (int) $me->id ? __('app.you') . ': ' : '' }}{{ $latest->replyPreviewText() }}
                             @endif
                         </span>
                     </span>
