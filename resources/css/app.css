@@ -5027,7 +5027,7 @@ body[data-mode='dark'] .rt-employee-mobile-header {
 /* RailTime Particle Core: Die Navigationskugel besteht vollstaendig aus
    Canvas-Partikeln. Eine deterministische Fibonacci-Verteilung erzeugt echte
    Tiefenwirkung; das Outro formt bei laengeren Wechseln kurz das RT-Monogramm.
-   Delay, History-Sicherheit und Failsafe werden in app.js gesteuert. */
+   Mindestlaufzeit, History-Sicherheit und Failsafe werden in app.js gesteuert. */
 .rt-nav-overlay {
     position: fixed;
     inset: 0;

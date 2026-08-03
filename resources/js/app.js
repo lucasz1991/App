@@ -50,7 +50,10 @@ import { initKeyboardViewport } from './keyboard-viewport';
 import { welcomeIntro } from './welcome-intro';
 import { railtimeChatbot } from './chatbot';
 import { railtimeAssistantPet3d } from './assistant-pet-3d';
-import { createNavigationParticleSphere } from './navigation-particle-loader';
+import {
+    createNavigationParticleSphere,
+    resolveMinimumLoaderPlaybackDelay,
+} from './navigation-particle-loader';
 import { ensureRailTimeNavigationCoordinator } from './navigation-coordinator';
 import { chatMessageActions } from './chat-message-actions';
 
@@ -208,16 +211,16 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
 
 // ---------------------------------------------------------------
 // Seitenwechsel-Overlay fuer wire:navigate: ein kompakter, frei schwebender
-// RailTime-Orb ohne Text oder Dialogflaeche. Wird erst nach kurzer Verzoegerung
-// gezeigt (kein Flackern bei vorab geladenen Seiten) und nach dem
-// body-Swap bei Bedarf neu angehaengt.
+// RailTime-Orb ohne Text oder Dialogflaeche. Er startet mit der Navigation,
+// bleibt bei schnellen Seitenwechseln mindestens 600 ms animiert und wird nach
+// dem body-Swap bei Bedarf neu angehaengt.
 // ---------------------------------------------------------------
 (function () {
     let overlay = null;
     let announcement = null;
     let particleSphere = null;
-    let showTimer = null;
     let failsafeTimer = null;
+    let minimumPlaybackTimer = null;
     let outroTimer = null;
     let announcementTimer = null;
     let active = false;
@@ -225,6 +228,7 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
     let visibleBeforeSwap = false;
     let transitionToken = 0;
     let pendingNavigations = 0;
+    let visibleStartedAt = null;
 
     // Notbremse. Grund (verifiziert in vendor/livewire/livewire/dist/
     // livewire.esm.js, performFetch): Livewire holt die neue Seite mit
@@ -317,12 +321,12 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
     }
 
     function clearTransitionTimers() {
-        window.clearTimeout(showTimer);
         window.clearTimeout(failsafeTimer);
+        window.clearTimeout(minimumPlaybackTimer);
         window.clearTimeout(outroTimer);
         window.clearTimeout(announcementTimer);
-        showTimer = null;
         failsafeTimer = null;
+        minimumPlaybackTimer = null;
         outroTimer = null;
         announcementTimer = null;
     }
@@ -342,6 +346,7 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
         }
 
         particleSphere?.stop();
+        visibleStartedAt = null;
         visibleBeforeSwap = false;
         removeOverlayClones();
     }
@@ -362,17 +367,13 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
         clearTransitionTimers();
         hideImmediately();
 
-        const token = transitionToken;
-        showTimer = window.setTimeout(function () {
-            if (!active || token !== transitionToken) return;
-
-            const o = ensureOverlay();
-            o.classList.remove('is-leaving', 'is-leaving--quick', 'is-leaving--logo');
-            o.setAttribute('aria-hidden', 'false');
-            o.classList.add('is-visible');
-            syncAnnouncement({ announce: true });
-            particleSphere?.start();
-        }, 120);
+        const o = ensureOverlay();
+        o.classList.remove('is-leaving', 'is-leaving--quick', 'is-leaving--logo');
+        o.setAttribute('aria-hidden', 'false');
+        o.classList.add('is-visible');
+        syncAnnouncement({ announce: true });
+        visibleStartedAt = window.performance.now();
+        particleSphere?.start();
         failsafeTimer = window.setTimeout(done, FAILSAFE_MS);
     }
 
@@ -411,20 +412,8 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
         hideImmediately();
     }
 
-    function done(options = {}) {
-        const animate = options?.animate === true;
-        const token = transitionToken;
-        const wasVisible = visibleBeforeSwap || overlay?.classList.contains('is-visible');
-
-        pendingNavigations = 0;
-        active = false;
-        clearTransitionTimers();
-        removeOverlayClones();
-
-        if (!animate || !wasVisible) {
-            transitionToken += 1;
-            hideImmediately();
-
+    function beginOutro(token) {
+        if (token !== transitionToken) {
             return;
         }
 
@@ -450,6 +439,56 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
         outroTimer = window.setTimeout(function () {
             finishOutro(token);
         }, outro.duration + 32);
+    }
+
+    function done(options = {}) {
+        const animate = options?.animate === true;
+        const token = transitionToken;
+        const wasVisible = visibleBeforeSwap || overlay?.classList.contains('is-visible');
+
+        pendingNavigations = 0;
+        active = false;
+        clearTransitionTimers();
+        removeOverlayClones();
+
+        if (!animate || !wasVisible) {
+            transitionToken += 1;
+            hideImmediately();
+
+            return;
+        }
+
+        // onSwap setzt den Loader normalerweise schon in den neuen Body. Der
+        // Fallback muss jetzt greifen (nicht erst beim Outro), damit auch die
+        // Mindestlaufzeit in Browser-/Livewire-Pfaden ohne onSwap sichtbar ist.
+        const o = ensureOverlay();
+        o.setAttribute('aria-hidden', 'false');
+        o.classList.add('is-visible');
+
+        // Bei extrem schnellen Antworten kann die per Timeout angestossene
+        // erneute Live-Ansage noch ausstehen. Der sichtbare Mindestlauf darf
+        // deshalb nie mit einem leeren Statusknoten weiterlaufen.
+        syncAnnouncement();
+
+        const minimumDelay = resolveMinimumLoaderPlaybackDelay(
+            visibleStartedAt,
+            window.performance.now(),
+            {
+                reducedMotion: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+                forcedColors: window.matchMedia('(forced-colors: active)').matches,
+            }
+        );
+
+        if (minimumDelay > 0) {
+            minimumPlaybackTimer = window.setTimeout(function () {
+                minimumPlaybackTimer = null;
+                beginOutro(token);
+            }, minimumDelay);
+
+            return;
+        }
+
+        beginOutro(token);
     }
 
     document.addEventListener('livewire:navigate', function (event) {

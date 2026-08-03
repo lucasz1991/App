@@ -1,6 +1,8 @@
 const TAU = Math.PI * 2;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
+export const NAVIGATION_LOADER_MIN_PLAYBACK_MS = 600;
+
 const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
 const mix = (from, to, progress) => from + ((to - from) * progress);
 const easeOutQuint = (value) => 1 - Math.pow(1 - clamp(value), 5);
@@ -26,6 +28,32 @@ export function clampParticleDpr(value) {
     }
 
     return Math.min(parsed, 2);
+}
+
+export function resolveMinimumLoaderPlaybackDelay(
+    visibleStartedAt,
+    now,
+    {
+        reducedMotion = false,
+        forcedColors = false,
+        minimumMs = NAVIGATION_LOADER_MIN_PLAYBACK_MS,
+    } = {}
+) {
+    if (
+        reducedMotion
+        || forcedColors
+        || !Number.isFinite(visibleStartedAt)
+        || !Number.isFinite(now)
+    ) {
+        return 0;
+    }
+
+    const resolvedMinimum = Number.isFinite(minimumMs) && minimumMs > 0
+        ? minimumMs
+        : NAVIGATION_LOADER_MIN_PLAYBACK_MS;
+    const elapsed = Math.max(0, now - visibleStartedAt);
+
+    return Math.max(0, resolvedMinimum - elapsed);
 }
 
 export function resolveParticleBudget({
