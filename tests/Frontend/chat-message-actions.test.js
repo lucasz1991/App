@@ -5,15 +5,39 @@ import test from 'node:test';
 import {
     chatMessageActions,
     chatMessageGesture,
-    clampChatMenuPosition,
     shouldCancelChatLongPress,
 } from '../../resources/js/chat-message-actions.js';
 
-test('ordinary click and long press open separate menus', () => {
+function installInteractionEnvironment() {
     const originalWindow = globalThis.window;
+    const originalDocument = globalThis.document;
     const originalElement = globalThis.Element;
     const timers = [];
+    let expanded = 'false';
+    let triggerClicks = 0;
+    let focused = 0;
+
+    const trigger = {
+        click() {
+            triggerClicks += 1;
+            expanded = 'true';
+        },
+        getAttribute(name) {
+            if (name === 'aria-expanded') return expanded;
+            if (name === 'aria-controls') return 'message-menu';
+            return null;
+        },
+    };
+
     globalThis.Element = class Element {};
+    globalThis.document = {
+        querySelector: () => trigger,
+        getElementById: () => ({
+            querySelector: () => ({
+                querySelector: () => ({ focus() { focused += 1; } }),
+            }),
+        }),
+    };
     globalThis.window = {
         clearTimeout() {},
         navigator: {},
@@ -21,26 +45,41 @@ test('ordinary click and long press open separate menus', () => {
         setTimeout(callback) { timers.push(callback); return timers.length; },
     };
 
+    return {
+        timers,
+        triggerClicks: () => triggerClicks,
+        focused: () => focused,
+        closeTrigger: () => { expanded = 'false'; },
+        restore() {
+            globalThis.window = originalWindow;
+            globalThis.document = originalDocument;
+            globalThis.Element = originalElement;
+        },
+    };
+}
+
+test('ordinary click and long press route through the shared message dropdown', () => {
+    const environment = installInteractionEnvironment();
+
     try {
-        const actions = chatMessageActions({ canReact: true });
+        const actions = chatMessageActions({ messageId: 42, controllerId: 'chat-42', canReact: true });
         actions.$nextTick = (callback) => callback();
-        actions.positionMenu = () => {};
-        actions.$refs = {
-            messageBubble: {
-                getBoundingClientRect: () => ({ left: 10, top: 20, width: 100, height: 60 }),
-            },
-        };
 
         actions.handleClick({
-            clientX: 40,
-            clientY: 50,
-            detail: 1,
+            preventDefault() {},
+            stopPropagation() {},
             target: null,
         });
-        assert.equal(actions.actionOpen, true);
-        assert.equal(actions.reactionOpen, false);
+        assert.equal(actions.menuMode, 'actions');
+        assert.equal(environment.triggerClicks(), 1);
+        assert.equal(environment.focused(), 1);
 
-        actions.close();
+        actions.menuMode = 'reactions';
+        actions.showActionMenu();
+        assert.equal(actions.menuMode, 'actions');
+        assert.equal(environment.focused(), 2);
+
+        environment.closeTrigger();
         actions.startLongPress({
             pointerType: 'touch',
             pointerId: 7,
@@ -48,36 +87,29 @@ test('ordinary click and long press open separate menus', () => {
             clientY: 70,
             target: null,
         });
-        timers.shift()();
-        assert.equal(actions.actionOpen, false);
-        assert.equal(actions.reactionOpen, true);
+        environment.timers.shift()();
+        assert.equal(actions.menuMode, 'reactions');
         assert.equal(actions.showMore, false);
+        assert.equal(environment.triggerClicks(), 2);
     } finally {
-        globalThis.window = originalWindow;
-        globalThis.Element = originalElement;
+        environment.restore();
     }
 });
 
-test('own-message long press suppresses the click without opening reactions', () => {
-    const originalWindow = globalThis.window;
-    const originalElement = globalThis.Element;
-    let scheduled = null;
-    globalThis.Element = class Element {};
-    globalThis.window = {
-        clearTimeout() {},
-        setTimeout(callback) { scheduled = callback; return 1; },
-    };
+test('own-message long press opens useful message actions', () => {
+    const environment = installInteractionEnvironment();
 
     try {
-        const actions = chatMessageActions({ canReact: false });
+        const actions = chatMessageActions({ messageId: 7, controllerId: 'chat-7', canReact: false });
+        actions.$nextTick = (callback) => callback();
         actions.startLongPress({ pointerType: 'touch', pointerId: 1, clientX: 20, clientY: 30, target: null });
-        assert.equal(typeof scheduled, 'function');
-        scheduled();
-        assert.equal(actions.reactionOpen, false);
+        environment.timers.shift()();
+
+        assert.equal(actions.menuMode, 'actions');
+        assert.equal(environment.triggerClicks(), 1);
         assert.ok(actions.suppressClickUntil > Date.now());
     } finally {
-        globalThis.window = originalWindow;
-        globalThis.Element = originalElement;
+        environment.restore();
     }
 });
 
@@ -88,67 +120,82 @@ test('message long press uses the locked 500ms and 10px contract', () => {
     assert.equal(shouldCancelChatLongPress(10, 10, 21, 10), true);
 });
 
-test('context menu positioning remains inside the visual viewport gap', () => {
-    assert.equal(clampChatMenuPosition(-20, 12, 300), 12);
-    assert.equal(clampChatMenuPosition(180, 12, 300), 180);
-    assert.equal(clampChatMenuPosition(420, 12, 300), 300);
-    assert.equal(clampChatMenuPosition(20, 50, 20), 50);
+test('chat and call transcripts use the same anchored dropdown components', async () => {
+    const [transcript, callChat] = await Promise.all([
+        readFile(new URL('../../resources/views/livewire/chat/partials/transcript.blade.php', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/views/livewire/calls/call-chat.blade.php', import.meta.url), 'utf8'),
+    ]);
+
+    for (const source of [transcript, callChat]) {
+        assert.match(source, /<x-chat\.message-dropdown/);
+        assert.match(source, /<x-chat\.reaction-dropdown/);
+        assert.match(source, /rt-chat-reactions--overlay/);
+        assert.match(source, /x-on:contextmenu\.stop="openActionsAtPointer\(\$event\)"/);
+        assert.doesNotMatch(source, /actionX|actionY|menuStyle|x-show="actionOpen"|x-show="reactionOpen"/);
+        assert.doesNotMatch(source, /wire:click="(?:toggleReaction|react)\(/);
+    }
+
+    assert.match(callChat, /chatMessageActions\(/);
+    assert.doesNotMatch(callChat, /\$allReactions\s*=/);
 });
 
-test('transcript separates click actions from long-press reactions with accessible targets', async () => {
+test('shared message dropdown shows one quick row and a genuinely collapsed extension', async () => {
     const source = await readFile(
-        new URL('../../resources/views/livewire/chat/partials/transcript.blade.php', import.meta.url),
+        new URL('../../resources/views/components/chat/message-dropdown.blade.php', import.meta.url),
         'utf8',
     );
 
-    assert.match(source, /x-on:click="handleClick\(\$event\)"/);
-    assert.match(source, /x-on:contextmenu\.stop="openActionsAtPointer\(\$event\)"/);
-    assert.match(source, /x-on:pointercancel="cancelLongPress\(\)"/);
-    assert.match(source, /handleKeyboard\(\$event\)/);
-    assert.match(source, /x-show="actionOpen"/);
-    assert.match(source, /x-show="reactionOpen"/);
-    assert.match(source, /x-bind:style="actionOpen \? menuStyle : 'display: none;'"/);
-    assert.match(source, /x-bind:style="reactionOpen \? menuStyle : 'display: none;'"/);
-    assert.match(source, /x-show\.important="showMore"/);
-    assert.match(source, /x-bind:style="showMore \? '' : 'display: none !important;'"/);
-    assert.match(source, /openReactionsFromActionMenu\(\)/);
-    assert.match(source, /fa-chevron-down/);
-    assert.doesNotMatch(source, /x-show="actionOpen"[\s\S]{0,800}chat_quick_reactions/);
-    assert.match(source, /wire:click="beginReply/);
-    assert.match(source, /wire:click="toggleReaction/);
-    assert.match(source, /min-h-11 min-w-11/);
+    assert.match(source, /<x-ui\.dropdown\.anchor-dropdown/);
+    assert.match(source, /array_filter\(/);
+    assert.match(source, /data-chat-quick-reaction-row/);
+    assert.match(source, /rt-chat-quick-reactions-track/);
+    assert.match(source, /rt-chat-reaction-grid/);
+    assert.match(source, /data-chat-expanded-reactions/);
+    assert.match(source, /x-show="showMore" style="display:none;"/);
+    assert.match(source, /data-rt-dropdown-keep-open/);
+    assert.match(source, /wire:click="\{\{ \$reactMethod \}\}/);
+    assert.doesNotMatch(source, /toggleReaction/);
 });
 
-test('call chat uses the same split menus and renders history interactions passively', async () => {
+test('reaction chips open an anchored change/remove menu without direct toggle', async () => {
     const source = await readFile(
-        new URL('../../resources/views/livewire/calls/call-chat.blade.php', import.meta.url),
+        new URL('../../resources/views/components/chat/reaction-dropdown.blade.php', import.meta.url),
         'utf8',
     );
 
-    assert.match(source, /@unless \(\$readOnly\)[\s\S]*wire:poll\.5s="refreshMessages"/);
-    assert.match(source, /handleMessageClick\(\$event/);
-    assert.match(source, /this\.openReactions\(event, id, mine, true\)/);
-    assert.match(source, /if \(!mine\) this\.openReactions\(event, id, mine, true\)/);
-    assert.match(source, /x-show="actionOpen"/);
-    assert.match(source, /x-show="reactionOpen"/);
-    assert.match(source, /:style="actionOpen \? `left:\$\{actionX\}px; top:\$\{actionY\}px` : 'display: none;'"/);
-    assert.match(source, /:style="reactionOpen \? `left:\$\{actionX\}px; top:\$\{actionY\}px` : 'display: none;'"/);
-    assert.match(source, /x-show\.important="expandedReactions"/);
-    assert.match(source, /:style="expandedReactions \? '' : 'display: none !important;'"/);
-    assert.match(source, /x-on:click\.outside="closeMenus\(\)"/);
-    assert.match(source, /fa-chevron-down/);
-    assert.match(source, /@if \(\$readOnly \|\| \$mine\)/);
-    assert.match(source, /@if \(\$reactions->count\(\) > 1\)/);
+    assert.match(source, /<x-ui\.dropdown\.anchor-dropdown/);
+    assert.match(source, /chat_change_reaction/);
+    assert.match(source, /chat_remove_reaction/);
+    assert.match(source, /wire:click="\{\{ \$removeMethod \}\}/);
+    assert.match(source, /wire:key="\{\{ \$resolvedId \}\}"/);
+    assert.doesNotMatch(source, /toggleReaction/);
 });
 
-test('rendered reaction emojis have no chip background or frame', async () => {
+test('shared dropdown keeps in-panel expansion controls open', async () => {
+    const source = await readFile(
+        new URL('../../resources/views/components/ui/dropdown/anchor-dropdown.blade.php', import.meta.url),
+        'utf8',
+    );
+
+    assert.match(source, /data-rt-dropdown-keep-open/);
+    assert.match(source, /data-rt-dropdown-caret/);
+    assert.match(source, /x-teleport="body"/);
+});
+
+test('rendered reaction emojis stay transparent while the rail overlaps the bubble', async () => {
     const source = await readFile(
         new URL('../../resources/css/chat-redesign.css', import.meta.url),
         'utf8',
     );
     const chipRule = source.match(/\.rt-chat-reaction-chip\s*\{([\s\S]*?)\}/)?.[1] || '';
+    const overlayRule = source.match(/\.rt-chat-reactions--overlay\s*\{([\s\S]*?)\}/)?.[1] || '';
 
     assert.match(chipRule, /border:\s*0/);
+    assert.match(chipRule, /theme\('colors\.rt\.text'\)/);
     assert.match(chipRule, /background:\s*transparent/);
     assert.match(chipRule, /box-shadow:\s*none/);
+    assert.match(overlayRule, /position:\s*absolute/);
+    assert.match(overlayRule, /bottom:\s*0/);
+    assert.match(overlayRule, /overflow-x:\s*auto/);
+    assert.match(source, /\[data-chat-message-action-trigger\]\[aria-expanded='true'\]/);
 });

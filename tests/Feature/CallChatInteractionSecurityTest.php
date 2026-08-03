@@ -41,7 +41,7 @@ class CallChatInteractionSecurityTest extends TestCase
 
         Livewire::actingAs($owner)
             ->test(CallChat::class, ['room' => $room])
-            ->call('react', $message->id, '👍')
+            ->call('setReaction', $message->id, '👍')
             ->assertForbidden();
 
         $this->assertDatabaseMissing('chat_message_reactions', [
@@ -73,12 +73,43 @@ class CallChatInteractionSecurityTest extends TestCase
             ->assertDontSeeHtml('x-on:contextmenu.prevent="openActions')
             ->assertDontSeeHtml('$wire.startReply')
             ->assertDontSeeHtml('$wire.react')
+            ->assertDontSeeHtml('wire:click="setReaction')
+            ->assertDontSeeHtml('wire:click="removeReaction')
             ->assertDontSeeHtml('$wire.deleteMessage');
 
         $component->call('startReply', $message->id)->assertForbidden();
 
         $locked = (new ReflectionProperty(CallChat::class, 'readOnly'))->getAttributes(Locked::class);
         $this->assertCount(1, $locked);
+    }
+
+    public function test_call_chat_sets_and_removes_reactions_as_separate_actions(): void
+    {
+        [$owner, $guest, $room, $chat] = $this->callChat();
+        $message = ChatMessage::create([
+            'chat_id' => $chat->id,
+            'user_id' => $guest->id,
+            'body' => 'Call-Reaktion',
+        ]);
+        $component = Livewire::actingAs($owner)
+            ->test(CallChat::class, ['room' => $room]);
+
+        $component
+            ->call('setReaction', $message->id, '👍')
+            ->call('setReaction', $message->id, '👍');
+
+        $this->assertDatabaseCount('chat_message_reactions', 1);
+        $this->assertDatabaseHas('chat_message_reactions', [
+            'chat_message_id' => $message->id,
+            'user_id' => $owner->id,
+            'emoji' => '👍',
+        ]);
+
+        $component->call('removeReaction', $message->id);
+        $this->assertDatabaseMissing('chat_message_reactions', [
+            'chat_message_id' => $message->id,
+            'user_id' => $owner->id,
+        ]);
     }
 
     public function test_room_end_is_rederived_before_a_pending_reply_mutation(): void

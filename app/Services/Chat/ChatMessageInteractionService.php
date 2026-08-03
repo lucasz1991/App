@@ -25,6 +25,7 @@ class ChatMessageInteractionService
         User $user,
         int $messageId,
         bool $withDeleted = false,
+        bool $forUpdate = false,
     ): ChatMessage {
         if (! $chat->relationLoaded('participants')) {
             $chat->load('participants');
@@ -37,7 +38,8 @@ class ChatMessageInteractionService
         $query = ChatMessage::query()
             ->where('chat_id', $chat->id)
             ->when($withDeleted, fn ($query) => $query->withTrashed())
-            ->when($visibleSince, fn ($query) => $query->where('created_at', '>=', $visibleSince));
+            ->when($visibleSince, fn ($query) => $query->where('created_at', '>=', $visibleSince))
+            ->when($forUpdate, fn ($query) => $query->lockForUpdate());
 
         return $query->findOrFail($messageId);
     }
@@ -55,10 +57,10 @@ class ChatMessageInteractionService
     ): ?ChatMessageReaction {
         abort_unless(in_array($emoji, self::ALLOWED_REACTIONS, true), 422);
 
-        $message = $this->visibleMessage($chat, $user, $messageId);
-        abort_if((int) $message->user_id === (int) $user->id, 403);
+        return DB::transaction(function () use ($chat, $user, $messageId, $emoji): ?ChatMessageReaction {
+            $message = $this->visibleMessage($chat, $user, $messageId, forUpdate: true);
+            abort_if((int) $message->user_id === (int) $user->id, 403);
 
-        return DB::transaction(function () use ($message, $user, $emoji): ?ChatMessageReaction {
             $reaction = ChatMessageReaction::query()
                 ->where('chat_message_id', $message->id)
                 ->where('user_id', $user->id)
@@ -85,12 +87,62 @@ class ChatMessageInteractionService
         });
     }
 
+    public function setReaction(
+        Chat $chat,
+        User $user,
+        int $messageId,
+        string $emoji,
+    ): ChatMessageReaction {
+        abort_unless(in_array($emoji, self::ALLOWED_REACTIONS, true), 422);
+
+        return DB::transaction(function () use ($chat, $user, $messageId, $emoji): ChatMessageReaction {
+            $message = $this->visibleMessage($chat, $user, $messageId, forUpdate: true);
+            abort_if((int) $message->user_id === (int) $user->id, 403);
+
+            $reaction = ChatMessageReaction::query()
+                ->where('chat_message_id', $message->id)
+                ->where('user_id', $user->id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($reaction) {
+                if ($reaction->emoji !== $emoji) {
+                    $reaction->update(['emoji' => $emoji]);
+                }
+
+                return $reaction->refresh();
+            }
+
+            return ChatMessageReaction::create([
+                'chat_message_id' => $message->id,
+                'user_id' => $user->id,
+                'emoji' => $emoji,
+            ]);
+        });
+    }
+
+    public function removeReaction(
+        Chat $chat,
+        User $user,
+        int $messageId,
+    ): void {
+        DB::transaction(function () use ($chat, $user, $messageId): void {
+            $message = $this->visibleMessage($chat, $user, $messageId, forUpdate: true);
+            abort_if((int) $message->user_id === (int) $user->id, 403);
+
+            ChatMessageReaction::query()
+                ->where('chat_message_id', $message->id)
+                ->where('user_id', $user->id)
+                ->delete();
+        });
+    }
+
     public function tombstone(Chat $chat, User $user, int $messageId): ChatMessage
     {
-        $message = $this->visibleMessage($chat, $user, $messageId);
-        abort_unless((int) $message->user_id === (int) $user->id, 403);
+        return DB::transaction(function () use ($chat, $user, $messageId): ChatMessage {
+            $message = $this->visibleMessage($chat, $user, $messageId, forUpdate: true);
+            abort_unless((int) $message->user_id === (int) $user->id, 403);
 
-        return DB::transaction(function () use ($message): ChatMessage {
             $message->loadMissing('files');
             $message->files->each->delete();
             $message->views()->delete();

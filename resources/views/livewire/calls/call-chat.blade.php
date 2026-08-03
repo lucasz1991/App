@@ -1,107 +1,10 @@
-@php
-    $quickReactions = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
-    $allReactions = ['😀', '😃', '😄', '😁', '😊', '😍', '🥰', '😘', '😎', '🤔', '🙄', '😬', '😢', '😭', '😡', '🤯', '😴', '👏', '🙌', '👍', '👎', '❤️', '💔', '🔥', '🎉', '✅', '👀', '🙏', '💯'];
-@endphp
-
 <div
     class="relative flex h-full min-h-[28rem] flex-col overflow-hidden"
     @unless ($readOnly)
         wire:poll.5s="refreshMessages"
     @endunless
     x-data="{
-        actionOpen: false,
-        reactionOpen: false,
-        actionMessageId: null,
-        actionMine: false,
-        actionX: 0,
-        actionY: 0,
-        expandedReactions: false,
-        pressTimer: null,
-        pressX: 0,
-        pressY: 0,
-        longPressed: false,
-        suppressClickUntil: 0,
         previousScrollHeight: 0,
-        openActions(event, id, mine, pointer = false) {
-            if (@js($readOnly)) return;
-            const source = event.currentTarget || event.target;
-            const rect = source?.getBoundingClientRect?.();
-            const requestedX = pointer && event.clientX ? event.clientX : (rect ? rect.right : window.innerWidth / 2);
-            const requestedY = pointer && event.clientY ? event.clientY : (rect ? rect.bottom + 6 : window.innerHeight / 2);
-            this.actionX = Math.max(8, Math.min(requestedX, window.innerWidth - 304));
-            this.actionY = Math.max(8, Math.min(requestedY, window.innerHeight - 250));
-            this.actionMessageId = id;
-            this.actionMine = mine;
-            this.expandedReactions = false;
-            this.reactionOpen = false;
-            this.actionOpen = true;
-            this.$nextTick(() => this.$refs.actionMenu?.focus());
-        },
-        openReactions(event, id, mine, pointer = false) {
-            if (@js($readOnly) || mine) return;
-            const source = event.currentTarget || event.target;
-            const rect = source?.getBoundingClientRect?.();
-            const requestedX = pointer && Number.isFinite(event.clientX) ? event.clientX : (rect ? rect.right : window.innerWidth / 2);
-            const requestedY = pointer && Number.isFinite(event.clientY) ? event.clientY : (rect ? rect.bottom + 6 : window.innerHeight / 2);
-            this.actionX = Math.max(8, Math.min(requestedX, window.innerWidth - 360));
-            this.actionY = Math.max(8, Math.min(requestedY, window.innerHeight - 250));
-            this.actionMessageId = id;
-            this.actionMine = false;
-            this.expandedReactions = false;
-            this.actionOpen = false;
-            this.reactionOpen = true;
-            this.$nextTick(() => this.$refs.reactionMenu?.focus());
-        },
-        openReactionsFromActions() {
-            if (this.actionMine || @js($readOnly)) return;
-            this.actionOpen = false;
-            this.expandedReactions = false;
-            this.reactionOpen = true;
-            this.$nextTick(() => this.$refs.reactionMenu?.focus());
-        },
-        closeMenus() {
-            this.actionOpen = false;
-            this.reactionOpen = false;
-            this.expandedReactions = false;
-        },
-        handleMessageClick(event, id, mine) {
-            if (Date.now() < this.suppressClickUntil) {
-                event.preventDefault();
-                event.stopPropagation();
-                this.suppressClickUntil = 0;
-                return;
-            }
-            if (event.target.closest('button, a, input, textarea, select, audio, video, [contenteditable=true]')) return;
-            this.openActions(event, id, mine, true);
-        },
-        startPress(event, id, mine) {
-            if (@js($readOnly) || event.pointerType === 'mouse' || event.target.closest('button, a, input, textarea, audio, video')) return;
-            this.cancelPress();
-            this.pressX = event.clientX;
-            this.pressY = event.clientY;
-            this.longPressed = false;
-            this.pressTimer = window.setTimeout(() => {
-                this.longPressed = true;
-                this.suppressClickUntil = Date.now() + 800;
-                if (!mine) this.openReactions(event, id, mine, true);
-            }, 500);
-        },
-        movePress(event) {
-            if (!this.pressTimer) return;
-            if (Math.hypot(event.clientX - this.pressX, event.clientY - this.pressY) > 10) this.cancelPress();
-        },
-        cancelPress() {
-            if (this.pressTimer) window.clearTimeout(this.pressTimer);
-            this.pressTimer = null;
-        },
-        finishPress(event) {
-            this.cancelPress();
-            if (this.longPressed) {
-                event.preventDefault();
-                event.stopPropagation();
-                this.longPressed = false;
-            }
-        },
         scrollToMessage(id) {
             const node = this.$root.querySelector(`[data-call-chat-message='${id}']`);
             if (!node) return;
@@ -123,9 +26,6 @@
             });
         },
     }"
-    x-on:keydown.escape.window="closeMenus(); cancelPress()"
-    x-on:pointercancel.window="cancelPress()"
-    x-on:scroll.window="cancelPress()"
     x-on:call-chat:scroll-bottom.window="scrollBottom()"
     x-on:call-chat:older-loaded.window="restoreOlderScroll()"
     x-on:call-chat:focus-composer.window="$nextTick(() => $refs.composer?.focus())"
@@ -149,6 +49,7 @@
             @php
                 $mine = (int) $message->user_id === (int) auth()->id();
                 $reactionGroups = $message->reactions->groupBy('emoji');
+                $myReaction = $message->reactions->firstWhere('user_id', auth()->id())?->emoji;
                 $reply = $message->replyTo;
             @endphp
             <article
@@ -157,22 +58,25 @@
                 data-no-chat-swipe
                 tabindex="0"
                 class="group mb-3 flex scroll-mt-6 items-end gap-2 rounded-xl outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-rt-accent/60 {{ $mine ? 'justify-end' : 'justify-start' }}"
+                x-data="chatMessageActions({ messageId: {{ $message->id }}, controllerId: 'call-chat-{{ $message->id }}', disabled: @js($readOnly), canReact: @js(! $readOnly && ! $mine) })"
+                data-chat-message-controller="call-chat-{{ $message->id }}"
+                x-ref="messageBubble"
                 @unless ($readOnly)
-                    x-on:click="handleMessageClick($event, {{ $message->id }}, @js($mine))"
-                    x-on:contextmenu.prevent="openActions($event, {{ $message->id }}, @js($mine), true)"
-                    x-on:keydown.shift.f10.prevent="openActions($event, {{ $message->id }}, @js($mine))"
-                    x-on:keydown.context-menu.prevent="openActions($event, {{ $message->id }}, @js($mine))"
-                    x-on:pointerdown="startPress($event, {{ $message->id }}, @js($mine))"
-                    x-on:pointermove="movePress($event)"
-                    x-on:pointerup="finishPress($event)"
-                    x-on:pointerleave="cancelPress()"
+                    x-on:click="handleClick($event)"
+                    x-on:contextmenu.stop="openActionsAtPointer($event)"
+                    x-on:keydown="handleKeyboard($event)"
+                    x-on:pointerdown="startLongPress($event)"
+                    x-on:pointermove="moveLongPress($event)"
+                    x-on:pointerup="finishLongPress($event)"
+                    x-on:pointercancel="cancelLongPress()"
+                    x-on:pointerleave="cancelLongPress()"
                 @endunless
             >
                 @unless ($mine)
                     <x-chat.avatar :src="$message->sender?->profile_photo_url" :name="$message->sender?->name ?? '?'" size="xs" />
                 @endunless
 
-                <div class="max-w-[86%] sm:max-w-[78%]">
+                <div class="{{ $reactionGroups->isNotEmpty() ? 'rt-chat-message-stack--reacted' : '' }} relative max-w-[86%] sm:max-w-[78%]">
                     <div class="flex items-start gap-1 {{ $mine ? 'flex-row-reverse' : '' }}">
                         <div @class([
                             'min-w-0 rounded-2xl px-3.5 py-2.5 shadow-sm',
@@ -227,42 +131,49 @@
                         </div>
 
                         @unless ($readOnly)
-                            <button
-                                type="button"
-                                x-on:click.stop="openActions($event, {{ $message->id }}, @js($mine))"
-                                class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-rt-muted opacity-100 transition hover:bg-rt-surface-muted hover:text-rt-text focus-visible:opacity-100 dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted dark:hover:text-rt-dark-text sm:opacity-0 sm:group-hover:opacity-100"
-                                aria-label="{{ __('app.actions') }}"
-                            >
-                                <i class="far fa-ellipsis" aria-hidden="true"></i>
-                            </button>
+                            <x-chat.message-dropdown
+                                :message-id="$message->id"
+                                controller-id="call-chat-{{ $message->id }}"
+                                :own="$mine"
+                                :quick-reactions="$quickReactions"
+                                :allowed-reactions="$allowedReactions"
+                                :my-reaction="$myReaction"
+                                react-method="setReaction"
+                                reply-method="startReply"
+                                delete-method="deleteMessage"
+                                :delete-label="__('app.delete')"
+                                trigger-variant="ellipsis"
+                                dropdown-id="call-chat-message-{{ $message->id }}-actions"
+                            />
                         @endunless
                     </div>
 
                     @if ($reactionGroups->isNotEmpty())
-                        <div class="mt-1 flex flex-wrap gap-1 {{ $mine ? 'justify-end' : 'justify-start' }}">
-                            @foreach ($reactionGroups as $emoji => $reactions)
-                                @php $reacted = $reactions->contains('user_id', auth()->id()); @endphp
-                                @if ($readOnly || $mine)
-                                    <span
-                                        class="rt-chat-reaction-chip inline-flex items-center gap-1 px-0.5 text-sm"
-                                        title="{{ $reactions->pluck('user.name')->filter()->join(', ') }}"
-                                        aria-label="{{ trans_choice('app.chat_reaction_count', $reactions->count(), ['emoji' => $emoji, 'count' => $reactions->count()]) }}"
-                                    >
-                                        <span aria-hidden="true">{{ $emoji }}</span>
-                                        @if ($reactions->count() > 1)<span class="text-[10px] font-extrabold tabular-nums">{{ $reactions->count() }}</span>@endif
-                                    </span>
-                                @else
-                                    <button
-                                        type="button"
-                                        wire:click="react({{ $message->id }}, @js($emoji))"
-                                        class="rt-chat-reaction-chip {{ $reacted ? 'is-mine' : '' }} inline-flex min-h-11 min-w-11 items-center justify-center gap-1 px-0.5 text-sm transition"
-                                        aria-pressed="{{ $reacted ? 'true' : 'false' }}"
-                                        title="{{ $reactions->pluck('user.name')->filter()->join(', ') }}"
-                                        aria-label="{{ trans_choice('app.chat_reaction_count', $reactions->count(), ['emoji' => $emoji, 'count' => $reactions->count()]) }}"
-                                    >
-                                        <span aria-hidden="true">{{ $emoji }}</span>
-                                        @if ($reactions->count() > 1)<span class="text-[10px] font-extrabold tabular-nums">{{ $reactions->count() }}</span>@endif
-                                    </button>
+                        <div class="rt-chat-reactions rt-chat-reactions--overlay {{ $mine ? 'rt-chat-reactions--own' : 'rt-chat-reactions--other' }} flex max-w-full flex-nowrap items-center gap-1 px-1" data-chat-action-ignore data-no-chat-swipe aria-label="{{ __('app.chat_message_reactions') }}">
+                            @foreach ($allowedReactions as $emoji)
+                                @if ($reactionGroups->has($emoji))
+                                    @php $reactions = $reactionGroups->get($emoji); @endphp
+                                    @if ($readOnly || $mine)
+                                        <span
+                                            class="rt-chat-reaction-chip inline-flex items-center gap-1 px-0.5 text-sm"
+                                            title="{{ $reactions->pluck('user.name')->filter()->join(', ') }}"
+                                            aria-label="{{ trans_choice('app.chat_reaction_count', $reactions->count(), ['emoji' => $emoji, 'count' => $reactions->count()]) }}"
+                                        >
+                                            <span aria-hidden="true">{{ $emoji }}</span>
+                                            @if ($reactions->count() > 1)<span class="text-[10px] font-extrabold tabular-nums">{{ $reactions->count() }}</span>@endif
+                                        </span>
+                                    @else
+                                        <x-chat.reaction-dropdown
+                                            :message-id="$message->id"
+                                            :emoji="$emoji"
+                                            :count="$reactions->count()"
+                                            :names="$reactions->pluck('user.name')->filter()->join(', ')"
+                                            :my-reaction="$myReaction"
+                                            react-method="setReaction"
+                                            remove-method="removeReaction"
+                                            dropdown-id="call-chat-reaction-{{ $message->id }}-{{ md5($emoji) }}"
+                                        />
+                                    @endif
                                 @endif
                             @endforeach
                         </div>
@@ -349,87 +260,4 @@
         </form>
     @endif
 
-    @unless ($readOnly)
-        <div
-            x-cloak
-            x-show="actionOpen"
-            x-transition.opacity.duration.120ms
-            x-on:click.outside="closeMenus()"
-            class="fixed z-[260] w-64 max-w-[calc(100vw-1rem)] rounded-2xl bg-rt-surface p-2 shadow-2xl ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70"
-            :style="actionOpen ? `left:${actionX}px; top:${actionY}px` : 'display: none;'"
-            role="menu"
-            tabindex="-1"
-            x-ref="actionMenu"
-        >
-            <button
-                x-show="! actionMine"
-                type="button"
-                x-on:click.stop="openReactionsFromActions()"
-                class="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold text-rt-text transition hover:bg-rt-surface-muted dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted"
-                role="menuitem"
-            >
-                <i class="far fa-face-smile w-5 text-center" aria-hidden="true"></i>
-                {{ __('app.chat_react') }}
-            </button>
-            <button type="button" x-on:click="$wire.startReply(actionMessageId); closeMenus()" class="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold text-rt-text transition hover:bg-rt-surface-muted dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted" role="menuitem">
-                <i class="far fa-reply w-5 text-center" aria-hidden="true"></i>
-                {{ __('app.chat_reply') }}
-            </button>
-            <button x-show="actionMine" type="button" x-on:click="$wire.deleteMessage(actionMessageId); closeMenus()" class="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold text-rose-600 transition hover:bg-rose-500/10 dark:text-rose-400" role="menuitem">
-                <i class="far fa-trash w-5 text-center" aria-hidden="true"></i>
-                {{ __('app.delete') }}
-            </button>
-        </div>
-
-        <div
-            x-cloak
-            x-show="reactionOpen"
-            x-transition.opacity.duration.120ms
-            x-on:click.outside="closeMenus()"
-            class="fixed z-[261] w-[min(22rem,calc(100vw-1rem))] rounded-2xl bg-rt-surface p-2 shadow-2xl ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70"
-            :style="reactionOpen ? `left:${actionX}px; top:${actionY}px` : 'display: none;'"
-            role="menu"
-            tabindex="-1"
-            x-ref="reactionMenu"
-            aria-label="{{ __('app.chat_quick_reactions') }}"
-        >
-            <div class="grid grid-cols-7 gap-1">
-                @foreach ($quickReactions as $emoji)
-                    <button
-                        type="button"
-                        role="menuitem"
-                        x-on:click="$wire.react(actionMessageId, @js($emoji)); closeMenus()"
-                        class="inline-flex h-11 w-11 items-center justify-center rounded-xl text-xl transition hover:bg-rt-surface-muted dark:hover:bg-rt-dark-surface-muted"
-                        aria-label="{{ __('app.chat_react_with', ['emoji' => $emoji]) }}"
-                    >{{ $emoji }}</button>
-                @endforeach
-                <button
-                    type="button"
-                    x-on:click.stop="expandedReactions = ! expandedReactions"
-                    x-bind:aria-expanded="expandedReactions.toString()"
-                    class="inline-flex h-11 w-11 items-center justify-center rounded-xl text-rt-muted transition hover:bg-rt-surface-muted dark:hover:bg-rt-dark-surface-muted"
-                    aria-label="{{ __('app.chat_more_reactions') }}"
-                >
-                    <i class="far fa-chevron-down transition" x-bind:class="expandedReactions && 'rotate-180'" aria-hidden="true"></i>
-                </button>
-            </div>
-
-            <div
-                x-cloak
-                x-show.important="expandedReactions"
-                :style="expandedReactions ? '' : 'display: none !important;'"
-                class="grid max-h-44 grid-cols-7 gap-1 overflow-y-auto pt-2"
-            >
-                @foreach ($allReactions as $emoji)
-                    <button
-                        type="button"
-                        role="menuitem"
-                        x-on:click="$wire.react(actionMessageId, @js($emoji)); closeMenus()"
-                        class="inline-flex h-11 w-11 items-center justify-center rounded-lg text-lg transition hover:bg-rt-surface-muted dark:hover:bg-rt-dark-surface-muted"
-                        aria-label="{{ __('app.chat_react_with', ['emoji' => $emoji]) }}"
-                    >{{ $emoji }}</button>
-                @endforeach
-            </div>
-        </div>
-    @endunless
 </div>

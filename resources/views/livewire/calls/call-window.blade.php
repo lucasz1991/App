@@ -89,6 +89,8 @@
                     :offset="8"
                     dropdown-id="call-invite-users"
                     layer-group="call-window"
+                    content-role="dialog"
+                    :content-label="__('app.calls_invite_people')"
                     wire:key="call-invite-users-{{ $room->id }}"
                 >
                     <x-slot name="trigger">
@@ -96,7 +98,7 @@
                             type="button"
                             aria-label="{{ __('app.calls_invite_people') }}"
                             title="{{ __('app.calls_invite_people') }}"
-                            class="inline-flex h-10 items-center gap-2 rounded-xl bg-white/[0.07] px-3 text-xs font-bold text-white/80 ring-1 ring-white/10 transition hover:bg-white/[0.12] hover:text-white"
+                            class="inline-flex h-11 items-center gap-2 rounded-xl bg-white/[0.07] px-3 text-xs font-bold text-white/80 ring-1 ring-white/10 transition hover:bg-white/[0.12] hover:text-white"
                         >
                             <i class="far fa-user-plus" aria-hidden="true"></i>
                             <span class="hidden sm:inline">{{ __('app.calls_invite_people') }}</span>
@@ -457,11 +459,19 @@
                             </span>
 
                             @if ($canModerate && $participant->role !== 'host' && (int) $participant->user_id !== auth()->id())
-                                <x-ui.dropdown.anchor-dropdown align="right" width="56" :offset="6" class="shrink-0">
+                                <x-ui.dropdown.anchor-dropdown
+                                    align="right"
+                                    width="56"
+                                    :offset="6"
+                                    dropdown-id="call-participant-{{ $participant->id }}-actions"
+                                    layer-group="call-window"
+                                    wire:key="call-participant-actions-{{ $participant->id }}"
+                                    class="shrink-0"
+                                >
                                     <x-slot name="trigger">
                                         <x-ui.dropdown.action-trigger
                                             :aria-label="__('app.calls_moderate')"
-                                            class="h-8 w-8 rounded-lg px-0"
+                                            class="h-11 w-11 rounded-xl px-0"
                                         />
                                     </x-slot>
                                     <x-slot name="content">

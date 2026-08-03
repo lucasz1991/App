@@ -12,6 +12,7 @@ use App\Models\File;
 use App\Models\Room;
 use App\Services\Chat\ChatMessageInteractionService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
@@ -120,11 +121,44 @@ class CallChat extends Component
         $chat = $this->authorizedChat();
         $reaction = $interactions->toggleReaction($chat, auth()->user(), $messageId, $emoji);
 
-        broadcast(new ChatMessageReactionChanged(
+        $this->broadcastChatEvent(new ChatMessageReactionChanged(
             (int) $chat->id,
             $messageId,
             (int) auth()->id(),
             $reaction?->emoji,
+        ));
+    }
+
+    public function setReaction(
+        int $messageId,
+        string $emoji,
+        ChatMessageInteractionService $interactions,
+    ): void {
+        $this->assertWritable();
+        $chat = $this->authorizedChat();
+        $reaction = $interactions->setReaction($chat, auth()->user(), $messageId, $emoji);
+
+        $this->broadcastChatEvent(new ChatMessageReactionChanged(
+            (int) $chat->id,
+            $messageId,
+            (int) auth()->id(),
+            $reaction->emoji,
+        ));
+    }
+
+    public function removeReaction(
+        int $messageId,
+        ChatMessageInteractionService $interactions,
+    ): void {
+        $this->assertWritable();
+        $chat = $this->authorizedChat();
+        $interactions->removeReaction($chat, auth()->user(), $messageId);
+
+        $this->broadcastChatEvent(new ChatMessageReactionChanged(
+            (int) $chat->id,
+            $messageId,
+            (int) auth()->id(),
+            null,
         ));
     }
 
@@ -141,7 +175,7 @@ class CallChat extends Component
         }
 
         $chat->touch();
-        broadcast(new ChatMessageDeleted((int) $chat->id, $messageId));
+        $this->broadcastChatEvent(new ChatMessageDeleted((int) $chat->id, $messageId));
     }
 
     public function send(): void
@@ -199,8 +233,8 @@ class CallChat extends Component
         $chat->touch();
         $this->markRead($chat);
 
-        broadcast(new ChatMessageSent($message));
-        broadcast(new ChatMessageReceived($message));
+        $this->broadcastChatEvent(new ChatMessageSent($message));
+        $this->broadcastChatEvent(new ChatMessageReceived($message));
         $this->dispatch('call-chat:scroll-bottom');
     }
 
@@ -299,6 +333,18 @@ class CallChat extends Component
         ]);
     }
 
+    protected function broadcastChatEvent(object $event): void
+    {
+        try {
+            event($event);
+        } catch (\Throwable $exception) {
+            Log::notice('Anruf-Chat-Echtzeitereignis konnte nicht gesendet werden.', [
+                'event' => $event::class,
+                'error' => $exception->getMessage(),
+            ]);
+        }
+    }
+
     public function render()
     {
         $this->syncReadOnlyState();
@@ -340,6 +386,8 @@ class CallChat extends Component
         return view('livewire.calls.call-chat', [
             'messages' => $messages,
             'replyingTo' => $replyingTo,
+            'quickReactions' => ChatMessageInteractionService::QUICK_REACTIONS,
+            'allowedReactions' => ChatMessageInteractionService::ALLOWED_REACTIONS,
             'hasOlder' => $this->oldestLoadedId
                 ? (clone $query)->where('id', '<', $this->oldestLoadedId)->exists()
                 : false,

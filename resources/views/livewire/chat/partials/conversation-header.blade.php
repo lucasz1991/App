@@ -152,12 +152,15 @@
         align="right"
         width="56"
         :offset="7"
+        dropdown-id="chat-conversation-{{ $selectedChat->id }}-actions"
+        layer-group="chat-actions"
+        :content-label="__('app.chat_options')"
         class="rt-chat-options shrink-0"
     >
         <x-slot name="trigger">
             <x-ui.dropdown.action-trigger
                 :aria-label="__('app.chat_options')"
-                class="rt-chat-options-trigger h-10 w-10 rounded-xl px-0"
+                class="rt-chat-options-trigger h-11 w-11 rounded-xl px-0"
                 data-no-chat-swipe
             />
         </x-slot>

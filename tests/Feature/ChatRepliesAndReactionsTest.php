@@ -73,14 +73,17 @@ class ChatRepliesAndReactionsTest extends TestCase
         ]);
         $chat->participants()->updateExistingPivot($sender->id, ['cleared_at' => now()->addHour()]);
 
-        foreach (['beginReply', 'toggleReaction'] as $method) {
+        foreach ([
+            'beginReply' => [],
+            'toggleReaction' => ['👍'],
+            'setReaction' => ['👍'],
+            'removeReaction' => [],
+        ] as $method => $arguments) {
             try {
                 $component = Livewire::actingAs($sender)
                     ->test(ChatBox::class, ['selectedChatId' => $chat->id]);
 
-                $method === 'beginReply'
-                    ? $component->call($method, $hiddenMessage->id)
-                    : $component->call($method, $hiddenMessage->id, '👍');
+                $component->call($method, $hiddenMessage->id, ...$arguments);
 
                 $this->fail("{$method} accepted a message outside the visible history.");
             } catch (ModelNotFoundException $exception) {
@@ -159,6 +162,70 @@ class ChatRepliesAndReactionsTest extends TestCase
         ]);
     }
 
+    public function test_setting_a_reaction_is_idempotent_and_removal_is_explicit(): void
+    {
+        Event::fake([ChatMessageReactionChanged::class]);
+        [$sender, $recipient, $chat] = $this->directChat();
+        $message = ChatMessage::create([
+            'chat_id' => $chat->id,
+            'user_id' => $recipient->id,
+            'body' => 'Bitte eindeutig reagieren',
+        ]);
+        $component = Livewire::actingAs($sender)
+            ->test(ChatBox::class, ['selectedChatId' => $chat->id]);
+
+        $component
+            ->call('setReaction', $message->id, '👍')
+            ->call('setReaction', $message->id, '👍');
+
+        $this->assertDatabaseCount('chat_message_reactions', 1);
+        $this->assertDatabaseHas('chat_message_reactions', [
+            'chat_message_id' => $message->id,
+            'user_id' => $sender->id,
+            'emoji' => '👍',
+        ]);
+
+        $component->call('setReaction', $message->id, '❤️');
+        $this->assertDatabaseCount('chat_message_reactions', 1);
+        $this->assertDatabaseHas('chat_message_reactions', [
+            'chat_message_id' => $message->id,
+            'user_id' => $sender->id,
+            'emoji' => '❤️',
+        ]);
+
+        $component->call('removeReaction', $message->id);
+        $this->assertDatabaseMissing('chat_message_reactions', [
+            'chat_message_id' => $message->id,
+            'user_id' => $sender->id,
+        ]);
+        Event::assertDispatchedTimes(ChatMessageReactionChanged::class, 4);
+    }
+
+    public function test_reaction_users_are_eager_loaded_for_the_polled_transcript(): void
+    {
+        [$sender, $recipient, $chat] = $this->directChat();
+        $message = ChatMessage::create([
+            'chat_id' => $chat->id,
+            'user_id' => $recipient->id,
+            'body' => 'Wer hat reagiert?',
+        ]);
+        ChatMessageReaction::create([
+            'chat_message_id' => $message->id,
+            'user_id' => $sender->id,
+            'emoji' => ChatMessageInteractionService::QUICK_REACTIONS[0],
+        ]);
+
+        Livewire::actingAs($sender)
+            ->test(ChatBox::class, ['selectedChatId' => $chat->id])
+            ->assertViewHas('messages', function ($messages) use ($message): bool {
+                $renderedMessage = $messages->firstWhere('id', $message->id);
+                $reaction = $renderedMessage?->reactions->first();
+
+                return $reaction?->relationLoaded('user') === true
+                    && $reaction->user?->name !== null;
+            });
+    }
+
     public function test_delete_creates_content_free_tombstone_and_keeps_reply_context_safe(): void
     {
         [$sender, $recipient, $chat] = $this->directChat();
@@ -204,6 +271,18 @@ class ChatRepliesAndReactionsTest extends TestCase
         Storage::disk('private')->assertMissing($path);
         $this->assertSame($original->id, (int) $reply->fresh()->reply_to_message_id);
         $this->assertTrue($reply->fresh()->replyTo->trashed());
+
+        try {
+            app(ChatMessageInteractionService::class)->setReaction(
+                $chat,
+                $recipient,
+                $original->id,
+                ChatMessageInteractionService::QUICK_REACTIONS[0],
+            );
+            $this->fail('A tombstoned message accepted a new reaction.');
+        } catch (ModelNotFoundException $exception) {
+            $this->assertSame(ChatMessage::class, $exception->getModel());
+        }
     }
 
     public function test_view_once_reply_preview_never_contains_message_body(): void

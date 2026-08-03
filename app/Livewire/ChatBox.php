@@ -324,6 +324,42 @@ class ChatBox extends Component
         ));
     }
 
+    public function setReaction(int $messageId, string $emoji): void
+    {
+        if (! $this->selectedChatId) {
+            return;
+        }
+
+        $chat = $this->myChat($this->selectedChatId);
+        $reaction = app(ChatMessageInteractionService::class)
+            ->setReaction($chat, auth()->user(), $messageId, $emoji);
+
+        $this->broadcastChatEvent(new ChatMessageReactionChanged(
+            $chat->id,
+            $messageId,
+            (int) auth()->id(),
+            $reaction->emoji,
+        ));
+    }
+
+    public function removeReaction(int $messageId): void
+    {
+        if (! $this->selectedChatId) {
+            return;
+        }
+
+        $chat = $this->myChat($this->selectedChatId);
+        app(ChatMessageInteractionService::class)
+            ->removeReaction($chat, auth()->user(), $messageId);
+
+        $this->broadcastChatEvent(new ChatMessageReactionChanged(
+            $chat->id,
+            $messageId,
+            (int) auth()->id(),
+            null,
+        ));
+    }
+
     public function loadOlderMessages(): void
     {
         if (! $this->selectedChatId) {
@@ -1084,7 +1120,9 @@ class ChatBox extends Component
                         'sender:id,name,profile_photo_path',
                         'files',
                         'views:id,chat_message_id,user_id,viewed_at',
-                        'reactions:id,chat_message_id,user_id,emoji',
+                        'reactions' => fn ($query) => $query
+                            ->select(['id', 'chat_message_id', 'user_id', 'emoji'])
+                            ->with('user:id,name'),
                         'replyTo' => fn ($query) => $query
                             ->withTrashed()
                             ->when($visibleSince, fn ($query) => $query->where('created_at', '>=', $visibleSince))

@@ -12,6 +12,7 @@
   'matchTriggerWidth' => false,
   'triggerClasses'    => 'inline-flex',
   'contentRole'       => 'menu',
+  'contentLabel'      => null,
   'dropdownId'        => null,
   'layerGroup'        => null,
 ])
@@ -513,6 +514,10 @@
       const action = event.target.closest('a, button, [role=menuitem]');
       if (!action) return;
 
+      // Controls such as an emoji-palette chevron update content inside the
+      // current panel and must not be treated as a completed dropdown action.
+      if (action.closest('[data-rt-dropdown-keep-open]')) return;
+
       const nestedDropdown = action.closest('[data-rt-dropdown-root]');
       if (nestedDropdown && nestedDropdown.dataset.rtDropdownId !== @js($resolvedDropdownId)) return;
 
@@ -611,6 +616,7 @@
           id="{{ $dropdownPanelId }}"
           x-ref="panelScroll"
           @if(filled($contentRole)) role="{{ $contentRole }}" @endif
+          @if(filled($contentLabel)) aria-label="{{ $contentLabel }}" @endif
           class="rt-ui-surface rt-ui-dropdown-panel relative z-[2] max-h-[min(28rem,calc(100dvh-2rem))] overflow-y-auto rounded-xl border border-rt-border dark:border-rt-dark-border {{ $contentClasses }}"
           @click="handlePanelAction($event)"
         >
