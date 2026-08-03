@@ -4,8 +4,8 @@ namespace App\Livewire\Admin;
 
 use App\Models\Setting;
 use App\Services\Ai\AssistantSpeechRouter;
-use App\Support\Ai\AssistantSpeechSettings;
 use App\Support\Ai\AssistantSettings;
+use App\Support\Ai\AssistantSpeechSettings;
 use App\Support\Ai\OpenRouterSettings;
 use App\Support\Calls\CallSettings;
 use App\Support\CompanyData;
@@ -24,7 +24,7 @@ class Settings extends Component
     public bool $assistantEnabled = true;
 
     /** Globaler, nur vom Superadmin aenderbarer Sprachweg. */
-    public string $assistantSpeechRouting = AssistantSpeechSettings::DEFAULT_MODE;
+    public string $assistantSpeechRouting = '';
 
     /** @var array<string, mixed> Normalisierte Diagnose ohne Geheimnisse. */
     public array $assistantSpeechStatus = [];
@@ -65,31 +65,31 @@ class Settings extends Component
         $this->loadSettings();
     }
 
-    public function loadSettings(): void
+    private function loadSettings(): void
     {
         $this->maintenanceMode = (bool) (Setting::getValueUncached('system', 'maintenance_mode') ?? false);
         $this->assistantEnabled = AssistantSettings::enabled(uncached: true);
-        $this->assistantSpeechRouting = AssistantSpeechSettings::mode(uncached: true);
-        $this->assistantSpeechStatus = app(AssistantSpeechRouter::class)->capabilities(refresh: true);
         $this->adminEmail = (string) (Setting::getValueUncached('mails', 'admin_email') ?? '');
 
         $days = (int) (Setting::getValueUncached('invitations', 'expiry_days') ?? 7);
         $this->invitationExpiryDays = $days > 0 ? $days : 7;
         $this->company = CompanyData::all(uncached: true);
-        $this->calls = CallSettings::all(uncached: true);
         $this->sounds = SoundLibrary::systemMap();
 
         if ($this->isSuperAdmin()) {
+            $this->assistantSpeechRouting = AssistantSpeechSettings::mode(uncached: true);
+            $this->assistantSpeechStatus = app(AssistantSpeechRouter::class)->capabilities(refresh: true);
+            $this->calls = CallSettings::all(uncached: true);
             $this->openRouter = OpenRouterSettings::forForm();
         }
     }
 
     /**
-     * Der Super-Admin-Bereich buendelt Zugangsdaten zu externen Diensten.
-     * Ein normaler Administrator soll den OpenRouter-Schluessel weder sehen
-     * noch tauschen koennen, deshalb reicht `settings.manage` hier nicht.
+     * Betriebsnahe KI-, Provider- und Anrufwerte gehoeren nur Benutzer #1.
+     * Wegen des allgemeinen Admin-Gate-Bypasses reicht `settings.manage`
+     * fuer diese Grenze ausdruecklich nicht aus.
      */
-    public function isSuperAdmin(): bool
+    private function isSuperAdmin(): bool
     {
         return (bool) auth()->user()?->isSuperAdmin();
     }
@@ -97,8 +97,7 @@ class Settings extends Component
     /** OpenRouter-Verbindung und Modellprofile speichern. */
     public function saveOpenRouter(): void
     {
-        Gate::authorize('settings.manage');
-        abort_unless($this->isSuperAdmin(), 403);
+        $this->authorizeSuperAdmin();
 
         $rules = [
             'openRouter.api_url' => ['required', 'url', 'max:2048'],
@@ -135,7 +134,7 @@ class Settings extends Component
     /** Betriebswerte der Anruffunktion speichern. */
     public function saveCalls(): void
     {
-        Gate::authorize('settings.manage');
+        $this->authorizeSuperAdmin();
 
         $rules = [];
 
@@ -216,8 +215,7 @@ class Settings extends Component
 
     public function saveAssistantSpeechRouting(): void
     {
-        Gate::authorize('settings.manage');
-        abort_unless($this->isSuperAdmin(), 403);
+        $this->authorizeSuperAdmin();
 
         $this->validate([
             'assistantSpeechRouting' => [
@@ -241,7 +239,7 @@ class Settings extends Component
 
     public function refreshAssistantSpeechStatus(): void
     {
-        Gate::authorize('settings.manage');
+        $this->authorizeSuperAdmin();
         $this->assistantSpeechStatus = app(AssistantSpeechRouter::class)->capabilities(refresh: true);
     }
 
@@ -311,5 +309,11 @@ class Settings extends Component
         return view('livewire.admin.settings', [
             'isSuperAdmin' => $this->isSuperAdmin(),
         ])->layout('layouts.master', ['area' => 'admin']);
+    }
+
+    private function authorizeSuperAdmin(): void
+    {
+        Gate::authorize('settings.manage');
+        abort_unless($this->isSuperAdmin(), 403);
     }
 }

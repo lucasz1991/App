@@ -741,12 +741,12 @@ return [
     'settings_overview_mails_text' => 'Set the admin email address that receives system notifications and test mails from mail management.',
     'settings_overview_company_text' => 'Address, contact details and register information used in email templates and signatures.',
     'settings_overview_users_text' => 'Define how long invitation links stay valid and manage team permissions.',
-    'settings_overview_superadmin_text' => 'Credentials for external services. Visible to the super admin only.',
+    'settings_overview_superadmin_text' => 'Speech models, call operations and the knowledge pool. Visible to the super admin only.',
     'open_section' => 'Open section',
 
     // Super admin area (user #1 only)
     'settings_superadmin' => 'Super admin',
-    'settings_superadmin_hint' => 'This area is visible to the super admin only. The credentials stored here apply system-wide.',
+    'settings_superadmin_hint' => 'This area is visible to the super admin only. Speech models, audio and call values apply system-wide.',
     'openrouter_settings' => 'OpenRouter',
     'openrouter_settings_hint' => 'Access and model profiles for the AI connection via OpenRouter.',
     'openrouter_state_configured' => 'Connection stored',
@@ -792,6 +792,8 @@ return [
     'maintenance_mode_active_banner' => 'Maintenance mode is active — only administrators can use the application right now.',
     'assistant_settings' => 'Chatbot assistant',
     'assistant_settings_hint' => 'Enable or disable RailTime Assist centrally for all users and administrators.',
+    'assistant_runtime_settings' => 'Chatbot: audio & models',
+    'assistant_runtime_settings_hint' => 'Manage the local speech server, external audio output and OpenRouter models centrally.',
     'assistant_enabled' => 'Enable RailTime Assist',
     'assistant_enabled_hint' => 'Users also need the “Use chatbot assistant” team permission. When disabled, the assistant stays hidden for administrators too.',
     'assistant_speech_routing' => 'Speech processing',

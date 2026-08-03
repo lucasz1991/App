@@ -741,12 +741,12 @@ return [
     'settings_overview_mails_text' => 'Die Admin-E-Mail-Adresse hinterlegen, an die Systemnachrichten und Testmails aus der Mailverwaltung gehen.',
     'settings_overview_company_text' => 'Anschrift, Kontaktdaten und Registerangaben, die in E-Mail-Vorlagen und Signaturen eingesetzt werden.',
     'settings_overview_users_text' => 'Gültigkeit von Einladungslinks festlegen und die Rechte der Teams verwalten.',
-    'settings_overview_superadmin_text' => 'Zugangsdaten zu externen Diensten. Nur für den Super-Admin sichtbar.',
+    'settings_overview_superadmin_text' => 'Sprachmodelle, Anrufbetrieb und Wissenspool. Nur für den Super-Admin sichtbar.',
     'open_section' => 'Bereich öffnen',
 
     // Superadmin-Bereich (nur Benutzer #1)
     'settings_superadmin' => 'Superadmin',
-    'settings_superadmin_hint' => 'Dieser Bereich ist ausschließlich für den Super-Admin sichtbar. Die hier hinterlegten Zugangsdaten gelten systemweit.',
+    'settings_superadmin_hint' => 'Dieser Bereich ist ausschließlich für den Super-Admin sichtbar. Sprachmodelle, Audio- und Anrufwerte gelten systemweit.',
     'openrouter_settings' => 'OpenRouter',
     'openrouter_settings_hint' => 'Zugang und Modellprofile für die KI-Anbindung über OpenRouter.',
     'openrouter_state_configured' => 'Verbindung hinterlegt',
@@ -792,6 +792,8 @@ return [
     'maintenance_mode_active_banner' => 'Der Wartungsmodus ist aktiv — nur Administratoren können die Anwendung derzeit nutzen.',
     'assistant_settings' => 'Chatbot-Assistent',
     'assistant_settings_hint' => 'RailTime Assist zentral für alle Benutzer und Administratoren aktivieren oder deaktivieren.',
+    'assistant_runtime_settings' => 'Chatbot: Audio & Modelle',
+    'assistant_runtime_settings_hint' => 'Lokalen Sprachserver, externe Audioausgabe und OpenRouter-Modelle zentral verwalten.',
     'assistant_enabled' => 'RailTime Assist aktivieren',
     'assistant_enabled_hint' => 'Zusätzlich benötigen Benutzer das Teamrecht „Chatbot-Assistent verwenden“. Bei Deaktivierung bleibt der Assistent auch für Administratoren verborgen.',
     'assistant_speech_routing' => 'Sprachverarbeitung',

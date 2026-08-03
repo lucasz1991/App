@@ -783,9 +783,10 @@ class CallFlowTest extends TestCase
 
     public function test_call_settings_are_administrable_and_take_effect(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $superAdmin = User::factory()->create(['role' => 'admin']);
+        $this->assertTrue($superAdmin->isSuperAdmin());
 
-        Livewire::actingAs($admin)
+        Livewire::actingAs($superAdmin)
             ->test(Settings::class)
             ->set('calls.ring_timeout', 240)
             ->set('calls.max_participants', 25)
@@ -802,14 +803,29 @@ class CallFlowTest extends TestCase
 
     public function test_call_settings_reject_values_outside_the_safe_range(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $superAdmin = User::factory()->create(['role' => 'admin']);
+        $this->assertTrue($superAdmin->isSuperAdmin());
 
-        Livewire::actingAs($admin)
+        Livewire::actingAs($superAdmin)
             ->test(Settings::class)
             // 5 Sekunden waeren unbedienbar, 99999 wuerde den Chat blockieren.
             ->set('calls.ring_timeout', 5)
             ->call('saveCalls')
             ->assertHasErrors(['calls.ring_timeout']);
+    }
+
+    public function test_a_regular_admin_cannot_load_or_change_call_settings(): void
+    {
+        User::factory()->create(['role' => 'admin']);
+        $regularAdmin = User::factory()->create(['role' => 'admin']);
+
+        $this->assertFalse($regularAdmin->isSuperAdmin());
+
+        Livewire::actingAs($regularAdmin)
+            ->test(Settings::class)
+            ->assertSet('calls', [])
+            ->call('saveCalls')
+            ->assertForbidden();
     }
 
     public function test_the_ring_timeout_setting_drives_the_invitation_window(): void

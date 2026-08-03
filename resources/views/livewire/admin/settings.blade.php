@@ -52,7 +52,6 @@
                     __('app.assistant_settings'),
                     __('app.settings_mails'),
                     __('app.sound_settings'),
-                    __('app.calls_settings'),
                 ],
             ],
         ];
@@ -60,11 +59,11 @@
         if ($isSuperAdmin) {
             $settingsTeasers[] = [
                 'tab' => 'superadmin',
-                'section' => 'openrouter',
+                'section' => 'assistant-runtime',
                 'label' => __('app.settings_superadmin'),
                 'description' => __('app.settings_overview_superadmin_text'),
                 'icon' => 'fad fa-shield-alt',
-                'items' => [__('app.openrouter_settings'), __('app.openrouter_models'), $assistantKnowledgeLabel],
+                'items' => [__('app.assistant_runtime_settings'), __('app.calls_settings'), $assistantKnowledgeLabel],
             ];
         }
     @endphp
@@ -74,11 +73,12 @@
         default="overview"
         persist-key="admin-settings.tabs"
         {{-- Migration der zuvor gespeicherten Tab-IDs: 'general' wurde zur
-             Übersicht, Töne/Anrufe/E-Mails leben jetzt unter 'system'. --}}
+             Übersicht. Töne/E-Mails bleiben unter System; Anrufe wechseln für
+             den Superadmin in seinen geschützten Bereich. --}}
         :persist-aliases="[
             'general' => 'overview',
             'sounds' => 'system',
-            'calls' => 'system',
+            'calls' => $isSuperAdmin ? 'superadmin' : 'system',
             'mails' => 'system',
             'mail' => 'system',
         ]"
@@ -307,9 +307,9 @@
     </div>
     </x-ui.accordion.tab-panel>
 
-    {{-- System, E-Mails, Töne und Anrufe werden gemeinsam lazy geladen und
-         innerhalb dieses Tabs als eigenständige Accordion-Sektionen
-         gegliedert — in genau dieser Reihenfolge. --}}
+    {{-- Allgemeine Systemwerte, Assist-Freigabe, E-Mails und Töne bleiben für
+         Administratoren gemeinsam erreichbar. Betriebsnahe KI- und
+         Anrufkonfiguration lebt ausschließlich im Superadmin-Tab. --}}
     <x-ui.accordion.tab-panel for="system" :order="3" content-class="">
     <div
         x-data="{
@@ -409,113 +409,6 @@
                 </div>
             </div>
 
-            @php
-                $speechModes = [
-                    'local_with_external_fallback' => __('app.assistant_speech_mode_local_fallback'),
-                    'local_only' => __('app.assistant_speech_mode_local_only'),
-                    'external_only' => __('app.assistant_speech_mode_external_only'),
-                ];
-                $localSpeech = (array) data_get($assistantSpeechStatus, 'providers.local', []);
-                $externalSpeech = (array) data_get($assistantSpeechStatus, 'providers.external', []);
-                $speechStateLabel = static function (array $provider): string {
-                    $stt = (bool) ($provider['stt_available'] ?? false);
-                    $tts = (bool) ($provider['tts_available'] ?? false);
-
-                    return $stt && $tts
-                        ? __('app.assistant_speech_ready')
-                        : (($stt || $tts)
-                            ? __('app.assistant_speech_partial')
-                            : __('app.assistant_speech_unavailable'));
-                };
-            @endphp
-
-            <div class="rounded-xl bg-rt-surface-muted p-3.5 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60 sm:p-4">
-                <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div class="min-w-0 flex-1">
-                        <p class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">
-                            {{ __('app.assistant_speech_routing') }}
-                        </p>
-                        <p class="mt-0.5 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
-                            {{ __('app.assistant_speech_routing_hint') }}
-                        </p>
-                    </div>
-
-                    <div class="w-full min-w-0 lg:w-80">
-                        @if ($isSuperAdmin)
-                            <x-ui.forms.select
-                                id="assistant-speech-routing"
-                                wire:model.live="assistantSpeechRouting"
-                                :aria-label="__('app.assistant_speech_routing')"
-                            >
-                                @foreach ($speechModes as $value => $label)
-                                    <option value="{{ $value }}">{{ $label }}</option>
-                                @endforeach
-                            </x-ui.forms.select>
-                            <x-input-error for="assistantSpeechRouting" class="mt-1.5" />
-                        @else
-                            <div class="rounded-lg bg-rt-surface px-3.5 py-2.5 text-sm font-semibold text-rt-text ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/70">
-                                {{ $speechModes[$assistantSpeechRouting] ?? $assistantSpeechRouting }}
-                            </div>
-                            <p class="mt-1.5 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
-                                {{ __('app.assistant_speech_superadmin_only') }}
-                            </p>
-                        @endif
-                    </div>
-                </div>
-
-                <div class="mt-4 grid gap-3 md:grid-cols-2">
-                    @foreach ([
-                        ['label' => __('app.assistant_speech_local_status'), 'provider' => $localSpeech, 'icon' => 'fad fa-server', 'external' => false],
-                        ['label' => __('app.assistant_speech_external_status'), 'provider' => $externalSpeech, 'icon' => 'fad fa-cloud', 'external' => true],
-                    ] as $speechProvider)
-                        @php
-                            $providerReady = (bool) ($speechProvider['provider']['stt_available'] ?? false)
-                                || (bool) ($speechProvider['provider']['tts_available'] ?? false);
-                            $providerStateLabel = $speechProvider['external']
-                                ? ($providerReady ? __('app.assistant_speech_configured') : __('app.assistant_speech_not_configured'))
-                                : $speechStateLabel($speechProvider['provider']);
-                        @endphp
-                        <div class="rounded-xl bg-rt-surface p-3.5 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
-                            <div class="flex items-center justify-between gap-3">
-                                <span class="flex min-w-0 items-center gap-2 text-sm font-semibold text-rt-text dark:text-rt-dark-text">
-                                    <i class="{{ $speechProvider['icon'] }} shrink-0 text-rt-muted dark:text-rt-dark-muted" aria-hidden="true"></i>
-                                    <span class="truncate">{{ $speechProvider['label'] }}</span>
-                                </span>
-                                <span @class([
-                                    'shrink-0 rounded-full px-2.5 py-1 text-[0.7rem] font-semibold ring-1',
-                                    'bg-emerald-50 text-emerald-700 ring-emerald-200/80 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/25' => $providerReady,
-                                    'bg-rt-surface-muted text-rt-muted ring-rt-border/70 dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted dark:ring-rt-dark-border/70' => ! $providerReady,
-                                ])>{{ $providerStateLabel }}</span>
-                            </div>
-                            <div class="mt-3 flex flex-wrap gap-2 text-xs text-rt-muted dark:text-rt-dark-muted">
-                                <span class="rounded-md bg-rt-surface-muted px-2 py-1 dark:bg-rt-dark-surface-muted">
-                                    {{ __('app.assistant_speech_stt') }}: {{ ($speechProvider['provider']['stt_available'] ?? false) ? ($speechProvider['external'] ? __('app.assistant_speech_configured') : __('app.assistant_speech_ready')) : ($speechProvider['external'] ? __('app.assistant_speech_not_configured') : __('app.assistant_speech_unavailable')) }}
-                                </span>
-                                <span class="rounded-md bg-rt-surface-muted px-2 py-1 dark:bg-rt-dark-surface-muted">
-                                    {{ __('app.assistant_speech_tts') }}: {{ ($speechProvider['provider']['tts_available'] ?? false) ? ($speechProvider['external'] ? __('app.assistant_speech_configured') : __('app.assistant_speech_ready')) : ($speechProvider['external'] ? __('app.assistant_speech_not_configured') : __('app.assistant_speech_unavailable')) }}
-                                </span>
-                            </div>
-                        </div>
-                    @endforeach
-                </div>
-
-                <div class="mt-4 flex flex-col gap-3 rounded-xl bg-amber-50/80 p-3.5 text-amber-900 ring-1 ring-amber-200/80 dark:bg-amber-500/10 dark:text-amber-200 dark:ring-amber-500/25 sm:flex-row sm:items-center sm:justify-between">
-                    <p class="text-xs leading-5">
-                        {{ __('app.assistant_speech_privacy_fallback') }}
-                    </p>
-                    <button
-                        type="button"
-                        class="rt-ui-button rt-ui-button-secondary shrink-0"
-                        wire:click="refreshAssistantSpeechStatus"
-                        wire:loading.attr="disabled"
-                        wire:target="refreshAssistantSpeechStatus"
-                    >
-                        <i class="fad fa-sync" aria-hidden="true"></i>
-                        <span wire:loading.remove wire:target="refreshAssistantSpeechStatus">{{ __('app.refresh') }}</span>
-                        <span wire:loading wire:target="refreshAssistantSpeechStatus">{{ __('app.loading') }}</span>
-                    </button>
-                </div>
-            </div>
         </div>
     </section>
     </x-admin.settings-accordion-section>
@@ -558,7 +451,7 @@
     </section>
     </x-admin.settings-accordion-section>
 
-    {{-- 3. Töne: systemweite Standards je Ereignis mit Sofort-Vorschau. --}}
+    {{-- 4. Töne: systemweite Standards je Ereignis mit Sofort-Vorschau. --}}
     <x-admin.settings-accordion-section
         section="sounds"
         :label="__('app.sound_settings')"
@@ -580,105 +473,17 @@
     </section>
     </x-admin.settings-accordion-section>
 
-    {{-- 4. Anrufe: Betriebswerte und die nur lesbare Infrastruktur. --}}
-    <x-admin.settings-accordion-section
-        section="calls"
-        :label="__('app.calls_settings')"
-        :description="__('app.calls_settings_intro')"
-        icon="fad fa-video"
-        data-anim="fade-up"
-        data-anim-delay="0.12"
-    >
-    <section
-        class="relative min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 sm:p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60"
-        data-autosave-scope
-    >
-        <x-ui.autosave-status event="call-settings-saved" target="saveCalls" dirty-target="calls" />
-
-        <div class="rounded-[calc(1rem-2px)] bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6" data-rt-glow>
-            <div class="grid gap-4 sm:grid-cols-2">
-                @foreach ([
-                    'ring_timeout' => ['label' => __('app.calls_setting_ring_timeout'), 'hint' => __('app.calls_setting_ring_timeout_hint'), 'unit' => __('app.unit_seconds')],
-                    'max_participants' => ['label' => __('app.calls_setting_max_participants'), 'hint' => __('app.calls_setting_max_participants_hint'), 'unit' => ''],
-                    'token_ttl' => ['label' => __('app.calls_setting_token_ttl'), 'hint' => __('app.calls_setting_token_ttl_hint'), 'unit' => __('app.unit_seconds')],
-                    'empty_timeout' => ['label' => __('app.calls_setting_empty_timeout'), 'hint' => __('app.calls_setting_empty_timeout_hint'), 'unit' => __('app.unit_seconds')],
-                    'http_connect_timeout' => ['label' => __('app.calls_setting_connect_timeout'), 'hint' => __('app.calls_setting_connect_timeout_hint'), 'unit' => __('app.unit_seconds')],
-                    'http_timeout' => ['label' => __('app.calls_setting_http_timeout'), 'hint' => __('app.calls_setting_http_timeout_hint'), 'unit' => __('app.unit_seconds')],
-                ] as $field => $meta)
-                    @php [$configPath, $min, $max] = \App\Support\Calls\CallSettings::FIELDS[$field]; @endphp
-                    <div class="min-w-0 rounded-xl bg-rt-surface-muted p-3.5 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60 sm:p-4">
-                        <x-ui.forms.label :for="'calls-'.$field" :value="$meta['label']" />
-                        <x-ui.forms.number-input
-                            :id="'calls-'.$field"
-                            :min="$min"
-                            :max="$max"
-                            step="1"
-                            :decimals="0"
-                            separator="."
-                            :unit="$meta['unit'] ?: null"
-                            :nullable="false"
-                            class="mt-1 w-full"
-                            wire:model="calls.{{ $field }}"
-                        />
-                        <x-input-error :for="'calls.'.$field" class="mt-1" />
-                        <p class="mt-1.5 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
-                            {{ $meta['hint'] }}
-                            <span class="whitespace-nowrap opacity-70">({{ $min }}–{{ $max }})</span>
-                        </p>
-                    </div>
-                @endforeach
-            </div>
-        </div>
-    </section>
-
-    {{-- Infrastruktur: bewusst NUR lesbar. --}}
-    @php $infra = \App\Support\Calls\CallSettings::infrastructure(); @endphp
-    <section
-        class="relative min-w-0 overflow-hidden rounded-2xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60 sm:p-6"
-    >
-        <div class="flex min-w-0 items-start gap-3">
-            <span class="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-surface-muted text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted sm:flex">
-                <i class="fad fa-lock fa-lg" aria-hidden="true"></i>
-            </span>
-            <div class="min-w-0 flex-1">
-                <h2 class="text-base font-semibold tracking-tight text-rt-text dark:text-rt-dark-text sm:text-lg">
-                    {{ __('app.calls_infrastructure') }}
-                </h2>
-                <p class="mt-1 break-words text-sm text-rt-muted dark:text-rt-dark-muted">
-                    {{ __('app.calls_infrastructure_hint') }}
-                </p>
-            </div>
-        </div>
-
-        <dl class="mt-4 divide-y divide-rt-border/60 dark:divide-rt-dark-border/60">
-            @foreach ([
-                'ws_url' => __('app.calls_infra_ws_url'),
-                'url' => __('app.calls_infra_url'),
-                'api_key' => __('app.calls_infra_api_key'),
-                'api_secret' => __('app.calls_infra_api_secret'),
-                'turn_mode' => __('app.calls_infra_turn_mode'),
-            ] as $key => $label)
-                <div class="flex flex-col gap-1 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                    <dt class="text-xs font-semibold text-rt-muted dark:text-rt-dark-muted">{{ $label }}</dt>
-                    <dd class="min-w-0 truncate font-mono text-xs text-rt-text dark:text-rt-dark-text">
-                        {{ $infra[$key] !== '' ? $infra[$key] : '—' }}
-                    </dd>
-                </div>
-            @endforeach
-        </dl>
-    </section>
-    </x-admin.settings-accordion-section>
-
     </div>
     </x-ui.accordion.tab-panel>
 
     @if ($isSuperAdmin)
-        {{-- Superadmin: Zugangsdaten zu externen Diensten. Der Tab wird nur
-             für Benutzer #1 gerendert; die Aktion prüft das zusätzlich. --}}
+        {{-- Superadmin: Sprach-/Modellrouting, Anrufbetrieb und Wissenspool.
+             Der Tab wird nur für Benutzer #1 gerendert; alle Aktionen prüfen
+             diese Grenze zusätzlich auf dem Server. --}}
         <x-ui.accordion.tab-panel for="superadmin" :order="4" content-class="">
         <div
             x-data="{
-                openAccordionSection: 'openrouter',
+                openAccordionSection: 'assistant-runtime',
                 toggleAccordionSection(section) {
                     this.openAccordionSection = this.openAccordionSection === section ? null : section;
                 },
@@ -701,14 +506,104 @@
             </div>
 
             <x-admin.settings-accordion-section
-                section="openrouter"
-                :label="__('app.openrouter_settings')"
-                :description="__('app.openrouter_settings_hint')"
+                section="assistant-runtime"
+                :label="__('app.assistant_runtime_settings')"
+                :description="__('app.assistant_runtime_settings_hint')"
                 icon="fad fa-brain"
                 data-anim="fade-up"
                 data-anim-delay="0.04"
             >
-                @include('livewire.admin.settings.partials.openrouter')
+                @include('livewire.admin.settings.partials.assistant-runtime')
+            </x-admin.settings-accordion-section>
+
+            {{-- Anruf-Betriebswerte und Infrastruktur sind ausschliesslich fuer den Superadmin. --}}
+            <x-admin.settings-accordion-section
+                section="calls"
+                :label="__('app.calls_settings')"
+                :description="__('app.calls_settings_intro')"
+                icon="fad fa-video"
+                data-anim="fade-up"
+                data-anim-delay="0.08"
+            >
+                <section
+                    class="relative min-w-0 overflow-hidden rounded-2xl bg-rt-surface-muted p-1 sm:p-1.5 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60"
+                    data-autosave-scope
+                    data-superadmin-call-settings
+                >
+                    <x-ui.autosave-status event="call-settings-saved" target="saveCalls" dirty-target="calls" />
+
+                    <div class="rounded-[calc(1rem-2px)] bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-6" data-rt-glow>
+                        <div class="grid gap-4 sm:grid-cols-2">
+                            @foreach ([
+                                'ring_timeout' => ['label' => __('app.calls_setting_ring_timeout'), 'hint' => __('app.calls_setting_ring_timeout_hint'), 'unit' => __('app.unit_seconds')],
+                                'max_participants' => ['label' => __('app.calls_setting_max_participants'), 'hint' => __('app.calls_setting_max_participants_hint'), 'unit' => ''],
+                                'token_ttl' => ['label' => __('app.calls_setting_token_ttl'), 'hint' => __('app.calls_setting_token_ttl_hint'), 'unit' => __('app.unit_seconds')],
+                                'empty_timeout' => ['label' => __('app.calls_setting_empty_timeout'), 'hint' => __('app.calls_setting_empty_timeout_hint'), 'unit' => __('app.unit_seconds')],
+                                'http_connect_timeout' => ['label' => __('app.calls_setting_connect_timeout'), 'hint' => __('app.calls_setting_connect_timeout_hint'), 'unit' => __('app.unit_seconds')],
+                                'http_timeout' => ['label' => __('app.calls_setting_http_timeout'), 'hint' => __('app.calls_setting_http_timeout_hint'), 'unit' => __('app.unit_seconds')],
+                            ] as $field => $meta)
+                                @php [$configPath, $min, $max] = \App\Support\Calls\CallSettings::FIELDS[$field]; @endphp
+                                <div class="min-w-0 rounded-xl bg-rt-surface-muted p-3.5 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60 sm:p-4">
+                                    <x-ui.forms.label :for="'calls-'.$field" :value="$meta['label']" />
+                                    <x-ui.forms.number-input
+                                        :id="'calls-'.$field"
+                                        :min="$min"
+                                        :max="$max"
+                                        step="1"
+                                        :decimals="0"
+                                        separator="."
+                                        :unit="$meta['unit'] ?: null"
+                                        :nullable="false"
+                                        class="mt-1 w-full"
+                                        wire:model="calls.{{ $field }}"
+                                    />
+                                    <x-input-error :for="'calls.'.$field" class="mt-1" />
+                                    <p class="mt-1.5 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
+                                        {{ $meta['hint'] }}
+                                        <span class="whitespace-nowrap opacity-70">({{ $min }}–{{ $max }})</span>
+                                    </p>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                </section>
+
+                {{-- Infrastruktur: bewusst nur lesbar. --}}
+                @php $infra = \App\Support\Calls\CallSettings::infrastructure(); @endphp
+                <section
+                    class="relative min-w-0 overflow-hidden rounded-2xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60 sm:p-6"
+                >
+                    <div class="flex min-w-0 items-start gap-3">
+                        <span class="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-surface-muted text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted sm:flex">
+                            <i class="fad fa-lock fa-lg" aria-hidden="true"></i>
+                        </span>
+                        <div class="min-w-0 flex-1">
+                            <h2 class="text-base font-semibold tracking-tight text-rt-text dark:text-rt-dark-text sm:text-lg">
+                                {{ __('app.calls_infrastructure') }}
+                            </h2>
+                            <p class="mt-1 break-words text-sm text-rt-muted dark:text-rt-dark-muted">
+                                {{ __('app.calls_infrastructure_hint') }}
+                            </p>
+                        </div>
+                    </div>
+
+                    <dl class="mt-4 divide-y divide-rt-border/60 dark:divide-rt-dark-border/60">
+                        @foreach ([
+                            'ws_url' => __('app.calls_infra_ws_url'),
+                            'url' => __('app.calls_infra_url'),
+                            'api_key' => __('app.calls_infra_api_key'),
+                            'api_secret' => __('app.calls_infra_api_secret'),
+                            'turn_mode' => __('app.calls_infra_turn_mode'),
+                        ] as $key => $label)
+                            <div class="flex flex-col gap-1 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                                <dt class="text-xs font-semibold text-rt-muted dark:text-rt-dark-muted">{{ $label }}</dt>
+                                <dd class="min-w-0 truncate font-mono text-xs text-rt-text dark:text-rt-dark-text">
+                                    {{ $infra[$key] !== '' ? $infra[$key] : '—' }}
+                                </dd>
+                            </div>
+                        @endforeach
+                    </dl>
+                </section>
             </x-admin.settings-accordion-section>
 
             <x-admin.settings-accordion-section
@@ -717,7 +612,7 @@
                 :description="app()->getLocale() === 'de' ? 'Default-Prompt, verbindliche Regeln, Themen und gezielt abrufbares Wissen verwalten.' : 'Manage the default prompt, binding rules, topics and knowledge retrieved on demand.'"
                 icon="fad fa-books"
                 data-anim="fade-up"
-                data-anim-delay="0.08"
+                data-anim-delay="0.12"
             >
                 <livewire:admin.assistant-knowledge-manager />
             </x-admin.settings-accordion-section>
