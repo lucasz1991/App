@@ -9,7 +9,7 @@
     'quickReactions' => [],
     'allowedReactions' => [],
     'myReaction' => null,
-    'triggerVariant' => 'caret',
+    'triggerVariant' => 'bubble',
     'dropdownId' => null,
 ])
 
@@ -22,6 +22,7 @@
     $resolvedId = $dropdownId ?: 'chat-message-'.$messageId.'-actions';
     $resolvedControllerId = $controllerId ?: (string) $messageId;
     $resolvedDeleteLabel = $deleteLabel ?: __('app.delete_chat_message');
+    $bubbleTrigger = $triggerVariant === 'bubble';
 @endphp
 
 <x-ui.dropdown.anchor-dropdown
@@ -30,7 +31,9 @@
     :offset="6"
     :dropdown-id="$resolvedId"
     :content-label="__('app.message_options')"
+    :anchor-selector="$bubbleTrigger ? '[data-rt-chat-message]' : null"
     content-classes="bg-rt-surface text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text"
+    class="{{ $bubbleTrigger ? '!absolute left-0 top-0 h-0 w-0 overflow-visible pointer-events-none' : '' }}"
     data-chat-message-dropdown
     data-no-chat-swipe
 >
@@ -41,14 +44,16 @@
             data-chat-message-action-trigger="{{ $resolvedControllerId }}"
             x-on:click="if ($event.isTrusted) prepareActionMenu()"
             @class([
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent/50',
-                'rt-chat-message-caret flex h-11 w-11 items-center justify-center rounded-full text-[10px] focus-visible:ring-current/50' => $triggerVariant === 'caret',
-                'inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-rt-muted opacity-100 transition hover:bg-rt-surface-muted hover:text-rt-text dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted dark:hover:text-rt-dark-text sm:opacity-0 sm:group-hover:opacity-100' => $triggerVariant !== 'caret',
+                'sr-only' => $bubbleTrigger,
+                'inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-rt-muted opacity-100 transition hover:bg-rt-surface-muted hover:text-rt-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent/50 dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted dark:hover:text-rt-dark-text sm:opacity-0 sm:group-hover:opacity-100' => ! $bubbleTrigger,
             ])
+            @if ($bubbleTrigger) tabindex="-1" aria-hidden="true" @endif
             title="{{ __('app.message_options') }}"
             aria-label="{{ __('app.message_options') }}"
         >
-            <i class="far {{ $triggerVariant === 'caret' ? 'fa-chevron-down' : 'fa-ellipsis' }}" aria-hidden="true"></i>
+            @unless ($bubbleTrigger)
+                <i class="far fa-ellipsis" aria-hidden="true"></i>
+            @endunless
         </button>
     </x-slot>
 

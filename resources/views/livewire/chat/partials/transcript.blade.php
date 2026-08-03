@@ -94,19 +94,17 @@
                             : 'rt-chat-message--other rt-chat-message--actionable rounded-bl-md' }} {{ $messageSurface }} relative rounded-[1.15rem] px-3.5 py-2.5 text-[13px] leading-5 sm:px-4"
                     >
                         @unless ($deleted)
-                            <div class="rt-chat-message-actions" data-no-chat-swipe>
-                                <x-chat.message-dropdown
-                                    :message-id="$message->id"
-                                    controller-id="chat-{{ $message->id }}"
-                                    :own="$own"
-                                    :quick-reactions="$quickReactions"
-                                    :allowed-reactions="$allowedReactions"
-                                    :my-reaction="$myReaction"
-                                    delete-method="requestDeleteMessage"
-                                    trigger-variant="caret"
-                                    dropdown-id="chat-message-{{ $message->id }}-actions"
-                                />
-                            </div>
+                            <x-chat.message-dropdown
+                                :message-id="$message->id"
+                                controller-id="chat-{{ $message->id }}"
+                                :own="$own"
+                                :quick-reactions="$quickReactions"
+                                :allowed-reactions="$allowedReactions"
+                                :my-reaction="$myReaction"
+                                delete-method="requestDeleteMessage"
+                                trigger-variant="bubble"
+                                dropdown-id="chat-message-{{ $message->id }}-actions"
+                            />
                         @endunless
 
                         @if ($showSender)

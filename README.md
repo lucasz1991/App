@@ -245,9 +245,10 @@ php artisan railtime:livekit-check
 #### Nachrichtenantworten und Reaktionen
 
 Normale Chats und Call-Chats unterstützen Antworten sowie gruppierte
-Emoji-Reaktionen. Ein kurzer Klick beziehungsweise der Dropdown-Pfeil öffnet
-die Nachrichtenaktionen; Rechtsklick und Tastatur-Kontextmenü führen in
-dasselbe appweite Anchor-Dropdown. 500 ms Gedrückthalten öffnen bei fremden
+Emoji-Reaktionen. Im normalen Chat ist die Bubble selbst Klick- und
+Positionsanker des appweiten Dropdowns; ein zusätzlicher Chevron über der
+Nachricht wird nicht gerendert. Rechtsklick und Tastatur-Kontextmenü führen in
+dasselbe Anchor-Dropdown. 500 ms Gedrückthalten öffnen bei fremden
 Nachrichten sechs Schnellreaktionen und bei eigenen Nachrichten die verfügbaren
 Aktionen. Ein 44-Pixel-Pfeil klappt nur die weiteren, serverseitig identisch
 validierten Emojis auf. Gesetzte Reaktionen überlappen den unteren Bubble-Rand

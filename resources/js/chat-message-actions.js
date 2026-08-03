@@ -44,6 +44,23 @@ export function chatMessageActions(config = {}) {
             return document.querySelector(`[data-chat-message-action-trigger="${this.controllerId}"]`);
         },
 
+        toggleActionMenu() {
+            if (this.disabled) {
+                return;
+            }
+
+            const trigger = this.messageActionTrigger();
+            if (trigger?.getAttribute?.('aria-expanded') === 'true' && this.menuMode === 'actions') {
+                this.cancelLongPress();
+                this.showMore = false;
+                trigger.click?.();
+
+                return;
+            }
+
+            this.openMenu('actions');
+        },
+
         showReactionMenu() {
             if (!this.canReact) {
                 return;
@@ -183,20 +200,25 @@ export function chatMessageActions(config = {}) {
                 return;
             }
 
-            this.openMenu('actions');
+            this.toggleActionMenu();
         },
 
         handleKeyboard(event) {
-            if (
-                this.disabled
-                || event.target !== event.currentTarget
-                || !(event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10'))
-            ) {
+            if (this.disabled || event.target !== event.currentTarget) {
                 return;
             }
 
-            event.preventDefault();
-            this.openMenu('actions');
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                this.toggleActionMenu();
+
+                return;
+            }
+
+            if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+                event.preventDefault();
+                this.openMenu('actions');
+            }
         },
 
         destroy() {

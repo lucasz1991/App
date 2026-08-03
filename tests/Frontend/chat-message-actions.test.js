@@ -20,7 +20,7 @@ function installInteractionEnvironment() {
     const trigger = {
         click() {
             triggerClicks += 1;
-            expanded = 'true';
+            expanded = expanded === 'true' ? 'false' : 'true';
         },
         getAttribute(name) {
             if (name === 'aria-expanded') return expanded;
@@ -48,6 +48,7 @@ function installInteractionEnvironment() {
     return {
         timers,
         triggerClicks: () => triggerClicks,
+        expanded: () => expanded,
         focused: () => focused,
         closeTrigger: () => { expanded = 'false'; },
         restore() {
@@ -79,7 +80,14 @@ test('ordinary click and long press route through the shared message dropdown', 
         assert.equal(actions.menuMode, 'actions');
         assert.equal(environment.focused(), 2);
 
-        environment.closeTrigger();
+        actions.handleClick({
+            preventDefault() {},
+            stopPropagation() {},
+            target: null,
+        });
+        assert.equal(environment.triggerClicks(), 2);
+        assert.equal(environment.expanded(), 'false');
+
         actions.startLongPress({
             pointerType: 'touch',
             pointerId: 7,
@@ -90,7 +98,7 @@ test('ordinary click and long press route through the shared message dropdown', 
         environment.timers.shift()();
         assert.equal(actions.menuMode, 'reactions');
         assert.equal(actions.showMore, false);
-        assert.equal(environment.triggerClicks(), 2);
+        assert.equal(environment.triggerClicks(), 3);
     } finally {
         environment.restore();
     }
@@ -108,6 +116,39 @@ test('own-message long press opens useful message actions', () => {
         assert.equal(actions.menuMode, 'actions');
         assert.equal(environment.triggerClicks(), 1);
         assert.ok(actions.suppressClickUntil > Date.now());
+    } finally {
+        environment.restore();
+    }
+});
+
+test('the focused bubble itself toggles message actions from the keyboard', () => {
+    const environment = installInteractionEnvironment();
+
+    try {
+        const actions = chatMessageActions({ messageId: 9, controllerId: 'chat-9', canReact: true });
+        const bubble = {};
+        let prevented = 0;
+        actions.$nextTick = (callback) => callback();
+
+        actions.handleKeyboard({
+            target: bubble,
+            currentTarget: bubble,
+            key: 'Enter',
+            shiftKey: false,
+            preventDefault() { prevented += 1; },
+        });
+        assert.equal(environment.expanded(), 'true');
+
+        actions.handleKeyboard({
+            target: bubble,
+            currentTarget: bubble,
+            key: ' ',
+            shiftKey: false,
+            preventDefault() { prevented += 1; },
+        });
+        assert.equal(environment.expanded(), 'false');
+        assert.equal(environment.triggerClicks(), 2);
+        assert.equal(prevented, 2);
     } finally {
         environment.restore();
     }
@@ -137,6 +178,8 @@ test('chat and call transcripts use the same anchored dropdown components', asyn
 
     assert.match(callChat, /chatMessageActions\(/);
     assert.doesNotMatch(callChat, /\$allReactions\s*=/);
+    assert.match(transcript, /trigger-variant="bubble"/);
+    assert.doesNotMatch(transcript, /rt-chat-message-actions|trigger-variant="caret"/);
 });
 
 test('shared message dropdown shows one quick row and a genuinely collapsed extension', async () => {
@@ -146,6 +189,10 @@ test('shared message dropdown shows one quick row and a genuinely collapsed exte
     );
 
     assert.match(source, /<x-ui\.dropdown\.anchor-dropdown/);
+    assert.match(source, /'triggerVariant'\s*=>\s*'bubble'/);
+    assert.match(source, /:anchor-selector="\$bubbleTrigger \? '\[data-rt-chat-message\]' : null"/);
+    assert.match(source, /'sr-only'\s*=>\s*\$bubbleTrigger/);
+    assert.doesNotMatch(source, /rt-chat-message-caret/);
     assert.match(source, /array_filter\(/);
     assert.match(source, /data-chat-quick-reaction-row/);
     assert.match(source, /rt-chat-quick-reactions-track/);
@@ -180,6 +227,9 @@ test('shared dropdown keeps in-panel expansion controls open', async () => {
     assert.match(source, /data-rt-dropdown-keep-open/);
     assert.match(source, /data-rt-dropdown-caret/);
     assert.match(source, /x-teleport="body"/);
+    assert.match(source, /resolvePositionAnchor\(\)/);
+    assert.match(source, /clearExternalAnchorAccessibility\(\)/);
+    assert.match(source, /positionObserver\.observe\(positionAnchor\)/);
 });
 
 test('rendered reaction emojis stay transparent while the rail overlaps the bubble', async () => {
@@ -198,4 +248,5 @@ test('rendered reaction emojis stay transparent while the rail overlaps the bubb
     assert.match(overlayRule, /bottom:\s*0/);
     assert.match(overlayRule, /overflow-x:\s*auto/);
     assert.match(source, /\[data-chat-message-action-trigger\]\[aria-expanded='true'\]/);
+    assert.doesNotMatch(source, /\.rt-chat-message-(?:actions|caret)/);
 });

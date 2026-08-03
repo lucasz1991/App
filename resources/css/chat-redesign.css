@@ -643,29 +643,6 @@ body[data-mode='dark'] .rt-chat-message--own .rt-chat-message-meta {
     user-select: none;
 }
 
-/* Caret-Menue der Nachrichten: unsichtbar, bis die Nachricht per Hover,
-   Tastaturfokus oder Antippen angesprochen wird. */
-.rt-chat-message-actions {
-    position: absolute;
-    top: 0.2rem;
-    right: 0.25rem;
-    z-index: 5;
-    opacity: 0;
-    transform: translateY(-0.1rem);
-    transition:
-        opacity 150ms ease,
-        transform 180ms ease;
-    pointer-events: none;
-}
-
-.rt-chat-message--actionable:hover .rt-chat-message-actions,
-.rt-chat-message--actionable:focus-within .rt-chat-message-actions,
-.rt-chat-message-actions:has([data-chat-message-action-trigger][aria-expanded='true']) {
-    opacity: 1;
-    transform: translateY(0);
-    pointer-events: auto;
-}
-
 [data-chat-message-action-trigger][aria-expanded='true'] {
     color: theme('colors.rt.accent') !important;
     background: theme('colors.rt.surface-muted') !important;
@@ -679,51 +656,11 @@ body[data-mode='dark'] [data-chat-message-action-trigger][aria-expanded='true'] 
 }
 
 @media (hover: none) {
-    /*
-     * Ohne Hover gab es bisher keinen Zwischenzustand — der Pfeil stand
-     * dauerhaft in jeder eigenen Blase und wirkte wie ein Fehler. Auf Touch
-     * entscheidet deshalb allein das Antippen der Nachricht
-     * (data-actions-visible, gesetzt in der Transkript-Ansicht).
-     */
-    /* Auf Touch ist der alternative Dropdown-Weg dauerhaft auffindbar. */
-    .rt-chat-message-caret {
-        width: 2.75rem !important;
-        height: 2.75rem !important;
-    }
-
-    .rt-chat-message--actionable .rt-chat-message-actions,
-    .rt-chat-message--actionable:hover .rt-chat-message-actions {
-        opacity: 0.86;
-        transform: translateY(0);
-        pointer-events: auto;
-    }
-
     .rt-chat-message--actionable {
         touch-action: pan-y;
         -webkit-touch-callout: none;
         user-select: none;
     }
-}
-
-.rt-chat-message-caret {
-    color: var(--chat-muted);
-    background: transparent;
-}
-
-.rt-chat-message-caret > i {
-    display: inline-flex;
-    width: 1.75rem;
-    height: 1.75rem;
-    align-items: center;
-    justify-content: center;
-    border-radius: 9999px;
-    background: color-mix(in srgb, var(--chat-panel) 88%, transparent);
-    box-shadow: 0 1px 4px rgb(0 0 0 / 0.14);
-}
-
-.rt-chat-message-caret:hover,
-.rt-chat-message-caret:focus-visible {
-    color: var(--chat-accent);
 }
 
 .rt-chat-reaction-option {

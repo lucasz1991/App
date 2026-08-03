@@ -15,6 +15,7 @@
   'contentLabel'      => null,
   'dropdownId'        => null,
   'layerGroup'        => null,
+  'anchorSelector'    => null,
 ])
 
 @php
@@ -70,6 +71,7 @@
     panelLayer: 180,
     layerGroup: @js($resolvedLayerGroup),
     layerId: @js($resolvedDropdownId),
+    anchorSelector: @js(filled($anchorSelector) ? (string) $anchorSelector : null),
     horizontalAlign: @js(str_ends_with($anchorPlacement, '-start') ? 'left' : 'right'),
     preferredPlacement: @js(str_starts_with($anchorPlacement, 'top') ? 'top' : 'bottom'),
     offset: @js($anchorOffset),
@@ -104,11 +106,33 @@
     },
 
     destroy() {
+      this.clearExternalAnchorAccessibility();
       this.stopPositionTracking();
     },
 
     clamp(value, minimum, maximum) {
       return Math.min(Math.max(value, minimum), Math.max(minimum, maximum));
+    },
+
+    resolvePositionAnchor() {
+      if (this.anchorSelector && this.$root instanceof Element) {
+        const externalAnchor = this.$root.closest(this.anchorSelector);
+        if (externalAnchor) return externalAnchor;
+      }
+
+      const trigger = this.$refs.trigger;
+      return trigger?.querySelector('button, a, [role=button]') || trigger || null;
+    },
+
+    clearExternalAnchorAccessibility() {
+      if (!this.anchorSelector) return;
+
+      const externalAnchor = this.resolvePositionAnchor();
+      if (externalAnchor?.getAttribute('aria-controls') !== @js($dropdownPanelId)) return;
+
+      externalAnchor.removeAttribute('aria-expanded');
+      externalAnchor.removeAttribute('aria-controls');
+      externalAnchor.removeAttribute('aria-haspopup');
     },
 
     toggle() {
@@ -144,7 +168,7 @@
 
       if (restoreFocus) {
         this.$nextTick(() => {
-          const control = this.$refs.trigger?.querySelector('button, a, [role=button]');
+          const control = this.resolvePositionAnchor();
           control?.focus({ preventScroll: true });
         });
       }
@@ -168,7 +192,8 @@
 
       const panel = this.$refs.panel;
       const trigger = this.$refs.trigger;
-      if (!this.open || !panel || !trigger) return;
+      const positionAnchor = this.resolvePositionAnchor();
+      if (!this.open || !panel || !trigger || !positionAnchor) return;
 
       this.positionListener = () => this.schedulePosition(panel);
       this.scrollListener = (event) => this.handleTrackedScroll(event);
@@ -180,7 +205,7 @@
 
       if (typeof ResizeObserver === 'function') {
         this.positionObserver = new ResizeObserver(() => this.schedulePosition(panel));
-        this.positionObserver.observe(trigger);
+        this.positionObserver.observe(positionAnchor);
         this.positionObserver.observe(panel);
       }
 
@@ -252,7 +277,8 @@
 
     syncAnchoredPanel(panel) {
       const trigger = this.$refs.trigger;
-      if (!this.open || !trigger || !panel) return;
+      const positionAnchor = this.resolvePositionAnchor();
+      if (!this.open || !trigger || !positionAnchor || !panel) return;
 
       this.attachToOverlayPortal(panel);
       this.syncPanelLayer(panel);
@@ -269,10 +295,9 @@
       const viewportInset = 12;
       const maximumViewportWidth = Math.max(0, viewportWidth - 24);
       const maximumViewportHeight = Math.max(0, viewportHeight - 24);
-      const triggerControl = trigger.querySelector('button, a, [role=button]');
-      const triggerRect = (triggerControl || trigger).getBoundingClientRect();
-      const triggerIsVisible = trigger.isConnected
-        && trigger.getClientRects().length > 0
+      const triggerRect = positionAnchor.getBoundingClientRect();
+      const triggerIsVisible = positionAnchor.isConnected
+        && positionAnchor.getClientRects().length > 0
         && triggerRect.width > 0
         && triggerRect.height > 0
         && triggerRect.right > viewportLeft
@@ -476,8 +501,10 @@
 
     handleOutsideClick(event) {
       const target = event.target;
+      const positionAnchor = this.resolvePositionAnchor();
       if (
         !this.$refs.trigger?.contains(target)
+        && !positionAnchor?.contains(target)
         && !this.ownsNestedTeleportedTarget(target)
       ) {
         this.close();
@@ -541,10 +568,23 @@
       if (!control.hasAttribute('aria-haspopup')) {
         control.setAttribute('aria-haspopup', @js($contentRole === 'dialog' ? 'dialog' : 'menu'));
       }
+
+      const positionAnchor = this.resolvePositionAnchor();
+      if (positionAnchor && positionAnchor !== control) {
+        if (positionAnchor.getAttribute('aria-expanded') !== expanded) {
+          positionAnchor.setAttribute('aria-expanded', expanded);
+        }
+        if (!positionAnchor.hasAttribute('aria-controls')) {
+          positionAnchor.setAttribute('aria-controls', @js($dropdownPanelId));
+        }
+        if (!positionAnchor.hasAttribute('aria-haspopup')) {
+          positionAnchor.setAttribute('aria-haspopup', @js($contentRole === 'dialog' ? 'dialog' : 'menu'));
+        }
+      }
     },
 
     scrollToTrigger() {
-      const trigger = this.$refs.trigger;
+      const trigger = this.resolvePositionAnchor();
       if (!trigger) return;
 
       const y = trigger.getBoundingClientRect().top + window.scrollY - this.headerOffset;
