@@ -497,13 +497,46 @@ body[data-mode="dark"] .rt-pagination [aria-current="page"] > span {
    (.rt-swal-toast.swal2-toast statt .rt-swal-toast): das Stylesheet von
    SweetAlert2 kommt aus dem JS-Import und landet je nach Build vor ODER nach
    app.css. Bei Gleichstand entschiede sonst die Ladereihenfolge. */
+.rt-swal-stack {
+    position: fixed;
+    top: max(1rem, env(safe-area-inset-top));
+    right: max(1rem, env(safe-area-inset-right));
+    /* Unter echten SweetAlert2-Dialogen (1060), aber ueber der App-Shell. */
+    z-index: 1059;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 22rem;
+    max-width: calc(100vw - 2rem);
+    pointer-events: none;
+}
+
+.rt-swal-stack__item {
+    width: 100%;
+    pointer-events: auto;
+    will-change: transform;
+}
+
+/* Der Stapel liegt bewusst nicht in `.swal2-container`: SweetAlert2 entfernt
+   diesen Singleton-Container bei jedem neuen fire(). Die wenigen Basisregeln,
+   die die Bibliothek sonst ueber den Container vererbt, stehen deshalb hier. */
+.rt-swal-stack .rt-swal-toast.swal2-popup {
+    position: relative;
+    display: grid;
+    grid-template-columns: min-content minmax(0, 1fr) min-content;
+    overflow: hidden;
+    pointer-events: auto;
+}
+
 .rt-swal-toast.swal2-popup {
+    --rt-swal-toast-background: #ffffff;
+
     width: 22rem;
     max-width: calc(100vw - 2rem);
     padding: 0.8rem 0.9rem;
     grid-column-gap: 0.65rem;
     color: #182435;
-    background-color: #ffffff;
+    background-color: var(--rt-swal-toast-background);
     border: 1px solid #dbe3ee;
     border-left: 4px solid #0284c7;
     border-radius: 0.75rem;
@@ -521,29 +554,45 @@ body[data-mode="dark"] .rt-pagination [aria-current="page"] > span {
 }
 
 .rt-swal-toast.swal2-toast .rt-swal-toast__message {
+    min-width: 0;
     margin: 0.15rem 0 0;
     padding: 0;
     font-size: 0.875rem;
     line-height: 1.35;
     text-align: left;
     color: #637188;
+    overflow-wrap: anywhere;
 }
 
 /* SweetAlert2 bemisst den Schliesser in em der EIGENEN Schriftgroesse
    (width/height: .8em bei font-size: 2em). Ohne eigene Groesse bliebe eine
    Trefferflaeche von 16 px — auf dem Telefon zu klein. */
 .rt-swal-toast.swal2-toast .rt-swal-toast__close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     align-self: flex-start;
     width: 1.75rem;
     height: 1.75rem;
     margin: -0.2rem -0.25rem 0 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0.35rem;
+    outline: 0;
+    background: transparent;
     font-size: 1.5rem;
     line-height: 1;
     color: #91a0b4;
     box-shadow: none;
+    cursor: pointer;
 }
 
 .rt-swal-toast.swal2-toast .rt-swal-toast__close:hover { color: #e4002b; }
+
+.rt-swal-toast.swal2-toast .rt-swal-toast__close:focus-visible {
+    outline: 2px solid #e4002b;
+    outline-offset: 2px;
+}
 
 /* Randfarbe, Symbol und Fortschrittsbalken folgen der Art der Meldung. */
 .rt-swal-toast.swal2-icon-success { border-left-color: #16a34a; }
@@ -555,6 +604,23 @@ body[data-mode="dark"] .rt-pagination [aria-current="page"] > span {
 .rt-swal-toast.swal2-icon-info .rt-swal-toast__progress { background: rgba(2, 132, 199, 0.55); }
 .rt-swal-toast.swal2-icon-warning .rt-swal-toast__progress { background: rgba(217, 119, 6, 0.55); }
 .rt-swal-toast.swal2-icon-error .rt-swal-toast__progress { background: rgba(220, 38, 38, 0.55); }
+
+.rt-swal-toast.swal2-toast .swal2-timer-progress-bar-container {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: block;
+    grid-column: auto !important;
+    overflow: hidden;
+    border-bottom-right-radius: 0.75rem;
+    border-bottom-left-radius: 0.75rem;
+}
+
+.rt-swal-toast.swal2-toast .swal2-timer-progress-bar {
+    width: 100%;
+    height: 0.25em;
+}
 
 /* Die Icon-Geometrie bleibt vollstaendig bei SweetAlert2. Ring, Linien und
    Keyframes teilen sich dort dasselbe 2-em-Koordinatensystem; eine isolierte
@@ -585,11 +651,18 @@ body[data-mode="dark"] .rt-pagination [aria-current="page"] > span {
 .rt-swal-toast.swal2-toast .swal2-icon.swal2-success [class^='swal2-success-line'] { background-color: #16a34a; }
 .rt-swal-toast.swal2-toast .swal2-icon.swal2-success .swal2-success-ring { border-color: rgba(22, 163, 74, 0.3); }
 .rt-swal-toast.swal2-toast .swal2-icon.swal2-error [class^='swal2-x-mark-line'] { background-color: #dc2626; }
+.rt-swal-toast.swal2-toast .swal2-icon.swal2-success :is(
+    .swal2-success-circular-line-left,
+    .swal2-success-circular-line-right,
+    .swal2-success-fix
+) { background-color: var(--rt-swal-toast-background); }
 
 html.dark .rt-swal-toast.swal2-popup,
 body[data-mode="dark"] .rt-swal-toast.swal2-popup {
+    --rt-swal-toast-background: #111a27;
+
     color: #edf2f8;
-    background-color: #111a27;
+    background-color: var(--rt-swal-toast-background);
     /* Bewusst ohne die border-color-Kurzform: die wuerde auch den farbigen
        linken Rand ueberschreiben, der die Art der Meldung anzeigt. */
     border-top-color: #334155;
@@ -607,19 +680,30 @@ body[data-mode="dark"] .rt-swal-toast.swal2-toast .rt-swal-toast__close { color:
 html.dark .rt-swal-toast.swal2-toast .rt-swal-toast__close:hover,
 body[data-mode="dark"] .rt-swal-toast.swal2-toast .rt-swal-toast__close:hover { color: #ff7189; }
 
-/* Auf dem Telefon oben mittig ueber die volle Breite. SweetAlert2 setzt die
-   Breite ueber `body.swal2-toast-shown .swal2-container` (Spezifitaet 0,3,1)
-   auf feste 360 px — die gleiche Selektortiefe ist noetig. */
+/* Auf dem Telefon oben mittig ueber die volle Breite. */
 @media (max-width: 640px) {
-    body.swal2-toast-shown .swal2-container.swal2-top-end {
-        inset: 0 0 auto 0;
-        width: 100%;
-        box-sizing: border-box;
-        justify-content: center;
-        padding: 0.75rem;
+    .rt-swal-stack {
+        top: max(0.75rem, env(safe-area-inset-top));
+        right: max(0.75rem, env(safe-area-inset-right));
+        left: max(0.75rem, env(safe-area-inset-left));
+        width: auto;
+        max-width: none;
     }
 
     .rt-swal-toast.swal2-popup { width: 100%; max-width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rt-swal-stack .swal2-show,
+    .rt-swal-stack .swal2-hide,
+    .rt-swal-stack .swal2-icon-show,
+    .rt-swal-stack .swal2-x-mark,
+    .rt-swal-stack .swal2-icon-content,
+    .rt-swal-stack .swal2-success-line-tip,
+    .rt-swal-stack .swal2-success-line-long,
+    .rt-swal-stack .swal2-success-circular-line-right {
+        animation: none !important;
+    }
 }
 
 /* Admin Command Center: eigenstaendige RailTime-Strecke, dezentes Raster und

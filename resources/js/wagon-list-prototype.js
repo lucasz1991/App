@@ -1116,6 +1116,12 @@ export function wagonListPrototype(config = {}) {
         },
 
         notify(title, icon = 'success', timer = 2600) {
+            if (window.RTAlert?.show) {
+                window.RTAlert.show({ title, type: icon, timer });
+
+                return;
+            }
+
             window.Swal?.fire({
                 toast: true,
                 position: 'top-end',
