@@ -1,7 +1,7 @@
 const TAU = Math.PI * 2;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
-export const NAVIGATION_LOADER_MIN_PLAYBACK_MS = 600;
+export const NAVIGATION_LOADER_MIN_PLAYBACK_MS = 1500;
 
 const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
 const mix = (from, to, progress) => from + ((to - from) * progress);
