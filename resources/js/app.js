@@ -22,6 +22,7 @@ import './gsap';
 // Vengeance-Motion (zeigergefuehrter Karten-Glow, Optik in app.css)
 import './vengeance-motion';
 import { wagonListPrototype } from './wagon-list-prototype';
+import { wagonVideoCapture } from './wagon-video-capture';
 import {
     acquireMicrophoneStream,
     holdMicrophoneStream,
@@ -636,6 +637,7 @@ setupRailtimePwa();
 const rtLiveLocation = registerRailtimeLiveLocation(Alpine);
 
 Alpine.data('wagonListPrototype', wagonListPrototype);
+Alpine.data('wagonVideoCapture', wagonVideoCapture);
 Alpine.data('rtNumberInput', numberInput);
 Alpine.data('rtDateField', dateField);
 Alpine.data('rtSidebarNavigation', sidebarNavigation);

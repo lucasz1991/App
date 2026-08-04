@@ -16,6 +16,7 @@ use App\Http\Controllers\ProfileEmailTemplateController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\PwaIconController;
 use App\Http\Controllers\WagonListExportController;
+use App\Http\Controllers\WagonListMediaController;
 use App\Http\Controllers\Webhooks\LiveKitWebhookController;
 use App\Http\Middleware\EnsureAssistantAccess;
 use App\Http\Middleware\LogActivity;
@@ -121,6 +122,9 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
         ->name('operations.wagon-list');
     Route::post('/betrieb/wagenliste/export', WagonListExportController::class)
         ->name('operations.wagon-list.export');
+    Route::post('/betrieb/wagenliste/medien', WagonListMediaController::class)
+        ->middleware('throttle:30,1')
+        ->name('operations.wagon-list.media');
     Route::get('/files', UserFiles::class)->name('files');
     Route::get('/files/verbindlich/{managedDocument}', ManagedDocumentDownloadController::class)
         ->name('managed-documents.download');
@@ -198,6 +202,9 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
         Route::get('/betrieb/wagenliste', WagonListPrototype::class)->name('operations.wagon-list');
         Route::post('/betrieb/wagenliste/export', WagonListExportController::class)
             ->name('operations.wagon-list.export');
+        Route::post('/betrieb/wagenliste/medien', WagonListMediaController::class)
+            ->middleware('throttle:30,1')
+            ->name('operations.wagon-list.media');
         Route::get('/settings', Settings::class)->name('settings');
         Route::get('/employees', Employees::class)->name('employees');
         Route::get('/user/{userId}', UserProfile::class)->name('user-profile');

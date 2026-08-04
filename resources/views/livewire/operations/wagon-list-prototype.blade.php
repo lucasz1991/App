@@ -219,6 +219,18 @@
             </x-slot:header>
 
             <x-slot:actions>
+                {{-- Extra-Feature oben rechts: Video-Erfassung der Wagen —
+                     bewusst auch mobil sichtbar (dort ist sie gedacht). --}}
+                <button
+                    type="button"
+                    @click="$dispatch('railtime-wagon-video-open')"
+                    class="rt-wagon-video-trigger flex h-10 items-center justify-center gap-2 rounded-lg border border-rt-accent/30 bg-rt-accent-soft px-3 text-sm font-semibold text-rt-accent shadow-rt-xs transition-all duration-200 hover:border-rt-accent/50 hover:bg-rt-accent-soft/70 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent/35 dark:border-rt-dark-accent/35 dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent"
+                    title="{{ __('app.wagon_video_capture') }}"
+                    aria-label="{{ __('app.wagon_video_capture') }}"
+                >
+                    <i class="far fa-video" aria-hidden="true"></i>
+                    <span class="hidden sm:inline">{{ __('app.wagon_video_capture') }}</span>
+                </button>
                 <button
                     type="button"
                     @click="resetDraft()"
@@ -260,6 +272,12 @@
                 @include('livewire.operations.partials.wagon-mobile-wizard', [
                     'inputClass' => $inputClass,
                     'labelClass' => $labelClass,
+                ])
+
+                @include('livewire.operations.partials.wagon-video-capture', [
+                    'mediaUploadUrl' => auth()->user()->usesAdminLayout()
+                        ? route('admin.operations.wagon-list.media')
+                        : route('operations.wagon-list.media'),
                 ])
             </main>
         </x-ui.fullscreen-modal>

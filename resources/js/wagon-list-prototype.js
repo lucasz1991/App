@@ -407,6 +407,12 @@ export function wagonListPrototype(config = {}) {
 
             if (escapeBelongsToChatbot) return;
 
+            // Offene Video-Erfassung: deren eigener Escape-Handler schliesst
+            // sie — der Editor bleibt offen.
+            if (typeof document !== 'undefined' && document.body?.classList?.contains?.('rt-wagon-capture-open')) {
+                return;
+            }
+
             // Das Wagen-Modal faengt Escape zuerst — erst der zweite Druck
             // schliesst den Editor selbst.
             if (this.wagonModalOpen) {
