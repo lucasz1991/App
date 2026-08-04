@@ -7,6 +7,7 @@
     'maxWidth' => '4xl',
     'closeAction' => null,
     'layer' => 190,
+    'bodyClass' => 'min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 py-4 [overflow-wrap:anywhere] [scrollbar-gutter:stable] sm:px-6 sm:py-6',
 ])
 
 @php
@@ -107,7 +108,7 @@
                 </div>
             </header>
 
-            <div class="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 py-4 [overflow-wrap:anywhere] [scrollbar-gutter:stable] sm:px-6 sm:py-6">
+            <div class="{{ $bodyClass }}">
                 {{ $slot }}
             </div>
 

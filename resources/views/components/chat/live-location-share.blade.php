@@ -83,7 +83,10 @@
                 <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rt-surface text-rt-red ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-accent dark:ring-rt-dark-border/60">
                     <i class="far fa-shield-check" aria-hidden="true"></i>
                 </span>
-                <p>{{ __('app.chat_live_location_privacy_hint') }}</p>
+                <div class="min-w-0">
+                    <p>{{ __('app.chat_live_location_privacy_hint') }}</p>
+                    <p class="mt-1.5 font-semibold text-amber-800 dark:text-amber-200">{{ __('app.chat_live_location_foreground_hint') }}</p>
+                </div>
             </div>
 
             <p

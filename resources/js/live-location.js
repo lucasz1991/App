@@ -14,6 +14,7 @@ const POSITION_OPTIONS = Object.freeze({
 const MINIMUM_UPDATE_INTERVAL = 5_000;
 const DISTANCE_UPDATE_METERS = 20;
 const HEARTBEAT_UPDATE_INTERVAL = 30_000;
+const LIVE_LOCATION_FRESHNESS_WINDOW = 75_000;
 const ACTIVE_STATUSES = new Set(['active', 'sharing']);
 
 function finiteNumber(value) {
@@ -172,6 +173,16 @@ export function isLiveLocationActive(share, now = Date.now()) {
     const expiresAt = timestamp(share.expiresAt);
 
     return expiresAt === null || expiresAt > now;
+}
+
+export function isLiveLocationFresh(locatedAt, now = Date.now(), freshnessWindow = LIVE_LOCATION_FRESHNESS_WINDOW) {
+    const located = timestamp(locatedAt);
+
+    if (located === null) {
+        return false;
+    }
+
+    return Math.max(0, Number(now) - located) <= Math.max(1_000, Number(freshnessWindow) || 0);
 }
 
 export function normalizeGeolocationPosition(position) {
@@ -378,6 +389,10 @@ export class LiveLocationCoordinator {
         this._initializePromise = null;
         this._updateInFlight = false;
         this._pendingPosition = null;
+        this._pendingPositionForce = false;
+        this._pendingPositionKeepalive = false;
+        this._latestPosition = null;
+        this._lastBackgroundFlushAt = Number.NEGATIVE_INFINITY;
         this._destroyed = false;
     }
 
@@ -500,11 +515,19 @@ export class LiveLocationCoordinator {
         }
 
         this._listen(this.document, 'visibilitychange', () => {
+            if (this.document?.visibilityState === 'hidden') {
+                this._flushLatestPosition({ keepalive: true });
+
+                return;
+            }
+
             if (this.document?.visibilityState === 'visible') {
                 this._resumeAfterVisibility();
             }
         });
         this._listen(this.window, 'pageshow', () => this._resumeAfterVisibility());
+        this._listen(this.document, 'resume', () => this._resumeAfterVisibility());
+        this._listen(this.window, 'pagehide', () => this._flushLatestPosition({ keepalive: true }));
         this._listen(this.window, 'online', () => {
             this.online = true;
             this._emit();
@@ -618,6 +641,7 @@ export class LiveLocationCoordinator {
             this._scheduleExpiry();
 
             if (this.activeShares.length === 0) {
+                this._clearPositionMemory();
                 this._setResumeNeeded(false);
                 this._clearResumeError();
                 this._clearWatch();
@@ -721,10 +745,12 @@ export class LiveLocationCoordinator {
 
         try {
             const position = await this._positionOnce();
+            const currentPosition = liveLocationPositionPayload(position);
+            this._latestPosition = currentPosition;
             const payload = {
                 chat_id: normalizedChatId,
                 duration_minutes: duration,
-                ...liveLocationPositionPayload(position),
+                ...currentPosition,
             };
             const replyId = positiveInteger(replyToMessageId);
 
@@ -766,6 +792,10 @@ export class LiveLocationCoordinator {
             return publicShare(share);
         } catch (error) {
             const code = error?.code === 1 ? 'permission_denied' : 'start_failed';
+
+            if (this.activeShares.length === 0) {
+                this._clearPositionMemory();
+            }
 
             if (code === 'permission_denied') {
                 this.permissionState = 'denied';
@@ -857,17 +887,22 @@ export class LiveLocationCoordinator {
         this.watching = false;
     }
 
-    async _handlePosition(position, { force = false } = {}) {
+    async _handlePosition(position, { force = false, keepalive = false } = {}) {
         const next = liveLocationPositionPayload(position);
+        this._latestPosition = next;
 
         if (!this.online) {
             this._pendingPosition = next;
-            return;
+            this._pendingPositionForce ||= force;
+            this._pendingPositionKeepalive ||= keepalive;
+            return false;
         }
 
         if (this._updateInFlight) {
             this._pendingPosition = next;
-            return;
+            this._pendingPositionForce ||= force;
+            this._pendingPositionKeepalive ||= keepalive;
+            return false;
         }
 
         const now = this.now();
@@ -880,7 +915,7 @@ export class LiveLocationCoordinator {
             })));
 
         if (candidates.length === 0) {
-            return;
+            return false;
         }
 
         this._updateInFlight = true;
@@ -891,6 +926,10 @@ export class LiveLocationCoordinator {
                     const response = await this.request(share.updateUrl, {
                         method: 'PATCH',
                         body: JSON.stringify(next),
+                        // A page can freeze before a deferred pagehide flush
+                        // starts. Keeping every tiny location PATCH alive also
+                        // protects the request that is already in flight.
+                        keepalive: true,
                     });
                     const updated = normalizeLiveLocationResponse(response);
                     const merged = {
@@ -928,12 +967,21 @@ export class LiveLocationCoordinator {
             this._emit();
 
             const pending = this._pendingPosition;
+            const pendingForce = this._pendingPositionForce;
+            const pendingKeepalive = this._pendingPositionKeepalive;
             this._pendingPosition = null;
+            this._pendingPositionForce = false;
+            this._pendingPositionKeepalive = false;
 
             if (pending) {
-                this._handlePosition(pending).catch(() => null);
+                this._handlePosition(pending, {
+                    force: pendingForce,
+                    keepalive: pendingKeepalive,
+                }).catch(() => null);
             }
         }
+
+        return true;
     }
 
     _flushPendingPosition() {
@@ -942,8 +990,40 @@ export class LiveLocationCoordinator {
         }
 
         const pending = this._pendingPosition;
+        const pendingKeepalive = this._pendingPositionKeepalive;
         this._pendingPosition = null;
-        this._handlePosition(pending, { force: true }).catch(() => null);
+        this._pendingPositionForce = false;
+        this._pendingPositionKeepalive = false;
+        this._handlePosition(pending, {
+            force: true,
+            keepalive: pendingKeepalive,
+        }).catch(() => null);
+    }
+
+    _flushLatestPosition({ keepalive = false } = {}) {
+        if (!this._latestPosition || this.activeShares.length === 0 || !this.online) {
+            return Promise.resolve(false);
+        }
+
+        const now = this.now();
+
+        if (now - this._lastBackgroundFlushAt < 1_000) {
+            return Promise.resolve(false);
+        }
+
+        this._lastBackgroundFlushAt = now;
+
+        return this._handlePosition(this._latestPosition, {
+            force: true,
+            keepalive,
+        }).then(Boolean).catch(() => false);
+    }
+
+    _clearPositionMemory() {
+        this._latestPosition = null;
+        this._pendingPosition = null;
+        this._pendingPositionForce = false;
+        this._pendingPositionKeepalive = false;
     }
 
     _upsertShare(nextShare) {
@@ -976,6 +1056,7 @@ export class LiveLocationCoordinator {
         );
 
         if (this.activeShares.length === 0) {
+            this._clearPositionMemory();
             this._setResumeNeeded(false);
             this._clearResumeError();
             this._clearWatch();
@@ -1040,7 +1121,7 @@ export class LiveLocationCoordinator {
     handleLogout() {
         this._reconcileGeneration += 1;
         this.activeShares = [];
-        this._pendingPosition = null;
+        this._clearPositionMemory();
         this._setResumeNeeded(false);
         this._clearResumeError();
         this._clearWatch();
@@ -1069,6 +1150,10 @@ export class LiveLocationCoordinator {
         }
 
         this._resumePromise = (async () => {
+            if (this.activeUrl) {
+                await this.reconcile({ quiet: true });
+            }
+
             if (this.activeShares.length === 0) {
                 this._setResumeNeeded(false);
                 this._emit();
@@ -1133,6 +1218,7 @@ export class LiveLocationCoordinator {
         });
 
         if (this.activeShares.length === 0) {
+            this._clearPositionMemory();
             this._setResumeNeeded(false);
             this._clearResumeError();
             this._clearWatch();
@@ -1161,6 +1247,7 @@ export class LiveLocationCoordinator {
     destroy() {
         this._destroyed = true;
         this._reconcileGeneration += 1;
+        this._clearPositionMemory();
         this._clearWatch();
 
         if (this._expiryTimer !== null) {
@@ -1443,6 +1530,29 @@ export function railtimeLiveLocationCard(config = {}) {
             return isLiveLocationActive(normalizeLiveLocationShare(componentShare(this)), this.nowMs);
         },
 
+        get isFresh() {
+            return this.isActive && isLiveLocationFresh(this.locatedAt, this.nowMs);
+        },
+
+        get activityLabel() {
+            if (this.isActive) {
+                return messageTemplate(
+                    this.messages,
+                    this.isFresh ? 'live' : 'paused',
+                    this.isFresh ? 'Live' : 'Aktualisierung pausiert',
+                );
+            }
+
+            const expired = this.status === 'expired'
+                || (ACTIVE_STATUSES.has(this.status) && this.remainingSeconds === 0);
+
+            return messageTemplate(
+                this.messages,
+                expired ? 'expired' : 'stopped',
+                expired ? 'Abgelaufen' : 'Beendet',
+            );
+        },
+
         get remainingSeconds() {
             return remainingSeconds(this.expiresAt, this.nowMs);
         },
@@ -1704,6 +1814,29 @@ export function railtimeLiveLocationPreview(config = {}) {
 
         get isActive() {
             return isLiveLocationActive(normalizeLiveLocationShare(componentShare(this)), this.nowMs);
+        },
+
+        get isFresh() {
+            return this.isActive && isLiveLocationFresh(this.locatedAt, this.nowMs);
+        },
+
+        get activityLabel() {
+            if (this.isActive) {
+                return messageTemplate(
+                    this.messages,
+                    this.isFresh ? 'live' : 'paused',
+                    this.isFresh ? 'Live' : 'Aktualisierung pausiert',
+                );
+            }
+
+            const expired = this.status === 'expired'
+                || (ACTIVE_STATUSES.has(this.status) && this.remainingSeconds === 0);
+
+            return messageTemplate(
+                this.messages,
+                expired ? 'expired' : 'stopped',
+                expired ? 'Abgelaufen' : 'Beendet',
+            );
         },
 
         get remainingSeconds() {

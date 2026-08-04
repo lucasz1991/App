@@ -274,10 +274,11 @@ den sicheren Antwortkontext und gruppierte Reaktionen.
 #### Zeitlich begrenzte Live-Standorte
 
 Normale Chats und aktive Call-Chats können einen Live-Standort für exakt 15,
-30, 45, 60 oder 90 Minuten teilen. Die Bubble zeigt eine kompakte Karte,
-Restlaufzeit, Genauigkeit und Aktualisierungszeit; die große Vorschau bietet
-eine interaktive Karte und erneutes Zentrieren. Eine eigene Freigabe lässt sich
-jederzeit stoppen. Beim Ende eines Anrufs sowie beim Verlassen oder Entfernen
+30, 45, 60 oder 90 Minuten teilen. Die kompakte Bubble zeigt Status, Name,
+Genauigkeit und Aktualisierungszeit direkt über der Karte. Die große Vorschau
+ist eine durchgehende interaktive Kartenfläche mit denselben Overlays sowie
+Zentrieren und Beenden. Eine eigene Freigabe lässt sich jederzeit stoppen.
+Beim Ende eines Anrufs sowie beim Verlassen oder Entfernen
 eines Teilnehmers werden zugehörige Call-Freigaben serverseitig beendet.
 
 RailTime speichert nur die jeweils letzte Position im verschlüsselten
@@ -286,7 +287,10 @@ noch in Push-Texten, Exporten, URLs oder Browser-Speichern. Das Löschen einer
 Standortnachricht entfernt auch ihre präzise Position. Geolocation benötigt im
 Produktivbetrieb HTTPS und eine Gerätefreigabe. Browser und installierte PWAs
 können Geolocation nicht verlässlich aus einem geschlossenen
-Service-Worker-Hintergrund aktualisieren. Nach Rückkehr in die geöffnete App
+Service-Worker-Hintergrund aktualisieren. Beim Verbergen sendet RailTime den
+letzten bereits ermittelten Punkt einmal best-effort mit einer
+Keepalive-Anfrage; das ist keine kontinuierliche Hintergrundmessung. Nach
+Rückkehr in die geöffnete App
 wird eine noch aktive Freigabe bei weiterhin erteilter Berechtigung automatisch
 wieder aufgenommen; andernfalls zeigt RailTime eine bewusste
 **Fortsetzen**-Aktion, statt überraschend eine Berechtigungsabfrage zu öffnen.

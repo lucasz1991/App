@@ -5,6 +5,7 @@ import test from 'node:test';
 import {
     LIVE_LOCATION_DURATIONS,
     LiveLocationCoordinator,
+    isLiveLocationFresh,
     liveLocationPositionPayload,
     normalizeLiveLocationList,
     normalizeLiveLocationResponse,
@@ -210,6 +211,14 @@ test('throttles noisy fixes while allowing distance updates and a heartbeat', ()
         latitude: 50.001,
         longitude: 8.001,
     }, 16_000), true);
+});
+
+test('marks a location as paused after the bounded heartbeat freshness window', () => {
+    const locatedAt = '2026-08-03T10:00:00Z';
+
+    assert.equal(isLiveLocationFresh(locatedAt, Date.parse('2026-08-03T10:01:14Z')), true);
+    assert.equal(isLiveLocationFresh(locatedAt, Date.parse('2026-08-03T10:01:16Z')), false);
+    assert.equal(isLiveLocationFresh('', Date.parse('2026-08-03T10:00:00Z')), false);
 });
 
 test('starts multiple shares with one watcher and uses only server-authored update and stop URLs', async () => {
@@ -460,6 +469,147 @@ test('foreground recovery recreates a potentially stale native watcher exactly o
     coordinator.destroy();
 });
 
+test('publishes the latest already known fix once with keepalive before suspension', async () => {
+    let now = 100_000;
+    const geo = geolocationHarness();
+    const timers = coordinatorTimers();
+    const requests = [];
+    const coordinator = new LiveLocationCoordinator({
+        windowLike: coordinatorWindow(),
+        documentLike: null,
+        navigatorLike: { geolocation: geo.api, onLine: true },
+        now: () => now,
+        ...timers,
+        request: async (url, options) => {
+            requests.push({ url, ...options });
+
+            return responseShare();
+        },
+    });
+
+    await coordinator.start({
+        chatId: 17,
+        durationMinutes: 30,
+        startUrl: '/chat/17/live-locations',
+    });
+    requests.length = 0;
+    now += 2_000;
+
+    assert.equal(await coordinator._flushLatestPosition({ keepalive: true }), true);
+    assert.equal(await coordinator._flushLatestPosition({ keepalive: true }), false);
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].method, 'PATCH');
+    assert.equal(requests[0].keepalive, true);
+    assert.equal(requests[0].url, '/chat/live-locations/018f-live-location-a');
+
+    coordinator.destroy();
+});
+
+test('keeps both the active update and a queued suspension fix unload-safe', async () => {
+    let now = 100_000;
+    let releaseUpdate;
+    const geo = geolocationHarness();
+    const timers = coordinatorTimers();
+    const requests = [];
+    const updateGate = new Promise((resolve) => {
+        releaseUpdate = resolve;
+    });
+    const coordinator = new LiveLocationCoordinator({
+        windowLike: coordinatorWindow(),
+        documentLike: null,
+        navigatorLike: { geolocation: geo.api, onLine: true },
+        now: () => now,
+        ...timers,
+        request: async (url, options) => {
+            requests.push({ url, ...options });
+
+            if (options.method === 'PATCH' && requests.filter((item) => item.method === 'PATCH').length === 1) {
+                await updateGate;
+            }
+
+            return responseShare();
+        },
+    });
+
+    await coordinator.start({
+        chatId: 17,
+        durationMinutes: 30,
+        startUrl: '/chat/17/live-locations',
+    });
+    requests.length = 0;
+    now += 31_000;
+
+    const activeUpdate = coordinator._handlePosition({
+        coords: { latitude: 50.112, longitude: 8.684, accuracy: 6 },
+    }, { force: true });
+    await Promise.resolve();
+
+    assert.equal(await coordinator._flushLatestPosition({ keepalive: true }), false);
+    releaseUpdate();
+    await activeUpdate;
+
+    const updates = requests.filter((request) => request.method === 'PATCH');
+    assert.equal(updates.length, 2);
+    assert.equal(updates[0].keepalive, true);
+    assert.equal(updates[1].keepalive, true);
+
+    coordinator.destroy();
+});
+
+test('a failed first share never retains its precise position', async () => {
+    const geo = geolocationHarness();
+    const timers = coordinatorTimers();
+    const coordinator = new LiveLocationCoordinator({
+        windowLike: coordinatorWindow(),
+        documentLike: null,
+        navigatorLike: { geolocation: geo.api, onLine: true },
+        ...timers,
+        request: async () => {
+            throw new Error('Server rejected the share');
+        },
+    });
+
+    await assert.rejects(() => coordinator.start({
+        chatId: 17,
+        durationMinutes: 30,
+        startUrl: '/chat/17/live-locations',
+    }), /Server rejected the share/);
+
+    assert.equal(coordinator._latestPosition, null);
+    assert.equal(coordinator._pendingPosition, null);
+    assert.equal(coordinator.snapshot().activeCount, 0);
+    coordinator.destroy();
+});
+
+test('ending the last share clears every precise in-memory position', async () => {
+    const geo = geolocationHarness();
+    const timers = coordinatorTimers();
+    const coordinator = new LiveLocationCoordinator({
+        windowLike: coordinatorWindow(),
+        documentLike: null,
+        navigatorLike: { geolocation: geo.api, onLine: true },
+        ...timers,
+        request: async () => responseShare(),
+    });
+
+    await coordinator.start({
+        chatId: 17,
+        durationMinutes: 30,
+        startUrl: '/chat/17/live-locations',
+    });
+    coordinator._pendingPosition = { latitude: 50.12, longitude: 8.69, accuracy: 4 };
+    coordinator._pendingPositionForce = true;
+    coordinator._pendingPositionKeepalive = true;
+
+    await coordinator.stop('018f-live-location-a');
+
+    assert.equal(coordinator._latestPosition, null);
+    assert.equal(coordinator._pendingPosition, null);
+    assert.equal(coordinator._pendingPositionForce, false);
+    assert.equal(coordinator._pendingPositionKeepalive, false);
+    coordinator.destroy();
+});
+
 test('logout immediately clears in-memory coordinates and the watcher without browser storage', async () => {
     const geo = geolocationHarness();
     const timers = coordinatorTimers();
@@ -658,6 +808,38 @@ test('mini-card and preview apply the latest coordinates after an asynchronous m
     ]);
 });
 
+test('preview recenter and stop actions always use the currently displayed share', async () => {
+    const calls = [];
+    const preview = railtimeLiveLocationPreview({});
+    const share = responseShare({ id: 'share-current', latitude: 51, longitude: 9 }).live_location;
+    share.can_stop = true;
+    preview.applyShare(share);
+    preview._map = {
+        recenter() { calls.push(['recenter', preview.shareId]); },
+        update() {},
+    };
+    preview.$store = {
+        liveLocation: {
+            async stop(id, url) {
+                calls.push(['stop', id, url]);
+
+                return { id, status: 'stopped' };
+            },
+        },
+    };
+
+    preview.recenter();
+    await preview.stopSharing();
+
+    assert.deepEqual(calls, [
+        ['recenter', 'share-current'],
+        ['stop', 'share-current', '/chat/live-locations/share-current'],
+    ]);
+    assert.equal(preview.status, 'stopped');
+    assert.equal(preview.stopping, false);
+    assert.equal(preview.busy, false);
+});
+
 test('Alpine factories expose the stable launcher, mini-card and global preview contract', () => {
     const launcher = railtimeLiveLocationShare({
         chat_id: 17,
@@ -682,7 +864,11 @@ test('Alpine factories expose the stable launcher, mini-card and global preview 
         accuracy: 13,
         can_stop: true,
         located_at: '2026-08-03T10:00:00Z',
-        messages: { updatedMinutes: 'Vor :minutes Minuten' },
+        messages: {
+            live: 'Live',
+            paused: 'Pausiert',
+            updatedMinutes: 'Vor :minutes Minuten',
+        },
     });
     assert.equal(card.shareId, 'card-location');
     assert.equal(card.latitude, 51);
@@ -691,6 +877,11 @@ test('Alpine factories expose the stable launcher, mini-card and global preview 
     assert.equal(card.stopping, false);
     card.nowMs = Date.parse('2026-08-03T10:02:00Z');
     assert.equal(card.lastUpdatedLabel, 'Vor 2 Minuten');
+    assert.equal(card.isFresh, false);
+    assert.equal(card.activityLabel, 'Pausiert');
+    card.nowMs = Date.parse('2026-08-03T10:00:30Z');
+    assert.equal(card.isFresh, true);
+    assert.equal(card.activityLabel, 'Live');
 
     const windowLike = {
         requestAnimationFrame(callback) { callback(); },
@@ -726,10 +917,14 @@ test('the Echo listener forwards only identifiers and status before authorized r
     assert.doesNotMatch(listener, /event\.(?:latitude|longitude|position|accuracy)/);
 });
 
-test('live-location markup uses important visibility, a dismiss action, and a call-safe preview layer', async () => {
-    const [preview, sharePicker, stateModal] = await Promise.all([
+test('live-location markup uses full-map overlays, a compact mini-map, and a flush modal body', async () => {
+    const [preview, card, sharePicker, stateModal, chatCss] = await Promise.all([
         readFile(new URL(
             '../../resources/views/components/chat/live-location-preview.blade.php',
+            import.meta.url,
+        ), 'utf8'),
+        readFile(new URL(
+            '../../resources/views/components/chat/live-location-card.blade.php',
             import.meta.url,
         ), 'utf8'),
         readFile(new URL(
@@ -740,6 +935,10 @@ test('live-location markup uses important visibility, a dismiss action, and a ca
             '../../resources/views/components/ui/state-modal.blade.php',
             import.meta.url,
         ), 'utf8'),
+        readFile(new URL(
+            '../../resources/css/chat-redesign.css',
+            import.meta.url,
+        ), 'utf8'),
     ]);
 
     assert.match(preview, /x-show\.important="\$store\.liveLocation\.resumePromptVisible"/);
@@ -747,9 +946,36 @@ test('live-location markup uses important visibility, a dismiss action, and a ca
     assert.match(preview, /dismissResumePrompt\(\)/);
     assert.match(preview, /chat_live_location_resume_dismiss/);
     assert.match(preview, /:layer="230"/);
+    assert.match(preview, /body-class="min-h-0 min-w-0 flex-1 overflow-hidden p-0"/);
+    assert.match(preview, /data-live-location-map-stage/);
+    assert.match(preview, /h-full min-h-0 overflow-hidden/);
+    assert.match(preview, /absolute right-3 top-3/);
+    assert.doesNotMatch(preview, /min-h-\[24rem\]/);
+    assert.match(preview, /data-live-location-map-overlay/);
+    assert.match(preview, /x-on:click="recenter\(\)"/);
+    assert.match(preview, /x-on:click="stopSharing\(\)"/);
+    assert.match(preview, /chat_live_location_last_update/);
+    assert.match(preview, /chat_live_location_accuracy/);
+    assert.doesNotMatch(preview, /<aside\b/);
+    assert.doesNotMatch(preview, /lg:grid-cols/);
+    assert.match(card, /data-live-location-mini-map/);
+    assert.match(card, /data-live-location-mini-overlay/);
+    assert.match(card, /class="rt-live-location-map-button relative isolate h-36/);
+    assert.match(card, /closest\('a'\)/);
+    assert.equal(card.match(/x-on:click\.stop="openPreview\(\)"/g)?.length, 1);
+    assert.doesNotMatch(card, /class="absolute inset-0 z-20 cursor-pointer/);
+    assert.match(card, /h-11 w-11/);
+    assert.match(card, /x-show\.important="mapError \|\| error"/);
+    assert.doesNotMatch(card, /rt-live-location-copy/);
+    assert.doesNotMatch(card, /min-w-\[15rem\]/);
     assert.match(sharePicker, /x-show\.important="!\$store\.liveLocation\.supported"/);
+    assert.match(sharePicker, /chat_live_location_foreground_hint/);
+    assert.match(stateModal, /'bodyClass' => 'min-h-0 min-w-0 flex-1/);
+    assert.match(stateModal, /<div class="\{\{ \$bodyClass \}\}">/);
     assert.match(stateModal, /z-index: \{\{ \$resolvedLayer \}\} !important/);
     assert.match(stateModal, /data-rt-overlay-base="\{\{ \$resolvedLayer \}\}"/);
+    assert.match(chatCss, /\.rt-live-location-pulse\.is-paused/);
+    assert.match(chatCss, /width: min\(18rem, calc\(100vw - 5\.75rem\)\)/);
 });
 
 test('live-location runtime never writes coordinates to local or session storage', async () => {

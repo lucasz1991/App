@@ -3,6 +3,10 @@
         messages: {
             updatedNow: @js(__('app.chat_live_location_updated_now')),
             updatedMinutes: @js(__('app.chat_live_location_updated_minutes')),
+            paused: @js(__('app.chat_live_location_paused')),
+            live: @js(__('app.chat_live_location_live')),
+            expired: @js(__('app.chat_live_location_expired')),
+            stopped: @js(__('app.chat_live_location_stopped')),
             locationPending: @js(__('app.chat_live_location_unavailable')),
             locationUnavailable: @js(__('app.chat_live_location_unavailable')),
             mapFailed: @js(__('app.chat_live_location_map_failed')),
@@ -75,82 +79,81 @@
         max-width="6xl"
         close-action="close()"
         :layer="230"
+        body-class="min-h-0 min-w-0 flex-1 overflow-hidden p-0"
         class="h-[calc(100dvh-1rem)] sm:h-[min(52rem,calc(100dvh-3rem))]"
     >
-        <div class="grid h-full min-h-[28rem] gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
-            <section class="relative isolate min-h-[20rem] overflow-hidden rounded-2xl bg-rt-surface-muted ring-1 ring-rt-border/70 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/70">
-                <div x-ref="map" wire:ignore class="rt-live-location-preview-map absolute inset-0 z-0" aria-label="{{ __('app.chat_live_location_preview_title') }}"></div>
+        <section class="relative isolate h-full min-h-0 overflow-hidden bg-rt-surface-muted dark:bg-rt-dark-surface-muted" data-live-location-map-stage>
+            <div x-ref="map" wire:ignore class="rt-live-location-preview-map absolute inset-0 z-0" aria-label="{{ __('app.chat_live_location_preview_title') }}"></div>
+            <div class="pointer-events-none absolute inset-0 z-10 bg-gradient-to-b from-slate-950/15 via-transparent to-slate-950/35" aria-hidden="true"></div>
 
-                <div class="pointer-events-none absolute inset-x-3 top-3 z-20 flex flex-wrap items-start justify-between gap-2">
-                    <span
-                        class="inline-flex min-h-9 items-center gap-2 rounded-xl bg-white/90 px-3 text-xs font-extrabold text-slate-900 shadow-lg backdrop-blur dark:bg-slate-950/85 dark:text-white"
-                    >
-                        <span class="rt-live-location-pulse h-2.5 w-2.5 rounded-full" x-bind:class="isActive ? 'is-active' : ''" aria-hidden="true"></span>
-                        <span x-text="isActive ? @js(__('app.chat_live_location_live')) : ((status === 'expired' || (status === 'active' && remainingSeconds === 0)) ? @js(__('app.chat_live_location_expired')) : @js(__('app.chat_live_location_stopped')))"></span>
-                    </span>
-                    <span
-                        x-show.important="isActive"
-                        class="inline-flex min-h-9 items-center rounded-xl bg-white/90 px-3 text-xs font-extrabold tabular-nums text-slate-900 shadow-lg backdrop-blur dark:bg-slate-950/85 dark:text-white"
-                        x-text="remainingLabel"
-                    ></span>
-                </div>
-
-                <p
+            <div class="pointer-events-none absolute right-3 top-3 z-20 flex flex-col items-end gap-2 sm:right-4 sm:top-4">
+                <span class="inline-flex min-h-9 items-center gap-2 rounded-xl bg-white/95 px-3 text-xs font-extrabold text-slate-900 shadow-lg ring-1 ring-black/5 backdrop-blur-xl dark:bg-slate-950/90 dark:text-white dark:ring-white/10">
+                    <span class="rt-live-location-pulse h-2.5 w-2.5 rounded-full" x-bind:class="{ 'is-active': isActive && isFresh, 'is-paused': isActive && !isFresh }" aria-hidden="true"></span>
+                    <span x-text="activityLabel"></span>
+                </span>
+                <span
                     x-cloak
-                    x-show="mapError"
-                    x-text="mapError"
-                    class="absolute inset-x-4 bottom-4 z-20 rounded-xl bg-red-950/85 px-4 py-3 text-sm font-semibold text-white shadow-lg backdrop-blur"
-                    role="alert"
-                ></p>
-            </section>
+                    x-show.important="isActive"
+                    class="inline-flex min-h-9 items-center rounded-xl bg-white/95 px-3 text-xs font-extrabold tabular-nums text-slate-900 shadow-lg ring-1 ring-black/5 backdrop-blur-xl dark:bg-slate-950/90 dark:text-white dark:ring-white/10"
+                    style="display: none;"
+                    x-text="remainingLabel"
+                ></span>
+            </div>
 
-            <aside class="flex min-w-0 flex-col gap-3">
-                <div class="rounded-2xl bg-rt-surface-muted p-4 ring-1 ring-rt-border/70 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/70">
-                    <p class="text-[10px] font-bold uppercase tracking-[0.14em] text-rt-soft dark:text-rt-dark-soft">{{ __('app.chat_live_location_title') }}</p>
-                    <p class="mt-1.5 truncate text-base font-extrabold text-rt-text dark:text-rt-dark-text" x-text="senderName || @js(__('app.unknown'))"></p>
-                </div>
+            <div class="pointer-events-none absolute inset-x-3 bottom-7 z-30 sm:left-1/2 sm:right-auto sm:w-[min(44rem,calc(100%-2rem))] sm:-translate-x-1/2" data-live-location-map-overlay>
+                <div class="pointer-events-auto rounded-2xl bg-white/95 p-3 shadow-2xl ring-1 ring-black/10 backdrop-blur-2xl dark:bg-slate-950/90 dark:ring-white/10 sm:p-4">
+                    <div class="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
+                        <div class="min-w-0 flex-1">
+                            <p class="truncate text-sm font-extrabold text-slate-950 dark:text-white" x-text="senderName || @js(__('app.unknown'))"></p>
+                            <dl class="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                                <div class="inline-flex min-w-0 items-center gap-1.5">
+                                    <dt class="sr-only">{{ __('app.chat_live_location_last_update') }}</dt>
+                                    <i class="far fa-clock shrink-0" aria-hidden="true"></i>
+                                    <dd class="truncate" x-text="lastUpdatedLabel"></dd>
+                                </div>
+                                <div class="inline-flex items-center gap-1.5">
+                                    <dt class="sr-only">{{ __('app.chat_live_location_accuracy') }}</dt>
+                                    <i class="far fa-location-crosshairs shrink-0" aria-hidden="true"></i>
+                                    <dd class="tabular-nums" x-text="accuracy ? `± ${Math.round(accuracy)} m` : '—'"></dd>
+                                </div>
+                            </dl>
+                        </div>
 
-                <dl class="grid gap-px overflow-hidden rounded-2xl bg-rt-border/70 ring-1 ring-rt-border/70 dark:bg-rt-dark-border/70 dark:ring-rt-dark-border/70">
-                    <div class="bg-rt-surface px-4 py-3.5 dark:bg-rt-dark-surface">
-                        <dt class="text-[10px] font-bold uppercase tracking-[0.12em] text-rt-soft dark:text-rt-dark-soft">{{ __('app.chat_live_location_last_update') }}</dt>
-                        <dd class="mt-1.5 text-sm font-semibold text-rt-text dark:text-rt-dark-text" x-text="lastUpdatedLabel"></dd>
+                        <div class="flex shrink-0 gap-2">
+                            <button
+                                type="button"
+                                x-on:click="recenter()"
+                                class="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-slate-950 px-3.5 text-xs font-extrabold text-white transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-950/20 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100 sm:flex-none"
+                            >
+                                <i class="far fa-location-crosshairs" aria-hidden="true"></i>
+                                <span>{{ __('app.chat_live_location_recenter') }}</span>
+                            </button>
+
+                            <button
+                                x-cloak
+                                x-show.important="canStop && isActive"
+                                type="button"
+                                x-on:click="stopSharing()"
+                                x-bind:disabled="stopping"
+                                class="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-rt-red px-3.5 text-xs font-extrabold text-white transition hover:bg-rt-red-dark focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/25 disabled:cursor-wait disabled:opacity-60 sm:flex-none"
+                                style="display: none;"
+                            >
+                                <i x-bind:class="stopping ? 'fas fa-spinner fa-spin' : 'far fa-stop-circle'" aria-hidden="true"></i>
+                                <span>{{ __('app.chat_live_location_stop') }}</span>
+                            </button>
+                        </div>
                     </div>
-                    <div class="bg-rt-surface px-4 py-3.5 dark:bg-rt-dark-surface">
-                        <dt class="text-[10px] font-bold uppercase tracking-[0.12em] text-rt-soft dark:text-rt-dark-soft">{{ __('app.chat_live_location_accuracy') }}</dt>
-                        <dd class="mt-1.5 text-sm font-semibold tabular-nums text-rt-text dark:text-rt-dark-text" x-text="accuracy ? `± ${Math.round(accuracy)} m` : '—'"></dd>
-                    </div>
-                </dl>
-
-                <div class="mt-auto space-y-2">
-                    <button
-                        type="button"
-                        x-on:click="recenter()"
-                        class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-rt-surface px-4 text-sm font-bold text-rt-text ring-1 ring-inset ring-rt-border transition hover:text-rt-red dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border dark:hover:text-rt-dark-accent"
-                    >
-                        <i class="far fa-location-crosshairs" aria-hidden="true"></i>
-                        <span>{{ __('app.chat_live_location_recenter') }}</span>
-                    </button>
-
-                    <button
-                        x-cloak
-                        x-show.important="canStop && isActive"
-                        type="button"
-                        x-on:click="stopSharing()"
-                        x-bind:disabled="stopping"
-                        class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-rt-red px-4 text-sm font-bold text-white shadow-rt-xs transition hover:bg-rt-red-dark disabled:cursor-wait disabled:opacity-60"
-                    >
-                        <i x-bind:class="stopping ? 'fas fa-spinner fa-spin' : 'far fa-stop-circle'" aria-hidden="true"></i>
-                        <span>{{ __('app.chat_live_location_stop') }}</span>
-                    </button>
                 </div>
+            </div>
 
-                <p class="flex items-start gap-2 rounded-xl bg-rt-surface-muted px-3 py-3 text-[11px] leading-4 text-rt-muted ring-1 ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted dark:ring-rt-dark-border/60">
-                    <i class="far fa-mobile-screen-button mt-0.5 shrink-0" aria-hidden="true"></i>
-                    <span>{{ __('app.chat_live_location_foreground_hint') }}</span>
-                </p>
-
-                <p x-cloak x-show="error" x-text="error" class="rounded-xl bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-800 ring-1 ring-red-600/20 dark:bg-red-500/10 dark:text-red-200" role="alert"></p>
-            </aside>
-        </div>
+            <p
+                x-cloak
+                x-show.important="mapError || error"
+                x-text="mapError || error"
+                class="absolute inset-x-3 bottom-36 z-40 rounded-xl bg-red-950/90 px-4 py-3 text-sm font-semibold text-white shadow-lg backdrop-blur sm:left-1/2 sm:right-auto sm:w-[min(36rem,calc(100%-2rem))] sm:-translate-x-1/2"
+                style="display: none;"
+                role="alert"
+            ></p>
+        </section>
     </x-ui.state-modal>
 </div>
