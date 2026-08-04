@@ -116,6 +116,27 @@ export function wagonVideoCapture(config = {}) {
         supportsVoice: typeof window !== 'undefined'
             && Boolean(window.SpeechRecognition || window.webkitSpeechRecognition),
 
+        /**
+         * Zustand des umgebenden Wagenlisten-Editors. In Alpine sehen nur
+         * DOM-Ausdruecke die Eltern-Scope-Kette — Methoden dieses Moduls
+         * muessen den Editor explizit aufloesen.
+         */
+        editorScope() {
+            // Nicht ueber closest(): der Vollbild-Editor ist an den <body>
+            // teleportiert, im echten DOM liegt dieses Overlay also
+            // AUSSERHALB der Komponentenwurzel. Pro Seite existiert genau
+            // eine Wagenlisten-Komponente.
+            const doc = this.$el?.ownerDocument || document;
+            const root = doc.querySelector('[data-wagon-list-prototype]');
+            if (!root) return null;
+
+            try {
+                return window.Alpine?.$data?.(root) || root._x_dataStack?.[0] || null;
+            } catch (_) {
+                return root._x_dataStack?.[0] || null;
+            }
+        },
+
         async openCapture() {
             this.captureOpen = true;
             this.cameraError = '';
@@ -269,7 +290,7 @@ export function wagonVideoCapture(config = {}) {
 
             const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
             const body = new FormData();
-            body.append('draft_id', String(this.activeDraftId || ''));
+            body.append('draft_id', String(this.editorScope()?.activeDraftId || ''));
             body.append('kind', kind);
             body.append('file', new File(
                 [blob],
@@ -294,7 +315,7 @@ export function wagonVideoCapture(config = {}) {
                 this.uploadCount += 1;
                 this.pushLog(config.savedLabel || 'Gespeichert', kind);
             } catch (_) {
-                this.notify?.(config.uploadErrorText || 'Aufnahme konnte nicht gespeichert werden.', 'error', 4200);
+                this.editorScope()?.notify?.(config.uploadErrorText || 'Aufnahme konnte nicht gespeichert werden.', 'error', 4200);
             } finally {
                 this.uploadBusy = false;
             }
@@ -350,11 +371,12 @@ export function wagonVideoCapture(config = {}) {
          * Wagen ("Neuer Wagen"-Ansage).
          */
         applyRecognition(parsed, source = 'camera') {
-            const wagons = this.wagons;
-            const index = Number(this.mobileWagon) || 0;
+            const editor = this.editorScope();
+            const wagons = editor?.wagons;
+            const index = Number(editor?.mobileWagon) || 0;
             const wagon = wagons?.[index];
 
-            if (!wagon || !parsed) {
+            if (!editor || !wagon || !parsed) {
                 return;
             }
 
@@ -366,8 +388,8 @@ export function wagonVideoCapture(config = {}) {
 
                 if (split && currentDigits.length >= 11 && !parsed.wagonDigits.startsWith(currentDigits)) {
                     // Anderer Wagen im Bild: naechsten Wagen aufmachen.
-                    if (typeof this.addWagon === 'function' && this.visibleCount < 40) {
-                        this.addWagon();
+                    if (typeof editor.addWagon === 'function' && editor.visibleCount < 40) {
+                        editor.addWagon();
                         this.announce(config.newWagonText || 'Neuer Wagen');
                         this.ping();
                         this.applyRecognition(parsed, source);
@@ -417,7 +439,7 @@ export function wagonVideoCapture(config = {}) {
             applied.forEach((label) => this.pushLog(label, source));
             this.ping();
             this.announce(`${applied.join(', ')} ${config.recognizedText || 'erkannt'}`);
-            this.schedulePersist?.();
+            editor.schedulePersist?.();
         },
 
         pushLog(label, source) {

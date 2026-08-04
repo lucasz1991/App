@@ -113,9 +113,12 @@ class ChatbotViewMarkupTest extends TestCase
         $this->assertStringContainsString('x-for="action in petBubbleActions"', $this->view);
         $this->assertStringContainsString('x-on:click.stop="runPetBubbleAction(action)"', $this->view);
         $this->assertStringContainsString('async handlePetClick()', $this->javascript);
-        $this->assertStringContainsString('x-data="railtimeAssistantPet3d()"', $this->view);
-        $this->assertStringContainsString('data-assistant-pet-3d-slot="launcher"', $this->view);
-        $this->assertStringContainsString('data-assistant-pet-3d-slot="header"', $this->view);
+        // Der Launcher traegt die AI-Partikelwolke (RT-Morph); das fruehere
+        // 3D-Maskottchen bleibt als Backup in assistant-pet-3d.js liegen.
+        $this->assertStringContainsString('x-data="railtimeAssistantCloud()"', $this->view);
+        $this->assertStringContainsString('data-assistant-cloud-slot="launcher"', $this->view);
+        $this->assertStringContainsString('data-assistant-cloud-slot="header"', $this->view);
+        $this->assertStringContainsString('rt-assistant-cloud__fallback', $this->view);
         $this->assertSame(2, substr_count($this->view, 'x-bind:data-state="petState()"'));
         $this->assertStringNotContainsString('(speaking || ttsPlaying)', $this->view);
         $this->assertStringContainsString("petBubbleAnnounce ? 'polite' : 'off'", $this->view);
