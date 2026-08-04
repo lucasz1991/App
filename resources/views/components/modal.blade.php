@@ -37,12 +37,12 @@ $ariaLabel = $attributes->get('aria-label', config('app.name') . ' Dialog');
             data-rt-overlay-layer
             data-rt-overlay-base="190"
         >
-            <div x-show.important="show" aria-hidden="true" class="rt-modal-backdrop fixed inset-0 transform transition-all" x-on:click="show = false" x-transition:enter="ease-out duration-200"
-                            x-transition:enter-start="opacity-0"
-                            x-transition:enter-end="opacity-100"
-                            x-transition:leave="ease-in duration-200"
-                            x-transition:leave-start="opacity-100"
-                            x-transition:leave-end="opacity-0">
+            <div x-show.important="show" aria-hidden="true" class="rt-modal-backdrop fixed inset-0" x-on:click="show = false" x-transition:enter="rt-motion-backdrop-enter"
+                            x-transition:enter-start="rt-motion-faded"
+                            x-transition:enter-end="rt-motion-shown"
+                            x-transition:leave="rt-motion-backdrop-leave"
+                            x-transition:leave-start="rt-motion-shown"
+                            x-transition:leave-end="rt-motion-faded">
                 <div class="absolute inset-0 bg-slate-950/55 backdrop-blur-md"></div>
             </div>
 
@@ -57,13 +57,13 @@ $ariaLabel = $attributes->get('aria-label', config('app.name') . ' Dialog');
                             @if (filled($describedBy))
                                 aria-describedby="{{ $describedBy }}"
                             @endif
-                            class="rt-ui-surface rt-ui-modal-panel rt-modal-frame relative my-auto flex max-h-[calc(100dvh-1.5rem)] min-h-0 min-w-0 w-full max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-[1.4rem] bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-rt-border/60 transform transition-all dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60 sm:max-h-[calc(100dvh-3rem)] {{ $maxWidth }}"
-                            x-transition:enter="ease-out duration-200"
-                            x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-2 sm:scale-[0.985]"
-                            x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
-                            x-transition:leave="ease-in duration-200"
-                            x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
-                            x-transition:leave-end="opacity-0 translate-y-3 sm:translate-y-1 sm:scale-[0.99]"
+                            class="rt-ui-surface rt-ui-modal-panel rt-modal-frame relative my-auto flex max-h-[calc(100dvh-1.5rem)] min-h-0 min-w-0 w-full max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-[1.4rem] bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60 sm:max-h-[calc(100dvh-3rem)] {{ $maxWidth }}"
+                            x-transition:enter="rt-motion-modal-enter"
+                            x-transition:enter-start="rt-motion-modal-enter-from"
+                            x-transition:enter-end="rt-motion-modal-enter-to"
+                            x-transition:leave="rt-motion-modal-leave"
+                            x-transition:leave-start="rt-motion-modal-leave-from"
+                            x-transition:leave-end="rt-motion-modal-leave-to"
                             data-rt-modal-panel>
                 {{ $slot }}
             </div>

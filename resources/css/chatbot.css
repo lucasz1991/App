@@ -163,6 +163,57 @@
     opacity: 1;
 }
 
+/* AI-Partikelwolke: ersetzt das 3D-Maskottchen (Backup unveraendert in
+ * assistant-pet-3d.js). Der Canvas fuellt den Slot, der Mask-Icon-Fallback
+ * bleibt fuer fehlendes Canvas und Forced Colors erkennbar. */
+[data-assistant-cloud-slot] {
+    position: relative;
+}
+
+.rt-assistant-cloud__canvas {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: block;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    filter: drop-shadow(0 0.4rem 0.7rem rgba(174, 0, 39, 0.18));
+}
+
+.dark .rt-assistant-cloud__canvas {
+    filter:
+        drop-shadow(0 0.45rem 0.8rem rgba(117, 0, 34, 0.4))
+        drop-shadow(0 0 0.4rem rgba(228, 0, 43, 0.14));
+}
+
+.rt-assistant-cloud__fallback {
+    position: absolute;
+    inset: 24%;
+    background: var(--rt-chatbot-accent);
+    opacity: 1;
+    transition: opacity 180ms ease;
+    -webkit-mask: url('/icons/mask-icon.svg') center / contain no-repeat;
+    mask: url('/icons/mask-icon.svg') center / contain no-repeat;
+}
+
+[data-assistant-cloud-slot].is-cloud-ready > .rt-assistant-cloud__fallback {
+    opacity: 0;
+}
+
+@media (forced-colors: active) {
+    .rt-assistant-cloud__canvas {
+        display: none !important;
+    }
+
+    .rt-assistant-cloud__fallback,
+    [data-assistant-cloud-slot].is-cloud-ready > .rt-assistant-cloud__fallback {
+        background: CanvasText;
+        opacity: 1;
+        forced-color-adjust: none;
+    }
+}
+
 .rt-chatbot__pet-launcher:hover .rt-chatbot__pet-halo {
     opacity: 1;
     transform: scale(1.03);

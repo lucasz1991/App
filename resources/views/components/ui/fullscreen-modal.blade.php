@@ -63,12 +63,12 @@
         role="dialog"
         aria-modal="{{ $trap ? 'true' : 'false' }}"
         aria-labelledby="{{ $labelledById }}"
-        x-transition:enter="transition duration-300 ease-out"
-        x-transition:enter-start="opacity-0 scale-[0.995]"
-        x-transition:enter-end="opacity-100 scale-100"
-        x-transition:leave="transition duration-200 ease-in"
-        x-transition:leave-start="opacity-100 scale-100"
-        x-transition:leave-end="opacity-0 scale-[0.995]"
+        x-transition:enter="rt-motion-screen-enter"
+        x-transition:enter-start="rt-motion-screen-enter-from"
+        x-transition:enter-end="rt-motion-screen-enter-to"
+        x-transition:leave="rt-motion-screen-leave"
+        x-transition:leave-start="rt-motion-screen-leave-from"
+        x-transition:leave-end="rt-motion-screen-leave-to"
         {{ $attributes->class('fixed inset-0 z-[190] flex min-h-0 flex-col bg-rt-canvas text-rt-text dark:bg-rt-dark-canvas dark:text-rt-dark-text') }}
         data-rt-fullscreen-modal
         data-rt-overlay-layer

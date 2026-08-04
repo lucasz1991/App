@@ -202,7 +202,7 @@
 
     <span
         class="rt-chatbot__pet-controller"
-        x-data="railtimeAssistantPet3d()"
+        x-data="railtimeAssistantCloud()"
         x-bind:data-pet-open="open.toString()"
         x-bind:data-state="petState()"
         aria-hidden="true"
@@ -263,11 +263,11 @@
             <span class="rt-chatbot__pet-halo" aria-hidden="true"></span>
             <span
                 class="rt-chatbot__pet-renderer rt-chatbot__pet-renderer--launcher"
-                data-assistant-pet-3d-slot="launcher"
+                data-assistant-cloud-slot="launcher"
                 wire:ignore
                 aria-hidden="true"
             >
-                <x-railtime-assistant-pet class="rt-chatbot__pet-figure rt-assistant-pet--fallback" />
+                <span class="rt-assistant-cloud__fallback" aria-hidden="true"></span>
             </span>
             <span
                 class="rt-chatbot__pet-presence {{ $assistantIsAvailable ? '' : 'rt-chatbot__pet-presence--offline' }}"
@@ -299,11 +299,11 @@
             <div class="rt-chatbot__identity">
                 <span
                     class="rt-chatbot__avatar"
-                    data-assistant-pet-3d-slot="header"
+                    data-assistant-cloud-slot="header"
                     wire:ignore
                     aria-hidden="true"
                 >
-                    <x-railtime-assistant-pet class="rt-chatbot__avatar-pet rt-assistant-pet--fallback" />
+                    <span class="rt-assistant-cloud__fallback" aria-hidden="true"></span>
                 </span>
                 <h2 id="railtime-chatbot-title" class="rt-chatbot__title">{{ $assistantLabel }}</h2>
             </div>

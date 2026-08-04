@@ -1,7 +1,23 @@
 const TAU = Math.PI * 2;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
-export const NAVIGATION_LOADER_MIN_PLAYBACK_MS = 1500;
+// Choreografie: Der Loader BEGINNT mit dem fertig geformten RT-Monogramm,
+// loest es zur Kugel auf und formt es beim Verlassen wieder zurueck. Die
+// Mindestlaufzeit ist exakt auf diese Phasen abgestimmt (siehe
+// resolveMinimumLoaderPlaybackDelay): endet die Navigation noch waehrend
+// der RT-Haltephase, blendet der Loader direkt aus dem Monogramm aus —
+// das RT ist damit in JEDEM Durchlauf sichtbar.
+export const NAVIGATION_LOADER_INTRO_HOLD_MS = 360;
+export const NAVIGATION_LOADER_INTRO_MORPH_MS = 460;
+export const NAVIGATION_LOADER_INTRO_STAGGER_MS = 115;
+export const NAVIGATION_LOADER_SPHERE_DWELL_MS = 320;
+export const NAVIGATION_LOADER_MIN_PLAYBACK_MS = NAVIGATION_LOADER_INTRO_HOLD_MS
+    + NAVIGATION_LOADER_INTRO_MORPH_MS
+    + NAVIGATION_LOADER_INTRO_STAGGER_MS
+    + NAVIGATION_LOADER_SPHERE_DWELL_MS;
+
+const OUTRO_FROM_LOGO = { morphMs: 0, holdMs: 140, fadeMs: 220 };
+const OUTRO_FROM_SPHERE = { morphMs: 300, holdMs: 320, fadeMs: 180 };
 
 const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
 const mix = (from, to, progress) => from + ((to - from) * progress);
@@ -48,10 +64,20 @@ export function resolveMinimumLoaderPlaybackDelay(
         return 0;
     }
 
+    const elapsed = Math.max(0, now - visibleStartedAt);
+
+    // Noch in der RT-Haltephase: das Monogramm steht bereits perfekt — der
+    // Loader darf sofort daraus ausblenden. Warten wuerde schnelle
+    // Seitenwechsel nur kuenstlich verlangsamen.
+    if (elapsed <= NAVIGATION_LOADER_INTRO_HOLD_MS) {
+        return 0;
+    }
+
+    // Mitten in der Aufloesung zur Kugel gibt es keinen wuerdigen Ausstieg:
+    // erst die Kugel fertig formen und kurz atmen lassen, dann zurueck zum RT.
     const resolvedMinimum = Number.isFinite(minimumMs) && minimumMs > 0
         ? minimumMs
         : NAVIGATION_LOADER_MIN_PLAYBACK_MS;
-    const elapsed = Math.max(0, now - visibleStartedAt);
 
     return Math.max(0, resolvedMinimum - elapsed);
 }
@@ -92,7 +118,9 @@ export function createFibonacciSphere(count) {
     });
 }
 
-function createLogoTargets(count) {
+// Auch von der Assistenten-Partikelwolke genutzt (assistant-particle-cloud.js):
+// dieselbe RT-Geometrie haelt Loader und Assistent als eine Markenfamilie.
+export function createRailTimeLogoTargets(count) {
     const segments = [
         // Offenes, linienbasiertes R bleibt auch in einer nur rund 90 px
         // grossen Partikelwolke klarer als eine gefuellte Logo-Silhouette.
@@ -125,33 +153,31 @@ function createLogoTargets(count) {
 
 function createParticles(count) {
     const sphere = createFibonacciSphere(count);
-    const logoTargets = createLogoTargets(count);
+    const logoTargets = createRailTimeLogoTargets(count);
 
-    return sphere.map((point, index) => {
-        const galaxyRadius = Math.sqrt((index + 0.5) / count);
-        const arm = index % 3;
-        const galaxyAngle = (galaxyRadius * TAU * 2.15) + (arm * TAU / 3);
-
-        return {
-            ...point,
-            galaxyX: Math.cos(galaxyAngle) * galaxyRadius * 1.52,
-            galaxyY: Math.sin(galaxyAngle) * galaxyRadius * 0.48,
-            galaxyZ: (deterministicNoise(index, 3) - 0.5) * 0.2,
-            assembleDelay: deterministicNoise(index, 5) * 115,
-            brightness: deterministicNoise(index, 7),
-            pulse: deterministicNoise(index, 11) * TAU,
-            logo: logoTargets[index],
-            screenX: 0,
-            screenY: 0,
-            screenSize: 1,
-            screenAlpha: 0,
-            depth: 0,
-            outroX: 0,
-            outroY: 0,
-            outroSize: 1,
-            outroAlpha: 0,
-        };
-    });
+    return sphere.map((point, index) => ({
+        ...point,
+        morphDelay: deterministicNoise(index, 5) * NAVIGATION_LOADER_INTRO_STAGGER_MS,
+        brightness: deterministicNoise(index, 7),
+        pulse: deterministicNoise(index, 11) * TAU,
+        logo: logoTargets[index],
+        // Vorberechnete RT-Zielkoordinaten in CSS-Pixeln. Sie werden nur bei
+        // einer echten Groessenaenderung des Canvas neu geschrieben — nie im
+        // Frame-Takt (Cache statt Rechnen, siehe cacheLogoPositions).
+        logoScreenX: 0,
+        logoScreenY: 0,
+        logoSize: logoTargets[index].tone === 'slate' ? 1.55 : 1.75,
+        screenX: 0,
+        screenY: 0,
+        screenSize: 1,
+        screenAlpha: 0,
+        depth: 0,
+        tone: 'red',
+        outroX: 0,
+        outroY: 0,
+        outroSize: 1,
+        outroAlpha: 0,
+    }));
 }
 
 function unavailableController() {
@@ -190,10 +216,14 @@ export function createNavigationParticleSphere(canvas, options = {}) {
     });
     const particles = createParticles(particleCount);
     const drawOrder = [...particles];
+    const introMorphEndMs = NAVIGATION_LOADER_INTRO_HOLD_MS
+        + NAVIGATION_LOADER_INTRO_MORPH_MS
+        + NAVIGATION_LOADER_INTRO_STAGGER_MS;
     let animationFrame = null;
     let phase = 'idle';
     let startedAt = 0;
     let phaseStartedAt = 0;
+    let outroPlan = OUTRO_FROM_SPHERE;
     let running = false;
     let cssSize = 144;
     let pixelRatio = 1;
@@ -201,6 +231,16 @@ export function createNavigationParticleSphere(canvas, options = {}) {
     let themeCheckedAt = 0;
     let outroDuration = 0;
     let resizePending = true;
+
+    function cacheLogoPositions() {
+        const center = cssSize / 2;
+        const scale = cssSize * 0.42;
+
+        particles.forEach((particle) => {
+            particle.logoScreenX = center + (particle.logo.x * scale);
+            particle.logoScreenY = center + (particle.logo.y * scale);
+        });
+    }
 
     function resizeCanvas(force = false) {
         const nextDpr = clampParticleDpr(view.devicePixelRatio);
@@ -228,6 +268,7 @@ export function createNavigationParticleSphere(canvas, options = {}) {
         cssSize = nextSize;
         pixelRatio = nextDpr;
         resizePending = false;
+        cacheLogoPositions();
 
         if (canvas.width !== pixelSize || canvas.height !== pixelSize) {
             canvas.width = pixelSize;
@@ -247,18 +288,27 @@ export function createNavigationParticleSphere(canvas, options = {}) {
             || documentObject.body?.dataset.mode === 'dark';
     }
 
-    function projectSphere(particle, timestamp) {
-        const elapsed = timestamp - startedAt;
+    // Die Rotationswinkel gelten fuer ALLE Partikel eines Frames. Einmal pro
+    // Frame berechnen statt einmal pro Partikel spart bei 300 Partikeln rund
+    // 1800 trigonometrische Aufrufe je Frame — der frueher sichtbare
+    // Mikro-Ruckler auf schwacher Hardware kam genau daher.
+    function frameRotation(elapsed) {
         const yaw = (elapsed * 0.00034) + 0.55;
         const tilt = -0.24 + (Math.sin(elapsed * 0.0007) * 0.055);
-        const cosYaw = Math.cos(yaw);
-        const sinYaw = Math.sin(yaw);
-        const cosTilt = Math.cos(tilt);
-        const sinTilt = Math.sin(tilt);
-        const rotatedX = (particle.x * cosYaw) + (particle.z * sinYaw);
-        const rotatedZ = (-particle.x * sinYaw) + (particle.z * cosYaw);
-        const rotatedY = (particle.y * cosTilt) - (rotatedZ * sinTilt);
-        const depth = (particle.y * sinTilt) + (rotatedZ * cosTilt);
+
+        return {
+            cosYaw: Math.cos(yaw),
+            sinYaw: Math.sin(yaw),
+            cosTilt: Math.cos(tilt),
+            sinTilt: Math.sin(tilt),
+        };
+    }
+
+    function projectSphere(particle, rotation) {
+        const rotatedX = (particle.x * rotation.cosYaw) + (particle.z * rotation.sinYaw);
+        const rotatedZ = (-particle.x * rotation.sinYaw) + (particle.z * rotation.cosYaw);
+        const rotatedY = (particle.y * rotation.cosTilt) - (rotatedZ * rotation.sinTilt);
+        const depth = (particle.y * rotation.sinTilt) + (rotatedZ * rotation.cosTilt);
         const perspective = 1 / (1.58 - (depth * 0.3));
 
         return {
@@ -288,26 +338,65 @@ export function createNavigationParticleSphere(canvas, options = {}) {
         return '228, 0, 43';
     }
 
-    function updateSphereParticle(particle, timestamp, assemble) {
+    function updateLogoHoldParticle(particle, elapsed) {
+        const shimmer = 0.94 + (Math.sin((elapsed * 0.0028) + particle.pulse) * 0.06);
+        const appear = easeOutQuint(elapsed / 160);
+
+        particle.screenX = particle.logoScreenX;
+        particle.screenY = particle.logoScreenY;
+        particle.screenSize = particle.logoSize * shimmer;
+        particle.screenAlpha = 0.96 * appear * shimmer;
+        particle.depth = 0;
+        particle.tone = particle.logo.tone;
+    }
+
+    function updateSphereParticle(particle, elapsed, rotation) {
         const radius = cssSize * 0.35;
         const center = cssSize / 2;
-        const projected = projectSphere(particle, timestamp);
-        const elapsed = timestamp - startedAt;
-        const localAssemble = easeOutQuint((elapsed - particle.assembleDelay) / 405);
-        const resolvedAssemble = Math.min(assemble, localAssemble);
-        const galaxyRotation = elapsed * 0.00016;
-        const cosGalaxy = Math.cos(galaxyRotation);
-        const sinGalaxy = Math.sin(galaxyRotation);
-        const galaxyX = (particle.galaxyX * cosGalaxy) - (particle.galaxyY * sinGalaxy);
-        const galaxyY = (particle.galaxyX * sinGalaxy) + (particle.galaxyY * cosGalaxy);
+        const projected = projectSphere(particle, rotation);
         const twinkle = 0.88 + (Math.sin((elapsed * 0.0032) + particle.pulse) * 0.12);
         const depthScale = clamp((projected.depth + 1) / 2);
 
-        particle.screenX = center + (mix(galaxyX, projected.x, resolvedAssemble) * radius);
-        particle.screenY = center + (mix(galaxyY, projected.y, resolvedAssemble) * radius);
-        particle.screenSize = mix(0.55, 1.08 + (depthScale * 1.25), resolvedAssemble) * twinkle;
-        particle.screenAlpha = mix(0.08, 0.28 + (depthScale * 0.72), resolvedAssemble) * twinkle;
-        particle.depth = mix(particle.galaxyZ, projected.depth, resolvedAssemble);
+        particle.screenX = center + (projected.x * radius);
+        particle.screenY = center + (projected.y * radius);
+        particle.screenSize = (1.08 + (depthScale * 1.25)) * twinkle;
+        particle.screenAlpha = (0.28 + (depthScale * 0.72)) * twinkle;
+        particle.depth = projected.depth;
+        particle.tone = 'red';
+    }
+
+    function updateIntroMorphParticle(particle, elapsed, rotation) {
+        const local = easeInOutCubic(
+            (elapsed - NAVIGATION_LOADER_INTRO_HOLD_MS - particle.morphDelay)
+                / NAVIGATION_LOADER_INTRO_MORPH_MS
+        );
+
+        if (local <= 0) {
+            updateLogoHoldParticle(particle, elapsed);
+
+            return;
+        }
+
+        if (local >= 1) {
+            updateSphereParticle(particle, elapsed, rotation);
+
+            return;
+        }
+
+        const radius = cssSize * 0.35;
+        const center = cssSize / 2;
+        const projected = projectSphere(particle, rotation);
+        const twinkle = 0.88 + (Math.sin((elapsed * 0.0032) + particle.pulse) * 0.12);
+        const depthScale = clamp((projected.depth + 1) / 2);
+        const sphereSize = (1.08 + (depthScale * 1.25)) * twinkle;
+        const sphereAlpha = (0.28 + (depthScale * 0.72)) * twinkle;
+
+        particle.screenX = mix(particle.logoScreenX, center + (projected.x * radius), local);
+        particle.screenY = mix(particle.logoScreenY, center + (projected.y * radius), local);
+        particle.screenSize = mix(particle.logoSize, sphereSize, local);
+        particle.screenAlpha = mix(0.96, sphereAlpha, local);
+        particle.depth = mix(0, projected.depth, local);
+        particle.tone = local < 0.5 ? particle.logo.tone : 'red';
     }
 
     function captureOutroPose() {
@@ -319,34 +408,27 @@ export function createNavigationParticleSphere(canvas, options = {}) {
         });
     }
 
-    function updateOutroParticle(particle, timestamp, quick) {
+    function updateOutroParticle(particle, timestamp) {
         const elapsed = timestamp - phaseStartedAt;
-        const center = cssSize / 2;
+        const morph = outroPlan.morphMs > 0
+            ? easeInOutCubic(elapsed / outroPlan.morphMs)
+            : 1;
+        const fade = easeInOutCubic(
+            (elapsed - outroPlan.morphMs - outroPlan.holdMs) / outroPlan.fadeMs
+        );
+        const shimmer = 0.94 + (Math.sin((timestamp * 0.0028) + particle.pulse) * 0.06);
+        const outwardX = particle.logoScreenX - (cssSize / 2);
+        const outwardY = particle.logoScreenY - (cssSize / 2);
 
-        if (quick) {
-            const progress = easeInOutCubic(elapsed / outroDuration);
-            particle.screenX = mix(particle.outroX, center, progress * 0.12);
-            particle.screenY = mix(particle.outroY, center, progress * 0.12);
-            particle.screenSize = particle.outroSize * mix(1, 0.66, progress);
-            particle.screenAlpha = particle.outroAlpha * (1 - progress);
-            particle.depth = 0;
-
-            return;
-        }
-
-        const morph = easeInOutCubic(elapsed / 225);
-        const dissolve = easeInOutCubic((elapsed - 255) / 165);
-        const targetX = center + (particle.logo.x * cssSize * 0.42);
-        const targetY = center + (particle.logo.y * cssSize * 0.42);
-        const outwardX = targetX - center;
-        const outwardY = targetY - center;
-
-        particle.screenX = mix(particle.outroX, targetX, morph) + (outwardX * dissolve * 0.075);
-        particle.screenY = mix(particle.outroY, targetY, morph) + (outwardY * dissolve * 0.075);
-        particle.screenSize = mix(particle.outroSize, particle.logo.tone === 'slate' ? 1.55 : 1.75, morph)
-            * mix(1, 0.62, dissolve);
-        particle.screenAlpha = mix(particle.outroAlpha, 0.96, morph) * (1 - dissolve);
+        particle.screenX = mix(particle.outroX, particle.logoScreenX, morph)
+            + (outwardX * fade * 0.06);
+        particle.screenY = mix(particle.outroY, particle.logoScreenY, morph)
+            + (outwardY * fade * 0.06);
+        particle.screenSize = mix(particle.outroSize, particle.logoSize, morph)
+            * mix(1, 0.82, fade) * shimmer;
+        particle.screenAlpha = mix(particle.outroAlpha, 0.96, morph) * (1 - fade);
         particle.depth = 0;
+        particle.tone = morph > 0.45 ? particle.logo.tone : 'red';
     }
 
     function drawOrbit(timestamp, opacity) {
@@ -378,37 +460,61 @@ export function createNavigationParticleSphere(canvas, options = {}) {
         context.clearRect(0, 0, cssSize, cssSize);
 
         const elapsed = timestamp - startedAt;
-        const assemble = easeOutQuint(elapsed / 430);
-        const isQuickOutro = phase === 'quick-outro';
-        const isFullOutro = phase === 'logo-outro';
+        const isOutro = phase === 'logo-outro';
+        let needsDepthSort = false;
+        let orbitOpacity = 0;
 
-        particles.forEach((particle) => {
-            if (isQuickOutro || isFullOutro) {
-                updateOutroParticle(particle, timestamp, isQuickOutro);
-            } else {
-                updateSphereParticle(particle, timestamp, assemble);
-            }
-        });
+        if (isOutro) {
+            particles.forEach((particle) => updateOutroParticle(particle, timestamp));
+            orbitOpacity = 1 - clamp((timestamp - phaseStartedAt) / 150);
+        } else if (elapsed <= NAVIGATION_LOADER_INTRO_HOLD_MS) {
+            particles.forEach((particle) => updateLogoHoldParticle(particle, elapsed));
+        } else if (elapsed < introMorphEndMs) {
+            const rotation = frameRotation(elapsed);
 
-        const orbitOpacity = isQuickOutro || isFullOutro
-            ? 1 - clamp((timestamp - phaseStartedAt) / 150)
-            : assemble;
+            particles.forEach((particle) => updateIntroMorphParticle(particle, elapsed, rotation));
+            needsDepthSort = true;
+            orbitOpacity = easeInOutCubic(
+                (elapsed - NAVIGATION_LOADER_INTRO_HOLD_MS) / NAVIGATION_LOADER_INTRO_MORPH_MS
+            );
+        } else {
+            const rotation = frameRotation(elapsed);
+
+            particles.forEach((particle) => updateSphereParticle(particle, elapsed, rotation));
+            needsDepthSort = true;
+            orbitOpacity = 1;
+        }
+
         drawOrbit(timestamp, orbitOpacity);
 
-        drawOrder.sort((left, right) => left.depth - right.depth);
+        // Waehrend der reinen Logo-Phasen liegt jede Tiefe bei 0 — eine
+        // Sortierung waere dann nur Arbeit ohne sichtbaren Effekt.
+        if (needsDepthSort) {
+            drawOrder.sort((left, right) => left.depth - right.depth);
+        }
+
+        let lastFillStyle = '';
+
         drawOrder.forEach((particle) => {
             if (particle.screenAlpha <= 0.01) {
                 return;
             }
 
-            const tone = isFullOutro && ((timestamp - phaseStartedAt) > 80)
-                ? particle.logo.tone
-                : 'red';
-            const color = particleColor(particle, particle.depth, tone);
+            const color = particleColor(particle, particle.depth, particle.tone);
+            // Auf zwei Nachkommastellen gerundet buendeln sich viele Partikel
+            // auf denselben Stil — jede vermiedene fillStyle-Zuweisung spart
+            // einen teuren Canvas-State-Wechsel.
+            const alpha = Math.round(clamp(particle.screenAlpha, 0, 1) * 100) / 100;
+            const fillStyle = `rgba(${color}, ${alpha})`;
 
             context.beginPath();
             context.arc(particle.screenX, particle.screenY, particle.screenSize, 0, TAU);
-            context.fillStyle = `rgba(${color}, ${clamp(particle.screenAlpha, 0, 1)})`;
+
+            if (fillStyle !== lastFillStyle) {
+                context.fillStyle = fillStyle;
+                lastFillStyle = fillStyle;
+            }
+
             context.fill();
         });
     }
@@ -430,10 +536,7 @@ export function createNavigationParticleSphere(canvas, options = {}) {
 
         draw(timestamp);
 
-        if (
-            (phase === 'quick-outro' || phase === 'logo-outro')
-            && (timestamp - phaseStartedAt) >= outroDuration
-        ) {
+        if (phase === 'logo-outro' && (timestamp - phaseStartedAt) >= outroDuration) {
             running = false;
 
             return;
@@ -444,9 +547,11 @@ export function createNavigationParticleSphere(canvas, options = {}) {
 
     function renderStaticSphere() {
         resizeCanvas(true);
-        startedAt = view.performance.now() - 800;
-        updateTheme(view.performance.now());
-        particles.forEach((particle) => updateSphereParticle(particle, startedAt + 800, 1));
+        const now = view.performance.now();
+        startedAt = now - 800;
+        updateTheme(now);
+        const rotation = frameRotation(800);
+        particles.forEach((particle) => updateSphereParticle(particle, 800, rotation));
         context.clearRect(0, 0, cssSize, cssSize);
         drawOrder.sort((left, right) => left.depth - right.depth);
         drawOrder.forEach((particle) => {
@@ -488,7 +593,7 @@ export function createNavigationParticleSphere(canvas, options = {}) {
             return;
         }
 
-        phase = 'sphere';
+        phase = 'intro';
         running = true;
         queueFrame();
     }
@@ -507,14 +612,17 @@ export function createNavigationParticleSphere(canvas, options = {}) {
 
         captureOutroPose();
         phaseStartedAt = now;
-        phase = visibleDuration >= 460 ? 'logo-outro' : 'quick-outro';
-        outroDuration = phase === 'logo-outro' ? 420 : 180;
+        phase = 'logo-outro';
+        // Steht das Monogramm noch (RT-Haltephase), reicht ein kurzer
+        // Halte-plus-Ausblendmoment. Aus jeder spaeteren Pose formt sich das
+        // RT erst zurueck und bleibt dann bewusst lange genug stehen.
+        outroPlan = visibleDuration <= NAVIGATION_LOADER_INTRO_HOLD_MS
+            ? OUTRO_FROM_LOGO
+            : OUTRO_FROM_SPHERE;
+        outroDuration = outroPlan.morphMs + outroPlan.holdMs + outroPlan.fadeMs;
         queueFrame();
 
-        return {
-            mode: phase === 'logo-outro' ? 'logo' : 'quick',
-            duration: outroDuration,
-        };
+        return { mode: 'logo', duration: outroDuration };
     }
 
     function handleVisibilityChange() {

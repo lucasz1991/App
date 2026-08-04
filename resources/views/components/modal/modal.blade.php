@@ -51,14 +51,14 @@
             <div
                 x-show.important="show"
                 aria-hidden="true"
-                class="fixed inset-0 transform transition-all"
+                class="fixed inset-0"
                 x-on:click="close()"
-                x-transition:enter="ease-out duration-300"
-                x-transition:enter-start="opacity-0"
-                x-transition:enter-end="opacity-100"
-                x-transition:leave="ease-in duration-200"
-                x-transition:leave-start="opacity-100"
-                x-transition:leave-end="opacity-0"
+                x-transition:enter="rt-motion-backdrop-enter"
+                x-transition:enter-start="rt-motion-faded"
+                x-transition:enter-end="rt-motion-shown"
+                x-transition:leave="rt-motion-backdrop-leave"
+                x-transition:leave-start="rt-motion-shown"
+                x-transition:leave-end="rt-motion-faded"
             >
                 <div class="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"></div>
             </div>
@@ -73,13 +73,13 @@
                 @else
                     aria-label="{{ $attributes->get('aria-label', config('app.name') . ' Dialog') }}"
                 @endif
-                class="rt-ui-surface rt-ui-modal-panel rt-modal-frame relative flex max-h-[calc(100dvh-1.5rem)] min-h-0 min-w-0 w-full max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-[1.4rem] bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-rt-border/70 transform transition-all dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/70 sm:max-h-[calc(100dvh-3rem)] {{ $maxWidthClass }}"
-                x-transition:enter="ease-out duration-300"
-                x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-                x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
-                x-transition:leave="ease-in duration-200"
-                x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
-                x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                class="rt-ui-surface rt-ui-modal-panel rt-modal-frame relative flex max-h-[calc(100dvh-1.5rem)] min-h-0 min-w-0 w-full max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-[1.4rem] bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/70 sm:max-h-[calc(100dvh-3rem)] {{ $maxWidthClass }}"
+                x-transition:enter="rt-motion-modal-enter"
+                x-transition:enter-start="rt-motion-modal-enter-from"
+                x-transition:enter-end="rt-motion-modal-enter-to"
+                x-transition:leave="rt-motion-modal-leave"
+                x-transition:leave-start="rt-motion-modal-leave-from"
+                x-transition:leave-end="rt-motion-modal-leave-to"
             >
                 @if($hasStructuredSlots)
                     {{-- TITLE BAR --}}

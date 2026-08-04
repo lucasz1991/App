@@ -41,7 +41,10 @@ import { incomingNotificationSound } from './realtime-notification-sound';
 import {
     MOBILE_SIDEBAR_BREAKPOINT,
     MOBILE_SIDEBAR_SWIPE_EXCLUSION_SELECTOR,
+    advanceSidebarDrag,
+    beginSidebarDrag,
     resolveMobileSidebarSwipe,
+    settleSidebarDrag,
 } from './mobile-sidebar-swipe';
 import { sidebarScrollBehavior, sidebarScrollTarget } from './sidebar-scroll';
 import { railtimeTabs } from './tabs';
@@ -49,7 +52,10 @@ import { initMobileFormFocusRecovery } from './mobile-form-focus';
 import { initKeyboardViewport } from './keyboard-viewport';
 import { welcomeIntro } from './welcome-intro';
 import { railtimeChatbot } from './chatbot';
-import { railtimeAssistantPet3d } from './assistant-pet-3d';
+// Das fruehere 3D-Maskottchen (assistant-pet-3d.js) bleibt als Backup im
+// Repo, ist aber nicht mehr eingebunden — der Assistent traegt jetzt die
+// AI-Partikelwolke mit RT-Morph.
+import { railtimeAssistantCloud } from './assistant-particle-cloud';
 import {
     createNavigationParticleSphere,
     resolveMinimumLoaderPlaybackDelay,
@@ -212,9 +218,13 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
 
 // ---------------------------------------------------------------
 // Seitenwechsel-Overlay fuer wire:navigate: ein kompakter, frei schwebender
-// RailTime-Orb ohne Text oder Dialogflaeche. Er startet mit der Navigation,
-// bleibt bei schnellen Seitenwechseln mindestens 600 ms animiert und wird nach
-// dem body-Swap bei Bedarf neu angehaengt.
+// RailTime-Orb ohne Text oder Dialogflaeche. Choreografie: Er BEGINNT mit dem
+// fertig geformten RT-Monogramm, loest es zur Kugel auf und formt es beim
+// Verlassen zurueck. Die Mindestlaufzeit kommt aus dem Loader-Modul und ist
+// exakt auf diese Phasen abgestimmt: Endet die Navigation noch waehrend der
+// RT-Haltephase, blendet der Loader sofort aus dem Monogramm aus; mitten in
+// der Aufloesung wird erst der Zyklus beendet. Nach dem body-Swap wird das
+// Overlay bei Bedarf neu angehaengt.
 // ---------------------------------------------------------------
 (function () {
     let overlay = null;
@@ -632,7 +642,7 @@ Alpine.data('rtSidebarNavigation', sidebarNavigation);
 Alpine.data('railtimeTabs', railtimeTabs);
 Alpine.data('welcomeIntro', welcomeIntro);
 Alpine.data('railtimeChatbot', railtimeChatbot);
-Alpine.data('railtimeAssistantPet3d', railtimeAssistantPet3d);
+Alpine.data('railtimeAssistantCloud', railtimeAssistantCloud);
 Alpine.data('chatMessageActions', chatMessageActions);
 
 initMobileFormFocusRecovery();
@@ -2430,6 +2440,36 @@ function initMobileSidebarSwipe() {
 
     window.__rtMobileSidebarSwipeBound = true;
 
+    // Fingerfuehrung: Die Sidebar folgt der Geste 1:1 (CSS-Variable
+    // --rt-sidebar-drag-progress, Klasse rt-sidebar-dragging schaltet die
+    // Transition ab). Erst beim Loslassen entscheidet settleSidebarDrag
+    // ueber Position UND Geschwindigkeit, wohin die Sidebar federt.
+    let sidebarDragState = null;
+    let sidebarDragPainted = false;
+
+    const clearSidebarDragPresentation = () => {
+        if (sidebarDragPainted) {
+            document.body.classList.remove('rt-sidebar-dragging');
+            document.body.style.removeProperty('--rt-sidebar-drag-progress');
+            sidebarDragPainted = false;
+        }
+
+        sidebarDragState = null;
+    };
+
+    const settleSidebarTo = (open) => {
+        // Erst der Zielzustand, dann die Drag-Klasse entfernen: Beide
+        // Aenderungen landen im selben Style-Recalc, die Transition startet
+        // deshalb exakt an der zuletzt gezeichneten Fingerposition.
+        setMobileSidebarOpen(open);
+
+        if (open) {
+            initMenuItemScroll();
+        }
+
+        clearSidebarDragPresentation();
+    };
+
     document.addEventListener('touchstart', (event) => {
         if (
             window.innerWidth >= MOBILE_SIDEBAR_BREAKPOINT
@@ -2437,12 +2477,14 @@ function initMobileSidebarSwipe() {
             || document.getElementById('app-sidebar')?.isConnected !== true
         ) {
             sidebarSwipeStart = null;
+            sidebarDragState = null;
             return;
         }
 
         const target = event.target instanceof Element ? event.target : null;
         if (!target || target.closest(MOBILE_SIDEBAR_SWIPE_EXCLUSION_SELECTOR)) {
             sidebarSwipeStart = null;
+            sidebarDragState = null;
             return;
         }
 
@@ -2454,9 +2496,69 @@ function initMobileSidebarSwipe() {
             y: touch.clientY,
             sidebarOpen,
         };
+        sidebarDragState = beginSidebarDrag({
+            startX: touch.clientX,
+            startY: touch.clientY,
+            sidebarOpen,
+            viewportWidth: window.innerWidth,
+            timestamp: event.timeStamp,
+        });
     }, { passive: true });
 
+    document.addEventListener('touchmove', (event) => {
+        if (!sidebarDragState || event.touches.length !== 1) {
+            return;
+        }
+
+        const touch = event.touches[0];
+        sidebarDragState = advanceSidebarDrag(sidebarDragState, {
+            x: touch.clientX,
+            y: touch.clientY,
+            timestamp: event.timeStamp,
+        });
+
+        if (!sidebarDragState || sidebarDragState.rejected) {
+            if (sidebarDragPainted) {
+                clearSidebarDragPresentation();
+            }
+            return;
+        }
+
+        if (!sidebarDragState.claimed) {
+            return;
+        }
+
+        if (!sidebarDragPainted) {
+            document.body.classList.add('rt-sidebar-dragging');
+            sidebarDragPainted = true;
+        }
+
+        document.body.style.setProperty(
+            '--rt-sidebar-drag-progress',
+            String(sidebarDragState.progress),
+        );
+
+        // Die Geste gehoert jetzt der Sidebar — kein paralleles Scrollen.
+        if (event.cancelable) {
+            event.preventDefault();
+        }
+    }, { passive: false });
+
     document.addEventListener('touchend', (event) => {
+        if (sidebarDragPainted && sidebarDragState?.claimed) {
+            const action = settleSidebarDrag(sidebarDragState);
+
+            if (event.cancelable) {
+                event.preventDefault();
+            }
+
+            settleSidebarTo(action === 'open');
+            sidebarSwipeStart = null;
+            return;
+        }
+
+        clearSidebarDragPresentation();
+
         if (
             !sidebarSwipeStart
             || event.changedTouches.length !== 1
@@ -2494,11 +2596,31 @@ function initMobileSidebarSwipe() {
     }, { passive: false });
 
     document.addEventListener('touchcancel', () => {
+        // Abbruch: zurueck in den Ausgangszustand der Geste federn.
+        if (sidebarDragPainted && sidebarDragState) {
+            settleSidebarTo(sidebarDragState.sidebarOpen);
+        } else {
+            clearSidebarDragPresentation();
+        }
+
         sidebarSwipeStart = null;
     }, { passive: true });
 
+    // Tippen auf den Schleier schliesst die Navigation — konsistent mit
+    // jedem Drawer-Muster und noetig, seit der Schleier Zeigerereignisse
+    // annimmt (pointer-events: auto im offenen Zustand).
+    document.addEventListener('click', (event) => {
+        if (
+            event.target instanceof Element
+            && event.target.closest('.rt-mobile-sidebar-backdrop')
+        ) {
+            setMobileSidebarOpen(false);
+        }
+    });
+
     document.addEventListener('livewire:navigating', () => {
         sidebarSwipeStart = null;
+        clearSidebarDragPresentation();
     });
 }
 

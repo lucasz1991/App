@@ -20,6 +20,11 @@ const ASSISTANT_STEP_IDS = [
     'special',
     'review',
 ];
+
+// Mobil liegen diese Schritte nicht mehr auf eigenen Folien, sondern als
+// Anker im Wagen-Modal — goToMobileStep() oeffnet dafuer das Modal.
+// Alle uebrigen Schritte sind Anker auf der einen Formularseite.
+const WAGON_MODAL_STEP_IDS = ['identity', 'vehicle', 'brakes', 'route'];
 const ASSISTANT_META_FIELDS = [
     'meta.trainNumber',
     'meta.date',
@@ -188,12 +193,8 @@ export function wagonListPrototype(config = {}) {
         desktopWagon: 0,
         mobileWagon: 0,
         mobileStep: 0,
-        mobileSwipePosition: 0,
-        mobileTargetStep: null,
         mobileSteps: Array.isArray(config.mobileSteps) ? config.mobileSteps : [],
-        mobileScrollRaf: null,
-        mobileSettleTimer: null,
-        mobileViewportHandler: null,
+        wagonModalOpen: false,
         persistedAt: null,
         persistTimer: null,
         assistantContextNonce: null,
@@ -225,24 +226,12 @@ export function wagonListPrototype(config = {}) {
             this.$watch('desktopSection', () => this.scheduleAssistantContext('step-updated'));
             this.$watch('desktopWagon', () => this.scheduleAssistantContext('wagon-updated'));
 
-            if (typeof window?.visualViewport?.addEventListener === 'function') {
-                this.mobileViewportHandler = () => this.realignMobilePager();
-                window.visualViewport.addEventListener('resize', this.mobileViewportHandler, { passive: true });
-            }
-
             this.$nextTick(() => this.dispatchAssistantContext('overview-ready', false));
         },
 
         destroy() {
             window.clearTimeout(this.persistTimer);
             window.clearTimeout(this.assistantContextTimer);
-            window.clearTimeout(this.mobileSettleTimer);
-            if (this.mobileScrollRaf !== null && typeof window.cancelAnimationFrame === 'function') {
-                window.cancelAnimationFrame(this.mobileScrollRaf);
-            }
-            if (this.mobileViewportHandler && typeof window?.visualViewport?.removeEventListener === 'function') {
-                window.visualViewport.removeEventListener('resize', this.mobileViewportHandler);
-            }
             this.motion()?.dispose();
             if (this.editorOpen && this.activeDraftId) {
                 this.persistDraft();
@@ -363,8 +352,7 @@ export function wagonListPrototype(config = {}) {
             this.desktopWagon = 0;
             this.mobileWagon = 0;
             this.mobileStep = 0;
-            this.mobileSwipePosition = 0;
-            this.mobileTargetStep = null;
+            this.wagonModalOpen = false;
             this.persistedAt = draft.persistedAt || null;
             this.modalReturnFocus = returnFocus && typeof returnFocus.focus === 'function'
                 ? returnFocus
@@ -374,7 +362,6 @@ export function wagonListPrototype(config = {}) {
 
             this.$nextTick(() => {
                 this.hydrating = false;
-                this.realignMobilePager();
                 this.$refs?.editorHeading?.focus();
                 this.motion()?.editorOpened(this.$refs?.editorDialog);
                 this.animateStep(0);
@@ -419,6 +406,14 @@ export function wagonListPrototype(config = {}) {
             );
 
             if (escapeBelongsToChatbot) return;
+
+            // Das Wagen-Modal faengt Escape zuerst — erst der zweite Druck
+            // schliesst den Editor selbst.
+            if (this.wagonModalOpen) {
+                event.preventDefault();
+                this.closeWagonModal();
+                return;
+            }
 
             event.preventDefault();
             this.cancelEditor();
@@ -724,7 +719,6 @@ export function wagonListPrototype(config = {}) {
         applyAssistantStep(index) {
             const target = Math.max(0, Math.min(ASSISTANT_STEP_IDS.length - 1, Number(index) || 0));
             this.mobileStep = target;
-            this.mobileSwipePosition = target;
             this.desktopSection = target >= 5 ? 'brakeSheet' : 'wagons';
             this.goToMobileStep(target, 'auto');
         },
@@ -1242,7 +1236,7 @@ export function wagonListPrototype(config = {}) {
         },
 
         get mobileStepProgress() {
-            return ((this.mobileSwipePosition + 1) / this.mobileStepCount) * 100;
+            return ((this.mobileStep + 1) / this.mobileStepCount) * 100;
         },
 
         get mobileStepTitle() {
@@ -1251,6 +1245,22 @@ export function wagonListPrototype(config = {}) {
 
         get isMobileWagonStep() {
             return this.mobileStep >= 1 && this.mobileStep <= 4;
+        },
+
+        mobileStepId(index = this.mobileStep) {
+            const resolved = Math.max(0, Math.min(this.mobileStepCount - 1, Number(index) || 0));
+
+            return this.mobileSteps[resolved]?.id || ASSISTANT_STEP_IDS[resolved] || 'train';
+        },
+
+        /**
+         * Aktiver Abschnitt der einseitigen Mobilansicht. Die vier
+         * Wagen-Schritte buendeln sich in der Abschnittsleiste zu "Wagen".
+         */
+        get mobileSectionId() {
+            const stepId = this.mobileStepId();
+
+            return WAGON_MODAL_STEP_IDS.includes(stepId) ? 'wagons' : stepId;
         },
 
         /**
@@ -1262,18 +1272,16 @@ export function wagonListPrototype(config = {}) {
         },
 
         animateStep(index) {
-            const pager = this.$refs?.mobilePager;
-            const panel = typeof pager?.querySelector === 'function'
-                ? pager.querySelector(`[data-wagon-step-index="${index}"]`)
+            const stepId = this.mobileStepId(index);
+            const host = WAGON_MODAL_STEP_IDS.includes(stepId)
+                ? this.$refs?.wagonModalBody
+                : this.$refs?.mobilePage;
+            const panel = typeof host?.querySelector === 'function'
+                ? host.querySelector(`[data-wagon-anchor="${stepId}"]`)
                 : null;
             if (panel) this.motion()?.stepEntered(panel);
 
-            this.motion()?.progressTo(
-                this.$refs?.mobileProgressBar,
-                (Number(index) + 1) / this.mobileStepCount,
-            );
-
-            if (this.mobileSteps[index]?.id === 'review') {
+            if (stepId === 'review') {
                 this.$nextTick(() => this.motion()?.listReveal(this.$refs?.reviewWagonList));
             }
         },
@@ -1283,33 +1291,70 @@ export function wagonListPrototype(config = {}) {
                 && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         },
 
+        /**
+         * Einen der acht Assistenten-Schritte ansteuern. Auf der einseitigen
+         * Mobilansicht heisst das: Seiten-Anker anscrollen — oder fuer die
+         * vier Wagen-Schritte das Wagen-Modal oeffnen und dort den passenden
+         * Abschnitt anscrollen.
+         */
         goToMobileStep(index, behavior = null) {
             const targetStep = Math.max(0, Math.min(this.mobileStepCount - 1, Number(index) || 0));
+            const stepId = this.mobileStepId(targetStep);
             const resolvedBehavior = behavior || (this.prefersReducedMotion() ? 'auto' : 'smooth');
-            this.mobileTargetStep = targetStep;
 
-            this.$nextTick(() => {
-                const pager = this.$refs?.mobilePager;
-                if (!pager || !pager.clientWidth || typeof pager.scrollTo !== 'function') {
-                    this.mobileSwipePosition = targetStep;
-                    this.commitMobileStep(targetStep);
-                    return;
-                }
+            this.commitMobileStep(targetStep);
 
-                pager.scrollTo({
-                    left: targetStep * pager.clientWidth,
-                    behavior: resolvedBehavior,
-                });
+            if (WAGON_MODAL_STEP_IDS.includes(stepId)) {
+                this.wagonModalOpen = true;
+                this.$nextTick(() => this.scrollMobileAnchor(this.$refs?.wagonModalBody, stepId, resolvedBehavior));
+                return;
+            }
 
-                // Bei einer unmittelbaren Ausrichtung gibt es nicht in jedem
-                // Browser ein Scroll-Event. Smooth-Scroll dagegen uebernimmt
-                // den aktiven Zustand erst aus der real sichtbaren Position.
-                if (resolvedBehavior === 'auto') {
-                    this.mobileSwipePosition = targetStep;
-                    this.commitMobileStep(targetStep);
-                    this.mobileTargetStep = null;
-                }
+            this.wagonModalOpen = false;
+            this.$nextTick(() => this.scrollMobileAnchor(this.$refs?.mobilePage, stepId, resolvedBehavior));
+        },
+
+        /**
+         * Abschnittsleiste der einseitigen Ansicht. "wagons" ist kein
+         * Assistenten-Schritt, sondern die Wagenliste auf der Seite —
+         * dorthin wird ohne Modal gescrollt.
+         */
+        goToMobileSection(sectionId) {
+            if (sectionId === 'wagons') {
+                this.wagonModalOpen = false;
+                this.commitMobileStep(ASSISTANT_STEP_IDS.indexOf('identity'));
+                this.$nextTick(() => this.scrollMobileAnchor(
+                    this.$refs?.mobilePage,
+                    'wagons',
+                    this.prefersReducedMotion() ? 'auto' : 'smooth',
+                ));
+                return;
+            }
+
+            const target = ASSISTANT_STEP_IDS.indexOf(String(sectionId));
+            this.goToMobileStep(target >= 0 ? target : 0);
+        },
+
+        scrollMobileAnchor(host, anchorId, behavior = 'smooth') {
+            const anchor = typeof host?.querySelector === 'function'
+                ? host.querySelector(`[data-wagon-anchor="${anchorId}"]`)
+                : null;
+            if (!host || !anchor || typeof host.scrollTo !== 'function') return;
+
+            host.scrollTo({
+                top: Math.max(0, (anchor.offsetTop || 0) - 10),
+                behavior,
             });
+        },
+
+        openWagonModal(index = this.mobileWagon) {
+            this.showMobileWagon(index);
+            this.desktopWagon = this.mobileWagon;
+            this.goToMobileStep(ASSISTANT_STEP_IDS.indexOf('identity'));
+        },
+
+        closeWagonModal() {
+            this.wagonModalOpen = false;
         },
 
         commitMobileStep(index) {
@@ -1317,7 +1362,7 @@ export function wagonListPrototype(config = {}) {
             if (this.mobileStep === nextStep) return;
 
             this.mobileStep = nextStep;
-            this.centerMobileRailControl('mobileStepRail', `[data-mobile-step-index="${nextStep}"]`);
+            this.centerMobileRailControl('mobileStepRail', `[data-mobile-section-chip="${this.mobileSectionId}"]`);
             this.$nextTick(() => this.animateStep(nextStep));
         },
 
@@ -1341,71 +1386,6 @@ export function wagonListPrototype(config = {}) {
 
         nextMobileStep() {
             this.goToMobileStep(this.mobileStep + 1);
-        },
-
-        syncMobileStepFromScroll(event) {
-            const pager = event?.currentTarget || this.$refs?.mobilePager;
-            if (!pager || !pager.clientWidth || this.mobileScrollRaf !== null) return;
-
-            const updateStep = () => {
-                const position = Math.max(0, Math.min(
-                    this.mobileStepCount - 1,
-                    pager.scrollLeft / pager.clientWidth,
-                ));
-                this.mobileSwipePosition = position;
-                this.commitMobileStep(Math.round(position));
-                this.mobileScrollRaf = null;
-
-                window.clearTimeout(this.mobileSettleTimer);
-                this.mobileSettleTimer = window.setTimeout(() => this.settleMobilePager(pager), 110);
-            };
-
-            if (typeof window?.requestAnimationFrame === 'function') {
-                this.mobileScrollRaf = -1;
-                const frame = window.requestAnimationFrame(updateStep);
-                if (this.mobileScrollRaf !== null) {
-                    this.mobileScrollRaf = frame;
-                }
-            } else {
-                updateStep();
-            }
-        },
-
-        settleMobilePager(pager = this.$refs?.mobilePager) {
-            window.clearTimeout(this.mobileSettleTimer);
-            if (!pager || !pager.clientWidth) return;
-
-            const targetStep = Math.max(0, Math.min(
-                this.mobileStepCount - 1,
-                Math.round(pager.scrollLeft / pager.clientWidth),
-            ));
-            this.mobileSwipePosition = targetStep;
-            this.commitMobileStep(targetStep);
-            this.mobileTargetStep = null;
-
-            const targetLeft = targetStep * pager.clientWidth;
-            if (Math.abs(pager.scrollLeft - targetLeft) > 1 && typeof pager.scrollTo === 'function') {
-                pager.scrollTo({ left: targetLeft, behavior: 'auto' });
-            }
-        },
-
-        realignMobilePager() {
-            if (!this.editorOpen) return;
-
-            const align = () => {
-                const pager = this.$refs?.mobilePager;
-                if (!pager || !pager.clientWidth || typeof pager.scrollTo !== 'function') return;
-                const targetStep = this.mobileTargetStep ?? this.mobileStep;
-                pager.scrollTo({ left: targetStep * pager.clientWidth, behavior: 'auto' });
-                this.mobileSwipePosition = targetStep;
-                this.commitMobileStep(targetStep);
-            };
-
-            if (typeof window?.requestAnimationFrame === 'function') {
-                window.requestAnimationFrame(align);
-            } else {
-                align();
-            }
         },
 
         handleMobileWizardKeydown(event) {

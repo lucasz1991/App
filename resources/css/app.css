@@ -267,6 +267,146 @@ body[data-mode="dark"] .rt-ui-surface-muted {
     transform: translate(-50%, 100%) rotate(180deg);
 }
 
+/* ------------------------------------------------------------------
+ * RailTime Motion: gemeinsame Choreografie fuer Modals und Dropdowns.
+ * Alpine wendet die Klassen ueber x-transition:enter/leave an. Die
+ * Kurven simulieren Masse und Federung (leichter Overshoot beim
+ * Erscheinen, entschlossenes Zuruecksinken beim Schliessen) statt
+ * linearer Blenden. Bewegt werden ausschliesslich transform, opacity
+ * und kurzzeitig filter — GPU-sicher, kein Layout-Thrashing.
+ * Eigene Klassennamen statt Utilities: die Legacy-Datei
+ * public/build/css/tailwind.min.css setzt viele Utilities !important
+ * und wuerde Utility-basierte Uebergaenge unberechenbar ueberstimmen.
+ * ------------------------------------------------------------------ */
+
+/* Schleier hinter zentrierten Dialogen. */
+.rt-motion-backdrop-enter {
+    transition: opacity 340ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.rt-motion-backdrop-leave {
+    /* Das Panel geht zuerst, der Schleier folgt einen Atemzug spaeter. */
+    transition: opacity 260ms cubic-bezier(0.32, 0.72, 0, 1);
+    transition-delay: 70ms;
+}
+
+.rt-motion-faded {
+    opacity: 0;
+}
+
+.rt-motion-shown {
+    opacity: 1;
+}
+
+/* Zentrierte Dialog-Panels: aus leichter Tiefe und Unschaerfe nach vorn
+ * federn; beim Schliessen kompakt und schnell zuruecksinken. */
+.rt-motion-modal-enter {
+    transition:
+        opacity 300ms cubic-bezier(0.22, 1, 0.36, 1),
+        filter 360ms cubic-bezier(0.22, 1, 0.36, 1),
+        transform 520ms cubic-bezier(0.22, 1.36, 0.34, 1);
+}
+
+.rt-motion-modal-enter-from {
+    opacity: 0;
+    filter: blur(8px);
+    transform: translateY(1.15rem) scale(0.955);
+}
+
+.rt-motion-modal-enter-to,
+.rt-motion-modal-leave-from {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0) scale(1);
+}
+
+.rt-motion-modal-leave {
+    transition:
+        opacity 200ms cubic-bezier(0.45, 0, 0.72, 0.06),
+        filter 200ms cubic-bezier(0.45, 0, 0.72, 0.06),
+        transform 240ms cubic-bezier(0.45, 0, 0.72, 0.06);
+}
+
+.rt-motion-modal-leave-to {
+    opacity: 0;
+    filter: blur(4px);
+    transform: translateY(0.6rem) scale(0.965);
+}
+
+/* Vollflaechige Ebenen (Fullscreen-Editor): grosse Flaeche, deshalb ohne
+ * Blur — nur Tiefe ueber Opacity und minimale Skalierung. */
+.rt-motion-screen-enter {
+    transition:
+        opacity 340ms cubic-bezier(0.32, 0.72, 0, 1),
+        transform 480ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.rt-motion-screen-enter-from {
+    opacity: 0;
+    transform: translateY(0.85rem) scale(0.99);
+}
+
+.rt-motion-screen-enter-to,
+.rt-motion-screen-leave-from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+.rt-motion-screen-leave {
+    transition:
+        opacity 220ms cubic-bezier(0.45, 0, 0.72, 0.06),
+        transform 260ms cubic-bezier(0.45, 0, 0.72, 0.06);
+}
+
+.rt-motion-screen-leave-to {
+    opacity: 0;
+    transform: translateY(0.4rem) scale(0.994);
+}
+
+/* Dropdown-Panels entfalten sich aus dem Caret-Punkt des Ausloesers
+ * (transform-origin liegt bereits auf --rt-dropdown-caret-x) und falten
+ * beim Schliessen dorthin zurueck. */
+.rt-motion-pop-enter {
+    transition:
+        opacity 200ms cubic-bezier(0.22, 1, 0.36, 1),
+        filter 240ms cubic-bezier(0.22, 1, 0.36, 1),
+        transform 420ms cubic-bezier(0.26, 1.32, 0.32, 1);
+}
+
+.rt-motion-pop-enter-from {
+    opacity: 0;
+    filter: blur(4px);
+    transform: scale(0.86, 0.76);
+}
+
+.rt-motion-pop-enter-to,
+.rt-motion-pop-leave-from {
+    opacity: 1;
+    filter: blur(0);
+    transform: scale(1, 1);
+}
+
+.rt-motion-pop-leave {
+    transition:
+        opacity 170ms cubic-bezier(0.45, 0, 0.72, 0.06),
+        filter 170ms cubic-bezier(0.45, 0, 0.72, 0.06),
+        transform 210ms cubic-bezier(0.45, 0, 0.72, 0.06);
+}
+
+.rt-motion-pop-leave-to {
+    opacity: 0;
+    filter: blur(3px);
+    transform: scale(0.93, 0.87);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    [class*="rt-motion-"] {
+        transition: none !important;
+        filter: none !important;
+        transform: none !important;
+    }
+}
+
 html.dark .rt-ui-topbar,
 body[data-mode="dark"] .rt-ui-topbar {
     color: #edf2f8 !important;
@@ -2786,6 +2926,68 @@ html.rt-wagon-editor-is-open .rt-chatbot__panel {
     color: #c40025;
 }
 
+/* Fortschritt eines Entwurfs (gefuellte Wagen / sichtbare Wagen). */
+.rt-wagon-draft-progress {
+    height: 0.3rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #eef2f7;
+}
+
+.rt-wagon-draft-progress-bar {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #e4002b, #ff4f70);
+    transform-origin: left center;
+    transition: transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* "Wagenliste fortsetzen": Marken-CTA mit eingelassenem Pfeil-Chip.
+ * Die fruehere dunkle Flaeche kippte im Dark Mode zu einem grellen
+ * Weiss — jetzt traegt der Knopf in beiden Modi dieselbe Identitaet. */
+.rt-wagon-continue {
+    border: 1px solid rgba(228, 0, 43, 0.25);
+    background: linear-gradient(135deg, #e4002b, #c40025);
+    color: #fff;
+    box-shadow:
+        0 14px 26px -16px rgba(196, 0, 37, 0.65),
+        inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.rt-wagon-continue:hover {
+    background: linear-gradient(135deg, #f01138, #d1002a);
+    box-shadow:
+        0 18px 32px -16px rgba(196, 0, 37, 0.75),
+        inset 0 1px 0 rgba(255, 255, 255, 0.26);
+}
+
+.rt-wagon-continue-chip {
+    background: rgba(255, 255, 255, 0.16);
+    color: #fff;
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.22);
+}
+
+html.dark .rt-wagon-continue,
+body[data-mode='dark'] .rt-wagon-continue {
+    border-color: rgba(255, 79, 112, 0.35);
+    background: linear-gradient(135deg, #e4002b, #a30020);
+    box-shadow:
+        0 16px 30px -16px rgba(0, 0, 0, 0.85),
+        0 0 22px -8px rgba(228, 0, 43, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+html.dark .rt-wagon-continue:hover,
+body[data-mode='dark'] .rt-wagon-continue:hover {
+    background: linear-gradient(135deg, #ff2450, #c40025);
+}
+
+html.dark .rt-wagon-draft-progress,
+body[data-mode='dark'] .rt-wagon-draft-progress {
+    background: #1c293c;
+}
+
 [data-wagon-list-prototype] .rt-wagon-editor[data-wagon-editor][role='dialog'] {
     isolation: isolate;
     margin: 0 !important;
@@ -3428,48 +3630,99 @@ body[data-mode='dark'] .rt-wagon-sheet [data-rt-custom-select] .rt-ui-control {
     opacity: 0.35;
 }
 
-.rt-wagon-mobile-pager {
-    display: flex;
+/* --- Einseitige Mobilansicht: EINE vertikale Formularseite --------- */
+.rt-wagon-mobile-page {
     width: 100%;
-    min-height: 0;
-    overflow-x: auto;
-    overflow-y: hidden;
-    overscroll-behavior-x: contain;
-    scroll-behavior: smooth;
-    scroll-snap-type: x mandatory;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-}
-
-.rt-wagon-mobile-slide {
-    flex: 0 0 100%;
-    width: 100%;
-    min-width: 0;
-    height: 100%;
-    min-height: 0;
-    overflow: hidden;
-    scroll-snap-align: start;
-    scroll-snap-stop: normal;
-}
-
-.rt-wagon-mobile-slide-scroll {
-    width: 100%;
-    height: 100%;
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior-y: contain;
-    padding: 0.9rem 0.75rem calc(1.5rem + env(safe-area-inset-bottom));
+    padding: 0.9rem 0.75rem calc(1.75rem + env(safe-area-inset-bottom));
     scrollbar-gutter: stable;
     -webkit-overflow-scrolling: touch;
 }
 
-.rt-wagon-mobile-slide-scroll > * {
+.rt-wagon-page-section {
     max-width: 44rem;
     margin-inline: auto;
+    scroll-margin-top: 0.75rem;
 }
 
-.rt-wagon-mobile-slide-scroll > * + * {
+.rt-wagon-page-section > * + * {
     margin-top: 0.75rem;
+}
+
+.rt-wagon-page-section + .rt-wagon-page-section {
+    margin-top: 1.5rem;
+}
+
+/* --- Wagen-Modal: alle Angaben eines Wagens in einem Stueck -------- */
+.rt-wagon-modal-backdrop {
+    background: rgba(6, 12, 22, 0.55);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+.rt-wagon-modal-panel {
+    max-width: 44rem;
+    border: 1px solid #dbe3ee;
+    border-bottom: 0;
+    border-radius: 1.4rem 1.4rem 0 0;
+    background: #f8fafc;
+    color: #0c1421;
+    box-shadow: 0 -18px 48px -22px rgba(2, 8, 20, 0.55);
+}
+
+.rt-wagon-modal-head {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    border-bottom: 1px solid #e2e8f0;
+    background: #fff;
+    border-radius: 1.4rem 1.4rem 0 0;
+    padding: 0.8rem 0.9rem;
+}
+
+.rt-wagon-modal-body {
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    padding: 0.9rem 0.75rem 1.25rem;
+    -webkit-overflow-scrolling: touch;
+}
+
+.rt-wagon-modal-body > * + * {
+    margin-top: 0.75rem;
+}
+
+.rt-wagon-modal-body [data-wagon-anchor] {
+    scroll-margin-top: 0.5rem;
+}
+
+.rt-wagon-modal-footer {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    justify-items: center;
+    gap: 0.6rem;
+    border-top: 1px solid #e2e8f0;
+    background: #fff;
+    padding: 0.65rem 0.9rem calc(0.65rem + env(safe-area-inset-bottom));
+}
+
+html.dark .rt-wagon-modal-panel,
+body[data-mode='dark'] .rt-wagon-modal-panel {
+    border-color: #2a394d;
+    background: #0d1624;
+    color: #edf2f8;
+    box-shadow: 0 -18px 48px -18px rgba(0, 0, 0, 0.9);
+}
+
+html.dark .rt-wagon-modal-head,
+html.dark .rt-wagon-modal-footer,
+body[data-mode='dark'] .rt-wagon-modal-head,
+body[data-mode='dark'] .rt-wagon-modal-footer {
+    border-color: #2a394d;
+    background: #111a27;
 }
 
 /* --- Kopf eines Schrittes ---------------------------------------- */
@@ -5109,9 +5362,10 @@ body[data-mode='dark'] .rt-employee-mobile-header {
 }
 
 /* RailTime Particle Core: Die Navigationskugel besteht vollstaendig aus
-   Canvas-Partikeln. Eine deterministische Fibonacci-Verteilung erzeugt echte
-   Tiefenwirkung; das Outro formt bei laengeren Wechseln kurz das RT-Monogramm.
-   Mindestlaufzeit, History-Sicherheit und Failsafe werden in app.js gesteuert. */
+   Canvas-Partikeln. Choreografie: Start mit dem fertig geformten RT-Monogramm,
+   Aufloesung zur Fibonacci-Kugel mit echter Tiefenwirkung, beim Verlassen
+   Rueckformung zum RT mit Halte-Moment — das Monogramm ist in jedem Durchlauf
+   sichtbar. Mindestlaufzeit, History-Sicherheit und Failsafe in app.js. */
 .rt-nav-overlay {
     position: fixed;
     inset: 0;
@@ -5736,27 +5990,83 @@ html.rt-topbar-search-open body {
         display: flex !important;
     }
 
-    .topbar-brand .navbar-brand,
-    .vertical-menu {
+    .topbar-brand .navbar-brand {
         display: none !important;
     }
 
-    body.sidebar-enable .vertical-menu {
+    /*
+     * Die Sidebar bleibt mobil IM Layout und faehrt per transform ein und
+     * aus — frueher schaltete display:none/block hart um ("Springen").
+     * translateX(-104%) statt -100%: der Schlagschatten der offenen
+     * Sidebar darf im geschlossenen Zustand nicht am Rand durchblitzen.
+     * visibility nimmt die geschlossene Navigation aus dem A11y-Baum;
+     * die 0s-Transition verzoegert das erst bis nach dem Ausfahren.
+     */
+    body .vertical-menu {
         display: block !important;
+        width: min(86vw, 300px) !important;
+        visibility: hidden;
+        transform: translateX(-104%);
+        will-change: transform;
+        transition:
+            transform 460ms cubic-bezier(0.32, 0.72, 0, 1),
+            box-shadow 460ms cubic-bezier(0.32, 0.72, 0, 1),
+            visibility 0s linear 460ms;
+    }
+
+    body.sidebar-enable .vertical-menu {
+        visibility: visible;
+        transform: translateX(0);
+        box-shadow: 24px 0 60px -18px rgba(2, 8, 20, 0.4);
+        transition:
+            transform 460ms cubic-bezier(0.32, 0.72, 0, 1),
+            box-shadow 460ms cubic-bezier(0.32, 0.72, 0, 1);
+    }
+
+    /* Waehrend der Fingerfuehrung folgt die Sidebar 1:1 dem Fortschritt
+     * (0 = zu, 1 = offen). Keine Transition — der Finger IST die Kurve. */
+    body.rt-sidebar-dragging .vertical-menu {
+        visibility: visible;
+        transform: translateX(calc((1 - var(--rt-sidebar-drag-progress, 0)) * -104%));
+        box-shadow: 24px 0 60px -18px rgba(2, 8, 20, calc(var(--rt-sidebar-drag-progress, 0) * 0.4));
+        transition: none;
+    }
+
+    .rt-mobile-sidebar-backdrop {
+        display: block;
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transition:
+            opacity 360ms cubic-bezier(0.32, 0.72, 0, 1),
+            visibility 0s linear 360ms;
     }
 
     body.sidebar-enable .rt-mobile-sidebar-backdrop {
-        display: block;
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+        transition: opacity 360ms cubic-bezier(0.32, 0.72, 0, 1);
+    }
+
+    body.rt-sidebar-dragging .rt-mobile-sidebar-backdrop {
+        opacity: var(--rt-sidebar-drag-progress, 0);
+        visibility: visible;
+        pointer-events: none;
+        transition: none;
     }
 
     body.sidebar-enable {
         overflow: hidden;
     }
 
-    .vertical-menu {
-        width: min(86vw, 300px) !important;
+    @media (prefers-reduced-motion: reduce) {
+        body .vertical-menu,
+        body.sidebar-enable .vertical-menu,
+        .rt-mobile-sidebar-backdrop {
+            transition: none;
+        }
     }
-
 }
 
 @media (min-width: 1024px) {

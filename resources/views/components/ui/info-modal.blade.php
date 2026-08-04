@@ -58,12 +58,12 @@
         role="dialog"
         aria-modal="true"
         aria-labelledby="rt-info-modal-title"
-        x-transition:enter="transition duration-300 ease-out"
-        x-transition:enter-start="translate-y-3 scale-[0.985] opacity-0"
-        x-transition:enter-end="translate-y-0 scale-100 opacity-100"
-        x-transition:leave="transition duration-200 ease-in"
-        x-transition:leave-start="translate-y-0 scale-100 opacity-100"
-        x-transition:leave-end="translate-y-2 scale-[0.99] opacity-0"
+        x-transition:enter="rt-motion-modal-enter"
+        x-transition:enter-start="rt-motion-modal-enter-from"
+        x-transition:enter-end="rt-motion-modal-enter-to"
+        x-transition:leave="rt-motion-modal-leave"
+        x-transition:leave-start="rt-motion-modal-leave-from"
+        x-transition:leave-end="rt-motion-modal-leave-to"
         class="rt-info-dialog flex max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-[1.75rem] bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/70 sm:max-h-[calc(100dvh-3rem)]"
         data-rt-info-dialog
     >

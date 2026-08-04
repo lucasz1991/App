@@ -33,12 +33,7 @@
         <div class="mx-auto h-full min-h-0 w-full max-w-[100rem] px-5 py-4">
             <div x-show.important="desktopSection === 'wagons'" class="grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-3" role="tabpanel">
                 <section class="rt-wagon-workspace rounded-xl px-4 py-3" aria-labelledby="wagon-meta-title">
-                    <div class="flex items-end justify-between gap-4">
-                        <div>
-                            <h2 id="wagon-meta-title" class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ __('app.train_data') }}</h2>
-                            <p class="mt-0.5 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.train_data_hint') }}</p>
-                        </div>
-                    </div>
+                    <h2 id="wagon-meta-title" class="text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ __('app.train_data') }}</h2>
 
                     <div class="mt-3 grid grid-cols-5 gap-3">
                         <label class="{{ $labelClass }}">{{ __('app.train_number') }}
@@ -139,10 +134,7 @@
 
                         <fieldset class="rt-wagon-fieldset rounded-xl p-4 xl:col-span-2">
                             <legend class="px-1 text-sm font-semibold">{{ __('app.special_information') }}</legend>
-                            <p class="mb-3 mt-1 px-1 text-xs text-rt-muted dark:text-rt-dark-muted">
-                                <span x-text="`${specialAnsweredCount}/${specialFieldCount}`" class="font-semibold tabular-nums"></span>
-                                · {{ __('app.wagon_step_special_hint') }}
-                            </p>
+                            <p class="mb-3 mt-1 px-1 text-xs font-semibold tabular-nums text-rt-muted dark:text-rt-dark-muted" x-text="`${specialAnsweredCount}/${specialFieldCount}`"></p>
 
                             @include('livewire.operations.partials.wagon-special-information', [
                                 'inputClass' => $inputClass,

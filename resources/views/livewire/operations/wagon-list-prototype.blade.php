@@ -156,22 +156,34 @@
                             </div>
                         </dl>
 
+                        {{-- Fortschritt der Erfassung: gefuellte Wagen im Verhaeltnis
+                             zur sichtbaren Wagenzahl des Entwurfs. --}}
+                        <div class="rt-wagon-draft-progress mt-4" aria-hidden="true">
+                            <span
+                                class="rt-wagon-draft-progress-bar"
+                                :style="`transform: scaleX(${draft.visibleCount > 0 ? Math.min(1, draftWagonCount(draft) / draft.visibleCount) : 0})`"
+                            ></span>
+                        </div>
+
                         <div class="mt-4 flex flex-wrap items-center justify-between gap-2">
                             <button
                                 type="button"
                                 @click="deleteDraft(draft.id)"
-                                class="inline-flex min-h-10 items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-rt-muted transition-all duration-200 hover:bg-red-50 hover:text-red-700 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/45 dark:text-rt-dark-muted dark:hover:bg-red-500/10 dark:hover:text-red-300"
+                                class="inline-flex h-11 w-11 items-center justify-center rounded-xl text-rt-muted transition-all duration-200 hover:bg-red-50 hover:text-red-700 active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/45 dark:text-rt-dark-muted dark:hover:bg-red-500/10 dark:hover:text-red-300"
+                                title="{{ $labels['deleteDraft'] }}"
+                                aria-label="{{ $labels['deleteDraft'] }}"
                             >
                                 <i class="far fa-trash-alt" aria-hidden="true"></i>
-                                {{ $labels['deleteDraft'] }}
                             </button>
                             <button
                                 type="button"
                                 @click="openDraft(draft.id, $event.currentTarget)"
-                                class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-rt-text px-4 py-2 text-xs font-semibold text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-700 active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40 dark:bg-rt-dark-text dark:text-slate-950 dark:hover:bg-white"
+                                class="rt-wagon-continue group/continue inline-flex min-h-11 items-center gap-2.5 rounded-full py-1.5 pl-5 pr-1.5 text-sm font-semibold transition-all duration-300 ease-rt-spring hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/40 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-rt-dark-canvas"
                             >
                                 {{ $labels['continueDraft'] }}
-                                <i class="far fa-arrow-right" aria-hidden="true"></i>
+                                <span class="rt-wagon-continue-chip flex h-8 w-8 items-center justify-center rounded-full transition-transform duration-300 ease-rt-spring group-hover/continue:translate-x-0.5" aria-hidden="true">
+                                    <i class="far fa-arrow-right text-xs"></i>
+                                </span>
                             </button>
                         </div>
                     </article>
