@@ -1,5 +1,8 @@
 {{--
-    EIN globales Infomodal fuer die ganze Anwendung.
+    EIN globales Infomodal fuer die ganze Anwendung — seit dem Umbau in der
+    OPTIK DES EINHEITLICHEN MODALS (Standard-Panel, Kopf-/Inhalts-/Fusszeile,
+    rt-motion-Choreografie von unten herein und nach oben hinaus) statt des
+    frueheren Sonderlayouts mit eigenem Hero.
 
     Jeder Info-Button schickt lediglich ein Fenster-Ereignis mit seinem Inhalt:
 
@@ -48,12 +51,28 @@
     x-show.important="open"
     x-trap.inert.noscroll="open"
     x-cloak
-    class="rt-info-backdrop fixed inset-0 z-[500] flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-md sm:p-6"
+    class="rt-ui-modal rt-modal-shell fixed inset-0 z-[500] flex items-center justify-center overflow-hidden p-3 sm:p-6"
     x-on:click.self="close()"
     data-rt-info-modal
     data-rt-overlay-layer
     data-rt-overlay-base="500"
 >
+    {{-- Schleier: identisch zum einheitlichen Modal. --}}
+    <div
+        x-show.important="open"
+        aria-hidden="true"
+        class="rt-modal-backdrop fixed inset-0 -z-[1]"
+        x-on:click="close()"
+        x-transition:enter="rt-motion-backdrop-enter"
+        x-transition:enter-start="rt-motion-faded"
+        x-transition:enter-end="rt-motion-shown"
+        x-transition:leave="rt-motion-backdrop-leave"
+        x-transition:leave-start="rt-motion-shown"
+        x-transition:leave-end="rt-motion-faded"
+    >
+        <div class="absolute inset-0 bg-slate-950/55 backdrop-blur-md"></div>
+    </div>
+
     <section
         role="dialog"
         aria-modal="true"
@@ -64,44 +83,30 @@
         x-transition:leave="rt-motion-modal-leave"
         x-transition:leave-start="rt-motion-modal-leave-from"
         x-transition:leave-end="rt-motion-modal-leave-to"
-        class="rt-info-dialog flex max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-[1.75rem] bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/70 sm:max-h-[calc(100dvh-3rem)]"
+        class="rt-ui-surface rt-ui-modal-panel rt-modal-frame rt-info-dialog relative flex max-h-[calc(100dvh-1.5rem)] min-h-0 w-full max-w-2xl flex-col overflow-hidden rounded-[1.4rem] bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60 sm:max-h-[calc(100dvh-3rem)]"
         data-rt-info-dialog
     >
-        <header class="rt-info-hero relative shrink-0 overflow-hidden px-5 pb-6 pt-5 sm:px-7 sm:pb-7 sm:pt-6">
-            <div class="rt-info-orbit rt-info-orbit--one" aria-hidden="true"></div>
-            <div class="rt-info-orbit rt-info-orbit--two" aria-hidden="true"></div>
-
-            <div class="relative z-[2] flex items-start justify-between gap-4">
-                <div class="flex min-w-0 items-center gap-3.5">
-                    <span class="rt-info-icon flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white ring-1 ring-white/20">
-                        <i class="far fa-route text-lg" aria-hidden="true"></i>
-                    </span>
-                    <div class="min-w-0">
-                        <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-white/65">{{ __('app.about_this_page') }}</p>
-                        <h2 id="rt-info-modal-title" class="mt-1 text-balance text-xl font-semibold leading-tight tracking-tight text-white sm:text-2xl" x-text="title"></h2>
-                    </div>
-                </div>
-                <button
-                    type="button"
-                    x-on:click="close()"
-                    class="rt-info-close flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white/75 transition duration-200 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-                    aria-label="{{ __('app.close') }}"
-                >
-                    <i class="far fa-times" aria-hidden="true"></i>
-                </button>
+        <header class="rt-modal-header relative flex shrink-0 items-center gap-3.5 border-b border-rt-border/70 bg-rt-surface px-5 py-4 pr-16 dark:border-rt-dark-border/70 dark:bg-rt-dark-surface sm:px-6 sm:py-5 sm:pr-16">
+            <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft text-rt-red ring-1 ring-rt-red/10 dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent">
+                <i class="far fa-route" aria-hidden="true"></i>
+            </span>
+            <div class="min-w-0">
+                <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-rt-soft dark:text-rt-dark-soft">{{ __('app.about_this_page') }}</p>
+                <h2 id="rt-info-modal-title" class="mt-0.5 text-balance text-lg font-semibold leading-6 tracking-[-0.02em]" x-text="title"></h2>
             </div>
 
-            <div class="rt-info-route-map relative z-[2] mt-6" aria-hidden="true">
-                <span class="rt-info-route-line"></span>
-                @foreach ([['far fa-compass', 'start'], ['far fa-lightbulb', 'middle'], ['far fa-check', 'finish']] as [$icon, $position])
-                    <span class="rt-info-route-node rt-info-route-node--{{ $position }}">
-                        <i class="{{ $icon }}"></i>
-                    </span>
-                @endforeach
-            </div>
+            <button
+                type="button"
+                x-on:click="close()"
+                class="absolute right-3 top-1/2 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg border border-rt-border/70 bg-rt-control text-rt-muted transition hover:border-rt-accent/35 hover:text-rt-accent focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-accent/15 dark:border-rt-dark-border/70 dark:bg-rt-dark-control dark:text-rt-dark-muted dark:hover:border-rt-dark-accent/35 dark:hover:text-rt-dark-accent sm:right-4"
+                aria-label="{{ __('app.close') }}"
+                title="{{ __('app.close') }}"
+            >
+                <i class="far fa-times text-base" aria-hidden="true"></i>
+            </button>
         </header>
 
-        <div class="rt-info-body min-h-0 overflow-y-auto overscroll-contain px-5 py-5 sm:px-7 sm:py-6">
+        <div class="rt-info-body rt-modal-content min-h-0 overflow-y-auto overscroll-contain px-5 py-5 text-sm leading-6 sm:px-6 sm:py-6">
             <p class="rt-info-summary max-w-xl text-pretty text-sm leading-6 text-rt-muted dark:text-rt-dark-muted" x-text="summary" x-show.important="summary"></p>
 
             <ul class="rt-info-points mt-5 grid gap-2.5 sm:grid-cols-2" x-show.important="points.length">
@@ -112,31 +117,31 @@
                     </li>
                 </template>
             </ul>
-
-            <div class="rt-info-footer mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-rt-border/60 pt-4 dark:border-rt-dark-border/60">
-                <a
-                    href="{{ route('help') }}"
-                    wire:navigate
-                    class="rt-info-help-link group inline-flex min-h-10 items-center gap-2 rounded-xl px-2 text-sm font-semibold text-rt-red transition hover:bg-rt-accent-soft/60 hover:text-rt-red-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:hover:bg-rt-dark-accent-soft/50"
-                >
-                    <i class="far fa-life-ring" aria-hidden="true"></i>
-                    {{ __('app.open_all_help_topics') }}
-                    <i class="far fa-external-link-alt text-[10px] opacity-55 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" aria-hidden="true"></i>
-                </a>
-
-                {{-- Nur im Intro-Modus: deutlicher Abschluss-Knopf. --}}
-                <button
-                    type="button"
-                    x-show.important="intro"
-                    x-cloak
-                    x-on:click="close()"
-                    class="rt-skiper-highlight inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-5 py-2 text-sm font-semibold text-white shadow-rt-glow transition duration-200 hover:-translate-y-0.5 hover:bg-rt-red-dark focus:outline-none focus:ring-2 focus:ring-rt-red/30"
-                >
-                    {{ __('app.lets_go') }}
-                    <i class="far fa-arrow-right text-xs" aria-hidden="true"></i>
-                </button>
-            </div>
         </div>
+
+        <footer class="rt-info-footer rt-modal-footer flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-rt-border/70 bg-rt-surface-muted/55 px-5 py-4 dark:border-rt-dark-border/70 dark:bg-rt-dark-surface-muted/35 sm:px-6">
+            <a
+                href="{{ route('help') }}"
+                wire:navigate
+                class="rt-info-help-link group inline-flex min-h-10 items-center gap-2 rounded-xl px-2 text-sm font-semibold text-rt-red transition hover:bg-rt-accent-soft/60 hover:text-rt-red-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/35 dark:hover:bg-rt-dark-accent-soft/50"
+            >
+                <i class="far fa-life-ring" aria-hidden="true"></i>
+                {{ __('app.open_all_help_topics') }}
+                <i class="far fa-external-link-alt text-[10px] opacity-55 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" aria-hidden="true"></i>
+            </a>
+
+            {{-- Nur im Intro-Modus: deutlicher Abschluss-Knopf. --}}
+            <button
+                type="button"
+                x-show.important="intro"
+                x-cloak
+                x-on:click="close()"
+                class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-5 py-2 text-sm font-semibold text-white shadow-rt-glow transition duration-200 hover:-translate-y-0.5 hover:bg-rt-red-dark focus:outline-none focus:ring-2 focus:ring-rt-red/30"
+            >
+                {{ __('app.lets_go') }}
+                <i class="far fa-arrow-right text-xs" aria-hidden="true"></i>
+            </button>
+        </footer>
     </section>
 
     <div wire:ignore class="pointer-events-none fixed inset-0 z-[20]" data-rt-overlay-portal></div>

@@ -298,8 +298,8 @@ body[data-mode="dark"] .rt-ui-surface-muted {
     opacity: 1;
 }
 
-/* Zentrierte Dialog-Panels: aus leichter Tiefe und Unschaerfe nach vorn
- * federn; beim Schliessen kompakt und schnell zuruecksinken. */
+/* Zentrierte Dialog-Panels: von UNTEN hereinfedern, nach OBEN hinaus —
+ * der Dialog reist einmal durchs Bild statt am Platz zu blenden. */
 .rt-motion-modal-enter {
     transition:
         opacity 300ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -310,7 +310,7 @@ body[data-mode="dark"] .rt-ui-surface-muted {
 .rt-motion-modal-enter-from {
     opacity: 0;
     filter: blur(8px);
-    transform: translateY(1.15rem) scale(0.955);
+    transform: translateY(2.75rem) scale(0.96);
 }
 
 .rt-motion-modal-enter-to,
@@ -322,19 +322,19 @@ body[data-mode="dark"] .rt-ui-surface-muted {
 
 .rt-motion-modal-leave {
     transition:
-        opacity 200ms cubic-bezier(0.45, 0, 0.72, 0.06),
-        filter 200ms cubic-bezier(0.45, 0, 0.72, 0.06),
-        transform 240ms cubic-bezier(0.45, 0, 0.72, 0.06);
+        opacity 220ms cubic-bezier(0.45, 0, 0.72, 0.06),
+        filter 220ms cubic-bezier(0.45, 0, 0.72, 0.06),
+        transform 260ms cubic-bezier(0.45, 0, 0.72, 0.06);
 }
 
 .rt-motion-modal-leave-to {
     opacity: 0;
     filter: blur(4px);
-    transform: translateY(0.6rem) scale(0.965);
+    transform: translateY(-1.9rem) scale(0.97);
 }
 
 /* Vollflaechige Ebenen (Fullscreen-Editor): grosse Flaeche, deshalb ohne
- * Blur — nur Tiefe ueber Opacity und minimale Skalierung. */
+ * Blur — gleiche Reiserichtung wie die Dialoge (unten rein, oben raus). */
 .rt-motion-screen-enter {
     transition:
         opacity 340ms cubic-bezier(0.32, 0.72, 0, 1),
@@ -343,7 +343,7 @@ body[data-mode="dark"] .rt-ui-surface-muted {
 
 .rt-motion-screen-enter-from {
     opacity: 0;
-    transform: translateY(0.85rem) scale(0.99);
+    transform: translateY(1.5rem) scale(0.99);
 }
 
 .rt-motion-screen-enter-to,
@@ -360,7 +360,7 @@ body[data-mode="dark"] .rt-ui-surface-muted {
 
 .rt-motion-screen-leave-to {
     opacity: 0;
-    transform: translateY(0.4rem) scale(0.994);
+    transform: translateY(-1rem) scale(0.994);
 }
 
 /* Dropdown-Panels entfalten sich aus dem Caret-Punkt des Ausloesers
@@ -406,6 +406,7 @@ body[data-mode="dark"] .rt-ui-surface-muted {
         transform: none !important;
     }
 }
+
 
 html.dark .rt-ui-topbar,
 body[data-mode="dark"] .rt-ui-topbar {

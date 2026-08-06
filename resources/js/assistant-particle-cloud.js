@@ -1,37 +1,86 @@
-import { createRailTimeLogoTargets } from './navigation-particle-loader.js';
-
 /**
- * AI-Partikelwolke des Assistenten.
+ * AI-Partikelwolke des Assistenten — Zustands-Choreografien.
  *
- * Ersetzt das fruehere 3D-Maskottchen (Backup: assistant-pet-3d.js bleibt
- * unveraendert im Repo, ist aber nicht mehr eingebunden). Eine weiche
- * Partikelwolke treibt dahin und formt sich in einem ruhigen Zyklus zum
- * RT-Monogramm und wieder zurueck — dieselbe Logo-Geometrie wie der
- * Navigations-Loader, aber eine eigenstaendige, zurueckhaltendere Anmutung:
- * kleiner, langsamer, ohne Kugelphase.
+ * Jeder Assistenten-Zustand (petState() in chatbot.js) hat eine EIGENE
+ * Bewegungssprache und eine leicht verschobene Farbwelt:
+ *
+ *   idle      Atmen        ruhige Wolke, klassisches RailTime-Rot
+ *   listening Fokus-Ring   Partikel ziehen sich zu einem pulsierenden
+ *                          Ring zusammen, Palette kippt ins Rosa
+ *   speaking  Schallwellen radiale Wellen laufen nach aussen, warmes Koralle
+ *   thinking  Wirbel       die Wolke kreist als Strudel, violetter Einschlag
+ *   curious   Neigen       die Wolke kippt neugierig hin und her, sattes Pink
+ *   happy     Funkenregen  freudiges Zittern mit Gold-Funken
+ *   wave      Winken       eine Querwelle laeuft durch die Wolke
+ *   offline   Ruhen        fast still, entsaettigtes Graublau
+ *
+ * Zustandswechsel blenden Position UND Farbe weich ueber
+ * (ASSISTANT_CLOUD_TRANSITION_MS). Der fruehere Wolke-zu-RT-Zyklus ist
+ * bewusst entfernt. Das noch aeltere 3D-Maskottchen bleibt als Backup in
+ * assistant-pet-3d.js liegen, ist aber nicht eingebunden.
  */
 
 const TAU = Math.PI * 2;
 
 export const ASSISTANT_CLOUD_PARTICLES = 110;
+export const ASSISTANT_CLOUD_TRANSITION_MS = 650;
 
-export const ASSISTANT_CLOUD_CYCLE = Object.freeze({
-    cloudMs: 6400,
-    morphMs: 760,
-    logoMs: 1900,
-});
-
-// Zustaende aus chatbot.js petState(). Sie modulieren nur Tempo, Dichte und
-// Funkeln — die Wolke bleibt immer dieselbe Persoenlichkeit.
-export const ASSISTANT_CLOUD_PROFILES = Object.freeze({
-    idle: Object.freeze({ drift: 1, swirl: 0.14, contract: 0, pulse: 0, sparkle: 1, gray: false }),
-    thinking: Object.freeze({ drift: 2.1, swirl: 0.55, contract: 0.06, pulse: 0.05, sparkle: 1.25, gray: false }),
-    listening: Object.freeze({ drift: 0.8, swirl: 0.1, contract: 0.18, pulse: 0.1, sparkle: 1.1, gray: false }),
-    speaking: Object.freeze({ drift: 1.35, swirl: 0.2, contract: 0.04, pulse: 0.22, sparkle: 1.3, gray: false }),
-    curious: Object.freeze({ drift: 1.8, swirl: 0.4, contract: 0, pulse: 0.08, sparkle: 1.5, gray: false }),
-    happy: Object.freeze({ drift: 1.6, swirl: 0.3, contract: 0, pulse: 0.14, sparkle: 1.7, gray: false }),
-    wave: Object.freeze({ drift: 1.6, swirl: 0.35, contract: 0, pulse: 0.12, sparkle: 1.5, gray: false }),
-    offline: Object.freeze({ drift: 0.45, swirl: 0.05, contract: 0.1, pulse: 0, sparkle: 0.4, gray: true }),
+/**
+ * Bewegungs- und Farbsprache je Zustand. Alle Werte sind bewusst als Daten
+ * exportiert: Tests sichern damit ab, dass jeder Zustand eine EIGENE
+ * Choreografie und eine EIGENE Palette traegt.
+ *
+ * palette: {main, deep, spark} als [r, g, b].
+ */
+export const ASSISTANT_CLOUD_STATE_STYLES = Object.freeze({
+    idle: Object.freeze({
+        breathAmp: 0.045, breathSpeed: 0.0011,
+        swirl: 0.00003, ringPull: 0, rippleAmp: 0, waveAmp: 0,
+        tiltAmp: 0.02, jitter: 0, sparkle: 1, dim: 1,
+        palette: Object.freeze({ main: [228, 0, 43], deep: [176, 0, 42], spark: [255, 244, 247] }),
+    }),
+    listening: Object.freeze({
+        breathAmp: 0.06, breathSpeed: 0.003,
+        swirl: 0.00002, ringPull: 0.55, rippleAmp: 0, waveAmp: 0,
+        tiltAmp: 0, jitter: 0, sparkle: 1.15, dim: 1,
+        palette: Object.freeze({ main: [255, 64, 110], deep: [205, 20, 80], spark: [255, 235, 242] }),
+    }),
+    speaking: Object.freeze({
+        breathAmp: 0.03, breathSpeed: 0.0016,
+        swirl: 0.00004, ringPull: 0, rippleAmp: 0.16, waveAmp: 0,
+        tiltAmp: 0, jitter: 0, sparkle: 1.25, dim: 1,
+        palette: Object.freeze({ main: [255, 92, 60], deep: [210, 60, 20], spark: [255, 244, 230] }),
+    }),
+    thinking: Object.freeze({
+        breathAmp: 0.02, breathSpeed: 0.0013,
+        swirl: 0.00035, ringPull: 0.12, rippleAmp: 0, waveAmp: 0,
+        tiltAmp: 0, jitter: 0.004, sparkle: 1.1, dim: 1,
+        palette: Object.freeze({ main: [190, 70, 230], deep: [130, 40, 180], spark: [245, 238, 255] }),
+    }),
+    curious: Object.freeze({
+        breathAmp: 0.05, breathSpeed: 0.002,
+        swirl: 0.00008, ringPull: 0, rippleAmp: 0, waveAmp: 0,
+        tiltAmp: 0.14, jitter: 0.008, sparkle: 1.45, dim: 1,
+        palette: Object.freeze({ main: [255, 45, 96], deep: [200, 10, 70], spark: [255, 240, 246] }),
+    }),
+    happy: Object.freeze({
+        breathAmp: 0.07, breathSpeed: 0.004,
+        swirl: 0.00012, ringPull: 0, rippleAmp: 0, waveAmp: 0,
+        tiltAmp: 0.04, jitter: 0.018, sparkle: 1.75, dim: 1,
+        palette: Object.freeze({ main: [250, 105, 45], deep: [205, 60, 25], spark: [255, 228, 176] }),
+    }),
+    wave: Object.freeze({
+        breathAmp: 0.04, breathSpeed: 0.0014,
+        swirl: 0.00004, ringPull: 0, rippleAmp: 0, waveAmp: 0.13,
+        tiltAmp: 0.03, jitter: 0, sparkle: 1.35, dim: 1,
+        palette: Object.freeze({ main: [240, 20, 60], deep: [185, 0, 48], spark: [255, 246, 248] }),
+    }),
+    offline: Object.freeze({
+        breathAmp: 0.015, breathSpeed: 0.0006,
+        swirl: 0, ringPull: 0.1, rippleAmp: 0, waveAmp: 0,
+        tiltAmp: 0, jitter: 0, sparkle: 0.4, dim: 0.7,
+        palette: Object.freeze({ main: [122, 134, 150], deep: [88, 99, 114], spark: [176, 186, 199] }),
+    }),
 });
 
 const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
@@ -50,37 +99,20 @@ function deterministicNoise(index, salt = 0) {
     return value - Math.floor(value);
 }
 
-export function resolveAssistantCloudProfile(state) {
-    return ASSISTANT_CLOUD_PROFILES[state] || ASSISTANT_CLOUD_PROFILES.idle;
+export function resolveAssistantCloudStyle(state) {
+    return ASSISTANT_CLOUD_STATE_STYLES[state] || ASSISTANT_CLOUD_STATE_STYLES.idle;
 }
 
 /**
- * Position im Wolke-RT-Zyklus (reine Funktion, testbar):
- * cloud -> to-logo -> logo -> to-cloud. blend 0 = Wolke, 1 = Monogramm.
+ * Ueberblendfortschritt eines Zustandswechsels (reine Funktion, testbar):
+ * 0 = alter Zustand, 1 = neuer Zustand vollstaendig uebernommen.
  */
-export function assistantCloudCycle(elapsedMs, cycle = ASSISTANT_CLOUD_CYCLE) {
-    const cloudMs = Math.max(1, cycle.cloudMs);
-    const morphMs = Math.max(1, cycle.morphMs);
-    const logoMs = Math.max(1, cycle.logoMs);
-    const total = cloudMs + morphMs + logoMs + morphMs;
-    const t = ((Number(elapsedMs) || 0) % total + total) % total;
-
-    if (t < cloudMs) {
-        return { phase: 'cloud', blend: 0 };
+export function assistantCloudStyleBlend(msSinceChange, transitionMs = ASSISTANT_CLOUD_TRANSITION_MS) {
+    if (!Number.isFinite(msSinceChange) || msSinceChange <= 0) {
+        return 0;
     }
 
-    if (t < cloudMs + morphMs) {
-        return { phase: 'to-logo', blend: easeInOutCubic((t - cloudMs) / morphMs) };
-    }
-
-    if (t < cloudMs + morphMs + logoMs) {
-        return { phase: 'logo', blend: 1 };
-    }
-
-    return {
-        phase: 'to-cloud',
-        blend: 1 - easeInOutCubic((t - cloudMs - morphMs - logoMs) / morphMs),
-    };
+    return easeInOutCubic(msSinceChange / Math.max(1, transitionMs));
 }
 
 /**
@@ -111,40 +143,105 @@ export function createAssistantCloudTargets(count = ASSISTANT_CLOUD_PARTICLES) {
 
 function createParticles(count) {
     const cloudTargets = createAssistantCloudTargets(count);
-    const logoTargets = createRailTimeLogoTargets(count);
 
     return cloudTargets.map((target, index) => ({
         cloud: target,
-        logo: logoTargets[index],
         driftPhase: deterministicNoise(index, 31) * TAU,
         driftSpeed: 0.6 + (deterministicNoise(index, 32) * 0.8),
         driftAmount: 0.03 + (deterministicNoise(index, 33) * 0.05),
         size: 0.75 + (deterministicNoise(index, 34) * 1.05),
         alpha: 0.35 + (deterministicNoise(index, 35) * 0.6),
-        sparkle: deterministicNoise(index, 36),
+        // 0..1: Position innerhalb der Palette (deep -> main).
+        tone: deterministicNoise(index, 36),
         pulse: deterministicNoise(index, 37) * TAU,
+        jitterPhase: deterministicNoise(index, 38) * TAU,
     }));
 }
 
-function particleColor(particle, { gray, dark, logoBlend }) {
-    if (gray) {
-        return dark ? '148, 163, 184' : '100, 116, 139';
+/**
+ * Position eines Partikels unter einer Zustands-Choreografie
+ * (normierte Koordinaten, ohne Canvas-Skalierung).
+ */
+export function styledParticlePosition(particle, elapsed, style) {
+    // Wispern der Wolke: jede Partikel treibt leicht um ihren Platz.
+    const wispX = Math.sin((elapsed * 0.00042 * particle.driftSpeed) + particle.driftPhase)
+        * particle.driftAmount;
+    const wispY = Math.cos((elapsed * 0.00036 * particle.driftSpeed) + particle.driftPhase)
+        * particle.driftAmount * 0.8;
+
+    let x = particle.cloud.x + wispX;
+    let y = particle.cloud.y + wispY;
+
+    // Fokus-Ring (Zuhoeren): zum pulsierenden Ring hinziehen.
+    if (style.ringPull > 0) {
+        const radius = Math.hypot(x, y) || 0.0001;
+        const ringRadius = 0.52 + (Math.sin(elapsed * 0.004) * 0.05);
+        const pull = style.ringPull * (0.65 + (0.35 * Math.sin((elapsed * 0.003) + particle.pulse)));
+        const scale = mix(1, ringRadius / radius, clamp(pull));
+        x *= scale;
+        y *= scale;
     }
 
-    // Im Monogramm uebernimmt jeder Partikel seinen Logo-Ton.
-    if (logoBlend > 0.5 && particle.logo.tone === 'slate') {
-        return dark ? '210, 220, 232' : '38, 47, 59';
+    // Schallwellen (Sprechen): radiale Wellen laufen nach aussen.
+    if (style.rippleAmp > 0) {
+        const radius = Math.hypot(x, y);
+        const ripple = Math.sin((radius * 9) - (elapsed * 0.012)) * style.rippleAmp;
+        const scale = 1 + ripple;
+        x *= scale;
+        y *= scale;
     }
 
-    if (particle.sparkle > 0.94) {
-        return '255, 244, 247';
+    // Winken: eine Querwelle wandert horizontal durch die Wolke.
+    if (style.waveAmp > 0) {
+        y += Math.sin((x * 3.2) - (elapsed * 0.01)) * style.waveAmp;
     }
 
-    if (particle.sparkle > 0.6) {
-        return '255, 76, 105';
+    // Wirbel (Denken) bzw. langsames Kreisen.
+    if (style.swirl > 0) {
+        const angle = elapsed * style.swirl * TAU;
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+        const rotatedX = (x * cos) - (y * sin);
+        const rotatedY = (x * sin) + (y * cos);
+        x = rotatedX;
+        y = rotatedY;
     }
 
-    return '228, 0, 43';
+    // Neigen (Neugier): die ganze Wolke kippt hin und her.
+    if (style.tiltAmp > 0) {
+        const tilt = Math.sin(elapsed * 0.0021) * style.tiltAmp;
+        const cos = Math.cos(tilt);
+        const sin = Math.sin(tilt);
+        const tiltedX = (x * cos) - (y * sin);
+        const tiltedY = (x * sin) + (y * cos);
+        x = tiltedX;
+        y = tiltedY;
+    }
+
+    // Funkenregen (Freude) bzw. nervoeses Denk-Zittern.
+    if (style.jitter > 0) {
+        x += Math.sin((elapsed * 0.02) + particle.jitterPhase) * style.jitter;
+        y += Math.cos((elapsed * 0.023) + (particle.jitterPhase * 1.7)) * style.jitter;
+    }
+
+    // Atmen: sanfte Gesamtskalierung.
+    const breath = 1 + (Math.sin(elapsed * style.breathSpeed * TAU) * style.breathAmp);
+
+    return { x: x * breath, y: y * breath };
+}
+
+function paletteColor(particle, palette) {
+    if (particle.tone > 0.94) {
+        return palette.spark;
+    }
+
+    const base = particle.tone / 0.94;
+
+    return [
+        mix(palette.deep[0], palette.main[0], base),
+        mix(palette.deep[1], palette.main[1], base),
+        mix(palette.deep[2], palette.main[2], base),
+    ];
 }
 
 export function createAssistantCloudRenderer(controllerElement, options = {}) {
@@ -211,11 +308,10 @@ export function createAssistantCloudRenderer(controllerElement, options = {}) {
     let running = false;
     let lastFrameAt = 0;
     let startedAt = 0;
-
-    function isDark() {
-        return documentObject.documentElement.classList.contains('dark')
-            || documentObject.body?.dataset.mode === 'dark';
-    }
+    // Zustandswechsel werden weich uebergeblendet.
+    let currentState = 'idle';
+    let previousState = 'idle';
+    let stateChangedAt = 0;
 
     function syncSurfaceSize(surface) {
         const measured = Math.min(
@@ -233,86 +329,63 @@ export function createAssistantCloudRenderer(controllerElement, options = {}) {
         }
     }
 
-    function drawSurface(surface, elapsed, cycle, profile, dark) {
+    function drawSurface(surface, elapsed, fromStyle, toStyle, blend) {
         syncSurfaceSize(surface);
 
         const { context, cssSize } = surface;
         const center = cssSize / 2;
-        // Die Wolke nutzt die Flaeche grosszuegig, das Monogramm etwas
-        // kompakter, damit es im runden Halo sauber steht.
-        const cloudScale = cssSize * 0.44;
-        const logoScale = cssSize * 0.36;
-        const logoBlend = cycle.blend;
-        const breath = 1 + (Math.sin(elapsed * 0.0011) * 0.035 * (1 + profile.pulse));
+        const scale = cssSize * 0.44;
+        const sparkle = mix(fromStyle.sparkle, toStyle.sparkle, blend);
+        const dim = mix(fromStyle.dim, toStyle.dim, blend);
 
         context.clearRect(0, 0, cssSize, cssSize);
 
         particles.forEach((particle) => {
-            const drift = profile.drift;
-            const wispX = Math.sin((elapsed * 0.00042 * drift * particle.driftSpeed) + particle.driftPhase)
-                * particle.driftAmount;
-            const wispY = Math.cos((elapsed * 0.00036 * drift * particle.driftSpeed) + particle.driftPhase)
-                * particle.driftAmount * 0.8;
-            // Sanfte Rotation der ganzen Wolke (Denk-Zustand dreht schneller).
-            const swirlAngle = elapsed * 0.00012 * profile.swirl * TAU;
-            const cosSwirl = Math.cos(swirlAngle);
-            const sinSwirl = Math.sin(swirlAngle);
-            const contraction = 1 - profile.contract;
-            const rawX = (particle.cloud.x + wispX) * contraction;
-            const rawY = (particle.cloud.y + wispY) * contraction;
-            const cloudX = (rawX * cosSwirl) - (rawY * sinSwirl);
-            const cloudY = (rawX * sinSwirl) + (rawY * cosSwirl);
+            const fromPosition = styledParticlePosition(particle, elapsed, fromStyle);
+            const toPosition = styledParticlePosition(particle, elapsed, toStyle);
+            const x = center + (mix(fromPosition.x, toPosition.x, blend) * scale);
+            const y = center + (mix(fromPosition.y, toPosition.y, blend) * scale);
 
-            const x = center + (mix(cloudX * cloudScale, particle.logo.x * logoScale, logoBlend) * breath);
-            const y = center + (mix(cloudY * cloudScale, particle.logo.y * logoScale, logoBlend) * breath);
+            const twinkle = 0.82 + (Math.sin((elapsed * 0.0024 * sparkle) + particle.pulse) * 0.18);
+            const size = particle.size * twinkle * (cssSize / 96);
+            const alpha = particle.alpha * 0.85 * twinkle * dim;
 
-            const twinkle = 0.82
-                + (Math.sin((elapsed * 0.0024 * profile.sparkle) + particle.pulse) * 0.18);
-            const logoSize = particle.logo.tone === 'slate' ? 1.3 : 1.45;
-            const size = mix(particle.size, logoSize, logoBlend)
-                * twinkle
-                * (cssSize / 96)
-                * (1 + (profile.pulse * Math.sin(elapsed * 0.008)));
-            const alpha = mix(particle.alpha * 0.82, 0.95, logoBlend) * twinkle;
+            const fromColor = paletteColor(particle, fromStyle.palette);
+            const toColor = paletteColor(particle, toStyle.palette);
+            const r = Math.round(mix(fromColor[0], toColor[0], blend));
+            const g = Math.round(mix(fromColor[1], toColor[1], blend));
+            const b = Math.round(mix(fromColor[2], toColor[2], blend));
 
             context.beginPath();
             context.arc(x, y, Math.max(0.3, size), 0, TAU);
-            context.fillStyle = `rgba(${particleColor(particle, {
-                gray: profile.gray,
-                dark,
-                logoBlend,
-            })}, ${clamp(alpha, 0, 1)})`;
+            context.fillStyle = `rgba(${r}, ${g}, ${b}, ${clamp(alpha, 0, 1)})`;
             context.fill();
         });
     }
 
-    function drawStaticLogo() {
-        const dark = isDark();
+    function drawStaticCloud() {
+        const style = ASSISTANT_CLOUD_STATE_STYLES.idle;
 
         surfaces.forEach((surface) => {
             syncSurfaceSize(surface);
 
             const { context, cssSize } = surface;
             const center = cssSize / 2;
-            const logoScale = cssSize * 0.36;
+            const scale = cssSize * 0.44;
 
             context.clearRect(0, 0, cssSize, cssSize);
             particles.forEach((particle) => {
-                const logoSize = (particle.logo.tone === 'slate' ? 1.3 : 1.45) * (cssSize / 96);
+                const color = paletteColor(particle, style.palette);
 
                 context.beginPath();
                 context.arc(
-                    center + (particle.logo.x * logoScale),
-                    center + (particle.logo.y * logoScale),
-                    Math.max(0.3, logoSize),
+                    center + (particle.cloud.x * scale),
+                    center + (particle.cloud.y * scale),
+                    Math.max(0.3, particle.size * (cssSize / 96)),
                     0,
                     TAU
                 );
-                context.fillStyle = `rgba(${particleColor(particle, {
-                    gray: false,
-                    dark,
-                    logoBlend: 1,
-                })}, 0.95)`;
+                context.fillStyle = `rgba(${Math.round(color[0])}, ${Math.round(color[1])}, ${Math.round(color[2])}, ${clamp(particle.alpha, 0, 1)})`;
                 context.fill();
             });
         });
@@ -332,11 +405,16 @@ export function createAssistantCloudRenderer(controllerElement, options = {}) {
             const elapsed = timestamp - startedAt;
             const state = controllerElement.dataset.state || 'idle';
             const open = controllerElement.dataset.petOpen === 'true';
-            const profile = resolveAssistantCloudProfile(state);
-            const cycle = profile.gray
-                ? { phase: 'cloud', blend: 0 }
-                : assistantCloudCycle(elapsed);
-            const dark = isDark();
+
+            if (state !== currentState) {
+                previousState = currentState;
+                currentState = state;
+                stateChangedAt = timestamp;
+            }
+
+            const blend = assistantCloudStyleBlend(timestamp - stateChangedAt);
+            const fromStyle = resolveAssistantCloudStyle(previousState);
+            const toStyle = resolveAssistantCloudStyle(currentState);
 
             surfaces.forEach((surface) => {
                 // Der Launcher ist bei geoeffnetem Panel ausgeblendet
@@ -349,7 +427,7 @@ export function createAssistantCloudRenderer(controllerElement, options = {}) {
                     return;
                 }
 
-                drawSurface(surface, elapsed, cycle, profile, dark);
+                drawSurface(surface, elapsed, fromStyle, toStyle, blend);
             });
         }
 
@@ -379,13 +457,16 @@ export function createAssistantCloudRenderer(controllerElement, options = {}) {
 
     function start() {
         if (reducedMotion.matches) {
-            drawStaticLogo();
+            drawStaticCloud();
 
             return;
         }
 
         startedAt = view.performance.now();
         lastFrameAt = 0;
+        currentState = controllerElement.dataset.state || 'idle';
+        previousState = currentState;
+        stateChangedAt = startedAt;
         running = true;
         queueFrame();
     }

@@ -118,8 +118,6 @@ export function createFibonacciSphere(count) {
     });
 }
 
-// Auch von der Assistenten-Partikelwolke genutzt (assistant-particle-cloud.js):
-// dieselbe RT-Geometrie haelt Loader und Assistent als eine Markenfamilie.
 export function createRailTimeLogoTargets(count) {
     const segments = [
         // Offenes, linienbasiertes R bleibt auch in einer nur rund 90 px

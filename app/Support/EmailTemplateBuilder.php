@@ -418,8 +418,15 @@ class EmailTemplateBuilder
         $html = $this->stripEmptyContactRows($html, $values);
         $html = $this->substitute($html, $this->escapeForHtml($values));
 
+        // Gueterzug-Silhouette (Website-Motiv) als stilles Hintergrundbild —
+        // je Thema eine passend getoente, deckkraft-fertige PNG-Fassung.
+        $train = str_contains($master, 'dark') ? 'zug-dark.png' : 'zug-light.png';
+
         return $this->substitute($html, array_merge(
-            ['LOGO_SRC' => $this->inlineImage($logo, 'image/png')],
+            [
+                'LOGO_SRC' => $this->inlineImage($logo, 'image/png'),
+                'TRAIN_SRC' => $this->inlineImage($train, 'image/png'),
+            ],
             $this->contactIconSources(true)
         ));
     }

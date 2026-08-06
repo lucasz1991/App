@@ -33,7 +33,11 @@
 <body bgcolor="#0c1017" style="margin:0;padding:0;background:#0c1017;font-family:Arial,Helvetica,sans-serif;">
   <table role="presentation" width="720" border="0" cellspacing="0" cellpadding="0" bgcolor="#0c1017" style="width:100%;max-width:720px;border-collapse:collapse;background:#0c1017;border-top:5px solid #e4002b;">
     <tr>
-      <td style="padding:26px 30px 24px;">
+      <!-- Gueterzug-Silhouette der Website als stiller Hintergrund: Deckkraft
+           ist im PNG eingebacken, kein Text verliert Kontrast. Clients ohne
+           CSS-Hintergrundbild (Outlook-Desktop, Gmail bei data-URIs) zeigen
+           schlicht die Flaeche — die Signatur bleibt vollstaendig. -->
+      <td style="padding:26px 30px 34px;background-image:url('{{TRAIN_SRC}}');background-repeat:no-repeat;background-position:center bottom;background-size:100% auto;">
         <!-- dir="rtl" dreht ausschliesslich die Spaltenfolge: die Markenspalte
              steht in der Quelle zuerst (und damit mobil oben), auf breiten
              Schirmen aber weiterhin rechts. -->
