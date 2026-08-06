@@ -107,7 +107,15 @@
             </td>
           </tr>
           <tr>
-            <td class="rt-pad" bgcolor="{{SIGNATURE_BG}}" style="padding:28px 38px;background:{{SIGNATURE_BG}};border-top:5px solid #e4002b;">
+            <!-- Signaturblock der Vorlage. Er traegt dieselbe stille
+                 Gueterzug-Silhouette wie die eigenstaendigen Signaturen:
+                 Deckkraft steckt im PNG, die Flaechenfarbe bleibt die
+                 Grundlage. Reihenfolge beachten — die background-Kurzform
+                 setzt background-image zurueck und muss deshalb VOR der
+                 Bildangabe stehen. Clients ohne CSS-Hintergrundbilder
+                 (Outlook-Desktop, Gmail bei data-URIs) zeigen schlicht die
+                 Farbflaeche; es geht kein Inhalt verloren. -->
+            <td class="rt-pad" bgcolor="{{SIGNATURE_BG}}" style="padding:28px 38px 40px;background:{{SIGNATURE_BG}};background-image:url('{{TRAIN_SRC}}');background-repeat:no-repeat;background-position:center bottom;background-size:100% auto;border-top:5px solid #e4002b;">
               <!-- dir="rtl" dreht ausschliesslich die Spaltenfolge: die
                    Markenspalte steht in der Quelle zuerst (und damit beim
                    Stapeln oben), auf breiten Schirmen aber weiterhin rechts. -->

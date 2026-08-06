@@ -404,11 +404,28 @@ class EmailTemplateBuilder
         $html = $this->substitute($html, $this->emailThemeValues($theme));
 
         return $this->substitute($html, array_merge(
-            ['LOGO_SRC' => $inlineImages
-                ? $this->inlineImage($this->emailLogoAsset($theme), 'image/png')
-                : 'cid:railtime-logo'],
+            [
+                'LOGO_SRC' => $inlineImages
+                    ? $this->inlineImage($this->emailLogoAsset($theme), 'image/png')
+                    : 'cid:railtime-logo',
+                // Der Zug ist reine Dekoration im Signaturblock und wird
+                // deshalb IMMER eingebettet — auch in der .eml-Fassung.
+                // Ein cid: im CSS-Hintergrund waere client-abhaengig und
+                // braeuchte einen weiteren Related-Part fuer ein Bild, das
+                // ohnehin folgenlos entfallen darf.
+                'TRAIN_SRC' => $this->signatureTrainAsset($theme),
+            ],
             $this->contactIconSources($inlineImages)
         ));
+    }
+
+    /** Getoente Gueterzug-Silhouette (Website-Motiv) als Data-URI. */
+    protected function signatureTrainAsset(string $theme): string
+    {
+        return $this->inlineImage(
+            $theme === 'dark' ? 'zug-dark.png' : 'zug-light.png',
+            'image/png'
+        );
     }
 
     protected function buildSignature(string $master, string $logo): string
@@ -418,14 +435,13 @@ class EmailTemplateBuilder
         $html = $this->stripEmptyContactRows($html, $values);
         $html = $this->substitute($html, $this->escapeForHtml($values));
 
-        // Gueterzug-Silhouette (Website-Motiv) als stilles Hintergrundbild —
-        // je Thema eine passend getoente, deckkraft-fertige PNG-Fassung.
-        $train = str_contains($master, 'dark') ? 'zug-dark.png' : 'zug-light.png';
-
         return $this->substitute($html, array_merge(
             [
                 'LOGO_SRC' => $this->inlineImage($logo, 'image/png'),
-                'TRAIN_SRC' => $this->inlineImage($train, 'image/png'),
+                // Stille Gueterzug-Silhouette, je Thema passend getoent.
+                'TRAIN_SRC' => $this->signatureTrainAsset(
+                    str_contains($master, 'dark') ? 'dark' : 'light'
+                ),
             ],
             $this->contactIconSources(true)
         ));
