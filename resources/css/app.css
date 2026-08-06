@@ -298,69 +298,78 @@ body[data-mode="dark"] .rt-ui-surface-muted {
     opacity: 1;
 }
 
-/* Zentrierte Dialog-Panels: von UNTEN hereinfedern, nach OBEN hinaus —
- * der Dialog reist einmal durchs Bild statt am Platz zu blenden. */
+/* Dialog-Panels: REINE Bewegung, kein Ein-/Ausblenden. Der Dialog faehrt
+ * von unterhalb des Bildes herauf an seinen Platz und beim Schliessen
+ * weiter nach oben aus dem Bild hinaus — er reist also einmal durch,
+ * statt an Ort und Stelle zu erscheinen und zu verschwinden.
+ *
+ * Die Wegstrecke ist bewusst `50vh + 50%`: 50 % der eigenen Hoehe bringt
+ * die Kante des Panels auf die Bildmitte, die 50vh schieben sie von dort
+ * ueber den Rand. Damit verlaesst JEDES Panel das Bild vollstaendig —
+ * unabhaengig von seiner Hoehe und ohne feste Pixelwerte.
+ *
+ * Keine opacity, kein Blur, kein Scale: genau das wirkte zuvor unruhig. */
 .rt-motion-modal-enter {
-    transition:
-        opacity 300ms cubic-bezier(0.22, 1, 0.36, 1),
-        filter 360ms cubic-bezier(0.22, 1, 0.36, 1),
-        transform 520ms cubic-bezier(0.22, 1.36, 0.34, 1);
+    transition: transform 520ms cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: transform;
 }
 
 .rt-motion-modal-enter-from {
-    opacity: 0;
-    filter: blur(8px);
-    transform: translateY(2.75rem) scale(0.96);
+    transform: translateY(calc(50vh + 50%));
 }
 
 .rt-motion-modal-enter-to,
 .rt-motion-modal-leave-from {
-    opacity: 1;
-    filter: blur(0);
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
 }
 
 .rt-motion-modal-leave {
-    transition:
-        opacity 220ms cubic-bezier(0.45, 0, 0.72, 0.06),
-        filter 220ms cubic-bezier(0.45, 0, 0.72, 0.06),
-        transform 260ms cubic-bezier(0.45, 0, 0.72, 0.06);
+    transition: transform 360ms cubic-bezier(0.55, 0, 1, 0.45);
+    will-change: transform;
 }
 
 .rt-motion-modal-leave-to {
-    opacity: 0;
-    filter: blur(4px);
-    transform: translateY(-1.9rem) scale(0.97);
+    transform: translateY(calc(-50vh - 50%));
 }
 
-/* Vollflaechige Ebenen (Fullscreen-Editor): grosse Flaeche, deshalb ohne
- * Blur — gleiche Reiserichtung wie die Dialoge (unten rein, oben raus). */
+/* Eine scrollende Modal-Huelle (components/modal.blade.php) darf waehrend
+ * der Reise nicht mitwachsen: ein nach unten verschobenes Panel zaehlt zur
+ * scrollbaren Flaeche (gemessen: 800 -> 1200 px) und liesse sonst kurz eine
+ * Bildlaufleiste aufblitzen. Nur waehrend der Uebergangsklassen klippen,
+ * danach ist die Huelle wieder scrollbar.
+ *
+ * !important ist hier Pflicht: die Legacy-Datei public/build/css/
+ * tailwind.min.css liefert .overflow-y-auto{overflow-y:auto!important}
+ * und wuerde eine gewoehnliche Regel schlicht ueberstimmen. */
+.rt-modal-shell:has(.rt-motion-modal-enter),
+.rt-modal-shell:has(.rt-motion-modal-leave) {
+    overflow: hidden !important;
+}
+
+/* Vollflaechige Ebenen (Wagenlisten-Editor, Video-Erfassung): dieselbe
+ * Reise wie die Dialoge, nur etwas ruhiger — die Flaeche ist groesser.
+ * Ebenfalls ohne opacity: die Ebene schiebt sich herauf und wieder hinaus. */
 .rt-motion-screen-enter {
-    transition:
-        opacity 340ms cubic-bezier(0.32, 0.72, 0, 1),
-        transform 480ms cubic-bezier(0.22, 1, 0.36, 1);
+    transition: transform 560ms cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: transform;
 }
 
 .rt-motion-screen-enter-from {
-    opacity: 0;
-    transform: translateY(1.5rem) scale(0.99);
+    transform: translateY(calc(50vh + 50%));
 }
 
 .rt-motion-screen-enter-to,
 .rt-motion-screen-leave-from {
-    opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
 }
 
 .rt-motion-screen-leave {
-    transition:
-        opacity 220ms cubic-bezier(0.45, 0, 0.72, 0.06),
-        transform 260ms cubic-bezier(0.45, 0, 0.72, 0.06);
+    transition: transform 400ms cubic-bezier(0.55, 0, 1, 0.45);
+    will-change: transform;
 }
 
 .rt-motion-screen-leave-to {
-    opacity: 0;
-    transform: translateY(-1rem) scale(0.994);
+    transform: translateY(calc(-50vh - 50%));
 }
 
 /* Dropdown-Panels entfalten sich aus dem Caret-Punkt des Ausloesers

@@ -73,7 +73,16 @@
         <div class="absolute inset-0 bg-slate-950/55 backdrop-blur-md"></div>
     </div>
 
+    {{--
+        x-show gehoert AUF das Panel, nicht nur auf die Huelle: Alpine fuehrt
+        x-transition ausschliesslich fuer das Element aus, das selbst ein
+        x-show traegt. Ohne dieses Attribut erschien der Dialog schlagartig,
+        obwohl die Uebergangsklassen gesetzt waren. Die Huelle wartet dank
+        Alpines Transition-Kaskade mit dem Ausblenden, bis das Panel seine
+        Ausfahrt beendet hat.
+    --}}
     <section
+        x-show.important="open"
         role="dialog"
         aria-modal="true"
         aria-labelledby="rt-info-modal-title"
