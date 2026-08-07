@@ -56,12 +56,16 @@
                 previewModalOpen: false,
                 mailTheme: 'light',
                 signatureTheme: 'light',
-                // Zugmotiv im Signaturhintergrund: 'gueterzug' oder 'dampf'.
-                signatureMotif: 'gueterzug',
+                previewPlaybackId: 0,
+                previewAnimated: false,
+                reducedMotion: false,
                 previewUrls: @js($previewUrls),
                 previewDownloadUrls: @js($previewDownloadUrls),
                 previewLabels: @js($previewLabels),
                 lastModalTrigger: null,
+                init() {
+                    this.reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                },
                 toggleAccordionSection(section) {
                     this.openAccordionSection = this.openAccordionSection === section ? null : section;
                 },
@@ -72,10 +76,28 @@
                 },
                 openPreview(theme, event) {
                     this.mailTheme = theme;
+                    this.previewAnimated = !this.reducedMotion;
+                    if (this.previewAnimated) this.previewPlaybackId++;
                     this.openModal('preview', event);
+                },
+                selectPreviewTheme(theme) {
+                    this.mailTheme = theme;
+                    this.previewAnimated = !this.reducedMotion;
+                    if (this.previewAnimated) this.previewPlaybackId++;
+                },
+                replayPreview() {
+                    this.previewAnimated = true;
+                    this.previewPlaybackId++;
+                },
+                previewFrameUrl() {
+                    const url = this.previewUrls[this.mailTheme];
+                    return this.previewAnimated
+                        ? `${url}?animate=1&play=${this.previewPlaybackId}`
+                        : url;
                 },
                 closeModal(name) {
                     this[name + 'ModalOpen'] = false;
+                    if (name === 'preview') this.previewAnimated = false;
                     const trigger = this.lastModalTrigger;
                     this.lastModalTrigger = null;
                     this.$nextTick(() => trigger?.focus());
@@ -324,41 +346,6 @@
                             </div>
                         </div>
 
-                        {{-- Zugmotiv im Hintergrund der Signatur. Der Zug faehrt
-                             beim Oeffnen dezent ein; die Dampflok bringt
-                             zusaetzlich eine Rauchfahne mit. --}}
-                        <div class="flex flex-col gap-3 rounded-2xl bg-rt-surface p-3 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60 sm:flex-row sm:items-center sm:justify-between sm:p-4">
-                            <div class="min-w-0">
-                                <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-rt-red dark:text-rt-dark-accent">{{ __('app.email_templates_motif') }}</p>
-                                <p class="mt-1 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">{{ __('app.email_templates_motif_hint') }}</p>
-                            </div>
-                            <div
-                                class="grid shrink-0 grid-cols-2 rounded-xl bg-rt-surface-muted p-1 ring-1 ring-rt-border/70 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/70"
-                                role="group"
-                                aria-label="{{ __('app.email_templates_motif') }}"
-                                data-email-template-motif-toggle
-                            >
-                                @foreach ([
-                                    'gueterzug' => ['icon' => 'fad fa-train', 'label' => __('app.email_templates_motif_freight')],
-                                    'dampf' => ['icon' => 'fad fa-train-tram', 'label' => __('app.email_templates_motif_steam')],
-                                ] as $motifKey => $motif)
-                                    <button
-                                        type="button"
-                                        x-on:click="signatureMotif = @js($motifKey)"
-                                        x-bind:aria-pressed="(signatureMotif === @js($motifKey)).toString()"
-                                        data-email-template-motif-option="{{ $motifKey }}"
-                                        class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/35 sm:min-w-24"
-                                        x-bind:class="signatureMotif === @js($motifKey)
-                                            ? 'bg-rt-surface text-rt-red shadow-rt-xs ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:text-rt-dark-accent dark:ring-rt-dark-border/70'
-                                            : 'text-rt-muted hover:text-rt-text dark:text-rt-dark-muted dark:hover:text-rt-dark-text'"
-                                    >
-                                        <i class="{{ $motif['icon'] }}" aria-hidden="true"></i>
-                                        <span>{{ $motif['label'] }}</span>
-                                    </button>
-                                @endforeach
-                            </div>
-                        </div>
-
                         @foreach ($themes as $themeKey => $theme)
                             @php
                                 $signatureKey = $themeKey === 'light' ? 'signatur-hell' : 'signatur-dunkel';
@@ -445,8 +432,6 @@
                                         </div>
                                         <a
                                             href="{{ route('email-templates.download', ['template' => $signatureKey]) }}"
-                                            x-bind:href="@js(route('email-templates.download', ['template' => $signatureKey]))
-                                                + (signatureMotif === 'dampf' ? '?motiv=dampf' : '')"
                                             data-template-key="{{ $signatureKey }}"
                                             data-template-format="html"
                                             data-no-navigate
@@ -617,7 +602,7 @@
                             @foreach ($themes as $themeKey => $theme)
                                 <button
                                     type="button"
-                                    x-on:click="mailTheme = @js($themeKey)"
+                                    x-on:click="selectPreviewTheme(@js($themeKey))"
                                     x-bind:aria-pressed="(mailTheme === @js($themeKey)).toString()"
                                     data-email-template-preview-theme-option="{{ $themeKey }}"
                                     class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/35 sm:min-w-24"
@@ -631,9 +616,18 @@
                             @endforeach
                         </div>
 
-                        <div class="grid grid-cols-2 gap-2">
+                        <div class="grid grid-cols-3 gap-2">
+                            <button
+                                type="button"
+                                x-on:click="replayPreview()"
+                                class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-rt-red ring-1 ring-inset ring-rt-red/20 transition hover:bg-rt-accent-soft focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/20 dark:text-rt-dark-accent dark:ring-rt-dark-accent/25 dark:hover:bg-rt-dark-accent-soft sm:px-4"
+                                data-email-template-preview-replay
+                            >
+                                <i class="far fa-rotate-right" aria-hidden="true"></i>
+                                <span>{{ __('app.email_templates_preview_replay') }}</span>
+                            </button>
                             <a
-                                x-bind:href="previewUrls[mailTheme]"
+                                x-bind:href="previewFrameUrl()"
                                 target="_blank"
                                 rel="noopener"
                                 class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-rt-red ring-1 ring-inset ring-rt-red/20 transition hover:bg-rt-accent-soft dark:text-rt-dark-accent dark:ring-rt-dark-accent/25 dark:hover:bg-rt-dark-accent-soft sm:px-4"
@@ -655,13 +649,14 @@
                     <p class="flex shrink-0 items-start gap-2 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
                         <i class="far fa-sparkles mt-0.5 text-rt-red dark:text-rt-dark-accent" aria-hidden="true"></i>
                         <span>{{ __('app.email_templates_preview_lazy_hint') }}</span>
+                        <span x-show="reducedMotion">{{ __('app.email_templates_preview_reduced_motion_hint') }}</span>
                         <span class="sr-only" x-text="previewLabels[mailTheme]"></span>
                     </p>
 
                     <template x-if="previewModalOpen">
                         <div class="min-h-0 flex-1 overflow-hidden rounded-2xl bg-white shadow-inner ring-1 ring-rt-border/70 dark:ring-rt-dark-border/70" data-email-template-preview>
                             <iframe
-                                x-bind:src="previewUrls[mailTheme]"
+                                x-bind:src="previewFrameUrl()"
                                 title="{{ __('app.email_templates_preview_accordion') }}"
                                 sandbox=""
                                 loading="lazy"

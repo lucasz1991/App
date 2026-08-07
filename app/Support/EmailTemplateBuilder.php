@@ -27,14 +27,14 @@ class EmailTemplateBuilder
      * @var array<string, string>
      */
     private const CONTACT_ICON_PNG = [
+        'location' => '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',
         'phone' => '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',
         'mobile' => 'iVBORw0KGgoAAAANSUhEUgAAACwAAAAsCAYAAAAehFoBAAADAUlEQVR42u2Zv09TURTHP+e+19JGIGAAYxATjJFIZBISt+4yEAcm/gD/CRIX/wBH3cXFARlgJSQODmwioDEhImhEIk0stPDeu8fh9RHkR2lfWwLJu8lNl577/dzTe06T74Eql4LMk3Np8Jon5ypItd+XWgW+cLelm2vZPNAREzKK/c1u8R5f92uJlWoyK6DrPMqm+PvcgSce2qEgGuPCZVEV0BSSD2Dao23yNh+KkVa9wAaQ7wzO3CQ9+gefANDK51YBLTjAdVx+cjDbx/IY4UVsbGBl3BHeBj+4/7iN1Gwe3wNxUohpiZfcw7WP4qEWNOjATeXxRvtYmYs0z4o7p4i2BMAiw6Z8cxcxHvaXD8v1ACsMupgbPhoYsIIMA3ORZkzg6HAxgBHEyyLs4jzt5eNMPcCbDI1l4V0BsUCqrHHuMrUK2fAd7SgY5WEq/KxlhzECOzbGRU2c7AQEblgcd6xATTuKCQhi9XQTs8braxF1nGG4YisBToAT4AQ4AU6AE+AEOAFOgBPgBPiSAQvWhDbVlkSWVbU7ihGsuTBgH1MM/bEFP/LJqt9hjI8pxtF2Yxh5ODDyjaEVh4wJKNVkL0QxBjsizQZW1NnDIvDCIXim7Ipzwm0UBYKyE2nCxB49I4qRzj0sijpNzbAeBppOTrhCShqhlZChQMABYE4xDv2Y/mdsR91D9Vj2NYMxJXR7D28qLA6ZSCNdJawVRI49LeEigY8KKmgaIxbd8pBcP59WATZ58FLRhTSm20NjQzahD2vQihEfpvpZWl0jl1kjl+llaXUffdOKEdDgSvxxmIb4cDU+CUEtFa18cQpYdWFig4FXt1j4DLDB0EAKO1HAKkilbmDLGvUC92iYJV20oaHt66FF/P86wGoG0wPu+w0GX1sQsBOCdO2Xi05PDlxUEGvBVXTxqGZDhzJ6ptl9WlvTU9taJF7rUKaaJ6ECdp328e3y2MuvMPYqobZY/nkFNQomOHbFo2OvbbxpaJ8UsNrAwaJE/xlNHCwK0LgCvSyj238pMGor9Jn8ngAAAABJRU5ErkJggg==',
         'email' => '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',
         'web' => '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',
     ];
 
-    /** @param  string|null  $motif  Zugmotiv des Signaturhintergrunds */
-    public function __construct(protected User $user, protected ?string $motif = null) {}
+    public function __construct(protected User $user) {}
 
     /**
      * Verfuegbare Downloads samt stabiler Gruppierungsmetadaten fuer die UI.
@@ -163,6 +163,31 @@ class EmailTemplateBuilder
             ],
             default => abort(404),
         };
+    }
+
+    /**
+     * Baut die geschuetzte HTML-Vorschau mit einer technisch eindeutigen,
+     * einmalig abspielenden Dampflok-Animation.
+     *
+     * @return array{filename: string, mime: string, content: string}
+     */
+    public function buildPreview(string $template, string $playbackNonce): array
+    {
+        $file = $this->build($template);
+        $theme = match ($template) {
+            'vorlage-html' => 'light',
+            'vorlage-dunkel-html' => 'dark',
+            default => abort(404),
+        };
+
+        $file['content'] = $this->buildEmailHtml(
+            inlineImages: true,
+            theme: $theme,
+            animatedSignature: true,
+            playbackNonce: $playbackNonce,
+        );
+
+        return $file;
     }
 
     /**
@@ -396,7 +421,12 @@ class EmailTemplateBuilder
             : 'logo-signature-light.png';
     }
 
-    protected function buildEmailHtml(bool $inlineImages, string $theme = 'light'): string
+    protected function buildEmailHtml(
+        bool $inlineImages,
+        string $theme = 'light',
+        bool $animatedSignature = false,
+        ?string $playbackNonce = null,
+    ): string
     {
         $values = $this->profileValues();
         $html = file_get_contents(self::masterPath('email-master.html'));
@@ -406,7 +436,12 @@ class EmailTemplateBuilder
         // Signatur und Pflichtangaben kommen aus der gemeinsamen Quelle
         // (MailSignature) — dieselbe, die auch unter jeder Laravel-Mail steht.
         return $this->substitute($html, [
-            'SIGNATURE_BLOCK' => MailSignature::forUser($this->user, $theme, motif: $this->motif)->render(
+            'SIGNATURE_BLOCK' => MailSignature::forUser(
+                $this->user,
+                $theme,
+                animated: $animatedSignature,
+                playbackNonce: $playbackNonce,
+            )->render(
                 overrides: array_merge(
                     [
                         'LOGO_SRC' => $inlineImages
@@ -419,24 +454,13 @@ class EmailTemplateBuilder
         ]);
     }
 
-    /** Auswaehlbare Zugmotive fuer den Signaturhintergrund. */
-    public const MOTIFS = ['gueterzug', 'dampf'];
-
-    public static function normalizeMotif(?string $motif): string
-    {
-        $motif = strtolower(trim((string) $motif));
-
-        return in_array($motif, self::MOTIFS, true) ? $motif : 'gueterzug';
-    }
-
     /**
      * Getoente Zug-Silhouette (Website-Motiv) als Data-URI.
      *
-     * Die eigenstaendigen Signaturen bekommen die animierte Fassung: der Zug
-     * faehrt ein, steht kurz und faehrt erneut ein. Die Schleife ist Absicht
-     * — ein GIF, das dauerhaft stehen bleibt, spielt nur EINMAL pro
-     * Browsersitzung (der Animationsstand haengt am Bildinhalt und wird ueber
-     * Tabs hinweg geteilt; gemessen an Neuladen, neuem Tab und anderer URL).
+     * Die eigenstaendigen Signaturen bekommen eine einmalig abspielende
+     * Fassung. Ein optionaler Playback-Nonce wird als unsichtbarer GIF-Kommentar
+     * eingebettet, damit eine Vorschau technisch eine neue Bildidentitaet
+     * erhaelt, ohne sich visuell zu veraendern.
      *
      * Die E-Mail-Vorlagen behalten das Standbild — sie haengen an jeder
      * gesendeten Nachricht, dort waegt Dateigroesse schwerer als der Effekt.
@@ -444,14 +468,25 @@ class EmailTemplateBuilder
     public static function signatureTrainAsset(
         string $theme,
         bool $animated = false,
-        ?string $motif = null,
+        ?string $playbackNonce = null,
     ): string {
         $variant = $theme === 'dark' ? 'dark' : 'light';
-        $prefix = self::normalizeMotif($motif) === 'dampf' ? 'dampf-' : '';
+        $extension = $animated ? 'gif' : 'png';
+        $mime = $animated ? 'image/gif' : 'image/png';
+        $binary = file_get_contents(self::masterPath("assets/zug-dampf-{$variant}.{$extension}"));
 
-        return $animated
-            ? self::inlineImage("zug-{$prefix}{$variant}.gif", 'image/gif')
-            : self::inlineImage("zug-{$prefix}{$variant}.png", 'image/png');
+        if ($animated && $playbackNonce !== null) {
+            $comment = 'RailTime-Playback:'.substr($playbackNonce, 0, 120);
+            $trailer = strrpos($binary, "\x3b");
+
+            if ($trailer !== false) {
+                $binary = substr($binary, 0, $trailer)
+                    ."\x21\xfe".chr(strlen($comment)).$comment."\x00"
+                    .substr($binary, $trailer);
+            }
+        }
+
+        return "data:{$mime};base64,".base64_encode($binary);
     }
 
     protected function buildSignature(string $master, string $logo): string
@@ -464,7 +499,7 @@ class EmailTemplateBuilder
         // ohne Akzentlinie, weil die Signaturdatei ihre eigene traegt.
         // Hier faehrt der Zug ein (animierte Fassung).
         return $this->substitute($html, [
-            'SIGNATURE_BLOCK' => MailSignature::forUser($this->user, $theme, animated: true, motif: $this->motif)->render(
+            'SIGNATURE_BLOCK' => MailSignature::forUser($this->user, $theme, animated: true)->render(
                 layout: [
                     'padding' => '26px 30px 34px',
                     'topRule' => '',

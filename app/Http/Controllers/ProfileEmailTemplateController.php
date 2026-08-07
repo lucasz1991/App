@@ -17,9 +17,9 @@ class ProfileEmailTemplateController extends Controller
     {
         abort_unless(array_key_exists($template, EmailTemplateBuilder::available()), 404);
 
-        // Zugmotiv des Signaturhintergrunds; unbekannte Werte fallen still
-        // auf den Gueterzug zurueck (normalizeMotif).
-        $file = (new EmailTemplateBuilder($request->user(), $request->query('motiv')))
+        // Die Dampflok ist die einzige oeffentliche Variante. Ein historischer
+        // motiv-Queryparameter wird bewusst ignoriert.
+        $file = (new EmailTemplateBuilder($request->user()))
             ->build($template);
 
         return response($file['content'], 200, [
@@ -39,10 +39,10 @@ class ProfileEmailTemplateController extends Controller
             404
         );
 
-        // Zugmotiv des Signaturhintergrunds; unbekannte Werte fallen still
-        // auf den Gueterzug zurueck (normalizeMotif).
-        $file = (new EmailTemplateBuilder($request->user(), $request->query('motiv')))
-            ->build($template);
+        $builder = new EmailTemplateBuilder($request->user());
+        $file = $request->boolean('animate')
+            ? $builder->buildPreview($template, bin2hex(random_bytes(12)))
+            : $builder->build($template);
 
         return response($file['content'], 200, [
             'Content-Type' => 'text/html; charset=UTF-8',

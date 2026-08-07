@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 1705 151"
+     preserveAspectRatio="xMidYMid meet"
+     role="img"
+     aria-labelledby="title desc">
+  <title id="title">Technische Seitenansicht eines Güterzuges mit Dampflokomotive</title>
+  <desc id="desc">Dampflokomotive mit Schlepptender, Güterwagen und separat animierbarer Rauchfahne.</desc>
+  <style>
+    .body {
+      fill: #737d89;
+      fill-opacity: .13;
+      stroke: #737d89;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      vector-effect: non-scaling-stroke;
+    }
+    .line {
+      fill: none;
+      stroke: #737d89;
+      stroke-width: 1.45;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      vector-effect: non-scaling-stroke;
+    }
+    .fine {
+      fill: none;
+      stroke: #737d89;
+      stroke-width: .9;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      vector-effect: non-scaling-stroke;
+    }
+    .solid {
+      fill: #737d89;
+      fill-opacity: .42;
+      stroke: #737d89;
+      stroke-width: 1.2;
+      vector-effect: non-scaling-stroke;
+    }
+    .wheel {
+      fill: #f5f6f4;
+      fill-opacity: .36;
+      stroke: #737d89;
+      stroke-width: 1.8;
+      vector-effect: non-scaling-stroke;
+    }
+    /* Rauch: Fuellung als Schleier, dazu eine weiche Kontur — sonst
+       verschwindet die Fahne, sobald das Motiv als blasser Hintergrund
+       eingebacken wird. */
+    .smoke {
+      fill: #737d89;
+      fill-opacity: .09;
+      stroke: #737d89;
+      stroke-width: 1;
+      stroke-opacity: .3;
+      vector-effect: non-scaling-stroke;
+    }
+  </style>
+
+  <defs>
+    <g id="wagon-bogie">
+      <path class="body" d="M2 135h54l-5-9H8z"/>
+      <path class="line" d="M4 132h50M10 126l10 9m26-9-10 9"/>
+      <circle class="wheel" cx="12" cy="142" r="7.5"/>
+      <circle class="wheel" cx="46" cy="142" r="7.5"/>
+      <circle class="solid" cx="12" cy="142" r="2.1"/>
+      <circle class="solid" cx="46" cy="142" r="2.1"/>
+      <path class="fine" d="M18 134h22M29 128v7"/>
+    </g>
+    <g id="coupler">
+      <path class="line" d="M0 126h11l4 3h8"/>
+      <rect class="solid" x="8" y="123.5" width="5" height="5" rx="1"/>
+    </g>
+    <!-- Treibrad mit Speichen und Gegengewicht -->
+    <g id="driver-wheel">
+      <circle class="wheel" cx="0" cy="0" r="17"/>
+      <path class="fine" d="M0-17v34M-17 0h34M-12-12l24 24m0-24-24 24"/>
+      <circle class="solid" cx="0" cy="0" r="3"/>
+    </g>
+  </defs>
+
+  <!-- Gueterwagen bleiben fester Bestandteil des Dampflokzuges. -->
+  <g id="container-wagon">
+    <use href="#coupler" transform="translate(0 0)"/>
+    <use href="#coupler" transform="translate(342 0) scale(-1 1)"/>
+    <path class="body" d="M18 122h306v9H18z"/>
+    <path class="line" d="M24 131l28 9h238l28-9M91 131l18 9m124-9-18 9"/>
+    <path class="body" d="M34 64h132v58H34zM170 64h132v58H170z"/>
+    <path class="fine" d="M44 68v50m13-50v50m13-50v50m13-50v50m13-50v50m13-50v50m13-50v50m13-50v50m13-50v50 M180 68v50m13-50v50m13-50v50m13-50v50m13-50v50m13-50v50m13-50v50m13-50v50m13-50v50"/>
+    <path class="line" d="M34 71h132m4 0h132M34 114h132m4 0h132"/>
+    <path class="solid" d="M34 64h7v6h-7zm125 0h7v6h-7zM34 116h7v6h-7zm125 0h7v6h-7z M170 64h7v6h-7zm125 0h7v6h-7zM170 116h7v6h-7zm125 0h7v6h-7z"/>
+    <use href="#wagon-bogie" transform="translate(41 0)"/>
+    <use href="#wagon-bogie" transform="translate(244 0)"/>
+  </g>
+
+  <g id="tank-wagon" transform="translate(350 0)">
+    <use href="#coupler" transform="translate(0 0)"/>
+    <use href="#coupler" transform="translate(322 0) scale(-1 1)"/>
+    <path class="body" d="M19 122h285v9H19z"/>
+    <path class="body" d="M43 69h237c14 0 25 11 25 25v4c0 14-11 25-25 25H43c-14 0-25-11-25-25v-4c0-14 11-25 25-25z"/>
+    <path class="line" d="M43 69c-10 8-15 17-15 27s5 19 15 27M280 69c10 8 15 17 15 27s-5 19-15 27 M79 70v52m45-52v52m76-52v52m45-52v52"/>
+    <path class="body" d="M146 57h31l6 12h-43z"/>
+    <path class="line" d="M132 56h59M139 53h45M151 50h21M292 72v48M286 77h12m-12 8h12m-12 8h12m-12 8h12m-12 8h12"/>
+    <path class="fine" d="M42 94h238M65 123l21 9m152-9-21 9"/>
+    <use href="#wagon-bogie" transform="translate(39 0)"/>
+    <use href="#wagon-bogie" transform="translate(225 0)"/>
+  </g>
+
+  <g id="hopper-wagon" transform="translate(680 0)">
+    <use href="#coupler" transform="translate(0 0)"/>
+    <use href="#coupler" transform="translate(322 0) scale(-1 1)"/>
+    <path class="body" d="M18 122h286v9H18z"/>
+    <path class="body" d="M31 59h260l-18 62H49z"/>
+    <path class="line" d="M31 66h260M63 60l10 61m36-61 6 61m46-61v61m52-61-6 61m52-61-10 61"/>
+    <path class="fine" d="M48 77h226M53 93h216M58 109h206"/>
+    <path class="body" d="M83 121h54l-10 16H94zm101 0h54l-11 16h-32z"/>
+    <path class="line" d="M96 137h28m74 0h26M65 121l22 10m169-10-22 10"/>
+    <use href="#wagon-bogie" transform="translate(39 0)"/>
+    <use href="#wagon-bogie" transform="translate(225 0)"/>
+  </g>
+
+  <g id="covered-wagon" transform="translate(1010 0)">
+    <use href="#coupler" transform="translate(0 0)"/>
+    <use href="#coupler" transform="translate(302 0) scale(-1 1)"/>
+    <path class="body" d="M18 122h266v9H18z"/>
+    <path class="body" d="M31 66c0-7 6-13 13-13h215c7 0 13 6 13 13v56H31z"/>
+    <path class="line" d="M37 66h229M49 53l-12 13m210-13 19 13M151 54v68M65 54v68m43-68v68m86-68v68m43-68v68"/>
+    <path class="fine" d="M36 74h230M36 113h230M73 79h70v27H73zm86 0h70v27h-70zM77 83h62m24 0h62"/>
+    <path class="solid" d="M42 59h13v7H42zm206 0h13v7h-13z"/>
+    <use href="#wagon-bogie" transform="translate(36 0)"/>
+    <use href="#wagon-bogie" transform="translate(207 0)"/>
+  </g>
+
+  <!-- Dampflokomotive mit Schlepptender, Fahrtrichtung rechts.
+       Der Rauch zieht nach hinten links ueber den Zug. -->
+  <g id="steam-locomotive" transform="translate(1318 0)">
+    <use href="#coupler" transform="translate(0 0)"/>
+
+    <!-- Rauchfahne: dicht ueberlappende Ballen in drei versetzten Lagen.
+         Die Ueberlappung laesst die Umrisse zu einer Wolke verschmelzen —
+         einzeln gesetzte Kreise saehen wie eine Perlenkette aus. -->
+    <g id="steam-plume" transform="translate(40 0)">
+      <circle class="smoke" cx="302" cy="48" r="8"/>
+      <circle class="smoke" cx="290" cy="41" r="10"/>
+      <circle class="smoke" cx="276" cy="34" r="12"/>
+      <circle class="smoke" cx="259" cy="28" r="14"/>
+      <circle class="smoke" cx="240" cy="23" r="16"/>
+      <circle class="smoke" cx="218" cy="20" r="18"/>
+      <circle class="smoke" cx="194" cy="18" r="19"/>
+      <circle class="smoke" cx="168" cy="17" r="20"/>
+      <circle class="smoke" cx="140" cy="18" r="19"/>
+      <circle class="smoke" cx="112" cy="20" r="18"/>
+      <circle class="smoke" cx="86" cy="23" r="16"/>
+      <circle class="smoke" cx="62" cy="26" r="14"/>
+      <circle class="smoke" cx="40" cy="30" r="12"/>
+      <circle class="smoke" cx="20" cy="34" r="10"/>
+      <circle class="smoke" cx="2" cy="37" r="8"/>
+      <circle class="smoke" cx="-14" cy="40" r="6"/>
+      <circle class="smoke" cx="-28" cy="43" r="5"/>
+      <circle class="smoke" cx="-40" cy="45" r="4"/>
+      <circle class="smoke" cx="232" cy="36" r="10"/>
+      <circle class="smoke" cx="186" cy="34" r="11"/>
+      <circle class="smoke" cx="140" cy="35" r="10"/>
+      <circle class="smoke" cx="96" cy="36" r="9"/>
+      <circle class="smoke" cx="56" cy="39" r="7"/>
+      <circle class="smoke" cx="208" cy="10" r="9"/>
+      <circle class="smoke" cx="158" cy="9" r="9"/>
+      <circle class="smoke" cx="116" cy="11" r="8"/>
+    </g>
+
+    <!-- Schlepptender mit Kohlevorrat -->
+    <path class="body" d="M10 122h108v9H10z"/>
+    <path class="body" d="M14 78h100v44H14z"/>
+    <path class="line" d="M20 78c9-7 17-2 26-6s17 3 25-1 15 4 23 7"/>
+    <path class="fine" d="M20 90h88M20 102h88M20 114h88"/>
+    <path class="solid" d="M14 78h6v44h-6zm94 0h6v44h-6z"/>
+    <use href="#wagon-bogie" transform="translate(14 0)"/>
+    <use href="#wagon-bogie" transform="translate(56 0)"/>
+
+    <!-- Fuehrerhaus -->
+    <path class="body" d="M126 60h56v62h-56z"/>
+    <path class="body" d="M120 54h68v6h-68z"/>
+    <path class="fine" d="M136 68h34v22h-34zM136 98h34v18h-34z"/>
+    <path class="line" d="M126 92h56"/>
+
+    <!-- Kessel, Doeme und Rauchkammer -->
+    <path class="body" d="M182 82h144c9 0 16 7 16 16v8c0 9-7 16-16 16H182z"/>
+    <path class="line" d="M206 82v40m40-40v40m40-40v40m40-40v40"/>
+    <path class="fine" d="M188 90h144"/>
+    <path class="body" d="M226 84v-8c0-7 5-12 12-12s12 5 12 12v8z"/>
+    <path class="body" d="M258 84v-6c0-5 4-9 9-9s9 4 9 9v6z"/>
+    <path class="body" d="M326 76h20v46h-20z"/>
+    <circle class="line" cx="336" cy="100" r="13"/>
+    <circle class="solid" cx="336" cy="100" r="2.6"/>
+    <path class="body" d="M324 54h24v22h-24z"/>
+    <path class="solid" d="M321 54h30v6h-30z"/>
+
+    <!-- Umlauf, Rahmen und Pufferbohle -->
+    <path class="body" d="M124 116h228v6H124z"/>
+    <path class="body" d="M130 122h216v7H130z"/>
+    <path class="line" d="M346 116h10v15h-10z"/>
+    <path class="fine" d="M356 122h10m-10 6h10"/>
+
+    <!-- Zylinder und Treibstange -->
+    <path class="body" d="M312 110h34v14h-34z"/>
+    <path class="line" d="M314 118 222 134"/>
+
+    <!-- Treib- und Laufraeder, Kuppelstange -->
+    <use href="#driver-wheel" transform="translate(166 133)"/>
+    <use href="#driver-wheel" transform="translate(202 133)"/>
+    <use href="#driver-wheel" transform="translate(238 133)"/>
+    <use href="#driver-wheel" transform="translate(274 133)"/>
+    <use href="#driver-wheel" transform="translate(310 133)"/>
+    <path class="solid" d="M168 130h152v6H168z"/>
+    <circle class="wheel" cx="344" cy="141" r="9"/>
+    <circle class="solid" cx="344" cy="141" r="2.5"/>
+    <path class="fine" d="M24 119H10"/>
+  </g>
+
+  <!-- Durchgehende Puffer-/Kupplungshöhe und technische Unterkante -->
+  <path class="fine" d="M0 130h10m322 0h28m322 0h28m322 0h28m302 0h26m329 0h13"/>
+</svg>

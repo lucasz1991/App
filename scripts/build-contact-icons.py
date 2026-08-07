@@ -1,6 +1,6 @@
 """Erzeugt die Kontakt-Icons fuer die E-Mail-Vorlagen neu.
 
-Rendert vier Font-Awesome-6-Glyphen als Markenrot auf transparentem Grund
+Rendert fuenf Font-Awesome-6-Glyphen als Markenrot auf transparentem Grund
 und gibt sie als Base64-PNG aus. Das Ergebnis gehoert in die Konstante
 App\\Support\\EmailTemplateBuilder::CONTACT_ICON_PNG.
 
@@ -25,6 +25,7 @@ SIZE = 44          # doppelte Anzeigegroesse (22 px) fuer scharfe Darstellung
 SUPERSAMPLE = 4
 
 GLYPHS = {
+    "location": "\uf3c5", # location-dot
     "phone": "",    # phone
     "mobile": "",   # mobile-screen-button
     "email": "",    # envelope
