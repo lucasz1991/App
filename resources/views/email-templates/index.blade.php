@@ -616,11 +616,11 @@
                             @endforeach
                         </div>
 
-                        <div class="grid grid-cols-3 gap-2">
+                        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
                             <button
                                 type="button"
                                 x-on:click="replayPreview()"
-                                class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-rt-red ring-1 ring-inset ring-rt-red/20 transition hover:bg-rt-accent-soft focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/20 dark:text-rt-dark-accent dark:ring-rt-dark-accent/25 dark:hover:bg-rt-dark-accent-soft sm:px-4"
+                                class="col-span-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-rt-red ring-1 ring-inset ring-rt-red/20 transition hover:bg-rt-accent-soft focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/20 dark:text-rt-dark-accent dark:ring-rt-dark-accent/25 dark:hover:bg-rt-dark-accent-soft sm:col-span-1 sm:px-4"
                                 data-email-template-preview-replay
                             >
                                 <i class="far fa-rotate-right" aria-hidden="true"></i>
@@ -649,7 +649,7 @@
                     <p class="flex shrink-0 items-start gap-2 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
                         <i class="far fa-sparkles mt-0.5 text-rt-red dark:text-rt-dark-accent" aria-hidden="true"></i>
                         <span>{{ __('app.email_templates_preview_lazy_hint') }}</span>
-                        <span x-show="reducedMotion">{{ __('app.email_templates_preview_reduced_motion_hint') }}</span>
+                        <span x-show="reducedMotion" x-cloak>{{ __('app.email_templates_preview_reduced_motion_hint') }}</span>
                         <span class="sr-only" x-text="previewLabels[mailTheme]"></span>
                     </p>
 

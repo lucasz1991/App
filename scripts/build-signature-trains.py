@@ -31,14 +31,19 @@ ASSET_DIR = APP / "resources/mail-templates/assets"
 PNG_SIZE = (1440, 150)
 GIF_SIZE = (720, 75)
 TRAIN_WIDTH = 945
-MOTION_FRAMES = 45
-MOTION_FRAME_MS = 70
+MOTION_FRAMES = 55
+MOTION_FRAME_MS = 100
 MOTION_DURATION_MS = MOTION_FRAMES * MOTION_FRAME_MS
+MOTION_REFERENCE_MS = 3150
 START_DELAY_MS = 300
 SMOKE_TAIL_FRAMES = 8
 SMOKE_TAIL_FRAME_MS = 200
 SMOKE_TAIL_DURATION_MS = SMOKE_TAIL_FRAMES * SMOKE_TAIL_FRAME_MS
+IDLE_FRAMES = 28
+IDLE_FRAME_MS = 120
+IDLE_DURATION_MS = IDLE_FRAMES * IDLE_FRAME_MS
 MAX_GIF_BYTES = 200 * 1024
+TRAIN_OPACITY = 0.76
 
 THEMES = {
     "light": {
@@ -165,6 +170,7 @@ def raster_train(source: Path, theme: str, hide_smoke: bool = True) -> Image.Ima
         train = recover_transparency(black, white)
 
     canvas = Image.new("RGBA", PNG_SIZE, (0, 0, 0, 0))
+    train.putalpha(train.getchannel("A").point(lambda alpha: round(alpha * TRAIN_OPACITY)))
     canvas.alpha_composite(train, (0, 0))
     return canvas
 
@@ -219,17 +225,17 @@ def emit_smoke(
     # Dampfmaschinen stossen in klaren Schlaegen aus. Mit sinkender
     # Geschwindigkeit liegen die Schlaege weiter auseinander; dadurch wird
     # beim Bremsen nicht einfach eine gleichmaessige Perlenschnur erzeugt.
-    interval = 0.16 + (1 - min(1.0, speed)) * 0.48
+    interval = 0.22 + (1 - min(1.0, speed)) * 0.62
     accumulator += dt
     while accumulator >= interval:
         accumulator -= interval
-        count = 6 if speed > 0.52 else (4 if speed > 0.18 else 2)
+        count = 5 if speed > 0.52 else (3 if speed > 0.18 else 2)
         for _ in range(count):
             particles.append(SmokeParticle(
                 x=chimney_x + rng.uniform(-3.4, 2.2),
                 y=27 + rng.uniform(-3.2, 2.5),
-                vx=rng.uniform(-13.5, -7.5) - speed * 5.0,
-                vy=rng.uniform(-12.5, -6.0),
+                vx=rng.uniform(-7.5, -3.5) - speed * 2.0,
+                vy=rng.uniform(-13.5, -7.5),
                 radius=rng.uniform(4.2, 7.2),
                 growth=rng.uniform(5.5, 8.8),
                 age=0.0,
@@ -342,7 +348,12 @@ def animated_frames(train: Image.Image, theme: str, steam: bool) -> tuple[list[I
         # nicht mit einem identischen 70-ms-Frame zusammengefasst.
         progress = (index + 1) / MOTION_FRAMES
         distance = movement_progress(progress)
-        speed = max(0.0, (distance - last_distance) * MOTION_FRAMES)
+        speed = max(
+            0.0,
+            (distance - last_distance)
+            * MOTION_FRAMES
+            * (MOTION_REFERENCE_MS / MOTION_DURATION_MS),
+        )
         offset = round(-train_travel * (1 - distance))
         chimney_x = offset + 459
         dt = MOTION_FRAME_MS / 1000
@@ -366,7 +377,46 @@ def animated_frames(train: Image.Image, theme: str, steam: bool) -> tuple[list[I
     return frames, durations
 
 
-def save_gif(frames: list[Image.Image], durations: list[int], destination: Path) -> None:
+def idle_frames(train: Image.Image, theme: str) -> tuple[list[Image.Image], list[int]]:
+    """Seamless, low-intensity chimney steam for the stationary train."""
+    train_small = train.resize(GIF_SIZE, Image.Resampling.LANCZOS)
+    frames: list[Image.Image] = []
+
+    for frame_index in range(IDLE_FRAMES):
+        cycle = frame_index / IDLE_FRAMES
+        particles: list[SmokeParticle] = []
+
+        for puff_index in range(7):
+            age = (cycle + puff_index / 7) % 1
+            for fragment in range(2):
+                phase = puff_index * 1.83 + fragment * 2.27
+                particles.append(SmokeParticle(
+                    x=459 - age * (52 + fragment * 7) + math.sin(age * math.tau + phase) * 3.2,
+                    y=27 - age * (19 + fragment * 3) + math.cos(age * math.tau * 1.4 + phase) * 1.8,
+                    vx=-7,
+                    vy=-6,
+                    radius=2.6 + age * (8.4 + fragment * 1.4),
+                    growth=5,
+                    age=age,
+                    lifetime=1.0,
+                    opacity=54 + fragment * 7,
+                    phase=phase + cycle * math.tau,
+                    turbulence=0.76 + fragment * .2,
+                ))
+
+        frames.append(composite_frame(train_small, theme, 0, smoke_frame(particles, theme)))
+
+    return frames, [IDLE_FRAME_MS] * IDLE_FRAMES
+
+
+def save_gif(
+    frames: list[Image.Image],
+    durations: list[int],
+    destination: Path,
+    *,
+    loop: bool = False,
+    reveal_after: bool = False,
+) -> None:
     # A deliberately small shared palette keeps both mail assets compact
     # and prevents local 256-colour tables from dominating every frame.
     palette_strip = Image.new("RGB", (GIF_SIZE[0], GIF_SIZE[1] * len(frames)))
@@ -378,14 +428,45 @@ def save_gif(frames: list[Image.Image], durations: list[int], destination: Path)
         for frame in frames
     ]
 
+    save_options: dict[str, object] = {}
+    if loop:
+        save_options["loop"] = 0
+
+    if reveal_after:
+        # Index 0 bleibt exklusiv transparent. Alle sichtbaren Palettenwerte
+        # werden um eins verschoben, damit Pillow die Transparenz weder beim
+        # Optimieren entfernt noch mit der Signaturflaeche verwechselt.
+        source_palette = palette.getpalette()
+        shifted_palette = [0, 0, 0, 0, 0, 0] + source_palette[:762]
+        shifted: list[Image.Image] = []
+        for frame in quantized:
+            visible = frame.point(lambda index: index + 2)
+            visible.putpalette(shifted_palette)
+            shifted.append(visible)
+        quantized = shifted
+
+        transparency_index = 1
+        transparent = Image.new("P", GIF_SIZE, transparency_index)
+        transparent.putpalette(shifted_palette)
+        quantized.append(transparent)
+        durations = [*durations, 0]
+        quantized[0].info["transparency"] = transparency_index
+        save_options.update({
+            "transparency": transparency_index,
+            "background": transparency_index,
+            "disposal": 2,
+        })
+    else:
+        save_options["disposal"] = 1
+
     quantized[0].save(
         destination,
         format="GIF",
         save_all=True,
         append_images=quantized[1:],
         duration=durations,
-        optimize=True,
-        disposal=1,
+        optimize=not reveal_after,
+        **save_options,
     )
 
 
@@ -400,7 +481,19 @@ def build_variant(theme: str) -> None:
 
     static.save(ASSET_DIR / f"zug-dampf-{theme}.png", optimize=True)
     frames, durations = animated_frames(train, theme, steam=True)
-    save_gif(frames, durations, ASSET_DIR / f"zug-dampf-{theme}.gif")
+    save_gif(
+        frames,
+        durations,
+        ASSET_DIR / f"zug-dampf-{theme}.gif",
+        reveal_after=True,
+    )
+    standing, standing_durations = idle_frames(train, theme)
+    save_gif(
+        standing,
+        standing_durations,
+        ASSET_DIR / f"zug-dampf-idle-{theme}.gif",
+        loop=True,
+    )
 
 
 def assert_assets() -> None:
@@ -408,7 +501,8 @@ def assert_assets() -> None:
     for theme in THEMES:
         png_path = ASSET_DIR / f"zug-dampf-{theme}.png"
         gif_path = ASSET_DIR / f"zug-dampf-{theme}.gif"
-        if not png_path.is_file() or not gif_path.is_file():
+        idle_path = ASSET_DIR / f"zug-dampf-idle-{theme}.gif"
+        if not png_path.is_file() or not gif_path.is_file() or not idle_path.is_file():
             errors.append(f"dampf-{theme}: Asset fehlt")
             continue
 
@@ -439,27 +533,37 @@ def assert_assets() -> None:
                 errors.append(f"{gif_path.name}: nur {gif.n_frames} Frames")
 
             gif.seek(gif.n_frames - 1)
-            train = raster_train(SOURCE_DIR / "rt-dampflok.svg", theme, hide_smoke=True)
-            generated, _ = animated_frames(train, theme, steam=True)
-            expected = composite_frame(
-                train.resize(GIF_SIZE, Image.Resampling.LANCZOS),
-                theme,
-                0,
-                None,
-            )
-            if ImageChops.difference(generated[-1], expected).getbbox() is not None:
-                errors.append(f"{gif_path.name}: Endbild weicht vom rauchfreien Stillstand ab")
+            if gif.convert("RGBA").getchannel("A").getextrema()[1] != 0:
+                errors.append(f"{gif_path.name}: Endbild gibt die Idle-Ebene nicht frei")
+
+        with Image.open(idle_path) as idle:
+            if idle.size != GIF_SIZE:
+                errors.append(f"{idle_path.name}: GIF-Groesse {idle.size}")
+            if idle.info.get("loop") != 0:
+                errors.append(f"{idle_path.name}: Idle-Rauch loopt nicht endlos")
+
+            idle_durations = []
+            for frame in range(idle.n_frames):
+                idle.seek(frame)
+                idle_durations.append(int(idle.info.get("duration", 0)))
+
+            if sum(idle_durations) != IDLE_DURATION_MS:
+                errors.append(
+                    f"{idle_path.name}: Dauer {sum(idle_durations)} statt {IDLE_DURATION_MS} ms"
+                )
 
         if gif_path.stat().st_size > MAX_GIF_BYTES:
             errors.append(f"{gif_path.name}: {gif_path.stat().st_size} Bytes > {MAX_GIF_BYTES}")
+        if idle_path.stat().st_size > MAX_GIF_BYTES:
+            errors.append(f"{idle_path.name}: {idle_path.stat().st_size} Bytes > {MAX_GIF_BYTES}")
 
     if errors:
         raise SystemExit("\n".join(errors))
 
     print(
         f"OK: {START_DELAY_MS} ms Startverzoegerung, {MOTION_DURATION_MS} ms Einfahrt, "
-        f"{SMOKE_TAIL_DURATION_MS} ms Rauch-Ausklang, "
-        "keine Loops, alle GIFs unter 200 KiB."
+        f"{SMOKE_TAIL_DURATION_MS} ms Rauch-Ausklang, {IDLE_DURATION_MS} ms Idle-Loop, "
+        "Einfahrt ohne Loop, alle GIFs unter 200 KiB."
     )
 
 

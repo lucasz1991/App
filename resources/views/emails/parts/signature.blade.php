@@ -6,8 +6,8 @@
       - der herunterladbaren E-Mail-Vorlage (email-master.html)
       - jeder Laravel-Mail und -Notification (vendor/mail/html/footer.blade.php)
 
-    Gerendert werden ZWEI Tabellenzeilen: der Signaturblock (mit der stillen
-    Gueterzug-Silhouette als Hintergrund) und die Pflichtangaben darunter.
+    Gerendert werden ZWEI Tabellenzeilen: der Signaturblock (mit dem
+    Dampflok-Gueterzug als Hintergrund) und die Pflichtangaben darunter.
     Der Aufrufer stellt die umgebende <table> — dadurch passt derselbe Block
     in die schmale Signaturdatei wie in die breite Nachrichtenschale.
 
