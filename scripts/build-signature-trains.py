@@ -21,7 +21,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
 
 APP = Path(__file__).resolve().parent.parent
@@ -36,17 +36,22 @@ MOTION_FRAME_MS = 100
 MOTION_DURATION_MS = MOTION_FRAMES * MOTION_FRAME_MS
 MOTION_REFERENCE_MS = 3150
 START_DELAY_MS = 300
-SMOKE_TAIL_FRAMES = 8
-SMOKE_TAIL_FRAME_MS = 200
-SMOKE_TAIL_DURATION_MS = SMOKE_TAIL_FRAMES * SMOKE_TAIL_FRAME_MS
-IDLE_FRAMES = 28
-IDLE_FRAME_MS = 120
+SMOKE_TAIL_FRAME_DURATIONS = (200, 200, 200, 200, 200, 200, 200, 100, 100)
+SMOKE_TAIL_FRAMES = len(SMOKE_TAIL_FRAME_DURATIONS)
+SMOKE_TAIL_DURATION_MS = sum(SMOKE_TAIL_FRAME_DURATIONS)
+# 3,7 Sekunden teilen die komplette 7,4-Sekunden-Einfahrt exakt. Das Idle-GIF
+# liegt von Beginn an unter dem einmaligen Haupt-GIF und erreicht dadurch beim
+# Freigeben wieder exakt seine Loop-Naht statt eine zufaellige Rauchphase.
+IDLE_FRAMES = 37
+IDLE_FRAME_MS = 100
 IDLE_DURATION_MS = IDLE_FRAMES * IDLE_FRAME_MS
 MAX_GIF_BYTES = 200 * 1024
 # Die Assets bleiben etwas kraeftiger als ihre Darstellung in der Signatur.
 # Dort legt CSS zusaetzlich einen 15-prozentigen Flaechen-Wash darueber. Das
-# ergibt effektiv rund 54 Prozent Deckkraft, ohne den Text mit abzublenden.
-TRAIN_OPACITY = 0.64
+# ergibt effektiv rund 48 Prozent Deckkraft, ohne den Text mit abzublenden.
+# Der Rauch behaelt seine eigene Deckkraft und bleibt dadurch trotz dezenterem
+# Zug klar erkennbar.
+TRAIN_OPACITY = 0.56
 
 THEMES = {
     "light": {
@@ -390,7 +395,12 @@ def composite_frame(train: Image.Image, theme: str, offset_x: int, smoke: Image.
     return frame.convert("RGB")
 
 
-def animated_frames(train: Image.Image, theme: str, steam: bool) -> tuple[list[Image.Image], list[int]]:
+def animated_frames(
+    train: Image.Image,
+    theme: str,
+    steam: bool,
+    idle_reference: list[Image.Image] | None = None,
+) -> tuple[list[Image.Image], list[int]]:
     train_small = train.resize(GIF_SIZE, Image.Resampling.LANCZOS)
     train_travel = round(TRAIN_WIDTH / 2)
     particles: list[SmokeParticle] = []
@@ -436,12 +446,36 @@ def animated_frames(train: Image.Image, theme: str, steam: bool) -> tuple[list[I
         last_offset = offset
 
     if steam:
-        for index in range(SMOKE_TAIL_FRAMES):
-            advance_smoke(particles, SMOKE_TAIL_FRAME_MS / 1000)
-            if index == SMOKE_TAIL_FRAMES - 1:
-                particles.clear()
-            frames.append(composite_frame(train_small, theme, 0, smoke_frame(particles, theme)))
-            durations.append(SMOKE_TAIL_FRAME_MS)
+        tail_elapsed = 0
+        for index, frame_ms in enumerate(SMOKE_TAIL_FRAME_DURATIONS):
+            advance_smoke(particles, frame_ms / 1000)
+            travelling_smoke = composite_frame(
+                train_small,
+                theme,
+                0,
+                smoke_frame(particles, theme),
+            )
+
+            if idle_reference:
+                # Das Idle-GIF laeuft als unterste Hintergrundebene bereits ab
+                # t=0. Der Ausklang blendet deshalb nicht gegen "kein Rauch",
+                # sondern mit einer weichen S-Kurve in exakt die Idle-Phase,
+                # die zum jeweiligen absoluten Zeitpunkt darunter liegt.
+                absolute_ms = START_DELAY_MS + MOTION_DURATION_MS + tail_elapsed
+                idle_index = (absolute_ms // IDLE_FRAME_MS) % len(idle_reference)
+                transition = index / max(1, SMOKE_TAIL_FRAMES - 1)
+                transition = transition * transition * (3 - 2 * transition)
+                tail_frame = Image.blend(
+                    travelling_smoke,
+                    idle_reference[idle_index],
+                    transition,
+                )
+            else:
+                tail_frame = travelling_smoke
+
+            frames.append(tail_frame)
+            durations.append(frame_ms)
+            tail_elapsed += frame_ms
 
     return frames, durations
 
@@ -455,34 +489,48 @@ def idle_frames(train: Image.Image, theme: str) -> tuple[list[Image.Image], list
         cycle = frame_index / IDLE_FRAMES
         particles: list[SmokeParticle] = []
 
-        # Fuenf sanfte Druckimpulse bilden keine starre Rauchsaule. Jeder
-        # Impuls startet schmal am Schornstein, steigt steil nach oben und
-        # zerfaellt dort in vier unterschiedlich grosse Wirbel. Das zyklische
-        # Alter macht den Uebergang des Idle-GIFs nahtlos.
-        for puff_index in range(5):
-            age = (cycle + puff_index / 5) % 1
-            rise = age * 22 + age**2 * 4
-            drift = age * 1.8 + age**2 * 6.5
-            for fragment in range(4):
-                phase = puff_index * 1.61 + fragment * 1.47
-                fragment_spread = (fragment - 1.5) * (0.35 + age * .72)
+        # Vier versetzte Druckimpulse mit je zwei duennen Stroemungsfaeden
+        # ergeben eine ruhige, lueckenlose Fahne. Weniger und schmalere
+        # Fragmente verhindern die bisherige kompakte Wolken-/Balloptik. Der
+        # Dampf steigt anfangs fast senkrecht und bekommt erst oben einen
+        # leichten seitlichen Luftzug.
+        for puff_index in range(4):
+            age = (cycle + puff_index / 4) % 1
+            rise = age * 24 + age**2 * 4
+            drift = age**1.55 * 5.4
+            for strand in range(2):
+                phase = puff_index * 1.73 + strand * 2.21
+                strand_spread = (strand - .5) * (0.55 + age * 1.15)
                 particles.append(SmokeParticle(
-                    x=459 - drift + fragment_spread + math.sin(age * math.tau + phase) * (0.35 + age * 1.35),
-                    y=27 - rise + math.cos(age * math.tau * 1.25 + phase) * (0.3 + age * .8),
-                    vx=-2.2,
-                    vy=-12,
-                    radius=2.1 + age * (7.8 + fragment * .35),
-                    growth=8,
+                    x=459 - drift + strand_spread + math.sin(age * math.tau * 1.34 + phase) * (0.3 + age * 1.15),
+                    y=27 - rise + math.cos(age * math.tau * 1.18 + phase) * (0.2 + age * .62),
+                    vx=-1.35 - strand * .55,
+                    vy=-11.4 - strand * .5,
+                    radius=1.45 + age * (4.65 + strand * .45),
+                    growth=5.6,
                     age=age,
                     lifetime=1.0,
-                    opacity=102 + fragment * 7,
+                    opacity=142 + strand * 12,
                     phase=phase + cycle * math.tau,
-                    turbulence=0.76 + fragment * .13,
+                    turbulence=0.82 + strand * .17,
                 ))
 
         frames.append(composite_frame(train_small, theme, 0, smoke_frame(particles, theme)))
 
     return frames, [IDLE_FRAME_MS] * IDLE_FRAMES
+
+
+def gif_palette(frames: list[Image.Image]) -> Image.Image:
+    """Build one compact palette shared by entry and idle animations."""
+    palette_strip = Image.new("RGB", (GIF_SIZE[0], GIF_SIZE[1] * len(frames)))
+    for index, frame in enumerate(frames):
+        palette_strip.paste(frame, (0, index * GIF_SIZE[1]))
+
+    return palette_strip.quantize(
+        colors=7,
+        method=Image.Quantize.MEDIANCUT,
+        dither=Image.Dither.NONE,
+    )
 
 
 def save_gif(
@@ -492,16 +540,14 @@ def save_gif(
     *,
     loop: bool = False,
     reveal_after: bool = False,
+    shared_palette: Image.Image | None = None,
 ) -> None:
     # A deliberately small shared palette keeps both mail assets compact
     # and prevents local 256-colour tables from dominating every frame.
-    palette_strip = Image.new("RGB", (GIF_SIZE[0], GIF_SIZE[1] * len(frames)))
-    for index, frame in enumerate(frames):
-        palette_strip.paste(frame, (0, index * GIF_SIZE[1]))
     # Sieben gemeinsame Farben reichen fuer mailtaugliche Dateigroessen,
     # bewahren aber mehrere Alpha-/Rauchabstufungen. Mit nur sechs Farben
     # wurden feine Wirbel zu optisch runden, einfarbigen Flecken reduziert.
-    palette = palette_strip.quantize(colors=7, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
+    palette = shared_palette if shared_palette is not None else gif_palette(frames)
     quantized = [
         frame.quantize(palette=palette, dither=Image.Dither.NONE)
         for frame in frames
@@ -570,20 +616,43 @@ def build_variant(theme: str) -> None:
     static.alpha_composite(static_smoke(PNG_SIZE, theme))
 
     static.save(ASSET_DIR / f"zug-dampf-{theme}.png", optimize=True)
-    frames, durations = animated_frames(train, theme, steam=True)
+    standing, standing_durations = idle_frames(train, theme)
+    frames, durations = animated_frames(
+        train,
+        theme,
+        steam=True,
+        idle_reference=standing,
+    )
+    palette = gif_palette([*frames, *standing])
     save_gif(
         frames,
         durations,
         ASSET_DIR / f"zug-dampf-{theme}.gif",
         reveal_after=True,
+        shared_palette=palette,
     )
-    standing, standing_durations = idle_frames(train, theme)
     save_gif(
         standing,
         standing_durations,
         ASSET_DIR / f"zug-dampf-idle-{theme}.gif",
         loop=True,
+        shared_palette=palette,
     )
+
+
+def frame_at_ms(
+    frames: list[Image.Image],
+    durations: list[int],
+    position_ms: int,
+) -> Image.Image:
+    """Return the encoded frame visible at an absolute animation timestamp."""
+    elapsed = 0
+    for frame, duration in zip(frames, durations):
+        if position_ms < elapsed + duration:
+            return frame
+        elapsed += duration
+
+    return frames[-1]
 
 
 def assert_assets() -> None:
@@ -607,17 +676,25 @@ def assert_assets() -> None:
                 errors.append(f"{gif_path.name}: enthaelt eine Loop-Erweiterung")
 
             durations = []
+            main_frames = []
             for frame in range(gif.n_frames):
                 gif.seek(frame)
                 durations.append(int(gif.info.get("duration", 0)))
+                main_frames.append(gif.convert("RGBA").copy())
 
-                expected = START_DELAY_MS + MOTION_DURATION_MS + SMOKE_TAIL_DURATION_MS
+            expected = START_DELAY_MS + MOTION_DURATION_MS + SMOKE_TAIL_DURATION_MS
             if sum(durations) != expected:
                 errors.append(f"{gif_path.name}: Dauer {sum(durations)} statt {expected} ms")
 
-                # GIF encoders may merge visually identical braking frames and
-                # accumulate their durations. The timing contract is therefore
-                # authoritative; enough physical frames must remain for fluidity.
+            if expected % IDLE_DURATION_MS != 0:
+                errors.append(
+                    f"{gif_path.name}: Einfahrt {expected} ms endet nicht auf Idle-Loop-Naht "
+                    f"({IDLE_DURATION_MS} ms)"
+                )
+
+            # GIF encoders may merge visually identical braking frames and
+            # accumulate their durations. The timing contract is therefore
+            # authoritative; enough physical frames must remain for fluidity.
             minimum_frames = 44
             if gif.n_frames < minimum_frames:
                 errors.append(f"{gif_path.name}: nur {gif.n_frames} Frames")
@@ -636,14 +713,33 @@ def assert_assets() -> None:
                 errors.append(f"{idle_path.name}: Idle-Rauch loopt nicht endlos")
 
             idle_durations = []
+            encoded_idle_frames = []
             for frame in range(idle.n_frames):
                 idle.seek(frame)
                 idle_durations.append(int(idle.info.get("duration", 0)))
+                encoded_idle_frames.append(idle.convert("RGBA").copy())
 
             if sum(idle_durations) != IDLE_DURATION_MS:
                 errors.append(
                     f"{idle_path.name}: Dauer {sum(idle_durations)} statt {IDLE_DURATION_MS} ms"
                 )
+
+        # Elf Millisekunden vor Ablauf ist noch der letzte sichtbare
+        # Hauptframe aktiv; zehn Millisekunden vor Ablauf wird die Idle-Ebene
+        # transparent freigegeben. Beide Bilder muessen pixelgleich sein,
+        # sonst entstuende trotz korrekter Dauer wieder ein sichtbarer Sprung.
+        transition_position = expected - 11
+        main_transition = frame_at_ms(main_frames, durations, transition_position)
+        idle_transition = frame_at_ms(
+            encoded_idle_frames,
+            idle_durations,
+            transition_position % IDLE_DURATION_MS,
+        )
+        if ImageChops.difference(
+            main_transition.convert("RGB"),
+            idle_transition.convert("RGB"),
+        ).getbbox() is not None:
+            errors.append(f"{gif_path.name}: letzter Zugframe und Idle-Rauchphase springen")
 
         if gif_path.stat().st_size > MAX_GIF_BYTES:
             errors.append(f"{gif_path.name}: {gif_path.stat().st_size} Bytes > {MAX_GIF_BYTES}")
