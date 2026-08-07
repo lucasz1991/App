@@ -350,6 +350,8 @@
                             @php
                                 $signatureKey = $themeKey === 'light' ? 'signatur-hell' : 'signatur-dunkel';
                                 $signature = $signatureTemplates->get($signatureKey);
+                                $outlookSignatureKey = $themeKey === 'light' ? 'signatur-outlook-hell' : 'signatur-outlook-dunkel';
+                                $outlookSignature = $signatureTemplates->get($outlookSignatureKey);
                             @endphp
                             <article
                                 x-show="signatureTheme === @js($themeKey)"
@@ -430,16 +432,29 @@
                                                 <p class="mt-1 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">{{ __($signature['hint']) }}</p>
                                             </div>
                                         </div>
-                                        <a
-                                            href="{{ route('email-templates.download', ['template' => $signatureKey]) }}"
-                                            data-template-key="{{ $signatureKey }}"
-                                            data-template-format="html"
-                                            data-no-navigate
-                                            class="mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-4 py-2 text-sm font-semibold text-white shadow-rt-xs transition hover:-translate-y-0.5 hover:bg-rt-red-dark focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/20 lg:mt-auto"
-                                        >
-                                            <i class="far fa-download" aria-hidden="true"></i>
-                                            {{ __('app.download') }} · HTML
-                                        </a>
+                                        <div class="mt-4 grid gap-2 lg:mt-auto">
+                                            <a
+                                                href="{{ route('email-templates.download', ['template' => $outlookSignatureKey]) }}"
+                                                data-template-key="{{ $outlookSignatureKey }}"
+                                                data-template-format="zip"
+                                                data-no-navigate
+                                                class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-4 py-2 text-sm font-semibold text-white shadow-rt-xs transition hover:-translate-y-0.5 hover:bg-rt-red-dark focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/20"
+                                            >
+                                                <i class="fab fa-microsoft" aria-hidden="true"></i>
+                                                {{ __('app.email_templates_outlook_install') }} · ZIP
+                                            </a>
+                                            <a
+                                                href="{{ route('email-templates.download', ['template' => $signatureKey]) }}"
+                                                data-template-key="{{ $signatureKey }}"
+                                                data-template-format="html"
+                                                data-no-navigate
+                                                class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-surface-muted px-4 py-2 text-sm font-semibold text-rt-text ring-1 ring-inset ring-rt-border/70 transition hover:-translate-y-0.5 hover:text-rt-red focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/15 dark:bg-rt-dark-surface-muted dark:text-rt-dark-text dark:ring-rt-dark-border/70 dark:hover:text-rt-dark-accent"
+                                            >
+                                                <i class="far fa-download" aria-hidden="true"></i>
+                                                {{ __('app.email_templates_standard_html') }}
+                                            </a>
+                                            <p class="text-[11px] leading-4 text-rt-muted dark:text-rt-dark-muted">{{ __($outlookSignature['hint']) }}</p>
+                                        </div>
                                     </div>
                                 </div>
                             </article>

@@ -1279,6 +1279,7 @@ def assert_assets() -> None:
     print(
         f"OK: {START_DELAY_MS} ms Startverzoegerung, {MOTION_DURATION_MS} ms Einfahrt, "
         f"{SMOKE_TAIL_DURATION_MS} ms Rauch-Ausklang, {IDLE_DURATION_MS} ms Idle-Loop, "
+        f"Outlook-Einbild-GIF {OUTLOOK_DURATION_MS} ms ohne Loop, "
         "Einfahrt ohne Loop, alle GIFs unter 200 KiB."
     )
 

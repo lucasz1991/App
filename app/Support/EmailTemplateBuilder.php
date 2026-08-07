@@ -4,6 +4,8 @@ namespace App\Support;
 
 use App\Models\User;
 use Illuminate\Support\Str;
+use RuntimeException;
+use ZipArchive;
 
 /**
  * Baut personalisierte E-Mail-Vorlagen und Signaturen aus den
@@ -45,7 +47,7 @@ class EmailTemplateBuilder
      *     extension: string,
      *     category: 'mail'|'signature',
      *     theme: 'light'|'dark'|'neutral',
-     *     format: 'eml'|'html'|'txt',
+     *     format: 'eml'|'html'|'txt'|'zip',
      *     previewable: bool
      * }>
      */
@@ -106,6 +108,24 @@ class EmailTemplateBuilder
                 'format' => 'html',
                 'previewable' => false,
             ],
+            'signatur-outlook-dunkel' => [
+                'label' => 'app.email_template_signature_outlook_dark',
+                'hint' => 'app.email_template_signature_outlook_hint',
+                'extension' => 'zip',
+                'category' => 'signature',
+                'theme' => 'dark',
+                'format' => 'zip',
+                'previewable' => false,
+            ],
+            'signatur-outlook-hell' => [
+                'label' => 'app.email_template_signature_outlook_light',
+                'hint' => 'app.email_template_signature_outlook_hint',
+                'extension' => 'zip',
+                'category' => 'signature',
+                'theme' => 'light',
+                'format' => 'zip',
+                'previewable' => false,
+            ],
             'signatur-text' => [
                 'label' => 'app.email_template_signature_text',
                 'hint' => 'app.email_template_signature_text_hint',
@@ -155,6 +175,16 @@ class EmailTemplateBuilder
                 'filename' => "RailTime-Signatur-hell-{$slug}.html",
                 'mime' => 'text/html; charset=UTF-8',
                 'content' => $this->buildSignature('signature-light-master.html', 'logo-signature-light.png'),
+            ],
+            'signatur-outlook-dunkel' => [
+                'filename' => "RailTime-Outlook-Signatur-dunkel-{$slug}.zip",
+                'mime' => 'application/zip',
+                'content' => $this->buildOutlookPackage('dark', $slug),
+            ],
+            'signatur-outlook-hell' => [
+                'filename' => "RailTime-Outlook-Signatur-hell-{$slug}.zip",
+                'mime' => 'application/zip',
+                'content' => $this->buildOutlookPackage('light', $slug),
             ],
             'signatur-text' => [
                 'filename' => "RailTime-Signatur-{$slug}.txt",
@@ -428,8 +458,7 @@ class EmailTemplateBuilder
         string $theme = 'light',
         bool $animatedSignature = false,
         ?string $playbackNonce = null,
-    ): string
-    {
+    ): string {
         $values = $this->profileValues();
         $html = file_get_contents(self::masterPath('email-master.html'));
         $html = $this->substitute($html, $this->escapeForHtml($values));
@@ -518,6 +547,207 @@ class EmailTemplateBuilder
                 overrides: ['LOGO_SRC' => self::inlineImage($logo, 'image/png')],
             ),
         ]);
+    }
+
+    /**
+     * Outlook-kompatible Signatur als installierbares ZIP-Paket.
+     *
+     * Klassisches Outlook liest lokale .htm/.rtf/.txt-Signaturen aus dem
+     * Signatures-Ordner. Neues Outlook besitzt keinen entsprechenden
+     * Dateiimport; dafuer dient dieselbe .htm-Datei als Kopiervorlage mit
+     * regulaeren lokalen <img>-Elementen und einem manuellen Bild-Fallback.
+     */
+    protected function buildOutlookPackage(string $theme, string $slug): string
+    {
+        $variant = $theme === 'dark' ? 'dunkel' : 'hell';
+        $signatureName = "RailTime-Signatur-{$variant}-{$slug}";
+        $assetFolder = "{$signatureName}_files";
+        $html = $this->buildOutlookSignatureHtml($theme, $assetFolder);
+        $plain = $this->buildPlainSignature();
+        $rtf = $this->buildOutlookRtf($plain);
+        $readme = $this->buildOutlookReadme($signatureName, $assetFolder);
+        $installer = $this->buildOutlookInstaller($signatureName);
+
+        $tempPath = tempnam(sys_get_temp_dir(), 'railtime-outlook-');
+        if ($tempPath === false) {
+            throw new RuntimeException('Temporäre Outlook-Exportdatei konnte nicht angelegt werden.');
+        }
+
+        $zip = new ZipArchive;
+        $zipOpen = false;
+
+        try {
+            $opened = $zip->open($tempPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+            if ($opened !== true) {
+                throw new RuntimeException('Outlook-Export konnte nicht als ZIP geöffnet werden.');
+            }
+            $zipOpen = true;
+
+            $files = [
+                "{$signatureName}.htm" => $html,
+                "{$signatureName}.txt" => $plain,
+                "{$signatureName}.rtf" => $rtf,
+                'README-Outlook.html' => $readme,
+                'Outlook-klassisch-installieren.cmd' => $installer,
+                "{$assetFolder}/zug-dampf.gif" => file_get_contents(
+                    self::masterPath('assets/zug-dampf-outlook-'.($theme === 'dark' ? 'dark' : 'light').'.gif')
+                ),
+                "{$assetFolder}/logo.png" => file_get_contents(
+                    self::masterPath('assets/'.$this->emailLogoAsset($theme))
+                ),
+            ];
+
+            foreach (self::CONTACT_ICON_PNG as $name => $base64) {
+                $files["{$assetFolder}/contact-{$name}.png"] = base64_decode($base64, true) ?: '';
+            }
+
+            foreach ($files as $path => $content) {
+                if (! is_string($content) || ! $zip->addFromString($path, $content)) {
+                    throw new RuntimeException("Outlook-Exportdatei konnte nicht hinzugefügt werden: {$path}");
+                }
+            }
+
+            $closed = $zip->close();
+            $zipOpen = false;
+            if (! $closed) {
+                throw new RuntimeException('Outlook-Export konnte nicht abgeschlossen werden.');
+            }
+
+            $binary = file_get_contents($tempPath);
+            if ($binary === false) {
+                throw new RuntimeException('Outlook-Export konnte nicht gelesen werden.');
+            }
+
+            return $binary;
+        } finally {
+            if ($zipOpen) {
+                $zip->close();
+            }
+            if (is_file($tempPath)) {
+                @unlink($tempPath);
+            }
+        }
+    }
+
+    protected function buildOutlookSignatureHtml(string $theme, string $assetFolder): string
+    {
+        $master = $theme === 'dark' ? 'signature-dark-master.html' : 'signature-light-master.html';
+        $html = file_get_contents(self::masterPath($master));
+        $html = $this->substitute($html, $this->escapeForHtml($this->profileValues()));
+
+        $iconSources = [];
+        foreach (array_keys(self::CONTACT_ICON_PNG) as $name) {
+            $iconSources['ICON_'.strtoupper($name).'_SRC'] = "{$assetFolder}/contact-{$name}.png";
+        }
+
+        return $this->substitute($html, [
+            'SIGNATURE_BLOCK' => MailSignature::forUser($this->user, $theme)->render(
+                layout: [
+                    'padding' => '18px 30px 20px',
+                    'topRule' => '',
+                    'legalPadding' => '13px 30px',
+                    'outlookTrainSrc' => "{$assetFolder}/zug-dampf.gif",
+                ],
+                overrides: array_merge([
+                    'LOGO_SRC' => "{$assetFolder}/logo.png",
+                    'TRAIN_SRC' => '',
+                    'TRAIN_IDLE_SRC' => '',
+                ], $iconSources),
+            ),
+        ]);
+    }
+
+    protected function buildOutlookInstaller(string $signatureName): string
+    {
+        return <<<CMD
+@echo off
+setlocal
+set "TARGET=%APPDATA%\Microsoft\Signatures"
+if not defined APPDATA (
+  echo APPDATA is not available. Installation stopped.
+  pause
+  exit /b 1
+)
+if not exist "%TARGET%" mkdir "%TARGET%"
+copy /Y "%~dp0{$signatureName}.htm" "%TARGET%\{$signatureName}.htm" >nul
+copy /Y "%~dp0{$signatureName}.rtf" "%TARGET%\{$signatureName}.rtf" >nul
+copy /Y "%~dp0{$signatureName}.txt" "%TARGET%\{$signatureName}.txt" >nul
+xcopy /E /I /Y "%~dp0{$signatureName}_files" "%TARGET%\{$signatureName}_files" >nul
+if errorlevel 1 (
+  echo Installation failed. Please use README-Outlook.html.
+  pause
+  exit /b 1
+)
+echo RailTime signature installed for classic Outlook.
+echo Restart Outlook and select "{$signatureName}" under Signatures.
+pause
+CMD;
+    }
+
+    protected function buildOutlookReadme(string $signatureName, string $assetFolder): string
+    {
+        $name = htmlspecialchars($signatureName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $folder = htmlspecialchars($assetFolder, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+        return <<<HTML
+<!doctype html>
+<html lang="de">
+<head><meta charset="utf-8"><title>RailTime Signatur in Outlook einrichten</title></head>
+<body style="max-width:760px;margin:40px auto;padding:0 20px;font-family:Arial,Helvetica,sans-serif;color:#111820;line-height:1.55;">
+  <h1 style="font-size:26px;">RailTime-Signatur in Outlook einrichten</h1>
+  <p>Das Paket enthält eine Outlook-kompatible Signatur mit einem normalen, einmalig abspielenden GIF. Bitte das ZIP zuerst vollständig entpacken.</p>
+  <h2 style="font-size:19px;">Klassisches Outlook für Windows</h2>
+  <ol>
+    <li>Outlook vollständig schließen.</li>
+    <li><strong>Outlook-klassisch-installieren.cmd</strong> doppelt anklicken.</li>
+    <li>Outlook neu starten und über <strong>Neue E-Mail → Signatur → Signaturen</strong> „{$name}“ für neue Nachrichten sowie Antworten auswählen.</li>
+  </ol>
+  <h2 style="font-size:19px;">Neues Outlook oder Outlook im Web</h2>
+  <ol>
+    <li><strong>{$name}.htm</strong> in Edge oder Chrome öffnen.</li>
+    <li>Mit <strong>Strg+A</strong> alles markieren und mit <strong>Strg+C</strong> kopieren.</li>
+    <li>In Outlook <strong>Einstellungen → Konten → Signaturen</strong> öffnen, eine neue Signatur anlegen und einfügen.</li>
+    <li>Falls Outlook das Zugbild nicht übernimmt: über „Bild einfügen“ die Datei <strong>{$folder}/zug-dampf.gif</strong> unter der Signatur einsetzen.</li>
+  </ol>
+  <p><strong>Animationshinweis:</strong> Das Outlook-GIF spielt die Einfahrt, den Rauch-Ausklang und einen vollständigen Standrauch-Zyklus einmal ab. Danach bleibt der Zug sichtbar stehen. Ein endloser Idle-Teil in derselben GIF-Datei würde immer auch die Einfahrt wiederholen.</p>
+</body>
+</html>
+HTML;
+    }
+
+    protected function buildOutlookRtf(string $plain): string
+    {
+        $plain = str_replace(["\r\n", "\r"], "\n", $plain);
+        $escaped = '';
+
+        foreach (preg_split('//u', $plain, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $character) {
+            if ($character === "\n") {
+                $escaped .= "\\par\n";
+
+                continue;
+            }
+
+            if (in_array($character, ['\\', '{', '}'], true)) {
+                $escaped .= '\\'.$character;
+
+                continue;
+            }
+
+            $codepoint = mb_ord($character, 'UTF-8');
+            if ($codepoint >= 32 && $codepoint <= 126) {
+                $escaped .= $character;
+
+                continue;
+            }
+
+            if ($codepoint > 32767) {
+                $codepoint -= 65536;
+            }
+
+            $escaped .= "\\u{$codepoint}?";
+        }
+
+        return "{\\rtf1\\ansi\\deff0{\\fonttbl{\\f0 Arial;}}\\uc1\\f0\\fs20\n{$escaped}\n}";
     }
 
     protected function buildPlainBody(): string

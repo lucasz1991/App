@@ -1123,6 +1123,11 @@ return [
     'email_template_signature_dark_hint' => 'Dark signature with icon contacts below name and role and a right-aligned logo.',
     'email_template_signature_light' => 'Signature light (HTML)',
     'email_template_signature_light_hint' => 'Light signature with icon contacts below name and role and a right-aligned logo.',
+    'email_template_signature_outlook_dark' => 'Outlook signature dark (ZIP)',
+    'email_template_signature_outlook_light' => 'Outlook signature light (ZIP)',
+    'email_template_signature_outlook_hint' => 'Includes the installable classic Outlook signature, a copy template for new Outlook and the single Outlook GIF.',
+    'email_templates_outlook_install' => 'Set up for Outlook',
+    'email_templates_standard_html' => 'Download standard HTML',
     'email_template_signature_text' => 'Signature (plain text)',
     'email_template_signature_text_hint' => 'Plain-text version of the signature for text-only mails and mobile clients.',
 

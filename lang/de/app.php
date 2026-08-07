@@ -1123,6 +1123,11 @@ return [
     'email_template_signature_dark_hint' => 'Dunkle Signatur mit Icon-Kontakten unter Name und Funktion sowie rechts ausgerichtetem Logo.',
     'email_template_signature_light' => 'Signatur hell (HTML)',
     'email_template_signature_light_hint' => 'Helle Signatur mit Icon-Kontakten unter Name und Funktion sowie rechts ausgerichtetem Logo.',
+    'email_template_signature_outlook_dark' => 'Outlook-Signatur dunkel (ZIP)',
+    'email_template_signature_outlook_light' => 'Outlook-Signatur hell (ZIP)',
+    'email_template_signature_outlook_hint' => 'Enthält die installierbare klassische Outlook-Signatur, eine Kopiervorlage für das neue Outlook und das einzelne Outlook-GIF.',
+    'email_templates_outlook_install' => 'Für Outlook einrichten',
+    'email_templates_standard_html' => 'Standard-HTML herunterladen',
     'email_template_signature_text' => 'Signatur (Nur-Text)',
     'email_template_signature_text_hint' => 'Textfassung der Signatur für Nur-Text-Mails und mobile Clients.',
 

@@ -10,6 +10,7 @@ use App\Support\PageHelpCatalog;
 use Illuminate\Support\Facades\App;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
+use ZipArchive;
 
 class EmailTemplatesPageTest extends TestCase
 {
@@ -59,6 +60,8 @@ class EmailTemplatesPageTest extends TestCase
             ->assertSee('data-email-template-accordion="signature"', escape: false)
             ->assertSee('data-email-template-theme-toggle="mail"', escape: false)
             ->assertSee('data-email-template-theme-toggle="signature"', escape: false)
+            ->assertSee(__('app.email_templates_outlook_install'))
+            ->assertSee('data-template-format="zip"', escape: false)
             ->assertSee('<template x-if="previewModalOpen">', escape: false)
             ->assertSee('x-bind:src="previewFrameUrl()"', escape: false)
             ->assertSee('data-email-template-preview-replay', escape: false)
@@ -75,8 +78,8 @@ class EmailTemplatesPageTest extends TestCase
 
         preg_match_all('/data-template-key="([^"]+)"/', $content, $matches);
 
-        $this->assertCount(7, $matches[1]);
-        $this->assertCount(7, array_unique($matches[1]));
+        $this->assertCount(9, $matches[1]);
+        $this->assertCount(9, array_unique($matches[1]));
         $this->assertEqualsCanonicalizing([
             'vorlage-eml',
             'vorlage-html',
@@ -84,6 +87,8 @@ class EmailTemplatesPageTest extends TestCase
             'vorlage-dunkel-html',
             'signatur-hell',
             'signatur-dunkel',
+            'signatur-outlook-hell',
+            'signatur-outlook-dunkel',
             'signatur-text',
         ], $matches[1]);
         $this->assertSame(2, substr_count($content, 'data-email-template-modal="'));
@@ -272,6 +277,85 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertSame(370, array_sum($durations), "{$file}: Idle-Loop muss 3,7 s dauern.");
             $this->assertSame(0, 740 % array_sum($durations), "{$file}: Einfahrt muss exakt auf der Idle-Loop-Naht enden.");
             $this->assertLessThanOrEqual(200 * 1024, strlen($binary), $file);
+        }
+    }
+
+    public function test_outlook_export_contains_installable_signature_and_one_regular_gif(): void
+    {
+        $user = User::factory()->create(['name' => 'Mara Beispiel']);
+
+        foreach (['hell' => 'light', 'dunkel' => 'dark'] as $variant => $theme) {
+            $key = "signatur-outlook-{$variant}";
+            $response = $this->actingAs($user)
+                ->get(route('email-templates.download', ['template' => $key]));
+
+            $response->assertOk()->assertHeader('content-type', 'application/zip');
+            $this->assertStringContainsString(
+                "RailTime-Outlook-Signatur-{$variant}-mara-beispiel.zip",
+                (string) $response->headers->get('content-disposition'),
+            );
+
+            $tempPath = tempnam(sys_get_temp_dir(), 'railtime-outlook-test-');
+            $this->assertNotFalse($tempPath);
+            file_put_contents($tempPath, $response->getContent());
+
+            $zip = new ZipArchive;
+            $this->assertTrue($zip->open($tempPath));
+            $signatureName = "RailTime-Signatur-{$variant}-mara-beispiel";
+            $assetFolder = "{$signatureName}_files";
+
+            foreach ([
+                "{$signatureName}.htm",
+                "{$signatureName}.rtf",
+                "{$signatureName}.txt",
+                "{$assetFolder}/zug-dampf.gif",
+                "{$assetFolder}/logo.png",
+                "{$assetFolder}/contact-location.png",
+                "{$assetFolder}/contact-phone.png",
+                "{$assetFolder}/contact-mobile.png",
+                "{$assetFolder}/contact-email.png",
+                "{$assetFolder}/contact-web.png",
+                'Outlook-klassisch-installieren.cmd',
+                'README-Outlook.html',
+            ] as $path) {
+                $this->assertNotFalse($zip->locateName($path), $path);
+            }
+
+            $html = $zip->getFromName("{$signatureName}.htm");
+            $this->assertIsString($html);
+            $this->assertStringContainsString('<img data-rt-outlook-train', $html);
+            $this->assertStringContainsString("src=\"{$assetFolder}/zug-dampf.gif\"", $html);
+            $this->assertStringNotContainsString('data:image/gif;base64,', $html);
+            $this->assertStringNotContainsString('background-image:linear-gradient(', $html);
+            $this->assertSame(1, substr_count($html, '/zug-dampf.gif'));
+
+            $gif = $zip->getFromName("{$assetFolder}/zug-dampf.gif");
+            $this->assertSame(
+                file_get_contents(resource_path("mail-templates/assets/zug-dampf-outlook-{$theme}.gif")),
+                $gif,
+            );
+            $this->assertStringStartsWith('GIF89a', $gif);
+            $this->assertStringNotContainsString('NETSCAPE2.0', $gif);
+            $this->assertLessThanOrEqual(200 * 1024, strlen($gif));
+
+            $durations = [];
+            $offset = 0;
+            while (($offset = strpos($gif, "\x21\xf9\x04", $offset)) !== false) {
+                $durations[] = ord($gif[$offset + 4]) | (ord($gif[$offset + 5]) << 8);
+                $offset += 8;
+            }
+            $this->assertSame(1110, array_sum($durations), 'Outlook-GIF muss 11,1 Sekunden dauern.');
+
+            $installer = $zip->getFromName('Outlook-klassisch-installieren.cmd');
+            $this->assertStringContainsString('%APPDATA%\Microsoft\Signatures', $installer);
+            $this->assertStringContainsString("{$signatureName}.htm", $installer);
+
+            $readme = $zip->getFromName('README-Outlook.html');
+            $this->assertStringContainsString('Einstellungen → Konten → Signaturen', $readme);
+            $this->assertStringContainsString('ZIP zuerst vollständig entpacken', $readme);
+
+            $zip->close();
+            unlink($tempPath);
         }
     }
 
@@ -796,6 +880,7 @@ class EmailTemplatesPageTest extends TestCase
         $german = $catalog->forRoute('email-templates.index');
         $this->assertStringContainsString('Vorlagen & Signaturen', $german['title']);
         $this->assertStringContainsString('Einstellungen → Konten → Signaturen', implode(' ', $german['points']));
+        $this->assertStringContainsString('vollständig entpacken', implode(' ', $german['points']));
         $this->assertStringContainsString('Thunderbird', implode(' ', $german['points']));
         $this->assertStringContainsString('Testmail', implode(' ', $german['points']));
 
@@ -803,6 +888,7 @@ class EmailTemplatesPageTest extends TestCase
         $english = $catalog->forRoute('email-templates.index');
         $this->assertStringContainsString('templates & signatures', $english['title']);
         $this->assertStringContainsString('Settings → Accounts → Signatures', implode(' ', $english['points']));
+        $this->assertStringContainsString('fully extract', implode(' ', $english['points']));
         $this->assertStringContainsString('Thunderbird', implode(' ', $english['points']));
         $this->assertStringContainsString('test email', implode(' ', $english['points']));
     }
