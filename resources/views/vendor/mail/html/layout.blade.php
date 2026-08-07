@@ -29,7 +29,7 @@ a { color: inherit; }
 {{-- Nur direkte Zellen umbrechen: ein Nachfahren-Selektor wuerde auch die
      verschachtelte Kontakttabelle der Signatur zerlegen. --}}
 tr.rt-stack > td { box-sizing: border-box !important; display: block !important; width: 100% !important; }
-tr.rt-stack > td + td { padding-top: 12px !important; }
+tr.rt-stack > td + td { padding-top: 30px !important; }
 .rt-contact { width: auto !important; }
 .rt-contact td.rt-contact-icon, .rt-contact td.rt-contact-text { display: table-cell !important; box-sizing: content-box !important; padding-top: 0 !important; }
 .rt-contact td.rt-contact-icon { width: 22px !important; }
@@ -37,10 +37,10 @@ tr.rt-stack > td + td { padding-top: 12px !important; }
 .rt-sign-name { font-size: 22px !important; line-height: 26px !important; }
 .rt-sign-logo { border-left: 0 !important; border-bottom: 1px solid {{ $palette['SIGNATURE_BORDER'] }} !important; padding: 0 0 17px !important; text-align: left !important; }
 .rt-sign-logo img { width: 190px !important; margin-left: 0 !important; }
-.rt-sign-identity { padding: 17px 0 0 !important; }
+.rt-sign-identity { padding: 30px 0 0 !important; }
 .rt-only-wide { display: none !important; max-height: 0 !important; overflow: hidden !important; }
 .rt-only-narrow { display: block !important; max-height: none !important; overflow: visible !important; font-size: 11px !important; line-height: 18px !important; }
-.rt-sign-cell { background-size: 125% auto !important; }
+.rt-sign-cell { background-size: 100% 100%, 125% auto, 125% auto !important; }
 }
 </style>
 </head>

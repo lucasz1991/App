@@ -376,6 +376,7 @@ class EmailTemplateBuilder
                 // Pflichtangaben eine Stufe darunter — dezente Staffelung
                 // statt harter Kanten.
                 'SIGNATURE_BG' => '#0c1017',
+                'SIGNATURE_TRAIN_WASH' => 'rgba(12,16,23,.15)',
                 'SIGNATURE_LEGAL_BG' => '#080b10',
                 'SIGNATURE_TEXT_PRIMARY' => '#ffffff',
                 'SIGNATURE_CONTACT_TEXT' => '#b9c1ca',
@@ -401,6 +402,7 @@ class EmailTemplateBuilder
                 // Siehe dunkle Palette: Signatur heller Ton, Pflichtangaben
                 // eine Stufe kraeftiger.
                 'SIGNATURE_BG' => '#f7f6f3',
+                'SIGNATURE_TRAIN_WASH' => 'rgba(247,246,243,.15)',
                 'SIGNATURE_LEGAL_BG' => '#efece7',
                 'SIGNATURE_TEXT_PRIMARY' => '#111820',
                 'SIGNATURE_CONTACT_TEXT' => '#5c6671',

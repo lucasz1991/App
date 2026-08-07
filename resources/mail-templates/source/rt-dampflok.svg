@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg"
-     viewBox="0 0 1705 151"
+     viewBox="0 0 1723 151"
      preserveAspectRatio="xMidYMid meet"
      role="img"
      aria-labelledby="title desc">
@@ -179,6 +179,13 @@
     <use href="#wagon-bogie" transform="translate(14 0)"/>
     <use href="#wagon-bogie" transform="translate(56 0)"/>
 
+    <!-- Die eigentliche Maschine ist gegenueber den Wagen bewusst etwa
+         elf Prozent laenger und acht Prozent hoeher. Drehpunkt ist die
+         Kupplung zum Tender beziehungsweise die Schienenunterkante: So
+         bleiben Kupplungshoehe und Radauflage korrekt, waehrend Kessel,
+         Fuehrerhaus und Fahrwerk die Proportion einer schweren Gueterzuglok
+         erhalten. -->
+    <g id="steam-engine" transform="translate(120 151) scale(1.11 1.08) translate(-120 -151)">
     <!-- Fuehrerhaus -->
     <path class="body" d="M126 60h56v62h-56z"/>
     <path class="body" d="M120 54h68v6h-68z"/>
@@ -216,6 +223,7 @@
     <path class="solid" d="M168 130h152v6H168z"/>
     <circle class="wheel" cx="344" cy="141" r="9"/>
     <circle class="solid" cx="344" cy="141" r="2.5"/>
+    </g>
     <path class="fine" d="M24 119H10"/>
   </g>
 

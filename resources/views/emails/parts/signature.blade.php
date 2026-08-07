@@ -25,13 +25,20 @@
     $topRule = $topRule ?? 'border-top:5px solid #e4002b;';
     $legalPadding = $legalPadding ?? '18px 38px';
     $hasPerson = trim((string) ($values['VORNAME_NACHNAME'] ?? '')) !== '';
+    $hasIdleTrain = $values['TRAIN_IDLE_SRC'] !== '';
+    $trainBackgroundPosition = $hasIdleTrain
+        ? 'center center,center bottom,center bottom'
+        : 'center center,center bottom';
+    $trainBackgroundSize = $hasIdleTrain
+        ? '100% 100%,100% auto,100% auto'
+        : '100% 100%,100% auto';
 @endphp
 <tr>
     {{-- Reihenfolge beachten: die background-Kurzform setzt background-image
          zurueck und muss deshalb VOR der Bildangabe stehen. Clients ohne
          CSS-Hintergrundbilder (Outlook-Desktop, Gmail bei data-URIs) zeigen
          schlicht die Farbflaeche — es geht kein Inhalt verloren. --}}
-    <td class="rt-pad rt-sign-cell" bgcolor="{{ $values['SIGNATURE_BG'] }}" style="padding:{{ $padding }};background:{{ $values['SIGNATURE_BG'] }};background-image:url('{{ $values['TRAIN_SRC'] }}')@if($values['TRAIN_IDLE_SRC'] !== ''),url('{{ $values['TRAIN_IDLE_SRC'] }}')@endif;background-repeat:no-repeat;background-position:center bottom;background-size:100% auto;{{ $topRule }}">
+    <td class="rt-pad rt-sign-cell" bgcolor="{{ $values['SIGNATURE_BG'] }}" style="padding:{{ $padding }};background:{{ $values['SIGNATURE_BG'] }};background-image:linear-gradient({{ $values['SIGNATURE_TRAIN_WASH'] }},{{ $values['SIGNATURE_TRAIN_WASH'] }}),url('{{ $values['TRAIN_SRC'] }}')@if($hasIdleTrain),url('{{ $values['TRAIN_IDLE_SRC'] }}')@endif;background-repeat:no-repeat;background-position:{{ $trainBackgroundPosition }};background-size:{{ $trainBackgroundSize }};{{ $topRule }}">
         {{-- dir="rtl" dreht ausschliesslich die Spaltenfolge: die Markenspalte
              steht in der Quelle zuerst (und landet beim Stapeln oben), auf
              breiten Schirmen aber weiterhin rechts. --}}
@@ -42,7 +49,7 @@
                     <p style="margin:14px 0 0;color:{{ $values['SIGNATURE_TEXT_MUTED'] }};font-family:Consolas,'Courier New',monospace;font-size:9px;line-height:15px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;">Sicher · flexibel · deutschlandweit</p>
                     <div class="rt-only-wide" style="margin:13px 0 0;color:{{ $values['SIGNATURE_META_TEXT'] }};font-size:11px;line-height:18px;"><strong style="color:{{ $values['SIGNATURE_TEXT_PRIMARY'] }};">{{ $values['FIRMENNAME'] }}</strong>@include('emails.parts.company-contact-table', ['values' => $values, 'align' => 'right'])</div>
                 </td>
-                <td dir="ltr" class="rt-sign-identity" width="63%" valign="top" align="left" style="direction:ltr;width:63%;padding-right:28px;text-align:left;">
+                <td dir="ltr" class="rt-sign-identity" width="63%" valign="bottom" align="left" style="direction:ltr;width:63%;padding:30px 28px 0 0;position:relative;z-index:1;text-align:left;vertical-align:bottom;">
                     <p class="rt-sign-name" style="margin:0 0 4px;color:{{ $values['SIGNATURE_TEXT_PRIMARY'] }};font-size:25px;line-height:29px;font-weight:bold;letter-spacing:-.5px;">{{ $hasPerson ? $values['VORNAME_NACHNAME'] : $values['FIRMENNAME'] }}</p>
                     <p style="margin:0;color:{{ $values['SIGNATURE_ACCENT'] }};font-family:Consolas,'Courier New',monospace;font-size:10px;line-height:16px;font-weight:bold;letter-spacing:1.2px;text-transform:uppercase;">{{ $values['POSITION'] }}</p>
 

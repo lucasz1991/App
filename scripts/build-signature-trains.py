@@ -43,20 +43,23 @@ IDLE_FRAMES = 28
 IDLE_FRAME_MS = 120
 IDLE_DURATION_MS = IDLE_FRAMES * IDLE_FRAME_MS
 MAX_GIF_BYTES = 200 * 1024
-TRAIN_OPACITY = 0.70
+# Die Assets bleiben etwas kraeftiger als ihre Darstellung in der Signatur.
+# Dort legt CSS zusaetzlich einen 15-prozentigen Flaechen-Wash darueber. Das
+# ergibt effektiv rund 54 Prozent Deckkraft, ohne den Text mit abzublenden.
+TRAIN_OPACITY = 0.64
 
 THEMES = {
     "light": {
         "background": (247, 246, 243, 255),
         "stroke": "#66717c",
         "wheel": "#f7f6f3",
-        "smoke": (91, 103, 114),
+        "smoke": (70, 82, 94),
     },
     "dark": {
         "background": (12, 16, 23, 255),
         "stroke": "#aab4bf",
         "wheel": "#0c1017",
-        "smoke": (184, 194, 205),
+        "smoke": (205, 214, 223),
     },
 }
 
@@ -179,21 +182,28 @@ def static_smoke(size: tuple[int, int], theme: str) -> Image.Image:
     rng = random.Random(5210 if theme == "light" else 5211)
     particles: list[SmokeParticle] = []
 
-    for index in range(26):
-        progress = index / 25
-        particles.append(SmokeParticle(
-            x=459 - 8 - progress * 176 + rng.uniform(-4.5, 4.5),
-            y=27 - progress * 14 + math.sin(progress * math.tau * 1.4) * 3 + rng.uniform(-2.5, 2.5),
-            vx=-8,
-            vy=-7,
-            radius=3.8 + progress * 9.2 + rng.uniform(-1.2, 1.4),
-            growth=6,
-            age=progress * 0.8,
-            lifetime=1.6,
-            opacity=118 - progress * 52,
-            phase=rng.uniform(0, math.tau),
-            turbulence=rng.uniform(0.72, 1.35),
-        ))
+    # Auch das statische Mail-Fallback zeigt eine stehende Lok: der Rauch
+    # steigt deshalb zuerst fast senkrecht auf, weitet sich turbulent und
+    # bekommt erst oben einen kleinen seitlichen Versatz.
+    for puff_index in range(6):
+        progress = puff_index / 5
+        rise = progress * 23 + progress**2 * 3
+        drift = progress * 2 + progress**2 * 7
+        for fragment in range(4):
+            phase = rng.uniform(0, math.tau)
+            particles.append(SmokeParticle(
+                x=459 - drift + math.sin(phase) * (0.5 + progress * 2.0),
+                y=27 - rise + math.cos(phase) * (0.4 + progress * 1.2),
+                vx=-2.4,
+                vy=-12,
+                radius=2.3 + progress * 8.2 + rng.uniform(-0.5, 0.7),
+                growth=8,
+                age=progress * 0.9,
+                lifetime=1.25,
+                opacity=146 - progress * 22,
+                phase=phase,
+                turbulence=rng.uniform(0.76, 1.28),
+            ))
 
     return smoke_frame(particles, theme).resize(size, Image.Resampling.LANCZOS)
 
@@ -216,6 +226,7 @@ def emit_smoke(
     rng: random.Random,
     chimney_x: float,
     speed: float,
+    screen_velocity: float,
     accumulator: float,
     dt: float,
 ) -> float:
@@ -225,24 +236,28 @@ def emit_smoke(
     # Dampfmaschinen stossen in klaren Schlaegen aus. Mit sinkender
     # Geschwindigkeit liegen die Schlaege weiter auseinander; dadurch wird
     # beim Bremsen nicht einfach eine gleichmaessige Perlenschnur erzeugt.
-    interval = 0.22 + (1 - min(1.0, speed)) * 0.62
+    interval = 0.28 + (1 - min(1.0, speed)) * 0.42
     accumulator += dt
     while accumulator >= interval:
         accumulator -= interval
-        count = 5 if speed > 0.52 else (3 if speed > 0.18 else 2)
+        count = 3 if speed > 0.52 else (3 if speed > 0.18 else 2)
         for _ in range(count):
             particles.append(SmokeParticle(
-                x=chimney_x + rng.uniform(-3.4, 2.2),
-                y=27 + rng.uniform(-3.2, 2.5),
-                vx=rng.uniform(-7.5, -3.5) - speed * 2.0,
-                vy=rng.uniform(-13.5, -7.5),
-                radius=rng.uniform(4.2, 7.2),
-                growth=rng.uniform(5.5, 8.8),
+                x=chimney_x + rng.uniform(-2.4, 2.0),
+                y=27 + rng.uniform(-2.2, 1.8),
+                # Frischer Rauch behaelt zunaechst einen Teil des Vorwaerts-
+                # impulses der fahrenden Lok. Luftwiderstand baut ihn danach
+                # rasch zur fast stehenden Luftmasse ab. Ohne diesen Impuls
+                # entstanden trotz langsamer Einfahrt weit getrennte Kugeln.
+                vx=screen_velocity * rng.uniform(.48, .62) + rng.uniform(-3.0, 2.0),
+                vy=rng.uniform(-15.0, -10.5),
+                radius=rng.uniform(2.8, 4.4),
+                growth=rng.uniform(4.2, 6.2),
                 age=0.0,
-                lifetime=rng.uniform(1.65, 2.25),
-                opacity=rng.uniform(72, 112) * (0.72 + speed * 0.38),
+                lifetime=rng.uniform(1.65, 2.1),
+                opacity=rng.uniform(125, 170) * (0.80 + speed * 0.24),
                 phase=rng.uniform(0, math.tau),
-                turbulence=rng.uniform(0.7, 1.4),
+                turbulence=rng.uniform(0.74, 1.38),
             ))
 
     return accumulator
@@ -253,8 +268,11 @@ def advance_smoke(particles: list[SmokeParticle], dt: float) -> None:
         particle.age += dt
         particle.x += (particle.vx + math.sin(particle.phase) * 1.8 * particle.turbulence) * dt
         particle.y += (particle.vy + math.cos(particle.phase * .83) * 1.1) * dt
-        particle.vx -= 1.0 * dt
-        particle.vy -= 0.45 * dt
+        # Exponentiell aehnlicher Widerstand gegen die Umgebungsluft. Ein
+        # leichter linker Luftzug bleibt, waehrend die starke anfaengliche
+        # Vorwaertskomponente binnen etwa einer Sekunde ausklingt.
+        particle.vx += (-2.0 - particle.vx) * min(1.0, dt * 1.45)
+        particle.vy -= 0.65 * dt
         particle.radius += particle.growth * dt
         particle.phase += dt * 2.4 * particle.turbulence
 
@@ -270,9 +288,10 @@ def smoke_frame(particles: list[SmokeParticle], theme: str) -> Image.Image:
     for particle in particles:
         life = particle.age / particle.lifetime
         fade = max(0.0, 1 - life)
-        opacity = round(particle.opacity * fade ** 1.55)
+        opacity = round(particle.opacity * fade ** 1.18)
         radius = particle.radius
-        extent = math.ceil(radius * (2.25 + particle.turbulence) * scale)
+        ribbon_length = radius * (2.25 + life * 1.35)
+        extent = math.ceil((ribbon_length + radius * 2.4) * scale)
         center_x = particle.x * scale
         center_y = particle.y * scale
         left = math.floor(center_x - extent)
@@ -283,40 +302,79 @@ def smoke_frame(particles: list[SmokeParticle], theme: str) -> Image.Image:
         cx = center_x - left
         cy = center_y - top
 
-        # Eine weiche aeussere Dampfhuelle und kleinere turbulente Loben
-        # verhindern geometrische Kreisformen. Der dichtere Kern bleibt am
-        # frischen Ausstoss sichtbar und zerfasert mit zunehmendem Alter.
-        outer_radius = radius * (1.34 + life * .2) * scale
-        draw.ellipse(
-            (cx - outer_radius * 1.18, cy - outer_radius * .72,
-             cx + outer_radius * 1.18, cy + outer_radius * .72),
-            fill=(*color, round(opacity * .24)),
-        )
+        # Rauch ist keine Ansammlung runder Sprites. Jede physikalische
+        # Partikelposition wird deshalb als verjuengtes, gekruemmtes Band in
+        # Stroemungsrichtung gerendert. Die horizontale Komponente wird fuer
+        # die Kontur begrenzt: Der Vorwaertsimpuls verschiebt die Wolke, der
+        # heisse Rauch selbst steigt trotzdem deutlich nach oben.
+        flow_x = max(-7.0, min(7.0, particle.vx * .16))
+        flow_y = min(-5.0, particle.vy)
+        flow_length = math.hypot(flow_x, flow_y) or 1
+        direction_x = flow_x / flow_length
+        direction_y = flow_y / flow_length
+        normal_x = -direction_y
+        normal_y = direction_x
 
-        # Erst die helleren Randloben, danach der dichte Kern. ImageDraw
-        # ersetzt Pixel statt Alpha zu addieren; die umgekehrte Reihenfolge
-        # wuerde deshalb unnatuerliche helle Ringe in die Wolken stanzen.
-        for lobe in range(9):
-            angle = particle.phase + lobe * (math.tau / 9)
-            spread = radius * (0.42 + 0.13 * math.sin(particle.phase * 1.7 + lobe)) * scale
-            lobe_radius = radius * (0.42 + 0.14 * math.cos(lobe * 1.9 + particle.phase)) * scale
-            x = cx + math.cos(angle) * spread * particle.turbulence
-            y = cy + math.sin(angle) * spread * 0.68
-            draw.ellipse(
-                (x - lobe_radius, y - lobe_radius * .78,
-                 x + lobe_radius, y + lobe_radius * .78),
-                fill=(*color, round(opacity * .48)),
+        centers: list[tuple[float, float]] = []
+        half_widths: list[float] = []
+        steps = 15
+        for step in range(steps):
+            progress = step / (steps - 1)
+            along = (progress - .43) * ribbon_length * scale
+            curl = (
+                math.sin(particle.phase + progress * math.tau * 1.18) * .23
+                + math.sin(particle.phase * .61 - progress * math.tau * 2.35) * .09
+            ) * radius * scale * particle.turbulence
+            centers.append((
+                cx + direction_x * along + normal_x * curl,
+                cy + direction_y * along + normal_y * curl,
+            ))
+            envelope = math.sin(math.pi * progress) ** .62
+            contour_noise = 1 + .16 * math.sin(
+                particle.phase * 1.31 + progress * math.tau * 3.2
+            )
+            half_widths.append(
+                radius * scale * (.10 + envelope * (.58 + life * .32)) * contour_noise
             )
 
-        core_radius = radius * (1 - life * .3) * scale
-        draw.ellipse(
-            (cx - core_radius, cy - core_radius * .72,
-             cx + core_radius, cy + core_radius * .72),
-            fill=(*color, round(opacity * .58)),
-        )
+        left_edge = [
+            (x + normal_x * width, y + normal_y * width)
+            for (x, y), width in zip(centers, half_widths)
+        ]
+        right_edge = [
+            (x - normal_x * width, y - normal_y * width)
+            for (x, y), width in reversed(list(zip(centers, half_widths)))
+        ]
+        draw.polygon(left_edge + right_edge, fill=(*color, round(opacity * .31)))
+
+        # Drei unterschiedlich phasenverschobene Wirbelfaeden sorgen fuer
+        # erkennbare Stroemung innerhalb der transparenten Huelle. Teilstuecke
+        # fehlen bewusst, sodass die Linien weich zerfasern statt technisch
+        # durchgezogen zu wirken.
+        for strand in range(3):
+            strand_points: list[tuple[float, float]] = []
+            for step, (x, y) in enumerate(centers):
+                progress = step / (steps - 1)
+                offset = math.sin(
+                    particle.phase * (1.0 + strand * .17)
+                    + progress * math.tau * (1.35 + strand * .23)
+                    + strand * 2.05
+                ) * half_widths[step] * (.34 + strand * .08)
+                strand_points.append((x + normal_x * offset, y + normal_y * offset))
+
+            strand_width = max(1, round(radius * scale * (.18 + (2 - strand) * .035)))
+            strand_alpha = round(opacity * (.46 - strand * .07) * (1 - life * .22))
+            for segment in range(0, steps - 1, 3):
+                end = min(steps, segment + 3)
+                draw.line(
+                    strand_points[segment:end],
+                    fill=(*color, strand_alpha),
+                    width=strand_width,
+                    joint="curve",
+                )
         layer.alpha_composite(puff, dest=(left, top))
 
-    return layer.filter(ImageFilter.GaussianBlur(2.4 * scale)).resize(
+    return layer.filter(ImageFilter.GaussianBlur(.85 * scale)).resize(
         GIF_SIZE,
         Image.Resampling.LANCZOS,
     )
@@ -341,6 +399,7 @@ def animated_frames(train: Image.Image, theme: str, steam: bool) -> tuple[list[I
     durations: list[int] = [START_DELAY_MS]
     accumulator = 0.0
     last_distance = 0.0
+    last_offset = -train_travel
 
     for index in range(MOTION_FRAMES):
         # Der erste Bewegungsframe folgt erst nach dem separaten 300-ms-
@@ -357,14 +416,24 @@ def animated_frames(train: Image.Image, theme: str, steam: bool) -> tuple[list[I
         offset = round(-train_travel * (1 - distance))
         chimney_x = offset + 459
         dt = MOTION_FRAME_MS / 1000
+        screen_velocity = (offset - last_offset) / dt
 
         if steam:
-            accumulator = emit_smoke(particles, rng, chimney_x, speed, accumulator, dt)
+            accumulator = emit_smoke(
+                particles,
+                rng,
+                chimney_x,
+                speed,
+                screen_velocity,
+                accumulator,
+                dt,
+            )
             advance_smoke(particles, dt)
 
         frames.append(composite_frame(train_small, theme, offset, smoke_frame(particles, theme) if steam else None))
         durations.append(MOTION_FRAME_MS)
         last_distance = distance
+        last_offset = offset
 
     if steam:
         for index in range(SMOKE_TAIL_FRAMES):
@@ -386,22 +455,29 @@ def idle_frames(train: Image.Image, theme: str) -> tuple[list[Image.Image], list
         cycle = frame_index / IDLE_FRAMES
         particles: list[SmokeParticle] = []
 
-        for puff_index in range(7):
-            age = (cycle + puff_index / 7) % 1
-            for fragment in range(2):
-                phase = puff_index * 1.83 + fragment * 2.27
+        # Fuenf sanfte Druckimpulse bilden keine starre Rauchsaule. Jeder
+        # Impuls startet schmal am Schornstein, steigt steil nach oben und
+        # zerfaellt dort in vier unterschiedlich grosse Wirbel. Das zyklische
+        # Alter macht den Uebergang des Idle-GIFs nahtlos.
+        for puff_index in range(5):
+            age = (cycle + puff_index / 5) % 1
+            rise = age * 22 + age**2 * 4
+            drift = age * 1.8 + age**2 * 6.5
+            for fragment in range(4):
+                phase = puff_index * 1.61 + fragment * 1.47
+                fragment_spread = (fragment - 1.5) * (0.35 + age * .72)
                 particles.append(SmokeParticle(
-                    x=459 - age * (52 + fragment * 7) + math.sin(age * math.tau + phase) * 3.2,
-                    y=27 - age * (19 + fragment * 3) + math.cos(age * math.tau * 1.4 + phase) * 1.8,
-                    vx=-7,
-                    vy=-6,
-                    radius=2.6 + age * (8.4 + fragment * 1.4),
-                    growth=5,
+                    x=459 - drift + fragment_spread + math.sin(age * math.tau + phase) * (0.35 + age * 1.35),
+                    y=27 - rise + math.cos(age * math.tau * 1.25 + phase) * (0.3 + age * .8),
+                    vx=-2.2,
+                    vy=-12,
+                    radius=2.1 + age * (7.8 + fragment * .35),
+                    growth=8,
                     age=age,
                     lifetime=1.0,
-                    opacity=54 + fragment * 7,
+                    opacity=102 + fragment * 7,
                     phase=phase + cycle * math.tau,
-                    turbulence=0.76 + fragment * .2,
+                    turbulence=0.76 + fragment * .13,
                 ))
 
         frames.append(composite_frame(train_small, theme, 0, smoke_frame(particles, theme)))
@@ -422,7 +498,10 @@ def save_gif(
     palette_strip = Image.new("RGB", (GIF_SIZE[0], GIF_SIZE[1] * len(frames)))
     for index, frame in enumerate(frames):
         palette_strip.paste(frame, (0, index * GIF_SIZE[1]))
-    palette = palette_strip.quantize(colors=6, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
+    # Sieben gemeinsame Farben reichen fuer mailtaugliche Dateigroessen,
+    # bewahren aber mehrere Alpha-/Rauchabstufungen. Mit nur sechs Farben
+    # wurden feine Wirbel zu optisch runden, einfarbigen Flecken reduziert.
+    palette = palette_strip.quantize(colors=7, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
     quantized = [
         frame.quantize(palette=palette, dither=Image.Dither.NONE)
         for frame in frames
@@ -448,8 +527,19 @@ def save_gif(
         transparency_index = 1
         transparent = Image.new("P", GIF_SIZE, transparency_index)
         transparent.putpalette(shifted_palette)
+        # Ein einzelner Hintergrundpixel verhindert, dass GIF-Encoder die
+        # ansonsten vollstaendig transparente Abschlusskachel als redundant
+        # verwerfen. Bei 720 x 75 ist dieser technische Anker unsichtbar; alle
+        # uebrigen 53.999 Pixel geben den darunterliegenden Idle-Loop frei.
+        transparent.putpixel((0, 0), 2)
         quantized.append(transparent)
-        durations = [*durations, 0]
+        # Manche Pillow/GIF-Kombinationen verwerfen ein transparentes
+        # Schlussbild mit 0 ms (bei der dunklen Palette trat das reproduzierbar
+        # auf). Zehn Millisekunden werden vom letzten Rauchframe umgebucht:
+        # Gesamtdauer und sichtbarer Ablauf bleiben gleich, die Idle-Ebene wird
+        # aber in beiden Themen garantiert freigegeben.
+        reveal_duration = 10
+        durations = [*durations[:-1], durations[-1] - reveal_duration, reveal_duration]
         quantized[0].info["transparency"] = transparency_index
         save_options.update({
             "transparency": transparency_index,
@@ -533,7 +623,10 @@ def assert_assets() -> None:
                 errors.append(f"{gif_path.name}: nur {gif.n_frames} Frames")
 
             gif.seek(gif.n_frames - 1)
-            if gif.convert("RGBA").getchannel("A").getextrema()[1] != 0:
+            final_alpha = gif.convert("RGBA").getchannel("A")
+            alpha_histogram = final_alpha.histogram()
+            visible_pixels = GIF_SIZE[0] * GIF_SIZE[1] - alpha_histogram[0]
+            if visible_pixels > 1:
                 errors.append(f"{gif_path.name}: Endbild gibt die Idle-Ebene nicht frei")
 
         with Image.open(idle_path) as idle:
