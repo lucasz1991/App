@@ -532,38 +532,526 @@ function applySafeZone(instance, enabled) {
     documentFrame.documentElement.classList.toggle('rt-marketing-safe-zone', Boolean(enabled));
 }
 
-function applyArtboard(instance, format, frame, zoom = 'fit') {
+export function calculateArtboardGeometry({
+    format = 'story',
+    hostWidth = 0,
+    hostHeight = 0,
+    zoom = 'fit',
+    inset = 28,
+} = {}) {
     const artboard = resolveArtboard(format);
-    const editor = instance?.editor;
-    if (!editor) return;
+    const normalizedInset = Math.max(0, Number.isFinite(Number(inset)) ? Number(inset) : 0);
+    const normalizedHostWidth = Math.max(0, Number.isFinite(Number(hostWidth)) ? Number(hostWidth) : 0);
+    const normalizedHostHeight = Math.max(0, Number.isFinite(Number(hostHeight)) ? Number(hostHeight) : 0);
+    const availableWidth = Math.max(0, normalizedHostWidth - (normalizedInset * 2));
+    const availableHeight = Math.max(0, normalizedHostHeight - (normalizedInset * 2));
+    const numericZoom = typeof zoom === 'string' && zoom.trim() === '' ? Number.NaN : Number(zoom);
+    const fit = zoom === 'fit' || !Number.isFinite(numericZoom);
+    let scale;
 
-    const deviceId = `rt-marketing-${format}`;
-    const devices = editor.DeviceManager;
-    if (!devices.get(deviceId)) {
-        devices.add(deviceId, {
-            id: deviceId,
-            name: artboard.label,
-            width: `${artboard.width}px`,
-            height: `${artboard.height}px`,
-        });
+    if (fit) {
+        const constraints = [1];
+        if (availableWidth > 0) constraints.push(availableWidth / artboard.width);
+        if (availableHeight > 0) constraints.push(availableHeight / artboard.height);
+        scale = Math.max(0.0001, Math.min(...constraints));
+    } else {
+        scale = Math.max(0.01, Math.min(1, numericZoom / 100));
     }
-    editor.setDevice(deviceId);
 
-    frame.dataset.format = format;
-    frame.style.setProperty('--rt-marketing-artboard-width', String(artboard.width));
-    frame.style.setProperty('--rt-marketing-artboard-height', String(artboard.height));
-
-    window.requestAnimationFrame(() => {
-        let percentage = Number(zoom);
-        if (zoom === 'fit' || !Number.isFinite(percentage)) {
-            const viewport = frame.querySelector('.lmz-builder__main');
-            const availableWidth = Math.max(240, (viewport?.clientWidth || frame.clientWidth) - 56);
-            const availableHeight = Math.max(280, (viewport?.clientHeight || frame.clientHeight) - 56);
-            percentage = Math.min(100, (availableWidth / artboard.width) * 100, (availableHeight / artboard.height) * 100);
-        }
-
-        editor.Canvas?.setZoom?.(Math.max(10, Math.min(100, percentage)));
+    return Object.freeze({
+        format: MARKETING_ARTBOARDS[format] ? format : 'story',
+        mode: fit ? 'fit' : 'fixed',
+        logicalWidth: artboard.width,
+        logicalHeight: artboard.height,
+        hostWidth: normalizedHostWidth,
+        hostHeight: normalizedHostHeight,
+        availableWidth,
+        availableHeight,
+        scale,
+        zoom: scale * 100,
+        displayWidth: artboard.width * scale,
+        displayHeight: artboard.height * scale,
     });
+}
+
+export function createArtboardViewportController({
+    instance,
+    frame,
+    format = 'story',
+    zoom = 'fit',
+    inset = 28,
+    onChange = null,
+    environment = {},
+} = {}) {
+    const editor = instance?.editor;
+    if (!editor || !frame) {
+        throw new TypeError('Artboard-Viewport benötigt eine LMZ-Editorinstanz und einen Host.');
+    }
+
+    const browserWindow = typeof window !== 'undefined' ? window : null;
+    const requestFrame = environment.requestAnimationFrame
+        || browserWindow?.requestAnimationFrame?.bind(browserWindow)
+        || null;
+    const cancelFrame = environment.cancelAnimationFrame
+        || browserWindow?.cancelAnimationFrame?.bind(browserWindow)
+        || null;
+    const ResizeObserverClass = Object.prototype.hasOwnProperty.call(environment, 'ResizeObserver')
+        ? environment.ResizeObserver
+        : (browserWindow?.ResizeObserver || globalThis.ResizeObserver);
+    const artboard = resolveArtboard(format);
+    const deviceId = `rt-marketing-${MARKETING_ARTBOARDS[format] ? format : 'story'}`;
+    let zoomMode = zoom;
+    let observedHost = null;
+    let scheduledFrame = null;
+    let destroyed = false;
+    let latestGeometry = null;
+    let controller = null;
+
+    const existingDevice = editor.DeviceManager?.get?.(deviceId);
+    const deviceAttributes = {
+        id: deviceId,
+        name: artboard.label,
+        width: `${artboard.width}px`,
+        height: `${artboard.height}px`,
+    };
+    if (existingDevice?.set) {
+        existingDevice.set(deviceAttributes);
+    } else if (!existingDevice) {
+        editor.DeviceManager?.add?.(deviceId, deviceAttributes);
+    }
+    editor.setDevice?.(deviceId);
+
+    const logicalWidth = `${artboard.width}px`;
+    const logicalHeight = `${artboard.height}px`;
+    frame.dataset.format = MARKETING_ARTBOARDS[format] ? format : 'story';
+    frame.dataset.logicalWidth = String(artboard.width);
+    frame.dataset.logicalHeight = String(artboard.height);
+    frame.style?.setProperty?.('--rt-marketing-artboard-width', logicalWidth);
+    frame.style?.setProperty?.('--rt-marketing-artboard-height', logicalHeight);
+    frame.style?.setProperty?.('--rt-marketing-logical-width', logicalWidth);
+    frame.style?.setProperty?.('--rt-marketing-logical-height', logicalHeight);
+
+    const resolveHost = () => frame.querySelector?.('.lmz-builder__main') || frame;
+    const observer = typeof ResizeObserverClass === 'function'
+        ? new ResizeObserverClass(() => controller?.refresh())
+        : null;
+
+    const observeCurrentHost = () => {
+        const host = resolveHost();
+        if (host === observedHost) return host;
+
+        if (observedHost) observer?.disconnect?.();
+        observer?.observe?.(host);
+        observedHost = host;
+
+        return host;
+    };
+
+    const applyGeometry = () => {
+        scheduledFrame = null;
+        if (destroyed) return;
+
+        const host = observeCurrentHost();
+        const measuredWidth = Number(host?.clientWidth) > 0 ? host.clientWidth : frame.clientWidth;
+        const measuredHeight = Number(host?.clientHeight) > 0 ? host.clientHeight : frame.clientHeight;
+        latestGeometry = calculateArtboardGeometry({
+            format,
+            hostWidth: measuredWidth,
+            hostHeight: measuredHeight,
+            zoom: zoomMode,
+            inset,
+        });
+        editor.Canvas?.setZoom?.(latestGeometry.zoom);
+        frame.dataset.zoomMode = latestGeometry.mode;
+        frame.dataset.editorZoom = String(latestGeometry.zoom);
+        frame.dataset.displayWidth = String(latestGeometry.displayWidth);
+        frame.dataset.displayHeight = String(latestGeometry.displayHeight);
+        frame.style?.setProperty?.('--rt-marketing-scale', String(latestGeometry.scale));
+        frame.style?.setProperty?.('--rt-marketing-zoom-percent', `${latestGeometry.zoom}%`);
+        frame.style?.setProperty?.('--rt-marketing-display-width', `${latestGeometry.displayWidth}px`);
+        frame.style?.setProperty?.('--rt-marketing-display-height', `${latestGeometry.displayHeight}px`);
+        onChange?.(latestGeometry);
+    };
+
+    const onFrameLoad = () => controller?.refresh();
+    controller = {
+        refresh() {
+            if (destroyed) return;
+
+            observeCurrentHost();
+            if (scheduledFrame !== null && cancelFrame) cancelFrame(scheduledFrame);
+            if (requestFrame) {
+                scheduledFrame = requestFrame(applyGeometry);
+            } else {
+                applyGeometry();
+            }
+        },
+
+        setZoom(nextZoom) {
+            zoomMode = nextZoom;
+            this.refresh();
+        },
+
+        getGeometry() {
+            return latestGeometry;
+        },
+
+        destroy() {
+            if (destroyed) return;
+            destroyed = true;
+            if (scheduledFrame !== null && cancelFrame) cancelFrame(scheduledFrame);
+            scheduledFrame = null;
+            observer?.disconnect?.();
+            observedHost = null;
+            editor.off?.('canvas:frame:load', onFrameLoad);
+        },
+    };
+
+    editor.on?.('canvas:frame:load', onFrameLoad);
+    controller.refresh();
+
+    return controller;
+}
+
+export function createFixedArtboardPanController({
+    instance,
+    frame,
+    hint = null,
+    threshold = 8,
+    environment = {},
+} = {}) {
+    const editor = instance?.editor;
+    if (!editor || !frame) {
+        throw new TypeError('Touch-Panning benötigt eine LMZ-Editorinstanz und einen Host.');
+    }
+
+    const browserWindow = typeof window !== 'undefined' ? window : null;
+    const supportsPointerEvents = Object.prototype.hasOwnProperty.call(environment, 'supportsPointerEvents')
+        ? Boolean(environment.supportsPointerEvents)
+        : Boolean(browserWindow?.PointerEvent);
+    const touchCapable = Object.prototype.hasOwnProperty.call(environment, 'touchCapable')
+        ? Boolean(environment.touchCapable)
+        : Boolean(
+            (browserWindow?.navigator?.maxTouchPoints || 0) > 0
+            || browserWindow?.matchMedia?.('(pointer: coarse)')?.matches,
+        );
+    const queueTask = environment.queueMicrotask
+        || browserWindow?.queueMicrotask?.bind(browserWindow)
+        || globalThis.queueMicrotask?.bind(globalThis)
+        || ((callback) => Promise.resolve().then(callback));
+    const movementThreshold = Math.max(1, Number(threshold) || 8);
+    const listenerOptions = { capture: true, passive: false };
+    const bindings = [];
+    let shell = null;
+    let enabled = false;
+    let destroyed = false;
+    let bindGeneration = 0;
+    let gesture = null;
+
+    frame.dataset.touchPanning = 'false';
+    frame.dataset.touchPanningActive = 'false';
+    if (hint) hint.hidden = true;
+
+    const canStart = () => enabled
+        && frame.dataset.zoomMode === 'fixed'
+        && shell
+        && (shell.scrollWidth > shell.clientWidth || shell.scrollHeight > shell.clientHeight);
+
+    const preventPanDefaults = (event, stopPropagation = true) => {
+        if (event?.cancelable !== false) event?.preventDefault?.();
+        if (stopPropagation) event?.stopPropagation?.();
+    };
+
+    const finishGesture = (event = null) => {
+        if (!gesture) return;
+        const finished = gesture;
+        gesture = null;
+        frame.dataset.touchPanningActive = 'false';
+        if (finished.panning) preventPanDefaults(event, false);
+        try {
+            finished.captureTarget?.releasePointerCapture?.(finished.id);
+        } catch {
+            // The iframe may have been replaced while a pointer was active.
+        }
+    };
+
+    const beginGesture = ({ id, pointerType, clientX, clientY, captureTarget }) => {
+        if (gesture || !canStart() || !['touch', 'pen'].includes(pointerType)) return;
+
+        gesture = {
+            id,
+            pointerType,
+            startX: Number(clientX) || 0,
+            startY: Number(clientY) || 0,
+            startScrollLeft: Number(shell.scrollLeft) || 0,
+            startScrollTop: Number(shell.scrollTop) || 0,
+            captureTarget,
+            panning: false,
+        };
+        try {
+            captureTarget?.setPointerCapture?.(id);
+        } catch {
+            // Pointer capture is optional inside embedded documents.
+        }
+    };
+
+    const moveGesture = ({ id, clientX, clientY, event }) => {
+        if (!gesture || gesture.id !== id || !canStart()) return;
+
+        const deltaX = (Number(clientX) || 0) - gesture.startX;
+        const deltaY = (Number(clientY) || 0) - gesture.startY;
+        if (!gesture.panning && Math.hypot(deltaX, deltaY) < movementThreshold) return;
+
+        gesture.panning = true;
+        frame.dataset.touchPanningActive = 'true';
+        const maxScrollLeft = Math.max(0, shell.scrollWidth - shell.clientWidth);
+        const maxScrollTop = Math.max(0, shell.scrollHeight - shell.clientHeight);
+        shell.scrollLeft = Math.max(0, Math.min(maxScrollLeft, gesture.startScrollLeft - deltaX));
+        shell.scrollTop = Math.max(0, Math.min(maxScrollTop, gesture.startScrollTop - deltaY));
+        preventPanDefaults(event);
+    };
+
+    const pointerDown = (event) => beginGesture({
+        id: event.pointerId,
+        pointerType: event.pointerType,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        captureTarget: event.target,
+    });
+    const pointerMove = (event) => moveGesture({
+        id: event.pointerId,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        event,
+    });
+    const pointerEnd = (event) => {
+        if (gesture?.id !== event.pointerId) return;
+        finishGesture(event);
+    };
+
+    const findTouch = (touches, identifier) => Array.from(touches || [])
+        .find((touch) => touch.identifier === identifier);
+    const touchStart = (event) => {
+        if ((event.touches?.length || 0) !== 1) return;
+        const touch = event.touches[0];
+        beginGesture({
+            id: touch.identifier,
+            pointerType: 'touch',
+            clientX: touch.clientX,
+            clientY: touch.clientY,
+            captureTarget: null,
+        });
+    };
+    const touchMove = (event) => {
+        const touch = findTouch(event.touches, gesture?.id);
+        if (!touch) return;
+        moveGesture({
+            id: touch.identifier,
+            clientX: touch.clientX,
+            clientY: touch.clientY,
+            event,
+        });
+    };
+    const touchEnd = (event) => {
+        if (!gesture || !findTouch(event.changedTouches, gesture.id)) return;
+        finishGesture(event);
+    };
+
+    const addBinding = (target, type, listener) => {
+        if (!target?.addEventListener) return;
+        target.addEventListener(type, listener, listenerOptions);
+        bindings.push({ target, type, listener });
+    };
+
+    const detachTargets = () => {
+        finishGesture();
+        bindings.splice(0).forEach(({ target, type, listener }) => {
+            target.removeEventListener?.(type, listener, listenerOptions);
+        });
+        shell = null;
+    };
+
+    const bindTargets = () => {
+        if (destroyed) return;
+        detachTargets();
+        shell = frame.querySelector?.('.lmz-builder__canvas-shell') || null;
+        if (!shell) return;
+
+        let canvasDocument = null;
+        try {
+            canvasDocument = editor.Canvas?.getDocument?.() || null;
+        } catch {
+            canvasDocument = null;
+        }
+        const targets = [...new Set([shell, canvasDocument].filter(Boolean))];
+        targets.forEach((target) => {
+            if (supportsPointerEvents) {
+                addBinding(target, 'pointerdown', pointerDown);
+                addBinding(target, 'pointermove', pointerMove);
+                addBinding(target, 'pointerup', pointerEnd);
+                addBinding(target, 'pointercancel', pointerEnd);
+                addBinding(target, 'lostpointercapture', pointerEnd);
+            } else {
+                addBinding(target, 'touchstart', touchStart);
+                addBinding(target, 'touchmove', touchMove);
+                addBinding(target, 'touchend', touchEnd);
+                addBinding(target, 'touchcancel', touchEnd);
+            }
+        });
+    };
+
+    const onFrameLoad = () => {
+        const generation = ++bindGeneration;
+        queueTask(() => {
+            if (!destroyed && generation === bindGeneration) bindTargets();
+        });
+    };
+
+    editor.on?.('canvas:frame:load', onFrameLoad);
+    bindTargets();
+
+    return {
+        setEnabled(nextEnabled) {
+            const next = Boolean(nextEnabled)
+                && touchCapable
+                && frame.dataset.zoomMode === 'fixed';
+            if (enabled === next) return;
+            enabled = next;
+            frame.dataset.touchPanning = enabled ? 'true' : 'false';
+            if (hint) hint.hidden = !enabled;
+            if (!enabled) finishGesture();
+        },
+
+        refresh: bindTargets,
+
+        destroy() {
+            if (destroyed) return;
+            destroyed = true;
+            bindGeneration += 1;
+            enabled = false;
+            frame.dataset.touchPanning = 'false';
+            frame.dataset.touchPanningActive = 'false';
+            if (hint) hint.hidden = true;
+            editor.off?.('canvas:frame:load', onFrameLoad);
+            detachTargets();
+        },
+    };
+}
+
+export function closeInitialMobilePopovers(root, mediaQuery) {
+    if (!root || mediaQuery?.matches !== true) return 0;
+
+    let closed = 0;
+    root.querySelectorAll?.('[data-lmz-popover].is-open')?.forEach((popover) => {
+        if (popover.hidden === true) return;
+
+        const activePanel = popover.querySelector?.('[data-lmz-popover-panel].is-active:not([hidden])');
+        const closeButton = activePanel?.querySelector?.('[data-lmz-panel-close]')
+            || popover.querySelector?.('[data-lmz-panel-close]');
+        if (!closeButton || closeButton.disabled) return;
+
+        closeButton.click();
+        closed += 1;
+    });
+
+    return closed;
+}
+
+export function scheduleInitialMobilePopoverClose({
+    root,
+    mediaQuery,
+    editor = null,
+    isCurrent = () => true,
+    fallbackDelay = 400,
+    environment = {},
+} = {}) {
+    if (!root || mediaQuery?.matches !== true) return () => {};
+
+    const browserWindow = typeof window !== 'undefined' ? window : null;
+    const queueTask = environment.queueMicrotask
+        || browserWindow?.queueMicrotask?.bind(browserWindow)
+        || globalThis.queueMicrotask?.bind(globalThis)
+        || ((callback) => Promise.resolve().then(callback));
+    const requestFrame = environment.requestAnimationFrame
+        || browserWindow?.requestAnimationFrame?.bind(browserWindow)
+        || null;
+    const cancelFrame = environment.cancelAnimationFrame
+        || browserWindow?.cancelAnimationFrame?.bind(browserWindow)
+        || null;
+    const setTimer = environment.setTimeout
+        || browserWindow?.setTimeout?.bind(browserWindow)
+        || globalThis.setTimeout?.bind(globalThis);
+    const clearTimer = environment.clearTimeout
+        || browserWindow?.clearTimeout?.bind(browserWindow)
+        || globalThis.clearTimeout?.bind(globalThis);
+    const watchedEvents = ['canvas:frame:load', 'component:selected'];
+    const seenEvents = new Set();
+    const eventHandlers = new Map();
+    let disposed = false;
+    let scheduledFrame = null;
+    let fallbackTimer = null;
+
+    const cleanup = () => {
+        if (disposed) return;
+        disposed = true;
+        if (scheduledFrame !== null && cancelFrame) cancelFrame(scheduledFrame);
+        scheduledFrame = null;
+        if (fallbackTimer !== null && clearTimer) clearTimer(fallbackTimer);
+        fallbackTimer = null;
+        eventHandlers.forEach((handler, eventName) => editor?.off?.(eventName, handler));
+        eventHandlers.clear();
+    };
+
+    const scheduleClose = (finish = false) => {
+        if (disposed || !isCurrent()) {
+            cleanup();
+            return;
+        }
+        if (scheduledFrame !== null && cancelFrame) cancelFrame(scheduledFrame);
+
+        const close = () => {
+            scheduledFrame = null;
+            if (disposed || !isCurrent()) {
+                cleanup();
+                return;
+            }
+            closeInitialMobilePopovers(root, mediaQuery);
+            if (finish) cleanup();
+        };
+
+        if (requestFrame) {
+            scheduledFrame = requestFrame(close);
+        } else {
+            close();
+        }
+    };
+
+    watchedEvents.forEach((eventName) => {
+        const handler = () => {
+            if (disposed) return;
+            seenEvents.add(eventName);
+            scheduleClose(seenEvents.size === watchedEvents.length);
+        };
+        eventHandlers.set(eventName, handler);
+        editor?.on?.(eventName, handler);
+    });
+
+    queueTask(() => {
+        if (disposed || !isCurrent()) {
+            cleanup();
+            return;
+        }
+        scheduleClose(false);
+    });
+
+    if (setTimer) {
+        fallbackTimer = setTimer(() => {
+            fallbackTimer = null;
+            scheduleClose(true);
+        }, Math.max(0, Number(fallbackDelay) || 0));
+    }
+
+    return cleanup;
 }
 
 function setFormatButtons(workspace, format) {
@@ -662,6 +1150,7 @@ export async function createMarketingStudio(workspace, config) {
     const sharedForm = workspace.querySelector('[data-marketing-shared-form]');
     const safeToggle = workspace.querySelector('[data-marketing-safe-zone]');
     const zoomControl = workspace.querySelector('[data-marketing-zoom]');
+    const panHint = workspace.querySelector('[data-marketing-pan-hint]');
     const exportButton = workspace.querySelector('[data-marketing-export]');
     const readOnly = config.status === 'archived';
 
@@ -675,9 +1164,25 @@ export async function createMarketingStudio(workspace, config) {
     const renderTimers = new Set();
     let currentFormat = MARKETING_ARTBOARDS[config.currentFormat] ? config.currentFormat : 'story';
     let instance = null;
+    let artboardViewport = null;
+    let touchPanController = null;
+    let detachSafeZoneFrameLoad = null;
+    let cancelInitialMobilePopoverClose = null;
     let destroyed = false;
     let renderRequest = 0;
     let renderAbortController = null;
+
+    const updateArtboardStatus = (geometry) => {
+        const artboard = resolveArtboard(geometry.format);
+        const artboardLabel = workspace.querySelector('[data-marketing-artboard-label]');
+        const scaleLabel = workspace.querySelector('[data-marketing-scale-label]');
+        if (artboardLabel) {
+            artboardLabel.textContent = `${artboard.label} · ${artboard.width} × ${artboard.height} px`;
+        }
+        if (scaleLabel) {
+            scaleLabel.textContent = `Ansicht ${Math.round(geometry.zoom)} %`;
+        }
+    };
 
     const schedule = (callback, delay) => {
         const timer = window.setTimeout(() => {
@@ -715,6 +1220,14 @@ export async function createMarketingStudio(workspace, config) {
 
     const startBuilder = async (format) => {
         invalidateRender();
+        detachSafeZoneFrameLoad?.();
+        detachSafeZoneFrameLoad = null;
+        cancelInitialMobilePopoverClose?.();
+        cancelInitialMobilePopoverClose = null;
+        touchPanController?.destroy();
+        touchPanController = null;
+        artboardViewport?.destroy();
+        artboardViewport = null;
         if (instance) {
             instance.destroy();
             instance = null;
@@ -807,14 +1320,36 @@ export async function createMarketingStudio(workspace, config) {
                 control.setAttribute('aria-disabled', 'true');
             });
         }
-        applyArtboard(instance, format, frame, zoomControl?.value || 'fit');
-        applySafeZone(instance, safeToggle?.checked !== false);
-        if (!readOnly && await syncQrCode(instance.editor, config.sharedContent?.cta_url)) {
-            await instance.save('qr-binding-sync');
+        const readyInstance = instance;
+        touchPanController = createFixedArtboardPanController({
+            instance: readyInstance,
+            frame,
+            hint: panHint,
+        });
+        artboardViewport = createArtboardViewportController({
+            instance: readyInstance,
+            frame,
+            format,
+            zoom: zoomControl?.value || 'fit',
+            onChange: (geometry) => {
+                updateArtboardStatus(geometry);
+                touchPanController?.setEnabled(geometry.mode === 'fixed');
+            },
+        });
+        applySafeZone(readyInstance, safeToggle?.checked !== false);
+        if (!readOnly && await syncQrCode(readyInstance.editor, config.sharedContent?.cta_url)) {
+            await readyInstance.save('qr-binding-sync');
         }
-        instance.editor.on('canvas:frame:load', () => {
-            applyArtboard(instance, currentFormat, frame, zoomControl?.value || 'fit');
-            applySafeZone(instance, safeToggle?.checked !== false);
+        if (destroyed || instance !== readyInstance) return;
+
+        const onSafeZoneFrameLoad = () => applySafeZone(readyInstance, safeToggle?.checked !== false);
+        readyInstance.editor.on('canvas:frame:load', onSafeZoneFrameLoad);
+        detachSafeZoneFrameLoad = () => readyInstance.editor.off?.('canvas:frame:load', onSafeZoneFrameLoad);
+        cancelInitialMobilePopoverClose = scheduleInitialMobilePopoverClose({
+            root,
+            mediaQuery: window.matchMedia?.('(max-width: 899.98px)'),
+            editor: readyInstance.editor,
+            isCurrent: () => !destroyed && instance === readyInstance,
         });
     };
 
@@ -844,8 +1379,13 @@ export async function createMarketingStudio(workspace, config) {
     }, { signal: abortController.signal });
 
     zoomControl?.addEventListener('change', () => {
-        applyArtboard(instance, currentFormat, frame, zoomControl.value);
+        artboardViewport?.setZoom(zoomControl.value);
     }, { signal: abortController.signal });
+
+    const refreshArtboardViewport = () => artboardViewport?.refresh();
+    workspace.addEventListener('marketing-editor:viewport-change', refreshArtboardViewport, { signal: abortController.signal });
+    document.addEventListener('marketing-editor:viewport-change', refreshArtboardViewport, { signal: abortController.signal });
+    window.addEventListener('marketing-editor:viewport-change', refreshArtboardViewport, { signal: abortController.signal });
 
     sharedForm?.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -1008,6 +1548,14 @@ export async function createMarketingStudio(workspace, config) {
             abortController.abort();
             timers.forEach((timer) => window.clearTimeout(timer));
             timers.clear();
+            detachSafeZoneFrameLoad?.();
+            detachSafeZoneFrameLoad = null;
+            cancelInitialMobilePopoverClose?.();
+            cancelInitialMobilePopoverClose = null;
+            touchPanController?.destroy();
+            touchPanController = null;
+            artboardViewport?.destroy();
+            artboardViewport = null;
             instance?.destroy?.();
             instance = null;
         },

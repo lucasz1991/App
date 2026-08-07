@@ -43,8 +43,41 @@
         </div>
     @endif
 
-    <div class="rt-marketing-workbench" data-marketing-editor-workbench>
-        <aside class="rt-marketing-content-panel" aria-label="Gemeinsame Motivinhalte">
+    <div
+        class="rt-marketing-workbench"
+        data-marketing-editor-workbench
+        data-mobile-pane="layout"
+        x-data="{ mobilePane: 'layout' }"
+        x-bind:data-mobile-pane="mobilePane"
+    >
+        <nav class="rt-marketing-mobile-panes" aria-label="Arbeitsbereich auswählen">
+            <button
+                type="button"
+                x-on:click="mobilePane = 'layout'; $nextTick(() => window.dispatchEvent(new CustomEvent('marketing-editor:viewport-change')))"
+                x-bind:aria-pressed="mobilePane === 'layout' ? 'true' : 'false'"
+                aria-controls="rt-marketing-layout-pane"
+            >
+                <i data-feather="layout" aria-hidden="true"></i>
+                <span>
+                    <strong>Layout</strong>
+                    <small>Motiv gestalten</small>
+                </span>
+            </button>
+            <button
+                type="button"
+                x-on:click="mobilePane = 'content'"
+                x-bind:aria-pressed="mobilePane === 'content' ? 'true' : 'false'"
+                aria-controls="rt-marketing-content-pane"
+            >
+                <i data-feather="edit-3" aria-hidden="true"></i>
+                <span>
+                    <strong>Inhalte</strong>
+                    <small>Texte für alle Formate</small>
+                </span>
+            </button>
+        </nav>
+
+        <aside id="rt-marketing-content-pane" class="rt-marketing-content-panel" aria-label="Gemeinsame Motivinhalte">
             <div class="border-b border-rt-border px-4 py-4 dark:border-rt-dark-border">
                 <p class="text-xs font-bold uppercase tracking-[0.12em] text-rt-red">Gemeinsame Inhalte</p>
                 <p class="mt-1 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Änderungen gelten für alle drei Formate. Die Positionen im Layout bleiben unabhängig.</p>
@@ -166,7 +199,7 @@
             </form>
         </aside>
 
-        <section class="rt-marketing-editor-panel" aria-label="Layout-Editor">
+        <section id="rt-marketing-layout-pane" class="rt-marketing-editor-panel" aria-label="Layout-Editor">
             <div class="rt-marketing-editor-toolbar">
                 <div class="rt-marketing-format-switch" role="group" aria-label="Ausgabeformat">
                     @foreach ([
@@ -205,6 +238,22 @@
                         PNG erstellen
                     </button>
                 </div>
+            </div>
+
+            <div class="rt-marketing-artboard-context">
+                <span class="rt-marketing-artboard-context__icon" aria-hidden="true">
+                    <i data-feather="maximize-2"></i>
+                </span>
+                <span class="rt-marketing-artboard-context__copy">
+                    <strong data-marketing-artboard-label>
+                        {{ ['story' => 'Story · 1080 × 1920 px', 'post' => 'Post · 1080 × 1080 px', 'web' => 'Web · 1200 × 630 px'][$format] ?? 'Story · 1080 × 1920 px' }}
+                    </strong>
+                    <small>
+                        Feste Exportfläche · <span data-marketing-scale-label>Ansicht wird eingepasst</span>
+                        <span data-marketing-pan-hint hidden> · Wischen zum Verschieben</span>
+                    </small>
+                </span>
+                <span class="rt-marketing-artboard-context__badge">Pixelgenau</span>
             </div>
 
             <div class="rt-marketing-render-status" data-marketing-render-status data-state="idle" aria-live="polite">

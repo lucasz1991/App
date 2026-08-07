@@ -77,6 +77,65 @@ class MarketingStudioBackendTest extends TestCase
         $this->assertSame(['width' => 1200, 'height' => 630], MarketingCreativeFormat::Web->dimensions());
     }
 
+    public function test_job_templates_use_a_format_specific_premium_information_hierarchy(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $studio = app(MarketingStudioService::class);
+        $job = $studio->createFromTemplate(MarketingCreativeType::Job, $admin);
+        $info = $studio->createFromTemplate(MarketingCreativeType::Info, $admin);
+
+        $story = $job->variants->firstWhere('format', MarketingCreativeFormat::Story);
+        $post = $job->variants->firstWhere('format', MarketingCreativeFormat::Post);
+        $web = $job->variants->firstWhere('format', MarketingCreativeFormat::Web);
+
+        $this->assertStringContainsString('class="rt-hero-rail"', $story->html);
+        $this->assertStringContainsString('class="rt-benefits-lead"', $story->html);
+        $this->assertStringContainsString('class="rt-footer-route"', $story->html);
+        $this->assertStringContainsString('data-rt-binding-list="tasks"', $story->html);
+        $this->assertStringContainsString('data-rt-binding-list="profile"', $story->html);
+        $this->assertStringContainsString('data-rt-binding-list="benefits"', $story->html);
+        $this->assertStringContainsString('height:650px', $story->css);
+        $this->assertStringContainsString('height:480px', $story->css);
+        $this->assertStringContainsString('height:280px', $story->css);
+        $this->assertStringContainsString('height:360px', $story->css);
+
+        $this->assertStringContainsString('class="rt-post-profile"', $post->html);
+        $this->assertStringContainsString('class="rt-post-photo-label"', $post->html);
+        $this->assertStringContainsString('class="rt-post-band"', $post->html);
+        $this->assertStringContainsString('data-rt-binding-list="profile"', $post->html);
+        $this->assertStringContainsString('.rt-job-post .rt-post-profile ul{display:grid', $post->css);
+        $this->assertStringContainsString('content:"RAILTIME IN ZAHLEN"', $post->css);
+
+        $this->assertStringContainsString('class="rt-web-photo-label"', $web->html);
+        $this->assertStringContainsString('class="rt-intro" data-rt-binding="intro"', $web->html);
+        $this->assertStringContainsString('class="rt-web-meta"', $web->html);
+        $this->assertStringContainsString('data-rt-binding="contact_phone"', $web->html);
+        $this->assertStringContainsString('data-rt-binding="website"', $web->html);
+        $this->assertStringContainsString('RailTime in Zahlen', $web->html);
+        $this->assertStringContainsString('.rt-job-web .rt-web-meta{position:absolute', $web->css);
+
+        foreach ($job->variants as $variant) {
+            $dimensions = $variant->format->dimensions();
+
+            $this->assertStringContainsString('data-rt-brand-lockup="official"', $variant->html);
+            $this->assertStringContainsString('src="/rt-brand/img/logo-horizontal.png"', $variant->html);
+            $this->assertStringContainsString('src="/rt-brand/img/hero-railtime.jpg"', $variant->html);
+            $this->assertStringContainsString('data-rt-binding-href="cta_url"', $variant->html);
+            $this->assertStringContainsString("width:{$dimensions['width']}px", $variant->css);
+            $this->assertStringContainsString("height:{$dimensions['height']}px", $variant->css);
+        }
+
+        foreach ($info->variants as $variant) {
+            $this->assertStringNotContainsString('rt-hero-rail', $variant->html);
+            $this->assertStringNotContainsString('rt-benefits-lead', $variant->html);
+            $this->assertStringNotContainsString('rt-footer-route', $variant->html);
+            $this->assertStringNotContainsString('rt-post-profile', $variant->html);
+            $this->assertStringNotContainsString('rt-post-photo-label', $variant->html);
+            $this->assertStringNotContainsString('rt-web-photo-label', $variant->html);
+            $this->assertStringNotContainsString('rt-web-meta', $variant->html);
+        }
+    }
+
     public function test_untouched_schema_one_starter_motives_are_refreshed_to_the_official_brand_design(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);

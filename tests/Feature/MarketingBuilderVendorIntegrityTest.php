@@ -57,6 +57,12 @@ class MarketingBuilderVendorIntegrityTest extends TestCase
         $this->assertStringContainsString("'web' => ['Web', '1200 × 630']", $editor);
         $this->assertStringContainsString('data-marketing-safe-zone', $editor);
         $this->assertStringContainsString('data-marketing-export', $editor);
+        $this->assertStringContainsString('data-mobile-pane="layout"', $editor);
+        $this->assertStringContainsString("mobilePane = 'layout'", $editor);
+        $this->assertStringContainsString('marketing-editor:viewport-change', $editor);
+        $this->assertStringContainsString('data-marketing-artboard-label', $editor);
+        $this->assertStringContainsString('data-marketing-scale-label', $editor);
+        $this->assertStringContainsString('data-marketing-pan-hint', $editor);
 
         $this->assertStringContainsString('JPEG, PNG, WebP oder GIF · maximal 8 MB', $assets);
         $this->assertStringContainsString('x-on:change="replace(', $assets);
@@ -102,6 +108,8 @@ class MarketingBuilderVendorIntegrityTest extends TestCase
             ->get(route('admin.marketing.creatives.editor', $creative))
             ->assertOk()
             ->assertSee('data-marketing-editor-root', false)
+            ->assertSee('data-mobile-pane="layout"', false)
+            ->assertSee('Feste Exportfläche')
             ->assertSee('1080 × 1920')
             ->assertSee(route('admin.marketing.assets.show', $asset).'?v=0123456789abcdef', false);
 
