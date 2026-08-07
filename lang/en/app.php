@@ -1079,6 +1079,10 @@ return [
     'mail_greeting_default' => 'Hello!',
     'mail_greeting_error' => 'Whoops!',
     'mail_regards' => 'Kind regards',
+    'email_templates_motif' => 'Train motif',
+    'email_templates_motif_hint' => 'Which train drifts quietly through the signature background?',
+    'email_templates_motif_freight' => 'Freight train',
+    'email_templates_motif_steam' => 'Steam engine',
     'mail_all_rights' => 'All rights reserved.',
     // Replaces the personal role line in system emails.
     'mail_signature_company_role' => 'Automated message',

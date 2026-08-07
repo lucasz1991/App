@@ -33,7 +33,8 @@ class EmailTemplateBuilder
         'web' => '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',
     ];
 
-    public function __construct(protected User $user) {}
+    /** @param  string|null  $motif  Zugmotiv des Signaturhintergrunds */
+    public function __construct(protected User $user, protected ?string $motif = null) {}
 
     /**
      * Verfuegbare Downloads samt stabiler Gruppierungsmetadaten fuer die UI.
@@ -405,7 +406,7 @@ class EmailTemplateBuilder
         // Signatur und Pflichtangaben kommen aus der gemeinsamen Quelle
         // (MailSignature) — dieselbe, die auch unter jeder Laravel-Mail steht.
         return $this->substitute($html, [
-            'SIGNATURE_BLOCK' => MailSignature::forUser($this->user, $theme)->render(
+            'SIGNATURE_BLOCK' => MailSignature::forUser($this->user, $theme, motif: $this->motif)->render(
                 overrides: array_merge(
                     [
                         'LOGO_SRC' => $inlineImages
@@ -418,22 +419,39 @@ class EmailTemplateBuilder
         ]);
     }
 
+    /** Auswaehlbare Zugmotive fuer den Signaturhintergrund. */
+    public const MOTIFS = ['gueterzug', 'dampf'];
+
+    public static function normalizeMotif(?string $motif): string
+    {
+        $motif = strtolower(trim((string) $motif));
+
+        return in_array($motif, self::MOTIFS, true) ? $motif : 'gueterzug';
+    }
+
     /**
-     * Getoente Gueterzug-Silhouette (Website-Motiv) als Data-URI.
+     * Getoente Zug-Silhouette (Website-Motiv) als Data-URI.
      *
      * Die eigenstaendigen Signaturen bekommen die animierte Fassung: der Zug
-     * faehrt EINMAL ein und bleibt dann stehen (das GIF traegt bewusst keine
-     * Netscape-Schleife). Die E-Mail-Vorlagen behalten das Standbild — sie
-     * haengen an jeder gesendeten Nachricht, und dort waegt Dateigroesse
-     * schwerer als der Effekt.
+     * faehrt ein, steht kurz und faehrt erneut ein. Die Schleife ist Absicht
+     * — ein GIF, das dauerhaft stehen bleibt, spielt nur EINMAL pro
+     * Browsersitzung (der Animationsstand haengt am Bildinhalt und wird ueber
+     * Tabs hinweg geteilt; gemessen an Neuladen, neuem Tab und anderer URL).
+     *
+     * Die E-Mail-Vorlagen behalten das Standbild — sie haengen an jeder
+     * gesendeten Nachricht, dort waegt Dateigroesse schwerer als der Effekt.
      */
-    public static function signatureTrainAsset(string $theme, bool $animated = false): string
-    {
+    public static function signatureTrainAsset(
+        string $theme,
+        bool $animated = false,
+        ?string $motif = null,
+    ): string {
         $variant = $theme === 'dark' ? 'dark' : 'light';
+        $prefix = self::normalizeMotif($motif) === 'dampf' ? 'dampf-' : '';
 
         return $animated
-            ? self::inlineImage("zug-{$variant}.gif", 'image/gif')
-            : self::inlineImage("zug-{$variant}.png", 'image/png');
+            ? self::inlineImage("zug-{$prefix}{$variant}.gif", 'image/gif')
+            : self::inlineImage("zug-{$prefix}{$variant}.png", 'image/png');
     }
 
     protected function buildSignature(string $master, string $logo): string
@@ -446,7 +464,7 @@ class EmailTemplateBuilder
         // ohne Akzentlinie, weil die Signaturdatei ihre eigene traegt.
         // Hier faehrt der Zug ein (animierte Fassung).
         return $this->substitute($html, [
-            'SIGNATURE_BLOCK' => MailSignature::forUser($this->user, $theme, animated: true)->render(
+            'SIGNATURE_BLOCK' => MailSignature::forUser($this->user, $theme, animated: true, motif: $this->motif)->render(
                 layout: [
                     'padding' => '26px 30px 34px',
                     'topRule' => '',

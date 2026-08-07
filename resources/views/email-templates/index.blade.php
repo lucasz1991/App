@@ -56,6 +56,8 @@
                 previewModalOpen: false,
                 mailTheme: 'light',
                 signatureTheme: 'light',
+                // Zugmotiv im Signaturhintergrund: 'gueterzug' oder 'dampf'.
+                signatureMotif: 'gueterzug',
                 previewUrls: @js($previewUrls),
                 previewDownloadUrls: @js($previewDownloadUrls),
                 previewLabels: @js($previewLabels),
@@ -322,6 +324,41 @@
                             </div>
                         </div>
 
+                        {{-- Zugmotiv im Hintergrund der Signatur. Der Zug faehrt
+                             beim Oeffnen dezent ein; die Dampflok bringt
+                             zusaetzlich eine Rauchfahne mit. --}}
+                        <div class="flex flex-col gap-3 rounded-2xl bg-rt-surface p-3 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60 sm:flex-row sm:items-center sm:justify-between sm:p-4">
+                            <div class="min-w-0">
+                                <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-rt-red dark:text-rt-dark-accent">{{ __('app.email_templates_motif') }}</p>
+                                <p class="mt-1 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">{{ __('app.email_templates_motif_hint') }}</p>
+                            </div>
+                            <div
+                                class="grid shrink-0 grid-cols-2 rounded-xl bg-rt-surface-muted p-1 ring-1 ring-rt-border/70 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/70"
+                                role="group"
+                                aria-label="{{ __('app.email_templates_motif') }}"
+                                data-email-template-motif-toggle
+                            >
+                                @foreach ([
+                                    'gueterzug' => ['icon' => 'fad fa-train', 'label' => __('app.email_templates_motif_freight')],
+                                    'dampf' => ['icon' => 'fad fa-train-tram', 'label' => __('app.email_templates_motif_steam')],
+                                ] as $motifKey => $motif)
+                                    <button
+                                        type="button"
+                                        x-on:click="signatureMotif = @js($motifKey)"
+                                        x-bind:aria-pressed="(signatureMotif === @js($motifKey)).toString()"
+                                        data-email-template-motif-option="{{ $motifKey }}"
+                                        class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/35 sm:min-w-24"
+                                        x-bind:class="signatureMotif === @js($motifKey)
+                                            ? 'bg-rt-surface text-rt-red shadow-rt-xs ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:text-rt-dark-accent dark:ring-rt-dark-border/70'
+                                            : 'text-rt-muted hover:text-rt-text dark:text-rt-dark-muted dark:hover:text-rt-dark-text'"
+                                    >
+                                        <i class="{{ $motif['icon'] }}" aria-hidden="true"></i>
+                                        <span>{{ $motif['label'] }}</span>
+                                    </button>
+                                @endforeach
+                            </div>
+                        </div>
+
                         @foreach ($themes as $themeKey => $theme)
                             @php
                                 $signatureKey = $themeKey === 'light' ? 'signatur-hell' : 'signatur-dunkel';
@@ -408,6 +445,8 @@
                                         </div>
                                         <a
                                             href="{{ route('email-templates.download', ['template' => $signatureKey]) }}"
+                                            x-bind:href="@js(route('email-templates.download', ['template' => $signatureKey]))
+                                                + (signatureMotif === 'dampf' ? '?motiv=dampf' : '')"
                                             data-template-key="{{ $signatureKey }}"
                                             data-template-format="html"
                                             data-no-navigate

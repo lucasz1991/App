@@ -17,7 +17,10 @@ class ProfileEmailTemplateController extends Controller
     {
         abort_unless(array_key_exists($template, EmailTemplateBuilder::available()), 404);
 
-        $file = (new EmailTemplateBuilder($request->user()))->build($template);
+        // Zugmotiv des Signaturhintergrunds; unbekannte Werte fallen still
+        // auf den Gueterzug zurueck (normalizeMotif).
+        $file = (new EmailTemplateBuilder($request->user(), $request->query('motiv')))
+            ->build($template);
 
         return response($file['content'], 200, [
             'Content-Type' => $file['mime'],
@@ -36,7 +39,10 @@ class ProfileEmailTemplateController extends Controller
             404
         );
 
-        $file = (new EmailTemplateBuilder($request->user()))->build($template);
+        // Zugmotiv des Signaturhintergrunds; unbekannte Werte fallen still
+        // auf den Gueterzug zurueck (normalizeMotif).
+        $file = (new EmailTemplateBuilder($request->user(), $request->query('motiv')))
+            ->build($template);
 
         return response($file['content'], 200, [
             'Content-Type' => 'text/html; charset=UTF-8',

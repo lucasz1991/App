@@ -25,16 +25,24 @@ class MailSignature
         protected ?User $user,
         protected string $theme,
         protected bool $animated,
+        protected ?string $motif = null,
     ) {}
 
-    public static function forUser(User $user, string $theme = 'light', bool $animated = false): self
-    {
-        return new self($user, $theme, $animated);
+    public static function forUser(
+        User $user,
+        string $theme = 'light',
+        bool $animated = false,
+        ?string $motif = null,
+    ): self {
+        return new self($user, $theme, $animated, $motif);
     }
 
-    public static function forCompany(string $theme = 'light', bool $animated = false): self
-    {
-        return new self(null, $theme, $animated);
+    public static function forCompany(
+        string $theme = 'light',
+        bool $animated = false,
+        ?string $motif = null,
+    ): self {
+        return new self(null, $theme, $animated, $motif);
     }
 
     /**
@@ -58,7 +66,7 @@ class MailSignature
                 $this->theme === 'dark' ? 'logo-mail-dark.png' : 'logo-signature-light.png',
                 'image/png'
             ),
-            'TRAIN_SRC' => EmailTemplateBuilder::signatureTrainAsset($this->theme, $this->animated),
+            'TRAIN_SRC' => EmailTemplateBuilder::signatureTrainAsset($this->theme, $this->animated, $this->motif),
         ], EmailTemplateBuilder::contactIconSources(true), $overrides);
     }
 

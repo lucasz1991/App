@@ -40,6 +40,7 @@ tr.rt-stack > td + td { padding-top: 12px !important; }
 .rt-sign-identity { padding: 17px 0 0 !important; }
 .rt-only-wide { display: none !important; max-height: 0 !important; overflow: hidden !important; }
 .rt-only-narrow { display: block !important; max-height: none !important; overflow: visible !important; font-size: 11px !important; line-height: 18px !important; }
+.rt-sign-cell { background-size: 125% auto !important; }
 }
 </style>
 </head>

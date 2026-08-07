@@ -1079,6 +1079,10 @@ return [
     'mail_greeting_default' => 'Hallo!',
     'mail_greeting_error' => 'Ups!',
     'mail_regards' => 'Freundliche Grüße',
+    'email_templates_motif' => 'Zugmotiv',
+    'email_templates_motif_hint' => 'Welcher Zug faehrt dezent durch den Hintergrund der Signatur?',
+    'email_templates_motif_freight' => 'Gueterzug',
+    'email_templates_motif_steam' => 'Dampflok',
     'mail_all_rights' => 'Alle Rechte vorbehalten.',
     // Steht in Systemmails an der Stelle der persoenlichen Funktion.
     'mail_signature_company_role' => 'Automatische Nachricht',

@@ -41,6 +41,10 @@
          schmal am Ende des Personenblocks (bessere Lesefolge). */
       .rt-only-wide { display: none !important; max-height: 0 !important; overflow: hidden !important; }
       .rt-only-narrow { display: block !important; max-height: none !important; overflow: visible !important; font-size: 11px !important; line-height: 18px !important; }
+      /* Mobil steht die Signatur gestapelt und damit hoeher — dort darf
+         der Zug groesser wirken. Der Streifen selbst ist auf Desktop
+         ausgelegt (flach), diese Regel holt die mobile Groesse zurueck. */
+      .rt-sign-cell { background-size: 125% auto !important; }
     }
   </style>
 </head>
