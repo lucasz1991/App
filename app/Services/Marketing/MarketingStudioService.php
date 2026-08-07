@@ -18,6 +18,7 @@ final class MarketingStudioService
         private readonly MarketingTemplateFactory $templates,
         private readonly MarketingContentBinder $binder,
         private readonly MarketingHtmlSanitizer $sanitizer,
+        private readonly MarketingRenderAssetHydrator $renderAssets,
     ) {}
 
     public function createFromTemplate(MarketingCreativeType $type, User $actor): MarketingCreative
@@ -62,11 +63,25 @@ final class MarketingStudioService
         MarketingCreative $creative,
         array $content,
         User $actor,
+        array $expectedHashes,
         ?string $title = null,
     ): MarketingCreative {
-        return DB::transaction(function () use ($creative, $content, $actor, $title): MarketingCreative {
+        return DB::transaction(function () use ($creative, $content, $actor, $expectedHashes, $title): MarketingCreative {
             $locked = MarketingCreative::query()->lockForUpdate()->findOrFail($creative->id);
             $this->assertEditable($locked);
+            $variants = $locked->variants()
+                ->lockForUpdate()
+                ->get()
+                ->keyBy(fn (MarketingCreativeVariant $variant): string => $variant->format->value);
+            foreach (MarketingCreativeFormat::cases() as $format) {
+                $variant = $variants->get($format->value);
+                $expectedHash = strtolower((string) ($expectedHashes[$format->value] ?? ''));
+                if (! $variant || strlen($expectedHash) !== 64 || ! hash_equals($variant->content_hash, $expectedHash)) {
+                    throw ValidationException::withMessages([
+                        'expected_hashes.'.$format->value => 'Das Motiv wurde zwischenzeitlich geändert. Bitte die aktuelle Version neu laden.',
+                    ]);
+                }
+            }
 
             $mergedContent = array_replace($locked->shared_content ?? [], $content);
             $nextTitle = trim((string) ($title ?? $locked->title));
@@ -86,7 +101,6 @@ final class MarketingStudioService
             $locked->save();
 
             if ($contentChanged) {
-                $variants = $locked->variants()->lockForUpdate()->get();
                 foreach ($variants as $variant) {
                     $html = $this->sanitizer->html($this->binder->bindHtml($variant->html, $mergedContent));
                     $builderData = $this->binder->syncBuilderData($variant->builder_data ?? [], $html);
@@ -199,8 +213,8 @@ final class MarketingStudioService
             $locked = MarketingCreative::query()->lockForUpdate()->findOrFail($creative->id);
             $this->assertEditable($locked);
 
-            $formats = $locked->variants()
-                ->get()
+            $variants = $locked->variants()->get();
+            $formats = $variants
                 ->map(fn (MarketingCreativeVariant $variant): string => $variant->format->value)
                 ->all();
             $missing = array_diff(
@@ -219,6 +233,21 @@ final class MarketingStudioService
                 'approved_at' => now(),
                 'updated_by' => $actor->id,
             ])->save();
+
+            $approvalFingerprints = $variants->mapWithKeys(fn (MarketingCreativeVariant $variant): array => [
+                $variant->format->value => hash('sha256', implode('|', [
+                    $variant->content_hash,
+                    $this->renderAssets->fingerprint($variant->html, $variant->css),
+                ])),
+            ])->all();
+            activity('marketing')
+                ->causedBy($actor)
+                ->performedOn($locked)
+                ->withProperties([
+                    'approved_at' => $locked->approved_at?->toIso8601String(),
+                    'fingerprints' => $approvalFingerprints,
+                ])
+                ->log('marketing_creative_approved');
 
             return $locked->fresh(['variants', 'approver']);
         });

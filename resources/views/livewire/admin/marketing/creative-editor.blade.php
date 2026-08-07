@@ -36,6 +36,13 @@
 
     <script type="application/json" data-marketing-editor-config>{!! json_encode($editorConfig, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}</script>
 
+    @if ($statusValue === 'archived')
+        <div class="flex items-start gap-3 rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-500/10 dark:text-slate-300" role="status" data-marketing-archived-notice>
+            <i data-feather="archive" class="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true"></i>
+            <p><strong>Archivierte Ansicht.</strong> Inhalte, Layout und PNG-Export sind gesperrt. Die drei Formate können weiterhin angesehen werden.</p>
+        </div>
+    @endif
+
     <div class="rt-marketing-workbench" data-marketing-editor-workbench>
         <aside class="rt-marketing-content-panel" aria-label="Gemeinsame Motivinhalte">
             <div class="border-b border-rt-border px-4 py-4 dark:border-rt-dark-border">
@@ -146,10 +153,6 @@
                     <label class="rt-marketing-field">
                         <span>Website</span>
                         <input type="text" name="shared_content[website]" value="{{ $shared['website'] ?? 'www.rail-time.de' }}" maxlength="190" data-marketing-bind="website">
-                    </label>
-                    <label class="rt-marketing-field">
-                        <span>Hero-Bild-URL</span>
-                        <input type="text" name="shared_content[hero_image_url]" value="{{ $shared['hero_image_url'] ?? '' }}" maxlength="500" data-marketing-bind="hero_image_url">
                     </label>
                 </fieldset>
 

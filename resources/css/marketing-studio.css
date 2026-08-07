@@ -349,6 +349,26 @@ body[data-mode='dark'] .rt-marketing-builder-root {
     display: none !important;
 }
 
+.rt-marketing-editor-frame[data-read-only='true'] .lmz-builder__canvas,
+.rt-marketing-editor-frame[data-read-only='true'] .lmz-builder__canvas iframe,
+.rt-marketing-editor-frame[data-read-only='true'] [data-lmz-mount='blocks'],
+.rt-marketing-editor-frame[data-read-only='true'] [data-lmz-mount='styles'],
+.rt-marketing-editor-frame[data-read-only='true'] [data-lmz-mount='traits'],
+.rt-marketing-editor-frame[data-read-only='true'] [data-lmz-mount='classes'] {
+    pointer-events: none;
+}
+
+.rt-marketing-editor-frame[data-read-only='true'] .lmz-builder__canvas-shell {
+    cursor: not-allowed;
+}
+
+.rt-marketing-editor-frame[data-read-only='true'] [data-lmz-mount='blocks'],
+.rt-marketing-editor-frame[data-read-only='true'] [data-lmz-mount='styles'],
+.rt-marketing-editor-frame[data-read-only='true'] [data-lmz-mount='traits'],
+.rt-marketing-editor-frame[data-read-only='true'] [data-lmz-mount='classes'] {
+    opacity: 0.5;
+}
+
 .rt-marketing-editor-loading,
 .rt-marketing-editor-error {
     display: grid;

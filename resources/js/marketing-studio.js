@@ -10,6 +10,7 @@ const VENDOR_RUNTIME_KEY = '2.4.5';
 const SAFE_ZONE_STYLE_ID = 'rt-marketing-safe-zone-style';
 const MARKETING_CATEGORY = 'RailTime Marketing';
 const BLOCK_SURFACE = 'background:#fff;color:#172033;font-family:Arial,sans-serif;';
+const EMPTY_QR_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=';
 
 let vendorRuntimePromise = null;
 let activeStudio = null;
@@ -117,7 +118,12 @@ async function ensureVendorRuntime(vendor) {
     return vendorRuntimePromise;
 }
 
-async function requestJson(url, { method = 'GET', json = null, formData = null } = {}) {
+async function requestJson(url, {
+    method = 'GET',
+    json = null,
+    formData = null,
+    signal = null,
+} = {}) {
     const headers = {
         Accept: 'application/json',
         'X-Requested-With': 'XMLHttpRequest',
@@ -137,6 +143,7 @@ async function requestJson(url, { method = 'GET', json = null, formData = null }
         credentials: 'same-origin',
         headers,
         body: formData || (json !== null ? JSON.stringify(json) : null),
+        signal,
     });
 
     let payload = {};
@@ -172,15 +179,19 @@ export async function createMarketingBlocks(
     logoUrl = '/rt-brand/rt-logo.svg',
     ctaUrl = 'https://www.rail-time.de/de/karriere',
 ) {
-    const qrDataUrl = await QRCode.toDataURL(ctaUrl, {
-        errorCorrectionLevel: 'M',
-        margin: 1,
-        width: 360,
-        color: {
-            dark: '#071a2c',
-            light: '#ffffff',
-        },
-    });
+    const qrValue = String(ctaUrl || '').trim();
+    const qrDataUrl = qrValue
+        ? await QRCode.toDataURL(qrValue, {
+            errorCorrectionLevel: 'M',
+            margin: 1,
+            width: 360,
+            color: {
+                dark: '#071a2c',
+                light: '#ffffff',
+            },
+        })
+        : EMPTY_QR_DATA_URL;
+    const qrAlt = qrValue ? 'QR-Code zur Bewerbung' : 'Kein QR-Code: Zieladresse fehlt';
     const list = (key, title) => (
         `<section data-rt-block="${key}" style="${BLOCK_SURFACE}padding:32px">`
         + `<h2 style="margin:0 0 18px;font-size:26px;font-weight:800;text-transform:uppercase">${title}</h2>`
@@ -202,7 +213,7 @@ export async function createMarketingBlocks(
             definition: {
                 label: 'Hero-Bild',
                 category: MARKETING_CATEGORY,
-                content: '<figure data-rt-block="hero" style="height:520px;margin:0;background:#dbe2ea;overflow:hidden"><div style="display:grid;height:100%;place-items:center;color:#667085;font:700 24px Arial,sans-serif">Bild aus der Medienbibliothek wählen</div></figure>',
+                content: '<figure data-rt-block="hero" style="height:520px;margin:0;background:#dbe2ea;overflow:hidden"><img src="/rt-brand/img/hero-railtime.jpg" alt="RailTime im Bahnbetrieb" style="display:block;width:100%;height:100%;object-fit:cover"></figure>',
             },
         },
         {
@@ -253,7 +264,7 @@ export async function createMarketingBlocks(
             definition: {
                 label: 'QR-Code',
                 category: MARKETING_CATEGORY,
-                content: `<img data-rt-block="qr" data-rt-qr-binding="cta_url" data-rt-qr-value="${htmlEscape(ctaUrl)}" src="${qrDataUrl}" alt="QR-Code zur Bewerbung" style="display:block;width:180px;height:180px;object-fit:contain;background:#fff;padding:8px;box-shadow:0 0 0 1px #d7e0ea">`,
+                content: `<img data-rt-block="qr" data-rt-qr-binding="cta_url" data-rt-qr-value="${htmlEscape(qrValue)}" src="${qrDataUrl}" alt="${qrAlt}" style="display:block;width:180px;height:180px;object-fit:contain;background:#fff;padding:8px;box-shadow:0 0 0 1px #d7e0ea">`,
             },
         },
     ];
@@ -348,6 +359,42 @@ function serializeSharedForm(form) {
     };
 }
 
+export async function syncQrCode(editor, value) {
+    const wrapper = editor?.DomComponents?.getWrapper?.();
+    const qrValue = String(value || '').trim();
+    const components = wrapper?.find?.('[data-rt-qr-binding="cta_url"]') || [];
+    const stale = components.filter((component) => component.getAttributes?.()['data-rt-qr-value'] !== qrValue);
+    if (stale.length === 0) return false;
+
+    if (!qrValue) {
+        stale.forEach((component) => {
+            component.addAttributes({
+                src: EMPTY_QR_DATA_URL,
+                'data-rt-qr-value': '',
+                alt: 'Kein QR-Code: Zieladresse fehlt',
+            });
+        });
+
+        return true;
+    }
+
+    const qrDataUrl = await QRCode.toDataURL(qrValue, {
+        errorCorrectionLevel: 'M',
+        margin: 1,
+        width: 360,
+        color: { dark: '#071a2c', light: '#ffffff' },
+    });
+    stale.forEach((component) => {
+        component.addAttributes({
+            src: qrDataUrl,
+            'data-rt-qr-value': qrValue,
+            alt: 'QR-Code zur Bewerbung',
+        });
+    });
+
+    return true;
+}
+
 async function syncBoundContent(editor, content) {
     const wrapper = editor?.DomComponents?.getWrapper?.();
     if (!wrapper) return;
@@ -378,22 +425,7 @@ async function syncBoundContent(editor, content) {
         }
     });
 
-    const qrValue = String(content?.cta_url || '').trim();
-    if (qrValue) {
-        const qrDataUrl = await QRCode.toDataURL(qrValue, {
-            errorCorrectionLevel: 'M',
-            margin: 1,
-            width: 360,
-            color: { dark: '#071a2c', light: '#ffffff' },
-        });
-        (wrapper.find?.('[data-rt-qr-binding="cta_url"]') || []).forEach((component) => {
-            component.addAttributes({
-                src: qrDataUrl,
-                'data-rt-qr-value': qrValue,
-                alt: 'QR-Code zur Bewerbung',
-            });
-        });
-    }
+    await syncQrCode(editor, content?.cta_url);
 }
 
 function safeZoneStyle() {
@@ -500,11 +532,53 @@ export function normalizeVariantPayload(payload) {
 
         variants[format] = {
             builderData: variant.builder_data || variant.builderData || {},
+            css: variant.css || '',
             contentHash: variant.content_hash || variant.contentHash || '',
             version: Number(variant.version || 1),
         };
         return variants;
     }, {});
+}
+
+export function projectForVariant(variant, parseCss = () => []) {
+    const project = structuredClone(variant?.builderData || {});
+    if (variant?.css && (!Array.isArray(project.styles) || project.styles.length === 0)) {
+        project.styles = parseCss(variant.css) || project.styles || [];
+    }
+
+    return project;
+}
+
+export function applySavedVariant(variant, saved, fallback) {
+    variant.builderData = saved.builder_data ?? fallback.project;
+    variant.html = saved.html ?? fallback.html;
+    variant.css = saved.css ?? fallback.css;
+    variant.contentHash = saved.content_hash || variant.contentHash;
+    variant.version = saved.version || variant.version;
+
+    return variant;
+}
+
+export function renderRequestIsCurrent({
+    requestId,
+    activeRequestId,
+    format,
+    currentFormat,
+    destroyed = false,
+}) {
+    return !destroyed
+        && requestId === activeRequestId
+        && format === currentFormat;
+}
+
+export function completedRenderDownloadUrl(render, fallbackUrl) {
+    if (Object.prototype.hasOwnProperty.call(render || {}, 'download_url')) {
+        const url = typeof render.download_url === 'string' ? render.download_url.trim() : '';
+
+        return url || null;
+    }
+
+    return fallbackUrl || null;
 }
 
 export async function createMarketingStudio(workspace, config) {
@@ -514,6 +588,7 @@ export async function createMarketingStudio(workspace, config) {
     const safeToggle = workspace.querySelector('[data-marketing-safe-zone]');
     const zoomControl = workspace.querySelector('[data-marketing-zoom]');
     const exportButton = workspace.querySelector('[data-marketing-export]');
+    const readOnly = config.status === 'archived';
 
     if (!root || !frame) {
         throw new Error('Marketing-Editor-Fläche fehlt.');
@@ -522,10 +597,12 @@ export async function createMarketingStudio(workspace, config) {
     const builderRuntime = await ensureVendorRuntime(config.vendor || {});
     const abortController = new AbortController();
     const timers = new Set();
+    const renderTimers = new Set();
     let currentFormat = MARKETING_ARTBOARDS[config.currentFormat] ? config.currentFormat : 'story';
     let instance = null;
     let destroyed = false;
     let renderRequest = 0;
+    let renderAbortController = null;
 
     const schedule = (callback, delay) => {
         const timer = window.setTimeout(() => {
@@ -536,7 +613,33 @@ export async function createMarketingStudio(workspace, config) {
         return timer;
     };
 
+    const invalidateRender = () => {
+        renderRequest += 1;
+        renderAbortController?.abort();
+        renderAbortController = null;
+        renderTimers.forEach((timer) => window.clearTimeout(timer));
+        renderTimers.clear();
+    };
+
+    const scheduleRender = (callback, delay) => {
+        const timer = window.setTimeout(() => {
+            renderTimers.delete(timer);
+            callback();
+        }, delay);
+        renderTimers.add(timer);
+        return timer;
+    };
+
+    const isActiveRender = (requestId, format) => renderRequestIsCurrent({
+        requestId,
+        activeRequestId: renderRequest,
+        format,
+        currentFormat,
+        destroyed,
+    });
+
     const startBuilder = async (format) => {
+        invalidateRender();
         if (instance) {
             instance.destroy();
             instance = null;
@@ -549,8 +652,9 @@ export async function createMarketingStudio(workspace, config) {
         root.innerHTML = '<div class="rt-marketing-editor-loading" role="status"><span class="rt-marketing-editor-loading__mark">RT</span><span>LMZ Page Builder wird geladen …</span></div>';
         setFormatButtons(workspace, format);
         setRenderStatus(workspace, 'idle', 'Noch kein Export für dieses Format erstellt.');
+        if (exportButton && !readOnly) exportButton.disabled = false;
 
-        const variant = config.variants?.[format] || { builderData: {}, contentHash: '', version: 1 };
+        const variant = config.variants?.[format] || { builderData: {}, css: '', contentHash: '', version: 1 };
         config.variants ||= {};
         config.variants[format] = variant;
 
@@ -571,7 +675,12 @@ export async function createMarketingStudio(workspace, config) {
                 custom: await createMarketingBlocks(config.logoUrl, config.sharedContent?.cta_url),
             },
             storage: {
-                onLoad: async () => variant.builderData || {},
+                onLoad: async ({ editor }) => {
+                    return projectForVariant(
+                        variant,
+                        (css) => editor.Parser?.parseCss?.(css) || [],
+                    );
+                },
                 onSave: async ({ project, html, css }) => {
                     const endpoint = replaceEndpointToken(config.endpoints.variantUpdate, '__FORMAT__', currentFormat);
                     const payload = await requestJson(endpoint, {
@@ -584,9 +693,7 @@ export async function createMarketingStudio(workspace, config) {
                         },
                     });
                     const saved = payload.variant || {};
-                    variant.builderData = saved.builder_data || project;
-                    variant.contentHash = saved.content_hash || variant.contentHash;
-                    variant.version = saved.version || variant.version;
+                    applySavedVariant(variant, saved, { project, html, css });
                     setCreativeStatus(workspace, payload.creative?.status);
                 },
             },
@@ -613,8 +720,19 @@ export async function createMarketingStudio(workspace, config) {
         }
 
         root.dataset.runtimeState = 'ready';
+        frame.dataset.readOnly = readOnly ? 'true' : 'false';
+        instance.setActionLocked(readOnly);
+        if (readOnly) {
+            root.querySelectorAll('[data-lmz-action="save"], [data-lmz-action="upload"], [data-lmz-action="assets"], [data-lmz-action="undo"], [data-lmz-action="redo"]').forEach((control) => {
+                control.disabled = true;
+                control.setAttribute('aria-disabled', 'true');
+            });
+        }
         applyArtboard(instance, format, frame, zoomControl?.value || 'fit');
         applySafeZone(instance, safeToggle?.checked !== false);
+        if (!readOnly && await syncQrCode(instance.editor, config.sharedContent?.cta_url)) {
+            await instance.save('qr-binding-sync');
+        }
         instance.editor.on('canvas:frame:load', () => {
             applyArtboard(instance, currentFormat, frame, zoomControl?.value || 'fit');
             applySafeZone(instance, safeToggle?.checked !== false);
@@ -652,6 +770,7 @@ export async function createMarketingStudio(workspace, config) {
 
     sharedForm?.addEventListener('submit', async (event) => {
         event.preventDefault();
+        if (readOnly) return;
         const button = sharedForm.querySelector('[data-marketing-content-save]');
         const status = sharedForm.querySelector('[data-marketing-content-status]');
         const request = serializeSharedForm(sharedForm);
@@ -665,6 +784,13 @@ export async function createMarketingStudio(workspace, config) {
                     throw new Error('Das aktuelle Layout konnte vor der Inhaltsänderung nicht gespeichert werden.');
                 }
             }
+
+            request.expected_hashes = Object.fromEntries(
+                Object.entries(config.variants || {}).map(([format, variant]) => [
+                    format,
+                    variant.contentHash || '',
+                ]),
+            );
 
             const payload = await requestJson(config.endpoints.creativeUpdate, {
                 method: 'PATCH',
@@ -688,6 +814,14 @@ export async function createMarketingStudio(workspace, config) {
             status.textContent = 'Gespeichert. Layoutänderungen bleiben je Format getrennt.';
             dispatchToast('success', 'Die gemeinsamen Inhalte wurden gespeichert.');
         } catch (error) {
+            const hashConflict = error.status === 422
+                && Object.keys(error.payload?.errors || {}).some((key) => key.startsWith('expected_hashes.'));
+            if (hashConflict) {
+                status.textContent = 'Eine andere Bearbeitung ist neuer. Die aktuelle Serverversion wird geladen …';
+                dispatchToast('warning', 'Das Motiv wurde zwischenzeitlich geändert. Die aktuelle Version wird neu geladen.', 'Bearbeitungskonflikt');
+                schedule(() => window.location.reload(), 1400);
+                return;
+            }
             status.textContent = error.message;
             dispatchToast('error', error.message, 'Inhalte nicht gespeichert');
         } finally {
@@ -695,18 +829,26 @@ export async function createMarketingStudio(workspace, config) {
         }
     }, { signal: abortController.signal });
 
-    const pollRender = async (render, requestId) => {
-        if (destroyed || requestId !== renderRequest) return;
+    const pollRender = async (render, requestId, format, signal) => {
+        if (!isActiveRender(requestId, format)) return;
         const statusUrl = render.status_url
             || replaceEndpointToken(config.endpoints.renderShow, '__RENDER__', render.public_id);
 
         try {
-            const payload = await requestJson(statusUrl);
+            const payload = await requestJson(statusUrl, { signal });
+            if (!isActiveRender(requestId, format)) return;
             const current = payload.render || payload;
             if (current.status === 'completed') {
-                const downloadUrl = current.download_url
-                    || replaceEndpointToken(config.endpoints.renderDownload, '__RENDER__', current.public_id);
-                setRenderStatus(workspace, 'completed', `${resolveArtboard(currentFormat).label}-PNG ist bereit.`, downloadUrl);
+                const downloadUrl = completedRenderDownloadUrl(
+                    current,
+                    replaceEndpointToken(config.endpoints.renderDownload, '__RENDER__', current.public_id),
+                );
+                if (!downloadUrl) {
+                    setRenderStatus(workspace, 'failed', 'Dieser PNG-Export ist nicht mehr aktuell. Bitte erneut exportieren.');
+                    exportButton.disabled = false;
+                    return;
+                }
+                setRenderStatus(workspace, 'completed', `${resolveArtboard(format).label}-PNG ist bereit.`, downloadUrl);
                 exportButton.disabled = false;
                 return;
             }
@@ -716,38 +858,54 @@ export async function createMarketingStudio(workspace, config) {
                 return;
             }
             setRenderStatus(workspace, 'processing', 'PNG wird serverseitig gerendert …');
-            schedule(() => pollRender(current, requestId), 1800);
+            scheduleRender(() => pollRender(current, requestId, format, signal), 1800);
         } catch (error) {
+            if (error.name === 'AbortError' || !isActiveRender(requestId, format)) return;
             setRenderStatus(workspace, 'failed', error.message);
             exportButton.disabled = false;
         }
     };
 
     exportButton?.addEventListener('click', async () => {
+        if (readOnly) return;
+        invalidateRender();
+        const requestId = renderRequest;
+        const exportFormat = currentFormat;
+        renderAbortController = new AbortController();
+        const { signal } = renderAbortController;
         exportButton.disabled = true;
         setRenderStatus(workspace, 'processing', 'Layout wird gespeichert …');
-        renderRequest += 1;
-        const requestId = renderRequest;
 
         try {
             const saved = await instance?.save('manual');
+            if (!isActiveRender(requestId, exportFormat)) return;
             if (!saved) throw new Error('Das Motiv konnte vor dem Export nicht gespeichert werden.');
 
             setRenderStatus(workspace, 'processing', 'PNG wird serverseitig gerendert …');
             const payload = await requestJson(config.endpoints.renderStore, {
                 method: 'POST',
-                json: { format: currentFormat },
+                json: { format: exportFormat },
+                signal,
             });
+            if (!isActiveRender(requestId, exportFormat)) return;
             const render = payload.render || payload;
             if (render.status === 'completed') {
-                const downloadUrl = render.download_url
-                    || replaceEndpointToken(config.endpoints.renderDownload, '__RENDER__', render.public_id);
-                setRenderStatus(workspace, 'completed', `${resolveArtboard(currentFormat).label}-PNG ist bereit.`, downloadUrl);
+                const downloadUrl = completedRenderDownloadUrl(
+                    render,
+                    replaceEndpointToken(config.endpoints.renderDownload, '__RENDER__', render.public_id),
+                );
+                if (!downloadUrl) {
+                    setRenderStatus(workspace, 'failed', 'Dieser PNG-Export ist nicht mehr aktuell. Bitte erneut exportieren.');
+                    exportButton.disabled = false;
+                    return;
+                }
+                setRenderStatus(workspace, 'completed', `${resolveArtboard(exportFormat).label}-PNG ist bereit.`, downloadUrl);
                 exportButton.disabled = false;
                 return;
             }
-            await pollRender(render, requestId);
+            await pollRender(render, requestId, exportFormat, signal);
         } catch (error) {
+            if (error.name === 'AbortError' || !isActiveRender(requestId, exportFormat)) return;
             setRenderStatus(workspace, 'failed', error.message);
             dispatchToast('error', error.message, 'PNG nicht erstellt');
             exportButton.disabled = false;
@@ -756,11 +914,18 @@ export async function createMarketingStudio(workspace, config) {
 
     await startBuilder(currentFormat);
 
+    if (readOnly) {
+        sharedForm?.querySelectorAll('input, textarea, select, button').forEach((control) => {
+            control.disabled = true;
+        });
+        if (exportButton) exportButton.disabled = true;
+    }
+
     return {
         hasUnsavedChanges: () => Boolean(instance?.hasUnsavedChanges?.()),
         destroy() {
             destroyed = true;
-            renderRequest += 1;
+            invalidateRender();
             abortController.abort();
             timers.forEach((timer) => window.clearTimeout(timer));
             timers.clear();

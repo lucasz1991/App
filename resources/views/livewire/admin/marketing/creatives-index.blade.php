@@ -115,8 +115,8 @@
 
                         <div class="mt-5 flex flex-wrap items-center gap-2 border-t border-rt-border/70 pt-4 dark:border-rt-dark-border/70">
                             <a href="{{ route('admin.marketing.creatives.editor', $creative) }}" wire:navigate class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-rt-red px-3.5 text-sm font-semibold text-white transition hover:bg-rt-red-dark">
-                                <i data-feather="edit-3" class="h-4 w-4" aria-hidden="true"></i>
-                                Bearbeiten
+                                <i data-feather="{{ $statusValue === 'archived' ? 'eye' : 'edit-3' }}" class="h-4 w-4" aria-hidden="true"></i>
+                                {{ $statusValue === 'archived' ? 'Ansehen' : 'Bearbeiten' }}
                             </a>
                             <button type="button" wire:click="duplicate('{{ $creative->public_id }}')" wire:loading.attr="disabled" class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rt-border px-3 text-sm font-semibold text-rt-muted transition hover:border-rt-red/30 hover:text-rt-red disabled:opacity-50 dark:border-rt-dark-border dark:text-rt-dark-muted">
                                 <i data-feather="copy" class="h-4 w-4" aria-hidden="true"></i>

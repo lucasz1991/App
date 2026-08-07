@@ -2,10 +2,19 @@
 
 namespace Tests\Feature;
 
+use App\Enums\MarketingCreativeType;
+use App\Livewire\Admin\Marketing\CreativesIndex;
+use App\Models\MarketingAsset;
+use App\Models\User;
+use App\Services\Marketing\MarketingStudioService;
+use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Livewire\Livewire;
 use Tests\TestCase;
 
 class MarketingBuilderVendorIntegrityTest extends TestCase
 {
+    use DatabaseMigrations;
+
     /** @var array<string, string> */
     private const EXPECTED_SHA256 = [
         'lmz-builder.js' => 'EF398B4F114D123B35F88103E7AFFC29ABA534DA738F6ADCA0B866E3946DA53E',
@@ -53,5 +62,69 @@ class MarketingBuilderVendorIntegrityTest extends TestCase
         $this->assertStringContainsString('x-on:change="replace(', $assets);
         $this->assertStringContainsString("route('admin.marketing.creatives.index')", $sidebar);
         $this->assertStringContainsString("route('admin.marketing.assets.index')", $sidebar);
+    }
+
+    public function test_real_admin_pages_render_while_staff_is_denied(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $staff = User::factory()->create(['role' => 'staff']);
+        $asset = MarketingAsset::query()->create([
+            'original_name' => 'railtime-einsatz.jpg',
+            'disk' => 'private',
+            'path' => 'marketing/assets/railtime-einsatz.jpg',
+            'mime_type' => 'image/jpeg',
+            'extension' => 'jpg',
+            'size' => 123456,
+            'width' => 1600,
+            'height' => 900,
+            'sha256' => '0123456789abcdef'.str_repeat('0', 48),
+            'created_by' => $admin->id,
+        ]);
+        $creative = app(MarketingStudioService::class)->createFromTemplate(
+            MarketingCreativeType::Job,
+            $admin,
+        );
+
+        $this->actingAs($admin)
+            ->get(route('admin.marketing.creatives.index'))
+            ->assertOk()
+            ->assertSee('Marketing-Motive')
+            ->assertSee($creative->title);
+
+        $this->actingAs($admin)
+            ->get(route('admin.marketing.assets.index'))
+            ->assertOk()
+            ->assertSee('Marketing-Medien')
+            ->assertSee('maximal 8 MB')
+            ->assertSee(route('admin.marketing.assets.show', $asset).'?v=0123456789abcdef', false);
+
+        $this->actingAs($admin)
+            ->get(route('admin.marketing.creatives.editor', $creative))
+            ->assertOk()
+            ->assertSee('data-marketing-editor-root', false)
+            ->assertSee('1080 × 1920')
+            ->assertSee(route('admin.marketing.assets.show', $asset).'?v=0123456789abcdef', false);
+
+        $this->actingAs($staff)
+            ->get(route('admin.marketing.creatives.index'))
+            ->assertForbidden();
+
+        Livewire::actingAs($staff)
+            ->test(CreativesIndex::class)
+            ->assertForbidden();
+    }
+
+    public function test_create_action_rechecks_admin_role_after_the_component_was_mounted(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $component = Livewire::actingAs($admin)->test(CreativesIndex::class);
+
+        $admin->forceFill(['role' => 'staff'])->save();
+
+        $component
+            ->call('create', MarketingCreativeType::Job->value)
+            ->assertForbidden();
+
+        $this->assertDatabaseCount('marketing_creatives', 0);
     }
 }

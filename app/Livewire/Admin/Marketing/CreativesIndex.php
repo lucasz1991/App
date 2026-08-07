@@ -46,6 +46,8 @@ class CreativesIndex extends Component
 
     public function create(string $type, MarketingStudioService $studio): void
     {
+        abort_unless(auth()->user()?->isAdmin(), 403);
+
         $creativeType = MarketingCreativeType::tryFrom($type);
         abort_unless($creativeType, 404);
 

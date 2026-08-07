@@ -711,7 +711,7 @@ class EmailTemplatesPageTest extends TestCase
         }
     }
 
-    public function test_missing_phone_and_mobile_remove_the_complete_icon_rows(): void
+    public function test_missing_personal_phone_and_mobile_remove_only_the_personal_icon_rows(): void
     {
         $user = User::factory()->create(['email' => 'mara@example.test']);
         UserProfile::create([
@@ -724,7 +724,9 @@ class EmailTemplatesPageTest extends TestCase
 
         $this->assertStringNotContainsString('RT_PHONE_', $html);
         $this->assertStringNotContainsString('RT_MOBILE_', $html);
-        $this->assertStringNotContainsString('href="tel:', $html);
+        // Der Firmenkontakt wird absichtlich je einmal fuer die breite und die
+        // gestapelte mobile Signatur ausgegeben.
+        $this->assertSame(2, substr_count($html, 'href="tel:+494171546803"'));
         $this->assertStringContainsString('href="mailto:mara@example.test"', $html);
     }
 

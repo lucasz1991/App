@@ -2,6 +2,7 @@
 
 namespace App\Services\Marketing;
 
+use App\Enums\MarketingCreativeStatus;
 use App\Models\MarketingAsset;
 use App\Models\MarketingCreative;
 use App\Models\MarketingCreativeVariant;
@@ -90,6 +91,23 @@ final class MarketingAssetService
                     'created_by' => $actor->id,
                 ])->save();
 
+                $creativeIds = $this->referencingCreativeIds($locked);
+                if ($creativeIds !== []) {
+                    MarketingCreative::query()
+                        ->whereIn('id', $creativeIds)
+                        ->where('status', '!=', MarketingCreativeStatus::Archived->value)
+                        ->lockForUpdate()
+                        ->get()
+                        ->each(function (MarketingCreative $creative) use ($actor): void {
+                            $creative->forceFill([
+                                'status' => MarketingCreativeStatus::Draft,
+                                'approved_by' => null,
+                                'approved_at' => null,
+                                'updated_by' => $actor->id,
+                            ])->save();
+                        });
+                }
+
                 DB::afterCommit(static function () use ($oldDisk, $oldPath): void {
                     Storage::disk($oldDisk)->delete($oldPath);
                 });
@@ -124,15 +142,7 @@ final class MarketingAssetService
 
     public function isUsed(MarketingAsset $asset): bool
     {
-        $needle = $asset->public_id;
-
-        return MarketingCreativeVariant::query()
-            ->where('html', 'like', '%'.$needle.'%')
-            ->orWhere('css', 'like', '%'.$needle.'%')
-            ->exists()
-            || MarketingCreative::query()
-                ->where('shared_content', 'like', '%'.$needle.'%')
-                ->exists();
+        return $this->referencingCreativeIds($asset) !== [];
     }
 
     /**
@@ -157,7 +167,12 @@ final class MarketingAssetService
         $width = (int) $dimensions[0];
         $height = (int) $dimensions[1];
         $mimeType = strtolower((string) $dimensions['mime']);
-        if ($width < 1 || $height < 1 || ! isset(self::EXTENSIONS[$mimeType])) {
+        $allowedMimeTypes = config('marketing.assets.allowed_mime_types', array_keys(self::EXTENSIONS));
+        if ($width < 1
+            || $height < 1
+            || ! isset(self::EXTENSIONS[$mimeType])
+            || ! is_array($allowedMimeTypes)
+            || ! in_array($mimeType, $allowedMimeTypes, true)) {
             throw ValidationException::withMessages(['file' => 'Erlaubt sind JPEG-, PNG-, WebP- und GIF-Bilder.']);
         }
 
@@ -211,5 +226,26 @@ final class MarketingAssetService
     private function disk(): string
     {
         return (string) config('marketing.disk', 'private');
+    }
+
+    /** @return list<int> */
+    private function referencingCreativeIds(MarketingAsset $asset): array
+    {
+        $needle = '%'.$asset->public_id.'%';
+        $variantCreativeIds = MarketingCreativeVariant::query()
+            ->where(function ($query) use ($needle): void {
+                $query->where('html', 'like', $needle)->orWhere('css', 'like', $needle);
+            })
+            ->pluck('marketing_creative_id');
+        $sharedCreativeIds = MarketingCreative::query()
+            ->where('shared_content', 'like', $needle)
+            ->pluck('id');
+
+        return $variantCreativeIds
+            ->merge($sharedCreativeIds)
+            ->map(static fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
     }
 }

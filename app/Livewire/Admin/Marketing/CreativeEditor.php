@@ -36,6 +36,7 @@ class CreativeEditor extends Component
 
                 return [$format => [
                     'builderData' => $variant->builder_data ?: [],
+                    'css' => (string) $variant->css,
                     'contentHash' => (string) $variant->content_hash,
                     'version' => (int) $variant->version,
                 ]];
@@ -48,7 +49,7 @@ class CreativeEditor extends Component
             ->get()
             ->map(fn (MarketingAsset $asset): array => [
                 'public_id' => $asset->public_id,
-                'src' => route('admin.marketing.assets.show', $asset),
+                'src' => route('admin.marketing.assets.show', $asset).'?v='.substr((string) $asset->sha256, 0, 16),
                 'name' => $asset->original_name,
                 'type' => $asset->mime_type,
                 'width' => $asset->width,

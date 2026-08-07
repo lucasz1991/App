@@ -8,6 +8,7 @@ use App\Enums\MarketingCreativeType;
 use App\Enums\MarketingRenderStatus;
 use App\Http\Controllers\Admin\MarketingCreativeController;
 use App\Jobs\RenderMarketingCreative;
+use App\Models\MarketingCreative;
 use App\Models\User;
 use App\Services\Marketing\MarketingAssetService;
 use App\Services\Marketing\MarketingHtmlSanitizer;
@@ -18,10 +19,12 @@ use App\Support\CompanyData;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Routing\Middleware\SubstituteBindings;
+use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use Spatie\Activitylog\Models\Activity;
 use Tests\TestCase;
 
 class MarketingStudioBackendTest extends TestCase
@@ -85,11 +88,20 @@ class MarketingStudioBackendTest extends TestCase
             $admin,
         );
         $studio->approve($creative, $admin);
+        $approval = Activity::query()
+            ->where('log_name', 'marketing')
+            ->where('description', 'marketing_creative_approved')
+            ->sole();
+        $this->assertSame($creative->id, $approval->subject_id);
+        $this->assertSame($admin->id, $approval->causer_id);
+        $this->assertCount(3, $approval->properties->get('fingerprints'));
+        $this->assertNotEmpty($approval->properties->get('approved_at'));
 
         $updated = $studio->updateSharedContent(
             $creative->fresh(),
             ['title' => 'Wagenmeister gesucht'],
             $admin,
+            $this->variantHashes($creative->fresh(['variants'])),
             'Sommerkampagne Wagenmeister',
         );
 
@@ -107,6 +119,10 @@ class MarketingStudioBackendTest extends TestCase
             $formatSpecificImage,
             $updated->variants->firstWhere('format', MarketingCreativeFormat::Post)->html,
         );
+        $this->assertDatabaseHas('activity_log', [
+            'id' => $approval->id,
+            'description' => 'marketing_creative_approved',
+        ]);
     }
 
     public function test_real_shared_update_route_returns_fresh_variants_and_controller_denies_non_admins(): void
@@ -119,6 +135,7 @@ class MarketingStudioBackendTest extends TestCase
         $payload = [
             'title' => 'Aktualisierter Service',
             'shared_content' => array_replace($creative->shared_content, ['title' => '24/7 Wagenmeister']),
+            'expected_hashes' => $this->variantHashes($creative),
         ];
 
         $this->actingAs($staff)
@@ -143,6 +160,14 @@ class MarketingStudioBackendTest extends TestCase
             '24/7 Wagenmeister',
             $response->json('variants.story.builder_data.pages.0.component'),
         );
+
+        $this->actingAs($admin)
+            ->patchJson(route('admin.marketing.creatives.update', $creative), array_replace($payload, [
+                'title' => 'Veralteter Schreibversuch',
+            ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['expected_hashes.story']);
+        $this->assertSame('Aktualisierter Service', $creative->fresh()->title);
     }
 
     public function test_variant_save_sanitizes_active_content_and_rejects_a_stale_hash(): void
@@ -150,15 +175,21 @@ class MarketingStudioBackendTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
         $studio = app(MarketingStudioService::class);
         $creative = $studio->createFromTemplate(MarketingCreativeType::Job, $admin);
-        $variant = $creative->variants->firstWhere('format', MarketingCreativeFormat::Post);
+        $variant = $creative->variants->firstWhere('format', MarketingCreativeFormat::Story);
         $oldHash = $variant->content_hash;
 
         $saved = $studio->saveVariant(
             $creative,
-            MarketingCreativeFormat::Post,
-            ['pages' => [['name' => 'Post', 'component' => '<p>stale</p>']]],
-            '<section onclick="alert(1)"><a href="java&#x0A;script:alert(1)">Text</a><script>alert(1)</script><iframe src="https://example.org"></iframe><svg><script>alert(2)</script></svg></section>',
-            '@IMPORT url(https://example.org/a.css);body{background:url(javascript:alert(1));width:expression(alert(1))}</StYlE>',
+            MarketingCreativeFormat::Story,
+            [
+                'pages' => [
+                    ['name' => 'Post', 'component' => '<p>stale</p>'],
+                    ['name' => 'Böse', 'component' => '<script>alert(3)</script>'],
+                ],
+                'styles' => [['selectors' => ['body'], 'style' => ['background' => 'url(javascript:alert(4))']]],
+            ],
+            '<section onclick="alert(1)"><a href="java&#x0A;script:alert(1)">Text</a><a href="https://www.rail-time.de/de/karriere">CTA</a><img src="https://attacker.example/pixel.png"><style>@import url(https://example.org)</style><script>alert(1)</script><iframe src="https://example.org"></iframe><svg><script>alert(2)</script></svg></section>',
+            '@IMPORT url(https://example.org/a.css);body{background:url(jav\\61script:alert(1));width:expression(alert(1))}.remote{background:url(https://attacker.example/pixel.png)}</StYlE>',
             $oldHash,
             $admin,
         );
@@ -167,9 +198,14 @@ class MarketingStudioBackendTest extends TestCase
         $this->assertStringNotContainsStringIgnoringCase('iframe', $saved->html);
         $this->assertStringNotContainsStringIgnoringCase('onclick', $saved->html);
         $this->assertStringNotContainsStringIgnoringCase('javascript:', $saved->html);
+        $this->assertStringContainsString('https://www.rail-time.de/de/karriere', $saved->html);
+        $this->assertStringNotContainsStringIgnoringCase('attacker.example', $saved->html.$saved->css);
         $this->assertStringNotContainsStringIgnoringCase('@import', $saved->css);
         $this->assertStringNotContainsStringIgnoringCase('expression(', $saved->css);
         $this->assertStringNotContainsStringIgnoringCase('</style', $saved->css);
+        $this->assertSame([], $saved->builder_data['styles']);
+        $this->assertCount(1, $saved->builder_data['pages']);
+        $this->assertStringNotContainsStringIgnoringCase('javascript', json_encode($saved->builder_data));
         $this->assertNotSame($oldHash, $saved->content_hash);
 
         $this->expectException(ValidationException::class);
@@ -277,6 +313,93 @@ class MarketingStudioBackendTest extends TestCase
         $this->assertDatabaseCount('marketing_renders', 3);
     }
 
+    public function test_render_fails_closed_when_an_asset_changes_during_chromium_processing(): void
+    {
+        Queue::fake();
+        $admin = User::factory()->create(['role' => 'admin']);
+        $studio = app(MarketingStudioService::class);
+        $assets = app(MarketingAssetService::class);
+        $renderer = app(MarketingRenderService::class);
+        $creative = $studio->createFromTemplate(MarketingCreativeType::Info, $admin);
+        $variant = $creative->variants->firstWhere('format', MarketingCreativeFormat::Story);
+        $asset = $assets->store(UploadedFile::fake()->image('vorher.jpg', 120, 80), $admin);
+        $variant = $studio->saveVariant(
+            $creative,
+            MarketingCreativeFormat::Story,
+            $variant->builder_data,
+            str_replace('/rt-brand/img/hero-railtime.jpg', route('admin.marketing.assets.show', $asset), $variant->html),
+            $variant->css,
+            $variant->content_hash,
+            $admin,
+        );
+        $studio->approve($creative->fresh(), $admin);
+        $this->assertStringContainsString($asset->public_id, $variant->html);
+        $render = $renderer->queue($creative->fresh(), MarketingCreativeFormat::Story, $admin);
+
+        Process::fake(function ($process) use ($asset, $assets, $admin, $creative, $renderer, $render): string {
+            $outputIndex = array_search('--output', $process->command, true);
+            $this->assertIsInt($outputIndex);
+            $this->writePng($process->command[$outputIndex + 1], 1080, 1920);
+            $assets->replace($asset, UploadedFile::fake()->image('nachher.png', 140, 90), $admin);
+            $this->assertSame(MarketingCreativeStatus::Draft, $creative->fresh()->status);
+            $this->assertNotSame(
+                $render->fingerprint,
+                $renderer->fingerprint($creative->fresh(), $render->variant()->firstOrFail()),
+            );
+
+            return json_encode(['ok' => true, 'width' => 1080, 'height' => 1920], JSON_THROW_ON_ERROR);
+        });
+
+        $finished = $renderer->render($render);
+
+        $this->assertSame(MarketingRenderStatus::Failed, $finished->status);
+        $this->assertNull($finished->path);
+        $this->assertStringContainsString('während des Exports geändert', $finished->error);
+        $this->assertSame(MarketingCreativeStatus::Draft, $creative->fresh()->status);
+        $this->assertFalse($renderer->isCurrent($finished));
+    }
+
+    public function test_stale_completed_render_is_reported_as_failed_and_cannot_be_downloaded(): void
+    {
+        Queue::fake();
+        $admin = User::factory()->create(['role' => 'admin']);
+        $studio = app(MarketingStudioService::class);
+        $renderer = app(MarketingRenderService::class);
+        $creative = $studio->createFromTemplate(MarketingCreativeType::Info, $admin);
+        $studio->approve($creative, $admin);
+        $render = $renderer->queue($creative->fresh(), MarketingCreativeFormat::Web, $admin);
+        $path = 'marketing/renders/test/current.png';
+        $temporaryPng = tempnam(sys_get_temp_dir(), 'rt-render-');
+        $this->assertNotFalse($temporaryPng);
+        $this->writePng($temporaryPng, 1200, 630);
+        Storage::disk('private')->put($path, file_get_contents($temporaryPng));
+        unlink($temporaryPng);
+        $render->forceFill([
+            'status' => MarketingRenderStatus::Completed,
+            'path' => $path,
+            'mime_type' => 'image/png',
+            'rendered_at' => now(),
+        ])->save();
+        $this->assertTrue($renderer->isCurrent($render->fresh()));
+
+        $creative->fresh()->forceFill([
+            'status' => MarketingCreativeStatus::Draft,
+            'approved_by' => null,
+            'approved_at' => null,
+        ])->save();
+
+        $this->assertFalse($renderer->isCurrent($render->fresh()));
+        $this->actingAs($admin)
+            ->getJson(route('admin.marketing.renders.show', $render))
+            ->assertOk()
+            ->assertJsonPath('render.status', MarketingRenderStatus::Failed->value)
+            ->assertJsonPath('render.download_url', null)
+            ->assertJsonPath('render.error', 'Das Motiv oder ein verwendetes Medium wurde nach diesem Export geändert. Bitte den Export erneut starten.');
+        $this->actingAs($admin)
+            ->get(route('admin.marketing.renders.download', $render))
+            ->assertStatus(409);
+    }
+
     public function test_real_chromium_render_produces_exact_draft_and_approved_pngs(): void
     {
         $chrome = collect([
@@ -318,6 +441,46 @@ class MarketingStudioBackendTest extends TestCase
         $this->assertNotSame(hash('sha256', $draftPng), hash('sha256', $approvedPng));
     }
 
+    public function test_replacing_an_asset_under_the_same_public_url_invalidates_render_fingerprint(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $studio = app(MarketingStudioService::class);
+        $assets = app(MarketingAssetService::class);
+        $renderer = app(MarketingRenderService::class);
+        $creative = $studio->createFromTemplate(MarketingCreativeType::Info, $admin);
+        $variant = $creative->variants->firstWhere('format', MarketingCreativeFormat::Story);
+        $asset = $assets->store(UploadedFile::fake()->image('alt.jpg', 80, 60), $admin);
+        $assetUrl = route('admin.marketing.assets.show', $asset);
+        $variant = $studio->saveVariant(
+            $creative,
+            MarketingCreativeFormat::Story,
+            $variant->builder_data,
+            str_replace('/rt-brand/img/hero-railtime.jpg', $assetUrl, $variant->html),
+            $variant->css,
+            $variant->content_hash,
+            $admin,
+        );
+        $studio->approve($creative->fresh(), $admin);
+        $this->assertStringContainsString($asset->public_id, $variant->html);
+        $dependencyBefore = app(MarketingRenderAssetHydrator::class)->fingerprint($variant->html, $variant->css);
+        $assetHashBefore = $asset->sha256;
+        $before = $renderer->fingerprint($creative->fresh(), $variant);
+
+        $replaced = $assets->replace($asset, UploadedFile::fake()->image('neu.png', 100, 80), $admin);
+        $creativeAfterReplace = $creative->fresh();
+        $dependencyAfter = app(MarketingRenderAssetHydrator::class)->fingerprint($variant->fresh()->html, $variant->fresh()->css);
+        $after = $renderer->fingerprint($creativeAfterReplace, $variant->fresh());
+
+        $this->assertSame($asset->public_id, $replaced->public_id);
+        $this->assertNotSame($assetHashBefore, $replaced->sha256);
+        $this->assertNotSame($dependencyBefore, $dependencyAfter);
+        $this->assertNotSame($before, $after);
+        $this->assertSame(MarketingCreativeStatus::Draft, $creativeAfterReplace->status);
+        $this->assertNull($creativeAfterReplace->approved_by);
+        $this->assertNull($creativeAfterReplace->approved_at);
+        $this->assertTrue($renderer->requiresWatermark($creativeAfterReplace));
+    }
+
     public function test_render_asset_hydrator_embeds_private_assets_and_builtin_brand_files(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
@@ -335,16 +498,105 @@ class MarketingStudioBackendTest extends TestCase
         $this->assertStringContainsString('data:image/jpeg;base64,', $hydrated['css']);
         $this->assertStringContainsString('data:image/svg+xml;base64,', $hydrated['html']);
         $this->assertStringNotContainsString('/administrator/marketing/medien/', $hydrated['html'].$hydrated['css']);
+        $this->assertStringNotContainsString('?v=', $hydrated['html'].$hydrated['css']);
+
+        Storage::disk('private')->put($asset->path, 'manipulated-image-bytes');
+        $tampered = app(MarketingRenderAssetHydrator::class)->hydrate(
+            '<img src="'.route('admin.marketing.assets.show', $asset).'">',
+            '',
+        );
+        $this->assertStringContainsString($asset->public_id, $tampered['html']);
+        $this->assertStringNotContainsString('data:image/', $tampered['html']);
     }
 
     public function test_sanitizer_allows_safe_image_data_but_blocks_html_data_urls(): void
     {
         $sanitizer = app(MarketingHtmlSanitizer::class);
         $html = $sanitizer->html(
-            '<img src="data:image/png;base64,iVBORw0KGgo="><a href="data:text/html;base64,PHNjcmlwdD4=">bad</a>',
+            '<img src="data:image/png;base64,iVBORw0KGgo=">'
+            .'<a href="data:text/html;base64,PHNjcmlwdD4=">bad</a>'
+            .'<img src="//attacker.example/pixel.png">'
+            .'<img src="\\\\attacker.example\\share\\pixel.png">'
+            .'<img src="../.env">'
+            .'<img src="/rt-brand/%2e%2e/.env">'
+            .'<img srcset="/safe.png 1x, //attacker.example/two.png 2x">'
+            .'<link imagesrcset="//attacker.example/three.png 1x">',
+        );
+        $css = $sanitizer->css(
+            '.a{background:url(//attacker.example/a.png)}'
+            .'.b{background:url(../storage/secret.png)}'
+            .'.c{background:url(\\\\attacker.example\\share\\a.png)}'
+            .'.d{background:url(f\\69le:///etc/passwd)}'
+            .'.e{background:url(h\\74tps://attacker.example/a.png)}'
+            .'@\\69mport url(https://attacker.example/escaped.css);',
         );
 
-        $this->assertStringContainsString('data:image/png;base64,iVBORw0KGgo=', $html);
+        $this->assertStringNotContainsString('data:image/png;base64,iVBORw0KGgo=', $html);
         $this->assertStringNotContainsString('data:text/html', $html);
+        $this->assertStringNotContainsString('attacker.example', $html.$css);
+        $this->assertStringNotContainsString('../', $html.$css);
+        $this->assertStringNotContainsString('%2e%2e', strtolower($html.$css));
+        $this->assertStringNotContainsStringIgnoringCase('srcset', $html);
+        $this->assertStringNotContainsStringIgnoringCase('imagesrcset', $html);
+        $this->assertStringNotContainsStringIgnoringCase('file:', $css);
+    }
+
+    public function test_sanitizer_keeps_valid_inline_qr_images_but_rejects_mime_and_pixel_bombs(): void
+    {
+        $sanitizer = app(MarketingHtmlSanitizer::class);
+        $qr = $this->pngDataUri(29, 29);
+
+        $safe = $sanitizer->html('<img src="'.$qr.'" alt="QR-Code">');
+        $this->assertStringContainsString($qr, $safe);
+
+        $mismatched = $sanitizer->html('<img src="'.str_replace('data:image/png', 'data:image/gif', $qr).'">');
+        $this->assertStringNotContainsString('src=', $mismatched);
+
+        config()->set('marketing.assets.max_pixels', 100);
+        $pixelBomb = $this->pngDataUri(11, 10);
+        $blocked = $sanitizer->html('<img src="'.$pixelBomb.'">');
+        $this->assertStringNotContainsString('src=', $blocked);
+    }
+
+    /** @return array{story: string, post: string, web: string} */
+    private function variantHashes(MarketingCreative $creative): array
+    {
+        $variants = $creative->relationLoaded('variants')
+            ? $creative->variants
+            : $creative->variants()->get();
+
+        return [
+            'story' => $variants->firstWhere('format', MarketingCreativeFormat::Story)->content_hash,
+            'post' => $variants->firstWhere('format', MarketingCreativeFormat::Post)->content_hash,
+            'web' => $variants->firstWhere('format', MarketingCreativeFormat::Web)->content_hash,
+        ];
+    }
+
+    private function pngDataUri(int $width, int $height): string
+    {
+        $image = imagecreatetruecolor($width, $height);
+        $dark = imagecolorallocate($image, 16, 34, 55);
+        $light = imagecolorallocate($image, 255, 255, 255);
+        for ($y = 0; $y < $height; $y++) {
+            for ($x = 0; $x < $width; $x++) {
+                imagesetpixel($image, $x, $y, ($x + $y) % 2 === 0 ? $dark : $light);
+            }
+        }
+
+        ob_start();
+        imagepng($image);
+        $contents = (string) ob_get_clean();
+        imagedestroy($image);
+
+        return 'data:image/png;base64,'.base64_encode($contents);
+    }
+
+    private function writePng(string $path, int $width, int $height): void
+    {
+        $image = imagecreatetruecolor($width, $height);
+        $color = imagecolorallocate($image, 16, 34, 55);
+        imagefill($image, 0, 0, $color);
+        imagepng($image, $path);
+        imagedestroy($image);
     }
 }

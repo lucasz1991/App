@@ -66,25 +66,88 @@ function documentHtml(payload, width, height) {
     const base = payload.base_url
         ? `<base href="${escapeHtml(payload.base_url)}">`
         : '';
-    const watermark = payload.draft === true || payload.watermark === true
-        ? '<div class="rt-marketing-watermark" aria-hidden="true">ENTWURF – NICHT VERÖFFENTLICHEN</div>'
-        : '';
 
     return `<!doctype html>
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: file: blob:; style-src 'unsafe-inline' data: file:; font-src data: file:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob: http: https: file:; style-src 'unsafe-inline' data:; font-src data: http: https: file:;">
 ${base}
 <style>
 *{box-sizing:border-box}html,body{width:${width}px;height:${height}px;margin:0;overflow:hidden;background:#fff}body{font-family:Arial,Helvetica,sans-serif}
 #rt-marketing-artboard{position:relative;width:${width}px;height:${height}px;overflow:hidden;isolation:isolate}
-.rt-marketing-watermark{position:absolute;z-index:2147483647;left:-13%;top:43%;width:126%;padding:18px 0;background:rgba(177,0,33,.86);color:#fff;font:900 34px/1 Arial,sans-serif;letter-spacing:5px;text-align:center;transform:rotate(-18deg);pointer-events:none}
 ${payload.css ?? ''}
 </style>
 </head>
-<body><main id="rt-marketing-artboard">${payload.html ?? ''}${watermark}</main></body>
+<body><main id="rt-marketing-artboard">${payload.html ?? ''}</main></body>
 </html>`;
+}
+
+function watermarkDocument(artwork, width, height) {
+    return `<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline';">
+<style>
+*{box-sizing:border-box}html,body{width:${width}px;height:${height}px;margin:0;overflow:hidden;background:#fff}
+#rt-watermark-composite{position:relative;width:${width}px;height:${height}px;overflow:hidden;isolation:isolate}
+#rt-watermark-artwork{display:block;width:100%;height:100%;object-fit:fill}
+#rt-watermark-overlay{position:absolute;z-index:2147483647;left:-13%;top:43%;display:block;width:126%;padding:18px 0;background:rgba(177,0,33,.86);color:#fff;font:900 34px/1 Arial,sans-serif;letter-spacing:5px;text-align:center;opacity:1;visibility:visible;transform:rotate(-18deg);clip:auto;clip-path:none;filter:none;pointer-events:none}
+</style>
+</head>
+<body><main id="rt-watermark-composite"><img id="rt-watermark-artwork" src="data:image/png;base64,${artwork}" alt=""><div id="rt-watermark-overlay" aria-hidden="true">ENTWURF – NICHT VERÖFFENTLICHEN</div></main></body>
+</html>`;
+}
+
+function decodeEntities(value) {
+    return value
+        .replace(/&#x([0-9a-f]+);?/giu, (_, codepoint) => String.fromCodePoint(Number.parseInt(codepoint, 16)))
+        .replace(/&#([0-9]+);?/gu, (_, codepoint) => String.fromCodePoint(Number.parseInt(codepoint, 10)))
+        .replace(/&colon;/giu, ':')
+        .replace(/&sol;/giu, '/')
+        .replace(/&bsol;/giu, '\\');
+}
+
+function hasBlockedResourceReference(payload) {
+    const html = String(payload.html ?? '');
+    const css = String(payload.css ?? '');
+    const resourceAttribute = /\b(?:src|poster|background|data|srcset|imagesrcset)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/giu;
+
+    for (const match of html.matchAll(resourceAttribute)) {
+        const value = decodeEntities(match[1] ?? match[2] ?? match[3] ?? '')
+            .replace(/[\u0000-\u0020\u007f]+/gu, '')
+            .toLowerCase();
+        if (value !== '' && !value.startsWith('data:')) {
+            return true;
+        }
+    }
+
+    for (const match of css.matchAll(/url\s*\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*))\s*\)/giu)) {
+        const value = decodeEntities(match[1] ?? match[2] ?? match[3] ?? '')
+            .replace(/[\u0000-\u0020\u007f]+/gu, '')
+            .toLowerCase();
+        if (value !== '' && !value.startsWith('data:')) {
+            return true;
+        }
+    }
+
+    return /@(?:import|charset|namespace)\b/iu.test(css);
+}
+
+async function closeBrowser(browser) {
+    let timeoutId;
+    const timeout = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('Browser close timeout.')), 3_000);
+    });
+
+    try {
+        await Promise.race([browser.close(), timeout]);
+    } catch {
+        browser.process()?.kill('SIGKILL');
+    } finally {
+        clearTimeout(timeoutId);
+    }
 }
 
 async function main() {
@@ -98,6 +161,12 @@ async function main() {
     }
 
     const payload = JSON.parse(await fs.readFile(inputPath, 'utf8'));
+    if (/\bfile\s*:/iu.test(`${payload.html ?? ''}\n${payload.css ?? ''}`)) {
+        throw new Error('Local file URLs are prohibited in marketing render content.');
+    }
+    if (hasBlockedResourceReference(payload)) {
+        throw new Error('Blocked resource request detected during renderer preflight.');
+    }
     const executablePath = await firstExisting([
         argument('chrome'),
         process.env.MARKETING_CHROME_PATH,
@@ -116,6 +185,7 @@ async function main() {
         headless: true,
         args: flag('no-sandbox') ? ['--no-sandbox', '--disable-setuid-sandbox'] : [],
     });
+    const blockedResourceProtocols = [];
 
     try {
         const page = await browser.newPage();
@@ -123,7 +193,8 @@ async function main() {
         await page.setRequestInterception(true);
         page.on('request', (request) => {
             const protocol = new URL(request.url()).protocol;
-            if (['http:', 'https:', 'ws:', 'wss:'].includes(protocol)) {
+            if (['http:', 'https:', 'ws:', 'wss:', 'file:'].includes(protocol)) {
+                blockedResourceProtocols.push(protocol);
                 request.abort('blockedbyclient');
                 return;
             }
@@ -135,7 +206,10 @@ async function main() {
             waitUntil: 'domcontentloaded',
             timeout: 30_000,
         });
-        await page.evaluate(async () => {
+        if (blockedResourceProtocols.length > 0) {
+            throw new Error(`Blocked resource request detected (${[...new Set(blockedResourceProtocols)].join(', ')}).`);
+        }
+        const invalidImages = await page.evaluate(async () => {
             if (document.fonts?.ready) {
                 await document.fonts.ready;
             }
@@ -148,17 +222,57 @@ async function main() {
                 return new Promise((resolve) => {
                     image.addEventListener('load', resolve, { once: true });
                     image.addEventListener('error', resolve, { once: true });
+                    setTimeout(resolve, 2_000);
                 });
             }));
+
+            return [...document.images]
+                .filter((image) => !image.complete || image.naturalWidth < 1 || image.naturalHeight < 1)
+                .map((image) => image.currentSrc || image.src || '[empty image source]');
         });
-        await page.screenshot({
-            path: outputPath,
+        if (invalidImages.length > 0) {
+            throw new Error(`Image resource failed to load (${invalidImages.length}).`);
+        }
+        if (blockedResourceProtocols.length > 0) {
+            throw new Error(`Blocked resource request detected (${[...new Set(blockedResourceProtocols)].join(', ')}).`);
+        }
+        const screenshotOptions = {
             type: 'png',
             clip: { x: 0, y: 0, width, height },
             captureBeyondViewport: false,
-        });
+        };
+        if (payload.draft === true || payload.watermark === true) {
+            const artwork = await page.screenshot(screenshotOptions);
+            const compositePage = await browser.newPage();
+            try {
+                await compositePage.setViewport({ width, height, deviceScaleFactor: 1 });
+                await compositePage.setJavaScriptEnabled(false);
+                await compositePage.setContent(watermarkDocument(Buffer.from(artwork).toString('base64'), width, height), {
+                    waitUntil: 'load',
+                    timeout: 10_000,
+                });
+                const watermarkVisible = await compositePage.$eval('#rt-watermark-overlay', (element) => {
+                    const style = getComputedStyle(element);
+                    const bounds = element.getBoundingClientRect();
+
+                    return style.display !== 'none'
+                        && style.visibility === 'visible'
+                        && Number.parseFloat(style.opacity) > 0.99
+                        && bounds.width > 0
+                        && bounds.height > 0;
+                });
+                if (!watermarkVisible) {
+                    throw new Error('Draft watermark verification failed.');
+                }
+                await compositePage.screenshot({ ...screenshotOptions, path: outputPath });
+            } finally {
+                await compositePage.close();
+            }
+        } else {
+            await page.screenshot({ ...screenshotOptions, path: outputPath });
+        }
     } finally {
-        await browser.close();
+        await closeBrowser(browser);
     }
 
     const stat = await fs.stat(outputPath);

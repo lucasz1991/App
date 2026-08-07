@@ -47,18 +47,22 @@ final class MarketingContentBinder
     /** @param array<string, mixed> $builderData */
     public function syncBuilderData(array $builderData, string $html): array
     {
-        if (isset($builderData['pages'][0]) && is_array($builderData['pages'][0])) {
-            $builderData['pages'][0]['component'] = $html;
-        } elseif (array_key_exists('components', $builderData)) {
-            $builderData['components'] = $html;
-        } else {
-            $builderData['pages'] = [[
-                'name' => 'Motiv',
-                'component' => $html,
-            ]];
+        $pageName = data_get($builderData, 'pages.0.name', 'Motiv');
+        if (! is_string($pageName) || trim($pageName) === '') {
+            $pageName = 'Motiv';
         }
 
-        return $builderData;
+        $metadata = is_array($builderData['railtime'] ?? null) ? $builderData['railtime'] : [];
+
+        return [
+            'pages' => [[
+                'name' => mb_substr(trim($pageName), 0, 80),
+                'component' => $html,
+            ]],
+            // CSS wird ausschließlich aus der separat sanitisierten CSS-Spalte geladen.
+            'styles' => [],
+            'railtime' => array_intersect_key($metadata, array_flip(['template', 'format', 'schema'])),
+        ];
     }
 
     /** @param array<string, mixed> $content */

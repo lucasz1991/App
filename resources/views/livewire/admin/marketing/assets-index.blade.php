@@ -59,9 +59,10 @@
         @else
             <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6" data-marketing-asset-grid>
                 @foreach ($assets as $asset)
+                    @php($assetUrl = route('admin.marketing.assets.show', $asset).'?v='.substr((string) $asset->sha256, 0, 16))
                     <article wire:key="marketing-asset-{{ $asset->public_id }}" class="group overflow-hidden rounded-2xl border border-rt-border bg-rt-surface shadow-rt-xs dark:border-rt-dark-border dark:bg-rt-dark-surface">
-                        <a href="{{ route('admin.marketing.assets.show', $asset) }}" target="_blank" rel="noopener" class="relative block aspect-square overflow-hidden bg-rt-surface-muted dark:bg-rt-dark-surface-muted">
-                            <img src="{{ route('admin.marketing.assets.show', $asset) }}" alt="" loading="lazy" class="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]">
+                        <a href="{{ $assetUrl }}" target="_blank" rel="noopener" class="relative block aspect-square overflow-hidden bg-rt-surface-muted dark:bg-rt-dark-surface-muted">
+                            <img src="{{ $assetUrl }}" alt="" loading="lazy" class="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]">
                             @if ($asset->width && $asset->height)
                                 <span class="absolute bottom-2 left-2 rounded-lg bg-slate-950/75 px-2 py-1 text-[10px] font-semibold text-white backdrop-blur">{{ $asset->width }} × {{ $asset->height }}</span>
                             @endif

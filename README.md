@@ -150,7 +150,7 @@ MARKETING_DISK=private
 MARKETING_NODE_BINARY=node
 MARKETING_CHROME_PATH=/usr/bin/chromium
 MARKETING_CHROME_NO_SANDBOX=false
-MARKETING_RENDER_TIMEOUT=90
+MARKETING_RENDER_TIMEOUT=75
 ```
 
 Es wird **ein** dauerhafter Worker auf der Queue `default` benötigt:
@@ -170,6 +170,10 @@ Chrome-/Chromium-Datei des Servers zeigen. Die Sandbox bleibt standardmäßig
 aktiv; `MARKETING_CHROME_NO_SANDBOX=true` ist nur für eine nachweislich isolierte
 Serverumgebung vorgesehen. Fehlende Browserkonfiguration markiert ausschließlich
 den betroffenen Render als fehlgeschlagen und verwirft weder Motiv noch Layout.
+
+Der Chromium-Unterprozess endet spätestens nach 75 Sekunden, der Render-Job
+nach 85 Sekunden und der Worker nach 90 Sekunden. Diese Staffelung lässt Zeit
+fÃ¼r temporÃ¤res Datei-Cleanup und einen sauber gespeicherten Fehlerstatus.
 
 Nach jedem Deployment:
 

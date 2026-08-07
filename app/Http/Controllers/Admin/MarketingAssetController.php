@@ -38,9 +38,8 @@ final class MarketingAssetController extends MarketingAdminController
         return $disk->response($asset->path, $asset->original_name, [
             'Content-Type' => $asset->mime_type,
             'Cache-Control' => 'private, max-age=3600',
-            'Content-Disposition' => 'inline; filename="'.addslashes($asset->original_name).'"',
             'X-Content-Type-Options' => 'nosniff',
-        ]);
+        ], 'inline');
     }
 
     public function destroy(

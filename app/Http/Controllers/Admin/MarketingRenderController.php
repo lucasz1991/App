@@ -33,22 +33,34 @@ final class MarketingRenderController extends MarketingAdminController
         );
     }
 
-    public function show(Request $request, MarketingRender $render): JsonResponse
-    {
+    public function show(
+        Request $request,
+        MarketingRender $render,
+        MarketingRenderService $renderer,
+    ): JsonResponse {
         $this->marketingAdmin($request);
 
-        return response()->json(['render' => $this->payload($render->fresh())]);
+        $render = $render->fresh();
+
+        return response()->json(['render' => $this->payload(
+            $render,
+            $render->status !== MarketingRenderStatus::Completed || $renderer->isCurrent($render),
+        )]);
     }
 
-    public function download(Request $request, MarketingRender $render): StreamedResponse
-    {
+    public function download(
+        Request $request,
+        MarketingRender $render,
+        MarketingRenderService $renderer,
+    ): StreamedResponse {
         $this->marketingAdmin($request);
         abort_unless(
             $render->status === MarketingRenderStatus::Completed
             && $render->path
-            && Storage::disk($render->disk)->exists($render->path),
+            && Storage::disk($render->disk)->exists($render->path)
+            && $renderer->isCurrent($render),
             409,
-            'Der PNG-Export ist noch nicht verfügbar.',
+            'Der PNG-Export ist nicht mehr aktuell. Bitte den Export erneut starten.',
         );
         $render->loadMissing('creative');
         $filename = sprintf(
@@ -65,17 +77,21 @@ final class MarketingRenderController extends MarketingAdminController
     }
 
     /** @return array<string, mixed> */
-    private function payload(MarketingRender $render): array
+    private function payload(MarketingRender $render, bool $current = true): array
     {
+        $stale = $render->status === MarketingRenderStatus::Completed && ! $current;
+
         return [
             'public_id' => $render->public_id,
-            'status' => $render->status->value,
+            'status' => $stale ? MarketingRenderStatus::Failed->value : $render->status->value,
             'format' => $render->format->value,
             'width' => $render->width,
             'height' => $render->height,
-            'error' => $render->status === MarketingRenderStatus::Failed ? $render->error : null,
+            'error' => $stale
+                ? 'Das Motiv oder ein verwendetes Medium wurde nach diesem Export geändert. Bitte den Export erneut starten.'
+                : ($render->status === MarketingRenderStatus::Failed ? $render->error : null),
             'status_url' => route('admin.marketing.renders.show', $render),
-            'download_url' => $render->status === MarketingRenderStatus::Completed
+            'download_url' => $render->status === MarketingRenderStatus::Completed && $current
                 ? route('admin.marketing.renders.download', $render)
                 : null,
         ];

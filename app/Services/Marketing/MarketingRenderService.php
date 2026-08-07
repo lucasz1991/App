@@ -6,6 +6,7 @@ use App\Enums\MarketingCreativeFormat;
 use App\Enums\MarketingCreativeStatus;
 use App\Enums\MarketingRenderStatus;
 use App\Jobs\RenderMarketingCreative;
+use App\Models\MarketingAsset;
 use App\Models\MarketingCreative;
 use App\Models\MarketingCreativeVariant;
 use App\Models\MarketingRender;
@@ -126,7 +127,7 @@ final class MarketingRenderService
                 'html' => $hydrated['html'],
                 'css' => $hydrated['css'],
                 'base_url' => $this->fileUrl(public_path()),
-                'watermark' => $render->creative->status !== MarketingCreativeStatus::Approved,
+                'watermark' => $this->requiresWatermark($render->creative),
                 'creative_id' => $render->creative->public_id,
                 'format' => $render->format->value,
             ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
@@ -155,7 +156,7 @@ final class MarketingRenderService
                 $command[] = '--no-sandbox';
             }
 
-            $timeout = min(85, max(10, (int) config('marketing.renders.timeout_seconds', 85)));
+            $timeout = min(75, max(10, (int) config('marketing.renders.timeout_seconds', 75)));
             $result = Process::path(base_path())->timeout($timeout)->run($command);
             if (! $result->successful()) {
                 throw new RuntimeException('Chromium-Render fehlgeschlagen: '.mb_substr(trim($result->errorOutput()), 0, 700));
@@ -169,32 +170,7 @@ final class MarketingRenderService
                 throw new RuntimeException('Der Renderer hat keine PNG-Datei in den erwarteten Abmessungen erzeugt.');
             }
 
-            $path = trim((string) config('marketing.renders.directory', 'marketing/renders'), '/')
-                .'/'.now()->format('Y/m').'/'.$render->fingerprint.'.png';
-            $stream = fopen($outputPath, 'rb');
-            if ($stream === false) {
-                throw new RuntimeException('Das gerenderte PNG konnte nicht gelesen werden.');
-            }
-
-            try {
-                $stored = Storage::disk((string) config('marketing.disk', 'private'))->put($path, $stream);
-            } finally {
-                fclose($stream);
-            }
-            if (! $stored) {
-                throw new RuntimeException('Das gerenderte PNG konnte nicht privat gespeichert werden.');
-            }
-
-            $render->forceFill([
-                'status' => MarketingRenderStatus::Completed,
-                'disk' => (string) config('marketing.disk', 'private'),
-                'path' => $path,
-                'mime_type' => 'image/png',
-                'error' => null,
-                'rendered_at' => now(),
-            ])->save();
-
-            return $render->fresh();
+            return $this->finalize($render, $outputPath);
         } finally {
             foreach ([$inputPath, $outputPath] as $temporaryPath) {
                 if (is_file($temporaryPath)) {
@@ -211,11 +187,129 @@ final class MarketingRenderService
             (string) $variant->id,
             $variant->format->value,
             $variant->content_hash,
+            $this->assets->fingerprint($variant->html, $variant->css),
             $creative->status->value,
             (string) config('marketing.renders.cache_version', 1),
             (string) $variant->format->dimensions()['width'],
             (string) $variant->format->dimensions()['height'],
         ]));
+    }
+
+    public function requiresWatermark(MarketingCreative $creative): bool
+    {
+        return $creative->status !== MarketingCreativeStatus::Approved;
+    }
+
+    public function isCurrent(MarketingRender $render): bool
+    {
+        $candidate = MarketingRender::query()->with(['creative', 'variant'])->find($render->id);
+        if (! $candidate
+            || $candidate->status !== MarketingRenderStatus::Completed
+            || ! $candidate->path
+            || ! $candidate->creative
+            || ! $candidate->variant
+            || ! Storage::disk($candidate->disk)->exists($candidate->path)) {
+            return false;
+        }
+
+        $assetIds = $this->assets->referencedAssetPublicIds($candidate->variant->html, $candidate->variant->css);
+
+        return DB::transaction(function () use ($candidate, $assetIds): bool {
+            $this->lockAssets($assetIds);
+            $creative = MarketingCreative::query()->lockForUpdate()->find($candidate->marketing_creative_id);
+            $variant = MarketingCreativeVariant::query()->lockForUpdate()->find($candidate->marketing_creative_variant_id);
+            $locked = MarketingRender::query()->lockForUpdate()->find($candidate->id);
+
+            if (! $creative
+                || ! $variant
+                || ! $locked
+                || $locked->status !== MarketingRenderStatus::Completed
+                || ! $locked->path
+                || ! Storage::disk($locked->disk)->exists($locked->path)
+                || $assetIds !== $this->assets->referencedAssetPublicIds($variant->html, $variant->css)) {
+                return false;
+            }
+
+            return hash_equals($locked->fingerprint, $this->fingerprint($creative, $variant));
+        });
+    }
+
+    private function finalize(MarketingRender $render, string $outputPath): MarketingRender
+    {
+        $assetIds = $this->assets->referencedAssetPublicIds($render->variant->html, $render->variant->css);
+        $disk = (string) config('marketing.disk', 'private');
+        $path = trim((string) config('marketing.renders.directory', 'marketing/renders'), '/')
+            .'/'.now()->format('Y/m').'/'.$render->fingerprint.'.png';
+        $stored = false;
+
+        try {
+            return DB::transaction(function () use ($render, $outputPath, $assetIds, $disk, $path, &$stored): MarketingRender {
+                $this->lockAssets($assetIds);
+                $creative = MarketingCreative::query()->lockForUpdate()->find($render->marketing_creative_id);
+                $variant = MarketingCreativeVariant::query()->lockForUpdate()->find($render->marketing_creative_variant_id);
+                $locked = MarketingRender::query()->lockForUpdate()->findOrFail($render->id);
+
+                if (! $creative
+                    || ! $variant
+                    || $assetIds !== $this->assets->referencedAssetPublicIds($variant->html, $variant->css)
+                    || ! hash_equals($locked->fingerprint, $this->fingerprint($creative, $variant))) {
+                    $locked->forceFill([
+                        'status' => MarketingRenderStatus::Failed,
+                        'path' => null,
+                        'mime_type' => null,
+                        'error' => 'Das Motiv oder ein verwendetes Medium wurde während des Exports geändert. Bitte den Export erneut starten.',
+                        'rendered_at' => null,
+                    ])->save();
+
+                    return $locked;
+                }
+
+                $stream = fopen($outputPath, 'rb');
+                if ($stream === false) {
+                    throw new RuntimeException('Das gerenderte PNG konnte nicht gelesen werden.');
+                }
+
+                try {
+                    $stored = Storage::disk($disk)->put($path, $stream);
+                } finally {
+                    fclose($stream);
+                }
+                if (! $stored) {
+                    throw new RuntimeException('Das gerenderte PNG konnte nicht privat gespeichert werden.');
+                }
+
+                $locked->forceFill([
+                    'status' => MarketingRenderStatus::Completed,
+                    'disk' => $disk,
+                    'path' => $path,
+                    'mime_type' => 'image/png',
+                    'error' => null,
+                    'rendered_at' => now(),
+                ])->save();
+
+                return $locked;
+            });
+        } catch (\Throwable $exception) {
+            if ($stored) {
+                Storage::disk($disk)->delete($path);
+            }
+
+            throw $exception;
+        }
+    }
+
+    /** @param list<string> $publicIds */
+    private function lockAssets(array $publicIds): void
+    {
+        if ($publicIds === []) {
+            return;
+        }
+
+        MarketingAsset::query()
+            ->whereIn('public_id', $publicIds)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
     }
 
     private function fileUrl(string $path): string

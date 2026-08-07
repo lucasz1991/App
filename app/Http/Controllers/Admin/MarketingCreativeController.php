@@ -33,6 +33,7 @@ final class MarketingCreativeController extends MarketingAdminController
             $creative,
             $validated['shared_content'],
             $this->marketingAdmin($request),
+            $validated['expected_hashes'],
             $validated['title'],
         );
 

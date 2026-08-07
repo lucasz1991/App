@@ -27,7 +27,7 @@ return [
         'node_binary' => env('MARKETING_NODE_BINARY', 'node'),
         'chrome_path' => env('MARKETING_CHROME_PATH'),
         'no_sandbox' => (bool) env('MARKETING_CHROME_NO_SANDBOX', false),
-        'timeout_seconds' => (int) env('MARKETING_RENDER_TIMEOUT', 90),
+        'timeout_seconds' => (int) env('MARKETING_RENDER_TIMEOUT', 75),
         'script' => base_path('scripts/render-marketing-creative.mjs'),
     ],
 ];

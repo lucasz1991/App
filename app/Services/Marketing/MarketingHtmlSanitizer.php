@@ -12,7 +12,7 @@ final class MarketingHtmlSanitizer
     private const FORBIDDEN_ELEMENTS = [
         'script', 'iframe', 'frame', 'frameset', 'object', 'embed', 'form',
         'input', 'button', 'select', 'option', 'textarea', 'meta', 'link',
-        'base', 'svg', 'math', 'applet', 'audio', 'video', 'source', 'track',
+        'base', 'style', 'svg', 'math', 'applet', 'audio', 'video', 'source', 'track',
     ];
 
     /** @var list<string> */
@@ -74,7 +74,7 @@ final class MarketingHtmlSanitizer
                     $normalized = strtolower($name);
 
                     if (str_starts_with($normalized, 'on')
-                        || in_array($normalized, ['srcdoc', 'xmlns', 'form', 'ping'], true)) {
+                        || in_array($normalized, ['srcdoc', 'srcset', 'imagesrcset', 'xmlns', 'form', 'ping'], true)) {
                         $element->removeAttribute($name);
 
                         continue;
@@ -92,7 +92,10 @@ final class MarketingHtmlSanitizer
                     }
 
                     if (in_array($normalized, self::URL_ATTRIBUTES, true)
-                        && ! $this->isSafeUrl($value, $normalized === 'src')) {
+                        && ! $this->isSafeUrl(
+                            $value,
+                            in_array($normalized, ['src', 'poster', 'background', 'data'], true),
+                        )) {
                         $element->removeAttribute($name);
                     }
                 }
@@ -114,13 +117,21 @@ final class MarketingHtmlSanitizer
 
     public function css(string $css): string
     {
+        $css = $this->decodeCssEscapes($css);
+        $css = preg_replace('#/\*.*?\*/#su', '', $css) ?? '';
         $css = preg_replace('/<\/style/iu', '', $css) ?? '';
         $css = str_replace(['<!--', '-->'], '', $css);
         $css = preg_replace('/@(?:import|charset|namespace)\b[^;]*(?:;|$)/iu', '', $css) ?? '';
         $css = preg_replace('/expression\s*\([^)]*\)/iu', '', $css) ?? '';
         $css = preg_replace('/(?:-moz-binding|behavior)\s*:[^;}]+[;}]/iu', '', $css) ?? '';
         $css = preg_replace_callback('/url\s*\(\s*(["\']?)(.*?)\1\s*\)/iu', function (array $match): string {
-            return $this->isSafeUrl(html_entity_decode(trim($match[2]), ENT_QUOTES | ENT_HTML5), true)
+            $rawUrl = html_entity_decode(trim($match[2]), ENT_QUOTES | ENT_HTML5);
+            if (str_contains($rawUrl, '\\')) {
+                return 'none';
+            }
+            $url = $this->decodeCssEscapes($rawUrl);
+
+            return $this->isSafeUrl($url, true)
                 ? 'url("'.str_replace(['"', "\r", "\n"], ['\\"', '', ''], trim($match[2])).'")'
                 : 'none';
         }, $css) ?? '';
@@ -149,7 +160,7 @@ final class MarketingHtmlSanitizer
         return implode('; ', $declarations).($declarations === [] ? '' : ';');
     }
 
-    private function isSafeUrl(string $url, bool $allowImageData): bool
+    private function isSafeUrl(string $url, bool $resource): bool
     {
         $url = trim(html_entity_decode($url, ENT_QUOTES | ENT_HTML5));
         if ($url === '') {
@@ -165,24 +176,105 @@ final class MarketingHtmlSanitizer
             $decoded = $next;
         }
 
-        $collapsed = strtolower((string) preg_replace('/[\x00-\x20\x7f]+/u', '', $decoded));
-        if ($allowImageData && preg_match('#^data:image/(?:png|jpeg|jpg|gif|webp);base64,[a-z0-9+/=]+$#i', $collapsed)) {
+        $collapsed = (string) preg_replace('/[\x00-\x20\x7f]+/u', '', $decoded);
+        $normalized = strtolower($collapsed);
+        if (str_contains($collapsed, '\\')
+            || str_starts_with($normalized, '//')
+            || preg_match('#(?:^|/)\.\.(?:/|$)#', $normalized)) {
+            return false;
+        }
+
+        if ($resource) {
+            return $this->isSafeResourceUrl($collapsed);
+        }
+
+        if (str_starts_with($normalized, '#')
+            || str_starts_with($normalized, '/')
+            || str_starts_with($normalized, './')) {
             return true;
         }
 
-        if (str_starts_with($collapsed, '#')
-            || str_starts_with($collapsed, '/')
-            || str_starts_with($collapsed, './')
-            || str_starts_with($collapsed, '../')) {
-            return true;
-        }
-
-        if (! preg_match('/^[a-z][a-z0-9+.-]*:/i', $collapsed)) {
+        if (! preg_match('/^[a-z][a-z0-9+.-]*:/i', $normalized)) {
             return true;
         }
 
         $scheme = strtolower((string) parse_url($collapsed, PHP_URL_SCHEME));
 
         return in_array($scheme, ['http', 'https', 'mailto', 'tel'], true);
+    }
+
+    private function isSafeResourceUrl(string $url): bool
+    {
+        if (str_starts_with(strtolower($url), 'data:')) {
+            return $this->isSafeInlineImage($url);
+        }
+
+        $path = $url;
+        if (preg_match('/^https?:/i', $url)) {
+            $candidate = parse_url($url);
+            $application = parse_url((string) config('app.url'));
+            if (! is_array($candidate)
+                || ! is_array($application)
+                || strtolower((string) ($candidate['host'] ?? '')) !== strtolower((string) ($application['host'] ?? ''))
+                || strtolower((string) ($candidate['scheme'] ?? '')) !== strtolower((string) ($application['scheme'] ?? ''))
+                || (int) ($candidate['port'] ?? 0) !== (int) ($application['port'] ?? 0)) {
+                return false;
+            }
+
+            $path = (string) ($candidate['path'] ?? '');
+        }
+
+        $path = preg_replace('/[?#].*$/', '', $path) ?? $path;
+
+        return (bool) preg_match('#^/?rt-brand/(?:rt-logo\.svg|img/hero-railtime\.jpg)$#i', $path)
+            || (bool) preg_match('#^/administrator/marketing/(?:medien|assets)/[0-9a-f-]{36}$#i', $path);
+    }
+
+    private function isSafeInlineImage(string $url): bool
+    {
+        if (! preg_match('#^data:(image/(?:png|jpeg|jpg|gif|webp));base64,([a-z0-9+/=]+)$#i', $url, $matches)) {
+            return false;
+        }
+
+        $contents = base64_decode($matches[2], true);
+        $maxBytes = max(1, (int) config('marketing.assets.max_kilobytes', 8192)) * 1024;
+        if (! is_string($contents) || $contents === '' || strlen($contents) > $maxBytes) {
+            return false;
+        }
+
+        $dimensions = @getimagesizefromstring($contents);
+        if (! is_array($dimensions) || ! isset($dimensions[0], $dimensions[1], $dimensions['mime'])) {
+            return false;
+        }
+
+        $declaredMime = strtolower($matches[1]) === 'image/jpg' ? 'image/jpeg' : strtolower($matches[1]);
+        $actualMime = strtolower((string) $dimensions['mime']);
+        $allowedMimeTypes = config('marketing.assets.allowed_mime_types', [
+            'image/jpeg', 'image/png', 'image/webp', 'image/gif',
+        ]);
+        if ($declaredMime !== $actualMime
+            || ! is_array($allowedMimeTypes)
+            || ! in_array($actualMime, $allowedMimeTypes, true)) {
+            return false;
+        }
+
+        $width = (int) $dimensions[0];
+        $height = (int) $dimensions[1];
+        $maxPixels = max(1, (int) config('marketing.assets.max_pixels', 40_000_000));
+
+        return $width > 0 && $height > 0 && $width <= intdiv($maxPixels, $height);
+    }
+
+    private function decodeCssEscapes(string $value): string
+    {
+        $value = preg_replace_callback('/\\\\([0-9a-f]{1,6})(?:\s)?/iu', static function (array $match): string {
+            $codepoint = hexdec($match[1]);
+
+            return $codepoint > 0 && $codepoint <= 0x10FFFF
+                ? mb_chr($codepoint, 'UTF-8')
+                : '';
+        }, $value) ?? $value;
+
+        return preg_replace('/\\\\(.)/su', '$1', $value) ?? $value;
     }
 }
