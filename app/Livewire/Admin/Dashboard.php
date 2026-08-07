@@ -9,37 +9,35 @@ use Livewire\Component;
 
 class Dashboard extends Component
 {
-    public int $totalUsers = 0;
-
-    public int $activeUsers = 0;
-
-    public int $totalEmployees = 0;
-
+    /**
+     * Anzahl der fachlichen Teams (Rechtegruppen).
+     *
+     * Die uebrigen Werte aus SystemDashboardData::counters() — totalUsers,
+     * activeUsers, totalEmployees — wurden hier frueher ebenfalls geladen,
+     * aber nie ausgegeben. Der Personalbestand kommt aus workforceSnapshot().
+     */
     public int $totalTeams = 0;
 
     public function mount(SystemDashboardData $dashboardData): void
     {
-        foreach ($dashboardData->counters() as $property => $value) {
-            $this->{$property} = $value;
-        }
+        $this->totalTeams = $dashboardData->teamCount();
     }
 
     public function render(SystemDashboardData $dashboardData, OperationalPreviewCatalog $previewCatalog)
     {
+        // Die Route traegt bereits role:admin — diese Pruefung schuetzt den
+        // Fall, dass die Komponente anderswo eingebunden wird.
         abort_unless(auth()->user()?->isAdmin(), 403);
 
         $canViewSystemData = auth()->user()->canViewSystemDashboard();
-        $workforce = $this->workforceSnapshot();
 
         return view('livewire.admin.dashboard', [
             'recentUsers' => $dashboardData->recentUsers(),
             'recentActivity' => $dashboardData->recentActivity(),
             'operations' => $dashboardData->operations(),
             'charts' => $dashboardData->charts(),
-            'workforce' => $workforce,
-            'operationalModules' => auth()->user()?->role === 'admin'
-                ? $previewCatalog->dashboard()
-                : [],
+            'workforce' => $this->workforceSnapshot(),
+            'operationalModules' => $previewCatalog->dashboard(),
             'canViewSystemData' => $canViewSystemData,
             'system' => $canViewSystemData ? $dashboardData->system() : null,
         ])->layout('layouts.master', ['area' => 'admin']);

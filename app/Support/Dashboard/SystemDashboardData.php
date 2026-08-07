@@ -21,8 +21,19 @@ class SystemDashboardData
             'totalUsers' => User::query()->count(),
             'activeUsers' => User::query()->where('status', true)->count(),
             'totalEmployees' => User::query()->where('role', 'staff')->count(),
-            'totalTeams' => Team::query()->where('personal_team', false)->count(),
+            'totalTeams' => $this->teamCount(),
         ];
+    }
+
+    /**
+     * Fachliche Teams (Rechtegruppen) ohne die persoenlichen Jetstream-Teams.
+     *
+     * Eigene Methode, damit Aufrufer, die nur diese eine Zahl brauchen, nicht
+     * die drei uebrigen Zaehlabfragen aus counters() mitausloesen.
+     */
+    public function teamCount(): int
+    {
+        return Team::query()->where('personal_team', false)->count();
     }
 
     public function recentUsers(): Collection

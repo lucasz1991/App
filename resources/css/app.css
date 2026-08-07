@@ -1,6 +1,7 @@
 /* RailTime Designsprache v2 — Premium-Grotesk, ein Akzent, weiche Tiefe */
 @import '@fontsource-variable/plus-jakarta-sans';
 @import './help-support.css';
+@import './marketing-studio.css';
 
 @tailwind base;
 @tailwind components;
@@ -1362,31 +1363,9 @@ body[data-mode="dark"] [data-admin-dashboard] .rt-admin-operations-card-divider 
     background: #182435;
 }
 
-.dark .rt-admin-quick-link {
-    color: #edf2f8;
-    background: #182435;
-    border-color: #334155;
-}
-
-html.dark [data-admin-dashboard] .rt-admin-quick-link,
-body[data-mode="dark"] [data-admin-dashboard] .rt-admin-quick-link {
-    color: #edf2f8 !important;
-    background-color: #182435 !important;
-    border-color: #334155 !important;
-}
-
-.dark .rt-admin-quick-link:hover {
-    color: #ffffff;
-    background: #e4002b;
-    border-color: #f51b3b;
-}
-
-html.dark [data-admin-dashboard] .rt-admin-quick-link:hover,
-body[data-mode="dark"] [data-admin-dashboard] .rt-admin-quick-link:hover {
-    color: #ffffff !important;
-    background-color: #e4002b !important;
-    border-color: #f51b3b !important;
-}
+/* Die Schnellzugriffskacheln (.rt-admin-quick-link) sind entfallen — sie
+   verlinkten dieselben vier Ziele wie die dauerhaft sichtbare Seiten-
+   navigation. Ihre Dunkelmodus-Regeln standen hier. */
 
 .dark .rt-operational-demo-badge,
 .dark .rt-operational-notice {

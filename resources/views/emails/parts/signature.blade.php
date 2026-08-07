@@ -21,7 +21,7 @@
     @param string $topRule  Akzentlinie oben (in der Signaturdatei leer)
 --}}
 @php
-    $padding = $padding ?? '28px 38px 40px';
+    $padding = $padding ?? '20px 38px 28px';
     $topRule = $topRule ?? 'border-top:5px solid #e4002b;';
     $legalPadding = $legalPadding ?? '18px 38px';
     $hasPerson = trim((string) ($values['VORNAME_NACHNAME'] ?? '')) !== '';
@@ -44,12 +44,12 @@
              breiten Schirmen aber weiterhin rechts. --}}
         <table role="presentation" dir="rtl" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">
             <tr class="rt-stack">
-                <td dir="ltr" class="rt-sign-logo" width="37%" valign="top" align="right" style="direction:ltr;width:37%;padding-left:28px;border-left:1px solid {{ $values['SIGNATURE_BORDER'] }};text-align:right;">
+                <td dir="ltr" class="rt-sign-logo" width="37%" valign="bottom" align="right" style="direction:ltr;width:37%;padding-left:28px;border-left:1px solid {{ $values['SIGNATURE_BORDER'] }};text-align:right;vertical-align:bottom;">
                     <img class="rt-logo" src="{{ $values['LOGO_SRC'] }}" width="240" alt="{{ $values['FIRMENNAME'] }}" style="display:block;width:240px;max-width:100%;height:auto;margin-left:auto;">
                     <p style="margin:14px 0 0;color:{{ $values['SIGNATURE_TEXT_MUTED'] }};font-family:Consolas,'Courier New',monospace;font-size:9px;line-height:15px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;">Sicher · flexibel · deutschlandweit</p>
                     <div class="rt-only-wide" style="margin:13px 0 0;color:{{ $values['SIGNATURE_META_TEXT'] }};font-size:11px;line-height:18px;"><strong style="color:{{ $values['SIGNATURE_TEXT_PRIMARY'] }};">{{ $values['FIRMENNAME'] }}</strong>@include('emails.parts.company-contact-table', ['values' => $values, 'align' => 'right'])</div>
                 </td>
-                <td dir="ltr" class="rt-sign-identity" width="63%" valign="bottom" align="left" style="direction:ltr;width:63%;padding:30px 28px 0 0;position:relative;z-index:1;text-align:left;vertical-align:bottom;">
+                <td dir="ltr" class="rt-sign-identity" width="63%" valign="top" align="left" style="direction:ltr;width:63%;padding:6px 28px 0 0;position:relative;z-index:1;text-align:left;vertical-align:top;">
                     <p class="rt-sign-name" style="margin:0 0 4px;color:{{ $values['SIGNATURE_TEXT_PRIMARY'] }};font-size:25px;line-height:29px;font-weight:bold;letter-spacing:-.5px;">{{ $hasPerson ? $values['VORNAME_NACHNAME'] : $values['FIRMENNAME'] }}</p>
                     <p style="margin:0;color:{{ $values['SIGNATURE_ACCENT'] }};font-family:Consolas,'Courier New',monospace;font-size:10px;line-height:16px;font-weight:bold;letter-spacing:1.2px;text-transform:uppercase;">{{ $values['POSITION'] }}</p>
 

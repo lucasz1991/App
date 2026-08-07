@@ -511,7 +511,7 @@ class EmailTemplateBuilder
         return $this->substitute($html, [
             'SIGNATURE_BLOCK' => MailSignature::forUser($this->user, $theme, animated: true)->render(
                 layout: [
-                    'padding' => '26px 30px 34px',
+                    'padding' => '18px 30px 24px',
                     'topRule' => '',
                     'legalPadding' => '13px 30px',
                 ],

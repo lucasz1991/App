@@ -11,6 +11,10 @@ use App\Http\Controllers\Calls\CallTokenController;
 use App\Http\Controllers\ChatAttachmentController;
 use App\Http\Controllers\ChatExportController;
 use App\Http\Controllers\ChatLiveLocationController;
+use App\Http\Controllers\Admin\MarketingAssetController;
+use App\Http\Controllers\Admin\MarketingCreativeController;
+use App\Http\Controllers\Admin\MarketingRenderController;
+use App\Http\Controllers\Admin\MarketingVariantController;
 use App\Http\Controllers\ManagedDocumentDownloadController;
 use App\Http\Controllers\ProfileEmailTemplateController;
 use App\Http\Controllers\PushSubscriptionController;
@@ -26,6 +30,9 @@ use App\Livewire\Admin\Employees;
 use App\Livewire\Admin\FileManager;
 use App\Livewire\Admin\MailManagement;
 use App\Livewire\Admin\ManagedDocuments;
+use App\Livewire\Admin\Marketing\AssetsIndex as MarketingAssetsIndex;
+use App\Livewire\Admin\Marketing\CreativeEditor as MarketingCreativeEditor;
+use App\Livewire\Admin\Marketing\CreativesIndex as MarketingCreativesIndex;
 use App\Livewire\Admin\OperationalPreview;
 use App\Livewire\Admin\Settings;
 use App\Livewire\Admin\UserProfile;
@@ -211,6 +218,65 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
         Route::get('/files', FileManager::class)->name('files');
         Route::get('/files/verbindlich', ManagedDocuments::class)->name('managed-documents');
         Route::get('/mails', MailManagement::class)->name('mail-management');
+        Route::get('/marketing/motive', MarketingCreativesIndex::class)
+            ->name('marketing.creatives.index');
+        Route::post('/marketing/motive', [MarketingCreativeController::class, 'store'])
+            ->middleware('throttle:30,1')
+            ->name('marketing.creatives.store');
+        Route::get('/marketing/motive/{creative}/bearbeiten', MarketingCreativeEditor::class)
+            ->whereUuid('creative')
+            ->name('marketing.creatives.editor');
+        Route::patch('/marketing/motive/{creative}', [MarketingCreativeController::class, 'update'])
+            ->whereUuid('creative')
+            ->middleware('throttle:120,1')
+            ->name('marketing.creatives.update');
+        Route::post('/marketing/motive/{creative}/duplizieren', [MarketingCreativeController::class, 'duplicate'])
+            ->whereUuid('creative')
+            ->middleware('throttle:30,1')
+            ->name('marketing.creatives.duplicate');
+        Route::post('/marketing/motive/{creative}/freigeben', [MarketingCreativeController::class, 'approve'])
+            ->whereUuid('creative')
+            ->middleware('throttle:30,1')
+            ->name('marketing.creatives.approve');
+        Route::post('/marketing/motive/{creative}/archivieren', [MarketingCreativeController::class, 'archive'])
+            ->whereUuid('creative')
+            ->middleware('throttle:30,1')
+            ->name('marketing.creatives.archive');
+        Route::put('/marketing/motive/{creative}/varianten/{format}', [MarketingVariantController::class, 'update'])
+            ->whereUuid('creative')
+            ->whereIn('format', ['story', 'post', 'web'])
+            ->middleware('throttle:120,1')
+            ->name('marketing.variants.update');
+        Route::post('/marketing/motive/{creative}/renders', [MarketingRenderController::class, 'store'])
+            ->whereUuid('creative')
+            ->middleware('throttle:10,1')
+            ->name('marketing.renders.store');
+
+        Route::get('/marketing/medien', MarketingAssetsIndex::class)
+            ->name('marketing.assets.index');
+        Route::post('/marketing/medien', [MarketingAssetController::class, 'store'])
+            ->middleware('throttle:20,1')
+            ->name('marketing.assets.store');
+        Route::get('/marketing/medien/{asset}', [MarketingAssetController::class, 'show'])
+            ->whereUuid('asset')
+            ->middleware('throttle:120,1')
+            ->name('marketing.assets.show');
+        Route::put('/marketing/medien/{asset}', [MarketingAssetController::class, 'update'])
+            ->whereUuid('asset')
+            ->middleware('throttle:20,1')
+            ->name('marketing.assets.update');
+        Route::delete('/marketing/medien/{asset}', [MarketingAssetController::class, 'destroy'])
+            ->whereUuid('asset')
+            ->middleware('throttle:30,1')
+            ->name('marketing.assets.destroy');
+        Route::get('/marketing/renders/{render}', [MarketingRenderController::class, 'show'])
+            ->whereUuid('render')
+            ->middleware('throttle:120,1')
+            ->name('marketing.renders.show');
+        Route::get('/marketing/renders/{render}/download', [MarketingRenderController::class, 'download'])
+            ->whereUuid('render')
+            ->middleware('throttle:60,1')
+            ->name('marketing.renders.download');
         // Admins verwenden dieselbe robuste Nachrichtenoberfläche, erhalten
         // aber weiterhin über die Komponente das Admin-Layout.
         Route::get('/messages', MessageBox::class)->name('messages');

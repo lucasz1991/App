@@ -18,7 +18,7 @@ sein wie die Auftrags- und Schichtdaten darunter.
 
 | # | Baustein | Inhalt | Stand |
 |---|---|---|---|
-| 1 | **Plattform & Kommunikation** | Konten, Rollen und Team-Rechte, Nachrichten, Chat, Dateien, Push, Firmendaten | umgesetzt |
+| 1 | **Plattform & Kommunikation** | Konten, Rollen und Team-Rechte, Nachrichten, Chat, Dateien, Push, Firmendaten und Marketing-Studio | umgesetzt |
 | 1b | **Video- und Sprachanrufe** | Anrufe aus dem Chat, Gruppenräume, Moderation, Bildschirmfreigabe | umgesetzt |
 | 2 | **Auftragsverwaltung** | Aufträge, Kunden, Einsatzorte, Dokumente, Nachweise vor Ort | in Umsetzung |
 | 3 | **Schichtplanung & Kalender** | Dienstpläne, Qualifikationen, Verfügbarkeiten, Ruhezeiten, Abwesenheiten, Schichttausch | in Umsetzung |
@@ -56,6 +56,18 @@ Schichtzeiträumen laufen über zentrale Services: Ein Auftrag darf bestehende
 aktive Schichten nicht ausschließen und eine bereits belegte Schicht darf keine
 zeitliche Doppelbelegung erzeugen.
 
+### Marketing-Studio
+
+Administratoren erstellen unter **Management → Marketing** eigenständige Job-
+und Informationsmotive. Der aus der RailTime-Joomla-Komponente übernommene LMZ
+Page Builder bearbeitet Story (`1080 × 1920`), Social Post (`1080 × 1080`) und
+Web (`1200 × 630`) als getrennte Layouts mit gemeinsamen Inhaltsfeldern.
+Entwürfe erhalten beim PNG-Export ein sichtbares Wasserzeichen; eine Änderung
+setzt eine bestehende Freigabe zurück. Uploads und gerenderte Dateien liegen auf
+dem privaten Dateisystem und werden ausschließlich über geschützte Adminrouten
+ausgeliefert. Kampagnenplanung, direkte Kanalveröffentlichung und PDF-Export
+gehören bewusst noch nicht zu V1.
+
 Nach dem Aktualisieren des Codes muss das neue Fachschema angelegt werden:
 
 ```bash
@@ -83,7 +95,7 @@ Benachrichtigungen, Hintergrundaufgaben und Anrufe funktionieren nicht.
 
 | Dienst | Wofür | Ohne ihn |
 |---|---|---|
-| **Queue-Worker** | Push-Versand, Ring-Timeouts, Mailversand | Benachrichtigungen bleiben liegen; Anrufe klingeln endlos |
+| **Queue-Worker** | Push-Versand, Ring-Timeouts, Mailversand, Marketing-PNGs | Benachrichtigungen und Bildexporte bleiben liegen; Anrufe klingeln endlos |
 | **Reverb (WebSockets)** | Echtzeit in der geöffneten App | Chat und Klingeln aktualisieren erst nach Neuladen |
 | **Scheduler (Cron)** | Stündliches Aufräumen abgelaufener Dateien | Abgelaufene Dateien bleiben liegen |
 | **LiveKit Media-Server** | Bild- und Tonströme der Anrufe | Anrufe kommen nicht zustande |
@@ -91,7 +103,7 @@ Benachrichtigungen, Hintergrundaufgaben und Anrufe funktionieren nicht.
 ### 1. Voraussetzungen
 
 - PHP 8.2 oder neuer, Composer
-- Node.js mit npm
+- Node.js mit npm sowie Chrome/Chromium für den Marketing-PNG-Renderer
 - MySQL
 - Im Produktivbetrieb: **HTTPS**, und die Domain muss direkt auf `App/public`
   zeigen. Ein Betrieb in einem Unterordner wird von Livewire nicht unterstützt.
@@ -134,6 +146,11 @@ RailTime verwendet die Datenbank-Queue.
 ```dotenv
 QUEUE_CONNECTION=database
 WEBPUSH_QUEUE=default
+MARKETING_DISK=private
+MARKETING_NODE_BINARY=node
+MARKETING_CHROME_PATH=/usr/bin/chromium
+MARKETING_CHROME_NO_SANDBOX=false
+MARKETING_RENDER_TIMEOUT=90
 ```
 
 Es wird **ein** dauerhafter Worker auf der Queue `default` benötigt:
@@ -146,6 +163,13 @@ Der Prozess muss automatisch neu starten. **Auf Plesk** übernimmt das der im
 Laravel-Toolkit aktivierte Queue-Worker — RailTime startet bewusst keinen
 zweiten Worker über den Scheduler und richtet auch keinen über Supervisor ein.
 Zwei Worker auf derselben Queue führen zu doppelt verarbeiteten Jobs.
+
+Der Marketing-Renderer verwendet `puppeteer-core` und lädt deshalb keinen
+zweiten Browser herunter. `MARKETING_CHROME_PATH` muss auf die ausführbare
+Chrome-/Chromium-Datei des Servers zeigen. Die Sandbox bleibt standardmäßig
+aktiv; `MARKETING_CHROME_NO_SANDBOX=true` ist nur für eine nachweislich isolierte
+Serverumgebung vorgesehen. Fehlende Browserkonfiguration markiert ausschließlich
+den betroffenen Render als fehlgeschlagen und verwirft weder Motiv noch Layout.
 
 Nach jedem Deployment:
 

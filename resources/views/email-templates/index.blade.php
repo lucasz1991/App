@@ -367,11 +367,11 @@
                                         'bg-[#090d12]' => $themeKey === 'dark',
                                     ])>
                                         <div @class([
-                                            'w-full max-w-lg overflow-hidden rounded-xl px-4 py-5 shadow-lg ring-1 sm:px-5',
+                                            'w-full max-w-lg overflow-hidden rounded-xl px-4 py-4 shadow-lg ring-1 sm:px-5',
                                             'bg-white ring-slate-900/10' => $themeKey === 'light',
                                             'bg-[#080b10] ring-white/10' => $themeKey === 'dark',
                                         ]) aria-hidden="true">
-                                            <div class="grid grid-cols-[minmax(0,1fr)_4.75rem] items-start gap-4">
+                                            <div class="grid grid-cols-[minmax(0,1fr)_4.75rem] items-stretch gap-4">
                                                 <div class="min-w-0">
                                                     <p @class(['truncate text-sm font-bold', 'text-slate-900' => $themeKey === 'light', 'text-white' => $themeKey === 'dark'])>{{ $user->name }}</p>
                                                     <p class="mt-0.5 truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-rt-red">{{ $templateValues['POSITION'] }}</p>
@@ -405,7 +405,7 @@
                                                     </div>
                                                 </div>
                                                 <div @class([
-                                                    'border-l pl-3 text-right',
+                                                    'flex flex-col justify-end border-l pl-3 text-right',
                                                     'border-slate-200' => $themeKey === 'light',
                                                     'border-white/10' => $themeKey === 'dark',
                                                 ])>

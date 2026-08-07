@@ -64,6 +64,7 @@ import {
 import { ensureRailTimeNavigationCoordinator } from './navigation-coordinator';
 import { chatMessageActions } from './chat-message-actions';
 import { registerRailtimeLiveLocation } from './live-location';
+import { marketingAssetLibrary } from './marketing-studio';
 
 ensureRailTimeNavigationCoordinator(window, document);
 
@@ -646,6 +647,7 @@ Alpine.data('welcomeIntro', welcomeIntro);
 Alpine.data('railtimeChatbot', railtimeChatbot);
 Alpine.data('railtimeAssistantCloud', railtimeAssistantCloud);
 Alpine.data('chatMessageActions', chatMessageActions);
+Alpine.data('marketingAssetLibrary', marketingAssetLibrary);
 
 initMobileFormFocusRecovery();
 initKeyboardViewport();

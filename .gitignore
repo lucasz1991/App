@@ -33,12 +33,18 @@ Homestead.json
 !/tests/Feature/ChatRepliesAndReactionsTest.php
 !/tests/Feature/ChatLiveLocationTest.php
 !/tests/Feature/RememberMeAuthenticationTest.php
+!/tests/Feature/CompanyDataOfficialProfileTest.php
+!/tests/Feature/EmailTemplatesPageTest.php
+!/tests/Feature/MarketingBuilderVendorIntegrityTest.php
+!/tests/Feature/MarketingStudioBackendTest.php
 !/tests/Frontend/
 /tests/Frontend/*
 !/tests/Frontend/call-recording-gate.test.js
 !/tests/Frontend/call-self-preview.test.js
 !/tests/Frontend/chat-message-actions.test.js
 !/tests/Frontend/live-location.test.js
+!/tests/Frontend/marketing-render.test.js
+!/tests/Frontend/marketing-studio.test.js
 /.lmzdev/
 /railtime
 

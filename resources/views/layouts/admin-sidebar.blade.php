@@ -63,7 +63,7 @@
             </x-menu.sidebar-nav-group>
         </x-menu.sidebar-nav>
 
-        @canany(['employees.view', 'manage.messages'])
+        @if (auth()->user()?->role === 'admin' || auth()->user()?->can('employees.view') || auth()->user()?->can('manage.messages'))
             <x-menu.sidebar-nav :label="__('app.management')">
                 <x-menu.sidebar-nav-group
                     icon="briefcase"
@@ -139,9 +139,34 @@
                             {{ __('app.operational_calendar') }}
                         </x-menu.sidebar-nav-link>
                     </x-menu.sidebar-nav-group>
+
+                    <x-menu.sidebar-nav-group
+                        icon="image"
+                        :active="request()->routeIs('admin.marketing.*')"
+                    >
+                        <x-slot:label>Marketing</x-slot:label>
+
+                        <x-menu.sidebar-nav-link
+                            :href="route('admin.marketing.creatives.index')"
+                            icon="layout"
+                            :active="request()->routeIs('admin.marketing.creatives.*')"
+                            class="!pl-8"
+                        >
+                            Motive
+                        </x-menu.sidebar-nav-link>
+
+                        <x-menu.sidebar-nav-link
+                            :href="route('admin.marketing.assets.index')"
+                            icon="image"
+                            :active="request()->routeIs('admin.marketing.assets.*')"
+                            class="!pl-8"
+                        >
+                            Medien
+                        </x-menu.sidebar-nav-link>
+                    </x-menu.sidebar-nav-group>
                 @endif
             </x-menu.sidebar-nav>
-        @endcanany
+        @endif
 
         @if (auth()->user()?->role === 'admin')
             <x-menu.sidebar-nav :label="__('app.operations')">

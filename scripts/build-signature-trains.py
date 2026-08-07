@@ -30,7 +30,12 @@ ASSET_DIR = APP / "resources/mail-templates/assets"
 
 PNG_SIZE = (1440, 150)
 GIF_SIZE = (720, 75)
-TRAIN_WIDTH = 945
+SVG_VIEW_SIZE = (1723, 151)
+# 1200 Pixel halten das natuerliche SVG-Seitenverhaeltnis, geben den
+# angehaengten Waggons genug Laenge und lassen die Lok im 720-x-75-GIF etwa
+# 53 Pixel hoch erscheinen. Die fruehere 945-x-150-Zwangsstreckung hatte
+# Raeder, Kessel und Fuehrerhaus horizontal sichtbar gestaucht.
+TRAIN_WIDTH = 1200
 MOTION_FRAMES = 55
 MOTION_FRAME_MS = 100
 MOTION_DURATION_MS = MOTION_FRAMES * MOTION_FRAME_MS
@@ -46,6 +51,12 @@ IDLE_FRAMES = 37
 IDLE_FRAME_MS = 100
 IDLE_DURATION_MS = IDLE_FRAMES * IDLE_FRAME_MS
 MAX_GIF_BYTES = 200 * 1024
+VECTOR_ASSET = ASSET_DIR / "zug-dampf.svg"
+ENGINE_GROUP_X = 1318
+ENGINE_PIVOT = (120, 151)
+ENGINE_SCALE = (1.11, 1.08)
+DRIVER_WHEEL_CENTERS = ((166, 133), (202, 133), (238, 133), (274, 133), (310, 133))
+DRIVER_WHEEL_RADIUS = 17
 # Die Assets bleiben etwas kraeftiger als ihre Darstellung in der Signatur.
 # Dort legt CSS zusaetzlich einen 15-prozentigen Flaechen-Wash darueber. Das
 # ergibt effektiv rund 48 Prozent Deckkraft, ohne den Text mit abzublenden.
@@ -101,18 +112,28 @@ def chrome_path() -> Path:
     raise RuntimeError("Google Chrome wurde fuer den SVG-Export nicht gefunden.")
 
 
-def themed_svg(source: Path, theme: str, hide_smoke: bool) -> str:
+def themed_svg(
+    source: Path,
+    theme: str,
+    hide_smoke: bool,
+    hide_running_gear: bool = False,
+) -> str:
     palette = THEMES[theme]
     svg = source.read_text(encoding="utf-8")
     svg = svg.replace("#737d89", str(palette["stroke"]))
     svg = svg.replace("#f5f6f4", str(palette["wheel"]))
-    svg = svg.replace('preserveAspectRatio="xMidYMid meet"', 'preserveAspectRatio="none"')
+    svg = svg.replace('preserveAspectRatio="xMidYMid meet"', 'preserveAspectRatio="xMidYMax meet"')
     svg = svg.replace("<svg ", f'<svg width="{TRAIN_WIDTH}" height="{PNG_SIZE[1]}" ')
 
     if hide_smoke:
         if 'id="steam-plume"' not in svg:
             raise RuntimeError(f"{source.name}: Rauchgruppe steam-plume fehlt.")
         svg = svg.replace("</style>", "#steam-plume{display:none!important}</style>")
+
+    if hide_running_gear:
+        if 'id="running-gear"' not in svg:
+            raise RuntimeError(f"{source.name}: Laufwerksgruppe running-gear fehlt.")
+        svg = svg.replace("</style>", "#running-gear{display:none!important}</style>")
 
     return svg
 
@@ -167,10 +188,15 @@ def recover_transparency(black_path: Path, white_path: Path) -> Image.Image:
     return rgba
 
 
-def raster_train(source: Path, theme: str, hide_smoke: bool = True) -> Image.Image:
+def raster_train(
+    source: Path,
+    theme: str,
+    hide_smoke: bool = True,
+    hide_running_gear: bool = False,
+) -> Image.Image:
     with tempfile.TemporaryDirectory(prefix="railtime-signature-train-") as temp_dir:
         temp = Path(temp_dir)
-        svg = themed_svg(source, theme, hide_smoke)
+        svg = themed_svg(source, theme, hide_smoke, hide_running_gear)
         black = temp / "black.png"
         white = temp / "white.png"
         screenshot_svg(svg, "#000000", black)
@@ -181,6 +207,221 @@ def raster_train(source: Path, theme: str, hide_smoke: bool = True) -> Image.Ima
     train.putalpha(train.getchannel("A").point(lambda alpha: round(alpha * TRAIN_OPACITY)))
     canvas.alpha_composite(train, (0, 0))
     return canvas
+
+
+def source_point_to_gif(x: float, y: float) -> tuple[float, float]:
+    render_scale = TRAIN_WIDTH / SVG_VIEW_SIZE[0]
+    top_padding = PNG_SIZE[1] - SVG_VIEW_SIZE[1] * render_scale
+    gif_scale = GIF_SIZE[0] / PNG_SIZE[0]
+    return (
+        x * render_scale * gif_scale,
+        (top_padding + y * render_scale) * gif_scale,
+    )
+
+
+def engine_point_to_gif(x: float, y: float) -> tuple[float, float]:
+    transformed_x = ENGINE_GROUP_X + ENGINE_PIVOT[0] + (
+        x - ENGINE_PIVOT[0]
+    ) * ENGINE_SCALE[0]
+    transformed_y = ENGINE_PIVOT[1] + (
+        y - ENGINE_PIVOT[1]
+    ) * ENGINE_SCALE[1]
+    return source_point_to_gif(transformed_x, transformed_y)
+
+
+def engine_radius_to_gif(radius: float) -> tuple[float, float]:
+    center = engine_point_to_gif(0, 0)
+    horizontal = engine_point_to_gif(radius, 0)
+    vertical = engine_point_to_gif(0, radius)
+    return horizontal[0] - center[0], vertical[1] - center[1]
+
+
+def hex_rgb(color: str) -> tuple[int, int, int]:
+    normalized = color.removeprefix("#")
+    return tuple(int(normalized[index:index + 2], 16) for index in (0, 2, 4))
+
+
+def running_gear_frame(theme: str, wheel_angle: float) -> Image.Image:
+    """Render rotating drivers and physically linked rods at GIF resolution."""
+    scale = 4
+    layer = Image.new(
+        "RGBA",
+        (GIF_SIZE[0] * scale, GIF_SIZE[1] * scale),
+        (0, 0, 0, 0),
+    )
+    draw = ImageDraw.Draw(layer, "RGBA")
+    stroke = hex_rgb(str(THEMES[theme]["stroke"]))
+    wheel_fill = hex_rgb(str(THEMES[theme]["wheel"]))
+
+    def alpha(opacity: float) -> int:
+        return round(255 * TRAIN_OPACITY * opacity)
+
+    driver_rx, driver_ry = engine_radius_to_gif(DRIVER_WHEEL_RADIUS)
+    ring_rx, ring_ry = engine_radius_to_gif(14.3)
+    hub_rx, hub_ry = engine_radius_to_gif(3.4)
+    crank_rx, crank_ry = engine_radius_to_gif(4.0)
+    driver_centers = [engine_point_to_gif(x, y) for x, y in DRIVER_WHEEL_CENTERS]
+    crank_phase = wheel_angle - math.pi / 2
+    crank_pins: list[tuple[float, float]] = []
+
+    for center_x, center_y in driver_centers:
+        cx = center_x * scale
+        cy = center_y * scale
+        draw.ellipse(
+            (
+                cx - driver_rx * scale,
+                cy - driver_ry * scale,
+                cx + driver_rx * scale,
+                cy + driver_ry * scale,
+            ),
+            fill=(*wheel_fill, alpha(.36)),
+            outline=(*stroke, alpha(.96)),
+            width=max(1, round(1.7 * scale)),
+        )
+        draw.ellipse(
+            (
+                cx - ring_rx * scale,
+                cy - ring_ry * scale,
+                cx + ring_rx * scale,
+                cy + ring_ry * scale,
+            ),
+            outline=(*stroke, alpha(.84)),
+            width=max(1, round(.85 * scale)),
+        )
+
+        for spoke in range(8):
+            spoke_angle = wheel_angle + spoke * math.pi / 4
+            draw.line(
+                (
+                    cx,
+                    cy,
+                    cx + math.cos(spoke_angle) * ring_rx * scale,
+                    cy + math.sin(spoke_angle) * ring_ry * scale,
+                ),
+                fill=(*stroke, alpha(.76)),
+                width=max(1, round(.62 * scale)),
+            )
+
+        counter_angle = wheel_angle + math.pi / 2
+        counter_x = cx + math.cos(counter_angle) * driver_rx * .42 * scale
+        counter_y = cy + math.sin(counter_angle) * driver_ry * .42 * scale
+        draw.ellipse(
+            (
+                counter_x - hub_rx * .95 * scale,
+                counter_y - hub_ry * .72 * scale,
+                counter_x + hub_rx * .95 * scale,
+                counter_y + hub_ry * .72 * scale,
+            ),
+            fill=(*stroke, alpha(.42)),
+        )
+        draw.ellipse(
+            (
+                cx - hub_rx * scale,
+                cy - hub_ry * scale,
+                cx + hub_rx * scale,
+                cy + hub_ry * scale,
+            ),
+            fill=(*stroke, alpha(.46)),
+            outline=(*stroke, alpha(.9)),
+            width=max(1, round(.65 * scale)),
+        )
+
+        pin = (
+            center_x + math.cos(crank_phase) * crank_rx,
+            center_y + math.sin(crank_phase) * crank_ry,
+        )
+        crank_pins.append(pin)
+
+    # Alle Kurbelzapfen besitzen dieselbe Winkelstellung. Die Kuppelstange
+    # bleibt daher horizontal und vollzieht eine kleine Kreisbahn, waehrend
+    # Kolben- und Radiusstange ihre Winkel zum Zylinder realistisch aendern.
+    scaled_pins = [(x * scale, y * scale) for x, y in crank_pins]
+    draw.line(
+        scaled_pins,
+        fill=(*stroke, alpha(.94)),
+        width=max(1, round(2.8 * scale)),
+        joint="curve",
+    )
+    draw.line(
+        scaled_pins,
+        fill=(*wheel_fill, alpha(.4)),
+        width=max(1, round(1.15 * scale)),
+        joint="curve",
+    )
+
+    piston_anchor = engine_point_to_gif(319, 116)
+    radius_anchor = engine_point_to_gif(289, 112)
+    for anchor, pin, width in (
+        (piston_anchor, crank_pins[2], 2.25),
+        (radius_anchor, crank_pins[3], 1.25),
+    ):
+        points = (
+            anchor[0] * scale,
+            anchor[1] * scale,
+            pin[0] * scale,
+            pin[1] * scale,
+        )
+        draw.line(
+            points,
+            fill=(*stroke, alpha(.9)),
+            width=max(1, round(width * scale)),
+        )
+        draw.line(
+            points,
+            fill=(*wheel_fill, alpha(.34)),
+            width=max(1, round(max(.55, width * .42) * scale)),
+        )
+
+    pin_radius = max(1, round(1.55 * scale))
+    for pin_x, pin_y in scaled_pins:
+        draw.ellipse(
+            (pin_x - pin_radius, pin_y - pin_radius, pin_x + pin_radius, pin_y + pin_radius),
+            fill=(*stroke, alpha(.92)),
+        )
+
+    leading_center = engine_point_to_gif(346, 141)
+    leading_rx, leading_ry = engine_radius_to_gif(9.5)
+    leading_ring_rx, leading_ring_ry = engine_radius_to_gif(7.2)
+    leading_angle = wheel_angle * DRIVER_WHEEL_RADIUS / 9.5
+    leading_cx = leading_center[0] * scale
+    leading_cy = leading_center[1] * scale
+    draw.ellipse(
+        (
+            leading_cx - leading_rx * scale,
+            leading_cy - leading_ry * scale,
+            leading_cx + leading_rx * scale,
+            leading_cy + leading_ry * scale,
+        ),
+        fill=(*wheel_fill, alpha(.34)),
+        outline=(*stroke, alpha(.94)),
+        width=max(1, round(1.25 * scale)),
+    )
+    for spoke in range(8):
+        spoke_angle = leading_angle + spoke * math.pi / 4
+        draw.line(
+            (
+                leading_cx,
+                leading_cy,
+                leading_cx + math.cos(spoke_angle) * leading_ring_rx * scale,
+                leading_cy + math.sin(spoke_angle) * leading_ring_ry * scale,
+            ),
+            fill=(*stroke, alpha(.74)),
+            width=max(1, round(.52 * scale)),
+        )
+    draw.ellipse(
+        (
+            leading_cx - 1.7 * scale,
+            leading_cy - 1.7 * scale,
+            leading_cx + 1.7 * scale,
+            leading_cy + 1.7 * scale,
+        ),
+        fill=(*stroke, alpha(.88)),
+    )
+
+    return layer.resize(GIF_SIZE, Image.Resampling.LANCZOS)
+
+
+CHIMNEY_GIF = engine_point_to_gif(336, 43)
 
 
 def static_smoke(size: tuple[int, int], theme: str) -> Image.Image:
@@ -197,8 +438,8 @@ def static_smoke(size: tuple[int, int], theme: str) -> Image.Image:
         for fragment in range(4):
             phase = rng.uniform(0, math.tau)
             particles.append(SmokeParticle(
-                x=459 - drift + math.sin(phase) * (0.5 + progress * 2.0),
-                y=27 - rise + math.cos(phase) * (0.4 + progress * 1.2),
+                x=CHIMNEY_GIF[0] - drift + math.sin(phase) * (0.5 + progress * 2.0),
+                y=CHIMNEY_GIF[1] - rise + math.cos(phase) * (0.4 + progress * 1.2),
                 vx=-2.4,
                 vy=-12,
                 radius=2.3 + progress * 8.2 + rng.uniform(-0.5, 0.7),
@@ -230,6 +471,7 @@ def emit_smoke(
     particles: list[SmokeParticle],
     rng: random.Random,
     chimney_x: float,
+    chimney_y: float,
     speed: float,
     screen_velocity: float,
     accumulator: float,
@@ -241,26 +483,26 @@ def emit_smoke(
     # Dampfmaschinen stossen in klaren Schlaegen aus. Mit sinkender
     # Geschwindigkeit liegen die Schlaege weiter auseinander; dadurch wird
     # beim Bremsen nicht einfach eine gleichmaessige Perlenschnur erzeugt.
-    interval = 0.28 + (1 - min(1.0, speed)) * 0.42
+    interval = 0.18 + (1 - min(1.0, speed)) * 0.26
     accumulator += dt
     while accumulator >= interval:
         accumulator -= interval
-        count = 3 if speed > 0.52 else (3 if speed > 0.18 else 2)
+        count = 2 if speed > 0.12 else 1
         for _ in range(count):
             particles.append(SmokeParticle(
                 x=chimney_x + rng.uniform(-2.4, 2.0),
-                y=27 + rng.uniform(-2.2, 1.8),
+                y=chimney_y + rng.uniform(-2.2, 1.8),
                 # Frischer Rauch behaelt zunaechst einen Teil des Vorwaerts-
                 # impulses der fahrenden Lok. Luftwiderstand baut ihn danach
                 # rasch zur fast stehenden Luftmasse ab. Ohne diesen Impuls
                 # entstanden trotz langsamer Einfahrt weit getrennte Kugeln.
-                vx=screen_velocity * rng.uniform(.48, .62) + rng.uniform(-3.0, 2.0),
-                vy=rng.uniform(-15.0, -10.5),
-                radius=rng.uniform(2.8, 4.4),
-                growth=rng.uniform(4.2, 6.2),
+                vx=screen_velocity * rng.uniform(.68, .82) + rng.uniform(-2.2, 1.6),
+                vy=rng.uniform(-13.8, -10.8),
+                radius=rng.uniform(1.9, 3.15),
+                growth=rng.uniform(3.2, 4.8),
                 age=0.0,
-                lifetime=rng.uniform(1.65, 2.1),
-                opacity=rng.uniform(125, 170) * (0.80 + speed * 0.24),
+                lifetime=rng.uniform(1.75, 2.25),
+                opacity=rng.uniform(112, 148) * (0.84 + speed * 0.18),
                 phase=rng.uniform(0, math.tau),
                 turbulence=rng.uniform(0.74, 1.38),
             ))
@@ -385,10 +627,119 @@ def smoke_frame(particles: list[SmokeParticle], theme: str) -> Image.Image:
     )
 
 
-def composite_frame(train: Image.Image, theme: str, offset_x: int, smoke: Image.Image | None) -> Image.Image:
+def idle_smoke_frame(cycle: float, theme: str) -> Image.Image:
+    """Render a seamless, wispy stationary plume without circular puffs."""
+    scale = 4
+    layer = Image.new(
+        "RGBA",
+        (GIF_SIZE[0] * scale, GIF_SIZE[1] * scale),
+        (0, 0, 0, 0),
+    )
+    color = THEMES[theme]["smoke"]
+    animation_phase = cycle * math.tau
+
+    # Drei lange Stroemungsbaender teilen denselben thermischen Auftrieb,
+    # reagieren aber leicht unterschiedlich auf die ruhige Umgebungsluft.
+    # Die Dichtewellen laufen innerhalb der Baender nach oben; dadurch bewegt
+    # sich der Dampf, ohne als Folge einzelner Kugeln zu erscheinen.
+    for strand in range(3):
+        strand_phase = animation_phase + strand * 2.07
+        points: list[tuple[float, float]] = []
+        half_widths: list[float] = []
+        samples = 31
+
+        for sample in range(samples):
+            rise = sample / (samples - 1)
+            thermal_drift = rise**1.55 * 7.1
+            primary_curl = math.sin(
+                strand_phase + rise * math.tau * (1.06 + strand * .08)
+            ) * (.22 + rise * 1.68)
+            fine_curl = math.sin(
+                -animation_phase * .58 + strand * 1.31 + rise * math.tau * 2.45
+            ) * rise * .42
+            strand_offset = (strand - 1) * (.28 + rise * .92)
+            x = CHIMNEY_GIF[0] - thermal_drift + primary_curl + fine_curl + strand_offset
+            y = CHIMNEY_GIF[1] - rise * 28.5 + math.cos(
+                strand_phase * .71 + rise * math.tau * 1.63
+            ) * rise * .22
+            points.append((x * scale, y * scale))
+
+            taper = math.sin(math.pi * rise) ** .38
+            half_widths.append(
+                (.22 + rise * 2.45) * (.34 + .66 * taper) * scale
+            )
+
+        # Sechs ueberlappende Bandabschnitte erhalten wandernde Dichte statt
+        # harter Ein-/Ausblendpunkte. Jede Kontur folgt dem lokalen Normalen-
+        # vektor der Kurve und wird nach oben breiter und transparenter.
+        for chunk in range(6):
+            start = chunk * 5
+            end = min(samples, start + 7)
+            section = points[start:end]
+            section_widths = half_widths[start:end]
+            left_edge: list[tuple[float, float]] = []
+            right_edge: list[tuple[float, float]] = []
+
+            for local_index, ((x, y), width) in enumerate(zip(section, section_widths)):
+                previous = section[max(0, local_index - 1)]
+                following = section[min(len(section) - 1, local_index + 1)]
+                tangent_x = following[0] - previous[0]
+                tangent_y = following[1] - previous[1]
+                tangent_length = math.hypot(tangent_x, tangent_y) or 1
+                normal_x = -tangent_y / tangent_length
+                normal_y = tangent_x / tangent_length
+                left_edge.append((x + normal_x * width, y + normal_y * width))
+                right_edge.append((x - normal_x * width, y - normal_y * width))
+
+            middle_rise = ((start + end - 1) / 2) / (samples - 1)
+            density = .66 + .34 * (
+                .5 + .5 * math.sin(
+                    animation_phase - middle_rise * math.tau * 1.72 + strand * 1.37
+                )
+            )
+            age_fade = max(.18, 1 - middle_rise**1.58)
+            ribbon_alpha = round((54 - strand * 5) * density * (.58 + age_fade * .42))
+            ImageDraw.Draw(layer, "RGBA").polygon(
+                left_edge + list(reversed(right_edge)),
+                fill=(*color, ribbon_alpha),
+            )
+
+            core_alpha = round((92 - strand * 8) * density * (.48 + age_fade * .52))
+            core_width = max(1, round((.42 + middle_rise * .72) * scale))
+            ImageDraw.Draw(layer, "RGBA").line(
+                section,
+                fill=(*color, core_alpha),
+                width=core_width,
+                joint="curve",
+            )
+
+    return layer.filter(ImageFilter.GaussianBlur(1.1 * scale)).resize(
+        GIF_SIZE,
+        Image.Resampling.LANCZOS,
+    )
+
+
+def scaled_alpha(image: Image.Image, factor: float) -> Image.Image:
+    scaled = image.copy()
+    factor = max(0.0, min(1.0, factor))
+    scaled.putalpha(
+        scaled.getchannel("A").point(lambda alpha: round(alpha * factor))
+    )
+    return scaled
+
+
+def composite_frame(
+    train: Image.Image,
+    theme: str,
+    offset_x: int,
+    smoke: Image.Image | None,
+    running_gear: Image.Image | None = None,
+) -> Image.Image:
     frame = Image.new("RGBA", GIF_SIZE, THEMES[theme]["background"])
     moving = Image.new("RGBA", GIF_SIZE, (0, 0, 0, 0))
     moving.alpha_composite(train, (offset_x, 0))
+    if running_gear is not None:
+        moving.alpha_composite(running_gear, (offset_x, 0))
     frame.alpha_composite(moving)
     if smoke is not None:
         frame.alpha_composite(smoke)
@@ -400,12 +751,16 @@ def animated_frames(
     theme: str,
     steam: bool,
     idle_reference: list[Image.Image] | None = None,
+    idle_smoke_reference: list[Image.Image] | None = None,
 ) -> tuple[list[Image.Image], list[int]]:
     train_small = train.resize(GIF_SIZE, Image.Resampling.LANCZOS)
     train_travel = round(TRAIN_WIDTH / 2)
     particles: list[SmokeParticle] = []
     rng = random.Random(20260807 if theme == "light" else 20260808)
-    frames: list[Image.Image] = [composite_frame(train_small, theme, -train_travel, None)]
+    stationary_gear = running_gear_frame(theme, 0)
+    frames: list[Image.Image] = [
+        composite_frame(train_small, theme, -train_travel, None, stationary_gear)
+    ]
     durations: list[int] = [START_DELAY_MS]
     accumulator = 0.0
     last_distance = 0.0
@@ -424,7 +779,7 @@ def animated_frames(
             * (MOTION_REFERENCE_MS / MOTION_DURATION_MS),
         )
         offset = round(-train_travel * (1 - distance))
-        chimney_x = offset + 459
+        chimney_x = offset + CHIMNEY_GIF[0]
         dt = MOTION_FRAME_MS / 1000
         screen_velocity = (offset - last_offset) / dt
 
@@ -433,6 +788,7 @@ def animated_frames(
                 particles,
                 rng,
                 chimney_x,
+                CHIMNEY_GIF[1],
                 speed,
                 screen_velocity,
                 accumulator,
@@ -440,12 +796,23 @@ def animated_frames(
             )
             advance_smoke(particles, dt)
 
-        frames.append(composite_frame(train_small, theme, offset, smoke_frame(particles, theme) if steam else None))
+        wheel_radius_x = engine_radius_to_gif(DRIVER_WHEEL_RADIUS)[0]
+        travelled_pixels = train_travel * distance
+        wheel_angle = travelled_pixels / wheel_radius_x
+        frames.append(composite_frame(
+            train_small,
+            theme,
+            offset,
+            smoke_frame(particles, theme) if steam else None,
+            running_gear_frame(theme, wheel_angle),
+        ))
         durations.append(MOTION_FRAME_MS)
         last_distance = distance
         last_offset = offset
 
     if steam:
+        final_wheel_angle = train_travel / engine_radius_to_gif(DRIVER_WHEEL_RADIUS)[0]
+        final_gear = running_gear_frame(theme, final_wheel_angle)
         tail_elapsed = 0
         for index, frame_ms in enumerate(SMOKE_TAIL_FRAME_DURATIONS):
             advance_smoke(particles, frame_ms / 1000)
@@ -454,22 +821,36 @@ def animated_frames(
                 theme,
                 0,
                 smoke_frame(particles, theme),
+                final_gear,
             )
 
-            if idle_reference:
+            if idle_reference and idle_smoke_reference:
                 # Das Idle-GIF laeuft als unterste Hintergrundebene bereits ab
                 # t=0. Der Ausklang blendet deshalb nicht gegen "kein Rauch",
-                # sondern mit einer weichen S-Kurve in exakt die Idle-Phase,
-                # die zum jeweiligen absoluten Zeitpunkt darunter liegt.
+                # sondern fuehrt den natuerlich auslaufenden Fahrdampf und den
+                # neu entstehenden Standdampf kurz gemeinsam. Erst am Ende ist
+                # ausschliesslich die exakte Idle-Phase sichtbar.
                 absolute_ms = START_DELAY_MS + MOTION_DURATION_MS + tail_elapsed
                 idle_index = (absolute_ms // IDLE_FRAME_MS) % len(idle_reference)
                 transition = index / max(1, SMOKE_TAIL_FRAMES - 1)
                 transition = transition * transition * (3 - 2 * transition)
-                tail_frame = Image.blend(
-                    travelling_smoke,
-                    idle_reference[idle_index],
-                    transition,
-                )
+                if index == SMOKE_TAIL_FRAMES - 1:
+                    tail_frame = idle_reference[idle_index]
+                else:
+                    combined_smoke = Image.new("RGBA", GIF_SIZE, (0, 0, 0, 0))
+                    combined_smoke.alpha_composite(
+                        scaled_alpha(smoke_frame(particles, theme), (1 - transition) ** .92)
+                    )
+                    combined_smoke.alpha_composite(
+                        scaled_alpha(idle_smoke_reference[idle_index], transition)
+                    )
+                    tail_frame = composite_frame(
+                        train_small,
+                        theme,
+                        0,
+                        combined_smoke,
+                        final_gear,
+                    )
             else:
                 tail_frame = travelling_smoke
 
@@ -480,44 +861,30 @@ def animated_frames(
     return frames, durations
 
 
-def idle_frames(train: Image.Image, theme: str) -> tuple[list[Image.Image], list[int]]:
+def idle_frames(
+    train: Image.Image,
+    theme: str,
+) -> tuple[list[Image.Image], list[int], list[Image.Image]]:
     """Seamless, low-intensity chimney steam for the stationary train."""
     train_small = train.resize(GIF_SIZE, Image.Resampling.LANCZOS)
+    final_wheel_angle = (TRAIN_WIDTH / 2) / engine_radius_to_gif(DRIVER_WHEEL_RADIUS)[0]
+    stationary_gear = running_gear_frame(theme, final_wheel_angle)
     frames: list[Image.Image] = []
+    smoke_frames: list[Image.Image] = []
 
     for frame_index in range(IDLE_FRAMES):
         cycle = frame_index / IDLE_FRAMES
-        particles: list[SmokeParticle] = []
+        idle_smoke = idle_smoke_frame(cycle, theme)
+        smoke_frames.append(idle_smoke)
+        frames.append(composite_frame(
+            train_small,
+            theme,
+            0,
+            idle_smoke,
+            stationary_gear,
+        ))
 
-        # Vier versetzte Druckimpulse mit je zwei duennen Stroemungsfaeden
-        # ergeben eine ruhige, lueckenlose Fahne. Weniger und schmalere
-        # Fragmente verhindern die bisherige kompakte Wolken-/Balloptik. Der
-        # Dampf steigt anfangs fast senkrecht und bekommt erst oben einen
-        # leichten seitlichen Luftzug.
-        for puff_index in range(4):
-            age = (cycle + puff_index / 4) % 1
-            rise = age * 24 + age**2 * 4
-            drift = age**1.55 * 5.4
-            for strand in range(2):
-                phase = puff_index * 1.73 + strand * 2.21
-                strand_spread = (strand - .5) * (0.55 + age * 1.15)
-                particles.append(SmokeParticle(
-                    x=459 - drift + strand_spread + math.sin(age * math.tau * 1.34 + phase) * (0.3 + age * 1.15),
-                    y=27 - rise + math.cos(age * math.tau * 1.18 + phase) * (0.2 + age * .62),
-                    vx=-1.35 - strand * .55,
-                    vy=-11.4 - strand * .5,
-                    radius=1.45 + age * (4.65 + strand * .45),
-                    growth=5.6,
-                    age=age,
-                    lifetime=1.0,
-                    opacity=142 + strand * 12,
-                    phase=phase + cycle * math.tau,
-                    turbulence=0.82 + strand * .17,
-                ))
-
-        frames.append(composite_frame(train_small, theme, 0, smoke_frame(particles, theme)))
-
-    return frames, [IDLE_FRAME_MS] * IDLE_FRAMES
+    return frames, [IDLE_FRAME_MS] * IDLE_FRAMES, smoke_frames
 
 
 def gif_palette(frames: list[Image.Image]) -> Image.Image:
@@ -611,17 +978,24 @@ def build_variant(theme: str) -> None:
     if not source.is_file():
         raise RuntimeError(f"SVG-Quelle fehlt: {source}")
 
-    train = raster_train(source, theme, hide_smoke=True)
-    static = train.copy()
+    static_train = raster_train(source, theme, hide_smoke=True)
+    animated_train = raster_train(
+        source,
+        theme,
+        hide_smoke=True,
+        hide_running_gear=True,
+    )
+    static = static_train.copy()
     static.alpha_composite(static_smoke(PNG_SIZE, theme))
 
     static.save(ASSET_DIR / f"zug-dampf-{theme}.png", optimize=True)
-    standing, standing_durations = idle_frames(train, theme)
+    standing, standing_durations, standing_smoke = idle_frames(animated_train, theme)
     frames, durations = animated_frames(
-        train,
+        animated_train,
         theme,
         steam=True,
         idle_reference=standing,
+        idle_smoke_reference=standing_smoke,
     )
     palette = gif_palette([*frames, *standing])
     save_gif(
@@ -638,6 +1012,18 @@ def build_variant(theme: str) -> None:
         loop=True,
         shared_palette=palette,
     )
+
+
+def build_vector_asset() -> None:
+    """Publish the authoritative train SVG as a website-ready asset."""
+    source = SOURCE_DIR / "rt-dampflok.svg"
+    if not source.is_file():
+        raise RuntimeError(f"SVG-Quelle fehlt: {source}")
+
+    # Bewusst eine bytegleiche Kopie: Lokproportionen, angehaengte Waggons,
+    # semantische Gruppen und der statische steam-plume bleiben damit fuer
+    # Website-Animationen oder responsives Inline-SVG voll nutzbar.
+    shutil.copyfile(source, VECTOR_ASSET)
 
 
 def frame_at_ms(
@@ -657,6 +1043,34 @@ def frame_at_ms(
 
 def assert_assets() -> None:
     errors: list[str] = []
+    source_svg = SOURCE_DIR / "rt-dampflok.svg"
+    if not VECTOR_ASSET.is_file():
+        errors.append(f"{VECTOR_ASSET.name}: Website-Vektorasset fehlt")
+    elif not source_svg.is_file() or VECTOR_ASSET.read_bytes() != source_svg.read_bytes():
+        errors.append(f"{VECTOR_ASSET.name}: nicht mit der autoritativen SVG-Quelle synchron")
+    else:
+        vector_svg = VECTOR_ASSET.read_text(encoding="utf-8")
+        for contract in (
+            'viewBox="0 0 1723 151"',
+            'id="steam-engine"',
+            'id="steam-plume"',
+            'id="running-gear"',
+            'id="coupling-rod"',
+            'id="main-rod"',
+        ):
+            if contract not in vector_svg:
+                errors.append(f"{VECTOR_ASSET.name}: SVG-Vertrag {contract} fehlt")
+        if vector_svg.count('data-drive-wheel=') != 5:
+            errors.append(f"{VECTOR_ASSET.name}: nicht genau fuenf animierbare Treibraeder")
+
+    for theme in THEMES:
+        gear_difference = ImageChops.difference(
+            running_gear_frame(theme, 0),
+            running_gear_frame(theme, math.pi / 3),
+        )
+        if gear_difference.getbbox() is None:
+            errors.append(f"dampf-{theme}: Laufwerk reagiert nicht auf Radwinkel")
+
     for theme in THEMES:
         png_path = ASSET_DIR / f"zug-dampf-{theme}.png"
         gif_path = ASSET_DIR / f"zug-dampf-{theme}.gif"
@@ -763,6 +1177,8 @@ def main() -> None:
 
     if not args.check:
         ASSET_DIR.mkdir(parents=True, exist_ok=True)
+        print("Baue dampf/vector ...")
+        build_vector_asset()
         for theme in THEMES:
             print(f"Baue dampf/{theme} ...")
             build_variant(theme)

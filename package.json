@@ -32,7 +32,9 @@
         "laravel-echo": "^2.4.0",
         "leaflet": "^1.9.4",
         "livekit-client": "^2.21.0",
+        "puppeteer-core": "24.40.0",
         "pusher-js": "^8.5.0",
+        "qrcode": "1.5.4",
         "sweetalert2": "^11.26.25",
         "swiper": "^12.1.2",
         "three": "^0.185.1"

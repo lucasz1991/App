@@ -312,6 +312,8 @@ return [
     'operations_preview' => 'Operations planning',
     'operations_preview_navigation' => 'Operations planning',
     'operational_control' => 'Operations control',
+    'operations_workspace_title' => 'Orders, shifts & wagon lists',
+    'operations_workspace_description' => 'Every operational entry point in one place – the figures come straight from the productive operations data.',
     'operational_preview_dashboard_hint' => 'Live data from orders, shifts, the planning calendar and customer records.',
     'demo' => 'Demo',
     'demo_preview' => 'Demo · Preview',

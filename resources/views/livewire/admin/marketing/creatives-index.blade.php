@@ -1,0 +1,146 @@
+@section('title', 'Marketing · Motive')
+
+<x-ui.page
+    title="Marketing-Motive"
+    eyebrow="Management"
+    description="Jobanzeigen und Informationsmotive zentral gestalten, prüfen und als PNG ausgeben."
+    :auto-intro="false"
+    :show-back="false"
+    content-class="space-y-5"
+    data-marketing-creatives
+>
+    <x-slot:actions>
+        <button
+            type="button"
+            wire:click="create('info')"
+            wire:loading.attr="disabled"
+            class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rt-border bg-rt-surface px-3.5 text-sm font-semibold text-rt-text transition hover:border-rt-red/40 hover:text-rt-red disabled:opacity-50 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text"
+        >
+            <i data-feather="info" class="h-4 w-4" aria-hidden="true"></i>
+            <span class="hidden sm:inline">Info-Motiv</span>
+        </button>
+        <button
+            type="button"
+            wire:click="create('job')"
+            wire:loading.attr="disabled"
+            class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-rt-red px-3.5 text-sm font-semibold text-white shadow-rt-xs transition hover:bg-rt-red-dark disabled:opacity-50"
+        >
+            <i data-feather="briefcase" class="h-4 w-4" aria-hidden="true"></i>
+            <span class="hidden sm:inline">Job-Motiv</span>
+        </button>
+    </x-slot:actions>
+
+    @include('livewire.admin.marketing.partials.navigation', ['active' => 'creatives'])
+
+    <x-ui.surface.card padding="p-4">
+        <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_12rem_12rem]" aria-label="Motive filtern">
+            <label class="relative block">
+                <span class="sr-only">Motive durchsuchen</span>
+                <i data-feather="search" class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-rt-soft" aria-hidden="true"></i>
+                <input
+                    type="search"
+                    wire:model.live.debounce.300ms="search"
+                    placeholder="Titel durchsuchen …"
+                    class="min-h-11 w-full rounded-xl border border-rt-border bg-rt-control py-2 pl-10 pr-3 text-base text-rt-text placeholder:text-rt-soft focus:border-rt-red focus:ring-4 focus:ring-rt-red/10 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-text sm:text-sm"
+                >
+            </label>
+
+            <label>
+                <span class="sr-only">Motivtyp</span>
+                <select wire:model.live="type" class="min-h-11 w-full rounded-xl border border-rt-border bg-rt-control px-3 text-base text-rt-text focus:border-rt-red focus:ring-4 focus:ring-rt-red/10 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-text sm:text-sm">
+                    <option value="">Alle Typen</option>
+                    <option value="job">Jobs</option>
+                    <option value="info">Informationen</option>
+                </select>
+            </label>
+
+            <label>
+                <span class="sr-only">Status</span>
+                <select wire:model.live="status" class="min-h-11 w-full rounded-xl border border-rt-border bg-rt-control px-3 text-base text-rt-text focus:border-rt-red focus:ring-4 focus:ring-rt-red/10 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-text sm:text-sm">
+                    <option value="">Alle Status</option>
+                    <option value="draft">Entwurf</option>
+                    <option value="approved">Freigegeben</option>
+                    <option value="archived">Archiviert</option>
+                </select>
+            </label>
+        </div>
+    </x-ui.surface.card>
+
+    <div wire:loading.delay class="w-full rounded-xl border border-rt-border bg-rt-surface p-5 text-sm text-rt-muted dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-muted" role="status">
+        Motive werden aktualisiert …
+    </div>
+
+    <div wire:loading.remove>
+        @if ($creatives->isEmpty())
+            <x-ui.surface.card padding="p-8 sm:p-12" class="text-center">
+                <span class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rt-red dark:bg-rose-500/10 dark:text-rose-300">
+                    <i data-feather="layout" class="h-5 w-5" aria-hidden="true"></i>
+                </span>
+                <h2 class="mt-4 text-lg font-semibold">Noch keine passenden Motive</h2>
+                <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">Erstelle ein Job- oder Info-Motiv. Story, Post und Webformat werden direkt gemeinsam angelegt.</p>
+            </x-ui.surface.card>
+        @else
+            <div class="grid gap-4 xl:grid-cols-2" data-marketing-creative-list>
+                @foreach ($creatives as $creative)
+                    @php
+                        $typeValue = $creative->type instanceof \BackedEnum ? $creative->type->value : (string) $creative->type;
+                        $statusValue = $creative->status instanceof \BackedEnum ? $creative->status->value : (string) $creative->status;
+                        $statusLabel = ['draft' => 'Entwurf', 'approved' => 'Freigegeben', 'archived' => 'Archiviert'][$statusValue] ?? $statusValue;
+                    @endphp
+                    <article wire:key="marketing-creative-{{ $creative->public_id }}" class="group rounded-2xl border border-rt-border bg-rt-surface p-5 shadow-rt-xs transition hover:border-rt-red/25 hover:shadow-rt-sm dark:border-rt-dark-border dark:bg-rt-dark-surface" data-marketing-creative-card>
+                        <div class="flex items-start gap-4">
+                            <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-surface-muted text-rt-red dark:bg-rt-dark-surface-muted dark:text-rose-300">
+                                <i data-feather="{{ $typeValue === 'job' ? 'briefcase' : 'info' }}" class="h-5 w-5" aria-hidden="true"></i>
+                            </span>
+                            <div class="min-w-0 flex-1">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span @class([
+                                        'rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.08em]',
+                                        'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300' => $statusValue === 'draft',
+                                        'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300' => $statusValue === 'approved',
+                                        'bg-slate-100 text-slate-600 dark:bg-slate-500/10 dark:text-slate-300' => $statusValue === 'archived',
+                                    ])>{{ $statusLabel }}</span>
+                                    <span class="text-xs font-medium text-rt-soft">{{ $typeValue === 'job' ? 'Job' : 'Information' }}</span>
+                                </div>
+                                <h2 class="mt-2 truncate text-base font-semibold text-rt-text dark:text-rt-dark-text" title="{{ $creative->title }}">{{ $creative->title }}</h2>
+                                <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">Zuletzt geändert {{ $creative->updated_at?->diffForHumans() }}</p>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 flex flex-wrap gap-2" aria-label="Verfügbare Formate">
+                            @foreach (['story' => 'Story 9:16', 'post' => 'Post 1:1', 'web' => 'Web 1,91:1'] as $format => $label)
+                                <span class="rounded-lg border border-rt-border/80 bg-rt-surface-muted px-2.5 py-1.5 text-[11px] font-semibold text-rt-muted dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted">{{ $label }}</span>
+                            @endforeach
+                        </div>
+
+                        <div class="mt-5 flex flex-wrap items-center gap-2 border-t border-rt-border/70 pt-4 dark:border-rt-dark-border/70">
+                            <a href="{{ route('admin.marketing.creatives.editor', $creative) }}" wire:navigate class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-rt-red px-3.5 text-sm font-semibold text-white transition hover:bg-rt-red-dark">
+                                <i data-feather="edit-3" class="h-4 w-4" aria-hidden="true"></i>
+                                Bearbeiten
+                            </a>
+                            <button type="button" wire:click="duplicate('{{ $creative->public_id }}')" wire:loading.attr="disabled" class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rt-border px-3 text-sm font-semibold text-rt-muted transition hover:border-rt-red/30 hover:text-rt-red disabled:opacity-50 dark:border-rt-dark-border dark:text-rt-dark-muted">
+                                <i data-feather="copy" class="h-4 w-4" aria-hidden="true"></i>
+                                Duplizieren
+                            </button>
+                            @if ($statusValue === 'draft')
+                                <button type="button" wire:click="approve('{{ $creative->public_id }}')" wire:confirm="Dieses Motiv ohne Entwurfs-Wasserzeichen freigeben?" wire:loading.attr="disabled" class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-emerald-200 px-3 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50 disabled:opacity-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-500/10">
+                                    <i data-feather="check-circle" class="h-4 w-4" aria-hidden="true"></i>
+                                    Freigeben
+                                </button>
+                            @endif
+                            @if ($statusValue !== 'archived')
+                                <button type="button" wire:click="archive('{{ $creative->public_id }}')" wire:confirm="Dieses Motiv archivieren?" wire:loading.attr="disabled" class="ml-auto inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-rt-soft transition hover:bg-rose-50 hover:text-rt-red disabled:opacity-50 dark:hover:bg-rose-500/10" title="Archivieren" aria-label="{{ $creative->title }} archivieren">
+                                    <i data-feather="archive" class="h-4 w-4" aria-hidden="true"></i>
+                                </button>
+                            @endif
+                        </div>
+                    </article>
+                @endforeach
+            </div>
+
+            @if ($creatives->hasPages())
+                <div class="mt-5">{{ $creatives->links() }}</div>
+            @endif
+        @endif
+    </div>
+</x-ui.page>

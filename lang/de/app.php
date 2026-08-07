@@ -312,6 +312,8 @@ return [
     'operations_preview' => 'Betriebsplanung',
     'operations_preview_navigation' => 'Betriebsplanung',
     'operational_control' => 'Betriebssteuerung',
+    'operations_workspace_title' => 'Aufträge, Schichten & Wagenlisten',
+    'operations_workspace_description' => 'Alle operativen Einstiege an einem Ort – die Zahlen stammen unmittelbar aus den produktiven Betriebsdaten.',
     'operational_preview_dashboard_hint' => 'Live-Daten aus Aufträgen, Schichten, Kalender und Kundenstammdaten.',
     'demo' => 'Demo',
     'demo_preview' => 'Demo · Vorschau',

@@ -1,6 +1,13 @@
 @section('title', __('app.dashboard'))
 
 @php
+    // Jede Zahl steht genau EINMAL auf dieser Seite. Die Aufteilung:
+    //   Kopf        -> was gerade laeuft (Online, Ungelesen, Einladungen)
+    //   Einsatz     -> die vier Arbeitsbereiche mit ihrer Leitzahl
+    //   Belegschaft -> alles zum Personalbestand, gebuendelt in einer Karte
+    //   Entwicklung -> Zeitreihen
+    //   Personen    -> die beiden Personenlisten nebeneinander
+    //   System      -> zugeklappt, weil sich diese Werte praktisch nie aendern
     $workforceActiveRate = max(0, min(100, (int) $workforce['activeRate']));
     $chartConfig = array_merge($charts, [
         // Der Ring zeigt bewusst nur produktive Mitarbeiterkonten. Die
@@ -29,17 +36,13 @@
     $registrationSum = array_sum($charts['userGrowth']['registrations'] ?? []);
     $growthTotals = $charts['userGrowth']['totals'] ?? [];
     $growthCurrent = $growthTotals ? (int) end($growthTotals) : 0;
-    // Anteil der aktiven Konten an allen Mitarbeiterkonten — dieselbe Basis
-    // wie der Ring, nur als Balken unter der Kachel.
-    $activeShare = $workforce['total'] > 0
-        ? max(0, min(100, (int) round(($workforce['active'] / $workforce['total']) * 100)))
-        : 0;
+    $failedJobs = (int) ($system['failedJobs'] ?? 0);
 @endphp
 
 <x-ui.page :auto-intro="false">
     {{-- Beim allerersten Besuch startet das Intro automatisch. Danach bleibt
          derselbe Dialog unsichtbar im DOM und kann ueber den Info-Knopf im
-         Hero jederzeit erneut geoeffnet werden. --}}
+         Kopf jederzeit erneut geoeffnet werden. --}}
     <x-ui.welcome-intro
         :initially-open="\App\Support\PageViews::firstVisit(auth()->user(), 'intro:welcome')"
     />
@@ -49,10 +52,11 @@
         x-data="adminDashboardCharts(@js($chartConfig))"
         data-admin-dashboard
     >
-        {{-- Markanter Einstieg statt eines generischen Seitenkopfs. Die
-             Strecke zeichnet sich per DrawSVG ein, der Signalpunkt faehrt sie
-             danach per MotionPath ab. --}}
-        <section class="rt-admin-hero order-1 relative overflow-hidden rounded-[1.4rem] px-4 py-4 text-rt-text shadow-rt-md sm:px-6 sm:py-5 lg:px-7 dark:text-white" data-dashboard-segment="hero">
+        {{-- 1 · KOPF ---------------------------------------------------------
+             Titel und Tageslage. Bewusst ohne Aktionsknoepfe: jede Aktion
+             steht weiter unten in ihrem fachlichen Zusammenhang und zusaetzlich
+             dauerhaft in der Seitennavigation. --}}
+        <section class="rt-admin-hero relative overflow-hidden rounded-[1.4rem] px-4 py-4 text-rt-text shadow-rt-md sm:px-6 sm:py-5 lg:px-7 dark:text-white" data-dashboard-segment="hero">
             <svg class="pointer-events-none absolute -right-20 bottom-0 h-full w-[58%] opacity-70" viewBox="0 0 720 360" fill="none" aria-hidden="true" data-rt-route>
                 <path class="rt-admin-route-bed" data-rt-route-bed d="M42 306C130 276 132 191 220 176C314 160 338 263 431 233C515 205 501 105 680 58" stroke-width="34" stroke-linecap="round" />
                 <path class="rt-admin-route-line" data-rt-route-line d="M42 306C130 276 132 191 220 176C314 160 338 263 431 233C515 205 501 105 680 58" stroke="#e4002b" stroke-width="3" stroke-linecap="round" />
@@ -81,32 +85,20 @@
                     <p class="rt-admin-hero-copy mt-2 max-w-2xl text-xs leading-5 text-slate-600 sm:text-sm sm:leading-6 dark:text-slate-300">
                         {{ __('app.admin_dashboard_description') }}
                     </p>
-
-                    <div class="mt-4 grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
-                        @can('employees.view')
-                            <a href="{{ route('admin.employees') }}" wire:navigate class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-rt-red px-3 py-2 text-xs font-semibold text-white shadow-[0_10px_24px_-12px_rgba(228,0,43,.8)] transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:bg-rt-red-light active:translate-y-0 focus:outline-none focus:ring-2 focus:ring-white/70">
-                                <i data-feather="users" class="h-4 w-4"></i>
-                                {{ __('app.manage_employees') }}
-                            </a>
-                        @endcan
-                        <a href="{{ route('admin.operations.wagon-list') }}" wire:navigate data-dashboard-hero-secondary class="rt-ui-button rt-ui-button-secondary rt-admin-hero-secondary inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-rt-surface px-3 py-2 text-xs font-semibold text-slate-800 shadow-rt-xs transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:border-slate-400 hover:bg-slate-50 active:translate-y-0 focus:outline-none focus:ring-2 focus:ring-rt-red/30 dark:border-slate-500 dark:bg-slate-800 dark:text-white dark:hover:border-slate-300 dark:hover:bg-slate-700">
-                            <i data-feather="clipboard" class="h-4 w-4"></i>
-                            {{ __('app.wagon_list') }}
-                        </a>
-                    </div>
                 </div>
 
                 <aside class="rt-admin-live-card w-full rounded-xl border border-slate-300 bg-white p-3.5 shadow-[0_16px_36px_-28px_rgba(15,23,42,.32)] lg:justify-self-end dark:border-slate-600 dark:bg-rt-dark-surface dark:shadow-[0_16px_36px_-24px_rgba(0,0,0,.85)]" aria-label="{{ __('app.live_operations') }}" data-rt-glow>
                     <div class="flex items-center justify-between gap-4">
-                        <div>
+                        <div class="min-w-0">
                             <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">{{ __('app.live_operations') }}</p>
-                            <p class="mt-1 text-sm font-semibold text-rt-text dark:text-white">
-                                @if ($canViewSystemData)
-                                    {{ ($system['failedJobs'] ?? 0) > 0 ? __('app.jobs_failed', ['count' => $system['failedJobs']]) : __('app.system_ready') }}
-                                @else
-                                    {{ __('app.operations') }}
-                                @endif
-                            </p>
+                            {{-- Ohne Systemrechte gibt es hier nichts Belastbares
+                                 zu melden — dann bleibt die Zeile weg, statt ein
+                                 nichtssagendes Wort anzuzeigen. --}}
+                            @if ($canViewSystemData)
+                                <p class="mt-1 truncate text-sm font-semibold {{ $failedJobs > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-rt-text dark:text-white' }}">
+                                    {{ $failedJobs > 0 ? __('app.jobs_failed', ['count' => $failedJobs]) : __('app.system_ready') }}
+                                </p>
+                            @endif
                         </div>
                         <span class="flex shrink-0 items-center gap-1.5">
                             <button
@@ -143,158 +135,180 @@
             </div>
         </section>
 
-        @if (auth()->user()?->role === 'admin')
-            <section
-                class="rt-admin-operations-stage order-2 relative overflow-hidden rounded-[1.4rem]"
-                aria-labelledby="operational-workspace-heading"
-                data-dashboard-segment="operations"
-            >
-                <div class="pointer-events-none absolute inset-y-0 right-0 hidden w-2/5 opacity-40 sm:block" aria-hidden="true">
-                    <svg class="h-full w-full" viewBox="0 0 420 170" fill="none" preserveAspectRatio="none">
-                        <path d="M8 150C98 142 111 62 205 73C292 83 310 20 412 16" stroke="currentColor" class="text-slate-200 dark:text-slate-700" stroke-width="18" stroke-linecap="round"/>
-                        <path d="M8 150C98 142 111 62 205 73C292 83 310 20 412 16" stroke="#e4002b" stroke-width="2.5" stroke-linecap="round"/>
-                    </svg>
+        {{-- 2 · EINSATZ ------------------------------------------------------
+             Alle operativen Einstiege an einem Ort — genau die fuenf, die auch
+             in der Seitennavigation unter "Betrieb" stehen. Aufträge, Schichten
+             und Wagenlisten als Karten, Kalender und Kunden als Randlinks. --}}
+        <section
+            class="rt-admin-operations-stage relative overflow-hidden rounded-[1.4rem]"
+            aria-labelledby="operational-workspace-heading"
+            data-dashboard-segment="operations"
+        >
+            <div class="pointer-events-none absolute inset-y-0 right-0 hidden w-2/5 opacity-40 sm:block" aria-hidden="true">
+                <svg class="h-full w-full" viewBox="0 0 420 170" fill="none" preserveAspectRatio="none">
+                    <path d="M8 150C98 142 111 62 205 73C292 83 310 20 412 16" stroke="currentColor" class="text-slate-200 dark:text-slate-700" stroke-width="18" stroke-linecap="round"/>
+                    <path d="M8 150C98 142 111 62 205 73C292 83 310 20 412 16" stroke="#e4002b" stroke-width="2.5" stroke-linecap="round"/>
+                </svg>
+            </div>
+
+            <header class="relative z-10 flex flex-wrap items-start justify-between gap-3 px-4 pb-3 pt-4 sm:px-5 sm:pb-4 sm:pt-5" data-dashboard-item>
+                <div class="max-w-2xl">
+                    <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-rt-red">{{ __('app.operational_control') }}</p>
+                    <h2 id="operational-workspace-heading" class="mt-1.5 text-xl font-semibold tracking-[-0.025em] text-rt-text dark:text-white">{{ __('app.operations_workspace_title') }}</h2>
+                    <p class="mt-1 max-w-2xl text-xs leading-5 text-rt-muted sm:text-sm dark:text-rt-dark-muted">{{ __('app.operations_workspace_description') }}</p>
                 </div>
-
-                <header class="relative z-10 flex flex-wrap items-start justify-between gap-3 px-4 pb-3 pt-4 sm:px-5 sm:pb-4 sm:pt-5" data-dashboard-item>
-                    <div class="max-w-2xl">
-                        <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-rt-red">{{ __('app.operational_control') }}</p>
-                        <h2 id="operational-workspace-heading" class="mt-1.5 text-xl font-semibold tracking-[-0.025em] text-rt-text dark:text-white">{{ __('app.workforce_control') }}</h2>
-                        <p class="mt-1 max-w-2xl text-xs leading-5 text-rt-muted sm:text-sm dark:text-rt-dark-muted">{{ __('app.workforce_control_description') }}</p>
-                    </div>
-                    <span class="relative z-10 flex flex-wrap items-center justify-end gap-2" data-dashboard-data-legend>
-                        <span class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50/95 px-3 py-2 text-[11px] font-semibold text-emerald-800 shadow-rt-xs backdrop-blur dark:border-emerald-700/70 dark:bg-emerald-950/80 dark:text-emerald-200" data-dashboard-live-source>
-                            <span class="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true"></span>
-                            {{ __('app.live_operations') }}
-                        </span>
+                <span class="relative z-10 flex flex-wrap items-center justify-end gap-2" data-dashboard-data-legend>
+                    <span class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50/95 px-3 py-2 text-[11px] font-semibold text-emerald-800 shadow-rt-xs backdrop-blur dark:border-emerald-700/70 dark:bg-emerald-950/80 dark:text-emerald-200" data-dashboard-live-source>
+                        <span class="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true"></span>
+                        {{ __('app.live_operations') }}
                     </span>
-                </header>
+                </span>
+            </header>
 
-                <div class="rt-admin-operations-grid relative z-10 grid gap-3 px-3 pb-3 sm:gap-4 sm:px-4 sm:pb-4 md:grid-cols-2 xl:grid-cols-12" data-operational-workspace data-dashboard-items>
+            <div class="rt-admin-operations-grid relative z-10 grid gap-3 px-3 pb-3 sm:gap-4 sm:px-4 sm:pb-4 md:grid-cols-2 xl:grid-cols-12" data-operational-workspace data-dashboard-items>
+                @if ($ordersModule)
                     <x-ui.dashboard.focus-card
-                        class="rt-admin-operations-card xl:col-span-6"
-                        :href="route('admin.employees')"
-                        icon="users"
-                        tone="brand"
-                        :metric="number_format($workforce['total'], 0, ',', '.')"
-                        :metric-label="__('app.employees')"
-                        :title="__('app.workforce_overview')"
-                        :description="__('app.all_employees_hint')"
-                        :badge="__('app.active_users') . ': ' . number_format($workforce['active'], 0, ',', '.')"
-                        :action-label="__('app.manage_employees')"
+                        class="rt-admin-operations-card xl:col-span-4"
+                        :href="route('admin.operations.preview', ['module' => 'orders'])"
+                        icon="clipboard"
+                        tone="warning"
+                        :metric="$ordersModule['metric']"
+                        :metric-label="$ordersModule['metric_label']"
+                        :title="$ordersModule['title']"
+                        :description="$ordersModule['description']"
+                        :badge="$ordersModule['badge']"
+                        :action-label="__('app.open')"
                         data-rt-glow
                     />
-
-                    @if ($ordersModule)
-                        <x-ui.dashboard.focus-card
-                            class="rt-admin-operations-card xl:col-span-3"
-                            :href="route('admin.operations.preview', ['module' => 'orders'])"
-                            icon="clipboard"
-                            tone="warning"
-                            :metric="$ordersModule['metric']"
-                            :metric-label="$ordersModule['metric_label']"
-                            :title="$ordersModule['title']"
-                            :description="$ordersModule['description']"
-                            :badge="$ordersModule['badge']"
-                            :action-label="__('app.open')"
-                            data-rt-glow
-                        />
-                    @endif
-
-                    @if ($shiftsModule)
-                        <x-ui.dashboard.focus-card
-                            class="rt-admin-operations-card md:col-span-2 xl:col-span-3"
-                            :href="route('admin.operations.preview', ['module' => 'shift-management'])"
-                            icon="clock"
-                            tone="success"
-                            :metric="$shiftsModule['metric']"
-                            :metric-label="$shiftsModule['metric_label']"
-                            :title="$shiftsModule['title']"
-                            :description="$shiftsModule['description']"
-                            :badge="$shiftsModule['badge']"
-                            :action-label="__('app.open')"
-                            data-rt-glow
-                        />
-                    @endif
-                </div>
-
-                @if ($secondaryModules->isNotEmpty())
-                    <nav class="relative z-10 flex flex-wrap gap-2 border-t border-slate-200/80 px-4 py-3 dark:border-slate-700/80" aria-label="{{ __('app.preview_modules') }}">
-                        @foreach ($secondaryModules as $module)
-                            <a
-                                href="{{ route('admin.operations.preview', ['module' => $module['slug']]) }}"
-                                wire:navigate
-                                data-dashboard-operations-link
-                                class="inline-flex min-h-10 flex-1 items-center justify-between gap-3 rounded-xl bg-white/75 px-3 py-2 text-xs font-semibold text-rt-muted ring-1 ring-inset ring-slate-200 transition hover:bg-white hover:text-rt-red focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red sm:flex-none dark:bg-slate-900/70 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-900 dark:hover:text-rt-red-light"
-                            >
-                                <span class="inline-flex items-center gap-2">
-                                    <i data-feather="{{ $module['icon'] }}" class="h-3.5 w-3.5" aria-hidden="true"></i>
-                                    {{ $module['title'] }}
-                                </span>
-                                <span class="inline-flex items-center gap-2">
-                                    <span class="tabular-nums">{{ $module['metric'] }}</span>
-                                </span>
-                            </a>
-                        @endforeach
-                    </nav>
                 @endif
-            </section>
-        @endif
 
-        {{-- Produktive Personalsignale direkt nach der Einsatzsteuerung.
-             Alle vier Kacheln teilen denselben Aufbau: Symbol, Bezeichnung,
-             Wert und — sofern ein Verhaeltnis existiert — ein Messbalken. --}}
-        <section class="order-3 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4" aria-label="{{ __('app.workforce_overview') }}" data-dashboard-segment="kpis" data-dashboard-kpis data-dashboard-workforce-kpis data-dashboard-items>
-            <article class="rt-admin-kpi rt-admin-panel rt-admin-panel-accent group relative min-w-0 overflow-hidden rounded-[1.15rem] p-3 sm:p-3.5" data-rt-glow>
-                <div class="flex items-center justify-between gap-1.5">
-                    <span class="rt-admin-kpi-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-rt-red dark:border-slate-700 dark:bg-slate-800"><i data-feather="users" class="h-3.5 w-3.5"></i></span>
-                    <span class="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-1 text-[9px] font-semibold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 sm:text-[10px]">
-                        <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                        {{ $workforceActiveRate }}%<span class="sr-only"> {{ __('app.active_rate') }}</span>
-                    </span>
-                </div>
-                <p class="mt-2.5 text-pretty text-[10px] leading-4 text-rt-muted dark:text-rt-dark-muted sm:text-xs">{{ __('app.employees') }}</p>
-                <p class="mt-1 text-xl font-semibold tracking-[-0.035em] tabular-nums text-rt-text dark:text-white sm:text-2xl" data-dashboard-count="{{ $workforce['total'] }}">{{ number_format($workforce['total'], 0, ',', '.') }}</p>
-                <div class="rt-admin-kpi-track mt-2 h-1 overflow-hidden rounded-full bg-rt-surface-muted dark:bg-rt-dark-surface-muted">
-                    <div
-                        class="rt-admin-kpi-meter h-full rounded-full bg-rt-red"
-                        data-dashboard-progress="{{ $workforceActiveRate }}"
-                        style="transform: scaleX({{ $workforceActiveRate / 100 }}); transform-origin: left center;"
-                    ></div>
-                </div>
-            </article>
+                @if ($shiftsModule)
+                    <x-ui.dashboard.focus-card
+                        class="rt-admin-operations-card xl:col-span-4"
+                        :href="route('admin.operations.preview', ['module' => 'shift-management'])"
+                        icon="clock"
+                        tone="success"
+                        :metric="$shiftsModule['metric']"
+                        :metric-label="$shiftsModule['metric_label']"
+                        :title="$shiftsModule['title']"
+                        :description="$shiftsModule['description']"
+                        :badge="$shiftsModule['badge']"
+                        :action-label="__('app.open')"
+                        data-rt-glow
+                    />
+                @endif
 
-            <article class="rt-admin-kpi rt-admin-panel min-w-0 overflow-hidden rounded-[1.15rem] p-3 sm:p-3.5" data-rt-glow>
-                <span class="rt-admin-kpi-icon flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"><i data-feather="user-check" class="h-3.5 w-3.5"></i></span>
-                <p class="mt-2.5 text-pretty text-[10px] leading-4 text-rt-muted dark:text-rt-dark-muted sm:text-xs">{{ __('app.active_users') }}</p>
-                <p class="mt-1 text-xl font-semibold tabular-nums text-rt-text dark:text-white sm:text-2xl" data-dashboard-count="{{ $workforce['active'] }}">{{ number_format($workforce['active'], 0, ',', '.') }}</p>
-                <div class="rt-admin-kpi-track mt-2 h-1 overflow-hidden rounded-full bg-rt-surface-muted dark:bg-rt-dark-surface-muted">
-                    <div
-                        class="rt-admin-kpi-meter h-full rounded-full bg-emerald-500"
-                        data-dashboard-progress="{{ $activeShare }}"
-                        style="transform: scaleX({{ $activeShare / 100 }}); transform-origin: left center;"
-                    ></div>
-                </div>
-            </article>
+                {{-- Die Wagenliste stand bisher nur als Knopf im Kopf und noch
+                     einmal in den Schnellzugriffen. Sie gehoert fachlich hierher
+                     — damit deckt sich der Block mit dem Menuepunkt "Betrieb". --}}
+                <x-ui.dashboard.focus-card
+                    class="rt-admin-operations-card md:col-span-2 xl:col-span-4"
+                    :href="route('admin.operations.wagon-list')"
+                    icon="list"
+                    tone="brand"
+                    :title="__('app.wagon_list')"
+                    :description="__('app.help_topic_wagon_description')"
+                    :badge="__('app.wagon_lists_available')"
+                    :action-label="__('app.open_wagon_list')"
+                    data-rt-glow
+                />
+            </div>
 
-            <article class="rt-admin-kpi rt-admin-panel min-w-0 overflow-hidden rounded-[1.15rem] p-3 sm:p-3.5" data-rt-glow>
-                <span class="rt-admin-kpi-icon flex h-8 w-8 items-center justify-center rounded-lg bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent"><i data-feather="shield" class="h-3.5 w-3.5"></i></span>
-                <p class="mt-2.5 text-pretty text-[10px] leading-4 text-rt-muted dark:text-rt-dark-muted sm:text-xs">{{ __('app.teams_rbac') }}</p>
-                <p class="mt-1 text-xl font-semibold tabular-nums text-rt-text dark:text-white sm:text-2xl" data-dashboard-count="{{ $totalTeams }}">{{ number_format($totalTeams, 0, ',', '.') }}</p>
-            </article>
-
-            <article class="rt-admin-kpi rt-admin-panel min-w-0 overflow-hidden rounded-[1.15rem] p-3 sm:p-3.5" data-rt-glow>
-                <span class="rt-admin-kpi-icon flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"><i data-feather="user-plus" class="h-3.5 w-3.5"></i></span>
-                <p class="mt-2.5 text-pretty text-[10px] leading-4 text-rt-muted dark:text-rt-dark-muted sm:text-xs">{{ __('app.open_invitations') }}</p>
-                <p class="mt-1 text-xl font-semibold tabular-nums text-rt-text dark:text-white sm:text-2xl" data-dashboard-count="{{ $operations['openInvitations'] }}">{{ number_format($operations['openInvitations'], 0, ',', '.') }}</p>
-            </article>
+            @if ($secondaryModules->isNotEmpty())
+                <nav class="relative z-10 flex flex-wrap gap-2 border-t border-slate-200/80 px-4 py-3 dark:border-slate-700/80" aria-label="{{ __('app.preview_modules') }}">
+                    @foreach ($secondaryModules as $module)
+                        <a
+                            href="{{ route('admin.operations.preview', ['module' => $module['slug']]) }}"
+                            wire:navigate
+                            data-dashboard-operations-link
+                            class="inline-flex min-h-10 flex-1 items-center justify-between gap-3 rounded-xl bg-white/75 px-3 py-2 text-xs font-semibold text-rt-muted ring-1 ring-inset ring-slate-200 transition hover:bg-white hover:text-rt-red focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red sm:flex-none dark:bg-slate-900/70 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-900 dark:hover:text-rt-red-light"
+                        >
+                            <span class="inline-flex items-center gap-2">
+                                <i data-feather="{{ $module['icon'] }}" class="h-3.5 w-3.5" aria-hidden="true"></i>
+                                {{ $module['title'] }}
+                            </span>
+                            <span class="inline-flex items-center gap-2">
+                                <span class="tabular-nums">{{ $module['metric'] }}</span>
+                            </span>
+                        </a>
+                    @endforeach
+                </nav>
+            @endif
         </section>
 
-        {{-- Reale Personal- und Kontentrends mit Apache ECharts 6. Die Flaechen
-             sind bewusst grosszuegig: Verlauf und Ring liegen nebeneinander,
-             die Aktivitaetskurve bekommt die volle Breite. --}}
-        <section class="order-4 grid gap-3 sm:gap-4 md:grid-cols-12" aria-label="{{ __('app.workforce_overview') }}" data-dashboard-segment="charts" data-dashboard-items>
-            <article class="rt-admin-panel rt-admin-chart-card overflow-hidden rounded-2xl md:col-span-12 xl:col-span-7" data-dashboard-chart="user-growth" data-rt-glow>
+        {{-- 3 · BELEGSCHAFT --------------------------------------------------
+             Ersetzt fuenf frueher verstreute Darstellungen derselben Zahlen
+             (Fokuskarte, drei KPI-Kacheln und die Ringkarte) durch eine Karte:
+             Ring links, die vier Werte rechts, ein Link nach unten rechts. --}}
+        <section
+            class="rt-admin-panel overflow-hidden rounded-2xl"
+            aria-labelledby="workforce-heading"
+            data-dashboard-segment="workforce"
+            data-dashboard-chart="workforce-status"
+            data-rt-glow
+        >
+            <header class="rt-admin-chart-head flex flex-wrap items-start justify-between gap-3 px-4 pt-4 sm:px-5" data-dashboard-item>
+                <div class="min-w-0">
+                    <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.employees') }}</p>
+                    <h2 id="workforce-heading" class="mt-1 text-lg font-semibold tracking-[-0.02em] text-rt-text dark:text-white">{{ __('app.workforce_overview') }}</h2>
+                </div>
+                <div class="flex shrink-0 flex-wrap items-center gap-2">
+                    <span class="rt-admin-stat-chip">
+                        <span class="rt-admin-stat-chip-label">{{ __('app.active_rate') }}</span>
+                        <span class="rt-admin-stat-chip-value">{{ $workforceActiveRate }}%</span>
+                    </span>
+                    @can('employees.view')
+                        <a href="{{ route('admin.employees') }}" wire:navigate class="inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-rt-red transition hover:text-rt-red-dark focus:outline-none focus:ring-2 focus:ring-rt-red/30">
+                            {{ __('app.manage_employees') }}
+                            <i data-feather="arrow-up-right" class="h-4 w-4"></i>
+                        </a>
+                    @endcan
+                </div>
+            </header>
+
+            <div class="grid items-center gap-2 px-2 pb-3 sm:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] sm:px-3">
+                <div class="rt-admin-chart h-[188px] sm:h-[212px]" x-ref="statusChart" aria-label="{{ __('app.workforce_overview') }}"></div>
+
+                <dl class="grid grid-cols-2 gap-2.5 px-2 pb-1 sm:gap-3 sm:pb-0" data-dashboard-kpis data-dashboard-workforce-kpis data-dashboard-items>
+                    <div class="rt-admin-kpi rt-admin-panel rt-admin-panel-accent min-w-0 overflow-hidden rounded-[1.15rem] p-3">
+                        <span class="rt-admin-kpi-icon flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-rt-red dark:border-slate-700 dark:bg-slate-800"><i data-feather="users" class="h-3.5 w-3.5"></i></span>
+                        <dt class="mt-2.5 text-pretty text-[10px] leading-4 text-rt-muted sm:text-xs dark:text-rt-dark-muted">{{ __('app.employees') }}</dt>
+                        <dd class="mt-1 text-xl font-semibold tracking-[-0.035em] tabular-nums text-rt-text sm:text-2xl dark:text-white" data-dashboard-count="{{ $workforce['total'] }}">{{ number_format($workforce['total'], 0, ',', '.') }}</dd>
+                    </div>
+
+                    <div class="rt-admin-kpi rt-admin-panel min-w-0 overflow-hidden rounded-[1.15rem] p-3">
+                        <span class="rt-admin-kpi-icon flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"><i data-feather="user-check" class="h-3.5 w-3.5"></i></span>
+                        <dt class="mt-2.5 text-pretty text-[10px] leading-4 text-rt-muted sm:text-xs dark:text-rt-dark-muted">{{ __('app.active_users') }}</dt>
+                        <dd class="mt-1 text-xl font-semibold tabular-nums text-rt-text sm:text-2xl dark:text-white" data-dashboard-count="{{ $workforce['active'] }}">{{ number_format($workforce['active'], 0, ',', '.') }}</dd>
+                        <div class="rt-admin-kpi-track mt-2 h-1 overflow-hidden rounded-full bg-rt-surface-muted dark:bg-rt-dark-surface-muted">
+                            <div
+                                class="rt-admin-kpi-meter h-full rounded-full bg-emerald-500"
+                                data-dashboard-progress="{{ $workforceActiveRate }}"
+                                style="transform: scaleX({{ $workforceActiveRate / 100 }}); transform-origin: left center;"
+                            ></div>
+                        </div>
+                    </div>
+
+                    <div class="rt-admin-kpi rt-admin-panel min-w-0 overflow-hidden rounded-[1.15rem] p-3">
+                        <span class="rt-admin-kpi-icon flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"><i data-feather="user-minus" class="h-3.5 w-3.5"></i></span>
+                        <dt class="mt-2.5 text-pretty text-[10px] leading-4 text-rt-muted sm:text-xs dark:text-rt-dark-muted">{{ __('app.inactive_users') }}</dt>
+                        <dd class="mt-1 text-xl font-semibold tabular-nums text-rt-text sm:text-2xl dark:text-white" data-dashboard-count="{{ $workforce['inactive'] }}">{{ number_format($workforce['inactive'], 0, ',', '.') }}</dd>
+                    </div>
+
+                    <div class="rt-admin-kpi rt-admin-panel min-w-0 overflow-hidden rounded-[1.15rem] p-3">
+                        <span class="rt-admin-kpi-icon flex h-8 w-8 items-center justify-center rounded-lg bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent"><i data-feather="shield" class="h-3.5 w-3.5"></i></span>
+                        <dt class="mt-2.5 text-pretty text-[10px] leading-4 text-rt-muted sm:text-xs dark:text-rt-dark-muted">{{ __('app.teams_rbac') }}</dt>
+                        <dd class="mt-1 text-xl font-semibold tabular-nums text-rt-text sm:text-2xl dark:text-white" data-dashboard-count="{{ $totalTeams }}">{{ number_format($totalTeams, 0, ',', '.') }}</dd>
+                    </div>
+                </dl>
+            </div>
+        </section>
+
+        {{-- 4 · ENTWICKLUNG --------------------------------------------------
+             Zwei Zeitreihen nebeneinander statt untereinander. Der Ring ist
+             hier bewusst nicht mehr dabei — er gehoert zur Belegschaft. --}}
+        <section class="grid gap-3 sm:gap-4 md:grid-cols-12" aria-label="{{ __('app.user_growth') }}" data-dashboard-segment="charts" data-dashboard-items>
+            <article class="rt-admin-panel rt-admin-chart-card overflow-hidden rounded-2xl md:col-span-12 xl:col-span-6" data-dashboard-chart="user-growth" data-rt-glow>
                 <header class="rt-admin-chart-head flex flex-wrap items-start justify-between gap-3 px-4 pt-4 sm:px-5">
                     <div class="min-w-0">
                         <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.last_14_days') }}</p>
@@ -311,7 +325,7 @@
                         </span>
                     </div>
                 </header>
-                <div class="rt-admin-chart mt-1 h-[248px] px-1 sm:h-[288px] sm:px-2" x-ref="growthChart" aria-label="{{ __('app.user_growth') }}"></div>
+                <div class="rt-admin-chart mt-1 h-[236px] px-1 sm:h-[252px] sm:px-2" x-ref="growthChart" aria-label="{{ __('app.user_growth') }}"></div>
                 <footer class="rt-admin-chart-legend flex flex-wrap items-center gap-x-4 gap-y-2 px-4 pb-3.5 text-[11px] font-medium text-rt-muted sm:px-5 dark:text-rt-dark-muted">
                     <span class="inline-flex items-center gap-2"><span class="h-0.5 w-5 rounded-full bg-rt-text dark:bg-white"></span>{{ __('app.total') }}</span>
                     <span class="inline-flex items-center gap-2"><span class="h-3 w-1.5 rounded-sm bg-rt-red"></span>{{ __('app.registrations') }}</span>
@@ -319,33 +333,7 @@
                 </footer>
             </article>
 
-            <article class="rt-admin-panel rt-admin-chart-card overflow-hidden rounded-2xl md:col-span-12 xl:col-span-5" data-dashboard-chart="workforce-status" data-rt-glow>
-                <header class="rt-admin-chart-head flex flex-wrap items-start justify-between gap-3 px-4 pt-4 sm:px-5">
-                    <div class="min-w-0">
-                        <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.employees') }}</p>
-                        <h2 class="mt-1 text-lg font-semibold tracking-[-0.02em] text-rt-text dark:text-white">{{ __('app.workforce_overview') }}</h2>
-                    </div>
-                    <span class="rt-admin-stat-chip">
-                        <span class="rt-admin-stat-chip-label">{{ __('app.active_rate') }}</span>
-                        <span class="rt-admin-stat-chip-value">{{ $workforceActiveRate }}%</span>
-                    </span>
-                </header>
-                <div class="grid items-center gap-2 px-2 pb-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:px-3">
-                    <div class="rt-admin-chart h-[188px] sm:h-[212px]" x-ref="statusChart" aria-label="{{ __('app.workforce_overview') }}"></div>
-                    <dl class="grid gap-2.5 px-2 pb-3 sm:pb-0">
-                        <div class="rt-admin-ring-legend">
-                            <dt class="flex items-center gap-2 text-[11px] text-rt-muted dark:text-rt-dark-muted"><span class="h-2 w-2 rounded-full bg-rt-red"></span>{{ __('app.active_users') }}</dt>
-                            <dd class="mt-0.5 text-lg font-semibold tabular-nums text-rt-text dark:text-white" data-dashboard-count="{{ $workforce['active'] }}">{{ number_format($workforce['active'], 0, ',', '.') }}</dd>
-                        </div>
-                        <div class="rt-admin-ring-legend">
-                            <dt class="flex items-center gap-2 text-[11px] text-rt-muted dark:text-rt-dark-muted"><span class="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-600"></span>{{ __('app.inactive_users') }}</dt>
-                            <dd class="mt-0.5 text-lg font-semibold tabular-nums text-rt-text dark:text-white" data-dashboard-count="{{ $workforce['inactive'] }}">{{ number_format($workforce['inactive'], 0, ',', '.') }}</dd>
-                        </div>
-                    </dl>
-                </div>
-            </article>
-
-            <article class="rt-admin-panel rt-admin-chart-card overflow-hidden rounded-2xl md:col-span-12" data-dashboard-chart="activity" data-rt-glow>
+            <article class="rt-admin-panel rt-admin-chart-card overflow-hidden rounded-2xl md:col-span-12 xl:col-span-6" data-dashboard-chart="activity" data-rt-glow>
                 <header class="rt-admin-chart-head flex flex-wrap items-start justify-between gap-3 px-4 pt-4 sm:px-5">
                     <div class="min-w-0">
                         <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-muted dark:text-rt-dark-muted">{{ __('app.last_14_days') }}</p>
@@ -362,13 +350,16 @@
                         </span>
                     </div>
                 </header>
-                <div class="rt-admin-chart mt-1 h-[196px] px-1 pb-2 sm:h-[220px] sm:px-2" x-ref="activityChart" aria-label="{{ __('app.activity_trend') }}"></div>
+                <div class="rt-admin-chart mt-1 h-[236px] px-1 pb-2 sm:h-[252px] sm:px-2" x-ref="activityChart" aria-label="{{ __('app.activity_trend') }}"></div>
             </article>
         </section>
 
-        <section class="order-5 grid gap-3 sm:gap-4 md:grid-cols-12" data-dashboard-segment="accounts" data-dashboard-items>
-            {{-- Neueste Benutzer --}}
-            <article class="rt-admin-panel overflow-hidden rounded-2xl md:col-span-8">
+        {{-- 5 · PERSONEN -----------------------------------------------------
+             Beide Personenlisten standen bisher in getrennten Abschnitten mit
+             einem Diagrammblock dazwischen. Sie zeigen dieselbe Art von Objekt
+             und gehoeren nebeneinander. --}}
+        <section class="grid gap-3 sm:gap-4 md:grid-cols-12" aria-label="{{ __('app.accounts') }}" data-dashboard-segment="people" data-dashboard-items>
+            <article class="rt-admin-panel overflow-hidden rounded-2xl md:col-span-7">
                 <header class="flex items-center justify-between gap-4 border-b border-slate-200 px-4 py-3.5 sm:px-5 dark:border-slate-700">
                     <div>
                         <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.accounts') }}</p>
@@ -381,7 +372,7 @@
                         </a>
                     @endcan
                 </header>
-                <div class="rt-admin-list-grid grid gap-px bg-slate-200 sm:grid-cols-2 dark:bg-slate-700" data-dashboard-items>
+                <div class="rt-admin-list-grid grid gap-px bg-slate-200 dark:bg-slate-700">
                     @forelse ($recentUsers as $user)
                         <a href="{{ route('admin.user-profile', $user->id) }}" wire:navigate class="rt-admin-user-row group grid min-w-0 grid-cols-[2.25rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1 bg-rt-surface px-4 py-3 transition duration-200 hover:bg-rt-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rt-red sm:flex sm:px-5 dark:bg-rt-dark-surface dark:hover:bg-rt-dark-surface-muted">
                             <span class="rt-admin-user-avatar row-span-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-sm font-semibold text-rt-text transition duration-200 group-hover:border-rt-red group-hover:bg-rt-red group-hover:text-white sm:row-auto dark:border-slate-700 dark:bg-slate-800 dark:text-white">
@@ -397,44 +388,12 @@
                             </span>
                         </a>
                     @empty
-                        <p class="bg-rt-surface px-6 py-8 text-sm text-rt-muted sm:col-span-2 dark:bg-rt-dark-surface dark:text-rt-dark-muted">{{ __('app.no_users_yet') }}</p>
+                        <p class="bg-rt-surface px-6 py-8 text-sm text-rt-muted dark:bg-rt-dark-surface dark:text-rt-dark-muted">{{ __('app.no_users_yet') }}</p>
                     @endforelse
                 </div>
             </article>
 
-            {{-- Schnellzugriffe als kompakte Befehlsflaeche. --}}
-            <article class="rt-admin-panel rounded-2xl p-4 md:col-span-4">
-                <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.admin_control_center') }}</p>
-                <h2 class="mt-1 text-lg font-semibold text-rt-text dark:text-white">{{ __('app.quick_access') }}</h2>
-                <div class="mt-3 grid grid-cols-2 gap-3 sm:gap-4" data-dashboard-items>
-                    <a href="{{ route('admin.operations.wagon-list') }}" wire:navigate class="rt-admin-quick-link group min-h-20 rounded-xl border border-slate-200 bg-slate-50 p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red hover:bg-rt-red hover:text-white hover:shadow-rt-glow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red dark:border-slate-700 dark:bg-slate-800 dark:text-white" data-rt-glow>
-                        <i data-feather="clipboard" class="h-5 w-5 text-rt-red transition group-hover:text-white"></i>
-                        <span class="mt-2.5 block text-xs font-semibold leading-5">{{ __('app.wagon_list') }}</span>
-                    </a>
-                    @can('files.manage')
-                        <a href="{{ route('admin.files') }}" wire:navigate class="rt-admin-quick-link group min-h-20 rounded-xl border border-slate-200 bg-slate-50 p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red hover:bg-rt-red hover:text-white hover:shadow-rt-glow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red dark:border-slate-700 dark:bg-slate-800 dark:text-white" data-rt-glow>
-                            <i data-feather="folder" class="h-5 w-5 text-rt-red transition group-hover:text-white"></i>
-                            <span class="mt-2.5 block text-xs font-semibold leading-5">{{ __('app.file_management') }}</span>
-                        </a>
-                    @endcan
-                    @can('manage.messages')
-                        <a href="{{ route('admin.mail-management') }}" wire:navigate class="rt-admin-quick-link group min-h-20 rounded-xl border border-slate-200 bg-slate-50 p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red hover:bg-rt-red hover:text-white hover:shadow-rt-glow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red dark:border-slate-700 dark:bg-slate-800 dark:text-white" data-rt-glow>
-                            <i data-feather="send" class="h-5 w-5 text-rt-red transition group-hover:text-white"></i>
-                            <span class="mt-2.5 block text-xs font-semibold leading-5">{{ __('app.mail_management') }}</span>
-                        </a>
-                    @endcan
-                    @can('settings.manage')
-                        <a href="{{ route('admin.settings') }}" wire:navigate class="rt-admin-quick-link group min-h-20 rounded-xl border border-slate-200 bg-slate-50 p-3 transition duration-200 ease-rt-spring hover:-translate-y-0.5 hover:border-rt-red hover:bg-rt-red hover:text-white hover:shadow-rt-glow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red dark:border-slate-700 dark:bg-slate-800 dark:text-white" data-rt-glow>
-                            <i data-feather="sliders" class="h-5 w-5 text-rt-red transition group-hover:text-white"></i>
-                            <span class="mt-2.5 block text-xs font-semibold leading-5">{{ __('app.settings') }}</span>
-                        </a>
-                    @endcan
-                </div>
-            </article>
-        </section>
-
-        <section class="order-6 grid gap-3 sm:gap-4 {{ $canViewSystemData && $system ? 'md:grid-cols-12' : '' }}" data-dashboard-segment="system" data-dashboard-items>
-            <article class="rt-admin-panel rounded-2xl p-4 {{ $canViewSystemData && $system ? 'md:col-span-5' : '' }}">
+            <article class="rt-admin-panel rounded-2xl p-4 md:col-span-5">
                 <div class="flex items-center justify-between gap-3">
                     <div>
                         <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.live_operations') }}</p>
@@ -442,7 +401,7 @@
                     </div>
                     <span class="flex h-9 w-9 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"><i data-feather="radio" class="h-4 w-4"></i></span>
                 </div>
-                <div class="mt-3 space-y-2" data-dashboard-items>
+                <div class="mt-3 space-y-2">
                     @forelse ($recentActivity as $entry)
                         <div class="grid grid-cols-[2.25rem_minmax(0,1fr)] items-center gap-x-3 gap-y-0.5 rounded-xl px-2 py-2 transition hover:bg-rt-surface-muted sm:flex dark:hover:bg-rt-dark-surface-muted">
                             <span class="relative row-span-2 shrink-0 sm:row-auto">
@@ -459,23 +418,32 @@
                     @endforelse
                 </div>
             </article>
+        </section>
 
-            {{-- Serverseitig nur fuer das Administratoren-Team bereitgestellt. --}}
-            @if ($canViewSystemData && $system)
-                <article class="rt-admin-panel overflow-hidden rounded-2xl md:col-span-7" data-system-dashboard>
-                    <header class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-4 py-3.5 sm:px-5 dark:border-slate-700">
-                        <div>
-                            <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.administrator_team') }}</p>
+        {{-- 6 · SYSTEM -------------------------------------------------------
+             Neun Werte, die sich praktisch nie aendern. Sie bleiben erreichbar,
+             belegen aber keine halbe Bildschirmhoehe mehr. Serverseitig nur
+             fuer das Administratoren-Team bereitgestellt. --}}
+        @if ($canViewSystemData && $system)
+            <section class="rt-admin-panel overflow-hidden rounded-2xl" data-system-dashboard data-dashboard-segment="system">
+                <details class="group">
+                    {{-- <summary> darf nur Text und hoechstens EIN
+                         Ueberschriftselement enthalten — deshalb <span> statt
+                         <div>/<p> um die Begleittexte. --}}
+                    <summary class="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 px-4 py-3.5 sm:px-5 [&::-webkit-details-marker]:hidden">
+                        <span class="block min-w-0">
+                            <span class="block text-[10px] font-semibold uppercase tracking-[0.18em] text-rt-red">{{ __('app.administrator_team') }}</span>
                             <h2 class="mt-1 text-lg font-semibold text-rt-text dark:text-white">{{ __('app.technical_system_data') }}</h2>
-                            <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.technical_system_data_description') }}</p>
-                        </div>
-                        <span class="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                            <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                            {{ __('app.system_ready') }}
+                            <span class="mt-1 block text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.technical_system_data_description') }}</span>
                         </span>
-                    </header>
+                        <span class="inline-flex shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-rt-muted dark:border-slate-700 dark:bg-slate-800 dark:text-rt-dark-muted">
+                            {{ __('app.show') }}
+                            <i data-feather="chevron-down" class="h-4 w-4 transition-transform duration-200 group-open:rotate-180" aria-hidden="true"></i>
+                        </span>
+                    </summary>
 
-                    <dl class="rt-admin-system-grid grid gap-px bg-slate-200 sm:grid-cols-2 lg:grid-cols-3 dark:bg-slate-700" data-dashboard-items>
+
+                    <dl class="rt-admin-system-grid grid gap-px border-t border-slate-200 bg-slate-200 sm:grid-cols-2 lg:grid-cols-3 dark:border-slate-700 dark:bg-slate-700">
                         @foreach ([
                             [__('app.application'), $system['appVersion']],
                             [__('app.environment'), $system['environment']],
@@ -493,8 +461,8 @@
                             </div>
                         @endforeach
                     </dl>
-                </article>
-            @endif
-        </section>
+                </details>
+            </section>
+        @endif
     </div>
 </x-ui.page>
