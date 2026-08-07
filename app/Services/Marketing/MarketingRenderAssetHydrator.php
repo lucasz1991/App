@@ -3,6 +3,7 @@
 namespace App\Services\Marketing;
 
 use App\Models\MarketingAsset;
+use App\Support\MarketingBrandAssets;
 use Illuminate\Support\Facades\Storage;
 
 final class MarketingRenderAssetHydrator
@@ -32,15 +33,19 @@ final class MarketingRenderAssetHydrator
             $css = preg_replace($pattern, $dataUri, $css) ?? $css;
         }
 
-        foreach (['img/hero-railtime.jpg', 'rt-logo.svg'] as $relativePath) {
-            $absolutePath = public_path('rt-brand/'.$relativePath);
-            if (! is_file($absolutePath)) {
+        foreach (MarketingBrandAssets::manifest() as $publicPath => $mimeType) {
+            $absolutePath = MarketingBrandAssets::absolutePath($publicPath);
+            if (! is_string($absolutePath) || ! is_file($absolutePath)) {
                 continue;
             }
 
-            $mime = $relativePath === 'rt-logo.svg' ? 'image/svg+xml' : 'image/jpeg';
-            $uri = $this->dataUri($mime, (string) file_get_contents($absolutePath));
-            $pattern = '#(?:https?://[^\s"\')]+)?/?rt-brand/'.preg_quote($relativePath, '#').'#i';
+            $contents = file_get_contents($absolutePath);
+            if (! is_string($contents) || ! $this->hasExpectedMimeType($mimeType, $contents)) {
+                continue;
+            }
+
+            $uri = $this->dataUri($mimeType, $contents);
+            $pattern = $this->builtInPattern($publicPath);
             $html = preg_replace($pattern, $uri, $html) ?? $html;
             $css = preg_replace($pattern, $uri, $css) ?? $css;
         }
@@ -64,13 +69,17 @@ final class MarketingRenderAssetHydrator
             }
         }
 
-        foreach (['img/hero-railtime.jpg', 'rt-logo.svg'] as $relativePath) {
-            if (! preg_match('#(?:^|[/(])rt-brand/'.preg_quote($relativePath, '#').'(?:[?"\')]|$)#i', $combined)) {
+        foreach (MarketingBrandAssets::manifest() as $publicPath => $mimeType) {
+            if (! preg_match($this->builtInPattern($publicPath), $combined)) {
                 continue;
             }
 
-            $absolutePath = public_path('rt-brand/'.$relativePath);
-            $parts[] = 'builtin:'.$relativePath.':'.(is_file($absolutePath) ? hash_file('sha256', $absolutePath) : 'missing');
+            $absolutePath = MarketingBrandAssets::absolutePath($publicPath);
+            $hash = is_string($absolutePath) && is_file($absolutePath)
+                ? hash_file('sha256', $absolutePath)
+                : false;
+            $parts[] = 'builtin:'.$publicPath.':'.$mimeType.':'
+                .(is_string($hash) ? $hash : 'missing');
         }
 
         return hash('sha256', implode('|', $parts));
@@ -89,5 +98,29 @@ final class MarketingRenderAssetHydrator
     private function dataUri(string $mimeType, string $contents): string
     {
         return 'data:'.$mimeType.';base64,'.base64_encode($contents);
+    }
+
+    private function builtInPattern(string $publicPath): string
+    {
+        $quotedPath = preg_quote($publicPath, '#');
+        $candidates = [];
+        $applicationUrl = rtrim((string) config('app.url'), '/');
+        if (preg_match('#^https?://#i', $applicationUrl)) {
+            $candidates[] = '(?i:'.preg_quote($applicationUrl, '#').')'.$quotedPath;
+        }
+        $candidates[] = '(?<![A-Za-z0-9\]])'.$quotedPath;
+
+        return '#(?:'.implode('|', $candidates).')(?:\?v=[a-f0-9]+)?(?=$|[\s"\'\)>])#';
+    }
+
+    private function hasExpectedMimeType(string $expectedMimeType, string $contents): bool
+    {
+        if ($expectedMimeType === 'image/svg+xml') {
+            return (bool) preg_match('/^\s*(?:<\?xml[^>]*>\s*)?<svg\b/i', $contents);
+        }
+
+        $dimensions = @getimagesizefromstring($contents);
+
+        return is_array($dimensions) && strtolower((string) ($dimensions['mime'] ?? '')) === $expectedMimeType;
     }
 }

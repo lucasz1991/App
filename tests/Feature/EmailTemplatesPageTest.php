@@ -8,6 +8,7 @@ use App\Support\CompanyData;
 use App\Support\EmailTemplateBuilder;
 use App\Support\PageHelpCatalog;
 use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\File;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
 use ZipArchive;
@@ -348,11 +349,80 @@ class EmailTemplatesPageTest extends TestCase
 
             $installer = $zip->getFromName('Outlook-klassisch-installieren.cmd');
             $this->assertStringContainsString('%APPDATA%\Microsoft\Signatures', $installer);
-            $this->assertStringContainsString("{$signatureName}.htm", $installer);
+            $this->assertStringContainsString("set \"SIGNATURE_NAME={$signatureName}\"", $installer);
+            $this->assertStringContainsString('%TARGET_DIR%\%SIGNATURE_NAME%.htm', $installer);
+            $this->assertStringNotContainsString('\\{'.$signatureName.'}', $installer);
+            $this->assertStringContainsString('Das ZIP wurde nicht vollstaendig entpackt', $installer);
+            $this->assertStringContainsString('[ERFOLG] Die RailTime-Signatur wurde installiert.', $installer);
+            $this->assertStringContainsString('[FEHLER]', $installer);
+            $this->assertStringContainsString('RailTime-Outlook-Signatur-Installation.log', $installer);
+            $this->assertSame(0, preg_match('/(?<!\r)\n/', $installer), 'CMD muss reine CRLF-Zeilenenden verwenden.');
+
+            if (PHP_OS_FAMILY === 'Windows') {
+                $installerTestRoot = sys_get_temp_dir().DIRECTORY_SEPARATOR.'railtime-outlook-installer-'.bin2hex(random_bytes(6));
+                $packageDirectory = $installerTestRoot.DIRECTORY_SEPARATOR.'package';
+                $fakeWindowsProfile = $installerTestRoot.DIRECTORY_SEPARATOR.'windows-profile';
+
+                try {
+                    File::ensureDirectoryExists($packageDirectory);
+                    $this->assertTrue($zip->extractTo($packageDirectory));
+
+                    $installation = $this->runOutlookInstaller($packageDirectory, $fakeWindowsProfile);
+                    $this->assertSame(0, $installation['exitCode'], $installation['output']);
+                    $this->assertStringContainsString('[ERFOLG]', $installation['output']);
+                    $this->assertStringNotContainsString('ECHO ', $installation['output']);
+
+                    $reinstallation = $this->runOutlookInstaller($packageDirectory, $fakeWindowsProfile);
+                    $this->assertSame(0, $reinstallation['exitCode'], $reinstallation['output']);
+                    $this->assertStringContainsString('[ERFOLG]', $reinstallation['output']);
+
+                    $installedRoot = $fakeWindowsProfile.DIRECTORY_SEPARATOR.'AppData'.DIRECTORY_SEPARATOR.'Roaming'
+                        .DIRECTORY_SEPARATOR.'Microsoft'.DIRECTORY_SEPARATOR.'Signatures';
+                    foreach ([
+                        "{$signatureName}.htm",
+                        "{$signatureName}.rtf",
+                        "{$signatureName}.txt",
+                        "{$assetFolder}/zug-dampf.gif",
+                        "{$assetFolder}/logo.png",
+                        "{$assetFolder}/contact-location.png",
+                        "{$assetFolder}/contact-phone.png",
+                        "{$assetFolder}/contact-mobile.png",
+                        "{$assetFolder}/contact-email.png",
+                        "{$assetFolder}/contact-web.png",
+                    ] as $installedFile) {
+                        $this->assertFileExists($installedRoot.DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $installedFile));
+                    }
+                    $this->assertFileDoesNotExist($installedRoot.DIRECTORY_SEPARATOR."{{$signatureName}}.htm");
+
+                    $logPath = $fakeWindowsProfile.DIRECTORY_SEPARATOR.'Temp'
+                        .DIRECTORY_SEPARATOR.'RailTime-Outlook-Signatur-Installation.log';
+                    $this->assertFileExists($logPath);
+                    $this->assertStringContainsString('[ERFOLG]', File::get($logPath));
+
+                    if ($variant === 'hell') {
+                        $incompleteDirectory = $installerTestRoot.DIRECTORY_SEPARATOR.'incomplete-package';
+                        $incompleteProfile = $installerTestRoot.DIRECTORY_SEPARATOR.'incomplete-profile';
+                        File::ensureDirectoryExists($incompleteDirectory);
+                        File::put(
+                            $incompleteDirectory.DIRECTORY_SEPARATOR.'Outlook-klassisch-installieren.cmd',
+                            $installer,
+                        );
+
+                        $incompleteInstallation = $this->runOutlookInstaller($incompleteDirectory, $incompleteProfile);
+                        $this->assertSame(11, $incompleteInstallation['exitCode'], $incompleteInstallation['output']);
+                        $this->assertStringContainsString('[FEHLER]', $incompleteInstallation['output']);
+                        $this->assertStringContainsString('vollstaendig entpackt', $incompleteInstallation['output']);
+                    }
+                } finally {
+                    File::deleteDirectory($installerTestRoot);
+                }
+            }
 
             $readme = $zip->getFromName('README-Outlook.html');
             $this->assertStringContainsString('Einstellungen → Konten → Signaturen', $readme);
             $this->assertStringContainsString('ZIP zuerst vollständig entpacken', $readme);
+            $this->assertStringContainsString('Rechtsklick → Alle extrahieren', $readme);
+            $this->assertStringContainsString('lokale Batchdatei kann diese Signatur daher nicht direkt im neuen Outlook registrieren', $readme);
 
             $zip->close();
             unlink($tempPath);
@@ -891,5 +961,49 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertStringContainsString('fully extract', implode(' ', $english['points']));
         $this->assertStringContainsString('Thunderbird', implode(' ', $english['points']));
         $this->assertStringContainsString('test email', implode(' ', $english['points']));
+    }
+
+    /**
+     * @return array{exitCode: int, output: string}
+     */
+    private function runOutlookInstaller(string $packageDirectory, string $fakeWindowsProfile): array
+    {
+        $fakeAppData = $fakeWindowsProfile.DIRECTORY_SEPARATOR.'AppData'.DIRECTORY_SEPARATOR.'Roaming';
+        $fakeTemp = $fakeWindowsProfile.DIRECTORY_SEPARATOR.'Temp';
+        File::ensureDirectoryExists($fakeAppData);
+        File::ensureDirectoryExists($fakeTemp);
+
+        $environment = getenv();
+        $environment = is_array($environment) ? $environment : [];
+        $environment['APPDATA'] = $fakeAppData;
+        $environment['TEMP'] = $fakeTemp;
+        $environment['TMP'] = $fakeTemp;
+        $commandInterpreter = $environment['COMSPEC'] ?? 'C:\\Windows\\System32\\cmd.exe';
+        $installerPath = $packageDirectory.DIRECTORY_SEPARATOR.'Outlook-klassisch-installieren.cmd';
+
+        $process = proc_open(
+            [$commandInterpreter, '/d', '/c', $installerPath],
+            [
+                0 => ['pipe', 'r'],
+                1 => ['pipe', 'w'],
+                2 => ['pipe', 'w'],
+            ],
+            $pipes,
+            $packageDirectory,
+            $environment,
+            ['bypass_shell' => true],
+        );
+        $this->assertIsResource($process);
+
+        fclose($pipes[0]);
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+
+        return [
+            'exitCode' => proc_close($process),
+            'output' => trim((string) $stdout."\n".(string) $stderr),
+        ];
     }
 }

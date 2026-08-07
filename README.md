@@ -147,6 +147,7 @@ RailTime verwendet die Datenbank-Queue.
 QUEUE_CONNECTION=database
 WEBPUSH_QUEUE=default
 MARKETING_DISK=private
+MARKETING_SEED_ADMIN_EMAIL=
 MARKETING_NODE_BINARY=node
 MARKETING_CHROME_PATH=/usr/bin/chromium
 MARKETING_CHROME_NO_SANDBOX=false
@@ -170,6 +171,17 @@ Chrome-/Chromium-Datei des Servers zeigen. Die Sandbox bleibt standardmäßig
 aktiv; `MARKETING_CHROME_NO_SANDBOX=true` ist nur für eine nachweislich isolierte
 Serverumgebung vorgesehen. Fehlende Browserkonfiguration markiert ausschließlich
 den betroffenen Render als fehlgeschlagen und verwirft weder Motiv noch Layout.
+
+Die ersten RailTime-Marketingmotive für **Wagenmeister (m/w/d)** und den
+**Wagenmeister-Service** werden bewusst separat und idempotent eingespielt:
+
+```bash
+php artisan db:seed --class=MarketingStudioSeeder --force
+```
+
+`MARKETING_SEED_ADMIN_EMAIL` kann den verantwortlichen Administrator festlegen.
+Ohne diese Angabe verwendet der Seeder den ersten Administrator. Bestehende oder
+gelöschte Startmotive werden nicht überschrieben und nicht doppelt angelegt.
 
 Der Chromium-Unterprozess endet spätestens nach 75 Sekunden, der Render-Job
 nach 85 Sekunden und der Worker nach 90 Sekunden. Diese Staffelung lässt Zeit

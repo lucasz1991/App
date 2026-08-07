@@ -55,20 +55,59 @@ class MarketingStudioBackendTest extends TestCase
         $this->assertCount(3, $job->variants->pluck('html')->unique());
         $this->assertCount(3, $info->variants->pluck('html')->unique());
 
-        foreach (MarketingCreativeFormat::cases() as $format) {
-            $variant = $job->variants->firstWhere('format', $format);
-            $this->assertNotNull($variant);
-            $this->assertSame(64, strlen($variant->content_hash));
-            $this->assertStringContainsString('data-rt-binding="title"', $variant->html);
-            $this->assertStringContainsString('/rt-brand/rt-logo.svg', $variant->html);
-            $this->assertStringContainsString('src="/rt-brand/img/hero-railtime.jpg"', $variant->html);
-            $this->assertStringNotContainsString('data-rt-binding-src="hero_image_url"', $variant->html);
-            $this->assertSame($format->value, $variant->builder_data['railtime']['format']);
+        foreach ([$job, $info] as $creative) {
+            foreach (MarketingCreativeFormat::cases() as $format) {
+                $variant = $creative->variants->firstWhere('format', $format);
+                $this->assertNotNull($variant);
+                $this->assertSame(64, strlen($variant->content_hash));
+                $this->assertStringContainsString('data-rt-binding="title"', $variant->html);
+                $this->assertStringContainsString('data-rt-brand-lockup="official"', $variant->html);
+                $this->assertStringContainsString('src="/rt-brand/img/logo-horizontal.png"', $variant->html);
+                $this->assertStringNotContainsString('/rt-brand/rt-logo.svg', $variant->html);
+                $this->assertStringNotContainsString('<span>RAILTIME</span>', $variant->html);
+                $this->assertStringContainsString('src="/rt-brand/img/hero-railtime.jpg"', $variant->html);
+                $this->assertStringNotContainsString('data-rt-binding-src="hero_image_url"', $variant->html);
+                $this->assertSame($format->value, $variant->builder_data['railtime']['format']);
+                $this->assertSame(2, $variant->builder_data['railtime']['schema']);
+            }
         }
 
         $this->assertSame(['width' => 1080, 'height' => 1920], MarketingCreativeFormat::Story->dimensions());
         $this->assertSame(['width' => 1080, 'height' => 1080], MarketingCreativeFormat::Post->dimensions());
         $this->assertSame(['width' => 1200, 'height' => 630], MarketingCreativeFormat::Web->dimensions());
+    }
+
+    public function test_untouched_schema_one_starter_motives_are_refreshed_to_the_official_brand_design(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $studio = app(MarketingStudioService::class);
+        $creative = $studio->createFromTemplate(MarketingCreativeType::Job, $admin);
+
+        foreach ($creative->variants as $variant) {
+            $builderData = $variant->builder_data;
+            $builderData['railtime']['schema'] = 1;
+            $variant->forceFill([
+                'builder_data' => $builderData,
+                'html' => '<div class="rt-brand"><span class="rt-brand-mark"><img src="/rt-brand/rt-logo.svg" alt=""></span><span>RAILTIME</span></div>',
+                'css' => '.rt-brand{display:flex}',
+                'version' => 1,
+            ])->save();
+        }
+        $studio->approve($creative->fresh(), $admin);
+
+        $migration = require database_path('migrations/2026_08_07_000300_refresh_untouched_marketing_starter_templates.php');
+        $migration->up();
+
+        $refreshed = $creative->fresh(['variants']);
+        $this->assertSame(MarketingCreativeStatus::Draft, $refreshed->status);
+        $this->assertNull($refreshed->approved_by);
+        $this->assertNull($refreshed->approved_at);
+        foreach ($refreshed->variants as $variant) {
+            $this->assertSame(2, $variant->version);
+            $this->assertSame(2, $variant->builder_data['railtime']['schema']);
+            $this->assertStringContainsString('/rt-brand/img/logo-horizontal.png', $variant->html);
+            $this->assertStringNotContainsString('<span>RAILTIME</span>', $variant->html);
+        }
     }
 
     public function test_shared_content_updates_every_variant_and_resets_approval(): void
@@ -490,13 +529,18 @@ class MarketingStudioBackendTest extends TestCase
         );
 
         $hydrated = app(MarketingRenderAssetHydrator::class)->hydrate(
-            '<img src="'.route('admin.marketing.assets.show', $asset).'?v='.substr($asset->sha256, 0, 16).'"><img src="/rt-brand/rt-logo.svg">',
+            '<img src="'.route('admin.marketing.assets.show', $asset).'?v='.substr($asset->sha256, 0, 16).'">'
+            .'<img src="/rt-brand/rt-logo.svg">'
+            .'<img src="/rt-brand/img/logo-horizontal.png">'
+            .'<img src="/rt-brand/img/logo-horizontal-darkbg.png">',
             '.hero{background-image:url("/administrator/marketing/medien/'.$asset->public_id.'")}',
         );
 
         $this->assertStringContainsString('data:image/jpeg;base64,', $hydrated['html']);
         $this->assertStringContainsString('data:image/jpeg;base64,', $hydrated['css']);
         $this->assertStringContainsString('data:image/svg+xml;base64,', $hydrated['html']);
+        $this->assertSame(2, substr_count($hydrated['html'], 'data:image/png;base64,'));
+        $this->assertStringNotContainsString('/rt-brand/img/logo-horizontal', $hydrated['html']);
         $this->assertStringNotContainsString('/administrator/marketing/medien/', $hydrated['html'].$hydrated['css']);
         $this->assertStringNotContainsString('?v=', $hydrated['html'].$hydrated['css']);
 
@@ -539,6 +583,21 @@ class MarketingStudioBackendTest extends TestCase
         $this->assertStringNotContainsStringIgnoringCase('srcset', $html);
         $this->assertStringNotContainsStringIgnoringCase('imagesrcset', $html);
         $this->assertStringNotContainsStringIgnoringCase('file:', $css);
+    }
+
+    public function test_sanitizer_allows_exact_official_brand_assets_and_blocks_lookalike_paths(): void
+    {
+        $html = app(MarketingHtmlSanitizer::class)->html(
+            '<img src="/rt-brand/img/logo-horizontal.png">'
+            .'<img src="/rt-brand/img/logo-horizontal-darkbg.png">'
+            .'<img src="/rt-brand/img/logo-horizontal.png.exe">'
+            .'<img src="/rt-brand/img/unofficial-logo.png">',
+        );
+
+        $this->assertStringContainsString('src="/rt-brand/img/logo-horizontal.png"', $html);
+        $this->assertStringContainsString('src="/rt-brand/img/logo-horizontal-darkbg.png"', $html);
+        $this->assertStringNotContainsString('logo-horizontal.png.exe', $html);
+        $this->assertStringNotContainsString('unofficial-logo.png', $html);
     }
 
     public function test_sanitizer_keeps_valid_inline_qr_images_but_rejects_mime_and_pixel_bombs(): void

@@ -71,7 +71,8 @@ class CreativeEditor extends Component
                 'grapesJs' => asset('vendor/lmz-builder/2.4.5/grapesjs.js'),
                 'grapesCss' => asset('vendor/lmz-builder/2.4.5/grapesjs.css'),
             ],
-            'logoUrl' => asset('rt-brand/rt-logo.svg'),
+            'logoLightUrl' => asset('rt-brand/img/logo-horizontal.png'),
+            'logoDarkUrl' => asset('rt-brand/img/logo-horizontal-darkbg.png'),
             'endpoints' => [
                 'creativeUpdate' => route('admin.marketing.creatives.update', $creative),
                 'variantUpdate' => route('admin.marketing.variants.update', [$creative, '__FORMAT__']),

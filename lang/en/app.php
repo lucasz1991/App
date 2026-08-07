@@ -1125,7 +1125,7 @@ return [
     'email_template_signature_light_hint' => 'Light signature with icon contacts below name and role and a right-aligned logo.',
     'email_template_signature_outlook_dark' => 'Outlook signature dark (ZIP)',
     'email_template_signature_outlook_light' => 'Outlook signature light (ZIP)',
-    'email_template_signature_outlook_hint' => 'Includes the installable classic Outlook signature, a copy template for new Outlook and the single Outlook GIF.',
+    'email_template_signature_outlook_hint' => 'Fully extract the ZIP: the logged batch installer applies to classic Outlook; an account copy template with the single GIF is included for new Outlook.',
     'email_templates_outlook_install' => 'Set up for Outlook',
     'email_templates_standard_html' => 'Download standard HTML',
     'email_template_signature_text' => 'Signature (plain text)',

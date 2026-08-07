@@ -237,7 +237,8 @@ function htmlEscape(value) {
 }
 
 export async function createMarketingBlocks(
-    logoUrl = '/rt-brand/rt-logo.svg',
+    logoLightUrl = '/rt-brand/img/logo-horizontal.png',
+    logoDarkUrl = '/rt-brand/img/logo-horizontal-darkbg.png',
     ctaUrl = 'https://www.rail-time.de/de/karriere',
 ) {
     const qrValue = String(ctaUrl || '').trim();
@@ -262,11 +263,19 @@ export async function createMarketingBlocks(
 
     return [
         {
-            id: 'rt-marketing-logo',
+            id: 'rt-marketing-logo-light',
             definition: {
-                label: 'RailTime-Logo',
+                label: 'RailTime-Logo · heller Hintergrund',
                 category: MARKETING_CATEGORY,
-                content: `<div data-rt-block="logo" style="padding:24px"><img src="${htmlEscape(logoUrl)}" alt="RT RailTime" style="display:block;width:240px;max-width:100%;height:auto"></div>`,
+                content: `<div data-rt-block="logo-light" data-rt-logo-surface="light" style="padding:24px;background:#fff"><img src="${htmlEscape(logoLightUrl)}" width="2114" height="365" alt="RT Rail Time GmbH" style="display:block;width:360px;max-width:100%;height:auto"></div>`,
+            },
+        },
+        {
+            id: 'rt-marketing-logo-dark',
+            definition: {
+                label: 'RailTime-Logo · dunkler Hintergrund',
+                category: MARKETING_CATEGORY,
+                content: `<div data-rt-block="logo-dark" data-rt-logo-surface="dark" style="padding:24px;background:#102237"><img src="${htmlEscape(logoDarkUrl)}" width="2114" height="365" alt="RT Rail Time GmbH" style="display:block;width:360px;max-width:100%;height:auto"></div>`,
             },
         },
         {
@@ -738,7 +747,11 @@ export async function createMarketingStudio(workspace, config) {
             autosave: { enabled: true, intervalMs: 10000, changesBeforeSave: 30 },
             blocks: {
                 addDefault: false,
-                custom: await createMarketingBlocks(config.logoUrl, config.sharedContent?.cta_url),
+                custom: await createMarketingBlocks(
+                    config.logoLightUrl,
+                    config.logoDarkUrl,
+                    config.sharedContent?.cta_url,
+                ),
             },
             storage: {
                 onLoad: async ({ editor }) => {

@@ -37,6 +37,7 @@ Homestead.json
 !/tests/Feature/EmailTemplatesPageTest.php
 !/tests/Feature/MarketingBuilderVendorIntegrityTest.php
 !/tests/Feature/MarketingStudioBackendTest.php
+!/tests/Feature/MarketingStudioSeederTest.php
 !/tests/Frontend/
 /tests/Frontend/*
 !/tests/Frontend/call-recording-gate.test.js

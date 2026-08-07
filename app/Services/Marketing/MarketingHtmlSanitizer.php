@@ -2,6 +2,7 @@
 
 namespace App\Services\Marketing;
 
+use App\Support\MarketingBrandAssets;
 use DOMDocument;
 use DOMElement;
 use DOMXPath;
@@ -226,7 +227,7 @@ final class MarketingHtmlSanitizer
 
         $path = preg_replace('/[?#].*$/', '', $path) ?? $path;
 
-        return (bool) preg_match('#^/?rt-brand/(?:rt-logo\.svg|img/hero-railtime\.jpg)$#i', $path)
+        return MarketingBrandAssets::allows($path)
             || (bool) preg_match('#^/administrator/marketing/(?:medien|assets)/[0-9a-f-]{36}$#i', $path);
     }
 

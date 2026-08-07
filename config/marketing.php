@@ -2,6 +2,7 @@
 
 return [
     'disk' => env('MARKETING_DISK', 'private'),
+    'seed_admin_email' => env('MARKETING_SEED_ADMIN_EMAIL'),
 
     'formats' => [
         'story' => ['width' => 1080, 'height' => 1920, 'label' => 'Story'],

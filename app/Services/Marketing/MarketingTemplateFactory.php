@@ -39,7 +39,7 @@ final class MarketingTemplateFactory
                     'railtime' => [
                         'template' => $type->value,
                         'format' => $format->value,
-                        'schema' => 1,
+                        'schema' => 2,
                     ],
                 ],
                 'html' => $html,
@@ -146,58 +146,61 @@ final class MarketingTemplateFactory
 
     private function jobHtml(MarketingCreativeFormat $format): string
     {
+        $logo = $this->brandLockup();
+
         return match ($format) {
-            MarketingCreativeFormat::Story => <<<'HTML'
+            MarketingCreativeFormat::Story => <<<HTML
 <main class="rt-marketing-canvas rt-job rt-job-story">
   <section class="rt-hero">
-    <div class="rt-brand"><span class="rt-brand-mark"><img src="/rt-brand/rt-logo.svg" alt=""></span><span>RAILTIME</span></div>
+    {$logo}
     <div class="rt-copy">
       <p class="rt-kicker" data-rt-binding="kicker"></p>
       <h1 data-rt-binding="title"></h1>
       <p class="rt-subtitle" data-rt-binding="subtitle"></p>
       <p class="rt-intro" data-rt-binding="intro"></p>
     </div>
-    <div class="rt-photo"><img class="rt-photo-image" src="/rt-brand/img/hero-railtime.jpg" alt=""><span>RAIL · PEOPLE · SAFETY</span></div>
+    <div class="rt-photo"><img class="rt-photo-image" src="/rt-brand/img/hero-railtime.jpg" alt="Lokführer im Führerstand mit Blick auf die Strecke"><span>RAIL · PEOPLE · SAFETY</span></div>
   </section>
   <section class="rt-facts" data-rt-binding-facts="facts"></section>
-  <section class="rt-details rt-details-job">
-    <article><h2>Deine Aufgaben</h2><ul data-rt-binding-list="tasks"></ul></article>
-    <article><h2>Dein Profil</h2><ul data-rt-binding-list="profile"></ul></article>
-    <article class="rt-benefits"><h2>Darauf kannst du zählen</h2><ul data-rt-binding-list="benefits"></ul></article>
+  <section class="rt-details">
+    <article><p class="rt-section-number">01</p><h2>Deine Aufgaben</h2><ul data-rt-binding-list="tasks"></ul></article>
+    <article><p class="rt-section-number">02</p><h2>Dein Profil</h2><ul data-rt-binding-list="profile"></ul></article>
   </section>
+  <section class="rt-benefits"><h2>Darauf kannst du zählen</h2><ul data-rt-binding-list="benefits"></ul></section>
   <footer class="rt-footer">
-    <div><p class="rt-footer-title">Deine Zukunft. Unsere gemeinsame Fahrt.</p><p><span data-rt-binding="contact_phone"></span> · <span data-rt-binding="contact_email"></span></p></div>
+    <div><p class="rt-footer-kicker">Interesse geweckt?</p><p class="rt-footer-title">Deine Zukunft. Unsere gemeinsame Fahrt.</p><p><span data-rt-binding="contact_phone"></span> · <span data-rt-binding="contact_email"></span></p></div>
     <a class="rt-cta" data-rt-binding="cta_label" data-rt-binding-href="cta_url"></a>
-    <p class="rt-company"><span data-rt-binding="company_name"></span> · <span data-rt-binding="company_address"></span></p>
+    <p class="rt-company"><span data-rt-binding="company_name"></span> · <span data-rt-binding="company_address"></span> · <span data-rt-binding="website"></span></p>
   </footer>
 </main>
 HTML,
-            MarketingCreativeFormat::Post => <<<'HTML'
+            MarketingCreativeFormat::Post => <<<HTML
 <main class="rt-marketing-canvas rt-job rt-job-post">
-  <div class="rt-photo rt-photo-full"><img class="rt-photo-image" src="/rt-brand/img/hero-railtime.jpg" alt=""></div>
-  <header><div class="rt-brand"><span class="rt-brand-mark"><img src="/rt-brand/rt-logo.svg" alt=""></span><span>RAILTIME</span></div><p class="rt-kicker" data-rt-binding="kicker"></p></header>
+  <div class="rt-photo rt-photo-full"><img class="rt-photo-image" src="/rt-brand/img/hero-railtime.jpg" alt="Lokführer im Führerstand mit Blick auf die Strecke"></div>
   <section class="rt-post-panel">
-    <p class="rt-subtitle" data-rt-binding="subtitle"></p>
-    <h1 data-rt-binding="title"></h1>
-    <div class="rt-facts" data-rt-binding-facts="facts"></div>
-    <p class="rt-intro" data-rt-binding="intro"></p>
-    <div class="rt-post-bottom"><a class="rt-cta" data-rt-binding="cta_label" data-rt-binding-href="cta_url"></a><span data-rt-binding="website"></span></div>
-  </section>
-</main>
-HTML,
-            MarketingCreativeFormat::Web => <<<'HTML'
-<main class="rt-marketing-canvas rt-job rt-job-web">
-  <section class="rt-web-copy">
-    <div class="rt-brand"><span class="rt-brand-mark"><img src="/rt-brand/rt-logo.svg" alt=""></span><span>RAILTIME</span></div>
+    {$logo}
     <p class="rt-kicker" data-rt-binding="kicker"></p>
     <h1 data-rt-binding="title"></h1>
     <p class="rt-subtitle" data-rt-binding="subtitle"></p>
+    <p class="rt-intro" data-rt-binding="intro"></p>
+    <div class="rt-post-signal"><strong>Dein Einsatz</strong><ul data-rt-binding-list="tasks"></ul></div>
+    <a class="rt-cta" data-rt-binding="cta_label" data-rt-binding-href="cta_url"></a>
+  </section>
+  <section class="rt-post-band"><div class="rt-facts" data-rt-binding-facts="facts"></div><div class="rt-band-contact"><span data-rt-binding="contact_email"></span><strong data-rt-binding="website"></strong></div></section>
+</main>
+HTML,
+            MarketingCreativeFormat::Web => <<<HTML
+<main class="rt-marketing-canvas rt-job rt-job-web">
+  <div class="rt-photo rt-photo-full"><img class="rt-photo-image" src="/rt-brand/img/hero-railtime.jpg" alt="Lokführer im Führerstand mit Blick auf die Strecke"></div>
+  <section class="rt-web-copy">
+    {$logo}
+    <p class="rt-kicker" data-rt-binding="kicker"></p>
+    <h1 data-rt-binding="title"></h1>
+    <p class="rt-subtitle" data-rt-binding="subtitle"></p>
+    <ul class="rt-web-signals" data-rt-binding-list="tasks"></ul>
     <div class="rt-web-actions"><a class="rt-cta" data-rt-binding="cta_label" data-rt-binding-href="cta_url"></a><span data-rt-binding="contact_email"></span></div>
   </section>
-  <section class="rt-web-visual">
-    <div class="rt-photo"><img class="rt-photo-image" src="/rt-brand/img/hero-railtime.jpg" alt=""></div>
-    <div class="rt-facts" data-rt-binding-facts="facts"></div>
-  </section>
+  <section class="rt-web-proof"><div class="rt-facts" data-rt-binding-facts="facts"></div></section>
 </main>
 HTML,
         };
@@ -205,54 +208,81 @@ HTML,
 
     private function infoHtml(MarketingCreativeFormat $format): string
     {
+        $logo = $this->brandLockup();
+
         return match ($format) {
-            MarketingCreativeFormat::Story => <<<'HTML'
+            MarketingCreativeFormat::Story => <<<HTML
 <main class="rt-marketing-canvas rt-info rt-info-story">
-  <header><div class="rt-brand"><span class="rt-brand-mark"><img src="/rt-brand/rt-logo.svg" alt=""></span><span>RAILTIME</span></div><p class="rt-kicker" data-rt-binding="kicker"></p></header>
-  <section class="rt-info-head"><h1 data-rt-binding="title"></h1><p class="rt-subtitle" data-rt-binding="subtitle"></p><p class="rt-intro" data-rt-binding="intro"></p></section>
-  <div class="rt-photo rt-info-photo"><img class="rt-photo-image" src="/rt-brand/img/hero-railtime.jpg" alt=""><span>QUALITÄT IM BAHNBETRIEB</span></div>
-  <section class="rt-facts" data-rt-binding-facts="facts"></section>
-  <section class="rt-service-list"><h2>Unser Service</h2><ul data-rt-binding-list="tasks"></ul></section>
-  <section class="rt-info-contact"><div><strong>24/7 erreichbar</strong><span data-rt-binding="contact_phone"></span><span data-rt-binding="contact_email"></span></div><a class="rt-cta" data-rt-binding="cta_label" data-rt-binding-href="cta_url"></a></section>
-  <footer><span data-rt-binding="company_name"></span><span data-rt-binding="company_address"></span><span data-rt-binding="website"></span></footer>
-</main>
-HTML,
-            MarketingCreativeFormat::Post => <<<'HTML'
-<main class="rt-marketing-canvas rt-info rt-info-post">
-  <header><div class="rt-brand"><span class="rt-brand-mark"><img src="/rt-brand/rt-logo.svg" alt=""></span><span>RAILTIME</span></div><p class="rt-kicker" data-rt-binding="kicker"></p></header>
-  <section class="rt-info-post-title"><h1 data-rt-binding="title"></h1><p data-rt-binding="subtitle"></p></section>
-  <section class="rt-facts" data-rt-binding-facts="facts"></section>
-  <section class="rt-info-post-service"><h2>Wenn es zählt, sind wir da.</h2><ul data-rt-binding-list="benefits"></ul></section>
-  <footer><a class="rt-cta" data-rt-binding="cta_label" data-rt-binding-href="cta_url"></a><div><span data-rt-binding="contact_phone"></span><span data-rt-binding="website"></span></div></footer>
-</main>
-HTML,
-            MarketingCreativeFormat::Web => <<<'HTML'
-<main class="rt-marketing-canvas rt-info rt-info-web">
-  <section class="rt-info-web-lead">
-    <div class="rt-brand"><span class="rt-brand-mark"><img src="/rt-brand/rt-logo.svg" alt=""></span><span>RAILTIME</span></div>
-    <p class="rt-kicker" data-rt-binding="kicker"></p><h1 data-rt-binding="title"></h1><p class="rt-intro" data-rt-binding="intro"></p>
-    <a class="rt-cta" data-rt-binding="cta_label" data-rt-binding-href="cta_url"></a>
+  <section class="rt-info-hero">
+    {$logo}
+    <div class="rt-info-copy"><p class="rt-kicker" data-rt-binding="kicker"></p><h1 data-rt-binding="title"></h1><p class="rt-subtitle" data-rt-binding="subtitle"></p><p class="rt-intro" data-rt-binding="intro"></p></div>
+    <div class="rt-photo"><img class="rt-photo-image" src="/rt-brand/img/hero-railtime.jpg" alt="Lokführer im Führerstand mit Blick auf die Strecke"><span>QUALITÄT IM BAHNBETRIEB</span></div>
   </section>
-  <section class="rt-info-web-proof"><div class="rt-facts" data-rt-binding-facts="facts"></div><p><span data-rt-binding="contact_phone"></span><br><span data-rt-binding="contact_email"></span></p></section>
+  <section class="rt-facts" data-rt-binding-facts="facts"></section>
+  <section class="rt-info-services">
+    <article><p class="rt-section-number">01</p><h2>Unser Service</h2><ul data-rt-binding-list="tasks"></ul></article>
+    <article><p class="rt-section-number">02</p><h2>Warum RailTime</h2><ul data-rt-binding-list="benefits"></ul></article>
+  </section>
+  <section class="rt-info-contact"><div><p class="rt-footer-kicker">Direkt. Flexibel. Erreichbar.</p><strong>24/7 für Ihren Betrieb da.</strong><span data-rt-binding="contact_phone"></span><span data-rt-binding="contact_email"></span></div><a class="rt-cta" data-rt-binding="cta_label" data-rt-binding-href="cta_url"></a><footer><span data-rt-binding="company_name"></span><span data-rt-binding="company_address"></span><span data-rt-binding="website"></span></footer></section>
+</main>
+HTML,
+            MarketingCreativeFormat::Post => <<<HTML
+<main class="rt-marketing-canvas rt-info rt-info-post">
+  <div class="rt-photo rt-photo-full"><img class="rt-photo-image" src="/rt-brand/img/hero-railtime.jpg" alt="Lokführer im Führerstand mit Blick auf die Strecke"></div>
+  <section class="rt-info-post-lead">{$logo}<p class="rt-kicker" data-rt-binding="kicker"></p><h1 data-rt-binding="title"></h1><p class="rt-subtitle" data-rt-binding="subtitle"></p><p class="rt-intro" data-rt-binding="intro"></p><a class="rt-cta" data-rt-binding="cta_label" data-rt-binding-href="cta_url"></a></section>
+  <section class="rt-info-post-band"><div class="rt-facts" data-rt-binding-facts="facts"></div><div class="rt-info-post-service"><strong>Wenn es zählt, sind wir da.</strong><ul data-rt-binding-list="benefits"></ul></div><footer><span data-rt-binding="contact_phone"></span><span data-rt-binding="contact_email"></span><span data-rt-binding="website"></span></footer></section>
+</main>
+HTML,
+            MarketingCreativeFormat::Web => <<<HTML
+<main class="rt-marketing-canvas rt-info rt-info-web">
+  <div class="rt-photo rt-photo-full"><img class="rt-photo-image" src="/rt-brand/img/hero-railtime.jpg" alt="Lokführer im Führerstand mit Blick auf die Strecke"></div>
+  <section class="rt-info-web-lead">
+    {$logo}
+    <p class="rt-kicker" data-rt-binding="kicker"></p><h1 data-rt-binding="title"></h1><p class="rt-subtitle" data-rt-binding="subtitle"></p><p class="rt-intro" data-rt-binding="intro"></p>
+    <div class="rt-info-web-actions"><a class="rt-cta" data-rt-binding="cta_label" data-rt-binding-href="cta_url"></a><span data-rt-binding="contact_phone"></span></div>
+  </section>
+  <section class="rt-info-web-proof"><div class="rt-facts" data-rt-binding-facts="facts"></div><p><span data-rt-binding="contact_email"></span><strong data-rt-binding="website"></strong></p></section>
 </main>
 HTML,
         };
+    }
+
+    private function brandLockup(bool $forDarkBackground = false): string
+    {
+        $variant = $forDarkBackground ? 'reverse' : 'standard';
+        $asset = $forDarkBackground
+            ? '/rt-brand/img/logo-horizontal-darkbg.png'
+            : '/rt-brand/img/logo-horizontal.png';
+
+        return '<div class="rt-brand rt-brand-lockup rt-brand-lockup-'.$variant.'" data-rt-brand-lockup="official"><img class="rt-brand-logo" src="'.$asset.'" alt="RT Rail Time GmbH"></div>';
     }
 
     private function css(MarketingCreativeFormat $format, MarketingCreativeType $type): string
     {
         $dimensions = $format->dimensions();
         $base = <<<CSS
-*{box-sizing:border-box}.rt-marketing-canvas{position:relative;overflow:hidden;width:{$dimensions['width']}px;height:{$dimensions['height']}px;margin:0;background:#f7f6f2;color:#102237;font-family:Arial,"Helvetica Neue",sans-serif}.rt-marketing-canvas h1,.rt-marketing-canvas h2,.rt-marketing-canvas p{margin:0}.rt-brand{display:flex;align-items:center;gap:16px;font-size:24px;font-weight:800;letter-spacing:.14em}.rt-brand-mark{display:block;width:58px;height:58px}.rt-brand-mark img{display:block;width:100%;height:100%;object-fit:contain}.rt-kicker{color:#d7172f;font-weight:800;letter-spacing:.14em;text-transform:uppercase}.rt-subtitle{font-weight:700}.rt-cta{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;background:#d7172f;color:#fff;font-weight:800;text-decoration:none}.rt-photo{position:relative;overflow:hidden;background:linear-gradient(145deg,#263a4c,#101b27 55%,#d7172f)}.rt-photo-image{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.rt-photo:after{position:absolute;inset:0;background:linear-gradient(90deg,rgba(9,20,31,.04),rgba(9,20,31,.3));content:""}.rt-photo>span{z-index:1}.rt-facts{display:flex}.rt-facts>div{display:flex;flex-direction:column}.rt-facts strong{color:#d7172f}.rt-facts span{text-transform:uppercase;letter-spacing:.08em}.rt-marketing-canvas ul{margin:0;padding:0;list-style:none}.rt-marketing-canvas li{position:relative;padding-left:26px}.rt-marketing-canvas li:before{position:absolute;left:0;color:#d7172f;content:"✓"}.rt-footer,.rt-marketing-canvas footer{position:relative}.rt-company{position:absolute}
+*{box-sizing:border-box}.rt-marketing-canvas{position:relative;overflow:hidden;width:{$dimensions['width']}px;height:{$dimensions['height']}px;margin:0;background:#f4f1ea;color:#102237;font-family:Arial,"Helvetica Neue",sans-serif}.rt-marketing-canvas h1,.rt-marketing-canvas h2,.rt-marketing-canvas p{margin:0}.rt-brand-lockup{position:relative;z-index:4;width:250px}.rt-brand-logo{display:block;width:100%;height:auto}.rt-kicker,.rt-footer-kicker{color:#d71932;font-weight:800;letter-spacing:.14em;text-transform:uppercase}.rt-subtitle{font-weight:700}.rt-cta{display:inline-flex;align-items:center;justify-content:center;border-radius:10px;background:#d71932;color:#fff;font-weight:800;text-decoration:none}.rt-photo{position:relative;overflow:hidden;background:#102237}.rt-photo-image{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.rt-photo:after{position:absolute;inset:0;background:linear-gradient(90deg,rgba(9,20,31,.04),rgba(9,20,31,.32));content:""}.rt-photo>span{position:absolute;z-index:1;color:#fff;font-weight:700;letter-spacing:.15em}.rt-facts{display:flex}.rt-facts>div{display:flex;flex:1;flex-direction:column}.rt-facts strong{color:#d71932}.rt-facts span{text-transform:uppercase;letter-spacing:.08em}.rt-marketing-canvas ul{margin:0;padding:0;list-style:none}.rt-marketing-canvas li{position:relative;padding-left:26px}.rt-marketing-canvas li:before{position:absolute;left:0;color:#d71932;content:"✓"}.rt-section-number{color:#d71932;font-size:14px;font-weight:800;letter-spacing:.18em}.rt-footer,.rt-marketing-canvas footer{position:relative}.rt-company{position:absolute}
 CSS;
 
         $specific = match ([$type, $format]) {
-            [MarketingCreativeType::Job, MarketingCreativeFormat::Story] => '.rt-job-story .rt-hero{height:760px;padding:72px}.rt-job-story .rt-copy{position:relative;z-index:2;width:58%;padding-top:150px}.rt-job-story h1{max-width:620px;font-size:82px;line-height:.96}.rt-job-story .rt-kicker{font-size:22px}.rt-job-story .rt-subtitle{margin-top:25px;font-size:30px}.rt-job-story .rt-intro{margin-top:28px;font-size:22px;line-height:1.45}.rt-job-story .rt-photo{position:absolute;top:0;right:0;width:43%;height:760px;clip-path:polygon(22% 0,100% 0,100% 100%,0 100%)}.rt-job-story .rt-photo span{position:absolute;right:40px;bottom:34px;color:#fff;font-size:15px;letter-spacing:.16em}.rt-job-story>.rt-facts{height:190px;padding:42px 72px;background:#102f4f;color:#fff;gap:64px}.rt-job-story>.rt-facts>div{flex:1}.rt-job-story .rt-facts strong{font-size:50px}.rt-job-story .rt-facts span{font-size:14px}.rt-job-story .rt-details{display:grid;height:690px;padding:64px 72px;grid-template-columns:1fr 1fr;gap:54px}.rt-job-story .rt-details article:last-child{grid-column:1/-1}.rt-job-story h2{padding-bottom:18px;border-bottom:2px solid #d7dde3;font-size:24px;text-transform:uppercase}.rt-job-story li{margin-top:18px;font-size:20px;line-height:1.4}.rt-job-story .rt-benefits ul{display:grid;grid-template-columns:1fr 1fr;gap:0 36px}.rt-job-story .rt-footer{height:280px;padding:45px 72px;background:#fff}.rt-job-story .rt-footer-title{max-width:560px;font-size:30px;font-weight:800}.rt-job-story .rt-footer>div>p+ p{margin-top:18px;font-size:18px}.rt-job-story .rt-cta{position:absolute;top:45px;right:72px;min-width:230px;padding:22px 32px;font-size:20px}.rt-job-story .rt-company{right:72px;bottom:38px;left:72px;padding-top:18px;border-top:1px solid #ccd3da;font-size:15px}',
-            [MarketingCreativeType::Job, MarketingCreativeFormat::Post] => '.rt-job-post{background:#102237;color:#fff}.rt-job-post .rt-photo-full{position:absolute;inset:0 0 390px}.rt-job-post:after{position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,22,34,.1),rgba(10,22,34,.2) 45%,#102237 67%);content:""}.rt-job-post header{position:relative;z-index:2;display:flex;padding:58px 62px;align-items:center;justify-content:space-between}.rt-job-post .rt-post-panel{position:absolute;z-index:2;right:62px;bottom:52px;left:62px}.rt-job-post h1{max-width:850px;font-size:78px;line-height:.95}.rt-job-post .rt-subtitle{margin-bottom:18px;color:#f3c6cc;font-size:24px;text-transform:uppercase}.rt-job-post .rt-facts{margin-top:34px;gap:52px}.rt-job-post .rt-facts strong{font-size:38px}.rt-job-post .rt-facts span{font-size:12px}.rt-job-post .rt-intro{max-width:820px;margin-top:30px;color:#dbe2e8;font-size:18px;line-height:1.45}.rt-job-post .rt-post-bottom{display:flex;margin-top:34px;align-items:center;justify-content:space-between}.rt-job-post .rt-cta{padding:18px 30px;font-size:18px}.rt-job-post .rt-post-bottom>span{font-size:17px;font-weight:700}',
-            [MarketingCreativeType::Job, MarketingCreativeFormat::Web] => '.rt-job-web{display:grid;background:#102237;color:#fff;grid-template-columns:54% 46%}.rt-job-web .rt-web-copy{padding:54px 64px}.rt-job-web .rt-kicker{margin-top:76px;font-size:16px}.rt-job-web h1{max-width:620px;margin-top:12px;font-size:66px;line-height:.98}.rt-job-web .rt-subtitle{margin-top:18px;font-size:25px}.rt-job-web .rt-web-actions{display:flex;margin-top:46px;align-items:center;gap:28px}.rt-job-web .rt-cta{padding:17px 27px}.rt-job-web .rt-web-visual{position:relative}.rt-job-web .rt-photo{height:100%}.rt-job-web .rt-facts{position:absolute;right:24px;bottom:24px;left:24px;padding:20px 24px;background:rgba(9,22,34,.88);gap:24px}.rt-job-web .rt-facts>div{flex:1}.rt-job-web .rt-facts strong{font-size:29px}.rt-job-web .rt-facts span{color:#fff;font-size:9px}',
-            [MarketingCreativeType::Info, MarketingCreativeFormat::Story] => '.rt-info-story{padding:66px 70px;background:#f4f2ec}.rt-info-story header{display:flex;align-items:center;justify-content:space-between}.rt-info-story .rt-info-head{padding-top:120px}.rt-info-story h1{max-width:820px;font-size:84px;line-height:.98}.rt-info-story .rt-subtitle{margin-top:22px;font-size:31px}.rt-info-story .rt-intro{max-width:780px;margin-top:28px;font-size:22px;line-height:1.5}.rt-info-story .rt-info-photo{height:390px;margin:70px -70px 0}.rt-info-story .rt-info-photo span{position:absolute;right:55px;bottom:38px;color:#fff;font-size:17px;letter-spacing:.15em}.rt-info-story>.rt-facts{margin:0 -70px;padding:42px 70px;background:#d7172f;color:#fff;gap:70px}.rt-info-story>.rt-facts>div{flex:1}.rt-info-story>.rt-facts strong{color:#fff;font-size:48px}.rt-info-story>.rt-facts span{font-size:13px}.rt-info-story .rt-service-list{padding-top:66px}.rt-info-story h2{font-size:25px;text-transform:uppercase}.rt-info-story li{margin-top:22px;font-size:22px}.rt-info-story .rt-info-contact{display:flex;margin-top:62px;padding:38px;background:#102f4f;color:#fff;align-items:center;justify-content:space-between}.rt-info-story .rt-info-contact div{display:grid;gap:9px;font-size:19px}.rt-info-story .rt-info-contact strong{font-size:27px}.rt-info-story .rt-cta{padding:20px 30px}.rt-info-story footer{position:absolute;right:70px;bottom:44px;left:70px;display:flex;padding-top:18px;border-top:1px solid #bdc5cc;justify-content:space-between;font-size:14px}',
-            [MarketingCreativeType::Info, MarketingCreativeFormat::Post] => '.rt-info-post{padding:56px 62px;background:linear-gradient(145deg,#f5f3ee 0 62%,#102f4f 62%);color:#102237}.rt-info-post header{display:flex;align-items:center;justify-content:space-between}.rt-info-post .rt-info-post-title{margin-top:108px}.rt-info-post h1{max-width:850px;font-size:82px;line-height:.95}.rt-info-post .rt-info-post-title p{margin-top:20px;font-size:27px;font-weight:700}.rt-info-post>.rt-facts{margin-top:64px;gap:70px}.rt-info-post>.rt-facts strong{font-size:48px}.rt-info-post>.rt-facts span{font-size:12px}.rt-info-post .rt-info-post-service{position:absolute;right:0;bottom:132px;left:0;padding:28px 62px 32px;background:#102f4f;color:#fff}.rt-info-post .rt-info-post-service h2{font-size:31px}.rt-info-post .rt-info-post-service ul{display:flex;margin-top:28px;gap:30px}.rt-info-post .rt-info-post-service li{flex:1;font-size:17px}.rt-info-post footer{position:absolute;right:62px;bottom:48px;left:62px;display:flex;align-items:end;justify-content:space-between;color:#fff}.rt-info-post .rt-cta{padding:17px 28px}.rt-info-post footer div{display:grid;gap:7px;text-align:right}',
-            [MarketingCreativeType::Info, MarketingCreativeFormat::Web] => '.rt-info-web{display:grid;background:#f4f2ed;grid-template-columns:67% 33%}.rt-info-web .rt-info-web-lead{padding:48px 62px}.rt-info-web .rt-kicker{margin-top:43px}.rt-info-web h1{margin-top:10px;font-size:64px;line-height:.98}.rt-info-web .rt-intro{max-width:680px;margin-top:19px;font-size:18px;line-height:1.45}.rt-info-web .rt-cta{margin-top:30px;padding:15px 26px}.rt-info-web .rt-info-web-proof{display:flex;padding:54px 44px;background:#102f4f;color:#fff;flex-direction:column;justify-content:center}.rt-info-web .rt-facts{display:grid;gap:26px}.rt-info-web .rt-facts>div{padding-bottom:19px;border-bottom:1px solid rgba(255,255,255,.22)}.rt-info-web .rt-facts strong{font-size:35px}.rt-info-web .rt-facts span{font-size:10px}.rt-info-web .rt-info-web-proof>p{margin-top:36px;font-size:17px;line-height:1.6}',
+            [MarketingCreativeType::Job, MarketingCreativeFormat::Story] => <<<'CSS'
+.rt-job-story .rt-hero{position:relative;height:720px;padding:50px 60px;background:#f4f1ea}.rt-job-story .rt-brand-lockup{width:255px}.rt-job-story .rt-copy{position:absolute;z-index:2;top:146px;left:60px;width:54%}.rt-job-story .rt-kicker{font-size:18px}.rt-job-story h1{max-width:560px;margin-top:13px;font-size:74px;line-height:.92;letter-spacing:-.045em}.rt-job-story .rt-subtitle{margin-top:22px;font-size:27px}.rt-job-story .rt-intro{max-width:500px;margin-top:22px;font-size:18px;line-height:1.46}.rt-job-story .rt-photo{position:absolute;top:0;right:0;width:50%;height:720px;clip-path:polygon(21% 0,100% 0,100% 100%,0 100%)}.rt-job-story .rt-photo-image{object-position:66% center}.rt-job-story .rt-photo span{right:35px;bottom:30px;font-size:13px}.rt-job-story>.rt-facts{height:150px;padding:31px 60px;background:#123654;color:#fff;gap:52px}.rt-job-story>.rt-facts strong{font-size:43px;line-height:1}.rt-job-story>.rt-facts span{margin-top:9px;color:#fff;font-size:13px}.rt-job-story .rt-details{display:grid;height:590px;padding:52px 60px;background:#102237;color:#fff;grid-template-columns:1fr 1fr;gap:58px}.rt-job-story .rt-details article+article{padding-left:56px;border-left:1px solid rgba(255,255,255,.22)}.rt-job-story .rt-details h2{margin-top:8px;padding-bottom:16px;border-bottom:2px solid rgba(255,255,255,.2);font-size:25px;text-transform:uppercase}.rt-job-story .rt-details li{margin-top:21px;color:#edf2f5;font-size:19px;line-height:1.38}.rt-job-story .rt-benefits{display:grid;height:200px;padding:38px 60px;background:#f4f1ea;grid-template-columns:260px 1fr;gap:45px}.rt-job-story .rt-benefits h2{font-size:24px;line-height:1.15;text-transform:uppercase}.rt-job-story .rt-benefits ul{display:grid;grid-template-columns:1fr 1fr;gap:13px 34px}.rt-job-story .rt-benefits li{font-size:17px;line-height:1.3}.rt-job-story .rt-footer{height:260px;padding:38px 60px;background:#fff}.rt-job-story .rt-footer-kicker{font-size:13px}.rt-job-story .rt-footer-title{max-width:570px;margin-top:10px;font-size:29px;font-weight:800}.rt-job-story .rt-footer>div>p:last-child{margin-top:15px;font-size:17px}.rt-job-story .rt-cta{position:absolute;top:47px;right:60px;min-width:220px;padding:19px 28px;font-size:19px}.rt-job-story .rt-company{right:60px;bottom:28px;left:60px;padding-top:17px;border-top:1px solid #c9d0d6;font-size:14px}
+CSS,
+            [MarketingCreativeType::Job, MarketingCreativeFormat::Post] => <<<'CSS'
+.rt-job-post{background:#102237}.rt-job-post .rt-photo-full{position:absolute;inset:0}.rt-job-post .rt-photo-image{object-position:69% center}.rt-job-post .rt-photo:after{background:linear-gradient(90deg,rgba(16,34,55,.06),rgba(16,34,55,.18) 60%,rgba(16,34,55,.42))}.rt-job-post .rt-post-panel{position:absolute;z-index:2;top:0;bottom:190px;left:0;width:70%;padding:48px 112px 42px 54px;background:#f4f1ea;clip-path:polygon(0 0,100% 0,86% 100%,0 100%)}.rt-job-post .rt-brand-lockup{width:240px}.rt-job-post .rt-kicker{margin-top:79px;font-size:16px}.rt-job-post h1{max-width:590px;margin-top:11px;font-size:65px;line-height:.94;letter-spacing:-.045em}.rt-job-post .rt-subtitle{margin-top:18px;font-size:23px}.rt-job-post .rt-intro{max-width:535px;margin-top:20px;font-size:18px;line-height:1.42}.rt-job-post .rt-post-signal{max-width:510px;margin-top:25px;padding-top:20px;border-top:1px solid #c6cdd2}.rt-job-post .rt-post-signal strong{font-size:16px;letter-spacing:.1em;text-transform:uppercase}.rt-job-post .rt-post-signal ul{display:grid;margin-top:9px;gap:7px}.rt-job-post .rt-post-signal li{font-size:18px;line-height:1.3}.rt-job-post .rt-cta{margin-top:23px;padding:16px 26px;font-size:17px}.rt-job-post .rt-post-band{position:absolute;z-index:3;right:0;bottom:0;left:0;display:flex;height:210px;padding:39px 55px;background:#123654;color:#fff;align-items:center}.rt-job-post .rt-facts{width:69%;gap:38px}.rt-job-post .rt-facts strong{font-size:37px;line-height:1}.rt-job-post .rt-facts span{margin-top:8px;color:#fff;font-size:15px}.rt-job-post .rt-band-contact{display:grid;margin-left:auto;gap:9px;text-align:right}.rt-job-post .rt-band-contact span{font-size:17px}.rt-job-post .rt-band-contact strong{font-size:18px}
+CSS,
+            [MarketingCreativeType::Job, MarketingCreativeFormat::Web] => <<<'CSS'
+.rt-job-web{background:#102237}.rt-job-web .rt-photo-full{position:absolute;inset:0}.rt-job-web .rt-photo-image{object-position:68% center}.rt-job-web .rt-photo:after{background:linear-gradient(90deg,rgba(16,34,55,.02),rgba(16,34,55,.26))}.rt-job-web .rt-web-copy{position:absolute;z-index:2;inset:0 auto 0 0;width:60%;padding:43px 106px 38px 55px;background:#f4f1ea;clip-path:polygon(0 0,100% 0,87% 100%,0 100%)}.rt-job-web .rt-brand-lockup{width:218px}.rt-job-web .rt-kicker{margin-top:48px;font-size:14px}.rt-job-web h1{max-width:560px;margin-top:8px;font-size:55px;line-height:.93;letter-spacing:-.04em}.rt-job-web .rt-subtitle{margin-top:14px;font-size:21px}.rt-job-web .rt-web-signals{display:grid;max-width:530px;margin-top:18px;gap:6px}.rt-job-web .rt-web-signals li{font-size:17px;line-height:1.28}.rt-job-web .rt-web-actions{display:flex;margin-top:23px;align-items:center;gap:23px}.rt-job-web .rt-cta{padding:14px 23px;font-size:16px}.rt-job-web .rt-web-actions span{font-size:16px;font-weight:700}.rt-job-web .rt-web-proof{position:absolute;z-index:3;right:24px;bottom:24px;width:480px;padding:25px 24px;background:rgba(16,34,55,.93);color:#fff}.rt-job-web .rt-facts{gap:8px}.rt-job-web .rt-facts strong{font-size:30px;line-height:1}.rt-job-web .rt-facts span{margin-top:7px;color:#fff;font-size:13px;line-height:1.25;letter-spacing:.025em;white-space:nowrap}
+CSS,
+            [MarketingCreativeType::Info, MarketingCreativeFormat::Story] => <<<'CSS'
+.rt-info-story .rt-info-hero{position:relative;height:720px;padding:50px 60px;background:#f4f1ea}.rt-info-story .rt-brand-lockup{width:255px}.rt-info-story .rt-info-copy{position:absolute;z-index:2;top:150px;left:60px;width:55%}.rt-info-story .rt-kicker{font-size:18px}.rt-info-story h1{max-width:570px;margin-top:13px;font-size:72px;line-height:.93;letter-spacing:-.045em}.rt-info-story .rt-subtitle{max-width:540px;margin-top:22px;font-size:26px}.rt-info-story .rt-intro{max-width:505px;margin-top:23px;font-size:18px;line-height:1.46}.rt-info-story .rt-photo{position:absolute;top:0;right:0;width:49%;height:720px;clip-path:polygon(20% 0,100% 0,100% 100%,0 100%)}.rt-info-story .rt-photo-image{object-position:66% center}.rt-info-story .rt-photo span{right:34px;bottom:30px;font-size:13px}.rt-info-story>.rt-facts{height:150px;padding:31px 60px;background:#d71932;color:#fff;gap:52px}.rt-info-story>.rt-facts strong{color:#fff;font-size:43px;line-height:1}.rt-info-story>.rt-facts span{margin-top:9px;color:#fff;font-size:13px}.rt-info-story .rt-info-services{display:grid;height:620px;padding:56px 60px;background:#102237;color:#fff;grid-template-columns:1fr 1fr;gap:58px}.rt-info-story .rt-info-services article+article{padding-left:56px;border-left:1px solid rgba(255,255,255,.22)}.rt-info-story .rt-info-services h2{margin-top:8px;padding-bottom:16px;border-bottom:2px solid rgba(255,255,255,.2);font-size:25px;text-transform:uppercase}.rt-info-story .rt-info-services li{margin-top:23px;color:#edf2f5;font-size:20px;line-height:1.38}.rt-info-story .rt-info-contact{position:relative;height:430px;padding:54px 60px;background:#f4f1ea}.rt-info-story .rt-info-contact>div{display:grid;max-width:600px;gap:9px}.rt-info-story .rt-info-contact .rt-footer-kicker{font-size:14px}.rt-info-story .rt-info-contact strong{margin:4px 0 9px;font-size:33px}.rt-info-story .rt-info-contact span{font-size:18px}.rt-info-story .rt-cta{position:absolute;top:75px;right:60px;min-width:230px;padding:20px 30px;font-size:19px}.rt-info-story footer{position:absolute;right:60px;bottom:35px;left:60px;display:flex;padding-top:18px;border-top:1px solid #bdc5cc;justify-content:space-between;font-size:14px}
+CSS,
+            [MarketingCreativeType::Info, MarketingCreativeFormat::Post] => <<<'CSS'
+.rt-info-post{background:#102237}.rt-info-post .rt-photo-full{position:absolute;inset:0}.rt-info-post .rt-photo-image{object-position:69% center}.rt-info-post .rt-photo:after{background:linear-gradient(90deg,rgba(16,34,55,.03),rgba(16,34,55,.24) 70%,rgba(16,34,55,.42))}.rt-info-post .rt-info-post-lead{position:absolute;z-index:2;top:0;bottom:335px;left:0;width:67%;padding:48px 112px 42px 54px;background:#f4f1ea;clip-path:polygon(0 0,100% 0,86% 100%,0 100%)}.rt-info-post .rt-brand-lockup{width:240px}.rt-info-post .rt-kicker{margin-top:67px;font-size:16px}.rt-info-post h1{max-width:590px;margin-top:10px;font-size:61px;line-height:.94;letter-spacing:-.045em}.rt-info-post .rt-subtitle{max-width:535px;margin-top:17px;font-size:22px}.rt-info-post .rt-intro{max-width:525px;margin-top:19px;font-size:18px;line-height:1.42}.rt-info-post .rt-cta{margin-top:23px;padding:16px 25px;font-size:17px}.rt-info-post .rt-info-post-band{position:absolute;z-index:3;right:0;bottom:0;left:0;height:355px;padding:30px 55px;background:#123654;color:#fff}.rt-info-post .rt-facts{gap:44px}.rt-info-post .rt-facts strong{font-size:37px;line-height:1}.rt-info-post .rt-facts span{margin-top:7px;color:#fff;font-size:15px}.rt-info-post .rt-info-post-service{display:flex;margin-top:27px;padding-top:24px;border-top:1px solid rgba(255,255,255,.22);align-items:flex-start}.rt-info-post .rt-info-post-service strong{width:270px;font-size:23px;line-height:1.2}.rt-info-post .rt-info-post-service ul{display:flex;flex:1;gap:18px}.rt-info-post .rt-info-post-service li{flex:1;font-size:18px;line-height:1.3}.rt-info-post footer{position:absolute;right:55px;bottom:29px;left:55px;display:flex;padding-top:15px;border-top:1px solid rgba(255,255,255,.22);justify-content:space-between;font-size:16px}
+CSS,
+            [MarketingCreativeType::Info, MarketingCreativeFormat::Web] => <<<'CSS'
+.rt-info-web{background:#102237}.rt-info-web .rt-photo-full{position:absolute;inset:0}.rt-info-web .rt-photo-image{object-position:68% center}.rt-info-web .rt-photo:after{background:linear-gradient(90deg,rgba(16,34,55,.02),rgba(16,34,55,.25))}.rt-info-web .rt-info-web-lead{position:absolute;z-index:2;inset:0 auto 0 0;width:59%;padding:43px 102px 37px 55px;background:#f4f1ea;clip-path:polygon(0 0,100% 0,86% 100%,0 100%)}.rt-info-web .rt-brand-lockup{width:218px}.rt-info-web .rt-kicker{margin-top:39px;font-size:14px}.rt-info-web h1{max-width:550px;margin-top:8px;font-size:53px;line-height:.94;letter-spacing:-.04em}.rt-info-web .rt-subtitle{max-width:535px;margin-top:13px;font-size:20px}.rt-info-web .rt-intro{max-width:535px;margin-top:15px;font-size:17px;line-height:1.4}.rt-info-web .rt-info-web-actions{display:flex;margin-top:22px;align-items:center;gap:21px}.rt-info-web .rt-cta{padding:14px 23px;font-size:16px}.rt-info-web .rt-info-web-actions span{font-size:15px;font-weight:700}.rt-info-web .rt-info-web-proof{position:absolute;z-index:3;right:23px;bottom:23px;width:480px;padding:24px 24px;background:rgba(16,34,55,.94);color:#fff}.rt-info-web .rt-facts{gap:8px}.rt-info-web .rt-facts strong{font-size:30px;line-height:1}.rt-info-web .rt-facts span{margin-top:7px;color:#fff;font-size:13px;line-height:1.25;letter-spacing:.025em;white-space:nowrap}.rt-info-web .rt-info-web-proof>p{display:flex;margin-top:18px;padding-top:15px;border-top:1px solid rgba(255,255,255,.22);justify-content:space-between;font-size:15px}.rt-info-web .rt-info-web-proof>p strong{font-size:15px}
+CSS,
         };
 
         return $base.$specific;

@@ -659,29 +659,125 @@ class EmailTemplateBuilder
 
     protected function buildOutlookInstaller(string $signatureName): string
     {
-        return <<<CMD
+        $installer = <<<CMD
 @echo off
-setlocal
-set "TARGET=%APPDATA%\Microsoft\Signatures"
+setlocal EnableExtensions
+title RailTime Outlook-Signatur installieren
+
+set "SIGNATURE_NAME={$signatureName}"
+set "SOURCE_DIR=%~dp0"
+set "SOURCE_ASSETS=%SOURCE_DIR%%SIGNATURE_NAME%_files"
+set "LOG_FILE=%TEMP%\RailTime-Outlook-Signatur-Installation.log"
+
+>"%LOG_FILE%" echo [START] %DATE% %TIME% RailTime Outlook-Signatur
+call :say "Paket wird geprueft ..."
+
 if not defined APPDATA (
-  echo APPDATA is not available. Installation stopped.
-  pause
-  exit /b 1
+  call :fail 10 "APPDATA ist nicht verfuegbar. Die Installation wurde abgebrochen."
+  exit /b 10
 )
-if not exist "%TARGET%" mkdir "%TARGET%"
-copy /Y "%~dp0{$signatureName}.htm" "%TARGET%\{$signatureName}.htm" >nul
-copy /Y "%~dp0{$signatureName}.rtf" "%TARGET%\{$signatureName}.rtf" >nul
-copy /Y "%~dp0{$signatureName}.txt" "%TARGET%\{$signatureName}.txt" >nul
-xcopy /E /I /Y "%~dp0{$signatureName}_files" "%TARGET%\{$signatureName}_files" >nul
+
+if not defined TEMP set "TEMP=%APPDATA%\Temp"
+set "TARGET_DIR=%APPDATA%\Microsoft\Signatures"
+set "TARGET_ASSETS=%TARGET_DIR%\%SIGNATURE_NAME%_files"
+
+if not exist "%SOURCE_DIR%%SIGNATURE_NAME%.htm" (
+  call :fail 11 "Das ZIP wurde nicht vollstaendig entpackt. Rechtsklick auf das ZIP, Alle extrahieren waehlen und dieses Skript im entpackten Ordner erneut starten."
+  exit /b 11
+)
+if not exist "%SOURCE_DIR%%SIGNATURE_NAME%.rtf" (
+  call :fail 11 "Das ZIP wurde nicht vollstaendig entpackt. Die RTF-Datei fehlt."
+  exit /b 11
+)
+if not exist "%SOURCE_DIR%%SIGNATURE_NAME%.txt" (
+  call :fail 11 "Das ZIP wurde nicht vollstaendig entpackt. Die TXT-Datei fehlt."
+  exit /b 11
+)
+if not exist "%SOURCE_ASSETS%\zug-dampf.gif" (
+  call :fail 11 "Das ZIP wurde nicht vollstaendig entpackt. Der Asset-Ordner fehlt."
+  exit /b 11
+)
+
+for %%F in (logo.png contact-location.png contact-phone.png contact-mobile.png contact-email.png contact-web.png) do (
+  if not exist "%SOURCE_ASSETS%\%%F" (
+    call :fail 11 "Das ZIP wurde nicht vollstaendig entpackt. Eine Bilddatei fehlt."
+    exit /b 11
+  )
+)
+
+if not exist "%TARGET_DIR%" (
+  mkdir "%TARGET_DIR%" >>"%LOG_FILE%" 2>&1
+  if errorlevel 1 (
+    call :fail 20 "Der Outlook-Signaturordner konnte nicht angelegt werden."
+    exit /b 20
+  )
+)
+
+call :copy_file "%SOURCE_DIR%%SIGNATURE_NAME%.htm" "%TARGET_DIR%\%SIGNATURE_NAME%.htm"
 if errorlevel 1 (
-  echo Installation failed. Please use README-Outlook.html.
-  pause
-  exit /b 1
+  call :fail 21 "Die HTML-Signatur konnte nicht kopiert werden."
+  exit /b 21
 )
-echo RailTime signature installed for classic Outlook.
-echo Restart Outlook and select "{$signatureName}" under Signatures.
+call :copy_file "%SOURCE_DIR%%SIGNATURE_NAME%.rtf" "%TARGET_DIR%\%SIGNATURE_NAME%.rtf"
+if errorlevel 1 (
+  call :fail 22 "Die RTF-Signatur konnte nicht kopiert werden."
+  exit /b 22
+)
+call :copy_file "%SOURCE_DIR%%SIGNATURE_NAME%.txt" "%TARGET_DIR%\%SIGNATURE_NAME%.txt"
+if errorlevel 1 (
+  call :fail 23 "Die Text-Signatur konnte nicht kopiert werden."
+  exit /b 23
+)
+
+robocopy "%SOURCE_ASSETS%" "%TARGET_ASSETS%" /E /COPY:DAT /DCOPY:DAT /R:2 /W:1 /NFL /NDL /NJH /NJS /NP >>"%LOG_FILE%" 2>&1
+set "ROBOCOPY_EXIT=%ERRORLEVEL%"
+if %ROBOCOPY_EXIT% GEQ 8 (
+  call :fail 24 "Die Bilddateien konnten nicht kopiert werden."
+  exit /b 24
+)
+
+call :blank
+call :say "[ERFOLG] Die RailTime-Signatur wurde installiert."
+call :say "Name: %SIGNATURE_NAME%"
+call :say "Ordner: %TARGET_DIR%"
+call :say "Protokoll: %LOG_FILE%"
+call :blank
+call :say "WICHTIG: Die lokale Batch-Installation gilt fuer klassisches Outlook."
+call :say "Outlook neu starten und die Signatur unter Neue E-Mail - Signatur - Signaturen auswaehlen."
+call :say "Neues Outlook verwaltet Signaturen kontogebunden unter Einstellungen - Konten - Signaturen."
+echo.
 pause
+exit /b 0
+
+:copy_file
+copy /Y "%~1" "%~2" >>"%LOG_FILE%" 2>&1
+if errorlevel 1 exit /b 1
+exit /b 0
+
+:say
+echo %~1
+>>"%LOG_FILE%" echo %~1
+exit /b 0
+
+:blank
+echo.
+>>"%LOG_FILE%" echo.
+exit /b 0
+
+:fail
+set "ERROR_CODE=%~1"
+set "ERROR_MESSAGE=%~2"
+echo.
+echo [FEHLER] %ERROR_MESSAGE%
+echo Protokoll: %LOG_FILE%
+>>"%LOG_FILE%" echo [FEHLER] %ERROR_MESSAGE%
+pause
+exit /b %ERROR_CODE%
 CMD;
+
+        $installer = str_replace(["\r\n", "\r"], "\n", $installer);
+
+        return str_replace("\n", "\r\n", $installer)."\r\n";
     }
 
     protected function buildOutlookReadme(string $signatureName, string $assetFolder): string
@@ -695,14 +791,16 @@ CMD;
 <head><meta charset="utf-8"><title>RailTime Signatur in Outlook einrichten</title></head>
 <body style="max-width:760px;margin:40px auto;padding:0 20px;font-family:Arial,Helvetica,sans-serif;color:#111820;line-height:1.55;">
   <h1 style="font-size:26px;">RailTime-Signatur in Outlook einrichten</h1>
-  <p>Das Paket enthält eine Outlook-kompatible Signatur mit einem normalen, einmalig abspielenden GIF. Bitte das ZIP zuerst vollständig entpacken.</p>
+  <p>Das Paket enthält eine Outlook-kompatible Signatur mit einem normalen, einmalig abspielenden GIF. Bitte das ZIP zuerst vollständig entpacken. Ein Start direkt aus der ZIP-Ansicht kann die Begleitdateien nicht installieren.</p>
   <h2 style="font-size:19px;">Klassisches Outlook für Windows</h2>
   <ol>
     <li>Outlook vollständig schließen.</li>
-    <li><strong>Outlook-klassisch-installieren.cmd</strong> doppelt anklicken.</li>
+    <li>Das heruntergeladene ZIP mit <strong>Rechtsklick → Alle extrahieren</strong> vollständig entpacken.</li>
+    <li>Im entpackten Ordner <strong>Outlook-klassisch-installieren.cmd</strong> doppelt anklicken. Das Fenster bleibt bis zur Bestätigung geöffnet und zeigt Erfolg oder einen konkreten Fehler. Ein Installationsprotokoll wird im Windows-Temp-Ordner angelegt.</li>
     <li>Outlook neu starten und über <strong>Neue E-Mail → Signatur → Signaturen</strong> „{$name}“ für neue Nachrichten sowie Antworten auswählen.</li>
   </ol>
   <h2 style="font-size:19px;">Neues Outlook oder Outlook im Web</h2>
+  <p><strong>Wichtig:</strong> Das neue Outlook speichert Signaturen konto- beziehungsweise cloudgebunden und liest den lokalen Classic-Outlook-Ordner nicht ein. Eine lokale Batchdatei kann diese Signatur daher nicht direkt im neuen Outlook registrieren.</p>
   <ol>
     <li><strong>{$name}.htm</strong> in Edge oder Chrome öffnen.</li>
     <li>Mit <strong>Strg+A</strong> alles markieren und mit <strong>Strg+C</strong> kopieren.</li>

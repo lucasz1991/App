@@ -57,6 +57,22 @@ test('marketing artboards keep the exact publishing dimensions', () => {
     assert.equal(resolveArtboard('unknown'), MARKETING_ARTBOARDS.story);
 });
 
+test('official horizontal Joomla lockups stay byte-identical in the public brand directory', async () => {
+    const [{ createHash }, { readFile }] = await Promise.all([
+        import('node:crypto'),
+        import('node:fs/promises'),
+    ]);
+    const expected = {
+        'logo-horizontal.png': 'FFE44DAE1A8404167C124164398206165A12B07C3BA2A44BB0C8D1BEC553CA26',
+        'logo-horizontal-darkbg.png': 'D64F15D1D6A7B1972FAC3F9F5A0A9C02B6B5924D6BADB2ACE29041934BC9469A',
+    };
+
+    for (const [file, hash] of Object.entries(expected)) {
+        const bytes = await readFile(new URL(`../../public/rt-brand/img/${file}`, import.meta.url));
+        assert.equal(createHash('sha256').update(bytes).digest('hex').toUpperCase(), hash);
+    }
+});
+
 test('route placeholders are replaced with encoded public ids', () => {
     assert.equal(
         replaceEndpointToken('/marketing/motive/id/varianten/__FORMAT__', '__FORMAT__', 'story'),
@@ -192,10 +208,21 @@ test('an explicitly stale completed render never exposes a fallback download lin
 });
 
 test('RailTime block set uses backend bindings and a local scan-ready QR image', async () => {
-    const blocks = await createMarketingBlocks('/rt-brand/rt-logo.svg', 'https://www.rail-time.de/de/karriere');
+    const blocks = await createMarketingBlocks(
+        '/rt-brand/img/logo-horizontal.png',
+        '/rt-brand/img/logo-horizontal-darkbg.png',
+        'https://www.rail-time.de/de/karriere',
+    );
     const definitions = Object.fromEntries(blocks.map((block) => [block.id, block.definition.content]));
 
-    assert.equal(blocks.length, 11);
+    assert.equal(blocks.length, 12);
+    assert.match(definitions['rt-marketing-logo-light'], /src="\/rt-brand\/img\/logo-horizontal\.png"/);
+    assert.match(definitions['rt-marketing-logo-light'], /data-rt-logo-surface="light"/);
+    assert.match(definitions['rt-marketing-logo-dark'], /src="\/rt-brand\/img\/logo-horizontal-darkbg\.png"/);
+    assert.match(definitions['rt-marketing-logo-dark'], /data-rt-logo-surface="dark"/);
+    assert.match(definitions['rt-marketing-logo-light'], /alt="RT Rail Time GmbH"/);
+    assert.doesNotMatch(definitions['rt-marketing-logo-light'], /<span[^>]*>\s*RAILTIME/i);
+    assert.doesNotMatch(definitions['rt-marketing-logo-dark'], /<span[^>]*>\s*RAILTIME/i);
     assert.match(definitions['rt-marketing-headline'], /data-rt-binding="title"/);
     assert.match(definitions['rt-marketing-facts'], /data-rt-binding-facts="facts"/);
     assert.match(definitions['rt-marketing-tasks'], /data-rt-binding-list="tasks"/);
@@ -214,7 +241,11 @@ test('the initial block set stays loadable with an empty CTA and can later recei
     const { PNG } = await import('pngjs');
 
     for (const emptyCta of ['', '   ']) {
-        const blocks = await createMarketingBlocks('/rt-brand/rt-logo.svg', emptyCta);
+        const blocks = await createMarketingBlocks(
+            '/rt-brand/img/logo-horizontal.png',
+            '/rt-brand/img/logo-horizontal-darkbg.png',
+            emptyCta,
+        );
         const qr = blocks.find((block) => block.id === 'rt-marketing-qr')?.definition.content || '';
         const source = qr.match(/src="([^"]+)"/)?.[1] || '';
         const neutralQr = PNG.sync.read(Buffer.from(source.split(',', 2)[1], 'base64'));
@@ -287,6 +318,8 @@ test('an existing QR image is neutralized for an empty CTA and regenerated local
 test('adapter explicitly disables Joomla web defaults and fallback projects', async () => {
     const source = await import('node:fs/promises')
         .then(({ readFile }) => readFile(new URL('../../resources/js/marketing-studio.js', import.meta.url), 'utf8'));
+    const editorSource = await import('node:fs/promises')
+        .then(({ readFile }) => readFile(new URL('../../app/Livewire/Admin/Marketing/CreativeEditor.php', import.meta.url), 'utf8'));
 
     assert.match(source, /useStudioWebDefaults:\s*false/);
     assert.match(source, /allowFallbackProject:\s*false/);
@@ -295,4 +328,8 @@ test('adapter explicitly disables Joomla web defaults and fallback projects', as
     assert.match(source, /frame\.dataset\.readOnly = readOnly \? 'true' : 'false'/);
     assert.match(source, /\[data-lmz-action="assets"\]/);
     assert.match(source, /request\.expected_hashes = Object\.fromEntries/);
+    assert.match(source, /config\.logoLightUrl,\s*config\.logoDarkUrl,/);
+    assert.doesNotMatch(source, /config\.logoUrl\b/);
+    assert.match(editorSource, /'logoLightUrl'\s*=>\s*asset\('rt-brand\/img\/logo-horizontal\.png'\)/);
+    assert.match(editorSource, /'logoDarkUrl'\s*=>\s*asset\('rt-brand\/img\/logo-horizontal-darkbg\.png'\)/);
 });
