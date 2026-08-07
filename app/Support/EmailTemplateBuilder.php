@@ -489,6 +489,14 @@ class EmailTemplateBuilder
         return "data:{$mime};base64,".base64_encode($binary);
     }
 
+    /** Nahtlos loopender Standrauch; wird nur unter die Einfahrt gelegt. */
+    public static function signatureTrainIdleAsset(string $theme): string
+    {
+        $variant = $theme === 'dark' ? 'dark' : 'light';
+
+        return self::inlineImage("zug-dampf-idle-{$variant}.gif", 'image/gif');
+    }
+
     protected function buildSignature(string $master, string $logo): string
     {
         $theme = str_contains($master, 'dark') ? 'dark' : 'light';

@@ -31,7 +31,7 @@
          zurueck und muss deshalb VOR der Bildangabe stehen. Clients ohne
          CSS-Hintergrundbilder (Outlook-Desktop, Gmail bei data-URIs) zeigen
          schlicht die Farbflaeche — es geht kein Inhalt verloren. --}}
-    <td class="rt-pad rt-sign-cell" bgcolor="{{ $values['SIGNATURE_BG'] }}" style="padding:{{ $padding }};background:{{ $values['SIGNATURE_BG'] }};background-image:url('{{ $values['TRAIN_SRC'] }}');background-repeat:no-repeat;background-position:center bottom;background-size:100% auto;{{ $topRule }}">
+    <td class="rt-pad rt-sign-cell" bgcolor="{{ $values['SIGNATURE_BG'] }}" style="padding:{{ $padding }};background:{{ $values['SIGNATURE_BG'] }};background-image:url('{{ $values['TRAIN_SRC'] }}')@if($values['TRAIN_IDLE_SRC'] !== ''),url('{{ $values['TRAIN_IDLE_SRC'] }}')@endif;background-repeat:no-repeat;background-position:center bottom;background-size:100% auto;{{ $topRule }}">
         {{-- dir="rtl" dreht ausschliesslich die Spaltenfolge: die Markenspalte
              steht in der Quelle zuerst (und landet beim Stapeln oben), auf
              breiten Schirmen aber weiterhin rechts. --}}

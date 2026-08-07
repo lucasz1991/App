@@ -21,7 +21,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from PIL import Image, ImageChops, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter
 
 
 APP = Path(__file__).resolve().parent.parent
@@ -43,7 +43,7 @@ IDLE_FRAMES = 28
 IDLE_FRAME_MS = 120
 IDLE_DURATION_MS = IDLE_FRAMES * IDLE_FRAME_MS
 MAX_GIF_BYTES = 200 * 1024
-TRAIN_OPACITY = 0.76
+TRAIN_OPACITY = 0.70
 
 THEMES = {
     "light": {
@@ -422,7 +422,7 @@ def save_gif(
     palette_strip = Image.new("RGB", (GIF_SIZE[0], GIF_SIZE[1] * len(frames)))
     for index, frame in enumerate(frames):
         palette_strip.paste(frame, (0, index * GIF_SIZE[1]))
-    palette = palette_strip.quantize(colors=9, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
+    palette = palette_strip.quantize(colors=6, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
     quantized = [
         frame.quantize(palette=palette, dither=Image.Dither.NONE)
         for frame in frames

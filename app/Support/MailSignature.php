@@ -71,6 +71,9 @@ class MailSignature
                 $this->animated,
                 $this->playbackNonce,
             ),
+            'TRAIN_IDLE_SRC' => $this->animated
+                ? EmailTemplateBuilder::signatureTrainIdleAsset($this->theme)
+                : '',
         ], EmailTemplateBuilder::contactIconSources(true), $overrides);
     }
 
