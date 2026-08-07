@@ -14,6 +14,7 @@
             type="button"
             wire:click="create('info')"
             wire:loading.attr="disabled"
+            aria-label="Info-Motiv erstellen"
             class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rt-border bg-rt-surface px-3.5 text-sm font-semibold text-rt-text transition hover:border-rt-red/40 hover:text-rt-red disabled:opacity-50 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-text"
         >
             <i data-feather="info" class="h-4 w-4" aria-hidden="true"></i>
@@ -23,6 +24,7 @@
             type="button"
             wire:click="create('job')"
             wire:loading.attr="disabled"
+            aria-label="Job-Motiv erstellen"
             class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-rt-red px-3.5 text-sm font-semibold text-white shadow-rt-xs transition hover:bg-rt-red-dark disabled:opacity-50"
         >
             <i data-feather="briefcase" class="h-4 w-4" aria-hidden="true"></i>

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg"
-     viewBox="0 0 1723 151"
+     viewBox="0 0 2053 151"
      preserveAspectRatio="xMidYMid meet"
      role="img"
      aria-labelledby="title desc">
@@ -114,7 +114,7 @@
   </defs>
 
   <!-- Gueterwagen bleiben fester Bestandteil des Dampflokzuges. -->
-  <g id="container-wagon">
+  <g id="container-wagon" transform="translate(330 0)">
     <use href="#coupler" transform="translate(0 0)"/>
     <use href="#coupler" transform="translate(342 0) scale(-1 1)"/>
     <path class="body" d="M18 122h306v9H18z"/>
@@ -127,7 +127,11 @@
     <use href="#wagon-bogie" transform="translate(244 0)"/>
   </g>
 
-  <g id="tank-wagon" transform="translate(350 0)">
+  <!-- Zusaetzlicher Wagen: Der Zug bleibt auf breiten Signaturen klein,
+       wirkt aber als vollstaendiger langer Gueterzug statt als Kurzmotiv. -->
+  <use id="additional-container-wagon" href="#container-wagon" transform="translate(-330 0)"/>
+
+  <g id="tank-wagon" transform="translate(680 0)">
     <use href="#coupler" transform="translate(0 0)"/>
     <use href="#coupler" transform="translate(322 0) scale(-1 1)"/>
     <path class="body" d="M19 122h285v9H19z"/>
@@ -140,7 +144,7 @@
     <use href="#wagon-bogie" transform="translate(225 0)"/>
   </g>
 
-  <g id="hopper-wagon" transform="translate(680 0)">
+  <g id="hopper-wagon" transform="translate(1010 0)">
     <use href="#coupler" transform="translate(0 0)"/>
     <use href="#coupler" transform="translate(322 0) scale(-1 1)"/>
     <path class="body" d="M18 122h286v9H18z"/>
@@ -153,7 +157,7 @@
     <use href="#wagon-bogie" transform="translate(225 0)"/>
   </g>
 
-  <g id="covered-wagon" transform="translate(1010 0)">
+  <g id="covered-wagon" transform="translate(1340 0)">
     <use href="#coupler" transform="translate(0 0)"/>
     <use href="#coupler" transform="translate(302 0) scale(-1 1)"/>
     <path class="body" d="M18 122h266v9H18z"/>
@@ -167,7 +171,7 @@
 
   <!-- Dampflokomotive mit Schlepptender, Fahrtrichtung rechts.
        Der Rauch zieht nach hinten links ueber den Zug. -->
-  <g id="steam-locomotive" transform="translate(1318 0)">
+  <g id="steam-locomotive" transform="translate(1648 0)">
     <use href="#coupler" transform="translate(0 0)"/>
 
     <!-- Statische Website-Fahne aus langen, auslaufenden Stroemungsbaendern;

@@ -30,12 +30,12 @@ ASSET_DIR = APP / "resources/mail-templates/assets"
 
 PNG_SIZE = (1440, 150)
 GIF_SIZE = (720, 75)
-SVG_VIEW_SIZE = (1723, 151)
+SVG_VIEW_SIZE = (2053, 151)
 # 1200 Pixel halten das natuerliche SVG-Seitenverhaeltnis, geben den
 # angehaengten Waggons genug Laenge und lassen die Lok im 720-x-75-GIF etwa
 # 53 Pixel hoch erscheinen. Die fruehere 945-x-150-Zwangsstreckung hatte
 # Raeder, Kessel und Fuehrerhaus horizontal sichtbar gestaucht.
-TRAIN_WIDTH = 1200
+TRAIN_WIDTH = 1400
 MOTION_FRAMES = 55
 MOTION_FRAME_MS = 100
 MOTION_DURATION_MS = MOTION_FRAMES * MOTION_FRAME_MS
@@ -50,9 +50,17 @@ SMOKE_TAIL_DURATION_MS = sum(SMOKE_TAIL_FRAME_DURATIONS)
 IDLE_FRAMES = 37
 IDLE_FRAME_MS = 100
 IDLE_DURATION_MS = IDLE_FRAMES * IDLE_FRAME_MS
+OUTLOOK_IDLE_CYCLES = 1
+OUTLOOK_DURATION_MS = (
+    START_DELAY_MS
+    + MOTION_DURATION_MS
+    + SMOKE_TAIL_DURATION_MS
+    + IDLE_DURATION_MS * OUTLOOK_IDLE_CYCLES
+)
 MAX_GIF_BYTES = 200 * 1024
 VECTOR_ASSET = ASSET_DIR / "zug-dampf.svg"
-ENGINE_GROUP_X = 1318
+VECTOR_SMOKE_FREE_ASSET = ASSET_DIR / "zug-dampf-ohne-rauch.svg"
+ENGINE_GROUP_X = 1648
 ENGINE_PIVOT = (120, 151)
 ENGINE_SCALE = (1.11, 1.08)
 DRIVER_WHEEL_CENTERS = ((166, 133), (202, 133), (238, 133), (274, 133), (310, 133))
@@ -477,17 +485,20 @@ def emit_smoke(
     accumulator: float,
     dt: float,
 ) -> float:
-    if speed <= 0.035 or chimney_x < -12:
+    if speed <= 0.0015 or chimney_x < -12:
         return accumulator
 
     # Dampfmaschinen stossen in klaren Schlaegen aus. Mit sinkender
     # Geschwindigkeit liegen die Schlaege weiter auseinander; dadurch wird
     # beim Bremsen nicht einfach eine gleichmaessige Perlenschnur erzeugt.
-    interval = 0.18 + (1 - min(1.0, speed)) * 0.26
+    # Auch waehrend der letzten Bremsmeter bleiben vereinzelte, zunehmend
+    # senkrechte Ausstoesse bestehen. So faellt der Fahrdampf nicht erst auf
+    # null, bevor der Standdampf sichtbar wird.
+    interval = 0.20 + (1 - min(1.0, speed)) * 0.36
     accumulator += dt
     while accumulator >= interval:
         accumulator -= interval
-        count = 2 if speed > 0.12 else 1
+        count = 2 if speed > 0.16 else 1
         for _ in range(count):
             particles.append(SmokeParticle(
                 x=chimney_x + rng.uniform(-2.4, 2.0),
@@ -501,7 +512,7 @@ def emit_smoke(
                 radius=rng.uniform(1.9, 3.15),
                 growth=rng.uniform(3.2, 4.8),
                 age=0.0,
-                lifetime=rng.uniform(1.75, 2.25),
+                lifetime=rng.uniform(2.15, 2.75),
                 opacity=rng.uniform(112, 148) * (0.84 + speed * 0.18),
                 phase=rng.uniform(0, math.tau),
                 turbulence=rng.uniform(0.74, 1.38),
@@ -799,11 +810,29 @@ def animated_frames(
         wheel_radius_x = engine_radius_to_gif(DRIVER_WHEEL_RADIUS)[0]
         travelled_pixels = train_travel * distance
         wheel_angle = travelled_pixels / wheel_radius_x
+        travelling_smoke = smoke_frame(particles, theme) if steam else None
+        displayed_smoke = travelling_smoke
+        if steam and idle_smoke_reference and progress > .78:
+            # Die Idle-Phase beginnt nicht erst nach dem Stillstand. In den
+            # letzten Bremsmetern wird ihr phasengleicher, mit dem Schornstein
+            # mitwandernder Kern bereits sanft in den Fahrdampf ueberfuehrt.
+            # Der Tail setzt exakt bei derselben Mischstufe fort.
+            mix_progress = min(1.0, (progress - .78) / .22)
+            mix_progress = mix_progress * mix_progress * (3 - 2 * mix_progress)
+            idle_mix = .72 * mix_progress
+            absolute_ms = START_DELAY_MS + (index + 1) * MOTION_FRAME_MS
+            idle_index = (absolute_ms // IDLE_FRAME_MS) % len(idle_smoke_reference)
+            moving_idle = Image.new("RGBA", GIF_SIZE, (0, 0, 0, 0))
+            moving_idle.alpha_composite(idle_smoke_reference[idle_index], (offset, 0))
+            displayed_smoke = Image.new("RGBA", GIF_SIZE, (0, 0, 0, 0))
+            displayed_smoke.alpha_composite(scaled_alpha(travelling_smoke, 1 - idle_mix))
+            displayed_smoke.alpha_composite(scaled_alpha(moving_idle, idle_mix))
+
         frames.append(composite_frame(
             train_small,
             theme,
             offset,
-            smoke_frame(particles, theme) if steam else None,
+            displayed_smoke,
             running_gear_frame(theme, wheel_angle),
         ))
         durations.append(MOTION_FRAME_MS)
@@ -834,6 +863,7 @@ def animated_frames(
                 idle_index = (absolute_ms // IDLE_FRAME_MS) % len(idle_reference)
                 transition = index / max(1, SMOKE_TAIL_FRAMES - 1)
                 transition = transition * transition * (3 - 2 * transition)
+                transition = .72 + .28 * transition
                 if index == SMOKE_TAIL_FRAMES - 1:
                     tail_frame = idle_reference[idle_index]
                 else:
@@ -887,14 +917,14 @@ def idle_frames(
     return frames, [IDLE_FRAME_MS] * IDLE_FRAMES, smoke_frames
 
 
-def gif_palette(frames: list[Image.Image]) -> Image.Image:
+def gif_palette(frames: list[Image.Image], colors: int = 7) -> Image.Image:
     """Build one compact palette shared by entry and idle animations."""
     palette_strip = Image.new("RGB", (GIF_SIZE[0], GIF_SIZE[1] * len(frames)))
     for index, frame in enumerate(frames):
         palette_strip.paste(frame, (0, index * GIF_SIZE[1]))
 
     return palette_strip.quantize(
-        colors=7,
+        colors=colors,
         method=Image.Quantize.MEDIANCUT,
         dither=Image.Dither.NONE,
     )
@@ -997,7 +1027,10 @@ def build_variant(theme: str) -> None:
         idle_reference=standing,
         idle_smoke_reference=standing_smoke,
     )
-    palette = gif_palette([*frames, *standing])
+    # Der dunkle Hintergrund benoetigt fuer dasselbe Motiv deutlich mehr
+    # GIF-Daten. Sechs statt sieben gemeinsame Farbstufen halten ihn unter
+    # 200 KiB; die geometrisch gerenderten Rauchbaender bleiben davon intakt.
+    palette = gif_palette([*frames, *standing], colors=6 if theme == "dark" else 7)
     save_gif(
         frames,
         durations,
@@ -1012,10 +1045,20 @@ def build_variant(theme: str) -> None:
         loop=True,
         shared_palette=palette,
     )
+    # Outlook kann ein normales eingebettetes <img>-GIF wesentlich robuster
+    # uebernehmen als zwei CSS-Hintergrundebenen. Diese Fassung enthaelt die
+    # komplette Einfahrt und genau einen anschliessenden Idle-Zyklus, loopt
+    # nicht und bleibt danach auf einem sichtbaren Standbild stehen.
+    save_gif(
+        [*frames, *(standing * OUTLOOK_IDLE_CYCLES)],
+        [*durations, *(standing_durations * OUTLOOK_IDLE_CYCLES)],
+        ASSET_DIR / f"zug-dampf-outlook-{theme}.gif",
+        shared_palette=palette,
+    )
 
 
-def build_vector_asset() -> None:
-    """Publish the authoritative train SVG as a website-ready asset."""
+def build_vector_assets() -> None:
+    """Publish website-ready SVGs with and without the static smoke plume."""
     source = SOURCE_DIR / "rt-dampflok.svg"
     if not source.is_file():
         raise RuntimeError(f"SVG-Quelle fehlt: {source}")
@@ -1024,6 +1067,21 @@ def build_vector_asset() -> None:
     # semantische Gruppen und der statische steam-plume bleiben damit fuer
     # Website-Animationen oder responsives Inline-SVG voll nutzbar.
     shutil.copyfile(source, VECTOR_ASSET)
+
+    svg = source.read_text(encoding="utf-8")
+    plume_start = svg.find('    <g id="steam-plume"')
+    plume_end = svg.find("    </g>", plume_start)
+    if plume_start < 0 or plume_end < 0:
+        raise RuntimeError(f"{source.name}: Rauchgruppe steam-plume fehlt.")
+
+    plume_end += len("    </g>")
+    smoke_free_svg = svg[:plume_start] + svg[plume_end:]
+    smoke_free_svg = smoke_free_svg.replace(
+        " und separat animierbarer Rauchfahne.",
+        " ohne dargestellte Rauchfahne.",
+        1,
+    )
+    VECTOR_SMOKE_FREE_ASSET.write_text(smoke_free_svg, encoding="utf-8")
 
 
 def frame_at_ms(
@@ -1051,7 +1109,8 @@ def assert_assets() -> None:
     else:
         vector_svg = VECTOR_ASSET.read_text(encoding="utf-8")
         for contract in (
-            'viewBox="0 0 1723 151"',
+            'viewBox="0 0 2053 151"',
+            'id="additional-container-wagon"',
             'id="steam-engine"',
             'id="steam-plume"',
             'id="running-gear"',
@@ -1062,6 +1121,27 @@ def assert_assets() -> None:
                 errors.append(f"{VECTOR_ASSET.name}: SVG-Vertrag {contract} fehlt")
         if vector_svg.count('data-drive-wheel=') != 5:
             errors.append(f"{VECTOR_ASSET.name}: nicht genau fuenf animierbare Treibraeder")
+
+    if not VECTOR_SMOKE_FREE_ASSET.is_file():
+        errors.append(f"{VECTOR_SMOKE_FREE_ASSET.name}: rauchfreies Website-Vektorasset fehlt")
+    else:
+        smoke_free_svg = VECTOR_SMOKE_FREE_ASSET.read_text(encoding="utf-8")
+        for contract in (
+            'viewBox="0 0 2053 151"',
+            'id="additional-container-wagon"',
+            'id="steam-engine"',
+            'id="running-gear"',
+            'id="coupling-rod"',
+            'id="main-rod"',
+        ):
+            if contract not in smoke_free_svg:
+                errors.append(f"{VECTOR_SMOKE_FREE_ASSET.name}: SVG-Vertrag {contract} fehlt")
+        if 'id="steam-plume"' in smoke_free_svg or '<path class="smoke"' in smoke_free_svg:
+            errors.append(f"{VECTOR_SMOKE_FREE_ASSET.name}: enthaelt weiterhin sichtbaren Rauch")
+        if smoke_free_svg.count('data-drive-wheel=') != 5:
+            errors.append(
+                f"{VECTOR_SMOKE_FREE_ASSET.name}: nicht genau fuenf animierbare Treibraeder"
+            )
 
     for theme in THEMES:
         gear_difference = ImageChops.difference(
@@ -1075,7 +1155,13 @@ def assert_assets() -> None:
         png_path = ASSET_DIR / f"zug-dampf-{theme}.png"
         gif_path = ASSET_DIR / f"zug-dampf-{theme}.gif"
         idle_path = ASSET_DIR / f"zug-dampf-idle-{theme}.gif"
-        if not png_path.is_file() or not gif_path.is_file() or not idle_path.is_file():
+        outlook_path = ASSET_DIR / f"zug-dampf-outlook-{theme}.gif"
+        if (
+            not png_path.is_file()
+            or not gif_path.is_file()
+            or not idle_path.is_file()
+            or not outlook_path.is_file()
+        ):
             errors.append(f"dampf-{theme}: Asset fehlt")
             continue
 
@@ -1138,6 +1224,33 @@ def assert_assets() -> None:
                     f"{idle_path.name}: Dauer {sum(idle_durations)} statt {IDLE_DURATION_MS} ms"
                 )
 
+        with Image.open(outlook_path) as outlook:
+            if outlook.size != GIF_SIZE:
+                errors.append(f"{outlook_path.name}: GIF-Groesse {outlook.size}")
+            if outlook.info.get("loop") is not None:
+                errors.append(f"{outlook_path.name}: darf keine Loop-Erweiterung enthalten")
+
+            outlook_durations = []
+            for frame in range(outlook.n_frames):
+                outlook.seek(frame)
+                outlook_durations.append(int(outlook.info.get("duration", 0)))
+
+            if sum(outlook_durations) != OUTLOOK_DURATION_MS:
+                errors.append(
+                    f"{outlook_path.name}: Dauer {sum(outlook_durations)} "
+                    f"statt {OUTLOOK_DURATION_MS} ms"
+                )
+
+            outlook.seek(outlook.n_frames - 1)
+            final_alpha = outlook.convert("RGBA").getchannel("A")
+            if final_alpha.getextrema()[1] == 0:
+                errors.append(f"{outlook_path.name}: endet auf einem unsichtbaren Bild")
+
+        if outlook_path.stat().st_size > MAX_GIF_BYTES:
+            errors.append(
+                f"{outlook_path.name}: {outlook_path.stat().st_size} Bytes > {MAX_GIF_BYTES}"
+            )
+
         # Elf Millisekunden vor Ablauf ist noch der letzte sichtbare
         # Hauptframe aktiv; zehn Millisekunden vor Ablauf wird die Idle-Ebene
         # transparent freigegeben. Beide Bilder muessen pixelgleich sein,
@@ -1178,7 +1291,7 @@ def main() -> None:
     if not args.check:
         ASSET_DIR.mkdir(parents=True, exist_ok=True)
         print("Baue dampf/vector ...")
-        build_vector_asset()
+        build_vector_assets()
         for theme in THEMES:
             print(f"Baue dampf/{theme} ...")
             build_variant(theme)

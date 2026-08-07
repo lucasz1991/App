@@ -13,8 +13,69 @@ const BLOCK_SURFACE = 'background:#fff;color:#172033;font-family:Arial,sans-seri
 const EMPTY_QR_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=';
 
 let vendorRuntimePromise = null;
-let activeStudio = null;
-let bootSequence = 0;
+
+export function createStudioBootGuard() {
+    let activeStudio = null;
+    let activeWorkspace = null;
+    let bootPromise = null;
+    let bootSequence = 0;
+
+    return {
+        async boot(workspace, createStudio, isCurrent = () => true) {
+            if (!workspace) {
+                this.destroy();
+
+                return null;
+            }
+
+            if (activeWorkspace === workspace && (bootPromise || activeStudio)) {
+                return bootPromise || activeStudio;
+            }
+
+            this.destroy();
+            activeWorkspace = workspace;
+            const sequence = bootSequence;
+            const pending = Promise.resolve()
+                .then(createStudio)
+                .then((studio) => {
+                    if (sequence !== bootSequence || !isCurrent()) {
+                        studio?.destroy?.();
+
+                        return null;
+                    }
+
+                    activeStudio = studio;
+
+                    return studio;
+                });
+
+            bootPromise = pending;
+
+            try {
+                return await pending;
+            } finally {
+                if (bootPromise === pending) {
+                    bootPromise = null;
+                    if (!activeStudio) activeWorkspace = null;
+                }
+            }
+        },
+
+        destroy() {
+            bootSequence += 1;
+            bootPromise = null;
+            activeWorkspace = null;
+            activeStudio?.destroy?.();
+            activeStudio = null;
+        },
+
+        getActive() {
+            return activeStudio;
+        },
+    };
+}
+
+const studioBootGuard = createStudioBootGuard();
 
 function csrfToken() {
     return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
@@ -300,17 +361,18 @@ async function uploadFiles(files, config) {
     return uploaded;
 }
 
-function serializeSharedForm(form) {
-    const data = new FormData(form);
+export function serializeSharedData(data) {
     const content = {};
 
     for (const [name, rawValue] of data.entries()) {
-        if (!name.startsWith('shared_content[')) continue;
+        const field = /^shared_content\[([^\]]+)\]((?:\[[^\]]*\])*)$/.exec(name);
+        if (!field) continue;
 
-        const parts = Array.from(name.matchAll(/(?:^|\[)([^\]]*)\]?/g))
-            .map((match) => match[1])
-            .filter((part, index) => index === 0 || part !== '');
-        if (parts.shift() !== 'shared_content' || parts.length === 0) continue;
+        const parts = [
+            field[1],
+            ...Array.from(field[2].matchAll(/\[([^\]]*)\]/g), (match) => match[1])
+                .filter((part) => part !== ''),
+        ];
 
         const value = String(rawValue).trim();
 
@@ -357,6 +419,10 @@ function serializeSharedForm(form) {
         title: String(data.get('title') || '').trim(),
         shared_content: content,
     };
+}
+
+function serializeSharedForm(form) {
+    return serializeSharedData(new FormData(form));
 }
 
 export async function syncQrCode(editor, value) {
@@ -1015,22 +1081,22 @@ export function marketingAssetLibrary(config = {}) {
 
 async function bootMarketingStudio() {
     const workspace = document.querySelector('[data-marketing-studio]');
-    const sequence = ++bootSequence;
 
-    activeStudio?.destroy?.();
-    activeStudio = null;
+    if (!workspace) {
+        studioBootGuard.destroy();
 
-    if (!workspace) return;
+        return;
+    }
 
     try {
-        const config = readJsonScript(workspace);
-        const studio = await createMarketingStudio(workspace, config);
-        if (sequence !== bootSequence || !document.contains(workspace)) {
-            studio.destroy();
-            return;
-        }
-        activeStudio = studio;
+        await studioBootGuard.boot(
+            workspace,
+            () => createMarketingStudio(workspace, readJsonScript(workspace)),
+            () => document.contains(workspace),
+        );
     } catch (error) {
+        if (!document.contains(workspace)) return;
+
         const root = workspace.querySelector('[data-marketing-editor-root]');
         if (root) {
             root.dataset.runtimeState = 'failed';
@@ -1041,9 +1107,7 @@ async function bootMarketingStudio() {
 }
 
 function destroyMarketingStudio() {
-    bootSequence += 1;
-    activeStudio?.destroy?.();
-    activeStudio = null;
+    studioBootGuard.destroy();
 }
 
 if (typeof document !== 'undefined') {
@@ -1056,7 +1120,7 @@ if (typeof document !== 'undefined') {
     document.addEventListener('livewire:navigating', destroyMarketingStudio);
     document.addEventListener('livewire:navigated', bootMarketingStudio);
     window.addEventListener('beforeunload', (event) => {
-        if (!activeStudio?.hasUnsavedChanges?.()) return;
+        if (!studioBootGuard.getActive()?.hasUnsavedChanges?.()) return;
         event.preventDefault();
         event.returnValue = '';
     });

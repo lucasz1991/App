@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
     applySavedVariant,
     completedRenderDownloadUrl,
+    createStudioBootGuard,
     MARKETING_ARTBOARDS,
     createMarketingBlocks,
     normalizeVariantPayload,
@@ -11,8 +12,43 @@ import {
     renderRequestIsCurrent,
     replaceEndpointToken,
     resolveArtboard,
+    serializeSharedData,
     syncQrCode,
 } from '../../resources/js/marketing-studio.js';
+
+test('simultaneous initial events reuse one LMZ studio boot', async () => {
+    const guard = createStudioBootGuard();
+    const workspace = {};
+    let createCount = 0;
+    let destroyCount = 0;
+    let resolveStudio;
+    const createStudio = () => {
+        createCount += 1;
+
+        return new Promise((resolve) => {
+            resolveStudio = () => resolve({
+                destroy() {
+                    destroyCount += 1;
+                },
+            });
+        });
+    };
+
+    const domReadyBoot = guard.boot(workspace, createStudio);
+    const livewireBoot = guard.boot(workspace, createStudio);
+    await Promise.resolve();
+
+    assert.equal(createCount, 1);
+    resolveStudio();
+    const [firstStudio, secondStudio] = await Promise.all([domReadyBoot, livewireBoot]);
+    assert.equal(firstStudio, secondStudio);
+    assert.equal(guard.getActive(), firstStudio);
+    assert.equal(destroyCount, 0);
+
+    guard.destroy();
+    assert.equal(destroyCount, 1);
+    assert.equal(guard.getActive(), null);
+});
 
 test('marketing artboards keep the exact publishing dimensions', () => {
     assert.deepEqual(MARKETING_ARTBOARDS.story, { label: 'Story', width: 1080, height: 1920 });
@@ -30,6 +66,32 @@ test('route placeholders are replaced with encoded public ids', () => {
         replaceEndpointToken('/marketing/medien/__ASSET__', '__ASSET__', 'a/b'),
         '/marketing/medien/a%2Fb',
     );
+});
+
+test('shared form bracket names serialize into the backend shared_content contract', () => {
+    const fields = [
+        ['title', ' Wagenmeister Kampagne '],
+        ['shared_content[kicker]', ' Komm ins Team '],
+        ['shared_content[facts][0][value]', '60+'],
+        ['shared_content[facts][0][label]', 'Wagenmeister'],
+        ['shared_content[tasks][]', 'Technische Untersuchung'],
+        ['shared_content[tasks][]', '  '],
+        ['shared_content[cta_url]', 'https://www.rail-time.de/de/karriere'],
+    ];
+    const data = {
+        entries: () => fields[Symbol.iterator](),
+        get: (name) => fields.find(([field]) => field === name)?.[1] ?? null,
+    };
+
+    assert.deepEqual(serializeSharedData(data), {
+        title: 'Wagenmeister Kampagne',
+        shared_content: {
+            kicker: 'Komm ins Team',
+            facts: [{ value: '60+', label: 'Wagenmeister' }],
+            tasks: ['Technische Untersuchung'],
+            cta_url: 'https://www.rail-time.de/de/karriere',
+        },
+    });
 });
 
 test('variant refresh accepts server maps and drops unknown formats', () => {

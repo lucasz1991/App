@@ -24,21 +24,23 @@
     $padding = $padding ?? '20px 38px 28px';
     $topRule = $topRule ?? 'border-top:5px solid #e4002b;';
     $legalPadding = $legalPadding ?? '18px 38px';
+    $outlookTrainSrc = trim((string) ($outlookTrainSrc ?? ''));
+    $isOutlookExport = $outlookTrainSrc !== '';
     $hasPerson = trim((string) ($values['VORNAME_NACHNAME'] ?? '')) !== '';
-    $hasIdleTrain = $values['TRAIN_IDLE_SRC'] !== '';
+    $hasIdleTrain = ! $isOutlookExport && $values['TRAIN_IDLE_SRC'] !== '';
     $trainBackgroundPosition = $hasIdleTrain
         ? 'center center,center bottom,center bottom'
         : 'center center,center bottom';
     $trainBackgroundSize = $hasIdleTrain
-        ? '100% 100%,100% auto,100% auto'
-        : '100% 100%,100% auto';
+        ? '100% 100%,86% auto,86% auto'
+        : '100% 100%,86% auto';
 @endphp
 <tr>
     {{-- Reihenfolge beachten: die background-Kurzform setzt background-image
          zurueck und muss deshalb VOR der Bildangabe stehen. Clients ohne
          CSS-Hintergrundbilder (Outlook-Desktop, Gmail bei data-URIs) zeigen
          schlicht die Farbflaeche — es geht kein Inhalt verloren. --}}
-    <td class="rt-pad rt-sign-cell" bgcolor="{{ $values['SIGNATURE_BG'] }}" style="padding:{{ $padding }};background:{{ $values['SIGNATURE_BG'] }};background-image:linear-gradient({{ $values['SIGNATURE_TRAIN_WASH'] }},{{ $values['SIGNATURE_TRAIN_WASH'] }}),url('{{ $values['TRAIN_SRC'] }}')@if($hasIdleTrain),url('{{ $values['TRAIN_IDLE_SRC'] }}')@endif;background-repeat:no-repeat;background-position:{{ $trainBackgroundPosition }};background-size:{{ $trainBackgroundSize }};{{ $topRule }}">
+    <td class="rt-pad rt-sign-cell" bgcolor="{{ $values['SIGNATURE_BG'] }}" style="padding:{{ $padding }};background:{{ $values['SIGNATURE_BG'] }};@unless($isOutlookExport)background-image:linear-gradient({{ $values['SIGNATURE_TRAIN_WASH'] }},{{ $values['SIGNATURE_TRAIN_WASH'] }}),url('{{ $values['TRAIN_SRC'] }}')@if($hasIdleTrain),url('{{ $values['TRAIN_IDLE_SRC'] }}')@endif;background-repeat:no-repeat;background-position:{{ $trainBackgroundPosition }};background-size:{{ $trainBackgroundSize }};@endunless{{ $topRule }}">
         {{-- dir="rtl" dreht ausschliesslich die Spaltenfolge: die Markenspalte
              steht in der Quelle zuerst (und landet beim Stapeln oben), auf
              breiten Schirmen aber weiterhin rechts. --}}
@@ -85,6 +87,18 @@
                 </td>
             </tr>
         </table>
+        @if($isOutlookExport)
+            {{-- Outlook-Export: ein regulaeres lokales Bild statt Data-URI-
+                 Hintergrundebenen. Dadurch kann Outlook das GIF als echte
+                 Signaturressource uebernehmen und beim Versand einbetten. --}}
+            <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;margin-top:12px;border-collapse:collapse;">
+                <tr>
+                    <td align="center" style="padding:0;text-align:center;font-size:0;line-height:0;">
+                        <img data-rt-outlook-train src="{{ $outlookTrainSrc }}" width="620" alt="Dampflok-Güterzug" style="display:block;width:620px;max-width:100%;height:auto;margin:0 auto;border:0;outline:none;">
+                    </td>
+                </tr>
+            </table>
+        @endif
     </td>
 </tr>
 <tr>

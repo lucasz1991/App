@@ -203,7 +203,7 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertStringContainsString("url('".$train, $html, $template);
             $this->assertStringContainsString('background-repeat:no-repeat', $html, $template);
             $this->assertStringContainsString('background-position:center center,center bottom', $html, $template);
-            $this->assertStringContainsString('background-size:100% 100%,100% auto', $html, $template);
+            $this->assertStringContainsString('background-size:100% 100%,86% auto', $html, $template);
 
             // Die Kurzform background: setzt background-image zurueck — sie
             // muss deshalb VOR der Bildangabe stehen, sonst verschwindet der
@@ -290,7 +290,20 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertStringContainsString('id="running-gear"', $vectorSvg);
         $this->assertStringContainsString('id="coupling-rod"', $vectorSvg);
         $this->assertStringContainsString('id="main-rod"', $vectorSvg);
+        $this->assertStringContainsString('id="additional-container-wagon"', $vectorSvg);
         $this->assertSame(5, substr_count($vectorSvg, 'data-drive-wheel='));
+
+        $smokeFreeVector = resource_path('mail-templates/assets/zug-dampf-ohne-rauch.svg');
+        $this->assertFileExists($smokeFreeVector);
+        $smokeFreeSvg = file_get_contents($smokeFreeVector);
+        $this->assertStringContainsString('id="steam-engine"', $smokeFreeSvg);
+        $this->assertStringContainsString('id="running-gear"', $smokeFreeSvg);
+        $this->assertStringContainsString('id="coupling-rod"', $smokeFreeSvg);
+        $this->assertStringContainsString('id="main-rod"', $smokeFreeSvg);
+        $this->assertStringContainsString('id="additional-container-wagon"', $smokeFreeSvg);
+        $this->assertStringNotContainsString('id="steam-plume"', $smokeFreeSvg);
+        $this->assertStringNotContainsString('<path class="smoke"', $smokeFreeSvg);
+        $this->assertSame(5, substr_count($smokeFreeSvg, 'data-drive-wheel='));
 
         foreach (['light', 'dark'] as $theme) {
             foreach (['png', 'gif'] as $format) {
@@ -414,7 +427,7 @@ class EmailTemplatesPageTest extends TestCase
             );
             $this->assertStringContainsString('data:image/png;base64,', $html);
             $this->assertStringContainsString('background-image:linear-gradient(rgba(', $html);
-            $this->assertStringContainsString('background-size:100% 100%,100% auto;', $html);
+            $this->assertStringContainsString('background-size:100% 100%,86% auto;', $html);
             $this->assertStringContainsString(
                 'class="rt-sign-logo" width="37%" valign="bottom"',
                 $html,
