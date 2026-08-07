@@ -32,8 +32,11 @@ class StaffInvitationMail extends Mailable
 
     public function content(): Content
     {
+        // markdown statt view: nur so laeuft die Nachricht durch die
+        // gemeinsame Mail-Schale (vendor/mail/html/layout) und bekommt den
+        // geteilten RailTime-Signaturblock unter den Text.
         return new Content(
-            view: 'emails.staff-invitation',
+            markdown: 'emails.staff-invitation',
             with: [
                 'registrationUrl' => route('invitation.register', $this->invitation->token),
             ],

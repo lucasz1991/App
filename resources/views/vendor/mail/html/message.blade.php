@@ -11,14 +11,10 @@
 </x-slot:subcopy>
 @endisset
 
-{{-- Footer --}}
+{{-- Footer: der gemeinsame RailTime-Signaturblock. Er bringt Pflichtangaben
+     UND den Vertraulichkeitshinweis bereits mit, deshalb bekommt er hier
+     bewusst keinen eigenen Inhalt mehr. --}}
 <x-slot:footer>
-<x-mail::footer>
-© {{ date('Y') }} {{ config('app.name') }}. {{ __('app.mail_all_rights') }}
-{{-- PHP schluckt das Newline nach dem schliessenden echo-Tag — die doppelte
-     Leerzeile stellt sicher, dass Markdown hier zwei Absaetze erzeugt. --}}
-
-{{ __('app.mail_confidentiality') }}
-</x-mail::footer>
+<x-mail::footer />
 </x-slot:footer>
 </x-mail::layout>

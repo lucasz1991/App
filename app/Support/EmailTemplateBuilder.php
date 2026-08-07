@@ -181,15 +181,15 @@ class EmailTemplateBuilder
             'VORNAME_NACHNAME' => $this->user->name,
             'POSITION' => $profile?->position ?: $this->fallbackPosition(),
             'DURCHWAHL' => $phone,
-            'DURCHWAHL_TEL' => $this->telHref($phone),
+            'DURCHWAHL_TEL' => self::telHref($phone),
             'MOBIL' => $mobile,
-            'MOBIL_TEL' => $this->telHref($mobile),
+            'MOBIL_TEL' => self::telHref($mobile),
             'E_MAIL' => $this->user->email,
             // Firmenanschrift zeigt bewusst den Festnetzanschluss, nicht die
             // Notfall-Mobilnummer. Ohne gepflegten Anschluss entfaellt die Zeile.
-            'FIRMEN_TELEFON_TEL' => $this->telHref($companyValues['FIRMEN_TELEFON']),
-            'FIRMEN_WEBSITE_HREF' => $this->webHref($website),
-            'FIRMEN_WEBSITE_LABEL' => $this->webLabel($website),
+            'FIRMEN_TELEFON_TEL' => self::telHref($companyValues['FIRMEN_TELEFON']),
+            'FIRMEN_WEBSITE_HREF' => self::webHref($website),
+            'FIRMEN_WEBSITE_LABEL' => self::webLabel($website),
         ]);
     }
 
@@ -207,7 +207,7 @@ class EmailTemplateBuilder
         return $teamName ?: CompanyData::all()['name'];
     }
 
-    protected function telHref(?string $number): string
+    public static function telHref(?string $number): string
     {
         // "(0)" ist die eingeklammerte Trunk-Null ("+49 (0) 4171 …") und
         // gehoert nicht in die internationale Wahlnummer.
@@ -225,7 +225,7 @@ class EmailTemplateBuilder
         return $digits;
     }
 
-    protected function webHref(?string $website): string
+    public static function webHref(?string $website): string
     {
         $website = trim((string) $website);
 
@@ -240,9 +240,9 @@ class EmailTemplateBuilder
         return filter_var($website, FILTER_VALIDATE_URL) ? $website : '';
     }
 
-    protected function webLabel(?string $website): string
+    public static function webLabel(?string $website): string
     {
-        $href = $this->webHref($website);
+        $href = self::webHref($website);
 
         if ($href === '') {
             return '';
@@ -251,7 +251,7 @@ class EmailTemplateBuilder
         return rtrim((string) preg_replace('~^https?://(?:www\.)?~i', '', $href), '/');
     }
 
-    protected function masterPath(string $file): string
+    public static function masterPath(string $file): string
     {
         return resource_path('mail-templates/'.$file);
     }
@@ -281,7 +281,7 @@ class EmailTemplateBuilder
     }
 
     /** Entfernt vollstaendige optionale Kontaktzeilen ueber stabile Marker. */
-    protected function stripEmptyContactRows(string $html, array $values): string
+    public static function stripEmptyContactRows(string $html, array $values): string
     {
         foreach ([
             'PHONE' => 'DURCHWAHL',
@@ -307,15 +307,15 @@ class EmailTemplateBuilder
         ) ?? $html;
     }
 
-    protected function inlineImage(string $asset, string $mime): string
+    public static function inlineImage(string $asset, string $mime): string
     {
-        return "data:{$mime};base64,".base64_encode(file_get_contents($this->masterPath('assets/'.$asset)));
+        return "data:{$mime};base64,".base64_encode(file_get_contents(self::masterPath('assets/'.$asset)));
     }
 
     /**
      * @return array<string, string>
      */
-    protected function contactIconSources(bool $inlineImages): array
+    public static function contactIconSources(bool $inlineImages): array
     {
         $sources = [];
 
@@ -331,7 +331,7 @@ class EmailTemplateBuilder
     /**
      * @return array<string, string>
      */
-    protected function emailThemeValues(string $theme): array
+    public static function emailThemeValues(string $theme): array
     {
         return match ($theme) {
             'dark' => [
@@ -398,53 +398,63 @@ class EmailTemplateBuilder
     protected function buildEmailHtml(bool $inlineImages, string $theme = 'light'): string
     {
         $values = $this->profileValues();
-        $html = file_get_contents($this->masterPath('email-master.html'));
-        $html = $this->stripEmptyContactRows($html, $values);
+        $html = file_get_contents(self::masterPath('email-master.html'));
         $html = $this->substitute($html, $this->escapeForHtml($values));
-        $html = $this->substitute($html, $this->emailThemeValues($theme));
+        $html = $this->substitute($html, self::emailThemeValues($theme));
 
-        return $this->substitute($html, array_merge(
-            [
-                'LOGO_SRC' => $inlineImages
-                    ? $this->inlineImage($this->emailLogoAsset($theme), 'image/png')
-                    : 'cid:railtime-logo',
-                // Der Zug ist reine Dekoration im Signaturblock und wird
-                // deshalb IMMER eingebettet — auch in der .eml-Fassung.
-                // Ein cid: im CSS-Hintergrund waere client-abhaengig und
-                // braeuchte einen weiteren Related-Part fuer ein Bild, das
-                // ohnehin folgenlos entfallen darf.
-                'TRAIN_SRC' => $this->signatureTrainAsset($theme),
-            ],
-            $this->contactIconSources($inlineImages)
-        ));
+        // Signatur und Pflichtangaben kommen aus der gemeinsamen Quelle
+        // (MailSignature) — dieselbe, die auch unter jeder Laravel-Mail steht.
+        return $this->substitute($html, [
+            'SIGNATURE_BLOCK' => MailSignature::forUser($this->user, $theme)->render(
+                overrides: array_merge(
+                    [
+                        'LOGO_SRC' => $inlineImages
+                            ? self::inlineImage($this->emailLogoAsset($theme), 'image/png')
+                            : 'cid:railtime-logo',
+                    ],
+                    self::contactIconSources($inlineImages)
+                ),
+            ),
+        ]);
     }
 
-    /** Getoente Gueterzug-Silhouette (Website-Motiv) als Data-URI. */
-    protected function signatureTrainAsset(string $theme): string
+    /**
+     * Getoente Gueterzug-Silhouette (Website-Motiv) als Data-URI.
+     *
+     * Die eigenstaendigen Signaturen bekommen die animierte Fassung: der Zug
+     * faehrt EINMAL ein und bleibt dann stehen (das GIF traegt bewusst keine
+     * Netscape-Schleife). Die E-Mail-Vorlagen behalten das Standbild — sie
+     * haengen an jeder gesendeten Nachricht, und dort waegt Dateigroesse
+     * schwerer als der Effekt.
+     */
+    public static function signatureTrainAsset(string $theme, bool $animated = false): string
     {
-        return $this->inlineImage(
-            $theme === 'dark' ? 'zug-dark.png' : 'zug-light.png',
-            'image/png'
-        );
+        $variant = $theme === 'dark' ? 'dark' : 'light';
+
+        return $animated
+            ? self::inlineImage("zug-{$variant}.gif", 'image/gif')
+            : self::inlineImage("zug-{$variant}.png", 'image/png');
     }
 
     protected function buildSignature(string $master, string $logo): string
     {
-        $values = $this->profileValues();
-        $html = file_get_contents($this->masterPath($master));
-        $html = $this->stripEmptyContactRows($html, $values);
-        $html = $this->substitute($html, $this->escapeForHtml($values));
+        $theme = str_contains($master, 'dark') ? 'dark' : 'light';
+        $html = file_get_contents(self::masterPath($master));
+        $html = $this->substitute($html, $this->escapeForHtml($this->profileValues()));
 
-        return $this->substitute($html, array_merge(
-            [
-                'LOGO_SRC' => $this->inlineImage($logo, 'image/png'),
-                // Stille Gueterzug-Silhouette, je Thema passend getoent.
-                'TRAIN_SRC' => $this->signatureTrainAsset(
-                    str_contains($master, 'dark') ? 'dark' : 'light'
-                ),
-            ],
-            $this->contactIconSources(true)
-        ));
+        // Dieselbe Quelle wie Vorlage und Systemmail — nur enger gesetzt und
+        // ohne Akzentlinie, weil die Signaturdatei ihre eigene traegt.
+        // Hier faehrt der Zug ein (animierte Fassung).
+        return $this->substitute($html, [
+            'SIGNATURE_BLOCK' => MailSignature::forUser($this->user, $theme, animated: true)->render(
+                layout: [
+                    'padding' => '26px 30px 34px',
+                    'topRule' => '',
+                    'legalPadding' => '13px 30px',
+                ],
+                overrides: ['LOGO_SRC' => self::inlineImage($logo, 'image/png')],
+            ),
+        ]);
     }
 
     protected function buildPlainBody(): string
@@ -583,7 +593,7 @@ TEXT;
         $inlineImages = [
             'railtime-logo' => [
                 'filename' => $logoAsset,
-                'content' => file_get_contents($this->masterPath('assets/'.$logoAsset)),
+                'content' => file_get_contents(self::masterPath('assets/'.$logoAsset)),
             ],
         ];
 

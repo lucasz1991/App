@@ -1080,6 +1080,8 @@ return [
     'mail_greeting_error' => 'Whoops!',
     'mail_regards' => 'Kind regards',
     'mail_all_rights' => 'All rights reserved.',
+    // Replaces the personal role line in system emails.
+    'mail_signature_company_role' => 'Automated message',
     'mail_confidentiality' => 'This email may contain confidential information. If you are not the intended recipient, please notify the sender and delete this message.',
     'mail_subcopy' => 'If you have trouble clicking the ":actionText" button, copy the URL below and paste it into your web browser:',
 

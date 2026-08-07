@@ -1080,6 +1080,8 @@ return [
     'mail_greeting_error' => 'Ups!',
     'mail_regards' => 'Freundliche Grüße',
     'mail_all_rights' => 'Alle Rechte vorbehalten.',
+    // Steht in Systemmails an der Stelle der persoenlichen Funktion.
+    'mail_signature_company_role' => 'Automatische Nachricht',
     'mail_confidentiality' => 'Diese E-Mail kann vertrauliche Informationen enthalten. Sollten Sie nicht der vorgesehene Empfänger sein, informieren Sie bitte den Absender und löschen Sie diese Nachricht.',
     'mail_subcopy' => 'Wenn Sie Probleme haben, den „:actionText“-Button anzuklicken, kopieren Sie bitte die folgende URL und fügen Sie sie in Ihren Webbrowser ein:',
 
