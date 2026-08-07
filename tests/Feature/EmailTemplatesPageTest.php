@@ -208,7 +208,7 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertStringNotContainsString('{{TRAIN_SRC}}', $html, $template);
             $this->assertStringContainsString("url('".$train, $html, $template);
             $this->assertStringContainsString('background-repeat:no-repeat', $html, $template);
-            $this->assertStringContainsString('background-position:center center,center bottom', $html, $template);
+            $this->assertStringContainsString('background-position:center center,left bottom', $html, $template);
             $this->assertStringContainsString('background-size:100% 100%,86% auto', $html, $template);
 
             // Die Kurzform background: setzt background-image zurueck — sie
@@ -326,6 +326,11 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertIsString($html);
             $this->assertStringContainsString('<img data-rt-outlook-train', $html);
             $this->assertStringContainsString("src=\"{$assetFolder}/zug-dampf.gif\"", $html);
+            $this->assertStringContainsString('class="rt-pad rt-sign-cell"', $html);
+            $this->assertStringContainsString('style="padding:0;background:', $html);
+            $this->assertStringContainsString('<td style="padding:18px 30px 0;">', $html);
+            $this->assertStringContainsString('<td align="left" style="padding:12px 0 20px;text-align:left;', $html);
+            $this->assertStringContainsString('height:auto;margin:0;border:0;outline:none;', $html);
             $this->assertStringNotContainsString('data:image/gif;base64,', $html);
             $this->assertStringNotContainsString('background-image:linear-gradient(', $html);
             $this->assertSame(1, substr_count($html, '/zug-dampf.gif'));
@@ -683,7 +688,7 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertStringNotContainsString('RT_PHONE_START', $html);
         $this->assertStringNotContainsString('{{TRAIN_SRC}}', $html);
         $this->assertStringContainsString('background-image:linear-gradient(', $html);
-        $this->assertStringContainsString('background-position:center center,center bottom', $html);
+        $this->assertStringContainsString('background-position:center center,left bottom', $html);
 
         // Reverse Stack: die Markenspalte steht in der Quelle zuerst (und
         // landet damit beim Stapeln oben), dir="rtl" haelt sie auf breiten

@@ -26,11 +26,13 @@
     $legalPadding = $legalPadding ?? '18px 38px';
     $outlookTrainSrc = trim((string) ($outlookTrainSrc ?? ''));
     $isOutlookExport = $outlookTrainSrc !== '';
+    $cellPadding = $isOutlookExport ? '0' : $padding;
+    $outlookTrainPadding = $outlookTrainPadding ?? '12px 0 20px';
     $hasPerson = trim((string) ($values['VORNAME_NACHNAME'] ?? '')) !== '';
     $hasIdleTrain = ! $isOutlookExport && $values['TRAIN_IDLE_SRC'] !== '';
     $trainBackgroundPosition = $hasIdleTrain
-        ? 'center center,center bottom,center bottom'
-        : 'center center,center bottom';
+        ? 'center center,left bottom,left bottom'
+        : 'center center,left bottom';
     $trainBackgroundSize = $hasIdleTrain
         ? '100% 100%,86% auto,86% auto'
         : '100% 100%,86% auto';
@@ -40,7 +42,14 @@
          zurueck und muss deshalb VOR der Bildangabe stehen. Clients ohne
          CSS-Hintergrundbilder (Outlook-Desktop, Gmail bei data-URIs) zeigen
          schlicht die Farbflaeche — es geht kein Inhalt verloren. --}}
-    <td class="rt-pad rt-sign-cell" bgcolor="{{ $values['SIGNATURE_BG'] }}" style="padding:{{ $padding }};background:{{ $values['SIGNATURE_BG'] }};@unless($isOutlookExport)background-image:linear-gradient({{ $values['SIGNATURE_TRAIN_WASH'] }},{{ $values['SIGNATURE_TRAIN_WASH'] }}),url('{{ $values['TRAIN_SRC'] }}')@if($hasIdleTrain),url('{{ $values['TRAIN_IDLE_SRC'] }}')@endif;background-repeat:no-repeat;background-position:{{ $trainBackgroundPosition }};background-size:{{ $trainBackgroundSize }};@endunless{{ $topRule }}">
+    <td class="rt-pad rt-sign-cell" bgcolor="{{ $values['SIGNATURE_BG'] }}" style="padding:{{ $cellPadding }};background:{{ $values['SIGNATURE_BG'] }};@unless($isOutlookExport)background-image:linear-gradient({{ $values['SIGNATURE_TRAIN_WASH'] }},{{ $values['SIGNATURE_TRAIN_WASH'] }}),url('{{ $values['TRAIN_SRC'] }}')@if($hasIdleTrain),url('{{ $values['TRAIN_IDLE_SRC'] }}')@endif;background-repeat:no-repeat;background-position:{{ $trainBackgroundPosition }};background-size:{{ $trainBackgroundSize }};@endunless{{ $topRule }}">
+        @if($isOutlookExport)
+            {{-- Der Inhalt behaelt seinen gewohnten Innenabstand, waehrend
+                 die nachfolgende Zugzeile bis an die Signaturkante reicht. --}}
+            <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">
+                <tr>
+                    <td style="padding:{{ $padding }};">
+        @endif
         {{-- dir="rtl" dreht ausschliesslich die Spaltenfolge: die Markenspalte
              steht in der Quelle zuerst (und landet beim Stapeln oben), auf
              breiten Schirmen aber weiterhin rechts. --}}
@@ -88,13 +97,16 @@
             </tr>
         </table>
         @if($isOutlookExport)
+                    </td>
+                </tr>
+            </table>
             {{-- Outlook-Export: ein regulaeres lokales Bild statt Data-URI-
                  Hintergrundebenen. Dadurch kann Outlook das GIF als echte
                  Signaturressource uebernehmen und beim Versand einbetten. --}}
-            <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;margin-top:12px;border-collapse:collapse;">
+            <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">
                 <tr>
-                    <td align="center" style="padding:0;text-align:center;font-size:0;line-height:0;">
-                        <img data-rt-outlook-train src="{{ $outlookTrainSrc }}" width="620" alt="Dampflok-Güterzug" style="display:block;width:620px;max-width:100%;height:auto;margin:0 auto;border:0;outline:none;">
+                    <td align="left" style="padding:{{ $outlookTrainPadding }};text-align:left;font-size:0;line-height:0;">
+                        <img data-rt-outlook-train src="{{ $outlookTrainSrc }}" width="620" alt="Dampflok-Güterzug" style="display:block;width:620px;max-width:100%;height:auto;margin:0;border:0;outline:none;">
                     </td>
                 </tr>
             </table>

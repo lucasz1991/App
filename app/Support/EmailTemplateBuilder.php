@@ -643,7 +643,7 @@ class EmailTemplateBuilder
         return $this->substitute($html, [
             'SIGNATURE_BLOCK' => MailSignature::forUser($this->user, $theme)->render(
                 layout: [
-                    'padding' => '18px 30px 20px',
+                    'padding' => '18px 30px 0',
                     'topRule' => '',
                     'legalPadding' => '13px 30px',
                     'outlookTrainSrc' => "{$assetFolder}/zug-dampf.gif",
