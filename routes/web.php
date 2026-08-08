@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\MailDocumentController;
 use App\Http\Controllers\Admin\MarketingCreativeController;
 use App\Http\Controllers\Admin\MarketingFileController;
 use App\Http\Controllers\Admin\MarketingRenderController;
@@ -28,6 +29,7 @@ use App\Http\Middleware\RedirectAdminWagonList;
 use App\Livewire\Admin\Dashboard;
 use App\Livewire\Admin\Employees;
 use App\Livewire\Admin\FileManager;
+use App\Livewire\Admin\MailDocumentEditor;
 use App\Livewire\Admin\MailManagement;
 use App\Livewire\Admin\ManagedDocuments;
 use App\Livewire\Admin\Marketing\CreativeEditor as MarketingCreativeEditor;
@@ -217,6 +219,22 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
         Route::get('/files', FileManager::class)->name('files');
         Route::get('/files/verbindlich', ManagedDocuments::class)->name('managed-documents');
         Route::get('/mails', MailManagement::class)->name('mail-management');
+        Route::get('/mail-vorlagen', MailDocumentEditor::class)->name('mail-documents.editor');
+        // Speichern und Veroeffentlichen antworten mit JSON. role:admin ist
+        // dafuer abgeschaltet, weil RoleMiddleware bei falscher Rolle
+        // weiterleitet statt 403 zu liefern — im Editor kaeme sonst eine
+        // HTML-Seite als vermeintliche JSON-Antwort an. Die Pruefung steht
+        // stattdessen ausdruecklich im Controller.
+        Route::withoutMiddleware('role:admin')->group(function (): void {
+            Route::put('/mail-vorlagen/{document}', [MailDocumentController::class, 'update'])
+                ->whereUuid('document')
+                ->middleware('throttle:120,1')
+                ->name('mail-documents.update');
+            Route::post('/mail-vorlagen/{document}/veroeffentlichen', [MailDocumentController::class, 'publish'])
+                ->whereUuid('document')
+                ->middleware('throttle:30,1')
+                ->name('mail-documents.publish');
+        });
         Route::withoutMiddleware('role:admin')->group(function (): void {
             Route::get('/marketing/motive', MarketingCreativesIndex::class)
                 ->name('marketing.creatives.index');

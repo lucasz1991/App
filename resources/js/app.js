@@ -65,6 +65,7 @@ import { ensureRailTimeNavigationCoordinator } from './navigation-coordinator';
 import { chatMessageActions } from './chat-message-actions';
 import { modalBody, trackLivewireRequests } from './modal-body';
 import { registerRailtimeLiveLocation } from './live-location';
+import { createMailBuilder, projectForMailDocument } from './mail-builder';
 import './marketing-studio';
 
 ensureRailTimeNavigationCoordinator(window, document);
@@ -637,6 +638,14 @@ window.Alpine = Alpine;
 // bewusst nur defensiv anspricht — ohne dieses Objekt bleibt der Editor
 // vollstaendig bedienbar, nur eben ohne Uebergaenge.
 window.RailTimeWagonMotion = createWagonListMotion();
+
+// E-Mail-Modus des Page Builders. Anders als marketing-studio.js bringt das
+// Modul bewusst KEINEN eigenen Startvorgang mit (es haengt an keinem
+// Livewire-Ereignis); eingehaengt wird es von der Editorseite selbst.
+window.RailTimeMailBuilder = {
+    create: createMailBuilder,
+    projectFor: projectForMailDocument,
+};
 
 registerRailtimePushSettings(Alpine);
 registerRailtimePwaInstall(Alpine);

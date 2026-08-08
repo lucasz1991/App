@@ -67,7 +67,7 @@
             <x-menu.sidebar-nav :label="__('app.management')">
                 <x-menu.sidebar-nav-group
                     icon="briefcase"
-                    :active="request()->routeIs('admin.employees', 'employees.show', 'admin.mail-management') || (request()->routeIs('admin.operations.preview') && request()->route('module') === 'customers')"
+                    :active="request()->routeIs('admin.employees', 'employees.show', 'admin.mail-management', 'admin.mail-documents.*') || (request()->routeIs('admin.operations.preview') && request()->route('module') === 'customers')"
                 >
                     <x-slot:label>{{ __('app.management_administration') }}</x-slot:label>
 
@@ -103,6 +103,20 @@
                             {{ __('app.mail_management') }}
                         </x-menu.sidebar-nav-link>
                     @endcan
+
+                    {{-- Nur Administratoren bearbeiten und veroeffentlichen.
+                         Die Downloads unter /email-templates bleiben allen
+                         Angemeldeten offen und tauchen hier nicht auf. --}}
+                    @if (auth()->user()?->role === 'admin')
+                        <x-menu.sidebar-nav-link
+                            :href="route('admin.mail-documents.editor')"
+                            icon="mail"
+                            :active="request()->routeIs('admin.mail-documents.*')"
+                            class="!pl-8"
+                        >
+                            E-Mail-Vorlagen
+                        </x-menu.sidebar-nav-link>
+                    @endif
                 </x-menu.sidebar-nav-group>
 
                 @if (auth()->user()?->role === 'admin')

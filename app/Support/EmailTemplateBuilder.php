@@ -2,9 +2,13 @@
 
 namespace App\Support;
 
+use App\Enums\MailDocumentKind;
+use App\Models\MailDocument;
 use App\Models\User;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use RuntimeException;
+use Throwable;
 use ZipArchive;
 
 /**
@@ -313,6 +317,76 @@ class EmailTemplateBuilder
     }
 
     /**
+     * Veroeffentlichte Fassung eines Maildokuments — oder null.
+     *
+     * null ist der Normalfall und heisst: es gilt die heutige Blade-/Master-
+     * Quelle. Dasselbe gilt, wenn die Tabelle noch fehlt (Migration nicht
+     * eingespielt, Minimalschema in Pruefungen) oder die Datenbank nicht
+     * antwortet — an einem noch nicht eingerichteten Editor darf ein
+     * Download nicht scheitern.
+     */
+    public static function publishedDocument(MailDocumentKind $kind): ?string
+    {
+        try {
+            if (! Schema::hasTable('mail_documents')) {
+                return null;
+            }
+
+            $html = MailDocument::query()
+                ->published()
+                ->where('kind', $kind->value)
+                ->value('published_html');
+        } catch (Throwable) {
+            return null;
+        }
+
+        $html = trim((string) $html);
+
+        return $html !== '' ? $html : null;
+    }
+
+    /**
+     * Der Signaturblock: veroeffentlichte Fassung, sonst die Blade-Quelle.
+     *
+     * Ein eigener Layoutwunsch schliesst die veroeffentlichte Fassung aus.
+     * Der engere Innenabstand der Signaturdatei und das lokale Zugbild des
+     * Outlook-Pakets sind keine Platzhalter: sie werden beim Rendern fest
+     * eingesetzt, und die Outlook-Verzweigung steht ueberhaupt nur in der
+     * Blade-Vorlage. Ein veroeffentlichtes Dokument in diese Wege zu legen,
+     * wuerde das ZIP zerstoeren statt es zu erneuern.
+     *
+     * @param  array<string, string>  $layout
+     * @param  array<string, string>  $overrides
+     */
+    protected function signatureBlock(
+        MailSignature $signature,
+        array $layout = [],
+        array $overrides = [],
+    ): string {
+        $published = $layout === []
+            ? self::publishedDocument(MailDocumentKind::Signature)
+            : null;
+
+        if ($published === null) {
+            return $signature->render($layout, $overrides);
+        }
+
+        // Die Blade-Vorlage escaped selbst; ein veroeffentlichtes Dokument
+        // bekommt die Werte direkt eingesetzt und muss deshalb hier escapt
+        // werden. strtr ersetzt in EINEM Durchgang — ein Profilwert, der
+        // zufaellig wie ein Platzhalter aussieht, wird dadurch nicht selbst
+        // zur Einschleusstelle.
+        $values = $this->escapeForHtml($signature->values($overrides));
+        $tokens = [];
+
+        foreach ($values as $key => $value) {
+            $tokens['{{'.$key.'}}'] = $value;
+        }
+
+        return trim(self::stripEmptyContactRows(strtr($published, $tokens), $values));
+    }
+
+    /**
      * Umbruchregeln fuer Vorlage UND Signatur aus einer einzigen Quelle.
      *
      * Vorher stand derselbe Media-Query-Block viermal im Projekt und war
@@ -477,19 +551,24 @@ class EmailTemplateBuilder
         ?string $playbackNonce = null,
     ): string {
         $values = $this->profileValues();
-        $html = file_get_contents(self::masterPath('email-master.html'));
+        // Veroeffentlichte Fassung aus dem Editor bevorzugen; ohne sie bleibt
+        // die Master-Datei die Quelle. Beides ist Token-HTML, die drei
+        // Ersetzungsdurchgaenge darunter bleiben deshalb unveraendert.
+        $html = self::publishedDocument(MailDocumentKind::Template)
+            ?? (string) file_get_contents(self::masterPath('email-master.html'));
         $html = $this->substitute($html, $this->escapeForHtml($values));
         $html = $this->substitute($html, self::emailThemeValues($theme));
 
         // Signatur und Pflichtangaben kommen aus der gemeinsamen Quelle
         // (MailSignature) — dieselbe, die auch unter jeder Laravel-Mail steht.
         return $this->substitute($html, [
-            'SIGNATURE_BLOCK' => MailSignature::forUser(
-                $this->user,
-                $theme,
-                animated: $animatedSignature,
-                playbackNonce: $playbackNonce,
-            )->render(
+            'SIGNATURE_BLOCK' => $this->signatureBlock(
+                MailSignature::forUser(
+                    $this->user,
+                    $theme,
+                    animated: $animatedSignature,
+                    playbackNonce: $playbackNonce,
+                ),
                 overrides: array_merge(
                     [
                         'LOGO_SRC' => $inlineImages
@@ -555,7 +634,8 @@ class EmailTemplateBuilder
         // ohne Akzentlinie, weil die Signaturdatei ihre eigene traegt.
         // Hier faehrt der Zug ein (animierte Fassung).
         return $this->substitute($html, [
-            'SIGNATURE_BLOCK' => MailSignature::forUser($this->user, $theme, animated: true)->render(
+            'SIGNATURE_BLOCK' => $this->signatureBlock(
+                MailSignature::forUser($this->user, $theme, animated: true),
                 layout: [
                     'padding' => '18px 30px 24px',
                     'topRule' => '',
@@ -660,7 +740,8 @@ class EmailTemplateBuilder
         }
 
         return $this->substitute($html, [
-            'SIGNATURE_BLOCK' => MailSignature::forUser($this->user, $theme)->render(
+            'SIGNATURE_BLOCK' => $this->signatureBlock(
+                MailSignature::forUser($this->user, $theme),
                 layout: [
                     'padding' => '18px 30px 0',
                     'topRule' => '',
