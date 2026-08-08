@@ -5,6 +5,7 @@ namespace App\Livewire\Admin\Marketing;
 use App\Enums\MarketingCreativeStatus;
 use App\Enums\MarketingCreativeType;
 use App\Models\MarketingCreative;
+use App\Services\Marketing\MarketingFileSourceService;
 use App\Services\Marketing\MarketingStudioService;
 use Illuminate\Database\Eloquent\Builder;
 use Livewire\Attributes\Url;
@@ -24,9 +25,13 @@ class CreativesIndex extends Component
     #[Url(except: '')]
     public string $status = '';
 
-    public function mount(): void
+    public string $mediaFolderId = '';
+
+    public function mount(MarketingFileSourceService $media): void
     {
         abort_unless(auth()->user()?->isAdmin(), 403);
+
+        $this->syncMediaFolderSelection($media);
     }
 
     public function updatedSearch(): void
@@ -85,7 +90,27 @@ class CreativesIndex extends Component
         $this->dispatch('swal:toast', type: 'success', text: 'Motiv wurde archiviert.');
     }
 
-    public function render()
+    public function saveMediaFolder(MarketingFileSourceService $media): void
+    {
+        abort_unless(auth()->user()?->isAdmin(), 403);
+
+        $value = trim($this->mediaFolderId);
+        abort_unless($value === '' || ctype_digit($value), 422);
+
+        $media->setSelectedFolder(
+            $value === '' ? null : (int) $value,
+            auth()->user(),
+        );
+
+        $this->syncMediaFolderSelection($media);
+        $this->dispatch(
+            'swal:toast',
+            type: 'success',
+            text: 'Bildquelle für neue und bestehende Motive gespeichert.',
+        );
+    }
+
+    public function render(MarketingFileSourceService $media)
     {
         abort_unless(auth()->user()?->isAdmin(), 403);
 
@@ -103,8 +128,26 @@ class CreativesIndex extends Component
             ->latest('updated_at')
             ->paginate(12);
 
+        $selectedFolderId = $media->selectedFolderId();
+        $selectedFolder = $media->selectedFolder();
+        $mediaSourceInvalid = $selectedFolderId !== null && $selectedFolder === null;
+        $folderTree = $media->folderTree();
+        $selectedFolderNode = collect($folderTree)->first(
+            fn (array $folder): bool => (bool) ($folder['selected'] ?? false)
+        );
+
         return view('livewire.admin.marketing.creatives-index', [
             'creatives' => $creatives,
+            'mediaFolderTree' => $folderTree,
+            'mediaSourceInvalid' => $mediaSourceInvalid,
+            'mediaSourcePath' => $mediaSourceInvalid
+                ? 'Ausgewählter Ordner nicht mehr verfügbar'
+                : ($selectedFolderNode['path'] ?? 'Firmendateien / Grundverzeichnis'),
+            'mediaAssetCount' => $mediaSourceInvalid ? 0 : $media->editorAssetCount(),
+            'mediaFilesUrl' => route(
+                'admin.files',
+                $selectedFolder && ! $mediaSourceInvalid ? ['folder' => $selectedFolder->getKey()] : [],
+            ),
         ])->layout('layouts.master', ['area' => 'admin']);
     }
 
@@ -113,5 +156,11 @@ class CreativesIndex extends Component
         abort_unless(auth()->user()?->isAdmin(), 403);
 
         return MarketingCreative::query()->where('public_id', $creativeId)->firstOrFail();
+    }
+
+    private function syncMediaFolderSelection(MarketingFileSourceService $media): void
+    {
+        $selectedFolderId = $media->selectedFolderId(uncached: true);
+        $this->mediaFolderId = $selectedFolderId === null ? '' : (string) $selectedFolderId;
     }
 }

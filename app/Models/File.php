@@ -2,17 +2,19 @@
 
 namespace App\Models;
 
+use App\Jobs\DeleteTempFile;
+use App\Services\Marketing\MarketingFileSourceService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Illuminate\Support\Carbon;
-use App\Jobs\DeleteTempFile;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Auth;
-use Symfony\Component\Mime\MimeTypes;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\Mime\MimeTypes;
 
 class File extends Model
 {
@@ -31,6 +33,10 @@ class File extends Model
         'visible_from',
         'auto_delete',
         'visible_teams',
+        'legacy_marketing_asset_public_id',
+        'content_sha256',
+        'image_width',
+        'image_height',
         'created_at',
         'updated_at',
     ];
@@ -41,6 +47,8 @@ class File extends Model
         'visible_from' => 'date',
         'auto_delete' => 'boolean',
         'visible_teams' => 'array',
+        'image_width' => 'integer',
+        'image_height' => 'integer',
     ];
 
     /**
@@ -79,21 +87,45 @@ class File extends Model
 
     protected static function booted(): void
     {
-        static::deleting(function (File $file) {
-            $disk = $file->disk ?: 'private';
+        static::updating(function (File $file): void {
+            $marketingFiles = app(MarketingFileSourceService::class);
 
-            if ($file->path && Storage::disk($disk)->exists($file->path)) {
+            if ($file->isDirty(['folder_id', 'fileable_type', 'fileable_id'])) {
+                $marketingFiles->assertFileCanMoveTo($file, $file->folder_id ? (int) $file->folder_id : null);
+            }
+
+            if ($file->isDirty([
+                'disk', 'path', 'mime_type', 'size', 'content_sha256',
+                'image_width', 'image_height', 'expires_at', 'visible_from', 'auto_delete',
+            ])) {
+                $marketingFiles->handleFileContentMutation($file);
+            }
+        });
+
+        static::deleting(function (File $file): void {
+            app(MarketingFileSourceService::class)->assertFileCanBeDeleted($file);
+        });
+
+        static::deleted(function (File $file): void {
+            $disk = $file->disk ?: 'private';
+            $path = (string) $file->path;
+
+            DB::afterCommit(static function () use ($file, $disk, $path): void {
+                if ($path === '' || ! Storage::disk($disk)->exists($path)) {
+                    return;
+                }
+
                 try {
-                    Storage::disk($disk)->delete($file->path);
+                    Storage::disk($disk)->delete($path);
                 } catch (\Throwable $e) {
                     Log::warning('Konnte Datei beim Löschen des File-Modells nicht entfernen', [
                         'file_id' => $file->id,
-                        'disk'    => $disk,
-                        'path'    => $file->path,
-                        'error'   => $e->getMessage(),
+                        'disk' => $disk,
+                        'path' => $path,
+                        'error' => $e->getMessage(),
                     ]);
                 }
-            }
+            });
         });
     }
 

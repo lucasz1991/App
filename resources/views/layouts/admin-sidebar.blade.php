@@ -155,14 +155,6 @@
                             Motive
                         </x-menu.sidebar-nav-link>
 
-                        <x-menu.sidebar-nav-link
-                            :href="route('admin.marketing.assets.index')"
-                            icon="image"
-                            :active="request()->routeIs('admin.marketing.assets.*')"
-                            class="!pl-8"
-                        >
-                            Medien
-                        </x-menu.sidebar-nav-link>
                     </x-menu.sidebar-nav-group>
                 @endif
             </x-menu.sidebar-nav>

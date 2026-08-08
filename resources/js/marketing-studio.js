@@ -95,6 +95,14 @@ export function resolveArtboard(format) {
     return MARKETING_ARTBOARDS[format] || MARKETING_ARTBOARDS.story;
 }
 
+export function removeBuilderUploadControls(root) {
+    const controls = root?.querySelectorAll?.('[data-lmz-action="upload"], [data-lmz-upload-input]') || [];
+
+    controls.forEach((control) => control.remove());
+
+    return controls.length;
+}
+
 function readJsonScript(workspace) {
     const script = workspace?.querySelector('[data-marketing-editor-config]');
 
@@ -338,36 +346,6 @@ export async function createMarketingBlocks(
             },
         },
     ];
-}
-
-function assetPayload(asset) {
-    return {
-        public_id: asset.public_id,
-        src: asset.url || asset.src,
-        name: asset.original_name || asset.name,
-        type: asset.mime_type || asset.type,
-        width: asset.width || null,
-        height: asset.height || null,
-    };
-}
-
-async function uploadFiles(files, config) {
-    const uploaded = [];
-
-    for (const file of Array.from(files || [])) {
-        const body = new FormData();
-        body.append('file', file, file.name);
-        const payload = await requestJson(config.endpoints.assetUpload, {
-            method: 'POST',
-            formData: body,
-        });
-
-        if (payload.asset) {
-            uploaded.push(assetPayload(payload.asset));
-        }
-    }
-
-    return uploaded;
 }
 
 export function serializeSharedData(data) {
@@ -1291,17 +1269,13 @@ export async function createMarketingStudio(workspace, config) {
             },
             assets: {
                 onLoad: async () => config.assets || [],
-                onUpload: async ({ files }) => {
-                    const uploaded = await uploadFiles(files, config);
-                    config.assets = [...(config.assets || []), ...uploaded];
-                    return uploaded;
-                },
             },
             useStudioWebDefaults: false,
             allowFallbackProject: false,
             gjsOptions: {
                 deviceManager: { devices: [] },
                 canvas: { styles: [], scripts: [] },
+                assetManager: { upload: false },
             },
         });
 
@@ -1311,6 +1285,7 @@ export async function createMarketingStudio(workspace, config) {
             return;
         }
 
+        removeBuilderUploadControls(root);
         root.dataset.runtimeState = 'ready';
         frame.dataset.readOnly = readOnly ? 'true' : 'false';
         instance.setActionLocked(readOnly);
@@ -1558,84 +1533,6 @@ export async function createMarketingStudio(workspace, config) {
             artboardViewport = null;
             instance?.destroy?.();
             instance = null;
-        },
-    };
-}
-
-export function marketingAssetLibrary(config = {}) {
-    return {
-        uploading: false,
-        deleting: null,
-        replacing: null,
-        progress: '',
-        progressPercent: 0,
-        message: '',
-
-        async upload(event) {
-            const input = event.currentTarget.querySelector('input[type="file"]');
-            const files = Array.from(input?.files || []);
-            if (!files.length || this.uploading) return;
-
-            this.uploading = true;
-            this.progressPercent = 0;
-            this.message = '';
-
-            try {
-                for (let index = 0; index < files.length; index += 1) {
-                    this.progress = `${index + 1} / ${files.length}`;
-                    const body = new FormData();
-                    body.append('file', files[index], files[index].name);
-                    await requestJson(config.uploadUrl, { method: 'POST', formData: body });
-                    this.progressPercent = Math.round(((index + 1) / files.length) * 100);
-                }
-                this.message = `${files.length} ${files.length === 1 ? 'Bild wurde' : 'Bilder wurden'} sicher gespeichert.`;
-                dispatchToast('success', this.message);
-                await this.$wire.$refresh();
-            } catch (error) {
-                this.message = error.message;
-                dispatchToast('error', error.message, 'Upload fehlgeschlagen');
-            } finally {
-                this.uploading = false;
-                if (input) input.value = '';
-            }
-        },
-
-        async remove(publicId, name) {
-            if (this.deleting || !window.confirm(`„${name}“ wirklich aus der Marketing-Mediathek löschen?`)) return;
-
-            this.deleting = publicId;
-            try {
-                const url = replaceEndpointToken(config.deleteUrl, '__ASSET__', publicId);
-                await requestJson(url, { method: 'DELETE' });
-                dispatchToast('success', 'Medium wurde gelöscht.');
-                await this.$wire.$refresh();
-            } catch (error) {
-                dispatchToast('error', error.message, 'Medium nicht gelöscht');
-            } finally {
-                this.deleting = null;
-            }
-        },
-
-        async replace(publicId, event) {
-            const input = event.currentTarget;
-            const file = input.files?.[0];
-            if (!file || this.replacing) return;
-
-            this.replacing = publicId;
-            try {
-                const body = new FormData();
-                body.append('_method', 'PUT');
-                body.append('file', file, file.name);
-                const url = replaceEndpointToken(config.replaceUrl, '__ASSET__', publicId);
-                await requestJson(url, { method: 'POST', formData: body });
-                dispatchToast('success', 'Medium wurde ersetzt; seine Referenz bleibt erhalten.');
-                await this.$wire.$refresh();
-            } catch (error) {
-                dispatchToast('error', error.message, 'Medium nicht ersetzt');
-            } finally {
-                this.replacing = null;
-                input.value = '';
-            }
         },
     };
 }

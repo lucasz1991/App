@@ -317,6 +317,7 @@ class EmailTemplatesPageTest extends TestCase
                 "{$assetFolder}/contact-email.png",
                 "{$assetFolder}/contact-web.png",
                 'Outlook-klassisch-installieren.cmd',
+                'RailTime-Outlook-Installer.ps1',
                 'README-Outlook.html',
             ] as $path) {
                 $this->assertNotFalse($zip->locateName($path), $path);
@@ -353,15 +354,37 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertSame(1110, array_sum($durations), 'Outlook-GIF muss 11,1 Sekunden dauern.');
 
             $installer = $zip->getFromName('Outlook-klassisch-installieren.cmd');
-            $this->assertStringContainsString('%APPDATA%\Microsoft\Signatures', $installer);
             $this->assertStringContainsString("set \"SIGNATURE_NAME={$signatureName}\"", $installer);
-            $this->assertStringContainsString('%TARGET_DIR%\%SIGNATURE_NAME%.htm', $installer);
+            $this->assertStringContainsString('RailTime-Outlook-Installer.ps1', $installer);
+            $this->assertStringContainsString('-NoLogo -NoProfile -STA -ExecutionPolicy Bypass', $installer);
+            $this->assertStringContainsString('RAILTIME_INSTALLER_TEST_MODE', $installer);
             $this->assertStringNotContainsString('\\{'.$signatureName.'}', $installer);
             $this->assertStringContainsString('Das ZIP wurde nicht vollstaendig entpackt', $installer);
-            $this->assertStringContainsString('[ERFOLG] Die RailTime-Signatur wurde installiert.', $installer);
             $this->assertStringContainsString('[FEHLER]', $installer);
-            $this->assertStringContainsString('RailTime-Outlook-Signatur-Installation.log', $installer);
             $this->assertSame(0, preg_match('/(?<!\r)\n/', $installer), 'CMD muss reine CRLF-Zeilenenden verwenden.');
+
+            $installerScript = $zip->getFromName('RailTime-Outlook-Installer.ps1');
+            $this->assertIsString($installerScript);
+            $this->assertStringStartsWith("\xEF\xBB\xBF", $installerScript, 'Windows PowerShell 5.1 benötigt für Umlaute eine UTF-8-BOM.');
+            $this->assertStringNotContainsString('__RAILTIME_SIGNATURE_NAME__', $installerScript);
+            $this->assertStringContainsString("[string] \$SignatureName = '{$signatureName}'", $installerScript);
+            $this->assertStringContainsString('System.Windows.Forms', $installerScript);
+            $this->assertStringContainsString('AutoScaleMode]::Dpi', $installerScript);
+            $this->assertStringContainsString('Outlook schließen und installieren', $installerScript);
+            $this->assertStringContainsString('$installButton.Size = New-Object System.Drawing.Size(278, 46)', $installerScript);
+            $this->assertStringContainsString('$logButton.Size = New-Object System.Drawing.Size(148, 46)', $installerScript);
+            $this->assertStringContainsString('$closeButton.Size = New-Object System.Drawing.Size(174, 46)', $installerScript);
+            $this->assertStringContainsString("@('OUTLOOK', 'olk')", $installerScript);
+            $this->assertStringContainsString('CloseMainWindow()', $installerScript);
+            $this->assertStringContainsString('Stop-Process -Id $process.Id -Force', $installerScript);
+            $this->assertStringContainsString('MessageBoxDefaultButton]::Button2', $installerScript);
+            $this->assertStringContainsString("'^[^@\\s]+@rail-time\\.de$'", $installerScript);
+            $this->assertStringContainsString("'New Signature'", $installerScript);
+            $this->assertStringContainsString("'Reply-Forward Signature'", $installerScript);
+            $this->assertStringContainsString("'DisableRoamingSignatures'", $installerScript);
+            $this->assertStringContainsString('RailTime-Outlook-Signatur-Installation.log', $installerScript);
+            $this->assertStringContainsString('Testmodus: Outlook-Prozesse werden nicht berührt.', $installerScript);
+            $this->assertStringNotContainsString('Common\\MailSettings', $installerScript);
 
             if (PHP_OS_FAMILY === 'Windows') {
                 $installerTestRoot = sys_get_temp_dir().DIRECTORY_SEPARATOR.'railtime-outlook-installer-'.bin2hex(random_bytes(6));
@@ -372,12 +395,31 @@ class EmailTemplatesPageTest extends TestCase
                     File::ensureDirectoryExists($packageDirectory);
                     $this->assertTrue($zip->extractTo($packageDirectory));
 
-                    $installation = $this->runOutlookInstaller($packageDirectory, $fakeWindowsProfile);
+                    $accountFixture = [
+                        'DefaultProfile' => 'Outlook',
+                        'Profiles' => [[
+                            'Name' => 'Outlook',
+                            'Accounts' => [
+                                ['Key' => '00000001', 'Email' => 'person@example.org'],
+                                ['Key' => '00000002', 'Email' => 'wrong@rail-time.de.example'],
+                                ['Key' => '00000003', 'Email' => 'first@rail-time.de'],
+                                ['Key' => '00000004', 'Email' => 'second@rail-time.de'],
+                            ],
+                        ]],
+                    ];
+
+                    $installation = $this->runOutlookInstaller($packageDirectory, $fakeWindowsProfile, $accountFixture);
                     $this->assertSame(0, $installation['exitCode'], $installation['output']);
                     $this->assertStringContainsString('[ERFOLG]', $installation['output']);
                     $this->assertStringNotContainsString('ECHO ', $installation['output']);
+                    $this->assertTrue($installation['result']['Success']);
+                    $this->assertSame('first@rail-time.de', $installation['result']['AccountEmail']);
+                    $this->assertSame('00000003', $installation['result']['AccountKey']);
+                    $this->assertSame($signatureName, $installation['result']['NewSignature']);
+                    $this->assertSame($signatureName, $installation['result']['ReplyForwardSignature']);
+                    $this->assertTrue($installation['result']['LocalSignatureMode']);
 
-                    $reinstallation = $this->runOutlookInstaller($packageDirectory, $fakeWindowsProfile);
+                    $reinstallation = $this->runOutlookInstaller($packageDirectory, $fakeWindowsProfile, $accountFixture);
                     $this->assertSame(0, $reinstallation['exitCode'], $reinstallation['output']);
                     $this->assertStringContainsString('[ERFOLG]', $reinstallation['output']);
 
@@ -413,10 +455,31 @@ class EmailTemplatesPageTest extends TestCase
                             $installer,
                         );
 
-                        $incompleteInstallation = $this->runOutlookInstaller($incompleteDirectory, $incompleteProfile);
+                        $incompleteInstallation = $this->runOutlookInstaller($incompleteDirectory, $incompleteProfile, $accountFixture);
                         $this->assertSame(11, $incompleteInstallation['exitCode'], $incompleteInstallation['output']);
                         $this->assertStringContainsString('[FEHLER]', $incompleteInstallation['output']);
                         $this->assertStringContainsString('vollstaendig entpackt', $incompleteInstallation['output']);
+
+                        $missingAccountProfile = $installerTestRoot.DIRECTORY_SEPARATOR.'missing-account-profile';
+                        $missingAccountFixture = [
+                            'DefaultProfile' => 'Outlook',
+                            'Profiles' => [[
+                                'Name' => 'Outlook',
+                                'Accounts' => [
+                                    ['Key' => '00000001', 'Email' => 'person@example.org'],
+                                    ['Key' => '00000002', 'Email' => 'wrong@rail-time.de.example'],
+                                ],
+                            ]],
+                        ];
+                        $missingAccount = $this->runOutlookInstaller($packageDirectory, $missingAccountProfile, $missingAccountFixture);
+                        $this->assertSame(12, $missingAccount['exitCode'], $missingAccount['output']);
+                        $this->assertStringContainsString('kein Konto mit der Domain @rail-time.de', $missingAccount['output']);
+                        $this->assertFalse($missingAccount['result']['Success']);
+                        $this->assertSame(12, $missingAccount['result']['ExitCode']);
+                        $this->assertDirectoryDoesNotExist(
+                            $missingAccountProfile.DIRECTORY_SEPARATOR.'AppData'.DIRECTORY_SEPARATOR.'Roaming'
+                            .DIRECTORY_SEPARATOR.'Microsoft'.DIRECTORY_SEPARATOR.'Signatures',
+                        );
                     }
                 } finally {
                     File::deleteDirectory($installerTestRoot);
@@ -427,7 +490,12 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertStringContainsString('Einstellungen → Konten → Signaturen', $readme);
             $this->assertStringContainsString('ZIP zuerst vollständig entpacken', $readme);
             $this->assertStringContainsString('Rechtsklick → Alle extrahieren', $readme);
-            $this->assertStringContainsString('lokale Batchdatei kann diese Signatur daher nicht direkt im neuen Outlook registrieren', $readme);
+            $this->assertStringContainsString('grafische Windows-Einrichtung', $readme);
+            $this->assertStringContainsString('schließt Classic Outlook und das neue Outlook anschließend automatisch', $readme);
+            $this->assertStringContainsString('ersten Konto mit einer Adresse, die exakt auf @rail-time.de endet', $readme);
+            $this->assertStringContainsString('Classic-Signaturmodus', $readme);
+            $this->assertStringContainsString('Erfolg oder Fehler erscheinen direkt in der Oberfläche', $readme);
+            $this->assertStringContainsString('lokale Windows-Installationsroutine kann diese Signatur daher nicht direkt im neuen Outlook registrieren', $readme);
 
             $zip->close();
             unlink($tempPath);
@@ -969,9 +1037,10 @@ class EmailTemplatesPageTest extends TestCase
     }
 
     /**
-     * @return array{exitCode: int, output: string}
+     * @param  array<string, mixed>  $accountFixture
+     * @return array{exitCode: int, output: string, result: array<string, mixed>}
      */
-    private function runOutlookInstaller(string $packageDirectory, string $fakeWindowsProfile): array
+    private function runOutlookInstaller(string $packageDirectory, string $fakeWindowsProfile, array $accountFixture): array
     {
         $fakeAppData = $fakeWindowsProfile.DIRECTORY_SEPARATOR.'AppData'.DIRECTORY_SEPARATOR.'Roaming';
         $fakeTemp = $fakeWindowsProfile.DIRECTORY_SEPARATOR.'Temp';
@@ -983,11 +1052,31 @@ class EmailTemplatesPageTest extends TestCase
         $environment['APPDATA'] = $fakeAppData;
         $environment['TEMP'] = $fakeTemp;
         $environment['TMP'] = $fakeTemp;
+        $environment['RAILTIME_INSTALLER_TEST_MODE'] = '1';
         $commandInterpreter = $environment['COMSPEC'] ?? 'C:\\Windows\\System32\\cmd.exe';
         $installerPath = $packageDirectory.DIRECTORY_SEPARATOR.'Outlook-klassisch-installieren.cmd';
+        $fixturePath = $fakeWindowsProfile.DIRECTORY_SEPARATOR.'outlook-accounts.json';
+        $resultPath = $fakeWindowsProfile.DIRECTORY_SEPARATOR.'installer-result.json';
+        $targetDirectory = $fakeAppData.DIRECTORY_SEPARATOR.'Microsoft'.DIRECTORY_SEPARATOR.'Signatures';
+        File::put($fixturePath, json_encode($accountFixture, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
 
         $process = proc_open(
-            [$commandInterpreter, '/d', '/c', $installerPath],
+            [
+                $commandInterpreter,
+                '/d',
+                '/c',
+                $installerPath,
+                '-TestMode',
+                '-NoGui',
+                '-SourceDirectory',
+                $packageDirectory,
+                '-TargetDirectory',
+                $targetDirectory,
+                '-AccountFixturePath',
+                $fixturePath,
+                '-ResultPath',
+                $resultPath,
+            ],
             [
                 0 => ['pipe', 'r'],
                 1 => ['pipe', 'w'],
@@ -1006,9 +1095,14 @@ class EmailTemplatesPageTest extends TestCase
         fclose($pipes[1]);
         fclose($pipes[2]);
 
+        $exitCode = proc_close($process);
+
         return [
-            'exitCode' => proc_close($process),
+            'exitCode' => $exitCode,
             'output' => trim((string) $stdout."\n".(string) $stderr),
+            'result' => File::exists($resultPath)
+                ? json_decode(File::get($resultPath), true, 512, JSON_THROW_ON_ERROR)
+                : [],
         ];
     }
 }

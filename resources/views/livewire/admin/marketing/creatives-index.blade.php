@@ -32,7 +32,70 @@
         </button>
     </x-slot:actions>
 
-    @include('livewire.admin.marketing.partials.navigation', ['active' => 'creatives'])
+    <x-ui.surface.card padding="p-4 sm:p-5" data-marketing-media-source>
+        <form wire:submit="saveMediaFolder" class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
+            <div class="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,0.8fr)] lg:items-end">
+                <label class="block min-w-0">
+                    <span class="text-xs font-bold uppercase tracking-[0.1em] text-rt-red">Bildquelle für Motive</span>
+                    <select
+                        wire:model="mediaFolderId"
+                        class="mt-2 min-h-11 w-full rounded-xl border border-rt-border bg-rt-control px-3 text-base text-rt-text focus:border-rt-red focus:ring-4 focus:ring-rt-red/10 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-text sm:text-sm"
+                        aria-describedby="marketing-media-source-help marketing-media-source-error"
+                    >
+                        <option value="">Grundverzeichnis (alle Ordner)</option>
+                        @if ($mediaSourceInvalid)
+                            <option value="{{ $mediaFolderId }}" disabled>Ordner #{{ $mediaFolderId }} · nicht mehr verfügbar</option>
+                        @endif
+                        @foreach ($mediaFolderTree as $folder)
+                            <option value="{{ $folder['id'] }}">
+                                {{ str_repeat('— ', (int) ($folder['depth'] ?? 0)) }}{{ $folder['path'] }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <p id="marketing-media-source-help" class="mt-2 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
+                        Der gewählte Ordner und alle Unterordner bilden die schreibgeschützte Bilderbibliothek im Editor.
+                    </p>
+                    @error('mediaFolderId')
+                        <p id="marketing-media-source-error" class="mt-2 text-xs font-semibold leading-5 text-rt-red" role="alert">{{ $message }}</p>
+                    @enderror
+                </label>
+
+                <div class="min-w-0 rounded-xl border border-rt-border bg-rt-surface-muted px-4 py-3 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted">
+                    <p class="text-[11px] font-bold uppercase tracking-[0.1em] text-rt-soft">Aktuell freigegeben</p>
+                    <p class="mt-1 break-words text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ $mediaSourcePath }}</p>
+                    <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $mediaAssetCount }} {{ $mediaAssetCount === 1 ? 'Bild' : 'Bilder' }} im Editor verfügbar</p>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap gap-2 xl:justify-end">
+                <a
+                    href="{{ $mediaFilesUrl }}"
+                    wire:navigate
+                    class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rt-border bg-rt-surface px-3.5 text-sm font-semibold text-rt-muted transition hover:border-rt-red/30 hover:text-rt-red dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-muted"
+                >
+                    <i data-feather="folder" class="h-4 w-4" aria-hidden="true"></i>
+                    Dateien öffnen
+                </a>
+                <button
+                    type="submit"
+                    wire:loading.attr="disabled"
+                    wire:target="saveMediaFolder"
+                    class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-rt-red px-4 text-sm font-semibold text-white transition hover:bg-rt-red-dark disabled:opacity-50"
+                >
+                    <i data-feather="check" class="h-4 w-4" aria-hidden="true"></i>
+                    <span wire:loading.remove wire:target="saveMediaFolder">Bildquelle speichern</span>
+                    <span wire:loading wire:target="saveMediaFolder">Wird geprüft …</span>
+                </button>
+            </div>
+        </form>
+
+        @if ($mediaSourceInvalid)
+            <div class="mt-4 flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-500/10 dark:text-rose-200" role="alert" data-marketing-media-source-invalid>
+                <i data-feather="alert-triangle" class="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true"></i>
+                <p><strong>Die gespeicherte Bildquelle ist nicht mehr verfügbar.</strong> Der Editor zeigt aus Sicherheitsgründen keine Bilder. Wähle das Grundverzeichnis oder einen vorhandenen Ordner und speichere erneut.</p>
+            </div>
+        @endif
+    </x-ui.surface.card>
 
     <x-ui.surface.card padding="p-4">
         <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_12rem_12rem]" aria-label="Motive filtern">

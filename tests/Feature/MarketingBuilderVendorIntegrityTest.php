@@ -4,10 +4,14 @@ namespace Tests\Feature;
 
 use App\Enums\MarketingCreativeType;
 use App\Livewire\Admin\Marketing\CreativesIndex;
-use App\Models\MarketingAsset;
+use App\Models\FileFolder;
+use App\Models\FilePool;
 use App\Models\User;
+use App\Services\Marketing\MarketingFileSourceService;
 use App\Services\Marketing\MarketingStudioService;
+use App\Support\MarketingFileSourceSettings;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -40,15 +44,17 @@ class MarketingBuilderVendorIntegrityTest extends TestCase
         $this->assertStringContainsString('do not depend on GrapesJS Studio SDK', $notice);
     }
 
-    public function test_marketing_views_keep_the_builder_and_navigation_contracts_visible(): void
+    public function test_marketing_views_keep_the_builder_and_read_only_file_source_contracts_visible(): void
     {
         $editor = file_get_contents(resource_path('views/livewire/admin/marketing/creative-editor.blade.php'));
-        $assets = file_get_contents(resource_path('views/livewire/admin/marketing/assets-index.blade.php'));
+        $index = file_get_contents(resource_path('views/livewire/admin/marketing/creatives-index.blade.php'));
         $sidebar = file_get_contents(resource_path('views/layouts/admin-sidebar.blade.php'));
+        $adapter = file_get_contents(resource_path('js/marketing-studio.js'));
 
         $this->assertIsString($editor);
-        $this->assertIsString($assets);
+        $this->assertIsString($index);
         $this->assertIsString($sidebar);
+        $this->assertIsString($adapter);
 
         $this->assertStringContainsString('data-marketing-editor-root', $editor);
         $this->assertStringContainsString('wire:ignore', $editor);
@@ -63,28 +69,43 @@ class MarketingBuilderVendorIntegrityTest extends TestCase
         $this->assertStringContainsString('data-marketing-artboard-label', $editor);
         $this->assertStringContainsString('data-marketing-scale-label', $editor);
         $this->assertStringContainsString('data-marketing-pan-hint', $editor);
+        $this->assertStringContainsString('data-marketing-media-source', $editor);
 
-        $this->assertStringContainsString('JPEG, PNG, WebP oder GIF · maximal 8 MB', $assets);
-        $this->assertStringContainsString('x-on:change="replace(', $assets);
+        $this->assertStringContainsString('wire:submit="saveMediaFolder"', $index);
+        $this->assertStringContainsString('Grundverzeichnis (alle Ordner)', $index);
+        $this->assertStringContainsString('data-marketing-media-source-invalid', $index);
+        $this->assertStringContainsString("route('admin.files'", $index);
         $this->assertStringContainsString("route('admin.marketing.creatives.index')", $sidebar);
-        $this->assertStringContainsString("route('admin.marketing.assets.index')", $sidebar);
+        $this->assertStringNotContainsString('admin.marketing.assets', $sidebar);
+        $this->assertStringNotContainsString('>Medien<', preg_replace('/\s+/', '', $sidebar) ?: $sidebar);
+        $this->assertStringNotContainsString('assetUpload', $adapter);
+        $this->assertStringNotContainsString('onUpload:', $adapter);
+        $this->assertFileDoesNotExist(resource_path('views/livewire/admin/marketing/assets-index.blade.php'));
+        $this->assertFileDoesNotExist(app_path('Livewire/Admin/Marketing/AssetsIndex.php'));
     }
 
-    public function test_real_admin_pages_render_while_staff_is_denied(): void
+    public function test_real_admin_pages_render_file_pool_images_while_staff_is_denied(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $staff = User::factory()->create(['role' => 'staff']);
-        $asset = MarketingAsset::query()->create([
-            'original_name' => 'railtime-einsatz.jpg',
+        Storage::fake('private');
+        $image = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=', true);
+        $this->assertIsString($image);
+        Storage::disk('private')->put('uploads/files/railtime-einsatz.png', $image);
+
+        $pool = FilePool::company();
+        $folder = FileFolder::query()->create([
+            'file_pool_id' => $pool->id,
+            'name' => 'Marketing / Einsatzbilder',
+        ]);
+        $file = $pool->files()->create([
+            'folder_id' => $folder->id,
+            'user_id' => $admin->id,
+            'name' => 'railtime-einsatz.png',
             'disk' => 'private',
-            'path' => 'marketing/assets/railtime-einsatz.jpg',
-            'mime_type' => 'image/jpeg',
-            'extension' => 'jpg',
-            'size' => 123456,
-            'width' => 1600,
-            'height' => 900,
-            'sha256' => '0123456789abcdef'.str_repeat('0', 48),
-            'created_by' => $admin->id,
+            'path' => 'uploads/files/railtime-einsatz.png',
+            'mime_type' => 'image/png',
+            'size' => strlen($image),
         ]);
         $creative = app(MarketingStudioService::class)->createFromTemplate(
             MarketingCreativeType::Job,
@@ -95,14 +116,9 @@ class MarketingBuilderVendorIntegrityTest extends TestCase
             ->get(route('admin.marketing.creatives.index'))
             ->assertOk()
             ->assertSee('Marketing-Motive')
-            ->assertSee($creative->title);
-
-        $this->actingAs($admin)
-            ->get(route('admin.marketing.assets.index'))
-            ->assertOk()
-            ->assertSee('Marketing-Medien')
-            ->assertSee('maximal 8 MB')
-            ->assertSee(route('admin.marketing.assets.show', $asset).'?v=0123456789abcdef', false);
+            ->assertSee($creative->title)
+            ->assertSee('Firmendateien / Grundverzeichnis')
+            ->assertSee('1 Bild im Editor verfügbar');
 
         $this->actingAs($admin)
             ->get(route('admin.marketing.creatives.editor', $creative))
@@ -111,15 +127,55 @@ class MarketingBuilderVendorIntegrityTest extends TestCase
             ->assertSee('data-mobile-pane="layout"', false)
             ->assertSee('Feste Exportfläche')
             ->assertSee('1080 × 1920')
-            ->assertSee(route('admin.marketing.assets.show', $asset).'?v=0123456789abcdef', false);
+            ->assertSee('Bildquelle:')
+            ->assertSee(route('admin.marketing.files.show', $file), false);
+
+        $this->actingAs($admin)
+            ->get(route('admin.marketing.files.show', $file))
+            ->assertOk();
 
         $this->actingAs($staff)
             ->get(route('admin.marketing.creatives.index'))
             ->assertForbidden();
 
+        $this->actingAs($staff)
+            ->get(route('admin.marketing.files.show', $file))
+            ->assertForbidden();
+
         Livewire::actingAs($staff)
             ->test(CreativesIndex::class)
             ->assertForbidden();
+    }
+
+    public function test_admin_explicitly_saves_a_file_folder_and_invalid_stored_source_fails_closed(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $pool = FilePool::company();
+        $folder = FileFolder::query()->create([
+            'file_pool_id' => $pool->id,
+            'name' => 'Freigegebene Motive',
+        ]);
+
+        Livewire::actingAs($admin)
+            ->test(CreativesIndex::class)
+            ->set('mediaFolderId', (string) $folder->id)
+            ->call('saveMediaFolder')
+            ->assertHasNoErrors()
+            ->assertSet('mediaFolderId', (string) $folder->id);
+
+        $this->assertSame(
+            $folder->id,
+            app(MarketingFileSourceService::class)->selectedFolderId(uncached: true),
+        );
+
+        MarketingFileSourceSettings::setSelectedFolderId(999999);
+
+        $this->actingAs($admin)
+            ->get(route('admin.marketing.creatives.index'))
+            ->assertOk()
+            ->assertSee('data-marketing-media-source-invalid', false)
+            ->assertSee('Die gespeicherte Bildquelle ist nicht mehr verfügbar')
+            ->assertSee('0 Bilder im Editor verfügbar');
     }
 
     public function test_create_action_rechecks_admin_role_after_the_component_was_mounted(): void

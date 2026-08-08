@@ -1,7 +1,7 @@
 <?php
 
-use App\Http\Controllers\Admin\MarketingAssetController;
 use App\Http\Controllers\Admin\MarketingCreativeController;
+use App\Http\Controllers\Admin\MarketingFileController;
 use App\Http\Controllers\Admin\MarketingRenderController;
 use App\Http\Controllers\Admin\MarketingVariantController;
 use App\Http\Controllers\Assistant\AssistantAudioInputTranscriptionController;
@@ -30,7 +30,6 @@ use App\Livewire\Admin\Employees;
 use App\Livewire\Admin\FileManager;
 use App\Livewire\Admin\MailManagement;
 use App\Livewire\Admin\ManagedDocuments;
-use App\Livewire\Admin\Marketing\AssetsIndex as MarketingAssetsIndex;
 use App\Livewire\Admin\Marketing\CreativeEditor as MarketingCreativeEditor;
 use App\Livewire\Admin\Marketing\CreativesIndex as MarketingCreativesIndex;
 use App\Livewire\Admin\OperationalPreview;
@@ -253,23 +252,10 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
                 ->middleware('throttle:10,1')
                 ->name('marketing.renders.store');
 
-            Route::get('/marketing/medien', MarketingAssetsIndex::class)
-                ->name('marketing.assets.index');
-            Route::post('/marketing/medien', [MarketingAssetController::class, 'store'])
-                ->middleware('throttle:20,1')
-                ->name('marketing.assets.store');
-            Route::get('/marketing/medien/{asset}', [MarketingAssetController::class, 'show'])
-                ->whereUuid('asset')
+            Route::get('/marketing/dateien/{file}', MarketingFileController::class)
+                ->whereNumber('file')
                 ->middleware('throttle:120,1')
-                ->name('marketing.assets.show');
-            Route::put('/marketing/medien/{asset}', [MarketingAssetController::class, 'update'])
-                ->whereUuid('asset')
-                ->middleware('throttle:20,1')
-                ->name('marketing.assets.update');
-            Route::delete('/marketing/medien/{asset}', [MarketingAssetController::class, 'destroy'])
-                ->whereUuid('asset')
-                ->middleware('throttle:30,1')
-                ->name('marketing.assets.destroy');
+                ->name('marketing.files.show');
             Route::get('/marketing/renders/{render}', [MarketingRenderController::class, 'show'])
                 ->whereUuid('render')
                 ->middleware('throttle:120,1')

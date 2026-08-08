@@ -2,9 +2,10 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
 use App\Models\File;
 use App\Models\FileFolder;
+use App\Services\Marketing\MarketingFileSourceService;
+use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
 class PurgeExpiredFiles extends Command
@@ -45,7 +46,7 @@ class PurgeExpiredFiles extends Command
             }
 
             try {
-                $file->delete();
+                app(MarketingFileSourceService::class)->handleForcedFileDeletion($file);
                 $deletedFiles++;
             } catch (\Throwable $e) {
                 Log::warning('Konnte abgelaufene Datei nicht loeschen', [
@@ -68,7 +69,7 @@ class PurgeExpiredFiles extends Command
             }
 
             try {
-                $folder->deleteRecursive();
+                app(MarketingFileSourceService::class)->handleForcedFolderDeletion($folder);
                 $deletedFolders++;
             } catch (\Throwable $e) {
                 Log::warning('Konnte abgelaufenen Ordner nicht loeschen', [

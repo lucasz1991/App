@@ -492,6 +492,12 @@ body[data-mode='dark'] .rt-marketing-builder-root {
     display: none !important;
 }
 
+/* Marketing-Bilder werden ausschließlich im zentralen Dateien-Modul
+   gepflegt. Der LMZ-Asset-Manager bleibt hier eine reine Auswahlansicht. */
+.rt-marketing-builder-root [data-lmz-action='upload'] {
+    display: none !important;
+}
+
 .rt-marketing-editor-frame[data-read-only='true'] .lmz-builder__canvas,
 .rt-marketing-editor-frame[data-read-only='true'] .lmz-builder__canvas iframe,
 .rt-marketing-editor-frame[data-read-only='true'] [data-lmz-mount='blocks'],

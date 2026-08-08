@@ -25,6 +25,7 @@ class MarketingCreative extends Model
         'shared_content',
         'approved_by',
         'approved_at',
+        'approval_dependency_hash',
         'created_by',
         'updated_by',
     ];

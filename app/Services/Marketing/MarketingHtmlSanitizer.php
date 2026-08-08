@@ -9,6 +9,8 @@ use DOMXPath;
 
 final class MarketingHtmlSanitizer
 {
+    public function __construct(private readonly MarketingFileSourceService $files) {}
+
     /** @var list<string> */
     private const FORBIDDEN_ELEMENTS = [
         'script', 'iframe', 'frame', 'frameset', 'object', 'embed', 'form',
@@ -211,6 +213,7 @@ final class MarketingHtmlSanitizer
         }
 
         $path = $url;
+        $query = '';
         if (preg_match('/^https?:/i', $url)) {
             $candidate = parse_url($url);
             $application = parse_url((string) config('app.url'));
@@ -223,12 +226,22 @@ final class MarketingHtmlSanitizer
             }
 
             $path = (string) ($candidate['path'] ?? '');
+            $query = (string) ($candidate['query'] ?? '');
+        } else {
+            $candidate = parse_url($url);
+            if (! is_array($candidate) || isset($candidate['scheme'], $candidate['host'], $candidate['fragment'])) {
+                return false;
+            }
+
+            $path = (string) ($candidate['path'] ?? '');
+            $query = (string) ($candidate['query'] ?? '');
         }
 
-        $path = preg_replace('/[?#].*$/', '', $path) ?? $path;
+        if (MarketingBrandAssets::allows($path)) {
+            return $query === '' || (bool) preg_match('/^v=[a-f0-9]{8,64}$/i', $query);
+        }
 
-        return MarketingBrandAssets::allows($path)
-            || (bool) preg_match('#^/administrator/marketing/(?:medien|assets)/[0-9a-f-]{36}$#i', $path);
+        return $this->files->urlIsAllowed($url);
     }
 
     private function isSafeInlineImage(string $url): bool

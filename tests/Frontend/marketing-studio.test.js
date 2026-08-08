@@ -13,6 +13,7 @@ import {
     createMarketingBlocks,
     normalizeVariantPayload,
     projectForVariant,
+    removeBuilderUploadControls,
     renderRequestIsCurrent,
     replaceEndpointToken,
     resolveArtboard,
@@ -102,6 +103,24 @@ test('marketing artboards keep the exact publishing dimensions', () => {
     assert.deepEqual(MARKETING_ARTBOARDS.post, { label: 'Post', width: 1080, height: 1080 });
     assert.deepEqual(MARKETING_ARTBOARDS.web, { label: 'Web', width: 1200, height: 630 });
     assert.equal(resolveArtboard('unknown'), MARKETING_ARTBOARDS.story);
+});
+
+test('the read-only file library removes vendor upload controls from semantics and keyboard order', () => {
+    const controls = [
+        { removed: false, remove() { this.removed = true; } },
+        { removed: false, remove() { this.removed = true; } },
+    ];
+    const root = {
+        querySelectorAll(selector) {
+            assert.equal(selector, '[data-lmz-action="upload"], [data-lmz-upload-input]');
+
+            return controls;
+        },
+    };
+
+    assert.equal(removeBuilderUploadControls(root), 2);
+    assert.deepEqual(controls.map(({ removed }) => removed), [true, true]);
+    assert.equal(removeBuilderUploadControls(null), 0);
 });
 
 test('each LMZ format exposes pixel-valid logical frame variables before visual scaling', () => {
@@ -1187,6 +1206,10 @@ test('adapter explicitly disables Joomla web defaults and fallback projects', as
         .then(({ readFile }) => readFile(new URL('../../resources/js/marketing-studio.js', import.meta.url), 'utf8'));
     const editorSource = await import('node:fs/promises')
         .then(({ readFile }) => readFile(new URL('../../app/Livewire/Admin/Marketing/CreativeEditor.php', import.meta.url), 'utf8'));
+    const appSource = await import('node:fs/promises')
+        .then(({ readFile }) => readFile(new URL('../../resources/js/app.js', import.meta.url), 'utf8'));
+    const cssSource = await import('node:fs/promises')
+        .then(({ readFile }) => readFile(new URL('../../resources/css/marketing-studio.css', import.meta.url), 'utf8'));
 
     assert.match(source, /useStudioWebDefaults:\s*false/);
     assert.match(source, /allowFallbackProject:\s*false/);
@@ -1200,6 +1223,17 @@ test('adapter explicitly disables Joomla web defaults and fallback projects', as
     assert.match(source, /\[data-marketing-artboard-label\]/);
     assert.match(source, /\[data-marketing-scale-label\]/);
     assert.match(source, /marketing-editor:viewport-change/);
+    assert.match(source, /assets:\s*{\s*onLoad:\s*async \(\) => config\.assets \|\| \[\]/);
+    assert.match(source, /assetManager:\s*{\s*upload:\s*false\s*}/);
+    assert.doesNotMatch(source, /\bonUpload\s*:/);
+    assert.doesNotMatch(source, /assetUpload/);
+    assert.doesNotMatch(source, /marketingAssetLibrary/);
+    assert.match(appSource, /import '\.\/marketing-studio';/);
+    assert.doesNotMatch(appSource, /Alpine\.data\('marketingAssetLibrary'/);
+    assert.match(cssSource, /\[data-lmz-action='upload'\]\s*{\s*display:\s*none\s*!important/);
     assert.match(editorSource, /'logoLightUrl'\s*=>\s*asset\('rt-brand\/img\/logo-horizontal\.png'\)/);
     assert.match(editorSource, /'logoDarkUrl'\s*=>\s*asset\('rt-brand\/img\/logo-horizontal-darkbg\.png'\)/);
+    assert.match(editorSource, /MarketingFileSourceService/);
+    assert.doesNotMatch(editorSource, /MarketingAsset/);
+    assert.doesNotMatch(editorSource, /assetUpload/);
 });

@@ -44,6 +44,36 @@
     @endif
 
     <div
+        @class([
+            'flex flex-col gap-3 rounded-xl border px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between',
+            'border-rt-border bg-rt-surface text-rt-muted dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-muted' => ! $mediaSourceInvalid,
+            'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-500/10 dark:text-rose-200' => $mediaSourceInvalid,
+        ])
+        @if ($mediaSourceInvalid) role="alert" @else role="status" @endif
+        data-marketing-media-source
+    >
+        <div class="flex min-w-0 items-start gap-3">
+            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rt-surface-muted text-rt-red dark:bg-rt-dark-surface-muted dark:text-rose-300">
+                <i data-feather="{{ $mediaSourceInvalid ? 'alert-triangle' : 'folder' }}" class="h-4 w-4" aria-hidden="true"></i>
+            </span>
+            <div class="min-w-0">
+                <p class="break-words font-semibold text-rt-text dark:text-rt-dark-text">Bildquelle: <span>{{ $mediaSourcePath }}</span></p>
+                <p class="mt-0.5 text-xs leading-5">
+                    @if ($mediaSourceInvalid)
+                        Keine Bilder verfügbar. Lege auf der Motive-Seite das Grundverzeichnis oder einen vorhandenen Ordner fest.
+                    @else
+                        {{ $mediaAssetCount }} {{ $mediaAssetCount === 1 ? 'Bild' : 'Bilder' }} aus diesem Ordnerbaum · Uploads und Änderungen erfolgen zentral unter Dateien.
+                    @endif
+                </p>
+            </div>
+        </div>
+        <a href="{{ $mediaFilesUrl }}" wire:navigate class="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-current/20 px-3.5 text-sm font-semibold transition hover:border-rt-red/40 hover:text-rt-red">
+            <i data-feather="external-link" class="h-4 w-4" aria-hidden="true"></i>
+            Dateien öffnen
+        </a>
+    </div>
+
+    <div
         class="rt-marketing-workbench"
         data-marketing-editor-workbench
         data-mobile-pane="layout"

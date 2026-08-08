@@ -3,8 +3,8 @@
 namespace App\Livewire\Admin\Marketing;
 
 use App\Enums\MarketingCreativeFormat;
-use App\Models\MarketingAsset;
 use App\Models\MarketingCreative;
+use App\Services\Marketing\MarketingFileSourceService;
 use BackedEnum;
 use Livewire\Component;
 
@@ -23,7 +23,7 @@ class CreativeEditor extends Component
         $this->format = MarketingCreativeFormat::tryFrom($requestedFormat)?->value ?? MarketingCreativeFormat::Story->value;
     }
 
-    public function render()
+    public function render(MarketingFileSourceService $media)
     {
         abort_unless(auth()->user()?->isAdmin(), 403);
 
@@ -43,20 +43,14 @@ class CreativeEditor extends Component
             })
             ->all();
 
-        $assets = MarketingAsset::query()
-            ->latest('created_at')
-            ->limit(250)
-            ->get()
-            ->map(fn (MarketingAsset $asset): array => [
-                'public_id' => $asset->public_id,
-                'src' => route('admin.marketing.assets.show', $asset).'?v='.substr((string) $asset->sha256, 0, 16),
-                'name' => $asset->original_name,
-                'type' => $asset->mime_type,
-                'width' => $asset->width,
-                'height' => $asset->height,
-            ])
-            ->values()
-            ->all();
+        $selectedFolderId = $media->selectedFolderId();
+        $selectedFolder = $media->selectedFolder();
+        $mediaSourceInvalid = $selectedFolderId !== null && $selectedFolder === null;
+        $folderTree = $media->folderTree();
+        $selectedFolderNode = collect($folderTree)->first(
+            fn (array $folder): bool => (bool) ($folder['selected'] ?? false)
+        );
+        $assets = $mediaSourceInvalid ? [] : $media->editorAssets();
 
         $editorConfig = [
             'creativeId' => $creative->public_id,
@@ -76,7 +70,6 @@ class CreativeEditor extends Component
             'endpoints' => [
                 'creativeUpdate' => route('admin.marketing.creatives.update', $creative),
                 'variantUpdate' => route('admin.marketing.variants.update', [$creative, '__FORMAT__']),
-                'assetUpload' => route('admin.marketing.assets.store'),
                 'renderStore' => route('admin.marketing.renders.store', $creative),
                 'renderShow' => route('admin.marketing.renders.show', '__RENDER__'),
                 'renderDownload' => route('admin.marketing.renders.download', '__RENDER__'),
@@ -86,6 +79,15 @@ class CreativeEditor extends Component
         return view('livewire.admin.marketing.creative-editor', [
             'creativeRecord' => $creative,
             'editorConfig' => $editorConfig,
+            'mediaSourceInvalid' => $mediaSourceInvalid,
+            'mediaSourcePath' => $mediaSourceInvalid
+                ? 'Ausgewählter Ordner nicht mehr verfügbar'
+                : ($selectedFolderNode['path'] ?? 'Firmendateien / Grundverzeichnis'),
+            'mediaAssetCount' => $mediaSourceInvalid ? 0 : $media->editorAssetCount(),
+            'mediaFilesUrl' => route(
+                'admin.files',
+                $selectedFolder && ! $mediaSourceInvalid ? ['folder' => $selectedFolder->getKey()] : [],
+            ),
         ])->layout('layouts.master', ['area' => 'admin']);
     }
 }

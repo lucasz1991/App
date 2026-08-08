@@ -2,9 +2,11 @@
 
 namespace App\Models;
 
+use App\Services\Marketing\MarketingFileSourceService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
 
 class FileFolder extends Model
 {
@@ -26,6 +28,29 @@ class FileFolder extends Model
         'auto_delete' => 'boolean',
         'visible_teams' => 'array',
     ];
+
+    protected static function booted(): void
+    {
+        static::updating(function (FileFolder $folder): void {
+            $marketingFiles = app(MarketingFileSourceService::class);
+
+            if ($folder->isDirty(['parent_id', 'file_pool_id'])) {
+                $marketingFiles->assertFolderCanMoveTo(
+                    $folder,
+                    $folder->parent_id ? (int) $folder->parent_id : null,
+                    (int) $folder->file_pool_id,
+                );
+            }
+
+            if ($folder->isDirty(['visible_from', 'visible_until', 'auto_delete'])) {
+                $marketingFiles->handleFolderMutation($folder);
+            }
+        });
+
+        static::deleting(function (FileFolder $folder): void {
+            app(MarketingFileSourceService::class)->assertFolderCanBeDeleted($folder);
+        });
+    }
 
     /**
      * Aktionen, die je Team vergeben werden können.
@@ -181,10 +206,20 @@ class FileFolder extends Model
      * Ordner samt Unterordnern und Dateien löschen (über Eloquent, damit
      * die Datei-Blobs auf der Disk mit entfernt werden).
      */
-    public function deleteRecursive(): void
+    public function deleteRecursive(bool $preflight = true): void
     {
+        if ($preflight) {
+            app(MarketingFileSourceService::class)->assertFolderCanBeDeleted($this);
+
+            DB::transaction(function (): void {
+                $this->deleteRecursive(false);
+            });
+
+            return;
+        }
+
         foreach ($this->children()->get() as $child) {
-            $child->deleteRecursive();
+            $child->deleteRecursive(false);
         }
 
         foreach ($this->files()->get() as $file) {
