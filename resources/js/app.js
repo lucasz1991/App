@@ -63,6 +63,7 @@ import {
 } from './navigation-particle-loader';
 import { ensureRailTimeNavigationCoordinator } from './navigation-coordinator';
 import { chatMessageActions } from './chat-message-actions';
+import { modalBody, trackLivewireRequests } from './modal-body';
 import { registerRailtimeLiveLocation } from './live-location';
 import './marketing-studio';
 
@@ -590,6 +591,11 @@ document.addEventListener('livewire:navigated', rtApplyTheme);
 // Ein Reload ist hier korrekt (anders als auf der 419-Fehlerseite): das
 // aktuelle Dokument wurde per GET geladen, es wird also kein POST wiederholt.
 // ---------------------------------------------------------------
+
+// Zaehlt laufende Livewire-Anfragen fuer die Inhaltsschleuse der Dialoge:
+// ein Dialogrumpf, der gerade nachgeladen wird, gilt als noch nicht bereit.
+trackLivewireRequests(Livewire);
+
 Livewire.hook('request', ({ fail }) => {
     fail(({ status, preventDefault }) => {
         if (status !== 419) {
@@ -647,6 +653,7 @@ Alpine.data('welcomeIntro', welcomeIntro);
 Alpine.data('railtimeChatbot', railtimeChatbot);
 Alpine.data('railtimeAssistantCloud', railtimeAssistantCloud);
 Alpine.data('chatMessageActions', chatMessageActions);
+Alpine.data('rtModalBody', modalBody);
 initMobileFormFocusRecovery();
 initKeyboardViewport();
 

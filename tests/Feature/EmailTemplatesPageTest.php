@@ -573,21 +573,69 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertSame(1440, $width);
         $this->assertSame(150, $height);
 
-        foreach ([
-            'mail-templates/signature-light-master.html' => '.rt-sign-identity { padding: 18px 0 0 !important; }',
-            'mail-templates/signature-dark-master.html' => '.rt-sign-identity { padding: 18px 0 0 !important; }',
-            'mail-templates/email-master.html' => 'tr.rt-stack > td.rt-sign-identity { padding: 18px 0 0 !important; }',
-            'views/vendor/mail/html/layout.blade.php' => 'tr.rt-stack > td.rt-sign-identity { padding: 18px 0 0 !important; }',
-        ] as $file => $identityRule) {
-            $source = file_get_contents(resource_path($file));
+        // Die Umbruchregeln stehen in EINER Quelle. Vorher lagen sie
+        // viermal im Projekt und waren bereits auseinandergelaufen: die
+        // Vorlage brach bei 680 px um, die Signatur bei 620 px.
+        $regeln = file_get_contents(resource_path('views/emails/parts/responsive-css.blade.php'));
 
-            $this->assertStringContainsString(
-                '.rt-sign-cell { background-size: 100% 100%, 125% auto, 125% auto !important; }',
-                $source,
-                $file,
-            );
-            $this->assertStringContainsString('padding: 0 0 12px !important;', $source, $file);
-            $this->assertStringContainsString($identityRule, $source, $file);
+        $this->assertStringContainsString(
+            '.rt-sign-cell { background-size: 100% 100%, 125% auto, 125% auto !important; }',
+            $regeln,
+        );
+        $this->assertStringContainsString('padding: 0 0 12px !important;', $regeln);
+        $this->assertStringContainsString('.rt-sign-identity { padding: 18px 0 0 !important; }', $regeln);
+        $this->assertStringContainsString('tr.rt-stack > td.rt-sign-identity { padding: 18px 0 0 !important; }', $regeln);
+
+        // Und jede Ausgabestelle zieht daraus, statt eine eigene Kopie zu halten.
+        foreach ([
+            'mail-templates/signature-light-master.html',
+            'mail-templates/signature-dark-master.html',
+            'mail-templates/email-master.html',
+        ] as $file) {
+            $source = file_get_contents(resource_path($file));
+            $this->assertStringContainsString('{{RESPONSIVE_CSS}}', $source, $file);
+            $this->assertStringNotContainsString('@media only screen', $source, $file);
+        }
+
+        $layout = file_get_contents(resource_path('views/vendor/mail/html/layout.blade.php'));
+        $this->assertStringContainsString("@include('emails.parts.responsive-css'", $layout);
+        $this->assertStringNotContainsString('@media only screen', $layout);
+    }
+
+    /**
+     * Drei Stufen statt einer: ohne die Tablet-Stufe stand die Signatur auf
+     * einem 700-px-Schirm weiter im vollen Breitlayout und war gequetscht.
+     */
+    public function test_mail_layout_breaks_in_three_stages_from_one_source(): void
+    {
+        $regeln = file_get_contents(resource_path('views/emails/parts/responsive-css.blade.php'));
+
+        preg_match_all('/@media only screen and \(max-width: (\d+)px\)/', $regeln, $treffer);
+
+        $this->assertSame(['1000', '860', '480'], $treffer[1]);
+
+        // Gestapelt wird ab der mittleren Stufe — nicht erst auf dem Telefon.
+        $stapelStufe = strpos($regeln, 'max-width: 860px');
+        $telefonStufe = strpos($regeln, 'max-width: 480px');
+        $stapelRegel = strpos($regeln, 'tr.rt-stack > td { box-sizing');
+
+        $this->assertIsInt($stapelRegel);
+        $this->assertGreaterThan($stapelStufe, $stapelRegel);
+        $this->assertLessThan($telefonStufe, $stapelRegel);
+
+        // Jede erzeugte Datei traegt alle drei Stufen.
+        $user = User::factory()->create(['name' => 'Mara Beispiel']);
+        UserProfile::create(['user_id' => $user->id, 'position' => 'Disposition']);
+        $builder = new EmailTemplateBuilder($user->fresh());
+
+        foreach (['vorlage-html', 'signatur-hell', 'signatur-dunkel'] as $key) {
+            $html = $builder->build($key)['content'];
+
+            foreach (['1000px', '860px', '480px'] as $stufe) {
+                $this->assertStringContainsString('max-width: '.$stufe, $html, "{$key} / {$stufe}");
+            }
+
+            $this->assertStringNotContainsString('{{RESPONSIVE_CSS}}', $html, $key);
         }
     }
 

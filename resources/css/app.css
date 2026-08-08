@@ -304,10 +304,21 @@ body[data-mode="dark"] .rt-ui-surface-muted {
  * weiter nach oben aus dem Bild hinaus — er reist also einmal durch,
  * statt an Ort und Stelle zu erscheinen und zu verschwinden.
  *
- * Die Wegstrecke ist bewusst `50vh + 50%`: 50 % der eigenen Hoehe bringt
- * die Kante des Panels auf die Bildmitte, die 50vh schieben sie von dort
- * ueber den Rand. Damit verlaesst JEDES Panel das Bild vollstaendig —
- * unabhaengig von seiner Hoehe und ohne feste Pixelwerte.
+ * WEGSTRECKE: 100dvh, also rein bildschirmbezogen.
+ *
+ * Frueher stand hier `calc(50vh + 50%)`. Die 50 % beziehen sich in einem
+ * translate auf die EIGENE Hoehe des Panels — und die rechnet der Browser
+ * bei jeder Hoehenaenderung neu aus. Aendert sich der Inhalt waehrend der
+ * Fahrt (Livewire liefert nach, ein Bild wird fertig, eine Schrift tauscht),
+ * verschiebt sich das Ziel mitten in der Bewegung und der Dialog springt.
+ * Gemessen in echtem Chrome: 317 -> 703 px Panelhoehe waehrend der Einfahrt.
+ *
+ * 100dvh haengt an nichts, was der Inhalt beeinflussen kann, und reicht in
+ * jedem Fall: ein mittig sitzendes Panel ist hoechstens bildschirmhoch und
+ * wird durch eine volle Bildschirmhoehe immer vollstaendig hinausgeschoben.
+ *
+ * translate3d statt translateY: erzwingt die eigene Compositor-Ebene schon
+ * im ersten Einzelbild, statt sie erst ueber will-change nachzureichen.
  *
  * Keine opacity, kein Blur, kein Scale: genau das wirkte zuvor unruhig. */
 .rt-motion-modal-enter {
@@ -316,12 +327,12 @@ body[data-mode="dark"] .rt-ui-surface-muted {
 }
 
 .rt-motion-modal-enter-from {
-    transform: translateY(calc(50vh + 50%));
+    transform: translate3d(0, 100dvh, 0);
 }
 
 .rt-motion-modal-enter-to,
 .rt-motion-modal-leave-from {
-    transform: translateY(0);
+    transform: translate3d(0, 0, 0);
 }
 
 .rt-motion-modal-leave {
@@ -330,7 +341,62 @@ body[data-mode="dark"] .rt-ui-surface-muted {
 }
 
 .rt-motion-modal-leave-to {
-    transform: translateY(calc(-50vh - 50%));
+    transform: translate3d(0, -100dvh, 0);
+}
+
+/* ------------------------------------------------------------------
+ * Inhaltsschleuse der Dialoge (components/dialog-modal.blade.php,
+ * gesteuert von resources/js/modal-body.js).
+ *
+ * Solange der Rumpf nicht steht, haelt eine feste Reservehoehe die
+ * Geometrie ruhig und ein Skelett fuellt die Flaeche. Erst danach wird
+ * der echte Inhalt eingeblendet — die Einfahrt laeuft dadurch gegen eine
+ * unveraenderliche Hoehe.
+ *
+ * display:contents im Bereitzustand: der Huellcontainer verschwindet aus
+ * dem Boxenbaum, damit Abstands- und :first-child-Regeln der einzelnen
+ * Dialoginhalte weiter greifen, als gaebe es ihn nicht.
+ * ------------------------------------------------------------------ */
+[data-rt-modal-body][data-rt-state='loading'] {
+    min-height: 9.5rem;
+}
+
+[data-rt-modal-body][data-rt-state='loading'] [data-rt-modal-body-content] {
+    display: none;
+}
+
+[data-rt-modal-body][data-rt-state='ready'] [data-rt-modal-body-content] {
+    display: contents;
+}
+
+[data-rt-modal-body][data-rt-state='ready'] .rt-modal-body-loader {
+    display: none;
+}
+
+/* Nur der Inhalt blendet ein — das Panel bewegt sich zu diesem Zeitpunkt
+ * nicht mehr, seine Fahrt ist vorbei. */
+[data-rt-modal-body][data-rt-state='ready'] {
+    animation: rt-modal-body-in 220ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.rt-modal-body-loader {
+    padding: 0.25rem 0;
+}
+
+@keyframes rt-modal-body-in {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    [data-rt-modal-body][data-rt-state='ready'] {
+        animation: none;
+    }
 }
 
 /* Eine scrollende Modal-Huelle (components/modal.blade.php) darf waehrend
@@ -349,19 +415,20 @@ body[data-mode="dark"] .rt-ui-surface-muted {
 
 /* Vollflaechige Ebenen (Wagenlisten-Editor, Video-Erfassung): dieselbe
  * Reise wie die Dialoge, nur etwas ruhiger — die Flaeche ist groesser.
- * Ebenfalls ohne opacity: die Ebene schiebt sich herauf und wieder hinaus. */
+ * Ebenfalls ohne opacity: die Ebene schiebt sich herauf und wieder hinaus.
+ * Wegstrecke wie bei den Dialogen bildschirmbezogen, nicht panelbezogen. */
 .rt-motion-screen-enter {
     transition: transform 560ms cubic-bezier(0.16, 1, 0.3, 1);
     will-change: transform;
 }
 
 .rt-motion-screen-enter-from {
-    transform: translateY(calc(50vh + 50%));
+    transform: translate3d(0, 100dvh, 0);
 }
 
 .rt-motion-screen-enter-to,
 .rt-motion-screen-leave-from {
-    transform: translateY(0);
+    transform: translate3d(0, 0, 0);
 }
 
 .rt-motion-screen-leave {
@@ -370,7 +437,7 @@ body[data-mode="dark"] .rt-ui-surface-muted {
 }
 
 .rt-motion-screen-leave-to {
-    transform: translateY(calc(-50vh - 50%));
+    transform: translate3d(0, -100dvh, 0);
 }
 
 /* Dropdown-Panels entfalten sich aus dem Caret-Punkt des Ausloesers

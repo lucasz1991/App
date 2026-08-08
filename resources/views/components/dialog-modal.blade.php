@@ -1,9 +1,16 @@
-@props(['id' => null, 'maxWidth' => null])
+@props([
+    'id' => null,
+    'maxWidth' => null,
+    // Schaltet die Inhaltsschleuse ab. Nur fuer Dialoge sinnvoll, deren
+    // Inhalt selbst schon eine eigene Ladedarstellung mitbringt.
+    'instant' => false,
+])
 
 @php
     $modalId = $id ?? md5($attributes->wire('model'));
     $titleId = $modalId.'-title';
     $contentId = $modalId.'-content';
+    $gated = ! filter_var($instant, FILTER_VALIDATE_BOOLEAN);
 @endphp
 
 <x-modal
@@ -53,8 +60,47 @@
         </div>
     </header>
 
-    <div id="{{ $contentId }}" class="rt-modal-content min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-5 py-5 text-sm leading-6 text-rt-text [overflow-wrap:anywhere] [scrollbar-gutter:stable] dark:text-rt-dark-text sm:px-6 sm:py-6 [&_iframe]:max-w-full [&_img]:max-w-full [&_video]:max-w-full">
-        {{ $content }}
+    {{--
+        INHALTSSCHLEUSE — der Grund, warum die Einfahrt sauber laeuft.
+
+        Die Einfahrt bewegt das Panel per transform. Aendert sich waehrend
+        dieser Bewegung die Hoehe des Panels — weil Livewire-Inhalt nachkommt,
+        ein Bild fertig laedt oder eine Schrift tauscht — springt der Dialog
+        mitten in der Fahrt (gemessen: 317 -> 703 px waehrend der Einfahrt).
+
+        Deshalb: solange der Inhalt nicht steht, zeigt der Rumpf ein Skelett
+        mit fester Reservehoehe. Erst wenn alles bereit ist, wird der echte
+        Inhalt eingeblendet.
+
+        WICHTIG — kein kuenstlicher Aufenthalt: Steht der Inhalt beim Oeffnen
+        bereits (der Normalfall), schaltet rtModalBody noch VOR dem ersten
+        Einzelbild auf "ready". Dann erscheint gar kein Skelett und es geht
+        keine Zeit verloren.
+
+        display:contents im Bereitzustand: Der Huellcontainer verschwindet
+        dadurch aus dem Boxenbaum. Abstands- und :first-child-Regeln der
+        Dialoginhalte greifen weiter, als gaebe es ihn nicht.
+    --}}
+    <div
+        id="{{ $contentId }}"
+        class="rt-modal-content min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-5 py-5 text-sm leading-6 text-rt-text [overflow-wrap:anywhere] [scrollbar-gutter:stable] dark:text-rt-dark-text sm:px-6 sm:py-6 [&_iframe]:max-w-full [&_img]:max-w-full [&_video]:max-w-full"
+        @if ($gated)
+            x-data="rtModalBody"
+            data-rt-modal-body
+            data-rt-state="loading"
+        @endif
+    >
+        @if ($gated)
+            <div class="rt-modal-body-loader" data-rt-modal-loader>
+                <x-ui.loading.skeleton variant="list" :rows="3" />
+            </div>
+
+            <div data-rt-modal-body-content>
+                {{ $content }}
+            </div>
+        @else
+            {{ $content }}
+        @endif
     </div>
 
     @isset($footer)

@@ -312,8 +312,25 @@ class EmailTemplateBuilder
         return resource_path('mail-templates/'.$file);
     }
 
+    /**
+     * Umbruchregeln fuer Vorlage UND Signatur aus einer einzigen Quelle.
+     *
+     * Vorher stand derselbe Media-Query-Block viermal im Projekt und war
+     * bereits auseinandergelaufen (Vorlage 680 px, Signatur 620 px) — in
+     * einer Mail, die beides enthaelt, sprang das Layout dadurch an zwei
+     * verschiedenen Breiten.
+     */
+    public static function responsiveCss(?string $border = null): string
+    {
+        return trim(view('emails.parts.responsive-css', [
+            'border' => $border ?: '#e6e8ec',
+        ])->render());
+    }
+
     protected function substitute(string $template, array $values): string
     {
+        $values['RESPONSIVE_CSS'] ??= static::responsiveCss($values['SIGNATURE_BORDER'] ?? null);
+
         foreach ($values as $key => $value) {
             $template = str_replace('{{'.$key.'}}', $value, $template);
         }

@@ -23,25 +23,9 @@ table, td { border-collapse: collapse !important; mso-table-lspace: 0pt !importa
 img { border: 0; display: block; height: auto; line-height: 100%; outline: none; text-decoration: none; }
 a { color: inherit; }
 .rt-shell { width: 100% !important; max-width: none !important; }
-@media only screen and (max-width: 680px) {
-.rt-pad { padding-left: 24px !important; padding-right: 24px !important; }
-.rt-title { font-size: 27px !important; line-height: 32px !important; }
-{{-- Nur direkte Zellen umbrechen: ein Nachfahren-Selektor wuerde auch die
-     verschachtelte Kontakttabelle der Signatur zerlegen. --}}
-tr.rt-stack > td { box-sizing: border-box !important; display: block !important; width: 100% !important; }
-tr.rt-stack > td + td { padding-top: 30px !important; }
-.rt-contact { width: auto !important; }
-.rt-contact td.rt-contact-icon, .rt-contact td.rt-contact-text { display: table-cell !important; box-sizing: content-box !important; padding-top: 0 !important; }
-.rt-contact td.rt-contact-icon { width: 22px !important; }
-.rt-contact td.rt-contact-text { width: auto !important; font-size: 13px !important; line-height: 19px !important; }
-.rt-sign-name { font-size: 22px !important; line-height: 26px !important; }
-.rt-sign-logo { border-left: 0 !important; border-bottom: 1px solid {{ $palette['SIGNATURE_BORDER'] }} !important; padding: 0 0 12px !important; text-align: left !important; }
-.rt-sign-logo img { width: 190px !important; margin-left: 0 !important; }
-tr.rt-stack > td.rt-sign-identity { padding: 18px 0 0 !important; }
-.rt-only-wide { display: none !important; max-height: 0 !important; overflow: hidden !important; }
-.rt-only-narrow { display: block !important; max-height: none !important; overflow: visible !important; font-size: 11px !important; line-height: 18px !important; }
-.rt-sign-cell { background-size: 100% 100%, 125% auto, 125% auto !important; }
-}
+{{-- Umbruchregeln aus derselben Quelle wie die herunterladbare Vorlage und
+     die Signaturdateien — sonst laufen sie wieder auseinander. --}}
+@include('emails.parts.responsive-css', ['border' => $palette['SIGNATURE_BORDER']])
 </style>
 </head>
 <body data-rt-theme="{{ $palette['THEME'] }}" bgcolor="{{ $palette['PAGE_BG'] }}" style="margin:0;padding:0;background:{{ $palette['PAGE_BG'] }};color:{{ $palette['TEXT_PRIMARY'] }};font-family:Arial,Helvetica,sans-serif;word-spacing:normal;">
