@@ -20,13 +20,14 @@ return new class extends Migration
         }
 
         $this->preflightMarketingJson();
+        $importFolderId = $this->preflightMarketingSetting();
         $this->addFileMetadataColumns();
         $this->addApprovalDependencyColumn();
         $this->resetLegacyApprovalsWithoutDependencySnapshot();
         $poolId = $this->companyPoolId();
 
         if (Schema::hasTable('marketing_assets')) {
-            $mapping = $this->importLegacyAssets($poolId, $this->importTargetFolderId($poolId));
+            $mapping = $this->importLegacyAssets($poolId, $importFolderId);
             $this->rewriteMarketingContent($mapping, false);
         }
 
@@ -163,6 +164,78 @@ return new class extends Migration
         });
     }
 
+    private function preflightMarketingSetting(): ?int
+    {
+        if (! Schema::hasTable('settings')) {
+            return null;
+        }
+
+        $row = DB::table('settings')
+            ->where('type', 'marketing')
+            ->where('key', 'file_source')
+            ->first(['value']);
+        if (! $row) {
+            return null;
+        }
+        $stored = $row->value;
+        if (! is_string($stored)) {
+            throw new RuntimeException('Ungültige Marketing-Dateiquelle; die Migration wurde vor Schemaänderungen abgebrochen.');
+        }
+
+        try {
+            $decoded = json_decode($stored, true, flags: JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new RuntimeException('Ungültiges JSON in settings.marketing.file_source; die Migration wurde vor Schemaänderungen abgebrochen.', 0, $exception);
+        }
+
+        if (! is_array($decoded) || ! array_key_exists('selected_folder_id', $decoded)) {
+            throw new RuntimeException('Unerwartete Struktur in settings.marketing.file_source; die Migration wurde vor Schemaänderungen abgebrochen.');
+        }
+
+        $rawFolderId = $decoded['selected_folder_id'];
+        if ($rawFolderId === null) {
+            return null;
+        }
+        if (! is_int($rawFolderId) && ! (is_string($rawFolderId) && ctype_digit($rawFolderId))) {
+            throw new RuntimeException('Ungültige Ordner-ID in settings.marketing.file_source; die Migration wurde vor Schemaänderungen abgebrochen.');
+        }
+
+        $folderId = (int) $rawFolderId;
+        if ($folderId < 1 || ! Schema::hasTable('file_folders')) {
+            throw new RuntimeException('Die konfigurierte Marketing-Dateiquelle ist nicht verfügbar; die Migration wurde vor Schemaänderungen abgebrochen.');
+        }
+
+        $poolId = DB::table('file_pools')
+            ->where('filepoolable_type', 'company')
+            ->where('filepoolable_id', 0)
+            ->value('id');
+        if (! $poolId) {
+            throw new RuntimeException('Die konfigurierte Marketing-Dateiquelle gehört zu keinem Firmen-Dateipool; die Migration wurde vor Schemaänderungen abgebrochen.');
+        }
+
+        $visited = [];
+        $currentId = $folderId;
+        for ($depth = 0; $depth < 250; $depth++) {
+            if (isset($visited[$currentId])) {
+                throw new RuntimeException('Die konfigurierte Marketing-Dateiquelle enthält einen Ordnerzyklus; die Migration wurde vor Schemaänderungen abgebrochen.');
+            }
+            $visited[$currentId] = true;
+
+            $folder = DB::table('file_folders')->where('id', $currentId)->first();
+            if (! $folder || (int) $folder->file_pool_id !== (int) $poolId) {
+                throw new RuntimeException('Die konfigurierte Marketing-Dateiquelle ist nicht verfügbar; die Migration wurde vor Schemaänderungen abgebrochen.');
+            }
+
+            if ($folder->parent_id === null) {
+                return $folderId;
+            }
+
+            $currentId = (int) $folder->parent_id;
+        }
+
+        throw new RuntimeException('Die konfigurierte Marketing-Dateiquelle ist zu tief verschachtelt; die Migration wurde vor Schemaänderungen abgebrochen.');
+    }
+
     private function resetLegacyApprovalsWithoutDependencySnapshot(): void
     {
         if (! Schema::hasTable('marketing_creatives') || ! Schema::hasColumn('marketing_creatives', 'approval_dependency_hash')) {
@@ -200,60 +273,6 @@ return new class extends Migration
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-    }
-
-    private function importTargetFolderId(int $poolId): ?int
-    {
-        if (! Schema::hasTable('settings') || ! Schema::hasTable('file_folders')) {
-            return null;
-        }
-
-        $stored = DB::table('settings')
-            ->where('type', 'marketing')
-            ->where('key', 'file_source')
-            ->value('value');
-        if (! is_string($stored)) {
-            return null;
-        }
-
-        try {
-            $decoded = json_decode($stored, true, flags: JSON_THROW_ON_ERROR);
-        } catch (\JsonException) {
-            return null;
-        }
-
-        if (! is_array($decoded)
-            || ! array_key_exists('selected_folder_id', $decoded)
-            || $decoded['selected_folder_id'] === null) {
-            return null;
-        }
-
-        $folderId = filter_var($decoded['selected_folder_id'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
-        if (! is_int($folderId)) {
-            return null;
-        }
-
-        $visited = [];
-        $currentId = $folderId;
-        for ($depth = 0; $depth < 250; $depth++) {
-            if (isset($visited[$currentId])) {
-                return null;
-            }
-            $visited[$currentId] = true;
-
-            $folder = DB::table('file_folders')->where('id', $currentId)->first();
-            if (! $folder || (int) $folder->file_pool_id !== $poolId) {
-                return null;
-            }
-
-            if ($folder->parent_id === null) {
-                return $folderId;
-            }
-
-            $currentId = (int) $folder->parent_id;
-        }
-
-        return null;
     }
 
     /** @return array<string, int> */
@@ -359,12 +378,12 @@ return new class extends Migration
     {
         try {
             $decoded = json_decode($json, true, flags: JSON_THROW_ON_ERROR);
-        } catch (\JsonException $exception) {
-            throw new \RuntimeException('Ungültiges JSON in '.$context.'; die Marketing-Migration wurde ohne Datenänderung abgebrochen.', 0, $exception);
+        } catch (JsonException $exception) {
+            throw new RuntimeException('Ungültiges JSON in '.$context.'; die Marketing-Migration wurde ohne Datenänderung abgebrochen.', 0, $exception);
         }
 
         if (! is_array($decoded)) {
-            throw new \RuntimeException('Unerwartete JSON-Struktur in '.$context.'; die Marketing-Migration wurde ohne Datenänderung abgebrochen.');
+            throw new RuntimeException('Unerwartete JSON-Struktur in '.$context.'; die Marketing-Migration wurde ohne Datenänderung abgebrochen.');
         }
 
         return $decoded;
@@ -441,5 +460,4 @@ return new class extends Migration
 
         return $value;
     }
-
 };

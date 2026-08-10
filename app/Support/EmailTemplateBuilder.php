@@ -3,12 +3,10 @@
 namespace App\Support;
 
 use App\Enums\MailDocumentKind;
-use App\Models\MailDocument;
 use App\Models\User;
-use Illuminate\Support\Facades\Schema;
+use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use Illuminate\Support\Str;
 use RuntimeException;
-use Throwable;
 use ZipArchive;
 
 /**
@@ -327,33 +325,59 @@ class EmailTemplateBuilder
      */
     public static function publishedDocument(MailDocumentKind $kind): ?string
     {
-        try {
-            if (! Schema::hasTable('mail_documents')) {
-                return null;
-            }
+        $snapshot = self::publishedDocumentSnapshot($kind);
 
-            $html = MailDocument::query()
-                ->published()
-                ->where('kind', $kind->value)
-                ->value('published_html');
-        } catch (Throwable) {
+        if ($snapshot === null) {
             return null;
         }
 
-        $html = trim((string) $html);
+        return $kind === MailDocumentKind::Template
+            ? self::embedPublishedCss($snapshot['html'], $snapshot['css'], $kind)
+            : $snapshot['html'];
+    }
 
-        return $html !== '' ? $html : null;
+    /**
+     * HTML und CSS werden in EINER Abfrage gelesen. Andernfalls koennte ein
+     * paralleler Freigabevorgang HTML aus Version A mit CSS aus Version B
+     * kombinieren.
+     *
+     * @return array{html: string, css: string}|null
+     */
+    public static function publishedDocumentSnapshot(MailDocumentKind $kind): ?array
+    {
+        return app(PublishedMailDocumentSnapshotStore::class)->snapshot($kind);
+    }
+
+    public static function publishedDocumentCss(MailDocumentKind $kind): string
+    {
+        return self::publishedDocumentSnapshot($kind)['css'] ?? '';
+    }
+
+    private static function embedPublishedCss(string $html, string $css, MailDocumentKind $kind): string
+    {
+        if ($css === '' || stripos($css, '</style') !== false) {
+            return $html;
+        }
+
+        $style = '<style data-rt-mail-document-css="'.$kind->value.'">'.$css.'</style>';
+
+        if (preg_match('/<\/head\s*>/i', $html) === 1) {
+            return (string) preg_replace('/<\/head\s*>/i', $style.'</head>', $html, 1);
+        }
+
+        // Nie einen style-Block in ein <tr>-Fragment legen: innerhalb der
+        // umgebenden Tabelle waere er strukturell ungueltig. Die drei Wrapper
+        // binden Signatur-CSS stattdessen in ihrem echten <head> ein.
+        return $html;
     }
 
     /**
      * Der Signaturblock: veroeffentlichte Fassung, sonst die Blade-Quelle.
      *
-     * Ein eigener Layoutwunsch schliesst die veroeffentlichte Fassung aus.
-     * Der engere Innenabstand der Signaturdatei und das lokale Zugbild des
-     * Outlook-Pakets sind keine Platzhalter: sie werden beim Rendern fest
-     * eingesetzt, und die Outlook-Verzweigung steht ueberhaupt nur in der
-     * Blade-Vorlage. Ein veroeffentlichtes Dokument in diese Wege zu legen,
-     * wuerde das ZIP zerstoeren statt es zu erneuern.
+     * MailSignature besitzt den eigentlichen Vertrag: regulaere Downloads
+     * uebernehmen die Publikation mit ihren kompakten Starterabstaenden,
+     * waehrend nur der strukturell besondere Outlook-Export auf Blade
+     * zurueckfaellt.
      *
      * @param  array<string, string>  $layout
      * @param  array<string, string>  $overrides
@@ -363,27 +387,7 @@ class EmailTemplateBuilder
         array $layout = [],
         array $overrides = [],
     ): string {
-        $published = $layout === []
-            ? self::publishedDocument(MailDocumentKind::Signature)
-            : null;
-
-        if ($published === null) {
-            return $signature->render($layout, $overrides);
-        }
-
-        // Die Blade-Vorlage escaped selbst; ein veroeffentlichtes Dokument
-        // bekommt die Werte direkt eingesetzt und muss deshalb hier escapt
-        // werden. strtr ersetzt in EINEM Durchgang — ein Profilwert, der
-        // zufaellig wie ein Platzhalter aussieht, wird dadurch nicht selbst
-        // zur Einschleusstelle.
-        $values = $this->escapeForHtml($signature->values($overrides));
-        $tokens = [];
-
-        foreach ($values as $key => $value) {
-            $tokens['{{'.$key.'}}'] = $value;
-        }
-
-        return trim(self::stripEmptyContactRows(strtr($published, $tokens), $values));
+        return $signature->render($layout, $overrides);
     }
 
     /**
@@ -561,24 +565,29 @@ class EmailTemplateBuilder
 
         // Signatur und Pflichtangaben kommen aus der gemeinsamen Quelle
         // (MailSignature) — dieselbe, die auch unter jeder Laravel-Mail steht.
-        return $this->substitute($html, [
-            'SIGNATURE_BLOCK' => $this->signatureBlock(
-                MailSignature::forUser(
-                    $this->user,
-                    $theme,
-                    animated: $animatedSignature,
-                    playbackNonce: $playbackNonce,
-                ),
-                overrides: array_merge(
-                    [
-                        'LOGO_SRC' => $inlineImages
-                            ? self::inlineImage($this->emailLogoAsset($theme), 'image/png')
-                            : 'cid:railtime-logo',
-                    ],
-                    self::contactIconSources($inlineImages)
-                ),
-            ),
+        $signature = MailSignature::forUser(
+            $this->user,
+            $theme,
+            animated: $animatedSignature,
+            playbackNonce: $playbackNonce,
+        );
+        $signatureOverrides = array_merge(
+            [
+                'LOGO_SRC' => $inlineImages
+                    ? self::inlineImage($this->emailLogoAsset($theme), 'image/png')
+                    : 'cid:railtime-logo',
+            ],
+            self::contactIconSources($inlineImages),
+        );
+        $html = $this->substitute($html, [
+            'SIGNATURE_BLOCK' => $this->signatureBlock($signature, overrides: $signatureOverrides),
         ]);
+
+        return self::embedPublishedCss(
+            $html,
+            $signature->publishedCss($signatureOverrides),
+            MailDocumentKind::Signature,
+        );
     }
 
     /**
@@ -633,17 +642,25 @@ class EmailTemplateBuilder
         // Dieselbe Quelle wie Vorlage und Systemmail — nur enger gesetzt und
         // ohne Akzentlinie, weil die Signaturdatei ihre eigene traegt.
         // Hier faehrt der Zug ein (animierte Fassung).
-        return $this->substitute($html, [
+        $signature = MailSignature::forUser($this->user, $theme, animated: true);
+        $signatureOverrides = ['LOGO_SRC' => self::inlineImage($logo, 'image/png')];
+        $html = $this->substitute($html, [
             'SIGNATURE_BLOCK' => $this->signatureBlock(
-                MailSignature::forUser($this->user, $theme, animated: true),
+                $signature,
                 layout: [
                     'padding' => '18px 30px 24px',
                     'topRule' => '',
                     'legalPadding' => '13px 30px',
                 ],
-                overrides: ['LOGO_SRC' => self::inlineImage($logo, 'image/png')],
+                overrides: $signatureOverrides,
             ),
         ]);
+
+        return self::embedPublishedCss(
+            $html,
+            $signature->publishedCss($signatureOverrides),
+            MailDocumentKind::Signature,
+        );
     }
 
     /**

@@ -19,6 +19,7 @@ final class MarketingStudioService
         private readonly MarketingContentBinder $binder,
         private readonly MarketingHtmlSanitizer $sanitizer,
         private readonly MarketingRenderAssetHydrator $renderAssets,
+        private readonly MarketingFileSourceService $files,
     ) {}
 
     public function createFromTemplate(MarketingCreativeType $type, User $actor): MarketingCreative
@@ -67,12 +68,19 @@ final class MarketingStudioService
         ?string $title = null,
     ): MarketingCreative {
         return DB::transaction(function () use ($creative, $content, $actor, $expectedHashes, $title): MarketingCreative {
+            $this->files->lockSourceSelection();
             $locked = MarketingCreative::query()->lockForUpdate()->findOrFail($creative->id);
             $this->assertEditable($locked);
             $variants = $locked->variants()
                 ->lockForUpdate()
                 ->get()
                 ->keyBy(fn (MarketingCreativeVariant $variant): string => $variant->format->value);
+            $this->renderAssets->lockDocumentsForUpdate(
+                $variants->map(fn (MarketingCreativeVariant $variant): array => [
+                    'html' => (string) $variant->html,
+                    'css' => (string) $variant->css,
+                ]),
+            );
             foreach (MarketingCreativeFormat::cases() as $format) {
                 $variant = $variants->get($format->value);
                 $expectedHash = strtolower((string) ($expectedHashes[$format->value] ?? ''));
@@ -134,6 +142,7 @@ final class MarketingStudioService
         User $actor,
     ): MarketingCreativeVariant {
         return DB::transaction(function () use ($creative, $format, $builderData, $html, $css, $expectedHash, $actor): MarketingCreativeVariant {
+            $this->files->lockSourceSelection();
             $lockedCreative = MarketingCreative::query()->lockForUpdate()->findOrFail($creative->id);
             $this->assertEditable($lockedCreative);
             $variant = $lockedCreative->variants()
@@ -158,6 +167,7 @@ final class MarketingStudioService
             }
 
             $builderData = $this->binder->syncBuilderData($builderData, $sanitizedHtml);
+            $this->renderAssets->lockReferencesForUpdate($sanitizedHtml, $sanitizedCss);
             $hash = $this->contentHash($builderData, $sanitizedHtml, $sanitizedCss);
             if (hash_equals($variant->content_hash, $hash)) {
                 return $variant;
@@ -182,7 +192,15 @@ final class MarketingStudioService
     public function duplicate(MarketingCreative $creative, User $actor): MarketingCreative
     {
         return DB::transaction(function () use ($creative, $actor): MarketingCreative {
-            $source = MarketingCreative::query()->with('variants')->lockForUpdate()->findOrFail($creative->id);
+            $this->files->lockSourceSelection();
+            $source = MarketingCreative::query()->lockForUpdate()->findOrFail($creative->id);
+            $variants = $source->variants()->orderBy('id')->lockForUpdate()->get();
+            $this->renderAssets->lockDocumentsForUpdate(
+                $variants->map(fn (MarketingCreativeVariant $variant): array => [
+                    'html' => (string) $variant->html,
+                    'css' => (string) $variant->css,
+                ]),
+            );
             $copy = MarketingCreative::query()->create([
                 'type' => $source->type,
                 'status' => MarketingCreativeStatus::Draft,
@@ -192,7 +210,7 @@ final class MarketingStudioService
                 'updated_by' => $actor->id,
             ]);
 
-            foreach ($source->variants as $variant) {
+            foreach ($variants as $variant) {
                 $copy->variants()->create([
                     'format' => $variant->format,
                     'builder_data' => $variant->builder_data,
@@ -210,10 +228,11 @@ final class MarketingStudioService
     public function approve(MarketingCreative $creative, User $actor): MarketingCreative
     {
         return DB::transaction(function () use ($creative, $actor): MarketingCreative {
+            $this->files->lockSourceSelection();
             $locked = MarketingCreative::query()->lockForUpdate()->findOrFail($creative->id);
             $this->assertEditable($locked);
 
-            $variants = $locked->variants()->get();
+            $variants = $locked->variants()->orderBy('id')->lockForUpdate()->get();
             $formats = $variants
                 ->map(fn (MarketingCreativeVariant $variant): string => $variant->format->value)
                 ->all();
@@ -227,10 +246,32 @@ final class MarketingStudioService
                 ]);
             }
 
+            foreach ($variants as $variant) {
+                $actualContentHash = $this->contentHash(
+                    $variant->builder_data ?? [],
+                    (string) $variant->html,
+                    (string) $variant->css,
+                );
+                if (! hash_equals((string) $variant->content_hash, $actualContentHash)) {
+                    throw ValidationException::withMessages([
+                        'creative' => 'Eine Motivvariante ist nicht konsistent gespeichert. Bitte erneut speichern.',
+                    ]);
+                }
+            }
+
+            $this->renderAssets->lockDocumentsForUpdate(
+                $variants->map(fn (MarketingCreativeVariant $variant): array => [
+                    'html' => (string) $variant->html,
+                    'css' => (string) $variant->css,
+                ]),
+            );
+            $approvalDependencyHash = $this->renderAssets->creativeApprovalFingerprint($variants);
+
             $locked->forceFill([
                 'status' => MarketingCreativeStatus::Approved,
                 'approved_by' => $actor->id,
                 'approved_at' => now(),
+                'approval_dependency_hash' => $approvalDependencyHash,
                 'updated_by' => $actor->id,
             ])->save();
 
@@ -245,6 +286,7 @@ final class MarketingStudioService
                 ->performedOn($locked)
                 ->withProperties([
                     'approved_at' => $locked->approved_at?->toIso8601String(),
+                    'approval_dependency_hash' => $approvalDependencyHash,
                     'fingerprints' => $approvalFingerprints,
                 ])
                 ->log('marketing_creative_approved');
@@ -287,6 +329,7 @@ final class MarketingStudioService
         $creative->status = MarketingCreativeStatus::Draft;
         $creative->approved_by = null;
         $creative->approved_at = null;
+        $creative->approval_dependency_hash = null;
     }
 
     private function assertEditable(MarketingCreative $creative): void

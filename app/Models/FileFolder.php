@@ -194,9 +194,19 @@ class FileFolder extends Model
     {
         $path = [$this];
         $current = $this;
+        $visited = [(int) $this->id => true];
 
-        while ($current->parent_id && ($current = $current->parent)) {
-            array_unshift($path, $current);
+        for ($depth = 0; $depth < 250 && $current->parent_id; $depth++) {
+            $parent = self::query()->find($current->parent_id);
+            if (! $parent
+                || (int) $parent->file_pool_id !== (int) $this->file_pool_id
+                || isset($visited[(int) $parent->id])) {
+                break;
+            }
+
+            $visited[(int) $parent->id] = true;
+            array_unshift($path, $parent);
+            $current = $parent;
         }
 
         return $path;
@@ -209,9 +219,8 @@ class FileFolder extends Model
     public function deleteRecursive(bool $preflight = true): void
     {
         if ($preflight) {
-            app(MarketingFileSourceService::class)->assertFolderCanBeDeleted($this);
-
             DB::transaction(function (): void {
+                app(MarketingFileSourceService::class)->assertFolderCanBeDeleted($this);
                 $this->deleteRecursive(false);
             });
 

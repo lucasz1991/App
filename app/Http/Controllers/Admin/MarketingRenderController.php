@@ -10,8 +10,9 @@ use App\Models\MarketingRender;
 use App\Services\Marketing\MarketingRenderService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\HeaderUtils;
+use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 final class MarketingRenderController extends MarketingAdminController
@@ -54,25 +55,32 @@ final class MarketingRenderController extends MarketingAdminController
         MarketingRenderService $renderer,
     ): StreamedResponse {
         $this->marketingAdmin($request);
+        $snapshot = $renderer->downloadSnapshot($render);
         abort_unless(
-            $render->status === MarketingRenderStatus::Completed
-            && $render->path
-            && Storage::disk($render->disk)->exists($render->path)
-            && $renderer->isCurrent($render),
+            $snapshot !== null,
             409,
             'Der PNG-Export ist nicht mehr aktuell. Bitte den Export erneut starten.',
         );
-        $render->loadMissing('creative');
         $filename = sprintf(
             'railtime-%s-%s-%s.png',
-            Str::slug($render->creative->title),
+            Str::slug($snapshot['creative_title']) ?: 'motiv',
             $render->format->value,
             ($render->rendered_at ?? now())->format('Y-m-d'),
         );
 
-        return Storage::disk($render->disk)->download($render->path, $filename, [
-            'Content-Type' => 'image/png',
+        return response()->stream(static function () use ($snapshot): void {
+            echo $snapshot['contents'];
+        }, 200, [
+            'Content-Type' => $snapshot['mime_type'],
+            'Content-Length' => (string) $snapshot['size'],
+            'Content-Disposition' => HeaderUtils::makeDisposition(
+                ResponseHeaderBag::DISPOSITION_ATTACHMENT,
+                $filename,
+                $filename,
+            ),
+            'Cache-Control' => 'private, no-store, max-age=0',
             'X-Content-Type-Options' => 'nosniff',
+            'Cross-Origin-Resource-Policy' => 'same-origin',
         ]);
     }
 

@@ -65,7 +65,13 @@ import { ensureRailTimeNavigationCoordinator } from './navigation-coordinator';
 import { chatMessageActions } from './chat-message-actions';
 import { modalBody, trackLivewireRequests } from './modal-body';
 import { registerRailtimeLiveLocation } from './live-location';
-import { createMailBuilder, projectForMailDocument } from './mail-builder';
+import {
+    createMailBuilder,
+    createMailNavigationController,
+    projectForMailDocument,
+    rehydrateAuthoritativeMailProject,
+    serializeMailDocumentForSave,
+} from './mail-builder';
 import './marketing-studio';
 
 ensureRailTimeNavigationCoordinator(window, document);
@@ -644,7 +650,10 @@ window.RailTimeWagonMotion = createWagonListMotion();
 // Livewire-Ereignis); eingehaengt wird es von der Editorseite selbst.
 window.RailTimeMailBuilder = {
     create: createMailBuilder,
+    createNavigationController: createMailNavigationController,
     projectFor: projectForMailDocument,
+    rehydrateAuthoritative: rehydrateAuthoritativeMailProject,
+    serializeForSave: serializeMailDocumentForSave,
 };
 
 registerRailtimePushSettings(Alpine);

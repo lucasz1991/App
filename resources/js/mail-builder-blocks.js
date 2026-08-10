@@ -402,10 +402,11 @@ export function createMailBlocks({
  * Stylesheet der Leinwand — wird als <style> in das Editor-iframe gehaengt
  * und ist NICHT Teil des gespeicherten Dokuments.
  *
- * Zwei Aufgaben:
+ * Drei Aufgaben:
  *   1. Die Palettenplatzhalter sichtbar machen (siehe MAIL_CANVAS_PALETTE).
  *   2. Personendaten als Beispielwerte zeigen, waehrend im Markup der
  *      Platzhalter stehen bleibt.
+ *   3. Token-Bilder nur im iframe durch echte RailTime-Vorschauassets ersetzen.
  *
  * BEWUSST OHNE !important bei den Farbregeln: ein ungueltiger Wert wie
  * 'color:{{TEXT_PRIMARY}}' wird vom Browser verworfen, dann greift die Regel
@@ -413,9 +414,19 @@ export function createMailBlocks({
  * style-Attribut wieder — genau so soll es sein.
  *
  * @param {'light'|'dark'} theme
+ * @param {object} previewAssets Hell-/Dunkel-Logo, Zugbild und Kontakticons
  */
-export function mailCanvasStyles(theme = 'light') {
+export function mailCanvasStyles(theme = 'light', previewAssets = {}) {
     const palette = MAIL_CANVAS_PALETTE[theme] || MAIL_CANVAS_PALETTE.light;
+    const themedAssets = previewAssets?.[theme] || {};
+    const icons = previewAssets?.icons || {};
+    const cssImage = (value) => String(value || '')
+        .replaceAll('\\', '\\\\')
+        .replaceAll('"', '\\"')
+        .replaceAll('\n', '');
+    const imageRule = (token, value) => value
+        ? `img[src="{{${token}}}"] { content: url("${cssImage(value)}"); }`
+        : '';
 
     return `
 body.rt-mail-canvas {
@@ -434,6 +445,44 @@ body.rt-mail-canvas {
 [data-rt-mail-text="secondary"] { color: ${palette.TEXT_SECONDARY}; }
 [data-rt-mail-text="muted"] { color: ${palette.TEXT_MUTED}; }
 [data-rt-mail-border] { border-color: ${palette.BORDER}; }
+
+/* ---- Tokens des bestehenden RailTime-Masters ----
+ * style- und bgcolor-Attribute behalten ihren Rohtext, selbst wenn der
+ * Browser den unaufgeloesten Wert verwirft. Die Vorschau kann ihn deshalb
+ * selektieren, ohne einen einzigen Token im gespeicherten Projekt zu ersetzen. */
+[bgcolor="{{PAGE_BG}}"], [style*="background:{{PAGE_BG}}"] { background-color: ${palette.PAGE_BG} !important; }
+[bgcolor="{{SURFACE_BG}}"], [style*="background:{{SURFACE_BG}}"] { background-color: ${palette.SURFACE_BG} !important; }
+[bgcolor="{{CARD_BG}}"], [style*="background:{{CARD_BG}}"] { background-color: ${palette.CARD_BG} !important; }
+[bgcolor="{{SOFT_BG}}"], [style*="background:{{SOFT_BG}}"] { background-color: ${palette.SOFT_BG} !important; }
+[style*="color:{{TEXT_PRIMARY}}"] { color: ${palette.TEXT_PRIMARY} !important; }
+[style*="color:{{TEXT_SECONDARY}}"] { color: ${palette.TEXT_SECONDARY} !important; }
+[style*="color:{{TEXT_MUTED}}"] { color: ${palette.TEXT_MUTED} !important; }
+[style*="{{BORDER}}"] { border-color: ${palette.BORDER} !important; }
+
+[bgcolor="{{SIGNATURE_BG}}"], [style*="background:{{SIGNATURE_BG}}"] { background-color: ${theme === 'dark' ? '#0c1017' : '#f7f6f3'} !important; }
+[bgcolor="{{SIGNATURE_LEGAL_BG}}"], [style*="background:{{SIGNATURE_LEGAL_BG}}"] { background-color: ${theme === 'dark' ? '#080b10' : '#efece7'} !important; }
+[style*="color:{{SIGNATURE_TEXT_PRIMARY}}"] { color: ${theme === 'dark' ? '#ffffff' : '#111820'} !important; }
+[style*="color:{{SIGNATURE_CONTACT_TEXT}}"] { color: ${theme === 'dark' ? '#b9c1ca' : '#5c6671'} !important; }
+[style*="color:{{SIGNATURE_META_TEXT}}"] { color: ${theme === 'dark' ? '#8e98a5' : '#66717c'} !important; }
+[style*="color:{{SIGNATURE_TEXT_MUTED}}"] { color: ${theme === 'dark' ? '#77818d' : '#7b858f'} !important; }
+[style*="color:{{SIGNATURE_LEGAL_TEXT}}"] { color: ${theme === 'dark' ? '#77818d' : '#8a939d'} !important; }
+[style*="color:{{SIGNATURE_ACCENT}}"] { color: ${theme === 'dark' ? '#ff5570' : '#e4002b'} !important; }
+[style*="{{SIGNATURE_BORDER}}"], [style*="{{SIGNATURE_RULE}}"] { border-color: ${theme === 'dark' ? '#313944' : '#dfe3e6'} !important; }
+
+${imageRule('LOGO_SRC', themedAssets.logo)}
+${imageRule('ICON_PHONE_SRC', icons.phone)}
+${imageRule('ICON_MOBILE_SRC', icons.mobile)}
+${imageRule('ICON_EMAIL_SRC', icons.email)}
+${imageRule('ICON_WEB_SRC', icons.web)}
+${imageRule('ICON_LOCATION_SRC', icons.location)}
+
+.rt-sign-cell[style*="{{TRAIN_SRC}}"] {
+    background-color: ${theme === 'dark' ? '#0c1017' : '#f7f6f3'} !important;
+    ${themedAssets.train ? `background-image:linear-gradient(${theme === 'dark' ? 'rgba(12,16,23,.15)' : 'rgba(247,246,243,.15)'},${theme === 'dark' ? 'rgba(12,16,23,.15)' : 'rgba(247,246,243,.15)'}),url("${cssImage(themedAssets.train)}") !important;` : ''}
+    background-repeat:no-repeat !important;
+    background-position:center center,left bottom !important;
+    background-size:100% 100%,86% auto !important;
+}
 
 /* ---- Personendaten: Platzhalter aus, Beispielwert an ---- */
 [data-rt-mail-sample] > [data-rt-mail-token] {

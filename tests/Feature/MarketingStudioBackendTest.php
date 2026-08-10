@@ -10,16 +10,12 @@ use App\Http\Controllers\Admin\MarketingCreativeController;
 use App\Jobs\RenderMarketingCreative;
 use App\Models\MarketingCreative;
 use App\Models\User;
-use App\Services\Marketing\MarketingAssetService;
 use App\Services\Marketing\MarketingHtmlSanitizer;
-use App\Services\Marketing\MarketingRenderAssetHydrator;
 use App\Services\Marketing\MarketingRenderService;
 use App\Services\Marketing\MarketingStudioService;
 use App\Support\CompanyData;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Routing\Middleware\SubstituteBindings;
-use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
@@ -149,6 +145,11 @@ class MarketingStudioBackendTest extends TestCase
                 'builder_data' => $builderData,
                 'html' => '<div class="rt-brand"><span class="rt-brand-mark"><img src="/rt-brand/rt-logo.svg" alt=""></span><span>RAILTIME</span></div>',
                 'css' => '.rt-brand{display:flex}',
+                'content_hash' => $studio->contentHash(
+                    $builderData,
+                    '<div class="rt-brand"><span class="rt-brand-mark"><img src="/rt-brand/rt-logo.svg" alt=""></span><span>RAILTIME</span></div>',
+                    '.rt-brand{display:flex}',
+                ),
                 'version' => 1,
             ])->save();
         }
@@ -175,7 +176,7 @@ class MarketingStudioBackendTest extends TestCase
         $studio = app(MarketingStudioService::class);
         $creative = $studio->createFromTemplate(MarketingCreativeType::Job, $admin);
         $post = $creative->variants->firstWhere('format', MarketingCreativeFormat::Post);
-        $formatSpecificImage = '/administrator/marketing/assets/00000000-0000-4000-8000-000000000001';
+        $formatSpecificImage = '/rt-brand/img/logo-horizontal-darkbg.png';
         $studio->saveVariant(
             $creative,
             MarketingCreativeFormat::Post,
@@ -336,54 +337,6 @@ class MarketingStudioBackendTest extends TestCase
         $this->assertSame(MarketingCreativeStatus::Archived, $archived->status);
     }
 
-    public function test_asset_store_replace_usage_guard_and_delete_keep_private_files_consistent(): void
-    {
-        $admin = User::factory()->create(['role' => 'admin']);
-        $assets = app(MarketingAssetService::class);
-        $asset = $assets->store(UploadedFile::fake()->image('eins.jpg', 80, 60), $admin);
-        $publicId = $asset->public_id;
-        $oldPath = $asset->path;
-
-        Storage::disk('private')->assertExists($oldPath);
-        $this->assertSame('image/jpeg', $asset->mime_type);
-        $this->assertSame([80, 60], [$asset->width, $asset->height]);
-
-        $replaced = $assets->replace($asset, UploadedFile::fake()->image('zwei.png', 120, 90), $admin);
-        $this->assertSame($publicId, $replaced->public_id);
-        $this->assertSame('image/png', $replaced->mime_type);
-        $this->assertNotSame($oldPath, $replaced->path);
-        Storage::disk('private')->assertMissing($oldPath);
-        Storage::disk('private')->assertExists($replaced->path);
-
-        $creative = app(MarketingStudioService::class)->createFromTemplate(MarketingCreativeType::Info, $admin);
-        $variant = $creative->variants->first();
-        $variant->update(['html' => '<img src="/administrator/marketing/assets/'.$publicId.'">']);
-
-        try {
-            $assets->delete($replaced);
-            $this->fail('Ein verwendetes Medium darf nicht gelöscht werden.');
-        } catch (ValidationException $exception) {
-            $this->assertArrayHasKey('asset', $exception->errors());
-        }
-        Storage::disk('private')->assertExists($replaced->path);
-
-        $variant->update(['html' => '<p>Kein Medium</p>']);
-        $assets->delete($replaced->fresh());
-        $this->assertSoftDeleted('marketing_assets', ['id' => $replaced->id]);
-        Storage::disk('private')->assertMissing($replaced->path);
-    }
-
-    public function test_asset_service_rejects_a_spoofed_image(): void
-    {
-        $admin = User::factory()->create(['role' => 'admin']);
-
-        $this->expectException(ValidationException::class);
-        app(MarketingAssetService::class)->store(
-            UploadedFile::fake()->createWithContent('fake.png', '<?php echo "not an image";'),
-            $admin,
-        );
-    }
-
     public function test_render_queue_is_cached_by_identity_content_status_and_dimensions(): void
     {
         Queue::fake();
@@ -409,52 +362,6 @@ class MarketingStudioBackendTest extends TestCase
         $approved = $renderer->queue($creative->fresh(), MarketingCreativeFormat::Story, $admin);
         $this->assertNotSame($first->fingerprint, $approved->fingerprint);
         $this->assertDatabaseCount('marketing_renders', 3);
-    }
-
-    public function test_render_fails_closed_when_an_asset_changes_during_chromium_processing(): void
-    {
-        Queue::fake();
-        $admin = User::factory()->create(['role' => 'admin']);
-        $studio = app(MarketingStudioService::class);
-        $assets = app(MarketingAssetService::class);
-        $renderer = app(MarketingRenderService::class);
-        $creative = $studio->createFromTemplate(MarketingCreativeType::Info, $admin);
-        $variant = $creative->variants->firstWhere('format', MarketingCreativeFormat::Story);
-        $asset = $assets->store(UploadedFile::fake()->image('vorher.jpg', 120, 80), $admin);
-        $variant = $studio->saveVariant(
-            $creative,
-            MarketingCreativeFormat::Story,
-            $variant->builder_data,
-            str_replace('/rt-brand/img/hero-railtime.jpg', route('admin.marketing.assets.show', $asset), $variant->html),
-            $variant->css,
-            $variant->content_hash,
-            $admin,
-        );
-        $studio->approve($creative->fresh(), $admin);
-        $this->assertStringContainsString($asset->public_id, $variant->html);
-        $render = $renderer->queue($creative->fresh(), MarketingCreativeFormat::Story, $admin);
-
-        Process::fake(function ($process) use ($asset, $assets, $admin, $creative, $renderer, $render): string {
-            $outputIndex = array_search('--output', $process->command, true);
-            $this->assertIsInt($outputIndex);
-            $this->writePng($process->command[$outputIndex + 1], 1080, 1920);
-            $assets->replace($asset, UploadedFile::fake()->image('nachher.png', 140, 90), $admin);
-            $this->assertSame(MarketingCreativeStatus::Draft, $creative->fresh()->status);
-            $this->assertNotSame(
-                $render->fingerprint,
-                $renderer->fingerprint($creative->fresh(), $render->variant()->firstOrFail()),
-            );
-
-            return json_encode(['ok' => true, 'width' => 1080, 'height' => 1920], JSON_THROW_ON_ERROR);
-        });
-
-        $finished = $renderer->render($render);
-
-        $this->assertSame(MarketingRenderStatus::Failed, $finished->status);
-        $this->assertNull($finished->path);
-        $this->assertStringContainsString('während des Exports geändert', $finished->error);
-        $this->assertSame(MarketingCreativeStatus::Draft, $creative->fresh()->status);
-        $this->assertFalse($renderer->isCurrent($finished));
     }
 
     public function test_stale_completed_render_is_reported_as_failed_and_cannot_be_downloaded(): void
@@ -537,79 +444,6 @@ class MarketingStudioBackendTest extends TestCase
         $approvedDimensions = getimagesizefromstring($approvedPng);
         $this->assertSame([1200, 630], [$approvedDimensions[0], $approvedDimensions[1]]);
         $this->assertNotSame(hash('sha256', $draftPng), hash('sha256', $approvedPng));
-    }
-
-    public function test_replacing_an_asset_under_the_same_public_url_invalidates_render_fingerprint(): void
-    {
-        $admin = User::factory()->create(['role' => 'admin']);
-        $studio = app(MarketingStudioService::class);
-        $assets = app(MarketingAssetService::class);
-        $renderer = app(MarketingRenderService::class);
-        $creative = $studio->createFromTemplate(MarketingCreativeType::Info, $admin);
-        $variant = $creative->variants->firstWhere('format', MarketingCreativeFormat::Story);
-        $asset = $assets->store(UploadedFile::fake()->image('alt.jpg', 80, 60), $admin);
-        $assetUrl = route('admin.marketing.assets.show', $asset);
-        $variant = $studio->saveVariant(
-            $creative,
-            MarketingCreativeFormat::Story,
-            $variant->builder_data,
-            str_replace('/rt-brand/img/hero-railtime.jpg', $assetUrl, $variant->html),
-            $variant->css,
-            $variant->content_hash,
-            $admin,
-        );
-        $studio->approve($creative->fresh(), $admin);
-        $this->assertStringContainsString($asset->public_id, $variant->html);
-        $dependencyBefore = app(MarketingRenderAssetHydrator::class)->fingerprint($variant->html, $variant->css);
-        $assetHashBefore = $asset->sha256;
-        $before = $renderer->fingerprint($creative->fresh(), $variant);
-
-        $replaced = $assets->replace($asset, UploadedFile::fake()->image('neu.png', 100, 80), $admin);
-        $creativeAfterReplace = $creative->fresh();
-        $dependencyAfter = app(MarketingRenderAssetHydrator::class)->fingerprint($variant->fresh()->html, $variant->fresh()->css);
-        $after = $renderer->fingerprint($creativeAfterReplace, $variant->fresh());
-
-        $this->assertSame($asset->public_id, $replaced->public_id);
-        $this->assertNotSame($assetHashBefore, $replaced->sha256);
-        $this->assertNotSame($dependencyBefore, $dependencyAfter);
-        $this->assertNotSame($before, $after);
-        $this->assertSame(MarketingCreativeStatus::Draft, $creativeAfterReplace->status);
-        $this->assertNull($creativeAfterReplace->approved_by);
-        $this->assertNull($creativeAfterReplace->approved_at);
-        $this->assertTrue($renderer->requiresWatermark($creativeAfterReplace));
-    }
-
-    public function test_render_asset_hydrator_embeds_private_assets_and_builtin_brand_files(): void
-    {
-        $admin = User::factory()->create(['role' => 'admin']);
-        $asset = app(MarketingAssetService::class)->store(
-            UploadedFile::fake()->image('foto.jpg', 60, 40),
-            $admin,
-        );
-
-        $hydrated = app(MarketingRenderAssetHydrator::class)->hydrate(
-            '<img src="'.route('admin.marketing.assets.show', $asset).'?v='.substr($asset->sha256, 0, 16).'">'
-            .'<img src="/rt-brand/rt-logo.svg">'
-            .'<img src="/rt-brand/img/logo-horizontal.png">'
-            .'<img src="/rt-brand/img/logo-horizontal-darkbg.png">',
-            '.hero{background-image:url("/administrator/marketing/medien/'.$asset->public_id.'")}',
-        );
-
-        $this->assertStringContainsString('data:image/jpeg;base64,', $hydrated['html']);
-        $this->assertStringContainsString('data:image/jpeg;base64,', $hydrated['css']);
-        $this->assertStringContainsString('data:image/svg+xml;base64,', $hydrated['html']);
-        $this->assertSame(2, substr_count($hydrated['html'], 'data:image/png;base64,'));
-        $this->assertStringNotContainsString('/rt-brand/img/logo-horizontal', $hydrated['html']);
-        $this->assertStringNotContainsString('/administrator/marketing/medien/', $hydrated['html'].$hydrated['css']);
-        $this->assertStringNotContainsString('?v=', $hydrated['html'].$hydrated['css']);
-
-        Storage::disk('private')->put($asset->path, 'manipulated-image-bytes');
-        $tampered = app(MarketingRenderAssetHydrator::class)->hydrate(
-            '<img src="'.route('admin.marketing.assets.show', $asset).'">',
-            '',
-        );
-        $this->assertStringContainsString($asset->public_id, $tampered['html']);
-        $this->assertStringNotContainsString('data:image/', $tampered['html']);
     }
 
     public function test_sanitizer_allows_safe_image_data_but_blocks_html_data_urls(): void

@@ -63,7 +63,13 @@
                 <div class="min-w-0 rounded-xl border border-rt-border bg-rt-surface-muted px-4 py-3 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted">
                     <p class="text-[11px] font-bold uppercase tracking-[0.1em] text-rt-soft">Aktuell freigegeben</p>
                     <p class="mt-1 break-words text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ $mediaSourcePath }}</p>
-                    <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $mediaAssetCount }} {{ $mediaAssetCount === 1 ? 'Bild' : 'Bilder' }} im Editor verfügbar</p>
+                    <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">
+                        @if ($mediaAssetTruncated)
+                            {{ $mediaAssetVisibleCount }} von {{ $mediaAssetCount }} Bildern im Editor geladen · Für weitere Treffer einen Unterordner wählen
+                        @else
+                            {{ $mediaAssetCount }} {{ $mediaAssetCount === 1 ? 'Bild' : 'Bilder' }} im Editor verfügbar
+                        @endif
+                    </p>
                 </div>
             </div>
 

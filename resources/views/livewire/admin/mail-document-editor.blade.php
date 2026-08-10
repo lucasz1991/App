@@ -1,20 +1,42 @@
-@section('title', 'E-Mail-Vorlagen')
+@section('title', 'Mail- & Signatur-Editor')
 
 @php
     $kinds = [
-        \App\Enums\MailDocumentKind::Template->value => ['Nachrichtenschale', 'Rahmen jeder Systemmail'],
-        \App\Enums\MailDocumentKind::Signature->value => ['Signaturblock', 'Signatur und Pflichtangaben'],
+        \App\Enums\MailDocumentKind::Template->value => ['Nachrichtenvorlage', 'HTML- und EML-Vorlagendownloads'],
+        \App\Enums\MailDocumentKind::Signature->value => ['Signaturblock', 'Downloads und Systemmails'],
     ];
 @endphp
 
 <x-ui.page
-    title="E-Mail-Vorlagen"
-    eyebrow="Systemmails"
-    description="Nachrichtenschale und Signaturblock bearbeiten. Veröffentlicht wird, was Downloads und Systemmails anschließend verwenden."
+    title="Mail- & Signatur-Editor"
+    eyebrow="E-Mail-Vorlagen"
+    description="Vorlagendateien und Signaturblock bearbeiten. Die Nachrichtenvorlage gilt für Downloads; der Signaturblock zusätzlich für Systemmails."
     :auto-intro="false"
     content-class="space-y-4"
     data-mail-document-studio
 >
+    <x-slot:actions>
+        <a
+            href="{{ route('email-templates.index') }}"
+            wire:navigate
+            data-mail-document-back
+            class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-rt-border bg-rt-surface px-3.5 py-2 text-sm font-semibold text-rt-muted transition hover:border-rt-red/30 hover:text-rt-red dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-muted"
+        >
+            <i data-feather="arrow-left" class="h-4 w-4" aria-hidden="true"></i>
+            <span>Zur Vorlagen-Seite</span>
+        </a>
+
+        @if ($currentDocument !== null)
+            <span
+                data-mail-document-status
+                data-status="{{ $currentDocument->status->value }}"
+                data-status-label="{{ $currentDocument->status->label() }}"
+                data-has-unpublished-changes="{{ $currentDocument->hasUnpublishedChanges() ? 'true' : 'false' }}"
+                class="inline-flex min-h-9 items-center rounded-full px-3 text-xs font-bold uppercase tracking-[0.08em]"
+            >{{ $currentDocument->status->label() }}{{ $currentDocument->isPublished() && $currentDocument->hasUnpublishedChanges() ? ' · Entwurf' : '' }}</span>
+        @endif
+    </x-slot:actions>
+
     @if ($currentDocument === null)
         <div class="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-500/10 dark:text-amber-200" role="status">
             <i data-feather="alert-triangle" class="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true"></i>
@@ -29,18 +51,6 @@
             </div>
         </div>
     @else
-        <x-slot:actions>
-            <span
-                data-mail-document-status
-                data-status="{{ $currentDocument->status->value }}"
-                @class([
-                    'inline-flex min-h-9 items-center rounded-full px-3 text-xs font-bold uppercase tracking-[0.08em]',
-                    'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300' => ! $currentDocument->isPublished(),
-                    'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300' => $currentDocument->isPublished(),
-                ])
-            >{{ $currentDocument->status->label() }}</span>
-        </x-slot:actions>
-
         <script type="application/json" data-mail-document-config>{!! json_encode($editorConfig, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}</script>
 
         <div class="flex flex-col gap-3 rounded-xl border border-rt-border bg-rt-surface px-4 py-3 text-sm dark:border-rt-dark-border dark:bg-rt-dark-surface lg:flex-row lg:items-center lg:justify-between">
@@ -89,15 +99,55 @@
             <ul class="mt-1 list-disc space-y-1 pl-5 leading-6" data-mail-document-findings-list></ul>
         </div>
 
-        <div class="rt-marketing-editor-frame">
+        <div class="rt-mail-preview-toolbar" data-mail-preview-toolbar>
+            <div class="rt-mail-preview-context">
+                <strong>Darstellung im Mailprogramm</strong>
+                <small data-mail-preview-status aria-live="polite">Desktop · 1024 px · Vorschau wird eingepasst</small>
+            </div>
+
+            <div class="rt-mail-preview-toolbar__controls">
+                <div class="rt-mail-preview-toggle" role="group" aria-label="Farbschema der Vorschau">
+                    <button type="button" data-mail-theme-button="light" aria-pressed="true" title="Helle Mail ansehen">
+                        <i data-feather="sun" class="h-4 w-4" aria-hidden="true"></i>
+                        <span>Hell</span>
+                    </button>
+                    <button type="button" data-mail-theme-button="dark" aria-pressed="false" title="Dunkle Mail ansehen">
+                        <i data-feather="moon" class="h-4 w-4" aria-hidden="true"></i>
+                        <span>Dunkel</span>
+                    </button>
+                </div>
+
+                <div class="rt-mail-preview-toggle" role="group" aria-label="Breite des Mailprogramms">
+                    <button type="button" data-mail-preview-device="desktop" aria-pressed="true" title="Desktop-Vorschau mit 1024 Pixeln">
+                        <i data-feather="monitor" class="h-4 w-4" aria-hidden="true"></i>
+                        <span>Desktop</span>
+                    </button>
+                    <button type="button" data-mail-preview-device="tablet" aria-pressed="false" title="Tablet-Vorschau mit 820 Pixeln">
+                        <i data-feather="tablet" class="h-4 w-4" aria-hidden="true"></i>
+                        <span>Tablet</span>
+                    </button>
+                    <button type="button" data-mail-preview-device="mobile" aria-pressed="false" title="Mobil-Vorschau mit 375 Pixeln">
+                        <i data-feather="smartphone" class="h-4 w-4" aria-hidden="true"></i>
+                        <span>Mobil</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <p class="flex items-start gap-2 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
+            <i data-feather="info" class="mt-0.5 h-4 w-4 shrink-0 text-rt-red" aria-hidden="true"></i>
+            <span>Die Gerätewahl verändert nur die Vorschau. Inhalt und E-Mail-kompatibles Tabellenlayout bleiben gemeinsam gespeichert.</span>
+        </p>
+
+        <div class="rt-mail-editor-frame" data-mail-editor-frame data-preview-device="desktop">
             <div
                 id="mail-document-editor-{{ $currentDocument->public_id }}"
-                class="rt-marketing-builder-root"
+                class="rt-mail-builder-root"
                 data-mail-document-root
                 wire:ignore
             >
-                <div class="rt-marketing-editor-loading" role="status">
-                    <span class="rt-marketing-editor-loading__mark">RT</span>
+                <div class="rt-mail-editor-loading" role="status">
+                    <span class="rt-mail-editor-loading__mark">RT</span>
                     <span>LMZ Page Builder wird geladen …</span>
                 </div>
             </div>
@@ -131,6 +181,10 @@
                     const findingsList = workspace.querySelector('[data-mail-document-findings-list]');
                     const findingsTitle = workspace.querySelector('[data-mail-document-findings-title]');
                     const statusBadge = workspace.querySelector('[data-mail-document-status]');
+                    const editorFrame = workspace.querySelector('[data-mail-editor-frame]');
+                    const previewStatus = workspace.querySelector('[data-mail-preview-status]');
+                    const themeButtons = Array.from(workspace.querySelectorAll('[data-mail-theme-button]'));
+                    const deviceButtons = Array.from(workspace.querySelectorAll('[data-mail-preview-device]'));
 
                     if (!document_) {
                         return;
@@ -138,6 +192,10 @@
 
                     let instance = null;
                     let destroyed = false;
+                    let selectedTheme = 'light';
+                    let selectedDevice = 'desktop';
+                    let unregisterNavigation = null;
+                    const controlListeners = new AbortController();
 
                     const toast = (type, text, title) => window.dispatchEvent(new CustomEvent('swal:toast', {
                         detail: { type, text, title: title || undefined },
@@ -145,6 +203,52 @@
 
                     const setMessage = (text) => {
                         if (messageNode) messageNode.textContent = text;
+                    };
+
+                    const navigationCoordinator = window.ensureRailTimeNavigationCoordinator?.()
+                        || window.RailTimeNavigationCoordinator
+                        || null;
+                    const navigationController = runtimeBridge.createNavigationController?.({
+                        getBuilder: () => instance,
+                        onSaving: () => setMessage('Offene Änderungen werden vor dem Seitenwechsel gespeichert …'),
+                        onSaved: () => setMessage('Gespeichert. Seitenwechsel wird fortgesetzt …'),
+                        onFlushError: (error) => {
+                            const message = error?.message || 'Offene Änderungen konnten nicht gespeichert werden.';
+                            setMessage(message);
+                            toast('error', message, 'Seitenwechsel angehalten');
+                        },
+                    });
+                    if (navigationController) {
+                        unregisterNavigation = navigationCoordinator?.register?.(navigationController) || null;
+                    }
+
+                    const updatePreviewStatus = (geometry = null) => {
+                        if (!previewStatus) return;
+
+                        const widths = { desktop: 1024, tablet: 820, mobile: 375 };
+                        const labels = { desktop: 'Desktop', tablet: 'Tablet', mobile: 'Mobil' };
+                        const scale = geometry?.scale
+                            ? ` · Fit ${Math.round(geometry.scale * 100)} %`
+                            : '';
+                        previewStatus.textContent = `${labels[selectedDevice]} · ${geometry?.logicalWidth || widths[selectedDevice]} px${scale}`;
+                    };
+
+                    const selectTheme = (theme) => {
+                        selectedTheme = theme === 'dark' ? 'dark' : 'light';
+                        editorFrame?.setAttribute('data-preview-theme', selectedTheme);
+                        themeButtons.forEach((button) => {
+                            button.setAttribute('aria-pressed', String(button.dataset.mailThemeButton === selectedTheme));
+                        });
+                        instance?.setTheme?.(selectedTheme);
+                    };
+
+                    const selectDevice = (device) => {
+                        selectedDevice = ['desktop', 'tablet', 'mobile'].includes(device) ? device : 'desktop';
+                        deviceButtons.forEach((button) => {
+                            button.setAttribute('aria-pressed', String(button.dataset.mailPreviewDevice === selectedDevice));
+                        });
+                        instance?.setPreviewDevice?.(selectedDevice);
+                        updatePreviewStatus(instance?.getPreviewGeometry?.());
                     };
 
                     const showFindings = (report) => {
@@ -188,7 +292,11 @@
 
                         if (statusBadge) {
                             statusBadge.dataset.status = document_.status;
-                            statusBadge.textContent = payload.status_label || statusBadge.textContent;
+                            statusBadge.dataset.hasUnpublishedChanges = String(document_.hasUnpublishedChanges);
+                            statusBadge.dataset.statusLabel = payload.status_label || statusBadge.dataset.statusLabel || statusBadge.textContent;
+                            statusBadge.textContent = document_.status === 'published' && document_.hasUnpublishedChanges
+                                ? `${statusBadge.dataset.statusLabel} · Entwurf`
+                                : statusBadge.dataset.statusLabel;
                         }
                     };
 
@@ -269,23 +377,52 @@
                             root,
                             projectId: `mail:${document_.id}`,
                             vendor: config.vendor,
+                            theme: selectedTheme,
+                            previewAssets: config.previewAssets || {},
+                            previewDevice: selectedDevice,
+                            onPreviewChange: updatePreviewStatus,
                             storage: {
                                 onLoad: ({ editor }) => runtimeBridge.projectFor(
                                     document_,
                                     (css) => editor.Parser?.parseCss?.(css) || [],
+                                    { kind: config.currentDocument, environment: window },
                                 ),
-                                onSave: async ({ project, html, css }) => {
-                                    const payload = await request(document_.endpoints.update, 'PUT', {
-                                        builder_data: project,
+                                onSave: async ({ project, html, css, editor }) => {
+                                    const outgoing = runtimeBridge.serializeForSave({
+                                        project,
                                         html,
                                         css,
+                                        kind: config.currentDocument,
+                                        baselineHtml: document_.html || '',
+                                        previewAssets: config.previewAssets || {},
+                                        environment: editor.Canvas?.getWindow?.()
+                                            || editor.Canvas?.getDocument?.()?.defaultView
+                                            || window,
+                                    });
+                                    const payload = await request(document_.endpoints.update, 'PUT', {
+                                        builder_data: outgoing.project,
+                                        html: outgoing.html,
+                                        css: outgoing.css,
                                         expected_hash: document_.contentHash || '',
                                     });
 
-                                    document_.builderData = project;
-                                    document_.css = css;
+                                    // Die Serverfassung ist nach der
+                                    // E-Mail-Haertung autoritativ. Vor allem
+                                    // builder_data darf kein unsauberes
+                                    // Parallel-Markup behalten.
+                                    document_.builderData = payload.document?.builder_data ?? outgoing.project;
+                                    document_.html = payload.document?.html ?? outgoing.html;
+                                    document_.css = payload.document?.css ?? outgoing.css;
                                     applyDocumentState(payload.document);
                                     showFindings(payload.report);
+                                    await runtimeBridge.rehydrateAuthoritative({
+                                        editor,
+                                        draft: document_,
+                                        sanitizationChanged: (payload.report?.findings || [])
+                                            .some((finding) => finding.severity === 'violation'),
+                                        parseCss: (canonicalCss) => editor.Parser?.parseCss?.(canonicalCss) || [],
+                                        projectOptions: { kind: config.currentDocument, environment: window },
+                                    });
                                     setMessage(document_.hasUnpublishedChanges
                                         ? 'Gespeichert — noch nicht veröffentlicht.'
                                         : 'Gespeichert.');
@@ -296,8 +433,24 @@
                         if (destroyed) {
                             instance.destroy();
                             instance = null;
+                            return;
                         }
+
+                        selectTheme(selectedTheme);
+                        selectDevice(selectedDevice);
                     };
+
+                    themeButtons.forEach((button) => {
+                        button.addEventListener('click', () => selectTheme(button.dataset.mailThemeButton), {
+                            signal: controlListeners.signal,
+                        });
+                    });
+
+                    deviceButtons.forEach((button) => {
+                        button.addEventListener('click', () => selectDevice(button.dataset.mailPreviewDevice), {
+                            signal: controlListeners.signal,
+                        });
+                    });
 
                     publishButton?.addEventListener('click', async () => {
                         publishButton.disabled = true;
@@ -309,11 +462,16 @@
                                 throw new Error('Der Entwurf konnte nicht gespeichert werden.');
                             }
 
-                            const payload = await request(document_.endpoints.publish, 'POST');
+                            const payload = await request(document_.endpoints.publish, 'POST', {
+                                expected_hash: document_.contentHash || '',
+                            });
                             applyDocumentState(payload.document);
                             showFindings(payload.report);
                             setMessage(`Veröffentlicht am ${payload.document?.published_label ?? ''} Uhr.`);
-                            toast('success', 'Systemmails und Downloads verwenden ab sofort diese Fassung.', 'Veröffentlicht');
+                            const successText = config.currentDocument === 'signature'
+                                ? 'Signaturdownloads und Systemmails verwenden ab sofort diese Fassung.'
+                                : 'HTML- und EML-Vorlagendownloads verwenden ab sofort diese Fassung.';
+                            toast('success', successText, 'Veröffentlicht');
                         } catch (error) {
                             showFindings({ messages: error.messages || [error.message], findings: [{ severity: 'violation' }] });
                             toast('error', error.message, 'Nicht veröffentlicht');
@@ -327,7 +485,7 @@
 
                         root.innerHTML = '';
                         const notice = window.document.createElement('div');
-                        notice.className = 'rt-marketing-editor-error';
+                        notice.className = 'rt-mail-editor-error';
                         notice.setAttribute('role', 'alert');
                         notice.textContent = `Editor konnte nicht geladen werden: ${error.message}`;
                         root.appendChild(notice);
@@ -336,6 +494,9 @@
 
                     const teardown = () => {
                         destroyed = true;
+                        controlListeners.abort();
+                        unregisterNavigation?.();
+                        unregisterNavigation = null;
                         instance?.destroy?.();
                         instance = null;
                         window.RailTimeMailDocumentEditor = null;

@@ -74,7 +74,7 @@ class MarketingBuilderVendorIntegrityTest extends TestCase
         $this->assertStringContainsString('wire:submit="saveMediaFolder"', $index);
         $this->assertStringContainsString('Grundverzeichnis (alle Ordner)', $index);
         $this->assertStringContainsString('data-marketing-media-source-invalid', $index);
-        $this->assertStringContainsString("route('admin.files'", $index);
+        $this->assertStringContainsString('href="{{ $mediaFilesUrl }}"', $index);
         $this->assertStringContainsString("route('admin.marketing.creatives.index')", $sidebar);
         $this->assertStringNotContainsString('admin.marketing.assets', $sidebar);
         $this->assertStringNotContainsString('>Medien<', preg_replace('/\s+/', '', $sidebar) ?: $sidebar);

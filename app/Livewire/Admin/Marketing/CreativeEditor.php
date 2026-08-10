@@ -50,7 +50,10 @@ class CreativeEditor extends Component
         $selectedFolderNode = collect($folderTree)->first(
             fn (array $folder): bool => (bool) ($folder['selected'] ?? false)
         );
-        $assets = $mediaSourceInvalid ? [] : $media->editorAssets();
+        $assetLibrary = $mediaSourceInvalid
+            ? ['assets' => [], 'total' => 0, 'limit' => 0, 'truncated' => false]
+            : $media->editorAssetLibrary();
+        $assets = $assetLibrary['assets'];
 
         $editorConfig = [
             'creativeId' => $creative->public_id,
@@ -83,7 +86,9 @@ class CreativeEditor extends Component
             'mediaSourcePath' => $mediaSourceInvalid
                 ? 'Ausgewählter Ordner nicht mehr verfügbar'
                 : ($selectedFolderNode['path'] ?? 'Firmendateien / Grundverzeichnis'),
-            'mediaAssetCount' => $mediaSourceInvalid ? 0 : $media->editorAssetCount(),
+            'mediaAssetCount' => $assetLibrary['total'],
+            'mediaAssetVisibleCount' => count($assets),
+            'mediaAssetTruncated' => $assetLibrary['truncated'],
             'mediaFilesUrl' => route(
                 'admin.files',
                 $selectedFolder && ! $mediaSourceInvalid ? ['folder' => $selectedFolder->getKey()] : [],

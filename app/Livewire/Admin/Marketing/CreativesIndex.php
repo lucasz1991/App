@@ -8,6 +8,7 @@ use App\Models\MarketingCreative;
 use App\Services\Marketing\MarketingFileSourceService;
 use App\Services\Marketing\MarketingStudioService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -26,6 +27,8 @@ class CreativesIndex extends Component
     public string $status = '';
 
     public string $mediaFolderId = '';
+
+    public string $mediaSourceFingerprint = '';
 
     public function mount(MarketingFileSourceService $media): void
     {
@@ -97,10 +100,17 @@ class CreativesIndex extends Component
         $value = trim($this->mediaFolderId);
         abort_unless($value === '' || ctype_digit($value), 422);
 
-        $media->setSelectedFolder(
-            $value === '' ? null : (int) $value,
-            auth()->user(),
-        );
+        try {
+            $media->setSelectedFolder(
+                $value === '' ? null : (int) $value,
+                auth()->user(),
+                $this->mediaSourceFingerprint,
+            );
+        } catch (ValidationException $exception) {
+            $this->syncMediaFolderSelection($media);
+
+            throw $exception;
+        }
 
         $this->syncMediaFolderSelection($media);
         $this->dispatch(
@@ -135,6 +145,9 @@ class CreativesIndex extends Component
         $selectedFolderNode = collect($folderTree)->first(
             fn (array $folder): bool => (bool) ($folder['selected'] ?? false)
         );
+        $assetLibrary = $mediaSourceInvalid
+            ? ['assets' => [], 'total' => 0, 'limit' => 0, 'truncated' => false]
+            : $media->editorAssetLibrary();
 
         return view('livewire.admin.marketing.creatives-index', [
             'creatives' => $creatives,
@@ -143,7 +156,9 @@ class CreativesIndex extends Component
             'mediaSourcePath' => $mediaSourceInvalid
                 ? 'Ausgewählter Ordner nicht mehr verfügbar'
                 : ($selectedFolderNode['path'] ?? 'Firmendateien / Grundverzeichnis'),
-            'mediaAssetCount' => $mediaSourceInvalid ? 0 : $media->editorAssetCount(),
+            'mediaAssetCount' => $assetLibrary['total'],
+            'mediaAssetVisibleCount' => count($assetLibrary['assets']),
+            'mediaAssetTruncated' => $assetLibrary['truncated'],
             'mediaFilesUrl' => route(
                 'admin.files',
                 $selectedFolder && ! $mediaSourceInvalid ? ['folder' => $selectedFolder->getKey()] : [],
@@ -162,5 +177,6 @@ class CreativesIndex extends Component
     {
         $selectedFolderId = $media->selectedFolderId(uncached: true);
         $this->mediaFolderId = $selectedFolderId === null ? '' : (string) $selectedFolderId;
+        $this->mediaSourceFingerprint = $media->selectionFingerprint();
     }
 }

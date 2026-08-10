@@ -2,6 +2,7 @@
 @import '@fontsource-variable/plus-jakarta-sans';
 @import './help-support.css';
 @import './marketing-studio.css';
+@import './mail-builder.css';
 
 @tailwind base;
 @tailwind components;

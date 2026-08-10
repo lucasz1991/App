@@ -183,6 +183,19 @@ php artisan db:seed --class=MarketingStudioSeeder --force
 Ohne diese Angabe verwendet der Seeder den ersten Administrator. Bestehende oder
 gelöschte Startmotive werden nicht überschrieben und nicht doppelt angelegt.
 
+Der administrative **Mail- & Signatur-Editor** benötigt ebenfalls zwei
+idempotente Startdokumente. Nach der Migration werden sie auf dem Server mit
+dem folgenden Befehl angelegt; vorhandene Entwürfe oder Veröffentlichungen
+bleiben dabei unverändert:
+
+```bash
+php artisan db:seed --class=MailDocumentSeeder --force
+```
+
+Ohne diesen einmaligen Schritt verwenden Downloads und Systemmails weiterhin
+die unveränderten Blade-Vorlagen. Die Editor-Seite zeigt dann bewusst den
+Einrichtungshinweis statt einen leeren oder fehlerhaften Builder zu öffnen.
+
 Der Chromium-Unterprozess endet spätestens nach 75 Sekunden, der Render-Job
 nach 85 Sekunden und der Worker nach 90 Sekunden. Diese Staffelung lässt Zeit
 fÃ¼r temporÃ¤res Datei-Cleanup und einen sauber gespeicherten Fehlerstatus.

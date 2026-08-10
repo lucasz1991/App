@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Jobs\DeleteTempFile;
 use App\Services\Marketing\MarketingFileSourceService;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -33,7 +34,6 @@ class File extends Model
         'visible_from',
         'auto_delete',
         'visible_teams',
-        'legacy_marketing_asset_public_id',
         'content_sha256',
         'image_width',
         'image_height',
@@ -84,7 +84,6 @@ class File extends Model
         return in_array($normalized, $roles, true);
     }
 
-
     protected static function booted(): void
     {
         static::updating(function (File $file): void {
@@ -111,12 +110,15 @@ class File extends Model
             $path = (string) $file->path;
 
             DB::afterCommit(static function () use ($file, $disk, $path): void {
-                if ($path === '' || ! Storage::disk($disk)->exists($path)) {
+                if ($path === '') {
                     return;
                 }
 
                 try {
-                    Storage::disk($disk)->delete($path);
+                    $storage = Storage::disk($disk);
+                    if ($storage->exists($path)) {
+                        $storage->delete($path);
+                    }
                 } catch (\Throwable $e) {
                     Log::warning('Konnte Datei beim Löschen des File-Modells nicht entfernen', [
                         'file_id' => $file->id,
@@ -129,7 +131,6 @@ class File extends Model
         });
     }
 
-
     /* ------------------------------------------
      * zentrale Dateitypen-Definition
      * ----------------------------------------*/
@@ -140,14 +141,14 @@ class File extends Model
             // OFFICE & DOKUMENTE
             // -----------------------------------------
             'pdf' => [
-                'ext'  => 'pdf',
-                'label'=> 'PDF-Dokument',
+                'ext' => 'pdf',
+                'label' => 'PDF-Dokument',
                 'icon' => 'file-pdf.png',
                 'mime' => ['application/pdf'],
             ],
             'doc' => [
-                'ext'  => 'doc',
-                'label'=> 'Microsoft Word-Dokument',
+                'ext' => 'doc',
+                'label' => 'Microsoft Word-Dokument',
                 'icon' => 'file-word.png',
                 'mime' => [
                     'application/msword',
@@ -155,16 +156,16 @@ class File extends Model
                 ],
             ],
             'docx' => [
-                'ext'  => 'docx',
-                'label'=> 'Microsoft Word-Dokument',
+                'ext' => 'docx',
+                'label' => 'Microsoft Word-Dokument',
                 'icon' => 'file-word.png',
                 'mime' => [
                     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
                 ],
             ],
             'xls' => [
-                'ext'  => 'xls',
-                'label'=> 'Microsoft Excel-Arbeitsmappe',
+                'ext' => 'xls',
+                'label' => 'Microsoft Excel-Arbeitsmappe',
                 'icon' => 'file-exel.png',
                 'mime' => [
                     'application/vnd.ms-excel',
@@ -172,50 +173,50 @@ class File extends Model
                 ],
             ],
             'xlsx' => [
-                'ext'  => 'xlsx',
-                'label'=> 'Microsoft Excel-Arbeitsmappe',
+                'ext' => 'xlsx',
+                'label' => 'Microsoft Excel-Arbeitsmappe',
                 'icon' => 'file-exel.png',
                 'mime' => ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
             ],
             'ppt' => [
-                'ext'  => 'ppt',
-                'label'=> 'Microsoft PowerPoint-Präsentation',
+                'ext' => 'ppt',
+                'label' => 'Microsoft PowerPoint-Präsentation',
                 'icon' => 'file-powerpoint.png',
                 'mime' => ['application/vnd.ms-powerpoint'],
             ],
             'pptx' => [
-                'ext'  => 'pptx',
-                'label'=> 'Microsoft PowerPoint-Präsentation',
+                'ext' => 'pptx',
+                'label' => 'Microsoft PowerPoint-Präsentation',
                 'icon' => 'file-powerpoint.png',
                 'mime' => ['application/vnd.openxmlformats-officedocument.presentationml.presentation'],
             ],
             'csv' => [
-                'ext'  => 'csv',
-                'label'=> 'CSV-Tabelle',
+                'ext' => 'csv',
+                'label' => 'CSV-Tabelle',
                 'icon' => 'csv-icon.svg',
                 'mime' => ['text/csv'],
             ],
             'txt' => [
-                'ext'  => 'txt',
-                'label'=> 'Textdatei',
+                'ext' => 'txt',
+                'label' => 'Textdatei',
                 'icon' => 'txt-icon.svg',
                 'mime' => ['text/plain'],
             ],
             'xml' => [
-                'ext'  => 'xml',
-                'label'=> 'XML-Datei',
+                'ext' => 'xml',
+                'label' => 'XML-Datei',
                 'icon' => 'xml-icon.svg',
                 'mime' => ['application/xml', 'text/xml'],
             ],
             'html' => [
-                'ext'  => 'html',
-                'label'=> 'HTML-Dokument',
+                'ext' => 'html',
+                'label' => 'HTML-Dokument',
                 'icon' => 'html-icon.svg',
                 'mime' => ['text/html'],
             ],
             'htm' => [
-                'ext'  => 'htm',
-                'label'=> 'HTML-Dokument',
+                'ext' => 'htm',
+                'label' => 'HTML-Dokument',
                 'icon' => 'html-icon.svg',
                 'mime' => ['text/html'],
             ],
@@ -224,44 +225,44 @@ class File extends Model
             // CODE & SCRIPTING
             // -----------------------------------------
             'php' => [
-                'ext'  => 'php',
-                'label'=> 'PHP-Datei',
+                'ext' => 'php',
+                'label' => 'PHP-Datei',
                 'icon' => 'php-icon.svg',
                 'mime' => ['text/x-php', 'application/x-httpd-php', 'application/x-php'],
             ],
             'js' => [
-                'ext'  => 'js',
-                'label'=> 'JavaScript-Datei',
+                'ext' => 'js',
+                'label' => 'JavaScript-Datei',
                 'icon' => 'txt-icon.svg',
                 'mime' => ['application/javascript', 'text/javascript'],
             ],
             'json' => [
-                'ext'  => 'json',
-                'label'=> 'JSON-Datei',
+                'ext' => 'json',
+                'label' => 'JSON-Datei',
                 'icon' => 'txt-icon.svg',
                 'mime' => ['application/json'],
             ],
             'css' => [
-                'ext'  => 'css',
-                'label'=> 'CSS-Stylesheet',
+                'ext' => 'css',
+                'label' => 'CSS-Stylesheet',
                 'icon' => 'txt-icon.svg',
                 'mime' => ['text/css'],
             ],
             'yaml' => [
-                'ext'  => 'yaml',
-                'label'=> 'YAML-Datei',
+                'ext' => 'yaml',
+                'label' => 'YAML-Datei',
                 'icon' => 'txt-icon.svg',
                 'mime' => ['application/x-yaml', 'text/yaml'],
             ],
             'sql' => [
-                'ext'  => 'sql',
-                'label'=> 'SQL-Skript',
+                'ext' => 'sql',
+                'label' => 'SQL-Skript',
                 'icon' => 'txt-icon.svg',
                 'mime' => ['application/sql', 'text/x-sql'],
             ],
             'md' => [
-                'ext'  => 'md',
-                'label'=> 'Markdown-Dokument',
+                'ext' => 'md',
+                'label' => 'Markdown-Dokument',
                 'icon' => 'txt-icon.svg',
                 'mime' => ['text/markdown'],
             ],
@@ -270,68 +271,68 @@ class File extends Model
             // GRAFIK / DESIGN
             // -----------------------------------------
             'ai' => [
-                'ext'  => 'ai',
-                'label'=> 'Adobe Illustrator-Datei',
+                'ext' => 'ai',
+                'label' => 'Adobe Illustrator-Datei',
                 'icon' => 'ai-icon.svg',
                 'mime' => ['application/postscript', 'application/illustrator'],
             ],
             'eps' => [
-                'ext'  => 'eps',
-                'label'=> 'PostScript-Datei (EPS)',
+                'ext' => 'eps',
+                'label' => 'PostScript-Datei (EPS)',
                 'icon' => 'eps-icon.svg',
                 'mime' => ['application/postscript'],
             ],
             'cdr' => [
-                'ext'  => 'cdr',
-                'label'=> 'CorelDRAW-Datei',
+                'ext' => 'cdr',
+                'label' => 'CorelDRAW-Datei',
                 'icon' => 'cdr-icon.svg',
                 'mime' => ['application/vnd.corel-draw'],
             ],
             'raw' => [
-                'ext'  => 'raw',
-                'label'=> 'RAW-Bilddatei',
+                'ext' => 'raw',
+                'label' => 'RAW-Bilddatei',
                 'icon' => 'raw-icon.svg',
                 'mime' => ['image/x-raw', 'image/raw'],
             ],
             'gif' => [
-                'ext'  => 'gif',
-                'label'=> 'GIF-Bild',
+                'ext' => 'gif',
+                'label' => 'GIF-Bild',
                 'icon' => 'gif-icon.svg',
                 'mime' => ['image/gif'],
             ],
             'jpg' => [
-                'ext'  => 'jpg',
-                'label'=> 'JPEG-Bild',
+                'ext' => 'jpg',
+                'label' => 'JPEG-Bild',
                 'icon' => null,
                 'mime' => ['image/jpeg'],
             ],
             'jpeg' => [
-                'ext'  => 'jpeg',
-                'label'=> 'JPEG-Bild',
+                'ext' => 'jpeg',
+                'label' => 'JPEG-Bild',
                 'icon' => null,
                 'mime' => ['image/jpeg'],
             ],
             'png' => [
-                'ext'  => 'png',
-                'label'=> 'PNG-Bild',
+                'ext' => 'png',
+                'label' => 'PNG-Bild',
                 'icon' => null,
                 'mime' => ['image/png'],
             ],
             'svg' => [
-                'ext'  => 'svg',
-                'label'=> 'SVG-Vektorgrafik',
+                'ext' => 'svg',
+                'label' => 'SVG-Vektorgrafik',
                 'icon' => null,
                 'mime' => ['image/svg+xml'],
             ],
             'webp' => [
-                'ext'  => 'webp',
-                'label'=> 'WebP-Bild',
+                'ext' => 'webp',
+                'label' => 'WebP-Bild',
                 'icon' => null,
                 'mime' => ['image/webp'],
             ],
             'heic' => [
-                'ext'  => 'heic',
-                'label'=> 'HEIC-Bild',
+                'ext' => 'heic',
+                'label' => 'HEIC-Bild',
                 'icon' => null,
                 'mime' => ['image/heic', 'image/heif'],
             ],
@@ -340,44 +341,44 @@ class File extends Model
             // AUDIO / VIDEO
             // -----------------------------------------
             'mp3' => [
-                'ext'  => 'mp3',
-                'label'=> 'MP3-Audiodatei',
+                'ext' => 'mp3',
+                'label' => 'MP3-Audiodatei',
                 'icon' => 'mp3-icon.svg',
                 'mime' => ['audio/mpeg'],
             ],
             'wav' => [
-                'ext'  => 'wav',
-                'label'=> 'WAV-Audiodatei',
+                'ext' => 'wav',
+                'label' => 'WAV-Audiodatei',
                 'icon' => 'wav-icon.svg',
                 'mime' => ['audio/wav', 'audio/x-wav'],
             ],
             'mp4' => [
-                'ext'  => 'mp4',
-                'label'=> 'MP4-Video',
+                'ext' => 'mp4',
+                'label' => 'MP4-Video',
                 'icon' => 'mp4-icon.svg',
                 'mime' => ['video/mp4'],
             ],
             'avi' => [
-                'ext'  => 'avi',
-                'label'=> 'AVI-Video',
+                'ext' => 'avi',
+                'label' => 'AVI-Video',
                 'icon' => 'file-video.png',
                 'mime' => ['video/x-msvideo'],
             ],
             'mov' => [
-                'ext'  => 'mov',
-                'label'=> 'MOV-Video',
+                'ext' => 'mov',
+                'label' => 'MOV-Video',
                 'icon' => 'file-video.png',
                 'mime' => ['video/quicktime'],
             ],
             'mpg' => [
-                'ext'  => 'mpg',
-                'label'=> 'MPEG-Video',
+                'ext' => 'mpg',
+                'label' => 'MPEG-Video',
                 'icon' => 'file-video.png',
                 'mime' => ['video/mpeg'],
             ],
             'mpeg' => [
-                'ext'  => 'mpeg',
-                'label'=> 'MPEG-Video',
+                'ext' => 'mpeg',
+                'label' => 'MPEG-Video',
                 'icon' => 'file-video.png',
                 'mime' => ['video/mpeg'],
             ],
@@ -386,32 +387,32 @@ class File extends Model
             // ARCHIVE
             // -----------------------------------------
             'zip' => [
-                'ext'  => 'zip',
-                'label'=> 'ZIP-Archiv',
+                'ext' => 'zip',
+                'label' => 'ZIP-Archiv',
                 'icon' => 'zip-icon.svg',
                 'mime' => ['application/zip', 'application/x-zip-compressed'],
             ],
             'rar' => [
-                'ext'  => 'rar',
-                'label'=> 'RAR-Archiv',
+                'ext' => 'rar',
+                'label' => 'RAR-Archiv',
                 'icon' => 'rar-icon.svg',
                 'mime' => ['application/x-rar-compressed'],
             ],
             '7z' => [
-                'ext'  => '7z',
-                'label'=> '7z-Archiv',
+                'ext' => '7z',
+                'label' => '7z-Archiv',
                 'icon' => 'zip-icon.svg',
                 'mime' => ['application/x-7z-compressed'],
             ],
             'tar' => [
-                'ext'  => 'tar',
-                'label'=> 'TAR-Archiv',
+                'ext' => 'tar',
+                'label' => 'TAR-Archiv',
                 'icon' => 'zip-icon.svg',
                 'mime' => ['application/x-tar'],
             ],
             'gz' => [
-                'ext'  => 'gz',
-                'label'=> 'GZIP-Archiv',
+                'ext' => 'gz',
+                'label' => 'GZIP-Archiv',
                 'icon' => 'zip-icon.svg',
                 'mime' => ['application/gzip'],
             ],
@@ -420,20 +421,19 @@ class File extends Model
             // FALLBACK
             // -----------------------------------------
             '*' => [
-                'ext'  => null,
-                'label'=> 'Datei',
+                'ext' => null,
+                'label' => 'Datei',
                 'icon' => 'doc-icon.svg',
                 'mime' => ['application/octet-stream'],
             ],
         ];
     }
 
-
     protected static function resolveFileType(?string $mime, ?string $ext): array
     {
         $types = static::fileTypeMap();
         $mime = strtolower((string) $mime);
-        $ext  = strtolower((string) $ext);
+        $ext = strtolower((string) $ext);
 
         if ($ext && isset($types[$ext])) {
             return $types[$ext];
@@ -443,18 +443,19 @@ class File extends Model
                 return $type;
             }
         }
+
         return $types['*'];
     }
 
     public function getIsImageAttribute(): bool
     {
         $mime = (string) ($this->mime_type ?? '');
-        $ext  = strtolower((string) ($this->guessExtension($mime, $this->path) ?? ''));
+        $ext = strtolower((string) ($this->guessExtension($mime, $this->path) ?? ''));
         $type = static::resolveFileType($mime, $ext);
 
         if (str_starts_with($mime, 'image/') && $type['icon'] === null) {
             return true;
-        }else {
+        } else {
             return false;
         }
     }
@@ -462,31 +463,32 @@ class File extends Model
     public function getIconOrThumbnailAttribute(): string
     {
         $mime = (string) ($this->mime_type ?? '');
-        $ext  = strtolower((string) ($this->guessExtension($mime, $this->path) ?? ''));
+        $ext = strtolower((string) ($this->guessExtension($mime, $this->path) ?? ''));
         $type = static::resolveFileType($mime, $ext);
 
         if (str_starts_with($mime, 'image/') && $type['icon'] === null) {
             return $this->getEphemeralPublicUrl(10);
         }
-        return asset('site-images/fileicons/' . ($type['icon'] ?? static::fileTypeMap()['*']['icon']));
+
+        return asset('site-images/fileicons/'.($type['icon'] ?? static::fileTypeMap()['*']['icon']));
     }
 
     public function getSizeFormattedAttribute(): string
     {
         $bytes = (int) $this->size;
         if ($bytes < 1024) {
-            return $bytes . ' B';
+            return $bytes.' B';
         } elseif ($bytes < 1000000) {
-            return number_format($bytes / 1024, 1, ',', '.') . ' KB';
+            return number_format($bytes / 1024, 1, ',', '.').' KB';
         } else {
-            return number_format($bytes / 1048576, 2, ',', '.') . ' MB';
+            return number_format($bytes / 1048576, 2, ',', '.').' MB';
         }
     }
 
     public function getEphemeralPublicUrl(int $minutes = 10): string
     {
-        $disk      = $this->disk ?: 'private';
-        $path      = (string) $this->path;
+        $disk = $this->disk ?: 'private';
+        $path = (string) $this->path;
 
         // Bei public-Dateien direkt den URL zurückgeben – keine temporäre Kopie nötig
         if ($disk === 'public') {
@@ -497,7 +499,7 @@ class File extends Model
 
         $publicDisk = 'public';
         $sourceDisk = $disk ?: 'private';
-        $cacheKey   = "file:{$this->getKey()}:temp_url";
+        $cacheKey = "file:{$this->getKey()}:temp_url";
         $cached = Cache::get($cacheKey);
 
         if ($cached) {
@@ -518,15 +520,15 @@ class File extends Model
                     }
                 }
 
-                $tmpName = Str::uuid()->toString() . '-' . basename($this->path);
-                $tmpPath = 'temp/' . $tmpName;
+                $tmpName = Str::uuid()->toString().'-'.basename($this->path);
+                $tmpPath = 'temp/'.$tmpName;
                 $read = Storage::disk($sourceDisk)->readStream($this->path);
-                if (!$read) {
+                if (! $read) {
                     return '';
                     throw new \RuntimeException("Quelle nicht lesbar: {$this->path}");
                 }
                 Storage::disk($publicDisk)->writeStream($tmpPath, $read);
-                if (!Storage::disk($publicDisk)->exists($tmpPath)) {
+                if (! Storage::disk($publicDisk)->exists($tmpPath)) {
                     Log::error("Fehler beim Schreiben der temporären Datei: {$tmpPath}");
                     throw new \RuntimeException("Ziel nicht schreibbar: {$tmpPath}");
                 } else {
@@ -541,10 +543,11 @@ class File extends Model
                     DeleteTempFile::dispatch($publicDisk, $tmpPath)->delay(now()->addMinutes($minutes));
                 }
                 $payload = [
-                    'path'       => $tmpPath,
+                    'path' => $tmpPath,
                     'expires_at' => now()->addMinutes($minutes)->toIso8601String(),
                 ];
                 Cache::put($cacheKey, $payload, now()->addMinutes($minutes));
+
                 return Storage::disk($publicDisk)->url($tmpPath);
             }
         } finally {
@@ -556,14 +559,14 @@ class File extends Model
             return Storage::disk($publicDisk)->url($cached['path']);
         }
 
-        $tmpName = Str::uuid()->toString() . '-' . basename($this->path);
-        $tmpPath = 'temp/' . $tmpName;
+        $tmpName = Str::uuid()->toString().'-'.basename($this->path);
+        $tmpPath = 'temp/'.$tmpName;
         $read = Storage::disk($sourceDisk)->readStream($this->path);
-        if (!$read) {
+        if (! $read) {
             throw new \RuntimeException("Quelle nicht lesbar: {$this->path}");
         }
         Storage::disk($publicDisk)->writeStream($tmpPath, $read);
-        if (!Storage::disk($publicDisk)->exists($tmpPath)) {
+        if (! Storage::disk($publicDisk)->exists($tmpPath)) {
             Log::error("Fehler beim Schreiben der temporären Datei: {$tmpPath}");
             throw new \RuntimeException("Ziel nicht schreibbar: {$tmpPath}");
         } else {
@@ -573,18 +576,19 @@ class File extends Model
             fclose($read);
         }
         if (config('queue.default') !== 'sync') {
-                    // Sync-Queue ignoriert das Delay und wuerde die Temp-Datei
-                    // sofort loeschen — dann uebernimmt die geplante Bereinigung.
-                    DeleteTempFile::dispatch($publicDisk, $tmpPath)->delay(now()->addMinutes($minutes));
-                }
+            // Sync-Queue ignoriert das Delay und wuerde die Temp-Datei
+            // sofort loeschen — dann uebernimmt die geplante Bereinigung.
+            DeleteTempFile::dispatch($publicDisk, $tmpPath)->delay(now()->addMinutes($minutes));
+        }
         Cache::put($cacheKey, [
-            'path'       => $tmpPath,
+            'path' => $tmpPath,
             'expires_at' => now()->addMinutes($minutes)->toIso8601String(),
         ], now()->addMinutes($minutes));
+
         return Storage::disk($publicDisk)->url($tmpPath);
     }
 
-    public function folder(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function folder(): BelongsTo
     {
         return $this->belongsTo(FileFolder::class, 'folder_id');
     }
@@ -597,9 +601,10 @@ class File extends Model
     public function getIsOwnedByAuthUserAttribute(): bool
     {
         $authUser = Auth::user();
-        if (!$authUser) {
+        if (! $authUser) {
             return false;
         }
+
         return (int) $this->user_id === (int) $authUser->id;
     }
 
@@ -614,13 +619,15 @@ class File extends Model
         $guessed = $this->guessExtension($mime, $this->path);
         $type = static::resolveFileType($mime, $guessed);
         $finalExt = $type['ext'] ?? $guessed;
-        return $finalExt ? ($safeName . '.' . $finalExt) : $safeName;
+
+        return $finalExt ? ($safeName.'.'.$finalExt) : $safeName;
     }
 
     protected function sanitizeName(string $name): string
     {
         $name = trim($name);
         $name = str_replace(['\\', '/', "\0"], '-', $name);
+
         return $name === '' ? 'datei' : $name;
     }
 
@@ -629,7 +636,7 @@ class File extends Model
         if ($mime) {
             try {
                 $candidates = MimeTypes::getDefault()->getExtensions($mime);
-                if (!empty($candidates)) {
+                if (! empty($candidates)) {
                     return strtolower($candidates[0]);
                 }
             } catch (\Throwable $e) {
@@ -641,6 +648,7 @@ class File extends Model
                 return strtolower($ext);
             }
         }
+
         return null;
     }
 
@@ -653,6 +661,7 @@ class File extends Model
         $mime = $this->mime_type
             ?: (Storage::disk($disk)->exists($this->path) ? (Storage::disk($disk)->mimeType($this->path) ?: null) : null)
             ?: 'application/octet-stream';
+
         return Storage::disk($disk)->download($this->path, $filename, [
             'Content-Type' => $mime,
         ]);
@@ -661,10 +670,11 @@ class File extends Model
     public function getMimeTypeForHumans(): string
     {
         $mime = strtolower((string) $this->mime_type);
-        $ext  = $this->guessExtension($mime, $this->path);
+        $ext = $this->guessExtension($mime, $this->path);
         $type = static::resolveFileType($mime, $ext);
         $label = $type['label'] ?? 'Datei';
         $extU = $type['ext'] ? strtoupper($type['ext']) : null;
+
         return $extU ? "{$label} ({$extU})" : $label;
     }
 

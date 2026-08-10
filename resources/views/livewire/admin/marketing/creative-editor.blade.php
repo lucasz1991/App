@@ -62,7 +62,11 @@
                     @if ($mediaSourceInvalid)
                         Keine Bilder verfügbar. Lege auf der Motive-Seite das Grundverzeichnis oder einen vorhandenen Ordner fest.
                     @else
-                        {{ $mediaAssetCount }} {{ $mediaAssetCount === 1 ? 'Bild' : 'Bilder' }} aus diesem Ordnerbaum · Uploads und Änderungen erfolgen zentral unter Dateien.
+                        @if ($mediaAssetTruncated)
+                            {{ $mediaAssetVisibleCount }} von {{ $mediaAssetCount }} Bildern geladen · Grenze die Bildquelle für weitere Treffer auf einen Unterordner ein.
+                        @else
+                            {{ $mediaAssetCount }} {{ $mediaAssetCount === 1 ? 'Bild' : 'Bilder' }} aus diesem Ordnerbaum · Uploads und Änderungen erfolgen zentral unter Dateien.
+                        @endif
                     @endif
                 </p>
             </div>

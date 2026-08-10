@@ -11,9 +11,10 @@ return [
     ],
 
     'assets' => [
-        'directory' => 'marketing/assets',
         'max_kilobytes' => 8192,
         'max_pixels' => 40_000_000,
+        'editor_limit' => 500,
+        'browser_cache_seconds' => 900,
         'allowed_mime_types' => [
             'image/jpeg',
             'image/png',

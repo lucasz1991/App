@@ -272,7 +272,7 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
 
             Route::get('/marketing/dateien/{file}', MarketingFileController::class)
                 ->whereNumber('file')
-                ->middleware('throttle:120,1')
+                ->middleware('throttle:600,1')
                 ->name('marketing.files.show');
             Route::get('/marketing/renders/{render}', [MarketingRenderController::class, 'show'])
                 ->whereUuid('render')

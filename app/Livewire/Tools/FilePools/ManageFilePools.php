@@ -221,9 +221,11 @@ class ManageFilePools extends Component
         ];
 
         if ($this->editFolderId) {
-            FileFolder::where('file_pool_id', $this->filePoolId)
-                ->findOrFail($this->editFolderId)
-                ->update($payload);
+            DB::transaction(function () use ($payload): void {
+                FileFolder::where('file_pool_id', $this->filePoolId)
+                    ->findOrFail($this->editFolderId)
+                    ->update($payload);
+            });
         } else {
             FileFolder::create(array_merge($payload, [
                 'file_pool_id' => $this->filePoolId,
@@ -402,7 +404,9 @@ class ManageFilePools extends Component
             $payload['shared_roles'] = null;
         }
 
-        $file->update($payload);
+        DB::transaction(static function () use ($file, $payload): void {
+            $file->update($payload);
+        });
 
         $this->reset([
             'file', 'selectedFileName', 'selectedFileExpiresDate', 'openEditFileForm',
@@ -523,7 +527,9 @@ class ManageFilePools extends Component
 
         $file = $this->findFileInPoolOrFail($fileId);
         $this->authorizeFileMutation($file);
-        $file->delete();
+        DB::transaction(static function () use ($file): void {
+            $file->delete();
+        });
         $this->dispatch('swal:toast', type: 'success', text: __('app.file_deleted'));
     }
 

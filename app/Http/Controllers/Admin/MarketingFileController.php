@@ -21,7 +21,7 @@ final class MarketingFileController extends MarketingAdminController
         $snapshot = $files->validatedSnapshot($file);
         $fallbackName = preg_replace('/[^A-Za-z0-9._-]/', '-', Str::ascii($snapshot['name'])) ?: 'railtime-bild';
 
-        return response()->stream(static function () use ($snapshot): void {
+        $response = response()->stream(static function () use ($snapshot): void {
             echo $snapshot['contents'];
         }, 200, [
             'Content-Type' => $snapshot['mime_type'],
@@ -31,9 +31,25 @@ final class MarketingFileController extends MarketingAdminController
                 $snapshot['name'],
                 $fallbackName,
             ),
-            'Cache-Control' => 'private, max-age=0, must-revalidate',
-            'ETag' => '"'.$snapshot['sha256'].'"',
             'X-Content-Type-Options' => 'nosniff',
+            'Cross-Origin-Resource-Policy' => 'same-origin',
+            'Vary' => 'Cookie',
         ]);
+
+        $version = strtolower((string) $request->query('v', ''));
+        $hasCurrentVersion = (bool) preg_match('/^[a-f0-9]{8,64}$/', $version)
+            && str_starts_with($snapshot['sha256'], $version);
+        $response->setPrivate();
+        $response->setMaxAge($hasCurrentVersion
+            ? max(60, (int) config('marketing.assets.browser_cache_seconds', 900))
+            : 0);
+        $response->headers->addCacheControlDirective('must-revalidate');
+        $response->setEtag($snapshot['sha256']);
+        if ($file->updated_at) {
+            $response->setLastModified($file->updated_at);
+        }
+        $response->isNotModified($request);
+
+        return $response;
     }
 }

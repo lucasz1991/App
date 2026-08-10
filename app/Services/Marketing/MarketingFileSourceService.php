@@ -16,6 +16,7 @@ use App\Support\MarketingFileSourceSettings;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
@@ -23,7 +24,7 @@ use Throwable;
 
 final class MarketingFileSourceService
 {
-    public const FILE_PATTERN = '#(?:https?://[^\s"\')]+)?/administrator/marketing/dateien/([1-9][0-9]*)(?:\?v=[a-f0-9]{8,64})?#i';
+    public const FILE_PATTERN = '#(?<![A-Za-z0-9:+./?&=%_-])(?:https?://[^\s"\')>]+)?/administrator/marketing/dateien/([1-9][0-9]*)(?:\?v=[a-f0-9]{8,64})?(?=$|[\s"\')>])#i';
 
     /** @var array<string, true> */
     private const ALLOWED_MIME_TYPES = [
@@ -49,6 +50,11 @@ final class MarketingFileSourceService
     public function selectedFolderId(bool $uncached = false): ?int
     {
         return MarketingFileSourceSettings::selectedFolderId($uncached);
+    }
+
+    public function selectionFingerprint(bool $uncached = true): string
+    {
+        return MarketingFileSourceSettings::fingerprintForFolderId($this->selectedFolderId($uncached));
     }
 
     public function selectedFolder(): ?FileFolder
@@ -106,64 +112,95 @@ final class MarketingFileSourceService
             ->all();
     }
 
-    public function setSelectedFolder(?int $folderId, User $actor): void
-    {
+    public function setSelectedFolder(
+        ?int $folderId,
+        User $actor,
+        ?string $expectedSelectionFingerprint = null,
+    ): void {
         abort_unless($actor->isAdmin(), 403);
 
         $pool = $this->sourcePool();
-        if ($folderId !== null) {
-            $folder = FileFolder::query()->find($folderId);
-            if (! $folder || $this->folderChain($folder, $pool) === null) {
-                throw ValidationException::withMessages([
-                    'mediaFolderId' => 'Der gewählte Dateiordner gehört nicht zum Firmen-Dateipool oder ist nicht mehr verfügbar.',
-                ]);
-            }
-        }
+        DB::transaction(function () use ($folderId, $expectedSelectionFingerprint, $pool): void {
+            Setting::query()->firstOrCreate(
+                [
+                    'type' => MarketingFileSourceSettings::GROUP,
+                    'key' => MarketingFileSourceSettings::KEY,
+                ],
+                ['value' => ['selected_folder_id' => null]],
+            );
 
-        $this->assertAllReferencesAllowedForSource($folderId);
-
-        DB::transaction(function () use ($folderId): void {
             $setting = Setting::query()
                 ->where('type', MarketingFileSourceSettings::GROUP)
                 ->where('key', MarketingFileSourceSettings::KEY)
                 ->lockForUpdate()
-                ->first();
+                ->firstOrFail();
+            $current = MarketingFileSourceSettings::folderIdFromStoredRaw($setting->getRawOriginal('value'));
+            $currentFingerprint = MarketingFileSourceSettings::fingerprintForFolderId($current);
 
-            $current = MarketingFileSourceSettings::selectedFolderId(true);
+            if ($expectedSelectionFingerprint !== null
+                && ! hash_equals($currentFingerprint, strtolower($expectedSelectionFingerprint))) {
+                throw ValidationException::withMessages([
+                    'mediaFolderId' => 'Die Marketing-Bildquelle wurde zwischenzeitlich geändert. Bitte die Seite neu laden.',
+                ]);
+            }
+
+            FileFolder::query()
+                ->where('file_pool_id', $pool->id)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+
+            if ($folderId !== null) {
+                $folder = FileFolder::query()->find($folderId);
+                if (! $folder || $this->folderChain($folder, $pool) === null) {
+                    throw ValidationException::withMessages([
+                        'mediaFolderId' => 'Der gewählte Dateiordner gehört nicht zum Firmen-Dateipool oder ist nicht mehr verfügbar.',
+                    ]);
+                }
+            }
+
+            $this->assertAllReferencesAllowedForSource($folderId, lockRows: true);
+
             if ($current === $folderId) {
                 return;
             }
 
-            if ($setting) {
-                $setting->forceFill(['value' => ['selected_folder_id' => $folderId]])->save();
-            } else {
-                Setting::query()->create([
-                    'type' => MarketingFileSourceSettings::GROUP,
-                    'key' => MarketingFileSourceSettings::KEY,
-                    'value' => ['selected_folder_id' => $folderId],
-                ]);
-            }
+            $setting->forceFill(['value' => ['selected_folder_id' => $folderId]])->save();
         });
 
         Cache::forget('settings.'.MarketingFileSourceSettings::GROUP.'.'.MarketingFileSourceSettings::KEY);
     }
 
-    /** @return list<array{src: string, name: string, type: string, category: string, width: int, height: int}> */
-    public function editorAssets(): array
+    /**
+     * @return array{
+     *   assets: list<array{src: string, name: string, type: string, category: string, width: int, height: int}>,
+     *   total: int,
+     *   limit: int,
+     *   truncated: bool
+     * }
+     */
+    public function editorAssetLibrary(): array
     {
         if ($this->hasInvalidSelection()) {
-            return [];
+            return ['assets' => [], 'total' => 0, 'limit' => 0, 'truncated' => false];
         }
 
-        return $this->candidateFiles()
-            ->map(function (File $file): ?array {
-                try {
-                    $snapshot = $this->validatedSnapshot($file);
-                } catch (Throwable) {
-                    return null;
-                }
+        $limit = max(1, min(1000, (int) config('marketing.assets.editor_limit', 500)));
+        $assets = [];
+        $total = 0;
+        foreach ($this->candidateFiles() as $file) {
+            try {
+                // candidateFiles() has already applied the current source scope.
+                // Only validate the bounded private bytes here, so the editor does
+                // not repeat the source/folder query chain for every thumbnail.
+                $snapshot = $this->readAndValidate($file);
+            } catch (Throwable) {
+                continue;
+            }
 
-                return [
+            $total++;
+            if (count($assets) < $limit) {
+                $assets[] = [
                     'src' => route('admin.marketing.files.show', $file).'?v='.substr($snapshot['sha256'], 0, 16),
                     'name' => $snapshot['name'],
                     'type' => 'image',
@@ -171,15 +208,26 @@ final class MarketingFileSourceService
                     'width' => $snapshot['width'],
                     'height' => $snapshot['height'],
                 ];
-            })
-            ->filter()
-            ->values()
-            ->all();
+            }
+        }
+
+        return [
+            'assets' => $assets,
+            'total' => $total,
+            'limit' => $limit,
+            'truncated' => $total > $limit,
+        ];
+    }
+
+    /** @return list<array{src: string, name: string, type: string, category: string, width: int, height: int}> */
+    public function editorAssets(): array
+    {
+        return $this->editorAssetLibrary()['assets'];
     }
 
     public function editorAssetCount(): int
     {
-        return count($this->editorAssets());
+        return $this->editorAssetLibrary()['total'];
     }
 
     /**
@@ -207,13 +255,61 @@ final class MarketingFileSourceService
     public function fileIsInScope(File $file, ?int $folderId): bool
     {
         if (! $this->fileBelongsToCompanyPool($file)
-            || $file->legacy_marketing_asset_deleted_at !== null
+            || trim((string) $file->disk) !== 'private'
             || ! $file->isWithinVisibilityWindow()
             || $file->isExpiredForDeletion()) {
             return false;
         }
 
         return $this->folderIdIsInScope($file->folder_id ? (int) $file->folder_id : null, $folderId);
+    }
+
+    /**
+     * Serializes source changes with file/folder mutations and render snapshots.
+     * Callers must already be inside a database transaction.
+     */
+    public function lockSourceSelection(): ?int
+    {
+        $setting = Setting::query()
+            ->where('type', MarketingFileSourceSettings::GROUP)
+            ->where('key', MarketingFileSourceSettings::KEY)
+            ->lockForUpdate()
+            ->first();
+
+        return MarketingFileSourceSettings::folderIdFromStoredRaw(
+            $setting?->getRawOriginal('value'),
+            $setting !== null,
+        );
+    }
+
+    /**
+     * @param  list<int>  $fileIds
+     * @return Collection<int, File>
+     */
+    public function lockFilesForUpdate(array $fileIds): Collection
+    {
+        $fileIds = array_values(array_unique(array_map(
+            'intval',
+            array_filter($fileIds, static fn (mixed $id): bool => is_numeric($id) && (int) $id > 0),
+        )));
+        sort($fileIds);
+        if ($fileIds === []) {
+            return collect();
+        }
+
+        $files = File::query()
+            ->whereIn('id', $fileIds)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+
+        if ($files->count() !== count($fileIds)) {
+            throw ValidationException::withMessages([
+                'file' => 'Eine verwendete Marketing-Datei ist nicht mehr vorhanden.',
+            ]);
+        }
+
+        return $files;
     }
 
     public function sourceFingerprint(): string
@@ -264,6 +360,8 @@ final class MarketingFileSourceService
                 || strtolower((string) ($candidate['scheme'] ?? '')) !== strtolower((string) ($application['scheme'] ?? ''))
                 || strtolower((string) ($candidate['host'] ?? '')) !== strtolower((string) ($application['host'] ?? ''))
                 || (int) ($candidate['port'] ?? 0) !== (int) ($application['port'] ?? 0)
+                || isset($candidate['user'])
+                || isset($candidate['pass'])
                 || isset($candidate['fragment'])) {
                 return null;
             }
@@ -272,7 +370,12 @@ final class MarketingFileSourceService
             $query = (string) ($candidate['query'] ?? '');
         } else {
             $parts = parse_url($url);
-            if (! is_array($parts) || isset($parts['scheme'], $parts['host']) || isset($parts['fragment'])) {
+            if (! is_array($parts)
+                || isset($parts['scheme'])
+                || isset($parts['host'])
+                || isset($parts['user'])
+                || isset($parts['pass'])
+                || isset($parts['fragment'])) {
                 return null;
             }
             $path = (string) ($parts['path'] ?? '');
@@ -315,6 +418,12 @@ final class MarketingFileSourceService
             return;
         }
 
+        if (DB::transactionLevel() > 0) {
+            $this->lockSourceSelection();
+        }
+
+        $creativeIds = $this->creativeIdsReferencingFile($file);
+        $this->lockCreativeRows($creativeIds);
         if ($this->creativeIdsReferencingFile($file) !== []) {
             throw ValidationException::withMessages([
                 'file' => 'Diese Datei wird noch in mindestens einem Marketing-Motiv verwendet und kann nicht gelöscht werden.',
@@ -328,8 +437,14 @@ final class MarketingFileSourceService
             return;
         }
 
+        if (DB::transactionLevel() > 0) {
+            $this->lockSourceSelection();
+        }
+
         $subtreeIds = $this->folderSubtreeIds($folder);
-        $selected = $this->selectedFolderId(true);
+        $selected = DB::transactionLevel() > 0
+            ? $this->lockSourceSelection()
+            : $this->selectedFolderId(true);
         if ($selected !== null && $selected > 0 && in_array($selected, $subtreeIds, true)) {
             throw ValidationException::withMessages([
                 'folder' => 'Dieser Ordner enthält die aktuell gewählte Marketing-Bildquelle. Bitte zuerst die Bildquelle ändern.',
@@ -337,6 +452,8 @@ final class MarketingFileSourceService
         }
 
         $fileIds = File::query()->whereIn('folder_id', $subtreeIds)->pluck('id')->map(fn ($id): int => (int) $id)->all();
+        $creativeIds = $this->creativeIdsReferencingFileIds($fileIds);
+        $this->lockCreativeRows($creativeIds);
         if ($this->creativeIdsReferencingFileIds($fileIds) !== []) {
             throw ValidationException::withMessages([
                 'folder' => 'Dieser Ordner enthält Dateien, die noch in Marketing-Motiven verwendet werden.',
@@ -346,12 +463,14 @@ final class MarketingFileSourceService
 
     public function assertFileCanMoveTo(File $file, FileFolder|int|null $destination): void
     {
+        $selected = DB::transactionLevel() > 0
+            ? $this->lockSourceSelection()
+            : $this->selectedFolderId(true);
         if ($this->creativeIdsReferencingFile($file) === []) {
             return;
         }
 
         $folderId = $destination instanceof FileFolder ? (int) $destination->id : $destination;
-        $selected = $this->selectedFolderId(true);
         if ($selected !== null && $selected < 1) {
             throw ValidationException::withMessages(['folder' => 'Die Marketing-Bildquelle ist ungültig.']);
         }
@@ -363,9 +482,105 @@ final class MarketingFileSourceService
         }
     }
 
+    public function assertFolderCanMoveTo(
+        FileFolder $folder,
+        ?int $destinationParentId,
+        int $destinationPoolId,
+    ): void {
+        $pool = $this->sourcePool();
+        $fromCompanyPool = (int) $folder->getOriginal('file_pool_id') === (int) $pool->id;
+        $toCompanyPool = $destinationPoolId === (int) $pool->id;
+        $selected = $fromCompanyPool || $toCompanyPool
+            ? (DB::transactionLevel() > 0 ? $this->lockSourceSelection() : $this->selectedFolderId(true))
+            : null;
+        $destinationParent = $destinationParentId !== null
+            ? FileFolder::query()->find($destinationParentId)
+            : null;
+
+        if ($destinationParentId !== null
+            && (! $destinationParent || (int) $destinationParent->file_pool_id !== $destinationPoolId)) {
+            throw ValidationException::withMessages([
+                'folder' => 'Der Zielordner gehört nicht zum gewählten Dateipool.',
+            ]);
+        }
+
+        $subtreeIds = $this->folderSubtreeIdsAnyPool($folder);
+        if ($destinationParent && in_array((int) $destinationParent->id, $subtreeIds, true)) {
+            throw ValidationException::withMessages([
+                'folder' => 'Ein Ordner kann nicht in sich selbst oder einen eigenen Unterordner verschoben werden.',
+            ]);
+        }
+
+        if (! $fromCompanyPool && ! $toCompanyPool) {
+            return;
+        }
+
+        $selectedMovesWithFolder = $selected !== null
+            && $selected > 0
+            && in_array($selected, $subtreeIds, true);
+        $referencedCreatives = $this->creativeIdsReferencingFileIds(
+            File::query()
+                ->whereIn('folder_id', $subtreeIds)
+                ->pluck('id')
+                ->map(fn ($id): int => (int) $id)
+                ->all(),
+        );
+
+        if ((! $toCompanyPool && ($selectedMovesWithFolder || $referencedCreatives !== []))
+            || ($selected !== null && $selected < 1 && $referencedCreatives !== [])) {
+            throw ValidationException::withMessages([
+                'folder' => 'Der Ordner enthält die Marketing-Bildquelle oder verwendete Motivbilder und darf diesen Dateipool nicht verlassen.',
+            ]);
+        }
+
+        if ($referencedCreatives !== []
+            && $selected !== null
+            && $selected > 0
+            && ! $selectedMovesWithFolder) {
+            $destinationInSource = $destinationParent !== null
+                && $this->folderIdIsInScope((int) $destinationParent->id, $selected);
+            if (! $destinationInSource) {
+                throw ValidationException::withMessages([
+                    'folder' => 'Der Ordner enthält verwendete Motivbilder und darf nicht aus der gewählten Bildquelle verschoben werden.',
+                ]);
+            }
+        }
+    }
+
+    public function handleFolderMutation(FileFolder $folder): void
+    {
+        if ($folder->isWithinVisibilityWindow() && ! $folder->isExpiredForDeletion()) {
+            return;
+        }
+
+        $selected = DB::transactionLevel() > 0
+            ? $this->lockSourceSelection()
+            : $this->selectedFolderId(true);
+        $subtreeIds = $this->folderSubtreeIdsAnyPool($folder);
+        $selectedAffected = $selected !== null
+            && $selected > 0
+            && in_array($selected, $subtreeIds, true);
+        $referencedCreatives = $this->creativeIdsReferencingFileIds(
+            File::query()
+                ->whereIn('folder_id', $subtreeIds)
+                ->pluck('id')
+                ->map(fn ($id): int => (int) $id)
+                ->all(),
+        );
+
+        if ($selectedAffected || $referencedCreatives !== []) {
+            throw ValidationException::withMessages([
+                'folder' => 'Der Ordner ist Marketing-Bildquelle oder enthält verwendete Motivbilder und muss dafür aktuell sichtbar bleiben.',
+            ]);
+        }
+    }
+
     public function handleForcedFileDeletion(File $file, ?int $actorId = null): void
     {
         DB::transaction(function () use ($file, $actorId): void {
+            $this->lockSourceSelection();
+            $creativeIds = $this->creativeIdsReferencingFile($file);
+            $this->lockCreativeRows($creativeIds);
             $locked = File::query()->lockForUpdate()->find($file->id);
             if (! $locked) {
                 return;
@@ -386,14 +601,27 @@ final class MarketingFileSourceService
     public function handleForcedFolderDeletion(FileFolder $folder, ?int $actorId = null): void
     {
         DB::transaction(function () use ($folder, $actorId): void {
-            $locked = FileFolder::query()->lockForUpdate()->find($folder->id);
+            $this->lockSourceSelection();
+            $folderIds = $this->folderSubtreeIds($folder);
+            $lockedFolders = FileFolder::query()
+                ->whereIn('id', $folderIds)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+            $locked = $lockedFolders->firstWhere('id', (int) $folder->id);
             if (! $locked) {
                 return;
             }
 
-            $folderIds = $this->folderSubtreeIds($locked);
-            $files = File::query()->whereIn('folder_id', $folderIds)->lockForUpdate()->get();
-            $creativeIds = $this->creativeIdsReferencingFileIds($files->pluck('id')->map(fn ($id): int => (int) $id)->all());
+            $fileIds = File::query()
+                ->whereIn('folder_id', $folderIds)
+                ->pluck('id')
+                ->map(fn ($id): int => (int) $id)
+                ->all();
+            $creativeIds = $this->creativeIdsReferencingFileIds($fileIds);
+            $this->lockCreativeRows($creativeIds);
+            $files = File::query()->whereIn('id', $fileIds)->orderBy('id')->lockForUpdate()->get();
+            $creativeIds = $this->creativeIdsReferencingFileIds($fileIds);
             $this->invalidateCreatives($creativeIds, $actorId, 'Eine verwendete Datei wurde automatisch gelöscht.');
 
             foreach ($folderIds as $folderId) {
@@ -418,6 +646,12 @@ final class MarketingFileSourceService
 
     public function handleFileContentMutation(File $file, ?int $actorId = null): void
     {
+        if (DB::transactionLevel() > 0) {
+            $this->lockSourceSelection();
+        }
+
+        $creativeIds = $this->creativeIdsReferencingFile($file);
+        $this->lockCreativeRows($creativeIds);
         $creativeIds = $this->creativeIdsReferencingFile($file);
         $this->invalidateCreatives($creativeIds, $actorId, 'Eine verwendete Datei wurde geändert.');
     }
@@ -434,7 +668,7 @@ final class MarketingFileSourceService
         return File::query()
             ->where('fileable_type', $pool->getMorphClass())
             ->where('fileable_id', $pool->id)
-            ->whereNull('legacy_marketing_asset_deleted_at')
+            ->where('disk', 'private')
             ->latest('updated_at')
             ->get()
             ->filter(fn (File $file): bool => $this->fileIsInScope($file, $selected));
@@ -447,8 +681,13 @@ final class MarketingFileSourceService
     {
         $diskName = trim((string) ($file->disk ?: 'private'));
         $path = trim((string) $file->path);
-        if ($diskName === '' || $path === '') {
+        if ($diskName !== 'private' || $path === '') {
             throw ValidationException::withMessages(['file' => 'Die Bilddatei ist nicht lesbar.']);
+        }
+
+        $maxBytes = max(1, (int) config('marketing.assets.max_kilobytes', 8192)) * 1024;
+        if ($file->size !== null && ((int) $file->size < 1 || (int) $file->size > $maxBytes)) {
+            throw ValidationException::withMessages(['file' => 'Die Bilddatei überschreitet die sichere Dateigröße.']);
         }
 
         try {
@@ -456,15 +695,37 @@ final class MarketingFileSourceService
             if (! $disk->exists($path)) {
                 throw new RuntimeException('missing');
             }
-            $contents = $disk->get($path);
+            $storageSize = $disk->size($path);
+            if ($storageSize < 1 || $storageSize > $maxBytes) {
+                throw ValidationException::withMessages(['file' => 'Die Bilddatei überschreitet die sichere Dateigröße.']);
+            }
+
+            $stream = $disk->readStream($path);
+            if (! is_resource($stream)) {
+                throw new RuntimeException('stream');
+            }
+            try {
+                $contents = stream_get_contents($stream, $maxBytes + 1);
+            } finally {
+                fclose($stream);
+            }
+        } catch (ValidationException $exception) {
+            throw $exception;
         } catch (Throwable) {
             throw ValidationException::withMessages(['file' => 'Die Bilddatei ist nicht mehr vorhanden oder nicht lesbar.']);
         }
 
+        if (! is_string($contents)) {
+            throw ValidationException::withMessages(['file' => 'Die Bilddatei ist nicht mehr vorhanden oder nicht lesbar.']);
+        }
         $size = strlen($contents);
-        $maxBytes = max(1, (int) config('marketing.assets.max_kilobytes', 8192)) * 1024;
-        if ($size < 1 || $size > $maxBytes) {
+        if ($size < 1 || $size > $maxBytes || $size !== (int) $storageSize) {
             throw ValidationException::withMessages(['file' => 'Die Bilddatei überschreitet die sichere Dateigröße.']);
+        }
+        if ($file->size !== null && (int) $file->size !== $size) {
+            throw ValidationException::withMessages([
+                'file' => 'Die gespeicherte Dateigröße stimmt nicht mit dem Bildinhalt überein.',
+            ]);
         }
 
         $dimensions = @getimagesizefromstring($contents);
@@ -602,10 +863,40 @@ final class MarketingFileSourceService
         return array_keys($visited);
     }
 
-    private function assertAllReferencesAllowedForSource(?int $folderId): void
+    /** @return list<int> */
+    private function folderSubtreeIdsAnyPool(FileFolder $folder): array
     {
-        foreach ($this->allReferencedFileIds() as $fileId) {
-            $file = File::query()->find($fileId);
+        $children = FileFolder::query()
+            ->where('file_pool_id', $folder->getOriginal('file_pool_id'))
+            ->get(['id', 'parent_id'])
+            ->groupBy(fn (FileFolder $item): int => (int) ($item->parent_id ?? 0));
+        $queue = [(int) $folder->id];
+        $visited = [];
+
+        while ($queue !== []) {
+            $id = array_shift($queue);
+            if (isset($visited[$id])) {
+                continue;
+            }
+
+            $visited[$id] = true;
+            foreach ($children->get($id, collect()) as $child) {
+                $queue[] = (int) $child->id;
+            }
+        }
+
+        return array_keys($visited);
+    }
+
+    private function assertAllReferencesAllowedForSource(?int $folderId, bool $lockRows = false): void
+    {
+        $fileIds = $this->allReferencedFileIds($lockRows);
+        $files = $lockRows
+            ? $this->lockFilesForUpdate($fileIds)->keyBy(fn (File $file): int => (int) $file->id)
+            : File::query()->whereIn('id', $fileIds)->get()->keyBy(fn (File $file): int => (int) $file->id);
+
+        foreach ($fileIds as $fileId) {
+            $file = $files->get($fileId);
             if (! $file || ! $this->fileIsInScope($file, $folderId)) {
                 throw ValidationException::withMessages([
                     'mediaFolderId' => 'Der gewählte Ordner würde mindestens ein bereits verwendetes Motivbild ausschließen.',
@@ -617,22 +908,30 @@ final class MarketingFileSourceService
     }
 
     /** @return list<int> */
-    private function allReferencedFileIds(): array
+    private function allReferencedFileIds(bool $lockRows = false): array
     {
         $ids = [];
-        MarketingCreativeVariant::query()->select(['html', 'css', 'builder_data'])->each(function (MarketingCreativeVariant $variant) use (&$ids): void {
-            $json = json_encode($variant->builder_data ?? [], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '';
-            foreach ($this->referencedFileIds($variant->html, $variant->css, $json) as $id) {
-                $ids[$id] = true;
-            }
-        });
-        MarketingCreative::query()->select(['shared_content'])->each(function (MarketingCreative $creative) use (&$ids): void {
+        $creatives = MarketingCreative::query()->select(['id', 'shared_content'])->orderBy('id');
+        if ($lockRows) {
+            $creatives->lockForUpdate();
+        }
+        $creatives->each(function (MarketingCreative $creative) use (&$ids): void {
             $json = json_encode($creative->shared_content ?? [], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '';
             foreach ($this->referencedFileIds($json) as $id) {
                 $ids[$id] = true;
             }
         });
 
+        $variants = MarketingCreativeVariant::query()->select(['id', 'html', 'css', 'builder_data'])->orderBy('id');
+        if ($lockRows) {
+            $variants->lockForUpdate();
+        }
+        $variants->each(function (MarketingCreativeVariant $variant) use (&$ids): void {
+            $json = json_encode($variant->builder_data ?? [], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '';
+            foreach ($this->referencedFileIds($variant->html, $variant->css, $json) as $id) {
+                $ids[$id] = true;
+            }
+        });
         $result = array_keys($ids);
         sort($result);
 
@@ -645,8 +944,28 @@ final class MarketingFileSourceService
         return $this->creativeIdsReferencingFileIds([(int) $file->id]);
     }
 
+    /** @param list<int> $creativeIds */
+    private function lockCreativeRows(array $creativeIds): void
+    {
+        if ($creativeIds === [] || DB::transactionLevel() < 1) {
+            return;
+        }
+
+        sort($creativeIds);
+        MarketingCreative::query()
+            ->whereIn('id', $creativeIds)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+        MarketingCreativeVariant::query()
+            ->whereIn('marketing_creative_id', $creativeIds)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+    }
+
     /** @param list<int> $fileIds
-     *  @return list<int>
+     * @return list<int>
      */
     private function creativeIdsReferencingFileIds(array $fileIds): array
     {
@@ -719,11 +1038,24 @@ final class MarketingFileSourceService
                 'error' => $reason,
                 'rendered_at' => null,
             ])->save();
-            if ($path) {
+            if ($path && $this->isPrivateDisk((string) $disk)) {
                 DB::afterCommit(static function () use ($disk, $path): void {
-                    Storage::disk($disk)->delete($path);
+                    try {
+                        Storage::disk($disk)->delete($path);
+                    } catch (Throwable $exception) {
+                        Log::warning('Konnte veralteten Marketing-Export nicht entfernen.', [
+                            'disk' => $disk,
+                            'path' => $path,
+                            'error' => $exception->getMessage(),
+                        ]);
+                    }
                 });
             }
         }
+    }
+
+    private function isPrivateDisk(string $disk): bool
+    {
+        return $disk !== '' && config('filesystems.disks.'.$disk.'.visibility') === 'private';
     }
 }

@@ -3,13 +3,14 @@
 namespace App\Services\Marketing;
 
 use App\Models\File;
+use App\Models\MarketingCreativeVariant;
 use App\Support\MarketingBrandAssets;
 use RuntimeException;
 use Throwable;
 
 final class MarketingRenderAssetHydrator
 {
-    private const FILE_URL_PATTERN = '#(?:https?://[^\s"\')>]+)?/administrator/marketing/dateien/[1-9][0-9]*(?:\?v=[a-f0-9]{8,64})?#i';
+    private const FILE_URL_PATTERN = '#(?<![A-Za-z0-9:+./?&=%_-])(?:https?://[^\s"\')>]+)?/administrator/marketing/dateien/[1-9][0-9]*(?:\?v=[a-f0-9]{8,64})?(?=$|[\s"\')>])#i';
 
     public function __construct(private readonly MarketingFileSourceService $files) {}
 
@@ -26,19 +27,24 @@ final class MarketingRenderAssetHydrator
             }
         }
 
+        $combined = $html."\n".$css;
         foreach (MarketingBrandAssets::manifest() as $publicPath => $mimeType) {
+            $pattern = $this->builtInPattern($publicPath);
+            if (! preg_match($pattern, $combined)) {
+                continue;
+            }
+
             $absolutePath = MarketingBrandAssets::absolutePath($publicPath);
             if (! is_string($absolutePath) || ! is_file($absolutePath)) {
-                continue;
+                throw new RuntimeException('Eine interne RailTime-Markendatei fehlt.');
             }
 
             $contents = file_get_contents($absolutePath);
             if (! is_string($contents) || ! $this->hasExpectedMimeType($mimeType, $contents)) {
-                continue;
+                throw new RuntimeException('Eine interne RailTime-Markendatei ist beschädigt.');
             }
 
             $uri = $this->dataUri($mimeType, $contents);
-            $pattern = $this->builtInPattern($publicPath);
             $html = preg_replace($pattern, $uri, $html) ?? $html;
             $css = preg_replace($pattern, $uri, $css) ?? $css;
         }
@@ -58,7 +64,7 @@ final class MarketingRenderAssetHydrator
         return $this->dependencyFingerprint($html, $css, false);
     }
 
-    /** @param iterable<\App\Models\MarketingCreativeVariant> $variants */
+    /** @param iterable<MarketingCreativeVariant> $variants */
     public function creativeApprovalFingerprint(iterable $variants): string
     {
         $parts = [];
@@ -67,6 +73,7 @@ final class MarketingRenderAssetHydrator
             $parts[] = implode(':', [
                 $format,
                 (string) $variant->content_hash,
+                $this->variantDocumentFingerprint($variant),
                 $this->approvalFingerprint((string) $variant->html, (string) $variant->css),
             ]);
         }
@@ -78,6 +85,41 @@ final class MarketingRenderAssetHydrator
     public function assertReferencesValid(string $html, string $css): void
     {
         $this->dependencyFingerprint($html, $css, false);
+    }
+
+    /**
+     * Locks the selected source and every referenced File row in a stable order.
+     * Callers must already be inside a database transaction.
+     *
+     * @return list<int>
+     */
+    public function lockReferencesForUpdate(string $html, string $css): array
+    {
+        return $this->lockDocumentsForUpdate([['html' => $html, 'css' => $css]]);
+    }
+
+    /**
+     * @param  iterable<array{html: string, css: string}>  $documents
+     * @return list<int>
+     */
+    public function lockDocumentsForUpdate(iterable $documents): array
+    {
+        $this->files->lockSourceSelection();
+        $ids = [];
+        foreach ($documents as $document) {
+            foreach ($this->referencedFileIds($document['html'], $document['css']) as $id) {
+                $ids[$id] = true;
+            }
+        }
+
+        $ids = array_keys($ids);
+        sort($ids);
+        $files = $this->files->lockFilesForUpdate($ids);
+        foreach ($files as $file) {
+            $this->files->validatedSnapshot($file);
+        }
+
+        return $ids;
     }
 
     /** @return list<int> */
@@ -117,7 +159,8 @@ final class MarketingRenderAssetHydrator
     /** @return array<int, list<string>> */
     private function fileReferences(string $html, string $css): array
     {
-        preg_match_all(self::FILE_URL_PATTERN, $html."\n".$css, $matches);
+        $combined = $html."\n".$css;
+        preg_match_all(self::FILE_URL_PATTERN, $combined, $matches);
         $references = [];
 
         foreach (array_unique($matches[0] ?? []) as $url) {
@@ -126,6 +169,11 @@ final class MarketingRenderAssetHydrator
                 throw new RuntimeException('Ein Datei-Verweis im Marketing-Motiv ist nicht zulässig.');
             }
             $references[$fileId][] = $url;
+        }
+
+        $withoutValidReferences = preg_replace(self::FILE_URL_PATTERN, '', $combined) ?? $combined;
+        if (str_contains(strtolower($withoutValidReferences), '/administrator/marketing/dateien/')) {
+            throw new RuntimeException('Ein Datei-Verweis im Marketing-Motiv ist nicht zulässig.');
         }
 
         ksort($references);
@@ -165,7 +213,7 @@ final class MarketingRenderAssetHydrator
         if (preg_match('#^https?://#i', $applicationUrl)) {
             $candidates[] = '(?i:'.preg_quote($applicationUrl, '#').')'.$quotedPath;
         }
-        $candidates[] = '(?<![A-Za-z0-9\]])'.$quotedPath;
+        $candidates[] = '(?<![A-Za-z0-9:\/?&=%._\-\]])'.$quotedPath;
 
         return '#(?:'.implode('|', $candidates).')(?:\?v=[a-f0-9]+)?(?=$|[\s"\'\)>])#';
     }
@@ -179,5 +227,19 @@ final class MarketingRenderAssetHydrator
         $dimensions = @getimagesizefromstring($contents);
 
         return is_array($dimensions) && strtolower((string) ($dimensions['mime'] ?? '')) === $expectedMimeType;
+    }
+
+    private function variantDocumentFingerprint(mixed $variant): string
+    {
+        $builderData = json_encode(
+            $variant->builder_data ?? [],
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
+        );
+
+        return hash('sha256', implode("\0", [
+            is_string($builderData) ? $builderData : '',
+            (string) $variant->html,
+            (string) $variant->css,
+        ]));
     }
 }

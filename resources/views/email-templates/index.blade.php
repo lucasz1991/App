@@ -49,6 +49,20 @@
         :eyebrow="__('app.personal_data')"
         :count="$availableTemplates->count()"
     >
+        @if ($user?->isAdmin())
+            <x-slot:actions>
+                <a
+                    href="{{ route('admin.mail-documents.editor') }}"
+                    wire:navigate
+                    data-email-template-editor-link
+                    class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-rt-red-dark focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/20"
+                >
+                    <i class="far fa-pen-ruler" aria-hidden="true"></i>
+                    Vorlagen &amp; Signaturen bearbeiten
+                </a>
+            </x-slot:actions>
+        @endif
+
         <div
             x-data="{
                 openAccordionSection: null,

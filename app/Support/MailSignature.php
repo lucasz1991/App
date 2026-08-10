@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Enums\MailDocumentKind;
 use App\Models\User;
 use Illuminate\Support\Facades\View;
 
@@ -107,12 +108,44 @@ class MailSignature
      * Fertiges HTML: Signaturzeile plus Pflichtangaben. Der Aufrufer stellt
      * die umgebende <table>.
      *
-     * @param  array<string, string>  $layout     padding / topRule / legalPadding
+     * @param  array<string, string>  $layout  padding / topRule / legalPadding
      * @param  array<string, string>  $overrides  z. B. cid:-Bildquellen
      */
     public function render(array $layout = [], array $overrides = []): string
     {
         $values = $this->values($overrides);
+
+        // Outlook braucht die strukturelle Blade-Verzweigung mit separater
+        // lokaler Zugdatei. Alle anderen Wege duerfen den veroeffentlichten
+        // Signaturblock verwenden, einschliesslich Systemmail und normalem
+        // Hell-/Dunkel-Download.
+        $isOutlookExport = trim((string) ($layout['outlookTrainSrc'] ?? '')) !== '';
+        $published = $isOutlookExport
+            ? null
+            : EmailTemplateBuilder::publishedDocument(MailDocumentKind::Signature);
+
+        if ($published !== null) {
+            $html = $this->applyPublishedLayout($published, $layout);
+            // Die Blade-Quelle ersetzt im unpersoenlichen Systemmail-Fall
+            // den leeren Namen bedingt durch den Firmennamen. Im
+            // veroeffentlichten Token-HTML ist diese Blade-Bedingung bereits
+            // aufgeloest; dieselbe Semantik muss deshalb hier vor der
+            // Platzhalter-Ersetzung nachgebildet werden.
+            if ($this->user === null && trim($values['VORNAME_NACHNAME'] ?? '') === '') {
+                $values['VORNAME_NACHNAME'] = $values['FIRMENNAME'] ?? '';
+            }
+            $escapedValues = array_map(
+                static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8'),
+                $values,
+            );
+            $tokens = [];
+
+            foreach ($escapedValues as $key => $value) {
+                $tokens['{{'.$key.'}}'] = $value;
+            }
+
+            return trim(EmailTemplateBuilder::stripEmptyContactRows(strtr($html, $tokens), $values));
+        }
 
         $html = View::make('emails.parts.signature', array_merge([
             'values' => $values,
@@ -120,5 +153,66 @@ class MailSignature
 
         // Leere Kontaktzeilen fallen samt ihrer Marker heraus.
         return trim(EmailTemplateBuilder::stripEmptyContactRows($html, $values));
+    }
+
+    /**
+     * Separat gespeicherte Builder-Regeln fuer einen gueltigen Wrapper-Head.
+     * Nur serverkontrollierte Farb- und Bildwerte werden eingesetzt; freie
+     * Profiltexte duerfen nie in einen CSS-Kontext gelangen.
+     *
+     * @param  array<string, string>  $overrides
+     */
+    public function publishedCss(array $overrides = []): string
+    {
+        $css = EmailTemplateBuilder::publishedDocumentCss(MailDocumentKind::Signature);
+        if ($css === '') {
+            return '';
+        }
+
+        $values = $this->values($overrides);
+        $safeKeys = array_unique(array_merge(
+            array_keys(EmailTemplateBuilder::emailThemeValues($this->theme)),
+            ['LOGO_SRC', 'TRAIN_SRC', 'TRAIN_IDLE_SRC'],
+            array_values(array_filter(
+                array_keys($values),
+                static fn (string $key): bool => str_starts_with($key, 'ICON_'),
+            )),
+        ));
+        $tokens = [];
+
+        foreach ($safeKeys as $key) {
+            if (array_key_exists($key, $values)) {
+                $tokens['{{'.$key.'}}'] = $values[$key];
+            }
+        }
+
+        return strtr($css, $tokens);
+    }
+
+    /**
+     * Das Startdokument traegt die Standardabstaende der Systemmail. Beim
+     * eigenstaendigen Download gelten engere Werte. Nur die drei bekannten
+     * Starterwerte werden ersetzt: hat ein Administrator sie im Editor
+     * individuell gestaltet, bleiben diese Werte unangetastet.
+     *
+     * @param  array<string, string>  $layout
+     */
+    private function applyPublishedLayout(string $html, array $layout): string
+    {
+        $replacements = [];
+
+        if (array_key_exists('padding', $layout)) {
+            $replacements['padding:20px 38px 28px;'] = 'padding:'.$layout['padding'].';';
+        }
+
+        if (array_key_exists('topRule', $layout)) {
+            $replacements['border-top:5px solid #e4002b;'] = $layout['topRule'];
+        }
+
+        if (array_key_exists('legalPadding', $layout)) {
+            $replacements['padding:18px 38px;'] = 'padding:'.$layout['legalPadding'].';';
+        }
+
+        return $replacements === [] ? $html : strtr($html, $replacements);
     }
 }

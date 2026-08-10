@@ -114,6 +114,24 @@ class MailDocument extends Model
     }
 
     /**
+     * Weicht der Arbeitsstand vom zuletzt veroeffentlichten Abzug ab?
+     *
+     * HTML und CSS bilden gemeinsam den auslieferbaren Stand. Insbesondere
+     * darf eine reine CSS-Aenderung nicht als bereits veroeffentlicht gelten.
+     * Ein leeres Stylesheet ist dabei ein gueltiger veroeffentlichter Wert;
+     * deshalb wird published_css direkt statt ueber publishedCss() verglichen.
+     */
+    public function hasUnpublishedChanges(): bool
+    {
+        if (! $this->isPublished()) {
+            return true;
+        }
+
+        return trim((string) $this->published_html) !== trim((string) $this->html)
+            || trim((string) $this->published_css) !== trim((string) $this->css);
+    }
+
+    /**
      * Traegt das Dokument noch das unberuehrte Startlayout?
      *
      * Zweiteilig wie im Marketing-Studio: version 1 allein genuegt nicht (auch

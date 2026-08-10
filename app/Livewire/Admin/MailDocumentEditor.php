@@ -4,6 +4,7 @@ namespace App\Livewire\Admin;
 
 use App\Enums\MailDocumentKind;
 use App\Models\MailDocument;
+use App\Support\EmailTemplateBuilder;
 use Illuminate\Support\Facades\Schema;
 use Livewire\Component;
 use Throwable;
@@ -78,10 +79,9 @@ class MailDocumentEditor extends Component
     private function editorConfig(array $documents): array
     {
         $payload = [];
+        $contactIcons = EmailTemplateBuilder::contactIconSources(true);
 
         foreach ($documents as $key => $document) {
-            $published = $document->publishedHtml();
-
             $payload[$key] = [
                 'id' => $document->public_id,
                 'label' => $document->kind->label(),
@@ -91,8 +91,7 @@ class MailDocumentEditor extends Component
                 'version' => (int) $document->version,
                 'status' => $document->status->value,
                 'publishedLabel' => $document->published_at?->translatedFormat('d.m.Y H:i'),
-                'hasUnpublishedChanges' => $published === null
-                    || $published !== trim((string) $document->html),
+                'hasUnpublishedChanges' => $document->hasUnpublishedChanges(),
                 'endpoints' => [
                     'update' => route('admin.mail-documents.update', $document),
                     'publish' => route('admin.mail-documents.publish', $document),
@@ -103,6 +102,28 @@ class MailDocumentEditor extends Component
         return [
             'currentDocument' => $this->kind,
             'documents' => $payload,
+            // Nur fuer das isolierte Editor-iframe: Die gespeicherten
+            // {{...}}-Tokens bleiben unangetastet, waehrend Logo, Zug und
+            // Kontakticons in Hell und Dunkel trotzdem real dargestellt
+            // werden. So kann die Vorschau niemals versehentlich eine
+            // lokale data:-URL in die spaetere E-Mail uebernehmen.
+            'previewAssets' => [
+                'light' => [
+                    'logo' => EmailTemplateBuilder::inlineImage('logo-signature-light.png', 'image/png'),
+                    'train' => EmailTemplateBuilder::inlineImage('zug-dampf-light.png', 'image/png'),
+                ],
+                'dark' => [
+                    'logo' => EmailTemplateBuilder::inlineImage('logo-mail-dark.png', 'image/png'),
+                    'train' => EmailTemplateBuilder::inlineImage('zug-dampf-dark.png', 'image/png'),
+                ],
+                'icons' => [
+                    'location' => $contactIcons['ICON_LOCATION_SRC'] ?? '',
+                    'phone' => $contactIcons['ICON_PHONE_SRC'] ?? '',
+                    'mobile' => $contactIcons['ICON_MOBILE_SRC'] ?? '',
+                    'email' => $contactIcons['ICON_EMAIL_SRC'] ?? '',
+                    'web' => $contactIcons['ICON_WEB_SRC'] ?? '',
+                ],
+            ],
             'vendor' => [
                 'builderJs' => asset('vendor/lmz-builder/2.4.5/lmz-builder.js'),
                 'builderCss' => asset('vendor/lmz-builder/2.4.5/lmz-builder.css'),

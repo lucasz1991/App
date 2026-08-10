@@ -57,6 +57,9 @@ final class EmailHtmlSanitizer
 
     public const MODE_STRICT = 'strict';
 
+    /** Neutrales 1px-Bild des Editors; darf nie Teil einer echten Mail sein. */
+    public const PREVIEW_TRANSPARENT_PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=';
+
     /**
      * Erlaubte Elemente mit ihren zusaetzlichen Attributen.
      *
@@ -252,8 +255,15 @@ final class EmailHtmlSanitizer
     private const FORBIDDEN_VALUE_PATTERNS = [
         'javascript:', 'vbscript:', 'livescript:', 'mocha:',
         'data:text/html', 'data:text/javascript', 'data:application',
-        'expression(', 'behavior:', '-moz-binding', '@import', '\\3', '&#',
+        'expression(', 'behavior:', '-moz-binding', '@import', '\\', '/*', '*/', '&#',
     ];
+
+    /** Begrenzung fuer eingebettete Mailbilder nach Base64-Dekodierung. */
+    private const MAX_DATA_URI_BYTES = 512_000;
+
+    private const MAX_DATA_URI_DIMENSION = 4096;
+
+    private const MAX_DATA_URI_PIXELS = 16_000_000;
 
     /** In url() nur eingebettete Bilder — kein data:text/html. */
     private const ALLOWED_DATA_URI_MIME = [
@@ -276,6 +286,28 @@ final class EmailHtmlSanitizer
     ];
 
     /**
+     * Zusaetzliche Attribute des Outlook-/VML-Vokabulars.
+     *
+     * Normale HTML-Elemente verwenden weiter ALLOWED_TAGS. Die VML-Liste ist
+     * bewusst eng: bedingte Kommentare sind fuer normale Clients unsichtbar,
+     * werden von Outlook aber als echtes Markup ausgefuehrt.
+     *
+     * @var array<string, list<string>>
+     */
+    private const ALLOWED_MSO_COMMENT_ATTRIBUTES = [
+        'xml' => ['xmlns:o', 'xmlns:v', 'xmlns:w'],
+        'v:rect' => ['arcsize', 'coordorigin', 'coordsize', 'fill', 'fillcolor', 'href', 'stroke', 'stroked', 'strokeweight'],
+        'v:fill' => ['color', 'color2', 'opacity', 'origin', 'position', 'src', 'type'],
+        'v:textbox' => ['inset'],
+        'v:image' => ['href', 'src'],
+        'v:shape' => ['coordorigin', 'coordsize', 'fillcolor', 'href', 'path', 'stroked', 'strokeweight', 'type'],
+        'w:anchorlock' => [],
+        'o:officedocumentsettings' => [],
+        'o:pixelsperinch' => [],
+        'o:allowpng' => [],
+    ];
+
+    /**
      * Die Schnittmarken der Signatur. EmailTemplateBuilder::stripEmptyContactRows()
      * haengt daran; ohne sie bleiben leere Durchwahl-, Mobil- und
      * Website-Zeilen stehen.
@@ -283,13 +315,62 @@ final class EmailHtmlSanitizer
     private const CONTACT_MARKER_PATTERN = '/^\s*RT_(?:PHONE|MOBILE|WEBSITE|COMPANY_PHONE)_(?:START|END)\s*$/';
 
     /** Bedingter Outlook-Kommentar, ausschliesslich in der "downlevel-hidden"-Form. */
-    private const MSO_COMMENT_PATTERN = '/^\[if\s+([^\]]{1,60})\]>(.*)<!\[endif\]$/s';
+    private const MSO_COMMENT_PATTERN = '/^\[if\s+([^\]]{1,60})\]>(.*)<!\[endif\]$/si';
 
     /** Zugelassene Bedingungen darin — nur Outlook, kein IE-Vokabular. */
     private const MSO_CONDITION_PATTERN = '/^(?:(?:gte|lte|gt|lt)\s+)?mso(?:\s+\d{1,4})?$/i';
 
     /** Ein Platzhalter der Form {{KEY}} — an jeder Wertestelle gueltig. */
-    private const PLACEHOLDER_PATTERN = '/\{\{\s*[A-Za-z0-9_.\-]{1,64}\s*\}\}/';
+    private const PLACEHOLDER_PATTERN = '/\{\{\s*([A-Za-z0-9_.\-]{1,64})\s*\}\}/';
+
+    /** Ein Platzhalter als vollstaendiger semantischer Wert. */
+    private const WHOLE_PLACEHOLDER_PATTERN = '/^\s*\{\{\s*([A-Za-z0-9_.\-]{1,64})\s*\}\}\s*$/';
+
+    /** Sichere feste Kommunikationsschemata vor genau einem Platzhalter. */
+    private const FIXED_HREF_PLACEHOLDER_PATTERN = '/^\s*(mailto|tel):\s*\{\{\s*([A-Za-z0-9_.\-]{1,64})\s*\}\}\s*$/i';
+
+    /** CID bleibt auch nach Einsetzung des Platzhalters ein lokaler Verweis. */
+    private const FIXED_CID_PLACEHOLDER_PATTERN = '/^\s*cid:\s*\{\{\s*([A-Za-z0-9_.\-]{1,64})\s*\}\}\s*$/i';
+
+    /** Vollstaendige Linkziele, die nach dem Sanitizer bewusst ersetzt werden. */
+    private const HREF_URL_PLACEHOLDERS = [
+        'CTA_URL', 'FIRMEN_WEBSITE_HREF',
+    ];
+
+    /** Werte hinter einem feststehenden mailto:-Schema. */
+    private const MAILTO_PLACEHOLDERS = [
+        'E_MAIL', 'FIRMEN_EMAIL',
+    ];
+
+    /** Bereits normalisierte Werte hinter einem feststehenden tel:-Schema. */
+    private const TEL_PLACEHOLDERS = [
+        'DURCHWAHL_TEL', 'MOBIL_TEL', 'FIRMEN_TELEFON_TEL',
+    ];
+
+    /** Ausschliesslich serverkontrollierte Bildquellen fuer src und CSS-url(). */
+    private const IMAGE_URL_PLACEHOLDERS = [
+        'LOGO_SRC', 'TRAIN_SRC', 'TRAIN_IDLE_SRC',
+        'ICON_PHONE_SRC', 'ICON_MOBILE_SRC', 'ICON_EMAIL_SRC',
+        'ICON_WEB_SRC', 'ICON_LOCATION_SRC',
+    ];
+
+    /** Lokale MIME-Content-IDs, nie Profil- oder Freitextwerte. */
+    private const CID_PLACEHOLDERS = [
+        'LOGO_CID', 'TRAIN_CID',
+        'ICON_PHONE_CID', 'ICON_MOBILE_CID', 'ICON_EMAIL_CID',
+        'ICON_WEB_CID', 'ICON_LOCATION_CID',
+    ];
+
+    /** Feste Palettenwerte, die erst beim Rendern in CSS eingesetzt werden. */
+    private const CSS_VALUE_PLACEHOLDERS = [
+        'PAGE_BG', 'SURFACE_BG', 'CARD_BG', 'SOFT_BG',
+        'TEXT_PRIMARY', 'TEXT_SECONDARY', 'TEXT_MUTED', 'BORDER',
+        'SIGNATURE_BG', 'SIGNATURE_TRAIN_WASH', 'SIGNATURE_LEGAL_BG',
+        'SIGNATURE_TEXT_PRIMARY', 'SIGNATURE_CONTACT_TEXT',
+        'SIGNATURE_META_TEXT', 'SIGNATURE_TEXT_MUTED',
+        'SIGNATURE_LEGAL_TEXT', 'SIGNATURE_ACCENT',
+        'SIGNATURE_BORDER', 'SIGNATURE_RULE',
+    ];
 
     /**
      * Die Klassennamen, auf die die Umbruchregeln tatsaechlich zeigen.
@@ -395,7 +476,7 @@ final class EmailHtmlSanitizer
         // Fragment, das mit <tr> beginnt (signature.blade.php:12).
         $loaded = $document->loadHTML(
             '<?xml encoding="UTF-8">'.$html,
-            LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD,
+            LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NONET,
         );
 
         $parseTrouble = false;
@@ -628,6 +709,16 @@ final class EmailHtmlSanitizer
                 continue;
             }
 
+            // data-rt-mail-* gehoert ausschliesslich zur Editorleinwand.
+            // Im gespeicherten Dokument waeren diese Marker wirkungslos und
+            // koennten insbesondere neutrale Vorschauquellen legitimieren.
+            if (str_starts_with($attributeName, 'data-rt-mail-')) {
+                $this->violation('attribute.editor', "Editor-Attribut {$attributeName} entfernt.", $path);
+                $element->removeAttribute($attribute->nodeName);
+
+                continue;
+            }
+
             // data-* traegt Editor- und Exportkennzeichen (data-rt-theme,
             // data-rt-outlook-train, die Bindungen des Builders) und ist in
             // jedem Mailclient wirkungslos.
@@ -677,7 +768,7 @@ final class EmailHtmlSanitizer
 
     private function isAllowedAttributeValue(string $tag, string $attribute, string $value): bool
     {
-        if ($this->containsPlaceholder($value)) {
+        if ($this->isWholePlaceholder($value)) {
             return true;
         }
 
@@ -759,7 +850,7 @@ final class EmailHtmlSanitizer
             return;
         }
 
-        if (str_contains($text, '[if') || str_contains($text, '[endif')) {
+        if (stripos($text, '[if') !== false || stripos($text, '[endif') !== false) {
             $this->visitConditionalComment($comment, $text, $path);
 
             return;
@@ -795,34 +886,301 @@ final class EmailHtmlSanitizer
             return;
         }
 
-        // Der Inhalt wird TEXTLICH geprueft, niemals nachgeparst: der
-        // schliessende Block besteht ausschliesslich aus Endtags
-        // (email-master.html:90). Ein HTML-Parser liefert dafuer ein leeres
-        // Ergebnis und wuerde ihn loeschen — Outlook bekaeme dann ein
-        // offenes Tabellenpaar.
-        $lower = strtolower($body);
-
-        if (preg_match('/\son[a-z]+\s*=/', $lower) === 1
-            || str_contains($lower, 'javascript:')
-            || str_contains($lower, 'vbscript:')
-            || str_contains($lower, '<script')
-            || str_contains($lower, '<!--')) {
-            $this->violation('comment.conditional', 'Bedingter Kommentar mit ausfuehrbarem Inhalt entfernt.', $path);
+        // Tokenpruefung statt DOM-Nachparsen: der schliessende Block besteht
+        // ausschliesslich aus Endtags (email-master.html:90). Ein HTML-Parser
+        // liefert dafuer ein leeres Ergebnis und wuerde ihn loeschen.
+        if (! $this->isSafeMsoCommentBody($body)) {
+            $this->violation(
+                'comment.conditional',
+                'Bedingter Outlook-Kommentar enthaelt nicht erlaubtes Markup, Attribute, CSS oder Ressourcen und wurde entfernt.',
+                $path,
+            );
             $comment->parentNode?->removeChild($comment);
+        }
+    }
 
-            return;
+    /**
+     * Outlook fuehrt den Kommentarinhalt als echtes Markup aus. Ein blosses
+     * Suchen nach Teilzeichenketten reicht deshalb nicht: src, href, style
+     * und unbekannte Attribute waeren sonst ein ungepruefter Kanal.
+     *
+     * Das Fragment wird absichtlich tokenweise geprueft. Die beiden
+     * Tabellen-Kommentare der echten Vorlage sind jeweils unausgeglichen
+     * (einer oeffnet, der andere schliesst), weshalb DOMDocument den
+     * schliessenden Teil allein verwerfen wuerde.
+     */
+    private function isSafeMsoCommentBody(string $body): bool
+    {
+        if (strlen($body) > 100_000 || preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', $body) === 1) {
+            return false;
         }
 
-        preg_match_all('/<\/?([a-z0-9:_-]+)/i', $body, $tags);
+        $tokens = self::msoCommentTokens($body);
+        if ($tokens === null) {
+            return false;
+        }
 
-        foreach ($tags[1] ?? [] as $tag) {
-            if (! in_array(strtolower($tag), self::ALLOWED_MSO_COMMENT_TAGS, true)) {
-                $this->violation('comment.conditional', "Element <{$tag}> ist im bedingten Kommentar nicht erlaubt.", $path);
-                $comment->parentNode?->removeChild($comment);
+        foreach ($tokens as $token) {
+            if (! str_starts_with($token, '<')) {
+                continue;
+            }
 
-                return;
+            if (preg_match('/^<\s*\/\s*([a-z][a-z0-9:_-]*)\s*>$/i', $token, $match) === 1) {
+                if (! in_array(strtolower($match[1]), self::ALLOWED_MSO_COMMENT_TAGS, true)) {
+                    return false;
+                }
+
+                continue;
+            }
+
+            $inside = trim(substr($token, 1, -1));
+            if (str_ends_with($inside, '/')) {
+                $inside = rtrim(substr($inside, 0, -1));
+            }
+
+            if (preg_match('/^([a-z][a-z0-9:_-]*)(.*)$/is', $inside, $match) !== 1) {
+                return false;
+            }
+
+            $tag = strtolower($match[1]);
+            if (! in_array($tag, self::ALLOWED_MSO_COMMENT_TAGS, true)) {
+                return false;
+            }
+
+            $attributes = self::parseMsoCommentAttributes($match[2]);
+            if ($attributes === null) {
+                return false;
+            }
+
+            foreach ($attributes as $attribute => $value) {
+                if (! $this->isSafeMsoCommentAttribute($tag, $attribute, $value)) {
+                    return false;
+                }
             }
         }
+
+        return true;
+    }
+
+    /** @return list<string>|null */
+    private static function msoCommentTokens(string $body): ?array
+    {
+        $tokens = [];
+        $length = strlen($body);
+        $offset = 0;
+
+        while ($offset < $length) {
+            if ($body[$offset] !== '<') {
+                $next = strpos($body, '<', $offset);
+                $end = $next === false ? $length : $next;
+                $tokens[] = substr($body, $offset, $end - $offset);
+                $offset = $end;
+
+                continue;
+            }
+
+            $quote = null;
+            $end = null;
+
+            for ($index = $offset + 1; $index < $length; $index++) {
+                $character = $body[$index];
+
+                if ($quote !== null) {
+                    if ($character === $quote) {
+                        $quote = null;
+                    }
+
+                    continue;
+                }
+
+                if ($character === '"' || $character === "'") {
+                    $quote = $character;
+                } elseif ($character === '<') {
+                    return null;
+                } elseif ($character === '>') {
+                    $end = $index;
+
+                    break;
+                }
+            }
+
+            if ($end === null || $quote !== null) {
+                return null;
+            }
+
+            $tokens[] = substr($body, $offset, $end - $offset + 1);
+            $offset = $end + 1;
+        }
+
+        return $tokens;
+    }
+
+    /** @return array<string, string>|null */
+    private static function parseMsoCommentAttributes(string $source): ?array
+    {
+        $attributes = [];
+        $length = strlen($source);
+        $offset = 0;
+
+        while ($offset < $length) {
+            while ($offset < $length && preg_match('/\s/', $source[$offset]) === 1) {
+                $offset++;
+            }
+
+            if ($offset >= $length) {
+                break;
+            }
+
+            if (preg_match('/\G([a-z_:][a-z0-9:._-]*)/i', $source, $match, 0, $offset) !== 1) {
+                return null;
+            }
+
+            $attribute = strtolower($match[1]);
+            if (array_key_exists($attribute, $attributes)) {
+                return null;
+            }
+
+            $offset += strlen($match[0]);
+            while ($offset < $length && preg_match('/\s/', $source[$offset]) === 1) {
+                $offset++;
+            }
+
+            if ($offset >= $length || $source[$offset] !== '=') {
+                return null;
+            }
+
+            $offset++;
+            while ($offset < $length && preg_match('/\s/', $source[$offset]) === 1) {
+                $offset++;
+            }
+
+            if ($offset >= $length) {
+                return null;
+            }
+
+            $quote = $source[$offset];
+            if ($quote === '"' || $quote === "'") {
+                $offset++;
+                $end = strpos($source, $quote, $offset);
+                if ($end === false) {
+                    return null;
+                }
+
+                $value = substr($source, $offset, $end - $offset);
+                $offset = $end + 1;
+            } else {
+                $remaining = substr($source, $offset);
+                if (preg_match('/^([^\s"\'=<>`]+)/', $remaining, $match) !== 1) {
+                    return null;
+                }
+
+                $value = $match[1];
+                $offset += strlen($match[0]);
+            }
+
+            $attributes[$attribute] = $value;
+        }
+
+        return $attributes;
+    }
+
+    private function isSafeMsoCommentAttribute(string $tag, string $attribute, string $value): bool
+    {
+        if (str_starts_with($attribute, 'on') && strlen($attribute) > 2) {
+            return false;
+        }
+
+        $allowed = in_array($attribute, self::GLOBAL_ATTRIBUTES, true)
+            || in_array($attribute, self::ALLOWED_TAGS[$tag] ?? [], true)
+            || in_array($attribute, self::ALLOWED_MSO_COMMENT_ATTRIBUTES[$tag] ?? [], true);
+
+        if (! $allowed) {
+            return false;
+        }
+
+        $decoded = self::decodeMsoCommentAttribute($value);
+        if (preg_match('/[<>`\x00-\x1F\x7F]/', $decoded) === 1) {
+            return false;
+        }
+
+        if ($attribute === 'style') {
+            if (str_contains($decoded, '\\')) {
+                return false;
+            }
+
+            [$filtered, $findings] = $this->filterDeclarationList($decoded, 'mso-comment');
+
+            return $findings === [] && $filtered === $decoded;
+        }
+
+        if ($attribute === 'class') {
+            return preg_match('/^[A-Za-z0-9_\-\s{}\.]+$/', $decoded) === 1;
+        }
+
+        if ($attribute === 'href' || $attribute === 'src') {
+            return $this->isSafeMsoCommentUrl($attribute, $decoded);
+        }
+
+        if (str_starts_with($attribute, 'xmlns:')) {
+            return in_array($decoded, [
+                'urn:schemas-microsoft-com:vml',
+                'urn:schemas-microsoft-com:office:office',
+                'urn:schemas-microsoft-com:office:word',
+            ], true);
+        }
+
+        return $this->isAllowedAttributeValue($tag, $attribute, $decoded);
+    }
+
+    private function isSafeMsoCommentUrl(string $attribute, string $value): bool
+    {
+        $url = trim($value);
+        if ($url === '') {
+            return true;
+        }
+
+        if (hash_equals(self::PREVIEW_TRANSPARENT_PIXEL, $url)) {
+            return false;
+        }
+
+        if ($this->containsPlaceholder($url)
+            && ! $this->isAllowedTokenizedUrl($attribute, $url)) {
+            return false;
+        }
+
+        $scheme = self::schemeOf($url);
+        if ($scheme === 'protocol-relative') {
+            return false;
+        }
+
+        if ($attribute === 'href') {
+            return $scheme === null
+                || in_array($scheme, ['http', 'https', 'mailto', 'tel'], true);
+        }
+
+        if ($scheme === null || $scheme === 'cid') {
+            return true;
+        }
+
+        if ($scheme === 'data') {
+            return self::isAllowedDataUri($url);
+        }
+
+        return in_array($scheme, ['http', 'https'], true) && $this->isOwnHost($url);
+    }
+
+    private static function decodeMsoCommentAttribute(string $value): string
+    {
+        for ($pass = 0; $pass < 3; $pass++) {
+            $decoded = html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            if ($decoded === $value) {
+                break;
+            }
+
+            $value = $decoded;
+        }
+
+        return $value;
     }
 
     // -----------------------------------------------------------------
@@ -1027,9 +1385,21 @@ final class EmailHtmlSanitizer
             }
         }
 
+        foreach ($this->placeholderNames($value) as $placeholder) {
+            if (! in_array($placeholder, [
+                ...self::CSS_VALUE_PLACEHOLDERS,
+                ...self::IMAGE_URL_PLACEHOLDERS,
+                ...self::CID_PLACEHOLDERS,
+            ], true)) {
+                return ['css.placeholder', "Platzhalter {{$placeholder}} ist kein freigegebener CSS- oder Bildwert und wurde entfernt."];
+            }
+        }
+
         // Platzhalter stehen fuer Palettenwerte, die erst spaeter eingesetzt
         // werden. Ein strenger Wertevergleich wuerde sie hier verwerfen.
-        if ($this->containsPlaceholder($value)) {
+        $wholePlaceholder = $this->wholePlaceholderName($value);
+        if ($wholePlaceholder !== null
+            && in_array($wholePlaceholder, self::CSS_VALUE_PLACEHOLDERS, true)) {
             return null;
         }
 
@@ -1059,8 +1429,20 @@ final class EmailHtmlSanitizer
     {
         $url = trim($url);
 
-        if ($url === '' || $this->containsPlaceholder($url)) {
+        if ($url === '') {
             return null;
+        }
+
+        if (hash_equals(self::PREVIEW_TRANSPARENT_PIXEL, $url)) {
+            return 'der transparente Editor-Vorschaupixel ist nicht auslieferbar.';
+        }
+
+        if ($this->containsPlaceholder($url)) {
+            if ($this->isAllowedTokenizedUrl('src', $url)) {
+                return null;
+            }
+
+            return 'Nur freigegebene Bildplatzhalter sind in url() als vollstaendiger Wert oder hinter cid: zulaessig.';
         }
 
         $scheme = self::schemeOf($url);
@@ -1102,7 +1484,31 @@ final class EmailHtmlSanitizer
     {
         $url = trim($value);
 
-        if ($url === '' || $this->containsPlaceholder($url)) {
+        if ($url === '') {
+            return true;
+        }
+
+        if (hash_equals(self::PREVIEW_TRANSPARENT_PIXEL, $url)) {
+            $this->violation(
+                $attribute === 'href' ? 'href.preview' : 'src.preview',
+                'Der transparente Editor-Vorschaupixel wurde entfernt.',
+                $path,
+            );
+
+            return false;
+        }
+
+        if ($this->containsPlaceholder($url)) {
+            if (! $this->isAllowedTokenizedUrl($attribute, $url)) {
+                $this->violation(
+                    $attribute === 'href' ? 'href.placeholder' : 'src.placeholder',
+                    "Adresse \"{$url}\" kombiniert einen Platzhalter mit nicht festgelegtem Schema oder Pfad und wurde entfernt.",
+                    $path,
+                );
+
+                return false;
+            }
+
             return true;
         }
 
@@ -1172,11 +1578,45 @@ final class EmailHtmlSanitizer
 
     private static function isAllowedDataUri(string $url): bool
     {
-        if (preg_match('#^data:\s*([a-z0-9.+/\-]+)\s*[;,]#i', $url, $match) !== 1) {
+        if (preg_match('#^data:\s*(image/(?:png|gif|jpe?g|webp))\s*;\s*base64\s*,([A-Za-z0-9+/]*={0,2})$#i', $url, $match) !== 1) {
             return false;
         }
 
-        return in_array(strtolower($match[1]), self::ALLOWED_DATA_URI_MIME, true);
+        $declaredMime = strtolower($match[1]);
+        if (! in_array($declaredMime, self::ALLOWED_DATA_URI_MIME, true)
+            || strlen($match[2]) % 4 !== 0) {
+            return false;
+        }
+
+        $binary = base64_decode($match[2], true);
+        if (! is_string($binary)
+            || $binary === ''
+            || strlen($binary) > self::MAX_DATA_URI_BYTES) {
+            return false;
+        }
+
+        set_error_handler(static fn (): bool => true);
+        try {
+            $image = getimagesizefromstring($binary);
+        } finally {
+            restore_error_handler();
+        }
+
+        if (! is_array($image)) {
+            return false;
+        }
+
+        $actualMime = strtolower((string) ($image['mime'] ?? ''));
+        $declaredMime = $declaredMime === 'image/jpg' ? 'image/jpeg' : $declaredMime;
+        $width = (int) ($image[0] ?? 0);
+        $height = (int) ($image[1] ?? 0);
+
+        return $actualMime === $declaredMime
+            && $width > 0
+            && $height > 0
+            && $width <= self::MAX_DATA_URI_DIMENSION
+            && $height <= self::MAX_DATA_URI_DIMENSION
+            && $width * $height <= self::MAX_DATA_URI_PIXELS;
     }
 
     private static function schemeOf(string $url): ?string
@@ -1223,6 +1663,60 @@ final class EmailHtmlSanitizer
     private function containsPlaceholder(string $value): bool
     {
         return preg_match(self::PLACEHOLDER_PATTERN, $value) === 1;
+    }
+
+    private function isWholePlaceholder(string $value): bool
+    {
+        return preg_match(self::WHOLE_PLACEHOLDER_PATTERN, $value) === 1;
+    }
+
+    private function wholePlaceholderName(string $value): ?string
+    {
+        return preg_match(self::WHOLE_PLACEHOLDER_PATTERN, $value, $match) === 1
+            ? strtoupper($match[1])
+            : null;
+    }
+
+    /** @return list<string> */
+    private function placeholderNames(string $value): array
+    {
+        if (preg_match_all(self::PLACEHOLDER_PATTERN, $value, $matches) < 1) {
+            return [];
+        }
+
+        return array_values(array_unique(array_map('strtoupper', $matches[1])));
+    }
+
+    /**
+     * Teil-Platzhalter in URLs sind nur hinter einem feststehenden, sicheren
+     * Schema erlaubt. Dadurch kann die Einsetzung das Schema nicht nachtraeglich
+     * zu javascript: oder eine lokale Quelle zu einem fremden Host machen.
+     */
+    private function isAllowedTokenizedUrl(string $attribute, string $url): bool
+    {
+        $wholePlaceholder = $this->wholePlaceholderName($url);
+        if ($wholePlaceholder !== null) {
+            return in_array(
+                $wholePlaceholder,
+                $attribute === 'href'
+                    ? self::HREF_URL_PLACEHOLDERS
+                    : self::IMAGE_URL_PLACEHOLDERS,
+                true,
+            );
+        }
+
+        if ($attribute === 'href'
+            && preg_match(self::FIXED_HREF_PLACEHOLDER_PATTERN, $url, $match) === 1) {
+            $allowed = strtolower($match[1]) === 'mailto'
+                ? self::MAILTO_PLACEHOLDERS
+                : self::TEL_PLACEHOLDERS;
+
+            return in_array(strtoupper($match[2]), $allowed, true);
+        }
+
+        return $attribute === 'src'
+            && preg_match(self::FIXED_CID_PLACEHOLDER_PATTERN, $url, $match) === 1
+            && in_array(strtoupper($match[1]), self::CID_PLACEHOLDERS, true);
     }
 
     /**

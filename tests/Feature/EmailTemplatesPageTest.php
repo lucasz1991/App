@@ -130,7 +130,21 @@ class EmailTemplatesPageTest extends TestCase
             ->get(route('email-templates.index'))
             ->assertOk()
             ->assertSee(route('email-templates.index'), escape: false)
+            ->assertSee(route('admin.mail-documents.editor'), escape: false)
+            ->assertSee('data-email-template-editor-link', escape: false)
+            ->assertSee('Vorlagen &amp; Signaturen bearbeiten', escape: false)
             ->assertSee('data-menu-active="true"', escape: false);
+    }
+
+    public function test_non_admin_does_not_see_the_mail_document_editor_action(): void
+    {
+        $user = User::factory()->create(['role' => 'user']);
+
+        $this->actingAs($user)
+            ->get(route('email-templates.index'))
+            ->assertOk()
+            ->assertDontSee(route('admin.mail-documents.editor'), escape: false)
+            ->assertDontSee('data-email-template-editor-link', escape: false);
     }
 
     public function test_personalized_template_can_be_downloaded_and_unknown_key_returns_404(): void

@@ -138,6 +138,7 @@ final class MarketingHtmlSanitizer
                 ? 'url("'.str_replace(['"', "\r", "\n"], ['\\"', '', ''], trim($match[2])).'")'
                 : 'none';
         }, $css) ?? '';
+        $css = preg_replace('/url\s*\(\s*[^)]*(?=[;}]|$)/iu', 'none', $css) ?? $css;
 
         return trim($css);
     }
@@ -221,7 +222,10 @@ final class MarketingHtmlSanitizer
                 || ! is_array($application)
                 || strtolower((string) ($candidate['host'] ?? '')) !== strtolower((string) ($application['host'] ?? ''))
                 || strtolower((string) ($candidate['scheme'] ?? '')) !== strtolower((string) ($application['scheme'] ?? ''))
-                || (int) ($candidate['port'] ?? 0) !== (int) ($application['port'] ?? 0)) {
+                || (int) ($candidate['port'] ?? 0) !== (int) ($application['port'] ?? 0)
+                || isset($candidate['user'])
+                || isset($candidate['pass'])
+                || isset($candidate['fragment'])) {
                 return false;
             }
 
@@ -229,7 +233,12 @@ final class MarketingHtmlSanitizer
             $query = (string) ($candidate['query'] ?? '');
         } else {
             $candidate = parse_url($url);
-            if (! is_array($candidate) || isset($candidate['scheme'], $candidate['host'], $candidate['fragment'])) {
+            if (! is_array($candidate)
+                || isset($candidate['scheme'])
+                || isset($candidate['host'])
+                || isset($candidate['user'])
+                || isset($candidate['pass'])
+                || isset($candidate['fragment'])) {
                 return false;
             }
 
