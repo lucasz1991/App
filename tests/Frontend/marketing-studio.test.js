@@ -1216,7 +1216,8 @@ test('adapter explicitly disables Joomla web defaults and fallback projects', as
     assert.match(source, /document\.addEventListener\('livewire:navigating', destroyMarketingStudio\)/);
     assert.match(source, /instance\?\.destroy\?\.\(\)/);
     assert.match(source, /frame\.dataset\.readOnly = readOnly \? 'true' : 'false'/);
-    assert.match(source, /\[data-lmz-action="assets"\]/);
+    assert.match(source, /createLmzEditorChrome\(\{/);
+    assert.match(source, /media:\s*\{\s*assets:\s*config\.assets \|\| \[\]/);
     assert.match(source, /request\.expected_hashes = Object\.fromEntries/);
     assert.match(source, /config\.logoLightUrl,\s*config\.logoDarkUrl,/);
     assert.doesNotMatch(source, /config\.logoUrl\b/);

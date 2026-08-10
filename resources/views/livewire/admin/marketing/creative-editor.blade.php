@@ -11,13 +11,15 @@
     $statusLabel = ['draft' => 'Entwurf', 'approved' => 'Freigegeben', 'archived' => 'Archiviert'][$statusValue] ?? $statusValue;
 @endphp
 
-<x-ui.page
+<x-ui.page-builder.editor-shell
     :title="$creativeRecord->title"
     eyebrow="Marketing-Studio"
     description="Gemeinsame Inhalte pflegen und Story, Post sowie Webmotiv unabhängig gestalten."
     :back-url="route('admin.marketing.creatives.index')"
-    :auto-intro="false"
-    content-class="space-y-4"
+    back-label="Zurück zu den Motiven"
+    :preview-sources="$editorPreviewSources"
+    :preview-default="$format"
+    workspace-class="h-full min-h-0 space-y-4 overflow-y-auto overscroll-contain px-3 py-4 sm:px-5"
     class="rt-marketing-editor-page"
     data-marketing-studio
 >
@@ -311,4 +313,4 @@
             </div>
         </section>
     </div>
-</x-ui.page>
+</x-ui.page-builder.editor-shell>

@@ -74,6 +74,7 @@
                     aria-label="{{ $attributes->get('aria-label', config('app.name') . ' Dialog') }}"
                 @endif
                 class="rt-ui-surface rt-ui-modal-panel rt-modal-frame relative flex max-h-[calc(100dvh-1.5rem)] min-h-0 min-w-0 w-full max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-[1.4rem] bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/70 sm:max-h-[calc(100dvh-3rem)] {{ $maxWidthClass }}"
+                data-rt-modal-panel
                 x-transition:enter="rt-motion-modal-enter"
                 x-transition:enter-start="rt-motion-modal-enter-from"
                 x-transition:enter-end="rt-motion-modal-enter-to"

@@ -4,6 +4,13 @@ import {
     createMailBlocks,
     mailCanvasStyles,
 } from './mail-builder-blocks.js';
+import {
+    createLmzEditorChrome,
+    createLmzAssistantAdapter,
+    createPageBuilderLifecycleController,
+    pageBuilderWorkspaceIsActive,
+    waitForPageBuilderActivation,
+} from './lmz-editor-core.js';
 
 /**
  * E-Mail-Modus des LMZ Page Builders (Vendor 2.4.5).
@@ -53,6 +60,20 @@ const MAIL_PREVIEW_IMAGE_TOKENS = Object.freeze([
     'ICON_WEB_SRC',
     'ICON_LOCATION_SRC',
 ]);
+
+export function mailTokenMediaDefinitions(previewAssets = {}, theme = 'light') {
+    const palette = theme === 'dark' ? previewAssets.dark || {} : previewAssets.light || {};
+    const icons = previewAssets.icons || {};
+    return [
+        { token: 'LOGO_SRC', label: 'RailTime Firmenlogo', src: palette.logo || '' },
+        { token: 'TRAIN_SRC', label: 'RailTime Zuganimation', src: palette.train || '' },
+        { token: 'ICON_PHONE_SRC', label: 'Telefon-Icon', src: icons.phone || '' },
+        { token: 'ICON_MOBILE_SRC', label: 'Mobil-Icon', src: icons.mobile || '' },
+        { token: 'ICON_EMAIL_SRC', label: 'E-Mail-Icon', src: icons.email || '' },
+        { token: 'ICON_WEB_SRC', label: 'Web-Icon', src: icons.web || '' },
+        { token: 'ICON_LOCATION_SRC', label: 'Standort-Icon', src: icons.location || '' },
+    ];
+}
 
 const MAIL_TEMPLATE_SIGNATURE_PREVIEW = '<tr data-rt-mail-preview-only="signature"><td style="padding:0;"><div data-rt-mail-signature-preview="true" contenteditable="false" role="note" aria-label="Hier wird beim Versand der zentrale Signaturblock eingesetzt.">Signaturblock wird beim Versand hier eingesetzt</div></td></tr>';
 
@@ -479,7 +500,6 @@ const WRITE_CONTROL_SELECTORS = [
     '[data-lmz-action="save"]',
     '[data-lmz-action="undo"]',
     '[data-lmz-action="redo"]',
-    '[data-lmz-action="assets"]',
     '[data-lmz-action="upload"]',
     '[data-lmz-upload-input]',
 ];
@@ -1381,6 +1401,7 @@ export async function createMailBuilder({
     readOnly = false,
     autosave = MAIL_AUTOSAVE,
     canvasBodyClasses = [],
+    assistantContext = {},
 } = {}) {
     if (typeof runtime?.create !== 'function') {
         throw new TypeError('Der E-Mail-Editor benoetigt die LMZBuilder-Laufzeit.');
@@ -1393,6 +1414,8 @@ export async function createMailBuilder({
     if (typeof storage.onLoad !== 'function' || typeof storage.onSave !== 'function') {
         throw new TypeError('Der E-Mail-Editor benoetigt storage.onLoad und storage.onSave.');
     }
+
+    await waitForPageBuilderActivation(root);
 
     let activeTheme = theme === 'dark' ? 'dark' : 'light';
     let canvasCss = mailCanvasStyles(activeTheme, previewAssets);
@@ -1493,7 +1516,29 @@ export async function createMailBuilder({
         isCurrent: () => Boolean(instance?.editor),
     });
 
-    return {
+    const editorChrome = createLmzEditorChrome({
+        instance,
+        root: rootElement,
+        mode: 'mail',
+        active: pageBuilderWorkspaceIsActive(rootElement),
+        capabilities: {
+            writable: !readOnly,
+            media: true,
+            mediaInsert: false,
+            imageReplace: 'tokens-only',
+            animation: false,
+            gifControls: true,
+            spacing: !readOnly,
+        },
+        media: {
+            tokenMedia: mailTokenMediaDefinitions(previewAssets, activeTheme),
+            baseUrl: window.location.origin + '/',
+        },
+    });
+    let shellLifecycle = null;
+    let assistantAdapter = null;
+    let disposed = false;
+    const api = {
         instance,
         editor,
         readOnly,
@@ -1540,11 +1585,76 @@ export async function createMailBuilder({
         },
 
         destroy() {
+            if (disposed) return;
+            disposed = true;
             cancelInitialPopoverClose();
+            shellLifecycle?.destroy();
+            shellLifecycle = null;
+            assistantAdapter?.destroy();
+            assistantAdapter = null;
+            editorChrome.destroy();
             editor.off?.('component:add', onComponentAdd);
             editor.off?.('canvas:frame:load', onFrameLoad);
             preview?.destroy();
             instance.destroy?.();
         },
     };
+    const inferredKind = (() => {
+        try {
+            const value = new URL(window.location.href).searchParams.get('dokument');
+            return value === 'signature' ? 'signature' : 'template';
+        } catch {
+            return 'template';
+        }
+    })();
+    const embeddedAssistantDocument = (() => {
+        try {
+            const script = rootElement?.closest?.('[data-mail-document-studio]')?.querySelector?.('[data-mail-document-config]');
+            const config = JSON.parse(script?.textContent || '{}');
+            return config.documents?.[config.currentDocument] || {};
+        } catch {
+            return {};
+        }
+    })();
+    assistantAdapter = createLmzAssistantAdapter({
+        root: rootElement,
+        instance,
+        chrome: editorChrome,
+        mode: 'mail',
+        routeName: 'admin.mail-documents.editor',
+        resourceId: assistantContext.resourceId || embeddedAssistantDocument.id || String(projectId).replace(/^mail:/, ''),
+        formatOrKind: typeof assistantContext.formatOrKind === 'function'
+            ? assistantContext.formatOrKind
+            : () => assistantContext.formatOrKind || inferredKind,
+        persistedHash: typeof assistantContext.persistedHash === 'function'
+            ? assistantContext.persistedHash
+            : () => assistantContext.persistedHash || embeddedAssistantDocument.contentHash || '',
+        persistedVersion: typeof assistantContext.persistedVersion === 'function'
+            ? assistantContext.persistedVersion
+            : () => assistantContext.persistedVersion || embeddedAssistantDocument.version || 0,
+        readOnly,
+        availableBlockIds: [
+            'rt-mail-section', 'rt-mail-two-columns', 'rt-mail-heading',
+            'rt-mail-paragraph', 'rt-mail-button', 'rt-mail-divider', 'rt-mail-spacer',
+        ],
+        save: () => api.save('manual'),
+    });
+    shellLifecycle = createPageBuilderLifecycleController({
+        root: rootElement,
+        getBuilder: () => api,
+        onOpen: () => {
+            editorChrome.open();
+            preview?.refresh();
+        },
+        onClose: () => editorChrome.close(),
+        onError: (error) => window.dispatchEvent(new CustomEvent('swal:toast', {
+            detail: {
+                type: 'error',
+                title: 'Editor bleibt geöffnet',
+                text: error?.message || 'Offene Änderungen konnten nicht gespeichert werden.',
+            },
+        })),
+    });
+
+    return api;
 }

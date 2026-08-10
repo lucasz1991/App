@@ -31,8 +31,16 @@
         x-on:keydown.escape.window="if ({{ $state }}) { {{ $closeExpression }} }"
         x-on:rt-navigation:prepare.window="{{ $state }} = false"
         x-trap.inert.noscroll="{{ $state }}"
-        class="fixed inset-0 z-[190] flex items-end justify-center overflow-hidden pt-4 sm:items-center sm:p-6"
+        {{-- rt-modal-shell ist Pflicht, nicht Zierde: nur damit greift die
+             Regel, die die Huelle waehrend der Fahrt auf overflow:clip
+             stellt. Ohne sie holt der Fokusfang das noch unterhalb des
+             Bildes stehende Panel per scrollIntoView herein und die Huelle
+             springt (gemessen am Infodialog: scrollTop 0 -> 580 px).
+             overflow-hidden allein genuegt NICHT — solche Container bleiben
+             programmatisch scrollbar. --}}
+        class="rt-ui-modal rt-modal-shell fixed inset-0 z-[190] flex items-end justify-center overflow-hidden pt-4 sm:items-center sm:p-6"
         style="display: none; z-index: {{ $resolvedLayer }} !important;"
+        data-rt-modal-shell
         data-rt-state-modal
         data-rt-overlay-layer
         data-rt-overlay-base="{{ $resolvedLayer }}"
@@ -52,6 +60,7 @@
 
         <section
             id="{{ $id }}"
+            data-rt-modal-panel
             x-show.important="{{ $state }}"
             x-effect="if ({{ $state }}) { $nextTick(() => document.getElementById(@js($titleId))?.focus()) }"
             x-transition:enter="rt-motion-modal-enter"

@@ -7,25 +7,19 @@
     ];
 @endphp
 
-<x-ui.page
+<x-ui.page-builder.editor-shell
     title="Mail- & Signatur-Editor"
     eyebrow="E-Mail-Vorlagen"
     description="Vorlagendateien und Signaturblock bearbeiten. Die Nachrichtenvorlage gilt für Downloads; der Signaturblock zusätzlich für Systemmails."
-    :auto-intro="false"
-    content-class="space-y-4"
+    :back-url="route('email-templates.index')"
+    back-label="Zur Vorlagen-Seite"
+    :preview-sources="$editorPreviewSources"
+    preview-default="light"
+    workspace-class="h-full min-h-0 space-y-4 overflow-y-auto overscroll-contain px-3 py-4 sm:px-5"
     data-mail-document-studio
+    data-mail-document-back
 >
     <x-slot:actions>
-        <a
-            href="{{ route('email-templates.index') }}"
-            wire:navigate
-            data-mail-document-back
-            class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-rt-border bg-rt-surface px-3.5 py-2 text-sm font-semibold text-rt-muted transition hover:border-rt-red/30 hover:text-rt-red dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-rt-dark-muted"
-        >
-            <i data-feather="arrow-left" class="h-4 w-4" aria-hidden="true"></i>
-            <span>Zur Vorlagen-Seite</span>
-        </a>
-
         @if ($currentDocument !== null)
             <span
                 data-mail-document-status
@@ -512,4 +506,4 @@
             </script>
         @endscript
     @endif
-</x-ui.page>
+</x-ui.page-builder.editor-shell>

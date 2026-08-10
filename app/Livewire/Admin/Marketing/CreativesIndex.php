@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Admin\Marketing;
 
+use App\Enums\MarketingCreativeFormat;
 use App\Enums\MarketingCreativeStatus;
 use App\Enums\MarketingCreativeType;
 use App\Models\MarketingCreative;
@@ -151,6 +152,17 @@ class CreativesIndex extends Component
 
         return view('livewire.admin.marketing.creatives-index', [
             'creatives' => $creatives,
+            'previewFormats' => collect(MarketingCreativeFormat::cases())
+                ->mapWithKeys(function (MarketingCreativeFormat $format): array {
+                    $dimensions = $format->dimensions();
+
+                    return [$format->value => [
+                        'label' => ucfirst($format->value),
+                        'width' => $dimensions['width'],
+                        'height' => $dimensions['height'],
+                    ]];
+                })
+                ->all(),
             'mediaFolderTree' => $folderTree,
             'mediaSourceInvalid' => $mediaSourceInvalid,
             'mediaSourcePath' => $mediaSourceInvalid

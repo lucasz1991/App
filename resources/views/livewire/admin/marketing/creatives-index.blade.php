@@ -157,8 +157,25 @@
                         $typeValue = $creative->type instanceof \BackedEnum ? $creative->type->value : (string) $creative->type;
                         $statusValue = $creative->status instanceof \BackedEnum ? $creative->status->value : (string) $creative->status;
                         $statusLabel = ['draft' => 'Entwurf', 'approved' => 'Freigegeben', 'archived' => 'Archiviert'][$statusValue] ?? $statusValue;
+                        $creativePreviewSources = collect($previewFormats)->mapWithKeys(
+                            fn (array $preview, string $format): array => [$format => array_merge($preview, [
+                                'url' => route('admin.marketing.creatives.preview', [$creative, $format]),
+                                'editUrl' => route('admin.marketing.creatives.editor', [$creative, 'format' => $format]),
+                            ])]
+                        )->all();
                     @endphp
                     <article wire:key="marketing-creative-{{ $creative->public_id }}" class="group rounded-2xl border border-rt-border bg-rt-surface p-5 shadow-rt-xs transition hover:border-rt-red/25 hover:shadow-rt-sm dark:border-rt-dark-border dark:bg-rt-dark-surface" data-marketing-creative-card>
+                        <x-ui.page-builder.preview-card
+                            class="mb-4"
+                            :title="$creative->title"
+                            :description="($typeValue === 'job' ? 'Jobmotiv' : 'Informationsmotiv').' · zuletzt geändert '.$creative->updated_at?->diffForHumans()"
+                            :status="$statusLabel"
+                            :sources="$creativePreviewSources"
+                            default-source="post"
+                            :edit-url="route('admin.marketing.creatives.editor', [$creative, 'format' => 'post'])"
+                            :edit-label="$statusValue === 'archived' ? 'Im Vollbild ansehen' : 'Im Vollbild bearbeiten'"
+                        />
+
                         <div class="flex items-start gap-4">
                             <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-surface-muted text-rt-red dark:bg-rt-dark-surface-muted dark:text-rose-300">
                                 <i data-feather="{{ $typeValue === 'job' ? 'briefcase' : 'info' }}" class="h-5 w-5" aria-hidden="true"></i>

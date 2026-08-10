@@ -24,6 +24,7 @@ class AssistantKnowledgeToolRunner
         string $currentRoute = 'unknown',
         array $wagonContext = [],
         ?callable $onEffect = null,
+        array $pageBuilderContext = [],
     ): string {
         $tools = $this->toolDefinitions($user, $currentRoute);
         if ($tools === []) {
@@ -45,6 +46,7 @@ class AssistantKnowledgeToolRunner
             $user,
             $currentRoute,
             $wagonContext,
+            $pageBuilderContext,
             $onEffect,
             $tools,
         );
@@ -72,6 +74,7 @@ class AssistantKnowledgeToolRunner
         string $currentRoute = 'unknown',
         array $wagonContext = [],
         ?callable $onEffect = null,
+        array $pageBuilderContext = [],
     ): OpenRouterChatResponse {
         $tools = $this->toolDefinitions($user, $currentRoute);
         if ($tools === []) {
@@ -93,6 +96,7 @@ class AssistantKnowledgeToolRunner
             $user,
             $currentRoute,
             $wagonContext,
+            $pageBuilderContext,
             $onEffect,
             $tools,
         );
@@ -114,6 +118,7 @@ class AssistantKnowledgeToolRunner
         ?User $user,
         string $currentRoute,
         array $wagonContext,
+        array $pageBuilderContext,
         ?callable $onEffect,
         array $tools,
     ): array {
@@ -129,6 +134,7 @@ class AssistantKnowledgeToolRunner
                 $user,
                 $currentRoute,
                 $wagonContext,
+                $pageBuilderContext,
                 $onEffect,
                 $this->toolNames($tools),
             ),
@@ -170,6 +176,7 @@ class AssistantKnowledgeToolRunner
         ?User $user,
         string $currentRoute,
         array $wagonContext,
+        array $pageBuilderContext,
         ?callable $onEffect,
         array $allowedToolNames,
     ): string {
@@ -210,6 +217,7 @@ class AssistantKnowledgeToolRunner
                 $user,
                 $currentRoute,
                 $wagonContext,
+                $pageBuilderContext,
             );
 
             if (is_array($result['effect']) && $onEffect !== null) {

@@ -43,6 +43,20 @@ class MailDocumentEditor extends Component
             'documents' => $documents,
             'currentDocument' => $current,
             'editorConfig' => $current === null ? null : $this->editorConfig($documents),
+            'editorPreviewSources' => $current === null ? [] : [
+                'light' => [
+                    'label' => 'Hell',
+                    'url' => route('admin.mail-documents.preview', [$current, 'theme' => 'light']),
+                    'width' => 1024,
+                    'height' => $current->kind === MailDocumentKind::Signature ? 620 : 820,
+                ],
+                'dark' => [
+                    'label' => 'Dunkel',
+                    'url' => route('admin.mail-documents.preview', [$current, 'theme' => 'dark']),
+                    'width' => 1024,
+                    'height' => $current->kind === MailDocumentKind::Signature ? 620 : 820,
+                ],
+            ],
         ])->layout('layouts.master', ['area' => 'admin']);
     }
 

@@ -31,7 +31,11 @@
     <div
         x-show.important="captureOpen"
         x-cloak
-        class="rt-wagon-capture fixed inset-0 z-[70] flex flex-col"
+        {{-- Diese Ebene ist selbst das animierte Panel — wie bei
+             x-ui.fullscreen-modal gibt es keine scrollende Huelle darueber.
+             Der Marker haelt sie im gemeinsamen Vertrag aller Modale. --}}
+        class="rt-wagon-capture rt-modal-frame fixed inset-0 z-[70] flex flex-col"
+        data-rt-modal-panel
         role="dialog"
         aria-modal="true"
         aria-label="{{ __('app.wagon_video_capture') }}"

@@ -4,6 +4,12 @@ import {
     releaseMicrophoneStream,
 } from './microphone-stream.js';
 import { ensureRailTimeNavigationCoordinator } from './navigation-coordinator.js';
+import {
+    dispatchPageBuilderAssistantAction,
+    ensurePageBuilderAssistantBridge,
+} from './lmz-editor-assistant.js';
+
+ensurePageBuilderAssistantBridge();
 
 // Keep the assistant presentation isolated from the already dense app/chat
 // styles. Vite still discovers and bundles this lazy CSS import, while Node's
@@ -1255,6 +1261,7 @@ export function railtimeChatbot(config = {}) {
             this.hidePetBubble();
             if (typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
                 window.dispatchEvent(new CustomEvent('railtime-wagon-context-request'));
+                window.dispatchEvent(new CustomEvent('railtime-pagebuilder-context-request'));
             }
             void this.refreshSpeechStatus('open');
             this.$nextTick(() => {
@@ -1417,6 +1424,10 @@ export function railtimeChatbot(config = {}) {
                 }
 
                 return true;
+            }
+
+            if (type === 'pagebuilder') {
+                return dispatchPageBuilderAssistantAction(action);
             }
 
             const allowedCommands = new Set([

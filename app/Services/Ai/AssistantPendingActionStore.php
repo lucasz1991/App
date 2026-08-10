@@ -46,13 +46,17 @@ final class AssistantPendingActionStore
         ];
     }
 
-    /** @return array<string, mixed>|null */
-    /** @param array<string, mixed> $wagonContext */
+    /**
+     * @param  array<string, mixed>  $wagonContext
+     * @param  array<string, mixed>  $pageBuilderContext
+     * @return array<string, mixed>|null
+     */
     public function consume(
         User $user,
         string $routeName,
         string $token,
         array $wagonContext = [],
+        array $pageBuilderContext = [],
     ): ?array {
         $routeName = trim($routeName);
         $token = trim($token);
@@ -96,12 +100,13 @@ final class AssistantPendingActionStore
         }
 
         if (
-            ($effect['type'] ?? null) === 'wagon_list'
+            in_array(($effect['type'] ?? null), ['wagon_list', AssistantPageBuilderTools::EFFECT_TYPE], true)
             && ! app(AssistantApplicationTools::class)->browserEffectMatchesContext(
                 $user,
                 $routeName,
                 $effect,
                 $wagonContext,
+                $pageBuilderContext,
             )
         ) {
             unset($actions[$token]);
@@ -113,7 +118,7 @@ final class AssistantPendingActionStore
         unset($actions[$token]);
         session()->put($this->pendingKey($user), $actions);
 
-        if (($effect['type'] ?? null) === 'wagon_list') {
+        if (in_array(($effect['type'] ?? null), ['wagon_list', AssistantPageBuilderTools::EFFECT_TYPE], true)) {
             $receipts = $this->receipts($user);
             $receipts[$token] = [
                 'user_id' => (int) $user->getAuthIdentifier(),
@@ -243,7 +248,20 @@ final class AssistantPendingActionStore
             'select_wagon' => $german
                 ? 'Wagen '.(int) ($effect['wagon_index'] ?? 1).' öffnen'
                 : 'Open wagon '.(int) ($effect['wagon_index'] ?? 1),
-            'save' => $german ? 'Lokal speichern' : 'Save locally',
+            'open_fullscreen' => $german ? 'Vollbildeditor öffnen' : 'Open full-screen editor',
+            'open_panel' => $german ? 'Editor-Bereich öffnen' : 'Open editor panel',
+            'focus_selection' => $german ? 'Auswahl fokussieren' : 'Focus selection',
+            'edit_text' => $german ? 'Text ändern' : 'Change text',
+            'set_style' => $german ? 'Gestaltung ändern' : 'Change styling',
+            'replace_image' => $german ? 'Bild ersetzen' : 'Replace image',
+            'add_block' => $german ? 'Block einfügen' : 'Insert block',
+            'undo' => $german ? 'Rückgängig machen' : 'Undo',
+            'redo' => $german ? 'Wiederholen' : 'Redo',
+            'preview', 'restart_gif' => $german ? 'Vorschau ändern' : 'Change preview',
+            'set_animation' => $german ? 'Animation ändern' : 'Change animation',
+            'save' => ($effect['type'] ?? null) === AssistantPageBuilderTools::EFFECT_TYPE
+                ? ($german ? 'Arbeitsstand speichern' : 'Save working draft')
+                : ($german ? 'Lokal speichern' : 'Save locally'),
             'set_field' => $german ? 'Übernehmen & weiter' : 'Apply & continue',
             default => $german ? 'Aktion bestätigen' : 'Confirm action',
         };

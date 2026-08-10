@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\MarketingCreativeController;
 use App\Http\Controllers\Admin\MarketingFileController;
 use App\Http\Controllers\Admin\MarketingRenderController;
 use App\Http\Controllers\Admin\MarketingVariantController;
+use App\Http\Controllers\Admin\PageBuilderPreviewController;
 use App\Http\Controllers\Assistant\AssistantAudioInputTranscriptionController;
 use App\Http\Controllers\Assistant\AssistantAudioOutputStreamController;
 use App\Http\Controllers\Assistant\AssistantSpeechStatusController;
@@ -226,6 +227,10 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
         // HTML-Seite als vermeintliche JSON-Antwort an. Die Pruefung steht
         // stattdessen ausdruecklich im Controller.
         Route::withoutMiddleware('role:admin')->group(function (): void {
+            Route::get('/mail-vorlagen/{document}/vorschau', [PageBuilderPreviewController::class, 'mail'])
+                ->whereUuid('document')
+                ->middleware('throttle:180,1')
+                ->name('mail-documents.preview');
             Route::put('/mail-vorlagen/{document}', [MailDocumentController::class, 'update'])
                 ->whereUuid('document')
                 ->middleware('throttle:120,1')
@@ -244,6 +249,11 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
             Route::get('/marketing/motive/{creative}/bearbeiten', MarketingCreativeEditor::class)
                 ->whereUuid('creative')
                 ->name('marketing.creatives.editor');
+            Route::get('/marketing/motive/{creative}/vorschau/{format}', [PageBuilderPreviewController::class, 'marketing'])
+                ->whereUuid('creative')
+                ->whereIn('format', ['story', 'post', 'web'])
+                ->middleware('throttle:180,1')
+                ->name('marketing.creatives.preview');
             Route::patch('/marketing/motive/{creative}', [MarketingCreativeController::class, 'update'])
                 ->whereUuid('creative')
                 ->middleware('throttle:120,1')

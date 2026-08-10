@@ -1,4 +1,11 @@
 import QRCode from 'qrcode';
+import {
+    createLmzEditorChrome,
+    createLmzAssistantAdapter,
+    createPageBuilderLifecycleController,
+    pageBuilderWorkspaceIsActive,
+    waitForPageBuilderActivation,
+} from './lmz-editor-core.js';
 
 export const MARKETING_ARTBOARDS = Object.freeze({
     story: Object.freeze({ label: 'Story', width: 1080, height: 1920 }),
@@ -1136,12 +1143,17 @@ export async function createMarketingStudio(workspace, config) {
         throw new Error('Marketing-Editor-Fläche fehlt.');
     }
 
+    await waitForPageBuilderActivation(workspace);
+
     const builderRuntime = await ensureVendorRuntime(config.vendor || {});
     const abortController = new AbortController();
     const timers = new Set();
     const renderTimers = new Set();
     let currentFormat = MARKETING_ARTBOARDS[config.currentFormat] ? config.currentFormat : 'story';
     let instance = null;
+    let editorChrome = null;
+    let assistantAdapter = null;
+    let shellLifecycle = null;
     let artboardViewport = null;
     let touchPanController = null;
     let detachSafeZoneFrameLoad = null;
@@ -1206,6 +1218,10 @@ export async function createMarketingStudio(workspace, config) {
         touchPanController = null;
         artboardViewport?.destroy();
         artboardViewport = null;
+        assistantAdapter?.destroy();
+        assistantAdapter = null;
+        editorChrome?.destroy();
+        editorChrome = null;
         if (instance) {
             instance.destroy();
             instance = null;
@@ -1290,11 +1306,51 @@ export async function createMarketingStudio(workspace, config) {
         frame.dataset.readOnly = readOnly ? 'true' : 'false';
         instance.setActionLocked(readOnly);
         if (readOnly) {
-            root.querySelectorAll('[data-lmz-action="save"], [data-lmz-action="upload"], [data-lmz-action="assets"], [data-lmz-action="undo"], [data-lmz-action="redo"]').forEach((control) => {
+            root.querySelectorAll('[data-lmz-action="save"], [data-lmz-action="upload"], [data-lmz-action="undo"], [data-lmz-action="redo"]').forEach((control) => {
                 control.disabled = true;
                 control.setAttribute('aria-disabled', 'true');
             });
         }
+        editorChrome = createLmzEditorChrome({
+            instance,
+            root,
+            mode: 'marketing',
+            active: pageBuilderWorkspaceIsActive(workspace),
+            capabilities: {
+                writable: !readOnly,
+                media: true,
+                mediaInsert: !readOnly,
+                imageReplace: !readOnly,
+                animation: !readOnly,
+                gifControls: true,
+                spacing: !readOnly,
+            },
+            media: {
+                assets: config.assets || [],
+                trustedSources: [config.logoLightUrl, config.logoDarkUrl, '/rt-brand/img/hero-railtime.jpg'].filter(Boolean),
+                baseUrl: window.location.origin + '/',
+            },
+        });
+        assistantAdapter = createLmzAssistantAdapter({
+            root,
+            instance,
+            chrome: editorChrome,
+            mode: 'marketing',
+            routeName: 'admin.marketing.creatives.editor',
+            resourceId: config.creativeId,
+            formatOrKind: () => currentFormat,
+            persistedHash: () => config.variants?.[currentFormat]?.contentHash || '',
+            persistedVersion: () => config.variants?.[currentFormat]?.version || 0,
+            readOnly,
+            assets: config.assets || [],
+            availableBlockIds: [
+                'rt-marketing-logo-light', 'rt-marketing-logo-dark', 'rt-marketing-hero',
+                'rt-marketing-kicker', 'rt-marketing-headline', 'rt-marketing-facts',
+                'rt-marketing-tasks', 'rt-marketing-profile', 'rt-marketing-benefits',
+                'rt-marketing-contact', 'rt-marketing-cta', 'rt-marketing-qr',
+            ],
+            save: () => instance?.save?.('manual'),
+        });
         const readyInstance = instance;
         touchPanController = createFixedArtboardPanController({
             instance: readyInstance,
@@ -1508,6 +1564,21 @@ export async function createMarketingStudio(workspace, config) {
 
     await startBuilder(currentFormat);
 
+    shellLifecycle = createPageBuilderLifecycleController({
+        root,
+        getBuilder: () => instance,
+        onOpen: () => {
+            editorChrome?.open();
+            artboardViewport?.refresh();
+        },
+        onClose: () => editorChrome?.close(),
+        onError: (error) => dispatchToast(
+            'error',
+            error?.message || 'Der Entwurf konnte nicht gespeichert werden.',
+            'Editor bleibt geöffnet',
+        ),
+    });
+
     if (readOnly) {
         sharedForm?.querySelectorAll('input, textarea, select, button').forEach((control) => {
             control.disabled = true;
@@ -1531,6 +1602,12 @@ export async function createMarketingStudio(workspace, config) {
             touchPanController = null;
             artboardViewport?.destroy();
             artboardViewport = null;
+            shellLifecycle?.destroy();
+            shellLifecycle = null;
+            assistantAdapter?.destroy();
+            assistantAdapter = null;
+            editorChrome?.destroy();
+            editorChrome = null;
             instance?.destroy?.();
             instance = null;
         },

@@ -189,6 +189,8 @@
     x-on:railtime-wagon-context-updated.window="if (!$event.detail?.editor_open) wagonHelpVisible = false; $wire.updateWagonAssistantContext($event.detail)"
     x-on:railtime-wagon-assistant-result.window="$wire.recordAssistantActionResult($event.detail)"
     x-on:railtime-wagon-assistant-help.window="handleWagonHelp($event.detail)"
+    x-on:railtime-pagebuilder-context-updated.window="$wire.updatePageBuilderAssistantContext($event.detail)"
+    x-on:railtime-pagebuilder-assistant-result.window="$wire.recordAssistantActionResult($event.detail)"
 >
     <button
         type="button"

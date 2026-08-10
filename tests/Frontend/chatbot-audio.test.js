@@ -9,6 +9,10 @@ import {
     railtimeChatbot,
     rememberAssistantPhraseAudio,
 } from '../../resources/js/chatbot.js';
+import {
+    registerPageBuilderAssistantAdapter,
+    unregisterPageBuilderAssistantAdapter,
+} from '../../resources/js/lmz-editor-assistant.js';
 
 const sourceUrl = new URL('../../resources/js/chatbot.js', import.meta.url);
 const originalGlobals = {
@@ -70,6 +74,7 @@ function waitFor(predicate, timeoutMs = 500) {
 }
 
 afterEach(() => {
+    unregisterPageBuilderAssistantAdapter();
     clearAssistantPhraseAudioCache();
     restoreGlobal('Audio', originalGlobals.Audio);
     restoreGlobal('CustomEvent', originalGlobals.CustomEvent);
@@ -872,6 +877,80 @@ test('assistant client dispatches only allowlisted nonce-bound wagon commands', 
         },
     }), false);
     assert.equal(dispatched.length, 1);
+});
+
+test('assistant client routes only a nonce and revision bound pagebuilder effect through the shared bridge', async () => {
+    const { fakeWindow } = installBrowserEnvironment();
+    const dispatched = [];
+    replaceGlobal('CustomEvent', class {
+        constructor(type, options = {}) {
+            this.type = type;
+            this.detail = options.detail;
+        }
+    });
+    fakeWindow.dispatchEvent = (event) => dispatched.push(event);
+
+    const activeContext = {
+        version: 1,
+        route_name: 'admin.marketing.creatives.editor',
+        mode: 'marketing',
+        resource_id: '10000000-0000-4000-8000-000000000001',
+        format_or_kind: 'story',
+        workspace_nonce: 'workspace_nonce_1234567890',
+        fullscreen_open: true,
+        editor_ready: true,
+        read_only: false,
+        persisted_content_hash: 'a'.repeat(64),
+        persisted_version: 2,
+        client_revision: 11,
+        unsaved: true,
+        selection: null,
+        capabilities: ['save'],
+        available_block_ids: [],
+        validation: { state: 'valid', issues: [] },
+    };
+    let saves = 0;
+    registerPageBuilderAssistantAdapter({
+        getContext: () => activeContext,
+        save: () => { saves += 1; return true; },
+    });
+
+    const chatbot = railtimeChatbot();
+    const effect = {
+        type: 'pagebuilder',
+        command: 'save',
+        action_token: 'P'.repeat(48),
+        route_name: activeContext.route_name,
+        mode: activeContext.mode,
+        resource_id: activeContext.resource_id,
+        format_or_kind: activeContext.format_or_kind,
+        workspace_nonce: activeContext.workspace_nonce,
+        persisted_content_hash: activeContext.persisted_content_hash,
+        persisted_version: activeContext.persisted_version,
+        client_revision: activeContext.client_revision,
+    };
+
+    assert.equal(chatbot.handleClientAction({ action: effect }), true);
+    await waitFor(() => dispatched.some((event) => event.type === 'railtime-pagebuilder-assistant-result'));
+    assert.equal(saves, 1);
+    assert.deepEqual(
+        dispatched.find((event) => event.type === 'railtime-pagebuilder-assistant-result').detail,
+        { action_token: 'P'.repeat(48), status: 'applied' },
+    );
+
+    assert.equal(chatbot.handleClientAction({
+        action: { ...effect, client_revision: 12, action_token: 'Q'.repeat(48) },
+    }), true);
+    await waitFor(() => dispatched.some((event) => event.detail?.action_token === 'Q'.repeat(48)));
+    assert.equal(
+        dispatched.find((event) => event.detail?.action_token === 'Q'.repeat(48)).detail.status,
+        'stale_context',
+    );
+    assert.equal(saves, 1);
+
+    assert.equal(chatbot.handleClientAction({
+        action: { ...effect, persisted_content_hash: 'javascript:evil', action_token: 'R'.repeat(48) },
+    }), false);
 });
 
 test('wagon help bubble is shown only while automatic help is enabled and visible', () => {

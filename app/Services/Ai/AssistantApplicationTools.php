@@ -20,6 +20,8 @@ final class AssistantApplicationTools
 
     private const WAGON_ROUTES = ['operations.wagon-list', 'admin.operations.wagon-list'];
 
+    public function __construct(private readonly AssistantPageBuilderTools $pageBuilderTools) {}
+
     /** @return array<int, array<string, mixed>> */
     public function toolDefinitions(User $user, string $currentRoute): array
     {
@@ -101,7 +103,7 @@ final class AssistantApplicationTools
             );
         }
 
-        return $tools;
+        return [...$tools, ...$this->pageBuilderTools->toolDefinitions($user, $currentRoute)];
     }
 
     /**
@@ -115,12 +117,17 @@ final class AssistantApplicationTools
         User $user,
         string $currentRoute,
         array $wagonContext = [],
+        array $pageBuilderContext = [],
     ): array {
         if (! in_array($name, $this->allowedToolNames($user, $currentRoute), true)) {
             return [
                 'payload' => ['error' => 'unknown_tool', 'message' => 'Dieses Tool ist nicht freigegeben.'],
                 'effect' => null,
             ];
+        }
+
+        if (in_array($name, $this->pageBuilderTools->toolNames($user, $currentRoute), true)) {
+            return $this->pageBuilderTools->execute($name, $arguments, $user, $currentRoute, $pageBuilderContext);
         }
 
         return match ($name) {
@@ -190,6 +197,10 @@ final class AssistantApplicationTools
     public function normalizeBrowserEffect(User $user, string $currentRoute, array $effect): ?array
     {
         $type = $this->argumentString($effect['type'] ?? null);
+
+        if ($type === AssistantPageBuilderTools::EFFECT_TYPE) {
+            return $this->pageBuilderTools->normalizeBrowserEffect($user, $currentRoute, $effect);
+        }
 
         if ($type === 'navigate') {
             $result = $this->openPage(
@@ -268,7 +279,17 @@ final class AssistantApplicationTools
         string $currentRoute,
         array $effect,
         array $wagonContext,
+        array $pageBuilderContext = [],
     ): bool {
+        if ($this->argumentString($effect['type'] ?? null) === AssistantPageBuilderTools::EFFECT_TYPE) {
+            return $this->pageBuilderTools->browserEffectMatchesContext(
+                $user,
+                $currentRoute,
+                $effect,
+                $pageBuilderContext,
+            );
+        }
+
         $effect = $this->normalizeBrowserEffect($user, $currentRoute, $effect);
         if ($effect === null) {
             return false;
@@ -851,6 +872,8 @@ final class AssistantApplicationTools
             $names[] = self::WAGON_GUIDE_TOOL;
             $names[] = self::WAGON_FIELD_TOOL;
         }
+
+        $names = [...$names, ...$this->pageBuilderTools->toolNames($user, $currentRoute)];
 
         return $names;
     }

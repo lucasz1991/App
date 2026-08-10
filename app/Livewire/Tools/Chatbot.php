@@ -5,6 +5,7 @@ namespace App\Livewire\Tools;
 use App\Models\User;
 use App\Services\Ai\AssistantApplicationTools;
 use App\Services\Ai\AssistantKnowledgeToolRunner;
+use App\Services\Ai\AssistantPageBuilderTools;
 use App\Services\Ai\AssistantPendingActionStore;
 use App\Services\Ai\AssistantSpeechRouter;
 use App\Services\Ai\Attachments\AssistantAttachmentBatch;
@@ -77,6 +78,10 @@ class Chatbot extends Component
     /** @var array<string, mixed> */
     #[Locked]
     public array $wagonAssistantContext = [];
+
+    /** @var array<string, mixed> */
+    #[Locked]
+    public array $pageBuilderAssistantContext = [];
 
     public function mount(): void
     {
@@ -229,6 +234,7 @@ class Chatbot extends Component
                         $this->pageRouteName,
                         $this->wagonAssistantContext,
                         $collectEffect,
+                        $this->pageBuilderAssistantContext,
                     );
                 } else {
                     $this->replaceLatestUserContent($messages, $batch->requestContent($input));
@@ -241,6 +247,7 @@ class Chatbot extends Component
                         $this->pageRouteName,
                         $this->wagonAssistantContext,
                         $collectEffect,
+                        $this->pageBuilderAssistantContext,
                     );
                     $answer = $response->content;
                 }
@@ -299,6 +306,7 @@ class Chatbot extends Component
             $this->pageRouteName,
             $token,
             $this->wagonAssistantContext,
+            $this->pageBuilderAssistantContext,
         );
 
         if (! is_array($effect)) {
@@ -319,6 +327,18 @@ class Chatbot extends Component
                 preg_match('/\A[a-zA-Z0-9_-]{16,96}\z/', $effectNonce)
                 && preg_match('/\A[a-zA-Z0-9_-]{16,96}\z/', $currentNonce)
                 && hash_equals($currentNonce, $effectNonce),
+                422,
+            );
+        }
+
+        if (($effect['type'] ?? null) === AssistantPageBuilderTools::EFFECT_TYPE) {
+            abort_unless(
+                app(AssistantPageBuilderTools::class)->browserEffectMatchesContext(
+                    $user,
+                    $this->pageRouteName,
+                    $effect,
+                    $this->pageBuilderAssistantContext,
+                ),
                 422,
             );
         }
@@ -345,8 +365,9 @@ class Chatbot extends Component
             abort(422);
         }
 
+        $effectType = (string) ($receipt['effect']['type'] ?? '');
         $command = (string) ($receipt['effect']['command'] ?? '');
-        $message = $this->assistantActionResultMessage($command, $status);
+        $message = $this->assistantActionResultMessage($effectType, $command, $status);
         $entry = $this->appendHistory('assistant', $message);
         $this->dispatch(
             'railtime-assistant-reply',
@@ -443,6 +464,14 @@ class Chatbot extends Component
                 ? $sanitizePresence($context['current_wagon_fields'] ?? [], $wagonFields)
                 : [],
         ];
+    }
+
+    /** @param array<string, mixed> $context */
+    public function updatePageBuilderAssistantContext(array $context): void
+    {
+        $user = $this->authorizeUser();
+        $this->pageBuilderAssistantContext = app(AssistantPageBuilderTools::class)
+            ->normalizeContext($user, $this->pageRouteName, $context);
     }
 
     public function updatedAttachments(): void
@@ -729,9 +758,43 @@ class Chatbot extends Component
         $this->persistHistory();
     }
 
-    private function assistantActionResultMessage(string $command, string $status): string
+    private function assistantActionResultMessage(string $effectType, string $command, string $status): string
     {
         $german = app()->getLocale() === 'de';
+
+        if ($effectType === AssistantPageBuilderTools::EFFECT_TYPE) {
+            if ($status !== 'applied') {
+                return match ($status) {
+                    'stale_context' => $german
+                        ? 'Der Editor-Arbeitsstand oder die Auswahl hat sich inzwischen geändert. Bitte prüfe die Auswahl erneut.'
+                        : 'The editor revision or selection changed in the meantime. Please inspect the selection again.',
+                    'storage_error' => $german
+                        ? 'Der Arbeitsstand konnte nicht gespeichert werden. Deine lokale Bearbeitung bleibt erhalten; bitte versuche es erneut.'
+                        : 'The working draft could not be saved. Your local edits remain available; please try again.',
+                    default => $german
+                        ? 'Die bestätigte Editor-Aktion wurde nicht ausgeführt.'
+                        : 'The confirmed editor action was not applied.',
+                };
+            }
+
+            return match ($command) {
+                'open_fullscreen' => $german ? 'Der LMZ-Vollbildeditor ist geöffnet.' : 'The LMZ full-screen editor is open.',
+                'open_panel' => $german ? 'Der gewünschte Editor-Bereich ist geöffnet.' : 'The requested editor panel is open.',
+                'focus_selection' => $german ? 'Die aktuelle Auswahl ist im Editor fokussiert.' : 'The current selection is focused in the editor.',
+                'edit_text' => $german ? 'Der bestätigte Text wurde lokal übernommen.' : 'The confirmed text was applied locally.',
+                'set_style' => $german ? 'Die bestätigte Gestaltung wurde lokal übernommen.' : 'The confirmed styling was applied locally.',
+                'replace_image' => $german ? 'Das Bild aus dem freigegebenen Marketing-Dateipool wurde eingesetzt.' : 'The image from the approved marketing FilePool was inserted.',
+                'add_block' => $german ? 'Der RailTime-Block wurde eingefügt.' : 'The RailTime block was inserted.',
+                'undo' => $german ? 'Der letzte Editorschritt wurde rückgängig gemacht.' : 'The last editor step was undone.',
+                'redo' => $german ? 'Der Editorschritt wurde wiederhergestellt.' : 'The editor step was restored.',
+                'preview', 'restart_gif' => $german ? 'Die Vorschau wurde aktualisiert.' : 'The preview was updated.',
+                'set_animation' => $german ? 'Die freigegebene Animationseigenschaft wurde übernommen.' : 'The approved animation setting was applied.',
+                'save' => $german
+                    ? 'Der Arbeitsstand wurde gespeichert. Es wurde nichts veröffentlicht, freigegeben oder exportiert.'
+                    : 'The working draft was saved. Nothing was published, approved or exported.',
+                default => $german ? 'Die bestätigte Editor-Aktion wurde ausgeführt.' : 'The confirmed editor action was applied.',
+            };
+        }
 
         if ($status !== 'applied') {
             return match ($status) {
@@ -976,6 +1039,7 @@ class Chatbot extends Component
                 $user,
                 $this->pageRouteName,
                 $this->wagonAssistantContext,
+                $this->pageBuilderAssistantContext,
             ),
             ...$attachmentMessages,
         );
@@ -1182,6 +1246,29 @@ class Chatbot extends Component
     /** @return array<int, array{key: string, label: string, prompt: string}> */
     private function availableQuickActions(): array
     {
+        if (in_array($this->pageRouteName, [
+            'admin.marketing.creatives.editor',
+            'admin.mail-documents.editor',
+        ], true)) {
+            return [
+                [
+                    'key' => 'pagebuilder_status',
+                    'label' => 'Editor-Status prüfen',
+                    'prompt' => 'Prüfe den sicheren Status des aktuellen LMZ-Editors und sage mir kurz, was ich als Nächstes tun kann.',
+                ],
+                [
+                    'key' => 'pagebuilder_selection',
+                    'label' => 'Auswahl erklären',
+                    'prompt' => 'Prüfe die aktuelle Auswahl im LMZ-Editor und erkläre knapp, welche sicheren Bearbeitungen möglich sind.',
+                ],
+                [
+                    'key' => 'pagebuilder_validation',
+                    'label' => 'Dokument prüfen',
+                    'prompt' => 'Prüfe die aktuelle Validierungszusammenfassung und nenne mir die wichtigsten Probleme oder bestätige, dass sie unauffällig ist.',
+                ],
+            ];
+        }
+
         if (in_array($this->pageRouteName, ['operations.wagon-list', 'admin.operations.wagon-list'], true)) {
             return [
                 [

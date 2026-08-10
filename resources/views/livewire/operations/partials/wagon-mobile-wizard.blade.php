@@ -307,7 +307,12 @@
     <div
         x-show.important="wagonModalOpen"
         x-cloak
-        class="rt-wagon-modal fixed inset-0 z-[60] flex items-end justify-center lg:hidden"
+        {{-- rt-modal-shell haelt diese Ebene im gemeinsamen Vertrag aller
+             Modale: nur damit stellt die Regel in app.css die Huelle
+             waehrend der Fahrt auf overflow:clip und der Dialog kann nicht
+             durch scrollIntoView verrutschen. --}}
+        class="rt-wagon-modal rt-modal-shell fixed inset-0 z-[60] flex items-end justify-center lg:hidden"
+        data-rt-modal-shell
         data-no-sidebar-swipe
     >
         <div
@@ -334,7 +339,8 @@
             role="dialog"
             aria-modal="true"
             aria-labelledby="wagon-modal-title"
-            class="rt-wagon-modal-panel relative flex max-h-[94dvh] min-h-0 w-full flex-col"
+            class="rt-wagon-modal-panel rt-modal-frame relative flex max-h-[94dvh] min-h-0 w-full flex-col"
+            data-rt-modal-panel
         >
             <header class="rt-wagon-modal-head shrink-0">
                 <span class="rt-wagon-step-number-badge" x-text="mobileWagon + 1"></span>

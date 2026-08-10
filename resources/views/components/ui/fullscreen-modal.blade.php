@@ -69,7 +69,12 @@
         x-transition:leave="rt-motion-screen-leave"
         x-transition:leave-start="rt-motion-screen-leave-from"
         x-transition:leave-end="rt-motion-screen-leave-to"
-        {{ $attributes->class('fixed inset-0 z-[190] flex min-h-0 flex-col bg-rt-canvas text-rt-text dark:bg-rt-dark-canvas dark:text-rt-dark-text') }}
+        {{-- Hier ist die Ebene SELBST das animierte Panel — es gibt keine
+             scrollende Huelle darueber. Der Marker haelt die Ebene
+             trotzdem im gemeinsamen Vertrag aller Modale, damit Messungen
+             und Regeln sie mit erfassen. --}}
+        {{ $attributes->class('rt-modal-frame fixed inset-0 z-[190] flex min-h-0 flex-col bg-rt-canvas text-rt-text dark:bg-rt-dark-canvas dark:text-rt-dark-text') }}
+        data-rt-modal-panel
         data-rt-fullscreen-modal
         data-rt-overlay-layer
         data-rt-overlay-base="190"

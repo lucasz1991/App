@@ -93,6 +93,7 @@
         x-transition:leave-start="rt-motion-modal-leave-from"
         x-transition:leave-end="rt-motion-modal-leave-to"
         class="rt-ui-surface rt-ui-modal-panel rt-modal-frame rt-info-dialog relative flex max-h-[calc(100dvh-1.5rem)] min-h-0 w-full max-w-2xl flex-col overflow-hidden rounded-[1.4rem] bg-rt-surface text-rt-text shadow-rt-lg ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:text-rt-dark-text dark:ring-rt-dark-border/60 sm:max-h-[calc(100dvh-3rem)]"
+        data-rt-modal-panel
         data-rt-info-dialog
     >
         <header class="rt-modal-header relative flex shrink-0 items-center gap-3.5 border-b border-rt-border/70 bg-rt-surface px-5 py-4 pr-16 dark:border-rt-dark-border/70 dark:bg-rt-dark-surface sm:px-6 sm:py-5 sm:pr-16">

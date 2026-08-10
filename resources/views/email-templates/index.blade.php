@@ -41,6 +41,19 @@
                 'icon' => 'far fa-moon-stars',
             ],
         ];
+        $adminMailDocuments = collect();
+        if ($user?->isAdmin()) {
+            try {
+                if (\Illuminate\Support\Facades\Schema::hasTable('mail_documents')) {
+                    $adminMailDocuments = \App\Models\MailDocument::query()
+                        ->orderBy('id')
+                        ->get()
+                        ->keyBy(fn (\App\Models\MailDocument $document): string => $document->kind->value);
+                }
+            } catch (\Throwable) {
+                $adminMailDocuments = collect();
+            }
+        }
     @endphp
 
     <x-ui.page
@@ -172,6 +185,48 @@
                     <i class="far fa-arrow-up-right hidden shrink-0 text-xs text-rt-soft transition group-hover:text-rt-red dark:text-rt-dark-soft dark:group-hover:text-rt-dark-accent sm:inline-block" aria-hidden="true"></i>
                 </button>
             </section>
+
+            @if ($user?->isAdmin() && $adminMailDocuments->isNotEmpty())
+                <section aria-labelledby="mail-page-builder-heading" data-email-template-page-builder-previews>
+                    <div class="mb-3 flex flex-wrap items-end justify-between gap-2">
+                        <div>
+                            <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-rt-red dark:text-rt-dark-accent">LMZ Page Builder</p>
+                            <h2 id="mail-page-builder-heading" class="mt-1 text-lg font-semibold text-rt-text dark:text-rt-dark-text">Aktuelle Arbeitsstände</h2>
+                            <p class="mt-1 text-sm text-rt-muted dark:text-rt-dark-muted">Sichere Vorschauen öffnen den jeweiligen Editor erst nach dem Klick im Vollbild.</p>
+                        </div>
+                    </div>
+
+                    <div class="grid gap-4 xl:grid-cols-2">
+                        @foreach ([
+                            \App\Enums\MailDocumentKind::Template->value => ['Nachrichtenschale', 'Vollständige E-Mail mit aktuellem Signatur-Arbeitsstand', 820],
+                            \App\Enums\MailDocumentKind::Signature->value => ['Signatur', 'Personalisierter Signaturblock mit lokalen RailTime-Markenelementen', 620],
+                        ] as $documentKind => [$documentTitle, $documentDescription, $previewHeight])
+                            @if ($document = $adminMailDocuments->get($documentKind))
+                                @php
+                                    $documentEditUrl = route('admin.mail-documents.editor', ['dokument' => $documentKind]);
+                                    $documentPreviewSources = collect(['light' => 'Hell', 'dark' => 'Dunkel'])
+                                        ->mapWithKeys(fn (string $label, string $theme): array => [$theme => [
+                                            'label' => $label,
+                                            'url' => route('admin.mail-documents.preview', [$document, 'theme' => $theme]),
+                                            'editUrl' => $documentEditUrl,
+                                            'width' => 1024,
+                                            'height' => $previewHeight,
+                                        ]])
+                                        ->all();
+                                @endphp
+                                <x-ui.page-builder.preview-card
+                                    :title="$documentTitle"
+                                    :description="$documentDescription"
+                                    :status="$document->status->label()"
+                                    :sources="$documentPreviewSources"
+                                    default-source="light"
+                                    :edit-url="$documentEditUrl"
+                                />
+                            @endif
+                        @endforeach
+                    </div>
+                </section>
+            @endif
 
             <div class="space-y-3" data-email-template-accordions>
                 <x-ui.accordion.section

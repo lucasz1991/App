@@ -504,6 +504,18 @@
     backdrop-filter: blur(20px) saturate(1.08);
 }
 
+/* The app keeps one global assistant instance. Raise only that instance while
+   an LMZ adapter reports an actual full-screen editor; confirmation dialogs
+   (z-index 340+) remain above both surfaces. */
+html.rt-pagebuilder-fullscreen-open .rt-chatbot__backdrop {
+    z-index: 279;
+}
+
+html.rt-pagebuilder-fullscreen-open .rt-chatbot__pet-stage,
+html.rt-pagebuilder-fullscreen-open .rt-chatbot__panel {
+    z-index: 280;
+}
+
 .rt-chatbot__panel-enter,
 .rt-chatbot__panel-leave {
     transform-origin: 50% 100%;

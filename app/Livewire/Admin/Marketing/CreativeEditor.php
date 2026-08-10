@@ -79,6 +79,23 @@ class CreativeEditor extends Component
             ],
         ];
 
+        $previewSources = collect(MarketingCreativeFormat::cases())
+            ->mapWithKeys(function (MarketingCreativeFormat $format) use ($creative): array {
+                $dimensions = $format->dimensions();
+
+                return [$format->value => [
+                    'label' => match ($format) {
+                        MarketingCreativeFormat::Story => 'Story',
+                        MarketingCreativeFormat::Post => 'Post',
+                        MarketingCreativeFormat::Web => 'Web',
+                    },
+                    'url' => route('admin.marketing.creatives.preview', [$creative, $format->value]),
+                    'width' => $dimensions['width'],
+                    'height' => $dimensions['height'],
+                ]];
+            })
+            ->all();
+
         return view('livewire.admin.marketing.creative-editor', [
             'creativeRecord' => $creative,
             'editorConfig' => $editorConfig,
@@ -93,6 +110,7 @@ class CreativeEditor extends Component
                 'admin.files',
                 $selectedFolder && ! $mediaSourceInvalid ? ['folder' => $selectedFolder->getKey()] : [],
             ),
+            'editorPreviewSources' => $previewSources,
         ])->layout('layouts.master', ['area' => 'admin']);
     }
 }
