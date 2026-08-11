@@ -42,6 +42,16 @@
     $isOutlookExport = $outlookTrainSrc !== '';
     $cellPadding = $isOutlookExport ? '0' : $padding;
     $outlookTrainPadding = $outlookTrainPadding ?? '6px 0 14px';
+    // Ruhestellung HINTER dem GIF: Steht das GIF, deckt es sie vollstaendig
+    // zu; raeumt es seine Flaeche, bleibt der Zug trotzdem stehen. Nur mit
+    // verlinkter Adresse — als eingebettete Fassung waere sie ein zweites
+    // Mal dieselben Kilobytes, und die Wege ohne Standbild (Outlook-Paket
+    // mit lokaler Datei) haben ihren eigenen Ersatzweg.
+    // url() OHNE Anfuehrungszeichen: Blade escaped sie sonst zu &#039;, und
+    // das muss ein Mailclient erst im style-Attribut wieder aufloesen.
+    $ruhebild = $outlookTrainFallbackSrc !== ''
+        ? "background-image:url({$outlookTrainFallbackSrc});background-repeat:no-repeat;background-position:left top;background-size:100% 100%;"
+        : '';
     $hasPerson = trim((string) ($values['VORNAME_NACHNAME'] ?? '')) !== '';
     $pflichtangaben = implode(' · ', array_filter([
         ($values['GESCHAEFTSFUEHRUNG'] ?? '') !== '' ? 'Geschäftsführung: '.$values['GESCHAEFTSFUEHRUNG'] : '',
@@ -137,19 +147,29 @@
                  beiden Zugfassungen komplett leer (nachgemessen: 0 % Tinte),
                  weil der Zug dort noch ausserhalb des Bildes steht. Outlook
                  bekommt deshalb ueber den bedingten Kommentar das Standbild
-                 in Ruhestellung, alle anderen das GIF. --}}
+                 in Ruhestellung, alle anderen das GIF.
+
+                 DAS STANDBILD LIEGT ZUSAETZLICH HINTER DEM GIF (siehe
+                 $ruhebild unten). Es ist waehrend der Fahrt unsichtbar, weil
+                 das GIF vollstaendig deckt (nachgemessen: 0 % scheint
+                 durch), und traegt den stehenden Zug in genau den Faellen,
+                 in denen das GIF die Flaeche am Ende doch raeumt: fremde
+                 Entsorgungsauslegung, ein Bilder-Proxy, der das GIF neu
+                 kodiert, oder ein Client, der die Animation abbricht. Ohne
+                 dieses Netz ist das Ergebnis eine leere Flaeche — und genau
+                 das war gemeldet. --}}
             <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">
                 <tr>
                     <td align="left" style="padding:{{ $outlookTrainPadding }};text-align:left;font-size:0;line-height:0;">
                         @if ($outlookTrainFallbackSrc !== '')
                             <!--[if !mso]><!-->
-                            <img data-rt-outlook-train src="{{ $outlookTrainSrc }}" width="620" alt="Dampflok-Güterzug" style="display:block;width:620px;max-width:100%;height:auto;margin:0;border:0;outline:none;">
+                            <img data-rt-outlook-train src="{{ $outlookTrainSrc }}" width="620" alt="Dampflok-Güterzug" style="display:block;width:620px;max-width:100%;height:auto;margin:0;border:0;outline:none;{{ $ruhebild }}">
                             <!--<![endif]-->
                             <!--[if mso]>
                             <img data-rt-outlook-train-still src="{{ $outlookTrainFallbackSrc }}" width="620" alt="Dampflok-Güterzug" style="display:block;width:620px;height:auto;margin:0;border:0;outline:none;">
                             <![endif]-->
                         @else
-                            <img data-rt-outlook-train src="{{ $outlookTrainSrc }}" width="620" alt="Dampflok-Güterzug" style="display:block;width:620px;max-width:100%;height:auto;margin:0;border:0;outline:none;">
+                            <img data-rt-outlook-train src="{{ $outlookTrainSrc }}" width="620" alt="Dampflok-Güterzug" style="display:block;width:620px;max-width:100%;height:auto;margin:0;border:0;outline:none;{{ $ruhebild }}">
                         @endif
                     </td>
                 </tr>
