@@ -46,6 +46,7 @@ import {
     serializeSharedData,
     syncQrCode,
 } from '../../resources/js/marketing-studio.js';
+import { hydrateMailCanvasAssets } from '../../resources/js/mail-builder.js';
 
 class FakeEventTarget {
     constructor() {
@@ -1657,6 +1658,7 @@ test('mail TRAIN_SRC preview restarts a background GIF without mutating persiste
         const element = document.querySelector('#train');
         const data = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
         const layeredBackground = `linear-gradient(rgba(247,246,243,.15),rgba(247,246,243,.15)),url("${data}")`;
+        element.setAttribute('data-rt-mail-preview-train', 'TRAIN_SRC');
         element.style.setProperty('background-image', layeredBackground, 'important');
         element.style.backgroundPosition = 'center center, left bottom';
         element.style.backgroundSize = '100% 100%, 86% auto';
@@ -1665,7 +1667,11 @@ test('mail TRAIN_SRC preview restarts a background GIF without mutating persiste
             style: { 'background-image': 'url("{{TRAIN_SRC}}")' },
         });
         const before = structuredClone(component.state);
-        globalThis.__rtLmzCaptureAnimatedFrame = async () => 'data:image/png;base64,c3RhdGlj';
+        const capturedSources = [];
+        globalThis.__rtLmzCaptureAnimatedFrame = async ({ source }) => {
+            capturedSources.push(source);
+            return 'data:image/png;base64,c3RhdGlj';
+        };
 
         assert.equal(animatedPreviewIsPlaying(component), true);
         assert.equal(setAnimatedPreviewPlayback(component, false), true);
@@ -1673,19 +1679,26 @@ test('mail TRAIN_SRC preview restarts a background GIF without mutating persiste
         assert.equal(animatedPreviewIsPlaying(component), false);
         assert.match(element.style.backgroundImage, /^linear-gradient\(.+\),\s*url\(/);
         assert.match(element.style.backgroundImage, /data:image\/png/);
-        assert.equal(element.style.backgroundPosition, 'center center, left bottom');
-        assert.equal(element.style.backgroundSize, '100% 100%, 86% auto');
+        assert.equal(element.style.backgroundPosition.replaceAll(' ', ''), 'centercenter,leftbottom');
+        assert.equal(element.style.backgroundSize.replaceAll(' ', ''), '100%100%,86%auto');
         assert.deepEqual(component.state, before);
 
-        const darkBackground = 'linear-gradient(rgba(10,20,30,.3),rgba(10,20,30,.3)),url("/mail/dark-train.gif")';
-        element.style.setProperty('background-image', darkBackground, 'important');
+        hydrateMailCanvasAssets({ Canvas: { getDocument: () => document } }, 'dark', {
+            dark: { train: '/mail/dark-train.gif' },
+        });
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        assert.equal(animatedPreviewIsPlaying(component), false);
+        assert.match(element.style.backgroundImage, /rgba\(12,\s*16,\s*23/);
+        assert.match(element.style.backgroundImage, /data:image\/png/);
+        assert.equal(capturedSources.at(-1), '/mail/dark-train.gif');
+
         assert.equal(setAnimatedPreviewPlayback(component, true), true);
         await new Promise((resolve) => setTimeout(resolve, 5));
         assert.equal(animatedPreviewIsPlaying(component), true);
         assert.match(element.style.backgroundImage, /^linear-gradient\(.+\),\s*url\(/);
         assert.match(element.style.backgroundImage, /dark-train\.gif/);
-        assert.equal(element.style.backgroundPosition, 'center center, left bottom');
-        assert.equal(element.style.backgroundSize, '100% 100%, 86% auto');
+        assert.equal(element.style.backgroundPosition.replaceAll(' ', ''), 'centercenter,leftbottom');
+        assert.equal(element.style.backgroundSize.replaceAll(' ', ''), '100%100%,86%auto');
         assert.deepEqual(component.state, before);
 
         assert.equal(restartAnimatedPreview(component, { nonce: 7 }), true);

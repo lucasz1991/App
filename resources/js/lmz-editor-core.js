@@ -843,7 +843,10 @@ export function refreshPausedAnimatedPreviewElement(element) {
     const source = isImage
         ? String(element.getAttribute?.('src') || element.src || '')
         : (extractCssMediaSources(backgroundImage)[0] || '');
-    if (!source || source === current.frozenSource || backgroundImage === current.frozenBackgroundImage) return false;
+    const stillShowsFrozenFrame = isImage
+        ? source === current.frozenSource
+        : backgroundImage === current.frozenBackgroundImage;
+    if (!source || stillShowsFrozenFrame) return false;
 
     const backgroundPriority = String(
         element.style?.getPropertyPriority?.('background-image')

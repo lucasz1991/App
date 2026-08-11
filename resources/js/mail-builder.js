@@ -10,6 +10,7 @@ import {
     createPageBuilderLifecycleController,
     handleScopedRtePaste,
     pageBuilderWorkspaceIsActive,
+    refreshPausedAnimatedPreviewElement,
     waitForPageBuilderActivation,
 } from './lmz-editor-core.js';
 
@@ -1024,6 +1025,7 @@ export function hydrateMailCanvasAssets(editor, theme = 'light', previewAssets =
         const source = sources[image.getAttribute(MAIL_PREVIEW_IMAGE_ATTRIBUTE)];
         if (!source) return;
         image.setAttribute('src', source);
+        refreshPausedAnimatedPreviewElement(image);
         hydrated += 1;
     });
 
@@ -1038,6 +1040,7 @@ export function hydrateMailCanvasAssets(editor, theme = 'light', previewAssets =
         cell.style.setProperty('background-repeat', 'no-repeat', 'important');
         cell.style.setProperty('background-position', 'center center,left bottom', 'important');
         cell.style.setProperty('background-size', '100% 100%,86% auto', 'important');
+        refreshPausedAnimatedPreviewElement(cell);
         hydrated += 1;
     });
 
