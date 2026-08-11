@@ -631,6 +631,15 @@ class EmailTemplateBuilder
         $html = $this->substitute($html, $this->escapeForHtml($values));
         $html = $this->substitute($html, self::emailThemeValues($theme));
 
+        // Das RT-Zeichen oben rechts. Es steht bewusst NUR hier: die
+        // Signatur darunter traegt den Schriftzug, zusammen ergeben beide
+        // die Marke einmal — nicht zweimal.
+        $html = $this->substitute($html, [
+            'ICON_RT_SRC' => $inlineImages
+                ? self::inlineImage(self::emailMarkAsset($theme), 'image/png')
+                : 'cid:railtime-mark',
+        ]);
+
         // Signatur und Pflichtangaben kommen aus der gemeinsamen Quelle
         // (MailSignature) — dieselbe, die auch unter jeder Laravel-Mail steht.
         $signature = MailSignature::forUser(
