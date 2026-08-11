@@ -31,6 +31,7 @@ import {
 
 import {
     applySavedVariant,
+    applySavedVariantAndPublishAssistantContext,
     calculateArtboardGeometry,
     closeInitialMobilePopovers,
     completedRenderDownloadUrl,
@@ -1080,6 +1081,57 @@ test('a saved CSS response survives format reloads and remains the next save fal
     });
     assert.equal(variant.css, '.headline{color:#c90025}');
     assert.equal(variant.html, '<p>Serverbereinigt</p>');
+});
+
+test('a server-authoritative variant save publishes its fresh assistant snapshot before completing', async () => {
+    const variant = {
+        builderData: { pages: [] },
+        html: '<p>Alt</p>',
+        css: '.headline{color:#111}',
+        contentHash: 'a'.repeat(64),
+        version: 4,
+    };
+    let releasePublish;
+    let publishedSnapshot = null;
+    let completed = false;
+    const publishGate = new Promise((resolve) => { releasePublish = resolve; });
+
+    const saving = applySavedVariantAndPublishAssistantContext(
+        variant,
+        {
+            builder_data: { pages: [{ component: '<p>Neu</p>' }] },
+            html: '<p>Serverbereinigt</p>',
+            css: '.headline{color:#c90025}',
+            content_hash: 'b'.repeat(64),
+            version: 5,
+        },
+        {
+            project: { pages: [] },
+            html: '<p>Fallback</p>',
+            css: '.headline{color:#e4002b}',
+        },
+        async () => {
+            publishedSnapshot = {
+                contentHash: variant.contentHash,
+                version: variant.version,
+            };
+            await publishGate;
+        },
+    ).then((result) => {
+        completed = true;
+        return result;
+    });
+
+    await Promise.resolve();
+    assert.deepEqual(publishedSnapshot, {
+        contentHash: 'b'.repeat(64),
+        version: 5,
+    });
+    assert.equal(completed, false);
+
+    releasePublish();
+    assert.equal(await saving, variant);
+    assert.equal(completed, true);
 });
 
 test('a story render response cannot overwrite post status after a format switch', async () => {

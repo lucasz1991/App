@@ -225,7 +225,7 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertStringContainsString("url('".$train, $html, $template);
             $this->assertStringContainsString('background-repeat:no-repeat', $html, $template);
             $this->assertStringContainsString('background-position:center center,left bottom', $html, $template);
-            $this->assertStringContainsString('background-size:100% 100%,86% auto', $html, $template);
+            $this->assertStringContainsString('background-size:100% 100%,80% auto', $html, $template);
 
             // Die Kurzform background: setzt background-image zurueck — sie
             // muss deshalb VOR der Bildangabe stehen, sonst verschwindet der
@@ -345,8 +345,8 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertStringContainsString("src=\"{$assetFolder}/zug-dampf.gif\"", $html);
             $this->assertStringContainsString('class="rt-pad rt-sign-cell"', $html);
             $this->assertStringContainsString('style="padding:0;background:', $html);
-            $this->assertStringContainsString('<td style="padding:18px 30px 0;">', $html);
-            $this->assertStringContainsString('<td align="left" style="padding:12px 0 20px;text-align:left;', $html);
+            $this->assertStringContainsString('<td style="padding:16px 28px 0;">', $html);
+            $this->assertStringContainsString('<td align="left" style="padding:6px 0 14px;text-align:left;', $html);
             $this->assertStringContainsString('height:auto;margin:0;border:0;outline:none;', $html);
             $this->assertStringNotContainsString('data:image/gif;base64,', $html);
             $this->assertStringNotContainsString('background-image:linear-gradient(', $html);
@@ -595,12 +595,12 @@ class EmailTemplatesPageTest extends TestCase
         $regeln = file_get_contents(resource_path('views/emails/parts/responsive-css.blade.php'));
 
         $this->assertStringContainsString(
-            '.rt-sign-cell { background-size: 100% 100%, 125% auto, 125% auto !important; }',
+            '.rt-sign-cell { background-size: 100% 100%, 110% auto, 110% auto !important; }',
             $regeln,
         );
-        $this->assertStringContainsString('padding: 0 0 12px !important;', $regeln);
-        $this->assertStringContainsString('.rt-sign-identity { padding: 18px 0 0 !important; }', $regeln);
-        $this->assertStringContainsString('tr.rt-stack > td.rt-sign-identity { padding: 18px 0 0 !important; }', $regeln);
+        $this->assertStringContainsString('.rt-sign-logo { border-left: 0 !important;', $regeln);
+        $this->assertStringContainsString('.rt-sign-identity { padding: 0 0 20px !important; }', $regeln);
+        $this->assertStringContainsString('tr.rt-stack > td + td { padding-top: 20px !important; }', $regeln);
 
         // Und jede Ausgabestelle zieht daraus, statt eine eigene Kopie zu halten.
         foreach ([
@@ -678,24 +678,24 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertStringContainsString('data-rt-theme="light"', $light);
         $this->assertStringContainsString('background:#f4f2ed', $light);
         $this->assertStringContainsString(
-            '<td class="rt-pad rt-sign-cell" bgcolor="#f7f6f3" style="padding:20px 38px 28px;background:#f7f6f3;',
+            '<td class="rt-pad rt-sign-cell" bgcolor="#f7f6f3" style="padding:18px 36px 20px;background:#f7f6f3;',
             $light
         );
-        $this->assertStringContainsString('color:#111820;font-size:25px;', $light);
+        $this->assertStringContainsString('color:#111820;font-size:23px;', $light);
         $this->assertStringContainsString(
-            'data:image/png;base64,'.base64_encode(file_get_contents(resource_path('mail-templates/assets/logo-signature-light.png'))),
+            'data:image/png;base64,'.base64_encode(file_get_contents(resource_path('mail-templates/assets/wortmarke-signature-light.png'))),
             $light
         );
         $this->assertStringNotContainsString('bgcolor="#080b10"', $light);
         $this->assertStringContainsString('data-rt-theme="dark"', $dark);
         $this->assertStringContainsString('background:#111820', $dark);
         $this->assertStringContainsString(
-            '<td class="rt-pad rt-sign-cell" bgcolor="#0c1017" style="padding:20px 38px 28px;background:#0c1017;',
+            '<td class="rt-pad rt-sign-cell" bgcolor="#0c1017" style="padding:18px 36px 20px;background:#0c1017;',
             $dark
         );
-        $this->assertStringContainsString('color:#ffffff;font-size:25px;', $dark);
+        $this->assertStringContainsString('color:#ffffff;font-size:23px;', $dark);
         $this->assertStringContainsString(
-            'data:image/png;base64,'.base64_encode(file_get_contents(resource_path('mail-templates/assets/logo-mail-dark.png'))),
+            'data:image/png;base64,'.base64_encode(file_get_contents(resource_path('mail-templates/assets/wortmarke-mail-dark.png'))),
             $dark
         );
         $this->assertNotSame($light, $dark);
@@ -718,17 +718,17 @@ class EmailTemplatesPageTest extends TestCase
             );
             $this->assertStringContainsString('data:image/png;base64,', $html);
             $this->assertStringContainsString('background-image:linear-gradient(rgba(', $html);
-            $this->assertStringContainsString('background-size:100% 100%,86% auto;', $html);
+            $this->assertStringContainsString('background-size:100% 100%,80% auto;', $html);
             $this->assertStringContainsString(
-                'class="rt-sign-logo" width="37%" valign="bottom"',
+                'class="rt-sign-logo" width="50%" valign="top"',
                 $html,
             );
-            $this->assertStringContainsString('text-align:right;vertical-align:bottom;', $html);
+            $this->assertStringContainsString('text-align:right;vertical-align:top;', $html);
             $this->assertStringContainsString(
-                'class="rt-sign-identity" width="63%" valign="top"',
+                'class="rt-sign-identity" width="50%" valign="top"',
                 $html,
             );
-            $this->assertStringContainsString('padding:6px 28px 0 0;position:relative;z-index:1;', $html);
+            $this->assertStringContainsString('padding:0 24px 0 0;position:relative;z-index:1;', $html);
             $this->assertStringContainsString('text-align:left;vertical-align:top;', $html);
             $this->assertStringNotContainsString('{{THEME', $html);
             $this->assertStringNotContainsString('{{ICON_', $html);
@@ -752,8 +752,8 @@ class EmailTemplatesPageTest extends TestCase
 
             $this->assertStringContainsString("X-RailTime-Theme: {$theme}", $eml);
             $logoFilename = $theme === 'light'
-                ? 'logo-signature-light.png'
-                : 'logo-mail-dark.png';
+                ? 'wortmarke-signature-light.png'
+                : 'wortmarke-mail-dark.png';
             $this->assertStringContainsString("Content-Disposition: inline; filename=\"{$logoFilename}\"", $eml);
             $this->assertStringContainsString(
                 'Subject: =?UTF-8?B?'.base64_encode('{{BETREFF}} | RailTime Prüfgesellschaft mbH').'?=',
@@ -803,7 +803,7 @@ class EmailTemplatesPageTest extends TestCase
         $html = (new EmailTemplateBuilder($user->fresh()))->build('signatur-hell')['content'];
 
         $this->assertStringContainsString(
-            '<td class="rt-pad rt-sign-cell" bgcolor="#f7f6f3" style="padding:18px 30px 24px;',
+            '<td class="rt-pad rt-sign-cell" bgcolor="#f7f6f3" style="padding:16px 28px 18px;',
             $html,
         );
         $this->assertStringContainsString('Mara Beispiel', $html);
@@ -813,8 +813,8 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertStringContainsString('href="mailto:mara@example.test"', $html);
         $this->assertStringContainsString('href="https://rail-time.example/leistungen"', $html);
         $this->assertStringContainsString('>rail-time.example/leistungen<', $html);
-        // Logo, vier Personen- und zweimal drei Firmenicons als PNG.
-        $this->assertSame(11, substr_count($html, 'data:image/png;base64,'));
+        // Wortmarke, drei Personen- und vier Firmenicons als PNG.
+        $this->assertSame(8, substr_count($html, 'data:image/png;base64,'));
         $this->assertSame(2, substr_count($html, 'data:image/gif;base64,'));
         $this->assertStringContainsString('class="rt-sign-logo"', $html);
         $this->assertStringNotContainsString('RT_PHONE_START', $html);
@@ -822,22 +822,24 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertStringContainsString('background-image:linear-gradient(', $html);
         $this->assertStringContainsString('background-position:center center,left bottom', $html);
 
-        // Reverse Stack: die Markenspalte steht in der Quelle zuerst (und
-        // landet damit beim Stapeln oben), dir="rtl" haelt sie auf breiten
-        // Schirmen trotzdem rechts.
-        $this->assertStringContainsString('<table role="presentation" dir="rtl"', $html);
-        $this->assertStringContainsString('<td dir="ltr" class="rt-sign-logo"', $html);
-        $this->assertStringContainsString('<td dir="ltr" class="rt-sign-identity"', $html);
+        // NATUERLICHE QUELLREIHENFOLGE seit dem symmetrischen Umbau: Person
+        // links, Firma rechts. Vorher stand die Markenspalte zuerst und ein
+        // dir="rtl" an der Wrappertabelle drehte die Spaltenfolge zurueck —
+        // nur damit die Marke beim Stapeln oben landet. Gestapelt gehoert
+        // aber die Person nach oben, deshalb ist der Kunstgriff entfallen.
+        $this->assertStringNotContainsString('dir="rtl"', $html);
+        $this->assertStringContainsString('<td class="rt-sign-identity" width="50%"', $html);
+        $this->assertStringContainsString('<td class="rt-sign-logo" width="50%"', $html);
 
-        $logoPosition = strpos($html, 'class="rt-sign-logo"');
         $namePosition = strpos($html, 'Mara Beispiel');
         $phonePosition = strpos($html, 'href="tel:+49417112345"');
+        $logoPosition = strpos($html, 'class="rt-sign-logo"');
 
         $this->assertIsInt($logoPosition);
         $this->assertIsInt($namePosition);
         $this->assertIsInt($phonePosition);
-        $this->assertLessThan($namePosition, $logoPosition);
         $this->assertLessThan($phonePosition, $namePosition);
+        $this->assertLessThan($logoPosition, $phonePosition);
     }
 
     public function test_all_html_variants_center_contact_icons_in_mail_client_safe_cells(): void
@@ -862,11 +864,15 @@ class EmailTemplatesPageTest extends TestCase
         foreach (['vorlage-html', 'vorlage-dunkel-html', 'signatur-hell', 'signatur-dunkel'] as $key) {
             $html = $builder->build($key)['content'];
 
-            $this->assertSame(8, substr_count($html, '<td width="22" align="center" valign="middle"'));
-            $this->assertSame(10, substr_count($html, 'mso-line-height-rule:exactly;text-align:center;'));
-            $this->assertSame(10, substr_count($html, 'style="display:block;width:22px;height:22px;margin:0 auto;"'));
-            $this->assertSame(3, substr_count($html, 'padding:0 0 8px 9px;'));
-            $this->assertSame(3, substr_count($html, 'padding:0 0 0 9px;'));
+            // Sieben Symbolzellen: drei in der Personen-, vier in der
+            // Firmenspalte. Vorher waren es acht, weil die Anschrift in zwei
+            // Fassungen im Markup stand (breit und schmal).
+            $this->assertSame(7, substr_count($html, '<td width="22" align="center" valign="middle"'));
+            $this->assertSame(7, substr_count($html, 'mso-line-height-rule:exactly;text-align:center;'));
+            $this->assertSame(7, substr_count($html, 'style="display:block;width:22px;height:22px;margin:0 auto;"'));
+            // Personenspalte: zwei Zeilen mit Abstand nach unten, die letzte ohne.
+            $this->assertSame(2, substr_count($html, 'padding:0 0 6px 9px;'));
+            $this->assertSame(1, substr_count($html, 'padding:0 0 0 9px;'));
             $this->assertStringNotContainsString('width="30"', $html);
         }
     }
@@ -899,24 +905,23 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertStringNotContainsString('0160 1881848', $html);
             $this->assertStringNotContainsString('24/7', $html);
 
-            // Die Anschrift existiert in zwei Fassungen: breit in der
-            // Markenspalte (spart Hoehe), schmal am Ende des Personenblocks
-            // (bessere Lesefolge auf dem Telefon). Immer genau eine ist sichtbar.
-            $this->assertSame(2, substr_count($html, 'Borsteler Weg 29–31'), $key);
-            $this->assertSame(1, substr_count($html, 'class="rt-only-wide"'), $key);
-            $this->assertSame(1, substr_count($html, 'class="rt-only-narrow"'), $key);
-            $this->assertStringContainsString('.rt-only-wide { display: none !important;', $html);
-            $this->assertStringContainsString('.rt-only-narrow { display: block !important;', $html);
+            // Die Anschrift steht seit dem symmetrischen Umbau GENAU EINMAL
+            // im Markup — in der Firmenspalte, Strasse und Ort in einer
+            // Zeile. Vorher lag sie doppelt vor (breit in der Marken-,
+            // schmal in der Personenspalte) und kostete in jedem Client die
+            // doppelte Menge Markup fuer denselben Inhalt.
+            $this->assertSame(1, substr_count($html, 'Borsteler Weg 29–31'), $key);
+            $this->assertStringContainsString('Borsteler Weg 29–31 · 21423 Winsen (Luhe)', $html, $key);
+            $this->assertStringNotContainsString('class="rt-only-wide"', $html, $key);
+            $this->assertStringNotContainsString('class="rt-only-narrow"', $html, $key);
 
+            // Die Wortmarke fuehrt die Firmenspalte an, die Anschrift folgt.
             $logoPosition = strpos($html, 'alt="RT Rail Time GmbH"');
-            $widePosition = strpos($html, 'class="rt-only-wide"');
-            $narrowPosition = strpos($html, 'class="rt-only-narrow"');
+            $adressPosition = strpos($html, 'Borsteler Weg 29–31');
 
             $this->assertIsInt($logoPosition, $key);
-            $this->assertIsInt($widePosition, $key);
-            $this->assertIsInt($narrowPosition, $key);
-            $this->assertLessThan($widePosition, $logoPosition, $key);
-            $this->assertLessThan($narrowPosition, $widePosition, $key);
+            $this->assertIsInt($adressPosition, $key);
+            $this->assertLessThan($adressPosition, $logoPosition, $key);
         }
     }
 
@@ -940,13 +945,19 @@ class EmailTemplatesPageTest extends TestCase
         foreach (['vorlage-html', 'vorlage-dunkel-html', 'signatur-hell', 'signatur-dunkel'] as $key) {
             $html = $builder->build($key)['content'];
 
-            // Der Reverse Stack setzt die Wrapper-Tabelle auf rtl. Clients, die
-            // das dir-Attribut der Zelle verwerfen, wuerden die schrumpfende
-            // Kontakttabelle sonst an die rechte Kante schieben.
-            $this->assertStringContainsString('<table role="presentation" dir="rtl"', $html, $key);
-            $this->assertSame(2, substr_count($html, 'style="direction:ltr;width:'), $key);
+            // Beide Kontakttabellen schreiben ihre Leserichtung ausdruecklich
+            // fest. Ein Client mit geerbtem rtl wuerde die schrumpfende
+            // Tabelle sonst an die falsche Kante schieben — und mit ihr die
+            // Symbole auf die falsche Seite.
+            $this->assertStringNotContainsString('dir="rtl"', $html, $key);
             $this->assertStringContainsString(
                 '<table class="rt-contact" role="presentation" dir="ltr" border="0" cellspacing="0" cellpadding="0" style="direction:ltr;margin-left:0;margin-right:auto;',
+                $html,
+                $key
+            );
+            // Die Firmenliste steht spiegelbildlich: rechts buendig.
+            $this->assertStringContainsString(
+                'class="rt-contact rt-company-contact" role="presentation" dir="ltr" border="0" cellspacing="0" cellpadding="0" style="direction:ltr;margin-left:auto;margin-right:0;',
                 $html,
                 $key
             );
@@ -969,8 +980,10 @@ class EmailTemplatesPageTest extends TestCase
         $html = (new EmailTemplateBuilder($user->fresh()))->build('signatur-hell')['content'];
 
         preg_match_all('/<img src="data:image\/png;base64,([^"]+)" width="22"/', $html, $matches);
-        // Vier Personenicons plus je drei Firmenicons fuer Desktop und Mobil.
-        $this->assertCount(10, $matches[1]);
+        // Drei Personenicons plus vier Firmenicons (Anschrift, Telefon,
+        // E-Mail, Web) — die Anschrift steht seit dem symmetrischen Umbau
+        // nur noch einmal im Markup.
+        $this->assertCount(7, $matches[1]);
 
         foreach ($matches[1] as $index => $base64) {
             $binary = base64_decode($base64, true);
@@ -1028,9 +1041,9 @@ class EmailTemplatesPageTest extends TestCase
 
         $this->assertStringNotContainsString('RT_PHONE_', $html);
         $this->assertStringNotContainsString('RT_MOBILE_', $html);
-        // Der Firmenkontakt wird absichtlich je einmal fuer die breite und die
-        // gestapelte mobile Signatur ausgegeben.
-        $this->assertSame(2, substr_count($html, 'href="tel:+494171546803"'));
+        // Der Firmenkontakt steht seit dem symmetrischen Umbau genau einmal
+        // im Markup — in der Firmenspalte rechts.
+        $this->assertSame(1, substr_count($html, 'href="tel:+494171546803"'));
         $this->assertStringContainsString('href="mailto:mara@example.test"', $html);
     }
 

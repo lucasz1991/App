@@ -8,6 +8,7 @@ import {
     pageBuilderWorkspaceIsActive,
     waitForPageBuilderActivation,
 } from './lmz-editor-core.js';
+import { publishPageBuilderAssistantContext } from './lmz-editor-assistant.js';
 
 export const MARKETING_ARTBOARDS = Object.freeze({
     story: Object.freeze({ label: 'Story', width: 1080, height: 1920 }),
@@ -1109,6 +1110,18 @@ export function applySavedVariant(variant, saved, fallback) {
     return variant;
 }
 
+export async function applySavedVariantAndPublishAssistantContext(
+    variant,
+    saved,
+    fallback,
+    publishContext = publishPageBuilderAssistantContext,
+) {
+    applySavedVariant(variant, saved, fallback);
+    await publishContext();
+
+    return variant;
+}
+
 export function renderRequestIsCurrent({
     requestId,
     activeRequestId,
@@ -1282,7 +1295,11 @@ export async function createMarketingStudio(workspace, config) {
                         },
                     });
                     const saved = payload.variant || {};
-                    applySavedVariant(variant, saved, { project, html, css });
+                    await applySavedVariantAndPublishAssistantContext(
+                        variant,
+                        saved,
+                        { project, html, css },
+                    );
                     setCreativeStatus(workspace, payload.creative?.status);
                 },
             },
