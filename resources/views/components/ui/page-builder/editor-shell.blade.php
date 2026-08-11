@@ -45,8 +45,10 @@
             if (allowed) this.approveClose();
         },
         approveClose() {
+            const returnTarget = this.pageBuilderTrigger
+                || this.$root?.querySelector?.('[data-page-builder-open]');
             this.pageBuilderOpen = false;
-            this.$nextTick(() => this.pageBuilderTrigger?.focus?.({ preventScroll: true }));
+            this.$nextTick(() => returnTarget?.focus?.({ preventScroll: true }));
         },
         pageBuilderCompositeRoots() {
             const fullscreen = document.querySelector(
@@ -112,6 +114,7 @@
         :eyebrow="$eyebrow"
         :description="$description"
         :back-url="$backUrl"
+        :back-label="$backLabel"
         :auto-intro="false"
         content-class="space-y-4"
         data-page-builder-closed-preview

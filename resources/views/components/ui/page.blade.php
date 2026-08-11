@@ -4,6 +4,7 @@
     'description' => null,
     'count' => null,
     'backUrl' => null,
+    'backLabel' => null,
     'showBack' => true,
     // Schluessel fuer das Gesehen-Tracking; Standard ist der Routenname.
     'pageKey' => null,
@@ -61,6 +62,7 @@
             :count="$count"
             :help="$help"
             :back-url="$backUrl"
+            :back-label="$backLabel"
             :show-back="$showBack"
         >
             @isset($actions)

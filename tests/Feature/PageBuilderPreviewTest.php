@@ -196,6 +196,7 @@ class PageBuilderPreviewTest extends TestCase
             'data-rt-pagebuilder-assist-open',
             'data-page-builder-title',
             'data-page-builder-assist',
+            'aria-label="Zurück zu den Motiven"',
         ] as $needle) {
             $this->assertTrue(str_contains($html, $needle), 'Editor enthält nicht: '.$needle);
         }
@@ -228,5 +229,6 @@ class PageBuilderPreviewTest extends TestCase
 
         $this->assertStringContainsString('pageBuilderOpen: true', $editorHtml);
         $this->assertStringContainsString('this.sync(this.pageBuilderOpen)', $editorHtml);
+        $this->assertStringContainsString("this.\$root?.querySelector?.('[data-page-builder-open]')", $editorHtml);
     }
 }

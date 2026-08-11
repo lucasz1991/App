@@ -11,6 +11,18 @@
     Der Aufrufer stellt die umgebende <table> — dadurch passt derselbe Block
     in die schmale Signaturdatei wie in die breite Nachrichtenschale.
 
+    AUFBAU: zwei gleich breite Spalten an einer Mittelachse. Links die
+    Person (Symbole am linken Rand), rechts die Firma (Wortmarke und
+    Symbole am rechten Rand). Beide Kontaktlisten beginnen auf derselben
+    Hoehe — der Vorsprung der Personenspalte (Name plus Funktion sind
+    hoeher als die Wortmarke) steckt im groesseren Abstand der rechten
+    Liste, siehe company-contact-table.blade.php.
+
+    Die Markenspalte zeigt bewusst NUR den Schriftzug: das RT-Zeichen davor
+    doppelte die Marke auf engem Raum, und der Claim darunter kostete eine
+    Zeile, ohne etwas zu sagen. Das Zeichen steht jetzt allein oben rechts
+    in der E-Mail-Vorlage.
+
     Alle Werte kommen bereits HTML-escaped aus App\Support\MailSignature.
     Optionale Zeilen (Durchwahl, Mobil, Website, Firmentelefon) tragen die
     RT_*_START/END-Marker, damit der EmailTemplateBuilder sie fuer leere
@@ -21,23 +33,25 @@
     @param string $topRule  Akzentlinie oben (in der Signaturdatei leer)
 --}}
 @php
-    $padding = $padding ?? '20px 38px 28px';
+    $padding = $padding ?? '18px 36px 20px';
     $topRule = $topRule ?? 'border-top:5px solid #e4002b;';
-    $legalPadding = $legalPadding ?? '18px 38px';
+    $legalPadding = $legalPadding ?? '14px 36px';
     $outlookTrainSrc = trim((string) ($outlookTrainSrc ?? ''));
     // Standbild fuer Outlook-Desktop. Leer = kein bedingter Kommentar.
     $outlookTrainFallbackSrc = trim((string) ($outlookTrainFallbackSrc ?? ''));
     $isOutlookExport = $outlookTrainSrc !== '';
     $cellPadding = $isOutlookExport ? '0' : $padding;
-    $outlookTrainPadding = $outlookTrainPadding ?? '12px 0 20px';
+    $outlookTrainPadding = $outlookTrainPadding ?? '6px 0 14px';
     $hasPerson = trim((string) ($values['VORNAME_NACHNAME'] ?? '')) !== '';
     $hasIdleTrain = ! $isOutlookExport && $values['TRAIN_IDLE_SRC'] !== '';
     $trainBackgroundPosition = $hasIdleTrain
         ? 'center center,left bottom,left bottom'
         : 'center center,left bottom';
+    // Der Streifen ist flacher als vorher; bliebe der Zug bei 86 % Breite,
+    // fuellte er ihn fast ganz aus und waere kein Hintergrund mehr.
     $trainBackgroundSize = $hasIdleTrain
-        ? '100% 100%,86% auto,86% auto'
-        : '100% 100%,86% auto';
+        ? '100% 100%,72% auto,72% auto'
+        : '100% 100%,72% auto';
 @endphp
 <tr>
     {{-- Reihenfolge beachten: die background-Kurzform setzt background-image
@@ -52,49 +66,44 @@
                 <tr>
                     <td style="padding:{{ $padding }};">
         @endif
-        {{-- dir="rtl" dreht ausschliesslich die Spaltenfolge: die Markenspalte
-             steht in der Quelle zuerst (und landet beim Stapeln oben), auf
-             breiten Schirmen aber weiterhin rechts. --}}
-        <table role="presentation" dir="rtl" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">
+        <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">
             <tr class="rt-stack">
-                <td dir="ltr" class="rt-sign-logo" width="37%" valign="bottom" align="right" style="direction:ltr;width:37%;padding-left:28px;border-left:1px solid {{ $values['SIGNATURE_BORDER'] }};text-align:right;vertical-align:bottom;">
-                    <img class="rt-logo" src="{{ $values['LOGO_SRC'] }}" width="240" alt="{{ $values['FIRMENNAME'] }}" style="display:block;width:240px;max-width:100%;height:auto;margin-left:auto;">
-                    <p style="margin:14px 0 0;color:{{ $values['SIGNATURE_TEXT_MUTED'] }};font-family:Consolas,'Courier New',monospace;font-size:9px;line-height:15px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;">Sicher · flexibel · deutschlandweit</p>
-                    <div class="rt-only-wide" style="margin:13px 0 0;color:{{ $values['SIGNATURE_META_TEXT'] }};font-size:11px;line-height:18px;"><strong style="color:{{ $values['SIGNATURE_TEXT_PRIMARY'] }};">{{ $values['FIRMENNAME'] }}</strong>@include('emails.parts.company-contact-table', ['values' => $values, 'align' => 'right'])</div>
-                </td>
-                <td dir="ltr" class="rt-sign-identity" width="63%" valign="top" align="left" style="direction:ltr;width:63%;padding:6px 28px 0 0;position:relative;z-index:1;text-align:left;vertical-align:top;">
-                    <p class="rt-sign-name" style="margin:0 0 4px;color:{{ $values['SIGNATURE_TEXT_PRIMARY'] }};font-size:25px;line-height:29px;font-weight:bold;letter-spacing:-.5px;">{{ $hasPerson ? $values['VORNAME_NACHNAME'] : $values['FIRMENNAME'] }}</p>
+                <td class="rt-sign-identity" width="50%" valign="top" align="left" style="width:50%;padding:0 24px 0 0;position:relative;z-index:1;text-align:left;vertical-align:top;">
+                    <p class="rt-sign-name" style="margin:0 0 4px;color:{{ $values['SIGNATURE_TEXT_PRIMARY'] }};font-size:23px;line-height:27px;font-weight:bold;letter-spacing:-.5px;">{{ $hasPerson ? $values['VORNAME_NACHNAME'] : $values['FIRMENNAME'] }}</p>
                     <p style="margin:0;color:{{ $values['SIGNATURE_ACCENT'] }};font-family:Consolas,'Courier New',monospace;font-size:10px;line-height:16px;font-weight:bold;letter-spacing:1.2px;text-transform:uppercase;">{{ $values['POSITION'] }}</p>
 
-                    <table class="rt-contact" role="presentation" dir="ltr" border="0" cellspacing="0" cellpadding="0" style="direction:ltr;margin-left:0;margin-right:auto;margin-top:17px;border-collapse:collapse;">
+                    <table class="rt-contact" role="presentation" dir="ltr" border="0" cellspacing="0" cellpadding="0" style="direction:ltr;margin-left:0;margin-right:auto;margin-top:14px;border-collapse:collapse;">
                         <!-- RT_PHONE_START -->
                         <tr>
-                            <td width="22" align="center" valign="middle" class="rt-contact-icon" style="width:22px;padding:0 0 8px;font-size:0;line-height:0;mso-line-height-rule:exactly;text-align:center;"><img src="{{ $values['ICON_PHONE_SRC'] }}" width="22" height="22" alt="" style="display:block;width:22px;height:22px;margin:0 auto;"></td>
-                            <td valign="middle" class="rt-contact-text" style="padding:0 0 8px 9px;color:{{ $values['SIGNATURE_CONTACT_TEXT'] }};font-size:12px;line-height:18px;"><a href="tel:{{ $values['DURCHWAHL_TEL'] }}" style="color:{{ $values['SIGNATURE_TEXT_PRIMARY'] }};text-decoration:none;">{{ $values['DURCHWAHL'] }}</a></td>
+                            <td width="22" align="center" valign="middle" class="rt-contact-icon" style="width:22px;padding:0 0 6px;font-size:0;line-height:0;mso-line-height-rule:exactly;text-align:center;"><img src="{{ $values['ICON_PHONE_SRC'] }}" width="22" height="22" alt="" style="display:block;width:22px;height:22px;margin:0 auto;"></td>
+                            <td valign="middle" class="rt-contact-text" style="padding:0 0 6px 9px;color:{{ $values['SIGNATURE_CONTACT_TEXT'] }};font-size:12px;line-height:18px;"><a href="tel:{{ $values['DURCHWAHL_TEL'] }}" style="color:{{ $values['SIGNATURE_TEXT_PRIMARY'] }};text-decoration:none;">{{ $values['DURCHWAHL'] }}</a></td>
                         </tr>
                         <!-- RT_PHONE_END -->
                         <!-- RT_MOBILE_START -->
                         <tr>
-                            <td width="22" align="center" valign="middle" class="rt-contact-icon" style="width:22px;padding:0 0 8px;font-size:0;line-height:0;mso-line-height-rule:exactly;text-align:center;"><img src="{{ $values['ICON_MOBILE_SRC'] }}" width="22" height="22" alt="" style="display:block;width:22px;height:22px;margin:0 auto;"></td>
-                            <td valign="middle" class="rt-contact-text" style="padding:0 0 8px 9px;color:{{ $values['SIGNATURE_CONTACT_TEXT'] }};font-size:12px;line-height:18px;"><a href="tel:{{ $values['MOBIL_TEL'] }}" style="color:{{ $values['SIGNATURE_TEXT_PRIMARY'] }};text-decoration:none;">{{ $values['MOBIL'] }}</a></td>
+                            <td width="22" align="center" valign="middle" class="rt-contact-icon" style="width:22px;padding:0 0 6px;font-size:0;line-height:0;mso-line-height-rule:exactly;text-align:center;"><img src="{{ $values['ICON_MOBILE_SRC'] }}" width="22" height="22" alt="" style="display:block;width:22px;height:22px;margin:0 auto;"></td>
+                            <td valign="middle" class="rt-contact-text" style="padding:0 0 6px 9px;color:{{ $values['SIGNATURE_CONTACT_TEXT'] }};font-size:12px;line-height:18px;"><a href="tel:{{ $values['MOBIL_TEL'] }}" style="color:{{ $values['SIGNATURE_TEXT_PRIMARY'] }};text-decoration:none;">{{ $values['MOBIL'] }}</a></td>
                         </tr>
                         <!-- RT_MOBILE_END -->
                         <tr>
-                            <td width="22" align="center" valign="middle" class="rt-contact-icon" style="width:22px;padding:0 0 8px;font-size:0;line-height:0;mso-line-height-rule:exactly;text-align:center;"><img src="{{ $values['ICON_EMAIL_SRC'] }}" width="22" height="22" alt="" style="display:block;width:22px;height:22px;margin:0 auto;"></td>
-                            <td valign="middle" class="rt-contact-text" style="padding:0 0 8px 9px;color:{{ $values['SIGNATURE_CONTACT_TEXT'] }};font-size:12px;line-height:18px;"><a href="mailto:{{ $values['E_MAIL'] }}" style="color:{{ $values['SIGNATURE_TEXT_PRIMARY'] }};text-decoration:none;">{{ $values['E_MAIL'] }}</a></td>
+                            <td width="22" align="center" valign="middle" class="rt-contact-icon" style="width:22px;padding:0;font-size:0;line-height:0;mso-line-height-rule:exactly;text-align:center;"><img src="{{ $values['ICON_EMAIL_SRC'] }}" width="22" height="22" alt="" style="display:block;width:22px;height:22px;margin:0 auto;"></td>
+                            <td valign="middle" class="rt-contact-text" style="padding:0 0 0 9px;color:{{ $values['SIGNATURE_CONTACT_TEXT'] }};font-size:12px;line-height:18px;"><a href="mailto:{{ $values['E_MAIL'] }}" style="color:{{ $values['SIGNATURE_TEXT_PRIMARY'] }};text-decoration:none;">{{ $values['E_MAIL'] }}</a></td>
                         </tr>
-                        <!-- RT_WEBSITE_START -->
-                        <tr>
-                            <td width="22" align="center" valign="middle" class="rt-contact-icon" style="width:22px;padding:0;font-size:0;line-height:0;mso-line-height-rule:exactly;text-align:center;"><img src="{{ $values['ICON_WEB_SRC'] }}" width="22" height="22" alt="" style="display:block;width:22px;height:22px;margin:0 auto;"></td>
-                            <td valign="middle" class="rt-contact-text" style="padding:0 0 0 9px;color:{{ $values['SIGNATURE_CONTACT_TEXT'] }};font-size:12px;line-height:18px;"><a href="{{ $values['FIRMEN_WEBSITE_HREF'] }}" style="color:{{ $values['SIGNATURE_TEXT_PRIMARY'] }};text-decoration:none;">{{ $values['FIRMEN_WEBSITE_LABEL'] }}</a></td>
-                        </tr>
-                        <!-- RT_WEBSITE_END -->
                     </table>
-                    {{-- Auf dem Telefon steht die Anschrift am Ende des
-                         Personenblocks, damit nach dem Logo zuerst Name und
-                         Kontakt kommen. Auf breiten Schirmen zeigt sie die
-                         Markenspalte (rt-only-wide) ohne Zusatzhoehe. --}}
-                    <div class="rt-only-narrow" style="display:none;max-height:0;overflow:hidden;mso-hide:all;margin:17px 0 0;font-size:0;line-height:0;color:{{ $values['SIGNATURE_META_TEXT'] }};"><strong style="color:{{ $values['SIGNATURE_TEXT_PRIMARY'] }};font-size:11px;line-height:18px;">{{ $values['FIRMENNAME'] }}</strong>@include('emails.parts.company-contact-table', ['values' => $values, 'align' => 'left'])</div>
+                </td>
+                {{-- Die Trennlinie sitzt an der Firmenspalte. Beim Stapeln
+                     wandert sie nach oben (siehe responsive-css). --}}
+                <td class="rt-sign-logo" width="50%" valign="top" align="right" style="width:50%;padding-left:24px;border-left:1px solid {{ $values['SIGNATURE_BORDER'] }};text-align:right;vertical-align:top;">
+                    <img class="rt-logo" src="{{ $values['LOGO_SRC'] }}" width="210" alt="{{ $values['FIRMENNAME'] }}" style="display:block;width:210px;max-width:100%;height:auto;margin-left:auto;">
+                    {{-- Im unpersoenlichen Fall stehen Firmentelefon und
+                         Firmen-E-Mail bereits links an der Stelle von
+                         Durchwahl und Mailadresse. Rechts blieben sie eine
+                         sichtbare Doppelung. --}}
+                    @include('emails.parts.company-contact-table', [
+                        'values' => $values,
+                        'align' => 'right',
+                        'ohneDoppelung' => ! $hasPerson,
+                    ])
                 </td>
             </tr>
         </table>
@@ -123,13 +132,13 @@
                     <td align="left" style="padding:{{ $outlookTrainPadding }};text-align:left;font-size:0;line-height:0;">
                         @if ($outlookTrainFallbackSrc !== '')
                             <!--[if !mso]><!-->
-                            <img data-rt-outlook-train src="{{ $outlookTrainSrc }}" width="620" alt="Dampflok-Güterzug" style="display:block;width:620px;max-width:100%;height:auto;margin:0;border:0;outline:none;">
+                            <img data-rt-outlook-train src="{{ $outlookTrainSrc }}" width="560" alt="Dampflok-Güterzug" style="display:block;width:560px;max-width:100%;height:auto;margin:0;border:0;outline:none;">
                             <!--<![endif]-->
                             <!--[if mso]>
-                            <img data-rt-outlook-train-still src="{{ $outlookTrainFallbackSrc }}" width="620" alt="Dampflok-Güterzug" style="display:block;width:620px;height:auto;margin:0;border:0;outline:none;">
+                            <img data-rt-outlook-train-still src="{{ $outlookTrainFallbackSrc }}" width="560" alt="Dampflok-Güterzug" style="display:block;width:560px;height:auto;margin:0;border:0;outline:none;">
                             <![endif]-->
                         @else
-                            <img data-rt-outlook-train src="{{ $outlookTrainSrc }}" width="620" alt="Dampflok-Güterzug" style="display:block;width:620px;max-width:100%;height:auto;margin:0;border:0;outline:none;">
+                            <img data-rt-outlook-train src="{{ $outlookTrainSrc }}" width="560" alt="Dampflok-Güterzug" style="display:block;width:560px;max-width:100%;height:auto;margin:0;border:0;outline:none;">
                         @endif
                     </td>
                 </tr>

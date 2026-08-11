@@ -1466,46 +1466,116 @@ test('shared LMZ spacing geometry applies zoom once and converts drag deltas bac
     assert.equal(calculateSpacingDragValue({ startValue: 4, deltaY: -10, zoom: 0.5, side: 'bottom', type: 'padding' }), 0);
 });
 
-test('spacing overlay converts canvas coordinates into an already positioned GrapesJS tools host', () => coreWithDom(`
-    <div id="root"><div id="canvas"><div id="tools" data-tools></div></div></div>
+test('spacing overlay uses the canvas tools layer without doubling the positioned selection offset', () => coreWithDom(`
+    <div id="root"><div id="canvas"><div id="tools-layer" class="lmzbjs-cv-canvas__tools"><div id="tools" data-tools></div></div></div></div>
 `, ({ window, document }) => {
     const root = document.querySelector('#root');
     const canvas = document.querySelector('#canvas');
+    const toolsLayer = document.querySelector('#tools-layer');
     const tools = document.querySelector('#tools');
-    const selected = coreFakeComponent(document.createElement('section'));
-    const position = { left: 295, top: 100, width: 270, height: 480, zoom: 0.25 };
-    canvas.getBoundingClientRect = () => ({ left: 372, top: 80, right: 1472, bottom: 680, width: 1100, height: 600 });
-    tools.getBoundingClientRect = () => ({ left: 667, top: 180, right: 937, bottom: 660, width: 270, height: 480 });
-    const editor = coreFakeEditor(root, selected);
-    editor.Canvas.getElement = () => canvas;
-    editor.Canvas.getToolsEl = () => tools;
-    editor.Canvas.getElementPos = () => position;
-    editor.Canvas.getElementOffsets = () => ({
-        marginTop: 0, marginRight: 0, marginBottom: 0, marginLeft: 0,
-        paddingTop: 0, paddingRight: 0, paddingBottom: 0, paddingLeft: 0,
-        borderTopWidth: 0, borderRightWidth: 0, borderBottomWidth: 0, borderLeftWidth: 0,
+    const box = (left, top, width, height) => ({
+        left, top, width, height, right: left + width, bottom: top + height,
     });
-    const controller = createSpacingOverlayController({
-        editor,
-        root,
-        environment: {
-            document,
-            window,
-            requestAnimationFrame: (callback) => { callback(); return 1; },
-            cancelAnimationFrame() {},
+    const cases = [
+        {
+            label: 'marketing post root at 45 percent',
+            tag: 'section',
+            canvasRect: box(372, 475, 1200, 720),
+            toolsLayerRect: box(-189.5, -17, 1800, 1400),
+            selectionRect: box(561.5, 494, 483, 483),
+            position: { left: 751, top: 511, width: 483, height: 483, zoom: 0.45 },
         },
-    });
-    const handle = tools.querySelector('[data-type="padding"][data-side="top"]');
-    const surface = handle.querySelector('.rt-lmz-spacing-overlay__surface');
-    const visibleLeft = 667 + Number.parseFloat(handle.style.left) + Number.parseFloat(surface.style.left);
-    const visibleTop = 180 + Number.parseFloat(handle.style.top) + Number.parseFloat(surface.style.top);
+        {
+            label: 'marketing image child at 45 percent',
+            tag: 'img',
+            canvasRect: box(372, 475, 1200, 720),
+            toolsLayerRect: box(-189.5, -17, 1800, 1400),
+            selectionRect: box(720.25, 530.5, 216, 144),
+            position: { left: 909.75, top: 547.5, width: 216, height: 144, zoom: 0.45 },
+        },
+        {
+            label: 'mail selection without centered marketing frame',
+            tag: 'div',
+            canvasRect: box(28, 100, 1200, 700),
+            toolsLayerRect: box(28, 100, 1200, 700),
+            selectionRect: box(128, 180, 240, 140),
+            position: { left: 100, top: 80, width: 240, height: 140, zoom: 0.5 },
+        },
+    ];
 
-    assert.equal(handle.style.left, '0px');
-    assert.equal(surface.style.left, '0px');
-    assert.equal(visibleLeft, 667);
-    assert.equal(visibleTop, 180);
-    assert.deepEqual(position, { left: 295, top: 100, width: 270, height: 480, zoom: 0.25 });
-    controller.destroy();
+    cases.forEach((fixture) => {
+        const element = document.createElement(fixture.tag);
+        if (fixture.tag === 'img') element.setAttribute('src', '/marketing/train.jpg');
+        const selected = coreFakeComponent(element, fixture.tag === 'img'
+            ? { type: 'image', attributes: { src: '/marketing/train.jpg' } }
+            : {});
+        canvas.getBoundingClientRect = () => fixture.canvasRect;
+        toolsLayer.getBoundingClientRect = () => fixture.toolsLayerRect;
+        tools.getBoundingClientRect = () => fixture.selectionRect;
+        const editor = coreFakeEditor(root, selected);
+        editor.Canvas.getElement = () => canvas;
+        editor.Canvas.getToolsEl = () => tools;
+        editor.Canvas.getElementPos = () => fixture.position;
+        editor.Canvas.getElementOffsets = () => ({
+            marginTop: 0, marginRight: 0, marginBottom: 0, marginLeft: 0,
+            paddingTop: 0, paddingRight: 0, paddingBottom: 0, paddingLeft: 0,
+            borderTopWidth: 0, borderRightWidth: 0, borderBottomWidth: 0, borderLeftWidth: 0,
+        });
+        const controller = createSpacingOverlayController({
+            editor,
+            root,
+            environment: {
+                document,
+                window,
+                requestAnimationFrame: (callback) => { callback(); return 1; },
+                cancelAnimationFrame() {},
+            },
+        });
+        const overlay = toolsLayer.querySelector('.rt-lmz-spacing-overlay');
+        const visualRect = (side) => {
+            const handle = overlay.querySelector(`[data-type="padding"][data-side="${side}"]`);
+            const surface = handle.querySelector('.rt-lmz-spacing-overlay__surface');
+            const handleRect = box(
+                fixture.toolsLayerRect.left + Number.parseFloat(handle.style.left),
+                fixture.toolsLayerRect.top + Number.parseFloat(handle.style.top),
+                Number.parseFloat(handle.style.width),
+                Number.parseFloat(handle.style.height),
+            );
+            surface.getBoundingClientRect = () => box(
+                handleRect.left + Number.parseFloat(surface.style.left),
+                handleRect.top + Number.parseFloat(surface.style.top),
+                Number.parseFloat(surface.style.width),
+                Number.parseFloat(surface.style.height),
+            );
+            const surfaceRect = surface.getBoundingClientRect();
+            assert.ok(handleRect.left <= surfaceRect.left, `${fixture.label}: ${side} hit target starts before its surface`);
+            assert.ok(handleRect.top <= surfaceRect.top, `${fixture.label}: ${side} hit target starts before its surface`);
+            assert.ok(handleRect.right >= surfaceRect.right, `${fixture.label}: ${side} hit target ends after its surface`);
+            assert.ok(handleRect.bottom >= surfaceRect.bottom, `${fixture.label}: ${side} hit target ends after its surface`);
+            return surfaceRect;
+        };
+        const top = visualRect('top');
+        const right = visualRect('right');
+        const bottom = visualRect('bottom');
+        const left = visualRect('left');
+
+        assert.equal(overlay.parentElement, toolsLayer, `${fixture.label}: overlay belongs to the canvas-origin tools layer`);
+        assert.equal(tools.querySelector('.rt-lmz-spacing-overlay'), null, `${fixture.label}: selection offset is not applied twice`);
+        assert.deepEqual(
+            { left: top.left, top: top.top, right: top.right },
+            { left: fixture.selectionRect.left, top: fixture.selectionRect.top, right: fixture.selectionRect.right },
+            `${fixture.label}: top surface follows the selected box`,
+        );
+        assert.equal(right.right, fixture.selectionRect.right, `${fixture.label}: right surface follows the selected box`);
+        assert.deepEqual(
+            { left: bottom.left, right: bottom.right, bottom: bottom.bottom },
+            { left: fixture.selectionRect.left, right: fixture.selectionRect.right, bottom: fixture.selectionRect.bottom },
+            `${fixture.label}: bottom surface follows the selected box`,
+        );
+        assert.equal(left.left, fixture.selectionRect.left, `${fixture.label}: left surface follows the selected box`);
+        assert.deepEqual(editor.Canvas.getElementPos(element), fixture.position, `${fixture.label}: GrapesJS zoomed geometry stays unchanged`);
+        controller.destroy();
+    });
 }));
 
 test('scoped FilePool GIF metadata survives opaque admin URLs and is cleared by a static replacement', () => coreWithDom('<img id="target">', ({ document }) => {

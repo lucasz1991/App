@@ -70,6 +70,8 @@ class MarketingBuilderVendorIntegrityTest extends TestCase
         $this->assertStringContainsString('data-marketing-scale-label', $editor);
         $this->assertStringContainsString('data-marketing-pan-hint', $editor);
         $this->assertStringContainsString('data-marketing-media-source', $editor);
+        $this->assertStringContainsString("request()->boolean('open')", $editor);
+        $this->assertStringContainsString("'open' => 1", $index);
 
         $this->assertStringContainsString('wire:submit="saveMediaFolder"', $index);
         $this->assertStringContainsString('Grundverzeichnis (alle Ordner)', $index);

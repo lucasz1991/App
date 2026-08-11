@@ -78,7 +78,10 @@ class MailSignature
             ? (new EmailTemplateBuilder($this->user))->profileValues()
             : $this->companyAsSender($company);
 
-        $logoAsset = $this->theme === 'dark' ? 'logo-mail-dark.png' : 'logo-signature-light.png';
+        // NUR DER SCHRIFTZUG, ohne das RT-Zeichen davor: die Markenspalte
+        // der Signatur zeigt die Marke einmal. Das Zeichen steht allein
+        // oben rechts in der E-Mail-Vorlage.
+        $logoAsset = $this->theme === 'dark' ? 'wortmarke-mail-dark.png' : 'wortmarke-signature-light.png';
 
         // ZWEI BETRIEBSARTEN, und die Unterscheidung ist wesentlich:
         //
@@ -247,7 +250,7 @@ class MailSignature
         $replacements = [];
 
         if (array_key_exists('padding', $layout)) {
-            $replacements['padding:20px 38px 28px;'] = 'padding:'.$layout['padding'].';';
+            $replacements['padding:18px 36px 20px;'] = 'padding:'.$layout['padding'].';';
         }
 
         if (array_key_exists('topRule', $layout)) {
@@ -255,7 +258,7 @@ class MailSignature
         }
 
         if (array_key_exists('legalPadding', $layout)) {
-            $replacements['padding:18px 38px;'] = 'padding:'.$layout['legalPadding'].';';
+            $replacements['padding:14px 36px;'] = 'padding:'.$layout['legalPadding'].';';
         }
 
         return $replacements === [] ? $html : strtr($html, $replacements);

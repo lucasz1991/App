@@ -64,7 +64,7 @@ class CreativesIndex extends Component
 
         $this->redirectRoute(
             'admin.marketing.creatives.editor',
-            ['creative' => $creative],
+            ['creative' => $creative, 'open' => 1],
             navigate: true,
         );
     }

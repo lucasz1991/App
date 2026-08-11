@@ -172,12 +172,12 @@ class EmailTemplateBuilder
             'signatur-dunkel' => [
                 'filename' => "RailTime-Signatur-dunkel-{$slug}.html",
                 'mime' => 'text/html; charset=UTF-8',
-                'content' => $this->buildSignature('signature-dark-master.html', 'logo-signature-dark.png'),
+                'content' => $this->buildSignature('signature-dark-master.html', 'wortmarke-signature-dark.png'),
             ],
             'signatur-hell' => [
                 'filename' => "RailTime-Signatur-hell-{$slug}.html",
                 'mime' => 'text/html; charset=UTF-8',
-                'content' => $this->buildSignature('signature-light-master.html', 'logo-signature-light.png'),
+                'content' => $this->buildSignature('signature-light-master.html', 'wortmarke-signature-light.png'),
             ],
             'signatur-outlook-dunkel' => [
                 'filename' => "RailTime-Outlook-Signatur-dunkel-{$slug}.zip",
@@ -608,11 +608,12 @@ class EmailTemplateBuilder
         };
     }
 
+    /** Der Schriftzug OHNE das RT-Zeichen — siehe MailSignature::values(). */
     protected function emailLogoAsset(string $theme): string
     {
         return $theme === 'dark'
-            ? 'logo-mail-dark.png'
-            : 'logo-signature-light.png';
+            ? 'wortmarke-mail-dark.png'
+            : 'wortmarke-signature-light.png';
     }
 
     protected function buildEmailHtml(
@@ -715,9 +716,9 @@ class EmailTemplateBuilder
             'SIGNATURE_BLOCK' => $this->signatureBlock(
                 $signature,
                 layout: [
-                    'padding' => '18px 30px 24px',
+                    'padding' => '16px 28px 18px',
                     'topRule' => '',
-                    'legalPadding' => '13px 30px',
+                    'legalPadding' => '11px 28px',
                 ],
                 overrides: $signatureOverrides,
             ),
@@ -827,9 +828,9 @@ class EmailTemplateBuilder
             'SIGNATURE_BLOCK' => $this->signatureBlock(
                 MailSignature::forUser($this->user, $theme),
                 layout: [
-                    'padding' => '18px 30px 0',
+                    'padding' => '16px 28px 0',
                     'topRule' => '',
-                    'legalPadding' => '13px 30px',
+                    'legalPadding' => '11px 28px',
                     'outlookTrainSrc' => "{$assetFolder}/zug-dampf.gif",
                 ],
                 overrides: array_merge([

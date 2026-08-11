@@ -5,6 +5,7 @@
     'count' => null,
     'help' => null,
     'backUrl' => null,
+    'backLabel' => null,
     'showBack' => true,
 ])
 
@@ -14,7 +15,7 @@
     data-page-header
 >
     @if($showBack)
-        <x-ui.buttons.backbutton :href="$backUrl" />
+        <x-ui.buttons.backbutton :href="$backUrl" :label="$backLabel" />
     @endif
 
     <div class="min-w-0 flex-1">
