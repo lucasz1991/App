@@ -829,10 +829,11 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertStringContainsString('href="mailto:mara@example.test"', $html);
         $this->assertStringContainsString('href="https://rail-time.example/leistungen"', $html);
         $this->assertStringContainsString('>rail-time.example/leistungen<', $html);
-        // Wortmarke (zweimal: breit in der Markenspalte, gestapelt oben),
-        // drei Personen- und vier Firmenicons, dazu die beiden Ebenen der
-        // Hintergrundgrafik (Raster und Wasserzeichen).
-        $this->assertSame(11, substr_count($html, 'data:image/png;base64,'));
+        // Wortmarke zweimal (breit in der Markenspalte, gestapelt oben),
+        // drei Personenicons, Firmenicons ZWEIMAL vier (gespiegelt fuer
+        // breit, ungespiegelt fuer gestapelt) und die beiden Ebenen der
+        // Hintergrundgrafik.
+        $this->assertSame(15, substr_count($html, 'data:image/png;base64,'));
         $this->assertSame(2, substr_count($html, 'data:image/gif;base64,'));
         $this->assertStringContainsString('class="rt-sign-logo"', $html);
         $this->assertStringNotContainsString('RT_PHONE_START', $html);
@@ -882,15 +883,17 @@ class EmailTemplatesPageTest extends TestCase
         foreach (['vorlage-html', 'vorlage-dunkel-html', 'signatur-hell', 'signatur-dunkel'] as $key) {
             $html = $builder->build($key)['content'];
 
-            // Sieben Symbolzellen: drei in der Personen-, vier in der
-            // Firmenspalte. Vorher waren es acht, weil die Anschrift in zwei
-            // Fassungen im Markup stand (breit und schmal).
-            $this->assertSame(7, substr_count($html, '<td width="22" align="center" valign="middle"'));
-            $this->assertSame(7, substr_count($html, 'mso-line-height-rule:exactly;text-align:center;'));
-            $this->assertSame(7, substr_count($html, 'style="display:block;width:22px;height:22px;margin:0 auto;"'));
-            // Personenspalte: zwei Zeilen mit Abstand nach unten, die letzte ohne.
-            $this->assertSame(2, substr_count($html, 'padding:0 0 6px 9px;'));
-            $this->assertSame(1, substr_count($html, 'padding:0 0 0 9px;'));
+            // Elf Symbolzellen: drei in der Personenspalte, dazu die
+            // Firmenliste ZWEIMAL mit je vier — gespiegelt fuer das
+            // Breitlayout (Symbol rechts), ungespiegelt fuer die gestapelte
+            // Ansicht (Symbol links). Sichtbar ist immer nur eine.
+            $this->assertSame(11, substr_count($html, '<td width="22" align="center" valign="middle"'));
+            $this->assertSame(11, substr_count($html, 'mso-line-height-rule:exactly;text-align:center;'));
+            $this->assertSame(11, substr_count($html, 'style="display:block;width:22px;height:22px;margin:0 auto;"'));
+            // Symbol LINKS vom Text: zwei Personenzeilen mit Abstand nach
+            // unten plus die beiden Gruppen der ungespiegelten Firmenliste.
+            $this->assertSame(4, substr_count($html, 'padding:0 0 6px 9px;'));
+            $this->assertSame(3, substr_count($html, 'padding:0 0 0 9px;'));
             $this->assertStringNotContainsString('width="30"', $html);
         }
     }
@@ -928,7 +931,9 @@ class EmailTemplatesPageTest extends TestCase
             // Zeile. Vorher lag sie doppelt vor (breit in der Marken-,
             // schmal in der Personenspalte) und kostete in jedem Client die
             // doppelte Menge Markup fuer denselben Inhalt.
-            $this->assertSame(1, substr_count($html, 'Borsteler Weg 29–31'), $key);
+            // Zweimal im Markup, aber immer nur einmal sichtbar: gespiegelt
+            // fuer breit, ungespiegelt fuer gestapelt.
+            $this->assertSame(2, substr_count($html, 'Borsteler Weg 29–31'), $key);
             $this->assertStringContainsString('Borsteler Weg 29–31 · 21423 Winsen (Luhe)', $html, $key);
             $this->assertStringNotContainsString('class="rt-only-wide"', $html, $key);
             $this->assertStringNotContainsString('class="rt-only-narrow"', $html, $key);
@@ -973,12 +978,16 @@ class EmailTemplatesPageTest extends TestCase
                 $html,
                 $key
             );
-            // Die Firmenliste steht spiegelbildlich: rechts buendig.
+            // Die Firmenliste steht spiegelbildlich rechtsbuendig — und in
+            // ZWEI Gruppen (Anschrift/Telefon, E-Mail/Website). Breit stehen
+            // sie untereinander und wirken wie eine Liste, gestapelt
+            // nebeneinander.
             $this->assertStringContainsString(
-                'class="rt-contact rt-company-contact" role="presentation" dir="ltr" border="0" cellspacing="0" cellpadding="0" style="direction:ltr;margin-left:auto;margin-right:0;',
+                'class="rt-contact rt-company-contact rt-firma-links" role="presentation" dir="ltr" border="0" cellspacing="0" cellpadding="0" style="direction:ltr;margin-left:auto;margin-right:0;',
                 $html,
                 $key
             );
+            $this->assertStringContainsString('rt-company-contact rt-firma-rechts', $html, $key);
         }
     }
 
@@ -998,10 +1007,9 @@ class EmailTemplatesPageTest extends TestCase
         $html = (new EmailTemplateBuilder($user->fresh()))->build('signatur-hell')['content'];
 
         preg_match_all('/<img src="data:image\/png;base64,([^"]+)" width="22"/', $html, $matches);
-        // Drei Personenicons plus vier Firmenicons (Anschrift, Telefon,
-        // E-Mail, Web) — die Anschrift steht seit dem symmetrischen Umbau
-        // nur noch einmal im Markup.
-        $this->assertCount(7, $matches[1]);
+        // Drei Personenicons plus zweimal vier Firmenicons (gespiegelt
+        // fuer breit, ungespiegelt fuer gestapelt).
+        $this->assertCount(11, $matches[1]);
 
         foreach ($matches[1] as $index => $base64) {
             $binary = base64_decode($base64, true);
@@ -1059,9 +1067,9 @@ class EmailTemplatesPageTest extends TestCase
 
         $this->assertStringNotContainsString('RT_PHONE_', $html);
         $this->assertStringNotContainsString('RT_MOBILE_', $html);
-        // Der Firmenkontakt steht seit dem symmetrischen Umbau genau einmal
-        // im Markup — in der Firmenspalte rechts.
-        $this->assertSame(1, substr_count($html, 'href="tel:+494171546803"'));
+        // Zweimal im Markup (gespiegelt und ungespiegelt), sichtbar immer
+        // nur eine der beiden Fassungen.
+        $this->assertSame(2, substr_count($html, 'href="tel:+494171546803"'));
         $this->assertStringContainsString('href="mailto:mara@example.test"', $html);
     }
 

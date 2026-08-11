@@ -43,6 +43,8 @@ Homestead.json
 !/tests/Feature/MarketingFilePoolBackendTest.php
 !/tests/Feature/AssistantPageBuilderToolsTest.php
 !/tests/Feature/PageBuilderPreviewTest.php
+!/tests/Feature/FilePoolUploadWorkflowTest.php
+!/tests/Feature/FilePreviewFullscreenTest.php
 !/tests/Frontend/
 /tests/Frontend/*
 !/tests/Frontend/call-recording-gate.test.js
@@ -53,6 +55,8 @@ Homestead.json
 !/tests/Frontend/marketing-render.test.js
 !/tests/Frontend/marketing-studio.test.js
 !/tests/Frontend/lmz-editor-assistant.test.js
+!/tests/Frontend/filepool-upload.test.js
+!/tests/Frontend/file-preview.test.js
 /.lmzdev/
 /railtime
 

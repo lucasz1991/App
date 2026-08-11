@@ -36,23 +36,28 @@ class FilePreviewModal extends Component
 
     public function openWith(int $id): void
     {
-        $this->fileId = $id;
-        $this->file = File::find($id);
+        $file = File::find($id);
 
-        if (! $this->file) {
+        if (! $file) {
+            $this->resetPreview();
             $this->dispatch('swal:toast', type: 'error', text: __('app.file_not_found'));
 
             return;
         }
 
-        $this->ensureCanAccess($this->file);
+        // Erst autorisieren, danach den Datensatz in den oeffentlichen
+        // Livewire-Zustand uebernehmen. Ein abgewiesener Request darf keine
+        // Metadaten der fremden Datei im Snapshot hinterlassen.
+        $this->ensureCanAccess($file);
 
+        $this->fileId = (int) $file->getKey();
+        $this->file = $file;
         $this->open = true;
     }
 
     public function close(): void
     {
-        $this->open = false;
+        $this->resetPreview();
     }
 
     #[Computed]
@@ -71,31 +76,64 @@ class FilePreviewModal extends Component
         return $this->file->getEphemeralPublicUrl();
     }
 
+    #[Computed]
+    public function canDownload(): bool
+    {
+        return $this->open
+            && $this->file instanceof File
+            && $this->canAccess($this->file, 'download');
+    }
+
+    #[Computed]
+    public function versionKey(): ?string
+    {
+        if (! $this->file) {
+            return null;
+        }
+
+        $version = $this->file->content_sha256
+            ?: $this->file->updated_at?->getTimestamp()
+            ?: $this->file->getKey();
+
+        return $this->file->getKey().'-'.$version;
+    }
+
     protected function ensureCanAccess(File $file, string $action = 'view'): void
+    {
+        abort_unless($this->canAccess($file, $action), 403);
+    }
+
+    protected function canAccess(File $file, string $action = 'view'): bool
     {
         if ($file->fileable_type !== ChatMessage::class) {
             $user = auth()->user();
 
-            abort_unless($user, 403);
+            if (! $user) {
+                return false;
+            }
 
             if ($user->isAdmin()
                 || Gate::forUser($user)->allows('files.manage')
                 || Gate::forUser($user)->allows('users.edit')) {
-                return;
+                return true;
             }
 
-            abort_unless($user->canAccessFile($file, $action), 403);
-
-            return;
+            return $user->canAccessFile($file, $action);
         }
 
         $message = ChatMessage::query()
             ->with('chat.participants')
-            ->findOrFail($file->fileable_id);
+            ->find($file->fileable_id);
+
+        if (! $message) {
+            return false;
+        }
 
         // Einmal-Sprachnachrichten duerfen weder ueber die globale Vorschau
         // noch ueber deren Download-Methode am Einmal-Player vorbeigelangen.
-        abort_if($message->isVoice() && $message->view_once, 403);
+        if ($message->isVoice() && $message->view_once) {
+            return false;
+        }
 
         $user = auth()->user();
         $chat = $message->chat;
@@ -105,19 +143,24 @@ class FilePreviewModal extends Component
 
         // Bewusst keine globale Gate-Freigabe: Auch Administratoren muessen
         // sichtbare Teilnehmer des privaten Chats sein.
-        abort_unless(
-            $user
-                && $participant !== null
-                && $participant->pivot?->hidden_at === null,
-            403
-        );
+        if (! $user
+            || $participant === null
+            || $participant->pivot?->hidden_at !== null) {
+            return false;
+        }
 
         $visibleSince = $chat->visibleSinceFor($user);
 
-        abort_if(
-            $visibleSince !== null && $message->created_at->lt($visibleSince),
-            403
-        );
+        return $visibleSince === null || ! $message->created_at->lt($visibleSince);
+    }
+
+    protected function resetPreview(): void
+    {
+        $this->open = false;
+        $this->fileId = null;
+        $this->file = null;
+
+        unset($this->url, $this->canDownload, $this->versionKey);
     }
 
     public function render()

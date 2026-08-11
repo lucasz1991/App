@@ -18,6 +18,10 @@
     'bodyClass' => 'min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-5',
     'contentClass' => 'mx-auto max-w-[100rem]',
     'headerClass' => '',
+    // Spezialoberflaechen (z. B. der immersive Dateibetrachter) koennen
+    // einen eigenen, passend positionierten Schliessen-Button bereitstellen.
+    // Der Standard bleibt fuer alle bestehenden Aufrufer unveraendert aktiv.
+    'showDefaultClose' => true,
 ])
 
 @php
@@ -100,14 +104,16 @@
                         {{ $actions }}
                     @endisset
 
-                    <button
-                        type="button"
-                        x-on:click="{{ $closeExpression }}"
-                        class="flex h-10 w-10 items-center justify-center rounded-lg border border-rt-border bg-rt-control text-rt-muted transition hover:border-rt-accent/40 hover:text-rt-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent/30 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-muted dark:hover:text-rt-dark-accent"
-                        aria-label="{{ __('app.close') }}"
-                    >
-                        <i class="far fa-times" aria-hidden="true"></i>
-                    </button>
+                    @if ($showDefaultClose)
+                        <button
+                            type="button"
+                            x-on:click="{{ $closeExpression }}"
+                            class="flex h-10 w-10 items-center justify-center rounded-lg border border-rt-border bg-rt-control text-rt-muted transition hover:border-rt-accent/40 hover:text-rt-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent/30 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-muted dark:hover:text-rt-dark-accent"
+                            aria-label="{{ __('app.close') }}"
+                        >
+                            <i class="far fa-times" aria-hidden="true"></i>
+                        </button>
+                    @endif
                 </div>
             </div>
         </header>
