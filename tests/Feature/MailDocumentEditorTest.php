@@ -55,9 +55,85 @@ class MailDocumentEditorTest extends TestCase
         return User::factory()->create(['role' => 'admin', 'name' => 'Admin Beispiel']);
     }
 
+    /**
+     * Geseedete Dokumente ALS ENTWURF.
+     *
+     * Der Seeder selbst gibt frei — das ist seine Zusage fuer das
+     * Deployment (siehe test_der_seeder_ueberschreibt_und_gibt_sofort_frei).
+     * Die Faelle hier pruefen aber den Editor: sein Speichern, seine
+     * Freigabe, seine Ablehnungen. Dafuer braucht es einen Ausgangszustand
+     * OHNE Freigabe, sonst pruefte man gegen ein bereits fertiges Ergebnis.
+     */
     private function seedDocuments(): void
     {
         (new MailDocumentSeeder)->run();
+
+        MailDocument::query()->update([
+            'status' => MailDocumentStatus::Draft,
+            'published_html' => null,
+            'published_css' => null,
+            'published_at' => null,
+        ]);
+
+        app()->forgetScopedInstances();
+    }
+
+    /**
+     * Die Zusage des Seeders fuer das Deployment: Er stellt den
+     * ausgelieferten Stand her UND gibt ihn frei, damit unmittelbar danach
+     * geprueft werden kann — ohne einen weiteren Handgriff im Editor.
+     */
+    public function test_der_seeder_ueberschreibt_und_gibt_sofort_frei(): void
+    {
+        (new MailDocumentSeeder)->run();
+
+        foreach (MailDocumentKind::cases() as $kind) {
+            $dokument = $this->document($kind);
+
+            $this->assertSame(MailDocumentStatus::Published, $dokument->status, $kind->value);
+            $this->assertNotNull($dokument->published_at, $kind->value);
+            $this->assertSame(trim((string) $dokument->html), trim((string) $dokument->published_html), $kind->value);
+            $this->assertNotNull(EmailTemplateBuilder::publishedDocument($kind), $kind->value);
+        }
+
+        // ZWEITER LAUF: Er ueberschreibt ohne Rueckfrage — auch Editor-Arbeit.
+        // Genau dafuer ist der Aufruf am Ende eines Deployments gedacht.
+        $signatur = $this->document(MailDocumentKind::Signature);
+        $signatur->forceFill([
+            'html' => '<tr><td>Von Hand geaendert</td></tr>',
+            'version' => 7,
+        ])->save();
+
+        (new MailDocumentSeeder)->run();
+
+        $frisch = $this->document(MailDocumentKind::Signature);
+        $this->assertStringNotContainsString('Von Hand geaendert', (string) $frisch->html);
+        $this->assertSame(MailDocumentStatus::Published, $frisch->status);
+    }
+
+    /**
+     * Mit RT_MAIL_STARTER_KEEP=1 bleibt vorhandene Arbeit stehen — der Weg
+     * fuer alle, die den ausgelieferten Stand NICHT wollen.
+     */
+    public function test_der_seeder_schont_vorhandene_arbeit_auf_ausdrueckliche_anweisung(): void
+    {
+        (new MailDocumentSeeder)->run();
+
+        $signatur = $this->document(MailDocumentKind::Signature);
+        $signatur->forceFill(['html' => '<tr><td>Von Hand geaendert</td></tr>', 'version' => 7])->save();
+
+        putenv('RT_MAIL_STARTER_KEEP=1');
+
+        try {
+            (new MailDocumentSeeder)->run();
+        } finally {
+            putenv('RT_MAIL_STARTER_KEEP');
+        }
+
+        $this->assertStringContainsString(
+            'Von Hand geaendert',
+            (string) $this->document(MailDocumentKind::Signature)->html,
+        );
     }
 
     private function document(MailDocumentKind $kind): MailDocument

@@ -104,7 +104,19 @@ class PageBuilderPreviewTest extends TestCase
         User::factory()->create(['role' => 'staff']);
         (new MailDocumentSeeder)->run();
         $document = MailDocument::query()->where('kind', MailDocumentKind::Template->value)->firstOrFail();
-        $before = $document->only(['html', 'css', 'published_html', 'published_css', 'published_at', 'version']);
+        // Zeitstempel als Zeichenkette vergleichen: published_at ist ein
+        // Carbon-Objekt, und zwei Abfragen liefern zwei INSTANZEN. Ein
+        // identischer Vergleich schluege daran fehl, obwohl der Wert gleich
+        // ist — geprueft werden soll der Inhalt, nicht die Objektgleichheit.
+        $zustand = static fn (\App\Models\MailDocument $d): array => [
+            'html' => $d->html,
+            'css' => $d->css,
+            'published_html' => $d->published_html,
+            'published_css' => $d->published_css,
+            'published_at' => $d->published_at?->toIso8601String(),
+            'version' => $d->version,
+        ];
+        $before = $zustand($document);
         $url = route('admin.mail-documents.preview', [$document, 'theme' => 'dark']);
 
         $this->actingAs(User::query()->where('role', 'staff')->firstOrFail())
@@ -126,7 +138,7 @@ class PageBuilderPreviewTest extends TestCase
         $this->assertStringNotContainsString('<script', strtolower($html));
         $this->assertStringNotContainsString('http://', strtolower($html));
         $this->assertStringNotContainsString('https://', strtolower($html));
-        $this->assertSame($before, $document->fresh()->only(array_keys($before)));
+        $this->assertSame($before, $zustand($document->fresh()));
     }
 
     public function test_marketing_source_page_renders_sandboxed_format_cards(): void

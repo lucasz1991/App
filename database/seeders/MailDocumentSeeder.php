@@ -7,25 +7,38 @@ use App\Enums\MailDocumentStatus;
 use App\Models\MailDocument;
 use App\Models\User;
 use App\Support\EmailTemplateBuilder;
+use App\Support\Mail\EmailHtmlSanitizer;
+use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\MailSignature;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\View;
 use RuntimeException;
 
 /**
- * Legt die beiden Maildokumente mit ihrem Startinhalt an UND frischt ein
- * unberuehrtes Startlayout auf den aktuellen Stand auf.
- *
- * Auffrischung nur fuer UNBERUEHRTE Starter (isUntouchedStarter): sobald
- * jemand im Editor gespeichert oder veroeffentlicht hat, steigt version
- * ueber 1 und der Seeder laesst die Zeile unangetastet — Admin-Arbeit wird
- * nie ueberschrieben. Ein veroeffentlichtes Dokument meldet der Seeder als
- * Hinweis: dort muss die neue Fassung bewusst im Editor uebernommen und
- * erneut veroeffentlicht werden.
- *
- * Serverseitiger Aufruf nach einem Deployment:
+ * Setzt die beiden Maildokumente auf die ausgelieferte Startfassung — und
+ * GIBT SIE SOFORT FREI, damit unmittelbar danach eine Systemnachricht
+ * geprueft werden kann.
  *
  *   php artisan db:seed --class=MailDocumentSeeder --force
+ *
+ * UEBERSCHREIBT OHNE RUECKFRAGE. Das ist ausdruecklich so gewollt: der
+ * Lauf gehoert ans Ende eines Deployments und stellt einen bekannten,
+ * pruefbaren Zustand her. Editor-Arbeit am Maildokument geht dabei
+ * verloren. Wer sie behalten will, setzt beim Lauf
+ *
+ *   RT_MAIL_STARTER_KEEP=1
+ *
+ * dann bleiben bearbeitete oder freigegebene Dokumente unangetastet und
+ * nur fehlende werden angelegt.
+ *
+ * WAS DIE FREIGABE BEWIRKT — UND WAS NICHT:
+ * Sie wirkt auf die DOWNLOADS (Vorlage und Signaturdateien) und auf die
+ * Vorschau. Eine VERSENDETE Systemmail folgt dagegen immer der
+ * Blade-Quelle, also dem ausgelieferten Code (Begruendung in
+ * App\Support\MailSignature::render — die Systemmail braucht den Zug als
+ * Bildzeile, die ein gespeicherter Markup-Stand nicht tragen kann). Nach
+ * diesem Lauf zeigen beide Wege denselben Stand, weil die Startfassung aus
+ * genau derselben Blade-Quelle erzeugt wird.
  */
 final class MailDocumentSeeder extends Seeder
 {
@@ -47,9 +60,7 @@ final class MailDocumentSeeder extends Seeder
         foreach (MailDocumentKind::cases() as $kind) {
             $document = MailDocument::query()->where('kind', $kind->value)->first();
 
-            if ($document instanceof MailDocument) {
-                $this->refresh($document, $kind, $actorId);
-
+            if ($document instanceof MailDocument && $this->behalten($document, $kind)) {
                 continue;
             }
 
@@ -60,87 +71,67 @@ final class MailDocumentSeeder extends Seeder
             $css = '';
             $builderData = $this->starterBuilderData($kind, $html);
 
-            MailDocument::query()->create([
+            // Gehaertet wie im Editor: was dort nicht freigegeben werden
+            // duerfte, darf es hier auch nicht. Schlaegt die Pruefung fehl,
+            // bricht der Lauf mit der Meldung des Editors ab statt
+            // stillschweigend etwas Unerlaubtes zu veroeffentlichen.
+            $geprueft = app(EmailHtmlSanitizer::class)->assertClean($html)->html;
+
+            $werte = [
                 'kind' => $kind,
-                'status' => MailDocumentStatus::Draft,
+                'status' => MailDocumentStatus::Published,
                 'builder_data' => $builderData,
-                'html' => $html,
+                'html' => $geprueft,
                 'css' => $css,
-                'content_hash' => MailDocument::contentHashFor($builderData, $html, $css),
+                'content_hash' => MailDocument::contentHashFor($builderData, $geprueft, $css),
+                // SOFORT FREIGEGEBEN: Downloads und Vorschau zeigen den
+                // neuen Stand ohne weiteren Handgriff im Editor.
+                'published_html' => $geprueft,
+                'published_css' => $css,
+                'published_at' => now(),
                 'version' => 1,
-                'created_by' => $actorId,
                 'updated_by' => $actorId,
-            ]);
+            ];
+
+            if ($document instanceof MailDocument) {
+                $document->forceFill($werte)->save();
+                $this->command?->info("Maildokument \"{$kind->value}\" ueberschrieben und freigegeben (Startfassung ".self::STARTER_SCHEMA.').');
+            } else {
+                MailDocument::query()->create($werte + ['created_by' => $actorId]);
+                $this->command?->info("Maildokument \"{$kind->value}\" angelegt und freigegeben (Startfassung ".self::STARTER_SCHEMA.').');
+            }
+
+            // Die Momentaufnahme lebt pro Anfrage. Ohne dieses Vergessen
+            // liefe der Rest DIESES Laufs — etwa eine gleich danach
+            // gerenderte Probemail — noch auf dem alten Stand.
+            app(PublishedMailDocumentSnapshotStore::class)->forget($kind);
         }
     }
 
     /**
-     * Hebt ein vorhandenes Dokument auf die aktuelle Startfassung — aber
-     * NUR, wenn es noch das unberuehrte Startlayout einer aelteren Stufe
-     * traegt. Alles andere ist Admin-Arbeit und bleibt stehen.
+     * Soll ein vorhandenes Dokument stehen bleiben?
+     *
+     * Standard ist NEIN — der Lauf stellt einen bekannten Zustand her. Nur
+     * mit RT_MAIL_STARTER_KEEP=1 bleibt Editor-Arbeit erhalten.
      */
-    private function refresh(MailDocument $document, MailDocumentKind $kind, ?int $actorId): void
+    private function behalten(MailDocument $document, MailDocumentKind $kind): bool
     {
+        if (! $this->schonend()) {
+            return false;
+        }
+
         $schema = (int) data_get($document->builder_data, 'railtime.schema', 0);
 
-        if ($schema >= self::STARTER_SCHEMA) {
-            return;
+        if ($document->isUntouchedStarter($schema) && ! $document->isPublished() && $schema < self::STARTER_SCHEMA) {
+            return false;
         }
 
-        if (! $document->isUntouchedStarter($schema) && ! $this->erzwungen()) {
-            $this->command?->warn(
-                "Maildokument \"{$kind->value}\" wurde im Editor bearbeitet und bleibt unangetastet. "
-                .'Die neue Startfassung muss dort bewusst uebernommen und erneut veroeffentlicht werden — '
-                .'oder der Lauf wird mit RT_MAIL_STARTER_FORCE=1 wiederholt.'
-            );
+        $this->command?->warn(
+            "Maildokument \"{$kind->value}\" bleibt unangetastet (RT_MAIL_STARTER_KEEP=1). "
+            .'Ohne diese Kennzeichnung wuerde der Lauf es auf die Startfassung setzen und freigeben.'
+        );
 
-            return;
-        }
-
-        // FREIGEGEBEN IST NICHT UNBERUEHRT. Wer einen Starter unveraendert
-        // veroeffentlicht, aendert seinen Inhalt nicht — publish() zaehlt
-        // version deshalb NICHT hoch (MailDocumentController::publish, der
-        // Vergleich der content_hash). isUntouchedStarter() haelt so ein
-        // Dokument fuer unberuehrt, und die Auffrischung unten wuerde es
-        // stillschweigend auf Entwurf zuruecksetzen: die Downloads fielen
-        // ohne Vorwarnung auf die Blade-Quelle zurueck. Das Freigeben ist
-        // eine bewusste Handlung und wird deshalb wie Editor-Arbeit
-        // behandelt.
-        if ($document->isPublished() && ! $this->erzwungen()) {
-            $this->command?->warn(
-                "Maildokument \"{$kind->value}\" ist freigegeben und bleibt unangetastet. "
-                .'Die neue Startfassung muss im Editor bewusst uebernommen und erneut freigegeben werden — '
-                .'oder der Lauf wird mit RT_MAIL_STARTER_FORCE=1 wiederholt.'
-            );
-
-            return;
-        }
-
-        $html = $this->starterHtml($kind);
-        $builderData = $this->starterBuilderData($kind, $html);
-
-        $document->forceFill([
-            'status' => MailDocumentStatus::Draft,
-            'builder_data' => $builderData,
-            'html' => $html,
-            'css' => '',
-            // Eine liegengebliebene Freigabe wuerde sonst als Momentaufnahme
-            // weiter die alte Signatur in jeden DOWNLOAD setzen. (Auf
-            // versendete Mails wirkt sie ohnehin nicht — die folgen der
-            // Blade-Quelle, siehe MailSignature::render.) Hierher kommt nur,
-            // wer entweder gar nicht freigegeben hat oder ausdruecklich
-            // erzwingt.
-            'published_html' => null,
-            'published_css' => null,
-            'published_at' => null,
-            'content_hash' => MailDocument::contentHashFor($builderData, $html, ''),
-            // Version bleibt 1: das Dokument ist weiterhin ein unberuehrter
-            // Starter — nur eben der aktuellen Stufe. Der naechste Lauf
-            // erkennt das am Schema-Kennzeichen und laesst es in Ruhe.
-            'updated_by' => $actorId ?? $document->updated_by,
-        ])->save();
-
-        $this->command?->info("Maildokument \"{$kind->value}\" auf Startfassung ".self::STARTER_SCHEMA.' aufgefrischt.');
+        return true;
     }
 
     /**
@@ -213,16 +204,16 @@ final class MailDocumentSeeder extends Seeder
     }
 
     /**
-     * Ausdrueckliche Anweisung, auch bearbeitete Dokumente zu ueberschreiben:
+     * Ausdrueckliche Anweisung, vorhandene Dokumente NICHT zu ueberschreiben:
      *
-     *   RT_MAIL_STARTER_FORCE=1 php artisan db:seed --class=MailDocumentSeeder --force
+     *   RT_MAIL_STARTER_KEEP=1 php artisan db:seed --class=MailDocumentSeeder --force
      *
-     * Bewusst NUR ueber die Umgebung und nie Standard — der Lauf verwirft
-     * Editor-Arbeit einschliesslich einer veroeffentlichten Fassung.
+     * Ohne sie stellt der Lauf den ausgelieferten Zustand her und gibt ihn
+     * frei — das ist der Sinn des Aufrufs am Ende eines Deployments.
      */
-    private function erzwungen(): bool
+    private function schonend(): bool
     {
-        return filter_var(env('RT_MAIL_STARTER_FORCE'), FILTER_VALIDATE_BOOL);
+        return filter_var(env('RT_MAIL_STARTER_KEEP'), FILTER_VALIDATE_BOOL);
     }
 
     /**
