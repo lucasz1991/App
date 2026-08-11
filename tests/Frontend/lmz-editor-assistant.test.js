@@ -84,7 +84,7 @@ function context(overrides = {}) {
         capabilities: [
             'open_fullscreen', 'open_panel', 'focus_selection', 'edit_text', 'set_style',
             'replace_image', 'add_block', 'undo', 'redo', 'preview', 'save',
-            'animation', 'gif_preview',
+            'animation', 'gif_preview', 'redesign_document',
         ],
         available_block_ids: ['rt-marketing-headline', 'rt-marketing-hero'],
         validation: { state: 'valid', issues: [] },
@@ -171,6 +171,7 @@ test('normalizes a bounded value-free context and protects mail structure', () =
     assert.equal(mail.selection.motion_allowed, false);
     assert.equal(mail.selection.gif, true);
     assert.equal(mail.capabilities.includes('replace_image'), false);
+    assert.equal(mail.capabilities.includes('redesign_document'), false);
     assert.deepEqual(mail.available_block_ids, ['rt-mail-section']);
 });
 
@@ -275,6 +276,49 @@ test('rejects raw HTML, unsafe CSS, mail image replacement and invented GIF fram
         format_or_kind: mail.format_or_kind,
         file_id: 4,
     })), false);
+    assert.equal(dispatchPageBuilderAssistantAction(action('redesign_document', {
+        route_name: mail.route_name,
+        mode: mail.mode,
+        format_or_kind: mail.format_or_kind,
+        preset: 'railtime_modern',
+    })), false);
+});
+
+test('executes only the allowlisted selection-free marketing redesign preset', async () => {
+    const presets = [];
+    let redesignStatus = 'applied';
+    registerPageBuilderAssistantAdapter({
+        getContext: () => context({ selection: null }),
+        redesignDocument(preset) {
+            presets.push(preset);
+            return { status: redesignStatus };
+        },
+    });
+
+    const receipt = nextResult();
+    assert.equal(dispatchPageBuilderAssistantAction(action('redesign_document', {
+        action_token: 'D'.repeat(48),
+        preset: 'railtime_modern',
+        html: '<script>alert(1)</script>',
+        selection_nonce: 'ignored_selection_nonce_1234',
+    })), true);
+    assert.deepEqual(await receipt, { action_token: 'D'.repeat(48), status: 'applied' });
+    assert.deepEqual(presets, ['railtime_modern']);
+
+    redesignStatus = 'reload_required';
+    const uncertainReceipt = nextResult();
+    assert.equal(dispatchPageBuilderAssistantAction(action('redesign_document', {
+        action_token: 'R'.repeat(48),
+        preset: 'railtime_modern',
+    })), true);
+    assert.deepEqual(await uncertainReceipt, { action_token: 'R'.repeat(48), status: 'reload_required' });
+    assert.deepEqual(presets, ['railtime_modern', 'railtime_modern']);
+
+    assert.equal(dispatchPageBuilderAssistantAction(action('redesign_document', {
+        action_token: 'E'.repeat(48),
+        preset: 'website_clone',
+    })), false);
+    assert.deepEqual(presets, ['railtime_modern', 'railtime_modern']);
 });
 
 test('GIF restart is limited to a fresh GIF selection and fullscreen state raises the one chatbot layer', async () => {

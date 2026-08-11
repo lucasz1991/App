@@ -49,9 +49,11 @@ class AssistantPageBuilderToolsTest extends TestCase
         $this->assertContains(AssistantPageBuilderTools::STATUS_TOOL, $marketingNames);
         $this->assertContains(AssistantPageBuilderTools::IMAGE_SEARCH_TOOL, $marketingNames);
         $this->assertContains(AssistantPageBuilderTools::IMAGE_TOOL, $marketingNames);
+        $this->assertContains(AssistantPageBuilderTools::REDESIGN_TOOL, $marketingNames);
         $this->assertContains(AssistantPageBuilderTools::STATUS_TOOL, $mailNames);
         $this->assertNotContains(AssistantPageBuilderTools::IMAGE_SEARCH_TOOL, $mailNames);
         $this->assertNotContains(AssistantPageBuilderTools::IMAGE_TOOL, $mailNames);
+        $this->assertNotContains(AssistantPageBuilderTools::REDESIGN_TOOL, $mailNames);
         $this->assertSame([], $tools->toolDefinitions($staff, 'admin.marketing.creatives.editor'));
         $this->assertSame([], $tools->toolDefinitions($admin, 'admin.marketing.creatives.index'));
         $this->assertSame([], $tools->toolDefinitions($admin, 'email-templates.index'));
@@ -109,6 +111,84 @@ class AssistantPageBuilderToolsTest extends TestCase
             $result['effect'],
             $newSelection,
         ));
+    }
+
+    public function test_complete_marketing_redesign_is_one_document_wide_confirmed_effect(): void
+    {
+        [$admin, $creative, $variant] = $this->creative();
+        $this->actingAs($admin);
+        $tools = app(AssistantPageBuilderTools::class);
+        $store = app(AssistantPendingActionStore::class);
+        $context = $this->marketingContext($creative, $variant, clientRevision: 41, unsaved: true);
+
+        $result = $tools->execute(
+            AssistantPageBuilderTools::REDESIGN_TOOL,
+            ['preset' => 'railtime_modern'],
+            $admin,
+            'admin.marketing.creatives.editor',
+            $context,
+        );
+
+        $this->assertSame('scheduled', $result['payload']['state']);
+        $this->assertSame('redesign_document', $result['effect']['command']);
+        $this->assertSame('railtime_modern', $result['effect']['preset']);
+        $this->assertSame(41, $result['effect']['client_revision']);
+        $this->assertArrayNotHasKey('selection_nonce', $result['effect']);
+        $this->assertArrayNotHasKey('selection_fingerprint', $result['effect']);
+        $this->assertTrue($tools->browserEffectMatchesContext(
+            $admin,
+            'admin.marketing.creatives.editor',
+            $result['effect'],
+            $context,
+        ));
+
+        $otherSelection = $context;
+        $otherSelection['selection']['fingerprint'] = str_repeat('b', 64);
+        $this->assertTrue($tools->browserEffectMatchesContext(
+            $admin,
+            'admin.marketing.creatives.editor',
+            $result['effect'],
+            $otherSelection,
+        ));
+
+        $newerWorkspace = $context;
+        $newerWorkspace['client_revision']++;
+        $this->assertFalse($tools->browserEffectMatchesContext(
+            $admin,
+            'admin.marketing.creatives.editor',
+            $result['effect'],
+            $newerWorkspace,
+        ));
+
+        $withoutCapability = $context;
+        $withoutCapability['capabilities'] = array_values(array_diff(
+            $withoutCapability['capabilities'],
+            ['redesign_document'],
+        ));
+        $this->assertSame('capability_unavailable', $tools->execute(
+            AssistantPageBuilderTools::REDESIGN_TOOL,
+            ['preset' => 'railtime_modern'],
+            $admin,
+            'admin.marketing.creatives.editor',
+            $withoutCapability,
+        )['payload']['error']);
+
+        $this->assertSame('invalid_redesign_preset', $tools->execute(
+            AssistantPageBuilderTools::REDESIGN_TOOL,
+            ['preset' => 'provider_invented'],
+            $admin,
+            'admin.marketing.creatives.editor',
+            $context,
+        )['payload']['error']);
+
+        $pending = $store->create($admin, 'admin.marketing.creatives.editor', $result['effect']);
+        $this->assertStringContainsString('Komplettes RailTime-Redesign', $pending['label']);
+        $this->assertStringContainsString('Story (1080 × 1920)', $pending['detail']);
+        $this->assertStringContainsString('Post (1080 × 1080)', $pending['detail']);
+        $this->assertStringContainsString('Web (1200 × 630)', $pending['detail']);
+        $this->assertStringContainsString('gemeinsame Texte', $pending['detail']);
+        $this->assertStringContainsString('Freigabe wird zurückgesetzt', $pending['detail']);
+        $this->assertStringContainsString('keine Veröffentlichung', $pending['detail']);
     }
 
     public function test_server_rejects_stale_persisted_state_and_adversarial_editor_values(): void
@@ -331,6 +411,30 @@ class AssistantPageBuilderToolsTest extends TestCase
             'applied',
             'admin.marketing.creatives.editor',
         ));
+
+        $uncertainEffect = $tools->execute(
+            AssistantPageBuilderTools::SAVE_TOOL,
+            [],
+            $admin,
+            'admin.marketing.creatives.editor',
+            $stale,
+        )['effect'];
+        $uncertainPending = $store->create($admin, 'admin.marketing.creatives.editor', $uncertainEffect);
+        $this->assertNotNull($store->consume(
+            $admin,
+            'admin.marketing.creatives.editor',
+            $uncertainPending['token'],
+            [],
+            $stale,
+        ));
+        $this->assertNotNull($store->claimPageBuilderEffect($admin, $uncertainPending['token']));
+        $uncertainReceipt = $store->acceptReceipt(
+            $admin,
+            $uncertainPending['token'],
+            'reload_required',
+            'admin.marketing.creatives.editor',
+        );
+        $this->assertSame('reload_required', $uncertainReceipt['status'] ?? null);
     }
 
     public function test_confirmed_pagebuilder_effect_is_claimed_only_through_the_authenticated_one_time_endpoint(): void
@@ -655,7 +759,7 @@ class AssistantPageBuilderToolsTest extends TestCase
             'capabilities' => [
                 'open_fullscreen', 'open_panel', 'focus_selection', 'edit_text', 'set_style',
                 'replace_image', 'add_block', 'undo', 'redo', 'preview', 'save',
-                'animation', 'gif_preview',
+                'animation', 'gif_preview', 'redesign_document',
             ],
             'available_block_ids' => ['rt-marketing-headline', 'rt-marketing-hero'],
             'validation' => ['state' => 'valid', 'issues' => []],

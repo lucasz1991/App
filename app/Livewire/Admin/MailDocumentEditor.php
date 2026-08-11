@@ -124,10 +124,12 @@ class MailDocumentEditor extends Component
             'previewAssets' => [
                 'light' => [
                     'logo' => EmailTemplateBuilder::inlineImage('wortmarke-signature-light.png', 'image/png'),
+                    'mark' => EmailTemplateBuilder::inlineImage('icon-rt-light.png', 'image/png'),
                     'train' => EmailTemplateBuilder::inlineImage('zug-dampf-light.gif', 'image/gif'),
                 ],
                 'dark' => [
                     'logo' => EmailTemplateBuilder::inlineImage('wortmarke-mail-dark.png', 'image/png'),
+                    'mark' => EmailTemplateBuilder::inlineImage('icon-rt-dark.png', 'image/png'),
                     'train' => EmailTemplateBuilder::inlineImage('zug-dampf-dark.gif', 'image/gif'),
                 ],
                 'icons' => [

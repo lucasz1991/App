@@ -851,7 +851,9 @@
                                                             <pre>{{ $actionAfter !== '' ? $actionAfter : '—' }}</pre>
                                                         </div>
                                                     </div>
-                                                @elseif ($actionDetail !== '')
+                                                @endif
+
+                                                @if ($actionDetail !== '')
                                                     <pre>{{ $actionDetail }}</pre>
                                                 @endif
 

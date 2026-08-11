@@ -1091,6 +1091,61 @@ export function normalizeVariantPayload(payload) {
     }, {});
 }
 
+export function marketingRedesignExpectedHashes(variants) {
+    const hashes = Object.fromEntries(Object.keys(MARKETING_ARTBOARDS).map((format) => [
+        format,
+        String(variants?.[format]?.contentHash || '').toLowerCase(),
+    ]));
+
+    return Object.values(hashes).every((hash) => /^[a-f0-9]{64}$/.test(hash))
+        ? hashes
+        : null;
+}
+
+export function applyAuthoritativeMarketingRedesignResponse(config, payload) {
+    const variants = normalizeVariantPayload(payload);
+    const complete = variants && Object.keys(MARKETING_ARTBOARDS).every((format) => {
+        const variant = variants[format];
+        return variant
+            && variant.builderData
+            && typeof variant.builderData === 'object'
+            && !Array.isArray(variant.builderData)
+            && typeof variant.css === 'string'
+            && /^[a-f0-9]{64}$/.test(variant.contentHash)
+            && Number.isInteger(variant.version)
+            && variant.version > 0;
+    });
+    const status = String(payload?.creative?.status || '');
+
+    if (!complete || !['draft', 'approved', 'archived'].includes(status)) return null;
+
+    config.variants = variants;
+    config.status = status;
+    if (payload.creative.shared_content
+        && typeof payload.creative.shared_content === 'object'
+        && !Array.isArray(payload.creative.shared_content)) {
+        config.sharedContent = payload.creative.shared_content;
+    }
+
+    return { variants, status };
+}
+
+export function marketingRedesignFailureStatus(error, { requestStarted = false } = {}) {
+    const validationKeys = Object.keys(error?.payload?.errors || {});
+    if (error?.code === 'stale_context'
+        || [409, 412].includes(Number(error?.status))
+        || (Number(error?.status) === 422 && validationKeys.some((key) => key.startsWith('expected_hashes.')))) {
+        return 'stale_context';
+    }
+    if (error?.code === 'storage_error'
+        || !Number.isInteger(error?.status)
+        || Number(error.status) >= 500) {
+        return requestStarted ? 'reload_required' : 'storage_error';
+    }
+
+    return 'rejected';
+}
+
 export function projectForVariant(variant, parseCss = () => []) {
     const project = structuredClone(variant?.builderData || {});
     if (variant?.css && (!Array.isArray(project.styles) || project.styles.length === 0)) {
@@ -1168,6 +1223,7 @@ export async function createMarketingStudio(workspace, config) {
     let instance = null;
     let editorChrome = null;
     let assistantAdapter = null;
+    let preservedAssistantAdapter = null;
     let shellLifecycle = null;
     let unregisterNavigation = null;
     let artboardViewport = null;
@@ -1224,7 +1280,7 @@ export async function createMarketingStudio(workspace, config) {
         destroyed,
     });
 
-    const startBuilder = async (format) => {
+    const startBuilder = async (format, { preserveAssistantContext = false } = {}) => {
         invalidateRender();
         detachSafeZoneFrameLoad?.();
         detachSafeZoneFrameLoad = null;
@@ -1234,7 +1290,14 @@ export async function createMarketingStudio(workspace, config) {
         touchPanController = null;
         artboardViewport?.destroy();
         artboardViewport = null;
-        assistantAdapter?.destroy();
+        preservedAssistantAdapter?.destroy();
+        preservedAssistantAdapter = null;
+        if (preserveAssistantContext) {
+            preservedAssistantAdapter = assistantAdapter;
+            assistantAdapter?.destroy({ keepRegistered: true });
+        } else {
+            assistantAdapter?.destroy();
+        }
         assistantAdapter = null;
         editorChrome?.destroy();
         editorChrome = null;
@@ -1371,7 +1434,10 @@ export async function createMarketingStudio(workspace, config) {
                 'rt-marketing-contact', 'rt-marketing-cta', 'rt-marketing-qr',
             ],
             save: () => instance?.save?.('manual'),
+            redesignDocument: (preset) => redesignMarketingDocument(preset),
         });
+        preservedAssistantAdapter?.destroy();
+        preservedAssistantAdapter = null;
         const readyInstance = instance;
         touchPanController = createFixedArtboardPanController({
             instance: readyInstance,
@@ -1450,7 +1516,7 @@ export async function createMarketingStudio(workspace, config) {
     sharedForm?.addEventListener('input', refreshSharedContentDirty, { signal: abortController.signal });
     sharedForm?.addEventListener('change', refreshSharedContentDirty, { signal: abortController.signal });
 
-    const persistSharedContent = async ({ announce = false } = {}) => {
+    const persistSharedContent = async ({ announce = false, preserveAssistantContext = false } = {}) => {
         if (readOnly || !sharedForm || !sharedContentDirty) {
             if (!readOnly && instance?.hasUnsavedChanges()) return instance.save('manual');
             return true;
@@ -1506,7 +1572,7 @@ export async function createMarketingStudio(workspace, config) {
                     title.textContent = request.title;
                     title.setAttribute('title', request.title);
                 }
-                await startBuilder(currentFormat);
+                await startBuilder(currentFormat, { preserveAssistantContext });
                 sharedContentSnapshot = requestSnapshot;
                 refreshSharedContentDirty();
             } while (sharedContentDirty || instance?.hasUnsavedChanges());
@@ -1521,6 +1587,69 @@ export async function createMarketingStudio(workspace, config) {
         } finally {
             sharedContentSavePromise = null;
             if (button) button.disabled = false;
+            workspace.inert = previousWorkspaceInert;
+        }
+    };
+
+    const redesignMarketingDocument = async (preset) => {
+        if (readOnly || preset !== 'railtime_modern' || !config.endpoints?.redesign) {
+            return { status: 'rejected' };
+        }
+
+        const previousWorkspaceInert = Boolean(workspace.inert);
+        workspace.inert = true;
+        let requestStarted = false;
+
+        try {
+            const flushed = await persistSharedContent({ preserveAssistantContext: true });
+            if (!flushed || destroyed) {
+                const error = new Error('Offene Entwurfsänderungen konnten nicht gespeichert werden.');
+                error.code = 'storage_error';
+                throw error;
+            }
+
+            const expectedHashes = marketingRedesignExpectedHashes(config.variants);
+            if (!expectedHashes) {
+                const error = new Error('Die gespeicherten Motivversionen sind unvollständig.');
+                error.code = 'storage_error';
+                throw error;
+            }
+
+            requestStarted = true;
+            const payload = await requestJson(config.endpoints.redesign, {
+                method: 'POST',
+                json: {
+                    preset,
+                    expected_hashes: expectedHashes,
+                },
+            });
+            const authoritative = applyAuthoritativeMarketingRedesignResponse(config, payload);
+            if (!authoritative) {
+                const error = new Error('Der Server hat das vollständige Redesign nicht zurückgegeben.');
+                error.code = 'storage_error';
+                throw error;
+            }
+
+            setCreativeStatus(workspace, authoritative.status);
+            await startBuilder(currentFormat, { preserveAssistantContext: true });
+            await publishPageBuilderAssistantContext();
+            dispatchToast('success', 'Alle drei Motivformate wurden im modernen RailTime-Design neu aufgebaut.', 'Redesign übernommen');
+
+            return { status: 'applied' };
+        } catch (error) {
+            preservedAssistantAdapter?.destroy();
+            preservedAssistantAdapter = null;
+            const status = marketingRedesignFailureStatus(error, { requestStarted });
+            if (status === 'stale_context') {
+                dispatchToast('warning', 'Eine neuere Motivversion liegt vor. Das Redesign wurde nicht übernommen.', 'Bearbeitungskonflikt');
+            } else if (status === 'reload_required') {
+                dispatchToast('warning', 'Der Serverstand ist unklar oder bereits aktualisiert. Bitte die Seite neu laden und alle drei Formate prüfen.', 'Neu laden erforderlich');
+            } else {
+                dispatchToast('error', error?.message || 'Das Redesign konnte nicht übernommen werden.', 'Redesign fehlgeschlagen');
+            }
+
+            return { status };
+        } finally {
             workspace.inert = previousWorkspaceInert;
         }
     };
@@ -1714,6 +1843,8 @@ export async function createMarketingStudio(workspace, config) {
             shellLifecycle = null;
             assistantAdapter?.destroy();
             assistantAdapter = null;
+            preservedAssistantAdapter?.destroy();
+            preservedAssistantAdapter = null;
             editorChrome?.destroy();
             editorChrome = null;
             instance?.destroy?.();

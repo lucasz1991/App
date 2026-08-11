@@ -44,6 +44,8 @@ final class AssistantPageBuilderTools
 
     public const SAVE_TOOL = 'save_pagebuilder_document';
 
+    public const REDESIGN_TOOL = 'redesign_pagebuilder_document';
+
     public const EFFECT_TYPE = 'pagebuilder';
 
     private const ROUTES = [
@@ -75,7 +77,11 @@ final class AssistantPageBuilderTools
     private const MARKETING_CAPABILITIES = [
         'open_fullscreen', 'open_panel', 'focus_selection', 'edit_text', 'set_style',
         'replace_image', 'add_block', 'undo', 'redo', 'preview', 'save', 'animation',
-        'gif_preview',
+        'gif_preview', 'redesign_document',
+    ];
+
+    private const MARKETING_PRESETS = [
+        'railtime_modern',
     ];
 
     private const SELECTION_COMMANDS = [
@@ -203,6 +209,18 @@ final class AssistantPageBuilderTools
         ];
 
         if (self::ROUTES[$currentRoute] === 'marketing') {
+            $tools[] = $this->tool(
+                self::REDESIGN_TOOL,
+                'Ersetzt nach ausdrücklicher Bestätigung das komplette Marketingmotiv in Story, Post und Web durch das serverseitig freigegebene RailTime-Modern-Design. Vorhandene gemeinsame Inhalte bleiben erhalten. Bei einem ausdrücklichen Wunsch nach komplettem Redesign dieses Tool verwenden statt nur Schritte zu erklären.',
+                [
+                    'type' => 'object',
+                    'properties' => [
+                        'preset' => ['type' => 'string', 'enum' => self::MARKETING_PRESETS],
+                    ],
+                    'required' => ['preset'],
+                    'additionalProperties' => false,
+                ],
+            );
             $tools[] = $this->tool(self::IMAGE_SEARCH_TOOL, 'Sucht höchstens zwölf Bilder ausschließlich im für Marketing freigegebenen Firmen-Dateipool. Liefert nur IDs und Metadaten, keine URLs.', [
                 'type' => 'object',
                 'properties' => ['query' => ['type' => 'string', 'maxLength' => 80]],
@@ -258,6 +276,7 @@ final class AssistantPageBuilderTools
             self::PREVIEW_TOOL => $this->preview($arguments, $safe),
             self::ANIMATION_TOOL => $this->animation($arguments, $safe),
             self::SAVE_TOOL => $this->save($safe),
+            self::REDESIGN_TOOL => $this->redesignDocument($arguments, $safe),
             default => $this->error('unknown_tool', 'Dieses PageBuilder-Tool ist nicht freigegeben.'),
         };
     }
@@ -297,7 +316,7 @@ final class AssistantPageBuilderTools
         if (! in_array($command, [
             'open_fullscreen', 'focus_selection', 'open_panel', 'edit_text', 'set_style',
             'replace_image', 'add_block', 'undo', 'redo', 'preview', 'restart_gif',
-            'set_animation', 'save',
+            'set_animation', 'save', 'redesign_document',
         ], true)) {
             return null;
         }
@@ -368,6 +387,12 @@ final class AssistantPageBuilderTools
                 return null;
             }
             $normalized += $motion;
+        } elseif ($command === 'redesign_document') {
+            $preset = $this->string($effect['preset'] ?? null);
+            if ($mode !== 'marketing' || ! in_array($preset, self::MARKETING_PRESETS, true)) {
+                return null;
+            }
+            $normalized['preset'] = $preset;
         }
 
         return $normalized;
@@ -657,6 +682,23 @@ final class AssistantPageBuilderTools
         return $this->scheduled('save', [], $safe, false, 'Der aktuelle Arbeitsstand wird nach Bestätigung gespeichert. Es erfolgt keine Veröffentlichung oder Freigabe.');
     }
 
+    /** @param array<string, mixed> $arguments @param array<string, mixed> $safe */
+    private function redesignDocument(array $arguments, array $safe): array
+    {
+        $preset = $this->string($arguments['preset'] ?? null);
+        if ($safe['mode'] !== 'marketing' || ! in_array($preset, self::MARKETING_PRESETS, true)) {
+            return $this->error('invalid_redesign_preset', 'Dieses vollständige RailTime-Design ist nicht freigegeben.');
+        }
+
+        return $this->scheduled(
+            'redesign_document',
+            ['preset' => $preset],
+            $safe,
+            false,
+            'Das RailTime-Modern-Redesign für Story, Post und Web wird nach Bestätigung vollständig angewendet.',
+        );
+    }
+
     /**
      * @param  array<string, mixed>  $payload
      * @param  array<string, mixed>  $safe
@@ -888,6 +930,7 @@ final class AssistantPageBuilderTools
             'restart_gif' => 'gif_preview',
             'set_animation' => 'animation',
             'save' => 'save',
+            'redesign_document' => 'redesign_document',
             default => '',
         };
 

@@ -406,6 +406,16 @@ class EmailTemplateBuilder
         ])->render());
     }
 
+    /**
+     * Setzt Platzhalter ein und loest dabei {{RESPONSIVE_CSS}} auf.
+     *
+     * ACHTUNG BEI DER REIHENFOLGE: Die Umbruchregeln brauchen die Farbe der
+     * Trennlinie, und aufgeloest werden sie im ERSTEN Durchgang, der auf
+     * {{RESPONSIVE_CSS}} trifft. Wer mehrfach substituiert, muss
+     * SIGNATURE_BORDER also schon im ersten Aufruf mitgeben — sonst greift
+     * still die Ersatzfarbe und die gestapelte Trennlinie steht im dunklen
+     * Motiv hellgrau auf fast schwarzem Grund.
+     */
     protected function substitute(string $template, array $values): string
     {
         $values['RESPONSIVE_CSS'] ??= static::responsiveCss($values['SIGNATURE_BORDER'] ?? null);
@@ -638,8 +648,10 @@ class EmailTemplateBuilder
         // Ersetzungsdurchgaenge darunter bleiben deshalb unveraendert.
         $html = self::publishedDocument(MailDocumentKind::Template)
             ?? (string) file_get_contents(self::masterPath('email-master.html'));
-        $html = $this->substitute($html, $this->escapeForHtml($values));
+        // Motivfarben ZUERST: der erste Durchgang loest {{RESPONSIVE_CSS}}
+        // auf und braucht dafuer SIGNATURE_BORDER (siehe substitute()).
         $html = $this->substitute($html, self::emailThemeValues($theme));
+        $html = $this->substitute($html, $this->escapeForHtml($values));
 
         // Das RT-Zeichen oben rechts. Es steht bewusst NUR hier: die
         // Signatur darunter traegt den Schriftzug, zusammen ergeben beide
@@ -724,6 +736,9 @@ class EmailTemplateBuilder
     {
         $theme = str_contains($master, 'dark') ? 'dark' : 'light';
         $html = file_get_contents(self::masterPath($master));
+        // Motivfarben ZUERST, siehe substitute(): sonst bekommen die
+        // Umbruchregeln die Ersatzfarbe statt der Motivfarbe.
+        $html = $this->substitute($html, self::emailThemeValues($theme));
         $html = $this->substitute($html, $this->escapeForHtml($this->profileValues()));
 
         // Dieselbe Quelle wie Vorlage und Systemmail — nur enger gesetzt und

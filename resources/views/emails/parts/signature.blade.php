@@ -43,30 +43,39 @@
     $cellPadding = $isOutlookExport ? '0' : $padding;
     $outlookTrainPadding = $outlookTrainPadding ?? '6px 0 14px';
     $hasPerson = trim((string) ($values['VORNAME_NACHNAME'] ?? '')) !== '';
+    $pflichtangaben = implode(' · ', array_filter([
+        ($values['GESCHAEFTSFUEHRUNG'] ?? '') !== '' ? 'Geschäftsführung: '.$values['GESCHAEFTSFUEHRUNG'] : '',
+        ($values['REGISTERGERICHT'] ?? '') !== '' ? 'Registergericht: '.$values['REGISTERGERICHT'] : '',
+        ($values['HRB'] ?? '') !== '' ? 'HRB '.$values['HRB'] : '',
+        ($values['UST_ID'] ?? '') !== '' ? 'USt-IdNr. '.$values['UST_ID'] : '',
+        ($values['STEUERNUMMER'] ?? '') !== '' ? 'Steuernummer '.$values['STEUERNUMMER'] : '',
+    ]));
     $hasIdleTrain = ! $isOutlookExport && $values['TRAIN_IDLE_SRC'] !== '';
     $trainBackgroundPosition = $hasIdleTrain
         ? 'center center,left bottom,left bottom'
         : 'center center,left bottom';
-    // Der Streifen ist rund ein Sechstel flacher als vorher. Der Zug geht
-    // im selben Verhaeltnis zurueck (86 % -> 80 %), damit er Hintergrund
-    // bleibt. Weiter herunter darf er nicht: die Rauchschrift ueber dem
-    // Schornstein muss lesbar bleiben, und sie skaliert mit.
     $trainBackgroundSize = $hasIdleTrain
-        ? '100% 100%,80% auto,80% auto'
-        : '100% 100%,80% auto';
+        ? '100% 100%,86% auto,86% auto'
+        : '100% 100%,86% auto';
 @endphp
 <tr>
     {{-- Reihenfolge beachten: die background-Kurzform setzt background-image
          zurueck und muss deshalb VOR der Bildangabe stehen. Clients ohne
          CSS-Hintergrundbilder (Outlook-Desktop, Gmail bei data-URIs) zeigen
          schlicht die Farbflaeche — es geht kein Inhalt verloren. --}}
-    <td class="rt-pad rt-sign-cell" bgcolor="{{ $values['SIGNATURE_BG'] }}" style="padding:{{ $cellPadding }};background:{{ $values['SIGNATURE_BG'] }};@unless($isOutlookExport)background-image:linear-gradient({{ $values['SIGNATURE_TRAIN_WASH'] }},{{ $values['SIGNATURE_TRAIN_WASH'] }}),url('{{ $values['TRAIN_SRC'] }}')@if($hasIdleTrain),url('{{ $values['TRAIN_IDLE_SRC'] }}')@endif;background-repeat:no-repeat;background-position:{{ $trainBackgroundPosition }};background-size:{{ $trainBackgroundSize }};@endunless{{ $topRule }}">
+    <td class="{{ $isOutlookExport ? '' : 'rt-pad ' }}rt-sign-cell" bgcolor="{{ $values['SIGNATURE_BG'] }}" style="padding:{{ $cellPadding }};background:{{ $values['SIGNATURE_BG'] }};@unless($isOutlookExport)background-image:linear-gradient({{ $values['SIGNATURE_TRAIN_WASH'] }},{{ $values['SIGNATURE_TRAIN_WASH'] }}),url('{{ $values['TRAIN_SRC'] }}')@if($hasIdleTrain),url('{{ $values['TRAIN_IDLE_SRC'] }}')@endif;background-repeat:no-repeat;background-position:{{ $trainBackgroundPosition }};background-size:{{ $trainBackgroundSize }};@endunless{{ $topRule }}">
         @if($isOutlookExport)
             {{-- Der Inhalt behaelt seinen gewohnten Innenabstand, waehrend
                  die nachfolgende Zugzeile bis an die Signaturkante reicht. --}}
             <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">
                 <tr>
-                    <td style="padding:{{ $padding }};">
+                    {{-- .rt-pad gehoert HIER hin, nicht an die aeussere Zelle:
+                         dort steht im Outlook-Zweig padding:0, damit die
+                         Zugzeile bis an die Kante reicht. Sass die Klasse
+                         oben, verkleinerten die Umbruchregeln die Null und
+                         diese 36 px blieben stehen — der Block war schmal
+                         doppelt eingerueckt (24+36 statt 24). --}}
+                    <td class="rt-pad" style="padding:{{ $padding }};">
         @endif
         <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">
             <tr class="rt-stack">
@@ -150,7 +159,11 @@
 </tr>
 <tr>
     <td class="rt-pad" bgcolor="{{ $values['SIGNATURE_LEGAL_BG'] }}" style="padding:{{ $legalPadding }};background:{{ $values['SIGNATURE_LEGAL_BG'] }};color:{{ $values['SIGNATURE_LEGAL_TEXT'] }};font-size:9px;line-height:15px;">
-        Geschäftsführung: {{ $values['GESCHAEFTSFUEHRUNG'] }} · Registergericht: {{ $values['REGISTERGERICHT'] }} · HRB {{ $values['HRB'] }} · USt-IdNr. {{ $values['UST_ID'] }} · Steuernummer {{ $values['STEUERNUMMER'] }}<br>
+        {{-- Beschriftung und Wert gehoeren zusammen: eine nicht gepflegte
+             Angabe faellt samt ihrer Beschriftung weg. Vorher endete die
+             Zeile in jeder Mail auf ein blankes "Steuernummer", weil die
+             Vorgabe dafuer leer ist. --}}
+        {{ $pflichtangaben }}<br>
         Diese E-Mail kann vertrauliche Informationen enthalten. Sollten Sie nicht der vorgesehene Empfänger sein, informieren Sie bitte den Absender und löschen Sie diese Nachricht.
     </td>
 </tr>

@@ -72,6 +72,7 @@ class CreativeEditor extends Component
             'logoDarkUrl' => asset('rt-brand/img/logo-horizontal-darkbg.png'),
             'endpoints' => [
                 'creativeUpdate' => route('admin.marketing.creatives.update', $creative),
+                'redesign' => route('admin.marketing.creatives.redesign', $creative),
                 'variantUpdate' => route('admin.marketing.variants.update', [$creative, '__FORMAT__']),
                 'renderStore' => route('admin.marketing.renders.store', $creative),
                 'renderShow' => route('admin.marketing.renders.show', '__RENDER__'),

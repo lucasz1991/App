@@ -2620,6 +2620,7 @@ export function createLmzAssistantAdapter({
     assets = [],
     availableBlockIds = [],
     save = null,
+    redesignDocument = null,
     fingerprint = assistantFingerprint,
 } = {}) {
     const rootElement = asElement(root);
@@ -2636,7 +2637,11 @@ export function createLmzAssistantAdapter({
     const capabilities = [
         'open_fullscreen', 'open_panel', 'focus_selection', 'edit_text', 'set_style',
         'add_block', 'undo', 'redo', 'preview', 'save', 'gif_preview',
-        ...(normalizedMode === 'marketing' ? ['replace_image', 'animation'] : []),
+        ...(normalizedMode === 'marketing' ? [
+            'replace_image',
+            'animation',
+            ...(typeof redesignDocument === 'function' ? ['redesign_document'] : []),
+        ] : []),
     ];
     const createWindowEvent = (name, detail) => {
         const EventConstructor = window_?.CustomEvent || globalThis.CustomEvent;
@@ -2806,14 +2811,23 @@ export function createLmzAssistantAdapter({
             applyMotionSettings(component, { [field]: value });
             return true;
         },
+        async redesignDocument(preset) {
+            if (normalizedMode !== 'marketing'
+                || typeof redesignDocument !== 'function'
+                || preset !== 'railtime_modern') return false;
+            return redesignDocument(preset);
+        },
         async save() { return typeof save === 'function' ? Boolean(await save()) : Boolean(await instance.save?.('manual')); },
-        destroy() {
-            if (destroyed) return;
-            destroyed = true;
-            editor.off?.('update', onUpdate);
-            editor.off?.('component:selected', onSelected);
-            editor.off?.('component:deselected', onSelected);
-            dispatchWindowEvent('railtime-pagebuilder-adapter-unregister', { adapter });
+        destroy({ keepRegistered = false } = {}) {
+            if (!destroyed) {
+                destroyed = true;
+                editor.off?.('update', onUpdate);
+                editor.off?.('component:selected', onSelected);
+                editor.off?.('component:deselected', onSelected);
+            }
+            if (!keepRegistered) {
+                dispatchWindowEvent('railtime-pagebuilder-adapter-unregister', { adapter });
+            }
         },
     };
     dispatchWindowEvent('railtime-pagebuilder-adapter-register', { adapter });

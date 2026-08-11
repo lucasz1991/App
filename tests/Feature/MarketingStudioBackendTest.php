@@ -10,6 +10,10 @@ use App\Http\Controllers\Admin\MarketingCreativeController;
 use App\Jobs\RenderMarketingCreative;
 use App\Models\MarketingCreative;
 use App\Models\User;
+use App\Services\Ai\AssistantKnowledgeToolRunner;
+use App\Services\Ai\OpenRouterChatClient;
+use App\Services\Ai\OpenRouterModelProfile;
+use App\Services\Ai\OpenRouterToolDecision;
 use App\Services\Marketing\MarketingHtmlSanitizer;
 use App\Services\Marketing\MarketingRenderService;
 use App\Services\Marketing\MarketingStudioService;
@@ -271,6 +275,360 @@ class MarketingStudioBackendTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['expected_hashes.story']);
         $this->assertSame('Aktualisierter Service', $creative->fresh()->title);
+    }
+
+    public function test_complete_redesign_uses_all_format_cas_preserves_content_and_resets_approval_with_one_audit_entry(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $studio = app(MarketingStudioService::class);
+        $creative = $studio->createFromTemplate(MarketingCreativeType::Job, $admin);
+        $creative = $studio->updateSharedContent(
+            $creative,
+            ['title' => 'Wagenmeister Zukunft 24/7'],
+            $admin,
+            $this->variantHashes($creative),
+            'RailTime Zukunftskampagne',
+        );
+
+        foreach ($creative->variants as $variant) {
+            $customHtml = str_replace(
+                '</main>',
+                '<section data-test-custom-layout="true">Individuelles Altlayout</section></main>',
+                $variant->html,
+            );
+            $this->assertNotSame($variant->html, $customHtml);
+            $builderData = $variant->builder_data;
+            $builderData['pages'][0]['component'] = $customHtml;
+            $studio->saveVariant(
+                $creative,
+                $variant->format,
+                $builderData,
+                $customHtml,
+                $variant->css,
+                $variant->content_hash,
+                $admin,
+            );
+        }
+
+        $approved = $studio->approve($creative->fresh(), $admin)->fresh(['variants']);
+        $sharedContent = $approved->shared_content;
+        $beforeVersions = $approved->variants->mapWithKeys(
+            fn ($variant): array => [$variant->format->value => $variant->version],
+        )->all();
+        $beforeHashes = $this->variantHashes($approved);
+
+        $result = $studio->redesignFromPreset(
+            $approved,
+            'railtime_modern',
+            $beforeHashes,
+            $admin,
+        );
+        $redesigned = $result['creative'];
+
+        $this->assertTrue($result['changed']);
+        $this->assertSame('railtime_modern', $result['preset']);
+        $this->assertSame(MarketingCreativeStatus::Draft, $redesigned->status);
+        $this->assertNull($redesigned->approved_by);
+        $this->assertNull($redesigned->approved_at);
+        $this->assertNull($redesigned->approval_dependency_hash);
+        $this->assertSame($admin->id, $redesigned->updated_by);
+        $this->assertSame($sharedContent, $redesigned->shared_content);
+        $this->assertSame('Wagenmeister Zukunft 24/7', $redesigned->shared_content['title']);
+
+        foreach (MarketingCreativeFormat::cases() as $format) {
+            $variant = $redesigned->variants->firstWhere('format', $format);
+            $this->assertNotNull($variant);
+            $this->assertSame($beforeVersions[$format->value] + 1, $variant->version);
+            $this->assertNotSame($beforeHashes[$format->value], $variant->content_hash);
+            $this->assertSame('railtime_modern', $variant->builder_data['railtime']['design_preset']);
+            $this->assertStringContainsString('Wagenmeister Zukunft 24/7', $variant->html);
+            $this->assertStringContainsString('data-rt-brand-lockup="official"', $variant->html);
+            $this->assertStringNotContainsString('data-test-custom-layout', $variant->html);
+        }
+
+        $activity = Activity::query()
+            ->where('log_name', 'marketing')
+            ->where('description', 'marketing_creative_redesigned')
+            ->sole();
+        $this->assertSame($redesigned->id, $activity->subject_id);
+        $this->assertSame($admin->id, $activity->causer_id);
+        $this->assertSame('railtime_modern', $activity->properties->get('preset'));
+        $this->assertSame(['story', 'post', 'web'], $activity->properties->get('formats'));
+
+        $afterVersions = $redesigned->variants->mapWithKeys(
+            fn ($variant): array => [$variant->format->value => $variant->version],
+        )->all();
+        $unchanged = $studio->redesignFromPreset(
+            $redesigned,
+            'railtime_modern',
+            $this->variantHashes($redesigned),
+            $admin,
+        );
+        $this->assertFalse($unchanged['changed']);
+        $this->assertSame($afterVersions, $unchanged['creative']->variants->mapWithKeys(
+            fn ($variant): array => [$variant->format->value => $variant->version],
+        )->all());
+        $this->assertSame(1, Activity::query()->where('description', 'marketing_creative_redesigned')->count());
+
+        $approvedModern = $studio->approve($unchanged['creative'], $admin)->fresh(['variants']);
+        $approvedModernVersions = $approvedModern->variants->mapWithKeys(
+            fn ($variant): array => [$variant->format->value => $variant->version],
+        )->all();
+        $approvalOnlyReset = $studio->redesignFromPreset(
+            $approvedModern,
+            'railtime_modern',
+            $this->variantHashes($approvedModern),
+            $admin,
+        );
+
+        $this->assertTrue($approvalOnlyReset['changed']);
+        $this->assertSame(MarketingCreativeStatus::Draft, $approvalOnlyReset['creative']->status);
+        $this->assertNull($approvalOnlyReset['creative']->approved_by);
+        $this->assertNull($approvalOnlyReset['creative']->approved_at);
+        $this->assertNull($approvalOnlyReset['creative']->approval_dependency_hash);
+        $this->assertSame($approvedModernVersions, $approvalOnlyReset['creative']->variants->mapWithKeys(
+            fn ($variant): array => [$variant->format->value => $variant->version],
+        )->all());
+        $this->assertSame(2, Activity::query()->where('description', 'marketing_creative_redesigned')->count());
+
+        $finalUnchanged = $studio->redesignFromPreset(
+            $approvalOnlyReset['creative'],
+            'railtime_modern',
+            $this->variantHashes($approvalOnlyReset['creative']),
+            $admin,
+        );
+        $this->assertFalse($finalUnchanged['changed']);
+        $this->assertSame(2, Activity::query()->where('description', 'marketing_creative_redesigned')->count());
+
+        $story = $finalUnchanged['creative']->variants->firstWhere('format', MarketingCreativeFormat::Story);
+        $builderData = $story->builder_data;
+        $builderData['railtime']['provider_injected'] = 'muss entfernt werden';
+        $savedStory = $studio->saveVariant(
+            $finalUnchanged['creative'],
+            MarketingCreativeFormat::Story,
+            $builderData,
+            $story->html,
+            $story->css,
+            $story->content_hash,
+            $admin,
+        );
+        $this->assertSame('railtime_modern', $savedStory->builder_data['railtime']['design_preset']);
+        $this->assertArrayNotHasKey('provider_injected', $savedStory->builder_data['railtime']);
+    }
+
+    public function test_complete_redesign_rolls_back_atomically_for_a_stale_format_and_denies_archived_creatives(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $studio = app(MarketingStudioService::class);
+        $approved = $studio->approve(
+            $studio->createFromTemplate(MarketingCreativeType::Info, $admin),
+            $admin,
+        )->fresh(['variants']);
+        $beforeHashes = $this->variantHashes($approved);
+        $beforeVersions = $approved->variants->mapWithKeys(
+            fn ($variant): array => [$variant->format->value => $variant->version],
+        )->all();
+        $staleHashes = $beforeHashes;
+        $staleHashes['web'] = ($staleHashes['web'][0] === 'a' ? 'b' : 'a').substr($staleHashes['web'], 1);
+
+        try {
+            $studio->redesignFromPreset($approved, 'railtime_modern', $staleHashes, $admin);
+            $this->fail('Ein Redesign mit einem veralteten Web-Hash durfte nicht ausgeführt werden.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('expected_hashes.web', $exception->errors());
+        }
+
+        $afterConflict = $approved->fresh(['variants']);
+        $this->assertSame(MarketingCreativeStatus::Approved, $afterConflict->status);
+        $this->assertNotNull($afterConflict->approved_at);
+        $this->assertSame($beforeHashes, $this->variantHashes($afterConflict));
+        $this->assertSame($beforeVersions, $afterConflict->variants->mapWithKeys(
+            fn ($variant): array => [$variant->format->value => $variant->version],
+        )->all());
+        $this->assertDatabaseMissing('activity_log', ['description' => 'marketing_creative_redesigned']);
+
+        $archived = $studio->archive($afterConflict, $admin)->fresh(['variants']);
+        try {
+            $studio->redesignFromPreset(
+                $archived,
+                'railtime_modern',
+                $this->variantHashes($archived),
+                $admin,
+            );
+            $this->fail('Ein archiviertes Motiv durfte nicht neu gestaltet werden.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('creative', $exception->errors());
+        }
+
+        $this->assertSame(MarketingCreativeStatus::Archived, $archived->fresh()->status);
+        $this->assertSame($beforeHashes, $this->variantHashes($archived->fresh(['variants'])));
+        $this->assertDatabaseMissing('activity_log', ['description' => 'marketing_creative_redesigned']);
+    }
+
+    public function test_complete_redesign_route_is_admin_only_and_returns_all_three_fresh_variants(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $staff = User::factory()->create(['role' => 'staff']);
+        $creative = app(MarketingStudioService::class)
+            ->createFromTemplate(MarketingCreativeType::Job, $admin);
+        $payload = [
+            'preset' => 'railtime_modern',
+            'expected_hashes' => $this->variantHashes($creative),
+        ];
+
+        $this->actingAs($staff)
+            ->postJson(route('admin.marketing.creatives.redesign', $creative), $payload)
+            ->assertForbidden();
+
+        $this->actingAs($admin)
+            ->postJson(route('admin.marketing.creatives.redesign', $creative), $payload)
+            ->assertOk()
+            ->assertJsonPath('changed', true)
+            ->assertJsonPath('preset', 'railtime_modern')
+            ->assertJsonPath('creative.status', 'draft')
+            ->assertJsonStructure([
+                'variants' => [
+                    'story' => ['builder_data', 'content_hash', 'version'],
+                    'post' => ['builder_data', 'content_hash', 'version'],
+                    'web' => ['builder_data', 'content_hash', 'version'],
+                ],
+            ]);
+    }
+
+    public function test_clear_complete_redesign_intent_bypasses_the_provider_once_while_design_advice_uses_it(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $creative = app(MarketingStudioService::class)
+            ->createFromTemplate(MarketingCreativeType::Job, $admin);
+        $story = $creative->variants->firstWhere('format', MarketingCreativeFormat::Story);
+        $context = $this->marketingAssistantContext($creative, $story);
+        $client = new class extends OpenRouterChatClient
+        {
+            public int $toolDecisions = 0;
+
+            public function __construct() {}
+
+            public function completeToolDecision(
+                array $messages,
+                array $tools,
+                OpenRouterModelProfile $profile = OpenRouterModelProfile::Text,
+                array $plugins = [],
+            ): OpenRouterToolDecision {
+                $this->toolDecisions++;
+
+                return new OpenRouterToolDecision('Provider-Designrat', []);
+            }
+        };
+        $runner = app(AssistantKnowledgeToolRunner::class);
+        $effects = [];
+        $deltas = [];
+
+        $answer = $runner->answer(
+            $client,
+            [['role' => 'user', 'content' => 'Redesign des kompletten Entwurfes bitte jetzt machen !!!']],
+            function (string $delta) use (&$deltas): void {
+                $deltas[] = $delta;
+            },
+            $admin,
+            'admin.marketing.creatives.editor',
+            [],
+            function (array $effect) use (&$effects): void {
+                $effects[] = $effect;
+            },
+            $context,
+        );
+
+        $this->assertSame(0, $client->toolDecisions);
+        $this->assertCount(1, $effects);
+        $this->assertSame('redesign_document', $effects[0]['command']);
+        $this->assertSame('railtime_modern', $effects[0]['preset']);
+        $this->assertStringContainsString('komplette RailTime-Modern-Redesign', $answer);
+        $this->assertSame([$answer], $deltas);
+
+        $effects = [];
+        $deltas = [];
+        $followUp = $runner->answer(
+            $client,
+            [
+                ['role' => 'user', 'content' => 'Komplettes Design neu machen, komplettes Redesign bitte.'],
+                ['role' => 'assistant', 'content' => 'Gerne. Soll es modern, klassisch oder technisch werden?'],
+                ['role' => 'user', 'content' => 'modern'],
+                ['role' => 'assistant', 'content' => 'Alles klar: modern. Ich richte Farben, Typografie und Hierarchie passend aus.'],
+                ['role' => 'user', 'content' => 'Wie die RailTime-Website von den Farben und vom Layout her, aber mit eigenem Design.'],
+                ['role' => 'assistant', 'content' => 'Gerne. Ich kann die Bereiche jetzt im Editor modern gestalten. Wenn du möchtest, setze ich als Nächstes den Entwurf gezielt um.'],
+                ['role' => 'user', 'content' => 'ja bitte komplett umsetzen bitte'],
+            ],
+            function (string $delta) use (&$deltas): void {
+                $deltas[] = $delta;
+            },
+            $admin,
+            'admin.marketing.creatives.editor',
+            [],
+            function (array $effect) use (&$effects): void {
+                $effects[] = $effect;
+            },
+            $context,
+        );
+
+        $this->assertSame(0, $client->toolDecisions);
+        $this->assertCount(1, $effects);
+        $this->assertSame('redesign_document', $effects[0]['command']);
+        $this->assertStringContainsString('komplette RailTime-Modern-Redesign', $followUp);
+        $this->assertSame([$followUp], $deltas);
+
+        foreach ([
+            [['role' => 'user', 'content' => 'Mach kein komplettes Redesign, bitte nur beraten.']],
+            [['role' => 'user', 'content' => 'Das komplette Redesign bitte nicht umsetzen.']],
+            [['role' => 'user', 'content' => 'Do not implement a complete redesign.']],
+            [['role' => 'user', 'content' => 'Welche Risiken hat ein komplettes Redesign?']],
+            [['role' => 'user', 'content' => 'Wie kann man ein komplettes Redesign umsetzen?']],
+            [['role' => 'user', 'content' => 'Der Kunde schrieb: „Redesign des kompletten Entwurfes bitte jetzt machen!“ Was bedeutet das?']],
+        ] as $providerMessages) {
+            $effects = [];
+            $deltas = [];
+            $providerAnswer = $runner->answer(
+                $client,
+                $providerMessages,
+                function (string $delta) use (&$deltas): void {
+                    $deltas[] = $delta;
+                },
+                $admin,
+                'admin.marketing.creatives.editor',
+                [],
+                function (array $effect) use (&$effects): void {
+                    $effects[] = $effect;
+                },
+                $context,
+            );
+
+            $this->assertSame('Provider-Designrat', $providerAnswer);
+            $this->assertSame(['Provider-Designrat'], $deltas);
+            $this->assertSame([], $effects);
+        }
+
+        $this->assertSame(6, $client->toolDecisions);
+
+        $effects = [];
+        $deltas = [];
+        $advice = $runner->answer(
+            $client,
+            [['role' => 'user', 'content' => 'Welche modernen Designprinzipien empfiehlst du für dieses Motiv?']],
+            function (string $delta) use (&$deltas): void {
+                $deltas[] = $delta;
+            },
+            $admin,
+            'admin.marketing.creatives.editor',
+            [],
+            function (array $effect) use (&$effects): void {
+                $effects[] = $effect;
+            },
+            $context,
+        );
+
+        $this->assertSame(7, $client->toolDecisions);
+        $this->assertSame('Provider-Designrat', $advice);
+        $this->assertSame(['Provider-Designrat'], $deltas);
+        $this->assertSame([], $effects);
     }
 
     public function test_variant_save_sanitizes_active_content_and_rejects_a_stale_hash(): void
@@ -587,6 +945,30 @@ class MarketingStudioBackendTest extends TestCase
             'story' => $variants->firstWhere('format', MarketingCreativeFormat::Story)->content_hash,
             'post' => $variants->firstWhere('format', MarketingCreativeFormat::Post)->content_hash,
             'web' => $variants->firstWhere('format', MarketingCreativeFormat::Web)->content_hash,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function marketingAssistantContext(MarketingCreative $creative, mixed $variant): array
+    {
+        return [
+            'version' => 1,
+            'route_name' => 'admin.marketing.creatives.editor',
+            'mode' => 'marketing',
+            'resource_id' => (string) $creative->public_id,
+            'format_or_kind' => $variant->format->value,
+            'workspace_nonce' => 'workspace_redesign_test_2026',
+            'fullscreen_open' => true,
+            'editor_ready' => true,
+            'read_only' => false,
+            'persisted_content_hash' => (string) $variant->content_hash,
+            'persisted_version' => (int) $variant->version,
+            'client_revision' => 0,
+            'unsaved' => false,
+            'selection' => null,
+            'capabilities' => ['open_fullscreen', 'save', 'redesign_document'],
+            'available_block_ids' => [],
+            'validation' => ['state' => 'valid', 'issues' => []],
         ];
     }
 

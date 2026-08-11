@@ -4,7 +4,6 @@
     // Palette, gleiche Breite, gleiche mobile Umbruchregeln. Die Farbwerte
     // kommen aus derselben Quelle wie dort.
     $palette = \App\Support\EmailTemplateBuilder::emailThemeValues('light');
-    $publishedSignatureCss = \App\Support\MailSignature::forCompany()->publishedCss();
 @endphp
 <!doctype html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
@@ -27,12 +26,12 @@ a { color: inherit; }
 {{-- Umbruchregeln aus derselben Quelle wie die herunterladbare Vorlage und
      die Signaturdateien — sonst laufen sie wieder auseinander. --}}
 @include('emails.parts.responsive-css', ['border' => $palette['SIGNATURE_BORDER']])
-@if($publishedSignatureCss !== '')
-{{-- Separates Builder-CSS gehoert in den Dokumentkopf, niemals zwischen die
-     Tabellenzeilen des Signaturfragments. Der Inhalt wurde serverseitig
-     gehaertet; Profiltexte werden fuer CSS nicht eingesetzt. --}}
-{!! $publishedSignatureCss !!}
-@endif
+{{-- KEIN freigegebenes Editor-CSS an dieser Stelle. Die Fusszeile rendert
+     hier immer die BLADE-Quelle, weil die Systemmail den Zug als Bildzeile
+     braucht (Begruendung in App\Support\MailSignature::render()). Das
+     freigegebene CSS ist aber gegen das freigegebene MARKUP geschrieben —
+     eingebunden laege es auf einem anderen Stand und koennte Abstaende und
+     Farben verschieben, die es gar nicht meint. --}}
 </style>
 </head>
 <body data-rt-theme="{{ $palette['THEME'] }}" bgcolor="{{ $palette['PAGE_BG'] }}" style="margin:0;padding:0;background:{{ $palette['PAGE_BG'] }};color:{{ $palette['TEXT_PRIMARY'] }};font-family:Arial,Helvetica,sans-serif;word-spacing:normal;">

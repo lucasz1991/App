@@ -145,15 +145,21 @@ class MailDocumentEditorTest extends TestCase
         // CSS steht in den echten Dokumentkoepfen, nicht im <tr>-Fragment.
         $this->assertStringContainsString('data-rt-mail-document-css="signature"', $template);
         $this->assertStringContainsString('.rt-sign-name{letter-spacing:0;}', $standalone);
-        $this->assertStringContainsString('.rt-sign-name{letter-spacing:0;}', $systemMail);
         $this->assertStringNotContainsString('<style', $systemSignature);
         $this->assertLessThan(stripos($standalone, '</head>'), stripos($standalone, 'data-rt-mail-document-css="signature"'));
-        $this->assertLessThan(stripos($systemMail, '</head>'), stripos($systemMail, '.rt-sign-name{letter-spacing:0;}'));
+
+        // DIE SYSTEMMAIL BEKOMMT KEIN FREIGEGEBENES CSS. Ihre Fusszeile
+        // rendert immer die Blade-Quelle, weil sie den Zug als Bildzeile
+        // braucht (Begruendung in MailSignature::render). Das freigegebene
+        // CSS ist gegen das freigegebene MARKUP geschrieben — eingebunden
+        // laege es auf einem anderen Stand.
+        $this->assertStringNotContainsString('.rt-sign-name{letter-spacing:0;}', $systemMail);
+        $this->assertStringNotContainsString('RT-SIGNATUR', $systemMail);
 
         // Nur die bekannten Starterabstaende werden fuer den eigenstaendigen
         // Download auf den kompakten Vertrag abgebildet.
-        $this->assertStringContainsString('padding:18px 30px 24px;', $standalone);
-        $this->assertStringContainsString('padding:13px 30px;', $standalone);
+        $this->assertStringContainsString('padding:16px 28px 18px;', $standalone);
+        $this->assertStringContainsString('padding:11px 28px;', $standalone);
         $this->assertStringNotContainsString('border-top:5px solid #e4002b;', $standalone);
 
         $outlookMethod = new \ReflectionMethod($builder, 'buildOutlookSignatureHtml');
@@ -215,9 +221,9 @@ class MailDocumentEditorTest extends TestCase
         $this->seedDocuments();
         $signature = $this->document(MailDocumentKind::Signature);
         $custom = strtr((string) $signature->html, [
-            'padding:20px 38px 28px;' => 'padding:21px 41px 29px;',
+            'padding:18px 36px 20px;' => 'padding:21px 41px 29px;',
             'border-top:5px solid #e4002b;' => 'border-top:7px solid #123456;',
-            'padding:18px 38px;' => 'padding:19px 41px;',
+            'padding:14px 36px;' => 'padding:19px 41px;',
         ]);
         $signature->forceFill([
             'published_html' => $custom,
@@ -260,7 +266,9 @@ class MailDocumentEditorTest extends TestCase
             ->assertSee('data-mail-toolbar-region="actions"', escape: false)
             ->assertSee('data-mail-document-status', escape: false)
             ->assertSee('data-mail-document-publish', escape: false)
-            ->assertSee(route('admin.mail-documents.editor', ['dokument' => 'signature', 'open' => 1]), escape: false)
+            // OHNE escape: false — Blade escaped das Trennzeichen & der
+            // Query im href zu &amp;. Die rohe URL steht so nie im Markup.
+            ->assertSee(route('admin.mail-documents.editor', ['dokument' => 'signature', 'open' => 1]))
             ->assertSee('data-mail-document-back', escape: false)
             ->assertSee('data-mail-theme-button="light"', escape: false)
             ->assertSee('data-mail-theme-button="dark"', escape: false)

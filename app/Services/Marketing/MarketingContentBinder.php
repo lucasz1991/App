@@ -53,6 +53,10 @@ final class MarketingContentBinder
         }
 
         $metadata = is_array($builderData['railtime'] ?? null) ? $builderData['railtime'] : [];
+        $safeMetadata = array_intersect_key($metadata, array_flip(['template', 'format', 'schema']));
+        if (($metadata['design_preset'] ?? null) === 'railtime_modern') {
+            $safeMetadata['design_preset'] = 'railtime_modern';
+        }
 
         return [
             'pages' => [[
@@ -61,7 +65,7 @@ final class MarketingContentBinder
             ]],
             // CSS wird ausschließlich aus der separat sanitisierten CSS-Spalte geladen.
             'styles' => [],
-            'railtime' => array_intersect_key($metadata, array_flip(['template', 'format', 'schema'])),
+            'railtime' => $safeMetadata,
         ];
     }
 

@@ -7,6 +7,7 @@ use App\Models\UserProfile;
 use App\Support\CompanyData;
 use App\Support\EmailTemplateBuilder;
 use App\Support\PageHelpCatalog;
+use Database\Seeders\MailDocumentSeeder;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\File;
 use Tests\Support\BuildsMinimalRailTimeSchema;
@@ -126,13 +127,22 @@ class EmailTemplatesPageTest extends TestCase
     {
         $admin = User::factory()->create(['role' => 'admin']);
 
+        // Die Vorschaukarten mit den Editor-Links haengen an ECHTEN Zeilen in
+        // mail_documents (die Seite prueft Schema::hasTable und die Sammlung).
+        // Die Tabelle gehoert nicht zum Minimalschema — hier kommt sie aus der
+        // echten Migration, damit Spalten und Test nicht auseinanderlaufen.
+        (include database_path('migrations/2026_08_09_000100_create_mail_documents_table.php'))->up();
+        (new MailDocumentSeeder)->run();
+
         $this->actingAs($admin)
             ->get(route('email-templates.index'))
             ->assertOk()
             ->assertSee(route('email-templates.index'), escape: false)
             ->assertSee(route('admin.mail-documents.editor', ['open' => 1]), escape: false)
-            ->assertSee(route('admin.mail-documents.editor', ['dokument' => 'template', 'open' => 1]), escape: false)
-            ->assertSee(route('admin.mail-documents.editor', ['dokument' => 'signature', 'open' => 1]), escape: false)
+            // OHNE escape: false — Blade escaped das Trennzeichen & der
+            // Query im href zu &amp;. Die rohe URL steht so nie im Markup.
+            ->assertSee(route('admin.mail-documents.editor', ['dokument' => 'template', 'open' => 1]))
+            ->assertSee(route('admin.mail-documents.editor', ['dokument' => 'signature', 'open' => 1]))
             ->assertSee('data-email-template-editor-link', escape: false)
             ->assertSee('Vorlagen &amp; Signaturen bearbeiten', escape: false)
             ->assertSee('data-menu-active="true"', escape: false);
@@ -225,7 +235,7 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertStringContainsString("url('".$train, $html, $template);
             $this->assertStringContainsString('background-repeat:no-repeat', $html, $template);
             $this->assertStringContainsString('background-position:center center,left bottom', $html, $template);
-            $this->assertStringContainsString('background-size:100% 100%,80% auto', $html, $template);
+            $this->assertStringContainsString('background-size:100% 100%,86% auto', $html, $template);
 
             // Die Kurzform background: setzt background-image zurueck — sie
             // muss deshalb VOR der Bildangabe stehen, sonst verschwindet der
@@ -343,9 +353,15 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertIsString($html);
             $this->assertStringContainsString('<img data-rt-outlook-train', $html);
             $this->assertStringContainsString("src=\"{$assetFolder}/zug-dampf.gif\"", $html);
-            $this->assertStringContainsString('class="rt-pad rt-sign-cell"', $html);
+            // OHNE rt-pad an der aeusseren Zelle: die traegt padding:0, damit
+            // die Zugzeile bis an die Kante reicht. Sass die Klasse dort,
+            // verkleinerten die Umbruchregeln die Null und der Innenabstand
+            // der inneren Zelle blieb zusaetzlich stehen — der Block war auf
+            // schmalen Schirmen doppelt eingerueckt (24+36 statt 24 px).
+            $this->assertStringContainsString('class="rt-sign-cell"', $html);
+            $this->assertStringNotContainsString('class="rt-pad rt-sign-cell"', $html);
             $this->assertStringContainsString('style="padding:0;background:', $html);
-            $this->assertStringContainsString('<td style="padding:16px 28px 0;">', $html);
+            $this->assertStringContainsString('<td class="rt-pad" style="padding:16px 28px 0;">', $html);
             $this->assertStringContainsString('<td align="left" style="padding:6px 0 14px;text-align:left;', $html);
             $this->assertStringContainsString('height:auto;margin:0;border:0;outline:none;', $html);
             $this->assertStringNotContainsString('data:image/gif;base64,', $html);
@@ -595,7 +611,7 @@ class EmailTemplatesPageTest extends TestCase
         $regeln = file_get_contents(resource_path('views/emails/parts/responsive-css.blade.php'));
 
         $this->assertStringContainsString(
-            '.rt-sign-cell { background-size: 100% 100%, 110% auto, 110% auto !important; }',
+            '.rt-sign-cell { background-size: 100% 100%, 125% auto, 125% auto !important; }',
             $regeln,
         );
         $this->assertStringContainsString('.rt-sign-logo { border-left: 0 !important;', $regeln);
@@ -718,7 +734,7 @@ class EmailTemplatesPageTest extends TestCase
             );
             $this->assertStringContainsString('data:image/png;base64,', $html);
             $this->assertStringContainsString('background-image:linear-gradient(rgba(', $html);
-            $this->assertStringContainsString('background-size:100% 100%,80% auto;', $html);
+            $this->assertStringContainsString('background-size:100% 100%,86% auto;', $html);
             $this->assertStringContainsString(
                 'class="rt-sign-logo" width="50%" valign="top"',
                 $html,

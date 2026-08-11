@@ -3,10 +3,13 @@
 namespace App\Services\Ai;
 
 use App\Models\User;
+use Illuminate\Support\Str;
 use JsonException;
 
 class AssistantKnowledgeToolRunner
 {
+    private const MARKETING_REDESIGN_TOOL = 'redesign_pagebuilder_document';
+
     public function __construct(
         private readonly AssistantKnowledgePool $knowledge,
         private readonly AssistantApplicationTools $applicationTools,
@@ -29,6 +32,18 @@ class AssistantKnowledgeToolRunner
         $tools = $this->toolDefinitions($user, $currentRoute);
         if ($tools === []) {
             return $client->stream($messages, $onDelta);
+        }
+
+        if ($this->requestsCompleteMarketingRedesign($messages, $tools, $currentRoute)) {
+            $answer = $this->executeCompleteMarketingRedesign(
+                $user,
+                $currentRoute,
+                $pageBuilderContext,
+                $onEffect,
+            );
+            $onDelta($answer);
+
+            return $answer;
         }
 
         $decision = $client->completeToolDecision($messages, $tools);
@@ -79,6 +94,18 @@ class AssistantKnowledgeToolRunner
         $tools = $this->toolDefinitions($user, $currentRoute);
         if ($tools === []) {
             return $client->complete($messages, $profile, $plugins);
+        }
+
+        if ($this->requestsCompleteMarketingRedesign($messages, $tools, $currentRoute)) {
+            return new OpenRouterChatResponse(
+                $this->executeCompleteMarketingRedesign(
+                    $user,
+                    $currentRoute,
+                    $pageBuilderContext,
+                    $onEffect,
+                ),
+                [],
+            );
         }
 
         $decision = $client->completeToolDecision($messages, $tools, $profile, $plugins);
@@ -278,6 +305,227 @@ class AssistantKnowledgeToolRunner
         }
 
         return array_values(array_unique($names));
+    }
+
+    /**
+     * A complete redesign is intentionally one deterministic, allowlisted
+     * document action. It must never depend on whether a provider happens to
+     * choose a tool or falls back to coaching prose.
+     *
+     * @param  array<int, array<string, mixed>>  $messages
+     * @param  array<int, array<string, mixed>>  $tools
+     */
+    private function requestsCompleteMarketingRedesign(array $messages, array $tools, string $currentRoute): bool
+    {
+        if ($currentRoute !== 'admin.marketing.creatives.editor'
+            || ! in_array(self::MARKETING_REDESIGN_TOOL, $this->toolNames($tools), true)) {
+            return false;
+        }
+
+        $conversation = [];
+        foreach ($messages as $message) {
+            $role = $message['role'] ?? null;
+            if (! in_array($role, ['user', 'assistant'], true)) {
+                continue;
+            }
+
+            $text = $this->messageText($message['content'] ?? '');
+            if (trim($text) === '') {
+                continue;
+            }
+
+            $conversation[] = ['role' => $role, 'text' => $text];
+        }
+
+        $latestIndex = array_key_last($conversation);
+        if ($latestIndex === null || $conversation[$latestIndex]['role'] !== 'user') {
+            return false;
+        }
+
+        $latestIntent = $this->normalizeIntentText($conversation[$latestIndex]['text']);
+        if ($this->isDirectCompleteRedesignCommand($latestIntent)) {
+            return true;
+        }
+
+        if (! $this->isAffirmativeImplementationFollowUp($latestIntent) || $latestIndex < 2) {
+            return false;
+        }
+
+        $previousAssistant = $conversation[$latestIndex - 1];
+        $previousUser = $conversation[$latestIndex - 2];
+        if ($previousAssistant['role'] !== 'assistant'
+            || $previousUser['role'] !== 'user'
+            || ! $this->assistantOffersImplementation($this->normalizeIntentText($previousAssistant['text']))) {
+            return false;
+        }
+
+        $lookbackStart = max(0, $latestIndex - 8);
+        for ($index = $latestIndex - 2; $index >= $lookbackStart; $index--) {
+            $entry = $conversation[$index];
+            $intent = $this->normalizeIntentText($entry['text']);
+
+            if ($entry['role'] === 'user' && $this->isDirectCompleteRedesignCommand($intent)) {
+                return true;
+            }
+
+            if ($entry['role'] === 'assistant'
+                && $this->hasWholeDocumentLanguage($intent)
+                && $this->hasRedesignLanguage($intent)
+                && ! $this->hasExplicitRedesignNegation($intent)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function messageText(mixed $content): string
+    {
+        if (is_string($content)) {
+            return $content;
+        }
+
+        if (! is_array($content)) {
+            return '';
+        }
+
+        $parts = [];
+        foreach ($content as $part) {
+            if (is_array($part) && ($part['type'] ?? null) === 'text' && is_string($part['text'] ?? null)) {
+                $parts[] = $part['text'];
+            }
+        }
+
+        return implode(' ', $parts);
+    }
+
+    private function normalizeIntentText(string $text): string
+    {
+        $withoutQuotes = preg_replace([
+            '/^\s*>.*$/mu',
+            '/"[^"\r\n]*"/u',
+            '/„[^“”\r\n]*[“”]/u',
+            '/“[^”\r\n]*”/u',
+            '/‘[^’\r\n]*’/u',
+            '/`[^`\r\n]*`/u',
+        ], ' ', mb_substr($text, 0, 1200));
+
+        return mb_strtolower(Str::ascii(Str::squish($withoutQuotes ?? $text)));
+    }
+
+    private function isDirectCompleteRedesignCommand(string $intent): bool
+    {
+        if ($intent === ''
+            || $this->hasExplicitRedesignNegation($intent)
+            || $this->asksForAdviceOrDiscussion($intent)) {
+            return false;
+        }
+
+        return $this->hasWholeDocumentLanguage($intent)
+            && $this->hasRedesignLanguage($intent)
+            && $this->hasImplementationLanguage($intent);
+    }
+
+    private function isAffirmativeImplementationFollowUp(string $intent): bool
+    {
+        if ($intent === ''
+            || mb_strlen($intent) > 320
+            || $this->hasExplicitRedesignNegation($intent)
+            || $this->asksForAdviceOrDiscussion($intent)) {
+            return false;
+        }
+
+        $affirmative = preg_match('/\b(?:ja|jawohl|okay|ok|gerne|bitte|jetzt|yes|please|sure|go\s+ahead)\b/u', $intent) === 1;
+
+        return $affirmative && $this->hasImplementationLanguage($intent);
+    }
+
+    private function assistantOffersImplementation(string $intent): bool
+    {
+        if ($intent === '' || $this->hasExplicitRedesignNegation($intent)) {
+            return false;
+        }
+
+        $offer = preg_match('/\b(?:ich\s+kann|ich\s+werde|ich\s+setze|soll\s+ich|mochtest\s+du|wenn\s+du\s+(?:willst|mochtest)|i\s+can|i\s+will|shall\s+i|would\s+you\s+like)\b/u', $intent) === 1;
+        $editorSubject = preg_match('/\b(?:re-?design|design|layout|aufbau|motiv|entwurf|seite|bereich(?:e|en)?|editor|story|post|web)\b/u', $intent) === 1;
+
+        return $offer && $editorSubject && $this->hasImplementationLanguage($intent);
+    }
+
+    private function hasWholeDocumentLanguage(string $intent): bool
+    {
+        return preg_match('/\b(?:komplett(?:e[snmr]?)?|vollstandig(?:e[snmr]?)?|gesamt(?:e[snmr]?)?|ganz(?:e[snmr]?)?|full|complete|entire|whole)\b/u', $intent) === 1;
+    }
+
+    private function hasRedesignLanguage(string $intent): bool
+    {
+        return preg_match('/\b(?:re-?design(?:en|e|t)?|neu\s+gestalten|neugestalten|neu\s+machen|umgestalten|layout\s+neu|design\s+neu)\b/u', $intent) === 1;
+    }
+
+    private function hasImplementationLanguage(string $intent): bool
+    {
+        return preg_match('/\b(?:mach(?:e|en|t)?|umsetz(?:en|e|t)?|gestalt(?:e|en|et)?|redesign(?:en|e|t)?|re-design(?:en|e|t)?|umgestalt(?:e|en|et)?|anwend(?:en|e|et)?|ubernehm(?:en|e|t)?|implement(?:ieren|iere|iert)?|apply|make|do)\b/u', $intent) === 1
+            || preg_match('/\bsetz(?:e|en|t)?\b.{0,180}\bum\b/u', $intent) === 1
+            || preg_match('/\b(?:mach|do|apply|implement)\s+(?:es|das|it)\b/u', $intent) === 1;
+    }
+
+    private function hasExplicitRedesignNegation(string $intent): bool
+    {
+        return preg_match('/\b(?:kein(?:e|en|em|er|es)?|no)\b(?:\s+\S+){0,4}\s+\b(?:re-?design\w*|design|layout|entwurf|motiv|seite)\b/u', $intent) === 1
+            || preg_match('/\b(?:nicht|nie|niemals|don\'t|dont|do\s+not|never|not)\b(?:\s+\S+){0,4}\s+\b(?:umsetz\w*|anwend\w*|ubernehm\w*|mach\w*|gestalt\w*|re-?design\w*|implement\w*|apply|do)\b/u', $intent) === 1
+            || preg_match('/\b(?:re-?design\w*|umsetz\w*|implement\w*|apply)\b(?:\s+\S+){0,4}\s+\b(?:nicht|nie|niemals|not|never)\b/u', $intent) === 1;
+    }
+
+    private function asksForAdviceOrDiscussion(string $intent): bool
+    {
+        return preg_match('/\b(?:wie|welche|welcher|welches|was|warum|wieso|risiko|risiken|erklar\w*|beschreib\w*|empfehl\w*|vorschlag\w*|idee\w*|konzept\w*|anleitung\w*|schritt\w*|how|what|why|risk|risks|explain\w*|describe\w*|recommend\w*|suggest\w*|advice)\b/u', $intent) === 1;
+    }
+
+    /**
+     * @param  array<string, mixed>  $pageBuilderContext
+     */
+    private function executeCompleteMarketingRedesign(
+        ?User $user,
+        string $currentRoute,
+        array $pageBuilderContext,
+        ?callable $onEffect,
+    ): string {
+        $german = app()->getLocale() === 'de';
+        if ($user === null) {
+            return $german
+                ? 'Das komplette Redesign konnte nicht vorbereitet werden, weil kein sicherer Benutzerkontext vorhanden ist.'
+                : 'The complete redesign could not be prepared because no secure user context is available.';
+        }
+
+        $result = $this->applicationTools->execute(
+            self::MARKETING_REDESIGN_TOOL,
+            ['preset' => 'railtime_modern'],
+            $user,
+            $currentRoute,
+            [],
+            $pageBuilderContext,
+        );
+        $payload = is_array($result['payload'] ?? null) ? $result['payload'] : [];
+        $effect = is_array($result['effect'] ?? null) ? $result['effect'] : null;
+
+        if (($payload['state'] ?? null) === 'scheduled' && $effect !== null && $onEffect !== null) {
+            $onEffect($effect);
+
+            return $german
+                ? 'Ich habe das komplette RailTime-Modern-Redesign für Story, Post und Web vorbereitet. Deine redaktionellen Inhalte bleiben erhalten; eine bestehende Freigabe wird auf Entwurf zurückgesetzt. Prüfe die vollständige Änderung und bestätige sie mit „Übernehmen“.'
+                : 'I prepared the complete RailTime Modern redesign for story, post and web. Your editorial content is preserved; any existing approval returns to draft. Review the complete change and confirm it with “Apply”.';
+        }
+
+        $message = trim((string) ($payload['message'] ?? ''));
+        if ($message === '') {
+            $message = $german
+                ? 'Der sichere Editor hat das komplette Redesign nicht angenommen.'
+                : 'The secure editor did not accept the complete redesign.';
+        }
+
+        return $german
+            ? 'Das komplette Redesign konnte nicht vorbereitet werden: '.$message
+            : 'The complete redesign could not be prepared: '.$message;
     }
 
     /** @param array<string, mixed> $payload */

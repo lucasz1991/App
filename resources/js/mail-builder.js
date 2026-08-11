@@ -56,6 +56,7 @@ const MAIL_CSS_TOKEN_COLORS = Object.freeze([
 ]);
 const MAIL_PREVIEW_IMAGE_TOKENS = Object.freeze([
     'LOGO_SRC',
+    'ICON_RT_SRC',
     'ICON_PHONE_SRC',
     'ICON_MOBILE_SRC',
     'ICON_EMAIL_SRC',
@@ -68,6 +69,7 @@ export function mailTokenMediaDefinitions(previewAssets = {}, theme = 'light') {
     const icons = previewAssets.icons || {};
     return [
         { token: 'LOGO_SRC', label: 'RailTime Firmenlogo', src: palette.logo || '' },
+        { token: 'ICON_RT_SRC', label: 'RailTime RT-Zeichen', src: palette.mark || '' },
         { token: 'TRAIN_SRC', label: 'RailTime Zuganimation', src: palette.train || '' },
         { token: 'ICON_PHONE_SRC', label: 'Telefon-Icon', src: icons.phone || '' },
         { token: 'ICON_MOBILE_SRC', label: 'Mobil-Icon', src: icons.mobile || '' },
@@ -1013,6 +1015,7 @@ export function hydrateMailCanvasAssets(editor, theme = 'light', previewAssets =
     const icons = previewAssets?.icons || {};
     const sources = {
         LOGO_SRC: themed.logo,
+        ICON_RT_SRC: themed.mark,
         ICON_PHONE_SRC: icons.phone,
         ICON_MOBILE_SRC: icons.mobile,
         ICON_EMAIL_SRC: icons.email,

@@ -149,6 +149,54 @@ class ChatbotViewMarkupTest extends TestCase
         $this->assertStringContainsString('Verwerfen', $html);
     }
 
+    public function test_pending_redesign_renders_the_full_escaped_safety_detail_after_its_diff(): void
+    {
+        $token = str_repeat('R', 48);
+        $detail = 'Alle Story-, Post- und Web-Layouts werden ersetzt. Ungespeicherte lokale Layout-Änderungen werden ersetzt. Es wird nichts veröffentlicht, exportiert oder versendet. <strong>Freigaben werden zurückgesetzt.</strong>';
+        $html = Blade::render($this->view, [
+            'assistantName' => 'RailTime Assist',
+            'assistantAvailable' => true,
+            'speechAvailable' => false,
+            'pageRouteName' => 'admin.marketing.creatives.editor',
+            'pageBuilderUi' => [
+                'active' => true,
+                'connected' => true,
+                'mode_label' => 'Marketing',
+                'document_label' => 'Story',
+                'unsaved' => true,
+            ],
+            'chatHistory' => [[
+                'key' => 'pending-redesign',
+                'role' => 'assistant',
+                'content' => 'Das vollständige Redesign ist zur Bestätigung vorbereitet.',
+                'created_at' => '2026-08-11T08:17:00+02:00',
+                'actions' => [[
+                    'kind' => 'pending_tool',
+                    'token' => $token,
+                    'label' => 'Komplettes Motiv neu gestalten',
+                    'route_name' => 'admin.marketing.creatives.editor',
+                    'status' => 'pending',
+                    'segment' => 'Story, Post und Web',
+                    'before' => 'Aktuelle Layouts',
+                    'after' => 'RailTime Modern',
+                    'detail' => $detail,
+                ]],
+            ]],
+            'isLoading' => false,
+        ]);
+
+        $escapedDetail = e($detail);
+
+        $this->assertStringContainsString('rt-chatbot__message-action-diff', $html);
+        $this->assertStringContainsString('Aktuelle Layouts', $html);
+        $this->assertStringContainsString('RailTime Modern', $html);
+        $this->assertStringContainsString('Ungespeicherte lokale Layout-Änderungen werden ersetzt.', $html);
+        $this->assertStringContainsString('Es wird nichts veröffentlicht, exportiert oder versendet.', $html);
+        $this->assertStringContainsString($escapedDetail, $html);
+        $this->assertStringNotContainsString('<strong>Freigaben werden zurückgesetzt.</strong>', $html);
+        $this->assertLessThan(strpos($html, $escapedDetail), strpos($html, 'rt-chatbot__message-action-diff'));
+    }
+
     public function test_view_uses_only_the_named_same_origin_audio_routes(): void
     {
         $this->assertStringContainsString("Route::has('assistant.audio-input.transcribe')", $this->view);
@@ -399,6 +447,7 @@ class ChatbotViewMarkupTest extends TestCase
             'pagebuilder_mail_spacing',
         ], array_column($mailActions, 'key'));
         $this->assertSame([
+            'pagebuilder_marketing_redesign',
             'pagebuilder_selection',
             'pagebuilder_marketing_copy',
             'pagebuilder_validation',
@@ -428,6 +477,37 @@ class ChatbotViewMarkupTest extends TestCase
         $this->assertSame(1200, mb_strlen($actions[0]['before']));
         $this->assertSame('Präziser neuer Text', $actions[0]['after']);
         $this->assertArrayNotHasKey('html', $actions[0]);
+    }
+
+    public function test_redesign_result_messages_distinguish_an_uncertain_server_state_from_a_preflight_failure(): void
+    {
+        $this->app->setLocale('de');
+        $chatbot = new Chatbot;
+
+        $reloadRequired = $this->invokePrivate(
+            $chatbot,
+            'assistantActionResultMessage',
+            'pagebuilder',
+            'redesign_document',
+            'reload_required',
+        );
+        $storageError = $this->invokePrivate(
+            $chatbot,
+            'assistantActionResultMessage',
+            'pagebuilder',
+            'redesign_document',
+            'storage_error',
+        );
+
+        $this->assertStringContainsString('kann bereits gespeichert sein', $reloadRequired);
+        $this->assertStringContainsString('Lade die Seite neu', $reloadRequired);
+        $this->assertStringContainsString('prüfe Story, Post und Web', $reloadRequired);
+        $this->assertStringNotContainsString('Entwurf bleibt erhalten', $reloadRequired);
+        $this->assertStringNotContainsString('Entwurf wurde nicht ersetzt', $reloadRequired);
+
+        $this->assertStringContainsString('vor dem Serveraufruf', $storageError);
+        $this->assertStringContainsString('Der gespeicherte Entwurf wurde nicht ersetzt.', $storageError);
+        $this->assertStringNotContainsString('kann bereits gespeichert sein', $storageError);
     }
 
     private function invokePrivate(object $target, string $method, mixed ...$arguments): mixed

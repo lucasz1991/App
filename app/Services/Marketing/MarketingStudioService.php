@@ -309,6 +309,12 @@ final class MarketingStudioService
                 $changed = true;
             }
 
+            $approvalWillReset = $locked->status !== MarketingCreativeStatus::Draft
+                || $locked->approved_by !== null
+                || $locked->approved_at !== null
+                || $locked->approval_dependency_hash !== null;
+            $changed = $changed || $approvalWillReset;
+
             if ($changed) {
                 $locked->forceFill(['updated_by' => $actor->id]);
                 $this->resetApproval($locked);

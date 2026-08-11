@@ -739,8 +739,8 @@ class Chatbot extends Component
             'role' => 'assistant',
             'content' => $pageBuilder
                 ? ($german
-                    ? 'Ich begleite dich direkt im LMZ PageBuilder. Wähle ein Segment aus oder nutze die festen Prüfaktionen oben; Änderungen zeige ich dir vor der Übernahme vollständig an.'
-                    : 'I work alongside you in the LMZ PageBuilder. Select a segment or use the checks above; every change is shown in full before it is applied.')
+                    ? 'Ich begleite dich direkt im LMZ PageBuilder. Ich kann einzelne Segmente bearbeiten und im Marketing Studio auch Story, Post und Web gemeinsam im RailTime-Stil neu gestalten. Jede Änderung zeige ich dir vor der Übernahme vollständig an.'
+                    : 'I work alongside you in the LMZ PageBuilder. I can edit individual segments and redesign Story, Post and Web together in the Marketing Studio. Every change is shown in full before it is applied.')
                 : ($german
                     ? 'Hallo! Ich helfe dir kurz und direkt in RailTime. Ich kann freigegebene Seiten öffnen und dich durch eine lokale Wagenliste führen; Änderungen führe ich erst nach deiner Bestätigung aus.'
                     : 'Hello! I provide concise, direct help in RailTime. I can open approved pages and guide you through a local wagon list; changes only run after your confirmation.'),
@@ -983,6 +983,14 @@ class Chatbot extends Component
             $after = $german
                 ? 'Gespeicherter Arbeitsstand · keine Veröffentlichung'
                 : 'Saved working draft · no publishing';
+        } elseif ($command === 'redesign_document') {
+            $segment = $german ? 'Gesamtes Marketingmotiv' : 'Entire marketing creative';
+            $before = $german
+                ? 'Aktuelle individuelle Layouts für Story, Post und Web'
+                : 'Current individual Story, Post and Web layouts';
+            $after = $german
+                ? 'RailTime Modern · alle drei Formate · Inhalte bleiben erhalten · Freigabe wird zurückgesetzt'
+                : 'RailTime Modern · all three formats · content preserved · approval reset';
         } elseif (in_array($command, ['undo', 'redo', 'preview', 'restart_gif', 'focus_selection'], true)) {
             $before = $segment;
             $after = match ($command) {
@@ -1216,6 +1224,23 @@ class Chatbot extends Component
 
         if ($effectType === AssistantPageBuilderTools::EFFECT_TYPE) {
             if ($status !== 'applied') {
+                if ($command === 'redesign_document') {
+                    return match ($status) {
+                        'stale_context' => $german
+                            ? 'Das Motiv wurde inzwischen geändert. Das Redesign wurde nicht angewendet; fordere es für den aktuellen Stand erneut an.'
+                            : 'The creative changed in the meantime. The redesign was not applied; request it again for the current revision.',
+                        'reload_required' => $german
+                            ? 'Der Serverstand des Redesigns konnte im Editor nicht abschließend bestätigt werden und kann bereits gespeichert sein. Lade die Seite neu und prüfe Story, Post und Web, bevor du die Aktion erneut anforderst.'
+                            : 'The editor could not conclusively confirm the server state of the redesign and it may already be saved. Reload the page and inspect story, post and web before requesting it again.',
+                        'storage_error' => $german
+                            ? 'Das komplette Redesign konnte vor dem Serveraufruf nicht vorbereitet werden. Der gespeicherte Entwurf wurde nicht ersetzt.'
+                            : 'The complete redesign could not be prepared before contacting the server. The saved draft was not replaced.',
+                        default => $german
+                            ? 'Das bestätigte Redesign wurde nicht angewendet. Der bisherige Entwurf bleibt erhalten.'
+                            : 'The confirmed redesign was not applied. The existing draft remains intact.',
+                    };
+                }
+
                 return match ($status) {
                     'stale_context' => $german
                         ? 'Der Editor-Arbeitsstand oder die Auswahl hat sich inzwischen geändert. Bitte prüfe die Auswahl erneut.'
@@ -1241,6 +1266,9 @@ class Chatbot extends Component
                 'redo' => $german ? 'Der Editorschritt wurde wiederhergestellt.' : 'The editor step was restored.',
                 'preview', 'restart_gif' => $german ? 'Die Vorschau wurde aktualisiert.' : 'The preview was updated.',
                 'set_animation' => $german ? 'Die freigegebene Animationseigenschaft wurde übernommen.' : 'The approved animation setting was applied.',
+                'redesign_document' => $german
+                    ? 'Story, Post und Web wurden vollständig im RailTime-Modern-Design neu aufgebaut. Die Inhalte blieben erhalten; das Motiv ist jetzt ein Entwurf und wurde nicht veröffentlicht oder exportiert.'
+                    : 'Story, post and web were fully rebuilt with the RailTime Modern design. The content was preserved; the creative is now a draft and was not published or exported.',
                 'save' => $german
                     ? 'Der Arbeitsstand wurde gespeichert. Es wurde nichts veröffentlicht, freigegeben oder exportiert.'
                     : 'The working draft was saved. Nothing was published, approved or exported.',
@@ -1700,6 +1728,11 @@ class Chatbot extends Component
     {
         if ($this->pageRouteName === 'admin.marketing.creatives.editor') {
             return [
+                [
+                    'key' => 'pagebuilder_marketing_redesign',
+                    'label' => 'Komplett neu gestalten',
+                    'prompt' => 'Gestalte den gesamten Marketing-Entwurf jetzt mit dem sicheren RailTime-Modern-Design neu. Bewahre die redaktionellen Inhalte, wende das Design gemeinsam auf Story, Post und Web an und lege die vollständige Änderung zur Bestätigung vor.',
+                ],
                 [
                     'key' => 'pagebuilder_selection',
                     'label' => 'Auswahl analysieren',

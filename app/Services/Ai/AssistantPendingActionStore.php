@@ -155,7 +155,7 @@ final class AssistantPendingActionStore
         $routeName = $routeName !== null ? trim($routeName) : null;
         if (
             ! $this->validToken($token)
-            || ! in_array($status, ['applied', 'rejected', 'stale_context', 'storage_error'], true)
+            || ! in_array($status, ['applied', 'rejected', 'stale_context', 'storage_error', 'reload_required'], true)
             || ($routeName !== null && ! $this->validRouteName($routeName))
         ) {
             return null;
@@ -435,6 +435,9 @@ final class AssistantPendingActionStore
             'set_animation' => $german
                 ? 'Animation '.$quote($effect['field'] ?? '').' auf '.$quote($effect['value'] ?? '').' setzen'
                 : 'Set animation '.$quote($effect['field'] ?? '').' to '.$quote($effect['value'] ?? ''),
+            'redesign_document' => $german
+                ? 'Komplettes RailTime-Redesign für Story, Post und Web bestätigen'
+                : 'Confirm the complete RailTime redesign for story, post and web',
             'save' => $german ? 'Aktuellen Arbeitsstand speichern' : 'Save current working draft',
             default => $german ? 'Editor-Aktion bestätigen' : 'Confirm editor action',
         };
@@ -453,6 +456,21 @@ final class AssistantPendingActionStore
             'replace_image' => 'Datei: '.$this->pageBuilderFileName($effect['file_id'] ?? null),
             'add_block' => 'Baustein: '.(string) ($effect['block_id'] ?? '').' · Position: '.(string) ($effect['position'] ?? ''),
             'set_animation' => 'Animation: '.(string) ($effect['field'] ?? '').' = '.(string) ($effect['value'] ?? ''),
+            'redesign_document' => app()->getLocale() === 'de'
+                ? implode("\n", [
+                    'Design: RailTime Modern',
+                    'Umfang: Story (1080 × 1920), Post (1080 × 1080) und Web (1200 × 630)',
+                    'Bleibt erhalten: gemeinsame Texte, Firmendaten und offizielle RailTime-Markenführung',
+                    'Wird ersetzt: das vollständige Layout aller drei Formate einschließlich lokaler, noch nicht gespeicherter Layoutänderungen',
+                    'Folge: Eine bestehende Freigabe wird zurückgesetzt. Es erfolgt keine Veröffentlichung, kein Export und kein Versand.',
+                ])
+                : implode("\n", [
+                    'Design: RailTime Modern',
+                    'Scope: Story (1080 × 1920), post (1080 × 1080) and web (1200 × 630)',
+                    'Preserved: shared copy, company data and the official RailTime brand lockup',
+                    'Replaced: the complete layout of all three formats, including local unsaved layout changes',
+                    'Result: Existing approval is reset. Nothing is published, exported or sent.',
+                ]),
             default => '',
         };
     }

@@ -30,6 +30,7 @@ import {
 } from '../../resources/js/lmz-editor-core.js';
 
 import {
+    applyAuthoritativeMarketingRedesignResponse,
     applySavedVariant,
     applySavedVariantAndPublishAssistantContext,
     calculateArtboardGeometry,
@@ -39,6 +40,8 @@ import {
     createFixedArtboardPanController,
     createStudioBootGuard,
     MARKETING_ARTBOARDS,
+    marketingRedesignExpectedHashes,
+    marketingRedesignFailureStatus,
     createMarketingBlocks,
     normalizeVariantPayload,
     projectForVariant,
@@ -1041,6 +1044,61 @@ test('variant refresh accepts server maps and drops unknown formats', () => {
     });
 });
 
+test('marketing redesign replaces config only from one complete server-authoritative response', () => {
+    const config = {
+        status: 'approved',
+        sharedContent: { headline: 'Alt' },
+        variants: {
+            story: { contentHash: 'a'.repeat(64) },
+            post: { contentHash: 'b'.repeat(64) },
+            web: { contentHash: 'c'.repeat(64) },
+        },
+    };
+    assert.deepEqual(marketingRedesignExpectedHashes(config.variants), {
+        story: 'a'.repeat(64),
+        post: 'b'.repeat(64),
+        web: 'c'.repeat(64),
+    });
+
+    const payload = {
+        creative: { status: 'draft', shared_content: { headline: 'Neu' } },
+        variants: Object.fromEntries(['story', 'post', 'web'].map((format, index) => [format, {
+            builder_data: { pages: [{ component: `<main>${format}</main>` }] },
+            css: `.format-${format}{display:block}`,
+            content_hash: String(index + 4).repeat(64),
+            version: index + 7,
+        }])),
+    };
+    const applied = applyAuthoritativeMarketingRedesignResponse(config, payload);
+
+    assert.equal(applied.status, 'draft');
+    assert.equal(config.status, 'draft');
+    assert.equal(config.sharedContent.headline, 'Neu');
+    assert.deepEqual(Object.keys(config.variants), ['story', 'post', 'web']);
+    assert.equal(config.variants.web.version, 9);
+
+    const beforeIncomplete = structuredClone(config);
+    assert.equal(applyAuthoritativeMarketingRedesignResponse(config, {
+        creative: { status: 'draft' },
+        variants: { story: payload.variants.story, post: payload.variants.post },
+    }), null);
+    assert.deepEqual(config, beforeIncomplete);
+    assert.equal(marketingRedesignExpectedHashes({ story: config.variants.story }), null);
+});
+
+test('marketing redesign reports hash conflicts as stale and storage failures separately', () => {
+    assert.equal(marketingRedesignFailureStatus({
+        status: 422,
+        payload: { errors: { 'expected_hashes.story': ['veraltet'] } },
+    }), 'stale_context');
+    assert.equal(marketingRedesignFailureStatus({ status: 409 }), 'stale_context');
+    assert.equal(marketingRedesignFailureStatus(new TypeError('network failed')), 'storage_error');
+    assert.equal(marketingRedesignFailureStatus({ status: 503 }), 'storage_error');
+    assert.equal(marketingRedesignFailureStatus(new TypeError('network failed'), { requestStarted: true }), 'reload_required');
+    assert.equal(marketingRedesignFailureStatus({ status: 503 }, { requestStarted: true }), 'reload_required');
+    assert.equal(marketingRedesignFailureStatus({ status: 422, payload: { errors: { preset: ['invalid'] } } }), 'rejected');
+});
+
 test('a saved CSS response survives format reloads and remains the next save fallback', () => {
     const variant = {
         builderData: { pages: [{ component: '<p>Story</p>' }], styles: [] },
@@ -1308,6 +1366,10 @@ test('adapter explicitly disables Joomla web defaults and fallback projects', as
     assert.match(coreSource, /import '\.\/lmz-editor-assistant\.js';/);
     assert.match(source, /media:\s*\{\s*assets:\s*config\.assets \|\| \[\]/);
     assert.match(source, /request\.expected_hashes = Object\.fromEntries/);
+    assert.match(editorSource, /'redesign'\s*=>\s*route\('admin\.marketing\.creatives\.redesign'/);
+    assert.match(source, /persistSharedContent\(\{ preserveAssistantContext: true \}\)/);
+    assert.match(source, /requestJson\(config\.endpoints\.redesign,[\s\S]+?method: 'POST',[\s\S]+?expected_hashes: expectedHashes/);
+    assert.match(source, /applyAuthoritativeMarketingRedesignResponse\(config, payload\)[\s\S]+?startBuilder\(currentFormat, \{ preserveAssistantContext: true \}\)[\s\S]+?publishPageBuilderAssistantContext\(\)/);
     assert.match(source, /sharedContentDirty \|\| instance\?\.hasUnsavedChanges/);
     assert.match(source, /getBuilder:\s*\(\) => combinedDraft/);
     assert.match(source, /addEventListener\('input', refreshSharedContentDirty/);
@@ -2590,6 +2652,7 @@ test('shared LMZ assistant keeps persisted version separate from local revision'
     });
     const editor = coreFakeEditor(root, selected);
     const instance = { editor, hasUnsavedChanges: () => true, save: async () => true };
+    const redesignPresets = [];
     let registered = null;
     let unregistered = null;
     window.addEventListener('railtime-pagebuilder-adapter-register', (event) => { registered = event.detail.adapter; });
@@ -2610,6 +2673,10 @@ test('shared LMZ assistant keeps persisted version separate from local revision'
         persistedVersion: () => 7,
         assets: [{ src: '/administrator/marketing/dateien/42?v=abc', type: 'image' }],
         availableBlockIds: ['rt-marketing-hero'],
+        redesignDocument: async (preset) => {
+            redesignPresets.push(preset);
+            return { status: 'applied' };
+        },
     });
 
     assert.equal(registered, adapter);
@@ -2618,6 +2685,10 @@ test('shared LMZ assistant keeps persisted version separate from local revision'
     assert.equal(before.client_revision, 0);
     assert.equal(before.selection.image_file_id, 42);
     assert.equal(before.unsaved, true);
+    assert.equal(before.capabilities.includes('redesign_document'), true);
+    assert.deepEqual(await adapter.redesignDocument('railtime_modern'), { status: 'applied' });
+    assert.equal(await adapter.redesignDocument('untrusted'), false);
+    assert.deepEqual(redesignPresets, ['railtime_modern']);
 
     editor.emit('update');
     const after = await adapter.getContext();
@@ -2625,6 +2696,8 @@ test('shared LMZ assistant keeps persisted version separate from local revision'
     assert.equal(after.client_revision, 1);
     assert.equal(adapter.setAnimation('duration', 0.8), true);
     assert.equal(selected.state.attributes['data-lmz-duration'], '0.8');
+    adapter.destroy({ keepRegistered: true });
+    assert.equal(unregistered, null);
     adapter.destroy();
     assert.equal(unregistered, adapter);
 }));

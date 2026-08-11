@@ -83,6 +83,15 @@ class MailSignature
         // oben rechts in der E-Mail-Vorlage.
         $logoAsset = $this->theme === 'dark' ? 'wortmarke-mail-dark.png' : 'wortmarke-signature-light.png';
 
+        // Das RT-Zeichen gehoert zur VORLAGE (oben rechts), nicht zum
+        // Signaturblock. Es steht trotzdem hier, weil values() die
+        // gemeinsame Wertetabelle JEDES Ausgabewegs ist — auch der
+        // Editorvorschau und der Seitenvorschau. Fehlte es, ersetzte
+        // PageBuilderPreviewService den uebrig gebliebenen Platzhalter
+        // durch einen Gedankenstrich und das Zeichen erschien als
+        // kaputtes Bild.
+        $markAsset = EmailTemplateBuilder::emailMarkAsset($this->theme);
+
         // ZWEI BETRIEBSARTEN, und die Unterscheidung ist wesentlich:
         //
         //   verlinkt   — fuer VERSENDETE Mails. Nur so erscheinen die Bilder
@@ -94,6 +103,7 @@ class MailSignature
         $bilder = $this->remoteAssets
             ? [
                 'LOGO_SRC' => EmailTemplateBuilder::mailAssetUrl($logoAsset),
+                'ICON_RT_SRC' => EmailTemplateBuilder::mailAssetUrl($markAsset),
                 'TRAIN_SRC' => EmailTemplateBuilder::signatureTrainUrl($this->theme, $this->animated),
                 // Das Standbild traegt den Ersatzweg fuer Outlook-Desktop
                 // (background-Attribut), siehe emails/parts/signature.blade.php.
@@ -106,6 +116,7 @@ class MailSignature
             ]
             : [
                 'LOGO_SRC' => EmailTemplateBuilder::inlineImage($logoAsset, 'image/png'),
+                'ICON_RT_SRC' => EmailTemplateBuilder::inlineImage($markAsset, 'image/png'),
                 'TRAIN_SRC' => EmailTemplateBuilder::signatureTrainAsset(
                     $this->theme,
                     $this->animated,
@@ -163,12 +174,27 @@ class MailSignature
     {
         $values = $this->values($overrides);
 
-        // Outlook braucht die strukturelle Blade-Verzweigung mit separater
-        // lokaler Zugdatei. Alle anderen Wege duerfen den veroeffentlichten
-        // Signaturblock verwenden, einschliesslich Systemmail und normalem
-        // Hell-/Dunkel-Download.
-        $isOutlookExport = trim((string) ($layout['outlookTrainSrc'] ?? '')) !== '';
-        $published = $isOutlookExport
+        // WER DEN ZUG ALS BILD BRAUCHT, BEKOMMT IMMER DIE BLADE-QUELLE.
+        //
+        // Das sind zwei Wege: der Outlook-Export (lokale Zugdatei im Paket)
+        // UND jede versendete Systemmail (verlinkte Adresse, weil Outlook-
+        // Desktop und Gmail keine CSS-Hintergrundbilder darstellen — siehe
+        // vendor/mail/html/footer.blade.php).
+        //
+        // Das ist keine Einschraenkung, sondern strukturell notwendig: Das
+        // veroeffentlichte Dokument ist EIN gespeicherter Markup-Stand. Es
+        // kann nicht gleichzeitig die Bildzeile (Systemmail, Outlook) und
+        // die Hintergrundebene (Downloads) tragen — welche Fassung noetig
+        // ist, entscheidet sich erst beim Rendern. Wuerde die Systemmail den
+        // gespeicherten Stand verwenden, verschwaende der Zug dort wieder,
+        // genau wie vor der Umstellung auf die Bildzeile.
+        //
+        // Folge fuer den Editor: Eine Freigabe wirkt auf die DOWNLOADS. Die
+        // Systemmails folgen der Blade-Quelle, also dem ausgelieferten Code.
+        // Deshalb bindet layout.blade.php auch bewusst KEIN freigegebenes
+        // CSS ein — sonst laege neues CSS auf altem Markup.
+        $zugAlsBild = trim((string) ($layout['outlookTrainSrc'] ?? '')) !== '';
+        $published = $zugAlsBild
             ? null
             : EmailTemplateBuilder::publishedDocument(MailDocumentKind::Signature);
 
@@ -220,7 +246,7 @@ class MailSignature
         $values = $this->values($overrides);
         $safeKeys = array_unique(array_merge(
             array_keys(EmailTemplateBuilder::emailThemeValues($this->theme)),
-            ['LOGO_SRC', 'TRAIN_SRC', 'TRAIN_IDLE_SRC'],
+            ['LOGO_SRC', 'TRAIN_SRC', 'TRAIN_IDLE_SRC', 'ICON_RT_SRC'],
             array_values(array_filter(
                 array_keys($values),
                 static fn (string $key): bool => str_starts_with($key, 'ICON_'),

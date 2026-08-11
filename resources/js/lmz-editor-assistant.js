@@ -58,7 +58,9 @@ const BASE_CAPABILITIES = new Set([
     'add_block', 'undo', 'redo', 'preview', 'save', 'animation', 'gif_preview',
 ]);
 
-const MARKETING_CAPABILITIES = new Set([...BASE_CAPABILITIES, 'replace_image']);
+const MARKETING_CAPABILITIES = new Set([
+    ...BASE_CAPABILITIES, 'replace_image', 'redesign_document',
+]);
 const STRUCTURAL_TAGS = new Set([
     'html', 'head', 'body', 'style', 'table', 'tbody', 'thead', 'tfoot', 'tr', 'td', 'th',
 ]);
@@ -95,6 +97,7 @@ const METHOD_BY_COMMAND = Object.freeze({
     preview: 'setPreview',
     restart_gif: 'restartGifPreview',
     set_animation: 'setAnimation',
+    redesign_document: 'redesignDocument',
     save: 'save',
 });
 
@@ -111,6 +114,7 @@ const CAPABILITY_BY_COMMAND = Object.freeze({
     preview: 'preview',
     restart_gif: 'gif_preview',
     set_animation: 'animation',
+    redesign_document: 'redesign_document',
     save: 'save',
 });
 
@@ -502,6 +506,9 @@ function normalizeAction(rawAction) {
         const motion = normalizeAnimation(rawAction.field, rawAction.value);
         if (!motion) return null;
         Object.assign(normalized, motion);
+    } else if (command === 'redesign_document') {
+        normalized.preset = string(rawAction.preset);
+        if (mode !== 'marketing' || normalized.preset !== 'railtime_modern') return null;
     }
 
     return normalized;
@@ -536,6 +543,7 @@ function commandArguments(action) {
     case 'add_block': return [action.block_id, action.position];
     case 'preview': return [action.state];
     case 'set_animation': return [action.field, action.value];
+    case 'redesign_document': return [action.preset];
     default: return [];
     }
 }
@@ -543,7 +551,7 @@ function commandArguments(action) {
 function normalizedResultStatus(result, command) {
     if (result === true) return 'applied';
     if (result === false || result === null || result === undefined) return 'rejected';
-    if (typeof result === 'object' && ['applied', 'rejected', 'stale_context', 'storage_error'].includes(result.status)) {
+    if (typeof result === 'object' && ['applied', 'rejected', 'stale_context', 'storage_error', 'reload_required'].includes(result.status)) {
         return result.status;
     }
     return command === 'save' ? 'storage_error' : 'rejected';

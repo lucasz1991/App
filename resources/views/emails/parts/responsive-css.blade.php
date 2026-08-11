@@ -44,7 +44,10 @@ img.rt-logo { width: 180px !important; }
 .rt-sign-identity { padding-right: 18px !important; }
 .rt-sign-name { font-size: 22px !important; line-height: 26px !important; }
 .rt-contact td.rt-contact-text { font-size: 11px !important; line-height: 17px !important; }
-.rt-card-cell, tr > td.rt-card { padding-left: 16px !important; padding-right: 16px !important; }
+{{-- BEIDE Kartenzellen, nicht nur die linke: .rt-card-cell steht allein an
+     der Zelle mit der Trennlinie. Ein frueher hier stehendes td.rt-card traf
+     ueberhaupt kein Element, die rechte Karte behielt ihre 22 px. --}}
+tr.rt-stack > td.rt-card-cell, tr.rt-stack > td.rt-card-cell + td { padding-left: 16px !important; padding-right: 16px !important; }
 }
 
 /* ---- Tablet hoch und kleiner: stapeln ---- */
@@ -75,7 +78,7 @@ img.rt-logo { width: 190px !important; }
 .rt-company-contact { margin-top: 14px !important; }
 /* Gestapelt ist die Signatur hoeher — dort darf der Zug groesser wirken.
    Der Streifen selbst ist flach auf Desktop ausgelegt. */
-.rt-sign-cell { background-size: 100% 100%, 110% auto, 110% auto !important; }
+.rt-sign-cell { background-size: 100% 100%, 125% auto, 125% auto !important; }
 }
 
 /* ---- Telefon: Innenabstaende weiter zuruecknehmen ---- */
