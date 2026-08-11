@@ -123,27 +123,15 @@ await page.evaluate(() => {
             cx += breiten[i] + sperrung;
         });
 
-        // Je Zeichen die eigene Spalte merken: die Buchstaben sollen
-        // NACHEINANDER entstehen, jeder aus seiner eigenen Wolke — nicht
-        // alle gemeinsam aus einer langen Bank.
-        const grenzen = [];
-        let gx = mitteX - (gesamt / 2);
-        zeichen.forEach((z, i) => {
-            grenzen.push({ von: gx, bis: gx + breiten[i], leer: z === ' ' });
-            gx += breiten[i] + sperrung;
-        });
-
         const d = x.getImageData(0, 0, breite, hoehe).data;
         const punkte = [];
         for (let sy = 0; sy < hoehe; sy += 1) {
             for (let sx = 0; sx < breite; sx += 1) {
-                if (d[(((sy * breite) + sx) * 4) + 3] <= 128) continue;
-                const idx = grenzen.findIndex((g) => !g.leer && sx >= g.von - 1 && sx <= g.bis + 1);
-                punkte.push({ x: sx, y: sy, zeichen: idx < 0 ? 0 : idx });
+                if (d[(((sy * breite) + sx) * 4) + 3] > 128) punkte.push({ x: sx, y: sy });
             }
         }
 
-        return { punkte, anzahlZeichen: grenzen.length };
+        return punkte;
     };
 
     /** Deterministisches Rauschen — gleiche Eingabe, gleiches Bild. */
@@ -210,23 +198,17 @@ async function zeichne(auftrag) {
  * Zielpunkten der Wortmarke, halten sie kurz und loesen sich wieder auf.
  */
 const einfahrtPartikel = await page.evaluate((k) => {
-    const { punkte, anzahlZeichen } = window.rt.textZiele(
+    const ziele = window.rt.textZiele(
         'RAIL TIME', k.breite, k.hoehe, k.schriftgroesse, k.sperrung, k.mitteX, k.mitteY,
     );
     const n = k.anzahl;
     const partikel = [];
 
-    // Die Marke wird von RECHTS nach LINKS geschrieben: der Rauch kommt vom
-    // Schornstein rechts, also entsteht das letzte Zeichen zuerst und die
-    // Schrift waechst dem Zug entgegen.
-    const reihenfolge = (zeichen) => (anzahlZeichen - 1 - zeichen) / Math.max(1, anzahlZeichen - 1);
-
     for (let i = 0; i < n; i += 1) {
         const r1 = window.rt.noise(i, 1);
         const r2 = window.rt.noise(i, 2);
         const r3 = window.rt.noise(i, 3);
-        const ziel = punkte[Math.floor(window.rt.noise(i, 4) * punkte.length)]
-            || { x: k.mitteX, y: k.mitteY, zeichen: 0 };
+        const ziel = ziele[Math.floor(window.rt.noise(i, 4) * ziele.length)] || { x: k.breite / 2, y: k.hoehe / 2 };
 
         partikel.push({
             // Austrittszeitpunkt, gleichmaessig ueber die Ausstossphase.
@@ -236,10 +218,6 @@ const einfahrtPartikel = await page.evaluate((k) => {
             wuchs: 2.4 + (r3 * 3.2),     // Radiuswachstum je Sekunde
             r0: 1.6 + (r1 * 1.8),
             ziel,
-            // Wann DIESES Zeichen sich sammelt. Der Versatz je Zeichen ist
-            // der Kern des Effekts: die Wolken werden eine nach der anderen
-            // zum Buchstaben, statt gemeinsam aufzuklappen.
-            sammeltAb: k.sammelnAb + (reihenfolge(ziel.zeichen) * k.sammelSpanne),
             phase: r2 * Math.PI * 2,
         });
     }
@@ -253,9 +231,6 @@ const einfahrtPartikel = await page.evaluate((k) => {
     // Versalhoehe traegt er nicht, ohne in die Dachkanten zu laufen.
     schriftgroesse: 19,
     sperrung: 6,
-    // Erstes Zeichen sammelt sich ab 2,7 s, das letzte 1,6 s spaeter.
-    sammelnAb: 2.7,
-    sammelSpanne: 1.6,
     // Links der Lok (Schornstein bei x=656), auf Hoehe der Fahne.
     mitteX: 330,
     mitteY: 15,
@@ -299,10 +274,8 @@ function partikelZustand(p, t, zugXbeiGeburt) {
         r: p.r0 + (p.wuchs * alter),
     };
 
-    // Anziehung zur Wortmarke — JE ZEICHEN eigener Beginn. Dadurch wird
-    // eine Wolke nach der anderen zum Buchstaben, statt dass die ganze
-    // Bank auf einmal aufklappt.
-    const zieh = glatt(p.sammeltAb, p.sammeltAb + 0.85, t) * (1 - glatt(6.1, 7.1, t));
+    // Anziehung zur Wortmarke: aufbauen, halten, wieder loesen.
+    const zieh = glatt(3.0, 4.6, t) * (1 - glatt(6.0, 7.1, t));
 
     const auftauchen = glatt(p.geburt, p.geburt + 0.35, t);
     const vergehen = 1 - glatt(6.2, 7.4, t);
