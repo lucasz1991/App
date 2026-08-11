@@ -1745,6 +1745,30 @@ test('mail inline animation segment exposes playback and restart without marketi
     chrome.destroy();
 }));
 
+test('inline edit menu attaches when GrapesJS creates its selection toolbar after editor boot', () => coreWithDom(`
+    <div data-page-builder-shell><div data-page-builder-fullscreen-root data-page-builder-shell-id="shell-late-toolbar">
+    <div id="root"><div class="lmz-builder__topbar"><button data-lmz-action="assets">Media</button></div>
+    <div class="lmz-builder__viewport"><div data-tools></div></div></div></div></div>
+`, async ({ document }) => {
+    const root = document.querySelector('#root');
+    const selected = coreFakeComponent(document.createElement('p'));
+    const editor = coreFakeEditor(root, selected);
+    editor.Canvas.getToolbarEl = () => root.querySelector('[data-toolbar]');
+    const chrome = createLmzEditorChrome({ instance: { editor }, root, mode: 'mail' });
+
+    assert.equal(root.querySelector('.rt-lmz-inline-edit-trigger'), null);
+    const toolbar = document.createElement('div');
+    toolbar.dataset.toolbar = '';
+    root.querySelector('[data-tools]').appendChild(toolbar);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    const trigger = root.querySelector('.rt-lmz-inline-edit-trigger');
+    assert.ok(trigger);
+    assert.equal(trigger.getAttribute('aria-label'), 'Bearbeiten');
+    assert.equal(trigger.getAttribute('aria-haspopup'), 'menu');
+    chrome.destroy();
+}));
+
 test('shared LMZ closes vendor auto-styles after selection but preserves explicit style intent', () => coreWithDom(`
     <div data-page-builder-shell><div data-page-builder-fullscreen-root data-page-builder-shell-id="shell-a">
     <div id="root"><div class="lmz-builder__topbar"><button data-lmz-action="assets"></button>

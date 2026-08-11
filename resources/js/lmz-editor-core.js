@@ -1721,6 +1721,7 @@ function createAnimationDrawer({ root, editor, capabilities, mode, onChanged }) 
 
 function addInlineEditToolbar(editor, root, menu) {
     const document_ = root.ownerDocument;
+    let attachQueued = false;
     const attach = () => {
         const toolbar = editor?.Canvas?.getToolbarEl?.();
         if (!toolbar || toolbar.querySelector?.(`[data-command="${EDIT_COMMAND}"]`)) return;
@@ -1739,11 +1740,24 @@ function addInlineEditToolbar(editor, root, menu) {
         });
         toolbar.appendChild(button);
     };
-    const onSelected = () => globalThis.queueMicrotask?.(attach);
+    const onSelected = () => {
+        if (attachQueued) return;
+        attachQueued = true;
+        Promise.resolve().then(() => {
+            attachQueued = false;
+            attach();
+        });
+    };
+    const MutationObserverClass = document_.defaultView?.MutationObserver || globalThis.MutationObserver;
+    const toolbarObserver = typeof MutationObserverClass === 'function'
+        ? new MutationObserverClass(onSelected)
+        : null;
+    toolbarObserver?.observe?.(root, { childList: true, subtree: true });
     editor.on?.('component:selected', onSelected);
     editor.on?.('canvas:frame:load', onSelected);
     attach();
     return () => {
+        toolbarObserver?.disconnect?.();
         editor.off?.('component:selected', onSelected);
         editor.off?.('canvas:frame:load', onSelected);
         editor?.Canvas?.getToolbarEl?.()?.querySelector?.(`[data-command="${EDIT_COMMAND}"]`)?.remove?.();

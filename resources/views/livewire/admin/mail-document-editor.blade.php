@@ -155,8 +155,8 @@
                     // Startvorgang mit, app.js reicht es nur als
                     // window.RailTimeMailBuilder durch.
                     // Die gemeinsame Vollbild-Shell teleportiert den Workspace
-                    // erst beim Alpine-Start nach <body>. Livewire kann dieses
-                    // @script vorher auswerten; ein sofortiges querySelector()
+                    // erst beim Alpine-Start nach <body>. Livewire kann diesen
+                    // Skriptblock vorher auswerten; ein sofortiges querySelector()
                     // wuerde dann dauerhaft am Loader stehen bleiben.
                     const editorStart = await new Promise((resolve) => {
                         let settled = false;
