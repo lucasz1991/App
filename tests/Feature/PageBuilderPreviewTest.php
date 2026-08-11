@@ -201,5 +201,7 @@ class PageBuilderPreviewTest extends TestCase
         }
 
         $this->assertStringNotContainsString('data-page-builder-panel-host', $html);
+        $this->assertStringNotContainsString("'[tabindex=\"", $html);
+        $this->assertStringNotContainsString("'[contenteditable=\"", $html);
     }
 }
