@@ -349,7 +349,7 @@ final class EmailHtmlSanitizer
 
     /** Ausschliesslich serverkontrollierte Bildquellen fuer src und CSS-url(). */
     private const IMAGE_URL_PLACEHOLDERS = [
-        'LOGO_SRC', 'TRAIN_SRC', 'TRAIN_IDLE_SRC',
+        'LOGO_SRC', 'TRAIN_SRC', 'TRAIN_IDLE_SRC', 'ICON_RT_SRC',
         'ICON_PHONE_SRC', 'ICON_MOBILE_SRC', 'ICON_EMAIL_SRC',
         'ICON_WEB_SRC', 'ICON_LOCATION_SRC',
     ];
@@ -381,12 +381,15 @@ final class EmailHtmlSanitizer
      */
     private const KNOWN_CLASSES = [
         'break-all', 'table',
-        'rt-shell', 'rt-pad', 'rt-title', 'rt-stack', 'rt-logo',
+        'rt-shell', 'rt-pad', 'rt-title', 'rt-stack', 'rt-logo', 'rt-mark',
         'rt-card', 'rt-card-cell',
         'rt-sign-cell', 'rt-sign-logo', 'rt-sign-identity', 'rt-sign-name',
+        // Die Anschrift steht seit dem symmetrischen Umbau nur noch einmal
+        // in der Firmenspalte. Die beiden Namen bleiben zugelassen, damit
+        // frueher veroeffentlichte Dokumente keinen Hinweis ausloesen.
         'rt-only-wide', 'rt-only-narrow',
         'rt-contact', 'rt-contact-icon', 'rt-contact-text',
-        'rt-company-contact-icon', 'rt-company-contact-text',
+        'rt-company-contact', 'rt-company-contact-icon', 'rt-company-contact-text',
     ];
 
     /** @var list<string> Eigene Hosts, deren Bilder und url() durchgehen. */

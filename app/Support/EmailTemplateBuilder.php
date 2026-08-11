@@ -608,6 +608,16 @@ class EmailTemplateBuilder
         };
     }
 
+    /**
+     * Das RT-Zeichen allein, fuer die rechte obere Ecke der Vorlage. Auf
+     * dunklem Grund traegt der Balken des T einen hellen Ton — anthrazit
+     * waere dort unsichtbar.
+     */
+    public static function emailMarkAsset(string $theme): string
+    {
+        return $theme === 'dark' ? 'icon-rt-dark.png' : 'icon-rt-light.png';
+    }
+
     /** Der Schriftzug OHNE das RT-Zeichen — siehe MailSignature::values(). */
     protected function emailLogoAsset(string $theme): string
     {
@@ -1109,10 +1119,15 @@ TEXT;
         ];
 
         $logoAsset = $this->emailLogoAsset($theme);
+        $markAsset = self::emailMarkAsset($theme);
         $inlineImages = [
             'railtime-logo' => [
                 'filename' => $logoAsset,
                 'content' => file_get_contents(self::masterPath('assets/'.$logoAsset)),
+            ],
+            'railtime-mark' => [
+                'filename' => $markAsset,
+                'content' => file_get_contents(self::masterPath('assets/'.$markAsset)),
             ],
         ];
 

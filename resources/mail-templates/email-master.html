@@ -27,12 +27,23 @@
         <table class="rt-shell" role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" bgcolor="{{SURFACE_BG}}" style="width:100%;max-width:none;background:{{SURFACE_BG}};">
           <tr>
             <td class="rt-pad" bgcolor="{{SURFACE_BG}}" style="padding:42px 46px 20px;background:{{SURFACE_BG}};">
-              <!-- Kurzer Akzentstrich statt einer weiteren Linie ueber die
-                   ganze Breite: setzt den Anfang, ohne zu dominieren. -->
-              <table role="presentation" border="0" cellspacing="0" cellpadding="0" style="margin:0 0 14px;">
-                <tr><td bgcolor="#e4002b" height="3" style="width:34px;height:3px;background:#e4002b;font-size:0;line-height:0;">&nbsp;</td></tr>
+              <!-- Kopfzeile: links der kurze Akzentstrich mit der Kennung,
+                   rechts das RT-Zeichen. Das Zeichen steht NUR hier — die
+                   Signatur unten traegt den Schriftzug, zusammen ergeben
+                   beide die Marke einmal statt zweimal. -->
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">
+                <tr>
+                  <td valign="top" style="vertical-align:top;">
+                    <table role="presentation" border="0" cellspacing="0" cellpadding="0" style="margin:0 0 14px;">
+                      <tr><td bgcolor="#e4002b" height="3" style="width:34px;height:3px;background:#e4002b;font-size:0;line-height:0;">&nbsp;</td></tr>
+                    </table>
+                    <p style="margin:0 0 9px;color:#e4002b;font-family:Consolas,'Courier New',monospace;font-size:10px;line-height:16px;font-weight:bold;letter-spacing:1.4px;text-transform:uppercase;">RT / PERSÖNLICHE NACHRICHT</p>
+                  </td>
+                  <td width="44" valign="top" align="right" style="width:44px;padding-left:18px;text-align:right;vertical-align:top;font-size:0;line-height:0;">
+                    <img class="rt-mark" src="{{ICON_RT_SRC}}" width="44" height="44" alt="" style="display:block;width:44px;height:44px;margin-left:auto;border:0;">
+                  </td>
+                </tr>
               </table>
-              <p style="margin:0 0 9px;color:#e4002b;font-family:Consolas,'Courier New',monospace;font-size:10px;line-height:16px;font-weight:bold;letter-spacing:1.4px;text-transform:uppercase;">RT / PERSÖNLICHE NACHRICHT</p>
               <h1 class="rt-title" style="margin:0 0 24px;color:{{TEXT_PRIMARY}};font-family:Arial,Helvetica,sans-serif;font-size:34px;line-height:40px;font-weight:400;letter-spacing:-1.1px;">Sicher abgestimmt.<br>Verlässlich im Einsatz.</h1>
               <p style="margin:0 0 16px;color:{{TEXT_PRIMARY}};font-size:16px;line-height:27px;">{{ANREDE}},</p>
               <p style="margin:0 0 16px;color:{{TEXT_SECONDARY}};font-size:16px;line-height:27px;">{{KURZE_EINLEITUNG}}</p>
