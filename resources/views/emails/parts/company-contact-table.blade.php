@@ -45,7 +45,7 @@
 
     $letzte = count($zeilen) - 1;
 @endphp
-<table class="rt-contact rt-company-contact" role="presentation" dir="ltr" border="0" cellspacing="0" cellpadding="0" style="direction:ltr;margin-left:{{ $spiegeln ? 'auto' : '0' }};margin-right:{{ $spiegeln ? '0' : 'auto' }};margin-top:21px;border-collapse:collapse;">
+<table class="rt-contact rt-company-contact" role="presentation" dir="ltr" border="0" cellspacing="0" cellpadding="0" style="direction:ltr;margin-left:{{ $spiegeln ? 'auto' : '0' }};margin-right:{{ $spiegeln ? '0' : 'auto' }};margin-top:26px;border-collapse:collapse;">
     @foreach($zeilen as $index => $zeile)
         @php $unten = $index === $letzte ? '0' : '6px'; @endphp
         @if($zeile['marker'])<!-- RT_{{ $zeile['marker'] }}_START -->@endif

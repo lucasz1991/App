@@ -36,7 +36,11 @@
 .rt-pad { padding-left: 30px !important; padding-right: 30px !important; }
 .rt-title { font-size: 30px !important; line-height: 35px !important; }
 .rt-sign-logo { padding-left: 18px !important; }
-.rt-sign-logo img { width: 180px !important; }
+{{-- Nur die Wortmarke, nicht jedes Bild der Spalte: seit die Firmenliste
+     dort steht, traf ein `.rt-sign-logo img` auch die Kontaktsymbole und
+     zog sie auf Logobreite auseinander. --}}
+img.rt-logo { width: 180px !important; }
+.rt-contact img { width: 22px !important; height: 22px !important; }
 .rt-sign-identity { padding-right: 18px !important; }
 .rt-sign-name { font-size: 22px !important; line-height: 26px !important; }
 .rt-contact td.rt-contact-text { font-size: 11px !important; line-height: 17px !important; }
@@ -65,7 +69,7 @@ tr.rt-stack > td + td { padding-top: 20px !important; }
    Firmenspalte wandert deshalb von links nach oben. */
 .rt-sign-identity { padding: 0 0 20px !important; }
 .rt-sign-logo { border-left: 0 !important; border-top: 1px solid {{ $border }} !important; padding: 20px 0 0 !important; }
-.rt-sign-logo img { width: 190px !important; }
+img.rt-logo { width: 190px !important; }
 /* Die Firmenliste sitzt gestapelt direkt unter der Wortmarke — der
    Vorsprung, den sie im Breitlayout ausgleicht, faellt hier weg. */
 .rt-company-contact { margin-top: 14px !important; }
@@ -79,7 +83,7 @@ tr.rt-stack > td + td { padding-top: 20px !important; }
 .rt-pad { padding-left: 18px !important; padding-right: 18px !important; }
 .rt-title { font-size: 24px !important; line-height: 29px !important; }
 .rt-sign-name { font-size: 20px !important; line-height: 24px !important; }
-.rt-sign-logo img { width: 165px !important; }
+img.rt-logo { width: 165px !important; }
 .rt-sign-identity { padding-bottom: 16px !important; }
 .rt-sign-logo { padding-top: 16px !important; }
 tr.rt-stack > td + td { padding-top: 16px !important; }

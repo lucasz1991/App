@@ -47,11 +47,13 @@
     $trainBackgroundPosition = $hasIdleTrain
         ? 'center center,left bottom,left bottom'
         : 'center center,left bottom';
-    // Der Streifen ist flacher als vorher; bliebe der Zug bei 86 % Breite,
-    // fuellte er ihn fast ganz aus und waere kein Hintergrund mehr.
+    // Der Streifen ist rund ein Sechstel flacher als vorher. Der Zug geht
+    // im selben Verhaeltnis zurueck (86 % -> 80 %), damit er Hintergrund
+    // bleibt. Weiter herunter darf er nicht: die Rauchschrift ueber dem
+    // Schornstein muss lesbar bleiben, und sie skaliert mit.
     $trainBackgroundSize = $hasIdleTrain
-        ? '100% 100%,72% auto,72% auto'
-        : '100% 100%,72% auto';
+        ? '100% 100%,80% auto,80% auto'
+        : '100% 100%,80% auto';
 @endphp
 <tr>
     {{-- Reihenfolge beachten: die background-Kurzform setzt background-image
@@ -132,13 +134,13 @@
                     <td align="left" style="padding:{{ $outlookTrainPadding }};text-align:left;font-size:0;line-height:0;">
                         @if ($outlookTrainFallbackSrc !== '')
                             <!--[if !mso]><!-->
-                            <img data-rt-outlook-train src="{{ $outlookTrainSrc }}" width="560" alt="Dampflok-Güterzug" style="display:block;width:560px;max-width:100%;height:auto;margin:0;border:0;outline:none;">
+                            <img data-rt-outlook-train src="{{ $outlookTrainSrc }}" width="620" alt="Dampflok-Güterzug" style="display:block;width:620px;max-width:100%;height:auto;margin:0;border:0;outline:none;">
                             <!--<![endif]-->
                             <!--[if mso]>
-                            <img data-rt-outlook-train-still src="{{ $outlookTrainFallbackSrc }}" width="560" alt="Dampflok-Güterzug" style="display:block;width:560px;height:auto;margin:0;border:0;outline:none;">
+                            <img data-rt-outlook-train-still src="{{ $outlookTrainFallbackSrc }}" width="620" alt="Dampflok-Güterzug" style="display:block;width:620px;height:auto;margin:0;border:0;outline:none;">
                             <![endif]-->
                         @else
-                            <img data-rt-outlook-train src="{{ $outlookTrainSrc }}" width="560" alt="Dampflok-Güterzug" style="display:block;width:560px;max-width:100%;height:auto;margin:0;border:0;outline:none;">
+                            <img data-rt-outlook-train src="{{ $outlookTrainSrc }}" width="620" alt="Dampflok-Güterzug" style="display:block;width:620px;max-width:100%;height:auto;margin:0;border:0;outline:none;">
                         @endif
                     </td>
                 </tr>
