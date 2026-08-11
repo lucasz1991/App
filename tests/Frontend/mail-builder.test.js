@@ -468,3 +468,22 @@ test('preview controller writes logical frame variables and cleans listeners', (
     controller.destroy();
     assert.equal(handlers.size, 0);
 });
+
+test('mail editor waits for the teleported fullscreen workspace before booting LMZ', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const source = await readFile(
+        new URL('../../resources/views/livewire/admin/mail-document-editor.blade.php', import.meta.url),
+        'utf8',
+    );
+    const coreSource = await readFile(
+        new URL('../../resources/js/lmz-editor-core.js', import.meta.url),
+        'utf8',
+    );
+
+    assert.match(source, /const editorStart = await new Promise/);
+    assert.match(source, /new MutationObserver\(probe\)/);
+    assert.match(source, /page-builder-shell:opened/);
+    assert.match(source, /workspace && root && runtimeBridge/);
+    assert.doesNotMatch(source, /if \(!workspace \|\| !root \|\| !runtimeBridge\) \{\s*return;/);
+    assert.match(coreSource, /closest\?\.\('\[data-page-builder-fullscreen-root\]'\)/);
+});

@@ -1572,18 +1572,22 @@ export async function createMarketingStudio(workspace, config) {
 
     exportButton?.addEventListener('click', async () => {
         if (readOnly) return;
-        invalidateRender();
-        const requestId = renderRequest;
-        const exportFormat = currentFormat;
-        renderAbortController = new AbortController();
-        const { signal } = renderAbortController;
         exportButton.disabled = true;
-        setRenderStatus(workspace, 'processing', 'Layout wird gespeichert …');
+        setRenderStatus(workspace, 'processing', 'Entwurf wird gespeichert …');
 
         try {
-            const saved = await instance?.save('manual');
-            if (!isActiveRender(requestId, exportFormat)) return;
+            const saved = await persistSharedContent();
             if (!saved) throw new Error('Das Motiv konnte vor dem Export nicht gespeichert werden.');
+
+            // Der gemeinsame Inhalts-Save kann alle drei Varianten neu binden
+            // und den aktuellen Builder autoritativ neu laden. Erst danach
+            // wird der Render-Request erzeugt; andernfalls wuerde startBuilder()
+            // den soeben gestarteten Export als veraltet invalidieren.
+            invalidateRender();
+            const requestId = renderRequest;
+            const exportFormat = currentFormat;
+            renderAbortController = new AbortController();
+            const { signal } = renderAbortController;
 
             setRenderStatus(workspace, 'processing', 'PNG wird serverseitig gerendert …');
             const payload = await requestJson(config.endpoints.renderStore, {
@@ -1609,7 +1613,7 @@ export async function createMarketingStudio(workspace, config) {
             }
             await pollRender(render, requestId, exportFormat, signal);
         } catch (error) {
-            if (error.name === 'AbortError' || !isActiveRender(requestId, exportFormat)) return;
+            if (error.name === 'AbortError') return;
             setRenderStatus(workspace, 'failed', error.message);
             dispatchToast('error', error.message, 'PNG nicht erstellt');
             exportButton.disabled = false;

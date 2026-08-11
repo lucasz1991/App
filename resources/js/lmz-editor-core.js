@@ -38,9 +38,16 @@ export function handleScopedRtePaste({ ev, rte } = {}) {
 }
 
 function pageBuilderShellContext(root) {
-    const shell = asElement(root)?.closest?.('[data-page-builder-shell]') || null;
-    const workspace = asElement(root)?.closest?.('[data-page-builder-workspace]') || null;
-    const shellId = shell?.querySelector?.('[data-page-builder-fullscreen-root]')?.dataset?.pageBuilderShellId || '';
+    const element = asElement(root);
+    const shell = element?.closest?.('[data-page-builder-shell]') || null;
+    const workspace = element?.closest?.('[data-page-builder-workspace]') || null;
+    // fullscreen-modal teleportiert den Editor nach <body>. Dadurch ist die
+    // urspruengliche Shell kein DOM-Vorfahre mehr, die stabile ID liegt aber
+    // weiterhin direkt auf der teleportierten Vollbildwurzel.
+    const fullscreen = element?.closest?.('[data-page-builder-fullscreen-root]') || null;
+    const shellId = fullscreen?.dataset?.pageBuilderShellId
+        || shell?.querySelector?.('[data-page-builder-fullscreen-root]')?.dataset?.pageBuilderShellId
+        || '';
     return { shell, workspace, shellId };
 }
 
@@ -820,6 +827,54 @@ export function setAnimatedPreviewPlayback(component, playing = true) {
             backgroundPriority,
         ));
     }
+    return true;
+}
+
+export function refreshPausedAnimatedPreviewElement(element) {
+    const current = element ? animatedPreviewState.get(element) : null;
+    if (!element || current?.playing !== false) return false;
+
+    const isImage = String(element.tagName || '').toLowerCase() === 'img';
+    const backgroundImage = isImage ? '' : String(
+        element.style?.backgroundImage
+        || element.ownerDocument?.defaultView?.getComputedStyle?.(element)?.backgroundImage
+        || '',
+    );
+    const source = isImage
+        ? String(element.getAttribute?.('src') || element.src || '')
+        : (extractCssMediaSources(backgroundImage)[0] || '');
+    if (!source || source === current.frozenSource || backgroundImage === current.frozenBackgroundImage) return false;
+
+    const backgroundPriority = String(
+        element.style?.getPropertyPriority?.('background-image')
+        || current.backgroundPriority
+        || '',
+    );
+    const pauseState = {
+        playing: false,
+        source,
+        isImage,
+        backgroundImage,
+        backgroundPriority,
+        frozenSource: '',
+        frozenBackgroundImage: '',
+    };
+    animatedPreviewState.set(element, pauseState);
+    element.dataset.rtLmzAnimationPaused = 'true';
+    Promise.resolve(captureAnimatedFrame(element, source, isImage)).then((frozenSource) => {
+        if (!frozenSource || animatedPreviewState.get(element) !== pauseState || pauseState.playing !== false) return;
+        pauseState.frozenSource = frozenSource;
+        if (isImage) {
+            element.setAttribute?.('src', frozenSource);
+            return;
+        }
+        pauseState.frozenBackgroundImage = replaceFirstCssMediaSource(backgroundImage, frozenSource);
+        element.style?.setProperty?.('background-image', pauseState.frozenBackgroundImage, backgroundPriority);
+    }).catch(() => {
+        // Wenn der aktuelle Frame nicht lesbar ist, bleibt das neue Theme-GIF
+        // sichtbar. Der persistierte Builderstand wird nie veraendert.
+    });
+
     return true;
 }
 

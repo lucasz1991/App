@@ -1258,6 +1258,8 @@ test('adapter explicitly disables Joomla web defaults and fallback projects', as
     assert.match(source, /const requestSnapshot = JSON\.stringify\(request\)/);
     assert.match(source, /while \(sharedContentDirty \|\| instance\?\.hasUnsavedChanges\(\)\)/);
     assert.match(source, /workspace\.inert = true/);
+    assert.match(source, /\[data-marketing-export\][\s\S]+?const saved = await persistSharedContent\(\)/);
+    assert.match(source, /Entwurf wird gespeichert/);
     assert.match(source, /config\.logoLightUrl,\s*config\.logoDarkUrl,/);
     assert.doesNotMatch(source, /config\.logoUrl\b/);
     assert.match(source, /\[data-marketing-artboard-label\]/);

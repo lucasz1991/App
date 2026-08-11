@@ -149,18 +149,47 @@
 
         @script
             <script>
-                (function () {
+                (async function () {
                     // Die Verdrahtung steht bewusst auf der Seite: das Modul
                     // resources/js/mail-builder.js bringt keinen eigenen
                     // Startvorgang mit, app.js reicht es nur als
                     // window.RailTimeMailBuilder durch.
-                    const workspace = document.querySelector('[data-mail-document-studio]');
-                    const root = workspace?.querySelector('[data-mail-document-root]');
-                    const runtimeBridge = window.RailTimeMailBuilder;
+                    // Die gemeinsame Vollbild-Shell teleportiert den Workspace
+                    // erst beim Alpine-Start nach <body>. Livewire kann dieses
+                    // @script vorher auswerten; ein sofortiges querySelector()
+                    // wuerde dann dauerhaft am Loader stehen bleiben.
+                    const editorStart = await new Promise((resolve) => {
+                        let settled = false;
+                        const finish = (value) => {
+                            if (settled) return;
+                            settled = true;
+                            window.clearInterval(interval);
+                            window.clearTimeout(timeout);
+                            observer.disconnect();
+                            window.removeEventListener('page-builder-shell:opened', probe);
+                            document.removeEventListener('livewire:navigating', cancel);
+                            resolve(value);
+                        };
+                        const probe = () => {
+                            const workspace = document.querySelector('[data-mail-document-studio]');
+                            const root = workspace?.querySelector('[data-mail-document-root]');
+                            const runtimeBridge = window.RailTimeMailBuilder;
+                            if (workspace && root && runtimeBridge) finish({ workspace, root, runtimeBridge });
+                        };
+                        const cancel = () => finish(null);
+                        const observer = new MutationObserver(probe);
+                        observer.observe(document.body, { childList: true, subtree: true });
+                        const interval = window.setInterval(probe, 25);
+                        const timeout = window.setTimeout(() => finish(null), 5000);
+                        window.addEventListener('page-builder-shell:opened', probe);
+                        document.addEventListener('livewire:navigating', cancel, { once: true });
+                        probe();
+                    });
 
-                    if (!workspace || !root || !runtimeBridge) {
+                    if (!editorStart) {
                         return;
                     }
+                    const { workspace, root, runtimeBridge } = editorStart;
 
                     // Ein zweiter Durchlauf (Livewire-Navigation, erneutes
                     // Rendern) darf keine zweite Instanz auf denselben Knoten
