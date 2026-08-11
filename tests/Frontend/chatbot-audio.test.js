@@ -988,8 +988,160 @@ test('assistant client claims a server-confirmed pagebuilder effect once and rej
     assert.equal(chatbot.handleClientAction({
         action: { type: 'pagebuilder_grant', action_token: 'R'.repeat(48) },
     }), true);
-    await waitFor(() => claimRequests.length === 3);
+    await waitFor(() => dispatched.some((event) => (
+        event.type === 'railtime-pagebuilder-assistant-claim-failed'
+        && event.detail?.action_token === 'R'.repeat(48)
+    )));
     assert.equal(saves, 1);
+    const rejectedClaim = dispatched.find((event) => (
+        event.type === 'railtime-pagebuilder-assistant-claim-failed'
+        && event.detail?.action_token === 'R'.repeat(48)
+    ));
+    assert.deepEqual(rejectedClaim?.detail, {
+        action_token: 'R'.repeat(48),
+        reason: 'claim_rejected',
+    });
+});
+
+test('pagebuilder claim times out fail-closed and releases its local claim handle', async () => {
+    const { fakeWindow } = installBrowserEnvironment();
+    const dispatched = [];
+    let claimSignal = null;
+    replaceGlobal('CustomEvent', class {
+        constructor(type, options = {}) {
+            this.type = type;
+            this.detail = options.detail;
+        }
+    });
+    fakeWindow.dispatchEvent = (event) => dispatched.push(event);
+    fakeWindow.location = {
+        href: 'https://railtime.test/administrator/marketing/motive/creative/bearbeiten',
+        origin: 'https://railtime.test',
+    };
+    const neverResolvingFetch = (_url, options) => {
+        claimSignal = options.signal;
+        return new Promise(() => {});
+    };
+    fakeWindow.fetch = neverResolvingFetch;
+    replaceGlobal('fetch', neverResolvingFetch);
+    const chatbot = railtimeChatbot({
+        csrfToken: 'csrf-pagebuilder',
+        pageBuilderActionClaimEndpoint: '/assistant/pagebuilder-actions/claim',
+        pageBuilderActionClaimTimeoutMs: 50,
+    });
+    const token = 'S'.repeat(48);
+
+    assert.equal(chatbot.handleClientAction({
+        action: { type: 'pagebuilder_grant', action_token: token },
+    }), true);
+    await waitFor(() => dispatched.some((event) => (
+        event.type === 'railtime-pagebuilder-assistant-claim-failed'
+        && event.detail?.action_token === token
+    )));
+
+    assert.equal(claimSignal?.aborted, true);
+    assert.equal(chatbot.pageBuilderActionClaims[token], undefined);
+    assert.deepEqual(
+        dispatched.find((event) => event.detail?.action_token === token)?.detail,
+        { action_token: token, reason: 'claim_timeout' },
+    );
+});
+
+test('pagebuilder assistant entry opens the sole copilot directly and publishes its layout contract', () => {
+    const { fakeDocument, fakeWindow } = installBrowserEnvironment();
+    const dispatched = [];
+    const rootAttributes = new Map();
+    let triggerFocused = 0;
+    const pageBuilderTrigger = {
+        disabled: false,
+        isConnected: true,
+        offsetParent: {},
+        focus: () => { triggerFocused += 1; },
+    };
+    fakeDocument.body = {};
+    fakeDocument.activeElement = pageBuilderTrigger;
+    fakeDocument.querySelectorAll = (selector) => selector === '[data-page-builder-assist]'
+        ? [pageBuilderTrigger]
+        : [];
+    fakeDocument.documentElement = {
+        classList: { contains: () => false },
+        setAttribute: (name, value) => rootAttributes.set(name, value),
+        removeAttribute: (name) => rootAttributes.delete(name),
+    };
+    replaceGlobal('CustomEvent', class {
+        constructor(type, options = {}) {
+            this.type = type;
+            this.detail = options.detail;
+        }
+    });
+    fakeWindow.dispatchEvent = (event) => dispatched.push(event);
+
+    const chatbot = railtimeChatbot({
+        pageBuilderMode: true,
+        pageRouteName: 'admin.mail-documents.editor',
+    });
+    let focused = 0;
+    chatbot.$refs = {
+        composer: { focus: () => { focused += 1; } },
+    };
+    chatbot.$nextTick = (callback) => callback();
+    chatbot.scrollMessages = () => {};
+    chatbot.refreshSpeechStatus = async () => true;
+
+    assert.equal(chatbot.handleAssistantOpen({ prompt: 'Diese Nutzlast ignorieren' }), true);
+    assert.equal(chatbot.open, true);
+    assert.equal(focused, 1);
+    assert.equal(rootAttributes.get('data-rt-pagebuilder-assist-open'), 'true');
+    assert.equal(
+        dispatched.some((event) => event.type === 'railtime-pagebuilder-context-request'),
+        true,
+    );
+
+    chatbot.setOpen(false);
+    assert.equal(rootAttributes.has('data-rt-pagebuilder-assist-open'), false);
+    assert.equal(triggerFocused, 1);
+    chatbot.showPetBubble('Darf den Editor nicht überdecken');
+    assert.equal(chatbot.petBubbleVisible, false);
+
+    chatbot.handleAssistantOpen();
+    const escapeCalls = [];
+    assert.equal(chatbot.handlePanelEscape({
+        preventDefault: () => escapeCalls.push('preventDefault'),
+        stopPropagation: () => escapeCalls.push('stopPropagation'),
+        stopImmediatePropagation: () => escapeCalls.push('stopImmediatePropagation'),
+    }), true);
+    assert.equal(chatbot.open, false);
+    assert.deepEqual(escapeCalls, ['preventDefault', 'stopPropagation', 'stopImmediatePropagation']);
+    assert.equal(triggerFocused, 2);
+});
+
+test('pagebuilder context activation accepts only the matching allowlisted editor route', () => {
+    const { fakeDocument } = installBrowserEnvironment();
+    fakeDocument.documentElement = {
+        classList: { contains: () => false },
+        setAttribute() {},
+        removeAttribute() {},
+    };
+    const chatbot = railtimeChatbot({
+        pageBuilderMode: false,
+        pageRouteName: 'admin.mail-documents.editor',
+    });
+
+    assert.equal(chatbot.handlePageBuilderContextUpdated({
+        version: 1,
+        route_name: 'admin.marketing.creatives.editor',
+        mode: 'marketing',
+        fullscreen_open: true,
+    }), false);
+    assert.equal(chatbot.pageBuilderActive, false);
+
+    assert.equal(chatbot.handlePageBuilderContextUpdated({
+        version: 1,
+        route_name: 'admin.mail-documents.editor',
+        mode: 'mail',
+        fullscreen_open: true,
+    }), true);
+    assert.equal(chatbot.pageBuilderActive, true);
 });
 
 test('wagon help bubble is shown only while automatic help is enabled and visible', () => {

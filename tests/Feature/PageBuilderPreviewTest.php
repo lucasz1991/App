@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\MailDocumentKind;
 use App\Enums\MarketingCreativeType;
+use App\Http\Responses\PageBuilderPreviewResponse;
 use App\Models\MailDocument;
 use App\Models\User;
 use App\Services\Marketing\MarketingStudioService;
@@ -23,6 +24,16 @@ class PageBuilderPreviewTest extends TestCase
 
         Storage::fake('private');
         config()->set('marketing.disk', 'private');
+    }
+
+    public function test_preview_response_rejects_late_runtime_injection(): void
+    {
+        $html = '<!doctype html><html><head></head><body>Vorschau</body></html>';
+        $response = new PageBuilderPreviewResponse($html);
+
+        $response->setContent(str_replace('</body>', '<script src="/livewire/livewire.js"></script></body>', $html));
+
+        $this->assertSame($html, $response->getContent());
     }
 
     public function test_shared_preview_card_renders_without_loading_its_frame(): void
@@ -158,7 +169,7 @@ class PageBuilderPreviewTest extends TestCase
         }
     }
 
-    public function test_editor_uses_guarded_fullscreen_shell_and_explicit_panel_targets(): void
+    public function test_editor_starts_with_preview_and_uses_the_guarded_fullscreen_shell(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $creative = app(MarketingStudioService::class)->createFromTemplate(
@@ -177,10 +188,18 @@ class PageBuilderPreviewTest extends TestCase
             'aria-modal="false"',
             'page-builder-shell:before-close',
             'page-builder-shell:close-approved',
-            'data-page-builder-panel-target="spacing"',
-            'data-page-builder-panel-target="media"',
+            'data-page-builder-preview-first',
+            'pageBuilderOpen: false',
+            'data-page-builder-open',
+            'trapPageBuilderFocus',
+            'pageBuilderTrigger',
+            'data-rt-pagebuilder-assist-open',
+            'data-page-builder-title',
+            'data-page-builder-assist',
         ] as $needle) {
             $this->assertTrue(str_contains($html, $needle), 'Editor enthält nicht: '.$needle);
         }
+
+        $this->assertStringNotContainsString('data-page-builder-panel-host', $html);
     }
 }

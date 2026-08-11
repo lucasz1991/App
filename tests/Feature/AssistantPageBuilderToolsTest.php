@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\MailDocumentKind;
 use App\Enums\MarketingCreativeFormat;
 use App\Enums\MarketingCreativeType;
+use App\Livewire\Tools\Chatbot;
 use App\Models\File;
 use App\Models\FileFolder;
 use App\Models\FilePool;
@@ -20,6 +21,7 @@ use App\Support\PageHelpCatalog;
 use Database\Seeders\MailDocumentSeeder;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\Storage;
+use ReflectionMethod;
 use Tests\TestCase;
 
 class AssistantPageBuilderToolsTest extends TestCase
@@ -373,6 +375,162 @@ class AssistantPageBuilderToolsTest extends TestCase
         ])->assertUnprocessable();
     }
 
+    public function test_discarded_pagebuilder_actions_cannot_be_consumed_or_claimed_later(): void
+    {
+        [$admin, $creative, $variant] = $this->creative();
+        $tools = app(AssistantPageBuilderTools::class);
+        $store = app(AssistantPendingActionStore::class);
+        $context = $this->marketingContext($creative, $variant, clientRevision: 8);
+        $effect = $tools->execute(
+            AssistantPageBuilderTools::SAVE_TOOL,
+            [],
+            $admin,
+            'admin.marketing.creatives.editor',
+            $context,
+        )['effect'];
+
+        $pending = $store->create($admin, 'admin.marketing.creatives.editor', $effect);
+        $this->assertFalse($store->discard($admin, $pending['token'], 'admin.mail-documents.editor'));
+        $this->assertTrue($store->discard($admin, $pending['token'], 'admin.marketing.creatives.editor'));
+        $this->assertNull($store->consume(
+            $admin,
+            'admin.marketing.creatives.editor',
+            $pending['token'],
+            [],
+            $context,
+        ));
+
+        $confirmed = $store->create($admin, 'admin.marketing.creatives.editor', $effect);
+        $this->assertNotNull($store->consume(
+            $admin,
+            'admin.marketing.creatives.editor',
+            $confirmed['token'],
+            [],
+            $context,
+        ));
+        $this->assertTrue($store->discard($admin, $confirmed['token'], 'admin.marketing.creatives.editor'));
+        $this->assertNull($store->claimPageBuilderEffect($admin, $confirmed['token']));
+    }
+
+    public function test_claim_and_discard_share_the_same_token_lock_and_discard_wins_before_a_late_claim(): void
+    {
+        [$admin, $creative, $variant] = $this->creative();
+        $this->actingAs($admin);
+        $tools = app(AssistantPageBuilderTools::class);
+        $store = app(AssistantPendingActionStore::class);
+        $context = $this->marketingContext($creative, $variant, clientRevision: 12);
+        $effect = $tools->execute(
+            AssistantPageBuilderTools::SAVE_TOOL,
+            [],
+            $admin,
+            'admin.marketing.creatives.editor',
+            $context,
+        )['effect'];
+        $pending = $store->create($admin, 'admin.marketing.creatives.editor', $effect);
+        $this->assertNotNull($store->consume(
+            $admin,
+            'admin.marketing.creatives.editor',
+            $pending['token'],
+            [],
+            $context,
+        ));
+
+        $discardLock = $store->tokenLock($admin, $pending['token']);
+        $this->assertTrue($discardLock->get());
+        try {
+            $this->postJson(route('assistant.pagebuilder-actions.claim'), [
+                'action_token' => $pending['token'],
+            ])->assertUnprocessable();
+        } finally {
+            $discardLock->release();
+        }
+
+        $this->assertTrue($store->tokenLock($admin, $pending['token'])->get(
+            fn (): bool => $store->discard($admin, $pending['token'], 'admin.marketing.creatives.editor'),
+        ));
+        $this->postJson(route('assistant.pagebuilder-actions.claim'), [
+            'action_token' => $pending['token'],
+        ])->assertUnprocessable();
+    }
+
+    public function test_claim_failure_revokes_the_receipt_and_interrupted_history_recovers_to_discardable_error(): void
+    {
+        [$admin, $creative, $variant] = $this->creative();
+        $this->actingAs($admin);
+        $tools = app(AssistantPageBuilderTools::class);
+        $store = app(AssistantPendingActionStore::class);
+        $context = $this->marketingContext($creative, $variant, clientRevision: 13);
+        $effect = $tools->execute(
+            AssistantPageBuilderTools::SAVE_TOOL,
+            [],
+            $admin,
+            'admin.marketing.creatives.editor',
+            $context,
+        )['effect'];
+        $pending = $store->create($admin, 'admin.marketing.creatives.editor', $effect);
+        $this->assertNotNull($store->consume(
+            $admin,
+            'admin.marketing.creatives.editor',
+            $pending['token'],
+            [],
+            $context,
+        ));
+
+        $chatbot = new Chatbot;
+        $chatbot->pageRouteName = 'admin.marketing.creatives.editor';
+        $chatbot->chatHistory = [[
+            'key' => 'interrupted-claim',
+            'role' => 'assistant',
+            'content' => 'Änderung vorbereitet.',
+            'created_at' => now()->toIso8601String(),
+            'actions' => [[
+                'kind' => 'pending_tool',
+                'token' => $pending['token'],
+                'label' => 'Arbeitsstand speichern',
+                'route_name' => 'admin.marketing.creatives.editor',
+                'status' => 'claiming',
+            ]],
+        ]];
+        $recover = new ReflectionMethod($chatbot, 'recoverInterruptedPageBuilderClaims');
+        $recover->setAccessible(true);
+        $recover->invoke($chatbot, $admin);
+
+        $action = $chatbot->chatHistory[0]['actions'][0];
+        $this->assertSame('error', $action['status']);
+        $this->assertNotSame('', $action['error']);
+        $this->assertNull($store->claimPageBuilderEffect($admin, $pending['token']));
+
+        $timedOut = $store->create($admin, 'admin.marketing.creatives.editor', $effect);
+        $this->assertNotNull($store->consume(
+            $admin,
+            'admin.marketing.creatives.editor',
+            $timedOut['token'],
+            [],
+            $context,
+        ));
+        $chatbot->chatHistory = [[
+            'key' => 'timed-out-claim',
+            'role' => 'assistant',
+            'content' => 'Änderung vorbereitet.',
+            'created_at' => now()->toIso8601String(),
+            'actions' => [[
+                'kind' => 'pending_tool',
+                'token' => $timedOut['token'],
+                'label' => 'Arbeitsstand speichern',
+                'route_name' => 'admin.marketing.creatives.editor',
+                'status' => 'claiming',
+            ]],
+        ]];
+        $chatbot->recordAssistantActionClaimFailure([
+            'action_token' => $timedOut['token'],
+            'reason' => 'claim_timeout',
+        ]);
+
+        $this->assertSame('error', $chatbot->chatHistory[0]['actions'][0]['status']);
+        $this->assertStringContainsString('abgebrochen', $chatbot->chatHistory[0]['actions'][0]['error']);
+        $this->assertNull($store->claimPageBuilderEffect($admin, $timedOut['token']));
+    }
+
     public function test_pending_pagebuilder_confirmation_names_the_exact_safe_change(): void
     {
         [$admin, $creative, $variant] = $this->creative();
@@ -412,12 +570,27 @@ class AssistantPageBuilderToolsTest extends TestCase
         $this->assertStringContainsString('Textänderung', $textPending['label']);
         $this->assertStringContainsString($proposedText, $textPending['detail']);
         $this->assertStringEndsWith('VOLLSTÄNDIG SICHTBARES ENDE', $textPending['detail']);
+        $chatbot = new Chatbot;
+        $chatbot->pageRouteName = 'admin.marketing.creatives.editor';
+        $chatbot->pageBuilderAssistantContext = $tools->normalizeContext(
+            $admin,
+            'admin.marketing.creatives.editor',
+            $context,
+        );
+        $decorate = new ReflectionMethod($chatbot, 'decoratePageBuilderPendingAction');
+        $decorate->setAccessible(true);
+        $decorated = $decorate->invoke($chatbot, $textPending, $textEffect, $admin);
+        $this->assertSame('admin.marketing.creatives.editor', $decorated['route_name']);
+        $this->assertSame('pending', $decorated['status']);
+        $this->assertNotSame('', $decorated['segment']);
+        $this->assertNotSame('', $decorated['before']);
+        $this->assertSame($proposedText, $decorated['after']);
         $styleLabel = $store->create($admin, 'admin.marketing.creatives.editor', $styleEffect)['label'];
         $this->assertStringContainsString('font-size', $styleLabel);
         $this->assertStringContainsString('72px', $styleLabel);
         $this->assertStringContainsString('wagenmeister-team.png', $store->create($admin, 'admin.marketing.creatives.editor', $imageEffect)['label']);
         $this->assertStringContainsString(
-            'Geplante Änderung',
+            'Vorgeschlagene Änderung',
             (string) file_get_contents(resource_path('views/livewire/tools/chatbot.blade.php')),
         );
     }

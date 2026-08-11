@@ -15,134 +15,131 @@
     back-label="Zur Vorlagen-Seite"
     :preview-sources="$editorPreviewSources"
     preview-default="light"
-    workspace-class="h-full min-h-0 space-y-4 overflow-y-auto overscroll-contain px-3 py-4 sm:px-5"
+    workspace-class="min-h-0 flex-1 overflow-hidden p-0"
     data-mail-document-studio
     data-mail-document-back
 >
-    <x-slot:actions>
-        @if ($currentDocument !== null)
-            <span
-                data-mail-document-status
-                data-status="{{ $currentDocument->status->value }}"
-                data-status-label="{{ $currentDocument->status->label() }}"
-                data-has-unpublished-changes="{{ $currentDocument->hasUnpublishedChanges() ? 'true' : 'false' }}"
-                class="inline-flex min-h-9 items-center rounded-full px-3 text-xs font-bold uppercase tracking-[0.08em]"
-            >{{ $currentDocument->status->label() }}{{ $currentDocument->isPublished() && $currentDocument->hasUnpublishedChanges() ? ' · Entwurf' : '' }}</span>
-        @endif
-    </x-slot:actions>
+    @if ($currentDocument !== null)
+        <x-slot:toolbar>
+            <div class="rt-mail-studio-toolbar" data-mail-studio-toolbar>
+                <div class="rt-mail-studio-toolbar__documents" role="group" aria-label="Dokument auswählen">
+                    @foreach ($kinds as $kindValue => [$kindLabel, $kindHint])
+                        <a
+                            href="{{ route('admin.mail-documents.editor', ['dokument' => $kindValue]) }}"
+                            wire:navigate
+                            data-mail-document-switch="{{ $kindValue }}"
+                            aria-current="{{ $currentKind === $kindValue ? 'page' : 'false' }}"
+                            class="rt-mail-studio-document"
+                        >
+                            <span>{{ $kindLabel }}</span>
+                            <small>{{ $kindHint }}</small>
+                        </a>
+                    @endforeach
+                </div>
+
+                <div class="rt-mail-studio-toolbar__preview" data-mail-preview-toolbar>
+                    <div class="rt-mail-preview-context">
+                        <strong>Vorschau</strong>
+                        <small data-mail-preview-status aria-live="polite">Desktop · 1024 px · wird eingepasst</small>
+                    </div>
+
+                    <div class="rt-mail-preview-toggle" role="group" aria-label="Farbschema der Vorschau">
+                        <button type="button" data-mail-theme-button="light" aria-pressed="true" title="Helle Mail ansehen">
+                            <i data-feather="sun" class="h-4 w-4" aria-hidden="true"></i>
+                            <span>Hell</span>
+                        </button>
+                        <button type="button" data-mail-theme-button="dark" aria-pressed="false" title="Dunkle Mail ansehen">
+                            <i data-feather="moon" class="h-4 w-4" aria-hidden="true"></i>
+                            <span>Dunkel</span>
+                        </button>
+                    </div>
+
+                    <div class="rt-mail-preview-toggle" role="group" aria-label="Breite des Mailprogramms">
+                        <button type="button" data-mail-preview-device="desktop" aria-pressed="true" title="Desktop-Vorschau mit 1024 Pixeln">
+                            <i data-feather="monitor" class="h-4 w-4" aria-hidden="true"></i>
+                            <span>Desktop</span>
+                        </button>
+                        <button type="button" data-mail-preview-device="tablet" aria-pressed="false" title="Tablet-Vorschau mit 820 Pixeln">
+                            <i data-feather="tablet" class="h-4 w-4" aria-hidden="true"></i>
+                            <span>Tablet</span>
+                        </button>
+                        <button type="button" data-mail-preview-device="mobile" aria-pressed="false" title="Mobil-Vorschau mit 375 Pixeln">
+                            <i data-feather="smartphone" class="h-4 w-4" aria-hidden="true"></i>
+                            <span>Mobil</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="rt-mail-studio-toolbar__actions">
+                    <span
+                        data-mail-document-status
+                        data-status="{{ $currentDocument->status->value }}"
+                        data-status-label="{{ $currentDocument->status->label() }}"
+                        data-has-unpublished-changes="{{ $currentDocument->hasUnpublishedChanges() ? 'true' : 'false' }}"
+                        class="rt-mail-document-status"
+                    >{{ $currentDocument->status->label() }}{{ $currentDocument->isPublished() && $currentDocument->hasUnpublishedChanges() ? ' · Entwurf' : '' }}</span>
+
+                    <p class="rt-mail-studio-toolbar__message" data-mail-document-message aria-live="polite">
+                        @if ($currentDocument->isPublished())
+                            Veröffentlicht am {{ $currentDocument->published_at?->translatedFormat('d.m.Y H:i') }} Uhr.
+                        @else
+                            Noch nichts veröffentlicht — es gilt die heutige Blade-Quelle.
+                        @endif
+                    </p>
+
+                    <x-ui.buttons.button-basic
+                        type="button"
+                        mode="primary"
+                        size="sm"
+                        class="min-h-11 shrink-0 rounded-lg px-3"
+                        data-mail-document-publish
+                        title="Gespeicherten Entwurf veröffentlichen"
+                    >
+                        <i data-feather="upload-cloud" class="h-4 w-4" aria-hidden="true"></i>
+                        <span class="rt-mail-studio-toolbar__publish-label">Veröffentlichen</span>
+                    </x-ui.buttons.button-basic>
+                </div>
+            </div>
+        </x-slot:toolbar>
+    @endif
 
     @if ($currentDocument === null)
-        <div class="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-500/10 dark:text-amber-200" role="status">
-            <i data-feather="alert-triangle" class="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true"></i>
-            <div>
-                <p><strong>Die Maildokumente sind noch nicht eingerichtet.</strong></p>
-                <p class="mt-1 leading-6">
-                    Solange nichts veröffentlicht ist, arbeiten Downloads und Systemmails unverändert mit den heutigen
-                    Blade-Quellen weiter — es fehlt also nichts, es lässt sich nur nichts bearbeiten.
-                    Zum Einrichten <code class="rounded bg-black/5 px-1 py-0.5 dark:bg-white/10">php artisan migrate</code>
-                    und <code class="rounded bg-black/5 px-1 py-0.5 dark:bg-white/10">php artisan db:seed --class=MailDocumentSeeder</code> ausführen.
-                </p>
+        <div class="h-full overflow-y-auto p-3 sm:p-5">
+            <div class="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-500/10 dark:text-amber-200" role="status">
+                <i data-feather="alert-triangle" class="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true"></i>
+                <div>
+                    <p><strong>Die Maildokumente sind noch nicht eingerichtet.</strong></p>
+                    <p class="mt-1 leading-6">
+                        Solange nichts veröffentlicht ist, arbeiten Downloads und Systemmails unverändert mit den heutigen
+                        Blade-Quellen weiter — es fehlt also nichts, es lässt sich nur nichts bearbeiten.
+                        Zum Einrichten <code class="rounded bg-black/5 px-1 py-0.5 dark:bg-white/10">php artisan migrate</code>
+                        und <code class="rounded bg-black/5 px-1 py-0.5 dark:bg-white/10">php artisan db:seed --class=MailDocumentSeeder</code> ausführen.
+                    </p>
+                </div>
             </div>
         </div>
     @else
         <script type="application/json" data-mail-document-config>{!! json_encode($editorConfig, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}</script>
 
-        <div class="flex flex-col gap-3 rounded-xl border border-rt-border bg-rt-surface px-4 py-3 text-sm dark:border-rt-dark-border dark:bg-rt-dark-surface lg:flex-row lg:items-center lg:justify-between">
-            <div class="flex flex-wrap gap-2" role="group" aria-label="Dokument auswählen">
-                @foreach ($kinds as $kindValue => [$kindLabel, $kindHint])
-                    <a
-                        href="{{ route('admin.mail-documents.editor', ['dokument' => $kindValue]) }}"
-                        wire:navigate
-                        data-mail-document-switch="{{ $kindValue }}"
-                        aria-current="{{ $currentKind === $kindValue ? 'page' : 'false' }}"
-                        @class([
-                            'inline-flex min-h-11 flex-col justify-center rounded-xl border px-3.5 py-1 text-left transition',
-                            'border-rt-red bg-rt-red/5 text-rt-red' => $currentKind === $kindValue,
-                            'border-rt-border text-rt-muted hover:border-rt-red/40 hover:text-rt-red dark:border-rt-dark-border dark:text-rt-dark-muted' => $currentKind !== $kindValue,
-                        ])
-                    >
-                        <span class="text-sm font-semibold">{{ $kindLabel }}</span>
-                        <small class="text-xs">{{ $kindHint }}</small>
-                    </a>
-                @endforeach
+        <div class="rt-mail-studio" data-mail-studio>
+            {{-- Beanstandungen der Haertung. Sie werden nie stillschweigend
+                 geschluckt: was der Sanitizer entfernt hat, steht hier. --}}
+            <div class="hidden shrink-0 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-500/10 dark:text-amber-200" data-mail-document-findings role="alert" hidden>
+                <p class="font-semibold" data-mail-document-findings-title>Hinweise der Prüfung</p>
+                <ul class="mt-1 list-disc space-y-1 pl-5 leading-6" data-mail-document-findings-list></ul>
             </div>
 
-            <div class="flex flex-wrap items-center gap-3">
-                <p class="min-h-5 text-xs text-rt-muted dark:text-rt-dark-muted" data-mail-document-message aria-live="polite">
-                    @if ($currentDocument->isPublished())
-                        Veröffentlicht am {{ $currentDocument->published_at?->translatedFormat('d.m.Y H:i') }} Uhr.
-                    @else
-                        Noch nichts veröffentlicht — es gilt die heutige Blade-Quelle.
-                    @endif
-                </p>
-                <button
-                    type="button"
-                    class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-4 text-sm font-semibold text-white transition hover:bg-rt-red-dark disabled:opacity-50"
-                    data-mail-document-publish
+            <div class="rt-mail-editor-frame" data-mail-editor-frame data-preview-device="desktop">
+                <div
+                    id="mail-document-editor-{{ $currentDocument->public_id }}"
+                    class="rt-mail-builder-root"
+                    data-mail-document-root
+                    wire:ignore
                 >
-                    <i data-feather="upload-cloud" class="h-4 w-4" aria-hidden="true"></i>
-                    Veröffentlichen
-                </button>
-            </div>
-        </div>
-
-        {{-- Beanstandungen der Haertung. Sie werden nie stillschweigend
-             geschluckt: was der Sanitizer entfernt hat, steht hier. --}}
-        <div class="hidden rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-500/10 dark:text-amber-200" data-mail-document-findings role="alert" hidden>
-            <p class="font-semibold" data-mail-document-findings-title>Hinweise der Prüfung</p>
-            <ul class="mt-1 list-disc space-y-1 pl-5 leading-6" data-mail-document-findings-list></ul>
-        </div>
-
-        <div class="rt-mail-preview-toolbar" data-mail-preview-toolbar>
-            <div class="rt-mail-preview-context">
-                <strong>Darstellung im Mailprogramm</strong>
-                <small data-mail-preview-status aria-live="polite">Desktop · 1024 px · Vorschau wird eingepasst</small>
-            </div>
-
-            <div class="rt-mail-preview-toolbar__controls">
-                <div class="rt-mail-preview-toggle" role="group" aria-label="Farbschema der Vorschau">
-                    <button type="button" data-mail-theme-button="light" aria-pressed="true" title="Helle Mail ansehen">
-                        <i data-feather="sun" class="h-4 w-4" aria-hidden="true"></i>
-                        <span>Hell</span>
-                    </button>
-                    <button type="button" data-mail-theme-button="dark" aria-pressed="false" title="Dunkle Mail ansehen">
-                        <i data-feather="moon" class="h-4 w-4" aria-hidden="true"></i>
-                        <span>Dunkel</span>
-                    </button>
-                </div>
-
-                <div class="rt-mail-preview-toggle" role="group" aria-label="Breite des Mailprogramms">
-                    <button type="button" data-mail-preview-device="desktop" aria-pressed="true" title="Desktop-Vorschau mit 1024 Pixeln">
-                        <i data-feather="monitor" class="h-4 w-4" aria-hidden="true"></i>
-                        <span>Desktop</span>
-                    </button>
-                    <button type="button" data-mail-preview-device="tablet" aria-pressed="false" title="Tablet-Vorschau mit 820 Pixeln">
-                        <i data-feather="tablet" class="h-4 w-4" aria-hidden="true"></i>
-                        <span>Tablet</span>
-                    </button>
-                    <button type="button" data-mail-preview-device="mobile" aria-pressed="false" title="Mobil-Vorschau mit 375 Pixeln">
-                        <i data-feather="smartphone" class="h-4 w-4" aria-hidden="true"></i>
-                        <span>Mobil</span>
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <p class="flex items-start gap-2 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">
-            <i data-feather="info" class="mt-0.5 h-4 w-4 shrink-0 text-rt-red" aria-hidden="true"></i>
-            <span>Die Gerätewahl verändert nur die Vorschau. Inhalt und E-Mail-kompatibles Tabellenlayout bleiben gemeinsam gespeichert.</span>
-        </p>
-
-        <div class="rt-mail-editor-frame" data-mail-editor-frame data-preview-device="desktop">
-            <div
-                id="mail-document-editor-{{ $currentDocument->public_id }}"
-                class="rt-mail-builder-root"
-                data-mail-document-root
-                wire:ignore
-            >
-                <div class="rt-mail-editor-loading" role="status">
-                    <span class="rt-mail-editor-loading__mark">RT</span>
-                    <span>LMZ Page Builder wird geladen …</span>
+                    <div class="rt-mail-editor-loading" role="status">
+                        <span class="rt-mail-editor-loading__mark">RT</span>
+                        <span>LMZ Page Builder wird geladen …</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -196,18 +193,19 @@
                     // setzen.
                     window.RailTimeMailDocumentEditor?.destroy?.();
 
+                    const studioRoot = workspace.closest('[data-page-builder-fullscreen-root]') || workspace;
                     const config = JSON.parse(workspace.querySelector('[data-mail-document-config]')?.textContent || '{}');
                     const document_ = config.documents?.[config.currentDocument];
-                    const publishButton = workspace.querySelector('[data-mail-document-publish]');
-                    const messageNode = workspace.querySelector('[data-mail-document-message]');
-                    const findingsBox = workspace.querySelector('[data-mail-document-findings]');
-                    const findingsList = workspace.querySelector('[data-mail-document-findings-list]');
-                    const findingsTitle = workspace.querySelector('[data-mail-document-findings-title]');
-                    const statusBadge = workspace.querySelector('[data-mail-document-status]');
-                    const editorFrame = workspace.querySelector('[data-mail-editor-frame]');
-                    const previewStatus = workspace.querySelector('[data-mail-preview-status]');
-                    const themeButtons = Array.from(workspace.querySelectorAll('[data-mail-theme-button]'));
-                    const deviceButtons = Array.from(workspace.querySelectorAll('[data-mail-preview-device]'));
+                    const publishButton = studioRoot.querySelector('[data-mail-document-publish]');
+                    const messageNode = studioRoot.querySelector('[data-mail-document-message]');
+                    const findingsBox = studioRoot.querySelector('[data-mail-document-findings]');
+                    const findingsList = studioRoot.querySelector('[data-mail-document-findings-list]');
+                    const findingsTitle = studioRoot.querySelector('[data-mail-document-findings-title]');
+                    const statusBadge = studioRoot.querySelector('[data-mail-document-status]');
+                    const editorFrame = studioRoot.querySelector('[data-mail-editor-frame]');
+                    const previewStatus = studioRoot.querySelector('[data-mail-preview-status]');
+                    const themeButtons = Array.from(studioRoot.querySelectorAll('[data-mail-theme-button]'));
+                    const deviceButtons = Array.from(studioRoot.querySelectorAll('[data-mail-preview-device]'));
 
                     if (!document_) {
                         return;
@@ -358,6 +356,29 @@
                         return window.LMZBuilder;
                     };
 
+                    const waitForFullscreenActivation = async () => {
+                        if (workspace.dataset.pageBuilderEditorActive !== 'false') return true;
+
+                        const shellId = studioRoot.dataset.pageBuilderShellId || '';
+                        return await new Promise((resolve) => {
+                            const finish = (active) => {
+                                window.removeEventListener('page-builder-shell:opened', opened);
+                                document.removeEventListener('livewire:navigating', cancelled);
+                                controlListeners.signal.removeEventListener('abort', cancelled);
+                                resolve(active);
+                            };
+                            const opened = (event) => {
+                                if (shellId && event.detail?.id && event.detail.id !== shellId) return;
+                                finish(true);
+                            };
+                            const cancelled = () => finish(false);
+
+                            window.addEventListener('page-builder-shell:opened', opened);
+                            document.addEventListener('livewire:navigating', cancelled, { once: true });
+                            controlListeners.signal.addEventListener('abort', cancelled, { once: true });
+                        });
+                    };
+
                     const request = async (url, method, body = null) => {
                         const response = await fetch(url, {
                             method,
@@ -391,6 +412,9 @@
                     };
 
                     const boot = async () => {
+                        // Die Preview-Seite bleibt leichtgewichtig: Erst ein
+                        // bewusster Vollbild-Start laedt LMZ/GrapesJS und CSS.
+                        if (!(await waitForFullscreenActivation()) || destroyed) return;
                         const runtime = await ensureRuntime();
 
                         if (destroyed) return;

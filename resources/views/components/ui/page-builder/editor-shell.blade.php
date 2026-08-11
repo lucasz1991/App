@@ -6,27 +6,20 @@
     'backLabel' => 'Zurück zur Übersicht',
     'previewSources' => [],
     'previewDefault' => null,
-    'workspaceClass' => 'h-full min-h-0 overflow-y-auto overscroll-contain px-3 py-4 sm:px-5',
+    'workspaceClass' => 'min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-5',
 ])
 
 @php
     $shellId = 'page-builder-'.\Illuminate\Support\Str::random(8);
-    $panelTargets = [
-        'content' => ['label' => 'Inhalt', 'slot' => 'contentPanel'],
-        'properties' => ['label' => 'Eigenschaften', 'slot' => 'propertiesPanel'],
-        'styles' => ['label' => 'Stile', 'slot' => 'stylesPanel'],
-        'spacing' => ['label' => 'Abstände', 'slot' => 'spacingPanel'],
-        'media' => ['label' => 'Medien', 'slot' => 'mediaPanel'],
-        'animation' => ['label' => 'Animation', 'slot' => 'animationPanel'],
-    ];
 @endphp
 
 <div
     x-data="{
-        pageBuilderOpen: true,
+        pageBuilderOpen: false,
+        pageBuilderTrigger: null,
         init() {
             this.$watch('pageBuilderOpen', (open) => this.sync(open));
-            this.$nextTick(() => this.sync(true));
+            this.$nextTick(() => this.sync(false));
         },
         sync(open) {
             document.documentElement.classList.toggle('overflow-hidden', Boolean(open));
@@ -36,7 +29,9 @@
             )));
         },
         openPageBuilder() {
+            this.pageBuilderTrigger = document.activeElement;
             this.pageBuilderOpen = true;
+            this.$nextTick(() => requestAnimationFrame(() => this.focusPageBuilder()));
         },
         requestClose() {
             const allowed = window.dispatchEvent(new CustomEvent('page-builder-shell:before-close', {
@@ -47,13 +42,65 @@
         },
         approveClose() {
             this.pageBuilderOpen = false;
+            this.$nextTick(() => this.pageBuilderTrigger?.focus?.({ preventScroll: true }));
+        },
+        pageBuilderCompositeRoots() {
+            const fullscreen = document.querySelector(
+                '[data-page-builder-fullscreen-root][data-page-builder-shell-id=' + CSS.escape(@js($shellId)) + ']'
+            )?.closest('[data-page-builder-fullscreen]');
+            const assistant = document.querySelector(
+                '[data-railtime-chatbot-root][data-pagebuilder-active=true] #railtime-chatbot-panel'
+            );
+            return [fullscreen, assistant].filter((element) => {
+                if (!element) return false;
+                const style = window.getComputedStyle(element);
+                return style.display !== 'none' && style.visibility !== 'hidden';
+            });
+        },
+        pageBuilderAssistantOpen() {
+            const panel = document.querySelector(
+                '[data-railtime-chatbot-root][data-pagebuilder-active=true] #railtime-chatbot-panel'
+            );
+            return document.documentElement.hasAttribute('data-rt-pagebuilder-assist-open')
+                || (panel && window.getComputedStyle(panel).display !== 'none');
+        },
+        pageBuilderFocusables() {
+            const selector = [
+                'a[href]', 'button:not([disabled])', 'input:not([disabled])',
+                'select:not([disabled])', 'textarea:not([disabled])',
+                'iframe', '[tabindex]:not([tabindex="-1"])', '[contenteditable="true"]'
+            ].join(',');
+            return this.pageBuilderCompositeRoots().flatMap((root) => [...root.querySelectorAll(selector)])
+                .filter((element) => !element.closest('[inert]')
+                    && element.getAttribute('aria-hidden') !== 'true'
+                    && element.getClientRects().length > 0
+                    && window.getComputedStyle(element).display !== 'none'
+                    && window.getComputedStyle(element).visibility !== 'hidden');
+        },
+        focusPageBuilder() {
+            const title = this.pageBuilderCompositeRoots()[0]?.querySelector?.('[data-page-builder-title]');
+            (title || this.pageBuilderFocusables()[0])?.focus?.({ preventScroll: true });
+        },
+        trapPageBuilderFocus(event) {
+            if (event.defaultPrevented) return;
+            const focusables = this.pageBuilderFocusables();
+            if (!focusables.length) return;
+            const current = focusables.indexOf(document.activeElement);
+            const delta = event.shiftKey ? -1 : 1;
+            const next = current < 0
+                ? (event.shiftKey ? focusables.length - 1 : 0)
+                : (current + delta + focusables.length) % focusables.length;
+            event.preventDefault();
+            focusables[next]?.focus?.({ preventScroll: true });
         },
         destroy() {
             document.documentElement.classList.remove('overflow-hidden');
         },
     }"
+    x-on:keydown.tab.window="if (pageBuilderOpen) trapPageBuilderFocus($event)"
     x-on:page-builder-shell:close-approved.window="if (! $event.detail?.id || $event.detail.id === @js($shellId)) approveClose()"
     data-page-builder-shell
+    data-page-builder-preview-first
     data-page-builder-panel-trigger-policy="explicit"
 >
     <x-ui.page
@@ -66,10 +113,16 @@
         data-page-builder-closed-preview
     >
         <x-slot:actions>
-            <button type="button" x-on:click="openPageBuilder()" class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-rt-accent px-3.5 text-sm font-semibold text-white transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent/30">
+            <x-ui.buttons.button-basic
+                type="button"
+                mode="primary"
+                x-on:click="openPageBuilder()"
+                class="min-h-11 rounded-xl px-3.5"
+                data-page-builder-open
+            >
                 <i class="far fa-expand" aria-hidden="true"></i>
                 Vollbildeditor öffnen
-            </button>
+            </x-ui.buttons.button-basic>
         </x-slot:actions>
 
         <x-ui.page-builder.preview-card
@@ -79,24 +132,13 @@
             :sources="$previewSources"
             :default-source="$previewDefault"
         />
-
-        <div class="flex flex-wrap items-center gap-2">
-            <button type="button" x-on:click="openPageBuilder()" class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-rt-accent px-4 text-sm font-semibold text-white transition hover:brightness-95">
-                <i class="far fa-expand" aria-hidden="true"></i>
-                Vollbildeditor öffnen
-            </button>
-            <a href="{{ $backUrl }}" wire:navigate class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rt-border bg-rt-control px-4 text-sm font-semibold text-rt-text transition hover:border-rt-accent/40 hover:text-rt-accent dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-text">
-                <i class="far fa-arrow-left" aria-hidden="true"></i>
-                {{ $backLabel }}
-            </a>
-        </div>
     </x-ui.page>
 
     <x-ui.fullscreen-modal
         state="pageBuilderOpen"
         :trap="false"
         close-action="requestClose()"
-        escape-action="requestClose()"
+        escape-action="if (! pageBuilderAssistantOpen()) requestClose()"
         labelledby="{{ $shellId }}-title"
         body-class="min-h-0 flex-1 overflow-hidden p-0"
         content-class="h-full min-h-0 w-full max-w-none"
@@ -104,21 +146,34 @@
         data-page-builder-fullscreen
     >
         <x-slot:header>
-            <button type="button" x-on:click="requestClose()" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-rt-border bg-rt-control text-rt-muted transition hover:border-rt-accent/40 hover:text-rt-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent/30 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-muted dark:hover:text-rt-dark-accent" aria-label="Vollbildeditor schließen">
-                <i class="far fa-arrow-left" aria-hidden="true"></i>
-            </button>
             <span class="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent sm:flex">
                 <i class="far fa-object-group" aria-hidden="true"></i>
             </span>
             <div class="min-w-0 flex-1">
                 <p class="text-[10px] font-bold uppercase tracking-[0.1em] text-rt-soft dark:text-rt-dark-soft">{{ $eyebrow }}</p>
-                <h2 id="{{ $shellId }}-title" class="truncate text-base font-semibold text-rt-text dark:text-rt-dark-text sm:text-lg">{{ $title }}</h2>
+                <h2 id="{{ $shellId }}-title" tabindex="-1" class="truncate text-base font-semibold text-rt-text outline-none dark:text-rt-dark-text sm:text-lg" data-page-builder-title>{{ $title }}</h2>
             </div>
         </x-slot:header>
 
-        @isset($actions)
-            <x-slot:actions>{{ $actions }}</x-slot:actions>
-        @endisset
+        <x-slot:actions>
+            @isset($actions)
+                {{ $actions }}
+            @endisset
+
+            <x-ui.buttons.button-basic
+                type="button"
+                mode="secondary"
+                size="sm"
+                class="h-11 min-h-11 rounded-lg px-3"
+                x-on:click="$dispatch('railtime-assistant-open', { source: 'pagebuilder' })"
+                data-page-builder-assist
+                aria-label="KI-Assistent für den Page Builder öffnen"
+                title="KI-Assistent öffnen"
+            >
+                <i class="far fa-comment-dots" aria-hidden="true"></i>
+                <span class="hidden xl:inline">KI-Assistent</span>
+            </x-ui.buttons.button-basic>
+        </x-slot:actions>
 
         <div class="flex h-full min-h-0 flex-col" data-page-builder-fullscreen-root data-page-builder-shell-id="{{ $shellId }}">
             @isset($toolbar)
@@ -134,23 +189,6 @@
                 data-no-sidebar-swipe
             >
                 {{ $slot }}
-            </div>
-
-            <div class="contents" data-page-builder-panel-host data-page-builder-panel-trigger="explicit">
-                @foreach ($panelTargets as $target => $definition)
-                    @php($panelSlot = $definition['slot'])
-                    <aside
-                        hidden
-                        aria-hidden="true"
-                        data-page-builder-panel-target="{{ $target }}"
-                        data-page-builder-railtime-drawer
-                        data-page-builder-panel-label="{{ $definition['label'] }}"
-                    >
-                        @if (isset(${$panelSlot}))
-                            {{ ${$panelSlot} }}
-                        @endif
-                    </aside>
-                @endforeach
             </div>
         </div>
     </x-ui.fullscreen-modal>

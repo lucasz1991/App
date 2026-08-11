@@ -9,11 +9,14 @@ import {
     calculateSpacingOverlayGeometry,
     collectUsedMedia,
     componentAnimationContext,
+    createSpacingOverlayController,
     createImageAssetSelection,
     createScopedAssetCallbackSelection,
     enforceProtectedComponentModels,
     handleScopedRtePaste,
     installScopedAssetAccess,
+    isProtectedEditorStructure,
+    isProtectedEditorStructureTree,
     createLmzAssistantAdapter,
     createLmzEditorChrome,
     createPageBuilderLifecycleController,
@@ -1784,27 +1787,43 @@ test('shared LMZ uses the visible dynamic toolbar for editing, menu anchoring an
     const staleToolbar = root.querySelector('[data-toolbar]');
     staleToolbar.getBoundingClientRect = () => ({ left: 0, top: 0, width: 0, height: 0, right: 0, bottom: 0 });
     const chrome = createLmzEditorChrome({ instance: { editor }, root, mode: 'marketing' });
-
     const dynamicToolbar = document.createElement('div');
-    dynamicToolbar.className = 'lmzbjs-toolbar';
-    dynamicToolbar.getBoundingClientRect = () => ({ left: 180, top: 70, width: 120, height: 44, right: 300, bottom: 114 });
-    dynamicToolbar.innerHTML = '<button data-command="tlb-move">Move</button><button data-command="tlb-delete">Delete</button>';
-    root.querySelector('[data-tools]').appendChild(dynamicToolbar);
-    await new Promise((resolve) => setTimeout(resolve, 5));
+    try {
+        const menu = root.querySelector('.rt-lmz-inline-menu');
+        menu.getBoundingClientRect = () => ({ left: 0, top: 0, width: 260, height: 180, right: 260, bottom: 180 });
+        dynamicToolbar.className = 'lmzbjs-toolbar';
+        dynamicToolbar.getBoundingClientRect = () => ({ left: 480, top: 350, width: 32, height: 40, right: 512, bottom: 390 });
+        dynamicToolbar.innerHTML = '<button data-command="tlb-move">Move</button><button data-command="tlb-delete">Delete</button>';
+        root.querySelector('[data-tools]').appendChild(dynamicToolbar);
+        await new Promise((resolve) => setTimeout(resolve, 5));
 
-    const trigger = dynamicToolbar.querySelector('.rt-lmz-inline-edit-trigger');
-    assert.ok(trigger);
-    trigger.click();
-    const menu = root.querySelector('.rt-lmz-inline-menu');
-    assert.equal(menu.style.left, '160px');
-    assert.equal(menu.style.top, '110px');
+        const trigger = dynamicToolbar.querySelector('.rt-lmz-inline-edit-trigger');
+        assert.ok(trigger);
+        assert.equal(dynamicToolbar.querySelector('[data-command="tlb-move"]').hidden, true);
+        assert.equal(dynamicToolbar.querySelector('[data-command="tlb-delete"]').hidden, true);
+        assert.equal(dynamicToolbar.querySelector('[data-command="tlb-delete"]').getAttribute('aria-disabled'), 'true');
+        let triggerFocusCount = 0;
+        trigger.focus = () => { triggerFocusCount += 1; };
+        Object.defineProperty(document, 'activeElement', { configurable: true, get: () => trigger });
+        trigger.focus();
+        trigger.click();
+        assert.equal(menu.style.left, '232px');
+        assert.equal(menu.style.top, '154px');
 
-    editor.emit('component:selected', selected);
-    assert.equal(dynamicToolbar.querySelector('[data-command="tlb-move"]').hidden, true);
-    assert.equal(dynamicToolbar.querySelector('[data-command="tlb-delete"]').hidden, true);
-    assert.equal(dynamicToolbar.querySelector('[data-command="tlb-delete"]').getAttribute('aria-disabled'), 'true');
-
-    chrome.destroy();
+        let fullscreenEscapeCount = 0;
+        document.body.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') fullscreenEscapeCount += 1;
+        });
+        const escape = new document.defaultView.Event('keydown', { bubbles: true, cancelable: true });
+        Object.defineProperty(escape, 'key', { value: 'Escape' });
+        menu.dispatchEvent(escape);
+        assert.equal(escape.defaultPrevented, true);
+        assert.equal(fullscreenEscapeCount, 0);
+        assert.equal(menu.hidden, true);
+        assert.equal(triggerFocusCount, 2);
+    } finally {
+        chrome.destroy();
+    }
     assert.equal(dynamicToolbar.querySelector('.rt-lmz-inline-edit-trigger'), null);
 }));
 
@@ -1829,6 +1848,65 @@ test('shared LMZ keeps fixed icon action labels visually hidden without hiding n
 
     chrome.destroy();
 }));
+
+test('inline menu groups accessible icon actions and points Umpositionieren to the visible drag handle', () => coreWithDom(`
+    <div data-page-builder-shell><div data-page-builder-fullscreen-root data-page-builder-shell-id="shell-inline-groups">
+    <div id="root"><div class="lmz-builder__topbar"><button data-lmz-action="assets">Media</button></div>
+    <div class="lmz-builder__viewport"><div data-tools><div data-toolbar class="lmzbjs-toolbar">
+        <button data-command="tlb-move">Move</button><button data-command="tlb-clone">Clone</button><button data-command="tlb-delete">Delete</button>
+    </div></div></div></div></div></div>
+`, ({ document }) => {
+    const root = document.querySelector('#root');
+    const toolbar = root.querySelector('.lmzbjs-toolbar');
+    toolbar.getBoundingClientRect = () => ({ left: 40, top: 40, width: 180, height: 40, right: 220, bottom: 80 });
+    root.getBoundingClientRect = () => ({ left: 0, top: 0, width: 640, height: 480, right: 640, bottom: 480 });
+    const selected = coreFakeComponent(document.createElement('img'), {
+        type: 'image',
+        src: '/files/train.png',
+        attributes: { src: '/files/train.png' },
+    });
+    const editor = coreFakeEditor(root, selected);
+    const chrome = createLmzEditorChrome({ instance: { editor }, root, mode: 'marketing' });
+    const trigger = toolbar.querySelector('.rt-lmz-inline-edit-trigger');
+
+    trigger.focus();
+    trigger.click();
+    const groups = [...root.querySelectorAll('[data-rt-lmz-inline-group]')];
+    assert.deepEqual(groups.map((group) => group.dataset.rtLmzInlineGroup), ['assistant', 'edit', 'structure']);
+    assert.deepEqual(groups.map((group) => group.getAttribute('aria-label')), ['Assist', 'Bearbeiten', 'Struktur']);
+    groups.forEach((group) => assert.ok(group.querySelector('.rt-lmz-inline-menu__group-header small').textContent));
+    root.querySelectorAll('[data-rt-lmz-inline-action]').forEach((action) => {
+        assert.ok(action.querySelector('svg[aria-hidden="true"]'));
+        assert.equal(action.getAttribute('aria-label'), action.querySelector('.rt-lmz-inline-menu__action-label').textContent);
+    });
+
+    const moveHandle = toolbar.querySelector('[data-command="tlb-move"]');
+    let moveFocused = false;
+    moveHandle.focus = () => { moveFocused = true; };
+    root.querySelector('[data-rt-lmz-inline-action="move"]').click();
+    assert.equal(moveFocused, true);
+    assert.equal(moveHandle.classList.contains('rt-lmz-move-ready'), true);
+    assert.equal(moveHandle.dataset.rtLmzMoveReady, 'true');
+    assert.equal(moveHandle.getAttribute('aria-label'), 'Element ziehen und umpositionieren');
+    assert.match(moveHandle.getAttribute('title'), /Griff ziehen/);
+
+    chrome.destroy();
+}));
+
+test('shared LMZ shell styles real layer rows, grouped inline actions and responsive editor controls', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const css = await readFile(new URL('../../resources/css/lmz-editor-shell.css', import.meta.url), 'utf8');
+
+    assert.match(css, /\.lmzbjs-layer\.lmzbjs-selected\s*>\s*\.lmzbjs-layer-item/);
+    assert.match(css, /\.rt-lmz-inline-menu__group\s*\{/);
+    assert.match(css, /\.rt-lmz-inline-menu__group-header\s*\{/);
+    assert.match(css, /\.rt-lmz-inline-menu__icon\s*\{[\s\S]*?width:\s*1\.125rem;/);
+    assert.match(css, /\.rt-lmz-inline-menu__action-label\s*\{/);
+    assert.match(css, /\.lmzbjs-field:not\(\.lmzbjs-field-checkbox\):focus-within/);
+    assert.match(css, /\.lmzbjs-field \.lmzbjs-sel-arrow\s*\{[\s\S]*?z-index:\s*2;/);
+    assert.match(css, /@media \(max-width: 639\.98px\)[\s\S]*?\.lmzbjs-trt-trait textarea[\s\S]*?font-size:\s*1rem;/);
+    assert.match(css, /data-page-builder-shell-toolbar[\s\S]*?margin-inline-end:\s*24\.5rem;/);
+});
 
 test('shared LMZ closes vendor auto-styles after selection but preserves explicit style intent', () => coreWithDom(`
     <div data-page-builder-shell><div data-page-builder-fullscreen-root data-page-builder-shell-id="shell-a">
@@ -1880,18 +1958,18 @@ test('archived chrome is genuinely read-only and never exposes mutating inline a
     root.querySelector('.rt-lmz-inline-edit-trigger').click();
     const actions = [...root.querySelectorAll('[data-rt-lmz-inline-action]')]
         .map((item) => item.dataset.rtLmzInlineAction);
-    assert.deepEqual(actions, []);
+    assert.deepEqual(actions, ['assistant']);
 
     chrome.destroy();
     assert.equal(root.dataset.rtLmzReadOnly, undefined);
     assert.equal(root.querySelector('[data-lmz-mount="layers"]').inert, false);
 }));
 
-test('official lockups and QR structures expose no native or RailTime structure mutation', () => coreWithDom(`
+test('official lockups and QR structures expose only read-only Assist help and no structure mutation', () => coreWithDom(`
     <div data-page-builder-shell><div data-page-builder-fullscreen-root data-page-builder-shell-id="shell-protected">
     <div id="root"><div class="lmz-builder__topbar"><button data-lmz-action="assets">Medien</button></div>
     <div class="lmz-builder__viewport"><div data-tools><div data-toolbar><button data-command="tlb-move">Move</button><button data-command="tlb-clone">Clone</button><button data-command="tlb-delete">Delete</button></div></div></div></div></div></div>
-`, ({ document }) => {
+`, async ({ window, document }) => {
     const root = document.querySelector('#root');
     const selected = coreFakeComponent(document.createElement('img'), {
         type: 'image',
@@ -1899,6 +1977,21 @@ test('official lockups and QR structures expose no native or RailTime structure 
     });
     const editor = coreFakeEditor(root, selected);
     const chrome = createLmzEditorChrome({ instance: { editor }, root, mode: 'marketing' });
+    const adapter = createLmzAssistantAdapter({
+        root,
+        instance: { editor, hasUnsavedChanges: () => false },
+        chrome,
+        mode: 'marketing',
+        fingerprint: async () => 'a'.repeat(64),
+    });
+    const before = structuredClone(selected.state);
+    const eventOrder = [];
+    let assistantDetail = null;
+    window.addEventListener('railtime-pagebuilder-context-changed', () => eventOrder.push('context'));
+    window.addEventListener('railtime-assistant-open', (event) => {
+        eventOrder.push('assistant');
+        assistantDetail = event.detail;
+    });
 
     editor.emit('component:selected', selected);
     assert.equal(enforceProtectedComponentModels(editor), 1);
@@ -1915,6 +2008,62 @@ test('official lockups and QR structures expose no native or RailTime structure 
     assert.equal(actions.includes('move'), false);
     assert.equal(actions.includes('styles'), false);
     assert.equal(actions.includes('spacing'), false);
+    assert.equal(actions.includes('assistant'), true);
+    assert.equal((await adapter.getContext()).selection.protected, true);
+    assert.equal(adapter.editText('Darf nicht verändert werden'), false);
+    eventOrder.length = 0;
+    root.querySelector('[data-rt-lmz-inline-action="assistant"]').click();
+    assert.deepEqual(eventOrder, ['context', 'assistant']);
+    assert.deepEqual(assistantDetail, { source: 'page-builder', mode: 'marketing', read_only: true });
+    assert.deepEqual(selected.state, before);
+
+    adapter.destroy();
+    chrome.destroy();
+}));
+
+test('structure actions protect neutral parents around lockup, QR and train descendants without locking parent styles', () => coreWithDom(`
+    <div data-page-builder-shell><div data-page-builder-fullscreen-root data-page-builder-shell-id="shell-subtree">
+    <div id="root"><div class="lmz-builder__topbar"><button data-lmz-action="assets">Media</button></div>
+    <div class="lmz-builder__viewport"><div data-tools><div data-toolbar class="lmzbjs-toolbar">
+        <button data-command="tlb-move">Move</button><button data-command="tlb-clone">Clone</button><button data-command="tlb-delete">Delete</button>
+    </div></div></div></div></div></div>
+`, ({ document }) => {
+    const root = document.querySelector('#root');
+    let selected = null;
+    const editor = coreFakeEditor(root, null);
+    editor.getSelected = () => selected;
+    const chrome = createLmzEditorChrome({ instance: { editor }, root, mode: 'marketing' });
+    const markers = [
+        { 'data-rt-brand-lockup': 'official' },
+        { 'data-rt-qr-binding': 'career' },
+        { 'data-rt-mail-preview-train': 'true' },
+    ];
+
+    markers.forEach((attributes) => {
+        const parent = coreFakeComponent(document.createElement('section'));
+        const child = coreFakeComponent(document.createElement('div'), { attributes, parent });
+        parent.state.children = [child];
+        selected = parent;
+        editor.emit('component:selected', parent);
+
+        assert.equal(isProtectedEditorStructure(parent), false);
+        assert.equal(isProtectedEditorStructureTree(parent), true);
+        assert.equal(root.dataset.rtLmzProtectedSelection, 'true');
+        assert.equal(root.querySelector('[data-command="tlb-move"]').hidden, true);
+        root.querySelector('.rt-lmz-inline-edit-trigger').click();
+        const actions = [...root.querySelectorAll('[data-rt-lmz-inline-action]')]
+            .map((action) => action.dataset.rtLmzInlineAction);
+        assert.equal(actions.includes('move'), false);
+        assert.equal(actions.includes('duplicate'), false);
+        assert.equal(actions.includes('delete'), false);
+        assert.equal(actions.includes('traits'), true);
+        assert.equal(actions.includes('styles'), true);
+    });
+
+    const move = root.querySelector('[data-command="tlb-move"]');
+    const moveEvent = new document.defaultView.Event('click', { bubbles: true, cancelable: true });
+    move.dispatchEvent(moveEvent);
+    assert.equal(moveEvent.defaultPrevented, true);
 
     chrome.destroy();
 }));
@@ -1940,12 +2089,36 @@ test('shared LMZ media drawer blocks external previews and wires animation apply
             baseUrl: 'https://railtime.test/',
         },
     });
+    let fullscreenEscapeCount = 0;
+    document.body.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') fullscreenEscapeCount += 1;
+    });
+    const escape = (target) => {
+        const event = new document.defaultView.Event('keydown', { bubbles: true, cancelable: true });
+        Object.defineProperty(event, 'key', { value: 'Escape' });
+        target.dispatchEvent(event);
+        assert.equal(event.defaultPrevented, true);
+        assert.equal(fullscreenEscapeCount, 0);
+    };
 
     chrome.openMedia({ initialTab: 'used' });
     assert.equal([...root.querySelectorAll('.rt-lmz-media-item img')].some((img) => img.src.includes('evil.example')), false);
     assert.match(root.querySelector('.rt-lmz-media-drawer__warning').textContent, /evil\.example/);
+    const mediaDrawer = root.querySelector('.rt-lmz-media-drawer');
+    escape(mediaDrawer);
+    assert.equal(mediaDrawer.hidden, true);
 
-    root.querySelector('.rt-lmz-inline-edit-trigger').click();
+    const trigger = root.querySelector('.rt-lmz-inline-edit-trigger');
+    let triggerFocusCount = 0;
+    trigger.focus = () => { triggerFocusCount += 1; };
+    Object.defineProperty(document, 'activeElement', { configurable: true, get: () => trigger });
+    trigger.focus();
+    trigger.click();
+    const inlineMenu = root.querySelector('.rt-lmz-inline-menu');
+    escape(inlineMenu);
+    assert.equal(inlineMenu.hidden, true);
+    assert.equal(triggerFocusCount, 2);
+    trigger.click();
     root.querySelector('[data-rt-lmz-inline-action="animation"]').click();
     const drawer = root.querySelector('.rt-lmz-animation-drawer');
     assert.equal(drawer.hidden, false);
@@ -1957,9 +2130,7 @@ test('shared LMZ media drawer blocks external previews and wires animation apply
     form.dispatchEvent(new document.defaultView.Event('submit', { bubbles: true, cancelable: true }));
     assert.equal(selected.state.attributes['data-lmz-duration'], '0.8');
 
-    const escapeEvent = new document.defaultView.Event('keydown', { bubbles: true, cancelable: true });
-    Object.defineProperty(escapeEvent, 'key', { value: 'Escape' });
-    drawer.dispatchEvent(escapeEvent);
+    escape(drawer);
     assert.equal(drawer.hidden, true);
     chrome.openAnimation(selected);
     root.dispatchEvent(new document.defaultView.Event('pointerdown', { bubbles: true }));
@@ -1968,6 +2139,193 @@ test('shared LMZ media drawer blocks external previews and wires animation apply
     chrome.destroy();
     assert.equal(root.querySelector('.rt-lmz-animation-drawer'), null);
     assert.equal(root.querySelector('.rt-lmz-media-drawer'), null);
+}));
+
+test('vendor popover Escape closes only its group, restores trigger focus and never reaches fullscreen', () => coreWithDom(`
+    <section data-rt-fullscreen-modal>
+    <div id="root" class="lmz-builder">
+        <button id="styles-toggle" data-lmz-panel-group="right" data-lmz-panel-toggle="right:styles" aria-expanded="true">Styles</button>
+        <aside data-lmz-popover="right" class="is-open">
+            <section data-lmz-popover-panel="right:styles" class="is-active">
+                <button id="styles-close" data-lmz-panel-close="right">Schliessen</button>
+            </section>
+        </aside>
+        <div class="lmz-builder__viewport"><div data-tools><div data-toolbar></div></div></div>
+    </div>
+    </section>
+`, ({ document }) => {
+    const root = document.querySelector('#root');
+    const popover = root.querySelector('[data-lmz-popover]');
+    const panel = root.querySelector('[data-lmz-popover-panel]');
+    const close = document.querySelector('#styles-close');
+    const toggle = document.querySelector('#styles-toggle');
+    let fullscreenEscapeRuns = 0;
+    let closeClicks = 0;
+    let toggleFocus = 0;
+    document.body.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') fullscreenEscapeRuns += 1;
+    });
+    close.addEventListener('click', () => {
+        closeClicks += 1;
+        popover.classList.remove('is-open');
+        popover.hidden = true;
+        panel.classList.remove('is-active');
+        panel.hidden = true;
+        toggle.setAttribute('aria-expanded', 'false');
+    });
+    toggle.focus = () => { toggleFocus += 1; };
+    const editor = coreFakeEditor(root, coreFakeComponent(document.createElement('p')));
+    const chrome = createLmzEditorChrome({ instance: { editor }, root, mode: 'mail' });
+    const event = new document.defaultView.Event('keydown', { bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'key', { value: 'Escape' });
+
+    close.dispatchEvent(event);
+
+    assert.equal(event.defaultPrevented, true);
+    assert.equal(fullscreenEscapeRuns, 0);
+    assert.equal(closeClicks, 1);
+    assert.equal(popover.hidden, true);
+    assert.equal(toggleFocus, 1);
+    chrome.destroy();
+}));
+
+test('iframe selection changes cancel every target-bound inline surface before stale actions can run', () => coreWithDom(`
+    <div data-page-builder-shell><div data-page-builder-fullscreen-root data-page-builder-shell-id="shell-targets">
+    <div id="root"><div class="lmz-builder__topbar"><button data-lmz-action="assets">Media</button></div>
+    <div class="lmz-builder__viewport"><div data-tools><div data-toolbar></div></div></div></div></div></div>
+`, ({ document }) => {
+    const root = document.querySelector('#root');
+    const first = coreFakeComponent(document.createElement('img'), {
+        type: 'image', src: '/files/first.png', attributes: { src: '/files/first.png' },
+    });
+    const second = coreFakeComponent(document.createElement('div'));
+    let selected = first;
+    let assetTarget = null;
+    const editor = coreFakeEditor(root, first);
+    editor.getSelected = () => selected;
+    editor.AssetManager.setTarget = (target) => { assetTarget = target; };
+    const chrome = createLmzEditorChrome({
+        instance: { editor },
+        root,
+        mode: 'marketing',
+        media: {
+            assets: [{ src: '/files/second.png', name: 'Second.png', type: 'image' }],
+            baseUrl: 'https://railtime.test/',
+        },
+    });
+    const menu = root.querySelector('.rt-lmz-inline-menu');
+    const mediaDrawer = root.querySelector('.rt-lmz-media-drawer');
+    const animationDrawer = root.querySelector('.rt-lmz-animation-drawer');
+
+    root.querySelector('.rt-lmz-inline-edit-trigger').click();
+    editor.emit('component:selected', first);
+    assert.equal(menu.hidden, false);
+    selected = second;
+    editor.emit('component:selected', second);
+    assert.equal(menu.hidden, true);
+
+    selected = first;
+    chrome.openMedia({ replaceTarget: first, initialTab: 'library' });
+    assert.equal(mediaDrawer.hidden, false);
+    assert.equal(assetTarget, first);
+    editor.emit('component:deselected', first);
+    assert.equal(mediaDrawer.hidden, true);
+    assert.equal(assetTarget, null);
+
+    chrome.openAnimation(first);
+    assert.equal(animationDrawer.hidden, false);
+    selected = second;
+    editor.emit('component:selected', second);
+    assert.equal(animationDrawer.hidden, true);
+    const before = structuredClone(first.state.style);
+    animationDrawer.querySelector('form').dispatchEvent(new document.defaultView.Event('submit', { bubbles: true, cancelable: true }));
+    assert.deepEqual(first.state.style, before);
+
+    chrome.destroy();
+}));
+
+test('same-origin canvas Tab boundaries return to outer composite controls and detach on destroy', () => coreWithDom(`
+    <section data-rt-fullscreen-modal>
+        <button data-page-builder-assist>Assist</button>
+        <div id="root"><div class="lmz-builder__viewport">
+            <button id="before-frame">Vor Canvas</button><iframe id="canvas-frame"></iframe><button id="after-frame">Nach Canvas</button>
+            <div data-tools><div data-toolbar></div></div>
+        </div></div>
+    </section>
+`, ({ document }) => {
+    const root = document.querySelector('#root');
+    const frame = document.querySelector('#canvas-frame');
+    const frameDom = parseHTML('<body><button id="first">Erstes</button><a id="last" href="#">Letztes</a></body>');
+    const editor = coreFakeEditor(root, coreFakeComponent(document.createElement('p')));
+    editor.Canvas.getDocument = () => frameDom.document;
+    editor.Canvas.getFrameEl = () => frame;
+    let beforeFocus = 0;
+    let afterFocus = 0;
+    document.querySelector('#before-frame').focus = () => { beforeFocus += 1; };
+    document.querySelector('#after-frame').focus = () => { afterFocus += 1; };
+    const chrome = createLmzEditorChrome({ instance: { editor }, root, mode: 'mail' });
+    const tab = (target, shiftKey = false) => {
+        const event = new frameDom.window.Event('keydown', { bubbles: true, cancelable: true });
+        Object.defineProperty(event, 'key', { value: 'Tab' });
+        Object.defineProperty(event, 'shiftKey', { value: shiftKey });
+        target.dispatchEvent(event);
+        return event;
+    };
+
+    assert.equal(tab(frameDom.document.querySelector('#first'), true).defaultPrevented, true);
+    assert.equal(beforeFocus, 1);
+    assert.equal(tab(frameDom.document.querySelector('#last')).defaultPrevented, true);
+    assert.equal(afterFocus, 1);
+
+    chrome.destroy();
+    assert.equal(tab(frameDom.document.querySelector('#last')).defaultPrevented, false);
+    assert.equal(afterFocus, 1);
+}));
+
+test('spacing overlay keyboard controls expose values, commit with Enter and cancel with Escape', () => coreWithDom(`
+    <div id="root"><div data-tools></div></div>
+`, async ({ window, document }) => {
+    const root = document.querySelector('#root');
+    const selected = coreFakeComponent(document.createElement('div'));
+    const editor = coreFakeEditor(root, selected);
+    const changes = [];
+    selected.addStyle = (style, options) => { changes.push({ style, options }); };
+    const controller = createSpacingOverlayController({
+        editor,
+        root,
+        environment: {
+            document,
+            window,
+            requestAnimationFrame: (callback) => { callback(); return 1; },
+            cancelAnimationFrame() {},
+        },
+    });
+    const handle = root.querySelector('[data-type="padding"][data-side="top"]');
+    const key = (value, shiftKey = false) => {
+        const event = new window.Event('keydown', { bubbles: true, cancelable: true });
+        Object.defineProperty(event, 'key', { value });
+        Object.defineProperty(event, 'shiftKey', { value: shiftKey });
+        handle.dispatchEvent(event);
+        return event;
+    };
+
+    assert.equal(handle.getAttribute('role'), 'spinbutton');
+    assert.equal(handle.getAttribute('aria-valuemin'), '0');
+    assert.equal(handle.getAttribute('aria-valuenow'), '16');
+    assert.equal(key('ArrowUp').defaultPrevented, true);
+    key('ArrowRight', true);
+    assert.equal(handle.getAttribute('aria-valuenow'), '27');
+    assert.deepEqual(changes.at(-1).options, { partial: true });
+    key('Enter');
+    assert.equal(changes.at(-1).style['padding-top'], '27px');
+    assert.equal(changes.at(-1).options, undefined);
+
+    key('ArrowDown');
+    assert.equal(handle.getAttribute('aria-valuenow'), '15');
+    key('Escape');
+    assert.equal(changes.at(-1).style['padding-top'], '16px');
+    assert.equal(handle.getAttribute('aria-valuenow'), '16');
+    controller.destroy();
 }));
 
 test('shared LMZ dirty close saves once before approving fullscreen close', () => coreWithDom(`
@@ -1995,6 +2353,39 @@ test('shared LMZ dirty close saves once before approving fullscreen close', () =
     assert.equal(saves, 1);
     assert.equal(approvals, 1);
     controller.destroy();
+}));
+
+test('assistant opens the matching preview-first shell after Alpine teleports the editor away from it', () => coreWithDom(`
+    <div id="shell" data-page-builder-shell>
+        <div data-page-builder-closed-preview><button type="button" data-page-builder-open>Vollbildeditor öffnen</button></div>
+        <template id="teleport-origin"></template>
+    </div>
+    <section id="teleported-modal" data-rt-fullscreen-modal>
+        <div data-page-builder-fullscreen-root data-page-builder-shell-id="shell-teleport">
+            <div data-page-builder-workspace data-page-builder-editor-active="false">
+                <div id="root"><div class="lmz-builder__viewport"><div data-tools><div data-toolbar></div></div></div></div>
+            </div>
+        </div>
+    </section>
+`, ({ document }) => {
+    const root = document.querySelector('#root');
+    const teleported = document.querySelector('#teleported-modal');
+    document.querySelector('#teleport-origin')._x_teleport = teleported;
+    assert.equal(root.closest('[data-page-builder-shell]'), null);
+    const editor = coreFakeEditor(root, coreFakeComponent(document.createElement('p')));
+    const trigger = document.querySelector('[data-page-builder-open]');
+    let clicks = 0;
+    trigger.addEventListener('click', () => { clicks += 1; });
+    const adapter = createLmzAssistantAdapter({
+        root,
+        instance: { editor, hasUnsavedChanges: () => false },
+        chrome: { mediaState: () => ({ warnings: [] }) },
+        mode: 'mail',
+    });
+
+    assert.equal(adapter.openFullscreen(), true);
+    assert.equal(clicks, 1);
+    adapter.destroy();
 }));
 
 test('shared LMZ navigation participant flushes a dirty draft and fails closed on storage errors', async () => {

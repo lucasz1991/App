@@ -32,6 +32,7 @@ const PET_REACTION_DELAY_RANGE_MS = 9_000;
 const SPEECH_STATUS_RETRY_DELAYS_MS = [2_000, 5_000, 15_000, 30_000];
 const ATTACHMENT_UPLOAD_LIMIT = 3;
 const ATTACHMENT_CLEANUP_TIMEOUT_MS = 12_000;
+const PAGE_BUILDER_CLAIM_TIMEOUT_MS = 12_000;
 const PHRASE_AUDIO_CACHE_TTL_MS = 10 * 60 * 1_000;
 const PHRASE_AUDIO_CACHE_MAX_ITEMS = 8;
 const PHRASE_AUDIO_CACHE_MAX_BYTES = 16 * 1024 * 1024;
@@ -202,7 +203,10 @@ export function railtimeChatbot(config = {}) {
 
     return {
         open: false,
+        assistantReturnFocus: null,
         isDesktopDocked: false,
+        pageBuilderRoute: Boolean(config.pageBuilderMode),
+        pageBuilderActive: Boolean(config.pageBuilderMode),
         assistantAvailable: config.assistantAvailable !== false,
         speechAvailable: config.speechAvailable !== false,
         speechStatusEndpoint: String(config.speechStatusEndpoint ?? ''),
@@ -230,6 +234,11 @@ export function railtimeChatbot(config = {}) {
         sttEndpoint: String(config.sttEndpoint ?? ''),
         pageBuilderActionClaimEndpoint: String(config.pageBuilderActionClaimEndpoint ?? ''),
         pageBuilderActionClaimTokens: [],
+        pageBuilderActionClaims: Object.create(null),
+        pageBuilderActionClaimTimeoutMs: Math.max(
+            50,
+            Number(config.pageBuilderActionClaimTimeoutMs) || PAGE_BUILDER_CLAIM_TIMEOUT_MS,
+        ),
         csrfToken: String(config.csrfToken ?? ''),
         locale: String(
             config.locale
@@ -366,6 +375,9 @@ export function railtimeChatbot(config = {}) {
             this.speechRate = this.readNumber('railtime-chatbot-speech-rate', this.speechRate);
             this.open = this.isDesktopDocked
                 && safeStorage('sessionStorage')?.getItem('railtime-chatbot-open') === '1';
+            this.pageBuilderActive = this.pageBuilderRoute
+                || document.documentElement?.classList?.contains('rt-pagebuilder-fullscreen-open') === true;
+            this.syncPageBuilderAssistState();
 
             this.speechSupported = Boolean(
                 this.ttsConfigured
@@ -382,6 +394,8 @@ export function railtimeChatbot(config = {}) {
                 this.$nextTick(() => this.scrollMessages(false));
             };
             this._navigationHandler = () => {
+                this.cancelAllPageBuilderActionClaims();
+                this.clearPageBuilderAssistState();
                 this.closeSettings(false);
                 this.abortSpeechInput();
                 this.stopSpeaking();
@@ -442,6 +456,7 @@ export function railtimeChatbot(config = {}) {
             window.addEventListener('online', this._onlineHandler);
 
             this.$watch('open', (value) => {
+                this.syncPageBuilderAssistState();
                 const sessionStorage = safeStorage('sessionStorage');
                 if (value) {
                     sessionStorage?.setItem('railtime-chatbot-open', '1');
@@ -562,6 +577,8 @@ export function railtimeChatbot(config = {}) {
             this.clearPetBubbleTimers();
             this.clearPetReactionTimers();
             clearAssistantPhraseAudioCache();
+            this.cancelAllPageBuilderActionClaims();
+            this.clearPageBuilderAssistState();
             this.settingsOpen = false;
             releaseMicrophoneStream();
         },
@@ -717,7 +734,7 @@ export function railtimeChatbot(config = {}) {
             phraseKey = '',
         ) {
             const message = String(text ?? '').trim();
-            if (!message || this.open) return;
+            if (!message || this.open || this.pageBuilderActive) return;
 
             window.clearTimeout(this.petBubbleTimer);
             const normalizedActions = this.normalizePetBubbleActions(actions);
@@ -796,6 +813,12 @@ export function railtimeChatbot(config = {}) {
         },
 
         async handlePetClick() {
+            if (this.pageBuilderActive) {
+                this.setOpen(true, true);
+
+                return true;
+            }
+
             if (this.petPrimed) {
                 this.triggerPetReaction('happy', 900);
                 this.setOpen(true, true);
@@ -888,7 +911,7 @@ export function railtimeChatbot(config = {}) {
             window.clearTimeout(this.petBubbleCycleTimer);
             this.petBubbleCycleTimer = null;
 
-            if (!this.autoHelp || this.open || document.hidden) return;
+            if (this.pageBuilderActive || !this.autoHelp || this.open || document.hidden) return;
             const pageHelpKey = this.pageHelpStorageKey();
             if (
                 !this.hasPageHelp()
@@ -949,7 +972,8 @@ export function railtimeChatbot(config = {}) {
             window.clearTimeout(this.petReactionTimer);
             this.petReactionTimer = null;
             if (
-                !this.assistantAvailable
+                this.pageBuilderActive
+                || !this.assistantAvailable
                 || document.hidden
                 || this.prefersReducedMotion()
             ) return;
@@ -1247,16 +1271,115 @@ export function railtimeChatbot(config = {}) {
                 : window.innerWidth >= 1140;
         },
 
+        requestPageBuilderContext() {
+            if (typeof window.dispatchEvent !== 'function' || typeof CustomEvent !== 'function') {
+                return false;
+            }
+
+            window.dispatchEvent(new CustomEvent('railtime-pagebuilder-context-request'));
+
+            return true;
+        },
+
+        handlePageBuilderContextUpdated(rawDetail) {
+            const detail = normalizedEventDetail(rawDetail);
+            const contextMatches = Number(detail.version) === 1
+                && String(detail.route_name ?? '') === this.pageRouteName
+                && ['marketing', 'mail'].includes(String(detail.mode ?? ''));
+
+            this.pageBuilderActive = this.pageBuilderRoute
+                || (contextMatches && detail.fullscreen_open === true);
+            if (this.pageBuilderActive) {
+                this.clearPetBubbleTimers();
+                this.clearPetReactionTimers();
+            }
+            this.syncPageBuilderAssistState();
+
+            return contextMatches;
+        },
+
+        handleAssistantOpen() {
+            // Ambient callers may open/focus the sole assistant instance, but
+            // cannot inject a prompt or an editor command through this event.
+            const activeElement = document.activeElement;
+            this.assistantReturnFocus = activeElement && activeElement !== document.body
+                ? activeElement
+                : null;
+            this.setOpen(true, true);
+
+            return true;
+        },
+
+        handlePanelEscape(event) {
+            if (!this.open) return false;
+
+            // The Copilot is the active top layer inside the PageBuilder. Its
+            // Escape must not bubble into the full-screen editor underneath.
+            if (this.pageBuilderActive) {
+                event?.preventDefault?.();
+                event?.stopPropagation?.();
+                event?.stopImmediatePropagation?.();
+            }
+
+            if (this.settingsOpen) this.closeSettings(true);
+            else this.setOpen(false);
+
+            return true;
+        },
+
+        pageBuilderAssistTrigger() {
+            const candidates = Array.from(document.querySelectorAll?.('[data-page-builder-assist]') ?? []);
+
+            return candidates.find((candidate) => (
+                candidate?.isConnected !== false
+                && candidate?.disabled !== true
+                && (candidate?.offsetParent !== null || candidate?.getClientRects?.().length > 0)
+            )) ?? null;
+        },
+
+        syncPageBuilderAssistState() {
+            const root = document.documentElement;
+            if (!root?.setAttribute || !root?.removeAttribute) return false;
+
+            // Shared PageBuilder shells reserve desktop canvas space from this
+            // single root contract; mobile remains an overlay/peek surface.
+            if (this.pageBuilderActive && this.open) {
+                root.setAttribute('data-rt-pagebuilder-assist-open', 'true');
+
+                return true;
+            }
+
+            root.removeAttribute('data-rt-pagebuilder-assist-open');
+
+            return false;
+        },
+
+        clearPageBuilderAssistState() {
+            document.documentElement?.removeAttribute?.('data-rt-pagebuilder-assist-open');
+        },
+
         setOpen(value, focusComposer = false) {
             const wasOpen = this.open;
             this.open = Boolean(value);
+            this.syncPageBuilderAssistState();
             if (!this.open) {
+                const returnFocus = this.assistantReturnFocus;
+                this.assistantReturnFocus = null;
                 this.petPrimed = false;
                 this.closeSettings(false);
                 this.abortSpeechInput();
                 this.cancelSpeechStatusRefresh(true);
                 if (this.autoHelp) this.schedulePetBubble(false);
-                if (wasOpen) this.$nextTick(() => this.$refs.launcher?.focus({ preventScroll: true }));
+                if (wasOpen) {
+                    this.$nextTick(() => {
+                        if (this.pageBuilderActive) {
+                            const pageBuilderTrigger = this.pageBuilderAssistTrigger() ?? returnFocus;
+                            pageBuilderTrigger?.focus?.({ preventScroll: true });
+                        } else {
+                            this.$refs.launcher?.focus?.({ preventScroll: true });
+                        }
+                    });
+                }
                 return;
             }
 
@@ -1264,7 +1387,7 @@ export function railtimeChatbot(config = {}) {
             this.hidePetBubble();
             if (typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
                 window.dispatchEvent(new CustomEvent('railtime-wagon-context-request'));
-                window.dispatchEvent(new CustomEvent('railtime-pagebuilder-context-request'));
+                this.requestPageBuilderContext();
             }
             void this.refreshSpeechStatus('open');
             this.$nextTick(() => {
@@ -1391,29 +1514,112 @@ export function railtimeChatbot(config = {}) {
             });
         },
 
+        notifyPageBuilderClaimFailure(actionToken, reason) {
+            const token = String(actionToken ?? '');
+            const allowedReasons = new Set([
+                'network_error',
+                'claim_timeout',
+                'claim_rejected',
+                'invalid_payload',
+                'dispatch_rejected',
+            ]);
+            if (
+                !/^[a-zA-Z0-9]{48}$/.test(token)
+                || !allowedReasons.has(reason)
+                || typeof window.dispatchEvent !== 'function'
+                || typeof CustomEvent !== 'function'
+            ) return false;
+
+            window.dispatchEvent(new CustomEvent('railtime-pagebuilder-assistant-claim-failed', {
+                detail: {
+                    action_token: token,
+                    reason,
+                },
+            }));
+
+            return true;
+        },
+
+        cancelPageBuilderActionClaim(actionToken) {
+            const token = String(actionToken ?? '');
+            const claim = this.pageBuilderActionClaims[token];
+            if (!claim) return false;
+
+            claim.cancelled = true;
+            window.clearTimeout(claim.timeoutId);
+            claim.timeoutId = null;
+            claim.controller?.abort?.();
+            claim.reject?.(Object.assign(new Error('PageBuilder action claim cancelled.'), {
+                name: 'AbortError',
+            }));
+            delete this.pageBuilderActionClaims[token];
+
+            return true;
+        },
+
+        cancelAllPageBuilderActionClaims() {
+            Object.keys(this.pageBuilderActionClaims).forEach((token) => {
+                this.cancelPageBuilderActionClaim(token);
+            });
+        },
+
         async claimPageBuilderAction(actionToken) {
+            actionToken = String(actionToken ?? '');
             const endpoint = this.pageBuilderActionClaimEndpoint.trim();
             if (
-                !endpoint.startsWith('/')
+                !/^[a-zA-Z0-9]{48}$/.test(actionToken)
+                || !this.csrfToken
+                || !endpoint.startsWith('/')
                 || endpoint.startsWith('//')
                 || this.pageBuilderActionClaimTokens.includes(actionToken)
-            ) return false;
+            ) {
+                if (!this.pageBuilderActionClaimTokens.includes(actionToken)) {
+                    this.notifyPageBuilderClaimFailure(actionToken, 'invalid_payload');
+                }
+
+                return false;
+            }
 
             let target;
             try {
                 target = new URL(endpoint, window.location.href);
             } catch (_) {
+                this.notifyPageBuilderClaimFailure(actionToken, 'invalid_payload');
                 return false;
             }
-            if (target.origin !== window.location.origin) return false;
+            if (target.origin !== window.location.origin) {
+                this.notifyPageBuilderClaimFailure(actionToken, 'invalid_payload');
+
+                return false;
+            }
 
             this.pageBuilderActionClaimTokens = [
                 ...this.pageBuilderActionClaimTokens,
                 actionToken,
             ].slice(-50);
 
+            const controller = typeof AbortController === 'function' ? new AbortController() : null;
+            const claim = {
+                cancelled: false,
+                timedOut: false,
+                controller,
+                reject: null,
+                timeoutId: null,
+            };
+            const interruption = new Promise((_, reject) => {
+                claim.reject = reject;
+                claim.timeoutId = window.setTimeout(() => {
+                    claim.timedOut = true;
+                    controller?.abort?.();
+                    reject(Object.assign(new Error('PageBuilder action claim timed out.'), {
+                        name: 'TimeoutError',
+                    }));
+                }, this.pageBuilderActionClaimTimeoutMs);
+            });
+            this.pageBuilderActionClaims[actionToken] = claim;
+
             try {
-                const response = await fetch(`${target.pathname}${target.search}`, {
+                const request = fetch(`${target.pathname}${target.search}`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1422,20 +1628,53 @@ export function railtimeChatbot(config = {}) {
                         'X-Requested-With': 'XMLHttpRequest',
                     },
                     credentials: 'same-origin',
+                    signal: controller?.signal,
                     body: JSON.stringify({ action_token: actionToken }),
                 });
-                if (!response?.ok) return false;
+                const response = await Promise.race([request, interruption]);
+                if (!response?.ok) {
+                    this.notifyPageBuilderClaimFailure(actionToken, 'claim_rejected');
 
-                const payload = normalizedEventDetail(await response.json());
+                    return false;
+                }
+
+                let payload;
+                try {
+                    payload = normalizedEventDetail(await response.json());
+                } catch (_) {
+                    this.notifyPageBuilderClaimFailure(actionToken, 'invalid_payload');
+
+                    return false;
+                }
                 const action = normalizedEventDetail(payload.action);
                 if (
                     action.type !== 'pagebuilder'
                     || String(action.action_token ?? '') !== actionToken
-                ) return false;
+                ) {
+                    this.notifyPageBuilderClaimFailure(actionToken, 'invalid_payload');
 
-                return dispatchPageBuilderAssistantAction?.(action) === true;
+                    return false;
+                }
+
+                const dispatched = dispatchPageBuilderAssistantAction?.(action) === true;
+                if (!dispatched) {
+                    this.notifyPageBuilderClaimFailure(actionToken, 'dispatch_rejected');
+                }
+
+                return dispatched;
             } catch (_) {
+                if (!claim.cancelled) {
+                    this.notifyPageBuilderClaimFailure(
+                        actionToken,
+                        claim.timedOut ? 'claim_timeout' : 'network_error',
+                    );
+                }
                 return false;
+            } finally {
+                window.clearTimeout(claim.timeoutId);
+                if (this.pageBuilderActionClaims[actionToken] === claim) {
+                    delete this.pageBuilderActionClaims[actionToken];
+                }
             }
         },
 
@@ -1478,10 +1717,12 @@ export function railtimeChatbot(config = {}) {
             }
 
             if (type === 'pagebuilder_grant') {
-                if (
-                    !this.pageBuilderActionClaimEndpoint
-                    || this.pageBuilderActionClaimTokens.includes(actionToken)
-                ) return false;
+                if (!this.pageBuilderActionClaimEndpoint) {
+                    this.notifyPageBuilderClaimFailure(actionToken, 'invalid_payload');
+
+                    return false;
+                }
+                if (this.pageBuilderActionClaimTokens.includes(actionToken)) return false;
                 void this.claimPageBuilderAction(actionToken);
 
                 return true;

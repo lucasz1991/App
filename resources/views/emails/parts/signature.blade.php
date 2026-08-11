@@ -25,6 +25,8 @@
     $topRule = $topRule ?? 'border-top:5px solid #e4002b;';
     $legalPadding = $legalPadding ?? '18px 38px';
     $outlookTrainSrc = trim((string) ($outlookTrainSrc ?? ''));
+    // Standbild fuer Outlook-Desktop. Leer = kein bedingter Kommentar.
+    $outlookTrainFallbackSrc = trim((string) ($outlookTrainFallbackSrc ?? ''));
     $isOutlookExport = $outlookTrainSrc !== '';
     $cellPadding = $isOutlookExport ? '0' : $padding;
     $outlookTrainPadding = $outlookTrainPadding ?? '12px 0 20px';
@@ -100,13 +102,35 @@
                     </td>
                 </tr>
             </table>
-            {{-- Outlook-Export: ein regulaeres lokales Bild statt Data-URI-
-                 Hintergrundebenen. Dadurch kann Outlook das GIF als echte
-                 Signaturressource uebernehmen und beim Versand einbetten. --}}
+            {{-- Der Zug als REGULAERES Bild statt als Hintergrundebene.
+                 Zwei Wege nutzen das:
+
+                 - Outlook-Export: lokale Datei, damit Outlook das GIF als
+                   echte Signaturressource uebernimmt.
+                 - Versendete Systemmail: verlinkte Adresse, weil weder
+                   Outlook-Desktop noch Gmail data:-URIs oder CSS-Hinter-
+                   grundbilder darstellen. Als Hintergrund erschien der Zug
+                   dort schlicht nie.
+
+                 GETRENNTE QUELLEN JE CLIENT: Outlook zeigt von einem
+                 animierten GIF nur das ERSTE Einzelbild — und das ist bei
+                 beiden Zugfassungen komplett leer (nachgemessen: 0 % Tinte),
+                 weil der Zug dort noch ausserhalb des Bildes steht. Outlook
+                 bekommt deshalb ueber den bedingten Kommentar das Standbild
+                 in Ruhestellung, alle anderen das GIF. --}}
             <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">
                 <tr>
                     <td align="left" style="padding:{{ $outlookTrainPadding }};text-align:left;font-size:0;line-height:0;">
-                        <img data-rt-outlook-train src="{{ $outlookTrainSrc }}" width="620" alt="Dampflok-Güterzug" style="display:block;width:620px;max-width:100%;height:auto;margin:0;border:0;outline:none;">
+                        @if ($outlookTrainFallbackSrc !== '')
+                            <!--[if !mso]><!-->
+                            <img data-rt-outlook-train src="{{ $outlookTrainSrc }}" width="620" alt="Dampflok-Güterzug" style="display:block;width:620px;max-width:100%;height:auto;margin:0;border:0;outline:none;">
+                            <!--<![endif]-->
+                            <!--[if mso]>
+                            <img data-rt-outlook-train-still src="{{ $outlookTrainFallbackSrc }}" width="620" alt="Dampflok-Güterzug" style="display:block;width:620px;height:auto;margin:0;border:0;outline:none;">
+                            <![endif]-->
+                        @else
+                            <img data-rt-outlook-train src="{{ $outlookTrainSrc }}" width="620" alt="Dampflok-Güterzug" style="display:block;width:620px;max-width:100%;height:auto;margin:0;border:0;outline:none;">
+                        @endif
                     </td>
                 </tr>
             </table>

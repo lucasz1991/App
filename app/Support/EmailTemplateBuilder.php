@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Enums\MailDocumentKind;
 use App\Models\User;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use RuntimeException;
 use ZipArchive;
@@ -464,6 +465,54 @@ class EmailTemplateBuilder
     }
 
     /**
+     * Absolute Adresse eines Signaturbildes unter public/mail-assets/.
+     *
+     * WARUM VERLINKT STATT EINGEBETTET — nur fuer VERSENDETE Mails:
+     *
+     * Als data:-URI erscheinen die Bilder bei vielen Empfaengern gar nicht.
+     * Outlook-Desktop rendert mit der Word-Engine und kennt weder data:-URIs
+     * in <img> noch CSS-Hintergrundbilder; Gmail entfernt data:-URIs in
+     * Hintergrundangaben und kappt Nachrichten ab 102 kB — die eingebetteten
+     * Bilder allein waren 104,6 kB, die Signatur stand also hinter dem
+     * Schnitt.
+     *
+     * Verlinkt sind es normale Bilder, und das Mail schrumpft von rund
+     * 105 kB auf wenige Kilobyte.
+     *
+     * Die HERUNTERLADBAREN Signaturen und Vorlagen behalten ihre data:-URIs:
+     * die muessen eigenstaendig funktionieren, auch ohne Verbindung zu
+     * diesem Server.
+     */
+    public static function mailAssetUrl(string $asset): string
+    {
+        return URL::asset('mail-assets/'.$asset);
+    }
+
+    /**
+     * Zug als verlinkte Adresse. $animated waehlt das GIF, sonst das
+     * Standbild.
+     */
+    public static function signatureTrainUrl(string $theme, bool $animated = false): string
+    {
+        $variant = $theme === 'dark' ? 'dark' : 'light';
+
+        return self::mailAssetUrl("zug-dampf-{$variant}.".($animated ? 'gif' : 'png'));
+    }
+
+    /**
+     * Standbild des Zuges fuer Outlook-Desktop.
+     *
+     * Outlook zeigt von einem animierten GIF nur das ERSTE Einzelbild — und
+     * das ist bei der Einfahrt fast leer, weil der Zug dort noch am linken
+     * Rand steht. Fuer den Ersatzweg ueber das background-Attribut wird
+     * deshalb bewusst das Standbild in Ruhestellung verlinkt.
+     */
+    public static function signatureTrainStillUrl(string $theme): string
+    {
+        return self::signatureTrainUrl($theme, false);
+    }
+
+    /**
      * @return array<string, string>
      */
     public static function contactIconSources(bool $inlineImages): array
@@ -474,6 +523,24 @@ class EmailTemplateBuilder
             $sources['ICON_'.strtoupper($name).'_SRC'] = $inlineImages
                 ? 'data:image/png;base64,'.$base64
                 : 'cid:railtime-icon-'.$name;
+        }
+
+        return $sources;
+    }
+
+    /**
+     * Kontaktsymbole als verlinkte Adressen — fuer versendete Mails.
+     * Die Dateien liegen unter public/mail-assets/, erzeugt aus denselben
+     * Konstanten wie die eingebettete Fassung.
+     *
+     * @return array<string, string>
+     */
+    public static function contactIconUrls(): array
+    {
+        $sources = [];
+
+        foreach (array_keys(self::CONTACT_ICON_PNG) as $name) {
+            $sources['ICON_'.strtoupper($name).'_SRC'] = self::mailAssetUrl("contact-{$name}.png");
         }
 
         return $sources;

@@ -250,8 +250,9 @@ class MailDocumentEditorTest extends TestCase
             ->assertOk()
             ->assertSee('data-mail-document-config', escape: false)
             ->assertSee('data-mail-document-root', escape: false)
-            // Der Statuszeiger steht im bedingten Kopfbereich — er beweist,
-            // dass der actions-Slot auch im @if greift.
+            // Dokumentwahl, Vorschau und Freigabe teilen sich die feste
+            // Studio-Werkzeugleiste oberhalb der scrollfreien Arbeitsflaeche.
+            ->assertSee('data-mail-studio-toolbar', escape: false)
             ->assertSee('data-mail-document-status', escape: false)
             ->assertSee('data-mail-document-publish', escape: false)
             ->assertSee(route('admin.mail-documents.editor', ['dokument' => 'signature']), escape: false)
@@ -262,6 +263,8 @@ class MailDocumentEditorTest extends TestCase
             ->assertSee('data-mail-preview-device="tablet"', escape: false)
             ->assertSee('data-mail-preview-device="mobile"', escape: false)
             ->assertSee('data-mail-editor-frame', escape: false)
+            ->assertSee('data-page-builder-preview-first', escape: false)
+            ->assertSee('data-page-builder-assist', escape: false)
             ->assertSee('Mail- &amp; Signatur-Editor', escape: false);
     }
 
@@ -322,6 +325,7 @@ class MailDocumentEditorTest extends TestCase
             ->get(route('admin.mail-documents.editor'))
             ->assertOk()
             ->assertSee('noch nicht eingerichtet', escape: false)
+            ->assertDontSee('data-page-builder-shell-toolbar', escape: false)
             ->assertDontSee('data-mail-document-root', escape: false);
     }
 

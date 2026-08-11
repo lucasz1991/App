@@ -4,11 +4,11 @@ namespace App\Http\Controllers\Admin;
 
 use App\Enums\MarketingCreativeFormat;
 use App\Http\Controllers\Controller;
+use App\Http\Responses\PageBuilderPreviewResponse;
 use App\Models\MailDocument;
 use App\Models\MarketingCreative;
 use App\Services\PageBuilder\PageBuilderPreviewService;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
 
 final class PageBuilderPreviewController extends Controller
 {
@@ -19,7 +19,7 @@ final class PageBuilderPreviewController extends Controller
         MarketingCreative $creative,
         string $format,
         PageBuilderPreviewService $previews,
-    ): Response {
+    ): PageBuilderPreviewResponse {
         $this->authorizeAdmin($request);
         $creativeFormat = MarketingCreativeFormat::tryFrom($format);
         abort_unless($creativeFormat, 404);
@@ -33,7 +33,7 @@ final class PageBuilderPreviewController extends Controller
         Request $request,
         MailDocument $document,
         PageBuilderPreviewService $previews,
-    ): Response {
+    ): PageBuilderPreviewResponse {
         $this->authorizeAdmin($request);
         $theme = (string) $request->query('theme', 'light');
         abort_unless(in_array($theme, ['light', 'dark'], true), 404);
@@ -49,9 +49,9 @@ final class PageBuilderPreviewController extends Controller
     }
 
     /** @param array{html: string, width: int, height: int} $preview */
-    private function response(array $preview): Response
+    private function response(array $preview): PageBuilderPreviewResponse
     {
-        return response($preview['html'], 200, [
+        return new PageBuilderPreviewResponse($preview['html'], 200, [
             'Cache-Control' => 'private, no-store, max-age=0',
             'Content-Security-Policy' => self::CSP,
             'Content-Type' => 'text/html; charset=UTF-8',

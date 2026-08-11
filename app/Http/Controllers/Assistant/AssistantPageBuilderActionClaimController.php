@@ -7,7 +7,6 @@ use App\Services\Ai\AssistantPendingActionStore;
 use App\Support\Ai\AssistantAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 
 final class AssistantPageBuilderActionClaimController extends Controller
 {
@@ -21,10 +20,7 @@ final class AssistantPageBuilderActionClaimController extends Controller
         ]);
         $token = (string) $validated['action_token'];
 
-        $lock = Cache::lock(
-            'assistant:pagebuilder-claim:'.(int) $user->getAuthIdentifier().':'.hash('sha256', $token),
-            5,
-        );
+        $lock = $pendingActions->tokenLock($user, $token);
         $effect = $lock->get(fn () => $pendingActions->claimPageBuilderEffect($user, $token));
 
         abort_unless(is_array($effect), 422);

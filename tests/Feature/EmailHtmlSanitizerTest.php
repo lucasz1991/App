@@ -94,7 +94,17 @@ class EmailHtmlSanitizerTest extends TestCase
     {
         $signature = MailSignature::forCompany()->render();
 
-        $this->assertStringContainsString('data:image/png;base64,', $signature);
+        // Die firmenweite Signatur ist der Weg der VERSENDETEN Mail und
+        // VERLINKT ihre Bilder seit dem Umbau. Eingebettet erschienen sie
+        // bei vielen Empfaengern nie: Outlook-Desktop kennt keine data:-URIs,
+        // Gmail entfernt sie in Hintergrundangaben und kappt Nachrichten ab
+        // 102 kB — allein die Bilder waren 104,6 kB.
+        //
+        // Wichtig fuer diesen Test: der Sanitizer laesst eigene Hosts zu
+        // (isOwnHost), die verlinkte Fassung muss also unveraendert
+        // durchkommen. Genau das wird unten geprueft.
+        $this->assertStringContainsString('mail-assets/', $signature);
+        $this->assertStringNotContainsString('data:image', $signature);
         $this->assertStringContainsString('position:relative', $signature);
 
         $report = $this->sanitizer()->clean($signature);

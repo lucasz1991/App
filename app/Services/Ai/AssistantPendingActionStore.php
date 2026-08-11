@@ -4,6 +4,8 @@ namespace App\Services\Ai;
 
 use App\Models\File;
 use App\Models\User;
+use Illuminate\Contracts\Cache\Lock;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 
@@ -12,6 +14,8 @@ final class AssistantPendingActionStore
     private const MAX_ACTIONS = 12;
 
     private const EXPIRES_AFTER_SECONDS = 600;
+
+    private const ACTION_LOCK_SECONDS = 5;
 
     /** @param array<string, mixed> $effect */
     public function create(User $user, string $routeName, array $effect): array
@@ -262,6 +266,57 @@ final class AssistantPendingActionStore
         session()->forget([$this->pendingKey($user), $this->receiptKey($user)]);
     }
 
+    /**
+     * Every transition of one opaque action token must use this same lock.
+     * Otherwise a delayed confirm/claim request could recreate or claim a
+     * receipt immediately after the user discarded it.
+     */
+    public function tokenLock(User $user, string $token): Lock
+    {
+        $token = trim($token);
+        if (! $this->validToken($token)) {
+            throw new InvalidArgumentException('The assistant action token is invalid.');
+        }
+
+        return Cache::lock(
+            'assistant:pagebuilder-action:'.(int) $user->getAuthIdentifier().':'.hash('sha256', $token),
+            self::ACTION_LOCK_SECONDS,
+        );
+    }
+
+    /**
+     * Discards one action for the authenticated user and exact route. Both an
+     * unconfirmed pending record and a confirmed-but-unclaimed receipt are
+     * removed so a dismissed UI proposal cannot be claimed later.
+     */
+    public function discard(User $user, string $token, string $routeName): bool
+    {
+        $token = trim($token);
+        $routeName = trim($routeName);
+        if (! $this->validToken($token) || ! $this->validRouteName($routeName)) {
+            return false;
+        }
+
+        $removed = false;
+        $pending = $this->pending($user);
+        $pendingAction = $pending[$token] ?? null;
+        if ($this->recordMatchesUserAndRoute($pendingAction, $user, $routeName)) {
+            unset($pending[$token]);
+            session()->put($this->pendingKey($user), $pending);
+            $removed = true;
+        }
+
+        $receipts = $this->receipts($user);
+        $receipt = $receipts[$token] ?? null;
+        if ($this->recordMatchesUserAndRoute($receipt, $user, $routeName)) {
+            unset($receipts[$token]);
+            session()->put($this->receiptKey($user), $receipts);
+            $removed = true;
+        }
+
+        return $removed;
+    }
+
     /** @return array<string, array<string, mixed>> */
     private function pending(User $user): array
     {
@@ -403,7 +458,7 @@ final class AssistantPendingActionStore
     }
 
     /**
-     * @param callable(mixed, int): string $quote
+     * @param  callable(mixed, int): string  $quote
      */
     private function pageBuilderFileLabel(mixed $fileId, callable $quote): string
     {
@@ -436,5 +491,18 @@ final class AssistantPendingActionStore
     private function validRouteName(string $routeName): bool
     {
         return preg_match('/\A[a-zA-Z0-9][a-zA-Z0-9._:-]{0,159}\z/', $routeName) === 1;
+    }
+
+    private function recordMatchesUserAndRoute(mixed $record, User $user, string $routeName): bool
+    {
+        if (! is_array($record)) {
+            return false;
+        }
+
+        $storedRoute = (string) ($record['route_name'] ?? '');
+
+        return (int) ($record['user_id'] ?? 0) === (int) $user->getAuthIdentifier()
+            && $this->validRouteName($storedRoute)
+            && hash_equals($storedRoute, $routeName);
     }
 }

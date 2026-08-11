@@ -12,6 +12,21 @@ const SIDES = Object.freeze(['top', 'right', 'bottom', 'left']);
 const IMAGE_TOKEN_PATTERN = /\{\{([A-Z][A-Z0-9_]*)\}\}/g;
 const CSS_URL_PATTERN = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)'"\s][^)]*?))\s*\)/gi;
 const EDIT_COMMAND = 'rt-lmz-edit-menu';
+const INLINE_ACTION_ICON_PATHS = Object.freeze({
+    assistant: '<path d="M12 3l1.25 3.75L17 8l-3.75 1.25L12 13l-1.25-3.75L7 8l3.75-1.25L12 3Z"/><path d="M18 14l.75 2.25L21 17l-2.25.75L18 20l-.75-2.25L15 17l2.25-.75L18 14Z"/>',
+    content: '<path d="M4 20h4l10.5-10.5a2.83 2.83 0 0 0-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/>',
+    traits: '<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>',
+    styles: '<path d="M12 3a9 9 0 1 0 0 18h1.5a1.5 1.5 0 0 0 0-3H12a2 2 0 0 1 0-4h2a7 7 0 0 0-2-11Z"/><circle cx="7.5" cy="10" r=".75"/><circle cx="10" cy="6.5" r=".75"/><circle cx="15" cy="7.5" r=".75"/>',
+    spacing: '<rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 2v6m-2-2 2 2 2-2M9 22v-6m-2 2 2-2 2 2M2 9h6M6 7l2 2-2 2m16-2h-6m2-2-2 2 2 2"/>',
+    media: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9" r="1.5"/><path d="m4 17 4.5-4.5 3 3 2-2L20 19"/>',
+    replace: '<path d="M20 7h-5V2M4 17h5v5"/><path d="M18.5 10A7 7 0 0 0 6.2 6.2L4 8m16 8-2.2 2.2A7 7 0 0 1 5.5 14"/>',
+    animation: '<path d="m9 7 8 5-8 5V7Z"/><path d="M4 4h16v16H4z"/>',
+    'gif-playback': '<path d="M8 6v12M16 6v12"/>',
+    'gif-restart': '<path d="M20 7h-5V2"/><path d="M19 12a7 7 0 1 1-2.05-4.95L20 10"/>',
+    move: '<path d="M12 2v20M2 12h20M9 5l3-3 3 3M9 19l3 3 3-3M5 9l-3 3 3 3M19 9l3 3-3 3"/>',
+    duplicate: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
+    delete: '<path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6M14 11v6"/>',
+});
 
 export const LMZ_EDITOR_EVENTS = Object.freeze({
     requestOpen: 'rt-lmz-editor:request-open',
@@ -39,15 +54,35 @@ export function handleScopedRtePaste({ ev, rte } = {}) {
 
 function pageBuilderShellContext(root) {
     const element = asElement(root);
-    const shell = element?.closest?.('[data-page-builder-shell]') || null;
+    const directShell = element?.closest?.('[data-page-builder-shell]') || null;
     const workspace = element?.closest?.('[data-page-builder-workspace]') || null;
     // fullscreen-modal teleportiert den Editor nach <body>. Dadurch ist die
     // urspruengliche Shell kein DOM-Vorfahre mehr, die stabile ID liegt aber
     // weiterhin direkt auf der teleportierten Vollbildwurzel.
     const fullscreen = element?.closest?.('[data-page-builder-fullscreen-root]') || null;
     const shellId = fullscreen?.dataset?.pageBuilderShellId
-        || shell?.querySelector?.('[data-page-builder-fullscreen-root]')?.dataset?.pageBuilderShellId
+        || directShell?.querySelector?.('[data-page-builder-fullscreen-root]')?.dataset?.pageBuilderShellId
         || '';
+    let teleportOrigin = null;
+    for (let current = element; current && !teleportOrigin; current = current.parentElement) {
+        teleportOrigin = current._x_teleportBack || null;
+    }
+    const teleportedShell = teleportOrigin?.closest?.('[data-page-builder-shell]') || null;
+    const shellForId = !directShell && !teleportedShell && shellId
+        ? [...(element?.ownerDocument?.querySelectorAll?.('[data-page-builder-shell]') || [])].find((candidate) => {
+            if (candidate.dataset?.pageBuilderShellId === shellId) return true;
+            return [...candidate.querySelectorAll?.('template') || []].some((template) => {
+                const teleported = template._x_teleport;
+                if (!teleported) return false;
+                const roots = [
+                    ...(teleported.matches?.('[data-page-builder-fullscreen-root]') ? [teleported] : []),
+                    ...(teleported.querySelectorAll?.('[data-page-builder-fullscreen-root]') || []),
+                ];
+                return roots.some((candidateRoot) => candidateRoot.dataset?.pageBuilderShellId === shellId);
+            });
+        }) || null
+        : null;
+    const shell = directShell || teleportedShell || shellForId;
     return { shell, workspace, shellId };
 }
 
@@ -442,6 +477,19 @@ function componentOrAncestorHas(component, predicate) {
     return false;
 }
 
+function hasProtectedEditorMarker(component) {
+    const attributes = componentAttributes(component);
+    const block = String(attributes['data-rt-block'] || '');
+
+    return Boolean(
+        attributes['data-rt-mail-preview-token']
+        || attributes['data-rt-mail-preview-train']
+        || attributes['data-rt-qr-binding']
+        || attributes['data-rt-brand-lockup']
+        || ['logo-light', 'logo-dark', 'qr'].includes(block)
+    );
+}
+
 export function isProtectedEditorImage(component, mode = 'marketing') {
     if (!component) return true;
     if (mode === 'mail') return true;
@@ -452,16 +500,30 @@ export function isProtectedEditorImage(component, mode = 'marketing') {
 export function isProtectedEditorStructure(component) {
     if (!component) return false;
 
-    return componentOrAncestorHas(component, (attributes) => {
-        const block = String(attributes['data-rt-block'] || '');
-        return Boolean(
-            attributes['data-rt-mail-preview-token']
-            || attributes['data-rt-mail-preview-train']
-            || attributes['data-rt-qr-binding']
-            || attributes['data-rt-brand-lockup']
-            || ['logo-light', 'logo-dark', 'qr'].includes(block),
-        );
-    });
+    return componentOrAncestorHas(component, (_attributes, current) => hasProtectedEditorMarker(current));
+}
+
+/**
+ * Structure commands affect the complete selected subtree. A neutral wrapper
+ * around an official logo, QR binding or train therefore has to be protected
+ * from moving, cloning and deletion without making its own style fields
+ * immutable.
+ */
+export function isProtectedEditorStructureTree(component) {
+    if (!component) return false;
+    if (isProtectedEditorStructure(component)) return true;
+    const pending = [...componentChildren(component)];
+    const visited = new Set();
+
+    while (pending.length) {
+        const current = pending.shift();
+        if (!current || visited.has(current)) continue;
+        visited.add(current);
+        if (hasProtectedEditorMarker(current)) return true;
+        pending.push(...componentChildren(current));
+    }
+
+    return false;
 }
 
 const IMMUTABLE_COMPONENT_PROPERTIES = Object.freeze({
@@ -1192,6 +1254,7 @@ export function createSpacingOverlayController({
     let host = null;
     let scheduled = null;
     let drag = null;
+    let keyboardEdit = null;
     const handles = new Map();
     const bindings = [];
 
@@ -1215,8 +1278,12 @@ export function createSpacingOverlayController({
             handle.dataset.type = type;
             handle.dataset.side = side;
             handle.setAttribute('aria-label', `${type} ${side}`);
-            handle.innerHTML = '<span class="rt-lmz-spacing-overlay__surface" aria-hidden="true"></span><span class="rt-lmz-spacing-overlay__label"></span>';
+            handle.setAttribute('role', 'spinbutton');
+            if (type === 'padding') handle.setAttribute('aria-valuemin', '0');
+            handle.innerHTML = '<span class="rt-lmz-spacing-overlay__surface" aria-hidden="true"></span><span class="rt-lmz-spacing-overlay__label" aria-live="polite"></span>';
             handle.addEventListener('pointerdown', startDrag);
+            handle.addEventListener('keydown', editWithKeyboard);
+            handle.addEventListener('blur', commitKeyboardEdit);
             overlay.appendChild(handle);
             handles.set(`${type}:${side}`, handle);
         }));
@@ -1247,6 +1314,8 @@ export function createSpacingOverlayController({
             applyHandleRect(handle, geometry[type][side], side, coarse ? 44 : 12);
             const value = rounded(geometry.spacing[type][side] / Math.max(number(position.zoom, 1), 0.01));
             handle.dataset.value = `${value}px`;
+            handle.setAttribute('aria-valuenow', String(value));
+            handle.setAttribute('aria-valuetext', `${type} ${side}: ${value}px`);
             handle.querySelector?.('.rt-lmz-spacing-overlay__label')?.replaceChildren?.(`${type} ${side}: ${value}px`);
             handle.title = `${type} ${side}: ${value}px`;
         }));
@@ -1259,6 +1328,79 @@ export function createSpacingOverlayController({
 
     function removeDragListeners() {
         bindings.splice(0).forEach(({ target, name, listener }) => target.removeEventListener?.(name, listener, true));
+    }
+
+    function updateKeyboardHandle(handle, type, side, value) {
+        const label = `${type} ${side}: ${value}px`;
+        handle.dataset.value = `${value}px`;
+        handle.setAttribute('aria-valuenow', String(value));
+        handle.setAttribute('aria-valuetext', label);
+        handle.title = label;
+        handle.querySelector?.('.rt-lmz-spacing-overlay__label')?.replaceChildren?.(label);
+    }
+
+    function commitKeyboardEdit(event = null) {
+        if (!keyboardEdit || (event?.currentTarget && keyboardEdit.handle !== event.currentTarget)) return;
+        const current = keyboardEdit;
+        keyboardEdit = null;
+        current.component.addStyle?.(spacingStyle(current.type, current.startValues, current.side, current.latestValue));
+        refresh();
+    }
+
+    function cancelKeyboardEdit(event = null) {
+        if (!keyboardEdit || (event?.currentTarget && keyboardEdit.handle !== event.currentTarget)) return;
+        const current = keyboardEdit;
+        keyboardEdit = null;
+        current.component.addStyle?.(spacingStyle(current.type, current.startValues, current.side, current.startValues[current.side]));
+        updateKeyboardHandle(current.handle, current.type, current.side, current.startValues[current.side]);
+        refresh();
+    }
+
+    function editWithKeyboard(event) {
+        const arrows = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 };
+        if (event.key === 'Escape' && keyboardEdit?.handle === event.currentTarget) {
+            event.preventDefault?.();
+            event.stopPropagation?.();
+            cancelKeyboardEdit(event);
+            return;
+        }
+        if (event.key === 'Enter' && keyboardEdit?.handle === event.currentTarget) {
+            event.preventDefault?.();
+            commitKeyboardEdit(event);
+            return;
+        }
+        if (!(event.key in arrows) || !active || editor.Commands?.isActive?.('core:preview')) return;
+        const component = editor.getSelected?.();
+        const element = component?.getEl?.();
+        const position = element ? editor.Canvas.getElementPos?.(element) : null;
+        const offsets = element ? editor.Canvas.getElementOffsets?.(element) : null;
+        const type = event.currentTarget?.dataset?.type;
+        const side = event.currentTarget?.dataset?.side;
+        if (!component || !position || !offsets || !['margin', 'padding'].includes(type) || !SIDES.includes(side)) return;
+        event.preventDefault?.();
+        event.stopPropagation?.();
+        if (!keyboardEdit || keyboardEdit.handle !== event.currentTarget || keyboardEdit.component !== component) {
+            const zoom = Math.max(number(position.zoom, 1), 0.01);
+            const snapshot = spacingCssSnapshot(offsets, zoom);
+            keyboardEdit = {
+                component,
+                type,
+                side,
+                handle: event.currentTarget,
+                startValues: snapshot[type],
+                latestValue: snapshot[type][side],
+            };
+        }
+        const step = event.shiftKey ? 10 : 1;
+        keyboardEdit.latestValue = rounded(clamp(
+            keyboardEdit.latestValue + (arrows[event.key] * step),
+            type === 'padding' ? 0 : Number.NEGATIVE_INFINITY,
+        ));
+        component.addStyle?.(
+            spacingStyle(type, keyboardEdit.startValues, side, keyboardEdit.latestValue),
+            { partial: true },
+        );
+        updateKeyboardHandle(event.currentTarget, type, side, keyboardEdit.latestValue);
     }
 
     function finishDrag(event) {
@@ -1291,6 +1433,7 @@ export function createSpacingOverlayController({
 
     function startDrag(event) {
         if (!active || editor.Commands?.isActive?.('core:preview')) return;
+        commitKeyboardEdit();
         const component = editor.getSelected?.();
         const element = component?.getEl?.();
         const position = element ? editor.Canvas.getElementPos?.(element) : null;
@@ -1330,6 +1473,7 @@ export function createSpacingOverlayController({
             active = Boolean(next);
             if (overlay) overlay.setAttribute('aria-hidden', active ? 'false' : 'true');
             if (!active) finishDrag();
+            if (!active) cancelKeyboardEdit();
             refresh();
         },
         refresh,
@@ -1337,6 +1481,7 @@ export function createSpacingOverlayController({
             if (destroyed) return;
             destroyed = true;
             finishDrag();
+            cancelKeyboardEdit();
             if (scheduled !== null) cancelFrame(scheduled);
             scheduled = null;
             events.forEach((event) => editor.off?.(event, refresh));
@@ -1406,17 +1551,109 @@ function canvasToolbars(editor, root) {
 
 function visibleCanvasToolbar(editor, root) {
     const toolbars = canvasToolbars(editor, root);
-    const visible = toolbars.find((toolbar) => {
+    const isVisible = (toolbar) => {
         if (toolbar.hidden) return false;
+        if (toolbar.getAttribute?.('aria-hidden') === 'true') return false;
         const rect = toolbar.getBoundingClientRect?.();
         return Boolean(rect && (rect.width > 0 || rect.height > 0));
-    });
+    };
+    const visible = [...(root?.querySelectorAll?.('.lmzbjs-toolbar') || [])].filter(isVisible).at(-1)
+        || toolbars.filter(isVisible).at(-1);
 
     // In DOM-Testumgebungen und waehrend GrapesJS die Auswahl positioniert,
     // liefern alle Toolbars kurzzeitig 0 x 0. Die zuletzt erzeugte Toolbar ist
     // dann die dynamische Auswahlleiste, waehrend getToolbarEl() noch auf die
     // vorherige, bereits abgeloeste Instanz zeigen kann.
     return visible || toolbars.at(-1) || null;
+}
+
+function visibleToolbarCommand(editor, root, command) {
+    const control = visibleCanvasToolbar(editor, root)?.querySelector?.(`[data-command="${command}"]`) || null;
+    if (!control || control.hidden || control.disabled || control.getAttribute?.('aria-disabled') === 'true') return null;
+    return control;
+}
+
+function inlineActionIcon(action) {
+    const paths = INLINE_ACTION_ICON_PATHS[action] || INLINE_ACTION_ICON_PATHS.content;
+    return `<svg class="rt-lmz-inline-menu__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${paths}</svg>`;
+}
+
+function consumeEscape(event) {
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    event.stopImmediatePropagation?.();
+}
+
+function openVendorPopover(root, eventTarget = null) {
+    const contextual = eventTarget?.closest?.('[data-lmz-popover].is-open');
+    if (contextual && contextual.hidden !== true && root.contains?.(contextual)) return contextual;
+
+    return [...(root.querySelectorAll?.('[data-lmz-popover].is-open') || [])]
+        .filter((popover) => popover.hidden !== true)
+        .at(-1) || null;
+}
+
+function closeVendorPopover(root, popover) {
+    if (!popover) return false;
+    const activePanel = popover.querySelector?.('[data-lmz-popover-panel].is-active:not([hidden])');
+    const panelValue = activePanel?.dataset?.lmzPopoverPanel || null;
+    const group = popover.dataset?.lmzPopover || String(panelValue || '').split(':')[0];
+    const closeButton = activePanel?.querySelector?.('[data-lmz-panel-close]')
+        || popover.querySelector?.('[data-lmz-panel-close]');
+    const toggle = [...(root.querySelectorAll?.('[data-lmz-panel-toggle]') || [])]
+        .find((button) => button.dataset?.lmzPanelToggle === panelValue)
+        || [...(root.querySelectorAll?.('[data-lmz-panel-group]') || [])]
+            .find((button) => button.dataset?.lmzPanelGroup === group && button.getAttribute?.('aria-expanded') === 'true');
+
+    if (closeButton && !closeButton.disabled) {
+        closeButton.click?.();
+    } else {
+        // Defensive fallback for incomplete test/legacy markup. Normal LMZ
+        // 2.4.5 panels always close through their vendor button above.
+        popover.classList?.remove?.('is-open');
+        popover.hidden = true;
+        activePanel?.classList?.remove?.('is-active');
+        if (activePanel) activePanel.hidden = true;
+        if (group) root.classList?.remove?.(`has-${group}-popover`);
+        [...(root.querySelectorAll?.('[data-lmz-panel-group]') || [])].forEach((button) => {
+            if (button.dataset?.lmzPanelGroup !== group) return;
+            button.classList?.remove?.('is-active');
+            button.setAttribute?.('aria-expanded', 'false');
+        });
+    }
+
+    toggle?.focus?.();
+    return true;
+}
+
+function markMoveHandleReady(handle) {
+    if (!handle) return false;
+    const marker = `${Date.now()}-${Math.random()}`;
+    const previous = {
+        tabindex: handle.getAttribute?.('tabindex'),
+        title: handle.getAttribute?.('title'),
+        ariaLabel: handle.getAttribute?.('aria-label'),
+    };
+    handle.__rtLmzMoveReadyMarker = marker;
+    handle.classList?.add?.('rt-lmz-move-ready');
+    handle.dataset.rtLmzMoveReady = 'true';
+    if (!handle.hasAttribute?.('tabindex')) handle.setAttribute?.('tabindex', '-1');
+    handle.setAttribute?.('title', 'Diesen Griff ziehen, um das Element zu verschieben');
+    handle.setAttribute?.('aria-label', 'Element ziehen und umpositionieren');
+    handle.focus?.();
+    const timeout = globalThis.setTimeout?.(() => {
+        if (handle.__rtLmzMoveReadyMarker !== marker) return;
+        delete handle.__rtLmzMoveReadyMarker;
+        delete handle.dataset.rtLmzMoveReady;
+        handle.classList?.remove?.('rt-lmz-move-ready');
+        Object.entries(previous).forEach(([attribute, value]) => {
+            const name = attribute === 'ariaLabel' ? 'aria-label' : attribute;
+            if (value === null || value === undefined) handle.removeAttribute?.(name);
+            else handle.setAttribute?.(name, value);
+        });
+    }, 1800);
+    timeout?.unref?.();
+    return true;
 }
 
 function createMediaDrawer({ root, editor, mode, media, capabilities, onChanged }) {
@@ -1449,6 +1686,7 @@ function createMediaDrawer({ root, editor, mode, media, capabilities, onChanged 
     const filter = drawer.querySelector('[data-rt-lmz-media-filter]');
     let tab = 'used';
     let replaceSession = null;
+    let boundSelection = null;
     let state = { used: [], library: [], warnings: [] };
     let returnFocus = null;
     const currentTokenMedia = () => {
@@ -1510,7 +1748,7 @@ function createMediaDrawer({ root, editor, mode, media, capabilities, onChanged 
                     replaceSession = null;
                     onChanged?.();
                     refresh();
-                    drawer.hidden = true;
+                    close({ restoreFocus: true });
                 } catch (error) {
                     warning.hidden = false;
                     warning.textContent = error.message;
@@ -1533,14 +1771,17 @@ function createMediaDrawer({ root, editor, mode, media, capabilities, onChanged 
     };
 
     const close = ({ restoreFocus = false } = {}) => {
+        const focusTarget = returnFocus;
         replaceSession?.cancel?.();
         replaceSession = null;
+        boundSelection = null;
         drawer.hidden = true;
-        if (restoreFocus) returnFocus?.focus?.();
+        returnFocus = null;
+        if (restoreFocus) focusTarget?.focus?.();
     };
     const onDrawerKeydown = (event) => {
         if (event.key !== 'Escape' || drawer.hidden) return;
-        event.preventDefault();
+        consumeEscape(event);
         close({ restoreFocus: true });
     };
     const onOutsidePointer = (event) => {
@@ -1563,6 +1804,7 @@ function createMediaDrawer({ root, editor, mode, media, capabilities, onChanged 
             tab = initialTab === 'library' ? 'library' : 'used';
             replaceSession?.cancel?.();
             replaceSession = null;
+            boundSelection = null;
             if (replaceTarget && capabilities.imageReplace === true) {
                 replaceSession = createImageAssetSelection({
                     editor,
@@ -1572,6 +1814,10 @@ function createMediaDrawer({ root, editor, mode, media, capabilities, onChanged 
                     baseUrl: media.baseUrl,
                     onSelected: onChanged,
                 });
+                const selected = editor.getSelected?.() || null;
+                boundSelection = resolveEditableImageComponent(editor, selected, { mode }) === replaceSession.target
+                    ? selected
+                    : replaceTarget;
             } else if (typeof selectAsset === 'function' && mode === 'marketing') {
                 replaceSession = createScopedAssetCallbackSelection({
                     assets: media.assets || [],
@@ -1579,6 +1825,7 @@ function createMediaDrawer({ root, editor, mode, media, capabilities, onChanged 
                     baseUrl: media.baseUrl,
                     onSelected: onChanged,
                 });
+                boundSelection = editor.getSelected?.() || null;
             }
             drawer.querySelectorAll('[data-rt-lmz-media-tab]').forEach((item) => item.setAttribute('aria-selected', String(item.dataset.rtLmzMediaTab === tab)));
             drawer.hidden = false;
@@ -1586,6 +1833,12 @@ function createMediaDrawer({ root, editor, mode, media, capabilities, onChanged 
             drawer.querySelector(`[data-rt-lmz-media-tab="${tab}"]`)?.focus?.();
         },
         close,
+        selectionChanged(selected, { deselected = false } = {}) {
+            if (drawer.hidden || !replaceSession || !boundSelection) return false;
+            if (!deselected && selected === boundSelection) return false;
+            close();
+            return true;
+        },
         refresh,
         state: () => state,
         destroy() {
@@ -1684,9 +1937,11 @@ function createAnimationDrawer({ root, editor, capabilities, mode, onChanged }) 
         message.textContent = '';
     };
     const close = ({ restoreFocus = false } = {}) => {
+        const focusTarget = returnFocus;
         drawer.hidden = true;
         component = null;
-        if (restoreFocus) returnFocus?.focus?.();
+        returnFocus = null;
+        if (restoreFocus) focusTarget?.focus?.();
     };
     drawer.querySelector('[data-rt-lmz-animation-close]').addEventListener('click', () => close({ restoreFocus: true }));
     playbackButton.addEventListener('click', () => {
@@ -1719,7 +1974,7 @@ function createAnimationDrawer({ root, editor, capabilities, mode, onChanged }) 
     });
     const onDrawerKeydown = (event) => {
         if (event.key !== 'Escape' || drawer.hidden) return;
-        event.preventDefault();
+        consumeEscape(event);
         close({ restoreFocus: true });
     };
     const onOutsidePointer = (event) => {
@@ -1741,6 +1996,12 @@ function createAnimationDrawer({ root, editor, capabilities, mode, onChanged }) 
             return true;
         },
         close,
+        selectionChanged(selected, { deselected = false } = {}) {
+            if (drawer.hidden || !component) return false;
+            if (!deselected && selected === component) return false;
+            close();
+            return true;
+        },
         destroy() {
             drawer.removeEventListener('keydown', onDrawerKeydown);
             document_.removeEventListener('pointerdown', onOutsidePointer, true);
@@ -1797,13 +2058,94 @@ function addInlineEditToolbar(editor, root, menu) {
     };
 }
 
+const FOCUSABLE_SELECTOR = [
+    'a[href]',
+    'button:not([disabled])',
+    'input:not([disabled])',
+    'select:not([disabled])',
+    'textarea:not([disabled])',
+    'iframe',
+    '[contenteditable="true"]',
+    '[tabindex]:not([tabindex="-1"])',
+].join(',');
+
+function isFocusableElement(element) {
+    if (!element || element.hidden || element.disabled) return false;
+    if (element.getAttribute?.('aria-hidden') === 'true') return false;
+    if (element.closest?.('[hidden], [inert]')) return false;
+    return element.tabIndex !== -1 || element.matches?.('a[href],button,input,select,textarea,iframe,[contenteditable="true"]');
+}
+
+function installCanvasTabBoundary(editor, root) {
+    let frameDocument = null;
+    const outerBoundary = (forward) => {
+        const frameElement = editor?.Canvas?.getFrameEl?.() || frameDocument?.defaultView?.frameElement || null;
+        const fullscreen = root.closest?.('[data-rt-fullscreen-modal]')
+            || root.closest?.('[data-page-builder-fullscreen-root]')?.closest?.('[data-rt-fullscreen-modal]')
+            || pageBuilderShellContext(root).workspace?.closest?.('[data-rt-fullscreen-modal]')
+            || root;
+        const outer = [...(fullscreen.querySelectorAll?.(FOCUSABLE_SELECTOR) || [])].filter(isFocusableElement);
+        const frameIndex = frameElement ? outer.indexOf(frameElement) : -1;
+        if (frameIndex >= 0) {
+            const candidates = forward ? outer.slice(frameIndex + 1) : outer.slice(0, frameIndex).reverse();
+            if (candidates.length) return candidates[0];
+        }
+        if (!forward) {
+            const editorControls = [...(root.querySelectorAll?.(FOCUSABLE_SELECTOR) || [])]
+                .filter((element) => isFocusableElement(element) && element !== frameElement);
+            if (editorControls.length) return editorControls.at(-1);
+        }
+        return fullscreen.querySelector?.('[data-page-builder-assist]')
+            || fullscreen.querySelector?.('[aria-label*="schliessen" i], [aria-label*="schließen" i]')
+            || null;
+    };
+    const onFrameKeydown = (event) => {
+        if (event.key !== 'Tab') return;
+        const focusables = [...(frameDocument?.querySelectorAll?.(FOCUSABLE_SELECTOR) || [])].filter(isFocusableElement);
+        if (!focusables.length) return;
+        const index = focusables.findIndex((element) => element === event.target || element.contains?.(event.target));
+        const exitsBackward = event.shiftKey && index <= 0;
+        const exitsForward = !event.shiftKey && index === focusables.length - 1;
+        if (!exitsBackward && !exitsForward) return;
+        const target = outerBoundary(exitsForward);
+        if (!target) return;
+        event.preventDefault?.();
+        event.stopPropagation?.();
+        target.focus?.();
+    };
+    const bind = () => {
+        frameDocument?.removeEventListener?.('keydown', onFrameKeydown, true);
+        try {
+            const candidate = editor?.Canvas?.getDocument?.() || null;
+            const frameElement = editor?.Canvas?.getFrameEl?.() || candidate?.defaultView?.frameElement || null;
+            frameDocument = candidate && candidate !== root.ownerDocument && frameElement ? candidate : null;
+            frameDocument?.addEventListener?.('keydown', onFrameKeydown, true);
+        } catch {
+            frameDocument = null;
+        }
+    };
+
+    editor?.on?.('canvas:frame:load', bind);
+    bind();
+    return () => {
+        editor?.off?.('canvas:frame:load', bind);
+        frameDocument?.removeEventListener?.('keydown', onFrameKeydown, true);
+        frameDocument = null;
+    };
+}
+
 function installStructureActionGuard(editor, root, { writable = true } = {}) {
     const blockedCommands = new Set(['tlb-move', 'tlb-clone', 'tlb-delete']);
-    const selectionIsProtected = () => !writable || isProtectedEditorStructure(editor?.getSelected?.());
+    const selectionContentIsProtected = () => !writable || isProtectedEditorStructure(editor?.getSelected?.());
+    const selectionStructureIsProtected = () => !writable || isProtectedEditorStructureTree(editor?.getSelected?.());
     const refresh = () => {
-        const protectedSelection = selectionIsProtected();
-        root.dataset.rtLmzProtectedSelection = protectedSelection ? 'true' : 'false';
-        if (protectedSelection) {
+        const protectedSelection = selectionStructureIsProtected();
+        const protectedContent = selectionContentIsProtected();
+        const protectedValue = protectedSelection ? 'true' : 'false';
+        if (root.dataset.rtLmzProtectedSelection !== protectedValue) {
+            root.dataset.rtLmzProtectedSelection = protectedValue;
+        }
+        if (protectedContent) {
             root.querySelectorAll?.('[data-lmz-panel-group="right"][aria-expanded="true"]')?.forEach?.((button) => {
                 button.dataset.rtLmzProtectedClosing = 'true';
                 button.click?.();
@@ -1813,27 +2155,44 @@ function installStructureActionGuard(editor, root, { writable = true } = {}) {
         canvasToolbars(editor, root).forEach((toolbar) => {
             toolbar.querySelectorAll?.('[data-command]')?.forEach?.((button) => {
                 if (!blockedCommands.has(String(button.dataset?.command || ''))) return;
-                button.hidden = protectedSelection;
-                button.disabled = protectedSelection;
-                button.setAttribute('aria-disabled', protectedSelection ? 'true' : 'false');
+                if (button.hidden !== protectedSelection) button.hidden = protectedSelection;
+                if (button.disabled !== protectedSelection) button.disabled = protectedSelection;
+                if (button.getAttribute('aria-disabled') !== protectedValue) {
+                    button.setAttribute('aria-disabled', protectedValue);
+                }
             });
         });
     };
+    let refreshQueued = false;
+    const structureSelector = '.lmzbjs-toolbar, [data-command="tlb-move"], [data-command="tlb-clone"], [data-command="tlb-delete"]';
+    const queueRefresh = (mutations = []) => {
+        const relevant = !mutations.length || mutations.some((mutation) => [
+            ...(mutation.addedNodes || []),
+        ].some((node) => node.matches?.(structureSelector) || node.querySelector?.(structureSelector)));
+        if (!relevant) return;
+        if (refreshQueued) return;
+        refreshQueued = true;
+        Promise.resolve().then(() => {
+            refreshQueued = false;
+            refresh();
+        });
+    };
     const blockToolbarAction = (event) => {
-        if (!selectionIsProtected()) return;
         const action = event.target?.closest?.('[data-command], [data-lmz-panel-toggle]');
         const command = action?.dataset?.command;
         const panel = action?.dataset?.lmzPanelToggle;
         const protectedPanel = ['right:styles', 'right:traits'].includes(String(panel || ''))
-            && action?.dataset?.rtLmzProtectedClosing !== 'true';
-        if (!blockedCommands.has(String(command || '')) && !protectedPanel) return;
+            && action?.dataset?.rtLmzProtectedClosing !== 'true'
+            && selectionContentIsProtected();
+        const protectedCommand = blockedCommands.has(String(command || '')) && selectionStructureIsProtected();
+        if (!protectedCommand && !protectedPanel) return;
         event.preventDefault?.();
         event.stopImmediatePropagation?.();
     };
     const blockKeyboardRemoval = (event) => {
         const structuralShortcut = (event.ctrlKey || event.metaKey)
             && ['c', 'd', 'v', 'x'].includes(String(event.key || '').toLowerCase());
-        if ((!['Delete', 'Backspace'].includes(event.key) && !structuralShortcut) || !selectionIsProtected()) return;
+        if ((!['Delete', 'Backspace'].includes(event.key) && !structuralShortcut) || !selectionStructureIsProtected()) return;
         const editable = event.target?.closest?.('input,textarea,[contenteditable="true"]');
         if (editable) return;
         event.preventDefault?.();
@@ -1849,12 +2208,18 @@ function installStructureActionGuard(editor, root, { writable = true } = {}) {
 
     root.addEventListener('pointerdown', blockToolbarAction, true);
     root.addEventListener('click', blockToolbarAction, true);
+    const MutationObserverClass = root.ownerDocument?.defaultView?.MutationObserver || globalThis.MutationObserver;
+    const toolbarObserver = typeof MutationObserverClass === 'function'
+        ? new MutationObserverClass(queueRefresh)
+        : null;
+    toolbarObserver?.observe?.(root, { childList: true, subtree: true });
     editor?.on?.('component:selected', refresh);
     editor?.on?.('component:deselected', refresh);
     editor?.on?.('canvas:frame:load', bindFrame);
     bindFrame();
 
     return () => {
+        toolbarObserver?.disconnect?.();
         root.removeEventListener('pointerdown', blockToolbarAction, true);
         root.removeEventListener('click', blockToolbarAction, true);
         editor?.off?.('component:selected', refresh);
@@ -1901,7 +2266,9 @@ function openSelectedContent(editor, component, root) {
             // Eigenschaften bleiben der sichere Fallback fuer Strukturteile.
         }
     }
-    return openPanel(root, 'right:traits');
+    const opened = openPanel(root, 'right:traits');
+    if (opened) panelToggle(root, 'right:traits')?.focus?.();
+    return opened;
 }
 
 function createInlineMenu({ root, editor, capabilities, mode, mediaDrawer, animationDrawer }) {
@@ -1914,75 +2281,168 @@ function createInlineMenu({ root, editor, capabilities, mode, mediaDrawer, anima
     root.appendChild(menu);
     let component = null;
     let returnFocus = null;
+    const groups = Object.freeze({
+        assistant: { label: 'Assist', description: 'Kontextbezogene Hilfe' },
+        edit: { label: 'Bearbeiten', description: 'Inhalt, Darstellung und Medien' },
+        structure: { label: 'Struktur', description: 'Element anordnen oder verwalten' },
+    });
 
     const actionDefinitions = () => {
         const image = resolveEditableImageComponent(editor, component, { mode });
         const protectedStructure = isProtectedEditorStructure(component);
+        const protectedStructureTree = isProtectedEditorStructureTree(component);
         const animationTarget = resolveAnimatedComponent(component);
         const animation = componentAnimationContext(animationTarget || image || component);
         return [
-            { id: 'content', label: 'Inhalt', enabled: capabilities.writable && !protectedStructure },
-            { id: 'traits', label: 'Eigenschaften', panel: 'right:traits', enabled: capabilities.writable && capabilities.traits && !protectedStructure },
-            { id: 'styles', label: 'Stile', panel: 'right:styles', enabled: capabilities.writable && capabilities.styles && !protectedStructure },
-            { id: 'spacing', label: 'Abstände', panel: 'right:styles', enabled: capabilities.writable && capabilities.spacing && !protectedStructure },
-            { id: 'media', label: 'Medien', enabled: capabilities.media && (image || mode === 'mail') },
-            { id: 'replace', label: 'Bild ersetzen', enabled: capabilities.imageReplace === true && Boolean(image) },
+            { id: 'assistant', label: 'Mit Assist bearbeiten', group: 'assistant', enabled: true },
+            { id: 'content', label: 'Inhalt', group: 'edit', enabled: capabilities.writable && !protectedStructure },
+            { id: 'traits', label: 'Eigenschaften', group: 'edit', panel: 'right:traits', enabled: capabilities.writable && capabilities.traits && !protectedStructure },
+            { id: 'styles', label: 'Stile', group: 'edit', panel: 'right:styles', enabled: capabilities.writable && capabilities.styles && !protectedStructure },
+            { id: 'spacing', label: 'Abstände', group: 'edit', panel: 'right:styles', enabled: capabilities.writable && capabilities.spacing && !protectedStructure },
+            { id: 'media', label: 'Medien', group: 'edit', enabled: capabilities.media && (image || mode === 'mail') },
+            { id: 'replace', label: 'Bild ersetzen', group: 'edit', enabled: capabilities.imageReplace === true && Boolean(image) },
             {
                 id: 'animation',
                 label: animation.animated ? 'Animation & GIF' : 'Animation',
+                group: 'edit',
                 enabled: (!protectedStructure && capabilities.animation)
                     || (capabilities.gifControls && animation.animated),
             },
             {
                 id: 'gif-playback',
                 label: animatedPreviewIsPlaying(animationTarget || image || component) ? 'GIF-Vorschau anhalten' : 'GIF-Vorschau abspielen',
+                group: 'edit',
                 enabled: capabilities.gifControls && animation.animated,
             },
-            { id: 'gif-restart', label: 'GIF-Vorschau neu starten', enabled: capabilities.gifControls && animation.animated },
-            { id: 'move', label: 'Umpositionieren', enabled: capabilities.writable && !protectedStructure },
-            { id: 'duplicate', label: 'Duplizieren', enabled: capabilities.writable && !protectedStructure },
-            { id: 'delete', label: 'Löschen', enabled: capabilities.writable && !protectedStructure, danger: true },
+            { id: 'gif-restart', label: 'GIF-Vorschau neu starten', group: 'edit', enabled: capabilities.gifControls && animation.animated },
+            { id: 'move', label: 'Umpositionieren', group: 'structure', enabled: capabilities.writable && !protectedStructureTree },
+            { id: 'duplicate', label: 'Duplizieren', group: 'structure', enabled: capabilities.writable && !protectedStructureTree },
+            { id: 'delete', label: 'Löschen', group: 'structure', enabled: capabilities.writable && !protectedStructureTree, danger: true },
         ].filter((item) => item.enabled !== false);
     };
 
     const close = ({ restoreFocus = false } = {}) => {
+        const focusTarget = returnFocus;
         menu.hidden = true;
         component = null;
-        if (restoreFocus) returnFocus?.focus?.();
+        returnFocus = null;
+        if (restoreFocus) focusTarget?.focus?.();
+    };
+    const focusInlineTrigger = () => {
+        const focus = () => {
+            const trigger = visibleCanvasToolbar(editor, root)?.querySelector?.(`[data-command="${EDIT_COMMAND}"]`);
+            trigger?.focus?.();
+            return Boolean(trigger);
+        };
+        Promise.resolve().then(() => {
+            if (!focus()) globalThis.setTimeout?.(focus, 0);
+        });
+    };
+    const openAssistant = (selected) => {
+        editor.select?.(selected);
+        const window_ = document_.defaultView || globalThis.window;
+        const EventConstructor = window_?.CustomEvent || globalThis.CustomEvent;
+        if (typeof EventConstructor !== 'function') return false;
+        window_?.dispatchEvent?.(new EventConstructor('railtime-pagebuilder-context-changed'));
+        const readOnly = !capabilities.writable || isProtectedEditorStructure(selected);
+        window_?.dispatchEvent?.(new EventConstructor('railtime-assistant-open', {
+            detail: { source: 'page-builder', mode, read_only: readOnly },
+        }));
+        return true;
+    };
+    const runAction = (definition) => {
+        const selected = component;
+        if (!selected) return;
+
+        if (definition.id === 'assistant') {
+            close({ restoreFocus: true });
+            openAssistant(selected);
+            return;
+        }
+        if (definition.panel) {
+            close({ restoreFocus: true });
+            if (openPanel(root, definition.panel)) panelToggle(root, definition.panel)?.focus?.();
+            return;
+        }
+        if (definition.id === 'content') {
+            close({ restoreFocus: true });
+            openSelectedContent(editor, selected, root);
+            return;
+        }
+        if (definition.id === 'media' || definition.id === 'replace') {
+            close({ restoreFocus: true });
+            mediaDrawer.open(definition.id === 'replace'
+                ? { replaceTarget: selected, initialTab: 'library' }
+                : { initialTab: 'used' });
+            return;
+        }
+        if (definition.id === 'animation') {
+            close({ restoreFocus: true });
+            animationDrawer.open(selected);
+            return;
+        }
+        if (definition.id === 'gif-playback') {
+            const target = resolveAnimatedComponent(selected) || resolveEditableImageComponent(editor, selected, { mode }) || selected;
+            close({ restoreFocus: true });
+            setAnimatedPreviewPlayback(target, !animatedPreviewIsPlaying(target));
+            return;
+        }
+        if (definition.id === 'gif-restart') {
+            close({ restoreFocus: true });
+            restartAnimatedPreview(resolveAnimatedComponent(selected) || resolveEditableImageComponent(editor, selected, { mode }) || selected);
+            return;
+        }
+        if (definition.id === 'move') {
+            const moveHandle = visibleToolbarCommand(editor, root, 'tlb-move');
+            if (moveHandle) {
+                close();
+                markMoveHandleReady(moveHandle);
+            } else {
+                close({ restoreFocus: true });
+            }
+            return;
+        }
+        if (definition.id === 'duplicate') {
+            close({ restoreFocus: true });
+            if (duplicateSelectedComponent(editor, selected)) focusInlineTrigger();
+            return;
+        }
+        if (definition.id === 'delete') {
+            close({ restoreFocus: true });
+            if (deleteSelectedComponent(editor, selected)) focusInlineTrigger();
+        }
     };
     const render = () => {
         menu.replaceChildren();
+        const renderedGroups = new Map();
         actionDefinitions().forEach((definition) => {
+            let group = renderedGroups.get(definition.group);
+            if (!group) {
+                const metadata = groups[definition.group] || groups.edit;
+                group = document_.createElement('section');
+                group.className = 'rt-lmz-inline-menu__group';
+                group.dataset.rtLmzInlineGroup = definition.group;
+                group.setAttribute('role', 'group');
+                group.setAttribute('aria-label', metadata.label);
+                const header = document_.createElement('header');
+                header.className = 'rt-lmz-inline-menu__group-header';
+                header.innerHTML = '<strong></strong><small></small>';
+                header.querySelector('strong').textContent = metadata.label;
+                header.querySelector('small').textContent = metadata.description;
+                group.appendChild(header);
+                menu.appendChild(group);
+                renderedGroups.set(definition.group, group);
+            }
             const button = document_.createElement('button');
             button.type = 'button';
             button.role = 'menuitem';
             button.dataset.rtLmzInlineAction = definition.id;
             if (definition.danger) button.dataset.tone = 'danger';
-            button.textContent = definition.label;
-            button.addEventListener('click', () => {
-                const selected = component;
-                if (definition.panel) openPanel(root, definition.panel);
-                if (definition.id === 'content') openSelectedContent(editor, selected, root);
-                if (definition.id === 'media') mediaDrawer.open({ initialTab: 'used' });
-                if (definition.id === 'replace') mediaDrawer.open({ replaceTarget: selected, initialTab: 'library' });
-                if (definition.id === 'animation') animationDrawer.open(selected);
-                if (definition.id === 'gif-playback') {
-                    const target = resolveAnimatedComponent(selected) || resolveEditableImageComponent(editor, selected, { mode }) || selected;
-                    setAnimatedPreviewPlayback(target, !animatedPreviewIsPlaying(target));
-                }
-                if (definition.id === 'gif-restart') restartAnimatedPreview(resolveAnimatedComponent(selected) || resolveEditableImageComponent(editor, selected, { mode }) || selected);
-                if (definition.id === 'move') {
-                    const moveHandle = visibleCanvasToolbar(editor, root)?.querySelector?.('[data-command="tlb-move"]')
-                        || canvasToolbars(editor, root).map((toolbar) => toolbar.querySelector?.('[data-command="tlb-move"]')).find(Boolean);
-                    moveHandle?.focus?.();
-                    moveHandle?.classList?.add?.('rt-lmz-move-ready');
-                    globalThis.setTimeout?.(() => moveHandle?.classList?.remove?.('rt-lmz-move-ready'), 1800);
-                }
-                if (definition.id === 'duplicate') duplicateSelectedComponent(editor, selected);
-                if (definition.id === 'delete') deleteSelectedComponent(editor, selected);
-                close();
-            });
-            menu.appendChild(button);
+            button.setAttribute('aria-label', definition.label);
+            button.innerHTML = `${inlineActionIcon(definition.id)}<span class="rt-lmz-inline-menu__action-label"></span>`;
+            button.querySelector('.rt-lmz-inline-menu__action-label').textContent = definition.label;
+            button.addEventListener('click', () => runAction(definition));
+            group.appendChild(button);
         });
         if (componentAnimationContext(resolveAnimatedComponent(component) || resolveEditableImageComponent(editor, component, { mode }) || component).animated) {
             const note = document_.createElement('p');
@@ -1996,7 +2456,11 @@ function createInlineMenu({ root, editor, capabilities, mode, mediaDrawer, anima
         if (menu.hidden) return;
         const items = [...menu.querySelectorAll('[role="menuitem"]')];
         const index = items.indexOf(document_.activeElement);
-        if (event.key === 'Escape') { event.preventDefault(); close({ restoreFocus: true }); }
+        if (event.key === 'Escape') {
+            consumeEscape(event);
+            close({ restoreFocus: true });
+            return;
+        }
         if (event.key === 'ArrowDown') { event.preventDefault(); items[(index + 1 + items.length) % items.length]?.focus(); }
         if (event.key === 'ArrowUp') { event.preventDefault(); items[(index - 1 + items.length) % items.length]?.focus(); }
     };
@@ -2014,14 +2478,45 @@ function createInlineMenu({ root, editor, capabilities, mode, mediaDrawer, anima
             returnFocus = document_.activeElement;
             render();
             const toolbar = visibleCanvasToolbar(editor, root);
-            const canvas = root.getBoundingClientRect?.() || { left: 0, top: 0 };
-            const anchor = toolbar?.getBoundingClientRect?.() || { left: canvas.left + 12, bottom: canvas.top + 54 };
-            menu.style.left = `${clamp(anchor.left - canvas.left, 8, Math.max(8, canvas.width - 240))}px`;
-            menu.style.top = `${Math.max(8, anchor.bottom - canvas.top + 6)}px`;
             menu.hidden = false;
+            const previousVisibility = menu.style.visibility;
+            menu.style.visibility = 'hidden';
+            menu.style.left = '8px';
+            menu.style.top = '8px';
+            const canvas = root.getBoundingClientRect?.() || { left: 0, top: 0, width: 0, height: 0 };
+            const anchor = toolbar?.getBoundingClientRect?.() || {
+                left: number(canvas.left) + 12,
+                top: number(canvas.top) + 12,
+                bottom: number(canvas.top) + 54,
+            };
+            const menuRect = menu.getBoundingClientRect?.() || {};
+            const menuWidth = Math.max(0, number(menuRect.width), number(menu.offsetWidth), number(menu.scrollWidth));
+            const menuHeight = Math.max(0, number(menuRect.height), number(menu.offsetHeight), number(menu.scrollHeight));
+            const canvasWidth = Math.max(0, number(canvas.width, number(canvas.right) - number(canvas.left)));
+            const canvasHeight = Math.max(0, number(canvas.height, number(canvas.bottom) - number(canvas.top)));
+            const inset = 8;
+            const gap = 6;
+            const maximumLeft = Math.max(inset, canvasWidth - menuWidth - inset);
+            const maximumTop = Math.max(inset, canvasHeight - menuHeight - inset);
+            const desiredLeft = number(anchor.left) - number(canvas.left);
+            const below = number(anchor.bottom, number(anchor.top)) - number(canvas.top) + gap;
+            const above = number(anchor.top, number(anchor.bottom)) - number(canvas.top) - menuHeight - gap;
+            const desiredTop = menuHeight > 0 && below + menuHeight > canvasHeight - inset && above >= inset
+                ? above
+                : below;
+            menu.style.left = `${clamp(desiredLeft, inset, maximumLeft)}px`;
+            menu.style.top = `${clamp(desiredTop, inset, maximumTop)}px`;
+            if (previousVisibility) menu.style.visibility = previousVisibility;
+            else menu.style.removeProperty?.('visibility');
             menu.querySelector('[role="menuitem"]')?.focus?.();
         },
         close,
+        selectionChanged(selected, { deselected = false } = {}) {
+            if (menu.hidden || !component) return false;
+            if (!deselected && selected === component) return false;
+            close();
+            return true;
+        },
         destroy() {
             document_.removeEventListener('pointerdown', outside, true);
             menu.removeEventListener('keydown', onKeydown);
@@ -2246,8 +2741,8 @@ export function createLmzAssistantAdapter({
             };
         },
         openFullscreen() {
-            const shell = rootElement.closest?.('[data-page-builder-shell]');
-            const trigger = shell?.querySelector?.('[data-page-builder-closed-preview] button');
+            const { shell } = pageBuilderShellContext(rootElement);
+            const trigger = shell?.querySelector?.('[data-page-builder-open], [data-page-builder-closed-preview] button');
             trigger?.click?.();
             return Boolean(trigger);
         },
@@ -2360,6 +2855,14 @@ export function createLmzEditorChrome({
     rootElement.querySelector('.lmz-builder__topbar')?.setAttribute('data-rt-lmz-toolbar', 'true');
     rootElement.querySelectorAll('[data-lmz-panel-toggle]').forEach((button) => button.classList.add('rt-lmz-drawer-trigger'));
     rootElement.querySelectorAll('[data-lmz-popover]').forEach((drawer) => drawer.setAttribute('data-rt-lmz-drawer', drawer.dataset.lmzPopover || ''));
+    const onVendorPopoverEscape = (event) => {
+        if (event.key !== 'Escape') return;
+        const popover = openVendorPopover(rootElement, event.target);
+        if (!popover) return;
+        consumeEscape(event);
+        closeVendorPopover(rootElement, popover);
+    };
+    rootElement.addEventListener('keydown', onVendorPopoverEscape, { capture: true, signal: abortController.signal });
     let intentionalRightPanel = null;
     let panelReconcileFrame = null;
     let pointerPanel = null;
@@ -2398,6 +2901,7 @@ export function createLmzEditorChrome({
     animationDrawer = createAnimationDrawer({ root: rootElement, editor, capabilities: normalized, mode, onChanged: refreshAll });
     const menu = createInlineMenu({ root: rootElement, editor, capabilities: normalized, mode, mediaDrawer, animationDrawer });
     const detachToolbar = addInlineEditToolbar(editor, rootElement, menu);
+    const detachCanvasTabBoundary = installCanvasTabBoundary(editor, rootElement);
     const detachStructureActionGuard = installStructureActionGuard(editor, rootElement, normalized);
 
     const mediaButton = rootElement.querySelector('[data-lmz-action="assets"]');
@@ -2411,7 +2915,10 @@ export function createLmzEditorChrome({
     // LMZ 2.4.5 oeffnet bei jeder Auswahl ungefragt den Stil-Popover. Der
     // gemeinsame Editor oeffnet Panels ausschliesslich durch Benutzerwahl.
     closeAutomaticallyOpenedStyles(rootElement, intentionalRightPanel);
-    const onSelected = () => {
+    const onSelected = (selected = editor.getSelected?.()) => {
+        menu.selectionChanged(selected);
+        mediaDrawer.selectionChanged(selected);
+        animationDrawer.selectionChanged(selected);
         const reconcile = () => {
             closeAutomaticallyOpenedStyles(rootElement, intentionalRightPanel);
             refreshAll();
@@ -2425,10 +2932,17 @@ export function createLmzEditorChrome({
             });
         }
     };
+    const onDeselected = () => {
+        menu.selectionChanged(null, { deselected: true });
+        mediaDrawer.selectionChanged(null, { deselected: true });
+        animationDrawer.selectionChanged(null, { deselected: true });
+        onSelected(null);
+    };
     editor.on?.('component:selected', onSelected);
+    editor.on?.('component:deselected', onDeselected);
     editor.on?.('component:update', refreshAll);
     const onComponentAdded = (component) => {
-        if (!normalized.writable || isProtectedEditorStructure(component)) {
+        if (!normalized.writable || isProtectedEditorStructureTree(component)) {
             enforceProtectedComponentModels({
                 getWrapper: () => component,
                 getSelected: () => component,
@@ -2488,11 +3002,13 @@ export function createLmzEditorChrome({
             if (panelReconcileFrame !== null) globalThis.cancelAnimationFrame?.(panelReconcileFrame);
             panelReconcileFrame = null;
             editor.off?.('component:selected', onSelected);
+            editor.off?.('component:deselected', onDeselected);
             editor.off?.('component:update', refreshAll);
             editor.off?.('component:add', onComponentAdded);
             editor.off?.('load', onLoad);
             detachScopedAssetAccess();
             detachStructureActionGuard();
+            detachCanvasTabBoundary();
             detachToolbar();
             menu.destroy();
             mediaDrawer.destroy();

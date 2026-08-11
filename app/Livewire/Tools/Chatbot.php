@@ -38,6 +38,10 @@ class Chatbot extends Component
 
     private const PAGE_HELP_HINT_MAX_CHARACTERS = 160;
 
+    private const PAGE_BUILDER_INTERRUPTED_CLAIM_ERROR_DE = 'Die vorherige Übergabe an den Editor wurde unterbrochen. Der Vorschlag wurde nicht ausgeführt und kann verworfen werden.';
+
+    private const PAGE_BUILDER_INTERRUPTED_CLAIM_ERROR_EN = 'The previous editor handoff was interrupted. The suggestion was not applied and can be discarded.';
+
     public string $message = '';
 
     /** @var array<int, TemporaryUploadedFile> */
@@ -85,13 +89,14 @@ class Chatbot extends Component
 
     public function mount(): void
     {
-        $this->authorizeUser();
+        $user = $this->authorizeUser();
         $this->assistantName = (string) config('assistant.name', 'RailTime Assist');
         $this->pageRouteName = request()->route()?->getName() ?? 'unknown';
         $this->refreshPageHelpHints();
         $this->quickActions = $this->availableQuickActions();
         $this->refreshAvailability();
         $this->loadHistory();
+        $this->recoverInterruptedPageBuilderClaims($user);
 
         if ($this->chatHistory === []) {
             $this->resetHistory();
@@ -252,11 +257,12 @@ class Chatbot extends Component
                     $answer = $response->content;
                 }
 
-                $actions = array_map(
-                    fn (array $effect): array => app(AssistantPendingActionStore::class)
-                        ->create($user, $this->pageRouteName, $effect),
-                    $effects,
-                );
+                $actions = [];
+                foreach ($effects as $effect) {
+                    $pendingAction = app(AssistantPendingActionStore::class)
+                        ->create($user, $this->pageRouteName, $effect);
+                    $actions[] = $this->decoratePageBuilderPendingAction($pendingAction, $effect, $user);
+                }
                 $entry = $this->appendHistory('assistant', trim($answer), actions: $actions);
                 if ($response instanceof OpenRouterChatResponse) {
                     $this->rememberAttachmentContext($batch, $response);
@@ -301,12 +307,16 @@ class Chatbot extends Component
     {
         $user = $this->authorizeUser();
         $token = trim($token);
-        $effect = app(AssistantPendingActionStore::class)->consume(
-            $user,
-            $this->pageRouteName,
-            $token,
-            $this->wagonAssistantContext,
-            $this->pageBuilderAssistantContext,
+        abort_unless(preg_match('/\A[a-zA-Z0-9]{48}\z/', $token) === 1, 422);
+        $pendingActions = app(AssistantPendingActionStore::class);
+        $effect = $pendingActions->tokenLock($user, $token)->get(
+            fn () => $pendingActions->consume(
+                $user,
+                $this->pageRouteName,
+                $token,
+                $this->wagonAssistantContext,
+                $this->pageBuilderAssistantContext,
+            ),
         );
 
         if (! is_array($effect)) {
@@ -344,7 +354,11 @@ class Chatbot extends Component
         }
 
         $effect['action_token'] = $token;
-        $this->removePendingActionFromHistory($token);
+        if (($effect['type'] ?? null) === AssistantPageBuilderTools::EFFECT_TYPE) {
+            $this->updatePendingActionInHistory($token, 'claiming');
+        } else {
+            $this->removePendingActionFromHistory($token);
+        }
         $clientAction = ($effect['type'] ?? null) === AssistantPageBuilderTools::EFFECT_TYPE
             ? [
                 'type' => 'pagebuilder_grant',
@@ -360,17 +374,21 @@ class Chatbot extends Component
         $user = $this->authorizeUser();
         $token = trim((string) ($result['action_token'] ?? ''));
         $status = trim((string) ($result['status'] ?? ''));
-        $receipt = app(AssistantPendingActionStore::class)->acceptReceipt(
-            $user,
-            $token,
-            $status,
-            $this->pageRouteName,
+        $pendingActions = app(AssistantPendingActionStore::class);
+        $receipt = $pendingActions->tokenLock($user, $token)->get(
+            fn () => $pendingActions->acceptReceipt(
+                $user,
+                $token,
+                $status,
+                $this->pageRouteName,
+            ),
         );
 
         if (! is_array($receipt)) {
             abort(422);
         }
 
+        $this->removePendingActionFromHistory($token);
         $effectType = (string) ($receipt['effect']['type'] ?? '');
         $command = (string) ($receipt['effect']['command'] ?? '');
         $message = $this->assistantActionResultMessage($effectType, $command, $status);
@@ -381,6 +399,70 @@ class Chatbot extends Component
             key: $entry['key'],
             can_auto_listen: $status === 'applied',
         );
+    }
+
+    /** @param array<string, mixed> $result */
+    public function recordAssistantActionClaimFailure(array $result): void
+    {
+        $user = $this->authorizeUser();
+        abort_unless($this->isPageBuilderRoute(), 422);
+        $token = trim((string) ($result['action_token'] ?? ''));
+        $reason = trim((string) ($result['reason'] ?? ''));
+
+        abort_unless(preg_match('/\A[a-zA-Z0-9]{48}\z/', $token) === 1, 422);
+        abort_unless(in_array($reason, [
+            'network_error',
+            'claim_timeout',
+            'claim_rejected',
+            'invalid_payload',
+            'dispatch_rejected',
+        ], true), 422);
+
+        $pendingActions = app(AssistantPendingActionStore::class);
+        $pendingActions->tokenLock($user, $token)->get(
+            fn (): bool => $pendingActions->discard(
+                $user,
+                $token,
+                $this->pageRouteName,
+            ),
+        );
+
+        $german = app()->getLocale() === 'de';
+        $message = match ($reason) {
+            'network_error' => $german
+                ? 'Die bestätigte Änderung konnte den Editor nicht erreichen. Bitte verwirf sie und fordere den Vorschlag erneut an.'
+                : 'The confirmed change could not reach the editor. Discard it and request the suggestion again.',
+            'claim_timeout' => $german
+                ? 'Die sichere Übergabe an den Editor hat zu lange gedauert und wurde abgebrochen. Der Vorschlag wurde nicht ausgeführt.'
+                : 'The secure editor handoff timed out and was cancelled. The suggestion was not applied.',
+            'claim_rejected' => $german
+                ? 'Die Bestätigung ist abgelaufen oder wurde bereits verwendet. Bitte verwirf den Vorschlag und fordere ihn erneut an.'
+                : 'The confirmation expired or was already used. Discard the suggestion and request it again.',
+            'invalid_payload' => $german
+                ? 'Der Editor hat keine gültige, freigegebene Änderung erhalten. Der Vorschlag wurde nicht ausgeführt.'
+                : 'The editor did not receive a valid approved change. The suggestion was not applied.',
+            default => $german
+                ? 'Der Editor hat die bestätigte Änderung abgelehnt. Der Vorschlag wurde nicht ausgeführt.'
+                : 'The editor rejected the confirmed change. The suggestion was not applied.',
+        };
+
+        $this->updatePendingActionInHistory($token, 'error', $message);
+    }
+
+    public function dismissAssistantAction(string $token): void
+    {
+        $user = $this->authorizeUser();
+        $token = trim($token);
+
+        abort_unless(preg_match('/\A[a-zA-Z0-9]{48}\z/', $token) === 1, 422);
+        $pendingActions = app(AssistantPendingActionStore::class);
+        $lockResult = $pendingActions->tokenLock($user, $token)->get(
+            fn (): array => [
+                'discarded' => $pendingActions->discard($user, $token, $this->pageRouteName),
+            ],
+        );
+        abort_unless(is_array($lockResult), 409);
+        $this->removePendingActionFromHistory($token);
     }
 
     /** @param array<string, mixed> $context */
@@ -562,7 +644,9 @@ class Chatbot extends Component
 
     public function render()
     {
-        return view('livewire.tools.chatbot');
+        return view('livewire.tools.chatbot', [
+            'pageBuilderUi' => $this->pageBuilderUiContext(),
+        ]);
     }
 
     private function authorizeUser(): User
@@ -649,21 +733,28 @@ class Chatbot extends Component
     {
         session()->forget($this->attachmentSessionKey());
         $german = app()->getLocale() === 'de';
+        $pageBuilder = $this->isPageBuilderRoute();
         $this->chatHistory = [[
             'key' => (string) Str::uuid(),
             'role' => 'assistant',
-            'content' => $german
-                ? 'Hallo! Ich helfe dir kurz und direkt in RailTime. Ich kann freigegebene Seiten öffnen und dich durch eine lokale Wagenliste führen; Änderungen führe ich erst nach deiner Bestätigung aus.'
-                : 'Hello! I provide concise, direct help in RailTime. I can open approved pages and guide you through a local wagon list; changes only run after your confirmation.',
+            'content' => $pageBuilder
+                ? ($german
+                    ? 'Ich begleite dich direkt im LMZ PageBuilder. Wähle ein Segment aus oder nutze die festen Prüfaktionen oben; Änderungen zeige ich dir vor der Übernahme vollständig an.'
+                    : 'I work alongside you in the LMZ PageBuilder. Select a segment or use the checks above; every change is shown in full before it is applied.')
+                : ($german
+                    ? 'Hallo! Ich helfe dir kurz und direkt in RailTime. Ich kann freigegebene Seiten öffnen und dich durch eine lokale Wagenliste führen; Änderungen führe ich erst nach deiner Bestätigung aus.'
+                    : 'Hello! I provide concise, direct help in RailTime. I can open approved pages and guide you through a local wagon list; changes only run after your confirmation.'),
             'created_at' => now()->toIso8601String(),
-            'actions' => array_map(
-                static fn (array $action): array => [
-                    'kind' => 'prompt',
-                    'key' => $action['key'],
-                    'label' => $action['label'],
-                ],
-                $this->availableQuickActions(),
-            ),
+            'actions' => $pageBuilder
+                ? []
+                : array_map(
+                    static fn (array $action): array => [
+                        'kind' => 'prompt',
+                        'key' => $action['key'],
+                        'label' => $action['label'],
+                    ],
+                    $this->availableQuickActions(),
+                ),
         ]];
         $this->persistHistory();
     }
@@ -726,9 +817,38 @@ class Chatbot extends Component
             if ($kind === 'pending_tool') {
                 $token = trim((string) ($action['token'] ?? ''));
                 if (preg_match('/\A[a-zA-Z0-9]{48}\z/', $token)) {
-                    $safeAction = ['kind' => $kind, 'token' => $token, 'label' => $label];
+                    $status = trim((string) ($action['status'] ?? 'pending'));
+                    $status = in_array($status, ['pending', 'claiming', 'error'], true)
+                        ? $status
+                        : 'pending';
+                    $routeName = trim((string) ($action['route_name'] ?? ''));
+                    $segment = mb_substr(trim((string) ($action['segment'] ?? '')), 0, 180);
+                    $before = mb_substr(trim((string) ($action['before'] ?? '')), 0, 1200);
+                    $after = mb_substr(trim((string) ($action['after'] ?? '')), 0, 1200);
+                    $error = mb_substr(trim((string) ($action['error'] ?? '')), 0, 240);
+                    $safeAction = [
+                        'kind' => $kind,
+                        'token' => $token,
+                        'label' => $label,
+                        'status' => $status,
+                    ];
                     if ($detail !== '') {
                         $safeAction['detail'] = $detail;
+                    }
+                    if ($this->validHistoryRouteName($routeName)) {
+                        $safeAction['route_name'] = $routeName;
+                    }
+                    if ($segment !== '') {
+                        $safeAction['segment'] = $segment;
+                    }
+                    if ($before !== '') {
+                        $safeAction['before'] = $before;
+                    }
+                    if ($after !== '') {
+                        $safeAction['after'] = $after;
+                    }
+                    if ($status === 'error' && $error !== '') {
+                        $safeAction['error'] = $error;
                     }
                     $safe[] = $safeAction;
                 }
@@ -745,6 +865,327 @@ class Chatbot extends Component
         }
 
         return $safe;
+    }
+
+    private function updatePendingActionInHistory(string $token, string $status, string $error = ''): bool
+    {
+        if (! in_array($status, ['pending', 'claiming', 'error'], true)) {
+            return false;
+        }
+
+        $updated = false;
+        foreach ($this->chatHistory as &$entry) {
+            if (! is_array($entry) || ! is_array($entry['actions'] ?? null)) {
+                continue;
+            }
+
+            foreach ($entry['actions'] as &$action) {
+                if (! is_array($action) || ! hash_equals((string) ($action['token'] ?? ''), $token)) {
+                    continue;
+                }
+
+                $action['status'] = $status;
+                if ($status === 'error' && $error !== '') {
+                    $action['error'] = mb_substr(trim($error), 0, 240);
+                } else {
+                    unset($action['error']);
+                }
+                $updated = true;
+            }
+            unset($action);
+        }
+        unset($entry);
+
+        if ($updated) {
+            $this->persistHistory();
+        }
+
+        return $updated;
+    }
+
+    /**
+     * @param  array<string, mixed>  $pendingAction
+     * @param  array<string, mixed>  $effect
+     * @return array<string, mixed>
+     */
+    private function decoratePageBuilderPendingAction(array $pendingAction, array $effect, User $user): array
+    {
+        if (! $this->isPageBuilderRoute()) {
+            return $pendingAction;
+        }
+
+        $effect = app(AssistantApplicationTools::class)->normalizeBrowserEffect(
+            $user,
+            $this->pageRouteName,
+            $effect,
+        );
+        if (! is_array($effect) || ($effect['type'] ?? null) !== AssistantPageBuilderTools::EFFECT_TYPE) {
+            return $pendingAction;
+        }
+
+        $context = $this->pageBuilderAssistantContext;
+        $selection = is_array($context['selection'] ?? null) ? $context['selection'] : null;
+        if (is_array($selection) && isset($effect['selection_fingerprint'])) {
+            $contextFingerprint = (string) ($selection['fingerprint'] ?? '');
+            $effectFingerprint = (string) $effect['selection_fingerprint'];
+            if ($contextFingerprint === '' || ! hash_equals($contextFingerprint, $effectFingerprint)) {
+                $selection = null;
+            }
+        }
+
+        $german = app()->getLocale() === 'de';
+        $segment = $this->pageBuilderSegmentLabel($selection);
+        $currentText = trim((string) ($selection['text'] ?? ''));
+        $command = (string) ($effect['command'] ?? '');
+        $before = '';
+        $after = '';
+
+        if ($command === 'edit_text') {
+            $before = $currentText !== '' ? $currentText : ($german ? 'Leeres Textsegment' : 'Empty text segment');
+            $after = (string) ($effect['text'] ?? '');
+        } elseif ($command === 'set_style') {
+            $property = (string) ($effect['property'] ?? '');
+            $styles = is_array($selection['styles'] ?? null) ? $selection['styles'] : [];
+            $beforeValue = trim((string) ($styles[$property] ?? ''));
+            $before = $property.' = '.($beforeValue !== '' ? $beforeValue : ($german ? 'Standard' : 'Default'));
+            $after = $property.' = '.(string) ($effect['value'] ?? '');
+        } elseif ($command === 'replace_image') {
+            $currentFileId = (int) ($selection['image_file_id'] ?? 0);
+            $before = $currentFileId > 0
+                ? ($german ? 'Aktuelles Bild · Datei #'.$currentFileId : 'Current image · File #'.$currentFileId)
+                : ($german ? 'Aktuelles Bild' : 'Current image');
+            $after = trim((string) ($pendingAction['detail'] ?? ''));
+            $after = $after !== '' ? $after : ($german ? 'Freigegebene Datei #'.(int) ($effect['file_id'] ?? 0) : 'Approved file #'.(int) ($effect['file_id'] ?? 0));
+        } elseif ($command === 'add_block') {
+            $before = $segment;
+            $position = match ((string) ($effect['position'] ?? '')) {
+                'before' => $german ? 'davor' : 'before',
+                'inside' => $german ? 'darin' : 'inside',
+                default => $german ? 'danach' : 'after',
+            };
+            $after = $this->pageBuilderBlockLabel((string) ($effect['block_id'] ?? '')).' · '.$position;
+        } elseif ($command === 'set_animation') {
+            $field = (string) ($effect['field'] ?? '');
+            $before = $german ? 'Aktuelle Animationseinstellung' : 'Current animation setting';
+            $after = $field.' = '.$this->pageBuilderEffectValue($effect['value'] ?? '');
+        } elseif ($command === 'open_panel') {
+            $before = $german ? 'Aktuelle Editoransicht' : 'Current editor view';
+            $after = ($german ? 'Bereich: ' : 'Panel: ').$this->pageBuilderBlockLabel((string) ($effect['panel'] ?? ''));
+        } elseif ($command === 'open_fullscreen') {
+            $segment = $german ? 'LMZ PageBuilder' : 'LMZ PageBuilder';
+            $before = $german ? 'Dokumentvorschau' : 'Document preview';
+            $after = $german ? 'Vollbildeditor' : 'Full-screen editor';
+        } elseif ($command === 'save') {
+            $segment = $this->pageBuilderDocumentLabel((string) ($context['format_or_kind'] ?? ''));
+            $before = (bool) ($context['unsaved'] ?? false)
+                ? ($german ? 'Ungespeicherter Arbeitsstand' : 'Unsaved working draft')
+                : ($german ? 'Aktueller Arbeitsstand' : 'Current working draft');
+            $after = $german
+                ? 'Gespeicherter Arbeitsstand · keine Veröffentlichung'
+                : 'Saved working draft · no publishing';
+        } elseif (in_array($command, ['undo', 'redo', 'preview', 'restart_gif', 'focus_selection'], true)) {
+            $before = $segment;
+            $after = match ($command) {
+                'undo' => $german ? 'Letzten Editorschritt zurücknehmen' : 'Undo the last editor step',
+                'redo' => $german ? 'Editorschritt wiederherstellen' : 'Restore the editor step',
+                'preview' => $german ? 'Vorschau aktualisieren' : 'Update preview',
+                'restart_gif' => $german ? 'GIF-Vorschau neu starten' : 'Restart GIF preview',
+                default => $german ? 'Segment im Editor fokussieren' : 'Focus segment in editor',
+            };
+        }
+
+        $pendingAction['route_name'] = $this->pageRouteName;
+        $pendingAction['status'] = 'pending';
+        $pendingAction['segment'] = $segment;
+        if ($before !== '') {
+            $pendingAction['before'] = $before;
+        }
+        if ($after !== '') {
+            $pendingAction['after'] = $after;
+        }
+
+        return $pendingAction;
+    }
+
+    /** @return array{active: bool, connected: bool, ready: bool, fullscreen: bool, mode_label: string, document_label: string, selection_label: string, selection_character_count: int, unsaved: bool, read_only: bool} */
+    private function pageBuilderUiContext(): array
+    {
+        $active = $this->isPageBuilderRoute();
+        $context = $active ? $this->pageBuilderAssistantContext : [];
+        $connected = $context !== []
+            && (string) ($context['route_name'] ?? '') === $this->pageRouteName;
+        $mode = $this->pageRouteName === 'admin.marketing.creatives.editor' ? 'marketing' : 'mail';
+        $selection = $connected && is_array($context['selection'] ?? null)
+            ? $context['selection']
+            : null;
+        $selectionText = Str::squish(trim((string) ($selection['text'] ?? '')));
+
+        return [
+            'active' => $active,
+            'connected' => $connected,
+            'ready' => $connected && (bool) ($context['editor_ready'] ?? false),
+            'fullscreen' => $connected && (bool) ($context['fullscreen_open'] ?? false),
+            'mode_label' => $mode === 'marketing' ? 'Marketing' : 'E-Mail',
+            'document_label' => $this->pageBuilderDocumentLabel((string) ($context['format_or_kind'] ?? '')),
+            'selection_label' => $this->pageBuilderSegmentLabel($selection),
+            'selection_character_count' => $selectionText === '' ? 0 : mb_strlen($selectionText),
+            'unsaved' => $connected && (bool) ($context['unsaved'] ?? false),
+            'read_only' => $connected && (bool) ($context['read_only'] ?? false),
+        ];
+    }
+
+    /** @param array<string, mixed>|null $selection */
+    private function pageBuilderSegmentLabel(?array $selection): string
+    {
+        $german = app()->getLocale() === 'de';
+        if (! is_array($selection)) {
+            return $german ? 'Keine Auswahl' : 'No selection';
+        }
+
+        $blockId = trim((string) ($selection['block_id'] ?? ''));
+        if ($blockId !== '') {
+            return $this->pageBuilderBlockLabel($blockId);
+        }
+
+        return match (strtolower((string) ($selection['tag'] ?? ''))) {
+            'h1', 'h2', 'h3', 'h4', 'h5', 'h6' => $german ? 'Überschrift' : 'Heading',
+            'p', 'span', 'textnode' => $german ? 'Text' : 'Text',
+            'img' => $german ? 'Bild' : 'Image',
+            'a' => $german ? 'Link' : 'Link',
+            'section', 'div' => $german ? 'Bereich' : 'Section',
+            default => $german ? 'Ausgewähltes Segment' : 'Selected segment',
+        };
+    }
+
+    private function pageBuilderBlockLabel(string $value): string
+    {
+        $german = app()->getLocale() === 'de';
+        $normalized = strtolower(trim($value));
+        $normalized = preg_replace('/\Art-(?:marketing|mail)-/', '', $normalized) ?? $normalized;
+
+        $label = match ($normalized) {
+            'logo-light' => $german ? 'RailTime-Logo hell' : 'RailTime logo light',
+            'logo-dark' => $german ? 'RailTime-Logo dunkel' : 'RailTime logo dark',
+            'hero' => $german ? 'Hero-Bild' : 'Hero image',
+            'kicker' => 'Kicker',
+            'headline', 'heading' => $german ? 'Überschrift' : 'Heading',
+            'facts' => $german ? 'Faktenleiste' : 'Facts bar',
+            'tasks' => $german ? 'Aufgaben' : 'Tasks',
+            'profile' => $german ? 'Profil' : 'Profile',
+            'benefits' => $german ? 'Vorteile' : 'Benefits',
+            'contact' => $german ? 'Kontakt' : 'Contact',
+            'cta' => $german ? 'Handlungsaufforderung' : 'Call to action',
+            'qr' => 'QR-Code',
+            'section' => $german ? 'Abschnitt' : 'Section',
+            'two-columns' => $german ? 'Zwei Spalten' : 'Two columns',
+            'paragraph' => $german ? 'Textabsatz' : 'Paragraph',
+            'button' => $german ? 'Schaltfläche' : 'Button',
+            'divider' => $german ? 'Trennlinie' : 'Divider',
+            'spacer' => $german ? 'Abstand' : 'Spacer',
+            'blocks' => $german ? 'Bausteine' : 'Blocks',
+            'layers' => $german ? 'Ebenen' : 'Layers',
+            'styles' => $german ? 'Gestaltung' : 'Styles',
+            'traits' => $german ? 'Eigenschaften' : 'Properties',
+            'assets', 'media' => $german ? 'Medien' : 'Media',
+            'spacing' => $german ? 'Abstände' : 'Spacing',
+            'animation' => 'Animation',
+            default => '',
+        };
+
+        if ($label !== '') {
+            return $label;
+        }
+
+        $fallback = Str::headline(str_replace(['_', '-'], ' ', $normalized));
+
+        return $fallback !== '' ? $fallback : ($german ? 'Editorbereich' : 'Editor section');
+    }
+
+    private function pageBuilderDocumentLabel(string $scope): string
+    {
+        $german = app()->getLocale() === 'de';
+
+        return match ($scope) {
+            'story' => 'Story · 1080 × 1920',
+            'post' => $german ? 'Social-Post · 1080 × 1080' : 'Social post · 1080 × 1080',
+            'web' => $german ? 'Webbild · 1200 × 630' : 'Web image · 1200 × 630',
+            'template' => $german ? 'Nachrichtenvorlage' : 'Message template',
+            'signature' => $german ? 'Signatur' : 'Signature',
+            default => $this->pageRouteName === 'admin.marketing.creatives.editor'
+                ? ($german ? 'Marketingmotiv' : 'Marketing creative')
+                : ($german ? 'Maildokument' : 'Mail document'),
+        };
+    }
+
+    private function pageBuilderEffectValue(mixed $value): string
+    {
+        if (is_bool($value)) {
+            return $value ? (app()->getLocale() === 'de' ? 'An' : 'On') : (app()->getLocale() === 'de' ? 'Aus' : 'Off');
+        }
+
+        return trim((string) $value);
+    }
+
+    private function isPageBuilderRoute(): bool
+    {
+        return in_array($this->pageRouteName, [
+            'admin.marketing.creatives.editor',
+            'admin.mail-documents.editor',
+        ], true);
+    }
+
+    private function validHistoryRouteName(string $routeName): bool
+    {
+        return preg_match('/\A[a-zA-Z0-9][a-zA-Z0-9._:-]{0,159}\z/', $routeName) === 1;
+    }
+
+    private function recoverInterruptedPageBuilderClaims(User $user): void
+    {
+        if (! $this->isPageBuilderRoute()) {
+            return;
+        }
+
+        $message = app()->getLocale() === 'de'
+            ? self::PAGE_BUILDER_INTERRUPTED_CLAIM_ERROR_DE
+            : self::PAGE_BUILDER_INTERRUPTED_CLAIM_ERROR_EN;
+        $changed = false;
+        $tokens = [];
+
+        foreach ($this->chatHistory as &$entry) {
+            if (! is_array($entry) || ! is_array($entry['actions'] ?? null)) {
+                continue;
+            }
+
+            foreach ($entry['actions'] as &$action) {
+                if (! is_array($action)
+                    || ($action['kind'] ?? null) !== 'pending_tool'
+                    || ($action['status'] ?? null) !== 'claiming'
+                    || ! hash_equals((string) ($action['route_name'] ?? ''), $this->pageRouteName)) {
+                    continue;
+                }
+
+                $action['status'] = 'error';
+                $action['error'] = $message;
+                $token = trim((string) ($action['token'] ?? ''));
+                if (preg_match('/\A[a-zA-Z0-9]{48}\z/', $token) === 1) {
+                    $tokens[] = $token;
+                }
+                $changed = true;
+            }
+            unset($action);
+        }
+        unset($entry);
+
+        if ($changed) {
+            $this->persistHistory();
+        }
+
+        $pendingActions = app(AssistantPendingActionStore::class);
+        foreach (array_unique($tokens) as $token) {
+            $pendingActions->tokenLock($user, $token)->get(
+                fn (): bool => $pendingActions->discard($user, $token, $this->pageRouteName),
+            );
+        }
     }
 
     private function removePendingActionFromHistory(string $token): void
@@ -1257,25 +1698,52 @@ class Chatbot extends Component
     /** @return array<int, array{key: string, label: string, prompt: string}> */
     private function availableQuickActions(): array
     {
-        if (in_array($this->pageRouteName, [
-            'admin.marketing.creatives.editor',
-            'admin.mail-documents.editor',
-        ], true)) {
+        if ($this->pageRouteName === 'admin.marketing.creatives.editor') {
             return [
                 [
-                    'key' => 'pagebuilder_status',
-                    'label' => 'Editor-Status prüfen',
-                    'prompt' => 'Prüfe den sicheren Status des aktuellen LMZ-Editors und sage mir kurz, was ich als Nächstes tun kann.',
+                    'key' => 'pagebuilder_selection',
+                    'label' => 'Auswahl analysieren',
+                    'prompt' => 'Analysiere die aktuelle Auswahl im Marketing-PageBuilder und nenne mir knapp die wichtigsten sicheren Verbesserungsmöglichkeiten.',
                 ],
                 [
-                    'key' => 'pagebuilder_selection',
-                    'label' => 'Auswahl erklären',
-                    'prompt' => 'Prüfe die aktuelle Auswahl im LMZ-Editor und erkläre knapp, welche sicheren Bearbeitungen möglich sind.',
+                    'key' => 'pagebuilder_marketing_copy',
+                    'label' => 'Text optimieren',
+                    'prompt' => 'Optimiere den Text der aktuellen Auswahl für ein prägnantes RailTime-Marketingmotiv. Zeige jede konkrete Änderung vollständig zur Bestätigung an.',
                 ],
                 [
                     'key' => 'pagebuilder_validation',
-                    'label' => 'Dokument prüfen',
-                    'prompt' => 'Prüfe die aktuelle Validierungszusammenfassung und nenne mir die wichtigsten Probleme oder bestätige, dass sie unauffällig ist.',
+                    'label' => 'Motiv prüfen',
+                    'prompt' => 'Prüfe die aktuelle Validierungszusammenfassung und den sicheren Motivstatus. Priorisiere Überläufe, Lesbarkeit und fehlende Pflichtinhalte.',
+                ],
+                [
+                    'key' => 'pagebuilder_marketing_media',
+                    'label' => 'Passendes Bild finden',
+                    'prompt' => 'Suche im freigegebenen Marketing-Dateipool nach passenden Bildern für die aktuelle Auswahl und zeige mir sichere Treffer zur Auswahl.',
+                ],
+            ];
+        }
+
+        if ($this->pageRouteName === 'admin.mail-documents.editor') {
+            return [
+                [
+                    'key' => 'pagebuilder_selection',
+                    'label' => 'Auswahl analysieren',
+                    'prompt' => 'Analysiere die aktuelle Auswahl im Mail-PageBuilder und erkläre knapp, welche sicheren Bearbeitungen ohne Änderung geschützter Platzhalter möglich sind.',
+                ],
+                [
+                    'key' => 'pagebuilder_mail_copy',
+                    'label' => 'Mailtext optimieren',
+                    'prompt' => 'Optimiere den Text der aktuellen editierbaren Auswahl klar und professionell. Erhalte alle Platzhalter und zeige jede konkrete Änderung vollständig zur Bestätigung an.',
+                ],
+                [
+                    'key' => 'pagebuilder_validation',
+                    'label' => 'Kompatibilität prüfen',
+                    'prompt' => 'Prüfe die sichere Validierungszusammenfassung der Mailvorlage auf E-Mail-Kompatibilität, geschützte Struktur und mögliche Darstellungsprobleme.',
+                ],
+                [
+                    'key' => 'pagebuilder_mail_spacing',
+                    'label' => 'Abstände prüfen',
+                    'prompt' => 'Prüfe die aktuelle Auswahl und Validierungszusammenfassung auf unruhige Abstände oder zu große Freiräume. Schlage nur freigegebene einzelne Stiländerungen vor.',
                 ],
             ];
         }

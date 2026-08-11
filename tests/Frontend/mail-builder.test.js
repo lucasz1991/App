@@ -483,7 +483,37 @@ test('mail editor waits for the teleported fullscreen workspace before booting L
     assert.match(source, /const editorStart = await new Promise/);
     assert.match(source, /new MutationObserver\(probe\)/);
     assert.match(source, /page-builder-shell:opened/);
+    assert.match(source, /waitForFullscreenActivation/);
+    assert.match(source, /await waitForFullscreenActivation\(\)/);
+    assert.ok(source.indexOf('await waitForFullscreenActivation()') < source.indexOf('const runtime = await ensureRuntime()'));
     assert.match(source, /workspace && root && runtimeBridge/);
     assert.doesNotMatch(source, /if \(!workspace \|\| !root \|\| !runtimeBridge\) \{\s*return;/);
     assert.match(coreSource, /closest\?\.\('\[data-page-builder-fullscreen-root\]'\)/);
+});
+
+test('shared page builder opens from preview into a compact responsive Mail Studio', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const [shell, mailView, mailCss, shellCss] = await Promise.all([
+        readFile(new URL('../../resources/views/components/ui/page-builder/editor-shell.blade.php', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/views/livewire/admin/mail-document-editor.blade.php', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/css/mail-builder.css', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/css/lmz-editor-shell.css', import.meta.url), 'utf8'),
+    ]);
+
+    assert.match(shell, /pageBuilderOpen:\s*false/);
+    assert.match(shell, /data-page-builder-preview-first/);
+    assert.match(shell, /data-page-builder-assist/);
+    assert.doesNotMatch(shell, /data-page-builder-panel-host/);
+
+    assert.match(mailView, /data-mail-studio-toolbar/);
+    assert.match(mailView, /workspace-class="min-h-0 flex-1 overflow-hidden p-0"/);
+    assert.match(mailView, /const studioRoot = workspace\.closest\('\[data-page-builder-fullscreen-root\]'\)/);
+    assert.doesNotMatch(mailView, /class="rt-mail-preview-toolbar"/);
+
+    assert.match(mailCss, /\.rt-mail-studio\s*\{[\s\S]*?overflow:\s*hidden;/);
+    assert.doesNotMatch(mailCss, /min-height:\s*42rem/);
+    assert.match(shellCss, /font-family:\s*'Plus Jakarta Sans Variable'/);
+    assert.match(shellCss, /html\[data-rt-pagebuilder-assist-open='true'\]/);
+    assert.match(shellCss, /\.lmz-builder\s+\.lmzbjs-layers/);
+    assert.match(shellCss, /@media \(max-width: 639\.98px\)[\s\S]*?\.lmz-builder__popover/);
 });

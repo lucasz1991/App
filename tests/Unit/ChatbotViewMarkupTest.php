@@ -2,7 +2,9 @@
 
 namespace Tests\Unit;
 
+use App\Livewire\Tools\Chatbot;
 use Illuminate\Support\Facades\Blade;
+use ReflectionMethod;
 use Tests\TestCase;
 
 class ChatbotViewMarkupTest extends TestCase
@@ -84,6 +86,69 @@ class ChatbotViewMarkupTest extends TestCase
         );
     }
 
+    public function test_pagebuilder_context_and_pending_diff_render_independently_of_chat_age(): void
+    {
+        $token = str_repeat('A', 48);
+        $html = Blade::render($this->view, [
+            'assistantName' => 'RailTime Assist',
+            'assistantAvailable' => true,
+            'speechAvailable' => false,
+            'pageRouteName' => 'admin.mail-documents.editor',
+            'pageBuilderUi' => [
+                'active' => true,
+                'connected' => true,
+                'mode_label' => 'E-Mail',
+                'document_label' => 'Signatur',
+                'selection_label' => 'Überschrift',
+                'selection_character_count' => 19,
+                'selection_excerpt' => 'VERTRAULICHER-ROHTEXT-DARF-NICHT-ERSCHEINEN',
+                'unsaved' => true,
+            ],
+            'quickActions' => [[
+                'key' => 'pagebuilder_selection',
+                'label' => 'Auswahl analysieren',
+                'prompt' => 'Auswahl prüfen',
+            ]],
+            'chatHistory' => [
+                [
+                    'key' => 'older-pending',
+                    'role' => 'assistant',
+                    'content' => 'Änderung vorbereitet.',
+                    'created_at' => '2026-08-01T01:00:00+02:00',
+                    'actions' => [[
+                        'kind' => 'pending_tool',
+                        'token' => $token,
+                        'label' => 'Text ändern',
+                        'route_name' => 'admin.mail-documents.editor',
+                        'status' => 'error',
+                        'segment' => 'Überschrift',
+                        'before' => 'Alter Text',
+                        'after' => 'Neuer Text',
+                        'error' => 'Die Änderung wurde nicht ausgeführt.',
+                    ]],
+                ],
+                [
+                    'key' => 'latest-message',
+                    'role' => 'assistant',
+                    'content' => 'Spätere Nachricht.',
+                    'created_at' => '2026-08-01T01:01:00+02:00',
+                ],
+            ],
+            'isLoading' => false,
+        ]);
+
+        $this->assertStringContainsString('PageBuilder Copilot', $html);
+        $this->assertStringContainsString('Signatur', $html);
+        $this->assertStringContainsString('Ungespeichert', $html);
+        $this->assertStringContainsString('19', $html);
+        $this->assertStringContainsString('Zeichen', $html);
+        $this->assertStringNotContainsString('VERTRAULICHER-ROHTEXT-DARF-NICHT-ERSCHEINEN', $html);
+        $this->assertStringContainsString('Alter Text', $html);
+        $this->assertStringContainsString('Neuer Text', $html);
+        $this->assertStringContainsString('Die Änderung wurde nicht ausgeführt.', $html);
+        $this->assertStringContainsString('Verwerfen', $html);
+    }
+
     public function test_view_uses_only_the_named_same_origin_audio_routes(): void
     {
         $this->assertStringContainsString("Route::has('assistant.audio-input.transcribe')", $this->view);
@@ -98,9 +163,29 @@ class ChatbotViewMarkupTest extends TestCase
     {
         $this->assertStringContainsString('x-data="railtimeChatbot({', $this->view);
         $this->assertStringContainsString('x-on:railtime-assistant-reply.window', $this->view);
-        $this->assertStringContainsString("isDesktopDocked ? 'complementary' : 'dialog'", $this->view);
-        $this->assertStringContainsString('x-trap.inert.noscroll="open && !isDesktopDocked"', $this->view);
+        $this->assertStringContainsString("isDesktopDocked || pageBuilderActive ? 'complementary' : 'dialog'", $this->view);
+        $this->assertStringContainsString('x-trap.inert.noscroll="open && !isDesktopDocked && !pageBuilderActive"', $this->view);
         $this->assertStringContainsString('aria-labelledby="railtime-chatbot-title"', $this->view);
+    }
+
+    public function test_pagebuilder_copilot_stays_contextual_and_non_modal(): void
+    {
+        $this->assertStringContainsString('x-on:railtime-assistant-open.window="handleAssistantOpen($event.detail)"', $this->view);
+        $this->assertStringContainsString('if (handlePageBuilderContextUpdated($event.detail) && open) $wire.updatePageBuilderAssistantContext($event.detail)', $this->view);
+        $this->assertStringContainsString('railtime-pagebuilder-assistant-claim-failed', $this->view);
+        $this->assertStringContainsString('class="rt-chatbot__pagebuilder-context"', $this->view);
+        $this->assertStringContainsString('class="rt-chatbot__pagebuilder-chips"', $this->view);
+        $this->assertStringContainsString('class="rt-chatbot__pagebuilder-quickbar"', $this->view);
+        $this->assertStringContainsString('rt-chatbot__message-action-diff', $this->view);
+        $this->assertStringContainsString('wire:click="dismissAssistantAction(', $this->view);
+        $this->assertStringContainsString('x-on:click="cancelPageBuilderActionClaim(', $this->view);
+        $this->assertStringContainsString('wire:target="confirmAssistantAction,dismissAssistantAction"', $this->view);
+        $this->assertStringContainsString('x-on:keydown.escape.window.capture="handlePanelEscape($event)"', $this->view);
+        $this->assertStringContainsString("root.setAttribute('data-rt-pagebuilder-assist-open', 'true')", $this->javascript);
+        $this->assertStringContainsString("root.removeAttribute('data-rt-pagebuilder-assist-open')", $this->javascript);
+        $this->assertStringContainsString(".rt-chatbot[data-pagebuilder-active='true'] .rt-chatbot__backdrop", $this->css);
+        $this->assertStringContainsString('width: min(24.5rem, 34vw);', $this->css);
+        $this->assertStringContainsString('height: min(62dvh, 36rem);', $this->css);
     }
 
     public function test_pet_replaces_the_visual_launcher_and_primes_actions_before_opening_the_panel(): void
@@ -275,5 +360,81 @@ class ChatbotViewMarkupTest extends TestCase
         $this->assertStringContainsString('height: auto;', $desktopPanel);
         $this->assertStringNotContainsString('top:', $desktopPanel);
         $this->assertStringNotContainsString('left:', $desktopPanel);
+    }
+
+    public function test_pagebuilder_ui_context_and_actions_are_mode_specific(): void
+    {
+        $chatbot = new Chatbot;
+        $chatbot->pageRouteName = 'admin.mail-documents.editor';
+        $chatbot->pageBuilderAssistantContext = [
+            'route_name' => 'admin.mail-documents.editor',
+            'format_or_kind' => 'signature',
+            'editor_ready' => true,
+            'fullscreen_open' => true,
+            'read_only' => false,
+            'unsaved' => true,
+            'selection' => [
+                'block_id' => 'rt-mail-heading',
+                'tag' => 'h2',
+                'text' => 'Deine Zukunft. Unsere gemeinsame Fahrt.',
+            ],
+        ];
+
+        $context = $this->invokePrivate($chatbot, 'pageBuilderUiContext');
+        $mailActions = $this->invokePrivate($chatbot, 'availableQuickActions');
+        $chatbot->pageRouteName = 'admin.marketing.creatives.editor';
+        $marketingActions = $this->invokePrivate($chatbot, 'availableQuickActions');
+
+        $this->assertTrue($context['active']);
+        $this->assertTrue($context['connected']);
+        $this->assertSame('Signatur', $context['document_label']);
+        $this->assertSame('Überschrift', $context['selection_label']);
+        $this->assertTrue($context['unsaved']);
+        $this->assertSame(mb_strlen('Deine Zukunft. Unsere gemeinsame Fahrt.'), $context['selection_character_count']);
+        $this->assertArrayNotHasKey('selection_excerpt', $context);
+        $this->assertSame([
+            'pagebuilder_selection',
+            'pagebuilder_mail_copy',
+            'pagebuilder_validation',
+            'pagebuilder_mail_spacing',
+        ], array_column($mailActions, 'key'));
+        $this->assertSame([
+            'pagebuilder_selection',
+            'pagebuilder_marketing_copy',
+            'pagebuilder_validation',
+            'pagebuilder_marketing_media',
+        ], array_column($marketingActions, 'key'));
+    }
+
+    public function test_pending_change_presentation_is_bounded_and_drops_unknown_fields(): void
+    {
+        $chatbot = new Chatbot;
+        $chatbot->pageRouteName = 'admin.mail-documents.editor';
+        $actions = $this->invokePrivate($chatbot, 'sanitizeHistoryActions', [[
+            'kind' => 'pending_tool',
+            'token' => str_repeat('T', 48),
+            'label' => 'Text ändern',
+            'route_name' => 'admin.mail-documents.editor',
+            'status' => 'error',
+            'segment' => 'Überschrift',
+            'before' => str_repeat('A', 1300),
+            'after' => 'Präziser neuer Text',
+            'error' => 'Die Bestätigung ist abgelaufen.',
+            'html' => '<script>alert(1)</script>',
+        ]]);
+
+        $this->assertCount(1, $actions);
+        $this->assertSame('error', $actions[0]['status']);
+        $this->assertSame(1200, mb_strlen($actions[0]['before']));
+        $this->assertSame('Präziser neuer Text', $actions[0]['after']);
+        $this->assertArrayNotHasKey('html', $actions[0]);
+    }
+
+    private function invokePrivate(object $target, string $method, mixed ...$arguments): mixed
+    {
+        $reflection = new ReflectionMethod($target, $method);
+        $reflection->setAccessible(true);
+
+        return $reflection->invoke($target, ...$arguments);
     }
 }

@@ -27,6 +27,8 @@ class MailSignature
         protected string $theme,
         protected bool $animated,
         protected ?string $playbackNonce = null,
+        // Bilder verlinken statt einbetten. Siehe values().
+        protected bool $remoteAssets = false,
     ) {}
 
     public static function forUser(
@@ -34,16 +36,30 @@ class MailSignature
         string $theme = 'light',
         bool $animated = false,
         ?string $playbackNonce = null,
+        bool $remoteAssets = false,
     ): self {
-        return new self($user, $theme, $animated, $playbackNonce);
+        return new self($user, $theme, $animated, $playbackNonce, $remoteAssets);
     }
 
+    /**
+     * Firmenweite Signatur — der Weg jeder VERSENDETEN Systemmail.
+     *
+     * Vorgaben bewusst anders als bei forUser(): der Zug faehrt ein
+     * (animated) und alle Bilder werden VERLINKT (remoteAssets).
+     *
+     * Das Verlinken ist der Grund, warum die Signatur ueberhaupt ankommt.
+     * Als data:-URI erschien sie bei vielen Empfaengern nicht: Outlook-
+     * Desktop kennt weder data:-URIs in <img> noch CSS-Hintergrundbilder,
+     * Gmail entfernt data:-URIs in Hintergrundangaben und kappt Nachrichten
+     * ab 102 kB — die eingebetteten Bilder allein waren 104,6 kB.
+     */
     public static function forCompany(
         string $theme = 'light',
-        bool $animated = false,
+        bool $animated = true,
         ?string $playbackNonce = null,
+        bool $remoteAssets = true,
     ): self {
-        return new self(null, $theme, $animated, $playbackNonce);
+        return new self(null, $theme, $animated, $playbackNonce, $remoteAssets);
     }
 
     /**
@@ -62,20 +78,49 @@ class MailSignature
             ? (new EmailTemplateBuilder($this->user))->profileValues()
             : $this->companyAsSender($company);
 
-        return array_merge($company, $person, $theme, [
-            'LOGO_SRC' => EmailTemplateBuilder::inlineImage(
-                $this->theme === 'dark' ? 'logo-mail-dark.png' : 'logo-signature-light.png',
-                'image/png'
-            ),
-            'TRAIN_SRC' => EmailTemplateBuilder::signatureTrainAsset(
-                $this->theme,
-                $this->animated,
-                $this->playbackNonce,
-            ),
-            'TRAIN_IDLE_SRC' => $this->animated
-                ? EmailTemplateBuilder::signatureTrainIdleAsset($this->theme)
-                : '',
-        ], EmailTemplateBuilder::contactIconSources(true), $overrides);
+        $logoAsset = $this->theme === 'dark' ? 'logo-mail-dark.png' : 'logo-signature-light.png';
+
+        // ZWEI BETRIEBSARTEN, und die Unterscheidung ist wesentlich:
+        //
+        //   verlinkt   — fuer VERSENDETE Mails. Nur so erscheinen die Bilder
+        //                in Outlook-Desktop und Gmail, und das Mail bleibt
+        //                unter Gmails 102-kB-Schnitt.
+        //   eingebettet — fuer HERUNTERLADBARE Signaturen und Vorlagen. Die
+        //                muessen eigenstaendig sein, auch ohne Verbindung zu
+        //                diesem Server.
+        $bilder = $this->remoteAssets
+            ? [
+                'LOGO_SRC' => EmailTemplateBuilder::mailAssetUrl($logoAsset),
+                'TRAIN_SRC' => EmailTemplateBuilder::signatureTrainUrl($this->theme, $this->animated),
+                // Das Standbild traegt den Ersatzweg fuer Outlook-Desktop
+                // (background-Attribut), siehe emails/parts/signature.blade.php.
+                'TRAIN_STILL_SRC' => EmailTemplateBuilder::signatureTrainStillUrl($this->theme),
+                'TRAIN_IDLE_SRC' => $this->animated
+                    ? EmailTemplateBuilder::mailAssetUrl(
+                        'zug-dampf-idle-'.($this->theme === 'dark' ? 'dark' : 'light').'.gif'
+                    )
+                    : '',
+            ]
+            : [
+                'LOGO_SRC' => EmailTemplateBuilder::inlineImage($logoAsset, 'image/png'),
+                'TRAIN_SRC' => EmailTemplateBuilder::signatureTrainAsset(
+                    $this->theme,
+                    $this->animated,
+                    $this->playbackNonce,
+                ),
+                // Ohne verlinkte Adresse gibt es keinen Outlook-Ersatzweg:
+                // das background-Attribut kann keine data:-URI laden.
+                'TRAIN_STILL_SRC' => '',
+                'TRAIN_IDLE_SRC' => $this->animated
+                    ? EmailTemplateBuilder::signatureTrainIdleAsset($this->theme)
+                    : '',
+            ];
+
+        $symbole = $this->remoteAssets
+            ? EmailTemplateBuilder::contactIconUrls()
+            : EmailTemplateBuilder::contactIconSources(true);
+
+        return array_merge($company, $person, $theme, $bilder, $symbole, $overrides);
     }
 
     /**

@@ -8,6 +8,23 @@
         : ($historySource instanceof \Traversable ? iterator_to_array($historySource, false) : []);
     $isGerman = app()->getLocale() === 'de';
     $resolvedPageRouteName = trim((string) ($pageRouteName ?? ''));
+    $pageBuilderUiSource = $pageBuilderUi ?? [];
+    $resolvedPageBuilderUi = is_array($pageBuilderUiSource)
+        ? $pageBuilderUiSource
+        : ($pageBuilderUiSource instanceof \Traversable ? iterator_to_array($pageBuilderUiSource) : []);
+    $isPageBuilderPage = (bool) ($resolvedPageBuilderUi['active'] ?? in_array($resolvedPageRouteName, [
+        'admin.marketing.creatives.editor',
+        'admin.mail-documents.editor',
+    ], true));
+    $quickActionSource = $quickActions ?? [];
+    $resolvedQuickActions = is_array($quickActionSource)
+        ? $quickActionSource
+        : ($quickActionSource instanceof \Traversable ? iterator_to_array($quickActionSource, false) : []);
+    $availableQuickActionKeys = collect($resolvedQuickActions)
+        ->filter(fn ($action): bool => is_array($action) && trim((string) ($action['key'] ?? '')) !== '')
+        ->map(fn (array $action): string => trim((string) $action['key']))
+        ->values()
+        ->all();
     $resolvedPageHelpHint = trim((string) ($pageHelpHint ?? ''));
     $pageHelpHintsSource = $pageHelpHints ?? [];
     $resolvedPageHelpHints = collect(
@@ -73,6 +90,7 @@
         'csrfToken' => csrf_token(),
         'locale' => app()->getLocale(),
         'pageRouteName' => $resolvedPageRouteName,
+        'pageBuilderMode' => $isPageBuilderPage,
         'pageHelpHint' => $resolvedPageHelpHint,
         'pageHelpHints' => $resolvedPageHelpHints,
         'autoReadDefault' => false,
@@ -186,19 +204,22 @@
     })"
     x-on:railtime-assistant-reply.window="handleAssistantReply($event.detail)"
     x-on:railtime-assistant-cleared.window="stopSpeaking(); clearPhraseAudioCache(); resetAttachmentUi(); knownAssistantMessageKeys = []; $nextTick(() => { updateComposerState(); scrollMessages(true) })"
+    x-on:railtime-assistant-open.window="handleAssistantOpen($event.detail)"
     x-on:railtime-assistant-client-action.window="handleClientAction($event.detail)"
     x-on:railtime-wagon-context-updated.window="if (!$event.detail?.editor_open) wagonHelpVisible = false; $wire.updateWagonAssistantContext($event.detail)"
     x-on:railtime-wagon-assistant-result.window="$wire.recordAssistantActionResult($event.detail)"
     x-on:railtime-wagon-assistant-help.window="handleWagonHelp($event.detail)"
-    x-on:railtime-pagebuilder-context-updated.window="$wire.updatePageBuilderAssistantContext($event.detail)"
+    x-on:railtime-pagebuilder-context-updated.window="if (handlePageBuilderContextUpdated($event.detail) && open) $wire.updatePageBuilderAssistantContext($event.detail)"
     x-on:railtime-pagebuilder-assistant-result.window="$wire.recordAssistantActionResult($event.detail)"
+    x-on:railtime-pagebuilder-assistant-claim-failed.window="$wire.recordAssistantActionClaimFailure($event.detail)"
+    x-bind:data-pagebuilder-active="pageBuilderActive.toString()"
 >
     <button
         type="button"
         class="rt-chatbot__backdrop"
         aria-label="{{ $isGerman ? 'Assistent schließen' : 'Close assistant' }}"
         x-cloak
-        x-show="open && !isDesktopDocked"
+        x-show="open && !isDesktopDocked && !pageBuilderActive"
         x-transition.opacity
         x-on:click="setOpen(false)"
     ></button>
@@ -214,7 +235,7 @@
     <div
         class="rt-chatbot__pet-stage"
         x-cloak
-        x-show="!open"
+        x-show="!open && !pageBuilderActive"
         x-transition
         x-bind:data-state="petState()"
     >
@@ -292,11 +313,11 @@
         x-transition:leave="rt-chatbot__panel-leave"
         x-transition:leave-start="rt-chatbot__panel-enter-end"
         x-transition:leave-end="rt-chatbot__panel-enter-start"
-        x-bind:role="isDesktopDocked ? 'complementary' : 'dialog'"
-        x-bind:aria-modal="isDesktopDocked ? null : 'true'"
+        x-bind:role="isDesktopDocked || pageBuilderActive ? 'complementary' : 'dialog'"
+        x-bind:aria-modal="isDesktopDocked || pageBuilderActive ? null : 'true'"
         aria-labelledby="railtime-chatbot-title"
-        x-trap.inert.noscroll="open && !isDesktopDocked"
-        x-on:keydown.escape.window="if (settingsOpen) closeSettings(true); else if (open) setOpen(false)"
+        x-trap.inert.noscroll="open && !isDesktopDocked && !pageBuilderActive"
+        x-on:keydown.escape.window.capture="handlePanelEscape($event)"
     >
         <header class="rt-chatbot__header">
             <div class="rt-chatbot__identity">
@@ -308,7 +329,12 @@
                 >
                     <span class="rt-assistant-cloud__fallback" aria-hidden="true"></span>
                 </span>
-                <h2 id="railtime-chatbot-title" class="rt-chatbot__title">{{ $assistantLabel }}</h2>
+                <div class="rt-chatbot__identity-copy">
+                    <h2 id="railtime-chatbot-title" class="rt-chatbot__title">{{ $assistantLabel }}</h2>
+                    @if ($isPageBuilderPage)
+                        <span class="rt-chatbot__identity-mode">PageBuilder Copilot</span>
+                    @endif
+                </div>
             </div>
 
             <div class="rt-chatbot__header-actions">
@@ -537,6 +563,99 @@
             </p>
         </div>
 
+        @if ($isPageBuilderPage)
+            <section
+                class="rt-chatbot__pagebuilder-context"
+                aria-label="{{ $isGerman ? 'Kontext und Schnellaktionen des PageBuilder Copiloten' : 'PageBuilder copilot context and quick actions' }}"
+            >
+                <div class="rt-chatbot__pagebuilder-context-head">
+                    <span class="rt-chatbot__pagebuilder-context-mark" aria-hidden="true">
+                        <svg viewBox="0 0 20 20" fill="none">
+                            <path d="M10 2.5 11.45 7l4.05 1.5-4.05 1.45L10 14.5 8.55 9.95 4.5 8.5 8.55 7 10 2.5Z" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round" />
+                            <path d="m15.75 13 .65 2 .1.1 1.9.65-1.9.65-.1.1-.65 2-.65-2-.1-.1-1.9-.65 1.9-.65.1-.1.65-2Z" fill="currentColor" />
+                        </svg>
+                    </span>
+                    <div>
+                        <strong>PageBuilder Copilot</strong>
+                        <span>
+                            {{ (bool) ($resolvedPageBuilderUi['connected'] ?? false)
+                                ? ($isGerman ? 'Sicher mit dem aktiven Editor verbunden' : 'Securely connected to the active editor')
+                                : ($isGerman ? 'Editor-Kontext wird verbunden …' : 'Connecting editor context …') }}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="rt-chatbot__pagebuilder-chips" role="list" aria-label="{{ $isGerman ? 'Aktueller Editorkontext' : 'Current editor context' }}">
+                    <span role="listitem" class="rt-chatbot__pagebuilder-chip">
+                        <small>{{ $isGerman ? 'Modus' : 'Mode' }}</small>
+                        <strong>{{ (string) ($resolvedPageBuilderUi['mode_label'] ?? 'PageBuilder') }}</strong>
+                    </span>
+                    <span role="listitem" class="rt-chatbot__pagebuilder-chip">
+                        <small>{{ $isGerman ? 'Dokument' : 'Document' }}</small>
+                        <strong>{{ (string) ($resolvedPageBuilderUi['document_label'] ?? '—') }}</strong>
+                    </span>
+                    <span role="listitem" class="rt-chatbot__pagebuilder-chip">
+                        <small>{{ $isGerman ? 'Auswahl' : 'Selection' }}</small>
+                        <strong>{{ (string) ($resolvedPageBuilderUi['selection_label'] ?? ($isGerman ? 'Keine Auswahl' : 'No selection')) }}</strong>
+                    </span>
+                    <span
+                        role="listitem"
+                        class="rt-chatbot__pagebuilder-chip rt-chatbot__pagebuilder-chip--state"
+                        data-state="{{ ! (bool) ($resolvedPageBuilderUi['connected'] ?? false)
+                            ? 'connecting'
+                            : ((bool) ($resolvedPageBuilderUi['unsaved'] ?? false) ? 'unsaved' : 'saved') }}"
+                    >
+                        <small>{{ $isGerman ? 'Arbeitsstand' : 'Working draft' }}</small>
+                        <strong>
+                            {{ ! (bool) ($resolvedPageBuilderUi['connected'] ?? false)
+                                ? ($isGerman ? 'Wird verbunden' : 'Connecting')
+                                : ((bool) ($resolvedPageBuilderUi['unsaved'] ?? false)
+                                    ? ($isGerman ? 'Ungespeichert' : 'Unsaved')
+                                    : ($isGerman ? 'Gespeichert' : 'Saved')) }}
+                        </strong>
+                    </span>
+                </div>
+
+                @if ((int) ($resolvedPageBuilderUi['selection_character_count'] ?? 0) > 0)
+                    <p class="rt-chatbot__pagebuilder-selection-meta">
+                        <span>{{ $isGerman ? 'Ausgewählter Inhalt' : 'Selected content' }}</span>
+                        {{ (int) $resolvedPageBuilderUi['selection_character_count'] }}
+                        {{ $isGerman ? 'Zeichen' : 'characters' }}
+                    </p>
+                @endif
+
+                <div
+                    class="rt-chatbot__pagebuilder-quickbar"
+                    role="group"
+                    aria-label="{{ $isGerman ? 'Schnellaktionen für den aktuellen Editor' : 'Quick actions for the current editor' }}"
+                >
+                    @foreach ($resolvedQuickActions as $pageBuilderQuickAction)
+                        @php
+                            $pageBuilderQuickAction = is_array($pageBuilderQuickAction) ? $pageBuilderQuickAction : (array) $pageBuilderQuickAction;
+                            $pageBuilderQuickActionKey = trim((string) ($pageBuilderQuickAction['key'] ?? ''));
+                            $pageBuilderQuickActionLabel = trim((string) ($pageBuilderQuickAction['label'] ?? ''));
+                        @endphp
+                        @continue($pageBuilderQuickActionKey === '' || $pageBuilderQuickActionLabel === '')
+                        <button
+                            type="button"
+                            class="rt-chatbot__pagebuilder-quickaction"
+                            wire:key="railtime-pagebuilder-copilot-quickaction-{{ sha1($pageBuilderQuickActionKey) }}"
+                            wire:click="quickAction({{ \Illuminate\Support\Js::from($pageBuilderQuickActionKey) }})"
+                            wire:loading.attr="disabled"
+                            wire:target="quickAction"
+                            x-bind:disabled="navigationCleanupInFlight || isLoading || !assistantAvailable"
+                            @disabled(! $assistantIsAvailable)
+                        >
+                            <span>{{ $pageBuilderQuickActionLabel }}</span>
+                            <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                                <path d="m6 4 4 4-4 4" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                        </button>
+                    @endforeach
+                </div>
+            </section>
+        @endif
+
         <div class="rt-chatbot__body">
             <div
                 class="rt-chatbot__messages"
@@ -564,6 +683,14 @@
                         $messageActions = is_array($entryActionSource)
                             ? $entryActionSource
                             : ($entryActionSource instanceof \Traversable ? iterator_to_array($entryActionSource, false) : []);
+                        $hasVisiblePendingMessageActions = collect($messageActions)->contains(function ($candidate) use ($resolvedPageRouteName): bool {
+                            $candidate = is_array($candidate) ? $candidate : (array) $candidate;
+                            $candidateRoute = trim((string) ($candidate['route_name'] ?? ''));
+
+                            return ($candidate['kind'] ?? '') === 'pending_tool'
+                                && preg_match('/\A[a-zA-Z0-9]{48}\z/', trim((string) ($candidate['token'] ?? ''))) === 1
+                                && ($candidateRoute === '' || $candidateRoute === $resolvedPageRouteName);
+                        });
                         $displayTime = '';
                         if ($createdAt instanceof \DateTimeInterface) {
                             $displayTime = $createdAt->format('H:i');
@@ -669,7 +796,7 @@
                             </footer>
                             </article>
 
-                            @if ($role === 'assistant' && $loop->last && count($messageActions) > 0)
+                            @if ($role === 'assistant' && count($messageActions) > 0 && ($loop->last || $hasVisiblePendingMessageActions))
                                 <div
                                     class="rt-chatbot__message-actions"
                                     role="group"
@@ -683,35 +810,114 @@
                                             $actionToken = (string) ($action['token'] ?? '');
                                             $actionLabel = (string) ($action['label'] ?? $action['prompt'] ?? $actionKey);
                                             $actionDetail = (string) ($action['detail'] ?? '');
+                                            $actionRouteName = trim((string) ($action['route_name'] ?? ''));
+                                            $actionStatus = (string) ($action['status'] ?? 'pending');
+                                            $actionStatus = in_array($actionStatus, ['pending', 'claiming', 'error'], true) ? $actionStatus : 'pending';
+                                            $actionSegment = trim((string) ($action['segment'] ?? ''));
+                                            $actionBefore = trim((string) ($action['before'] ?? ''));
+                                            $actionAfter = trim((string) ($action['after'] ?? ''));
+                                            $actionError = trim((string) ($action['error'] ?? ''));
                                         @endphp
                                         @continue($actionLabel === '' || ! in_array($actionKind, ['prompt', 'pending_tool'], true))
-                                        @continue($actionKind === 'prompt' && $actionKey === '')
+                                        @continue($actionKind === 'prompt' && (! $loop->parent->last || $actionKey === '' || ($isPageBuilderPage && ! in_array($actionKey, $availableQuickActionKeys, true))))
                                         @continue($actionKind === 'pending_tool' && ! preg_match('/\A[a-zA-Z0-9]{48}\z/', $actionToken))
-                                        <div class="rt-chatbot__message-action-group">
-                                        @if ($actionKind === 'pending_tool' && $actionDetail !== '')
-                                            <div class="rt-chatbot__message-action-detail">
-                                                <strong>{{ $isGerman ? 'Geplante Änderung' : 'Proposed change' }}</strong>
-                                                <pre>{{ $actionDetail }}</pre>
-                                            </div>
-                                        @endif
-                                        <button
-                                            type="button"
-                                            class="rt-chatbot__message-action"
-                                            wire:key="railtime-chatbot-action-{{ sha1($messageKey . '|' . $actionKind . '|' . $actionKey . '|' . $actionToken) }}"
-                                            @if ($actionKind === 'pending_tool')
-                                                wire:click="confirmAssistantAction({{ \Illuminate\Support\Js::from($actionToken) }})"
-                                            @else
-                                                wire:click="quickAction({{ \Illuminate\Support\Js::from($actionKey) }})"
-                                            @endif
-                                            wire:loading.attr="disabled"
-                                            x-bind:disabled="navigationCleanupInFlight || isLoading || !assistantAvailable"
-                                            @disabled(! $assistantIsAvailable)
+                                        @continue($actionKind === 'pending_tool' && $actionRouteName !== '' && $actionRouteName !== $resolvedPageRouteName)
+                                        <div
+                                            class="rt-chatbot__message-action-group"
+                                            @if ($actionKind === 'pending_tool') data-status="{{ $actionStatus }}" @endif
+                                            wire:key="railtime-chatbot-action-group-{{ sha1($messageKey . '|' . $actionKind . '|' . $actionKey . '|' . $actionToken) }}"
                                         >
-                                            <span>{{ $actionLabel }}</span>
-                                            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                                                <path d="m7 5 5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-                                            </svg>
-                                        </button>
+                                        @if ($actionKind === 'pending_tool')
+                                            <div class="rt-chatbot__message-action-detail">
+                                                <div class="rt-chatbot__message-action-heading">
+                                                    <span>{{ $isGerman ? 'Vorgeschlagene Änderung' : 'Proposed change' }}</span>
+                                                    @if ($actionSegment !== '')
+                                                        <strong>{{ $actionSegment }}</strong>
+                                                    @endif
+                                                </div>
+                                                <h3>{{ $actionLabel }}</h3>
+
+                                                @if ($actionBefore !== '' || $actionAfter !== '')
+                                                    <div class="rt-chatbot__message-action-diff">
+                                                        <div>
+                                                            <span>{{ $isGerman ? 'Vorher' : 'Before' }}</span>
+                                                            <pre>{{ $actionBefore !== '' ? $actionBefore : '—' }}</pre>
+                                                        </div>
+                                                        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                                                            <path d="M4 10h11M11 6l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+                                                        </svg>
+                                                        <div>
+                                                            <span>{{ $isGerman ? 'Nachher' : 'After' }}</span>
+                                                            <pre>{{ $actionAfter !== '' ? $actionAfter : '—' }}</pre>
+                                                        </div>
+                                                    </div>
+                                                @elseif ($actionDetail !== '')
+                                                    <pre>{{ $actionDetail }}</pre>
+                                                @endif
+
+                                                @if ($actionError !== '')
+                                                    <p class="rt-chatbot__message-action-error" role="alert">{{ $actionError }}</p>
+                                                @elseif ($actionStatus === 'claiming')
+                                                    <p class="rt-chatbot__message-action-progress" role="status">
+                                                        {{ $isGerman ? 'Die bestätigte Änderung wird sicher an den Editor übergeben …' : 'Securely handing the confirmed change to the editor …' }}
+                                                    </p>
+                                                @endif
+                                            </div>
+
+                                            <div class="rt-chatbot__message-action-buttons">
+                                                @if ($actionStatus === 'pending')
+                                                    <button
+                                                        type="button"
+                                                        class="rt-chatbot__message-action rt-chatbot__message-action--primary"
+                                                        wire:click="confirmAssistantAction({{ \Illuminate\Support\Js::from($actionToken) }})"
+                                                        wire:loading.attr="disabled"
+                                                        wire:target="confirmAssistantAction,dismissAssistantAction"
+                                                        x-bind:disabled="navigationCleanupInFlight || isLoading"
+                                                    >
+                                                        <span>{{ $isGerman ? 'Änderung übernehmen' : 'Apply change' }}</span>
+                                                        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                                                            <path d="m7 5 5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                                                        </svg>
+                                                    </button>
+                                                @else
+                                                    <span class="rt-chatbot__message-action-state" role="status">
+                                                        {{ $actionStatus === 'claiming'
+                                                            ? ($isGerman ? 'Wird übernommen …' : 'Applying …')
+                                                            : ($isGerman ? 'Nicht ausgeführt' : 'Not applied') }}
+                                                    </span>
+                                                @endif
+
+                                                <button
+                                                    type="button"
+                                                    class="rt-chatbot__message-action rt-chatbot__message-action--secondary"
+                                                    x-on:click="cancelPageBuilderActionClaim({{ \Illuminate\Support\Js::from($actionToken) }})"
+                                                    wire:click="dismissAssistantAction({{ \Illuminate\Support\Js::from($actionToken) }})"
+                                                    wire:loading.attr="disabled"
+                                                    wire:target="confirmAssistantAction,dismissAssistantAction"
+                                                    x-bind:disabled="navigationCleanupInFlight"
+                                                >
+                                                    <span>
+                                                        {{ $actionStatus === 'claiming'
+                                                            ? ($isGerman ? 'Übertragung abbrechen' : 'Cancel handoff')
+                                                            : ($isGerman ? 'Verwerfen' : 'Discard') }}
+                                                    </span>
+                                                </button>
+                                            </div>
+                                        @else
+                                            <button
+                                                type="button"
+                                                class="rt-chatbot__message-action"
+                                                wire:click="quickAction({{ \Illuminate\Support\Js::from($actionKey) }})"
+                                                wire:loading.attr="disabled"
+                                                x-bind:disabled="navigationCleanupInFlight || isLoading || !assistantAvailable"
+                                                @disabled(! $assistantIsAvailable)
+                                            >
+                                                <span>{{ $actionLabel }}</span>
+                                                <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                                                    <path d="m7 5 5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                                                </svg>
+                                            </button>
+                                        @endif
                                         </div>
                                     @endforeach
                                 </div>
