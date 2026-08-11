@@ -52,7 +52,8 @@ body[data-mode='dark'] .rt-lmz-editor {
 .rt-lmz-editor[data-rt-lmz-protected-selection='true'] :is(
     [data-command='tlb-move'],
     [data-command='tlb-clone'],
-    [data-command='tlb-delete']
+    [data-command='tlb-delete'],
+    .lmzbjs-resizer-c
 ) {
     display: none !important;
 }

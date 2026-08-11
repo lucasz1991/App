@@ -457,6 +457,35 @@ export function isProtectedEditorStructure(component) {
     });
 }
 
+const IMMUTABLE_COMPONENT_PROPERTIES = Object.freeze({
+    removable: false,
+    copyable: false,
+    draggable: false,
+    droppable: false,
+    editable: false,
+    stylable: false,
+    resizable: false,
+    layerable: false,
+});
+
+export function enforceProtectedComponentModels(editor, { readOnly = false } = {}) {
+    const wrapper = editor?.getWrapper?.() || editor?.getSelected?.() || null;
+    if (!wrapper) return 0;
+    let locked = 0;
+    const visit = (component, protectedAncestor = false) => {
+        const protectedComponent = protectedAncestor || isProtectedEditorStructure(component);
+        if (readOnly || protectedComponent) {
+            Object.entries(IMMUTABLE_COMPONENT_PROPERTIES).forEach(([property, value]) => {
+                component?.set?.(property, value, { silent: true });
+            });
+            locked += 1;
+        }
+        componentChildren(component).forEach((child) => visit(child, protectedComponent));
+    };
+    visit(wrapper);
+    return locked;
+}
+
 function scopedAssetFacade(asset) {
     if (typeof asset?.getSrc === 'function' && typeof asset?.get === 'function') return asset;
     const source = assetSource(asset);
@@ -668,6 +697,34 @@ export function resolveAnimatedComponent(component) {
 
 const animatedPreviewState = new WeakMap();
 
+async function captureAnimatedFrame(element, source, isImage) {
+    if (typeof globalThis.__rtLmzCaptureAnimatedFrame === 'function') {
+        return globalThis.__rtLmzCaptureAnimatedFrame({ element, source, isImage });
+    }
+    const document_ = element?.ownerDocument;
+    const canvas = document_?.createElement?.('canvas');
+    const context = canvas?.getContext?.('2d');
+    if (!canvas || !context) return null;
+    let image = isImage ? element : null;
+    if (!image) {
+        const ImageClass = document_?.defaultView?.Image || globalThis.Image;
+        if (typeof ImageClass !== 'function') return null;
+        image = new ImageClass();
+        await new Promise((resolve, reject) => {
+            image.onload = resolve;
+            image.onerror = () => reject(new Error('Der aktuelle GIF-Frame konnte nicht gelesen werden.'));
+            image.src = source;
+        });
+    }
+    const width = Number(image.naturalWidth || image.width || element.clientWidth || 0);
+    const height = Number(image.naturalHeight || image.height || element.clientHeight || 0);
+    if (!width || !height || width * height > 40_000_000) return null;
+    canvas.width = width;
+    canvas.height = height;
+    context.drawImage(image, 0, 0, width, height);
+    return canvas.toDataURL('image/png');
+}
+
 export function animatedPreviewIsPlaying(component) {
     const element = component?.getEl?.();
     return element ? animatedPreviewState.get(element)?.playing !== false : false;
@@ -683,8 +740,13 @@ export function setAnimatedPreviewPlayback(component, playing = true) {
         || element.ownerDocument?.defaultView?.getComputedStyle?.(element)?.backgroundImage
         || '',
     );
+    const currentBackgroundWasRehydrated = !isImage
+        && current.frozenBackgroundImage
+        && renderedBackground
+        && renderedBackground !== 'none'
+        && renderedBackground !== current.frozenBackgroundImage;
     const backgroundImage = String(
-        current.backgroundImage
+        (currentBackgroundWasRehydrated ? renderedBackground : current.backgroundImage)
         || ((!renderedBackground || renderedBackground === 'none') ? '' : renderedBackground),
     );
     const backgroundPriority = String(
@@ -692,27 +754,43 @@ export function setAnimatedPreviewPlayback(component, playing = true) {
         || current.backgroundPriority
         || '',
     );
+    const imageWasRehydrated = isImage
+        && current.frozenSource
+        && String(element.getAttribute?.('src') || element.src || '') !== current.frozenSource;
     const renderedSource = isImage
         ? String(element.getAttribute?.('src') || element.src || '')
         : (extractCssMediaSources(backgroundImage)[0] || '');
-    const source = renderedSource || current.source || componentAnimationContext(component).source;
+    const source = (currentBackgroundWasRehydrated || imageWasRehydrated ? renderedSource : '')
+        || current.source
+        || renderedSource
+        || componentAnimationContext(component).source;
     if (!source) return false;
 
     if (!playing) {
-        animatedPreviewState.set(element, {
+        const pauseState = {
             playing: false,
             source,
             isImage,
             backgroundImage,
             backgroundPriority,
-        });
+            frozenSource: '',
+            frozenBackgroundImage: '',
+        };
+        animatedPreviewState.set(element, pauseState);
         element.dataset.rtLmzAnimationPaused = 'true';
-        if (isImage) element.removeAttribute?.('src');
-        else element.style?.setProperty?.(
-            'background-image',
-            replaceFirstCssMediaSource(backgroundImage, null) || 'none',
-            backgroundPriority,
-        );
+        Promise.resolve(captureAnimatedFrame(element, source, isImage)).then((frozenSource) => {
+            if (!frozenSource || animatedPreviewState.get(element) !== pauseState || pauseState.playing !== false) return;
+            pauseState.frozenSource = frozenSource;
+            if (isImage) {
+                element.setAttribute?.('src', frozenSource);
+                return;
+            }
+            pauseState.frozenBackgroundImage = replaceFirstCssMediaSource(backgroundImage, frozenSource);
+            element.style?.setProperty?.('background-image', pauseState.frozenBackgroundImage, backgroundPriority);
+        }).catch(() => {
+            // Das GIF bleibt sichtbar, falls der Browser das Canvas ausnahmsweise
+            // nicht lesen darf; das persistierte Modell wird niemals beruehrt.
+        });
         return true;
     }
 
@@ -723,6 +801,8 @@ export function setAnimatedPreviewPlayback(component, playing = true) {
         isImage,
         backgroundImage,
         backgroundPriority,
+        frozenSource: '',
+        frozenBackgroundImage: '',
     });
     delete element.dataset.rtLmzAnimationPaused;
     if (isImage) {
@@ -751,8 +831,14 @@ export function restartAnimatedPreview(component, { nonce = Date.now() } = {}) {
     const modelSource = String(component?.get?.('src') || attributes.src || '');
     const renderedBackground = String(element.style?.backgroundImage || element.ownerDocument?.defaultView?.getComputedStyle?.(element)?.backgroundImage || '');
     const previewState = animatedPreviewState.get(element);
+    const renderedBackgroundIsNew = Boolean(
+        renderedBackground
+        && renderedBackground !== 'none'
+        && renderedBackground !== previewState?.backgroundImage
+        && renderedBackground !== previewState?.frozenBackgroundImage,
+    );
     const backgroundImage = String(
-        previewState?.backgroundImage
+        (renderedBackgroundIsNew ? renderedBackground : previewState?.backgroundImage)
         || (renderedBackground !== 'none' ? renderedBackground : ''),
     );
     const backgroundPriority = String(
@@ -764,7 +850,7 @@ export function restartAnimatedPreview(component, { nonce = Date.now() } = {}) {
     const renderedBackgroundSource = extractCssMediaSources(backgroundImage)[0] || '';
     const token = normalizedToken(attributes['data-rt-mail-preview-token'] || attributes['data-rt-mail-preview-train']);
     const backgroundSource = token === 'TRAIN_SRC'
-        ? (previewState?.source || renderedBackgroundSource || '')
+        ? (renderedBackgroundIsNew ? renderedBackgroundSource : (previewState?.source || renderedBackgroundSource || ''))
         : (modelBackgroundSource || renderedBackgroundSource || previewState?.source || '');
     const persistentSource = modelSource || backgroundSource;
     if (!persistentSource) return false;
@@ -1612,6 +1698,13 @@ function installStructureActionGuard(editor, root, { writable = true } = {}) {
     const refresh = () => {
         const protectedSelection = selectionIsProtected();
         root.dataset.rtLmzProtectedSelection = protectedSelection ? 'true' : 'false';
+        if (protectedSelection) {
+            root.querySelectorAll?.('[data-lmz-panel-group="right"][aria-expanded="true"]')?.forEach?.((button) => {
+                button.dataset.rtLmzProtectedClosing = 'true';
+                button.click?.();
+                delete button.dataset.rtLmzProtectedClosing;
+            });
+        }
         editor?.Canvas?.getToolbarEl?.()?.querySelectorAll?.('[data-command]')?.forEach?.((button) => {
             if (!blockedCommands.has(String(button.dataset?.command || ''))) return;
             button.hidden = protectedSelection;
@@ -1620,13 +1713,20 @@ function installStructureActionGuard(editor, root, { writable = true } = {}) {
         });
     };
     const blockToolbarAction = (event) => {
-        const command = event.target?.closest?.('[data-command]')?.dataset?.command;
-        if (!blockedCommands.has(String(command || '')) || !selectionIsProtected()) return;
+        if (!selectionIsProtected()) return;
+        const action = event.target?.closest?.('[data-command], [data-lmz-panel-toggle]');
+        const command = action?.dataset?.command;
+        const panel = action?.dataset?.lmzPanelToggle;
+        const protectedPanel = ['right:styles', 'right:traits'].includes(String(panel || ''))
+            && action?.dataset?.rtLmzProtectedClosing !== 'true';
+        if (!blockedCommands.has(String(command || '')) && !protectedPanel) return;
         event.preventDefault?.();
         event.stopImmediatePropagation?.();
     };
     const blockKeyboardRemoval = (event) => {
-        if (!['Delete', 'Backspace'].includes(event.key) || !selectionIsProtected()) return;
+        const structuralShortcut = (event.ctrlKey || event.metaKey)
+            && ['c', 'd', 'v', 'x'].includes(String(event.key || '').toLowerCase());
+        if ((!['Delete', 'Backspace'].includes(event.key) && !structuralShortcut) || !selectionIsProtected()) return;
         const editable = event.target?.closest?.('input,textarea,[contenteditable="true"]');
         if (editable) return;
         event.preventDefault?.();
@@ -1720,7 +1820,12 @@ function createInlineMenu({ root, editor, capabilities, mode, mediaDrawer, anima
             { id: 'spacing', label: 'Abstände', panel: 'right:styles', enabled: capabilities.writable && capabilities.spacing && !protectedStructure },
             { id: 'media', label: 'Medien', enabled: capabilities.media && (image || mode === 'mail') },
             { id: 'replace', label: 'Bild ersetzen', enabled: capabilities.imageReplace === true && Boolean(image) },
-            { id: 'animation', label: animation.animated ? 'Animation & GIF' : 'Animation', enabled: !protectedStructure && (capabilities.animation || (capabilities.gifControls && animation.animated)) },
+            {
+                id: 'animation',
+                label: animation.animated ? 'Animation & GIF' : 'Animation',
+                enabled: (!protectedStructure && capabilities.animation)
+                    || (capabilities.gifControls && animation.animated),
+            },
             {
                 id: 'gif-playback',
                 label: animatedPreviewIsPlaying(animationTarget || image || component) ? 'GIF-Vorschau anhalten' : 'GIF-Vorschau abspielen',
@@ -2127,6 +2232,14 @@ export function createLmzEditorChrome({
     rootElement.dataset.rtLmzMode = mode === 'mail' ? 'mail' : 'marketing';
     rootElement.dataset.rtLmzOpen = isOpen ? 'true' : 'false';
     rootElement.dataset.rtLmzReadOnly = normalized.writable ? 'false' : 'true';
+    const readOnlyMounts = !normalized.writable
+        ? [...rootElement.querySelectorAll('[data-lmz-mount="blocks"], [data-lmz-mount="layers"], [data-lmz-mount="styles"], [data-lmz-mount="traits"], [data-lmz-mount="classes"]')]
+        : [];
+    readOnlyMounts.forEach((mount) => {
+        mount.inert = true;
+        mount.setAttribute('aria-disabled', 'true');
+    });
+    enforceProtectedComponentModels(editor, { readOnly: !normalized.writable });
 
     // Vendorpfade, die in Laravel absichtlich nicht existieren, verschwinden
     // vollstaendig. Der Medienbutton bleibt erhalten und wird umgeleitet.
@@ -2206,6 +2319,17 @@ export function createLmzEditorChrome({
     };
     editor.on?.('component:selected', onSelected);
     editor.on?.('component:update', refreshAll);
+    const onComponentAdded = (component) => {
+        if (!normalized.writable || isProtectedEditorStructure(component)) {
+            enforceProtectedComponentModels({
+                getWrapper: () => component,
+                getSelected: () => component,
+            }, { readOnly: !normalized.writable });
+        }
+    };
+    const onLoad = () => enforceProtectedComponentModels(editor, { readOnly: !normalized.writable });
+    editor.on?.('component:add', onComponentAdded);
+    editor.on?.('load', onLoad);
 
     const api = {
         editor,
@@ -2257,6 +2381,8 @@ export function createLmzEditorChrome({
             panelReconcileFrame = null;
             editor.off?.('component:selected', onSelected);
             editor.off?.('component:update', refreshAll);
+            editor.off?.('component:add', onComponentAdded);
+            editor.off?.('load', onLoad);
             detachScopedAssetAccess();
             detachStructureActionGuard();
             detachToolbar();
@@ -2268,6 +2394,10 @@ export function createLmzEditorChrome({
             delete rootElement.dataset.rtLmzMode;
             delete rootElement.dataset.rtLmzOpen;
             delete rootElement.dataset.rtLmzReadOnly;
+            readOnlyMounts.forEach((mount) => {
+                mount.inert = false;
+                mount.removeAttribute('aria-disabled');
+            });
             if (rootElement.__rtLmzEditorChrome === api) delete rootElement.__rtLmzEditorChrome;
             dispatch(rootElement, LMZ_EDITOR_EVENTS.destroyed, { mode });
         },

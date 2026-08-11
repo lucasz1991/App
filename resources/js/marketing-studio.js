@@ -1441,46 +1441,59 @@ export async function createMarketingStudio(workspace, config) {
         if (sharedContentSavePromise) return sharedContentSavePromise;
         const button = sharedForm.querySelector('[data-marketing-content-save]');
         const status = sharedForm.querySelector('[data-marketing-content-status]');
-        const request = serializeSharedForm(sharedForm);
         if (button) button.disabled = true;
         if (status) status.textContent = 'Inhalte werden gespeichert …';
+        const previousWorkspaceInert = Boolean(workspace.inert);
+        workspace.inert = true;
 
         sharedContentSavePromise = (async () => {
-            if (instance?.hasUnsavedChanges()) {
-                const layoutSaved = await instance.save('manual');
-                if (!layoutSaved) {
-                    throw new Error('Das aktuelle Layout konnte vor der Inhaltsänderung nicht gespeichert werden.');
+            let attempts = 0;
+            do {
+                attempts += 1;
+                if (attempts > 5) {
+                    throw new Error('Der Entwurf änderte sich während des Speicherns wiederholt. Bitte erneut speichern.');
                 }
-            }
+                if (instance?.hasUnsavedChanges()) {
+                    const layoutSaved = await instance.save('manual');
+                    if (!layoutSaved) {
+                        throw new Error('Das aktuelle Layout konnte vor der Inhaltsänderung nicht gespeichert werden.');
+                    }
+                }
 
-            request.expected_hashes = Object.fromEntries(
-                Object.entries(config.variants || {}).map(([format, variant]) => [
-                    format,
-                    variant.contentHash || '',
-                ]),
-            );
+                refreshSharedContentDirty();
+                if (!sharedContentDirty) continue;
+                const request = serializeSharedForm(sharedForm);
+                const requestSnapshot = JSON.stringify(request);
+                request.expected_hashes = Object.fromEntries(
+                    Object.entries(config.variants || {}).map(([format, variant]) => [
+                        format,
+                        variant.contentHash || '',
+                    ]),
+                );
 
-            const payload = await requestJson(config.endpoints.creativeUpdate, {
-                method: 'PATCH',
-                json: request,
-            });
+                const payload = await requestJson(config.endpoints.creativeUpdate, {
+                    method: 'PATCH',
+                    json: request,
+                });
 
-            const refreshedVariants = normalizeVariantPayload(payload);
-            if (!refreshedVariants || Object.keys(refreshedVariants).length !== Object.keys(MARKETING_ARTBOARDS).length) {
-                throw new Error('Der Server hat nicht alle aktualisierten Formate zurückgegeben. Bitte Seite neu laden.');
-            }
+                const refreshedVariants = normalizeVariantPayload(payload);
+                if (!refreshedVariants || Object.keys(refreshedVariants).length !== Object.keys(MARKETING_ARTBOARDS).length) {
+                    throw new Error('Der Server hat nicht alle aktualisierten Formate zurückgegeben. Bitte Seite neu laden.');
+                }
 
-            config.sharedContent = payload.creative?.shared_content || request.shared_content;
-            config.variants = refreshedVariants;
-            setCreativeStatus(workspace, payload.creative?.status || 'draft');
-            const title = workspace.querySelector('[data-page-header] h1');
-            if (title) {
-                title.textContent = request.title;
-                title.setAttribute('title', request.title);
-            }
-            await startBuilder(currentFormat);
-            sharedContentSnapshot = JSON.stringify(serializeSharedForm(sharedForm));
-            refreshSharedContentDirty();
+                config.sharedContent = payload.creative?.shared_content || request.shared_content;
+                config.variants = refreshedVariants;
+                setCreativeStatus(workspace, payload.creative?.status || 'draft');
+                const title = workspace.querySelector('[data-page-header] h1');
+                if (title) {
+                    title.textContent = request.title;
+                    title.setAttribute('title', request.title);
+                }
+                await startBuilder(currentFormat);
+                sharedContentSnapshot = requestSnapshot;
+                refreshSharedContentDirty();
+            } while (sharedContentDirty || instance?.hasUnsavedChanges());
+
             if (status) status.textContent = 'Gespeichert. Layoutänderungen bleiben je Format getrennt.';
             if (announce) dispatchToast('success', 'Die gemeinsamen Inhalte wurden gespeichert.');
             return true;
@@ -1491,6 +1504,7 @@ export async function createMarketingStudio(workspace, config) {
         } finally {
             sharedContentSavePromise = null;
             if (button) button.disabled = false;
+            workspace.inert = previousWorkspaceInert;
         }
     };
 

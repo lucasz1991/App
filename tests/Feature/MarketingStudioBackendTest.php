@@ -153,7 +153,11 @@ class MarketingStudioBackendTest extends TestCase
                 'version' => 1,
             ])->save();
         }
-        $studio->approve($creative->fresh(), $admin);
+        $creative->forceFill([
+            'status' => MarketingCreativeStatus::Approved,
+            'approved_by' => $admin->id,
+            'approved_at' => now(),
+        ])->save();
 
         $migration = require database_path('migrations/2026_08_07_000300_refresh_untouched_marketing_starter_templates.php');
         $migration->up();
@@ -287,7 +291,7 @@ class MarketingStudioBackendTest extends TestCase
                 ],
                 'styles' => [['selectors' => ['body'], 'style' => ['background' => 'url(javascript:alert(4))']]],
             ],
-            '<div data-rt-brand-lockup="official"><img src="/rt-brand/img/logo-horizontal.png" alt="RT Rail Time GmbH"></div><section onclick="alert(1)"><a href="java&#x0A;script:alert(1)">Text</a><a href="https://www.rail-time.de/de/karriere">CTA</a><img src="https://attacker.example/pixel.png"><style>@import url(https://example.org)</style><script>alert(1)</script><iframe src="https://example.org"></iframe><svg><script>alert(2)</script></svg></section>',
+            '<div class="rt-brand rt-brand-lockup rt-brand-lockup-standard" data-rt-brand-lockup="official"><img class="rt-brand-logo" src="/rt-brand/img/logo-horizontal.png" alt="RT Rail Time GmbH"></div><section onclick="alert(1)"><a href="java&#x0A;script:alert(1)">Text</a><a href="https://www.rail-time.de/de/karriere">CTA</a><img src="https://attacker.example/pixel.png"><style>@import url(https://example.org)</style><script>alert(1)</script><iframe src="https://example.org"></iframe><svg><script>alert(2)</script></svg></section>',
             '@IMPORT url(https://example.org/a.css);body{background:url(jav\\61script:alert(1));width:expression(alert(1))}.remote{background:url(https://attacker.example/pixel.png)}</StYlE>',
             $oldHash,
             $admin,
@@ -343,6 +347,22 @@ class MarketingStudioBackendTest extends TestCase
                 $admin,
             );
             $this->fail('Ein Motiv ohne offizielles Firmenlogo durfte nicht gespeichert werden.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('html', $exception->errors());
+        }
+
+        $hiddenParent = preg_replace('/<main\b/i', '<main style="opacity:0"', $story->html, 1);
+        try {
+            $studio->saveVariant(
+                $creative,
+                MarketingCreativeFormat::Story,
+                $story->builder_data,
+                (string) $hiddenParent,
+                $story->css,
+                $story->content_hash,
+                $admin,
+            );
+            $this->fail('Ein Motiv mit unsichtbarer Markenstruktur durfte nicht gespeichert werden.');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('html', $exception->errors());
         }

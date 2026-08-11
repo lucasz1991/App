@@ -11,6 +11,8 @@ import {
     componentAnimationContext,
     createImageAssetSelection,
     createScopedAssetCallbackSelection,
+    enforceProtectedComponentModels,
+    handleScopedRtePaste,
     installScopedAssetAccess,
     createLmzAssistantAdapter,
     createLmzEditorChrome,
@@ -1250,6 +1252,12 @@ test('adapter explicitly disables Joomla web defaults and fallback projects', as
     assert.match(coreSource, /import '\.\/lmz-editor-assistant\.js';/);
     assert.match(source, /media:\s*\{\s*assets:\s*config\.assets \|\| \[\]/);
     assert.match(source, /request\.expected_hashes = Object\.fromEntries/);
+    assert.match(source, /sharedContentDirty \|\| instance\?\.hasUnsavedChanges/);
+    assert.match(source, /getBuilder:\s*\(\) => combinedDraft/);
+    assert.match(source, /addEventListener\('input', refreshSharedContentDirty/);
+    assert.match(source, /const requestSnapshot = JSON\.stringify\(request\)/);
+    assert.match(source, /while \(sharedContentDirty \|\| instance\?\.hasUnsavedChanges\(\)\)/);
+    assert.match(source, /workspace\.inert = true/);
     assert.match(source, /config\.logoLightUrl,\s*config\.logoDarkUrl,/);
     assert.doesNotMatch(source, /config\.logoUrl\b/);
     assert.match(source, /\[data-marketing-artboard-label\]/);
@@ -1278,6 +1286,7 @@ function coreWithDom(markup, callback) {
         DOMParser: globalThis.DOMParser,
         requestAnimationFrame: globalThis.requestAnimationFrame,
         cancelAnimationFrame: globalThis.cancelAnimationFrame,
+        __rtLmzCaptureAnimatedFrame: globalThis.__rtLmzCaptureAnimatedFrame,
     };
     const { window, document } = parseHTML(markup);
     globalThis.window = window;
@@ -1575,6 +1584,25 @@ test('both page-builder domains disable native external canvas drops', async () 
     assert.match(marketingSource, /canvas:\s*\{\s*styles:\s*\[\],\s*scripts:\s*\[\],\s*allowExternalDrop:\s*false\s*}/);
 });
 
+test('rich-text paste keeps text while stripping pasted HTML and media', () => {
+    let prevented = false;
+    let inserted = null;
+    const handled = handleScopedRtePaste({
+        ev: {
+            preventDefault: () => { prevented = true; },
+            clipboardData: {
+                getData: (type) => (type === 'text/plain' ? 'Neue <Stelle>\nhttps://rail-time.de' : '<img src="https://evil.example/pixel.png"><b>Neue Stelle</b>'),
+            },
+        },
+        rte: { insertHTML: (value) => { inserted = value; } },
+    });
+
+    assert.equal(handled, true);
+    assert.equal(prevented, true);
+    assert.equal(inserted, 'Neue &lt;Stelle&gt;<br>https://rail-time.de');
+    assert.doesNotMatch(inserted, /<img|evil\.example/i);
+});
+
 test('shared LMZ animation allowlists reject executable and unbounded values', () => {
     assert.deepEqual(sanitizeAnimationStyles({
         'animation-duration': '850ms',
@@ -1635,19 +1663,25 @@ test('mail TRAIN_SRC preview restarts a background GIF without mutating persiste
             style: { 'background-image': 'url("{{TRAIN_SRC}}")' },
         });
         const before = structuredClone(component.state);
+        globalThis.__rtLmzCaptureAnimatedFrame = async () => 'data:image/png;base64,c3RhdGlj';
 
         assert.equal(animatedPreviewIsPlaying(component), true);
         assert.equal(setAnimatedPreviewPlayback(component, false), true);
+        await new Promise((resolve) => setTimeout(resolve, 5));
         assert.equal(animatedPreviewIsPlaying(component), false);
-        assert.match(element.style.backgroundImage, /^linear-gradient\(.+\),\s*none$/);
+        assert.match(element.style.backgroundImage, /^linear-gradient\(.+\),\s*url\(/);
+        assert.match(element.style.backgroundImage, /data:image\/png/);
         assert.equal(element.style.backgroundPosition, 'center center, left bottom');
         assert.equal(element.style.backgroundSize, '100% 100%, 86% auto');
         assert.deepEqual(component.state, before);
+
+        const darkBackground = 'linear-gradient(rgba(10,20,30,.3),rgba(10,20,30,.3)),url("/mail/dark-train.gif")';
+        element.style.setProperty('background-image', darkBackground, 'important');
         assert.equal(setAnimatedPreviewPlayback(component, true), true);
         await new Promise((resolve) => setTimeout(resolve, 5));
         assert.equal(animatedPreviewIsPlaying(component), true);
         assert.match(element.style.backgroundImage, /^linear-gradient\(.+\),\s*url\(/);
-        assert.match(element.style.backgroundImage, /data:image\/gif/);
+        assert.match(element.style.backgroundImage, /dark-train\.gif/);
         assert.equal(element.style.backgroundPosition, 'center center, left bottom');
         assert.equal(element.style.backgroundSize, '100% 100%, 86% auto');
         assert.deepEqual(component.state, before);
@@ -1656,9 +1690,10 @@ test('mail TRAIN_SRC preview restarts a background GIF without mutating persiste
         await new Promise((resolve) => setTimeout(resolve, 5));
         assert.deepEqual(component.state, before);
         assert.match(element.style.backgroundImage, /^linear-gradient\(.+\),\s*url\(/);
-        assert.match(element.style.backgroundImage, /data:image\/gif/);
+        assert.match(element.style.backgroundImage, /dark-train\.gif/);
         assert.equal(element.style.backgroundPosition, 'center center, left bottom');
         assert.equal(element.style.backgroundSize, '100% 100%, 86% auto');
+        delete globalThis.__rtLmzCaptureAnimatedFrame;
     },
 ));
 
@@ -1674,9 +1709,9 @@ test('mail inline animation segment exposes playback and restart without marketi
         attributes: { 'data-rt-mail-preview-train': 'TRAIN_SRC' },
         style: { 'background-image': 'url("{{TRAIN_SRC}}")' },
     });
-    const before = structuredClone(selected.state);
     const editor = coreFakeEditor(root, selected);
     const chrome = createLmzEditorChrome({ instance: { editor }, root, mode: 'mail' });
+    const before = structuredClone(selected.state);
 
     root.querySelector('.rt-lmz-inline-edit-trigger').click();
     const animationItem = root.querySelector('[data-rt-lmz-inline-action="animation"]');
@@ -1726,7 +1761,7 @@ test('shared LMZ closes vendor auto-styles after selection but preserves explici
 test('archived chrome is genuinely read-only and never exposes mutating inline actions', () => coreWithDom(`
     <div data-page-builder-shell><div data-page-builder-fullscreen-root data-page-builder-shell-id="shell-readonly">
     <div id="root"><div class="lmz-builder__topbar"><button data-lmz-action="assets">Medien</button></div>
-    <div class="lmz-builder__viewport"><div data-tools><div data-toolbar></div></div></div></div></div></div>
+    <div class="lmz-builder__viewport"><div data-lmz-mount="layers"></div><div data-tools><div data-toolbar></div></div></div></div></div></div>
 `, ({ document }) => {
     const root = document.querySelector('#root');
     const selected = coreFakeComponent(document.createElement('div'));
@@ -1739,6 +1774,9 @@ test('archived chrome is genuinely read-only and never exposes mutating inline a
     });
 
     assert.equal(root.dataset.rtLmzReadOnly, 'true');
+    assert.equal(root.querySelector('[data-lmz-mount="layers"]').inert, true);
+    assert.equal(selected.state.layerable, false);
+    assert.equal(selected.state.stylable, false);
     root.querySelector('.rt-lmz-inline-edit-trigger').click();
     const actions = [...root.querySelectorAll('[data-rt-lmz-inline-action]')]
         .map((item) => item.dataset.rtLmzInlineAction);
@@ -1746,6 +1784,7 @@ test('archived chrome is genuinely read-only and never exposes mutating inline a
 
     chrome.destroy();
     assert.equal(root.dataset.rtLmzReadOnly, undefined);
+    assert.equal(root.querySelector('[data-lmz-mount="layers"]').inert, false);
 }));
 
 test('official lockups and QR structures expose no native or RailTime structure mutation', () => coreWithDom(`
@@ -1762,6 +1801,10 @@ test('official lockups and QR structures expose no native or RailTime structure 
     const chrome = createLmzEditorChrome({ instance: { editor }, root, mode: 'marketing' });
 
     editor.emit('component:selected', selected);
+    assert.equal(enforceProtectedComponentModels(editor), 1);
+    assert.equal(selected.state.layerable, false);
+    assert.equal(selected.state.stylable, false);
+    assert.equal(selected.state.resizable, false);
     assert.equal(root.dataset.rtLmzProtectedSelection, 'true');
     assert.equal(root.querySelector('[data-command="tlb-delete"]').hidden, true);
     root.querySelector('.rt-lmz-inline-edit-trigger').click();

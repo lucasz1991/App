@@ -171,7 +171,7 @@ final class MarketingStudioService
                     'html' => 'Das Motiv darf nach der Sicherheitsprüfung nicht leer sein.',
                 ]);
             }
-            $this->assertOfficialBrandLockup($sanitizedHtml);
+            $this->assertOfficialBrandLockup($sanitizedHtml, $sanitizedCss);
 
             $builderData = $this->binder->syncBuilderData($builderData, $sanitizedHtml);
             $this->renderAssets->lockReferencesForUpdate($sanitizedHtml, $sanitizedCss);
@@ -254,7 +254,7 @@ final class MarketingStudioService
             }
 
             foreach ($variants as $variant) {
-                $this->assertOfficialBrandLockup((string) $variant->html);
+                $this->assertOfficialBrandLockup((string) $variant->html, (string) $variant->css);
                 $actualContentHash = $this->contentHash(
                     $variant->builder_data ?? [],
                     (string) $variant->html,
@@ -303,7 +303,7 @@ final class MarketingStudioService
         });
     }
 
-    private function assertOfficialBrandLockup(string $html): void
+    private function assertOfficialBrandLockup(string $html, string $css): void
     {
         $document = new \DOMDocument('1.0', 'UTF-8');
         $previous = libxml_use_internal_errors(true);
@@ -319,12 +319,31 @@ final class MarketingStudioService
 
         if ($loaded) {
             $xpath = new \DOMXPath($document);
-            $logos = $xpath->query('//*[@data-rt-brand-lockup="official"]//img[@src]');
-            if ($logos !== false) {
-                foreach ($logos as $logo) {
-                    if (in_array(trim((string) $logo->attributes?->getNamedItem('src')?->nodeValue), self::OFFICIAL_BRAND_LOGOS, true)) {
-                        return;
-                    }
+            $lockups = $xpath->query('//*[@data-rt-brand-lockup="official"]');
+            if ($lockups !== false && $lockups->length === 1) {
+                $lockup = $lockups->item(0);
+                $logos = $xpath->query('.//img[@src]', $lockup);
+                $logo = $logos !== false && $logos->length === 1 ? $logos->item(0) : null;
+                $lockupClasses = preg_split('/\s+/', trim((string) $lockup?->attributes?->getNamedItem('class')?->nodeValue)) ?: [];
+                $logoClasses = preg_split('/\s+/', trim((string) $logo?->attributes?->getNamedItem('class')?->nodeValue)) ?: [];
+                $allowedLockupClasses = ['rt-brand', 'rt-brand-lockup', 'rt-brand-lockup-standard', 'rt-brand-lockup-reverse'];
+                $classesAreCanonical = in_array('rt-brand', $lockupClasses, true)
+                    && in_array('rt-brand-lockup', $lockupClasses, true)
+                    && array_diff($lockupClasses, $allowedLockupClasses) === []
+                    && $logoClasses === ['rt-brand-logo'];
+                $markupIsCanonical = $lockup?->attributes?->getNamedItem('style') === null
+                    && $logo?->attributes?->getNamedItem('style') === null
+                    && trim((string) $logo?->attributes?->getNamedItem('alt')?->nodeValue) === 'RT Rail Time GmbH'
+                    && in_array(trim((string) $logo?->attributes?->getNamedItem('src')?->nodeValue), self::OFFICIAL_BRAND_LOGOS, true);
+                $dangerousBrandCss = $this->cssHidesSelectors($css, [
+                    '\.rt-brand(?:-lockup|-logo)?',
+                    '\[data-rt-brand-lockup[^]]*\]',
+                ]);
+                $brandTreeIsVisible = $lockup instanceof \DOMElement
+                    && $this->brandTreeIsVisible($lockup, $css);
+
+                if ($classesAreCanonical && $markupIsCanonical && ! $dangerousBrandCss && $brandTreeIsVisible) {
+                    return;
                 }
             }
         }
@@ -332,6 +351,56 @@ final class MarketingStudioService
         throw ValidationException::withMessages([
             'html' => 'Jede Motivvariante muss das unveränderte offizielle RT-Rail-Time-Firmenlogo enthalten.',
         ]);
+    }
+
+    private function brandTreeIsVisible(\DOMElement $lockup, string $css): bool
+    {
+        $selectors = [];
+        $node = $lockup;
+        while ($node instanceof \DOMElement) {
+            if ($this->hasHiddenBrandDeclaration((string) $node->getAttribute('style'))) {
+                return false;
+            }
+            $id = trim($node->getAttribute('id'));
+            if ($id !== '') {
+                $selectors[] = '\#'.preg_quote($id, '/').'(?![\w-])';
+            }
+            foreach (preg_split('/\s+/', trim($node->getAttribute('class'))) ?: [] as $class) {
+                if ($class !== '') {
+                    $selectors[] = '\.'.preg_quote($class, '/').'(?![\w-])';
+                }
+            }
+            $tag = strtolower($node->tagName);
+            if (in_array($tag, ['body', 'main', 'section', 'article', 'header', 'footer'], true)) {
+                $selectors[] = '(?<![\w-])'.preg_quote($tag, '/').'(?![\w-])';
+            }
+            $node = $node->parentNode;
+        }
+
+        return ! $this->cssHidesSelectors($css, array_values(array_unique($selectors)));
+    }
+
+    /** @param list<string> $selectors */
+    private function cssHidesSelectors(string $css, array $selectors): bool
+    {
+        if ($selectors === []) {
+            return false;
+        }
+
+        return preg_match(
+            '/(?:'.implode('|', $selectors).')[^{}]*\{[^{}]*'.$this->hiddenBrandDeclarationPattern().'/is',
+            $css,
+        ) === 1;
+    }
+
+    private function hasHiddenBrandDeclaration(string $declarations): bool
+    {
+        return preg_match('/'.$this->hiddenBrandDeclarationPattern().'/is', $declarations) === 1;
+    }
+
+    private function hiddenBrandDeclarationPattern(): string
+    {
+        return '(?:display\s*:\s*none|visibility\s*:\s*(?:hidden|collapse)|opacity\s*:\s*0(?:\.0+)?(?=\s*(?:[;}!]|$))|(?:max-)?(?:width|height)\s*:\s*0(?:px|rem|em|%|\s|;|!|$)|transform\s*:[^;}]*scale\s*\(\s*0(?:\.0+)?\s*\))';
     }
 
     public function archive(MarketingCreative $creative, User $actor): MarketingCreative

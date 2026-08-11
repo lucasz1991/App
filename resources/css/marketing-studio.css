@@ -501,6 +501,7 @@ body[data-mode='dark'] .rt-marketing-builder-root {
 .rt-marketing-editor-frame[data-read-only='true'] .lmz-builder__canvas,
 .rt-marketing-editor-frame[data-read-only='true'] .lmz-builder__canvas iframe,
 .rt-marketing-editor-frame[data-read-only='true'] [data-lmz-mount='blocks'],
+.rt-marketing-editor-frame[data-read-only='true'] [data-lmz-mount='layers'],
 .rt-marketing-editor-frame[data-read-only='true'] [data-lmz-mount='styles'],
 .rt-marketing-editor-frame[data-read-only='true'] [data-lmz-mount='traits'],
 .rt-marketing-editor-frame[data-read-only='true'] [data-lmz-mount='classes'] {
@@ -512,6 +513,7 @@ body[data-mode='dark'] .rt-marketing-builder-root {
 }
 
 .rt-marketing-editor-frame[data-read-only='true'] [data-lmz-mount='blocks'],
+.rt-marketing-editor-frame[data-read-only='true'] [data-lmz-mount='layers'],
 .rt-marketing-editor-frame[data-read-only='true'] [data-lmz-mount='styles'],
 .rt-marketing-editor-frame[data-read-only='true'] [data-lmz-mount='traits'],
 .rt-marketing-editor-frame[data-read-only='true'] [data-lmz-mount='classes'] {
