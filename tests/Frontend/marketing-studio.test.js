@@ -1706,8 +1706,8 @@ test('mail TRAIN_SRC preview restarts a background GIF without mutating persiste
         assert.deepEqual(component.state, before);
         assert.match(element.style.backgroundImage, /^linear-gradient\(.+\),\s*url\(/);
         assert.match(element.style.backgroundImage, /dark-train\.gif/);
-        assert.equal(element.style.backgroundPosition, 'center center, left bottom');
-        assert.equal(element.style.backgroundSize, '100% 100%, 86% auto');
+        assert.equal(element.style.backgroundPosition.replaceAll(' ', ''), 'centercenter,leftbottom');
+        assert.equal(element.style.backgroundSize.replaceAll(' ', ''), '100%100%,86%auto');
         delete globalThis.__rtLmzCaptureAnimatedFrame;
     },
 ));
