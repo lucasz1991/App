@@ -122,9 +122,20 @@ export function createFibonacciSphere(count) {
  * Zielkoordinaten der Partikelwolke: das ECHTE RT-Icon.
  *
  * Erzeugt aus Website/Shared/assets/icons/favicon.svg — den beiden roten
- * R-Pfaden und dem anthrazitfarbenen T, das im Original UEBER dem R liegt.
- * Vorher standen hier neun gerade Strecken, die ein R und ein T
- * nebeneinander zeichneten; das war ein Monogramm, nicht die Bildmarke.
+ * R-Pfaden und dem anthrazitfarbenen T. Vorher standen hier neun gerade
+ * Strecken, die ein freihaendig gezeichnetes R und T zeigten; das war ein
+ * Monogramm, nicht die Bildmarke.
+ *
+ * ZUR GEOMETRIE — nachgerechnet, nicht vermutet: R und T ueberlappen sich
+ * NICHT. Die Schnittflaeche ist exakt 0 (Rasterprobe 1000x1000). Zwischen
+ * beiden liegen durchgehend 40 Einheiten Luft, an der engsten Stelle 29,2
+ * (T-Balkenecke 670,200 gegen die R-Gehrung 673,160 -> 715,206). Das Icon
+ * besteht aus drei getrennten Bloecken: R-Kopf mit Bogen und Bein, das T,
+ * und der R-Stamm links unten.
+ *
+ * Dieser Luftspalt ist das Empfindlichste an der Wolke: 40 Einheiten sind
+ * bei 144 px Canvas nur rund 3 px. Werden die Punkte groesser oder legt
+ * sich ein weiter Schein darueber, verkleben R und T optisch.
  *
  * Aufbau je Eintrag: [x, y, ton] mit ton 0 = rot, 1 = anthrazit.
  * Der Wertebereich -0.62..0.62 entspricht der bisherigen Zeichnung, die
