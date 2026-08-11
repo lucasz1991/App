@@ -232,15 +232,15 @@ class EmailTemplatesPageTest extends TestCase
             $html = $builder->build($template)['content'];
 
             $this->assertStringNotContainsString('{{TRAIN_SRC}}', $html, $template);
-            $this->assertStringContainsString("url('".$train, $html, $template);
+            $this->assertStringContainsString('url('.$train, $html, $template);
             $this->assertStringContainsString('background-repeat:no-repeat', $html, $template);
             $this->assertStringContainsString('background-position:center center,left bottom', $html, $template);
-            $this->assertStringContainsString('background-size:100% 100%,86% auto', $html, $template);
+            $this->assertStringContainsString('background-size:100% 100%,77% auto', $html, $template);
 
             // Die Kurzform background: setzt background-image zurueck — sie
             // muss deshalb VOR der Bildangabe stehen, sonst verschwindet der
             // Zug lautlos.
-            $backgroundShorthand = strpos($html, ';background:#');
+            $backgroundShorthand = strpos($html, ';background-color:#');
             $backgroundImage = strpos($html, 'background-image:linear-gradient(');
             if ($backgroundShorthand !== false) {
                 $this->assertLessThan($backgroundImage, $backgroundShorthand, $template);
@@ -251,7 +251,7 @@ class EmailTemplatesPageTest extends TestCase
         // ein cid: im CSS-Hintergrund client-abhaengig waere).
         foreach (['vorlage-eml' => $lightTrain, 'vorlage-dunkel-eml' => $darkTrain] as $template => $train) {
             $this->assertStringContainsString(
-                "url('data:image/png;base64,",
+                'url(data:image/png;base64,',
                 $this->decodeEmlHtmlPart($builder->build($template)['content']),
                 $template
             );
@@ -360,7 +360,7 @@ class EmailTemplatesPageTest extends TestCase
             // schmalen Schirmen doppelt eingerueckt (24+36 statt 24 px).
             $this->assertStringContainsString('class="rt-sign-cell"', $html);
             $this->assertStringNotContainsString('class="rt-pad rt-sign-cell"', $html);
-            $this->assertStringContainsString('style="padding:0;background:', $html);
+            $this->assertStringContainsString('style="padding:0;background-color:', $html);
             $this->assertStringContainsString('<td class="rt-pad" style="padding:16px 28px 0;">', $html);
             $this->assertStringContainsString('<td align="left" style="padding:6px 0 14px;text-align:left;', $html);
             $this->assertStringContainsString('height:auto;margin:0;border:0;outline:none;', $html);
@@ -611,7 +611,7 @@ class EmailTemplatesPageTest extends TestCase
         $regeln = file_get_contents(resource_path('views/emails/parts/responsive-css.blade.php'));
 
         $this->assertStringContainsString(
-            '.rt-sign-cell { background-size: 100% 100%, 125% auto, 125% auto !important; }',
+            '.rt-sign-cell { background-size: 100% 100%, 100% auto, 100% auto, auto 100%, 64px 64px !important; }',
             $regeln,
         );
         $this->assertStringContainsString('.rt-sign-logo { border-left: 0 !important;', $regeln);
@@ -694,7 +694,7 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertStringContainsString('data-rt-theme="light"', $light);
         $this->assertStringContainsString('background:#f4f2ed', $light);
         $this->assertStringContainsString(
-            '<td class="rt-pad rt-sign-cell" bgcolor="#f7f6f3" style="padding:18px 36px 20px;background:#f7f6f3;',
+            '<td class="rt-pad rt-sign-cell" bgcolor="#ffffff" style="padding:18px 36px 20px;background-color:#ffffff;',
             $light
         );
         $this->assertStringContainsString('color:#111820;font-size:23px;', $light);
@@ -706,7 +706,7 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertStringContainsString('data-rt-theme="dark"', $dark);
         $this->assertStringContainsString('background:#111820', $dark);
         $this->assertStringContainsString(
-            '<td class="rt-pad rt-sign-cell" bgcolor="#0c1017" style="padding:18px 36px 20px;background:#0c1017;',
+            '<td class="rt-pad rt-sign-cell" bgcolor="#0c1017" style="padding:18px 36px 20px;background-color:#0c1017;',
             $dark
         );
         $this->assertStringContainsString('color:#ffffff;font-size:23px;', $dark);
@@ -734,7 +734,7 @@ class EmailTemplatesPageTest extends TestCase
             );
             $this->assertStringContainsString('data:image/png;base64,', $html);
             $this->assertStringContainsString('background-image:linear-gradient(rgba(', $html);
-            $this->assertStringContainsString('background-size:100% 100%,86% auto;', $html);
+            $this->assertStringContainsString('background-size:100% 100%,77% auto', $html);
             $this->assertStringContainsString(
                 'class="rt-sign-logo" width="50%" valign="top"',
                 $html,
@@ -819,7 +819,7 @@ class EmailTemplatesPageTest extends TestCase
         $html = (new EmailTemplateBuilder($user->fresh()))->build('signatur-hell')['content'];
 
         $this->assertStringContainsString(
-            '<td class="rt-pad rt-sign-cell" bgcolor="#f7f6f3" style="padding:16px 28px 18px;',
+            '<td class="rt-pad rt-sign-cell" bgcolor="#ffffff" style="padding:16px 28px 18px;',
             $html,
         );
         $this->assertStringContainsString('Mara Beispiel', $html);
@@ -829,8 +829,10 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertStringContainsString('href="mailto:mara@example.test"', $html);
         $this->assertStringContainsString('href="https://rail-time.example/leistungen"', $html);
         $this->assertStringContainsString('>rail-time.example/leistungen<', $html);
-        // Wortmarke, drei Personen- und vier Firmenicons als PNG.
-        $this->assertSame(8, substr_count($html, 'data:image/png;base64,'));
+        // Wortmarke (zweimal: breit in der Markenspalte, gestapelt oben),
+        // drei Personen- und vier Firmenicons, dazu die beiden Ebenen der
+        // Hintergrundgrafik (Raster und Wasserzeichen).
+        $this->assertSame(11, substr_count($html, 'data:image/png;base64,'));
         $this->assertSame(2, substr_count($html, 'data:image/gif;base64,'));
         $this->assertStringContainsString('class="rt-sign-logo"', $html);
         $this->assertStringNotContainsString('RT_PHONE_START', $html);

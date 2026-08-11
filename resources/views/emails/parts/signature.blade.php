@@ -61,19 +61,53 @@
         ($values['STEUERNUMMER'] ?? '') !== '' ? 'Steuernummer '.$values['STEUERNUMMER'] : '',
     ]));
     $hasIdleTrain = ! $isOutlookExport && $values['TRAIN_IDLE_SRC'] !== '';
-    $trainBackgroundPosition = $hasIdleTrain
-        ? 'center center,left bottom,left bottom'
-        : 'center center,left bottom';
-    $trainBackgroundSize = $hasIdleTrain
-        ? '100% 100%,86% auto,86% auto'
-        : '100% 100%,86% auto';
+
+    /*
+     * DIE EBENEN DES STREIFENS, von oben nach unten.
+     *
+     * In CSS steht die ZUERST genannte Ebene ganz oben:
+     *
+     *   1  Schleier      nimmt dem Zug Kraft (rund 30 % Grundfarbe)
+     *   2  Zug           Einfahrt, darunter der Standrauch
+     *   3  Wasserzeichen RT-Marke und roter Schimmer, EINMAL rechts
+     *   4  Raster        feines technisches Netz, gekachelt
+     *   5  Grundfarbe    weiss
+     *
+     * Der Text liegt in der Zelle und damit ueber allen Ebenen — die
+     * geforderte Reihenfolge Hintergrund < Zug < Daten ergibt sich daraus
+     * von selbst, ganz ohne z-index (den viele Mailclients ignorieren).
+     *
+     * DIE 70-PROZENT-GRENZE: Die Lok steht bei 91 % der Bildbreite. Damit
+     * sie bei 70 % der SIGNATUR endet, ist das Bild 77 % breit
+     * (0,91 x 0,77 = 0,70). Die rechten 30 % bleiben frei fuer die
+     * Firmenspalte.
+     *
+     * IM OUTLOOK-WEG entfallen Zug und Schleier: dort steht der Zug als
+     * eigene Bildzeile unter dem Inhalt. Als Hintergrund UND als Bildzeile
+     * stuende er zweimal im Streifen.
+     */
+    $zugBreite = '77%';
+    $ebenen = array_values(array_filter([
+        $isOutlookExport ? '' : "linear-gradient({$values['SIGNATURE_TRAIN_WASH']},{$values['SIGNATURE_TRAIN_WASH']})|center center|100% 100%|no-repeat",
+        $isOutlookExport ? '' : "url({$values['TRAIN_SRC']})|left bottom|{$zugBreite} auto|no-repeat",
+        $hasIdleTrain ? "url({$values['TRAIN_IDLE_SRC']})|left bottom|{$zugBreite} auto|no-repeat" : '',
+        ($values['GRUND_MARKE_SRC'] ?? '') !== ''
+            ? "url({$values['GRUND_MARKE_SRC']})|right center|auto 100%|no-repeat" : '',
+        ($values['GRUND_RASTER_SRC'] ?? '') !== ''
+            ? "url({$values['GRUND_RASTER_SRC']})|left top|64px 64px|repeat" : '',
+    ]));
+    $teile = array_map(static fn (string $e): array => explode('|', $e), $ebenen);
+    $backgroundImage = implode(',', array_column($teile, 0));
+    $backgroundPosition = implode(',', array_column($teile, 1));
+    $backgroundSize = implode(',', array_column($teile, 2));
+    $backgroundRepeat = implode(',', array_column($teile, 3));
 @endphp
 <tr>
     {{-- Reihenfolge beachten: die background-Kurzform setzt background-image
          zurueck und muss deshalb VOR der Bildangabe stehen. Clients ohne
          CSS-Hintergrundbilder (Outlook-Desktop, Gmail bei data-URIs) zeigen
          schlicht die Farbflaeche — es geht kein Inhalt verloren. --}}
-    <td class="{{ $isOutlookExport ? '' : 'rt-pad ' }}rt-sign-cell" bgcolor="{{ $values['SIGNATURE_BG'] }}" style="padding:{{ $cellPadding }};background:{{ $values['SIGNATURE_BG'] }};@unless($isOutlookExport)background-image:linear-gradient({{ $values['SIGNATURE_TRAIN_WASH'] }},{{ $values['SIGNATURE_TRAIN_WASH'] }}),url('{{ $values['TRAIN_SRC'] }}')@if($hasIdleTrain),url('{{ $values['TRAIN_IDLE_SRC'] }}')@endif;background-repeat:no-repeat;background-position:{{ $trainBackgroundPosition }};background-size:{{ $trainBackgroundSize }};@endunless{{ $topRule }}">
+    <td class="{{ $isOutlookExport ? '' : 'rt-pad ' }}rt-sign-cell" bgcolor="{{ $values['SIGNATURE_BG'] }}" style="padding:{{ $cellPadding }};background-color:{{ $values['SIGNATURE_BG'] }};background-image:{{ $backgroundImage }};background-repeat:{{ $backgroundRepeat }};background-position:{{ $backgroundPosition }};background-size:{{ $backgroundSize }};{{ $topRule }}">
         @if($isOutlookExport)
             {{-- Der Inhalt behaelt seinen gewohnten Innenabstand, waehrend
                  die nachfolgende Zugzeile bis an die Signaturkante reicht. --}}
@@ -87,11 +121,28 @@
                          doppelt eingerueckt (24+36 statt 24). --}}
                     <td class="rt-pad" style="padding:{{ $padding }};">
         @endif
+        {{-- MOBIL FUEHRT DIE MARKE. Gestapelt soll die Reihenfolge
+             Wortmarke, Person, Firma sein; im Breitlayout steht die
+             Wortmarke aber ueber den Firmendaten in der rechten Spalte.
+             Eine Tabellenzelle kann nicht an zwei Stellen zugleich stehen,
+             deshalb gibt es die Wortmarke zweimal — und immer ist genau
+             eine sichtbar (rt-only-narrow / img.rt-logo, siehe
+             responsive-css). Das ist der uebliche Weg in E-Mails: was
+             Umbruchregeln nicht umsortieren koennen, wird gedoppelt und
+             geschaltet. --}}
+        <div class="rt-only-narrow rt-marke-mobil" style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:0;line-height:0;">
+            <img src="{{ $values['LOGO_SRC'] }}" width="190" alt="{{ $values['FIRMENNAME'] }}" style="display:block;width:190px;max-width:100%;height:auto;margin:0 0 16px;">
+        </div>
         <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">
             <tr class="rt-stack">
                 <td class="rt-sign-identity" width="50%" valign="top" align="left" style="width:50%;padding:0 24px 0 0;position:relative;z-index:1;text-align:left;vertical-align:top;">
+                    {{-- Eigener Behaelter, damit Name und Funktion gestapelt
+                         NEBEN die Kontaktliste ruecken koennen statt darueber
+                         (siehe responsive-css: inline-block). --}}
+                    <div class="rt-person-kopf">
                     <p class="rt-sign-name" style="margin:0 0 4px;color:{{ $values['SIGNATURE_TEXT_PRIMARY'] }};font-size:23px;line-height:27px;font-weight:bold;letter-spacing:-.5px;">{{ $hasPerson ? $values['VORNAME_NACHNAME'] : $values['FIRMENNAME'] }}</p>
                     <p style="margin:0;color:{{ $values['SIGNATURE_ACCENT'] }};font-family:Consolas,'Courier New',monospace;font-size:10px;line-height:16px;font-weight:bold;letter-spacing:1.2px;text-transform:uppercase;">{{ $values['POSITION'] }}</p>
+                    </div>
 
                     <table class="rt-contact" role="presentation" dir="ltr" border="0" cellspacing="0" cellpadding="0" style="direction:ltr;margin-left:0;margin-right:auto;margin-top:14px;border-collapse:collapse;">
                         <!-- RT_PHONE_START -->
@@ -120,11 +171,26 @@
                          Firmen-E-Mail bereits links an der Stelle von
                          Durchwahl und Mailadresse. Rechts blieben sie eine
                          sichtbare Doppelung. --}}
-                    @include('emails.parts.company-contact-table', [
-                        'values' => $values,
-                        'align' => 'right',
-                        'ohneDoppelung' => ! $hasPerson,
-                    ])
+                    {{-- ZWEIMAL, weil sich die Reihenfolge von Symbol und
+                         Text per CSS nicht umstellen laesst. Breit steht das
+                         Symbol RECHTS (Aussenkante der Signatur), gestapelt
+                         LINKS — dort schliesst der Block links ab, wie der
+                         Personenblock darueber. Immer ist genau eine der
+                         beiden Fassungen sichtbar. --}}
+                    <div class="rt-firma-breit">
+                        @include('emails.parts.company-contact-table', [
+                            'values' => $values,
+                            'align' => 'right',
+                            'ohneDoppelung' => ! $hasPerson,
+                        ])
+                    </div>
+                    <div class="rt-firma-schmal" style="display:none;max-height:0;overflow:hidden;mso-hide:all;">
+                        @include('emails.parts.company-contact-table', [
+                            'values' => $values,
+                            'align' => 'left',
+                            'ohneDoppelung' => ! $hasPerson,
+                        ])
+                    </div>
                 </td>
             </tr>
         </table>
@@ -163,13 +229,13 @@
                     <td align="left" style="padding:{{ $outlookTrainPadding }};text-align:left;font-size:0;line-height:0;">
                         @if ($outlookTrainFallbackSrc !== '')
                             <!--[if !mso]><!-->
-                            <img data-rt-outlook-train src="{{ $outlookTrainSrc }}" width="620" alt="Dampflok-Güterzug" style="display:block;width:620px;max-width:100%;height:auto;margin:0;border:0;outline:none;{{ $ruhebild }}">
+                            <img data-rt-outlook-train src="{{ $outlookTrainSrc }}" width="620" alt="Dampflok-Güterzug" style="display:block;width:70%;max-width:620px;height:auto;margin:0;border:0;outline:none;opacity:.7;{{ $ruhebild }}">
                             <!--<![endif]-->
                             <!--[if mso]>
-                            <img data-rt-outlook-train-still src="{{ $outlookTrainFallbackSrc }}" width="620" alt="Dampflok-Güterzug" style="display:block;width:620px;height:auto;margin:0;border:0;outline:none;">
+                            <img data-rt-outlook-train-still src="{{ $outlookTrainFallbackSrc }}" width="620" alt="Dampflok-Güterzug" style="display:block;width:70%;max-width:620px;height:auto;margin:0;border:0;outline:none;">
                             <![endif]-->
                         @else
-                            <img data-rt-outlook-train src="{{ $outlookTrainSrc }}" width="620" alt="Dampflok-Güterzug" style="display:block;width:620px;max-width:100%;height:auto;margin:0;border:0;outline:none;{{ $ruhebild }}">
+                            <img data-rt-outlook-train src="{{ $outlookTrainSrc }}" width="620" alt="Dampflok-Güterzug" style="display:block;width:70%;max-width:620px;height:auto;margin:0;border:0;outline:none;opacity:.7;{{ $ruhebild }}">
                         @endif
                     </td>
                 </tr>

@@ -578,7 +578,7 @@ class EmailTemplateBuilder
                 // Pflichtangaben eine Stufe darunter — dezente Staffelung
                 // statt harter Kanten.
                 'SIGNATURE_BG' => '#0c1017',
-                'SIGNATURE_TRAIN_WASH' => 'rgba(12,16,23,.15)',
+                'SIGNATURE_TRAIN_WASH' => 'rgba(12,16,23,.30)',
                 'SIGNATURE_LEGAL_BG' => '#080b10',
                 'SIGNATURE_TEXT_PRIMARY' => '#ffffff',
                 'SIGNATURE_CONTACT_TEXT' => '#b9c1ca',
@@ -603,9 +603,14 @@ class EmailTemplateBuilder
                 'BORDER' => '#dfe3e6',
                 // Siehe dunkle Palette: Signatur heller Ton, Pflichtangaben
                 // eine Stufe kraeftiger.
-                'SIGNATURE_BG' => '#f7f6f3',
-                'SIGNATURE_TRAIN_WASH' => 'rgba(247,246,243,.15)',
-                'SIGNATURE_LEGAL_BG' => '#efece7',
+                // WEISS, nicht Beige. Der Zug traegt seinen Grund selbst;
+                // er wurde dafuer auf Weiss umgesetzt (tools/zug-auf-weiss.mjs),
+                // sonst stuende hier ein beiger Block auf weissem Grund.
+                'SIGNATURE_BG' => '#ffffff',
+                // Der Schleier liegt UEBER dem Zug und nimmt ihm Kraft:
+                // rund 30 % Weiss ergeben die gewuenschten 70 % Deckkraft.
+                'SIGNATURE_TRAIN_WASH' => 'rgba(255,255,255,.30)',
+                'SIGNATURE_LEGAL_BG' => '#f4f5f7',
                 'SIGNATURE_TEXT_PRIMARY' => '#111820',
                 'SIGNATURE_CONTACT_TEXT' => '#5c6671',
                 'SIGNATURE_META_TEXT' => '#66717c',

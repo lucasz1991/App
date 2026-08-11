@@ -68,17 +68,39 @@ tr.rt-stack > td + td { padding-top: 20px !important; }
 .rt-contact td.rt-contact-icon { width: 22px !important; }
 .rt-contact td.rt-contact-text { width: auto !important; font-size: 13px !important; line-height: 19px !important; }
 .rt-sign-name { font-size: 21px !important; line-height: 25px !important; }
-/* Die Personenspalte steht zuerst und bleibt oben. Die Trennlinie der
-   Firmenspalte wandert deshalb von links nach oben. */
+/* GESTAPELTE REIHENFOLGE: Wortmarke, Person, Firma.
+   Die Wortmarke steht dafuer zweimal im Markup — im Breitlayout in der
+   rechten Spalte, gestapelt als eigene Zeile ganz oben. Hier wird
+   getauscht, welche der beiden sichtbar ist. */
+.rt-marke-mobil { display: block !important; max-height: none !important; overflow: visible !important; }
+.rt-sign-logo img.rt-logo { display: none !important; }
 .rt-sign-identity { padding: 0 0 20px !important; }
+/* ZWEISPALTIG STATT UNTEREINANDER — gestapelt ist die volle Breite da, eine
+   schmale Liste darin wirkt verloren. Beide Bloecke teilen sie deshalb:
+   Person links Name und Funktion, rechts die Anschluesse; Firma links
+   Anschrift und Telefon, rechts E-Mail und Website. inline-block statt
+   Tabellenzellen, weil sich Zellen per CSS nicht zuverlaessig umbauen
+   lassen — Outlook-Desktop wertet diese Regeln ohnehin nicht aus und
+   bleibt beim Breitlayout. */
+.rt-person-kopf { display: inline-block !important; width: 47% !important; vertical-align: top !important; }
+.rt-sign-identity .rt-contact { display: inline-block !important; width: 51% !important; vertical-align: top !important; margin-top: 2px !important; }
+.rt-firma-links, .rt-firma-rechts { display: inline-block !important; width: 49% !important; vertical-align: top !important; margin-left: 0 !important; margin-right: 0 !important; margin-top: 0 !important; }
+/* Gestapelt traegt die ungespiegelte Fassung: Symbol links, Text rechts
+   daneben, der ganze Block linksbuendig — genau wie der Personenblock
+   darueber. */
+.rt-firma-breit { display: none !important; max-height: 0 !important; overflow: hidden !important; }
+.rt-firma-schmal { display: block !important; max-height: none !important; overflow: visible !important; }
+/* Enger gesetzt, damit zwei Spalten nebeneinander Platz finden. */
+.rt-contact td.rt-contact-text { font-size: 12px !important; line-height: 17px !important; }
 .rt-sign-logo { border-left: 0 !important; border-top: 1px solid {{ $border }} !important; padding: 20px 0 0 !important; }
-img.rt-logo { width: 190px !important; }
 /* Die Firmenliste sitzt gestapelt direkt unter der Wortmarke — der
    Vorsprung, den sie im Breitlayout ausgleicht, faellt hier weg. */
 .rt-company-contact { margin-top: 14px !important; }
-/* Gestapelt ist die Signatur hoeher — dort darf der Zug groesser wirken.
-   Der Streifen selbst ist flach auf Desktop ausgelegt. */
-.rt-sign-cell { background-size: 100% 100%, 125% auto, 125% auto !important; }
+/* Gestapelt stehen die Spalten untereinander — die rechten 30 % sind dann
+   nicht mehr fuer die Firmendaten reserviert und der Zug darf ueber die
+   ganze Breite laufen. Die Reihenfolge der Werte folgt der Ebenenliste in
+   signature.blade.php: Schleier, Zug, Standrauch, Wasserzeichen, Raster. */
+.rt-sign-cell { background-size: 100% 100%, 100% auto, 100% auto, auto 100%, 64px 64px !important; }
 }
 
 /* ---- Telefon: Innenabstaende weiter zuruecknehmen ---- */
@@ -86,7 +108,7 @@ img.rt-logo { width: 190px !important; }
 .rt-pad { padding-left: 18px !important; padding-right: 18px !important; }
 .rt-title { font-size: 24px !important; line-height: 29px !important; }
 .rt-sign-name { font-size: 20px !important; line-height: 24px !important; }
-img.rt-logo { width: 165px !important; }
+.rt-marke-mobil img { width: 165px !important; }
 .rt-sign-identity { padding-bottom: 16px !important; }
 .rt-sign-logo { padding-top: 16px !important; }
 tr.rt-stack > td + td { padding-top: 16px !important; }

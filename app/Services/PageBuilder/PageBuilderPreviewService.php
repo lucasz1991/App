@@ -158,7 +158,7 @@ CSS, $width, $height);
         $safeTokens = [];
         foreach (array_merge(
             array_keys(EmailTemplateBuilder::emailThemeValues($values['THEME'] ?? 'light')),
-            ['LOGO_SRC', 'TRAIN_SRC', 'TRAIN_IDLE_SRC', 'ICON_RT_SRC'],
+            ['LOGO_SRC', 'TRAIN_SRC', 'TRAIN_IDLE_SRC', 'ICON_RT_SRC', 'GRUND_RASTER_SRC', 'GRUND_MARKE_SRC'],
             array_keys(EmailTemplateBuilder::contactIconSources(true)),
         ) as $key) {
             if (array_key_exists($key, $values)) {

@@ -534,8 +534,12 @@ class MailDocumentEditorTest extends TestCase
                 $canonicalHtml,
             ),
             'zweite zugquelle' => str_replace(
-                "url('{{TRAIN_SRC}}')",
-                "url('{{TRAIN_SRC}}'),url('{{TRAIN_SRC}}')",
+                // OHNE Anfuehrungszeichen — so steht die Zugquelle im
+                // Markup, seit der Streifen mehrere Hintergrundebenen
+                // traegt. Blade escaped Anfuehrungszeichen im
+                // style-Attribut sonst zu &#039;.
+                'url({{TRAIN_SRC}})',
+                'url({{TRAIN_SRC}}),url({{TRAIN_SRC}})',
                 $canonicalHtml,
             ),
             'frei erfundene traegerklasse' => str_replace(
@@ -594,8 +598,12 @@ class MailDocumentEditorTest extends TestCase
                 $validHtml,
             ),
             'mehrere train tokens' => str_replace(
-                "url('{{TRAIN_SRC}}')",
-                "url('{{TRAIN_SRC}}'),url('{{TRAIN_SRC}}')",
+                // OHNE Anfuehrungszeichen — so steht die Zugquelle im
+                // Markup, seit der Streifen mehrere Hintergrundebenen
+                // traegt. Blade escaped Anfuehrungszeichen im
+                // style-Attribut sonst zu &#039;.
+                'url({{TRAIN_SRC}})',
+                'url({{TRAIN_SRC}}),url({{TRAIN_SRC}})',
                 $validHtml,
             ),
         ];

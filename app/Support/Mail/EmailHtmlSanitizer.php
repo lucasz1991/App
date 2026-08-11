@@ -350,6 +350,7 @@ final class EmailHtmlSanitizer
     /** Ausschliesslich serverkontrollierte Bildquellen fuer src und CSS-url(). */
     private const IMAGE_URL_PLACEHOLDERS = [
         'LOGO_SRC', 'TRAIN_SRC', 'TRAIN_IDLE_SRC', 'ICON_RT_SRC',
+        'GRUND_RASTER_SRC', 'GRUND_MARKE_SRC',
         'ICON_PHONE_SRC', 'ICON_MOBILE_SRC', 'ICON_EMAIL_SRC',
         'ICON_WEB_SRC', 'ICON_LOCATION_SRC',
     ];
@@ -387,7 +388,9 @@ final class EmailHtmlSanitizer
         // Die Anschrift steht seit dem symmetrischen Umbau nur noch einmal
         // in der Firmenspalte. Die beiden Namen bleiben zugelassen, damit
         // frueher veroeffentlichte Dokumente keinen Hinweis ausloesen.
-        'rt-only-wide', 'rt-only-narrow',
+        'rt-only-wide', 'rt-only-narrow', 'rt-marke-mobil',
+        'rt-person-kopf', 'rt-firma-breit', 'rt-firma-schmal',
+        'rt-firma-links', 'rt-firma-rechts',
         'rt-contact', 'rt-contact-icon', 'rt-contact-text',
         'rt-company-contact', 'rt-company-contact-icon', 'rt-company-contact-text',
     ];

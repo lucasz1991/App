@@ -92,6 +92,13 @@ class MailSignature
         // kaputtes Bild.
         $markAsset = EmailTemplateBuilder::emailMarkAsset($this->theme);
 
+        // Hintergrundgrafik des Streifens, Bildsprache vom Notfallbanner der
+        // Website: ein feines Raster (gekachelt) und ein grosses
+        // RT-Wasserzeichen mit rotem Schimmer (einmal, rechts).
+        $variante = $this->theme === 'dark' ? 'dark' : 'light';
+        $raster = "signatur-raster-{$variante}.png";
+        $marke = "signatur-marke-{$variante}.png";
+
         // ZWEI BETRIEBSARTEN, und die Unterscheidung ist wesentlich:
         //
         //   verlinkt   — fuer VERSENDETE Mails. Nur so erscheinen die Bilder
@@ -104,6 +111,8 @@ class MailSignature
             ? [
                 'LOGO_SRC' => EmailTemplateBuilder::mailAssetUrl($logoAsset),
                 'ICON_RT_SRC' => EmailTemplateBuilder::mailAssetUrl($markAsset),
+                'GRUND_RASTER_SRC' => EmailTemplateBuilder::mailAssetUrl($raster),
+                'GRUND_MARKE_SRC' => EmailTemplateBuilder::mailAssetUrl($marke),
                 'TRAIN_SRC' => EmailTemplateBuilder::signatureTrainUrl($this->theme, $this->animated),
                 // Das Standbild traegt den Ersatzweg fuer Outlook-Desktop
                 // (background-Attribut), siehe emails/parts/signature.blade.php.
@@ -117,6 +126,8 @@ class MailSignature
             : [
                 'LOGO_SRC' => EmailTemplateBuilder::inlineImage($logoAsset, 'image/png'),
                 'ICON_RT_SRC' => EmailTemplateBuilder::inlineImage($markAsset, 'image/png'),
+                'GRUND_RASTER_SRC' => EmailTemplateBuilder::inlineImage($raster, 'image/png'),
+                'GRUND_MARKE_SRC' => EmailTemplateBuilder::inlineImage($marke, 'image/png'),
                 'TRAIN_SRC' => EmailTemplateBuilder::signatureTrainAsset(
                     $this->theme,
                     $this->animated,
@@ -246,7 +257,7 @@ class MailSignature
         $values = $this->values($overrides);
         $safeKeys = array_unique(array_merge(
             array_keys(EmailTemplateBuilder::emailThemeValues($this->theme)),
-            ['LOGO_SRC', 'TRAIN_SRC', 'TRAIN_IDLE_SRC', 'ICON_RT_SRC'],
+            ['LOGO_SRC', 'TRAIN_SRC', 'TRAIN_IDLE_SRC', 'ICON_RT_SRC', 'GRUND_RASTER_SRC', 'GRUND_MARKE_SRC'],
             array_values(array_filter(
                 array_keys($values),
                 static fn (string $key): bool => str_starts_with($key, 'ICON_'),
