@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Enums\MarketingCreativeType;
 use App\Http\Requests\Marketing\StoreMarketingCreativeRequest;
+use App\Http\Requests\Marketing\RedesignMarketingCreativeRequest;
 use App\Http\Requests\Marketing\UpdateMarketingCreativeRequest;
 use App\Models\MarketingCreative;
 use App\Models\MarketingCreativeVariant;
@@ -54,6 +55,30 @@ final class MarketingCreativeController extends MarketingAdminController
         $copy = $studio->duplicate($creative, $this->marketingAdmin($request));
 
         return response()->json(['creative' => $this->creativePayload($copy)], 201);
+    }
+
+    public function redesign(
+        RedesignMarketingCreativeRequest $request,
+        MarketingCreative $creative,
+        MarketingStudioService $studio,
+    ): JsonResponse {
+        $validated = $request->validated();
+        $result = $studio->redesignFromPreset(
+            $creative,
+            $validated['preset'],
+            $validated['expected_hashes'],
+            $this->marketingAdmin($request),
+        );
+
+        return response()->json([
+            'changed' => $result['changed'],
+            'preset' => $result['preset'],
+            'creative' => $this->creativePayload($result['creative']),
+            'variants' => $result['creative']->variants
+                ->mapWithKeys(fn (MarketingCreativeVariant $variant): array => [
+                    $variant->format->value => $this->variantPayload($variant),
+                ]),
+        ]);
     }
 
     public function approve(

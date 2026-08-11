@@ -232,6 +232,109 @@ final class MarketingStudioService
         });
     }
 
+    /**
+     * Replaces every format with one server-owned RailTime design while
+     * preserving the creative's editorial content. The caller must present a
+     * current hash for every format so a redesign can never overwrite a newer
+     * edit from another tab.
+     *
+     * @param  array<string, string>  $expectedHashes
+     * @return array{creative:MarketingCreative,preset:string,changed:bool}
+     */
+    public function redesignFromPreset(
+        MarketingCreative $creative,
+        string $preset,
+        array $expectedHashes,
+        User $actor,
+    ): array {
+        if ($preset !== 'railtime_modern') {
+            throw ValidationException::withMessages([
+                'preset' => 'Dieses RailTime-Design ist nicht freigegeben.',
+            ]);
+        }
+
+        return DB::transaction(function () use ($creative, $preset, $expectedHashes, $actor): array {
+            $this->files->lockSourceSelection();
+            $locked = MarketingCreative::query()->lockForUpdate()->findOrFail($creative->id);
+            $this->assertEditable($locked);
+            $variants = $locked->variants()
+                ->lockForUpdate()
+                ->get()
+                ->keyBy(fn (MarketingCreativeVariant $variant): string => $variant->format->value);
+
+            $this->renderAssets->lockDocumentsForUpdate(
+                $variants->map(fn (MarketingCreativeVariant $variant): array => [
+                    'html' => (string) $variant->html,
+                    'css' => (string) $variant->css,
+                ]),
+            );
+
+            foreach (MarketingCreativeFormat::cases() as $format) {
+                $variant = $variants->get($format->value);
+                $expectedHash = strtolower((string) ($expectedHashes[$format->value] ?? ''));
+                if (! $variant || strlen($expectedHash) !== 64 || ! hash_equals((string) $variant->content_hash, $expectedHash)) {
+                    throw ValidationException::withMessages([
+                        'expected_hashes.'.$format->value => 'Das Motiv wurde zwischenzeitlich geändert. Bitte die aktuelle Version neu laden.',
+                    ]);
+                }
+            }
+
+            $definition = $this->templates->definition($locked->type);
+            $changed = false;
+            foreach (MarketingCreativeFormat::cases() as $format) {
+                $variant = $variants->get($format->value);
+                $template = $definition['variants'][$format->value];
+                $html = $this->sanitizer->html($this->binder->bindHtml(
+                    (string) $template['html'],
+                    $locked->shared_content ?? [],
+                ));
+                $css = $this->sanitizer->css((string) $template['css']);
+                $this->assertOfficialBrandLockup($html, $css);
+                $builderData = (array) $template['builder_data'];
+                $builderData['railtime']['design_preset'] = $preset;
+                $builderData = $this->binder->syncBuilderData($builderData, $html);
+                $hash = $this->contentHash($builderData, $html, $css);
+
+                if (hash_equals((string) $variant->content_hash, $hash)) {
+                    continue;
+                }
+
+                $variant->forceFill([
+                    'builder_data' => $builderData,
+                    'html' => $html,
+                    'css' => $css,
+                    'content_hash' => $hash,
+                    'version' => $variant->version + 1,
+                ])->save();
+                $changed = true;
+            }
+
+            if ($changed) {
+                $locked->forceFill(['updated_by' => $actor->id]);
+                $this->resetApproval($locked);
+                $locked->save();
+
+                activity('marketing')
+                    ->causedBy($actor)
+                    ->performedOn($locked)
+                    ->withProperties([
+                        'preset' => $preset,
+                        'formats' => array_map(
+                            static fn (MarketingCreativeFormat $format): string => $format->value,
+                            MarketingCreativeFormat::cases(),
+                        ),
+                    ])
+                    ->log('marketing_creative_redesigned');
+            }
+
+            return [
+                'creative' => $locked->fresh(['variants']),
+                'preset' => $preset,
+                'changed' => $changed,
+            ];
+        });
+    }
+
     public function approve(MarketingCreative $creative, User $actor): MarketingCreative
     {
         return DB::transaction(function () use ($creative, $actor): MarketingCreative {

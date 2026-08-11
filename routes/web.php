@@ -262,6 +262,10 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
                 ->whereUuid('creative')
                 ->middleware('throttle:120,1')
                 ->name('marketing.creatives.update');
+            Route::post('/marketing/motive/{creative}/redesign', [MarketingCreativeController::class, 'redesign'])
+                ->whereUuid('creative')
+                ->middleware('throttle:20,1')
+                ->name('marketing.creatives.redesign');
             Route::post('/marketing/motive/{creative}/duplizieren', [MarketingCreativeController::class, 'duplicate'])
                 ->whereUuid('creative')
                 ->middleware('throttle:30,1')
