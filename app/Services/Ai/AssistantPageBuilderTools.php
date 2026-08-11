@@ -572,7 +572,7 @@ final class AssistantPageBuilderTools
     private function editText(array $arguments, array $safe): array
     {
         $text = $this->plainText($arguments['text'] ?? null);
-        if ($text === null || ($safe['mode'] === 'mail' && (str_contains($text, '{{') || str_contains($text, '}}')))) {
+        if ($text === null || str_contains($text, '{{') || str_contains($text, '}}')) {
             return $this->error('invalid_text', 'Nur Klartext ohne HTML, Skripte oder Mail-Platzhalter ist erlaubt.');
         }
 
@@ -759,7 +759,9 @@ final class AssistantPageBuilderTools
             'image_file_id' => $mode === 'marketing' ? $this->positiveInt($selection['image_file_id'] ?? null) : null,
             'protected' => $protected,
             'motion_allowed' => ! $protected && (bool) ($selection['motion_allowed'] ?? false),
-            'gif' => ! $protected && (bool) ($selection['gif'] ?? false),
+            // The restart command only refreshes the editor canvas and never
+            // mutates the protected mail structure or its persisted token.
+            'gif' => (bool) ($selection['gif'] ?? false),
         ];
     }
 
@@ -968,6 +970,16 @@ final class AssistantPageBuilderTools
     {
         if (! is_string($value)) {
             return null;
+        }
+        // Validate the semantic text, not only its encoded spelling. Otherwise
+        // `&#123;&#123;TOKEN&#125;&#125;` is decoded by the canvas later and can
+        // smuggle a protected mail placeholder through the plain-text tool.
+        for ($pass = 0; $pass < 3; $pass++) {
+            $decoded = html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            if ($decoded === $value) {
+                break;
+            }
+            $value = $decoded;
         }
         $value = trim(str_replace(["\r\n", "\r"], "\n", $value));
         if ($value === '' || mb_strlen($value) > 1000 || preg_match('/[<>\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', $value)) {

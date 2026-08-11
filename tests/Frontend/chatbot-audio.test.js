@@ -879,7 +879,7 @@ test('assistant client dispatches only allowlisted nonce-bound wagon commands', 
     assert.equal(dispatched.length, 1);
 });
 
-test('assistant client routes only a nonce and revision bound pagebuilder effect through the shared bridge', async () => {
+test('assistant client claims a server-confirmed pagebuilder effect once and rejects ambient commands', async () => {
     const { fakeWindow } = installBrowserEnvironment();
     const dispatched = [];
     replaceGlobal('CustomEvent', class {
@@ -889,6 +889,10 @@ test('assistant client routes only a nonce and revision bound pagebuilder effect
         }
     });
     fakeWindow.dispatchEvent = (event) => dispatched.push(event);
+    fakeWindow.location = {
+        href: 'https://railtime.test/administrator/marketing/motive/creative/bearbeiten',
+        origin: 'https://railtime.test',
+    };
 
     const activeContext = {
         version: 1,
@@ -915,7 +919,6 @@ test('assistant client routes only a nonce and revision bound pagebuilder effect
         save: () => { saves += 1; return true; },
     });
 
-    const chatbot = railtimeChatbot();
     const effect = {
         type: 'pagebuilder',
         command: 'save',
@@ -929,17 +932,51 @@ test('assistant client routes only a nonce and revision bound pagebuilder effect
         persisted_version: activeContext.persisted_version,
         client_revision: activeContext.client_revision,
     };
+    const claimedEffects = new Map([
+        ['P'.repeat(48), effect],
+        ['Q'.repeat(48), { ...effect, client_revision: 12, action_token: 'Q'.repeat(48) }],
+    ]);
+    const claimRequests = [];
+    const claimFetch = async (url, options) => {
+        const body = JSON.parse(options.body);
+        claimRequests.push({ url, options, token: body.action_token });
+        const claimed = claimedEffects.get(body.action_token);
 
-    assert.equal(chatbot.handleClientAction({ action: effect }), true);
+        return {
+            ok: Boolean(claimed),
+            json: async () => claimed ? { action: claimed } : { message: 'Unprocessable Entity' },
+        };
+    };
+    fakeWindow.fetch = claimFetch;
+    replaceGlobal('fetch', claimFetch);
+    const chatbot = railtimeChatbot({
+        csrfToken: 'csrf-pagebuilder',
+        pageBuilderActionClaimEndpoint: '/assistant/pagebuilder-actions/claim',
+    });
+
+    assert.equal(chatbot.handleClientAction({ action: effect }), false);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(saves, 0);
+    assert.equal(claimRequests.length, 0);
+
+    assert.equal(chatbot.handleClientAction({
+        action: { type: 'pagebuilder_grant', action_token: 'P'.repeat(48) },
+    }), true);
     await waitFor(() => dispatched.some((event) => event.type === 'railtime-pagebuilder-assistant-result'));
     assert.equal(saves, 1);
+    assert.equal(claimRequests.length, 1);
+    assert.equal(claimRequests[0].url, '/assistant/pagebuilder-actions/claim');
+    assert.equal(claimRequests[0].options.headers['X-CSRF-TOKEN'], 'csrf-pagebuilder');
     assert.deepEqual(
         dispatched.find((event) => event.type === 'railtime-pagebuilder-assistant-result').detail,
         { action_token: 'P'.repeat(48), status: 'applied' },
     );
+    assert.equal(chatbot.handleClientAction({
+        action: { type: 'pagebuilder_grant', action_token: 'P'.repeat(48) },
+    }), false);
 
     assert.equal(chatbot.handleClientAction({
-        action: { ...effect, client_revision: 12, action_token: 'Q'.repeat(48) },
+        action: { type: 'pagebuilder_grant', action_token: 'Q'.repeat(48) },
     }), true);
     await waitFor(() => dispatched.some((event) => event.detail?.action_token === 'Q'.repeat(48)));
     assert.equal(
@@ -949,8 +986,10 @@ test('assistant client routes only a nonce and revision bound pagebuilder effect
     assert.equal(saves, 1);
 
     assert.equal(chatbot.handleClientAction({
-        action: { ...effect, persisted_content_hash: 'javascript:evil', action_token: 'R'.repeat(48) },
-    }), false);
+        action: { type: 'pagebuilder_grant', action_token: 'R'.repeat(48) },
+    }), true);
+    await waitFor(() => claimRequests.length === 3);
+    assert.equal(saves, 1);
 });
 
 test('wagon help bubble is shown only while automatic help is enabled and visible', () => {

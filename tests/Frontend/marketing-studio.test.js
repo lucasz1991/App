@@ -1,5 +1,28 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { parseHTML } from 'linkedom';
+
+import {
+    animatedPreviewIsPlaying,
+    applyMotionSettings,
+    calculateSpacingDragValue,
+    calculateSpacingOverlayGeometry,
+    collectUsedMedia,
+    componentAnimationContext,
+    createImageAssetSelection,
+    createScopedAssetCallbackSelection,
+    installScopedAssetAccess,
+    createLmzAssistantAdapter,
+    createLmzEditorChrome,
+    createPageBuilderLifecycleController,
+    createPageBuilderNavigationController,
+    normalizeLmzCapabilities,
+    restartAnimatedPreview,
+    sanitizeAnimationStyles,
+    sanitizeMotionSettings,
+    setAnimatedPreviewPlayback,
+    spacingCssSnapshot,
+} from '../../resources/js/lmz-editor-core.js';
 
 import {
     applySavedVariant,
@@ -1210,6 +1233,10 @@ test('adapter explicitly disables Joomla web defaults and fallback projects', as
         .then(({ readFile }) => readFile(new URL('../../resources/js/app.js', import.meta.url), 'utf8'));
     const cssSource = await import('node:fs/promises')
         .then(({ readFile }) => readFile(new URL('../../resources/css/marketing-studio.css', import.meta.url), 'utf8'));
+    const coreSource = await import('node:fs/promises')
+        .then(({ readFile }) => readFile(new URL('../../resources/js/lmz-editor-core.js', import.meta.url), 'utf8'));
+    const mailSource = await import('node:fs/promises')
+        .then(({ readFile }) => readFile(new URL('../../resources/js/mail-builder.js', import.meta.url), 'utf8'));
 
     assert.match(source, /useStudioWebDefaults:\s*false/);
     assert.match(source, /allowFallbackProject:\s*false/);
@@ -1217,6 +1244,10 @@ test('adapter explicitly disables Joomla web defaults and fallback projects', as
     assert.match(source, /instance\?\.destroy\?\.\(\)/);
     assert.match(source, /frame\.dataset\.readOnly = readOnly \? 'true' : 'false'/);
     assert.match(source, /createLmzEditorChrome\(\{/);
+    assert.match(source, /showUrlInput:\s*false/);
+    assert.match(source, /navigationCoordinator\?\.register\?\.\(navigationController\)/);
+    assert.match(mailSource, /showUrlInput:\s*false/);
+    assert.match(coreSource, /import '\.\/lmz-editor-assistant\.js';/);
     assert.match(source, /media:\s*\{\s*assets:\s*config\.assets \|\| \[\]/);
     assert.match(source, /request\.expected_hashes = Object\.fromEntries/);
     assert.match(source, /config\.logoLightUrl,\s*config\.logoDarkUrl,/);
@@ -1225,7 +1256,7 @@ test('adapter explicitly disables Joomla web defaults and fallback projects', as
     assert.match(source, /\[data-marketing-scale-label\]/);
     assert.match(source, /marketing-editor:viewport-change/);
     assert.match(source, /assets:\s*{\s*onLoad:\s*async \(\) => config\.assets \|\| \[\]/);
-    assert.match(source, /assetManager:\s*{\s*upload:\s*false\s*}/);
+    assert.match(source, /assetManager:\s*{\s*upload:\s*false,\s*showUrlInput:\s*false,\s*dropzone:\s*false\s*}/);
     assert.doesNotMatch(source, /\bonUpload\s*:/);
     assert.doesNotMatch(source, /assetUpload/);
     assert.doesNotMatch(source, /marketingAssetLibrary/);
@@ -1238,3 +1269,714 @@ test('adapter explicitly disables Joomla web defaults and fallback projects', as
     assert.doesNotMatch(editorSource, /MarketingAsset/);
     assert.doesNotMatch(editorSource, /assetUpload/);
 });
+
+function coreWithDom(markup, callback) {
+    const previous = {
+        window: globalThis.window,
+        document: globalThis.document,
+        CustomEvent: globalThis.CustomEvent,
+        DOMParser: globalThis.DOMParser,
+        requestAnimationFrame: globalThis.requestAnimationFrame,
+        cancelAnimationFrame: globalThis.cancelAnimationFrame,
+    };
+    const { window, document } = parseHTML(markup);
+    globalThis.window = window;
+    globalThis.document = document;
+    globalThis.CustomEvent = window.CustomEvent;
+    globalThis.DOMParser = window.DOMParser;
+    globalThis.requestAnimationFrame = (callback_) => setTimeout(callback_, 0);
+    globalThis.cancelAnimationFrame = clearTimeout;
+
+    return Promise.resolve(callback({ window, document })).finally(() => {
+        Object.entries(previous).forEach(([key, value]) => {
+            if (value === undefined) delete globalThis[key];
+            else globalThis[key] = value;
+        });
+    });
+}
+
+function coreFakeComponent(element, initial = {}) {
+    const state = {
+        type: initial.type || (element.tagName?.toLowerCase() === 'img' ? 'image' : 'default'),
+        tagName: initial.tagName || element.tagName?.toLowerCase(),
+        src: initial.src || '',
+        attributes: { ...(initial.attributes || {}) },
+        style: { ...(initial.style || {}) },
+    };
+
+    return {
+        state,
+        get(name) { return state[name]; },
+        getAttributes() { return { ...state.attributes }; },
+        getStyle() { return { ...state.style }; },
+        getEl() { return element; },
+        components(value) {
+            if (value !== undefined) state.children = value;
+            return state.children || [];
+        },
+        parent() { return initial.parent || null; },
+        addAttributes(attributes) {
+            Object.assign(state.attributes, attributes);
+            if (attributes.src) state.src = attributes.src;
+        },
+        removeAttributes(names) {
+            String(names).split(/\s+/).filter(Boolean).forEach((name) => delete state.attributes[name]);
+        },
+        set(name, value) { state[name] = value; },
+        addStyle(styles) { Object.assign(state.style, styles); },
+    };
+}
+
+function coreFakeEditor(root, selected, vendorSelection = null) {
+    const handlers = new Map();
+    const on = (name, callback) => {
+        const callbacks = handlers.get(name) || [];
+        callbacks.push(callback);
+        handlers.set(name, callbacks);
+    };
+    if (vendorSelection) on('component:selected', vendorSelection);
+    const tools = root.querySelector('[data-tools]');
+    const toolbar = root.querySelector('[data-toolbar]');
+
+    return {
+        on,
+        off(name, callback) {
+            handlers.set(name, (handlers.get(name) || []).filter((item) => item !== callback));
+        },
+        emit(name, ...args) { (handlers.get(name) || []).forEach((callback) => callback(...args)); },
+        getSelected: () => selected,
+        getHtml: () => '<img src="https://evil.example/tracker.gif">',
+        getCss: () => '',
+        select() {},
+        runCommand() {},
+        Commands: { isActive: () => false },
+        AssetManager: { setTarget() {}, close() {} },
+        Canvas: {
+            getToolsEl: () => tools,
+            getToolbarEl: () => toolbar,
+            getElementPos: () => ({ left: 120, top: 80, width: 240, height: 140, zoom: 0.5 }),
+            getElementOffsets: () => ({
+                marginTop: 10,
+                marginRight: 6,
+                marginBottom: 10,
+                marginLeft: 6,
+                paddingTop: 8,
+                paddingRight: 5,
+                paddingBottom: 8,
+                paddingLeft: 5,
+            }),
+            getWindow: () => root.ownerDocument.defaultView,
+            getDocument: () => root.ownerDocument,
+        },
+    };
+}
+
+test('shared LMZ capabilities keep mail GIF preview separate from persistent marketing motion', () => {
+    const mail = normalizeLmzCapabilities('mail', { imageReplace: 'tokens-only', animation: true });
+    const marketing = normalizeLmzCapabilities('marketing');
+
+    assert.equal(mail.animation, false);
+    assert.equal(mail.imageReplace, 'tokens-only');
+    assert.equal(mail.gifControls, true);
+    assert.equal(mail.mediaInsert, false);
+    assert.equal(marketing.animation, true);
+    assert.equal(marketing.imageReplace, true);
+});
+
+test('shared LMZ media inventory exposes missing sources without loading external previews', () => {
+    const state = collectUsedMedia({
+        html: '<img src="/administrator/files/7/preview"><img src="https://evil.example/tracker.gif">',
+        assets: [{ src: '/administrator/files/7/preview', name: 'Lok.jpg', type: 'image' }],
+        baseUrl: 'https://railtime.test/',
+    });
+
+    assert.equal(state.used.length, 2);
+    assert.equal(state.used[0].allowed, true);
+    assert.equal(state.used[1].allowed, false);
+    assert.equal(state.warnings.length, 1);
+});
+
+test('mail media drawer follows the active preview theme while keeping every token discoverable', () => coreWithDom(`
+    <div data-page-builder-shell><div data-page-builder-fullscreen-root data-page-builder-shell-id="shell-media-theme">
+    <div id="root"><div class="lmz-builder__topbar"><button data-lmz-action="assets">Media</button></div>
+    <div class="lmz-builder__viewport"><div data-tools><div data-toolbar></div></div></div></div></div></div>
+`, ({ document }) => {
+    const root = document.querySelector('#root');
+    const selected = coreFakeComponent(document.createElement('div'));
+    const editor = coreFakeEditor(root, selected);
+    editor.getHtml = () => '<img data-rt-mail-preview-token="LOGO_SRC">';
+    let theme = 'light';
+    const light = 'data:image/png;base64,bGlnaHQ=';
+    const dark = 'data:image/png;base64,ZGFyaw==';
+    const chrome = createLmzEditorChrome({
+        instance: { editor },
+        root,
+        mode: 'mail',
+        media: {
+            tokenMedia: () => [{ token: 'LOGO_SRC', label: 'RailTime Firmenlogo', src: theme === 'dark' ? dark : light }],
+        },
+    });
+
+    chrome.openMedia({ initialTab: 'used' });
+    assert.equal(root.querySelector('.rt-lmz-media-item img')?.getAttribute('src'), light);
+    theme = 'dark';
+    chrome.refresh();
+    assert.equal(root.querySelector('.rt-lmz-media-item img')?.getAttribute('src'), dark);
+    chrome.destroy();
+}));
+
+test('shared LMZ spacing geometry applies zoom once and converts drag deltas back to CSS pixels', () => {
+    const geometry = calculateSpacingOverlayGeometry({
+        position: { left: 100, top: 60, width: 200, height: 120, zoom: 0.5 },
+        offsets: {
+            // GrapesJS already reports zoom-scaled offsets: CSS 20/10/16/8
+            // becomes 10/5/8/4 at 50%.
+            marginTop: 10,
+            marginRight: 5,
+            marginBottom: 10,
+            marginLeft: 5,
+            paddingTop: 8,
+            paddingRight: 4,
+            paddingBottom: 8,
+            paddingLeft: 4,
+        },
+    });
+
+    assert.equal(geometry.spacing.margin.top, 10);
+    assert.equal(geometry.margin.top.top, 50);
+    assert.equal(geometry.spacing.padding.left, 4);
+    assert.equal(spacingCssSnapshot({ marginTop: 10, paddingLeft: 4 }, 0.5).margin.top, 20);
+    assert.equal(spacingCssSnapshot({ marginTop: 10, paddingLeft: 4 }, 0.5).padding.left, 8);
+    assert.equal(calculateSpacingDragValue({ startValue: 12, deltaX: 10, zoom: 0.5, side: 'right', type: 'margin' }), 32);
+    assert.equal(calculateSpacingDragValue({ startValue: 4, deltaY: -10, zoom: 0.5, side: 'bottom', type: 'padding' }), 0);
+});
+
+test('scoped FilePool GIF metadata survives opaque admin URLs and is cleared by a static replacement', () => coreWithDom('<img id="target">', ({ document }) => {
+    const element = document.querySelector('#target');
+    const selected = coreFakeComponent(element, { attributes: {} });
+    const gif = {
+        src: '/administrator/marketing/dateien/42?v=abcdef',
+        name: 'zug-animation.gif',
+        type: 'image',
+        mime_type: 'image/gif',
+    };
+    const png = {
+        src: '/administrator/marketing/dateien/43?v=fedcba',
+        name: 'zug-standbild.png',
+        type: 'image',
+        mime_type: 'image/png',
+    };
+    const editor = coreFakeEditor(document.body, selected);
+    const selection = createImageAssetSelection({ editor, target: selected, assets: [gif, png] });
+
+    selection.select(gif, false);
+    assert.equal(selected.state.attributes['data-mime-type'], 'image/gif');
+    assert.equal(selected.state.attributes['data-rt-animated-media'], 'gif');
+    assert.equal(componentAnimationContext(selected).animated, true);
+
+    selection.select(png, false);
+    assert.equal(selected.state.attributes['data-mime-type'], 'image/png');
+    assert.equal(Object.hasOwn(selected.state.attributes, 'data-rt-animated-media'), false);
+    assert.equal(componentAnimationContext(selected).animated, false);
+}));
+
+test('native GrapesJS asset entry points use only the scoped drawer and reject protected logo or QR targets', () => {
+    const commandMap = new Map([['open-assets', { run: () => 'native-dialog' }]]);
+    const openings = [];
+    let assetTarget = null;
+    const imageElement = { tagName: 'IMG' };
+    const normalImage = coreFakeComponent(imageElement, { attributes: {}, type: 'image' });
+    const logoImage = coreFakeComponent(imageElement, {
+        attributes: { 'data-rt-brand-lockup': 'official' },
+        type: 'image',
+    });
+    const qrImage = coreFakeComponent(imageElement, {
+        attributes: { 'data-rt-qr-binding': 'cta_url' },
+        type: 'image',
+    });
+    let selected = normalImage;
+    const editor = {
+        getSelected: () => selected,
+        Commands: {
+            add: (name, command) => commandMap.set(name, command),
+            get: (name) => commandMap.get(name),
+            remove: (name) => commandMap.delete(name),
+        },
+        AssetManager: {
+            getTarget: () => assetTarget,
+            setTarget: (target) => { assetTarget = target; },
+            open: () => 'native-dialog',
+        },
+    };
+    const originalAssetOpen = editor.AssetManager.open;
+    const detach = installScopedAssetAccess({
+        editor,
+        mode: 'marketing',
+        mediaDrawer: {
+            open: (options) => openings.push(options),
+            close() {},
+        },
+    });
+    const command = commandMap.get('open-assets');
+
+    assert.equal(command.run(editor, null, { target: logoImage }), false);
+    assert.equal(command.run(editor, null, { target: qrImage }), false);
+    assert.equal(openings.length, 0);
+    assert.equal(editor.AssetManager.open({ target: logoImage }), false);
+    assert.equal(openings.length, 0);
+
+    assert.equal(command.run(editor, null, { target: normalImage }), true);
+    assert.equal(openings.length, 1);
+    assert.equal(openings[0].replaceTarget, normalImage);
+    assert.equal(openings[0].initialTab, 'library');
+    assert.notEqual(editor.AssetManager.open, originalAssetOpen);
+
+    const styleSelections = [];
+    assert.equal(editor.AssetManager.open({ select: (asset, complete) => styleSelections.push([asset.getSrc(), complete]) }), true);
+    assert.equal(openings.length, 2);
+    assert.equal(openings[1].replaceTarget, undefined);
+    assert.equal(typeof openings[1].selectAsset, 'function');
+    assert.equal(openings[1].initialTab, 'library');
+
+    selected = logoImage;
+    assert.equal(editor.AssetManager.open({ select: () => {} }), false);
+    assert.equal(openings.length, 2);
+
+    detach();
+    assert.equal(editor.AssetManager.open, originalAssetOpen);
+    assert.equal(commandMap.get('open-assets').run(), 'native-dialog');
+});
+
+test('background media callbacks receive only scoped FilePool assets and never free URLs', () => {
+    const allowed = { src: '/administrator/marketing/dateien/42?v=abc', name: 'Jobmotiv.gif', mime_type: 'image/gif' };
+    const calls = [];
+    const session = createScopedAssetCallbackSelection({
+        assets: [allowed],
+        baseUrl: 'https://railtime.test/',
+        select: (asset, complete) => calls.push([asset.getSrc(), asset.get('name'), complete]),
+    });
+
+    assert.equal(session.select(allowed, true), allowed.src);
+    assert.deepEqual(calls, [[allowed.src, allowed.name, true]]);
+    assert.throws(
+        () => session.select({ src: 'https://evil.example/pixel.png' }, true),
+        /freigegebenen Dateibibliothek/,
+    );
+});
+
+test('both page-builder domains disable native external canvas drops', async () => {
+    const [{ readFile }, mailModule] = await Promise.all([
+        import('node:fs/promises'),
+        import('../../resources/js/mail-builder.js'),
+    ]);
+    const marketingSource = await readFile(new URL('../../resources/js/marketing-studio.js', import.meta.url), 'utf8');
+
+    assert.equal(mailModule.MAIL_GJS_OPTIONS.canvas.allowExternalDrop, false);
+    assert.match(marketingSource, /canvas:\s*\{\s*styles:\s*\[\],\s*scripts:\s*\[\],\s*allowExternalDrop:\s*false\s*}/);
+});
+
+test('shared LMZ animation allowlists reject executable and unbounded values', () => {
+    assert.deepEqual(sanitizeAnimationStyles({
+        'animation-duration': '850ms',
+        'animation-delay': 'javascript:alert(1)',
+        'animation-name': 'evil',
+        'animation-iteration-count': 'infinite',
+    }), {
+        'animation-duration': '850ms',
+        'animation-iteration-count': 'infinite',
+    });
+    assert.deepEqual(sanitizeMotionSettings({
+        motion: 'fade-up',
+        duration: 0.8,
+        delay: 99,
+        scale: 0.92,
+        ease: 'power3.out',
+        once: true,
+    }), {
+        motion: 'fade-up',
+        duration: 0.8,
+        scale: 0.92,
+        ease: 'power3.out',
+        once: true,
+    });
+});
+
+test('shared LMZ motion writes only the server-side allowlisted data contract', () => coreWithDom('<img id="target">', ({ document }) => {
+    const component = coreFakeComponent(document.querySelector('#target'));
+    applyMotionSettings(component, {
+        motion: 'reveal',
+        duration: 1.2,
+        delay: 0.2,
+        distance: 48,
+        scale: 0.9,
+        once: true,
+    });
+    assert.deepEqual(component.state.attributes, {
+        'data-lmz-motion': 'reveal',
+        'data-lmz-duration': '1.2',
+        'data-lmz-delay': '0.2',
+        'data-lmz-distance': '48',
+        'data-lmz-scale': '0.9',
+        'data-lmz-once': 'true',
+    });
+}));
+
+test('mail TRAIN_SRC preview restarts a background GIF without mutating persisted model data', () => coreWithDom(
+    '<table><tr><td id="train"></td></tr></table>',
+    async ({ document }) => {
+        const element = document.querySelector('#train');
+        const data = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
+        const layeredBackground = `linear-gradient(rgba(247,246,243,.15),rgba(247,246,243,.15)),url("${data}")`;
+        element.style.setProperty('background-image', layeredBackground, 'important');
+        element.style.backgroundPosition = 'center center, left bottom';
+        element.style.backgroundSize = '100% 100%, 86% auto';
+        const component = coreFakeComponent(element, {
+            attributes: { 'data-rt-mail-preview-train': 'TRAIN_SRC' },
+            style: { 'background-image': 'url("{{TRAIN_SRC}}")' },
+        });
+        const before = structuredClone(component.state);
+
+        assert.equal(animatedPreviewIsPlaying(component), true);
+        assert.equal(setAnimatedPreviewPlayback(component, false), true);
+        assert.equal(animatedPreviewIsPlaying(component), false);
+        assert.match(element.style.backgroundImage, /^linear-gradient\(.+\),\s*none$/);
+        assert.equal(element.style.backgroundPosition, 'center center, left bottom');
+        assert.equal(element.style.backgroundSize, '100% 100%, 86% auto');
+        assert.deepEqual(component.state, before);
+        assert.equal(setAnimatedPreviewPlayback(component, true), true);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        assert.equal(animatedPreviewIsPlaying(component), true);
+        assert.match(element.style.backgroundImage, /^linear-gradient\(.+\),\s*url\(/);
+        assert.match(element.style.backgroundImage, /data:image\/gif/);
+        assert.equal(element.style.backgroundPosition, 'center center, left bottom');
+        assert.equal(element.style.backgroundSize, '100% 100%, 86% auto');
+        assert.deepEqual(component.state, before);
+
+        assert.equal(restartAnimatedPreview(component, { nonce: 7 }), true);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        assert.deepEqual(component.state, before);
+        assert.match(element.style.backgroundImage, /^linear-gradient\(.+\),\s*url\(/);
+        assert.match(element.style.backgroundImage, /data:image\/gif/);
+        assert.equal(element.style.backgroundPosition, 'center center, left bottom');
+        assert.equal(element.style.backgroundSize, '100% 100%, 86% auto');
+    },
+));
+
+test('mail inline animation segment exposes playback and restart without marketing motion fields', () => coreWithDom(`
+    <div data-page-builder-shell><div data-page-builder-fullscreen-root data-page-builder-shell-id="shell-mail-gif">
+    <div id="root"><div class="lmz-builder__topbar"><button data-lmz-action="assets">Media</button></div>
+    <div class="lmz-builder__viewport"><div data-tools><div data-toolbar></div></div></div></div></div></div>
+`, ({ document }) => {
+    const root = document.querySelector('#root');
+    const element = document.createElement('td');
+    element.style.backgroundImage = 'url("data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==")';
+    const selected = coreFakeComponent(element, {
+        attributes: { 'data-rt-mail-preview-train': 'TRAIN_SRC' },
+        style: { 'background-image': 'url("{{TRAIN_SRC}}")' },
+    });
+    const before = structuredClone(selected.state);
+    const editor = coreFakeEditor(root, selected);
+    const chrome = createLmzEditorChrome({ instance: { editor }, root, mode: 'mail' });
+
+    root.querySelector('.rt-lmz-inline-edit-trigger').click();
+    const animationItem = root.querySelector('[data-rt-lmz-inline-action="animation"]');
+    assert.ok(animationItem);
+    animationItem.click();
+    const drawer = root.querySelector('.rt-lmz-animation-drawer');
+    assert.equal(drawer.hidden, false);
+    assert.equal(drawer.querySelector('[data-rt-lmz-motion-fields]').hidden, true);
+    assert.equal(drawer.querySelector('.rt-lmz-animation-drawer__apply').hidden, true);
+    assert.equal(drawer.querySelector('[data-rt-lmz-gif-playback]').hidden, false);
+    assert.equal(drawer.querySelector('[data-rt-lmz-gif-restart]').hidden, false);
+
+    drawer.querySelector('[data-rt-lmz-gif-playback]').click();
+    assert.equal(animatedPreviewIsPlaying(selected), false);
+    assert.deepEqual(selected.state, before);
+    chrome.destroy();
+}));
+
+test('shared LMZ closes vendor auto-styles after selection but preserves explicit style intent', () => coreWithDom(`
+    <div data-page-builder-shell><div data-page-builder-fullscreen-root data-page-builder-shell-id="shell-a">
+    <div id="root"><div class="lmz-builder__topbar"><button data-lmz-action="assets"></button>
+    <button id="styles" data-lmz-panel-group="right" data-lmz-panel-toggle="right:styles" aria-expanded="false">Styles</button></div>
+    <div class="lmz-builder__viewport"><div data-tools><div data-toolbar></div></div></div></div></div></div>
+`, async ({ document }) => {
+    const root = document.querySelector('#root');
+    const styles = document.querySelector('#styles');
+    styles.addEventListener('click', () => styles.setAttribute('aria-expanded', styles.getAttribute('aria-expanded') === 'true' ? 'false' : 'true'));
+    const selected = coreFakeComponent(document.createElement('div'));
+    const editor = coreFakeEditor(root, selected, () => {
+        if (styles.getAttribute('aria-expanded') !== 'true') styles.setAttribute('aria-expanded', 'true');
+    });
+    const chrome = createLmzEditorChrome({ instance: { editor }, root, media: { baseUrl: 'https://railtime.test/' } });
+
+    editor.emit('component:selected', selected);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.equal(styles.getAttribute('aria-expanded'), 'false');
+
+    styles.dispatchEvent(new document.defaultView.Event('pointerdown', { bubbles: true }));
+    styles.click();
+    assert.equal(styles.getAttribute('aria-expanded'), 'true');
+    editor.emit('component:selected', selected);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.equal(styles.getAttribute('aria-expanded'), 'true');
+    chrome.destroy();
+}));
+
+test('archived chrome is genuinely read-only and never exposes mutating inline actions', () => coreWithDom(`
+    <div data-page-builder-shell><div data-page-builder-fullscreen-root data-page-builder-shell-id="shell-readonly">
+    <div id="root"><div class="lmz-builder__topbar"><button data-lmz-action="assets">Medien</button></div>
+    <div class="lmz-builder__viewport"><div data-tools><div data-toolbar></div></div></div></div></div></div>
+`, ({ document }) => {
+    const root = document.querySelector('#root');
+    const selected = coreFakeComponent(document.createElement('div'));
+    const editor = coreFakeEditor(root, selected);
+    const chrome = createLmzEditorChrome({
+        instance: { editor },
+        root,
+        mode: 'marketing',
+        capabilities: { writable: false, media: true, traits: true, styles: true, spacing: true },
+    });
+
+    assert.equal(root.dataset.rtLmzReadOnly, 'true');
+    root.querySelector('.rt-lmz-inline-edit-trigger').click();
+    const actions = [...root.querySelectorAll('[data-rt-lmz-inline-action]')]
+        .map((item) => item.dataset.rtLmzInlineAction);
+    assert.deepEqual(actions, []);
+
+    chrome.destroy();
+    assert.equal(root.dataset.rtLmzReadOnly, undefined);
+}));
+
+test('official lockups and QR structures expose no native or RailTime structure mutation', () => coreWithDom(`
+    <div data-page-builder-shell><div data-page-builder-fullscreen-root data-page-builder-shell-id="shell-protected">
+    <div id="root"><div class="lmz-builder__topbar"><button data-lmz-action="assets">Medien</button></div>
+    <div class="lmz-builder__viewport"><div data-tools><div data-toolbar><button data-command="tlb-move">Move</button><button data-command="tlb-clone">Clone</button><button data-command="tlb-delete">Delete</button></div></div></div></div></div></div>
+`, ({ document }) => {
+    const root = document.querySelector('#root');
+    const selected = coreFakeComponent(document.createElement('img'), {
+        type: 'image',
+        attributes: { 'data-rt-brand-lockup': 'official', src: '/rt-brand/img/logo-horizontal.png' },
+    });
+    const editor = coreFakeEditor(root, selected);
+    const chrome = createLmzEditorChrome({ instance: { editor }, root, mode: 'marketing' });
+
+    editor.emit('component:selected', selected);
+    assert.equal(root.dataset.rtLmzProtectedSelection, 'true');
+    assert.equal(root.querySelector('[data-command="tlb-delete"]').hidden, true);
+    root.querySelector('.rt-lmz-inline-edit-trigger').click();
+    const actions = [...root.querySelectorAll('[data-rt-lmz-inline-action]')]
+        .map((item) => item.dataset.rtLmzInlineAction);
+    assert.equal(actions.includes('delete'), false);
+    assert.equal(actions.includes('duplicate'), false);
+    assert.equal(actions.includes('move'), false);
+    assert.equal(actions.includes('styles'), false);
+    assert.equal(actions.includes('spacing'), false);
+
+    chrome.destroy();
+}));
+
+test('shared LMZ media drawer blocks external previews and wires animation apply and teardown', () => coreWithDom(`
+    <div data-page-builder-shell><div data-page-builder-fullscreen-root data-page-builder-shell-id="shell-b">
+    <div id="root"><div class="lmz-builder__topbar"><button data-lmz-action="assets">Media</button></div>
+    <div class="lmz-builder__viewport"><div data-tools><div data-toolbar></div></div></div></div></div></div>
+`, ({ document }) => {
+    const root = document.querySelector('#root');
+    const imageElement = document.createElement('img');
+    const selected = coreFakeComponent(imageElement, {
+        src: '/files/train.gif',
+        attributes: { src: '/files/train.gif' },
+    });
+    const editor = coreFakeEditor(root, selected);
+    const chrome = createLmzEditorChrome({
+        instance: { editor },
+        root,
+        mode: 'marketing',
+        media: {
+            assets: [{ src: '/files/train.gif', name: 'Train.gif', type: 'image' }],
+            baseUrl: 'https://railtime.test/',
+        },
+    });
+
+    chrome.openMedia({ initialTab: 'used' });
+    assert.equal([...root.querySelectorAll('.rt-lmz-media-item img')].some((img) => img.src.includes('evil.example')), false);
+    assert.match(root.querySelector('.rt-lmz-media-drawer__warning').textContent, /evil\.example/);
+
+    root.querySelector('.rt-lmz-inline-edit-trigger').click();
+    root.querySelector('[data-rt-lmz-inline-action="animation"]').click();
+    const drawer = root.querySelector('.rt-lmz-animation-drawer');
+    assert.equal(drawer.hidden, false);
+    const form = drawer.querySelector('form');
+    [...form.querySelectorAll('[name="motion"] option')].forEach((option) => {
+        option.selected = option.value === 'fade-up';
+    });
+    form.querySelector('[name="duration"]').value = '0.8';
+    form.dispatchEvent(new document.defaultView.Event('submit', { bubbles: true, cancelable: true }));
+    assert.equal(selected.state.attributes['data-lmz-duration'], '0.8');
+
+    const escapeEvent = new document.defaultView.Event('keydown', { bubbles: true, cancelable: true });
+    Object.defineProperty(escapeEvent, 'key', { value: 'Escape' });
+    drawer.dispatchEvent(escapeEvent);
+    assert.equal(drawer.hidden, true);
+    chrome.openAnimation(selected);
+    root.dispatchEvent(new document.defaultView.Event('pointerdown', { bubbles: true }));
+    assert.equal(drawer.hidden, true);
+
+    chrome.destroy();
+    assert.equal(root.querySelector('.rt-lmz-animation-drawer'), null);
+    assert.equal(root.querySelector('.rt-lmz-media-drawer'), null);
+}));
+
+test('shared LMZ dirty close saves once before approving fullscreen close', () => coreWithDom(`
+    <div data-page-builder-shell><div data-page-builder-fullscreen-root data-page-builder-shell-id="shell-c"><div id="root"></div></div></div>
+`, async ({ window, document }) => {
+    let saves = 0;
+    let approvals = 0;
+    window.addEventListener('page-builder-shell:close-approved', () => { approvals += 1; });
+    const controller = createPageBuilderLifecycleController({
+        root: document.querySelector('#root'),
+        getBuilder: () => ({
+            hasUnsavedChanges: () => true,
+            save: async () => { saves += 1; return true; },
+        }),
+        environment: { window },
+    });
+    const event = new window.CustomEvent('page-builder-shell:before-close', {
+        cancelable: true,
+        detail: { id: 'shell-c' },
+    });
+
+    assert.equal(window.dispatchEvent(event), false);
+    assert.equal(event.defaultPrevented, true);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.equal(saves, 1);
+    assert.equal(approvals, 1);
+    controller.destroy();
+}));
+
+test('shared LMZ navigation participant flushes a dirty draft and fails closed on storage errors', async () => {
+    let saves = 0;
+    let failures = 0;
+    const successful = createPageBuilderNavigationController({
+        getBuilder: () => ({
+            hasUnsavedChanges: () => true,
+            save: async (reason) => { saves += 1; assert.equal(reason, 'manual'); return true; },
+        }),
+    });
+    assert.equal(successful.hasPendingWork(), true);
+    assert.equal(await successful.flush(), true);
+    assert.equal(saves, 1);
+
+    const failing = createPageBuilderNavigationController({
+        getBuilder: () => ({ hasUnsavedChanges: () => true, save: async () => false }),
+        onFlushError: () => { failures += 1; },
+    });
+    await assert.rejects(() => failing.flush(), /vor dem Seitenwechsel/);
+    failing.onFlushError(new Error('storage'));
+    assert.equal(failures, 1);
+});
+
+test('shared LMZ assistant keeps persisted version separate from local revision', () => coreWithDom(`
+    <div data-page-builder-shell><div data-page-builder-fullscreen-root data-page-builder-shell-id="shell-d">
+    <div data-page-builder-workspace data-page-builder-editor-active="true"><div id="root"><div class="lmz-builder__viewport"><div data-tools><div data-toolbar></div></div></div></div></div>
+    </div></div>
+`, async ({ window, document }) => {
+    const root = document.querySelector('#root');
+    const image = document.createElement('img');
+    const selected = coreFakeComponent(image, {
+        src: '/administrator/marketing/dateien/42?v=abc',
+        attributes: {
+            src: '/administrator/marketing/dateien/42?v=abc',
+            'data-rt-block': 'hero',
+        },
+    });
+    const editor = coreFakeEditor(root, selected);
+    const instance = { editor, hasUnsavedChanges: () => true, save: async () => true };
+    let registered = null;
+    let unregistered = null;
+    window.addEventListener('railtime-pagebuilder-adapter-register', (event) => { registered = event.detail.adapter; });
+    window.addEventListener('railtime-pagebuilder-adapter-unregister', (event) => { unregistered = event.detail.adapter; });
+    const adapter = createLmzAssistantAdapter({
+        root,
+        instance,
+        chrome: {
+            mediaState: () => ({ warnings: [] }),
+            openPanel: () => true,
+            restartGif: () => true,
+        },
+        routeName: 'admin.marketing.creatives.editor',
+        mode: 'marketing',
+        resourceId: '11111111-1111-4111-8111-111111111111',
+        formatOrKind: () => 'story',
+        persistedHash: () => 'a'.repeat(64),
+        persistedVersion: () => 7,
+        assets: [{ src: '/administrator/marketing/dateien/42?v=abc', type: 'image' }],
+        availableBlockIds: ['rt-marketing-hero'],
+    });
+
+    assert.equal(registered, adapter);
+    const before = await adapter.getContext();
+    assert.equal(before.persisted_version, 7);
+    assert.equal(before.client_revision, 0);
+    assert.equal(before.selection.image_file_id, 42);
+    assert.equal(before.unsaved, true);
+
+    editor.emit('update');
+    const after = await adapter.getContext();
+    assert.equal(after.persisted_version, 7);
+    assert.equal(after.client_revision, 1);
+    assert.equal(adapter.setAnimation('duration', 0.8), true);
+    assert.equal(selected.state.attributes['data-lmz-duration'], '0.8');
+    adapter.destroy();
+    assert.equal(unregistered, adapter);
+}));
+
+test('assistant selection fingerprint cannot drift to a component selected while WebCrypto is pending', () => coreWithDom(`
+    <div data-page-builder-shell><div data-page-builder-fullscreen-root data-page-builder-shell-id="shell-race">
+    <div data-page-builder-workspace data-page-builder-editor-active="true"><div id="root"><div class="lmz-builder__viewport"><div data-tools><div data-toolbar></div></div></div></div></div>
+    </div></div>
+`, async ({ document }) => {
+    const root = document.querySelector('#root');
+    const first = coreFakeComponent(document.createElement('p'), { attributes: { 'data-rt-block': 'first' } });
+    const second = coreFakeComponent(document.createElement('p'), { attributes: { 'data-rt-block': 'second' } });
+    let selected = first;
+    const editor = coreFakeEditor(root, first);
+    editor.getSelected = () => selected;
+    let resolveFirst;
+    let fingerprintCalls = 0;
+    const fingerprint = async () => {
+        fingerprintCalls += 1;
+        if (fingerprintCalls === 1) await new Promise((resolve) => { resolveFirst = resolve; });
+        return (fingerprintCalls === 1 ? 'a' : 'b').repeat(64);
+    };
+    const adapter = createLmzAssistantAdapter({
+        root,
+        instance: { editor, hasUnsavedChanges: () => false },
+        chrome: { mediaState: () => ({ warnings: [] }) },
+        routeName: 'admin.marketing.creatives.editor',
+        mode: 'marketing',
+        resourceId: '11111111-1111-4111-8111-111111111111',
+        formatOrKind: () => 'story',
+        persistedHash: () => 'c'.repeat(64),
+        persistedVersion: () => 2,
+        fingerprint,
+    });
+
+    const pendingContext = adapter.getContext();
+    selected = second;
+    editor.emit('component:selected', second);
+    resolveFirst();
+    const context = await pendingContext;
+
+    assert.equal(context.selection.block_id, 'second');
+    assert.equal(context.selection.fingerprint, 'b'.repeat(64));
+    assert.equal(adapter.editText('Nur das verifizierte Segment'), true);
+    assert.equal(second.state.children[0].content, 'Nur das verifizierte Segment');
+    assert.equal(first.state.children, undefined);
+
+    selected = first;
+    editor.emit('component:selected', first);
+    assert.equal(adapter.editText('Darf nicht auf A landen'), false);
+    assert.equal(first.state.children, undefined);
+    adapter.destroy();
+}));

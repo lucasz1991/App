@@ -1375,6 +1375,42 @@ html.rt-pagebuilder-fullscreen-open .rt-chatbot__panel {
     gap: 0.45rem;
 }
 
+.rt-chatbot__message-action-group {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 100%;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.rt-chatbot__message-action-detail {
+    min-width: 0;
+    border: 1px solid color-mix(in srgb, var(--rt-chatbot-accent) 20%, var(--rt-chatbot-border));
+    border-radius: 0.78rem;
+    padding: 0.6rem 0.68rem;
+    color: var(--rt-chatbot-text);
+    background: color-mix(in srgb, var(--rt-chatbot-accent-soft) 42%, var(--rt-chatbot-bg));
+    font-size: 0.72rem;
+    line-height: 1.45;
+}
+
+.rt-chatbot__message-action-detail strong {
+    display: block;
+    margin-bottom: 0.3rem;
+    font-size: 0.67rem;
+    letter-spacing: 0.055em;
+    text-transform: uppercase;
+}
+
+.rt-chatbot__message-action-detail pre {
+    max-height: 9.5rem;
+    margin: 0;
+    overflow: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font: inherit;
+}
+
 .rt-chatbot__message-action {
     display: inline-flex;
     min-height: 2.45rem;

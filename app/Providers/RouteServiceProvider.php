@@ -80,6 +80,12 @@ class RouteServiceProvider extends ServiceProvider
             ];
         });
 
+        RateLimiter::for('assistant-pagebuilder-actions', function (Request $request) {
+            $actor = $request->user()?->id ?: $request->ip();
+
+            return Limit::perMinute(30)->by('assistant-pagebuilder-actions:'.$actor);
+        });
+
         $this->routes(function () {
             Route::middleware('api')
                 ->prefix('api')

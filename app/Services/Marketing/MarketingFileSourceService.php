@@ -173,7 +173,7 @@ final class MarketingFileSourceService
 
     /**
      * @return array{
-     *   assets: list<array{src: string, name: string, type: string, category: string, width: int, height: int}>,
+     *   assets: list<array{src: string, name: string, type: string, mime_type: string, animated: bool, category: string, width: int, height: int}>,
      *   total: int,
      *   limit: int,
      *   truncated: bool
@@ -204,6 +204,8 @@ final class MarketingFileSourceService
                     'src' => route('admin.marketing.files.show', $file).'?v='.substr($snapshot['sha256'], 0, 16),
                     'name' => $snapshot['name'],
                     'type' => 'image',
+                    'mime_type' => $snapshot['mime_type'],
+                    'animated' => $snapshot['mime_type'] === 'image/gif',
                     'category' => $this->folderPath($file->folder) ?: 'Grundverzeichnis',
                     'width' => $snapshot['width'],
                     'height' => $snapshot['height'],
@@ -219,7 +221,7 @@ final class MarketingFileSourceService
         ];
     }
 
-    /** @return list<array{src: string, name: string, type: string, category: string, width: int, height: int}> */
+    /** @return list<array{src: string, name: string, type: string, mime_type: string, animated: bool, category: string, width: int, height: int}> */
     public function editorAssets(): array
     {
         return $this->editorAssetLibrary()['assets'];

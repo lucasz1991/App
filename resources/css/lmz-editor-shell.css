@@ -44,6 +44,19 @@ body[data-mode='dark'] .rt-lmz-editor {
     min-height: 2.75rem;
 }
 
+.rt-lmz-editor[data-rt-lmz-read-only='true'] .lmzbjs-cv-canvas__frames {
+    pointer-events: none;
+}
+
+.rt-lmz-editor[data-rt-lmz-read-only='true'] .lmzbjs-toolbar,
+.rt-lmz-editor[data-rt-lmz-protected-selection='true'] :is(
+    [data-command='tlb-move'],
+    [data-command='tlb-clone'],
+    [data-command='tlb-delete']
+) {
+    display: none !important;
+}
+
 .rt-lmz-editor .lmz-builder__action:focus-visible,
 .rt-lmz-editor .lmz-builder__popover-close:focus-visible,
 .rt-lmz-editor :is(.lmzbjs-toolbar-item, .lmzbjs-rte-action):focus-visible,
@@ -389,6 +402,12 @@ body[data-mode='dark'] .rt-lmz-media-drawer__warning {
     color: var(--rt-lmz-muted);
     font-size: 0.7rem;
     line-height: 1.5;
+}
+
+.rt-lmz-animation-drawer__gif-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
 }
 
 .rt-lmz-animation-drawer__gif button,

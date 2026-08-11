@@ -14,7 +14,6 @@ const UNREGISTER_EVENT = 'railtime-pagebuilder-adapter-unregister';
 const CONTEXT_REQUEST_EVENT = 'railtime-pagebuilder-context-request';
 const CONTEXT_CHANGED_EVENT = 'railtime-pagebuilder-context-changed';
 const CONTEXT_UPDATED_EVENT = 'railtime-pagebuilder-context-updated';
-const COMMAND_EVENT = 'railtime-pagebuilder-assistant-command';
 const RESULT_EVENT = 'railtime-pagebuilder-assistant-result';
 
 const ROUTES = Object.freeze({
@@ -123,6 +122,9 @@ const SELECTION_COMMANDS = new Set([
 let activeAdapter = null;
 let commandQueue = Promise.resolve();
 let installed = false;
+let contextPublishTimer = null;
+const consumedActionTokens = new Set();
+let confirmationDispatcherIssued = false;
 
 function string(value) {
     return typeof value === 'string' ? value.trim() : '';
@@ -155,7 +157,23 @@ function boundedText(value, maxLength) {
 
 function plainText(value) {
     if (typeof value !== 'string') return null;
-    const normalized = value.replaceAll('\r\n', '\n').replaceAll('\r', '\n').trim();
+    if (value.length > 6000) return null;
+    let decoded = value;
+    const named = Object.freeze({
+        amp: '&', lt: '<', gt: '>', quot: '"', apos: "'",
+        lbrace: '{', rbrace: '}', lcub: '{', rcub: '}',
+    });
+    for (let pass = 0; pass < 3; pass += 1) {
+        const next = decoded
+            .replace(/&#(?:x([0-9a-f]+)|(\d+));?/giu, (_match, hex, decimal) => {
+                const codepoint = Number.parseInt(hex || decimal, hex ? 16 : 10);
+                try { return Number.isInteger(codepoint) ? String.fromCodePoint(codepoint) : _match; } catch { return _match; }
+            })
+            .replace(/&(amp|lt|gt|quot|apos|lbrace|rbrace|lcub|rcub);/giu, (_match, name) => named[name.toLowerCase()] ?? _match);
+        if (next === decoded) break;
+        decoded = next;
+    }
+    const normalized = decoded.replaceAll('\r\n', '\n').replaceAll('\r', '\n').trim();
     if (!normalized || normalized.length > 1000 || /[<>\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(normalized)) {
         return null;
     }
@@ -285,7 +303,10 @@ function normalizeSelection(mode, rawSelection) {
         image_file_id: mode === 'marketing' ? positiveInteger(rawSelection.image_file_id) : null,
         protected: protectedSelection,
         motion_allowed: !protectedSelection && Boolean(rawSelection.motion_allowed),
-        gif: !protectedSelection && Boolean(rawSelection.gif),
+        // GIF restart is a canvas-only preview action. It remains safe for a
+        // protected carrier such as the TRAIN_SRC signature cell; all
+        // persistent text/style/animation mutations stay blocked below.
+        gif: Boolean(rawSelection.gif),
     };
 }
 
@@ -370,10 +391,22 @@ function updateFullscreenClass(context) {
 }
 
 export async function publishPageBuilderAssistantContext() {
+    if (contextPublishTimer !== null) {
+        globalThis.clearTimeout?.(contextPublishTimer);
+        contextPublishTimer = null;
+    }
     const context = await adapterContext();
     updateFullscreenClass(context);
     dispatchWindowEvent(CONTEXT_UPDATED_EVENT, context ?? {});
     return context;
+}
+
+export function schedulePageBuilderAssistantContextPublish(delay = 140) {
+    if (contextPublishTimer !== null) globalThis.clearTimeout?.(contextPublishTimer);
+    contextPublishTimer = globalThis.setTimeout?.(() => {
+        contextPublishTimer = null;
+        void publishPageBuilderAssistantContext();
+    }, Math.max(0, Number(delay) || 0)) ?? null;
 }
 
 export function registerPageBuilderAssistantAdapter(adapter) {
@@ -384,8 +417,16 @@ export function registerPageBuilderAssistantAdapter(adapter) {
 }
 
 export function unregisterPageBuilderAssistantAdapter(adapter = null) {
-    if (!activeAdapter || (adapter && activeAdapter !== adapter)) return false;
+    if (!activeAdapter || (adapter && activeAdapter !== adapter)) {
+        if (!activeAdapter) consumedActionTokens.clear();
+        return false;
+    }
+    if (contextPublishTimer !== null) {
+        globalThis.clearTimeout?.(contextPublishTimer);
+        contextPublishTimer = null;
+    }
     activeAdapter = null;
+    consumedActionTokens.clear();
     updateFullscreenClass(null);
     dispatchWindowEvent(CONTEXT_UPDATED_EVENT, {});
     return true;
@@ -441,7 +482,7 @@ function normalizeAction(rawAction) {
         if (!PANELS.has(normalized.panel)) return null;
     } else if (command === 'edit_text') {
         normalized.text = plainText(rawAction.text);
-        if (normalized.text === null || (mode === 'mail' && (normalized.text.includes('{{') || normalized.text.includes('}}')))) return null;
+        if (normalized.text === null || normalized.text.includes('{{') || normalized.text.includes('}}')) return null;
     } else if (command === 'set_style') {
         const style = normalizeStyle(mode, rawAction.property, rawAction.value);
         if (!style) return null;
@@ -528,9 +569,10 @@ async function executeAction(action) {
     }
 }
 
-export function dispatchPageBuilderAssistantAction(rawAction) {
+function dispatchPageBuilderAssistantAction(rawAction) {
     const action = normalizeAction(rawAction);
-    if (!action) return false;
+    if (!action || consumedActionTokens.has(action.action_token)) return false;
+    consumedActionTokens.add(action.action_token);
 
     commandQueue = commandQueue
         .catch(() => {})
@@ -543,6 +585,19 @@ export function dispatchPageBuilderAssistantAction(rawAction) {
         });
 
     return true;
+}
+
+/**
+ * Hand the single confirmation channel to the Chatbot module. The PageBuilder
+ * bridge deliberately exposes no ambient command event; arbitrary page
+ * scripts therefore cannot manufacture confirmed editor effects, and every
+ * server-issued action token is consumed only once by the returned closure.
+ */
+export function acquirePageBuilderAssistantActionDispatcher() {
+    if (confirmationDispatcherIssued) return null;
+    confirmationDispatcherIssued = true;
+
+    return (rawAction) => dispatchPageBuilderAssistantAction(rawAction);
 }
 
 export function ensurePageBuilderAssistantBridge() {
@@ -559,10 +614,10 @@ export function ensurePageBuilderAssistantBridge() {
         void publishPageBuilderAssistantContext();
     });
     window.addEventListener(CONTEXT_CHANGED_EVENT, () => {
-        void publishPageBuilderAssistantContext();
-    });
-    window.addEventListener(COMMAND_EVENT, (event) => {
-        dispatchPageBuilderAssistantAction(event?.detail?.action ?? event?.detail);
+        // GrapesJS emits several update events for one visible change. Coalesce
+        // them so Livewire receives the newest context without one request per
+        // keystroke/style sub-event. Opening Assist still requests it at once.
+        schedulePageBuilderAssistantContextPublish();
     });
     window.addEventListener('pagehide', () => unregisterPageBuilderAssistantAdapter());
     if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {

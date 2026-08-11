@@ -8,6 +8,7 @@ import {
     createLmzEditorChrome,
     createLmzAssistantAdapter,
     createPageBuilderLifecycleController,
+    handleScopedRtePaste,
     pageBuilderWorkspaceIsActive,
     waitForPageBuilderActivation,
 } from './lmz-editor-core.js';
@@ -636,12 +637,12 @@ export const MAIL_GJS_OPTIONS = Object.freeze({
     // fuegt danach drei reine Anzeigegeraete hinzu; die Umbrueche selbst
     // kommen ausschliesslich aus responsive-css.blade.php.
     deviceManager: { devices: [] },
-    canvas: { styles: [], scripts: [] },
-    assetManager: { upload: false },
+    canvas: { styles: [], scripts: [], allowExternalDrop: false },
+    assetManager: { upload: false, showUrlInput: false, dropzone: false },
     styleManager: { sectors: MAIL_STYLE_SECTORS },
     avoidInlineStyle: false,
     keepUnusedStyles: false,
-    richTextEditor: { actions: ['bold', 'italic', 'underline', 'link'] },
+    richTextEditor: { actions: ['bold', 'italic', 'underline', 'link'], onPaste: handleScopedRtePaste },
 });
 
 export const MAIL_AUTOSAVE = Object.freeze({
@@ -1531,7 +1532,7 @@ export async function createMailBuilder({
             spacing: !readOnly,
         },
         media: {
-            tokenMedia: mailTokenMediaDefinitions(previewAssets, activeTheme),
+            tokenMedia: () => mailTokenMediaDefinitions(previewAssets, activeTheme),
             baseUrl: window.location.origin + '/',
         },
     });

@@ -69,6 +69,7 @@
         'externalFallback' => $resolvedExternalFallback,
         'ttsEndpoint' => $ttsEndpoint,
         'sttEndpoint' => $sttEndpoint,
+        'pageBuilderActionClaimEndpoint' => route('assistant.pagebuilder-actions.claim', [], false),
         'csrfToken' => csrf_token(),
         'locale' => app()->getLocale(),
         'pageRouteName' => $resolvedPageRouteName,
@@ -681,10 +682,18 @@
                                             $actionKey = (string) ($action['key'] ?? '');
                                             $actionToken = (string) ($action['token'] ?? '');
                                             $actionLabel = (string) ($action['label'] ?? $action['prompt'] ?? $actionKey);
+                                            $actionDetail = (string) ($action['detail'] ?? '');
                                         @endphp
                                         @continue($actionLabel === '' || ! in_array($actionKind, ['prompt', 'pending_tool'], true))
                                         @continue($actionKind === 'prompt' && $actionKey === '')
                                         @continue($actionKind === 'pending_tool' && ! preg_match('/\A[a-zA-Z0-9]{48}\z/', $actionToken))
+                                        <div class="rt-chatbot__message-action-group">
+                                        @if ($actionKind === 'pending_tool' && $actionDetail !== '')
+                                            <div class="rt-chatbot__message-action-detail">
+                                                <strong>{{ $isGerman ? 'Geplante Änderung' : 'Proposed change' }}</strong>
+                                                <pre>{{ $actionDetail }}</pre>
+                                            </div>
+                                        @endif
                                         <button
                                             type="button"
                                             class="rt-chatbot__message-action"
@@ -703,6 +712,7 @@
                                                 <path d="m7 5 5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
                                             </svg>
                                         </button>
+                                        </div>
                                     @endforeach
                                 </div>
                             @endif

@@ -345,7 +345,13 @@ class Chatbot extends Component
 
         $effect['action_token'] = $token;
         $this->removePendingActionFromHistory($token);
-        $this->dispatch('railtime-assistant-client-action', action: $effect);
+        $clientAction = ($effect['type'] ?? null) === AssistantPageBuilderTools::EFFECT_TYPE
+            ? [
+                'type' => 'pagebuilder_grant',
+                'action_token' => $token,
+            ]
+            : $effect;
+        $this->dispatch('railtime-assistant-client-action', action: $clientAction);
     }
 
     /** @param array<string, mixed> $result */
@@ -712,6 +718,7 @@ class Chatbot extends Component
 
             $kind = (string) ($action['kind'] ?? '');
             $label = mb_substr(trim((string) ($action['label'] ?? '')), 0, 120);
+            $detail = mb_substr(trim((string) ($action['detail'] ?? '')), 0, 1200);
             if ($label === '') {
                 continue;
             }
@@ -719,7 +726,11 @@ class Chatbot extends Component
             if ($kind === 'pending_tool') {
                 $token = trim((string) ($action['token'] ?? ''));
                 if (preg_match('/\A[a-zA-Z0-9]{48}\z/', $token)) {
-                    $safe[] = ['kind' => $kind, 'token' => $token, 'label' => $label];
+                    $safeAction = ['kind' => $kind, 'token' => $token, 'label' => $label];
+                    if ($detail !== '') {
+                        $safeAction['detail'] = $detail;
+                    }
+                    $safe[] = $safeAction;
                 }
 
                 continue;

@@ -1,6 +1,7 @@
 /* RailTime Designsprache v2 — Premium-Grotesk, ein Akzent, weiche Tiefe */
 @import '@fontsource-variable/plus-jakarta-sans';
 @import './help-support.css';
+@import './lmz-editor-shell.css';
 @import './marketing-studio.css';
 @import './mail-builder.css';
 

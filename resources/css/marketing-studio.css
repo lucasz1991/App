@@ -431,8 +431,6 @@ body[data-mode='dark'] .rt-marketing-render-status {
     background: rgb(226 232 240);
 }
 
-@import './lmz-editor-shell.css';
-
 /*
  * GrapesJS erhält ein echtes, formatfestes Dokument. Der unveränderte
  * Joomla-LMZ-Runtime-Style setzt die drei Canvas-Ebenen absichtlich auf 100 %;

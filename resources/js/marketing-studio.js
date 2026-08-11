@@ -3,6 +3,8 @@ import {
     createLmzEditorChrome,
     createLmzAssistantAdapter,
     createPageBuilderLifecycleController,
+    createPageBuilderNavigationController,
+    handleScopedRtePaste,
     pageBuilderWorkspaceIsActive,
     waitForPageBuilderActivation,
 } from './lmz-editor-core.js';
@@ -1154,6 +1156,7 @@ export async function createMarketingStudio(workspace, config) {
     let editorChrome = null;
     let assistantAdapter = null;
     let shellLifecycle = null;
+    let unregisterNavigation = null;
     let artboardViewport = null;
     let touchPanController = null;
     let detachSafeZoneFrameLoad = null;
@@ -1290,8 +1293,9 @@ export async function createMarketingStudio(workspace, config) {
             allowFallbackProject: false,
             gjsOptions: {
                 deviceManager: { devices: [] },
-                canvas: { styles: [], scripts: [] },
-                assetManager: { upload: false },
+                canvas: { styles: [], scripts: [], allowExternalDrop: false },
+                assetManager: { upload: false, showUrlInput: false, dropzone: false },
+                richTextEditor: { onPaste: handleScopedRtePaste },
             },
         });
 
@@ -1391,7 +1395,7 @@ export async function createMarketingStudio(workspace, config) {
 
             workspace.querySelectorAll('[data-marketing-format]').forEach((item) => { item.disabled = true; });
             try {
-                if (instance?.hasUnsavedChanges()) {
+                if (!readOnly && instance?.hasUnsavedChanges()) {
                     const saved = await instance.save('manual');
                     if (!saved) throw new Error('Das aktuelle Format konnte nicht gespeichert werden.');
                 }
@@ -1418,16 +1422,30 @@ export async function createMarketingStudio(workspace, config) {
     document.addEventListener('marketing-editor:viewport-change', refreshArtboardViewport, { signal: abortController.signal });
     window.addEventListener('marketing-editor:viewport-change', refreshArtboardViewport, { signal: abortController.signal });
 
-    sharedForm?.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        if (readOnly) return;
+    let sharedContentSnapshot = sharedForm ? JSON.stringify(serializeSharedForm(sharedForm)) : '';
+    let sharedContentDirty = false;
+    let sharedContentSavePromise = null;
+    const refreshSharedContentDirty = () => {
+        sharedContentDirty = Boolean(sharedForm)
+            && JSON.stringify(serializeSharedForm(sharedForm)) !== sharedContentSnapshot;
+        workspace.dataset.marketingContentDirty = sharedContentDirty ? 'true' : 'false';
+    };
+    sharedForm?.addEventListener('input', refreshSharedContentDirty, { signal: abortController.signal });
+    sharedForm?.addEventListener('change', refreshSharedContentDirty, { signal: abortController.signal });
+
+    const persistSharedContent = async ({ announce = false } = {}) => {
+        if (readOnly || !sharedForm || !sharedContentDirty) {
+            if (!readOnly && instance?.hasUnsavedChanges()) return instance.save('manual');
+            return true;
+        }
+        if (sharedContentSavePromise) return sharedContentSavePromise;
         const button = sharedForm.querySelector('[data-marketing-content-save]');
         const status = sharedForm.querySelector('[data-marketing-content-status]');
         const request = serializeSharedForm(sharedForm);
-        button.disabled = true;
-        status.textContent = 'Inhalte werden gespeichert …';
+        if (button) button.disabled = true;
+        if (status) status.textContent = 'Inhalte werden gespeichert …';
 
-        try {
+        sharedContentSavePromise = (async () => {
             if (instance?.hasUnsavedChanges()) {
                 const layoutSaved = await instance.save('manual');
                 if (!layoutSaved) {
@@ -1461,21 +1479,43 @@ export async function createMarketingStudio(workspace, config) {
                 title.setAttribute('title', request.title);
             }
             await startBuilder(currentFormat);
-            status.textContent = 'Gespeichert. Layoutänderungen bleiben je Format getrennt.';
-            dispatchToast('success', 'Die gemeinsamen Inhalte wurden gespeichert.');
-        } catch (error) {
-            const hashConflict = error.status === 422
-                && Object.keys(error.payload?.errors || {}).some((key) => key.startsWith('expected_hashes.'));
-            if (hashConflict) {
-                status.textContent = 'Eine andere Bearbeitung ist neuer. Die aktuelle Serverversion wird geladen …';
-                dispatchToast('warning', 'Das Motiv wurde zwischenzeitlich geändert. Die aktuelle Version wird neu geladen.', 'Bearbeitungskonflikt');
-                schedule(() => window.location.reload(), 1400);
-                return;
-            }
-            status.textContent = error.message;
-            dispatchToast('error', error.message, 'Inhalte nicht gespeichert');
+            sharedContentSnapshot = JSON.stringify(serializeSharedForm(sharedForm));
+            refreshSharedContentDirty();
+            if (status) status.textContent = 'Gespeichert. Layoutänderungen bleiben je Format getrennt.';
+            if (announce) dispatchToast('success', 'Die gemeinsamen Inhalte wurden gespeichert.');
+            return true;
+        })();
+
+        try {
+            return await sharedContentSavePromise;
         } finally {
-            button.disabled = false;
+            sharedContentSavePromise = null;
+            if (button) button.disabled = false;
+        }
+    };
+
+    const reportSharedContentError = (error) => {
+        const status = sharedForm?.querySelector('[data-marketing-content-status]');
+        const hashConflict = error.status === 422
+            && Object.keys(error.payload?.errors || {}).some((key) => key.startsWith('expected_hashes.'));
+        if (hashConflict) {
+            if (status) status.textContent = 'Eine andere Bearbeitung ist neuer. Die aktuelle Serverversion wird geladen …';
+            dispatchToast('warning', 'Das Motiv wurde zwischenzeitlich geändert. Die aktuelle Version wird neu geladen.', 'Bearbeitungskonflikt');
+            schedule(() => window.location.reload(), 1400);
+            return;
+        }
+        if (status) status.textContent = error.message;
+        dispatchToast('error', error.message, 'Inhalte nicht gespeichert');
+    };
+
+    sharedForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (readOnly) return;
+        refreshSharedContentDirty();
+        try {
+            await persistSharedContent({ announce: true });
+        } catch (error) {
+            reportSharedContentError(error);
         }
     }, { signal: abortController.signal });
 
@@ -1564,20 +1604,51 @@ export async function createMarketingStudio(workspace, config) {
 
     await startBuilder(currentFormat);
 
+    const combinedDraft = {
+        hasUnsavedChanges: () => Boolean(sharedContentDirty || instance?.hasUnsavedChanges?.()),
+        save: () => persistSharedContent(),
+    };
+
     shellLifecycle = createPageBuilderLifecycleController({
         root,
-        getBuilder: () => instance,
+        getBuilder: () => (readOnly ? null : combinedDraft),
         onOpen: () => {
             editorChrome?.open();
             artboardViewport?.refresh();
         },
         onClose: () => editorChrome?.close(),
-        onError: (error) => dispatchToast(
-            'error',
-            error?.message || 'Der Entwurf konnte nicht gespeichert werden.',
-            'Editor bleibt geöffnet',
-        ),
+        onError: (error) => {
+            if (sharedContentDirty) {
+                reportSharedContentError(error);
+                return;
+            }
+            dispatchToast(
+                'error',
+                error?.message || 'Der Entwurf konnte nicht gespeichert werden.',
+                'Editor bleibt geöffnet',
+            );
+        },
     });
+    if (!readOnly) {
+        const navigationController = createPageBuilderNavigationController({
+            getBuilder: () => combinedDraft,
+            onFlushError: (error) => {
+                if (sharedContentDirty) {
+                    reportSharedContentError(error);
+                    return;
+                }
+                dispatchToast(
+                    'error',
+                    error?.message || 'Offene Änderungen konnten nicht gespeichert werden.',
+                    'Seitenwechsel angehalten',
+                );
+            },
+        });
+        const navigationCoordinator = window.ensureRailTimeNavigationCoordinator?.()
+            || window.RailTimeNavigationCoordinator
+            || null;
+        unregisterNavigation = navigationCoordinator?.register?.(navigationController) || null;
+    }
 
     if (readOnly) {
         sharedForm?.querySelectorAll('input, textarea, select, button').forEach((control) => {
@@ -1587,7 +1658,7 @@ export async function createMarketingStudio(workspace, config) {
     }
 
     return {
-        hasUnsavedChanges: () => Boolean(instance?.hasUnsavedChanges?.()),
+        hasUnsavedChanges: () => !readOnly && combinedDraft.hasUnsavedChanges(),
         destroy() {
             destroyed = true;
             invalidateRender();
@@ -1602,6 +1673,8 @@ export async function createMarketingStudio(workspace, config) {
             touchPanController = null;
             artboardViewport?.destroy();
             artboardViewport = null;
+            unregisterNavigation?.();
+            unregisterNavigation = null;
             shellLifecycle?.destroy();
             shellLifecycle = null;
             assistantAdapter?.destroy();

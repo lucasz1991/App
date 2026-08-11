@@ -5,11 +5,12 @@ import {
 } from './microphone-stream.js';
 import { ensureRailTimeNavigationCoordinator } from './navigation-coordinator.js';
 import {
-    dispatchPageBuilderAssistantAction,
+    acquirePageBuilderAssistantActionDispatcher,
     ensurePageBuilderAssistantBridge,
 } from './lmz-editor-assistant.js';
 
 ensurePageBuilderAssistantBridge();
+const dispatchPageBuilderAssistantAction = acquirePageBuilderAssistantActionDispatcher();
 
 // Keep the assistant presentation isolated from the already dense app/chat
 // styles. Vite still discovers and bundles this lazy CSS import, while Node's
@@ -227,6 +228,8 @@ export function railtimeChatbot(config = {}) {
         isLoading: config.isLoading ?? false,
         ttsEndpoint: String(config.ttsEndpoint ?? ''),
         sttEndpoint: String(config.sttEndpoint ?? ''),
+        pageBuilderActionClaimEndpoint: String(config.pageBuilderActionClaimEndpoint ?? ''),
+        pageBuilderActionClaimTokens: [],
         csrfToken: String(config.csrfToken ?? ''),
         locale: String(
             config.locale
@@ -1388,6 +1391,54 @@ export function railtimeChatbot(config = {}) {
             });
         },
 
+        async claimPageBuilderAction(actionToken) {
+            const endpoint = this.pageBuilderActionClaimEndpoint.trim();
+            if (
+                !endpoint.startsWith('/')
+                || endpoint.startsWith('//')
+                || this.pageBuilderActionClaimTokens.includes(actionToken)
+            ) return false;
+
+            let target;
+            try {
+                target = new URL(endpoint, window.location.href);
+            } catch (_) {
+                return false;
+            }
+            if (target.origin !== window.location.origin) return false;
+
+            this.pageBuilderActionClaimTokens = [
+                ...this.pageBuilderActionClaimTokens,
+                actionToken,
+            ].slice(-50);
+
+            try {
+                const response = await fetch(`${target.pathname}${target.search}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ action_token: actionToken }),
+                });
+                if (!response?.ok) return false;
+
+                const payload = normalizedEventDetail(await response.json());
+                const action = normalizedEventDetail(payload.action);
+                if (
+                    action.type !== 'pagebuilder'
+                    || String(action.action_token ?? '') !== actionToken
+                ) return false;
+
+                return dispatchPageBuilderAssistantAction?.(action) === true;
+            } catch (_) {
+                return false;
+            }
+        },
+
         handleClientAction(rawDetail) {
             const detail = normalizedEventDetail(rawDetail);
             const action = normalizedEventDetail(detail.action ?? detail);
@@ -1426,8 +1477,14 @@ export function railtimeChatbot(config = {}) {
                 return true;
             }
 
-            if (type === 'pagebuilder') {
-                return dispatchPageBuilderAssistantAction(action);
+            if (type === 'pagebuilder_grant') {
+                if (
+                    !this.pageBuilderActionClaimEndpoint
+                    || this.pageBuilderActionClaimTokens.includes(actionToken)
+                ) return false;
+                void this.claimPageBuilderAction(actionToken);
+
+                return true;
             }
 
             const allowedCommands = new Set([

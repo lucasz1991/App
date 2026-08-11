@@ -127,6 +127,21 @@ final class MarketingHtmlSanitizer
         $css = preg_replace('/@(?:import|charset|namespace)\b[^;]*(?:;|$)/iu', '', $css) ?? '';
         $css = preg_replace('/expression\s*\([^)]*\)/iu', '', $css) ?? '';
         $css = preg_replace('/(?:-moz-binding|behavior)\s*:[^;}]+[;}]/iu', '', $css) ?? '';
+        // CSS image functions may load a quoted remote URL without url(...),
+        // e.g. image-set("https://tracker.test/pixel.png" 1x). V1 only
+        // accepts the explicitly validated url(...) contract below, so every
+        // declaration using another image-producing function fails closed.
+        $css = preg_replace_callback(
+            '/(?<prefix>(?:^|[;{])\s*(?:--[a-z0-9_-]+|[a-z-]+)\s*:)(?<value>[^;{}]*)(?<end>;|(?=})|$)/iu',
+            static function (array $match): string {
+                if (preg_match('/(?:^|[^a-z-])(?:(?:-webkit-)?image-set|cross-fade|image)\s*\(/iu', (string) $match['value'])) {
+                    return (string) $match['prefix'].' none'.(string) ($match['end'] ?? '');
+                }
+
+                return (string) $match[0];
+            },
+            $css,
+        ) ?? '';
         $css = preg_replace_callback('/url\s*\(\s*(["\']?)(.*?)\1\s*\)/iu', function (array $match): string {
             $rawUrl = html_entity_decode(trim($match[2]), ENT_QUOTES | ENT_HTML5);
             if (str_contains($rawUrl, '\\')) {

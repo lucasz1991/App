@@ -14,6 +14,12 @@ use JsonException;
 
 final class MarketingStudioService
 {
+    /** @var list<string> */
+    private const OFFICIAL_BRAND_LOGOS = [
+        '/rt-brand/img/logo-horizontal.png',
+        '/rt-brand/img/logo-horizontal-darkbg.png',
+    ];
+
     public function __construct(
         private readonly MarketingTemplateFactory $templates,
         private readonly MarketingContentBinder $binder,
@@ -165,6 +171,7 @@ final class MarketingStudioService
                     'html' => 'Das Motiv darf nach der Sicherheitsprüfung nicht leer sein.',
                 ]);
             }
+            $this->assertOfficialBrandLockup($sanitizedHtml);
 
             $builderData = $this->binder->syncBuilderData($builderData, $sanitizedHtml);
             $this->renderAssets->lockReferencesForUpdate($sanitizedHtml, $sanitizedCss);
@@ -247,6 +254,7 @@ final class MarketingStudioService
             }
 
             foreach ($variants as $variant) {
+                $this->assertOfficialBrandLockup((string) $variant->html);
                 $actualContentHash = $this->contentHash(
                     $variant->builder_data ?? [],
                     (string) $variant->html,
@@ -293,6 +301,37 @@ final class MarketingStudioService
 
             return $locked->fresh(['variants', 'approver']);
         });
+    }
+
+    private function assertOfficialBrandLockup(string $html): void
+    {
+        $document = new \DOMDocument('1.0', 'UTF-8');
+        $previous = libxml_use_internal_errors(true);
+        try {
+            $loaded = $document->loadHTML(
+                '<?xml encoding="utf-8" ?><div data-rt-brand-root>'.$html.'</div>',
+                LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD,
+            );
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
+
+        if ($loaded) {
+            $xpath = new \DOMXPath($document);
+            $logos = $xpath->query('//*[@data-rt-brand-lockup="official"]//img[@src]');
+            if ($logos !== false) {
+                foreach ($logos as $logo) {
+                    if (in_array(trim((string) $logo->attributes?->getNamedItem('src')?->nodeValue), self::OFFICIAL_BRAND_LOGOS, true)) {
+                        return;
+                    }
+                }
+            }
+        }
+
+        throw ValidationException::withMessages([
+            'html' => 'Jede Motivvariante muss das unveränderte offizielle RT-Rail-Time-Firmenlogo enthalten.',
+        ]);
     }
 
     public function archive(MarketingCreative $creative, User $actor): MarketingCreative

@@ -287,7 +287,7 @@ class MarketingStudioBackendTest extends TestCase
                 ],
                 'styles' => [['selectors' => ['body'], 'style' => ['background' => 'url(javascript:alert(4))']]],
             ],
-            '<section onclick="alert(1)"><a href="java&#x0A;script:alert(1)">Text</a><a href="https://www.rail-time.de/de/karriere">CTA</a><img src="https://attacker.example/pixel.png"><style>@import url(https://example.org)</style><script>alert(1)</script><iframe src="https://example.org"></iframe><svg><script>alert(2)</script></svg></section>',
+            '<div data-rt-brand-lockup="official"><img src="/rt-brand/img/logo-horizontal.png" alt="RT Rail Time GmbH"></div><section onclick="alert(1)"><a href="java&#x0A;script:alert(1)">Text</a><a href="https://www.rail-time.de/de/karriere">CTA</a><img src="https://attacker.example/pixel.png"><style>@import url(https://example.org)</style><script>alert(1)</script><iframe src="https://example.org"></iframe><svg><script>alert(2)</script></svg></section>',
             '@IMPORT url(https://example.org/a.css);body{background:url(jav\\61script:alert(1));width:expression(alert(1))}.remote{background:url(https://attacker.example/pixel.png)}</StYlE>',
             $oldHash,
             $admin,
@@ -317,6 +317,46 @@ class MarketingStudioBackendTest extends TestCase
             $oldHash,
             $admin,
         );
+    }
+
+    public function test_variant_save_and_approval_require_an_unmodified_official_brand_lockup(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $studio = app(MarketingStudioService::class);
+        $creative = $studio->createFromTemplate(MarketingCreativeType::Job, $admin);
+        $story = $creative->variants->firstWhere('format', MarketingCreativeFormat::Story);
+        $withoutLogo = preg_replace(
+            '/<div[^>]*data-rt-brand-lockup="official"[^>]*>.*?<\/div>/si',
+            '',
+            $story->html,
+            1,
+        );
+
+        try {
+            $studio->saveVariant(
+                $creative,
+                MarketingCreativeFormat::Story,
+                $story->builder_data,
+                (string) $withoutLogo,
+                $story->css,
+                $story->content_hash,
+                $admin,
+            );
+            $this->fail('Ein Motiv ohne offizielles Firmenlogo durfte nicht gespeichert werden.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('html', $exception->errors());
+        }
+
+        $story->forceFill([
+            'html' => str_replace('/rt-brand/img/logo-horizontal.png', '/rt-brand/img/unofficial-logo.png', $story->html),
+        ])->save();
+
+        try {
+            $studio->approve($creative->fresh(), $admin);
+            $this->fail('Ein Motiv mit verändertem Firmenlogo durfte nicht freigegeben werden.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('html', $exception->errors());
+        }
     }
 
     public function test_duplicate_and_archive_preserve_source_but_make_copy_a_draft(): void
@@ -465,6 +505,10 @@ class MarketingStudioBackendTest extends TestCase
             .'.c{background:url(\\\\attacker.example\\share\\a.png)}'
             .'.d{background:url(f\\69le:///etc/passwd)}'
             .'.e{background:url(h\\74tps://attacker.example/a.png)}'
+            .'.f{background-image:image-set("https://attacker.example/set.png" 1x)}'
+            .'.g{background-image:-webkit-image-set("https://attacker.example/webkit.png" 1x)}'
+            .'.h{background-image:image("https://attacker.example/image.png")}'
+            .'.i{background-image:cross-fade("https://attacker.example/fade.png", #fff 50%)}'
             .'@\\69mport url(https://attacker.example/escaped.css);',
         );
 
@@ -476,6 +520,8 @@ class MarketingStudioBackendTest extends TestCase
         $this->assertStringNotContainsStringIgnoringCase('srcset', $html);
         $this->assertStringNotContainsStringIgnoringCase('imagesrcset', $html);
         $this->assertStringNotContainsStringIgnoringCase('file:', $css);
+        $this->assertStringNotContainsStringIgnoringCase('image-set(', $css);
+        $this->assertStringNotContainsStringIgnoringCase('cross-fade(', $css);
     }
 
     public function test_sanitizer_allows_exact_official_brand_assets_and_blocks_lookalike_paths(): void

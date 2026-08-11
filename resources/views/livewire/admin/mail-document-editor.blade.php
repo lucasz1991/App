@@ -375,6 +375,12 @@
                             previewAssets: config.previewAssets || {},
                             previewDevice: selectedDevice,
                             onPreviewChange: updatePreviewStatus,
+                            assistantContext: {
+                                resourceId: document_.id,
+                                formatOrKind: () => config.currentDocument,
+                                persistedHash: () => document_.contentHash || '',
+                                persistedVersion: () => document_.version || 0,
+                            },
                             storage: {
                                 onLoad: ({ editor }) => runtimeBridge.projectFor(
                                     document_,

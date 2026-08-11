@@ -104,9 +104,9 @@
         data-page-builder-fullscreen
     >
         <x-slot:header>
-            <a href="{{ $backUrl }}" wire:navigate class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-rt-border bg-rt-control text-rt-muted transition hover:border-rt-accent/40 hover:text-rt-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent/30 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-muted dark:hover:text-rt-dark-accent" aria-label="{{ $backLabel }}">
+            <button type="button" x-on:click="requestClose()" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-rt-border bg-rt-control text-rt-muted transition hover:border-rt-accent/40 hover:text-rt-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent/30 dark:border-rt-dark-border dark:bg-rt-dark-control dark:text-rt-dark-muted dark:hover:text-rt-dark-accent" aria-label="Vollbildeditor schließen">
                 <i class="far fa-arrow-left" aria-hidden="true"></i>
-            </a>
+            </button>
             <span class="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent sm:flex">
                 <i class="far fa-object-group" aria-hidden="true"></i>
             </span>

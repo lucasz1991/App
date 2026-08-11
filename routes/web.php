@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\MarketingVariantController;
 use App\Http\Controllers\Admin\PageBuilderPreviewController;
 use App\Http\Controllers\Assistant\AssistantAudioInputTranscriptionController;
 use App\Http\Controllers\Assistant\AssistantAudioOutputStreamController;
+use App\Http\Controllers\Assistant\AssistantPageBuilderActionClaimController;
 use App\Http\Controllers\Assistant\AssistantSpeechStatusController;
 use App\Http\Controllers\Auth\InvitedRegistrationController;
 use App\Http\Controllers\Calls\CallRecordingAcknowledgementController;
@@ -123,6 +124,9 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
         ->name('assistant.audio-output.stream');
     Route::get('/assistant/speech/status', AssistantSpeechStatusController::class)
         ->name('assistant.speech.status');
+    Route::post('/assistant/pagebuilder-actions/claim', AssistantPageBuilderActionClaimController::class)
+        ->middleware(EnsureAssistantAccess::class.':assistant-pagebuilder-actions')
+        ->name('assistant.pagebuilder-actions.claim');
     Route::get('/dashboard', UserDashboard::class)->name('dashboard');
     Route::get('/employees', Employees::class)->name('employees.index');
     Route::get('/employees/{userId}', UserProfile::class)->name('employees.show');

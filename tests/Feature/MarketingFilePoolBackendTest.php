@@ -130,6 +130,31 @@ class MarketingFilePoolBackendTest extends TestCase
         $this->assertSame(2, $library['total']);
         $this->assertSame(1, $library['limit']);
         $this->assertTrue($library['truncated']);
+        $this->assertSame('image/png', $library['assets'][0]['mime_type']);
+        $this->assertFalse($library['assets'][0]['animated']);
+    }
+
+    public function test_editor_library_exposes_verified_gif_metadata_for_opaque_file_routes(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $pool = FilePool::company();
+        $contents = (string) file_get_contents(resource_path('mail-templates/assets/zug-dampf-light.gif'));
+        $path = 'uploads/files/'.uniqid('marketing-gif-', true).'-zug.gif';
+        Storage::disk('private')->put($path, $contents);
+        $pool->files()->create([
+            'user_id' => $admin->id,
+            'name' => 'zug-animation.gif',
+            'path' => $path,
+            'disk' => 'private',
+            'mime_type' => 'image/gif',
+            'size' => strlen($contents),
+        ]);
+
+        $asset = app(MarketingFileSourceService::class)->editorAssetLibrary()['assets'][0];
+
+        $this->assertStringContainsString('/administrator/marketing/dateien/', $asset['src']);
+        $this->assertSame('image/gif', $asset['mime_type']);
+        $this->assertTrue($asset['animated']);
     }
 
     public function test_livewire_source_save_uses_compare_and_swap_and_refreshes_after_conflict(): void

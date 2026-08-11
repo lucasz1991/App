@@ -284,9 +284,17 @@ class MailDocumentEditorTest extends TestCase
         ));
         $config = json_decode($match[1], true, flags: JSON_THROW_ON_ERROR);
 
-        foreach (['light.logo', 'light.train', 'dark.logo', 'dark.train'] as $asset) {
+        foreach (['light.logo', 'dark.logo'] as $asset) {
             $this->assertStringStartsWith(
                 'data:image/png;base64,',
+                (string) data_get($config, 'previewAssets.'.$asset),
+                $asset,
+            );
+        }
+
+        foreach (['light.train', 'dark.train'] as $asset) {
+            $this->assertStringStartsWith(
+                'data:image/gif;base64,',
                 (string) data_get($config, 'previewAssets.'.$asset),
                 $asset,
             );

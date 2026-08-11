@@ -6,6 +6,8 @@
  * korrigierte Spacing-Ebene ausserhalb des skalierten GrapesJS-Frames.
  */
 
+import './lmz-editor-assistant.js';
+
 const SIDES = Object.freeze(['top', 'right', 'bottom', 'left']);
 const IMAGE_TOKEN_PATTERN = /\{\{([A-Z][A-Z0-9_]*)\}\}/g;
 const CSS_URL_PATTERN = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)'"\s][^)]*?))\s*\)/gi;
@@ -20,6 +22,20 @@ export const LMZ_EDITOR_EVENTS = Object.freeze({
     ready: 'rt-lmz-editor:ready',
     destroyed: 'rt-lmz-editor:destroyed',
 });
+
+export function handleScopedRtePaste({ ev, rte } = {}) {
+    if (!ev?.clipboardData || typeof rte?.insertHTML !== 'function') return false;
+    ev.preventDefault?.();
+    const text = String(ev.clipboardData.getData?.('text/plain') || ev.clipboardData.getData?.('text') || '');
+    const safe = text
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replace(/(?:\r\n|\r|\n)/g, '<br>');
+    rte.insertHTML(safe);
+    return true;
+}
 
 function pageBuilderShellContext(root) {
     const shell = asElement(root)?.closest?.('[data-page-builder-shell]') || null;
@@ -100,6 +116,36 @@ export function createPageBuilderLifecycleController({
             window_?.removeEventListener?.('page-builder-shell:opened', opened);
             window_?.removeEventListener?.('page-builder-shell:closed', closed);
             window_?.removeEventListener?.('page-builder-shell:before-close', beforeClose);
+        },
+    };
+}
+
+/**
+ * Participant for RailTime's shared navigation coordinator. It flushes the
+ * LMZ draft until stable before links, Livewire history or page unload may
+ * replace the editor DOM.
+ */
+export function createPageBuilderNavigationController({
+    getBuilder = () => null,
+    onSaving = null,
+    onSaved = null,
+    onFlushError = null,
+} = {}) {
+    return {
+        hasPendingWork() {
+            return Boolean(getBuilder()?.hasUnsavedChanges?.());
+        },
+        async flush() {
+            const builder = getBuilder();
+            if (!builder?.hasUnsavedChanges?.()) return true;
+            onSaving?.();
+            const saved = await builder.save?.('manual');
+            if (!saved) throw new Error('Offene Änderungen konnten vor dem Seitenwechsel nicht gespeichert werden.');
+            onSaved?.();
+            return true;
+        },
+        onFlushError(error) {
+            onFlushError?.(error);
         },
     };
 }
@@ -199,6 +245,17 @@ export function extractCssMediaSources(css = '') {
         return _match;
     });
     return sources;
+}
+
+function replaceFirstCssMediaSource(css = '', source = null) {
+    let replaced = false;
+    return String(css || '').replace(CSS_URL_PATTERN, (match) => {
+        if (replaced) return match;
+        replaced = true;
+        if (source === null) return 'none';
+
+        return `url("${String(source).replaceAll('"', '\\"')}")`;
+    });
 }
 
 export function extractHtmlMediaSources(html = '', environment = {}) {
@@ -382,6 +439,12 @@ export function isProtectedEditorImage(component, mode = 'marketing') {
     if (!component) return true;
     if (mode === 'mail') return true;
 
+    return isProtectedEditorStructure(component);
+}
+
+export function isProtectedEditorStructure(component) {
+    if (!component) return false;
+
     return componentOrAncestorHas(component, (attributes) => {
         const block = String(attributes['data-rt-block'] || '');
         return Boolean(
@@ -392,6 +455,44 @@ export function isProtectedEditorImage(component, mode = 'marketing') {
             || ['logo-light', 'logo-dark', 'qr'].includes(block),
         );
     });
+}
+
+function scopedAssetFacade(asset) {
+    if (typeof asset?.getSrc === 'function' && typeof asset?.get === 'function') return asset;
+    const source = assetSource(asset);
+
+    return {
+        ...(asset && typeof asset === 'object' ? asset : {}),
+        getSrc: () => source,
+        get: (property) => (property === 'src' ? source : asset?.[property]),
+    };
+}
+
+export function createScopedAssetCallbackSelection({
+    assets = [],
+    select,
+    baseUrl = globalThis.location?.origin || 'http://localhost/',
+    onSelected = null,
+} = {}) {
+    if (typeof select !== 'function') throw new TypeError('Der Medien-Callback fehlt.');
+    const allowed = new Map((assets || []).map((asset) => [
+        canonicalMediaSource(assetSource(asset), baseUrl),
+        asset,
+    ]));
+
+    return {
+        select(asset, complete = true) {
+            const source = assetSource(asset);
+            const selectedAsset = allowed.get(canonicalMediaSource(source, baseUrl));
+            if (!source || !selectedAsset) {
+                throw new Error('Die gewählte Bildquelle liegt nicht in der freigegebenen Dateibibliothek.');
+            }
+            select(scopedAssetFacade(selectedAsset), complete);
+            onSelected?.({ asset: selectedAsset, source });
+            return source;
+        },
+        cancel() {},
+    };
 }
 
 export function resolveEditableImageComponent(editor, selected = null, { mode = 'marketing' } = {}) {
@@ -435,9 +536,18 @@ export function createImageAssetSelection({
             if (!source || !allowed.has(key)) {
                 throw new Error('Die gewählte Bildquelle liegt nicht in der freigegebenen Dateibibliothek.');
             }
+            const selectedAsset = allowed.get(key);
+            const normalized = normalizeAsset(selectedAsset, baseUrl);
+            const attributes = { src: source };
+            if (normalized.mime) attributes['data-mime-type'] = normalized.mime.toLowerCase();
+            if (isAnimatedImageSource(source, normalized.mime)) attributes['data-rt-animated-media'] = 'gif';
             image.set?.('src', source);
-            image.addAttributes?.({ src: source });
-            onSelected?.({ target: image, asset: allowed.get(key), source });
+            image.addAttributes?.(attributes);
+            if (!isAnimatedImageSource(source, normalized.mime)) {
+                image.removeAttributes?.('data-rt-animated-media');
+            }
+            if (!normalized.mime) image.removeAttributes?.('data-mime-type');
+            onSelected?.({ target: image, asset: selectedAsset, source });
             if (complete) {
                 editor?.AssetManager?.close?.();
                 editor?.AssetManager?.setTarget?.(null);
@@ -447,6 +557,82 @@ export function createImageAssetSelection({
         cancel() {
             editor?.AssetManager?.setTarget?.(null);
         },
+    };
+}
+
+/**
+ * GrapesJS exposes image replacement through several native entry points
+ * (double click, image traits and style-manager backgrounds). Route all of
+ * them through the scoped RailTime drawer so protected logos/QR codes and
+ * out-of-pool URLs can never reach the native AssetManager dialog.
+ */
+export function installScopedAssetAccess({ editor, mediaDrawer, mode = 'marketing' } = {}) {
+    const commands = editor?.Commands;
+    const assetManager = editor?.AssetManager;
+    if (!commands?.add || !mediaDrawer?.open) return () => {};
+
+    const originalCommand = commands.get?.('open-assets') || null;
+    const originalAssetOpen = typeof assetManager?.open === 'function'
+        ? assetManager.open
+        : null;
+    const optionsFromArguments = (...values) => values.find((value) => (
+        value
+        && typeof value === 'object'
+        && (value.target || typeof value.select === 'function')
+    )) || {};
+    const routeToScopedDrawer = (requestedOptions = {}) => {
+        const requestedTarget = requestedOptions?.target || null;
+        const candidate = requestedTarget
+            || assetManager?.getTarget?.()
+            || editor?.getSelected?.()
+            || null;
+        if (candidate && isProtectedEditorImage(candidate, mode)) {
+            assetManager?.setTarget?.(null);
+            return false;
+        }
+
+        // Der GrapesJS-Style-Manager liefert fuer background-image keinen
+        // Komponenten-Target, sondern einen vertrauenswuerdigen select-
+        // Callback. Er bleibt im RailTime-Drawer, bekommt aber ausschliesslich
+        // ein bereits serverseitig freigegebenes FilePool-Asset zurueck.
+        if (!requestedTarget && typeof requestedOptions?.select === 'function') {
+            if (mode !== 'marketing') return false;
+            mediaDrawer.open({
+                selectAsset: requestedOptions.select,
+                initialTab: 'library',
+            });
+            return true;
+        }
+
+        const image = resolveEditableImageComponent(editor, candidate, { mode });
+        mediaDrawer.open(image
+            ? { replaceTarget: image, initialTab: 'library' }
+            : { initialTab: 'used' });
+
+        return true;
+    };
+    const scopedCommand = {
+        run(_editor, sender = null, options = {}) {
+            return routeToScopedDrawer(optionsFromArguments(options, sender));
+        },
+        stop() {
+            mediaDrawer.close?.();
+            return true;
+        },
+    };
+
+    commands.add('open-assets', scopedCommand);
+    if (assetManager && originalAssetOpen) {
+        assetManager.open = (options = {}) => routeToScopedDrawer(optionsFromArguments(options));
+    }
+
+    return () => {
+        if (assetManager && originalAssetOpen) assetManager.open = originalAssetOpen;
+        if (originalCommand) {
+            commands.add('open-assets', originalCommand);
+        } else {
+            commands.remove?.('open-assets');
+        }
     };
 }
 
@@ -480,6 +666,83 @@ export function resolveAnimatedComponent(component) {
     return matches.length === 1 ? matches[0] : (componentAnimationContext(component).animated ? component : null);
 }
 
+const animatedPreviewState = new WeakMap();
+
+export function animatedPreviewIsPlaying(component) {
+    const element = component?.getEl?.();
+    return element ? animatedPreviewState.get(element)?.playing !== false : false;
+}
+
+export function setAnimatedPreviewPlayback(component, playing = true) {
+    const element = component?.getEl?.();
+    if (!element || !componentAnimationContext(component).animated) return false;
+    const isImage = String(element.tagName || '').toLowerCase() === 'img';
+    const current = animatedPreviewState.get(element) || {};
+    const renderedBackground = String(
+        element.style?.backgroundImage
+        || element.ownerDocument?.defaultView?.getComputedStyle?.(element)?.backgroundImage
+        || '',
+    );
+    const backgroundImage = String(
+        current.backgroundImage
+        || ((!renderedBackground || renderedBackground === 'none') ? '' : renderedBackground),
+    );
+    const backgroundPriority = String(
+        element.style?.getPropertyPriority?.('background-image')
+        || current.backgroundPriority
+        || '',
+    );
+    const renderedSource = isImage
+        ? String(element.getAttribute?.('src') || element.src || '')
+        : (extractCssMediaSources(backgroundImage)[0] || '');
+    const source = renderedSource || current.source || componentAnimationContext(component).source;
+    if (!source) return false;
+
+    if (!playing) {
+        animatedPreviewState.set(element, {
+            playing: false,
+            source,
+            isImage,
+            backgroundImage,
+            backgroundPriority,
+        });
+        element.dataset.rtLmzAnimationPaused = 'true';
+        if (isImage) element.removeAttribute?.('src');
+        else element.style?.setProperty?.(
+            'background-image',
+            replaceFirstCssMediaSource(backgroundImage, null) || 'none',
+            backgroundPriority,
+        );
+        return true;
+    }
+
+    const nextFrame = globalThis.requestAnimationFrame || ((callback) => globalThis.queueMicrotask?.(callback));
+    animatedPreviewState.set(element, {
+        playing: true,
+        source,
+        isImage,
+        backgroundImage,
+        backgroundPriority,
+    });
+    delete element.dataset.rtLmzAnimationPaused;
+    if (isImage) {
+        element.removeAttribute?.('src');
+        nextFrame(() => element.setAttribute?.('src', source));
+    } else {
+        element.style?.setProperty?.(
+            'background-image',
+            replaceFirstCssMediaSource(backgroundImage, null) || 'none',
+            backgroundPriority,
+        );
+        nextFrame(() => element.style?.setProperty?.(
+            'background-image',
+            replaceFirstCssMediaSource(backgroundImage, source),
+            backgroundPriority,
+        ));
+    }
+    return true;
+}
+
 export function restartAnimatedPreview(component, { nonce = Date.now() } = {}) {
     const element = component?.getEl?.();
     if (!element) return false;
@@ -487,10 +750,22 @@ export function restartAnimatedPreview(component, { nonce = Date.now() } = {}) {
     const style = component?.getStyle?.() || component?.get?.('style') || {};
     const modelSource = String(component?.get?.('src') || attributes.src || '');
     const renderedBackground = String(element.style?.backgroundImage || element.ownerDocument?.defaultView?.getComputedStyle?.(element)?.backgroundImage || '');
+    const previewState = animatedPreviewState.get(element);
+    const backgroundImage = String(
+        previewState?.backgroundImage
+        || (renderedBackground !== 'none' ? renderedBackground : ''),
+    );
+    const backgroundPriority = String(
+        element.style?.getPropertyPriority?.('background-image')
+        || previewState?.backgroundPriority
+        || '',
+    );
     const modelBackgroundSource = extractCssMediaSources(String(style['background-image'] || style.background || ''))[0] || '';
-    const renderedBackgroundSource = extractCssMediaSources(renderedBackground)[0] || '';
+    const renderedBackgroundSource = extractCssMediaSources(backgroundImage)[0] || '';
     const token = normalizedToken(attributes['data-rt-mail-preview-token'] || attributes['data-rt-mail-preview-train']);
-    const backgroundSource = token === 'TRAIN_SRC' ? renderedBackgroundSource : (modelBackgroundSource || renderedBackgroundSource);
+    const backgroundSource = token === 'TRAIN_SRC'
+        ? (previewState?.source || renderedBackgroundSource || '')
+        : (modelBackgroundSource || renderedBackgroundSource || previewState?.source || '');
     const persistentSource = modelSource || backgroundSource;
     if (!persistentSource) return false;
     const dataSource = /^data:image\//i.test(persistentSource);
@@ -508,6 +783,14 @@ export function restartAnimatedPreview(component, { nonce = Date.now() } = {}) {
     // TRAIN_SRC sitzt in der Signatur auf einer TD-Hintergrundflaeche, waehrend
     // normale GIFs als IMG vorkommen. Beide Pfade werden ohne Modellmutation
     // neu gestartet.
+    animatedPreviewState.set(element, {
+        playing: true,
+        source: persistentSource,
+        isImage: modelSource && String(element.tagName || '').toLowerCase() === 'img',
+        backgroundImage,
+        backgroundPriority,
+    });
+    delete element.dataset.rtLmzAnimationPaused;
     if (modelSource && String(element.tagName || '').toLowerCase() === 'img') {
         if (dataSource) {
             element.removeAttribute?.('src');
@@ -518,10 +801,22 @@ export function restartAnimatedPreview(component, { nonce = Date.now() } = {}) {
         return String(component?.get?.('src') || attributes.src || '') === modelSource;
     }
     if (dataSource) {
-        element.style?.setProperty?.('background-image', 'none');
-        nextFrame(() => element.style?.setProperty?.('background-image', `url("${persistentSource.replaceAll('"', '\\"')}")`));
+        element.style?.setProperty?.(
+            'background-image',
+            replaceFirstCssMediaSource(backgroundImage, null) || 'none',
+            backgroundPriority,
+        );
+        nextFrame(() => element.style?.setProperty?.(
+            'background-image',
+            replaceFirstCssMediaSource(backgroundImage, persistentSource),
+            backgroundPriority,
+        ));
     } else {
-        element.style?.setProperty?.('background-image', `url("${previewSource.replaceAll('"', '\\"')}")`);
+        element.style?.setProperty?.(
+            'background-image',
+            replaceFirstCssMediaSource(backgroundImage, previewSource),
+            backgroundPriority,
+        );
     }
     return JSON.stringify(component?.getStyle?.() || component?.get?.('style') || {}) === JSON.stringify(style);
 }
@@ -595,8 +890,9 @@ export function applyMotionSettings(component, settings = {}) {
     return sanitized;
 }
 
-function spacingSnapshot(offsets = {}) {
-    const read = (name, minimum = Number.NEGATIVE_INFINITY) => clamp(number(offsets[name]), minimum);
+export function spacingCssSnapshot(offsets = {}, zoom = 1) {
+    const factor = Math.max(number(zoom, 1), 0.01);
+    const read = (name, minimum = Number.NEGATIVE_INFINITY) => clamp(number(offsets[name]) / factor, minimum);
     return {
         margin: {
             top: read('marginTop'), right: read('marginRight'),
@@ -614,8 +910,10 @@ function spacingSnapshot(offsets = {}) {
 }
 
 function visualSpacing(offsets = {}, zoom = 1) {
-    const factor = Math.max(number(zoom, 1), 0.01);
-    const read = (name, minimum = Number.NEGATIVE_INFINITY) => clamp(number(offsets[name]), minimum) * factor;
+    // GrapesJS Canvas.getElementOffsets() already reports the values in the
+    // zoomed canvas coordinate system. Multiplying a second time shifts the
+    // overlay and would persist half-sized spacing at 50% zoom.
+    const read = (name, minimum = Number.NEGATIVE_INFINITY) => clamp(number(offsets[name]), minimum);
     return {
         margin: {
             top: read('marginTop'), right: read('marginRight'),
@@ -638,7 +936,7 @@ function rect(left, top, width, height) {
 
 export function calculateSpacingOverlayGeometry({ position, offsets = {}, minimumBand = 8 } = {}) {
     if (!position || !Number.isFinite(position.width) || !Number.isFinite(position.height)) return null;
-    const spacing = visualSpacing(offsets, position.zoom);
+    const spacing = visualSpacing(offsets);
     const outer = rect(position.left, position.top, position.width, position.height);
     const band = (value) => Math.max(Math.abs(value), minimumBand);
     const margin = Object.fromEntries(SIDES.map((side) => [side, band(spacing.margin[side])]));
@@ -860,7 +1158,7 @@ export function createSpacingOverlayController({
         const type = event.currentTarget?.dataset?.type || event.target?.closest?.('[data-type]')?.dataset?.type;
         const side = event.currentTarget?.dataset?.side || event.target?.closest?.('[data-side]')?.dataset?.side;
         if (!['margin', 'padding'].includes(type) || !SIDES.includes(side)) return;
-        const snapshot = spacingSnapshot(offsets);
+        const snapshot = spacingCssSnapshot(offsets, zoom);
         const handle = handles.get(`${type}:${side}`);
         handle?.classList.add('is-active');
         drag = {
@@ -979,6 +1277,10 @@ function createMediaDrawer({ root, editor, mode, media, capabilities, onChanged 
     let replaceSession = null;
     let state = { used: [], library: [], warnings: [] };
     let returnFocus = null;
+    const currentTokenMedia = () => {
+        const value = typeof media.tokenMedia === 'function' ? media.tokenMedia() : media.tokenMedia;
+        return Array.isArray(value) ? value : [];
+    };
 
     const currentDocument = () => ({
         html: editor.getHtml?.() || '',
@@ -991,14 +1293,14 @@ function createMediaDrawer({ root, editor, mode, media, capabilities, onChanged 
             mode,
             assets: media.assets || [],
             trustedSources: media.trustedSources || [],
-            tokenMedia: media.tokenMedia || [],
+            tokenMedia: currentTokenMedia(),
             baseUrl: media.baseUrl || globalThis.location?.origin || 'http://localhost/',
             environment: { DOMParser: globalThis.DOMParser },
         });
         const query = String(filter.value || '').trim().toLocaleLowerCase('de');
         const items = (tab === 'used'
             ? state.used
-            : (mode === 'mail' ? (media.tokenMedia || []).map((item) => ({
+            : (mode === 'mail' ? currentTokenMedia().map((item) => ({
                 id: `token:${normalizedToken(item.token)}`, token: normalizedToken(item.token),
                 src: item.src || '', name: item.label || item.token, protected: true, allowed: true,
             })) : state.library))
@@ -1050,18 +1352,30 @@ function createMediaDrawer({ root, editor, mode, media, capabilities, onChanged 
         }
         warning.hidden = state.warnings.length === 0;
         warning.textContent = state.warnings.map((item) => item.message).join(' ');
-        summary.textContent = `${state.used.length} verwendet · ${mode === 'mail' ? (media.tokenMedia || []).length : state.library.length} verfügbar`;
+        summary.textContent = `${state.used.length} verwendet · ${mode === 'mail' ? currentTokenMedia().length : state.library.length} verfügbar`;
         hint.textContent = mode === 'mail'
             ? 'Mail-Markenmedien sind geschützt. Freie Dateipoolbilder werden nicht als private Admin-URL in E-Mails eingesetzt.'
             : (replaceSession ? 'Wähle ein Bild aus der freigegebenen Bibliothek.' : 'Zum Ersetzen zuerst ein bearbeitbares Bild im Motiv auswählen.');
     };
 
-    drawer.querySelector('[data-rt-lmz-media-close]').addEventListener('click', () => {
+    const close = ({ restoreFocus = false } = {}) => {
         replaceSession?.cancel?.();
         replaceSession = null;
         drawer.hidden = true;
-        returnFocus?.focus?.();
-    });
+        if (restoreFocus) returnFocus?.focus?.();
+    };
+    const onDrawerKeydown = (event) => {
+        if (event.key !== 'Escape' || drawer.hidden) return;
+        event.preventDefault();
+        close({ restoreFocus: true });
+    };
+    const onOutsidePointer = (event) => {
+        if (drawer.hidden || drawer.contains(event.target)) return;
+        close();
+    };
+    drawer.addEventListener('keydown', onDrawerKeydown);
+    document_.addEventListener('pointerdown', onOutsidePointer, true);
+    drawer.querySelector('[data-rt-lmz-media-close]').addEventListener('click', () => close({ restoreFocus: true }));
     drawer.querySelectorAll('[data-rt-lmz-media-tab]').forEach((button) => button.addEventListener('click', () => {
         tab = button.dataset.rtLmzMediaTab;
         drawer.querySelectorAll('[data-rt-lmz-media-tab]').forEach((item) => item.setAttribute('aria-selected', String(item === button)));
@@ -1070,7 +1384,7 @@ function createMediaDrawer({ root, editor, mode, media, capabilities, onChanged 
     filter.addEventListener('input', refresh);
 
     return {
-        open({ replaceTarget = null, initialTab = 'used' } = {}) {
+        open({ replaceTarget = null, selectAsset = null, initialTab = 'used' } = {}) {
             returnFocus = document_.activeElement;
             tab = initialTab === 'library' ? 'library' : 'used';
             replaceSession?.cancel?.();
@@ -1084,21 +1398,28 @@ function createMediaDrawer({ root, editor, mode, media, capabilities, onChanged 
                     baseUrl: media.baseUrl,
                     onSelected: onChanged,
                 });
+            } else if (typeof selectAsset === 'function' && mode === 'marketing') {
+                replaceSession = createScopedAssetCallbackSelection({
+                    assets: media.assets || [],
+                    select: selectAsset,
+                    baseUrl: media.baseUrl,
+                    onSelected: onChanged,
+                });
             }
             drawer.querySelectorAll('[data-rt-lmz-media-tab]').forEach((item) => item.setAttribute('aria-selected', String(item.dataset.rtLmzMediaTab === tab)));
             drawer.hidden = false;
             refresh();
             drawer.querySelector(`[data-rt-lmz-media-tab="${tab}"]`)?.focus?.();
         },
-        close({ restoreFocus = false } = {}) {
-            drawer.hidden = true;
-            replaceSession?.cancel?.();
-            replaceSession = null;
-            if (restoreFocus) returnFocus?.focus?.();
-        },
+        close,
         refresh,
         state: () => state,
-        destroy() { replaceSession?.cancel?.(); drawer.remove(); },
+        destroy() {
+            replaceSession?.cancel?.();
+            drawer.removeEventListener('keydown', onDrawerKeydown);
+            document_.removeEventListener('pointerdown', onOutsidePointer, true);
+            drawer.remove();
+        },
     };
 }
 
@@ -1140,7 +1461,10 @@ function createAnimationDrawer({ root, editor, capabilities, mode, onChanged }) 
             <div class="rt-lmz-animation-drawer__gif" data-rt-lmz-animation-gif hidden>
                 <strong>GIF-Vorschau</strong>
                 <p>Frames und Geschwindigkeit gehören zur GIF-Datei. Die Vorschau kann hier verlustfrei neu gestartet werden.</p>
-                <button type="button" data-rt-lmz-gif-restart>GIF neu starten</button>
+                <div class="rt-lmz-animation-drawer__gif-actions">
+                    <button type="button" data-rt-lmz-gif-playback>Vorschau anhalten</button>
+                    <button type="button" data-rt-lmz-gif-restart>GIF neu starten</button>
+                </div>
             </div>
             <p class="rt-lmz-animation-drawer__message" data-rt-lmz-animation-message aria-live="polite"></p>
             <button type="submit" class="rt-lmz-animation-drawer__apply">Animation übernehmen</button>
@@ -1150,6 +1474,7 @@ function createAnimationDrawer({ root, editor, capabilities, mode, onChanged }) 
     const gif = drawer.querySelector('[data-rt-lmz-animation-gif]');
     const motionFields = drawer.querySelector('[data-rt-lmz-motion-fields]');
     const applyButton = drawer.querySelector('.rt-lmz-animation-drawer__apply');
+    const playbackButton = drawer.querySelector('[data-rt-lmz-gif-playback]');
     const message = drawer.querySelector('[data-rt-lmz-animation-message]');
     let component = null;
     let returnFocus = null;
@@ -1176,8 +1501,10 @@ function createAnimationDrawer({ root, editor, capabilities, mode, onChanged }) 
         setControlValue('scale', read('scale', '0.92'));
         setControlValue('ease', read('ease'));
         control('once').checked = read('once') === 'true';
-        const context = componentAnimationContext(resolveAnimatedComponent(component) || resolveEditableImageComponent(editor, component, { mode }) || component);
+        const animatedTarget = resolveAnimatedComponent(component) || resolveEditableImageComponent(editor, component, { mode }) || component;
+        const context = componentAnimationContext(animatedTarget);
         gif.hidden = !context.animated;
+        playbackButton.textContent = animatedPreviewIsPlaying(animatedTarget) ? 'Vorschau anhalten' : 'Vorschau abspielen';
         motionFields.hidden = !capabilities.animation;
         applyButton.hidden = !capabilities.animation;
         message.textContent = '';
@@ -1188,9 +1515,18 @@ function createAnimationDrawer({ root, editor, capabilities, mode, onChanged }) 
         if (restoreFocus) returnFocus?.focus?.();
     };
     drawer.querySelector('[data-rt-lmz-animation-close]').addEventListener('click', () => close({ restoreFocus: true }));
+    playbackButton.addEventListener('click', () => {
+        const target = resolveAnimatedComponent(component) || resolveEditableImageComponent(editor, component, { mode }) || component;
+        const playing = animatedPreviewIsPlaying(target);
+        message.textContent = setAnimatedPreviewPlayback(target, !playing)
+            ? (!playing ? 'GIF-Vorschau wird abgespielt.' : 'GIF-Vorschau wurde angehalten.')
+            : 'Für dieses Segment wurde keine animierte Quelle erkannt.';
+        playbackButton.textContent = animatedPreviewIsPlaying(target) ? 'Vorschau anhalten' : 'Vorschau abspielen';
+    });
     drawer.querySelector('[data-rt-lmz-gif-restart]').addEventListener('click', () => {
         const target = resolveAnimatedComponent(component) || resolveEditableImageComponent(editor, component, { mode }) || component;
         message.textContent = restartAnimatedPreview(target) ? 'GIF-Vorschau wurde neu gestartet.' : 'Für dieses Segment wurde keine animierte Quelle erkannt.';
+        playbackButton.textContent = animatedPreviewIsPlaying(target) ? 'Vorschau anhalten' : 'Vorschau abspielen';
     });
     form.addEventListener('submit', (event) => {
         event.preventDefault();
@@ -1207,6 +1543,17 @@ function createAnimationDrawer({ root, editor, capabilities, mode, onChanged }) 
         message.textContent = Object.keys(applied).length ? 'Animation übernommen.' : 'Die Eingaben liegen außerhalb der freigegebenen Werte.';
         onChanged?.();
     });
+    const onDrawerKeydown = (event) => {
+        if (event.key !== 'Escape' || drawer.hidden) return;
+        event.preventDefault();
+        close({ restoreFocus: true });
+    };
+    const onOutsidePointer = (event) => {
+        if (drawer.hidden || drawer.contains(event.target)) return;
+        close();
+    };
+    drawer.addEventListener('keydown', onDrawerKeydown);
+    document_.addEventListener('pointerdown', onOutsidePointer, true);
 
     return {
         open(target = null) {
@@ -1216,11 +1563,15 @@ function createAnimationDrawer({ root, editor, capabilities, mode, onChanged }) 
             returnFocus = document_.activeElement;
             populate();
             drawer.hidden = false;
-            control('motion')?.focus?.();
+            (capabilities.animation ? control('motion') : playbackButton)?.focus?.();
             return true;
         },
         close,
-        destroy() { drawer.remove(); },
+        destroy() {
+            drawer.removeEventListener('keydown', onDrawerKeydown);
+            document_.removeEventListener('pointerdown', onOutsidePointer, true);
+            drawer.remove();
+        },
     };
 }
 
@@ -1252,6 +1603,58 @@ function addInlineEditToolbar(editor, root, menu) {
         editor.off?.('component:selected', onSelected);
         editor.off?.('canvas:frame:load', onSelected);
         editor?.Canvas?.getToolbarEl?.()?.querySelector?.(`[data-command="${EDIT_COMMAND}"]`)?.remove?.();
+    };
+}
+
+function installStructureActionGuard(editor, root, { writable = true } = {}) {
+    const blockedCommands = new Set(['tlb-move', 'tlb-clone', 'tlb-delete']);
+    const selectionIsProtected = () => !writable || isProtectedEditorStructure(editor?.getSelected?.());
+    const refresh = () => {
+        const protectedSelection = selectionIsProtected();
+        root.dataset.rtLmzProtectedSelection = protectedSelection ? 'true' : 'false';
+        editor?.Canvas?.getToolbarEl?.()?.querySelectorAll?.('[data-command]')?.forEach?.((button) => {
+            if (!blockedCommands.has(String(button.dataset?.command || ''))) return;
+            button.hidden = protectedSelection;
+            button.disabled = protectedSelection;
+            button.setAttribute('aria-disabled', protectedSelection ? 'true' : 'false');
+        });
+    };
+    const blockToolbarAction = (event) => {
+        const command = event.target?.closest?.('[data-command]')?.dataset?.command;
+        if (!blockedCommands.has(String(command || '')) || !selectionIsProtected()) return;
+        event.preventDefault?.();
+        event.stopImmediatePropagation?.();
+    };
+    const blockKeyboardRemoval = (event) => {
+        if (!['Delete', 'Backspace'].includes(event.key) || !selectionIsProtected()) return;
+        const editable = event.target?.closest?.('input,textarea,[contenteditable="true"]');
+        if (editable) return;
+        event.preventDefault?.();
+        event.stopImmediatePropagation?.();
+    };
+    let frameDocument = null;
+    const bindFrame = () => {
+        frameDocument?.removeEventListener?.('keydown', blockKeyboardRemoval, true);
+        frameDocument = editor?.Canvas?.getDocument?.() || null;
+        frameDocument?.addEventListener?.('keydown', blockKeyboardRemoval, true);
+        refresh();
+    };
+
+    root.addEventListener('pointerdown', blockToolbarAction, true);
+    root.addEventListener('click', blockToolbarAction, true);
+    editor?.on?.('component:selected', refresh);
+    editor?.on?.('component:deselected', refresh);
+    editor?.on?.('canvas:frame:load', bindFrame);
+    bindFrame();
+
+    return () => {
+        root.removeEventListener('pointerdown', blockToolbarAction, true);
+        root.removeEventListener('click', blockToolbarAction, true);
+        editor?.off?.('component:selected', refresh);
+        editor?.off?.('component:deselected', refresh);
+        editor?.off?.('canvas:frame:load', bindFrame);
+        frameDocument?.removeEventListener?.('keydown', blockKeyboardRemoval, true);
+        delete root.dataset.rtLmzProtectedSelection;
     };
 }
 
@@ -1307,20 +1710,26 @@ function createInlineMenu({ root, editor, capabilities, mode, mediaDrawer, anima
 
     const actionDefinitions = () => {
         const image = resolveEditableImageComponent(editor, component, { mode });
+        const protectedStructure = isProtectedEditorStructure(component);
         const animationTarget = resolveAnimatedComponent(component);
         const animation = componentAnimationContext(animationTarget || image || component);
         return [
-            { id: 'content', label: 'Inhalt' },
-            { id: 'traits', label: 'Eigenschaften', panel: 'right:traits', enabled: capabilities.traits },
-            { id: 'styles', label: 'Stile', panel: 'right:styles', enabled: capabilities.styles },
-            { id: 'spacing', label: 'Abstände', panel: 'right:styles', enabled: capabilities.spacing },
+            { id: 'content', label: 'Inhalt', enabled: capabilities.writable && !protectedStructure },
+            { id: 'traits', label: 'Eigenschaften', panel: 'right:traits', enabled: capabilities.writable && capabilities.traits && !protectedStructure },
+            { id: 'styles', label: 'Stile', panel: 'right:styles', enabled: capabilities.writable && capabilities.styles && !protectedStructure },
+            { id: 'spacing', label: 'Abstände', panel: 'right:styles', enabled: capabilities.writable && capabilities.spacing && !protectedStructure },
             { id: 'media', label: 'Medien', enabled: capabilities.media && (image || mode === 'mail') },
             { id: 'replace', label: 'Bild ersetzen', enabled: capabilities.imageReplace === true && Boolean(image) },
-            { id: 'animation', label: animation.animated ? 'Animation & GIF' : 'Animation', enabled: capabilities.animation || (capabilities.gifControls && animation.animated) },
+            { id: 'animation', label: animation.animated ? 'Animation & GIF' : 'Animation', enabled: !protectedStructure && (capabilities.animation || (capabilities.gifControls && animation.animated)) },
+            {
+                id: 'gif-playback',
+                label: animatedPreviewIsPlaying(animationTarget || image || component) ? 'GIF-Vorschau anhalten' : 'GIF-Vorschau abspielen',
+                enabled: capabilities.gifControls && animation.animated,
+            },
             { id: 'gif-restart', label: 'GIF-Vorschau neu starten', enabled: capabilities.gifControls && animation.animated },
-            { id: 'move', label: 'Umpositionieren', enabled: capabilities.writable },
-            { id: 'duplicate', label: 'Duplizieren', enabled: capabilities.writable },
-            { id: 'delete', label: 'Löschen', enabled: capabilities.writable, danger: true },
+            { id: 'move', label: 'Umpositionieren', enabled: capabilities.writable && !protectedStructure },
+            { id: 'duplicate', label: 'Duplizieren', enabled: capabilities.writable && !protectedStructure },
+            { id: 'delete', label: 'Löschen', enabled: capabilities.writable && !protectedStructure, danger: true },
         ].filter((item) => item.enabled !== false);
     };
 
@@ -1345,6 +1754,10 @@ function createInlineMenu({ root, editor, capabilities, mode, mediaDrawer, anima
                 if (definition.id === 'media') mediaDrawer.open({ initialTab: 'used' });
                 if (definition.id === 'replace') mediaDrawer.open({ replaceTarget: selected, initialTab: 'library' });
                 if (definition.id === 'animation') animationDrawer.open(selected);
+                if (definition.id === 'gif-playback') {
+                    const target = resolveAnimatedComponent(selected) || resolveEditableImageComponent(editor, selected, { mode }) || selected;
+                    setAnimatedPreviewPlayback(target, !animatedPreviewIsPlaying(target));
+                }
                 if (definition.id === 'gif-restart') restartAnimatedPreview(resolveAnimatedComponent(selected) || resolveEditableImageComponent(editor, selected, { mode }) || selected);
                 if (definition.id === 'move') {
                     const moveHandle = editor.Canvas?.getToolbarEl?.()?.querySelector?.('[data-command="tlb-move"]');
@@ -1407,7 +1820,9 @@ function createInlineMenu({ root, editor, capabilities, mode, mediaDrawer, anima
 function assistantNonce(prefix = 'rt') {
     const bytes = new Uint8Array(18);
     try {
-        globalThis.crypto?.getRandomValues?.(bytes);
+        const fillRandomValues = globalThis.crypto?.getRandomValues;
+        if (typeof fillRandomValues !== 'function') throw new Error('Web Crypto ist nicht verfuegbar.');
+        fillRandomValues.call(globalThis.crypto, bytes);
     } catch {
         bytes.forEach((_value, index) => { bytes[index] = Math.floor(Math.random() * 256); });
     }
@@ -1492,6 +1907,7 @@ export function createLmzAssistantAdapter({
     assets = [],
     availableBlockIds = [],
     save = null,
+    fingerprint = assistantFingerprint,
 } = {}) {
     const rootElement = asElement(root);
     const editor = instance?.editor;
@@ -1501,6 +1917,7 @@ export function createLmzAssistantAdapter({
     const workspaceNonce = assistantNonce('workspace');
     let selectionNonce = assistantNonce('selection');
     let selectedReference = editor.getSelected?.() || null;
+    let verifiedSelection = null;
     let clientRevision = 0;
     let destroyed = false;
     const capabilities = [
@@ -1508,13 +1925,28 @@ export function createLmzAssistantAdapter({
         'add_block', 'undo', 'redo', 'preview', 'save', 'gif_preview',
         ...(normalizedMode === 'marketing' ? ['replace_image', 'animation'] : []),
     ];
-    const notifyContext = () => window_?.dispatchEvent?.(new CustomEvent('railtime-pagebuilder-context-changed'));
-    const onUpdate = () => { clientRevision += 1; notifyContext(); };
+    const createWindowEvent = (name, detail) => {
+        const EventConstructor = window_?.CustomEvent || globalThis.CustomEvent;
+        return typeof EventConstructor === 'function'
+            ? new EventConstructor(name, detail === undefined ? undefined : { detail })
+            : null;
+    };
+    const dispatchWindowEvent = (name, detail) => {
+        const event = createWindowEvent(name, detail);
+        if (event) window_?.dispatchEvent?.(event);
+    };
+    const notifyContext = () => dispatchWindowEvent('railtime-pagebuilder-context-changed');
+    const onUpdate = () => {
+        verifiedSelection = null;
+        clientRevision += 1;
+        notifyContext();
+    };
     const onSelected = (component) => {
         if (component !== selectedReference) {
             selectedReference = component || editor.getSelected?.() || null;
             selectionNonce = assistantNonce('selection');
         }
+        verifiedSelection = null;
         notifyContext();
     };
     editor.on?.('update', onUpdate);
@@ -1522,31 +1954,58 @@ export function createLmzAssistantAdapter({
     editor.on?.('component:deselected', onSelected);
 
     const currentSelection = async () => {
-        const component = editor.getSelected?.();
-        if (!component) return null;
-        const attributes = componentAttributes(component);
-        const style = component?.getStyle?.() || component?.get?.('style') || {};
-        const text = String(component?.getEl?.()?.textContent || component?.get?.('content') || '').trim().slice(0, 600);
-        const source = String(component?.get?.('src') || attributes.src || '');
-        const asset = (assets || []).find((candidate) => canonicalMediaSource(assetSource(candidate), window_?.location?.origin)
-            === canonicalMediaSource(source, window_?.location?.origin));
-        const protectedSelection = assistantSelectionProtected(component, normalizedMode);
-        const animated = resolveAnimatedComponent(component) || (componentAnimationContext(component).animated ? component : null);
-        return {
-            selection_nonce: selectionNonce,
-            fingerprint: await assistantFingerprint({
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+            const component = editor.getSelected?.();
+            if (!component) {
+                verifiedSelection = null;
+                return null;
+            }
+            const nonce = selectionNonce;
+            const revision = clientRevision;
+            const attributes = componentAttributes(component);
+            const style = component?.getStyle?.() || component?.get?.('style') || {};
+            const text = String(component?.getEl?.()?.textContent || component?.get?.('content') || '').trim().slice(0, 600);
+            const source = String(component?.get?.('src') || attributes.src || '');
+            const asset = (assets || []).find((candidate) => canonicalMediaSource(assetSource(candidate), window_?.location?.origin)
+                === canonicalMediaSource(source, window_?.location?.origin));
+            const protectedSelection = assistantSelectionProtected(component, normalizedMode);
+            const animated = resolveAnimatedComponent(component) || (componentAnimationContext(component).animated ? component : null);
+            const selectionFingerprint = await fingerprint({
                 cid: component.cid || component?.get?.('id') || '',
                 tag: componentTag(component), attributes, style, text, source,
-            }),
-            tag: componentTag(component),
-            block_id: String(attributes['data-rt-block'] || attributes.id || component?.get?.('name') || '').slice(0, 80),
-            text,
-            styles: style,
-            image_file_id: normalizedMode === 'marketing' ? assetFileId(asset) : null,
-            protected: protectedSelection,
-            motion_allowed: normalizedMode === 'marketing' && !protectedSelection,
-            gif: Boolean(animated),
-        };
+            });
+
+            if (editor.getSelected?.() !== component || selectionNonce !== nonce || clientRevision !== revision) continue;
+
+            verifiedSelection = { component, nonce, revision, fingerprint: selectionFingerprint };
+            return {
+                selection_nonce: nonce,
+                fingerprint: selectionFingerprint,
+                tag: componentTag(component),
+                block_id: String(attributes['data-rt-block'] || attributes.id || component?.get?.('name') || '').slice(0, 80),
+                text,
+                styles: style,
+                image_file_id: normalizedMode === 'marketing' ? assetFileId(asset) : null,
+                protected: protectedSelection,
+                motion_allowed: normalizedMode === 'marketing' && !protectedSelection,
+                gif: Boolean(animated),
+            };
+        }
+
+        verifiedSelection = null;
+        return null;
+    };
+
+    const verifiedComponent = () => {
+        const component = editor.getSelected?.();
+        if (!verifiedSelection
+            || component !== verifiedSelection.component
+            || selectionNonce !== verifiedSelection.nonce
+            || clientRevision !== verifiedSelection.revision) {
+            return null;
+        }
+
+        return component;
     };
 
     const adapter = {
@@ -1580,7 +2039,7 @@ export function createLmzAssistantAdapter({
             return Boolean(trigger);
         },
         focusSelection() {
-            const component = editor.getSelected?.();
+            const component = verifiedComponent();
             if (!component) return false;
             editor.select?.(component);
             component.getEl?.()?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
@@ -1588,14 +2047,14 @@ export function createLmzAssistantAdapter({
         },
         openPanel(panel) { return chrome?.openPanel?.(panel) || false; },
         editText(text) {
-            const component = editor.getSelected?.();
+            const component = verifiedComponent();
             if (!component || assistantSelectionProtected(component, normalizedMode)) return false;
             if (String(component?.get?.('type') || '').toLowerCase() === 'textnode') component.set?.('content', text);
-            else component.components?.(String(text));
+            else component.components?.([{ type: 'textnode', content: String(text) }]);
             return true;
         },
         setStyle(property, value) {
-            const component = editor.getSelected?.();
+            const component = verifiedComponent();
             if (!component || assistantSelectionProtected(component, normalizedMode)) return false;
             component.addStyle?.({ [property]: value });
             return true;
@@ -1604,13 +2063,16 @@ export function createLmzAssistantAdapter({
             if (normalizedMode !== 'marketing') return false;
             const asset = (assets || []).find((candidate) => assetFileId(candidate) === Number(fileId));
             if (!asset) return false;
-            const selection = createImageAssetSelection({ editor, assets, target: editor.getSelected?.(), mode: 'marketing', baseUrl: window_?.location?.origin });
+            const target = verifiedComponent();
+            if (!target) return false;
+            const selection = createImageAssetSelection({ editor, assets, target, mode: 'marketing', baseUrl: window_?.location?.origin });
             selection.select(asset, true);
             return true;
         },
         addBlock(blockId, position) {
             if (!availableEditorBlockIds(editor, normalizedMode, availableBlockIds).includes(blockId)) return false;
-            return insertAssistantBlock(editor, blockId, position, editor.getSelected?.());
+            const component = verifiedComponent();
+            return component ? insertAssistantBlock(editor, blockId, position, component) : false;
         },
         undo() { editor.runCommand?.('core:undo'); return true; },
         redo() { editor.runCommand?.('core:redo'); return true; },
@@ -1621,10 +2083,10 @@ export function createLmzAssistantAdapter({
             if (!enable && active) editor.stopCommand?.('core:preview');
             return true;
         },
-        restartGifPreview() { return chrome?.restartGif?.(editor.getSelected?.()) || false; },
+        restartGifPreview() { return chrome?.restartGif?.(verifiedComponent()) || false; },
         setAnimation(field, value) {
             if (normalizedMode !== 'marketing') return false;
-            const component = editor.getSelected?.();
+            const component = verifiedComponent();
             if (!component || assistantSelectionProtected(component, normalizedMode)) return false;
             const sanitized = sanitizeMotionSettings({ [field]: value });
             if (!Object.prototype.hasOwnProperty.call(sanitized, field)) return false;
@@ -1638,10 +2100,10 @@ export function createLmzAssistantAdapter({
             editor.off?.('update', onUpdate);
             editor.off?.('component:selected', onSelected);
             editor.off?.('component:deselected', onSelected);
-            window_?.dispatchEvent?.(new CustomEvent('railtime-pagebuilder-adapter-unregister', { detail: { adapter } }));
+            dispatchWindowEvent('railtime-pagebuilder-adapter-unregister', { adapter });
         },
     };
-    window_?.dispatchEvent?.(new CustomEvent('railtime-pagebuilder-adapter-register', { detail: { adapter } }));
+    dispatchWindowEvent('railtime-pagebuilder-adapter-register', { adapter });
     return adapter;
 }
 
@@ -1664,6 +2126,7 @@ export function createLmzEditorChrome({
     rootElement.classList.add('rt-lmz-editor');
     rootElement.dataset.rtLmzMode = mode === 'mail' ? 'mail' : 'marketing';
     rootElement.dataset.rtLmzOpen = isOpen ? 'true' : 'false';
+    rootElement.dataset.rtLmzReadOnly = normalized.writable ? 'false' : 'true';
 
     // Vendorpfade, die in Laravel absichtlich nicht existieren, verschwinden
     // vollstaendig. Der Medienbutton bleibt erhalten und wird umgeleitet.
@@ -1710,9 +2173,11 @@ export function createLmzEditorChrome({
     let animationDrawer;
     const refreshAll = () => { spacing.refresh(); mediaDrawer?.refresh(); };
     mediaDrawer = createMediaDrawer({ root: rootElement, editor, mode, media, capabilities: normalized, onChanged: refreshAll });
+    const detachScopedAssetAccess = installScopedAssetAccess({ editor, mediaDrawer, mode });
     animationDrawer = createAnimationDrawer({ root: rootElement, editor, capabilities: normalized, mode, onChanged: refreshAll });
     const menu = createInlineMenu({ root: rootElement, editor, capabilities: normalized, mode, mediaDrawer, animationDrawer });
     const detachToolbar = addInlineEditToolbar(editor, rootElement, menu);
+    const detachStructureActionGuard = installStructureActionGuard(editor, rootElement, normalized);
 
     const mediaButton = rootElement.querySelector('[data-lmz-action="assets"]');
     const openMedia = (event) => {
@@ -1792,6 +2257,8 @@ export function createLmzEditorChrome({
             panelReconcileFrame = null;
             editor.off?.('component:selected', onSelected);
             editor.off?.('component:update', refreshAll);
+            detachScopedAssetAccess();
+            detachStructureActionGuard();
             detachToolbar();
             menu.destroy();
             mediaDrawer.destroy();
@@ -1800,6 +2267,7 @@ export function createLmzEditorChrome({
             rootElement.classList.remove('rt-lmz-editor');
             delete rootElement.dataset.rtLmzMode;
             delete rootElement.dataset.rtLmzOpen;
+            delete rootElement.dataset.rtLmzReadOnly;
             if (rootElement.__rtLmzEditorChrome === api) delete rootElement.__rtLmzEditorChrome;
             dispatch(rootElement, LMZ_EDITOR_EVENTS.destroyed, { mode });
         },

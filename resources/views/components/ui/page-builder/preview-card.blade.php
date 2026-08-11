@@ -48,6 +48,7 @@
         x-data="{
             sources: @js($previewSources),
             activeKey: @js($initialKey),
+            titlePrefix: @js('Vorschau: '.$title.' – '),
             scale: 1,
             resizeObserver: null,
             get active() {
@@ -123,7 +124,7 @@
                     src="{{ $initialSource['url'] }}"
                     x-bind:src="active?.url || 'about:blank'"
                     title="Vorschau: {{ $title }} – {{ $initialSource['label'] }}"
-                    x-bind:title="`Vorschau: {{ addslashes($title) }} – ${active?.label || 'Vorschau'}`"
+                    x-bind:title="titlePrefix + (active?.label || 'Vorschau')"
                     sandbox=""
                     referrerpolicy="no-referrer"
                     loading="lazy"
