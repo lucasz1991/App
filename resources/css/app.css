@@ -399,8 +399,13 @@ body[data-mode="dark"] .rt-ui-surface-muted {
 }
 
 /* Nur der Inhalt blendet ein — das Panel bewegt sich zu diesem Zeitpunkt
- * nicht mehr, seine Fahrt ist vorbei. */
-[data-rt-modal-body][data-rt-state='ready'] {
+ * nicht mehr, seine Fahrt ist vorbei.
+ *
+ * Ausgeloest wird ueber eine eigene Klasse, NICHT ueber den Zustand: das
+ * Zustandsattribut wird bei jedem Livewire-Neurendern neu geschrieben, und
+ * an einer Attributregel haengend wuerde der Rumpf danach jedes Mal erneut
+ * einblenden — bei jedem Klick im offenen Dialog ein Aufblitzen. */
+.rt-modal-body-reveal {
     animation: rt-modal-body-in 220ms cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 
@@ -419,7 +424,7 @@ body[data-mode="dark"] .rt-ui-surface-muted {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    [data-rt-modal-body][data-rt-state='ready'] {
+    .rt-modal-body-reveal {
         animation: none;
     }
 }

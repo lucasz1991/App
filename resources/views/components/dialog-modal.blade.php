@@ -85,9 +85,19 @@
         id="{{ $contentId }}"
         class="rt-modal-content min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-5 py-5 text-sm leading-6 text-rt-text [overflow-wrap:anywhere] [scrollbar-gutter:stable] dark:text-rt-dark-text sm:px-6 sm:py-6 [&_iframe]:max-w-full [&_img]:max-w-full [&_video]:max-w-full"
         @if ($gated)
+            {{-- Grundzustand ist BEREIT, nicht ladend. Auf "loading" schaltet
+                 ausschliesslich resources/js/modal-body.js, und nur nachdem
+                 es positiv festgestellt hat, dass der Inhalt noch nicht steht.
+
+                 Der Grund ist ein echter Fehler: Livewire schreibt beim
+                 Neurendern das serverseitige Markup zurueck. Stand hier
+                 "loading", blieb das Skelett nach jeder Aktion IM offenen
+                 Dialog fuer immer stehen — etwa beim Teamwechsel unter
+                 "Teams und Rechte". Mit "ready" als Grundzustand fuehrt jeder
+                 Fehler hoechstens zu einer einmal ruckelnden Einfahrt. --}}
             x-data="rtModalBody"
             data-rt-modal-body
-            data-rt-state="loading"
+            data-rt-state="ready"
         @endif
     >
         @if ($gated)
