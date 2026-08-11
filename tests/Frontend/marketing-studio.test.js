@@ -1466,6 +1466,48 @@ test('shared LMZ spacing geometry applies zoom once and converts drag deltas bac
     assert.equal(calculateSpacingDragValue({ startValue: 4, deltaY: -10, zoom: 0.5, side: 'bottom', type: 'padding' }), 0);
 });
 
+test('spacing overlay converts canvas coordinates into an already positioned GrapesJS tools host', () => coreWithDom(`
+    <div id="root"><div id="canvas"><div id="tools" data-tools></div></div></div>
+`, ({ window, document }) => {
+    const root = document.querySelector('#root');
+    const canvas = document.querySelector('#canvas');
+    const tools = document.querySelector('#tools');
+    const selected = coreFakeComponent(document.createElement('section'));
+    const position = { left: 295, top: 100, width: 270, height: 480, zoom: 0.25 };
+    canvas.getBoundingClientRect = () => ({ left: 372, top: 80, right: 1472, bottom: 680, width: 1100, height: 600 });
+    tools.getBoundingClientRect = () => ({ left: 667, top: 180, right: 937, bottom: 660, width: 270, height: 480 });
+    const editor = coreFakeEditor(root, selected);
+    editor.Canvas.getElement = () => canvas;
+    editor.Canvas.getToolsEl = () => tools;
+    editor.Canvas.getElementPos = () => position;
+    editor.Canvas.getElementOffsets = () => ({
+        marginTop: 0, marginRight: 0, marginBottom: 0, marginLeft: 0,
+        paddingTop: 0, paddingRight: 0, paddingBottom: 0, paddingLeft: 0,
+        borderTopWidth: 0, borderRightWidth: 0, borderBottomWidth: 0, borderLeftWidth: 0,
+    });
+    const controller = createSpacingOverlayController({
+        editor,
+        root,
+        environment: {
+            document,
+            window,
+            requestAnimationFrame: (callback) => { callback(); return 1; },
+            cancelAnimationFrame() {},
+        },
+    });
+    const handle = tools.querySelector('[data-type="padding"][data-side="top"]');
+    const surface = handle.querySelector('.rt-lmz-spacing-overlay__surface');
+    const visibleLeft = 667 + Number.parseFloat(handle.style.left) + Number.parseFloat(surface.style.left);
+    const visibleTop = 180 + Number.parseFloat(handle.style.top) + Number.parseFloat(surface.style.top);
+
+    assert.equal(handle.style.left, '0px');
+    assert.equal(surface.style.left, '0px');
+    assert.equal(visibleLeft, 667);
+    assert.equal(visibleTop, 180);
+    assert.deepEqual(position, { left: 295, top: 100, width: 270, height: 480, zoom: 0.25 });
+    controller.destroy();
+}));
+
 test('scoped FilePool GIF metadata survives opaque admin URLs and is cleared by a static replacement', () => coreWithDom('<img id="target">', ({ document }) => {
     const element = document.querySelector('#target');
     const selected = coreFakeComponent(element, { attributes: {} });

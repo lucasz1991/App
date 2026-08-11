@@ -500,7 +500,8 @@ test('shared page builder opens from preview into a compact responsive Mail Stud
         readFile(new URL('../../resources/css/lmz-editor-shell.css', import.meta.url), 'utf8'),
     ]);
 
-    assert.match(shell, /pageBuilderOpen:\s*false/);
+    assert.match(shell, /'autoOpen'\s*=>\s*false/);
+    assert.match(shell, /pageBuilderOpen:\s*@js\(\(bool\) \$autoOpen\)/);
     assert.match(shell, /data-page-builder-preview-first/);
     assert.match(shell, /data-page-builder-assist/);
     assert.doesNotMatch(shell, /data-page-builder-panel-host/);
@@ -516,4 +517,41 @@ test('shared page builder opens from preview into a compact responsive Mail Stud
     assert.match(shellCss, /html\[data-rt-pagebuilder-assist-open='true'\]/);
     assert.match(shellCss, /\.lmz-builder\s+\.lmzbjs-layers/);
     assert.match(shellCss, /@media \(max-width: 639\.98px\)[\s\S]*?\.lmz-builder__popover/);
+});
+
+test('mail toolbar keeps documents, preview and publishing in non-overlapping responsive zones', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const [view, css] = await Promise.all([
+        readFile(new URL('../../resources/views/livewire/admin/mail-document-editor.blade.php', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/css/mail-builder.css', import.meta.url), 'utf8'),
+    ]);
+
+    assert.match(view, /data-mail-toolbar-layout="responsive"/);
+    assert.match(view, /:auto-open="request\(\)->boolean\('open'\)"/);
+    assert.match(view, /\['dokument' => \$kindValue, 'open' => 1\]/);
+    for (const region of ['documents', 'preview', 'actions']) {
+        assert.equal((view.match(new RegExp(`data-mail-toolbar-region="${region}"`, 'g')) || []).length, 1);
+    }
+
+    assert.match(css, /grid-template-columns:\s*minmax\(16rem, 0\.85fr\) minmax\(22rem, 1fr\) minmax\(17rem, 0\.85fr\)/);
+    const compactDesktop = css.slice(
+        css.indexOf('@media (min-width: 1100px) and (max-width: 1399.98px)'),
+        css.indexOf('@media (max-width: 1099.98px)'),
+    );
+    assert.match(compactDesktop, /\.rt-mail-studio-toolbar__preview[\s\S]*?overflow:\s*hidden/);
+    assert.match(compactDesktop, /\.rt-mail-studio-toolbar__actions[\s\S]*?overflow:\s*hidden/);
+    assert.match(compactDesktop, /\.rt-mail-preview-toggle > button > span[\s\S]*?clip:\s*rect\(0, 0, 0, 0\)/);
+
+    const tablet = css.slice(
+        css.indexOf('@media (max-width: 1099.98px)'),
+        css.indexOf('@media (max-width: 899.98px)'),
+    );
+    assert.match(tablet, /grid-template-columns:\s*minmax\(0, 1fr\) auto auto/);
+    assert.match(tablet, /\.rt-mail-studio-toolbar__preview[\s\S]*?grid-column:\s*1 \/ -1[\s\S]*?grid-row:\s*2/);
+    assert.match(tablet, /\.rt-mail-studio-toolbar__actions\s*\{[\s\S]*?display:\s*contents/);
+
+    const mobile = css.slice(css.indexOf('@media (max-width: 639.98px)'));
+    assert.match(mobile, /\.rt-mail-preview-toggle > button span/);
+    assert.match(mobile, /\.rt-mail-studio-toolbar__publish-label[\s\S]*?clip:\s*rect\(0, 0, 0, 0\)/);
+    assert.match(mobile, /\.rt-mail-studio-toolbar__actions > \.rt-ui-button[\s\S]*?width:\s*2\.75rem/);
 });

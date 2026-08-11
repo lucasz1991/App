@@ -160,7 +160,11 @@
                         $creativePreviewSources = collect($previewFormats)->mapWithKeys(
                             fn (array $preview, string $format): array => [$format => array_merge($preview, [
                                 'url' => route('admin.marketing.creatives.preview', [$creative, $format]),
-                                'editUrl' => route('admin.marketing.creatives.editor', [$creative, 'format' => $format]),
+                                'editUrl' => route('admin.marketing.creatives.editor', [
+                                    'creative' => $creative,
+                                    'format' => $format,
+                                    'open' => 1,
+                                ]),
                             ])]
                         )->all();
                     @endphp
@@ -172,7 +176,11 @@
                             :status="$statusLabel"
                             :sources="$creativePreviewSources"
                             default-source="post"
-                            :edit-url="route('admin.marketing.creatives.editor', [$creative, 'format' => 'post'])"
+                            :edit-url="route('admin.marketing.creatives.editor', [
+                                'creative' => $creative,
+                                'format' => 'post',
+                                'open' => 1,
+                            ])"
                             :edit-label="$statusValue === 'archived' ? 'Im Vollbild ansehen' : 'Im Vollbild bearbeiten'"
                         />
 
@@ -202,7 +210,7 @@
                         </div>
 
                         <div class="mt-5 flex flex-wrap items-center gap-2 border-t border-rt-border/70 pt-4 dark:border-rt-dark-border/70">
-                            <a href="{{ route('admin.marketing.creatives.editor', $creative) }}" wire:navigate class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-rt-red px-3.5 text-sm font-semibold text-white transition hover:bg-rt-red-dark">
+                            <a href="{{ route('admin.marketing.creatives.editor', ['creative' => $creative, 'open' => 1]) }}" wire:navigate class="inline-flex min-h-11 items-center gap-2 rounded-xl bg-rt-red px-3.5 text-sm font-semibold text-white transition hover:bg-rt-red-dark">
                                 <i data-feather="{{ $statusValue === 'archived' ? 'eye' : 'edit-3' }}" class="h-4 w-4" aria-hidden="true"></i>
                                 {{ $statusValue === 'archived' ? 'Ansehen' : 'Bearbeiten' }}
                             </a>

@@ -6,6 +6,7 @@
     'backLabel' => 'Zurück zur Übersicht',
     'previewSources' => [],
     'previewDefault' => null,
+    'autoOpen' => false,
     'workspaceClass' => 'min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-5',
 ])
 
@@ -15,11 +16,14 @@
 
 <div
     x-data="{
-        pageBuilderOpen: false,
+        pageBuilderOpen: @js((bool) $autoOpen),
         pageBuilderTrigger: null,
         init() {
             this.$watch('pageBuilderOpen', (open) => this.sync(open));
-            this.$nextTick(() => this.sync(false));
+            this.$nextTick(() => {
+                this.sync(this.pageBuilderOpen);
+                if (this.pageBuilderOpen) requestAnimationFrame(() => this.focusPageBuilder());
+            });
         },
         sync(open) {
             document.documentElement.classList.toggle('overflow-hidden', Boolean(open));

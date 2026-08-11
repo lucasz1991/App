@@ -204,4 +204,29 @@ class PageBuilderPreviewTest extends TestCase
         $this->assertStringNotContainsString("'[tabindex=\"", $html);
         $this->assertStringNotContainsString("'[contenteditable=\"", $html);
     }
+
+    public function test_preview_card_link_opens_the_editor_directly_in_fullscreen(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $creative = app(MarketingStudioService::class)->createFromTemplate(
+            MarketingCreativeType::Info,
+            $admin,
+        );
+
+        $sourceHtml = (string) $this->actingAs($admin)
+            ->get(route('admin.marketing.creatives.index'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('open=1', $sourceHtml);
+
+        $editorHtml = (string) $this->get(route('admin.marketing.creatives.editor', [
+            'creative' => $creative,
+            'format' => 'post',
+            'open' => 1,
+        ]))->assertOk()->getContent();
+
+        $this->assertStringContainsString('pageBuilderOpen: true', $editorHtml);
+        $this->assertStringContainsString('this.sync(this.pageBuilderOpen)', $editorHtml);
+    }
 }

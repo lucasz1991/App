@@ -19,15 +19,17 @@
  *
  * Dieses Werkzeug
  *   - setzt alle Entsorgungsmethoden auf 1,
- *   - entfernt ein abschliessendes Pixelbild, das kleiner ist als die
- *     Leinwand und keinen sichtbaren Beitrag leistet,
- *   - verlaengert die Anzeigedauer des letzten echten Bildes.
+ *   - laesst Anzeigedauern und Bildfolge unangetastet.
  *
  * Aufruf: node tools/gif-letztes-bild-halten.mjs <datei> [weitere...]
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const HALTEDAUER_MS = 5000;
+// BEWUSST KEINE Aenderung an den Anzeigedauern: die Gesamtlaufzeit der
+// Einfahrt ist an anderer Stelle zugesichert (EmailTemplatesPageTest prueft
+// sie auf die Hundertstelsekunde). Das Halten erledigt allein die
+// Entsorgungsmethode — ohne Schleife zeigt der Browser das letzte
+// Einzelbild danach unbegrenzt.
 
 /** Zerlegt ein GIF in seine Bloecke, ohne die Bilddaten zu deuten. */
 function zerlege(b) {
@@ -90,15 +92,11 @@ for (const datei of process.argv.slice(2)) {
 
     const bilder = bloecke.filter((x) => x.art === 'bild');
 
-    // Ein abschliessendes Miniaturbild traegt nichts bei, sorgt aber dafuer,
-    // dass das vorherige Vollbild entsorgt wird.
-    let entfernt = 0;
-    const letztes = bilder[bilder.length - 1];
-    if (letztes && (letztes.rahmen.w < leinwand.w || letztes.rahmen.h < leinwand.h)
-        && letztes.rahmen.w * letztes.rahmen.h <= 4) {
-        bloecke.splice(bloecke.indexOf(letztes), 1);
-        entfernt = 1;
-    }
+    // Ein abschliessendes Miniaturbild bleibt ERHALTEN. Es ist durchsichtig
+    // und traegt nichts bei; sobald keine Entsorgung mehr die Flaeche leert,
+    // ueberzeichnet es genau nichts. Entfernen wuerde die zugesicherte
+    // Gesamtlaufzeit um seine Anzeigedauer verkuerzen.
+    const entfernt = 0;
 
     const verbleibend = bloecke.filter((x) => x.art === 'bild');
     let umgestellt = 0;
@@ -111,12 +109,6 @@ for (const datei of process.argv.slice(2)) {
         if (alt !== 1) {
             gce[3] = (gce[3] & 0b11100011) | (1 << 2);
             umgestellt += 1;
-        }
-
-        // Das letzte Bild bleibt bewusst lange stehen. Ohne Schleife haelt
-        // der Browser es ohnehin, die Dauer ist die Absicherung.
-        if (index === verbleibend.length - 1) {
-            gce.writeUInt16LE(Math.round(HALTEDAUER_MS / 10), 4);
         }
 
         bild.gce = gce;

@@ -19,6 +19,7 @@
     back-label="Zurück zu den Motiven"
     :preview-sources="$editorPreviewSources"
     :preview-default="$format"
+    :auto-open="request()->boolean('open')"
     workspace-class="h-full min-h-0 space-y-4 overflow-y-auto overscroll-contain px-3 py-4 sm:px-5"
     class="rt-marketing-editor-page"
     data-marketing-studio

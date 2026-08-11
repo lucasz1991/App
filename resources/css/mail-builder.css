@@ -9,7 +9,7 @@
 .rt-mail-studio-toolbar {
     display: grid;
     min-width: 0;
-    grid-template-columns: minmax(17rem, auto) minmax(25rem, 1fr) minmax(18rem, auto);
+    grid-template-columns: minmax(16rem, 0.85fr) minmax(22rem, 1fr) minmax(17rem, 0.85fr);
     align-items: center;
     gap: 0.625rem;
     font-family: 'Plus Jakarta Sans Variable', ui-sans-serif, system-ui, sans-serif;
@@ -145,6 +145,11 @@
     grid-template-columns: auto minmax(7rem, 1fr) auto;
     align-items: center;
     gap: 0.5rem;
+}
+
+.rt-mail-studio-toolbar > [data-mail-toolbar-region] {
+    width: 100%;
+    max-width: 100%;
 }
 
 .rt-mail-document-status {
@@ -377,6 +382,34 @@ body[data-mode='dark'] [data-mail-document-status][data-status='published'][data
 @keyframes rt-mail-editor-pulse {
     from { opacity: 0.55; transform: scale(0.96); }
     to { opacity: 1; transform: scale(1); }
+}
+
+/*
+ * 1280-px-Studiovertrag: Die drei Zonen bleiben in einer Zeile, waehrend
+ * lange Hilfstexte und Buttonlabels visuell auf ihre Icons reduziert werden.
+ * Ihre zugaenglichen Namen bleiben im DOM erhalten. So kann keine Zone in die
+ * naechste malen, ohne dem Canvas eine weitere Desktop-Zeile zu nehmen.
+ */
+@media (min-width: 1100px) and (max-width: 1399.98px) {
+    .rt-mail-studio-toolbar__documents > .rt-mail-studio-document > small,
+    .rt-mail-studio-toolbar__preview .rt-mail-preview-toggle > button > span {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+    }
+
+    .rt-mail-studio-toolbar__preview,
+    .rt-mail-studio-toolbar__actions {
+        overflow: hidden;
+    }
+
+    .rt-mail-studio-toolbar__preview {
+        justify-content: center;
+    }
 }
 
 @media (max-width: 1099.98px) {

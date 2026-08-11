@@ -236,6 +236,7 @@ class MailDocumentEditorTest extends TestCase
     public function test_editorseite_ist_administratoren_vorbehalten(): void
     {
         $this->seedDocuments();
+        $admin = $this->admin();
 
         // auth:sanctum greift vor role:admin und schickt Gaeste zur
         // allgemeinen Anmeldung.
@@ -245,17 +246,21 @@ class MailDocumentEditorTest extends TestCase
             ->get(route('admin.mail-documents.editor'))
             ->assertRedirect(route('dashboard'));
 
-        $this->actingAs($this->admin())
+        $this->actingAs($admin)
             ->get(route('admin.mail-documents.editor'))
             ->assertOk()
+            ->assertSee('pageBuilderOpen: false', escape: false)
             ->assertSee('data-mail-document-config', escape: false)
             ->assertSee('data-mail-document-root', escape: false)
             // Dokumentwahl, Vorschau und Freigabe teilen sich die feste
             // Studio-Werkzeugleiste oberhalb der scrollfreien Arbeitsflaeche.
             ->assertSee('data-mail-studio-toolbar', escape: false)
+            ->assertSee('data-mail-toolbar-region="documents"', escape: false)
+            ->assertSee('data-mail-toolbar-region="preview"', escape: false)
+            ->assertSee('data-mail-toolbar-region="actions"', escape: false)
             ->assertSee('data-mail-document-status', escape: false)
             ->assertSee('data-mail-document-publish', escape: false)
-            ->assertSee(route('admin.mail-documents.editor', ['dokument' => 'signature']), escape: false)
+            ->assertSee(route('admin.mail-documents.editor', ['dokument' => 'signature', 'open' => 1]), escape: false)
             ->assertSee('data-mail-document-back', escape: false)
             ->assertSee('data-mail-theme-button="light"', escape: false)
             ->assertSee('data-mail-theme-button="dark"', escape: false)
@@ -266,6 +271,11 @@ class MailDocumentEditorTest extends TestCase
             ->assertSee('data-page-builder-preview-first', escape: false)
             ->assertSee('data-page-builder-assist', escape: false)
             ->assertSee('Mail- &amp; Signatur-Editor', escape: false);
+
+        $this->actingAs($admin)
+            ->get(route('admin.mail-documents.editor', ['open' => 1]))
+            ->assertOk()
+            ->assertSee('pageBuilderOpen: true', escape: false);
     }
 
     public function test_editorconfig_liefert_echte_vorschau_assets_ohne_die_dokumenttokens_zu_veraendern(): void

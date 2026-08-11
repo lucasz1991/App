@@ -1217,6 +1217,24 @@ function eventPoint(editor, event, zoom) {
     return { x: number(event?.clientX), y: number(event?.clientY) };
 }
 
+function spacingPositionInHost(editor, host, position) {
+    const canvas = editor?.Canvas?.getElement?.();
+    const canvasRect = canvas?.getBoundingClientRect?.();
+    const hostRect = host?.getBoundingClientRect?.();
+    if (!canvasRect || !hostRect) return position;
+    const values = [canvasRect.left, canvasRect.top, hostRect.left, hostRect.top];
+    if (!values.every(Number.isFinite)) return position;
+
+    // Canvas.getElementPos() is relative to the GrapesJS canvas. getToolsEl()
+    // can itself be the already-positioned selection box, so its offset must be
+    // removed before absolutely positioning our children inside that host.
+    return {
+        ...position,
+        left: number(position.left) - (hostRect.left - canvasRect.left),
+        top: number(position.top) - (hostRect.top - canvasRect.top),
+    };
+}
+
 function applyHandleRect(handle, visualRect, side, hitSize) {
     const horizontal = side === 'top' || side === 'bottom';
     const width = Math.max(visualRect.width, horizontal ? hitSize : visualRect.width);
@@ -1303,7 +1321,8 @@ export function createSpacingOverlayController({
         const element = selected.getEl?.();
         const position = element ? editor.Canvas.getElementPos?.(element) : null;
         const offsets = element ? editor.Canvas.getElementOffsets?.(element) : null;
-        const geometry = calculateSpacingOverlayGeometry({ position, offsets, minimumBand: coarse ? 10 : 8 });
+        const localPosition = position ? spacingPositionInHost(editor, host, position) : null;
+        const geometry = calculateSpacingOverlayGeometry({ position: localPosition, offsets, minimumBand: coarse ? 10 : 8 });
         if (!geometry) {
             node.hidden = true;
             return;

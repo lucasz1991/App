@@ -15,17 +15,18 @@
     back-label="Zur Vorlagen-Seite"
     :preview-sources="$editorPreviewSources"
     preview-default="light"
+    :auto-open="request()->boolean('open')"
     workspace-class="min-h-0 flex-1 overflow-hidden p-0"
     data-mail-document-studio
     data-mail-document-back
 >
     @if ($currentDocument !== null)
         <x-slot:toolbar>
-            <div class="rt-mail-studio-toolbar" data-mail-studio-toolbar>
-                <div class="rt-mail-studio-toolbar__documents" role="group" aria-label="Dokument auswählen">
+            <div class="rt-mail-studio-toolbar" data-mail-studio-toolbar data-mail-toolbar-layout="responsive">
+                <div class="rt-mail-studio-toolbar__documents" data-mail-toolbar-region="documents" role="group" aria-label="Dokument auswählen">
                     @foreach ($kinds as $kindValue => [$kindLabel, $kindHint])
                         <a
-                            href="{{ route('admin.mail-documents.editor', ['dokument' => $kindValue]) }}"
+                            href="{{ route('admin.mail-documents.editor', ['dokument' => $kindValue, 'open' => 1]) }}"
                             wire:navigate
                             data-mail-document-switch="{{ $kindValue }}"
                             aria-current="{{ $currentKind === $kindValue ? 'page' : 'false' }}"
@@ -37,7 +38,7 @@
                     @endforeach
                 </div>
 
-                <div class="rt-mail-studio-toolbar__preview" data-mail-preview-toolbar>
+                <div class="rt-mail-studio-toolbar__preview" data-mail-toolbar-region="preview" data-mail-preview-toolbar>
                     <div class="rt-mail-preview-context">
                         <strong>Vorschau</strong>
                         <small data-mail-preview-status aria-live="polite">Desktop · 1024 px · wird eingepasst</small>
@@ -70,7 +71,7 @@
                     </div>
                 </div>
 
-                <div class="rt-mail-studio-toolbar__actions">
+                <div class="rt-mail-studio-toolbar__actions" data-mail-toolbar-region="actions">
                     <span
                         data-mail-document-status
                         data-status="{{ $currentDocument->status->value }}"

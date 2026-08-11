@@ -130,7 +130,9 @@ class EmailTemplatesPageTest extends TestCase
             ->get(route('email-templates.index'))
             ->assertOk()
             ->assertSee(route('email-templates.index'), escape: false)
-            ->assertSee(route('admin.mail-documents.editor'), escape: false)
+            ->assertSee(route('admin.mail-documents.editor', ['open' => 1]), escape: false)
+            ->assertSee(route('admin.mail-documents.editor', ['dokument' => 'template', 'open' => 1]), escape: false)
+            ->assertSee(route('admin.mail-documents.editor', ['dokument' => 'signature', 'open' => 1]), escape: false)
             ->assertSee('data-email-template-editor-link', escape: false)
             ->assertSee('Vorlagen &amp; Signaturen bearbeiten', escape: false)
             ->assertSee('data-menu-active="true"', escape: false);

@@ -65,7 +65,7 @@
         @if ($user?->isAdmin())
             <x-slot:actions>
                 <a
-                    href="{{ route('admin.mail-documents.editor') }}"
+                    href="{{ route('admin.mail-documents.editor', ['open' => 1]) }}"
                     wire:navigate
                     data-email-template-editor-link
                     class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-rt-red-dark focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/20"
@@ -203,7 +203,7 @@
                         ] as $documentKind => [$documentTitle, $documentDescription, $previewHeight])
                             @if ($document = $adminMailDocuments->get($documentKind))
                                 @php
-                                    $documentEditUrl = route('admin.mail-documents.editor', ['dokument' => $documentKind]);
+                                    $documentEditUrl = route('admin.mail-documents.editor', ['dokument' => $documentKind, 'open' => 1]);
                                     $documentPreviewSources = collect(['light' => 'Hell', 'dark' => 'Dunkel'])
                                         ->mapWithKeys(fn (string $label, string $theme): array => [$theme => [
                                             'label' => $label,
