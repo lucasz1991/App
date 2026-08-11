@@ -1769,6 +1769,67 @@ test('inline edit menu attaches when GrapesJS creates its selection toolbar afte
     chrome.destroy();
 }));
 
+test('shared LMZ uses the visible dynamic toolbar for editing, menu anchoring and structure guards', () => coreWithDom(`
+    <div data-page-builder-shell><div data-page-builder-fullscreen-root data-page-builder-shell-id="shell-dynamic-toolbar">
+    <div id="root"><div class="lmz-builder__topbar"><button data-lmz-action="assets">Media</button></div>
+    <div class="lmz-builder__viewport"><div data-tools><div data-toolbar class="lmzbjs-toolbar"></div></div></div></div></div></div>
+`, async ({ document }) => {
+    const root = document.querySelector('#root');
+    root.getBoundingClientRect = () => ({ left: 20, top: 10, width: 500, height: 400, right: 520, bottom: 410 });
+    const selected = coreFakeComponent(document.createElement('img'), {
+        type: 'image',
+        attributes: { 'data-rt-brand-lockup': 'official' },
+    });
+    const editor = coreFakeEditor(root, selected);
+    const staleToolbar = root.querySelector('[data-toolbar]');
+    staleToolbar.getBoundingClientRect = () => ({ left: 0, top: 0, width: 0, height: 0, right: 0, bottom: 0 });
+    const chrome = createLmzEditorChrome({ instance: { editor }, root, mode: 'marketing' });
+
+    const dynamicToolbar = document.createElement('div');
+    dynamicToolbar.className = 'lmzbjs-toolbar';
+    dynamicToolbar.getBoundingClientRect = () => ({ left: 180, top: 70, width: 120, height: 44, right: 300, bottom: 114 });
+    dynamicToolbar.innerHTML = '<button data-command="tlb-move">Move</button><button data-command="tlb-delete">Delete</button>';
+    root.querySelector('[data-tools]').appendChild(dynamicToolbar);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    const trigger = dynamicToolbar.querySelector('.rt-lmz-inline-edit-trigger');
+    assert.ok(trigger);
+    trigger.click();
+    const menu = root.querySelector('.rt-lmz-inline-menu');
+    assert.equal(menu.style.left, '160px');
+    assert.equal(menu.style.top, '110px');
+
+    editor.emit('component:selected', selected);
+    assert.equal(dynamicToolbar.querySelector('[data-command="tlb-move"]').hidden, true);
+    assert.equal(dynamicToolbar.querySelector('[data-command="tlb-delete"]').hidden, true);
+    assert.equal(dynamicToolbar.querySelector('[data-command="tlb-delete"]').getAttribute('aria-disabled'), 'true');
+
+    chrome.destroy();
+    assert.equal(dynamicToolbar.querySelector('.rt-lmz-inline-edit-trigger'), null);
+}));
+
+test('shared LMZ keeps fixed icon action labels visually hidden without hiding normal action labels', () => coreWithDom(`
+    <div data-page-builder-shell><div data-page-builder-fullscreen-root data-page-builder-shell-id="shell-action-labels">
+    <div id="root"><div class="lmz-builder__topbar">
+        <button class="lmz-builder__action is-icon-only" data-lmz-action="undo"><span class="lmz-builder__action-icon"></span></button>
+        <button class="lmz-builder__action" data-lmz-action="save"><span class="lmz-builder__action-label">Alt</span></button>
+    </div><div class="lmz-builder__viewport"><div data-tools><div data-toolbar></div></div></div></div></div></div>
+`, ({ document }) => {
+    const root = document.querySelector('#root');
+    const selected = coreFakeComponent(document.createElement('p'));
+    const editor = coreFakeEditor(root, selected);
+    const chrome = createLmzEditorChrome({ instance: { editor }, root, mode: 'mail' });
+
+    const undoLabel = root.querySelector('[data-lmz-action="undo"] .rt-lmz-toolbar-action__label');
+    const saveLabel = root.querySelector('[data-lmz-action="save"] .rt-lmz-toolbar-action__label');
+    assert.equal(undoLabel.textContent, 'Rückgängig');
+    assert.equal(undoLabel.classList.contains('sr-only'), true);
+    assert.equal(saveLabel.textContent, 'Speichern');
+    assert.equal(saveLabel.classList.contains('sr-only'), false);
+
+    chrome.destroy();
+}));
+
 test('shared LMZ closes vendor auto-styles after selection but preserves explicit style intent', () => coreWithDom(`
     <div data-page-builder-shell><div data-page-builder-fullscreen-root data-page-builder-shell-id="shell-a">
     <div id="root"><div class="lmz-builder__topbar"><button data-lmz-action="assets"></button>

@@ -1377,16 +1377,46 @@ function addActionLabel(button, label) {
     if (!button) return;
     button.classList.add('rt-lmz-toolbar-action');
     button.setAttribute('aria-label', label);
+    const iconOnly = button.classList.contains('is-icon-only');
     const existing = button.querySelector('.lmz-builder__action-label');
     if (existing) {
         existing.classList.add('rt-lmz-toolbar-action__label');
+        existing.classList.toggle('sr-only', iconOnly);
         existing.textContent = label;
     } else if (!button.querySelector('.rt-lmz-toolbar-action__label')) {
         const span = button.ownerDocument.createElement('span');
         span.className = 'rt-lmz-toolbar-action__label';
+        if (iconOnly) span.classList.add('sr-only');
         span.textContent = label;
         button.appendChild(span);
     }
+}
+
+function canvasToolbars(editor, root) {
+    const toolbars = [];
+    const add = (toolbar) => {
+        if (toolbar && !toolbars.includes(toolbar)) toolbars.push(toolbar);
+    };
+
+    add(editor?.Canvas?.getToolbarEl?.());
+    root?.querySelectorAll?.('.lmzbjs-toolbar')?.forEach?.(add);
+
+    return toolbars;
+}
+
+function visibleCanvasToolbar(editor, root) {
+    const toolbars = canvasToolbars(editor, root);
+    const visible = toolbars.find((toolbar) => {
+        if (toolbar.hidden) return false;
+        const rect = toolbar.getBoundingClientRect?.();
+        return Boolean(rect && (rect.width > 0 || rect.height > 0));
+    });
+
+    // In DOM-Testumgebungen und waehrend GrapesJS die Auswahl positioniert,
+    // liefern alle Toolbars kurzzeitig 0 x 0. Die zuletzt erzeugte Toolbar ist
+    // dann die dynamische Auswahlleiste, waehrend getToolbarEl() noch auf die
+    // vorherige, bereits abgeloeste Instanz zeigen kann.
+    return visible || toolbars.at(-1) || null;
 }
 
 function createMediaDrawer({ root, editor, mode, media, capabilities, onChanged }) {
@@ -1723,22 +1753,23 @@ function addInlineEditToolbar(editor, root, menu) {
     const document_ = root.ownerDocument;
     let attachQueued = false;
     const attach = () => {
-        const toolbar = editor?.Canvas?.getToolbarEl?.();
-        if (!toolbar || toolbar.querySelector?.(`[data-command="${EDIT_COMMAND}"]`)) return;
-        const button = document_.createElement('button');
-        button.type = 'button';
-        button.className = 'lmzbjs-toolbar-item rt-lmz-inline-edit-trigger';
-        button.dataset.command = EDIT_COMMAND;
-        button.title = 'Bearbeiten';
-        button.setAttribute('aria-label', 'Bearbeiten');
-        button.setAttribute('aria-haspopup', 'menu');
-        button.innerHTML = '<span class="rt-lmz-inline-edit-icon" aria-hidden="true">&bull;&bull;&bull;</span>';
-        button.addEventListener('click', (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            menu.open(editor.getSelected?.());
+        canvasToolbars(editor, root).forEach((toolbar) => {
+            if (toolbar.querySelector?.(`[data-command="${EDIT_COMMAND}"]`)) return;
+            const button = document_.createElement('button');
+            button.type = 'button';
+            button.className = 'lmzbjs-toolbar-item rt-lmz-inline-edit-trigger';
+            button.dataset.command = EDIT_COMMAND;
+            button.title = 'Bearbeiten';
+            button.setAttribute('aria-label', 'Bearbeiten');
+            button.setAttribute('aria-haspopup', 'menu');
+            button.innerHTML = '<span class="rt-lmz-inline-edit-icon" aria-hidden="true">&bull;&bull;&bull;</span>';
+            button.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                menu.open(editor.getSelected?.());
+            });
+            toolbar.appendChild(button);
         });
-        toolbar.appendChild(button);
     };
     const onSelected = () => {
         if (attachQueued) return;
@@ -1760,7 +1791,9 @@ function addInlineEditToolbar(editor, root, menu) {
         toolbarObserver?.disconnect?.();
         editor.off?.('component:selected', onSelected);
         editor.off?.('canvas:frame:load', onSelected);
-        editor?.Canvas?.getToolbarEl?.()?.querySelector?.(`[data-command="${EDIT_COMMAND}"]`)?.remove?.();
+        canvasToolbars(editor, root).forEach((toolbar) => {
+            toolbar.querySelectorAll?.(`[data-command="${EDIT_COMMAND}"]`)?.forEach?.((button) => button.remove?.());
+        });
     };
 }
 
@@ -1777,11 +1810,13 @@ function installStructureActionGuard(editor, root, { writable = true } = {}) {
                 delete button.dataset.rtLmzProtectedClosing;
             });
         }
-        editor?.Canvas?.getToolbarEl?.()?.querySelectorAll?.('[data-command]')?.forEach?.((button) => {
-            if (!blockedCommands.has(String(button.dataset?.command || ''))) return;
-            button.hidden = protectedSelection;
-            button.disabled = protectedSelection;
-            button.setAttribute('aria-disabled', protectedSelection ? 'true' : 'false');
+        canvasToolbars(editor, root).forEach((toolbar) => {
+            toolbar.querySelectorAll?.('[data-command]')?.forEach?.((button) => {
+                if (!blockedCommands.has(String(button.dataset?.command || ''))) return;
+                button.hidden = protectedSelection;
+                button.disabled = protectedSelection;
+                button.setAttribute('aria-disabled', protectedSelection ? 'true' : 'false');
+            });
         });
     };
     const blockToolbarAction = (event) => {
@@ -1937,7 +1972,8 @@ function createInlineMenu({ root, editor, capabilities, mode, mediaDrawer, anima
                 }
                 if (definition.id === 'gif-restart') restartAnimatedPreview(resolveAnimatedComponent(selected) || resolveEditableImageComponent(editor, selected, { mode }) || selected);
                 if (definition.id === 'move') {
-                    const moveHandle = editor.Canvas?.getToolbarEl?.()?.querySelector?.('[data-command="tlb-move"]');
+                    const moveHandle = visibleCanvasToolbar(editor, root)?.querySelector?.('[data-command="tlb-move"]')
+                        || canvasToolbars(editor, root).map((toolbar) => toolbar.querySelector?.('[data-command="tlb-move"]')).find(Boolean);
                     moveHandle?.focus?.();
                     moveHandle?.classList?.add?.('rt-lmz-move-ready');
                     globalThis.setTimeout?.(() => moveHandle?.classList?.remove?.('rt-lmz-move-ready'), 1800);
@@ -1977,7 +2013,7 @@ function createInlineMenu({ root, editor, capabilities, mode, mediaDrawer, anima
             if (!component) return;
             returnFocus = document_.activeElement;
             render();
-            const toolbar = editor.Canvas?.getToolbarEl?.();
+            const toolbar = visibleCanvasToolbar(editor, root);
             const canvas = root.getBoundingClientRect?.() || { left: 0, top: 0 };
             const anchor = toolbar?.getBoundingClientRect?.() || { left: canvas.left + 12, bottom: canvas.top + 54 };
             menu.style.left = `${clamp(anchor.left - canvas.left, 8, Math.max(8, canvas.width - 240))}px`;
