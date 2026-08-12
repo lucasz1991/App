@@ -288,39 +288,34 @@ class EmailTemplatesPageTest extends TestCase
             }
 
             $this->assertSame(30, $durations[0], "{$file}: Startverzoegerung muss 300 ms betragen.");
-            $this->assertSame(740, array_sum($durations), "{$file}: 300 + 5500 + 1600 ms erwartet.");
-            // 650 kB statt der frueheren 200. Die Grenze wurde ANGEHOBEN,
-            // nicht vergessen: Die Einfahrt liegt jetzt in 1120 x 160 statt
+            // ZEHN SEKUNDEN Gesamtlaufzeit: sieben Sekunden Einfahrt, danach
+            // verweht die Fahne, bis das letzte Einzelbild rauchfrei steht.
+            $this->assertSame(1000, array_sum($durations), "{$file}: 10 s Gesamtlaufzeit erwartet.");
+            // 700 kB statt der frueheren 200. Die Grenze wurde ANGEHOBEN,
+            // nicht vergessen: Die Einfahrt liegt jetzt in 2160 x 388 statt
             // 720 x 75, weil sie auf breiten Schirmen sichtbar hochskaliert
-            // wurde. Nachgemessen kostet das unvermeidlich Bytes — gifenc
-            // schreibt Vollbilder, und Durchsichtigkeit aendert daran kein
-            // Byte (1400x200 mit 16 Farben: 1019 kB; die gewaehlten
-            // 1120x160 mit 8 Farben und 44 Bildern: 329 kB). Vertretbar,
-            // weil die Datei in versendeten Mails VERLINKT ist — Gmails
-            // 102-kB-Schnitt gilt fuer die Nachricht, nicht fuer das Bild.
-            // Gemessene Stufen: 1400x200/16 Farben/65 Bilder = 1019 kB;
-            // die gelieferten 1640x412/8 Farben/44 Bilder = 596 kB.
-            $this->assertLessThanOrEqual(650 * 1024, strlen($binary), $file);
+            // wurde und sechs Wagen zeigen soll. Nachgemessen kostet das
+            // unvermeidlich Bytes — gifenc schreibt Vollbilder, und
+            // Durchsichtigkeit aendert daran kein einziges (16 Farben mit
+            // und ohne: identische Groesse). Gemessene Stufen:
+            // 1400x200/16 Farben/65 Bilder = 1019 kB; die gelieferten
+            // 2160x388/8 Farben/64 Bilder = 650 kB. Vertretbar, weil die
+            // Datei in versendeten Mails VERLINKT ist — Gmails 102-kB-Schnitt
+            // gilt fuer die Nachricht, nicht fuer das Bild.
+            $this->assertLessThanOrEqual(700 * 1024, strlen($binary), $file);
         }
 
-        foreach (['zug-dampf-idle-light.gif', 'zug-dampf-idle-dark.gif'] as $file) {
-            $binary = file_get_contents(resource_path('mail-templates/assets/'.$file));
-            $marker = strpos($binary, 'NETSCAPE2.0');
-            $this->assertNotFalse($marker, "{$file}: Standrauch muss loopen.");
-            $loops = ord($binary[$marker + 14]) | (ord($binary[$marker + 15]) << 8);
-            $this->assertSame(0, $loops, "{$file}: Standrauch muss endlos loopen.");
-
-            $durations = [];
-            $offset = 0;
-            while (($offset = strpos($binary, "\x21\xf9\x04", $offset)) !== false) {
-                $durations[] = ord($binary[$offset + 4]) | (ord($binary[$offset + 5]) << 8);
-                $offset += 8;
-            }
-
-            $this->assertSame(370, array_sum($durations), "{$file}: Idle-Loop muss 3,7 s dauern.");
-            $this->assertSame(0, 740 % array_sum($durations), "{$file}: Einfahrt muss exakt auf der Idle-Loop-Naht enden.");
-            $this->assertLessThanOrEqual(650 * 1024, strlen($binary), $file);
-        }
+        // DIE STANDRAUCH-EBENE IST ENTFALLEN. Sie lag als zweites GIF unter
+        // der Einfahrt und trug dabei den GANZEN Zug ein zweites Mal — sobald
+        // die Einfahrt durchsichtig wurde, haette er doppelt gestanden.
+        // Seit die Fahne der Einfahrt von selbst verweht, braucht es sie
+        // nicht mehr: das letzte Einzelbild ist rauchfrei und deckungsgleich
+        // mit dem Standbild. Die frueher hier geprueften Nahtbedingungen
+        // (Idle-Loop 370 cs, Gesamtlaufzeit ohne Rest teilbar) sind damit
+        // gegenstandslos. Was bleibt, ist die Zusicherung, dass die Ebene
+        // wirklich nicht mehr eingebunden wird.
+        $signatur = (new EmailTemplateBuilder(User::factory()->create()))->build('signatur-hell')['content'];
+        $this->assertStringNotContainsString('zug-dampf-idle', $signatur);
     }
 
     public function test_outlook_export_contains_installable_signature_and_one_regular_gif(): void
@@ -391,7 +386,7 @@ class EmailTemplatesPageTest extends TestCase
             );
             $this->assertStringStartsWith('GIF89a', $gif);
             $this->assertStringNotContainsString('NETSCAPE2.0', $gif);
-            $this->assertLessThanOrEqual(650 * 1024, strlen($gif));
+            $this->assertLessThanOrEqual(700 * 1024, strlen($gif));
 
             $durations = [];
             $offset = 0;
@@ -620,8 +615,8 @@ class EmailTemplatesPageTest extends TestCase
         // Doppelte Aufloesung von 720 x 75 CSS-Pixeln.
         // Neu gerendert in 1120 x 160 (vorher 720 x 75 mal zwei): auf
         // breiten Schirmen wurde die alte Fassung sichtbar hochskaliert.
-        $this->assertSame(1640, $width);
-        $this->assertSame(412, $height);
+        $this->assertSame(2160, $width);
+        $this->assertSame(388, $height);
 
         // Die Umbruchregeln stehen in EINER Quelle. Vorher lagen sie
         // viermal im Projekt und waren bereits auseinandergelaufen: die
