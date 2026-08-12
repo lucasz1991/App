@@ -45,7 +45,7 @@ const ASSETS = 'resources/mail-templates/assets';
 const OEFFENTLICH = 'public/mail-assets';
 
 // --- Leinwand ---------------------------------------------------------
-const BREITE = Number(process.env.RT_BREITE || 820);
+const BREITE = Number(process.env.RT_BREITE || 1080);
 const SKALA = Number(process.env.RT_SKALA || 2);                       // 1400 x 200 echte Bildpunkte
 
 // --- Zug --------------------------------------------------------------
@@ -94,7 +94,7 @@ const ZUG_HOEHE = ZUG_BREITE * (151 / 2053);
 // Der Kopfraum ist jetzt ein VIELFACHES der Zughoehe, weil der Zug mit
 // sechs Wagen deutlich flacher im Bild steht. Ohne diese Entkopplung
 // schrumpfte der Himmel mit und die Fahne haette keinen Platz mehr.
-const KOPFRAUM = Number(process.env.RT_KOPFRAUM || 4.2);
+const KOPFRAUM = Number(process.env.RT_KOPFRAUM || 3.2);
 const HOEHE = Math.round(ZUG_HOEHE * KOPFRAUM);
 const RUHE_X = BREITE - ZUG_BREITE;     // Lok am rechten Bildrand
 const START_X = -ZUG_BREITE * (1 + (WAGENTEIL * ANHAENGE));
@@ -102,9 +102,9 @@ const ZUG_Y = HOEHE - ZUG_HOEHE;
 const SCHORNSTEIN_X = BREITE - (ZUG_BREITE * 0.035);
 
 // --- Zeiten (vertraglich, siehe EmailTemplatesPageTest) ---------------
-const BILDER = Number(process.env.RT_BILDER || 56);
+const BILDER = Number(process.env.RT_BILDER || 64);
 const ERSTES_CS = 30;
-const SUMME_CS = 740;
+const SUMME_CS = 1000;
 const GESAMT_S = SUMME_CS / 100;
 // SIEBEN SEKUNDEN bis zum Stillstand. Danach bleibt das letzte Einzelbild
 // stehen — das ist der Ruhezustand.
@@ -194,9 +194,19 @@ const rausch = (i, salz = 0) => {
 // und als einzelne Ballen stehen bleiben statt zu verschmelzen.
 // Bezugsmass ist die fruehere Leinwand von 560 Einheiten.
 const MASSSTAB = BREITE / 560;
-const WOLKEN = 420;
+
+/*
+ * DER RAUCH VERWEHT VOR DEM ENDE — und das ist der Kern des sauberen
+ * Uebergangs: Ist das letzte Einzelbild rauchfrei, ist es mit dem
+ * Standbild IDENTISCH. Damit kann beim Wechsel vom GIF auf das Standbild
+ * (oder wenn ein Client die Animation abbricht) kein Sprung mehr
+ * entstehen — es gibt keinen Unterschied, der springen koennte.
+ */
+const RAUCH_AUS_AB = FAHRT_S * 0.62;
+const RAUCH_AUS_BIS = 0.94;             // Anteil der Gesamtzeit
+const WOLKEN = 200;
 const wolken = Array.from({ length: WOLKEN }, (_, i) => ({
-    geburt: (i / WOLKEN) * (FAHRT_S * 0.92),
+    geburt: (i / WOLKEN) * (FAHRT_S * 0.72),
     // Streuung breiter als zuvor: gleichfoermige Werte ergaben eine Bank,
     // keine Fahne.
     drift: (-11 - (rausch(i, 1) * 30)) * MASSSTAB,
@@ -213,6 +223,9 @@ function wolkeBei(w, t, schornsteinX) {
     // Der Rauch tritt dort aus, wo der Schornstein ZUM ZEITPUNKT DES
     // AUSTRITTS stand — nur so bleibt die Fahne hinter dem Zug zurueck.
     const auftauchen = glatt(w.geburt, w.geburt + 0.35, t);
+    const vergehen = 1 - glatt(RAUCH_AUS_AB, GESAMT_S * RAUCH_AUS_BIS, t);
+    if (vergehen <= 0) return null;
+
     const r = w.r0 + (w.wuchs * alter);
 
     // DAS IST DER PUNKT FUER DIE GLAUBWUERDIGKEIT: Rauch wird duenner,
@@ -230,7 +243,7 @@ function wolkeBei(w, t, schornsteinX) {
         y: (ZUG_Y + (ZUG_HOEHE * 0.16)) + (w.steigen * alter)
             + (Math.cos(w.phase + (alter * 1.3)) * 1.2 * MASSSTAB * (1 + (alter * 0.4))),
         r,
-        alpha: auftauchen * 0.30 * verduennung,
+        alpha: auftauchen * vergehen * 0.26 * verduennung,
     };
 }
 
@@ -345,6 +358,7 @@ for (const v of VARIANTEN) {
     const tinte = v.key === 'dark' ? [216, 221, 228] : [115, 125, 137];
     const tabelle = farbtabelle(v.grund, tinte);
     const encoder = GIFEncoder();
+    let letztesBild = null;
 
     for (let i = 0; i < BILDER; i += 1) {
         const t = zeiten[i];
@@ -364,6 +378,8 @@ for (const v of VARIANTEN) {
             zugX, zugY: ZUG_Y, zugBreite: ZUG_BREITE, zugHoehe: ZUG_HOEHE,
             wagenteil: WAGENTEIL, anhaenge: ANHAENGE,
         });
+
+        letztesBild = rgba;
 
         encoder.writeFrame(aufTabelle(rgba, tabelle), BREITE * SKALA, HOEHE * SKALA, {
             palette: i === 0 ? tabelle : undefined,
@@ -396,37 +412,7 @@ for (const v of VARIANTEN) {
     writeFileSync(`${ASSETS}/zug-dampf-${v.key}.png`, stillBytes);
     console.log(`  ${v.key}: Standbild ${(stillBytes.length / 1024).toFixed(1)} kB (deckungsgleich mit dem letzten Einzelbild)`);
 
-    const altStill = await page.evaluate((a) => {
-        const c = document.createElement('canvas');
-        c.width = a.breite * a.skala;
-        c.height = a.hoehe * a.skala;
-        const x = c.getContext('2d');
-        x.scale(a.skala, a.skala);
-        x.globalAlpha = a.deckkraft;
-        const schritt = a.zugBreite * a.wagenteil;
-        for (let k = a.anhaenge; k >= 1; k -= 1) {
-            x.save();
-            x.beginPath();
-            x.rect(a.zugX - (k * schritt), 0, schritt, a.hoehe);
-            x.clip();
-            x.drawImage(window.rtZug, a.zugX - (k * schritt), a.zugY, a.zugBreite, a.zugHoehe);
-            x.restore();
-        }
-        x.drawImage(window.rtZug, a.zugX, a.zugY, a.zugBreite, a.zugHoehe);
-
-        return Array.from(new Uint8Array(x.getImageData(0, 0, c.width, c.height).data.buffer));
-    }, {
-        breite: BREITE, hoehe: HOEHE, skala: SKALA, deckkraft: v.deckkraft,
-        zugX: RUHE_X, zugY: ZUG_Y, zugBreite: ZUG_BREITE, zugHoehe: ZUG_HOEHE,
-        wagenteil: WAGENTEIL, anhaenge: ANHAENGE,
-    });
-
-    const png = new PNG({ width: BREITE * SKALA, height: HOEHE * SKALA });
-    png.data.set(new Uint8Array(still));
-    const bytes = PNG.sync.write(png, { deflateLevel: 9 });
-    writeFileSync(`${ASSETS}/zug-dampf-${v.key}.png`, bytes);
-
-    console.log(`  ${v.key}: GIF ${(gif.length / 1024).toFixed(1)} kB, Standbild ${(bytes.length / 1024).toFixed(1)} kB (${BREITE * SKALA}x${HOEHE * SKALA})`);
+    console.log(`  ${v.key}: GIF ${(gif.length / 1024).toFixed(1)} kB (${BREITE * SKALA}x${HOEHE * SKALA}, ${WAGEN_SICHTBAR} Wagen sichtbar)`);
 }
 
 await browser.close();
