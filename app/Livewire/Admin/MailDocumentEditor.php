@@ -123,13 +123,13 @@ class MailDocumentEditor extends Component
             // lokale data:-URL in die spaetere E-Mail uebernehmen.
             'previewAssets' => [
                 'light' => [
-                    'logo' => EmailTemplateBuilder::inlineImage('wortmarke-signature-light.png', 'image/png'),
-                    'mark' => EmailTemplateBuilder::inlineImage('icon-rt-light.png', 'image/png'),
+                    'logo' => EmailTemplateBuilder::inlineImage('wortmarke-signature-light.gif', 'image/gif'),
+                    'mark' => EmailTemplateBuilder::inlineImage('icon-rt-light.gif', 'image/gif'),
                     'train' => EmailTemplateBuilder::inlineImage('zug-dampf-light.gif', 'image/gif'),
                 ],
                 'dark' => [
-                    'logo' => EmailTemplateBuilder::inlineImage('wortmarke-mail-dark.png', 'image/png'),
-                    'mark' => EmailTemplateBuilder::inlineImage('icon-rt-dark.png', 'image/png'),
+                    'logo' => EmailTemplateBuilder::inlineImage('wortmarke-mail-dark.gif', 'image/gif'),
+                    'mark' => EmailTemplateBuilder::inlineImage('icon-rt-dark.gif', 'image/gif'),
                     'train' => EmailTemplateBuilder::inlineImage('zug-dampf-dark.gif', 'image/gif'),
                 ],
                 'icons' => [

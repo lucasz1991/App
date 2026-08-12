@@ -60,18 +60,27 @@
         ($values['UST_ID'] ?? '') !== '' ? 'USt-IdNr. '.$values['UST_ID'] : '',
         ($values['STEUERNUMMER'] ?? '') !== '' ? 'Steuernummer '.$values['STEUERNUMMER'] : '',
     ]));
-    $hasIdleTrain = ! $isOutlookExport && $values['TRAIN_IDLE_SRC'] !== '';
+    // Der Standrauch als eigene Ebene ist ENTFALLEN: Er trug den ganzen Zug
+    // ein zweites Mal, und seit die Fahne der Einfahrt von selbst verweht,
+    // gleicht deren letztes Bild dem Standbild.
 
     /*
      * DIE EBENEN DES STREIFENS, von oben nach unten.
      *
      * In CSS steht die ZUERST genannte Ebene ganz oben:
      *
-     *   1  Schleier      nimmt dem Zug Kraft (rund 30 % Grundfarbe)
-     *   2  Zug           Einfahrt, darunter der Standrauch
-     *   3  Wasserzeichen RT-Marke und roter Schimmer, EINMAL rechts
-     *   4  Raster        feines technisches Netz, gekachelt
-     *   5  Grundfarbe    weiss
+     *   1  Raster        feines technisches Netz, gekachelt, durchsichtig
+     *   2  Wasserzeichen RT-Marke und roter Schimmer, EINMAL rechts
+     *   3  Schleier      nimmt dem Zug Kraft (rund 30 % Grundfarbe)
+     *   4  Zug           Einfahrt
+     *   5  Grundfarbe    weiss beziehungsweise dunkel
+     *
+     * RASTER UND MARKE LIEGEN OBEN, nicht unten. Das GIF ist deckend —
+     * laege die Grafik darunter, schnitte der Zug einen sichtbaren Kasten
+     * hinein. Als durchsichtige Ebenen darueber laufen Netz und
+     * Wasserzeichen ohne Bruch durch. Bei 5 bis 6 Prozent Deckkraft ist
+     * nicht zu unterscheiden, ob sie vor oder hinter dem Zug liegen —
+     * wohl aber der Kasten, den die andere Reihenfolge erzeugte.
      *
      * Der Text liegt in der Zelle und damit ueber allen Ebenen — die
      * geforderte Reihenfolge Hintergrund < Zug < Daten ergibt sich daraus
@@ -88,13 +97,12 @@
      */
     $zugBreite = '77%';
     $ebenen = array_values(array_filter([
-        $isOutlookExport ? '' : "linear-gradient({$values['SIGNATURE_TRAIN_WASH']},{$values['SIGNATURE_TRAIN_WASH']})|center center|100% 100%|no-repeat",
-        $isOutlookExport ? '' : "url({$values['TRAIN_SRC']})|left bottom|{$zugBreite} auto|no-repeat",
-        $hasIdleTrain ? "url({$values['TRAIN_IDLE_SRC']})|left bottom|{$zugBreite} auto|no-repeat" : '',
-        ($values['GRUND_MARKE_SRC'] ?? '') !== ''
-            ? "url({$values['GRUND_MARKE_SRC']})|right center|auto 100%|no-repeat" : '',
         ($values['GRUND_RASTER_SRC'] ?? '') !== ''
             ? "url({$values['GRUND_RASTER_SRC']})|left top|64px 64px|repeat" : '',
+        ($values['GRUND_MARKE_SRC'] ?? '') !== ''
+            ? "url({$values['GRUND_MARKE_SRC']})|right center|auto 100%|no-repeat" : '',
+        $isOutlookExport ? '' : "linear-gradient({$values['SIGNATURE_TRAIN_WASH']},{$values['SIGNATURE_TRAIN_WASH']})|center center|100% 100%|no-repeat",
+        $isOutlookExport ? '' : "url({$values['TRAIN_SRC']})|left bottom|{$zugBreite} auto|no-repeat",
     ]));
     $teile = array_map(static fn (string $e): array => explode('|', $e), $ebenen);
     $backgroundImage = implode(',', array_column($teile, 0));

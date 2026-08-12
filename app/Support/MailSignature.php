@@ -81,7 +81,12 @@ class MailSignature
         // NUR DER SCHRIFTZUG, ohne das RT-Zeichen davor: die Markenspalte
         // der Signatur zeigt die Marke einmal. Das Zeichen steht allein
         // oben rechts in der E-Mail-Vorlage.
-        $logoAsset = $this->theme === 'dark' ? 'wortmarke-mail-dark.png' : 'wortmarke-signature-light.png';
+        // ALS GIF: Der Schriftzug traegt einen Lichtstreifen, der einmal
+        // darueberlaeuft (tools/render-marken-animation.mjs). Das ERSTE
+        // Einzelbild zeigt die Marke bereits vollstaendig — nur deshalb ist
+        // das in E-Mails ueberhaupt zulaessig: Outlook-Desktop zeigt von
+        // einem GIF ausschliesslich dieses erste Bild.
+        $logoAsset = $this->theme === 'dark' ? 'wortmarke-mail-dark.gif' : 'wortmarke-signature-light.gif';
 
         // Das RT-Zeichen gehoert zur VORLAGE (oben rechts), nicht zum
         // Signaturblock. Es steht trotzdem hier, weil values() die
@@ -124,8 +129,8 @@ class MailSignature
                     : '',
             ]
             : [
-                'LOGO_SRC' => EmailTemplateBuilder::inlineImage($logoAsset, 'image/png'),
-                'ICON_RT_SRC' => EmailTemplateBuilder::inlineImage($markAsset, 'image/png'),
+                'LOGO_SRC' => EmailTemplateBuilder::inlineImage($logoAsset, 'image/gif'),
+                'ICON_RT_SRC' => EmailTemplateBuilder::inlineImage($markAsset, 'image/gif'),
                 'GRUND_RASTER_SRC' => EmailTemplateBuilder::inlineImage($raster, 'image/png'),
                 'GRUND_MARKE_SRC' => EmailTemplateBuilder::inlineImage($marke, 'image/png'),
                 'TRAIN_SRC' => EmailTemplateBuilder::signatureTrainAsset(

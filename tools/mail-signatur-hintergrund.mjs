@@ -72,7 +72,7 @@ for (const v of VARIANTEN) {
 
     // --- Kachel: nur das Raster, nahtlos wiederholbar ---------------------
     await page.setContent(`<!doctype html><html style="background:transparent"><body style="margin:0;background:transparent">
-      <div style="width:${KACHEL}px;height:${KACHEL}px;background-color:${v.grund};
+      <div style="width:${KACHEL}px;height:${KACHEL}px;
         background-image:
           linear-gradient(${v.raster} 1px, transparent 1px),
           linear-gradient(90deg, ${v.raster} 1px, transparent 1px);
@@ -80,7 +80,10 @@ for (const v of VARIANTEN) {
         background-position:0 0,0 0;"></div>
     </body></html>`, { waitUntil: 'load' });
 
-    const kachel = await page.screenshot({ clip: { x: 0, y: 0, width: KACHEL, height: KACHEL } });
+    // OHNE eigenen Grund: Das Raster liegt als oberste Ebene UEBER dem Zug,
+    // damit dieser keinen sichtbaren Kasten in die Flaeche schneidet. Mit
+    // Grund verdeckte es alles darunter.
+    const kachel = await page.screenshot({ clip: { x: 0, y: 0, width: KACHEL, height: KACHEL }, omitBackground: true });
     writeFileSync(`${ASSETS}/signatur-raster-${v.key}.png`, kachel);
 
     // --- Marke: Wasserzeichen plus Schimmer, EINMAL rechts ----------------

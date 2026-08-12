@@ -385,7 +385,7 @@
 
   @if($canUploadFiles && $filePool)
     {{-- FileForm Modal --}}
-    <x-dialog-modal wire:model="openFileForm" maxWidth="3xl" data-filepool-upload-modal>
+    <x-dialog-modal wire:model="openFileForm" maxWidth="4xl" data-filepool-upload-modal>
       <x-slot name="title">
         <span class="flex min-w-0 items-center gap-3">
           <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rt-red/10 text-rt-red dark:bg-rt-red/20 dark:text-rt-dark-accent" aria-hidden="true">
@@ -435,13 +435,6 @@
               :max-files="20"
               :max-filesize="100"
             />
-
-            @error('fileUploads.'.$filePool->id)
-              <p class="mt-2 flex items-start gap-2 text-sm font-medium text-red-600 dark:text-red-400" role="alert">
-                <i class="far fa-exclamation-circle mt-1 shrink-0" aria-hidden="true"></i>
-                <span>{{ $message }}</span>
-              </p>
-            @enderror
           </x-ui.accordion.tab-panel>
 
           <x-ui.accordion.tab-panel for="uploadVisibility" :order="1" content-class="space-y-5" panel-class="rt-filepool-upload-panel rt-filepool-upload-panel--settings">

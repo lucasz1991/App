@@ -374,8 +374,15 @@ class MailDocumentEditorTest extends TestCase
             ->get(route('admin.mail-documents.editor'))
             ->assertOk();
 
+        // [^<]* STATT (.*?): Der Lazy-Quantor lief ueber diesen Inhalt ins
+        // Backtrack-Limit von PCRE und lieferte dann false — nicht "nicht
+        // gefunden", sondern einen Abbruch. Die Vorschau-Assets stecken als
+        // Base64 im Konfigurationsblock, und seit die Zugeinfahrt in
+        // 1640 x 412 vorliegt, sind das mehrere hundert Kilobyte.
+        // JSON in einem <script> darf kein rohes < enthalten (Blade escaped
+        // es), deshalb ist [^<]* hier sicher UND laeuft linear.
         $this->assertSame(1, preg_match(
-            '/<script[^>]*data-mail-document-config[^>]*>(.*?)<\/script>/s',
+            '/<script[^>]*data-mail-document-config[^>]*>([^<]*)<\/script>/',
             (string) $response->getContent(),
             $match,
         ));

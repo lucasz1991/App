@@ -262,8 +262,8 @@ html.rt-file-preview-open body {
 
 .rt-file-preview__zoom-toolbar .rt-file-preview__zoom-button,
 .rt-file-preview__zoom-toolbar .rt-file-preview__zoom-value {
-    min-width: 2.55rem;
-    min-height: 2.55rem;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
     border-color: transparent;
     background: transparent;
     box-shadow: none;

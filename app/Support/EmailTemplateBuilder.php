@@ -172,12 +172,12 @@ class EmailTemplateBuilder
             'signatur-dunkel' => [
                 'filename' => "RailTime-Signatur-dunkel-{$slug}.html",
                 'mime' => 'text/html; charset=UTF-8',
-                'content' => $this->buildSignature('signature-dark-master.html', 'wortmarke-signature-dark.png'),
+                'content' => $this->buildSignature('signature-dark-master.html', 'wortmarke-signature-dark.gif'),
             ],
             'signatur-hell' => [
                 'filename' => "RailTime-Signatur-hell-{$slug}.html",
                 'mime' => 'text/html; charset=UTF-8',
-                'content' => $this->buildSignature('signature-light-master.html', 'wortmarke-signature-light.png'),
+                'content' => $this->buildSignature('signature-light-master.html', 'wortmarke-signature-light.gif'),
             ],
             'signatur-outlook-dunkel' => [
                 'filename' => "RailTime-Outlook-Signatur-dunkel-{$slug}.zip",
@@ -593,10 +593,13 @@ class EmailTemplateBuilder
                 'THEME' => 'light',
                 'THEME_LABEL' => 'Hell',
                 'COLOR_SCHEME' => 'light',
-                'PAGE_BG' => '#e7eaed',
-                'SURFACE_BG' => '#f4f2ed',
+                // KEIN BEIGE. Die helle Fassung steht auf Weiss, die dunkle
+                // auf dem dunklen Grund darunter — der warme Ton von frueher
+                // (#f4f2ed) ist ersatzlos entfallen.
+                'PAGE_BG' => '#eef1f4',
+                'SURFACE_BG' => '#ffffff',
                 'CARD_BG' => '#ffffff',
-                'SOFT_BG' => '#eef1f3',
+                'SOFT_BG' => '#f4f5f7',
                 'TEXT_PRIMARY' => '#111820',
                 'TEXT_SECONDARY' => '#3f4852',
                 'TEXT_MUTED' => '#89939e',
@@ -630,15 +633,15 @@ class EmailTemplateBuilder
      */
     public static function emailMarkAsset(string $theme): string
     {
-        return $theme === 'dark' ? 'icon-rt-dark.png' : 'icon-rt-light.png';
+        return $theme === 'dark' ? 'icon-rt-dark.gif' : 'icon-rt-light.gif';
     }
 
     /** Der Schriftzug OHNE das RT-Zeichen — siehe MailSignature::values(). */
     protected function emailLogoAsset(string $theme): string
     {
         return $theme === 'dark'
-            ? 'wortmarke-mail-dark.png'
-            : 'wortmarke-signature-light.png';
+            ? 'wortmarke-mail-dark.gif'
+            : 'wortmarke-signature-light.gif';
     }
 
     protected function buildEmailHtml(
@@ -663,7 +666,7 @@ class EmailTemplateBuilder
         // die Marke einmal — nicht zweimal.
         $html = $this->substitute($html, [
             'ICON_RT_SRC' => $inlineImages
-                ? self::inlineImage(self::emailMarkAsset($theme), 'image/png')
+                ? self::inlineImage(self::emailMarkAsset($theme), 'image/gif')
                 : 'cid:railtime-mark',
         ]);
 
@@ -678,7 +681,7 @@ class EmailTemplateBuilder
         $signatureOverrides = array_merge(
             [
                 'LOGO_SRC' => $inlineImages
-                    ? self::inlineImage($this->emailLogoAsset($theme), 'image/png')
+                    ? self::inlineImage($this->emailLogoAsset($theme), 'image/gif')
                     : 'cid:railtime-logo',
             ],
             self::contactIconSources($inlineImages),
@@ -750,7 +753,7 @@ class EmailTemplateBuilder
         // ohne Akzentlinie, weil die Signaturdatei ihre eigene traegt.
         // Hier faehrt der Zug ein (animierte Fassung).
         $signature = MailSignature::forUser($this->user, $theme, animated: true);
-        $signatureOverrides = ['LOGO_SRC' => self::inlineImage($logo, 'image/png')];
+        $signatureOverrides = ['LOGO_SRC' => self::inlineImage($logo, 'image/gif')];
         $html = $this->substitute($html, [
             'SIGNATURE_BLOCK' => $this->signatureBlock(
                 $signature,
@@ -815,7 +818,7 @@ class EmailTemplateBuilder
                 "{$assetFolder}/zug-dampf.gif" => file_get_contents(
                     self::masterPath('assets/zug-dampf-outlook-'.($theme === 'dark' ? 'dark' : 'light').'.gif')
                 ),
-                "{$assetFolder}/logo.png" => file_get_contents(
+                "{$assetFolder}/logo.gif" => file_get_contents(
                     self::masterPath('assets/'.$this->emailLogoAsset($theme))
                 ),
             ];
@@ -873,7 +876,7 @@ class EmailTemplateBuilder
                     'outlookTrainSrc' => "{$assetFolder}/zug-dampf.gif",
                 ],
                 overrides: array_merge([
-                    'LOGO_SRC' => "{$assetFolder}/logo.png",
+                    'LOGO_SRC' => "{$assetFolder}/logo.gif",
                     'TRAIN_SRC' => '',
                     'TRAIN_IDLE_SRC' => '',
                 ], $iconSources),
@@ -1162,7 +1165,7 @@ TEXT;
             array_push(
                 $lines,
                 "--{$relBoundary}",
-                "Content-Type: image/png; name=\"{$image['filename']}\"",
+                'Content-Type: '.(str_ends_with($image['filename'], '.gif') ? 'image/gif' : 'image/png').'; name="'.$image['filename'].'"',
                 'Content-Transfer-Encoding: base64',
                 "Content-ID: <{$contentId}>",
                 "Content-Disposition: inline; filename=\"{$image['filename']}\"",
