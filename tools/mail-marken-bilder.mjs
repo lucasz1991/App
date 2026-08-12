@@ -190,11 +190,14 @@ function decken(punkte, groesse, unterproben = 4) {
 }
 
 /** Legt eine gedeckte Flaeche in der angegebenen Farbe ueber das Bild. */
-function auftragen(png, deckung, [r, g, b]) {
+function auftragen(png, deckung, farbquelle) {
     for (let i = 0; i < deckung.length; i++) {
         const a = Math.min(1, deckung[i]);
         if (a <= 0) continue;
 
+        const [r, g, b] = typeof farbquelle === 'function'
+            ? farbquelle(i % png.width, Math.floor(i / png.width))
+            : farbquelle;
         const p = i << 2;
         const alt = png.data[p + 3] / 255;
         const neu = a + alt * (1 - a);
@@ -206,10 +209,33 @@ function auftragen(png, deckung, [r, g, b]) {
     }
 }
 
-const ROT = [0xe4, 0x00, 0x2b];
 const ZEICHEN_GROESSE = 132;
 
-function zeichen(ziel, tFarbe) {
+function verlauf(stufen) {
+    return (x, y) => {
+        const t = Math.min(1, Math.max(0, (x + y) / (2 * (ZEICHEN_GROESSE - 1))));
+        let links = stufen[0];
+        let rechts = stufen.at(-1);
+        for (let i = 0; i < stufen.length - 1; i++) {
+            if (t < stufen[i][0] || t > stufen[i + 1][0]) continue;
+            links = stufen[i];
+            rechts = stufen[i + 1];
+            break;
+        }
+        const bereich = Math.max(0.0001, rechts[0] - links[0]);
+        const p = Math.min(1, Math.max(0, (t - links[0]) / bereich));
+
+        return links[1].map((wert, index) => Math.round(wert + ((rechts[1][index] - wert) * p)));
+    };
+}
+
+const ROT = verlauf([
+    [0, [0xf5, 0x1b, 0x3b]],
+    [0.48, [0xe4, 0x00, 0x2b]],
+    [1, [0xae, 0x00, 0x21]],
+]);
+
+function zeichen(ziel, tFarben) {
     const svg = readFileSync('public/icons/favicon.svg', 'utf8');
     const pfade = [...svg.matchAll(/<path d="([^"]+)"/g)].map((m) => m[1]);
 
@@ -227,7 +253,7 @@ function zeichen(ziel, tFarbe) {
 
     auftragen(png, decken(lege(pfade[0]), ZEICHEN_GROESSE), ROT);
     auftragen(png, decken(lege(pfade[1]), ZEICHEN_GROESSE), ROT);
-    auftragen(png, decken(lege(pfade[2]), ZEICHEN_GROESSE), tFarbe);
+    auftragen(png, decken(lege(pfade[2]), ZEICHEN_GROESSE), verlauf(tFarben));
 
     const bytes = PNG.sync.write(png, { deflateLevel: 9 });
     writeFileSync(`${QUELLE}/${ziel}`, bytes);
@@ -242,8 +268,16 @@ wortmarke('logo-mail-dark.png', 'wortmarke-mail-dark.png');
 
 // Auf hellem Grund traegt der Balken des T das Anthrazit der Marke, auf
 // dunklem Grund waere es unsichtbar — dort steht es hell.
-zeichen('icon-rt-light.png', [0x15, 0x1b, 0x24]);
-zeichen('icon-rt-dark.png', [0xe8, 0xec, 0xf1]);
+zeichen('icon-rt-light.png', [
+    [0, [0x59, 0x61, 0x6b]],
+    [0.48, [0x30, 0x37, 0x40]],
+    [1, [0x15, 0x1b, 0x24]],
+]);
+zeichen('icon-rt-dark.png', [
+    [0, [0xff, 0xff, 0xff]],
+    [0.55, [0xe8, 0xec, 0xf1]],
+    [1, [0xbe, 0xc7, 0xd1]],
+]);
 
 // Die verlinkte Fassung fuer versendete Mails liegt oeffentlich.
 for (const datei of [

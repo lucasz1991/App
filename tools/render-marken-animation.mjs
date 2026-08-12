@@ -1,450 +1,551 @@
 /**
- * Erzeugt die bewegten Markenbilder fuer Signatur und Vorlage.
+ * Rendert die transparenten Markenanimationen fuer Signatur und Mailvorlage.
  *
- *   wortmarke-*.gif   Der Schriftzug wird GESCHRIEBEN: eine schraege
- *                     Kante zieht Zeichen fuer Zeichen ueber die Flaeche,
- *                     danach die Linie in einem Zug, zuletzt GMBH.
- *   icon-rt-*.gif     Das Zeichen baut sich in DREI Stufen auf: erst der
- *                     rote Balken links unten, dann das rote R aussen
- *                     herum, zuletzt das T in der Mitte.
+ * Wortmarke: R, A, I, L, T, I, M und E materialisieren nacheinander aus
+ * ihrem eigenen Mittelpunkt. Danach wachsen die beiden Unterlinien von der
+ * Mitte nach aussen; zuletzt setzen sich G, M, B und H in die Luecke.
  *
- * ZWEI DINGE, DIE DIESE DATEI RICHTIG MACHEN MUSS
+ * RT-Zeichen: zuerst der kleine rote Schenkel links unten, danach die rote
+ * Aussensilhouette und zuletzt das helle beziehungsweise dunkle T.
  *
- * 1. FARBTREUE. Ein erster Versuch quantisierte mit rgba4444 — vier Bit je
- *    Kanal. Der Verlauf der Wortmarke zerfiel dabei sichtbar in Streifen.
- *    Hier wird deshalb mit rgb565 quantisiert und die Durchsichtigkeit
- *    ueber eine RESERVIERTE Farbe geloest: durchsichtige Bildpunkte
- *    bekommen ein Magenta, das im Motiv nicht vorkommt, und ihr Index wird
- *    danach unmittelbar gesetzt statt ueber die Naechste-Farbe-Suche.
+ * Beide Folgen spielen genau einmal und halten das vollstaendige Endbild.
+ * Outlook Desktop erhaelt weiterhin die separat erzeugten PNG-Standbilder.
  *
- * 2. ZEICHENGRENZEN OHNE ZEICHEN. Der Schriftzug ist ein Bild, keine
- *    Schrift — und seine Buchstaben beruehren einander, es gibt nur zwei
- *    echte Luecken. Geschnitten wird deshalb an den MINIMA der
- *    Spaltendichte: dort, wo am wenigsten Tinte steht, verlaeuft mit hoher
- *    Wahrscheinlichkeit eine Zeichengrenze.
+ * Aufruf:
+ *   node tools/mail-marken-bilder.mjs
+ *   node tools/render-marken-animation.mjs
  *
- * OUTLOOK: Diese Dateien bauen sich auf, ihr erstes Einzelbild ist also
- * fast leer. Outlook-Desktop zeigt ausschliesslich dieses erste Bild und
- * bekommt deshalb ueber einen bedingten Kommentar das Standbild (.png).
- * Siehe emails/parts/signature.blade.php und email-master.html.
- *
- * Aufruf: node tools/render-marken-animation.mjs
+ * Optionaler visueller Kontaktbogen:
+ *   RT_ANIMATION_QA_DIR=.lmzdev/artifacts/mail-brand-animation \
+ *     node tools/render-marken-animation.mjs
  */
 import puppeteer from 'puppeteer-core';
 import gifenc from 'gifenc';
-import { readFileSync, writeFileSync, copyFileSync } from 'node:fs';
+import { PNG } from 'pngjs';
+import {
+    copyFileSync,
+    mkdirSync,
+    readFileSync,
+    writeFileSync,
+} from 'node:fs';
 
 const { GIFEncoder, quantize, applyPalette } = gifenc;
 const CHROME = process.env.RT_CHROME || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const ASSETS = 'resources/mail-templates/assets';
-const OEFFENTLICH = 'public/mail-assets';
+const PUBLIC_ASSETS = 'public/mail-assets';
+const QA_DIR = process.env.RT_ANIMATION_QA_DIR || '';
+const TRANSPARENT_COLOR = [255, 0, 255];
 
-const BILDER = 60;
-const SUMME_CS = 620;
+const WORDMARK_FRAMES = 52;
+const WORDMARK_DURATION_CS = 480;
+const WORDMARK_HOLD_CS = 120;
+const ICON_FRAMES = 44;
+const ICON_DURATION_CS = 360;
+const ICON_HOLD_CS = 120;
 
-// Das RT-Zeichen laeuft dauerhaft und braucht deshalb eine eigene, laengere
-// Folge. WICHTIG: Ein GIF wiederholt IMMER die ganze Animation — es gibt
-// kein "ab Bild N schleifen". Damit der Aufbau nicht bei jedem Durchlauf
-// hart neu anspringt, ist die Folge GESCHLOSSEN: der Ruheteil kehrt am Ende
-// genau in den Zustand zurueck, in dem der Aufbau beginnt. Das Zeichen ist
-// dabei nie ganz weg, es sinkt nur auf einen leisen Rest.
-const ZEICHEN_BILDER = 64;
-const ZEICHEN_SUMME_CS = 900;
-const MAGENTA = [255, 0, 255];
-
-const WORTMARKEN = [
+const WORDMARKS = [
     'wortmarke-signature-light',
     'wortmarke-signature-dark',
     'wortmarke-mail-dark',
 ];
 
-const ZEICHEN = [
-    { key: 'icon-rt-light', t: '#151b24' },
-    { key: 'icon-rt-dark', t: '#e8ecf1' },
+const ICONS = [
+    { key: 'icon-rt-light', tStops: [[0, '#59616b'], [0.48, '#303740'], [1, '#151b24']] },
+    { key: 'icon-rt-dark', tStops: [[0, '#ffffff'], [0.55, '#e8ecf1'], [1, '#bec7d1']] },
 ];
 
-function verzoegerungen() {
-    const grund = Math.floor(SUMME_CS / BILDER);
-    const werte = new Array(BILDER).fill(grund);
-    werte[BILDER - 1] += SUMME_CS - (grund * BILDER);
+const RED_STOPS = [[0, '#f51b3b'], [0.48, '#e4002b'], [1, '#ae0021']];
 
-    return werte;
+function delays(totalCs, frameCount, holdCs) {
+    const base = Math.floor((totalCs - holdCs) / frameCount);
+    const values = new Array(frameCount).fill(base);
+    values[frameCount - 1] += totalCs - (base * frameCount);
+
+    return values;
 }
 
-const cs = verzoegerungen();
-
-function zeichenVerzoegerungen() {
-    const grund = Math.floor(ZEICHEN_SUMME_CS / ZEICHEN_BILDER);
-    const werte = new Array(ZEICHEN_BILDER).fill(grund);
-    werte[ZEICHEN_BILDER - 1] += ZEICHEN_SUMME_CS - (grund * ZEICHEN_BILDER);
-
-    return werte;
-}
-
-/**
- * Baut die Farbtabelle und kodiert.
- *
- * @param bilder  Liste roher RGBA-Puffer, gleiche Groesse
- */
-function schreibeGif(bilder, breite, hoehe, ziel, takt = cs, schleife = false) {
-    // Arbeitspuffer: durchsichtige Punkte bekommen Magenta und volle
-    // Deckung, damit die Quantisierung sie als EINE eigene Farbe fuehrt
-    // und nicht in die Verlaeufe des Motivs einrechnet.
-    const arbeit = bilder.map((roh) => {
-        const a = new Uint8Array(roh);
-        for (let i = 0; i < a.length; i += 4) {
-            if (a[i + 3] < 128) {
-                a[i] = MAGENTA[0];
-                a[i + 1] = MAGENTA[1];
-                a[i + 2] = MAGENTA[2];
+function encodeGif(frames, width, height, filename, frameDelays) {
+    const prepared = frames.map((raw) => {
+        const rgba = new Uint8Array(raw);
+        for (let offset = 0; offset < rgba.length; offset += 4) {
+            if (rgba[offset + 3] < 128) {
+                rgba[offset] = TRANSPARENT_COLOR[0];
+                rgba[offset + 1] = TRANSPARENT_COLOR[1];
+                rgba[offset + 2] = TRANSPARENT_COLOR[2];
             }
-            a[i + 3] = 255;
+            rgba[offset + 3] = 255;
         }
 
-        return a;
+        return rgba;
     });
 
-    // Die Tabelle entsteht aus dem LETZTEN Bild — dort steht das Motiv
-    // vollstaendig, also mit allen seinen Farben.
-    const palette = quantize(arbeit[arbeit.length - 1], 255, { format: 'rgb565' });
-
-    // Magenta erzwingen statt hoffen: als letzter Eintrag angehaengt, damit
-    // sein Index feststeht.
-    palette.push(MAGENTA.slice());
-    const durchsichtig = palette.length - 1;
-
+    // Das vollstaendige Endbild bestimmt die Farbtabelle. Damit behalten
+    // Logo- und Metallverlaeufe ihre Farbtiefe; transparente Pixel erhalten
+    // einen reservierten, im Motiv nicht vorkommenden Index.
+    const palette = quantize(prepared.at(-1), 255, { format: 'rgb565' });
+    palette.push(TRANSPARENT_COLOR.slice());
+    const transparentIndex = palette.length - 1;
     const encoder = GIFEncoder();
 
-    arbeit.forEach((puffer, index) => {
-        const indizes = applyPalette(puffer, palette, 'rgb565');
-        const roh = bilder[index];
-
-        // Durchsichtige Punkte DIREKT setzen, nicht ueber die Farbsuche:
-        // sonst landete ein Randpunkt gelegentlich auf einer Motivfarbe.
-        for (let i = 0, p = 0; i < roh.length; i += 4, p += 1) {
-            if (roh[i + 3] < 128) indizes[p] = durchsichtig;
+    prepared.forEach((rgba, index) => {
+        const indices = applyPalette(rgba, palette, 'rgb565');
+        const raw = frames[index];
+        for (let offset = 0, pixel = 0; offset < raw.length; offset += 4, pixel += 1) {
+            if (raw[offset + 3] < 128) indices[pixel] = transparentIndex;
         }
 
-        encoder.writeFrame(indizes, breite, hoehe, {
+        encoder.writeFrame(indices, width, height, {
             palette: index === 0 ? palette : undefined,
-            delay: takt[index] * 10,
+            delay: frameDelays[index] * 10,
             transparent: true,
-            transparentIndex: durchsichtig,
-            // 2 = raeumen. Waehrend des Aufbaus wachsen die Teile; ohne
-            // Raeumen bliebe jeder Zwischenstand stehen und die weichen
-            // Kanten wuerden sich uebereinanderlegen.
-            dispose: index === bilder.length - 1 && ! schleife ? 1 : 2,
-            // 0 = endlos, -1 = kein Schleifenblock (spielt einmal).
-            repeat: schleife ? 0 : -1,
+            transparentIndex,
+            dispose: index === frames.length - 1 ? 1 : 2,
+            // Kein NETSCAPE-Block: Aufbau einmal abspielen und Endbild halten.
+            repeat: -1,
         });
     });
 
     encoder.finish();
-    const gif = Buffer.from(encoder.bytes());
-    writeFileSync(`${ASSETS}/${ziel}`, gif);
-    copyFileSync(`${ASSETS}/${ziel}`, `${OEFFENTLICH}/${ziel}`);
+    const bytes = Buffer.from(encoder.bytes());
+    writeFileSync(`${ASSETS}/${filename}`, bytes);
+    copyFileSync(`${ASSETS}/${filename}`, `${PUBLIC_ASSETS}/${filename}`);
 
-    console.log(`${ziel.padEnd(32)} ${breite}x${hoehe}, ${bilder.length} Bilder, ${(gif.length / 1024).toFixed(1)} kB`);
+    console.log(
+        `${filename.padEnd(32)} ${width}x${height}, ${frames.length} Bilder, `
+        + `${frameDelays.reduce((sum, value) => sum + value, 0)} cs, ${(bytes.length / 1024).toFixed(1)} kB`,
+    );
+}
+
+function writeContactSheet(frames, width, height, filename, columns, darkBackground = false) {
+    if (!QA_DIR) return;
+    mkdirSync(QA_DIR, { recursive: true });
+
+    const samples = 8;
+    const sampleIndices = Array.from({ length: samples }, (_, index) => (
+        Math.round((index / (samples - 1)) * (frames.length - 1))
+    ));
+    const rows = Math.ceil(samples / columns);
+    const padding = 18;
+    const gap = 12;
+    const sheet = new PNG({
+        width: (columns * width) + ((columns - 1) * gap) + (padding * 2),
+        height: (rows * height) + ((rows - 1) * gap) + (padding * 2),
+    });
+
+    for (let y = 0; y < sheet.height; y += 1) {
+        for (let x = 0; x < sheet.width; x += 1) {
+            const offset = ((y * sheet.width) + x) * 4;
+            const checker = (Math.floor(x / 12) + Math.floor(y / 12)) % 2;
+            const base = darkBackground
+                ? (checker ? [18, 23, 30] : [31, 38, 47])
+                : (checker ? [187, 194, 203] : [221, 225, 230]);
+            sheet.data[offset] = base[0];
+            sheet.data[offset + 1] = base[1];
+            sheet.data[offset + 2] = base[2];
+            sheet.data[offset + 3] = 255;
+        }
+    }
+
+    sampleIndices.forEach((frameIndex, sampleIndex) => {
+        const frame = frames[frameIndex];
+        const column = sampleIndex % columns;
+        const row = Math.floor(sampleIndex / columns);
+        const startX = padding + (column * (width + gap));
+        const startY = padding + (row * (height + gap));
+
+        for (let y = 0; y < height; y += 1) {
+            for (let x = 0; x < width; x += 1) {
+                const sourceOffset = ((y * width) + x) * 4;
+                const alpha = frame[sourceOffset + 3] / 255;
+                if (alpha <= 0) continue;
+                const targetOffset = (((startY + y) * sheet.width) + startX + x) * 4;
+                for (let channel = 0; channel < 3; channel += 1) {
+                    sheet.data[targetOffset + channel] = Math.round(
+                        (frame[sourceOffset + channel] * alpha)
+                        + (sheet.data[targetOffset + channel] * (1 - alpha)),
+                    );
+                }
+            }
+        }
+    });
+
+    writeFileSync(`${QA_DIR}/${filename}`, PNG.sync.write(sheet, { deflateLevel: 9 }));
 }
 
 const browser = await puppeteer.launch({ executablePath: CHROME, headless: 'new' });
 const page = await browser.newPage();
 await page.setContent('<!doctype html><html><body style="margin:0"></body></html>', { waitUntil: 'load' });
 
-/* ------------------------------------------------------------------ *
- * Wortmarke
- * ------------------------------------------------------------------ */
-
-for (const name of WORTMARKEN) {
-    const daten = readFileSync(`${ASSETS}/${name}.png`).toString('base64');
-
-    const { bilder, breite, hoehe } = await page.evaluate(async (a) => {
-        const bild = new Image();
-        await new Promise((res, rej) => {
-            bild.onload = res;
-            bild.onerror = rej;
-            bild.src = 'data:image/png;base64,' + a.daten;
+for (const name of WORDMARKS) {
+    const source = readFileSync(`${ASSETS}/${name}.png`).toString('base64');
+    const rendered = await page.evaluate(async ({ sourceData, frameCount, expectedLetters }) => {
+        const image = new Image();
+        await new Promise((resolve, reject) => {
+            image.onload = resolve;
+            image.onerror = reject;
+            image.src = `data:image/png;base64,${sourceData}`;
         });
 
-        const B = bild.naturalWidth;
-        const H = bild.naturalHeight;
+        const width = image.naturalWidth;
+        const height = image.naturalHeight;
+        const sourceCanvas = document.createElement('canvas');
+        sourceCanvas.width = width;
+        sourceCanvas.height = height;
+        const sourceContext = sourceCanvas.getContext('2d', { willReadFrequently: true });
+        sourceContext.drawImage(image, 0, 0);
+        const sourcePixels = sourceContext.getImageData(0, 0, width, height).data;
 
-        const mess = document.createElement('canvas');
-        mess.width = B; mess.height = H;
-        const mx = mess.getContext('2d', { willReadFrequently: true });
-        mx.drawImage(bild, 0, 0);
-        const px = mx.getImageData(0, 0, B, H).data;
-
-        // --- Baender trennen: Schriftzug oben, Linie und GMBH unten ------
-        const zeileTinte = [];
-        for (let y = 0; y < H; y += 1) {
-            let n = 0;
-            for (let x = 0; x < B; x += 1) if (px[(((y * B) + x) * 4) + 3] > 16) n += 1;
-            zeileTinte.push(n);
+        const rowInk = [];
+        for (let y = 0; y < height; y += 1) {
+            let count = 0;
+            for (let x = 0; x < width; x += 1) {
+                if (sourcePixels[(((y * width) + x) * 4) + 3] > 16) count += 1;
+            }
+            rowInk.push(count);
         }
-        // Die Wortmarke traegt seit dem Zuschnitt KEIN Zusatzband mehr
-        // (Linie und GMBH sind entfallen). Findet sich keines, gilt das
-        // ganze Bild als Schriftzug und die beiden Nachlaufphasen entfallen
-        // — dann darf das Schreiben die volle Laufzeit nutzen.
-        let trenner = H;
-        for (let y = Math.floor(H * 0.5); y < H - 1; y += 1) {
-            if (zeileTinte[y] === 0 && zeileTinte[y + 1] > 0) { trenner = y + 1; break; }
-        }
-        const mitZusatz = trenner < H;
-
-        // --- Zeichengrenzen: Minima der Spaltendichte im oberen Band -----
-        const spalte = [];
-        for (let x = 0; x < B; x += 1) {
-            let n = 0;
-            for (let y = 0; y < trenner; y += 1) if (px[(((y * B) + x) * 4) + 3] > 16) n += 1;
-            spalte.push(n);
+        let separator = height;
+        for (let y = Math.floor(height * 0.5); y < height - 1; y += 1) {
+            if (rowInk[y] === 0 && rowInk[y + 1] > 0) {
+                separator = y + 1;
+                break;
+            }
         }
 
-        const teile = a.zeichen;
-        const mindest = Math.floor(B / (teile + 2));
-        const kandidaten = spalte
-            .map((wert, x) => ({ wert, x }))
-            .filter((k) => k.x > mindest && k.x < B - mindest)
-            .sort((p, q) => p.wert - q.wert);
+        const components = (fromY, toY) => {
+            const localHeight = toY - fromY;
+            const seen = new Uint8Array(width * localHeight);
+            const result = [];
 
-        const schnitte = [];
-        for (const k of kandidaten) {
-            if (schnitte.length >= teile - 1) break;
-            if (schnitte.every((s) => Math.abs(s - k.x) >= mindest)) schnitte.push(k.x);
-        }
-        schnitte.sort((p, q) => p - q);
+            for (let local = 0; local < seen.length; local += 1) {
+                if (seen[local]) continue;
+                seen[local] = 1;
+                const localX = local % width;
+                const localY = Math.floor(local / width);
+                const globalPosition = ((localY + fromY) * width) + localX;
+                if (sourcePixels[(globalPosition * 4) + 3] <= 16) continue;
 
-        const grenzen = [0, ...schnitte, B];
+                const stack = [local];
+                const pixels = [];
+                let minX = width; let maxX = 0; let minY = height; let maxY = 0;
+                while (stack.length) {
+                    const position = stack.pop();
+                    const x = position % width;
+                    const y = Math.floor(position / width);
+                    const globalY = y + fromY;
+                    pixels.push((globalY * width) + x);
+                    minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+                    minY = Math.min(minY, globalY); maxY = Math.max(maxY, globalY);
 
-        // --- GMBH von der Linie trennen: die Linie ist flach -------------
-        const istText = [];
-        for (let x = 0; x < B; x += 1) {
-            let n = 0;
-            for (let y = trenner; y < H; y += 1) if (px[(((y * B) + x) * 4) + 3] > 16) n += 1;
-            istText.push(n > 4);
-        }
-
-        const glatt = (v) => v * v * (3 - (2 * v));
-        const klemm = (v) => Math.min(1, Math.max(0, v));
-
-        // Aus der Spalten-Kennung zusammenhaengende Baender machen. Damit
-        // laesst sich in EINEM Zug zeichnen statt Spalte fuer Spalte.
-        const baender = (pruefe) => {
-            const raus = [];
-            let start = -1;
-            for (let sx = 0; sx <= B; sx += 1) {
-                const drin = sx < B && pruefe(sx);
-                if (drin && start < 0) start = sx;
-                if (! drin && start >= 0) { raus.push([start, sx]); start = -1; }
+                    for (const neighbor of [position - 1, position + 1, position - width, position + width]) {
+                        if (neighbor < 0 || neighbor >= seen.length || seen[neighbor]) continue;
+                        if (Math.abs((neighbor % width) - x) > 1) continue;
+                        seen[neighbor] = 1;
+                        const neighborX = neighbor % width;
+                        const neighborY = Math.floor(neighbor / width) + fromY;
+                        if (sourcePixels[(((neighborY * width) + neighborX) * 4) + 3] > 16) {
+                            stack.push(neighbor);
+                        }
+                    }
+                }
+                result.push({ pixels, minX, maxX, minY, maxY });
             }
 
-            return raus;
+            return result;
         };
-        const linienBaender = baender((sx) => ! istText[sx]);
-        const textBaender = baender((sx) => istText[sx]);
 
-        const aus = [];
-        for (let i = 0; i < a.bilder; i += 1) {
-            const t = i / (a.bilder - 1);
+        const distance = (part, base) => {
+            const dx = Math.max(0, base.minX - part.maxX, part.minX - base.maxX);
+            const dy = Math.max(0, base.minY - part.maxY, part.minY - base.maxY);
+            return (dx * dx) + (dy * dy);
+        };
 
-            const c = document.createElement('canvas');
-            c.width = B; c.height = H;
-            const x = c.getContext('2d');
-
-            // --- Zeichen werden GESCHRIEBEN ------------------------------
-            // Nicht eingeblendet, sondern gezogen: Jedes Zeichen wird von
-            // einer schraegen Kante freigelegt, die seiner Neigung folgt —
-            // so, wie ein Stift ueber das Papier laeuft. Die Schraege ist
-            // wesentlich: Der Schriftzug ist kursiv, eine senkrechte Kante
-            // wirkte wie eine Jalousie, keine Schreibbewegung.
-            const NEIGUNG = 0.30;          // seitlicher Versatz je Hoeheneinheit
-            const KANTE = 9;               // Weichzeichnung der Schreibkante
-            const zeichenBis = mitZusatz ? 0.60 : 0.86;
-            for (let k = 0; k < grenzen.length - 1; k += 1) {
-                const von = grenzen[k];
-                const bis = grenzen[k + 1];
-                const start = (k / (grenzen.length - 1)) * zeichenBis;
-                // Weicher gefuehrt: anlaufen, ziehen, auslaufen — statt mit
-                // gleichbleibender Geschwindigkeit durchzufahren. Eine
-                // Schreibbewegung ist nie gleichfoermig.
-                const roh = klemm((t - start) / 0.20);
-                const p = roh * roh * (3 - (2 * roh));
-                if (p <= 0) continue;
-
-                if (p >= 1) {
-                    x.drawImage(bild, von, 0, bis - von, trenner, von, 0, bis - von, trenner);
-                    continue;
-                }
-
-                // Die Kante laeuft von links nach rechts durch das Zeichen
-                // und ist oben weiter vorn als unten — entlang der Kursive.
-                const versatz = trenner * NEIGUNG;
-                const spitze = von - versatz - KANTE + (p * (bis - von + (2 * versatz) + (2 * KANTE)));
-
-                x.save();
-                x.beginPath();
-                x.moveTo(spitze + versatz, 0);
-                x.lineTo(von - versatz - KANTE, 0);
-                x.lineTo(von - versatz - KANTE, trenner);
-                x.lineTo(spitze - versatz, trenner);
-                x.closePath();
-                x.clip();
-                x.drawImage(bild, von, 0, bis - von, trenner, von, 0, bis - von, trenner);
-
-                // Die Spitze des Stiftes: ein schmaler heller Streifen an
-                // der Schreibkante, der nur auf der Schrift selbst sichtbar
-                // wird (source-atop).
-                const g = x.createLinearGradient(spitze - 14, 0, spitze + 2, 0);
-                g.addColorStop(0, 'rgba(255,255,255,0)');
-                g.addColorStop(1, 'rgba(255,255,255,0.55)');
-                x.globalCompositeOperation = 'source-atop';
-                x.fillStyle = g;
-                x.fillRect(von - versatz - KANTE, 0, (bis - von) + (2 * versatz) + (2 * KANTE), trenner);
-                x.globalCompositeOperation = 'source-over';
-                x.restore();
+        const layer = (positions) => {
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const context = canvas.getContext('2d');
+            const imageData = context.createImageData(width, height);
+            for (const position of positions) {
+                const offset = position * 4;
+                imageData.data[offset] = sourcePixels[offset];
+                imageData.data[offset + 1] = sourcePixels[offset + 1];
+                imageData.data[offset + 2] = sourcePixels[offset + 2];
+                imageData.data[offset + 3] = sourcePixels[offset + 3];
             }
+            context.putImageData(imageData, 0, 0);
 
-            // --- Danach die Linie, von links nach rechts -----------------
-            // Wie ein Unterstrich, den man in einem Zug zieht.
-            //
-            // FLAECHIG ueber einen Beschnitt, NICHT spaltenweise: Der frueher
-            // hier stehende 1-px-Blit je Spalte setzte an jeder Spaltenkante
-            // neu an. Bei weichen Kanten ergab das eine Reihe feiner Punkte —
-            // genau die gemeldeten Stoerungen an Strich und GMBH.
-            const linieP = mitZusatz ? glatt(klemm((t - 0.62) / 0.22)) : 0;
-            if (linieP > 0) {
-                x.save();
-                x.beginPath();
-                for (const [von, bis] of linienBaender) {
-                    const w = Math.min(bis, B * linieP) - von;
-                    if (w > 0) x.rect(von, trenner, w, H - trenner);
-                }
-                x.clip();
-                x.drawImage(bild, 0, trenner, B, H - trenner, 0, trenner, B, H - trenner);
-                x.restore();
-            }
+            return canvas;
+        };
 
-            // --- Zuletzt GMBH ------------------------------------------
-            const textP = mitZusatz ? glatt(klemm((t - 0.82) / 0.18)) : 0;
-            if (textP > 0) {
-                x.save();
-                x.globalAlpha = textP;
-                x.beginPath();
-                for (const [von, bis] of textBaender) x.rect(von, trenner, bis - von, H - trenner);
-                x.clip();
-                x.drawImage(bild, 0, trenner, B, H - trenner, 0, trenner, B, H - trenner);
-                x.restore();
-            }
-
-            aus.push(Array.from(new Uint8Array(x.getImageData(0, 0, B, H).data.buffer)));
+        const upperParts = components(0, separator);
+        const letterBases = upperParts
+            .filter((part) => (
+                part.pixels.length > separator * 8
+                && part.maxY - part.minY > separator * 0.5
+            ))
+            .sort((left, right) => left.minX - right.minX);
+        if (letterBases.length !== expectedLetters) {
+            throw new Error(`Erwartet ${expectedLetters} Buchstaben, gefunden ${letterBases.length}`);
         }
 
-        return { bilder: aus, breite: B, hoehe: H };
-    }, { daten, bilder: BILDER, zeichen: 8 });
+        const letterPixels = letterBases.map(() => []);
+        for (const part of upperParts) {
+            let target = letterBases.indexOf(part);
+            if (target < 0) {
+                target = letterBases
+                    .map((base, index) => ({ index, value: distance(part, base) }))
+                    .sort((left, right) => left.value - right.value)[0].index;
+            }
+            letterPixels[target].push(...part.pixels);
+        }
+        const letters = letterPixels.map((pixels, index) => ({
+            image: layer(pixels),
+            ...letterBases[index],
+        }));
 
-    schreibeGif(bilder.map((b) => new Uint8Array(b)), breite, hoehe, `${name}.gif`);
+        const lowerParts = separator < height ? components(separator, height) : [];
+        const legalFormBases = lowerParts
+            .filter((part) => part.maxY - part.minY >= 5 && part.pixels.length >= 50)
+            .sort((left, right) => left.minX - right.minX);
+        if (separator < height && legalFormBases.length !== 4) {
+            throw new Error(`Erwartet vier GMBH-Zeichen, gefunden ${legalFormBases.length}`);
+        }
+
+        const legalMin = legalFormBases.length ? Math.min(...legalFormBases.map((part) => part.minX)) : width;
+        const legalMax = legalFormBases.length ? Math.max(...legalFormBases.map((part) => part.maxX)) : -1;
+        const leftLinePixels = [];
+        const rightLinePixels = [];
+        const legalPixels = legalFormBases.map(() => []);
+        for (const part of lowerParts) {
+            if (part.maxX < legalMin) {
+                leftLinePixels.push(...part.pixels);
+                continue;
+            }
+            if (part.minX > legalMax) {
+                rightLinePixels.push(...part.pixels);
+                continue;
+            }
+            const target = legalFormBases
+                .map((base, index) => ({ index, value: distance(part, base) }))
+                .sort((left, right) => left.value - right.value)[0].index;
+            legalPixels[target].push(...part.pixels);
+        }
+
+        const leftLine = layer(leftLinePixels);
+        const rightLine = layer(rightLinePixels);
+        const legalForm = legalPixels.map((pixels, index) => ({
+            image: layer(pixels),
+            ...legalFormBases[index],
+        }));
+
+        const clamp = (value) => Math.min(1, Math.max(0, value));
+        const ease = (value) => 1 - ((1 - clamp(value)) ** 3);
+        const materialize = (context, part, progress) => {
+            if (progress <= 0) return;
+            if (progress >= 1) {
+                context.drawImage(part.image, 0, 0);
+                return;
+            }
+            const eased = ease(progress);
+            const centerX = (part.minX + part.maxX) / 2;
+            const centerY = (part.minY + part.maxY) / 2;
+            const pulse = 1 + (Math.sin(eased * Math.PI) * 0.025);
+            const scale = (0.18 + (0.82 * eased)) * pulse;
+            context.save();
+            context.translate(centerX, centerY + ((1 - eased) * 5));
+            context.scale(scale, scale);
+            context.translate(-centerX, -centerY);
+            context.filter = `blur(${(1 - eased) * 1.8}px)`;
+            context.drawImage(part.image, 0, 0);
+            context.restore();
+        };
+
+        const frames = [];
+        for (let frame = 0; frame < frameCount; frame += 1) {
+            const time = frame / (frameCount - 1);
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const context = canvas.getContext('2d');
+
+            letters.forEach((letter, index) => {
+                materialize(context, letter, clamp((time - (0.02 + (index * 0.055))) / 0.10));
+            });
+
+            const lineProgress = ease((time - 0.54) / 0.10);
+            if (lineProgress > 0 && legalFormBases.length) {
+                context.save();
+                context.beginPath();
+                context.rect(
+                    legalMin - ((legalMin + 1) * lineProgress),
+                    separator,
+                    (legalMin + 1) * lineProgress,
+                    height - separator,
+                );
+                context.rect(
+                    legalMax + 1,
+                    separator,
+                    (width - legalMax - 1) * lineProgress,
+                    height - separator,
+                );
+                context.clip();
+                context.drawImage(leftLine, 0, 0);
+                context.drawImage(rightLine, 0, 0);
+                context.restore();
+            }
+
+            legalForm.forEach((letter, index) => {
+                materialize(context, letter, clamp((time - (0.66 + (index * 0.035))) / 0.08));
+            });
+
+            // Endphase exakt aus der hochaufgeloesten PNG-Quelle: keine
+            // Transformationsweichheit und keine isolierten Restpixel.
+            if (time >= 0.86) {
+                context.clearRect(0, 0, width, height);
+                context.drawImage(image, 0, 0);
+            }
+
+            frames.push(Array.from(context.getImageData(0, 0, width, height).data));
+        }
+
+        return { frames, width, height };
+    }, { sourceData: source, frameCount: WORDMARK_FRAMES, expectedLetters: 8 });
+
+    const frames = rendered.frames.map((frame) => new Uint8Array(frame));
+    encodeGif(
+        frames,
+        rendered.width,
+        rendered.height,
+        `${name}.gif`,
+        delays(WORDMARK_DURATION_CS, WORDMARK_FRAMES, WORDMARK_HOLD_CS),
+    );
+    writeContactSheet(
+        frames,
+        rendered.width,
+        rendered.height,
+        `${name}-phasen.png`,
+        4,
+        name.includes('dark'),
+    );
 }
-
-/* ------------------------------------------------------------------ *
- * RT-Zeichen: drei Stufen
- * ------------------------------------------------------------------ */
 
 const favicon = readFileSync('public/icons/favicon.svg', 'utf8');
-const pfade = [...favicon.matchAll(/<path d="([^"]+)"/g)].map((m) => m[1]);
-
-if (pfade.length !== 3) {
-    throw new Error(`Erwartet werden drei Pfade, gefunden: ${pfade.length}`);
+const paths = [...favicon.matchAll(/<path d="([^"]+)"/g)].map((match) => match[1]);
+if (paths.length !== 3) {
+    throw new Error(`Erwartet drei Pfade im Favicon, gefunden ${paths.length}`);
 }
 
-const zeichenTakt = zeichenVerzoegerungen();
+for (const icon of ICONS) {
+    const still = readFileSync(`${ASSETS}/${icon.key}.png`).toString('base64');
+    const rendered = await page.evaluate(async ({ pathsData, stillData, frameCount, redStops, tStops }) => {
+        const size = 132;
+        const stillImage = new Image();
+        await new Promise((resolve, reject) => {
+            stillImage.onload = resolve;
+            stillImage.onerror = reject;
+            stillImage.src = `data:image/png;base64,${stillData}`;
+        });
 
-for (const zeichen of ZEICHEN) {
-    const { bilder, breite, hoehe } = await page.evaluate(async (a) => {
-        const G = 132;
-        const glatt = (v) => v * v * (3 - (2 * v));
-        const klemm = (v) => Math.min(1, Math.max(0, v));
-
-        // Reihenfolge wie gewuenscht: erst der rote Balken links unten,
-        // dann das rote R aussen herum, zuletzt das T in der Mitte.
-        const stufen = [
-            { d: a.pfade[1], farbe: '#e4002b', start: 0.02 },
-            { d: a.pfade[0], farbe: '#e4002b', start: 0.10 },
-            { d: a.pfade[2], farbe: a.tFarbe, start: 0.19 },
+        const factor = (size / 1024) * 0.9;
+        const margin = (size / 1024) * 60;
+        const mappedBounds = [
+            { minX: margin, maxX: margin + (1000 * factor), minY: margin, maxY: margin + (1000 * factor) },
+            { minX: margin, maxX: margin + (205 * factor), minY: margin + (410 * factor), maxY: margin + (1000 * factor) },
+            { minX: margin, maxX: margin + (670 * factor), minY: margin + (200 * factor), maxY: margin + (1000 * factor) },
         ];
 
-        // Abschnitte der geschlossenen Folge, als Anteil der Laufzeit:
-        //   0,00 - 0,30  Aufbau in drei Stufen
-        //   0,30 - 0,86  Ruhe: ein leises Kippen um die Hochachse mit
-        //                wanderndem Glanz — die Anmutung des 3D-Modells der
-        //                Anmeldeseite, mit den Mitteln einer Flaeche
-        //   0,86 - 1,00  Zurueck auf den leisen Rest, mit dem der Aufbau
-        //                beginnt: nur so schliesst sich der Kreis ohne Sprung
-        const RUHE_AB = 0.30;
-        const RUECK_AB = 0.86;
-        const REST = 0.16;
+        const makeLayer = (pathData, stops) => {
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const context = canvas.getContext('2d');
+            context.save();
+            context.translate(margin, margin);
+            context.scale(factor, factor);
+            const gradient = context.createLinearGradient(0, 0, 1000, 1000);
+            stops.forEach(([position, color]) => gradient.addColorStop(position, color));
+            context.fillStyle = gradient;
+            context.fill(new Path2D(pathData));
+            context.restore();
 
-        const aus = [];
-        // PHASENVERSATZ: Der Zyklus startet am FERTIGEN Zeichen, nicht am
-        // leeren. Sichtbar ist derselbe Ablauf — aber das ERSTE Einzelbild
-        // zeigt die Marke vollstaendig, und genau dieses eine sehen alle
-        // Vorschauen und jeder Client, der Animationen nicht abspielt.
-        // Ohne den Versatz wirkte das Zeichen schlicht als fehlend.
-        const VERSATZ = 0.30;
+            return canvas;
+        };
 
-        for (let i = 0; i < a.bilder; i += 1) {
-            const t = ((i / a.bilder) + VERSATZ) % 1;
+        // Gewuenschte Reihenfolge: kleiner roter Schenkel, rotes Aussen-R,
+        // T. Die statische Quelle zeichnet R vor dem Schenkel; fuer die
+        // Animation ist die Reihenfolge bewusst vertauscht.
+        const stages = [
+            { image: makeLayer(pathsData[1], redStops), bounds: mappedBounds[1], start: 0.02, duration: 0.18, angle: -7 },
+            { image: makeLayer(pathsData[0], redStops), bounds: mappedBounds[0], start: 0.22, duration: 0.20, angle: 3 },
+            { image: makeLayer(pathsData[2], tStops), bounds: mappedBounds[2], start: 0.44, duration: 0.20, angle: -2 },
+        ];
 
-            const c = document.createElement('canvas');
-            c.width = G; c.height = G;
-            const x = c.getContext('2d');
+        const clamp = (value) => Math.min(1, Math.max(0, value));
+        const ease = (value) => 1 - ((1 - clamp(value)) ** 3);
+        const frames = [];
+        for (let frame = 0; frame < frameCount; frame += 1) {
+            const time = frame / (frameCount - 1);
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const context = canvas.getContext('2d');
 
-            // Ruhephase: ein Kippen um die Hochachse, angenaehert durch
-            // eine Stauchung in der Breite. Ein volles Hin und Her je
-            // Durchlauf, damit Anfang und Ende gleich stehen.
-            const ruheP = klemm((t - RUHE_AB) / (RUECK_AB - RUHE_AB));
-            const kippen = Math.sin(ruheP * Math.PI * 2);
-            const breitSkala = 1 - (Math.abs(kippen) * 0.09);
+            stages.forEach((stage) => {
+                const raw = clamp((time - stage.start) / stage.duration);
+                if (raw <= 0) return;
+                if (raw >= 1) {
+                    context.drawImage(stage.image, 0, 0);
+                    return;
+                }
+                const progress = ease(raw);
+                const centerX = (stage.bounds.minX + stage.bounds.maxX) / 2;
+                const centerY = (stage.bounds.minY + stage.bounds.maxY) / 2;
+                const pulse = 1 + (Math.sin(progress * Math.PI) * 0.035);
+                const scale = (0.12 + (0.88 * progress)) * pulse;
+                context.save();
+                context.translate(centerX, centerY);
+                context.rotate((stage.angle * (1 - progress) * Math.PI) / 180);
+                context.scale(scale, scale);
+                context.translate(-centerX, -centerY);
+                context.filter = `blur(${(1 - progress) * 2}px)`;
+                context.drawImage(stage.image, 0, 0);
+                context.restore();
+            });
 
-            // Rueckgang auf den leisen Rest — der Ausgangspunkt des Aufbaus.
-            const rueck = glatt(klemm((t - RUECK_AB) / (1 - RUECK_AB)));
-
-            for (const stufe of stufen) {
-                const p = glatt(klemm((t - stufe.start) / 0.09));
-                if (p <= 0) continue;
-
-                const deckung = Math.max(REST * rueck, p * (1 - rueck)) + (rueck * REST * 0);
-                const sichtbar = rueck > 0 ? ((p * (1 - rueck)) + (REST * rueck)) : p;
-                if (sichtbar <= 0.01) continue;
-
-                x.save();
-                x.globalAlpha = sichtbar;
-                // Aus dem Nichts: leicht zu gross und unscharf beginnen,
-                // dann in die eigene Lage einrasten.
-                const skala = 1 + ((1 - p) * 0.14);
-                x.translate(G / 2, G / 2);
-                x.scale(skala * breitSkala, skala);
-                x.translate(-G / 2, -G / 2);
-                if (p < 1) x.filter = `blur(${(1 - p) * 2.6}px)`;
-
-                // Dieselbe Lage wie im Favicon: translate(60 60) scale(0.9)
-                // in einer Flaeche von 1024.
-                const f = (G / 1024) * 0.9;
-                const rand = (G / 1024) * 60;
-                x.translate(rand, rand);
-                x.scale(f, f);
-                x.fillStyle = stufe.farbe;
-                x.fill(new Path2D(stufe.d));
-                x.restore();
+            // Das Standbild und der GIF-Endzustand sind exakt identisch.
+            if (time >= 0.72) {
+                context.clearRect(0, 0, size, size);
+                context.drawImage(stillImage, 0, 0, size, size);
             }
-
-            aus.push(Array.from(new Uint8Array(x.getImageData(0, 0, G, G).data.buffer)));
+            frames.push(Array.from(context.getImageData(0, 0, size, size).data));
         }
 
-        return { bilder: aus, breite: G, hoehe: G };
-    }, { pfade, tFarbe: zeichen.t, bilder: ZEICHEN_BILDER });
+        return { frames, width: size, height: size };
+    }, {
+        pathsData: paths,
+        stillData: still,
+        frameCount: ICON_FRAMES,
+        redStops: RED_STOPS,
+        tStops: icon.tStops,
+    });
 
-    schreibeGif(bilder.map((b) => new Uint8Array(b)), breite, hoehe, `${zeichen.key}.gif`, zeichenTakt, true);
+    const frames = rendered.frames.map((frame) => new Uint8Array(frame));
+    encodeGif(
+        frames,
+        rendered.width,
+        rendered.height,
+        `${icon.key}.gif`,
+        delays(ICON_DURATION_CS, ICON_FRAMES, ICON_HOLD_CS),
+    );
+    writeContactSheet(
+        frames,
+        rendered.width,
+        rendered.height,
+        `${icon.key}-phasen.png`,
+        8,
+        icon.key.includes('dark'),
+    );
 }
 
 await browser.close();
-console.log('Nach public/mail-assets kopiert.');
+console.log(`Nach ${PUBLIC_ASSETS} kopiert.`);

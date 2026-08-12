@@ -11,6 +11,7 @@ use App\Support\Mail\EmailHtmlSanitizer;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\MailSignature;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\View;
 use RuntimeException;
 
@@ -21,15 +22,15 @@ use RuntimeException;
  *
  *   php artisan db:seed --class=MailDocumentSeeder --force
  *
- * UEBERSCHREIBT OHNE RUECKFRAGE. Das ist ausdruecklich so gewollt: der
- * Lauf gehoert ans Ende eines Deployments und stellt einen bekannten,
- * pruefbaren Zustand her. Editor-Arbeit am Maildokument geht dabei
+ * UEBERSCHREIBT BEIDE DOKUMENTE OHNE RUECKFRAGE. Das ist ausdruecklich so
+ * gewollt: Der Lauf gehoert ans Ende eines Deployments und stellt Vorlage
+ * und Signatur als EINEN atomaren Release her. Editor-Arbeit geht dabei
  * verloren. Wer sie behalten will, setzt beim Lauf
  *
  *   RT_MAIL_STARTER_KEEP=1
  *
- * dann bleiben bearbeitete oder freigegebene Dokumente unangetastet und
- * nur fehlende werden angelegt.
+ * Dann bleiben alle vorhandenen Dokumente unangetastet und nur fehlende
+ * werden angelegt.
  *
  * WAS DIE FREIGABE BEWIRKT — UND WAS NICHT:
  * Sie wirkt auf die DOWNLOADS (Vorlage und Signaturdateien) und auf die
@@ -50,20 +51,19 @@ final class MailDocumentSeeder extends Seeder
      *   1  Erstauslieferung
      *   2  Symmetrische Signatur (Person links, Firma rechts, Wortmarke
      *      ohne Zeichen, Anschrift einmal) + RT-Zeichen in der Vorlage
+     *   3  Sequentiell aufgebaute Logo-/Wortmarkenanimationen
      */
-    private const STARTER_SCHEMA = 2;
+    private const STARTER_SCHEMA = 3;
 
     public function run(): void
     {
         $actorId = $this->actorId();
 
+        // Beide Quellen werden vorbereitet und gehaertet, bevor die erste
+        // Datenbankzeile geschrieben wird. So kann kein halber Release
+        // entstehen, wenn etwa die neue Signatur ungueltig ist.
+        $release = [];
         foreach (MailDocumentKind::cases() as $kind) {
-            $document = MailDocument::query()->where('kind', $kind->value)->first();
-
-            if ($document instanceof MailDocument && $this->behalten($document, $kind)) {
-                continue;
-            }
-
             $html = $this->starterHtml($kind);
             // Das Markup traegt seine Formatierung im style-Attribut und im
             // eigenen <style>-Block; eine getrennte Stilebene entsteht erst,
@@ -77,7 +77,7 @@ final class MailDocumentSeeder extends Seeder
             // stillschweigend etwas Unerlaubtes zu veroeffentlichen.
             $geprueft = app(EmailHtmlSanitizer::class)->assertClean($html)->html;
 
-            $werte = [
+            $release[$kind->value] = [
                 'kind' => $kind,
                 'status' => MailDocumentStatus::Published,
                 'builder_data' => $builderData,
@@ -88,22 +88,89 @@ final class MailDocumentSeeder extends Seeder
                 // neuen Stand ohne weiteren Handgriff im Editor.
                 'published_html' => $geprueft,
                 'published_css' => $css,
-                'published_at' => now(),
-                'version' => 1,
-                'updated_by' => $actorId,
+                'published_at' => null,
             ];
 
-            if ($document instanceof MailDocument) {
-                $document->forceFill($werte)->save();
-                $this->command?->info("Maildokument \"{$kind->value}\" ueberschrieben und freigegeben (Startfassung ".self::STARTER_SCHEMA.').');
-            } else {
-                MailDocument::query()->create($werte + ['created_by' => $actorId]);
-                $this->command?->info("Maildokument \"{$kind->value}\" angelegt und freigegeben (Startfassung ".self::STARTER_SCHEMA.').');
+        }
+
+        /** @var list<MailDocumentKind> $releasedKinds */
+        $releasedKinds = DB::transaction(function () use ($actorId, $release): array {
+            $documents = MailDocument::query()
+                ->whereIn('kind', array_keys($release))
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get()
+                ->keyBy(fn (MailDocument $document): string => $document->kind->value);
+            $released = [];
+
+            foreach (MailDocumentKind::cases() as $kind) {
+                /** @var MailDocument|null $document */
+                $document = $documents->get($kind->value);
+
+                if ($document instanceof MailDocument && $this->behalten($document, $kind)) {
+                    continue;
+                }
+
+                $werte = $release[$kind->value];
+                $werte['published_at'] = now();
+                $werte['updated_by'] = $actorId;
+
+                if ($document instanceof MailDocument) {
+                    $currentBuilderData = is_array($document->builder_data)
+                        ? $document->builder_data
+                        : [];
+                    $currentContentHash = MailDocument::contentHashFor(
+                        $currentBuilderData,
+                        (string) $document->html,
+                        (string) $document->css,
+                    );
+                    $contentChanged = ! hash_equals(
+                        (string) $werte['content_hash'],
+                        $currentContentHash,
+                    );
+                    $alreadyReleased = ! $contentChanged
+                        && $document->status === MailDocumentStatus::Published
+                        && $document->published_at !== null
+                        && trim((string) $document->published_html) === trim((string) $werte['published_html'])
+                        && trim((string) $document->published_css) === trim((string) $werte['published_css'])
+                        && hash_equals((string) $document->content_hash, (string) $werte['content_hash']);
+
+                    if ($alreadyReleased) {
+                        $this->command?->info(
+                            "Maildokument \"{$kind->value}\" ist bereits als Startfassung ".self::STARTER_SCHEMA.' veroeffentlicht.'
+                        );
+
+                        continue;
+                    }
+
+                    // Eine Version bezeichnet einen Inhaltsstand. Nur ein
+                    // echter Inhaltswechsel zaehlt hoch; die erneute Freigabe
+                    // desselben Arbeitsstands bleibt versionsneutral.
+                    $werte['version'] = $contentChanged
+                        ? max(1, (int) $document->version) + 1
+                        : max(1, (int) $document->version);
+
+                    $document->forceFill($werte)->save();
+                    $this->command?->info(
+                        "Maildokument \"{$kind->value}\" als Version {$werte['version']} freigegeben (Startfassung ".self::STARTER_SCHEMA.').'
+                    );
+                } else {
+                    $werte['version'] = 1;
+                    MailDocument::query()->create($werte + ['created_by' => $actorId]);
+                    $this->command?->info(
+                        "Maildokument \"{$kind->value}\" als Version 1 angelegt und freigegeben (Startfassung ".self::STARTER_SCHEMA.').'
+                    );
+                }
+
+                $released[] = $kind;
             }
 
-            // Die Momentaufnahme lebt pro Anfrage. Ohne dieses Vergessen
-            // liefe der Rest DIESES Laufs — etwa eine gleich danach
-            // gerenderte Probemail — noch auf dem alten Stand.
+            return $released;
+        });
+
+        // Erst nach dem Commit die pro Anfrage gehaltene Momentaufnahme
+        // vergessen. Ein Rollback kann dadurch keinen Cache-Mischstand bauen.
+        foreach ($releasedKinds as $kind) {
             app(PublishedMailDocumentSnapshotStore::class)->forget($kind);
         }
     }
@@ -117,12 +184,6 @@ final class MailDocumentSeeder extends Seeder
     private function behalten(MailDocument $document, MailDocumentKind $kind): bool
     {
         if (! $this->schonend()) {
-            return false;
-        }
-
-        $schema = (int) data_get($document->builder_data, 'railtime.schema', 0);
-
-        if ($document->isUntouchedStarter($schema) && ! $document->isPublished() && $schema < self::STARTER_SCHEMA) {
             return false;
         }
 
@@ -209,8 +270,9 @@ final class MailDocumentSeeder extends Seeder
      *
      *   RT_MAIL_STARTER_KEEP=1 php artisan db:seed --class=MailDocumentSeeder --force
      *
-     * Ohne sie stellt der Lauf den ausgelieferten Zustand her und gibt ihn
-     * frei — das ist der Sinn des Aufrufs am Ende eines Deployments.
+     * Ohne sie stellt der Lauf den ausgelieferten Zustand beider Dokumente
+     * atomar her und gibt ihn frei — das ist der Sinn des Aufrufs am Ende
+     * eines Deployments.
      */
     private function schonend(): bool
     {

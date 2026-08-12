@@ -109,6 +109,79 @@ class MailDocumentEditorTest extends TestCase
         $frisch = $this->document(MailDocumentKind::Signature);
         $this->assertStringNotContainsString('Von Hand geaendert', (string) $frisch->html);
         $this->assertSame(MailDocumentStatus::Published, $frisch->status);
+        $this->assertSame(8, $frisch->version);
+        $this->assertSame(3, data_get($frisch->builder_data, 'railtime.schema'));
+    }
+
+    public function test_der_seeder_veroeffentlicht_vorlage_und_signatur_als_idempotenten_release(): void
+    {
+        (new MailDocumentSeeder)->run();
+
+        $ersterRelease = MailDocument::query()
+            ->get()
+            ->mapWithKeys(fn (MailDocument $document): array => [$document->kind->value => [
+                'version' => $document->version,
+                'published_at' => $document->published_at?->toIso8601String(),
+                'updated_at' => $document->updated_at?->toIso8601String(),
+            ]])
+            ->all();
+
+        foreach (MailDocumentKind::cases() as $kind) {
+            $dokument = $this->document($kind);
+            $this->assertSame(MailDocumentStatus::Published, $dokument->status, $kind->value);
+            $this->assertSame(1, $dokument->version, $kind->value);
+            $this->assertSame(3, data_get($dokument->builder_data, 'railtime.schema'), $kind->value);
+            $this->assertSame(trim((string) $dokument->html), trim((string) $dokument->published_html), $kind->value);
+            $this->assertSame((string) data_get($dokument->builder_data, 'pages.0.component'), (string) $dokument->html, $kind->value);
+            $this->assertSame(
+                MailDocument::contentHashFor($dokument->builder_data ?: [], (string) $dokument->html, (string) $dokument->css),
+                $dokument->content_hash,
+                $kind->value,
+            );
+        }
+
+        // Ein identischer Deployment-Lauf ist ein No-op: keine Scheinversion
+        // und kein neu gesetzter Veroeffentlichungszeitpunkt.
+        (new MailDocumentSeeder)->run();
+
+        foreach (MailDocumentKind::cases() as $kind) {
+            $dokument = $this->document($kind);
+            $this->assertSame($ersterRelease[$kind->value]['version'], $dokument->version, $kind->value);
+            $this->assertSame($ersterRelease[$kind->value]['published_at'], $dokument->published_at?->toIso8601String(), $kind->value);
+            $this->assertSame($ersterRelease[$kind->value]['updated_at'], $dokument->updated_at?->toIso8601String(), $kind->value);
+        }
+    }
+
+    public function test_der_autoritative_seeder_ueberschreibt_beide_editorstaende_und_zaehlt_ihre_version_hoch(): void
+    {
+        (new MailDocumentSeeder)->run();
+
+        $this->document(MailDocumentKind::Template)->forceFill([
+            'html' => '<html><body>Individuelle Vorlage</body></html>',
+            'version' => 11,
+        ])->save();
+        $this->document(MailDocumentKind::Signature)->forceFill([
+            'html' => '<tr><td>Individuelle Signatur</td></tr>',
+            'version' => 7,
+        ])->save();
+
+        (new MailDocumentSeeder)->run();
+
+        $template = $this->document(MailDocumentKind::Template);
+        $signatur = $this->document(MailDocumentKind::Signature);
+
+        $this->assertSame(12, $template->version);
+        $this->assertSame(8, $signatur->version);
+
+        foreach ([$template, $signatur] as $dokument) {
+            $this->assertSame(MailDocumentStatus::Published, $dokument->status);
+            $this->assertSame(3, data_get($dokument->builder_data, 'railtime.schema'));
+            $this->assertSame(trim((string) $dokument->html), trim((string) $dokument->published_html));
+            $this->assertSame((string) data_get($dokument->builder_data, 'pages.0.component'), (string) $dokument->html);
+        }
+
+        $this->assertStringNotContainsString('Individuelle Vorlage', (string) $template->html);
+        $this->assertStringNotContainsString('Individuelle Signatur', (string) $signatur->html);
     }
 
     /**
@@ -119,8 +192,23 @@ class MailDocumentEditorTest extends TestCase
     {
         (new MailDocumentSeeder)->run();
 
-        $signatur = $this->document(MailDocumentKind::Signature);
-        $signatur->forceFill(['html' => '<tr><td>Von Hand geaendert</td></tr>', 'version' => 7])->save();
+        $this->document(MailDocumentKind::Template)->forceFill([
+            'html' => '<html><body>Eigene Vorlage</body></html>',
+            'version' => 6,
+        ])->save();
+        $this->document(MailDocumentKind::Signature)->forceFill([
+            'html' => '<tr><td>Eigene Signatur</td></tr>',
+            'version' => 7,
+        ])->save();
+
+        $vorher = MailDocument::query()
+            ->get()
+            ->mapWithKeys(fn (MailDocument $document): array => [$document->kind->value => [
+                'html' => $document->html,
+                'version' => $document->version,
+                'updated_at' => $document->updated_at?->toIso8601String(),
+            ]])
+            ->all();
 
         putenv('RT_MAIL_STARTER_KEEP=1');
 
@@ -130,10 +218,56 @@ class MailDocumentEditorTest extends TestCase
             putenv('RT_MAIL_STARTER_KEEP');
         }
 
-        $this->assertStringContainsString(
-            'Von Hand geaendert',
-            (string) $this->document(MailDocumentKind::Signature)->html,
-        );
+        foreach (MailDocumentKind::cases() as $kind) {
+            $dokument = $this->document($kind);
+            $this->assertSame($vorher[$kind->value]['html'], $dokument->html, $kind->value);
+            $this->assertSame($vorher[$kind->value]['version'], $dokument->version, $kind->value);
+            $this->assertSame($vorher[$kind->value]['updated_at'], $dokument->updated_at?->toIso8601String(), $kind->value);
+        }
+    }
+
+    public function test_der_seeder_rollt_beide_dokumente_zurueck_wenn_ein_release_scheitert(): void
+    {
+        (new MailDocumentSeeder)->run();
+
+        foreach (MailDocumentKind::cases() as $kind) {
+            $dokument = $this->document($kind);
+            $dokument->forceFill([
+                'html' => '<div>Arbeitsstand '.$kind->value.'</div>',
+                'version' => $kind === MailDocumentKind::Template ? 4 : 9,
+            ])->save();
+        }
+
+        $vorher = MailDocument::query()
+            ->get()
+            ->mapWithKeys(fn (MailDocument $document): array => [$document->kind->value => [
+                'html' => $document->html,
+                'published_html' => $document->published_html,
+                'version' => $document->version,
+                'content_hash' => $document->content_hash,
+            ]])
+            ->all();
+
+        MailDocument::updating(function (MailDocument $document): void {
+            if ($document->kind === MailDocumentKind::Signature) {
+                throw new \RuntimeException('Simulierter Speicherfehler der Signatur.');
+            }
+        });
+
+        try {
+            (new MailDocumentSeeder)->run();
+            $this->fail('Der simulierte Speicherfehler wurde nicht ausgeloest.');
+        } catch (\RuntimeException $exception) {
+            $this->assertSame('Simulierter Speicherfehler der Signatur.', $exception->getMessage());
+        }
+
+        foreach (MailDocumentKind::cases() as $kind) {
+            $dokument = $this->document($kind);
+            $this->assertSame($vorher[$kind->value]['html'], $dokument->html, $kind->value);
+            $this->assertSame($vorher[$kind->value]['published_html'], $dokument->published_html, $kind->value);
+            $this->assertSame($vorher[$kind->value]['version'], $dokument->version, $kind->value);
+            $this->assertSame($vorher[$kind->value]['content_hash'], $dokument->content_hash, $kind->value);
+        }
     }
 
     private function document(MailDocumentKind $kind): MailDocument
