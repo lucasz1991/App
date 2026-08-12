@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Enums\MarketingCreativeType;
 use App\Models\MarketingCreative;
 use App\Models\User;
 use App\Services\Marketing\MarketingStudioService;
@@ -18,8 +17,7 @@ final class MarketingStudioSeeder extends Seeder
     ): void {
         $actor = $this->actor();
 
-        foreach ([MarketingCreativeType::Job, MarketingCreativeType::Info] as $type) {
-            $definition = $templates->definition($type);
+        foreach ($templates->starterDefinitions() as $definition) {
             $templateKey = data_get($definition, 'shared_content.template_key');
             if (! is_string($templateKey) || trim($templateKey) === '') {
                 throw new RuntimeException('Das Marketing-Startmotiv besitzt keinen gültigen template_key.');
@@ -32,7 +30,11 @@ final class MarketingStudioSeeder extends Seeder
                 continue;
             }
 
-            $studio->createFromTemplate($type, $actor);
+            $studio->createFromTemplate(
+                $templates->typeForKey($templateKey),
+                $actor,
+                $templateKey,
+            );
         }
     }
 

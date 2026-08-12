@@ -32,10 +32,22 @@ final class MarketingStudioService
         private readonly MarketingFileSourceService $files,
     ) {}
 
-    public function createFromTemplate(MarketingCreativeType $type, User $actor): MarketingCreative
+    public function createFromTemplate(
+        MarketingCreativeType $type,
+        User $actor,
+        ?string $templateKey = null,
+    ): MarketingCreative
     {
-        return DB::transaction(function () use ($type, $actor): MarketingCreative {
-            $definition = $this->templates->definition($type);
+        return DB::transaction(function () use ($type, $actor, $templateKey): MarketingCreative {
+            if ($templateKey !== null && $this->templates->typeForKey($templateKey) !== $type) {
+                throw ValidationException::withMessages([
+                    'type' => 'Die gewählte Startvorlage gehört nicht zu diesem Motivtyp.',
+                ]);
+            }
+
+            $definition = $templateKey === null
+                ? $this->templates->definition($type)
+                : $this->templates->definitionByKey($templateKey);
             $creative = MarketingCreative::query()->create([
                 'type' => $type,
                 'status' => MarketingCreativeStatus::Draft,

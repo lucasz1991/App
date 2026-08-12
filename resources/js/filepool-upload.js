@@ -525,7 +525,10 @@ export function filePoolDropzone(config = {}) {
 
             const size = preview.querySelector('[data-upload-file-size]');
             if (size) {
-                size.textContent = formatUploadFileSize(file?.size, document.documentElement.lang || 'de-DE');
+                size.textContent = formatUploadFileSize(
+                    file?.size,
+                    preview.ownerDocument?.documentElement?.lang || 'de-DE',
+                );
             }
 
             const removeLabel = preview.querySelector('[data-upload-remove-label]');

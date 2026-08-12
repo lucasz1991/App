@@ -17,6 +17,7 @@ use App\Services\Ai\OpenRouterToolDecision;
 use App\Services\Marketing\MarketingHtmlSanitizer;
 use App\Services\Marketing\MarketingRenderService;
 use App\Services\Marketing\MarketingStudioService;
+use App\Services\Marketing\MarketingTemplateFactory;
 use App\Support\CompanyData;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Routing\Middleware\SubstituteBindings;
@@ -39,45 +40,56 @@ class MarketingStudioBackendTest extends TestCase
         config()->set('marketing.disk', 'private');
     }
 
-    public function test_job_and_info_templates_create_three_distinct_bound_formats(): void
+    public function test_three_starter_templates_create_distinct_bound_formats(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $studio = app(MarketingStudioService::class);
         $job = $studio->createFromTemplate(MarketingCreativeType::Job, $admin);
         $info = $studio->createFromTemplate(MarketingCreativeType::Info, $admin);
+        $network = $studio->createFromTemplate(
+            MarketingCreativeType::Info,
+            $admin,
+            MarketingTemplateFactory::INFO_GERMANY_NETWORK,
+        );
 
         $this->assertSame(MarketingCreativeStatus::Draft, $job->status);
         $this->assertSame('Wagenmeister (m/w/d)', $job->shared_content['title']);
         $this->assertSame(CompanyData::all()['name'], $job->shared_content['company_name']);
         $this->assertArrayNotHasKey('hero_image_url', $job->shared_content);
-        $this->assertCount(3, $job->variants);
-        $this->assertCount(3, $info->variants);
-        $this->assertCount(3, $job->variants->pluck('html')->unique());
-        $this->assertCount(3, $info->variants->pluck('html')->unique());
+        $this->assertSame('Was macht ein Wagenmeister?', $info->shared_content['title']);
+        $this->assertSame('Deutschlandweit im Einsatz', $network->shared_content['title']);
 
-        foreach ([$job, $info] as $creative) {
+        foreach ([$job, $info, $network] as $creative) {
+            $this->assertCount(3, $creative->variants);
+            $this->assertCount(3, $creative->variants->pluck('html')->unique());
             foreach (MarketingCreativeFormat::cases() as $format) {
                 $variant = $creative->variants->firstWhere('format', $format);
                 $this->assertNotNull($variant);
                 $this->assertSame(64, strlen($variant->content_hash));
                 $this->assertStringContainsString('data-rt-binding="title"', $variant->html);
                 $this->assertStringContainsString('data-rt-brand-lockup="official"', $variant->html);
-                $this->assertStringContainsString('src="/rt-brand/img/logo-horizontal.png"', $variant->html);
+                $this->assertMatchesRegularExpression(
+                    '#src="/rt-brand/img/logo-horizontal(?:-darkbg)?\.png"#',
+                    $variant->html,
+                );
                 $this->assertStringNotContainsString('/rt-brand/rt-logo.svg', $variant->html);
                 $this->assertStringNotContainsString('<span>RAILTIME</span>', $variant->html);
-                $this->assertStringContainsString('src="/rt-brand/img/hero-railtime.jpg"', $variant->html);
                 $this->assertStringNotContainsString('data-rt-binding-src="hero_image_url"', $variant->html);
                 $this->assertSame($format->value, $variant->builder_data['railtime']['format']);
-                $this->assertSame(2, $variant->builder_data['railtime']['schema']);
+                $this->assertSame(3, $variant->builder_data['railtime']['schema']);
             }
         }
+
+        $this->assertTrue($job->variants->every(fn ($variant): bool => str_contains($variant->html, '/rt-brand/img/wagenmeister-pruefung.jpg')));
+        $this->assertTrue($info->variants->every(fn ($variant): bool => str_contains($variant->html, '/rt-brand/img/wagenmeister-team.webp')));
+        $this->assertTrue($network->variants->every(fn ($variant): bool => str_contains($variant->html, '/rt-brand/img/deutschland-netzwerk.png')));
 
         $this->assertSame(['width' => 1080, 'height' => 1920], MarketingCreativeFormat::Story->dimensions());
         $this->assertSame(['width' => 1080, 'height' => 1080], MarketingCreativeFormat::Post->dimensions());
         $this->assertSame(['width' => 1200, 'height' => 630], MarketingCreativeFormat::Web->dimensions());
     }
 
-    public function test_job_templates_use_a_format_specific_premium_information_hierarchy(): void
+    public function test_starter_templates_use_format_specific_premium_information_hierarchies(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $studio = app(MarketingStudioService::class);
@@ -88,51 +100,39 @@ class MarketingStudioBackendTest extends TestCase
         $post = $job->variants->firstWhere('format', MarketingCreativeFormat::Post);
         $web = $job->variants->firstWhere('format', MarketingCreativeFormat::Web);
 
-        $this->assertStringContainsString('class="rt-hero-rail"', $story->html);
-        $this->assertStringContainsString('class="rt-benefits-lead"', $story->html);
-        $this->assertStringContainsString('class="rt-footer-route"', $story->html);
+        $this->assertStringContainsString('class="rt-job-body"', $story->html);
+        $this->assertStringContainsString('class="rt-columns"', $story->html);
+        $this->assertStringContainsString('class="rt-photo-code"', $story->html);
         $this->assertStringContainsString('data-rt-binding-list="tasks"', $story->html);
         $this->assertStringContainsString('data-rt-binding-list="profile"', $story->html);
-        $this->assertStringContainsString('data-rt-binding-list="benefits"', $story->html);
-        $this->assertStringContainsString('height:650px', $story->css);
-        $this->assertStringContainsString('height:480px', $story->css);
-        $this->assertStringContainsString('height:280px', $story->css);
-        $this->assertStringContainsString('height:360px', $story->css);
+        $this->assertStringContainsString('height:880px', $story->css);
+        $this->assertStringContainsString('height:710px', $story->css);
+        $this->assertStringContainsString('height:330px', $story->css);
 
-        $this->assertStringContainsString('class="rt-post-profile"', $post->html);
-        $this->assertStringContainsString('class="rt-post-photo-label"', $post->html);
-        $this->assertStringContainsString('class="rt-post-band"', $post->html);
-        $this->assertStringContainsString('data-rt-binding-list="profile"', $post->html);
-        $this->assertStringContainsString('.rt-job-post .rt-post-profile ul{display:grid', $post->css);
-        $this->assertStringContainsString('content:"RAILTIME IN ZAHLEN"', $post->css);
+        $this->assertStringContainsString('class="rt-copy"', $post->html);
+        $this->assertStringContainsString('data-rt-binding-list="benefits"', $post->html);
+        $this->assertStringContainsString('.rt-job-post>.rt-copy{position:absolute', $post->css);
 
-        $this->assertStringContainsString('class="rt-web-photo-label"', $web->html);
         $this->assertStringContainsString('class="rt-intro" data-rt-binding="intro"', $web->html);
-        $this->assertStringContainsString('class="rt-web-meta"', $web->html);
-        $this->assertStringContainsString('data-rt-binding="contact_phone"', $web->html);
-        $this->assertStringContainsString('data-rt-binding="website"', $web->html);
-        $this->assertStringContainsString('RailTime in Zahlen', $web->html);
-        $this->assertStringContainsString('.rt-job-web .rt-web-meta{position:absolute', $web->css);
+        $this->assertStringContainsString('class="rt-actions"', $web->html);
+        $this->assertStringContainsString('class="rt-photo-code"', $web->html);
+        $this->assertStringContainsString('.rt-job-web{display:grid', $web->css);
 
         foreach ($job->variants as $variant) {
             $dimensions = $variant->format->dimensions();
 
             $this->assertStringContainsString('data-rt-brand-lockup="official"', $variant->html);
-            $this->assertStringContainsString('src="/rt-brand/img/logo-horizontal.png"', $variant->html);
-            $this->assertStringContainsString('src="/rt-brand/img/hero-railtime.jpg"', $variant->html);
+            $this->assertStringContainsString('src="/rt-brand/img/logo-horizontal-darkbg.png"', $variant->html);
+            $this->assertStringContainsString('src="/rt-brand/img/wagenmeister-pruefung.jpg"', $variant->html);
             $this->assertStringContainsString('data-rt-binding-href="cta_url"', $variant->html);
             $this->assertStringContainsString("width:{$dimensions['width']}px", $variant->css);
             $this->assertStringContainsString("height:{$dimensions['height']}px", $variant->css);
         }
 
         foreach ($info->variants as $variant) {
-            $this->assertStringNotContainsString('rt-hero-rail', $variant->html);
-            $this->assertStringNotContainsString('rt-benefits-lead', $variant->html);
-            $this->assertStringNotContainsString('rt-footer-route', $variant->html);
-            $this->assertStringNotContainsString('rt-post-profile', $variant->html);
-            $this->assertStringNotContainsString('rt-post-photo-label', $variant->html);
-            $this->assertStringNotContainsString('rt-web-photo-label', $variant->html);
-            $this->assertStringNotContainsString('rt-web-meta', $variant->html);
+            $this->assertStringContainsString('src="/rt-brand/img/wagenmeister-team.webp"', $variant->html);
+            $this->assertStringContainsString('data-rt-binding="subtitle"', $variant->html);
+            $this->assertStringContainsString('data-rt-binding-href="cta_url"', $variant->html);
         }
     }
 
@@ -172,8 +172,11 @@ class MarketingStudioBackendTest extends TestCase
         $this->assertNull($refreshed->approved_at);
         foreach ($refreshed->variants as $variant) {
             $this->assertSame(2, $variant->version);
-            $this->assertSame(2, $variant->builder_data['railtime']['schema']);
-            $this->assertStringContainsString('/rt-brand/img/logo-horizontal.png', $variant->html);
+            $this->assertSame(3, $variant->builder_data['railtime']['schema']);
+            $this->assertMatchesRegularExpression(
+                '#/rt-brand/img/logo-horizontal(?:-darkbg)?\.png#',
+                $variant->html,
+            );
             $this->assertStringNotContainsString('<span>RAILTIME</span>', $variant->html);
         }
     }
@@ -184,12 +187,12 @@ class MarketingStudioBackendTest extends TestCase
         $studio = app(MarketingStudioService::class);
         $creative = $studio->createFromTemplate(MarketingCreativeType::Job, $admin);
         $post = $creative->variants->firstWhere('format', MarketingCreativeFormat::Post);
-        $formatSpecificImage = '/rt-brand/img/logo-horizontal-darkbg.png';
+        $formatSpecificImage = '/rt-brand/img/hero-railtime.jpg';
         $studio->saveVariant(
             $creative,
             MarketingCreativeFormat::Post,
             $post->builder_data,
-            str_replace('/rt-brand/img/hero-railtime.jpg', $formatSpecificImage, $post->html),
+            str_replace('/rt-brand/img/wagenmeister-pruefung.jpg', $formatSpecificImage, $post->html),
             $post->css,
             $post->content_hash,
             $admin,
