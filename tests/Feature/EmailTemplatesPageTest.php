@@ -236,8 +236,8 @@ class EmailTemplatesPageTest extends TestCase
             // Die Ebenenliste beginnt mit dem gekachelten Raster, danach
             // folgen drei nicht wiederholte Ebenen.
             $this->assertStringContainsString('background-repeat:repeat,no-repeat,no-repeat,no-repeat', $html, $template);
-            $this->assertStringContainsString('background-position:left top,right center,center center,left bottom', $html, $template);
-            $this->assertStringContainsString('background-size:64px 64px,auto 100%,100% 100%,77% auto', $html, $template);
+            $this->assertStringContainsString('background-position:left top,right center,center center,left bottom,left bottom', $html, $template);
+            $this->assertStringContainsString('background-size:64px 64px,auto 100%,100% 100%,77% auto,77% auto', $html, $template);
 
             // Frueher stand hier die Kurzform background:, und die SETZT
             // background-image zurueck — stand sie danach, verschwand der Zug
@@ -290,7 +290,10 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertSame(30, $durations[0], "{$file}: Startverzoegerung muss 300 ms betragen.");
             // ZEHN SEKUNDEN Gesamtlaufzeit: sieben Sekunden Einfahrt, danach
             // verweht die Fahne, bis das letzte Einzelbild rauchfrei steht.
-            $this->assertSame(1000, array_sum($durations), "{$file}: 10 s Gesamtlaufzeit erwartet.");
+            // 13 s: drei Sekunden Vorlauf, damit Wortmarke und Zeichen sich
+            // fertig schreiben, danach sieben Sekunden Einfahrt und das
+            // Verwehen der Fahne.
+            $this->assertSame(1300, array_sum($durations), "{$file}: 13 s Gesamtlaufzeit erwartet.");
             // 700 kB statt der frueheren 200. Die Grenze wurde ANGEHOBEN,
             // nicht vergessen: Die Einfahrt liegt jetzt in 2160 x 388 statt
             // 720 x 75, weil sie auf breiten Schirmen sichtbar hochskaliert
@@ -624,7 +627,7 @@ class EmailTemplatesPageTest extends TestCase
         $regeln = file_get_contents(resource_path('views/emails/parts/responsive-css.blade.php'));
 
         $this->assertStringContainsString(
-            '.rt-sign-cell { background-size: 64px 64px, auto 100%, 100% 100%, 100% auto !important; }',
+            '.rt-sign-cell { background-size: 64px 64px, auto 100%, 100% 100%, 100% auto, 100% auto !important; }',
             $regeln,
         );
         $this->assertStringContainsString('.rt-sign-logo { border-left: 0 !important;', $regeln);
@@ -751,7 +754,7 @@ class EmailTemplatesPageTest extends TestCase
             // mehr als erste — geprueft wird seine Anwesenheit, nicht seine
             // Position.
             $this->assertMatchesRegularExpression('/rt-sign-cell[^>]*linear-gradient\(rgba\(/', $html);
-            $this->assertStringContainsString('background-size:64px 64px,auto 100%,100% 100%,77% auto', $html);
+            $this->assertStringContainsString('background-size:64px 64px,auto 100%,100% 100%,77% auto,77% auto', $html);
             $this->assertStringContainsString(
                 'class="rt-sign-logo" width="50%" valign="top"',
                 $html,
@@ -851,15 +854,16 @@ class EmailTemplatesPageTest extends TestCase
         // Wortmarke (fuer Outlook, das von einem GIF nur das erste — beim
         // Aufbau fast leere — Einzelbild zeigt).
         $this->assertSame(15, substr_count($html, 'data:image/png;base64,'));
-        // GIF: der Zug und zweimal die bewegte Wortmarke.
-        $this->assertSame(3, substr_count($html, 'data:image/gif;base64,'));
+        // GIF: die Einfahrt, die endlose Ruhefahne und zweimal die bewegte
+        // Wortmarke (breit und gestapelt).
+        $this->assertSame(4, substr_count($html, 'data:image/gif;base64,'));
         $this->assertStringContainsString('class="rt-sign-logo"', $html);
         $this->assertStringNotContainsString('RT_PHONE_START', $html);
         $this->assertStringNotContainsString('{{TRAIN_SRC}}', $html);
         // Der Schleier ist die DRITTE Ebene, nicht mehr die erste: darueber
         // liegen Raster und Wasserzeichen. Die Liste beginnt deshalb mit url().
         $this->assertMatchesRegularExpression('/rt-sign-cell[^>]*linear-gradient\(/', $html);
-        $this->assertStringContainsString('background-position:left top,right center,center center,left bottom', $html);
+        $this->assertStringContainsString('background-position:left top,right center,center center,left bottom,left bottom', $html);
 
         // NATUERLICHE QUELLREIHENFOLGE seit dem symmetrischen Umbau: Person
         // links, Firma rechts. Vorher stand die Markenspalte zuerst und ein

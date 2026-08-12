@@ -176,11 +176,12 @@ final class MailDocumentSeeder extends Seeder
             $tokens[$key] = '{{'.$key.'}}';
         }
 
-        // Ausnahme Standrauch: ein nicht leerer Wert schaltet im Blade eine
-        // zusaetzliche Hintergrundebene frei. Als Platzhalter waere sie immer
-        // an und liefe auf den nicht animierten Wegen (Systemmail,
-        // Vorlagen-Download) in ein url('') ins Leere.
-        $tokens['TRAIN_IDLE_SRC'] = '';
+        // FRUEHER STAND HIER EINE AUSNAHME fuer TRAIN_IDLE_SRC: der Wert
+        // wurde geleert, weil ein Platzhalter die Ebene immer eingeschaltet
+        // haette und sie auf nicht animierten Wegen in ein leeres url()
+        // gelaufen waere. Die Ruhefahne wird inzwischen IMMER gesetzt
+        // (MailSignature::values), damit entfaellt der Grund — und mit der
+        // Ausnahme fehlte die Ebene in jeder veroeffentlichten Fassung.
 
         return View::make('emails.parts.signature', ['values' => $tokens])->render();
     }

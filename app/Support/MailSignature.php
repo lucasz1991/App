@@ -131,11 +131,12 @@ class MailSignature
                 // Das Standbild traegt den Ersatzweg fuer Outlook-Desktop
                 // (background-Attribut), siehe emails/parts/signature.blade.php.
                 'TRAIN_STILL_SRC' => EmailTemplateBuilder::signatureTrainStillUrl($this->theme),
-                'TRAIN_IDLE_SRC' => $this->animated
-                    ? EmailTemplateBuilder::mailAssetUrl(
-                        'zug-dampf-idle-'.($this->theme === 'dark' ? 'dark' : 'light').'.gif'
-                    )
-                    : '',
+                // IMMER, nicht nur bei animierter Einfahrt: Die Ruhefahne
+                // ist die Dauerbewegung des Streifens. Ob der Zug EINFAEHRT,
+                // entscheidet $animated — ob er raucht, nicht.
+                'TRAIN_IDLE_SRC' => EmailTemplateBuilder::mailAssetUrl(
+                    'zug-dampf-idle-'.($this->theme === 'dark' ? 'dark' : 'light').'.gif'
+                ),
             ]
             : [
                 'LOGO_SRC' => EmailTemplateBuilder::inlineImage($logoAsset, 'image/gif'),
@@ -152,9 +153,7 @@ class MailSignature
                 // Ohne verlinkte Adresse gibt es keinen Outlook-Ersatzweg:
                 // das background-Attribut kann keine data:-URI laden.
                 'TRAIN_STILL_SRC' => '',
-                'TRAIN_IDLE_SRC' => $this->animated
-                    ? EmailTemplateBuilder::signatureTrainIdleAsset($this->theme)
-                    : '',
+                'TRAIN_IDLE_SRC' => EmailTemplateBuilder::signatureTrainIdleAsset($this->theme),
             ];
 
         $symbole = $this->remoteAssets

@@ -60,9 +60,15 @@
         ($values['UST_ID'] ?? '') !== '' ? 'USt-IdNr. '.$values['UST_ID'] : '',
         ($values['STEUERNUMMER'] ?? '') !== '' ? 'Steuernummer '.$values['STEUERNUMMER'] : '',
     ]));
-    // Der Standrauch als eigene Ebene ist ENTFALLEN: Er trug den ganzen Zug
-    // ein zweites Mal, und seit die Fahne der Einfahrt von selbst verweht,
-    // gleicht deren letztes Bild dem Standbild.
+    // DIE RUHEFAHNE ALS EIGENE EBENE. Ein einzelnes GIF kann nicht einmal
+    // einfahren und danach in Schleife bleiben — es wiederholt immer die
+    // ganze Folge. Die Einfahrt faehrt deshalb einmal und bleibt stehen,
+    // darueber laeuft die Fahne endlos weiter.
+    //
+    // Sie enthaelt AUSSCHLIESSLICH Rauch. Eine fruehere Fassung trug den
+    // ganzen Zug ein zweites Mal; seit die Einfahrt durchsichtig ist, haette
+    // er darin doppelt gestanden.
+    $hasIdleTrain = ! $isOutlookExport && ($values['TRAIN_IDLE_SRC'] ?? '') !== '';
 
     /*
      * DIE EBENEN DES STREIFENS, von oben nach unten.
@@ -72,8 +78,9 @@
      *   1  Raster        feines technisches Netz, gekachelt, durchsichtig
      *   2  Wasserzeichen RT-Marke und roter Schimmer, EINMAL rechts
      *   3  Schleier      nimmt dem Zug Kraft (rund 30 % Grundfarbe)
-     *   4  Zug           Einfahrt
-     *   5  Grundfarbe    weiss beziehungsweise dunkel
+     *   4  Ruhefahne     Rauch allein, endlos — die Idle-Bewegung
+     *   5  Zug           Einfahrt, einmalig, bleibt danach stehen
+     *   6  Grundfarbe    weiss beziehungsweise dunkel
      *
      * RASTER UND MARKE LIEGEN OBEN, nicht unten. Das GIF ist deckend —
      * laege die Grafik darunter, schnitte der Zug einen sichtbaren Kasten
@@ -102,6 +109,7 @@
         ($values['GRUND_MARKE_SRC'] ?? '') !== ''
             ? "url({$values['GRUND_MARKE_SRC']})|right center|auto 100%|no-repeat" : '',
         $isOutlookExport ? '' : "linear-gradient({$values['SIGNATURE_TRAIN_WASH']},{$values['SIGNATURE_TRAIN_WASH']})|center center|100% 100%|no-repeat",
+        $hasIdleTrain ? "url({$values['TRAIN_IDLE_SRC']})|left bottom|{$zugBreite} auto|no-repeat" : '',
         $isOutlookExport ? '' : "url({$values['TRAIN_SRC']})|left bottom|{$zugBreite} auto|no-repeat",
     ]));
     $teile = array_map(static fn (string $e): array => explode('|', $e), $ebenen);
@@ -144,12 +152,15 @@
         </div>
         <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">
             <tr class="rt-stack">
+                {{-- Ohne Person bleibt die Namenszeile LEER: Die Marke steht
+                     bereits als Wortmarke in der rechten Spalte, der
+                     Firmenname darunter waere eine Doppelung. --}}
                 <td class="rt-sign-identity" width="50%" valign="top" align="left" style="width:50%;padding:0 24px 0 0;position:relative;z-index:1;text-align:left;vertical-align:top;">
                     {{-- Eigener Behaelter, damit Name und Funktion gestapelt
                          NEBEN die Kontaktliste ruecken koennen statt darueber
                          (siehe responsive-css: inline-block). --}}
                     <div class="rt-person-kopf">
-                    <p class="rt-sign-name" style="margin:0 0 4px;color:{{ $values['SIGNATURE_TEXT_PRIMARY'] }};font-size:23px;line-height:27px;font-weight:bold;letter-spacing:-.5px;">{{ $hasPerson ? $values['VORNAME_NACHNAME'] : $values['FIRMENNAME'] }}</p>
+                    <p class="rt-sign-name" style="margin:0 0 4px;color:{{ $values['SIGNATURE_TEXT_PRIMARY'] }};font-size:23px;line-height:27px;font-weight:bold;letter-spacing:-.5px;">{{ $hasPerson ? $values['VORNAME_NACHNAME'] : '' }}</p>
                     <p style="margin:0;color:{{ $values['SIGNATURE_ACCENT'] }};font-family:Consolas,'Courier New',monospace;font-size:10px;line-height:16px;font-weight:bold;letter-spacing:1.2px;text-transform:uppercase;">{{ $values['POSITION'] }}</p>
                     </div>
 

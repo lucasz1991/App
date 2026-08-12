@@ -99,10 +99,10 @@ tr.rt-stack > td + td { padding-top: 20px !important; }
 /* Gestapelt stehen die Spalten untereinander — die rechten 30 % sind dann
    nicht mehr fuer die Firmendaten reserviert und der Zug darf ueber die
    ganze Breite laufen. Die Reihenfolge der Werte folgt der Ebenenliste in
-   signature.blade.php: Raster, Wasserzeichen, Schleier, Zug. Wer sie dort
+   signature.blade.php: Raster, Wasserzeichen, Schleier, Ruhefahne, Zug. Wer sie dort
    aendert, muss sie HIER mitziehen — sonst treffen die Groessen die
    falschen Ebenen. */
-.rt-sign-cell { background-size: 64px 64px, auto 100%, 100% 100%, 100% auto !important; }
+.rt-sign-cell { background-size: 64px 64px, auto 100%, 100% 100%, 100% auto, 100% auto !important; }
 }
 
 /* ---- Telefon: Innenabstaende weiter zuruecknehmen ---- */
