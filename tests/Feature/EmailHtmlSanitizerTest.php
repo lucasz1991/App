@@ -193,8 +193,10 @@ class EmailHtmlSanitizerTest extends TestCase
         }
 
         // Umlaute duerfen zu Entities werden, verschwinden duerfen sie nicht.
+        // Geprueft an der Ueberschrift: die frueher hier benutzte Kennzeile
+        // "RT / PERSOENLICHE NACHRICHT" steht nicht mehr in der Vorlage.
         $this->assertStringContainsString(
-            'PERSÖNLICHE',
+            'Verlässlich',
             html_entity_decode($report->html, ENT_QUOTES | ENT_HTML5, 'UTF-8'),
         );
     }

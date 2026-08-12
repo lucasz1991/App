@@ -495,7 +495,22 @@ class EmailTemplateBuilder
      */
     public static function mailAssetUrl(string $asset): string
     {
-        return URL::asset('mail-assets/'.$asset);
+        // FINGERABDRUCK AN DIE ADRESSE. Ohne ihn zeigen Browser und
+        // Mailclients nach einer Neuauslieferung weiter das ALTE Bild: Der
+        // Dateiname bleibt gleich, und darauf allein stuetzt sich ihr
+        // Zwischenspeicher. Genau das war der Grund, warum ein neu
+        // gerechneter Zug in der Vorschau noch der alte war, obwohl die
+        // Datei auf der Platte laengst neu war — es half auch kein
+        // erneutes Seeden, weil die Dokumente nie das Problem waren.
+        //
+        // Der Wert ist die Aenderungszeit der Datei: er wechselt genau
+        // dann, wenn sich das Bild wirklich geaendert hat, und bleibt
+        // sonst stabil (wichtig, damit ein unveraendertes Bild nicht bei
+        // jedem Aufruf neu geladen wird).
+        $pfad = public_path('mail-assets/'.$asset);
+        $stand = is_file($pfad) ? filemtime($pfad) : null;
+
+        return URL::asset('mail-assets/'.$asset).($stand !== null ? '?v='.$stand : '');
     }
 
     /**
