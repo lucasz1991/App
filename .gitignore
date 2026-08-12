@@ -40,6 +40,7 @@ Homestead.json
 !/tests/Feature/MarketingBuilderVendorIntegrityTest.php
 !/tests/Feature/MarketingStudioBackendTest.php
 !/tests/Feature/MarketingStudioSeederTest.php
+!/tests/Feature/MarketingStarterCatalogRefreshMigrationTest.php
 !/tests/Feature/MarketingCreativeDeletionTest.php
 !/tests/Feature/MarketingFilePoolBackendTest.php
 !/tests/Feature/AssistantPageBuilderToolsTest.php

@@ -36,8 +36,7 @@ final class MarketingStudioService
         MarketingCreativeType $type,
         User $actor,
         ?string $templateKey = null,
-    ): MarketingCreative
-    {
+    ): MarketingCreative {
         return DB::transaction(function () use ($type, $actor, $templateKey): MarketingCreative {
             if ($templateKey !== null && $this->templates->typeForKey($templateKey) !== $type) {
                 throw ValidationException::withMessages([
@@ -295,7 +294,10 @@ final class MarketingStudioService
                 }
             }
 
-            $definition = $this->templates->definition($locked->type);
+            $templateKey = data_get($locked->shared_content, 'template_key');
+            $definition = is_string($templateKey) && $this->templates->hasTemplateKey($templateKey)
+                ? $this->templates->definitionByKey($templateKey)
+                : $this->templates->definition($locked->type);
             $changed = false;
             foreach (MarketingCreativeFormat::cases() as $format) {
                 $variant = $variants->get($format->value);

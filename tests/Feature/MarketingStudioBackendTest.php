@@ -729,7 +729,7 @@ class MarketingStudioBackendTest extends TestCase
         }
 
         $story->forceFill([
-            'html' => str_replace('/rt-brand/img/logo-horizontal.png', '/rt-brand/img/unofficial-logo.png', $story->html),
+            'html' => str_replace('/rt-brand/img/logo-horizontal-darkbg.png', '/rt-brand/img/unofficial-logo.png', $story->html),
         ])->save();
 
         try {
@@ -910,12 +910,18 @@ class MarketingStudioBackendTest extends TestCase
         $html = app(MarketingHtmlSanitizer::class)->html(
             '<img src="/rt-brand/img/logo-horizontal.png">'
             .'<img src="/rt-brand/img/logo-horizontal-darkbg.png">'
+            .'<img src="/rt-brand/img/wagenmeister-pruefung.jpg">'
+            .'<img src="/rt-brand/img/wagenmeister-team.webp">'
+            .'<img src="/rt-brand/img/deutschland-netzwerk.png">'
             .'<img src="/rt-brand/img/logo-horizontal.png.exe">'
             .'<img src="/rt-brand/img/unofficial-logo.png">',
         );
 
         $this->assertStringContainsString('src="/rt-brand/img/logo-horizontal.png"', $html);
         $this->assertStringContainsString('src="/rt-brand/img/logo-horizontal-darkbg.png"', $html);
+        $this->assertStringContainsString('src="/rt-brand/img/wagenmeister-pruefung.jpg"', $html);
+        $this->assertStringContainsString('src="/rt-brand/img/wagenmeister-team.webp"', $html);
+        $this->assertStringContainsString('src="/rt-brand/img/deutschland-netzwerk.png"', $html);
         $this->assertStringNotContainsString('logo-horizontal.png.exe', $html);
         $this->assertStringNotContainsString('unofficial-logo.png', $html);
     }
