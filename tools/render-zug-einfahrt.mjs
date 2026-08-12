@@ -104,7 +104,7 @@ const SCHORNSTEIN_X = BREITE - (ZUG_BREITE * 0.035);
 // --- Zeiten (vertraglich, siehe EmailTemplatesPageTest) ---------------
 const BILDER = Number(process.env.RT_BILDER || 72);
 const ERSTES_CS = 30;
-const SUMME_CS = 1300;
+const SUMME_CS = 1000;
 const GESAMT_S = SUMME_CS / 100;
 // SIEBEN SEKUNDEN bis zum Stillstand. Danach bleibt das letzte Einzelbild
 // stehen — das ist der Ruhezustand.
@@ -114,7 +114,7 @@ const FAHRT_S = 7.0;
 // Wortmarke und Zeichen fertig — erst danach setzt sich der Zug in
 // Bewegung. Ohne den Versatz laeuft alles gleichzeitig und die Signatur
 // wirkt unruhig.
-const WARTE_S = Number(process.env.RT_WARTE || 3.0);
+const WARTE_S = Number(process.env.RT_WARTE || 1.2);
 // Die Fahne VERWEHT NICHT. Sie bleibt stehen wie in der klassischen
 // Fassung — nur der Ausstoss endet, wenn der Zug haelt.
 

@@ -42,15 +42,21 @@
     $isOutlookExport = $outlookTrainSrc !== '';
     $cellPadding = $isOutlookExport ? '0' : $padding;
     $outlookTrainPadding = $outlookTrainPadding ?? '6px 0 14px';
-    // Ruhestellung HINTER dem GIF: Steht das GIF, deckt es sie vollstaendig
-    // zu; raeumt es seine Flaeche, bleibt der Zug trotzdem stehen. Nur mit
-    // verlinkter Adresse — als eingebettete Fassung waere sie ein zweites
-    // Mal dieselben Kilobytes, und die Wege ohne Standbild (Outlook-Paket
-    // mit lokaler Datei) haben ihren eigenen Ersatzweg.
-    // url() OHNE Anfuehrungszeichen: Blade escaped sie sonst zu &#039;, und
-    // das muss ein Mailclient erst im style-Attribut wieder aufloesen.
-    $ruhebild = $outlookTrainFallbackSrc !== ''
-        ? "background-image:url({$outlookTrainFallbackSrc});background-repeat:no-repeat;background-position:left top;background-size:100% 100%;"
+    // HINTER dem Zug-GIF liegt die RUHEFAHNE, nicht mehr das Standbild.
+    //
+    // Das Standbild war als Netz gedacht: Raeumt das GIF seine Flaeche,
+    // bleibt der Zug trotzdem stehen. Das funktionierte aber NUR, solange
+    // das GIF deckte. Seit es durchsichtig ist, scheint das Netz durch —
+    // und es stehen ZWEI Zuege im Bild, ein fahrender und ein stehender.
+    // Gemeldet und nachvollzogen.
+    //
+    // Stattdessen liegt dort die Ruhefahne: reiner Rauch, kein Zug, endlos.
+    // Sie kann sich nicht mit dem Zug doppeln und liefert die
+    // Ruhebewegung auch dort, wo es keine Hintergrundebenen gibt.
+    // url() OHNE Anfuehrungszeichen: Blade escaped sie sonst zu &#039;.
+    $ruheFahneSrc = trim((string) ($values['TRAIN_IDLE_SRC'] ?? ''));
+    $ruhebild = $ruheFahneSrc !== '' && ! str_starts_with($ruheFahneSrc, 'data:')
+        ? "background-image:url({$ruheFahneSrc});background-repeat:no-repeat;background-position:left bottom;background-size:100% 100%;"
         : '';
     $hasPerson = trim((string) ($values['VORNAME_NACHNAME'] ?? '')) !== '';
     $pflichtangaben = implode(' · ', array_filter([

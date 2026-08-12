@@ -216,7 +216,12 @@ class MailDocumentEditorTest extends TestCase
 
         $this->assertStringContainsString('RT-SIGNATUR Mara Beispiel', $template);
         $this->assertStringContainsString('RT-SIGNATUR Mara Beispiel', $standalone);
-        $this->assertStringContainsString('RT-SIGNATUR RT Rail Time GmbH', $systemSignature);
+        // OHNE Firmenname: Ohne sendende Person bleibt VORNAME_NACHNAME leer.
+        // Der frueher hier greifende Rueckfall auf den Firmennamen ist
+        // entfallen — die Marke steht bereits als Wortmarke in der rechten
+        // Spalte, der Name darunter war eine Doppelung.
+        $this->assertStringContainsString('RT-SIGNATUR', $systemSignature);
+        $this->assertStringNotContainsString('RT-SIGNATUR RT Rail Time GmbH', $systemSignature);
 
         // CSS steht in den echten Dokumentkoepfen, nicht im <tr>-Fragment.
         $this->assertStringContainsString('data-rt-mail-document-css="signature"', $template);
@@ -276,7 +281,7 @@ class MailDocumentEditorTest extends TestCase
         $htmlFromFooter = MailSignature::forCompany()->render();
 
         $this->assertStringContainsString('.snapshot-a{letter-spacing:0;}', $cssFromLayout);
-        $this->assertStringContainsString('SNAPSHOT-A RT Rail Time GmbH', $htmlFromFooter);
+        $this->assertStringContainsString('SNAPSHOT-A', $htmlFromFooter);
         $this->assertStringNotContainsString('SNAPSHOT-B', $htmlFromFooter);
 
         // Laravel leert scoped Bindings zwischen HTTP-/Octane-Requests und
@@ -287,7 +292,7 @@ class MailDocumentEditorTest extends TestCase
         $freshHtml = MailSignature::forCompany()->render();
 
         $this->assertStringContainsString('.snapshot-b{letter-spacing:1px;}', $freshCss);
-        $this->assertStringContainsString('SNAPSHOT-B RT Rail Time GmbH', $freshHtml);
+        $this->assertStringContainsString('SNAPSHOT-B', $freshHtml);
         $this->assertStringNotContainsString('SNAPSHOT-A', $freshHtml);
     }
 

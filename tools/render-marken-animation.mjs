@@ -182,10 +182,15 @@ for (const name of WORTMARKEN) {
             for (let x = 0; x < B; x += 1) if (px[(((y * B) + x) * 4) + 3] > 16) n += 1;
             zeileTinte.push(n);
         }
+        // Die Wortmarke traegt seit dem Zuschnitt KEIN Zusatzband mehr
+        // (Linie und GMBH sind entfallen). Findet sich keines, gilt das
+        // ganze Bild als Schriftzug und die beiden Nachlaufphasen entfallen
+        // — dann darf das Schreiben die volle Laufzeit nutzen.
         let trenner = H;
-        for (let y = Math.floor(H * 0.5); y < H; y += 1) {
+        for (let y = Math.floor(H * 0.5); y < H - 1; y += 1) {
             if (zeileTinte[y] === 0 && zeileTinte[y + 1] > 0) { trenner = y + 1; break; }
         }
+        const mitZusatz = trenner < H;
 
         // --- Zeichengrenzen: Minima der Spaltendichte im oberen Band -----
         const spalte = [];
@@ -254,7 +259,7 @@ for (const name of WORTMARKEN) {
             // wirkte wie eine Jalousie, keine Schreibbewegung.
             const NEIGUNG = 0.30;          // seitlicher Versatz je Hoeheneinheit
             const KANTE = 9;               // Weichzeichnung der Schreibkante
-            const zeichenBis = 0.60;
+            const zeichenBis = mitZusatz ? 0.60 : 0.86;
             for (let k = 0; k < grenzen.length - 1; k += 1) {
                 const von = grenzen[k];
                 const bis = grenzen[k + 1];
@@ -306,7 +311,7 @@ for (const name of WORTMARKEN) {
             // hier stehende 1-px-Blit je Spalte setzte an jeder Spaltenkante
             // neu an. Bei weichen Kanten ergab das eine Reihe feiner Punkte —
             // genau die gemeldeten Stoerungen an Strich und GMBH.
-            const linieP = glatt(klemm((t - 0.62) / 0.22));
+            const linieP = mitZusatz ? glatt(klemm((t - 0.62) / 0.22)) : 0;
             if (linieP > 0) {
                 x.save();
                 x.beginPath();
@@ -320,7 +325,7 @@ for (const name of WORTMARKEN) {
             }
 
             // --- Zuletzt GMBH ------------------------------------------
-            const textP = glatt(klemm((t - 0.82) / 0.18));
+            const textP = mitZusatz ? glatt(klemm((t - 0.82) / 0.18)) : 0;
             if (textP > 0) {
                 x.save();
                 x.globalAlpha = textP;

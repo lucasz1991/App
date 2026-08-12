@@ -290,10 +290,9 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertSame(30, $durations[0], "{$file}: Startverzoegerung muss 300 ms betragen.");
             // ZEHN SEKUNDEN Gesamtlaufzeit: sieben Sekunden Einfahrt, danach
             // verweht die Fahne, bis das letzte Einzelbild rauchfrei steht.
-            // 13 s: drei Sekunden Vorlauf, damit Wortmarke und Zeichen sich
-            // fertig schreiben, danach sieben Sekunden Einfahrt und das
-            // Verwehen der Fahne.
-            $this->assertSame(1300, array_sum($durations), "{$file}: 13 s Gesamtlaufzeit erwartet.");
+            // 10 s: kurzer Vorlauf, damit Wortmarke und Zeichen anlaufen,
+            // danach die Einfahrt und das Verwehen der Fahne.
+            $this->assertSame(1000, array_sum($durations), "{$file}: 10 s Gesamtlaufzeit erwartet.");
             // 700 kB statt der frueheren 200. Die Grenze wurde ANGEHOBEN,
             // nicht vergessen: Die Einfahrt liegt jetzt in 2160 x 388 statt
             // 720 x 75, weil sie auf breiten Schirmen sichtbar hochskaliert
@@ -627,12 +626,18 @@ class EmailTemplatesPageTest extends TestCase
         $regeln = file_get_contents(resource_path('views/emails/parts/responsive-css.blade.php'));
 
         $this->assertStringContainsString(
-            '.rt-sign-cell { background-size: 64px 64px, auto 100%, 100% 100%, 100% auto, 100% auto !important; }',
+            'background-size: 64px 64px, auto 100%, 100% 100%, 150% auto, 150% auto !important;',
             $regeln,
         );
-        $this->assertStringContainsString('.rt-sign-logo { border-left: 0 !important;', $regeln);
-        $this->assertStringContainsString('.rt-sign-identity { padding: 0 0 20px !important; }', $regeln);
-        $this->assertStringContainsString('tr.rt-stack > td + td { padding-top: 20px !important; }', $regeln);
+        // Die Trennlinie wandert NICHT mehr nach oben: Person und Firma stehen
+        // auch gestapelt nebeneinander, die senkrechte Linie zwischen ihnen
+        // bleibt also richtig.
+        $this->assertStringContainsString('tr.rt-stack > td.rt-sign-identity,', $regeln);
+        $this->assertStringContainsString('display: table-cell !important;', $regeln);
+        // Gestapelt enger gesetzt: Die Personenspalte traegt nur noch einen
+        // Steg nach rechts, weil die Firmenspalte daneben steht.
+        $this->assertStringContainsString('.rt-sign-identity { padding: 0 12px 0 0 !important; }', $regeln);
+        $this->assertStringContainsString('tr.rt-stack > td + td { padding-top: 12px !important; }', $regeln);
 
         // Und jede Ausgabestelle zieht daraus, statt eine eigene Kopie zu halten.
         foreach ([

@@ -26,19 +26,19 @@
         <!--[if mso]><table role="presentation" width="100%"><tr><td><![endif]-->
         <table class="rt-shell" role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" bgcolor="{{SURFACE_BG}}" style="width:100%;max-width:none;background:{{SURFACE_BG}};">
           <tr>
-            <td class="rt-pad" bgcolor="{{SURFACE_BG}}" style="padding:42px 46px 34px;background:{{SURFACE_BG}};">
+            <td class="rt-pad" bgcolor="{{SURFACE_BG}}" style="padding:42px 36px 34px;background:{{SURFACE_BG}};">
               <!-- Kopfzeile: links der kurze Akzentstrich mit der Kennung,
                    rechts das RT-Zeichen. Das Zeichen steht NUR hier — die
                    Signatur unten traegt den Schriftzug, zusammen ergeben
                    beide die Marke einmal statt zweimal.
 
-                   ZWEI BILDER, EINE SICHTBARE MARKE: Das bewegte Zeichen
-                   baut sich auf, sein erstes Einzelbild ist also fast leer —
-                   und genau dieses eine zeigt Outlook-Desktop. Dort wird das
-                   GIF per mso-hide ausgeblendet und der bedingte Kommentar
-                   liefert das Standbild. Bewusst als EIN geschlossener
-                   Kommentar: die aufgebrochene, zweiteilige Form laesst der
-                   Sanitizer nicht durch. -->
+                   NUR EIN BILD, ohne Verzweigung: Die Schleife des Zeichens
+                   ist so gelegt, dass ihr ERSTES Einzelbild die Marke bereits
+                   vollstaendig zeigt. Damit sieht auch Outlook-Desktop — das
+                   von einem GIF ausschliesslich dieses erste Bild darstellt —
+                   das fertige Zeichen. Ein zweites Bild hinter einem
+                   bedingten Kommentar war nicht nur unnoetig, es war die
+                   Stelle, an der das Zeichen verschwand. -->
               <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">
                 <tr>
                   <td valign="top" style="vertical-align:top;">
@@ -50,8 +50,7 @@
                     <!-- Outlook-Desktop zeigt von einem GIF nur das erste
                          Einzelbild; beim Aufbau ist das fast leer. Es bekommt
                          deshalb das Standbild. -->
-                    <img class="rt-mark" src="{{ICON_RT_SRC}}" width="44" height="44" alt="" style="display:block;width:44px;height:44px;margin-left:auto;border:0;mso-hide:all;">
-                    <!--[if mso]><img class="rt-mark" src="{{ICON_RT_STILL_SRC}}" width="44" height="44" alt="" style="display:block;width:44px;height:44px;margin-left:auto;border:0;"><![endif]-->
+                    <img class="rt-mark" src="{{ICON_RT_SRC}}" width="44" height="44" alt="" style="display:block;width:44px;height:44px;margin-left:auto;border:0;">
                   </td>
                 </tr>
               </table>
@@ -62,7 +61,7 @@
             </td>
           </tr>
           <tr>
-            <td class="rt-pad" bgcolor="{{SURFACE_BG}}" style="padding:0 46px 30px;background:{{SURFACE_BG}};">
+            <td class="rt-pad" bgcolor="{{SURFACE_BG}}" style="padding:0 36px 30px;background:{{SURFACE_BG}};">
               <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" bgcolor="{{CARD_BG}}" style="width:100%;border-top:3px solid #e4002b;background:{{CARD_BG}};">
                 <tr>
                   <td colspan="2" bgcolor="{{SOFT_BG}}" style="padding:13px 22px;background:{{SOFT_BG}};border-bottom:1px solid {{BORDER}};color:#e4002b;font-family:Consolas,'Courier New',monospace;font-size:9px;line-height:14px;font-weight:bold;letter-spacing:1.3px;text-transform:uppercase;">EINSATZDATEN / OPTIONAL</td>
@@ -91,7 +90,7 @@
             </td>
           </tr>
           <tr>
-            <td class="rt-pad" bgcolor="{{SURFACE_BG}}" style="padding:0 46px 58px;background:{{SURFACE_BG}};">
+            <td class="rt-pad" bgcolor="{{SURFACE_BG}}" style="padding:0 36px 58px;background:{{SURFACE_BG}};">
               <table role="presentation" border="0" cellspacing="0" cellpadding="0">
                 <tr>
                   <td bgcolor="#e4002b" style="background:#e4002b;border-radius:4px;"><a href="{{CTA_URL}}" style="display:inline-block;padding:16px 26px;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:18px;font-weight:bold;letter-spacing:.6px;text-decoration:none;text-transform:uppercase;">{{CTA_TEXT}} &nbsp;&rarr;</a></td>

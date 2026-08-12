@@ -58,7 +58,7 @@ tr.rt-stack > td.rt-card-cell, tr.rt-stack > td.rt-card-cell + td { padding-left
      Selektor wuerde auch die verschachtelte Kontakttabelle zerlegen und
      Symbol und Text untereinander werfen. --}}
 tr.rt-stack > td { box-sizing: border-box !important; display: block !important; width: 100% !important; }
-tr.rt-stack > td + td { padding-top: 20px !important; }
+tr.rt-stack > td + td { padding-top: 12px !important; }
 /* Gestapelte Kartenzellen brauchen keine Trennlinie zur Seite mehr. */
 .rt-card-cell { border-right: 0 !important; }
 /* Schutzregel: Symbol und Kontaktzeile bleiben nebeneinander, auch wenn
@@ -68,50 +68,93 @@ tr.rt-stack > td + td { padding-top: 20px !important; }
 .rt-contact td.rt-contact-icon { width: 22px !important; }
 .rt-contact td.rt-contact-text { width: auto !important; font-size: 13px !important; line-height: 19px !important; }
 .rt-sign-name { font-size: 21px !important; line-height: 25px !important; }
-/* GESTAPELTE REIHENFOLGE: Wortmarke, Person, Firma.
+/* MOBIL: WORTMARKE OBEN, DARUNTER PERSON LINKS UND FIRMA RECHTS.
    Die Wortmarke steht dafuer zweimal im Markup — im Breitlayout in der
    rechten Spalte, gestapelt als eigene Zeile ganz oben. Hier wird
    getauscht, welche der beiden sichtbar ist. */
 .rt-marke-mobil { display: block !important; max-height: none !important; overflow: visible !important; }
 .rt-sign-logo img.rt-logo { display: none !important; }
-.rt-sign-identity { padding: 0 0 20px !important; }
-/* ZWEISPALTIG STATT UNTEREINANDER — gestapelt ist die volle Breite da, eine
-   schmale Liste darin wirkt verloren. Beide Bloecke teilen sie deshalb:
-   Person links Name und Funktion, rechts die Anschluesse; Firma links
-   Anschrift und Telefon, rechts E-Mail und Website. inline-block statt
-   Tabellenzellen, weil sich Zellen per CSS nicht zuverlaessig umbauen
-   lassen — Outlook-Desktop wertet diese Regeln ohnehin nicht aus und
-   bleibt beim Breitlayout. */
-.rt-person-kopf { display: inline-block !important; width: 47% !important; vertical-align: top !important; }
-.rt-sign-identity .rt-contact { display: inline-block !important; width: 51% !important; vertical-align: top !important; margin-top: 2px !important; }
-.rt-firma-links, .rt-firma-rechts { display: inline-block !important; width: 49% !important; vertical-align: top !important; margin-left: 0 !important; margin-right: 0 !important; margin-top: 0 !important; }
+
+/* DIE BEIDEN SPALTEN BLEIBEN NEBENEINANDER. Die Regel eine Zeile weiter
+   oben bricht ALLE markierten Zeilen um — die Karten der Vorlage sollen
+   das auch. Die Signatur nicht: dort stuenden Person und Firma sonst
+   untereinander, und die Listen begaennen auf verschiedenen Hoehen.
+   Deshalb hier ausdruecklich zurueckgenommen. */
+tr.rt-stack > td.rt-sign-identity,
+tr.rt-stack > td.rt-sign-logo {
+  display: table-cell !important;
+  width: 50% !important;
+  padding-top: 0 !important;
+}
+.rt-sign-identity { padding: 0 12px 0 0 !important; }
+.rt-person-kopf, .rt-sign-identity .rt-contact,
+.rt-firma-links, .rt-firma-rechts {
+  display: block !important;
+  width: auto !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+/* Beide Listen beginnen auf DERSELBEN Hoehe. Links kosten Name und
+   Funktion Platz, den die Firmenspalte als Vorlauf nachbildet — sonst
+   staende sie hoeher und die Zeilen liefen gegeneinander. */
+.rt-sign-identity .rt-contact { margin-top: 10px !important; }
+.rt-firma-links { margin-top: 52px !important; }
+.rt-firma-rechts { margin-top: 4px !important; }
 /* Gestapelt traegt die ungespiegelte Fassung: Symbol links, Text rechts
    daneben, der ganze Block linksbuendig — genau wie der Personenblock
    darueber. */
 .rt-firma-breit { display: none !important; max-height: 0 !important; overflow: hidden !important; }
 .rt-firma-schmal { display: block !important; max-height: none !important; overflow: visible !important; }
-/* Enger gesetzt, damit zwei Spalten nebeneinander Platz finden. */
-.rt-contact td.rt-contact-text { font-size: 12px !important; line-height: 17px !important; }
-.rt-sign-logo { border-left: 0 !important; border-top: 1px solid {{ $border }} !important; padding: 20px 0 0 !important; }
+/* ---- Gestapelt wird ALLES eine Nummer kleiner ----------------------
+   Auf dem Telefon steht die Signatur unter einer Nachricht, nicht als
+   Aushaengeschild. Sie soll lesbar sein und wenig Hoehe kosten — deshalb
+   kleinere Schrift, kleinere Symbole, engere Zeilen. Die Werte greifen
+   HIER und nicht in der 1000er-Stufe, damit das Breitlayout unberuehrt
+   bleibt. */
+.rt-contact td.rt-contact-text { font-size: 11px !important; line-height: 15px !important; }
+/* Symbole von 22 auf 16 px. Beide Angaben noetig: die Zellbreite haelt die
+   Spalte schmal, die Bildgroesse das Symbol selbst — das width-Attribut am
+   img wiegt sonst schwerer als die Zelle. */
+.rt-contact img { width: 16px !important; height: 16px !important; }
+.rt-contact td.rt-contact-icon { width: 16px !important; }
+.rt-contact td.rt-contact-text { padding-left: 7px !important; padding-right: 0 !important; }
+.rt-company-contact td.rt-company-contact-text { padding-left: 7px !important; }
+/* Zeilen enger stellen: der Abstand nach unten war fuer 22-px-Symbole
+   bemessen. */
+.rt-contact td.rt-contact-icon, .rt-contact td.rt-contact-text { padding-bottom: 4px !important; }
+.rt-sign-name { font-size: 18px !important; line-height: 22px !important; }
+.rt-marke-mobil img { width: 150px !important; margin-bottom: 12px !important; }
+.rt-sign-logo { padding: 0 0 0 12px !important; }
 /* Die Firmenliste sitzt gestapelt direkt unter der Wortmarke — der
    Vorsprung, den sie im Breitlayout ausgleicht, faellt hier weg. */
-.rt-company-contact { margin-top: 14px !important; }
+
 /* Gestapelt stehen die Spalten untereinander — die rechten 30 % sind dann
    nicht mehr fuer die Firmendaten reserviert und der Zug darf ueber die
    ganze Breite laufen. Die Reihenfolge der Werte folgt der Ebenenliste in
    signature.blade.php: Raster, Wasserzeichen, Schleier, Ruhefahne, Zug. Wer sie dort
    aendert, muss sie HIER mitziehen — sonst treffen die Groessen die
    falschen Ebenen. */
-.rt-sign-cell { background-size: 64px 64px, auto 100%, 100% 100%, 100% auto, 100% auto !important; }
+/* GESTAPELT RUECKT DER ZUG NAEHER UND WIRD GROESSER.
+   Bei voller Breite (100%) nahm der Himmel ueber dem Zug den groessten
+   Teil des Streifens ein — viel leere Flaeche zwischen Kontaktdaten und
+   Motiv. Auf 150 % skaliert und an der RECHTEN unteren Ecke verankert
+   waechst der Zug deutlich, der ueberzaehlige Himmel faellt oben aus dem
+   Ausschnitt, und die Lok bleibt sichtbar (sie steht am rechten Bildrand;
+   verankerte man links, waere gerade sie abgeschnitten). */
+.rt-sign-cell {
+  background-position: left top, right center, center center, right bottom, right bottom !important;
+  background-size: 64px 64px, auto 100%, 100% 100%, 150% auto, 150% auto !important;
+}
 }
 
 /* ---- Telefon: Innenabstaende weiter zuruecknehmen ---- */
 @media only screen and (max-width: 480px) {
 .rt-pad { padding-left: 18px !important; padding-right: 18px !important; }
 .rt-title { font-size: 24px !important; line-height: 29px !important; }
-.rt-sign-name { font-size: 20px !important; line-height: 24px !important; }
-.rt-marke-mobil img { width: 165px !important; }
-.rt-sign-identity { padding-bottom: 16px !important; }
-.rt-sign-logo { padding-top: 16px !important; }
-tr.rt-stack > td + td { padding-top: 16px !important; }
+.rt-sign-name { font-size: 17px !important; line-height: 21px !important; }
+.rt-marke-mobil img { width: 138px !important; margin-bottom: 10px !important; }
+
+
+tr.rt-stack > td + td { padding-top: 10px !important; }
+.rt-pad { padding-top: 14px !important; padding-bottom: 14px !important; }
 }

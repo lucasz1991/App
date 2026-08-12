@@ -226,14 +226,13 @@ class MailSignature
 
         if ($published !== null) {
             $html = $this->applyPublishedLayout($published, $layout);
-            // Die Blade-Quelle ersetzt im unpersoenlichen Systemmail-Fall
-            // den leeren Namen bedingt durch den Firmennamen. Im
-            // veroeffentlichten Token-HTML ist diese Blade-Bedingung bereits
-            // aufgeloest; dieselbe Semantik muss deshalb hier vor der
-            // Platzhalter-Ersetzung nachgebildet werden.
-            if ($this->user === null && trim($values['VORNAME_NACHNAME'] ?? '') === '') {
-                $values['VORNAME_NACHNAME'] = $values['FIRMENNAME'] ?? '';
-            }
+            // FRUEHER stand hier ein Rueckfall auf den Firmennamen, wenn
+            // keine Person sendet — er bildete eine gleichlautende Bedingung
+            // der Blade-Quelle nach. Diese Bedingung ist entfallen: Die
+            // Marke steht bereits als Wortmarke in der rechten Spalte, der
+            // Firmenname darunter war eine Doppelung. Ohne diese Streichung
+            // erschien er in jeder VEROEFFENTLICHTEN Fassung weiter, obwohl
+            // die Blade-Quelle ihn laengst nicht mehr setzte.
             $escapedValues = array_map(
                 static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8'),
                 $values,
