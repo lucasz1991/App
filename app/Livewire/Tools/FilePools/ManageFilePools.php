@@ -17,6 +17,7 @@ use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
+use Throwable;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use ZipArchive;
@@ -65,6 +66,21 @@ class ManageFilePools extends Component
     public array $uploadVisibleTeams = [];
 
     public bool $openFileForm = false;
+
+    /**
+     * Der beim Oeffnen des Upload-Dialogs serverseitig eingefrorene Zielordner.
+     * null ist dabei bewusst die Wurzel des aktuellen Pools.
+     */
+    #[Locked]
+    public ?int $uploadFolderId = null;
+
+    /** Unterscheidet ein valides Wurzel-Ziel von einem noch nicht gestarteten Upload. */
+    #[Locked]
+    public bool $uploadTargetReady = false;
+
+    /** Autoritativ gerenderter Pfad des eingefrorenen Uploadziels. */
+    #[Locked]
+    public string $uploadTargetPath = '';
 
     public bool $openEditFileForm = false;
 
@@ -294,47 +310,117 @@ class ManageFilePools extends Component
         $this->dispatch('swal:toast', type: 'success', text: __('app.folder_permissions_saved'));
     }
 
-    public function uploadFile(int $filePoolId)
+    /**
+     * Oeffnet den Upload fuer den aktuell angezeigten Ordner und friert das
+     * Ziel serverseitig ein. Ein spaeterer URL-/Ordnerwechsel kann den Upload
+     * dadurch nicht unbemerkt in ein anderes Verzeichnis umlenken.
+     */
+    public function openUploadForm(): void
     {
-        abort_if($this->readOnly, 403);
+        $pool = $this->writableUploadPoolOrFail();
+        $folder = $this->currentUploadFolderOrFail($pool);
+
+        $this->resetUploadDraft(false);
+        $this->filePool = $pool;
+        $this->uploadFolderId = $folder?->id;
+        $this->uploadTargetPath = $this->formatUploadTargetPath($folder);
+        $this->uploadTargetReady = true;
+        $this->openFileForm = true;
+    }
+
+    /**
+     * Beendet einen Upload-Entwurf. Der Browser hoert auf
+     * `filepool:cancelled`, um parallel auch einen laufenden Livewire-
+     * Transport mit `$wire.cancelUpload(model)` zu stoppen.
+     */
+    public function cancelUploadForm(): void
+    {
+        $this->resetUploadDraft();
+    }
+
+    /**
+     * Sicherheitsnetz fuer Schliessen ueber X, Backdrop oder Escape: das
+     * gemeinsame Modal schreibt den entangleten Wert direkt auf false.
+     */
+    public function updatedOpenFileForm(bool $open): void
+    {
+        if (! $open && $this->uploadTargetReady) {
+            $this->resetUploadDraft();
+        }
+    }
+
+    /**
+     * @param  int|null  $ignoredFilePoolId  Bleibt fuer bestehende
+     *                                          wire:click-Aufrufe erhalten;
+     *                                          die Client-ID wird nie vertraut.
+     */
+    public function uploadFile(?int $ignoredFilePoolId = null): void
+    {
+        $pool = $this->writableUploadPoolOrFail();
+        abort_unless($this->uploadTargetReady && $this->openFileForm, 403);
+
+        $folder = $this->frozenUploadFolderOrFail($pool);
+        $filePoolId = (int) $pool->id;
 
         $this->validate([
-            "fileUploads.$filePoolId" => ['required', 'array', 'min:1'],
-            "fileUploads.$filePoolId.*" => ['file', 'max:302400'], // 300 MB je Datei
+            "fileUploads.$filePoolId" => ['required', 'array', 'min:1', 'max:20'],
+            "fileUploads.$filePoolId.*" => ['file', 'max:102400'], // 100 MB je Datei
             "expires.$filePoolId" => ['nullable', 'date', 'after:today'],
+            'uploadVisibleFrom' => ['nullable', 'date'],
         ]);
 
+        $visibleTeams = $this->sanitizeTeamIds($this->uploadVisibleTeams);
+
         if ($this->allowTeamPermissions
-            && $this->currentFolderId === null
-            && $this->sanitizeTeamIds($this->uploadVisibleTeams) === []) {
+            && $folder === null
+            && $visibleTeams === []) {
             $this->addError('uploadVisibleTeams', __('app.team_selection_required'));
 
             return;
         }
 
-        foreach ($this->fileUploads[$filePoolId] as $uploadedFile) {
-            $filename = $uploadedFile->getClientOriginalName();
-            $path = $uploadedFile->store('uploads/files', 'private');
-            $mime = Storage::disk('private')->mimeType($path) ?? $uploadedFile->getClientMimeType();
+        $storedPaths = [];
 
-            $this->filePool->files()->create([
-                'folder_id' => $this->currentFolderId,
-                'user_id' => Auth::user()->id ?? null,
-                'name' => $filename,
-                'path' => $path,
-                'mime_type' => $mime,
-                'size' => $uploadedFile->getSize(),
-                'expires_at' => $this->expires[$filePoolId] ?? null,
-                'visible_from' => $this->uploadVisibleFrom ?: null,
-                'auto_delete' => (bool) $this->uploadAutoDelete,
-                'visible_teams' => $this->sanitizeTeamIds($this->uploadVisibleTeams),
-            ]);
+        try {
+            DB::transaction(function () use ($filePoolId, $folder, $pool, $visibleTeams, &$storedPaths): void {
+                foreach ($this->fileUploads[$filePoolId] as $uploadedFile) {
+                    $filename = $uploadedFile->getClientOriginalName();
+                    $path = $uploadedFile->store('uploads/files', 'private');
+
+                    if (! is_string($path) || $path === '') {
+                        throw new \RuntimeException('Die hochgeladene Datei konnte nicht gespeichert werden.');
+                    }
+
+                    $storedPaths[] = $path;
+                    $mime = Storage::disk('private')->mimeType($path) ?? $uploadedFile->getClientMimeType();
+
+                    $pool->files()->create([
+                        'folder_id' => $folder?->id,
+                        'user_id' => Auth::id(),
+                        'name' => $filename,
+                        'path' => $path,
+                        'disk' => 'private',
+                        'mime_type' => $mime,
+                        'size' => $uploadedFile->getSize(),
+                        'expires_at' => $this->expires[$filePoolId] ?? null,
+                        'visible_from' => $this->uploadVisibleFrom ?: null,
+                        'auto_delete' => (bool) $this->uploadAutoDelete,
+                        'visible_teams' => $visibleTeams,
+                    ]);
+                }
+            });
+        } catch (Throwable $exception) {
+            $this->deleteStoredUploadPaths($storedPaths);
+            report($exception);
+            $this->addError(
+                "fileUploads.$filePoolId",
+                __('Der Datei-Upload konnte nicht abgeschlossen werden. Bitte versuchen Sie es erneut.')
+            );
+
+            return;
         }
-        unset($this->fileUploads[$filePoolId], $this->expires[$filePoolId]);
-        $this->reset(['uploadVisibleFrom', 'uploadAutoDelete', 'uploadVisibleTeams']);
-        $this->openFileForm = false;
-        $this->filePool->refresh();
-        $this->resetErrorBag();
+
+        $this->completeUploadDraft($pool);
 
         // Dropzone-Reset anstossen (model-Pfad mitgeben!)
         $this->dispatch('filepool:saved', model: "fileUploads.$filePoolId");
@@ -811,6 +897,130 @@ class ManageFilePools extends Component
         ));
     }
 
+    /**
+     * Gemeinsamer Schreibvertrag fuer Upload-UI und Serveraktionen.
+     * Er nutzt die bereits vorhandenen Pool-/Benutzerregeln des Explorers;
+     * eine neue Ordnerberechtigung ist dafuer nicht erforderlich.
+     */
+    public function canUploadFiles(): bool
+    {
+        if ($this->readOnly || ! $this->filePoolId || ! Auth::user()) {
+            return false;
+        }
+
+        $pool = FilePool::find($this->filePoolId);
+
+        return (bool) ($pool
+            && $this->userCanAccessPool($pool)
+            && $this->canMoveFiles($pool));
+    }
+
+    protected function writableUploadPoolOrFail(): FilePool
+    {
+        $pool = FilePool::findOrFail($this->filePoolId);
+
+        abort_unless(
+            $this->canUploadFiles()
+                && (int) $pool->id === (int) $this->filePoolId,
+            403
+        );
+
+        // Das rendernde Modell darf nach lang geoeffneten Dialogen veraltet
+        // sein. Alle Uploadentscheidungen arbeiten mit diesem frischen Pool.
+        $this->filePool = $pool;
+
+        return $pool;
+    }
+
+    protected function currentUploadFolderOrFail(FilePool $pool): ?FileFolder
+    {
+        if ($this->currentFolderId === null) {
+            return null;
+        }
+
+        $folder = FileFolder::find($this->currentFolderId);
+        abort_unless($folder, 404);
+        $this->authorizeUploadFolder($pool, $folder);
+
+        return $folder;
+    }
+
+    protected function frozenUploadFolderOrFail(FilePool $pool): ?FileFolder
+    {
+        if ($this->uploadFolderId === null) {
+            return null;
+        }
+
+        $folder = FileFolder::find($this->uploadFolderId);
+        abort_unless($folder, 404);
+        $this->authorizeUploadFolder($pool, $folder);
+
+        return $folder;
+    }
+
+    protected function authorizeUploadFolder(FilePool $pool, FileFolder $folder): void
+    {
+        abort_unless((int) $folder->file_pool_id === (int) $pool->id, 403);
+        $this->authorizeFolderView($folder);
+        $this->authorizeTargetFolder($folder);
+    }
+
+    protected function formatUploadTargetPath(?FileFolder $folder): string
+    {
+        $segments = [__('app.root_folder')];
+
+        if ($folder) {
+            foreach ($folder->breadcrumb() as $crumb) {
+                $segments[] = $crumb->name;
+            }
+        }
+
+        return implode(' / ', $segments);
+    }
+
+    protected function resetUploadDraft(bool $notifyClient = true): void
+    {
+        $filePoolId = $this->filePoolId ? (int) $this->filePoolId : null;
+        $model = $filePoolId ? "fileUploads.$filePoolId" : null;
+        $hadActiveDraft = $this->uploadTargetReady
+            || $this->openFileForm
+            || ($filePoolId && ($this->fileUploads[$filePoolId] ?? []) !== []);
+
+        // Zuerst den gelockten Bereitschaftszustand entfernen. Sollte eine
+        // programmatische openFileForm-Aenderung einen Hook ausloesen, bleibt
+        // der Reset dadurch idempotent und erzeugt kein zweites Cancel-Event.
+        $this->uploadTargetReady = false;
+        $this->uploadFolderId = null;
+        $this->uploadTargetPath = '';
+        $this->openFileForm = false;
+        $this->fileUploads = $filePoolId ? [$filePoolId => []] : [];
+        $this->expires = [];
+        $this->reset(['uploadVisibleFrom', 'uploadAutoDelete', 'uploadVisibleTeams']);
+        $this->resetErrorBag();
+
+        if ($notifyClient && $hadActiveDraft && $model) {
+            $this->dispatch('filepool:cancelled', model: $model);
+        }
+    }
+
+    protected function completeUploadDraft(FilePool $pool): void
+    {
+        $this->resetUploadDraft(false);
+        $this->filePool = $pool->fresh();
+    }
+
+    /** @param array<int, string> $paths */
+    protected function deleteStoredUploadPaths(array $paths): void
+    {
+        foreach (array_unique($paths) as $path) {
+            try {
+                Storage::disk('private')->delete($path);
+            } catch (Throwable $cleanupException) {
+                report($cleanupException);
+            }
+        }
+    }
+
     protected function canMoveFiles(FilePool $pool): bool
     {
         $user = Auth::user();
@@ -899,6 +1109,7 @@ class ManageFilePools extends Component
             'currentFolder' => $currentFolder,
             'breadcrumb' => $currentFolder ? $currentFolder->breadcrumb() : [],
             'canMoveFiles' => $filePool ? $this->canMoveFiles($filePool) : false,
+            'canUploadFiles' => $this->canUploadFiles(),
             'teams' => $this->readOnly
                 ? collect()
                 : Team::where('personal_team', false)->orderBy('name')->get(),

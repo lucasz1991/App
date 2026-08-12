@@ -64,6 +64,8 @@ import {
 import { ensureRailTimeNavigationCoordinator } from './navigation-coordinator';
 import { chatMessageActions } from './chat-message-actions';
 import { modalBody, trackLivewireRequests } from './modal-body';
+import { filePreview } from './file-preview';
+import { filePoolDropzone, filePoolExternalDrop } from './filepool-upload';
 import { registerRailtimeLiveLocation } from './live-location';
 import {
     createMailBuilder,
@@ -672,6 +674,9 @@ Alpine.data('railtimeChatbot', railtimeChatbot);
 Alpine.data('railtimeAssistantCloud', railtimeAssistantCloud);
 Alpine.data('chatMessageActions', chatMessageActions);
 Alpine.data('rtModalBody', modalBody);
+Alpine.data('filePreview', filePreview);
+Alpine.data('filePoolDropzone', filePoolDropzone);
+Alpine.data('filePoolExternalDrop', filePoolExternalDrop);
 initMobileFormFocusRecovery();
 initKeyboardViewport();
 

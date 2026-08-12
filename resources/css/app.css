@@ -4,6 +4,8 @@
 @import './lmz-editor-shell.css';
 @import './marketing-studio.css';
 @import './mail-builder.css';
+@import './filepool-upload.css';
+@import './file-preview.css';
 
 @tailwind base;
 @tailwind components;

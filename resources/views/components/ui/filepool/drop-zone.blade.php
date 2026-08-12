@@ -1,227 +1,92 @@
 @props([
-  'model',
-  'mode' => 'multi',
-  'label' => null,
-  'acceptedFiles' => null,
-  'maxFiles' => null,
-  'maxFilesize' => null,
+    'model',
+    'mode' => 'multi',
+    'label' => null,
+    'acceptedFiles' => null,
+    'maxFiles' => null,
+    'maxFilesize' => null,
 ])
 
 @php
-  $label         = $label ?? __('app.drop_files_here');
-  $isSingle      = ($mode === 'single' || $mode === true || $mode === 1 || $mode === '1');
-  $dzMaxFiles    = $isSingle ? 1 : ($maxFiles ?? 20);
-  $dzMaxFilesize = $maxFilesize ?? 15;
-  $dzAccepted    = $acceptedFiles; // z. B. ".pdf,.png,.jpg"
+    $label = $label ?? __('app.drop_files_here');
+    $isSingle = in_array($mode, ['single', true, 1, '1'], true);
+    $dropzoneMaxFiles = $isSingle ? 1 : ($maxFiles ?? 20);
+    $dropzoneMaxFilesize = $maxFilesize ?? 100;
+    $dropzoneAcceptedFiles = $acceptedFiles;
+    $isGerman = app()->getLocale() === 'de';
+    $labels = [
+        'removeFile' => $isGerman ? 'Datei entfernen' : 'Remove file',
+        'tooMany' => $isGerman
+            ? "Maximal {$dropzoneMaxFiles} Dateien sind möglich."
+            : "A maximum of {$dropzoneMaxFiles} files is allowed.",
+        'tooLarge' => $isGerman
+            ? "Die Datei ist größer als {$dropzoneMaxFilesize} MB."
+            : "The file is larger than {$dropzoneMaxFilesize} MB.",
+        'invalidType' => $isGerman ? 'Dieser Dateityp ist nicht erlaubt.' : 'This file type is not allowed.',
+        'uploadFailed' => $isGerman ? 'Upload fehlgeschlagen.' : 'Upload failed.',
+        'cancelUpload' => $isGerman ? 'Upload abbrechen' : 'Cancel upload',
+        'uploadCanceled' => $isGerman ? 'Upload abgebrochen.' : 'Upload canceled.',
+    ];
 @endphp
 
 <div
-  x-data="{
-    dz: null,
-    active: false, // Upload-Scope nur für DIESES Input
-    single: @js($isSingle),
-    opts: {
-      maxFiles: @js($dzMaxFiles),
-      maxFilesize: @js($dzMaxFilesize),
-      acceptedFiles: @js($dzAccepted),
-    },
-
-    isAllowedFile(file) {
-      const rules = (this.opts.acceptedFiles || '')
-        .split(',')
-        .map(r => r.trim().toLowerCase())
-        .filter(Boolean);
-
-      // Ohne Regeln alles erlauben
-      if (!rules.length) return true;
-
-      const name = (file.name || '').toLowerCase();
-      const type = (file.type || '').toLowerCase();
-
-      return rules.some(rule => {
-        if (rule.startsWith('.')) return name.endsWith(rule);
-        if (rule.endsWith('/*')) return type.startsWith(rule.slice(0, -1));
-        return type === rule;
-      });
-    },
-
-    init() {
-      // optionales externes Reset (z. B. nach Server-Save)
-      window.addEventListener('filepool:saved', (e) => {
-        if (e?.detail?.model === @js($model)) this.resetDZ();
-      });
-      window.addEventListener('filepool:reset', (e) => {
-        if (e?.detail?.model === @js($model)) this.resetDZ();
-      });
-
-      // multiple-Attribut am Input setzen + active-Scope setzen, wenn dieses Input benutzt wird
-      this.$nextTick(() => {
-        const input = this.$refs.fileInput;
-        if (!input) return;
-        if (this.single) input.removeAttribute('multiple'); else input.setAttribute('multiple', 'multiple');
-        input.addEventListener('change', () => { this.active = true; }, { once:false });
-      });
-
-      this.$nextTick(() => this.mountDZ());
-    },
-
-    mountDZ() {
-      if (this.dz) return;
-      if (!window.Dropzone) { console.error('Dropzone fehlt im Layout'); return; }
-      Dropzone.autoDiscover = false;
-
-      const el = this.$refs.dzForm;
-      const input = this.$refs.fileInput; // NICHT in wire:ignore
-      if (!el || !input) return;
-
-      const previews = el.querySelector('.dz-previews') || el;
-
-
-      this.dz = new Dropzone(el, {
-        url: '#', // nur UI – Upload macht Livewire
-        autoProcessQueue: false,
-        clickable: el,
-        previewsContainer: previews,
-        addRemoveLinks: true,
-        maxFiles: this.opts.maxFiles,
-        maxFilesize: this.opts.maxFilesize,
-        acceptedFiles: this.opts.acceptedFiles ?? '',
-        chunking: true,
-        chunkSize: 1000000, // rein visuell
-        dictRemoveFile: 'Datei löschen',
-        dictMaxFilesExceeded: 'Maximale Anzahl an Dateien erreicht.',
-        dictFileTooBig: 'Datei zu groß ',
-        dictInvalidFileType: 'Dieser Dateityp ist nicht erlaubt.',
-        dictResponseError: 'Serverfehler',
-        dictCancelUpload: 'Upload abbrechen',
-        dictUploadCanceled: 'Upload abgebrochen.',
-        dictCancelUploadConfirmation: 'Upload wirklich abbrechen?',
-        dictRemoveFileConfirmation: 'Datei wirklich löschen?',
-      });
-
-
-
-      // SINGLE: neue Datei ersetzt alte
-      this.dz.on('maxfilesexceeded', (file) => {
-        if (!this.single) return;
-        this.dz.removeAllFiles();
-        this.dz.addFile(file);
-      });
-
-      // Datei hinzugefügt → verstecktes Input aktualisieren (Livewire-Upload anstoßen)
-      this.dz.on('addedfile', (file) => {
-        if (!this.isAllowedFile(file)) {
-          const msg = this.dz.options.dictInvalidFileType || 'Dieser Dateityp ist nicht erlaubt.';
-          this.dz.emit('error', file, msg);
-          this.dz.removeFile(file);
-          return;
-        }
-
-        const dt = new DataTransfer();
-        if (this.single) {
-          dt.items.add(file);
-        } else {
-          for (const f of input.files) dt.items.add(f);
-          dt.items.add(file);
-        }
-        input.files = dt.files;
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-
-        // Sofort visuell als 'processing' markieren (bis Livewire Progress liefert)
-        this.dz.emit('processing', file);
-        this.dz.emit('uploadprogress', file, 0, 0);
-      });
-
-      // Datei entfernt → auch aus dem Input entfernen
-      this.dz.on('removedfile', (file) => {
-        const dt = new DataTransfer();
-        if (!this.single) {
-          for (const f of input.files) {
-            const same = f.name === file.name && f.size === file.size && f.lastModified === file.lastModified;
-            if (!same) dt.items.add(f);
-          }
-        } // bei single leeren wir einfach
-        input.files = dt.files;
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-      });
-
-      // ---- Livewire-Upload-Events → auf Dropzone spiegeln ----
-      const markAllAsProcessing = () => {
-        if (!this.active) return;
-        this.dz.files.forEach(f => {
-          if (f.status !== Dropzone.SUCCESS && f.status !== Dropzone.ERROR) {
-            this.dz.emit('processing', f);
-            this.dz.emit('uploadprogress', f, 0, 0);
-          }
-        });
-      };
-
-      const updateAllProgress = (percent) => {
-        if (!this.active) return;
-        this.dz.files.forEach(f => {
-          if (f.status === Dropzone.UPLOADING || f.status === Dropzone.PROCESSING || f.status === Dropzone.QUEUED) {
-            const bytesSent = Math.round((percent / 100) * (f.size || 0));
-            this.dz.emit('uploadprogress', f, percent, bytesSent);
-          }
-        });
-      };
-
-      const finishAll = (ok = true) => {
-        if (!this.active) return;
-        this.dz.files.forEach(f => {
-          if (ok) this.dz.emit('success', f, {});
-          else    this.dz.emit('error',   f, 'Upload fehlgeschlagen');
-          this.dz.emit('complete', f);
-          f.previewElement?.classList.toggle('dz-success', ok);
-          f.previewElement?.classList.toggle('dz-error', !ok);
-        });
-        // Entfernen-Link nach Erfolg ausblenden? (optional)
-        // this.dz.files.forEach(f => f.previewElement?.querySelector('.dz-remove')?.classList.add('hidden'));
-        this.active = false; // Scope zurücksetzen
-      };
-
-      // Globale Livewire-Browser-Events hooken (lokal filtern via this.active)
-      document.addEventListener('livewire-upload-start',   () => markAllAsProcessing());
-      document.addEventListener('livewire-upload-progress',e => updateAllProgress(e.detail.progress));
-      document.addEventListener('livewire-upload-error',   () => finishAll(false));
-      document.addEventListener('livewire-upload-finish',  () => finishAll(true));
-    },
-
-    resetDZ() {
-      if (this.dz) this.dz.removeAllFiles(true);
-      const input = this.$refs.fileInput;
-      if (!input) return;
-      const empty = new DataTransfer();
-      input.files = empty.files;
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-    },
-  }"
-  x-init="init()"
+    x-data="filePoolDropzone({
+        model: @js($model),
+        single: @js($isSingle),
+        maxFiles: @js($dropzoneMaxFiles),
+        maxFilesize: @js($dropzoneMaxFilesize),
+        acceptedFiles: @js($dropzoneAcceptedFiles),
+        labels: @js($labels),
+    })"
+    class="rt-filepool-dropzone-shell"
+    data-filepool-dropzone
+    data-filepool-model="{{ $model }}"
 >
-  <!-- Dropzone-UI (vor Livewire geschützt) -->
-  <div x-ref="dzForm"
-        class="rt-ui-surface-muted dropzone pointer-events-auto min-h-[140px] rounded-xl border-2 border-dashed border-rt-border bg-rt-surface-muted transition-all duration-300 ease-rt-spring hover:border-rt-red/60 hover:bg-rt-red/[0.03] dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:hover:border-rt-red/60 dark:hover:bg-rt-red/[0.06]"
-        wire:ignore>
-    <div class="dz-message needsclick">
-      <h5 class="text-rt-text dark:text-rt-dark-text">{{ $label }}</h5>
-      @if($isSingle)
-        <p class="text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.max_one_file') }}</p>
-      @endif
+    <div
+        x-ref="dzForm"
+        class="rt-filepool-dropzone rt-ui-surface-muted dropzone pointer-events-auto rounded-[1.35rem] border-2 border-dashed border-rt-border bg-rt-surface-muted transition-[border-color,background-color,box-shadow,transform] duration-300 ease-rt-spring hover:border-rt-red/60 hover:bg-rt-red/[0.03] focus-within:border-rt-red/70 focus-within:ring-4 focus-within:ring-rt-red/10 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:hover:border-rt-red/60 dark:hover:bg-rt-red/[0.06]"
+        role="button"
+        tabindex="0"
+        aria-label="{{ $label }}"
+        @keydown.enter.prevent="openPicker()"
+        @keydown.space.prevent="openPicker()"
+        wire:ignore
+    >
+        <div class="dz-message needsclick">
+            <span class="rt-filepool-dropzone__icon" aria-hidden="true">
+                <i class="fad fa-cloud-upload-alt"></i>
+            </span>
+            <span class="rt-filepool-dropzone__title">{{ $label }}</span>
+            <span class="rt-filepool-dropzone__hint">
+                {{ $isGerman ? 'Aus Explorer oder Finder hineinziehen' : 'Drag files here from Explorer or Finder' }}
+            </span>
+            <span class="rt-filepool-dropzone__limits" aria-label="{{ $dropzoneMaxFiles }} {{ __('app.files') }}, {{ $dropzoneMaxFilesize }} MB {{ __('app.file') }}">
+                <span><i class="far fa-layer-group" aria-hidden="true"></i> {{ $dropzoneMaxFiles }} {{ __('app.files') }}</span>
+                <span><i class="far fa-weight-hanging" aria-hidden="true"></i> {{ $dropzoneMaxFilesize }} MB / {{ __('app.file') }}</span>
+            </span>
+            @if($isSingle)
+                <span class="rt-filepool-dropzone__single">{{ __('app.max_one_file') }}</span>
+            @endif
+        </div>
+
+        <div class="dz-previews" aria-live="polite" aria-relevant="additions removals"></div>
     </div>
-    <div class="dz-previews flex items-center flex-wrap justify-around gap-2"></div>
-</div>
 
-  <!-- Livewire-Input (Modus-abhängig multiple) -->
-  <input
-    x-ref="fileInput"
-    type="file"
-    @if(!$isSingle) multiple @endif
-    class="hidden"
-    accept="{{ $acceptedFiles }}"
-    wire:model="{{ $model }}"
-  >
+    <input
+        x-ref="fileInput"
+        type="file"
+        @unless($isSingle) multiple @endunless
+        class="sr-only"
+        @if($acceptedFiles) accept="{{ $acceptedFiles }}" @endif
+        wire:model="{{ $model }}"
+        tabindex="-1"
+        aria-hidden="true"
+    >
 
-  @error($model)
-    <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
-  @enderror
+    @error($model)
+        <p class="mt-2 flex items-start gap-2 text-sm font-medium text-red-600 dark:text-red-400" role="alert">
+            <i class="far fa-exclamation-circle mt-1 shrink-0" aria-hidden="true"></i>
+            <span>{{ $message }}</span>
+        </p>
+    @enderror
 </div>

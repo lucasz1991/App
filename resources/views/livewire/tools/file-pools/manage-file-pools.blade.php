@@ -1,3 +1,10 @@
+@php
+  $visibleDropPath = collect($breadcrumb)
+    ->pluck('name')
+    ->prepend(__('app.root_folder'))
+    ->implode(' / ');
+@endphp
+
 <div
   x-data="{
     openFileForm: @entangle('openFileForm'),
@@ -75,6 +82,47 @@
     },
   }"
 >
+  <div
+    x-data="filePoolExternalDrop({
+      writable: @js($canUploadFiles),
+      model: @js($filePool ? 'fileUploads.'.$filePool->id : ''),
+      targetPath: @js($visibleDropPath),
+      openFileForm: @entangle('openFileForm'),
+      directoryMessage: @js(app()->getLocale() === 'de' ? 'Ordner können nicht hochgeladen werden. Bitte wähle einzelne Dateien aus.' : 'Folders cannot be uploaded. Please select individual files.'),
+      openErrorMessage: @js(app()->getLocale() === 'de' ? 'Der Datei-Upload konnte nicht geöffnet werden.' : 'The file upload could not be opened.'),
+    })"
+    data-filepool-external-drop
+    data-target-path="{{ $visibleDropPath }}"
+  >
+  <div
+    x-cloak
+    x-show="externalDragActive"
+    x-transition:enter="transition duration-200 ease-out"
+    x-transition:enter-start="opacity-0"
+    x-transition:enter-end="opacity-100"
+    x-transition:leave="transition duration-150 ease-in"
+    x-transition:leave-start="opacity-100"
+    x-transition:leave-end="opacity-0"
+    class="rt-filepool-window-drop"
+    role="status"
+    aria-live="polite"
+    data-filepool-window-drop
+  >
+    <div class="rt-filepool-window-drop__backdrop" aria-hidden="true"></div>
+    <div class="rt-filepool-window-drop__panel">
+      <span class="rt-filepool-window-drop__icon" aria-hidden="true">
+        <i class="fad fa-cloud-upload-alt"></i>
+      </span>
+      <span class="rt-filepool-window-drop__eyebrow">{{ __('app.file_upload') }}</span>
+      <strong>{{ app()->getLocale() === 'de' ? 'Dateien hier ablegen' : 'Drop files here' }}</strong>
+      <span class="rt-filepool-window-drop__path">
+        <i class="far fa-folder-open" aria-hidden="true"></i>
+        <span x-text="currentTargetPath()"></span>
+      </span>
+      <small>{{ app()->getLocale() === 'de' ? 'Danach kannst du Sichtbarkeit und Löschung festlegen.' : 'You can configure visibility and deletion before uploading.' }}</small>
+    </div>
+  </div>
+
   <p id="file-pool-drag-hint-{{ $filePoolId }}" class="sr-only">
     {{ __('app.file_drag_hint') }}
   </p>
@@ -101,13 +149,17 @@
         >
           <i class="fad fa-folder-plus fa-lg" aria-hidden="true"></i>
         </button>
+      @endif
+      @if($canUploadFiles)
         <button
-          wire:click="$toggle('openFileForm')"
-          title="{{ __('app.add') }}"
-          aria-label="{{ __('app.add') }}"
-          class="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-rt-red text-white shadow-rt-xs transition-all duration-300 ease-rt-spring hover:bg-rt-red-dark hover:shadow-rt-glow active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-rt-red/40 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
+          wire:click="openUploadForm"
+          wire:loading.attr="disabled"
+          wire:target="openUploadForm"
+          title="{{ __('app.file_upload') }}"
+          aria-label="{{ __('app.file_upload') }}"
+          class="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-rt-red text-white shadow-rt-xs transition-all duration-300 ease-rt-spring hover:-translate-y-px hover:bg-rt-red-dark hover:shadow-rt-glow active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-rt-red/40 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60 dark:focus:ring-offset-slate-900"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 3a1 1 0 011 1v4h4a1 1 0 110 2h-4v4a1 1 0 11-2 0v-4H6a1 1 0 110-2h4V4a1 1 0 011-1z"/></svg>
+          <i class="fad fa-cloud-upload-alt text-lg" aria-hidden="true"></i>
         </button>
       @endif
       @if($filePool && $poolFiles->count() > 0)
@@ -318,7 +370,9 @@
       <button type="button" @click="$wire.openCreateFolder(); ctx = false" class="{{ $ctxItem }} text-rt-text hover:bg-rt-surface-muted dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted">
         <i class="far fa-folder-plus w-4 text-center"></i>{{ __('app.new_folder') }}
       </button>
-      <button type="button" @click="openFileForm = true; ctx = false" class="{{ $ctxItem }} text-rt-text hover:bg-rt-surface-muted dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted">
+    @endif
+    @if($canUploadFiles)
+      <button type="button" @click="$wire.openUploadForm(); ctx = false" class="{{ $ctxItem }} text-rt-text hover:bg-rt-surface-muted dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted">
         <i class="far fa-upload w-4 text-center"></i>{{ __('app.file_upload') }}
       </button>
     @endif
@@ -329,75 +383,157 @@
     @endif
   </div>
 
-  @if(!$readOnly && $filePool)
+  @if($canUploadFiles && $filePool)
     {{-- FileForm Modal --}}
-    <x-dialog-modal wire:model="openFileForm">
+    <x-dialog-modal wire:model="openFileForm" maxWidth="3xl" data-filepool-upload-modal>
       <x-slot name="title">
-        {{ __('app.file_upload') }}
-        @if($currentFolder)
-          <span class="ml-1 text-sm font-normal text-rt-muted dark:text-rt-dark-muted">({{ $currentFolder->name }})</span>
-        @endif
+        <span class="flex min-w-0 items-center gap-3">
+          <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rt-red/10 text-rt-red dark:bg-rt-red/20 dark:text-rt-dark-accent" aria-hidden="true">
+            <i class="fad fa-cloud-upload-alt"></i>
+          </span>
+          <span class="min-w-0">
+            <span class="block">{{ __('app.file_upload') }}</span>
+            @if($uploadTargetPath)
+              <span class="mt-0.5 block truncate text-xs font-medium text-rt-muted dark:text-rt-dark-muted" title="{{ $uploadTargetPath }}">
+                {{ $uploadTargetPath }}
+              </span>
+            @endif
+          </span>
+        </span>
       </x-slot>
       <x-slot name="content">
-        <x-ui.filepool.drop-zone :model="'fileUploads.'.$filePool->id" />
-          @error('fileUploads.'.$filePool->id)
-            <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
-          @enderror
-        <div class="mt-4 grid gap-4 sm:grid-cols-2">
-          <div>
-            <x-ui.forms.label :value="__('app.expires_date')" />
-            <x-ui.forms.input type="date" wire:model="expires.{{ $filePool->id }}" class="mt-1 block" />
-            @error('expires.'.$filePool->id)
-              <span class="text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
-            @enderror
-          </div>
-          <div>
-            <x-ui.forms.label :value="__('app.visible_from')" />
-            <x-ui.forms.input type="date" wire:model="uploadVisibleFrom" class="mt-1 block" />
-          </div>
-        </div>
-
-        {{-- Sichtbarkeit / Team-Freigabe --}}
-        <div class="mt-4 space-y-4 rounded-xl border border-rt-border bg-rt-surface-muted/40 p-4 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted/30">
-          <div>
-            <x-ui.forms.toggle-button model="uploadAutoDelete" :label="__('app.auto_delete')" />
-            <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.auto_delete_hint') }}</p>
-          </div>
-
-          <div>
-            <x-ui.forms.label :value="__('app.team_visibility')" />
-            <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">
-              {{ $allowTeamPermissions && ! $currentFolder ? __('app.company_team_visibility_hint') : __('app.team_visibility_hint') }}
-            </p>
-            @error('uploadVisibleTeams')
-              <span class="mt-1 block text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
-            @enderror
-            @if($teams->isEmpty())
-              <p class="mt-2 text-sm text-rt-muted dark:text-rt-dark-muted">{{ __('app.no_teams_available') }}</p>
-            @else
-              <div class="mt-2 max-h-40 space-y-2 overflow-y-auto rounded-lg border border-rt-border bg-rt-surface p-3 dark:border-rt-dark-border dark:bg-rt-dark-surface">
-                @foreach($teams as $team)
-                  <x-ui.forms.toggle-button
-                    :id="'upload-team-'.$team->id"
-                    model="uploadVisibleTeams"
-                    :value="$team->id"
-                    :label="$team->name"
-                  />
-                @endforeach
+        <x-ui.accordion.tabs
+          :tabs="[
+            'uploadFiles' => ['label' => __('app.files'), 'icon' => 'fad fa-cloud-upload-alt'],
+            'uploadVisibility' => ['label' => __('app.visibility'), 'icon' => 'fad fa-eye'],
+            'uploadDeletion' => ['label' => __('app.automatic_deletion'), 'icon' => 'fad fa-clock'],
+          ]"
+          default="uploadFiles"
+          :force-default="true"
+          :persist="false"
+          :reset-on-open="true"
+          :aria-label="__('app.file_upload')"
+          content-class="mt-4"
+          class="rt-filepool-upload-tabs"
+        >
+          <x-ui.accordion.tab-panel for="uploadFiles" :order="0" panel-class="rt-filepool-upload-panel">
+            <div class="rt-filepool-upload-panel__intro">
+              <div>
+                <h3>{{ __('app.files') }}</h3>
+                <p>{{ app()->getLocale() === 'de' ? 'Wähle bis zu 20 Dateien aus. Gespeichert wird erst nach dem Klick auf Hochladen.' : 'Select up to 20 files. Files are only saved after you click Upload.' }}</p>
               </div>
-            @endif
-          </div>
-        </div>
+              @if($uploadTargetPath)
+                <span class="rt-filepool-upload-target" title="{{ $uploadTargetPath }}">
+                  <i class="far fa-folder-open" aria-hidden="true"></i>
+                  <span>{{ $uploadTargetPath }}</span>
+                </span>
+              @endif
+            </div>
+
+            <x-ui.filepool.drop-zone
+              :model="'fileUploads.'.$filePool->id"
+              :max-files="20"
+              :max-filesize="100"
+            />
+
+            @error('fileUploads.'.$filePool->id)
+              <p class="mt-2 flex items-start gap-2 text-sm font-medium text-red-600 dark:text-red-400" role="alert">
+                <i class="far fa-exclamation-circle mt-1 shrink-0" aria-hidden="true"></i>
+                <span>{{ $message }}</span>
+              </p>
+            @enderror
+          </x-ui.accordion.tab-panel>
+
+          <x-ui.accordion.tab-panel for="uploadVisibility" :order="1" content-class="space-y-5" panel-class="rt-filepool-upload-panel rt-filepool-upload-panel--settings">
+            <div class="rt-filepool-setting-card">
+              <span class="rt-filepool-setting-card__icon" aria-hidden="true"><i class="fad fa-calendar-day"></i></span>
+              <div class="min-w-0 flex-1">
+                <x-ui.forms.label :value="__('app.visible_from')" />
+                <x-ui.forms.input type="date" wire:model="uploadVisibleFrom" class="mt-2 block" />
+                <p class="mt-2 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.visible_from_hint') }}</p>
+                @error('uploadVisibleFrom')
+                  <span class="mt-1 block text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
+                @enderror
+              </div>
+            </div>
+
+            <div class="rt-filepool-setting-card rt-filepool-setting-card--stacked">
+              <div class="flex items-start gap-3">
+                <span class="rt-filepool-setting-card__icon" aria-hidden="true"><i class="fad fa-users"></i></span>
+                <div class="min-w-0 flex-1">
+                  <x-ui.forms.label :value="__('app.team_visibility')" />
+                  <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">
+                    {{ $allowTeamPermissions && $uploadFolderId === null ? __('app.company_team_visibility_hint') : __('app.team_visibility_hint') }}
+                  </p>
+                </div>
+              </div>
+              @error('uploadVisibleTeams')
+                <span class="block text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
+              @enderror
+              @if($teams->isEmpty())
+                <p class="text-sm text-rt-muted dark:text-rt-dark-muted">{{ __('app.no_teams_available') }}</p>
+              @else
+                <div class="rt-filepool-team-list">
+                  @foreach($teams as $team)
+                    <x-ui.forms.toggle-button
+                      :id="'upload-team-'.$team->id"
+                      model="uploadVisibleTeams"
+                      :value="$team->id"
+                      :label="$team->name"
+                    />
+                  @endforeach
+                </div>
+              @endif
+            </div>
+          </x-ui.accordion.tab-panel>
+
+          <x-ui.accordion.tab-panel for="uploadDeletion" :order="2" content-class="space-y-5" panel-class="rt-filepool-upload-panel rt-filepool-upload-panel--settings">
+            <div class="rt-filepool-setting-card">
+              <span class="rt-filepool-setting-card__icon" aria-hidden="true"><i class="fad fa-calendar-times"></i></span>
+              <div class="min-w-0 flex-1">
+                <x-ui.forms.label :value="__('app.expires_date')" />
+                <x-ui.forms.input type="date" wire:model="expires.{{ $filePool->id }}" class="mt-2 block" />
+                @error('expires.'.$filePool->id)
+                  <span class="mt-1 block text-sm text-red-600 dark:text-red-400">{{ $message }}</span>
+                @enderror
+              </div>
+            </div>
+
+            <div class="rt-filepool-setting-card">
+              <span class="rt-filepool-setting-card__icon" aria-hidden="true"><i class="fad fa-trash-restore"></i></span>
+              <div class="min-w-0 flex-1">
+                <x-ui.forms.toggle-button model="uploadAutoDelete" :label="__('app.auto_delete')" />
+                <p class="mt-2 text-xs text-rt-muted dark:text-rt-dark-muted">{{ __('app.auto_delete_hint') }}</p>
+              </div>
+            </div>
+          </x-ui.accordion.tab-panel>
+        </x-ui.accordion.tabs>
       </x-slot>
       <x-slot name="footer">
-          <div class="flex justify-end space-x-2">
-              <x-ui.buttons.button-basic :mode="'primary'" :size="'sm'" wire:click="uploadFile({{ $filePool->id }})" wire:loading.attr="disabled">
-                  {{ __('app.upload') }}
-              </x-ui.buttons.button-basic>
-              <x-ui.buttons.button-basic :mode="'basic'" :size="'sm'" wire:click="$toggle('openFileForm')">
-                  {{ __('app.cancel') }}
-              </x-ui.buttons.button-basic>
-          </div>
+        <div class="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <x-ui.buttons.button-basic
+            :mode="'basic'"
+            :size="'md'"
+            x-on:click="cancelUploadForm()"
+            class="min-h-11 min-w-[8.5rem]"
+          >
+            <i class="far fa-times" aria-hidden="true"></i>
+            {{ __('app.cancel') }}
+          </x-ui.buttons.button-basic>
+          <x-ui.buttons.button-basic
+            :mode="'primary'"
+            :size="'md'"
+            wire:click="uploadFile({{ $filePool->id }})"
+            wire:loading.attr="disabled"
+            wire:target="uploadFile"
+            class="min-h-11 min-w-[9.5rem]"
+          >
+            <i wire:loading.remove wire:target="uploadFile" class="fad fa-cloud-upload-alt" aria-hidden="true"></i>
+            <i wire:loading wire:target="uploadFile" class="far fa-spinner-third fa-spin" aria-hidden="true"></i>
+            <span wire:loading.remove wire:target="uploadFile">{{ __('app.upload') }}</span>
+            <span wire:loading wire:target="uploadFile">{{ __('app.uploading') }}</span>
+          </x-ui.buttons.button-basic>
+        </div>
       </x-slot>
     </x-dialog-modal>
 
@@ -616,4 +752,5 @@
       </x-dialog-modal>
     @endif
   @endif
+</div>
 </div>

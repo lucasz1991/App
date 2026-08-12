@@ -173,6 +173,10 @@ export function filePoolExternalDrop(config = {}) {
                 && !this.openingUpload;
         },
 
+        currentTargetPath() {
+            return this.$root?.dataset?.targetPath || this.targetPath;
+        },
+
         shouldHandle(event) {
             return this.isActiveExplorer()
                 && isExternalFileTransfer(event?.dataTransfer)
