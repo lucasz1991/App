@@ -67,7 +67,7 @@ class FilePreviewFullscreenTest extends TestCase
     public function test_view_permission_does_not_expose_or_execute_download_action(): void
     {
         $staff = User::factory()->create(['role' => 'staff']);
-        $team = Team::create([
+        $team = Team::forceCreate([
             'user_id' => $staff->id,
             'name' => 'Disposition',
             'personal_team' => false,
@@ -84,6 +84,7 @@ class FilePreviewFullscreenTest extends TestCase
         $file = $this->file($pool, $staff, [
             'folder_id' => $folder->id,
             'visible_teams' => [$team->id],
+            'mime_type' => 'image/png',
         ]);
 
         $component = Livewire::actingAs($staff)
@@ -129,7 +130,8 @@ class FilePreviewFullscreenTest extends TestCase
             ->assertSeeHtml('data-file-preview-sandboxed')
             ->assertSeeHtml('sandbox=""')
             ->assertDontSeeHtml('allow-scripts')
-            ->assertDontSeeHtml('allow-forms');
+            ->assertDontSeeHtml('allow-forms')
+            ->assertDontSeeHtml('data-file-preview-action="open"');
     }
 
     private function companyPool(): FilePool

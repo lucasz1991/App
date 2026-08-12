@@ -45,6 +45,7 @@ Homestead.json
 !/tests/Feature/PageBuilderPreviewTest.php
 !/tests/Feature/FilePoolUploadWorkflowTest.php
 !/tests/Feature/FilePreviewFullscreenTest.php
+!/tests/Feature/FilePreviewModalUiTest.php
 !/tests/Frontend/
 /tests/Frontend/*
 !/tests/Frontend/call-recording-gate.test.js

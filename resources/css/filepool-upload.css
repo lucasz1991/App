@@ -1,0 +1,560 @@
+/*
+ * FilePool upload experience
+ * --------------------------
+ * The CDN Dropzone stylesheet is intentionally treated as a behavioural
+ * dependency only. These scoped selectors keep the component aligned with
+ * RailTime surfaces in light/dark mode without leaking into other uploads.
+ */
+
+.rt-filepool-window-drop {
+    position: fixed;
+    z-index: 185;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding:
+        max(1rem, env(safe-area-inset-top))
+        max(1rem, env(safe-area-inset-right))
+        max(1rem, env(safe-area-inset-bottom))
+        max(1rem, env(safe-area-inset-left));
+    pointer-events: none;
+    isolation: isolate;
+}
+
+.rt-filepool-window-drop__backdrop {
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    background:
+        radial-gradient(circle at 50% 45%, rgba(228, 0, 43, 0.16), transparent 52%),
+        rgba(6, 12, 22, 0.72);
+    -webkit-backdrop-filter: blur(18px) saturate(125%);
+    backdrop-filter: blur(18px) saturate(125%);
+}
+
+.rt-filepool-window-drop__panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: min(34rem, 100%);
+    padding: clamp(2rem, 6vw, 4rem);
+    text-align: center;
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: clamp(1.5rem, 4vw, 2.25rem);
+    background: rgba(12, 20, 33, 0.7);
+    box-shadow:
+        0 40px 90px -30px rgba(0, 0, 0, 0.75),
+        inset 0 1px 0 rgba(255, 255, 255, 0.16),
+        0 0 0 8px rgba(255, 255, 255, 0.035);
+}
+
+.rt-filepool-window-drop__icon {
+    display: grid;
+    place-items: center;
+    width: 5.5rem;
+    height: 5.5rem;
+    margin-bottom: 1.5rem;
+    font-size: 2.1rem;
+    color: #fff;
+    border-radius: 1.75rem;
+    background: rgb(228, 0, 43);
+    box-shadow: 0 20px 48px -18px rgba(228, 0, 43, 0.9);
+    transform: translateZ(0);
+    animation: rt-filepool-drop-breathe 1.8s ease-in-out infinite;
+}
+
+.rt-filepool-window-drop__eyebrow {
+    margin-bottom: 0.35rem;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.65);
+}
+
+.rt-filepool-window-drop__panel strong {
+    font-size: clamp(1.55rem, 5vw, 2.35rem);
+    line-height: 1.12;
+    letter-spacing: -0.035em;
+}
+
+.rt-filepool-window-drop__path {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    gap: 0.55rem;
+    margin-top: 1.35rem;
+    padding: 0.65rem 0.9rem;
+    font-size: 0.82rem;
+    font-weight: 650;
+    color: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.rt-filepool-window-drop__path span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rt-filepool-window-drop__panel small {
+    max-width: 28rem;
+    margin-top: 1rem;
+    font-size: 0.78rem;
+    line-height: 1.55;
+    color: rgba(255, 255, 255, 0.62);
+}
+
+.rt-filepool-upload-panel {
+    min-width: 0;
+}
+
+.rt-filepool-upload-panel--settings {
+    padding: clamp(0.15rem, 1vw, 0.5rem);
+}
+
+.rt-filepool-upload-panel__intro {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.rt-filepool-upload-panel__intro h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 750;
+    color: rgb(26, 36, 51);
+}
+
+.dark .rt-filepool-upload-panel__intro h3,
+body[data-mode='dark'] .rt-filepool-upload-panel__intro h3 {
+    color: rgb(237, 242, 248);
+}
+
+.rt-filepool-upload-panel__intro p {
+    max-width: 34rem;
+    margin: 0.25rem 0 0;
+    font-size: 0.78rem;
+    line-height: 1.5;
+    color: rgb(100, 116, 139);
+}
+
+.dark .rt-filepool-upload-panel__intro p,
+body[data-mode='dark'] .rt-filepool-upload-panel__intro p {
+    color: rgb(174, 185, 201);
+}
+
+.rt-filepool-upload-target {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+    max-width: min(19rem, 45%);
+    flex: 0 1 auto;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: rgb(71, 85, 105);
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    border-radius: 999px;
+    background: rgba(248, 250, 252, 0.82);
+}
+
+.rt-filepool-upload-target span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dark .rt-filepool-upload-target,
+body[data-mode='dark'] .rt-filepool-upload-target {
+    color: rgb(203, 213, 225);
+    border-color: rgba(71, 85, 105, 0.72);
+    background: rgba(30, 41, 59, 0.74);
+}
+
+.rt-filepool-dropzone-shell {
+    display: grid;
+    min-width: 0;
+}
+
+.rt-filepool-dropzone.dropzone {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    width: min(100%, 31rem);
+    min-height: 17rem;
+    aspect-ratio: 1 / 1;
+    margin-inline: auto;
+    padding: clamp(1rem, 3vw, 1.5rem);
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.rt-filepool-dropzone.dropzone.dz-started {
+    justify-content: flex-start;
+    width: 100%;
+    min-height: 20rem;
+    aspect-ratio: auto;
+    overflow: visible;
+}
+
+.rt-filepool-dropzone.dropzone .dz-message {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.55rem;
+    margin: 0;
+    color: inherit;
+}
+
+.rt-filepool-dropzone.dropzone.dz-started .dz-message {
+    display: none;
+}
+
+.rt-filepool-dropzone__icon {
+    display: grid;
+    place-items: center;
+    width: 4.75rem;
+    height: 4.75rem;
+    margin-bottom: 0.65rem;
+    font-size: 1.8rem;
+    color: rgb(228, 0, 43);
+    border-radius: 1.5rem;
+    background: rgba(228, 0, 43, 0.1);
+    box-shadow: 0 18px 42px -24px rgba(228, 0, 43, 0.7);
+}
+
+.dark .rt-filepool-dropzone__icon,
+body[data-mode='dark'] .rt-filepool-dropzone__icon {
+    color: rgb(255, 113, 137);
+    background: rgba(228, 0, 43, 0.18);
+}
+
+.rt-filepool-dropzone__title {
+    font-size: clamp(1rem, 3vw, 1.2rem);
+    font-weight: 750;
+    letter-spacing: -0.02em;
+    color: rgb(26, 36, 51);
+}
+
+.dark .rt-filepool-dropzone__title,
+body[data-mode='dark'] .rt-filepool-dropzone__title {
+    color: rgb(237, 242, 248);
+}
+
+.rt-filepool-dropzone__hint {
+    font-size: 0.78rem;
+    color: rgb(100, 116, 139);
+}
+
+.dark .rt-filepool-dropzone__hint,
+body[data-mode='dark'] .rt-filepool-dropzone__hint {
+    color: rgb(174, 185, 201);
+}
+
+.rt-filepool-dropzone__limits {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.45rem;
+    margin-top: 0.75rem;
+}
+
+.rt-filepool-dropzone__limits > span,
+.rt-filepool-dropzone__single {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.55rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: rgb(71, 85, 105);
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.72);
+}
+
+.dark .rt-filepool-dropzone__limits > span,
+.dark .rt-filepool-dropzone__single,
+body[data-mode='dark'] .rt-filepool-dropzone__limits > span,
+body[data-mode='dark'] .rt-filepool-dropzone__single {
+    color: rgb(203, 213, 225);
+    border-color: rgba(71, 85, 105, 0.64);
+    background: rgba(15, 23, 42, 0.42);
+}
+
+.rt-filepool-dropzone.dropzone .dz-previews {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+    gap: 0.75rem;
+    width: 100%;
+}
+
+.rt-filepool-dropzone.dropzone .dz-preview {
+    position: relative;
+    display: grid;
+    grid-template-columns: 3.25rem minmax(0, 1fr) auto;
+    align-items: center;
+    width: 100%;
+    min-height: 5.25rem;
+    margin: 0;
+    padding: 0.75rem;
+    overflow: hidden;
+    vertical-align: initial;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 1rem;
+    background: rgba(255, 255, 255, 0.82);
+    box-shadow: 0 10px 28px -24px rgba(15, 23, 42, 0.45);
+}
+
+.dark .rt-filepool-dropzone.dropzone .dz-preview,
+body[data-mode='dark'] .rt-filepool-dropzone.dropzone .dz-preview {
+    border-color: rgba(71, 85, 105, 0.58);
+    background: rgba(15, 23, 42, 0.62);
+}
+
+.rt-filepool-dropzone.dropzone .dz-preview.dz-error {
+    border-color: rgba(220, 38, 38, 0.42);
+    background: rgba(254, 242, 242, 0.92);
+}
+
+.dark .rt-filepool-dropzone.dropzone .dz-preview.dz-error,
+body[data-mode='dark'] .rt-filepool-dropzone.dropzone .dz-preview.dz-error {
+    background: rgba(69, 10, 10, 0.34);
+}
+
+.rt-filepool-dropzone.dropzone .dz-preview .dz-image {
+    position: relative;
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    width: 3.25rem;
+    height: 3.25rem;
+    overflow: hidden;
+    border-radius: 0.8rem;
+    background: rgba(148, 163, 184, 0.15);
+}
+
+.rt-filepool-dropzone.dropzone .dz-preview .dz-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.rt-filepool-dropzone.dropzone .dz-preview .dz-details {
+    position: static;
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+    padding: 0 0.75rem;
+    text-align: left;
+    color: rgb(30, 41, 59);
+    opacity: 1;
+}
+
+.dark .rt-filepool-dropzone.dropzone .dz-preview .dz-details,
+body[data-mode='dark'] .rt-filepool-dropzone.dropzone .dz-preview .dz-details {
+    color: rgb(226, 232, 240);
+}
+
+.rt-filepool-dropzone.dropzone .dz-preview .dz-details .dz-filename {
+    max-width: 100%;
+    font-size: 0.78rem;
+    font-weight: 750;
+}
+
+.rt-filepool-dropzone.dropzone .dz-preview .dz-details .dz-filename span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border: 0;
+    background: transparent;
+}
+
+.rt-filepool-dropzone.dropzone .dz-preview .dz-details .dz-size {
+    margin: 0.2rem 0 0;
+    font-size: 0.66rem;
+    color: rgb(100, 116, 139);
+}
+
+.rt-filepool-dropzone.dropzone .dz-preview .dz-progress {
+    position: relative;
+    left: auto;
+    top: auto;
+    grid-column: 2 / -1;
+    grid-row: 2;
+    width: auto;
+    height: 0.25rem;
+    margin: 0 2.25rem 0 0.75rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.2);
+}
+
+.rt-filepool-dropzone.dropzone .dz-preview .dz-progress .dz-upload {
+    background: rgb(228, 0, 43);
+}
+
+.rt-filepool-dropzone.dropzone .dz-preview .dz-remove {
+    position: relative;
+    z-index: 3;
+    grid-column: 3;
+    grid-row: 1;
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    min-width: 2.75rem;
+    height: 2.75rem;
+    overflow: hidden;
+    font-size: 0;
+    color: rgb(100, 116, 139);
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    border-radius: 0.75rem;
+    background: rgba(248, 250, 252, 0.86);
+}
+
+.rt-filepool-dropzone.dropzone .dz-preview .dz-remove::before {
+    font-family: 'Font Awesome 5 Pro';
+    font-size: 0.82rem;
+    font-weight: 400;
+    content: '\f2ed';
+}
+
+.rt-filepool-dropzone.dropzone .dz-preview .dz-remove:hover,
+.rt-filepool-dropzone.dropzone .dz-preview .dz-remove:focus-visible {
+    color: rgb(220, 38, 38);
+    border-color: rgba(220, 38, 38, 0.32);
+    background: rgba(254, 226, 226, 0.84);
+    outline: none;
+}
+
+.dark .rt-filepool-dropzone.dropzone .dz-preview .dz-remove,
+body[data-mode='dark'] .rt-filepool-dropzone.dropzone .dz-preview .dz-remove {
+    color: rgb(203, 213, 225);
+    border-color: rgba(71, 85, 105, 0.72);
+    background: rgba(30, 41, 59, 0.8);
+}
+
+.rt-filepool-dropzone.dropzone .dz-preview .dz-error-message {
+    position: static;
+    grid-column: 1 / -1;
+    grid-row: 3;
+    width: auto;
+    margin-top: 0.55rem;
+    padding: 0.5rem 0.65rem;
+    font-size: 0.68rem;
+    line-height: 1.35;
+    color: rgb(185, 28, 28);
+    border-radius: 0.65rem;
+    background: rgba(254, 226, 226, 0.9);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.rt-filepool-dropzone.dropzone .dz-preview.dz-error .dz-error-message {
+    opacity: 1;
+}
+
+.rt-filepool-dropzone.dropzone .dz-preview .dz-success-mark,
+.rt-filepool-dropzone.dropzone .dz-preview .dz-error-mark {
+    display: none;
+}
+
+.rt-filepool-setting-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: clamp(1rem, 3vw, 1.25rem);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 1.15rem;
+    background: rgba(248, 250, 252, 0.68);
+}
+
+.rt-filepool-setting-card--stacked {
+    flex-direction: column;
+}
+
+.dark .rt-filepool-setting-card,
+body[data-mode='dark'] .rt-filepool-setting-card {
+    border-color: rgba(71, 85, 105, 0.58);
+    background: rgba(24, 36, 53, 0.55);
+}
+
+.rt-filepool-setting-card__icon {
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    flex: 0 0 auto;
+    color: rgb(228, 0, 43);
+    border-radius: 0.8rem;
+    background: rgba(228, 0, 43, 0.09);
+}
+
+.rt-filepool-team-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+    width: 100%;
+    max-height: 14rem;
+    gap: 0.55rem;
+    padding: 0.75rem;
+    overflow-y: auto;
+    border: 1px solid rgba(148, 163, 184, 0.26);
+    border-radius: 0.9rem;
+    background: rgba(255, 255, 255, 0.72);
+}
+
+.dark .rt-filepool-team-list,
+body[data-mode='dark'] .rt-filepool-team-list {
+    border-color: rgba(71, 85, 105, 0.58);
+    background: rgba(15, 23, 42, 0.42);
+}
+
+@keyframes rt-filepool-drop-breathe {
+    0%, 100% { transform: translateZ(0) scale(1); }
+    50% { transform: translateZ(0) scale(1.055); }
+}
+
+@media (max-width: 639px) {
+    .rt-filepool-upload-panel__intro {
+        flex-direction: column;
+    }
+
+    .rt-filepool-upload-target {
+        max-width: 100%;
+    }
+
+    .rt-filepool-dropzone.dropzone {
+        width: 100%;
+        min-height: 16rem;
+        padding: 1rem;
+    }
+
+    .rt-filepool-dropzone.dropzone .dz-previews {
+        grid-template-columns: 1fr;
+    }
+
+    .rt-filepool-window-drop__panel {
+        padding: 2rem 1.25rem;
+    }
+
+    .rt-filepool-window-drop__icon {
+        width: 4.5rem;
+        height: 4.5rem;
+        border-radius: 1.35rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rt-filepool-window-drop__icon {
+        animation: none;
+    }
+}

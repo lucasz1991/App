@@ -22,7 +22,20 @@
             ], true)
         );
         $tempUrl = $file && $open ? $this->url : null;
-        $printUrl = ($isPdf || $isText || $isImage) ? $tempUrl : null;
+        $isChatAttachment = $file?->fileable_type === \App\Models\ChatMessage::class;
+        $isActiveImage = $mime === 'image/svg+xml';
+        // Private FilePool-URLs liegen temporaer unter derselben Origin.
+        // Aktive Dokumente (HTML/XML/SVG) duerfen daher niemals ausserhalb
+        // der Sandbox als Top-Level-Seite geoeffnet werden. Die Chat-Route
+        // liefert nicht inline-faehige Typen dagegen sicher als Attachment.
+        $externalUrl = $tempUrl && (
+            $isChatAttachment
+            || $isPdf
+            || $isVideo
+            || $isAudio
+            || ($isImage && ! $isActiveImage)
+        ) ? $tempUrl : null;
+        $printUrl = ($isPdf || ($isImage && ! $isActiveImage)) ? $tempUrl : null;
         $previewKey = $file && $open ? $this->versionKey : null;
     @endphp
 
@@ -110,9 +123,9 @@
                         </a>
                     @endif
 
-                    @if($tempUrl)
+                    @if($externalUrl)
                         <a
-                            href="{{ $tempUrl }}"
+                            href="{{ $externalUrl }}"
                             target="_blank"
                             rel="noopener noreferrer"
                             data-no-navigate
@@ -183,9 +196,9 @@
                             </a>
                         @endif
 
-                        @if($tempUrl)
+                        @if($externalUrl)
                             <a
-                                href="{{ $tempUrl }}"
+                                href="{{ $externalUrl }}"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 data-no-navigate
@@ -389,9 +402,9 @@
                     </span>
                     <strong>Vorschau konnte nicht geladen werden</strong>
                     <span class="max-w-md text-center text-sm text-white/60">{{ __('app.no_inline_preview') }}</span>
-                    @if($tempUrl)
+                    @if($externalUrl)
                         <a
-                            href="{{ $tempUrl }}"
+                            href="{{ $externalUrl }}"
                             target="_blank"
                             rel="noopener noreferrer"
                             data-no-navigate

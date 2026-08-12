@@ -264,7 +264,10 @@ class FilePoolUploadWorkflowTest extends TestCase
                 UploadedFile::fake()->create('zu-gross.bin', 102401, 'application/octet-stream'),
             ])
             ->call('uploadFile', $pool->id)
-            ->assertHasErrors("fileUploads.$pool->id.0")
+            // Livewires globale Temp-Upload-Regel ist ebenfalls 100 MB und
+            // weist die Datei bereits am Modellpfad ab, bevor die
+            // komponenteneigene Wildcard-Regel laufen muss.
+            ->assertHasErrors("fileUploads.$pool->id")
             ->assertSet('openFileForm', true);
 
         $this->assertDatabaseCount('files', 0);

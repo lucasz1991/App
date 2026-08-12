@@ -65,10 +65,13 @@ export function constrainPreviewPan({
 }) {
     const overflowX = Math.max(0, ((asFiniteNumber(naturalWidth) * zoom) - stageWidth) / 2);
     const overflowY = Math.max(0, ((asFiniteNumber(naturalHeight) * zoom) - stageHeight) / 2);
+    const constrainAxis = (value, overflow) => overflow === 0
+        ? 0
+        : Math.min(overflow, Math.max(-overflow, asFiniteNumber(value)));
 
     return {
-        panX: Math.min(overflowX, Math.max(-overflowX, asFiniteNumber(panX))),
-        panY: Math.min(overflowY, Math.max(-overflowY, asFiniteNumber(panY))),
+        panX: constrainAxis(panX, overflowX),
+        panY: constrainAxis(panY, overflowY),
     };
 }
 

@@ -17,9 +17,9 @@ use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
-use Throwable;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 use ZipArchive;
 
 class ManageFilePools extends Component
@@ -351,8 +351,8 @@ class ManageFilePools extends Component
 
     /**
      * @param  int|null  $ignoredFilePoolId  Bleibt fuer bestehende
-     *                                          wire:click-Aufrufe erhalten;
-     *                                          die Client-ID wird nie vertraut.
+     *                                       wire:click-Aufrufe erhalten;
+     *                                       die Client-ID wird nie vertraut.
      */
     public function uploadFile(?int $ignoredFilePoolId = null): void
     {

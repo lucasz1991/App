@@ -315,6 +315,10 @@ html.rt-file-preview-open body {
 }
 
 .rt-file-preview__audio-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0 0.8rem;
     width: min(34rem, 100%);
     padding: 1.25rem;
     border: 1px solid rgba(255, 255, 255, 0.13);
@@ -329,13 +333,15 @@ html.rt-file-preview-open body {
     display: flex;
     width: 3rem;
     height: 3rem;
-    float: left;
     align-items: center;
     justify-content: center;
-    margin-right: 0.8rem;
     border-radius: 1rem;
     color: #ff7189;
     background: rgba(228, 0, 43, 0.17);
+}
+
+.rt-file-preview__audio-card audio {
+    grid-column: 1 / -1;
 }
 
 .rt-file-preview__document-stage {
