@@ -236,8 +236,13 @@ class EmailTemplatesPageTest extends TestCase
             // Die Ebenenliste beginnt mit dem gekachelten Raster, danach
             // folgen drei nicht wiederholte Ebenen.
             $this->assertStringContainsString('background-repeat:repeat,no-repeat,no-repeat,no-repeat', $html, $template);
-            $this->assertStringContainsString('background-position:left top,right center,center center,left bottom,left bottom', $html, $template);
-            $this->assertStringContainsString('background-size:64px 64px,auto 100%,100% 100%,77% auto,77% auto', $html, $template);
+            $this->assertStringContainsString('background-position:left top,right center,center center,right bottom,right bottom', $html, $template);
+            // Der Zug haengt an der HOEHE des Streifens (auto 100%), nicht an
+            // dessen Breite. Nur so reicht er hinter die Schrift statt als
+            // flaches Band darunter zu liegen — und nur so faehrt auf einem
+            // breiten Schirm von selbst mehr ins Bild als auf einem schmalen.
+            // Rechts verankert, weil dort die Lok steht.
+            $this->assertStringContainsString('background-size:64px 64px,auto 100%,100% 100%,auto 100%,auto 100%', $html, $template);
 
             // Frueher stand hier die Kurzform background:, und die SETZT
             // background-image zurueck — stand sie danach, verschwand der Zug
@@ -614,19 +619,24 @@ class EmailTemplatesPageTest extends TestCase
     {
         [$width, $height] = getimagesize(resource_path('mail-templates/assets/zug-dampf-light.png'));
 
-        // Doppelte Aufloesung von 720 x 75 CSS-Pixeln.
-        // Neu gerendert in 1120 x 160 (vorher 720 x 75 mal zwei): auf
-        // breiten Schirmen wurde die alte Fassung sichtbar hochskaliert.
+        // Das Bild ist BREIT und FLACH (2160 x 218). Der Himmel darueber
+        // wurde bewusst knapp gehalten: die Zelle zeigt es mit auto 100%,
+        // also an ihrer Hoehe ausgerichtet. Je mehr leerer Himmel im Bild
+        // steckt, desto kleiner geriete der Zug darin — bei reichlich
+        // Kopfraum lag er als flaches Band unter den Daten statt dahinter.
         $this->assertSame(2160, $width);
-        $this->assertSame(388, $height);
+        $this->assertSame(218, $height);
 
         // Die Umbruchregeln stehen in EINER Quelle. Vorher lagen sie
         // viermal im Projekt und waren bereits auseinandergelaufen: die
         // Vorlage brach bei 680 px um, die Signatur bei 620 px.
         $regeln = file_get_contents(resource_path('views/emails/parts/responsive-css.blade.php'));
 
+        // Schmale Schirme koppeln den Zug an die BREITE (200% auto) statt
+        // an die Hoehe. Der Streifen ist dort fast quadratisch; an der Hoehe
+        // ausgerichtet fuellte ein einzelner Wagen die ganze Karte.
         $this->assertStringContainsString(
-            'background-size: 64px 64px, auto 100%, 100% 100%, 150% auto, 150% auto !important;',
+            'background-size: 64px 64px, auto 52%, 100% 100%, 200% auto, 200% auto !important;',
             $regeln,
         );
         // Die Trennlinie wandert NICHT mehr nach oben: Person und Firma stehen
@@ -759,7 +769,7 @@ class EmailTemplatesPageTest extends TestCase
             // mehr als erste — geprueft wird seine Anwesenheit, nicht seine
             // Position.
             $this->assertMatchesRegularExpression('/rt-sign-cell[^>]*linear-gradient\(rgba\(/', $html);
-            $this->assertStringContainsString('background-size:64px 64px,auto 100%,100% 100%,77% auto,77% auto', $html);
+            $this->assertStringContainsString('background-size:64px 64px,auto 100%,100% 100%,auto 100%,auto 100%', $html);
             $this->assertStringContainsString(
                 'class="rt-sign-logo" width="50%" valign="top"',
                 $html,
@@ -868,7 +878,7 @@ class EmailTemplatesPageTest extends TestCase
         // Der Schleier ist die DRITTE Ebene, nicht mehr die erste: darueber
         // liegen Raster und Wasserzeichen. Die Liste beginnt deshalb mit url().
         $this->assertMatchesRegularExpression('/rt-sign-cell[^>]*linear-gradient\(/', $html);
-        $this->assertStringContainsString('background-position:left top,right center,center center,left bottom,left bottom', $html);
+        $this->assertStringContainsString('background-position:left top,right center,center center,right bottom,right bottom', $html);
 
         // NATUERLICHE QUELLREIHENFOLGE seit dem symmetrischen Umbau: Person
         // links, Firma rechts. Vorher stand die Markenspalte zuerst und ein
