@@ -349,7 +349,8 @@ final class EmailHtmlSanitizer
 
     /** Ausschliesslich serverkontrollierte Bildquellen fuer src und CSS-url(). */
     private const IMAGE_URL_PLACEHOLDERS = [
-        'LOGO_SRC', 'TRAIN_SRC', 'TRAIN_IDLE_SRC', 'ICON_RT_SRC',
+        'LOGO_SRC', 'LOGO_STILL_SRC', 'TRAIN_SRC', 'TRAIN_IDLE_SRC',
+        'ICON_RT_SRC', 'ICON_RT_STILL_SRC',
         'GRUND_RASTER_SRC', 'GRUND_MARKE_SRC',
         'ICON_PHONE_SRC', 'ICON_MOBILE_SRC', 'ICON_EMAIL_SRC',
         'ICON_WEB_SRC', 'ICON_LOCATION_SRC',

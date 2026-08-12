@@ -30,7 +30,15 @@
               <!-- Kopfzeile: links der kurze Akzentstrich mit der Kennung,
                    rechts das RT-Zeichen. Das Zeichen steht NUR hier — die
                    Signatur unten traegt den Schriftzug, zusammen ergeben
-                   beide die Marke einmal statt zweimal. -->
+                   beide die Marke einmal statt zweimal.
+
+                   ZWEI BILDER, EINE SICHTBARE MARKE: Das bewegte Zeichen
+                   baut sich auf, sein erstes Einzelbild ist also fast leer —
+                   und genau dieses eine zeigt Outlook-Desktop. Dort wird das
+                   GIF per mso-hide ausgeblendet und der bedingte Kommentar
+                   liefert das Standbild. Bewusst als EIN geschlossener
+                   Kommentar: die aufgebrochene, zweiteilige Form laesst der
+                   Sanitizer nicht durch. -->
               <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">
                 <tr>
                   <td valign="top" style="vertical-align:top;">
@@ -40,7 +48,11 @@
                     <p style="margin:0 0 9px;color:#e4002b;font-family:Consolas,'Courier New',monospace;font-size:10px;line-height:16px;font-weight:bold;letter-spacing:1.4px;text-transform:uppercase;">RT / PERSÖNLICHE NACHRICHT</p>
                   </td>
                   <td width="44" valign="top" align="right" style="width:44px;padding-left:18px;text-align:right;vertical-align:top;font-size:0;line-height:0;">
-                    <img class="rt-mark" src="{{ICON_RT_SRC}}" width="44" height="44" alt="" style="display:block;width:44px;height:44px;margin-left:auto;border:0;">
+                    <!-- Outlook-Desktop zeigt von einem GIF nur das erste
+                         Einzelbild; beim Aufbau ist das fast leer. Es bekommt
+                         deshalb das Standbild. -->
+                    <img class="rt-mark" src="{{ICON_RT_SRC}}" width="44" height="44" alt="" style="display:block;width:44px;height:44px;margin-left:auto;border:0;mso-hide:all;">
+                    <!--[if mso]><img class="rt-mark" src="{{ICON_RT_STILL_SRC}}" width="44" height="44" alt="" style="display:block;width:44px;height:44px;margin-left:auto;border:0;"><![endif]-->
                   </td>
                 </tr>
               </table>

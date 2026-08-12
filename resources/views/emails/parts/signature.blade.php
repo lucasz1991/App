@@ -139,7 +139,8 @@
              Umbruchregeln nicht umsortieren koennen, wird gedoppelt und
              geschaltet. --}}
         <div class="rt-only-narrow rt-marke-mobil" style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:0;line-height:0;">
-            <img src="{{ $values['LOGO_SRC'] }}" width="190" alt="{{ $values['FIRMENNAME'] }}" style="display:block;width:190px;max-width:100%;height:auto;margin:0 0 16px;">
+            <img src="{{ $values['LOGO_SRC'] }}" width="190" alt="{{ $values['FIRMENNAME'] }}" style="display:block;width:190px;max-width:100%;height:auto;margin:0 0 16px;mso-hide:all;">
+            <!--[if mso]><img src="{{ $values['LOGO_STILL_SRC'] ?? $values['LOGO_SRC'] }}" width="190" alt="{{ $values['FIRMENNAME'] }}" style="display:block;width:190px;height:auto;margin:0 0 16px;"><![endif]-->
         </div>
         <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">
             <tr class="rt-stack">
@@ -174,7 +175,17 @@
                 {{-- Die Trennlinie sitzt an der Firmenspalte. Beim Stapeln
                      wandert sie nach oben (siehe responsive-css). --}}
                 <td class="rt-sign-logo" width="50%" valign="top" align="right" style="width:50%;padding-left:24px;border-left:1px solid {{ $values['SIGNATURE_BORDER'] }};text-align:right;vertical-align:top;">
-                    <img class="rt-logo" src="{{ $values['LOGO_SRC'] }}" width="210" alt="{{ $values['FIRMENNAME'] }}" style="display:block;width:210px;max-width:100%;height:auto;margin-left:auto;">
+                    {{-- OUTLOOK BEKOMMT DAS STANDBILD. Die bewegte Marke baut
+                         sich Zeichen fuer Zeichen auf; ihr erstes Einzelbild
+                         ist deshalb fast leer — und genau dieses eine zeigt
+                         Outlook-Desktop. Ohne diese Verzweigung stuende dort
+                         eine leere Flaeche statt der Marke.
+
+                         Bewusst mso-hide plus EIN geschlossener bedingter
+                         Kommentar: die aufgebrochene, zweiteilige Form laesst
+                         der EmailHtmlSanitizer nicht durch. --}}
+                    <img class="rt-logo" src="{{ $values['LOGO_SRC'] }}" width="210" alt="{{ $values['FIRMENNAME'] }}" style="display:block;width:210px;max-width:100%;height:auto;margin-left:auto;mso-hide:all;">
+                    <!--[if mso]><img class="rt-logo" src="{{ $values['LOGO_STILL_SRC'] ?? $values['LOGO_SRC'] }}" width="210" alt="{{ $values['FIRMENNAME'] }}" style="display:block;width:210px;height:auto;margin-left:auto;"><![endif]-->
                     {{-- Im unpersoenlichen Fall stehen Firmentelefon und
                          Firmen-E-Mail bereits links an der Stelle von
                          Durchwahl und Mailadresse. Rechts blieben sie eine

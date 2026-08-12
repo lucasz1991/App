@@ -97,6 +97,13 @@ class MailSignature
         // kaputtes Bild.
         $markAsset = EmailTemplateBuilder::emailMarkAsset($this->theme);
 
+        // STANDBILDER FUER OUTLOOK-DESKTOP. Die bewegten Marken bauen sich
+        // auf, ihr erstes Einzelbild ist also fast leer — und genau dieses
+        // eine zeigt Outlook. Ueber einen bedingten Kommentar bekommt es
+        // deshalb das fertige Bild statt einer leeren Flaeche.
+        $logoStill = str_replace('.gif', '.png', $logoAsset);
+        $markStill = str_replace('.gif', '.png', $markAsset);
+
         // Hintergrundgrafik des Streifens, Bildsprache vom Notfallbanner der
         // Website: ein feines Raster (gekachelt) und ein grosses
         // RT-Wasserzeichen mit rotem Schimmer (einmal, rechts).
@@ -115,7 +122,9 @@ class MailSignature
         $bilder = $this->remoteAssets
             ? [
                 'LOGO_SRC' => EmailTemplateBuilder::mailAssetUrl($logoAsset),
+                'LOGO_STILL_SRC' => EmailTemplateBuilder::mailAssetUrl($logoStill),
                 'ICON_RT_SRC' => EmailTemplateBuilder::mailAssetUrl($markAsset),
+                'ICON_RT_STILL_SRC' => EmailTemplateBuilder::mailAssetUrl($markStill),
                 'GRUND_RASTER_SRC' => EmailTemplateBuilder::mailAssetUrl($raster),
                 'GRUND_MARKE_SRC' => EmailTemplateBuilder::mailAssetUrl($marke),
                 'TRAIN_SRC' => EmailTemplateBuilder::signatureTrainUrl($this->theme, $this->animated),
@@ -130,7 +139,9 @@ class MailSignature
             ]
             : [
                 'LOGO_SRC' => EmailTemplateBuilder::inlineImage($logoAsset, 'image/gif'),
+                'LOGO_STILL_SRC' => EmailTemplateBuilder::inlineImage($logoStill, 'image/png'),
                 'ICON_RT_SRC' => EmailTemplateBuilder::inlineImage($markAsset, 'image/gif'),
+                'ICON_RT_STILL_SRC' => EmailTemplateBuilder::inlineImage($markStill, 'image/png'),
                 'GRUND_RASTER_SRC' => EmailTemplateBuilder::inlineImage($raster, 'image/png'),
                 'GRUND_MARKE_SRC' => EmailTemplateBuilder::inlineImage($marke, 'image/png'),
                 'TRAIN_SRC' => EmailTemplateBuilder::signatureTrainAsset(
@@ -262,7 +273,7 @@ class MailSignature
         $values = $this->values($overrides);
         $safeKeys = array_unique(array_merge(
             array_keys(EmailTemplateBuilder::emailThemeValues($this->theme)),
-            ['LOGO_SRC', 'TRAIN_SRC', 'TRAIN_IDLE_SRC', 'ICON_RT_SRC', 'GRUND_RASTER_SRC', 'GRUND_MARKE_SRC'],
+            ['LOGO_SRC', 'LOGO_STILL_SRC', 'TRAIN_SRC', 'TRAIN_IDLE_SRC', 'ICON_RT_SRC', 'ICON_RT_STILL_SRC', 'GRUND_RASTER_SRC', 'GRUND_MARKE_SRC'],
             array_values(array_filter(
                 array_keys($values),
                 static fn (string $key): bool => str_starts_with($key, 'ICON_'),

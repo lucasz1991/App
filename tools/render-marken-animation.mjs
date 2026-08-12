@@ -1,8 +1,9 @@
 /**
  * Erzeugt die bewegten Markenbilder fuer Signatur und Vorlage.
  *
- *   wortmarke-*.gif   Der Schriftzug baut sich Zeichen fuer Zeichen auf,
- *                     danach die Linie, zuletzt GMBH.
+ *   wortmarke-*.gif   Der Schriftzug wird GESCHRIEBEN: eine schraege
+ *                     Kante zieht Zeichen fuer Zeichen ueber die Flaeche,
+ *                     danach die Linie in einem Zug, zuletzt GMBH.
  *   icon-rt-*.gif     Das Zeichen baut sich in DREI Stufen auf: erst der
  *                     rote Balken links unten, dann das rote R aussen
  *                     herum, zuletzt das T in der Mitte.
@@ -40,6 +41,15 @@ const OEFFENTLICH = 'public/mail-assets';
 
 const BILDER = 42;
 const SUMME_CS = 320;
+
+// Das RT-Zeichen laeuft dauerhaft und braucht deshalb eine eigene, laengere
+// Folge. WICHTIG: Ein GIF wiederholt IMMER die ganze Animation — es gibt
+// kein "ab Bild N schleifen". Damit der Aufbau nicht bei jedem Durchlauf
+// hart neu anspringt, ist die Folge GESCHLOSSEN: der Ruheteil kehrt am Ende
+// genau in den Zustand zurueck, in dem der Aufbau beginnt. Das Zeichen ist
+// dabei nie ganz weg, es sinkt nur auf einen leisen Rest.
+const ZEICHEN_BILDER = 64;
+const ZEICHEN_SUMME_CS = 900;
 const MAGENTA = [255, 0, 255];
 
 const WORTMARKEN = [
@@ -63,12 +73,20 @@ function verzoegerungen() {
 
 const cs = verzoegerungen();
 
+function zeichenVerzoegerungen() {
+    const grund = Math.floor(ZEICHEN_SUMME_CS / ZEICHEN_BILDER);
+    const werte = new Array(ZEICHEN_BILDER).fill(grund);
+    werte[ZEICHEN_BILDER - 1] += ZEICHEN_SUMME_CS - (grund * ZEICHEN_BILDER);
+
+    return werte;
+}
+
 /**
  * Baut die Farbtabelle und kodiert.
  *
  * @param bilder  Liste roher RGBA-Puffer, gleiche Groesse
  */
-function schreibeGif(bilder, breite, hoehe, ziel) {
+function schreibeGif(bilder, breite, hoehe, ziel, takt = cs, schleife = false) {
     // Arbeitspuffer: durchsichtige Punkte bekommen Magenta und volle
     // Deckung, damit die Quantisierung sie als EINE eigene Farbe fuehrt
     // und nicht in die Verlaeufe des Motivs einrechnet.
@@ -109,14 +127,15 @@ function schreibeGif(bilder, breite, hoehe, ziel) {
 
         encoder.writeFrame(indizes, breite, hoehe, {
             palette: index === 0 ? palette : undefined,
-            delay: cs[index] * 10,
+            delay: takt[index] * 10,
             transparent: true,
             transparentIndex: durchsichtig,
             // 2 = raeumen. Waehrend des Aufbaus wachsen die Teile; ohne
             // Raeumen bliebe jeder Zwischenstand stehen und die weichen
             // Kanten wuerden sich uebereinanderlegen.
-            dispose: index === bilder.length - 1 ? 1 : 2,
-            repeat: -1,
+            dispose: index === bilder.length - 1 && ! schleife ? 1 : 2,
+            // 0 = endlos, -1 = kein Schleifenblock (spielt einmal).
+            repeat: schleife ? 0 : -1,
         });
     });
 
@@ -211,36 +230,63 @@ for (const name of WORTMARKEN) {
             c.width = B; c.height = H;
             const x = c.getContext('2d');
 
-            // --- Zeichen nacheinander aus dem Nichts ---------------------
-            // Jedes Zeichen startet unscharf, tiefer und ohne Deckung und
-            // faehrt in seine Lage. Der Versatz je Zeichen ergibt das
-            // Nacheinander.
-            const zeichenBis = 0.62;
+            // --- Zeichen werden GESCHRIEBEN ------------------------------
+            // Nicht eingeblendet, sondern gezogen: Jedes Zeichen wird von
+            // einer schraegen Kante freigelegt, die seiner Neigung folgt —
+            // so, wie ein Stift ueber das Papier laeuft. Die Schraege ist
+            // wesentlich: Der Schriftzug ist kursiv, eine senkrechte Kante
+            // wirkte wie eine Jalousie, keine Schreibbewegung.
+            const NEIGUNG = 0.30;          // seitlicher Versatz je Hoeheneinheit
+            const KANTE = 9;               // Weichzeichnung der Schreibkante
+            const zeichenBis = 0.60;
             for (let k = 0; k < grenzen.length - 1; k += 1) {
                 const von = grenzen[k];
                 const bis = grenzen[k + 1];
                 const start = (k / (grenzen.length - 1)) * zeichenBis;
-                const p = glatt(klemm((t - start) / 0.2));
+                const p = klemm((t - start) / 0.17);
                 if (p <= 0) continue;
 
+                if (p >= 1) {
+                    x.drawImage(bild, von, 0, bis - von, trenner, von, 0, bis - von, trenner);
+                    continue;
+                }
+
+                // Die Kante laeuft von links nach rechts durch das Zeichen
+                // und ist oben weiter vorn als unten — entlang der Kursive.
+                const versatz = trenner * NEIGUNG;
+                const spitze = von - versatz - KANTE + (p * (bis - von + (2 * versatz) + (2 * KANTE)));
+
                 x.save();
-                x.globalAlpha = p;
-                if (p < 1) x.filter = `blur(${(1 - p) * 3.2}px)`;
-                x.drawImage(
-                    bild,
-                    von, 0, bis - von, trenner,
-                    von, (1 - p) * 7, bis - von, trenner,
-                );
+                x.beginPath();
+                x.moveTo(spitze + versatz, 0);
+                x.lineTo(von - versatz - KANTE, 0);
+                x.lineTo(von - versatz - KANTE, trenner);
+                x.lineTo(spitze - versatz, trenner);
+                x.closePath();
+                x.clip();
+                x.drawImage(bild, von, 0, bis - von, trenner, von, 0, bis - von, trenner);
+
+                // Die Spitze des Stiftes: ein schmaler heller Streifen an
+                // der Schreibkante, der nur auf der Schrift selbst sichtbar
+                // wird (source-atop).
+                const g = x.createLinearGradient(spitze - 14, 0, spitze + 2, 0);
+                g.addColorStop(0, 'rgba(255,255,255,0)');
+                g.addColorStop(1, 'rgba(255,255,255,0.55)');
+                x.globalCompositeOperation = 'source-atop';
+                x.fillStyle = g;
+                x.fillRect(von - versatz - KANTE, 0, (bis - von) + (2 * versatz) + (2 * KANTE), trenner);
+                x.globalCompositeOperation = 'source-over';
                 x.restore();
             }
 
-            // --- Danach die Linie, von der Mitte nach aussen -------------
+            // --- Danach die Linie, von links nach rechts -----------------
+            // Wie ein Unterstrich, den man in einem Zug zieht.
             const linieP = glatt(klemm((t - 0.6) / 0.2));
             if (linieP > 0) {
-                const halb = (B / 2) * linieP;
+                const bisX = B * linieP;
                 for (let sx = 0; sx < B; sx += 1) {
                     if (istText[sx]) continue;
-                    if (Math.abs(sx - (B / 2)) > halb) continue;
+                    if (sx > bisX) continue;
                     x.drawImage(bild, sx, trenner, 1, H - trenner, sx, trenner, 1, H - trenner);
                 }
             }
@@ -277,6 +323,8 @@ if (pfade.length !== 3) {
     throw new Error(`Erwartet werden drei Pfade, gefunden: ${pfade.length}`);
 }
 
+const zeichenTakt = zeichenVerzoegerungen();
+
 for (const zeichen of ZEICHEN) {
     const { bilder, breite, hoehe } = await page.evaluate(async (a) => {
         const G = 132;
@@ -287,9 +335,20 @@ for (const zeichen of ZEICHEN) {
         // dann das rote R aussen herum, zuletzt das T in der Mitte.
         const stufen = [
             { d: a.pfade[1], farbe: '#e4002b', start: 0.02 },
-            { d: a.pfade[0], farbe: '#e4002b', start: 0.26 },
-            { d: a.pfade[2], farbe: a.tFarbe, start: 0.52 },
+            { d: a.pfade[0], farbe: '#e4002b', start: 0.10 },
+            { d: a.pfade[2], farbe: a.tFarbe, start: 0.19 },
         ];
+
+        // Abschnitte der geschlossenen Folge, als Anteil der Laufzeit:
+        //   0,00 - 0,30  Aufbau in drei Stufen
+        //   0,30 - 0,86  Ruhe: ein leises Kippen um die Hochachse mit
+        //                wanderndem Glanz — die Anmutung des 3D-Modells der
+        //                Anmeldeseite, mit den Mitteln einer Flaeche
+        //   0,86 - 1,00  Zurueck auf den leisen Rest, mit dem der Aufbau
+        //                beginnt: nur so schliesst sich der Kreis ohne Sprung
+        const RUHE_AB = 0.30;
+        const RUECK_AB = 0.86;
+        const REST = 0.16;
 
         const aus = [];
         for (let i = 0; i < a.bilder; i += 1) {
@@ -299,17 +358,31 @@ for (const zeichen of ZEICHEN) {
             c.width = G; c.height = G;
             const x = c.getContext('2d');
 
+            // Ruhephase: ein Kippen um die Hochachse, angenaehert durch
+            // eine Stauchung in der Breite. Ein volles Hin und Her je
+            // Durchlauf, damit Anfang und Ende gleich stehen.
+            const ruheP = klemm((t - RUHE_AB) / (RUECK_AB - RUHE_AB));
+            const kippen = Math.sin(ruheP * Math.PI * 2);
+            const breitSkala = 1 - (Math.abs(kippen) * 0.09);
+
+            // Rueckgang auf den leisen Rest — der Ausgangspunkt des Aufbaus.
+            const rueck = glatt(klemm((t - RUECK_AB) / (1 - RUECK_AB)));
+
             for (const stufe of stufen) {
-                const p = glatt(klemm((t - stufe.start) / 0.22));
+                const p = glatt(klemm((t - stufe.start) / 0.09));
                 if (p <= 0) continue;
 
+                const deckung = Math.max(REST * rueck, p * (1 - rueck)) + (rueck * REST * 0);
+                const sichtbar = rueck > 0 ? ((p * (1 - rueck)) + (REST * rueck)) : p;
+                if (sichtbar <= 0.01) continue;
+
                 x.save();
-                x.globalAlpha = p;
+                x.globalAlpha = sichtbar;
                 // Aus dem Nichts: leicht zu gross und unscharf beginnen,
                 // dann in die eigene Lage einrasten.
                 const skala = 1 + ((1 - p) * 0.14);
                 x.translate(G / 2, G / 2);
-                x.scale(skala, skala);
+                x.scale(skala * breitSkala, skala);
                 x.translate(-G / 2, -G / 2);
                 if (p < 1) x.filter = `blur(${(1 - p) * 2.6}px)`;
 
@@ -328,9 +401,9 @@ for (const zeichen of ZEICHEN) {
         }
 
         return { bilder: aus, breite: G, hoehe: G };
-    }, { pfade, tFarbe: zeichen.t, bilder: BILDER });
+    }, { pfade, tFarbe: zeichen.t, bilder: ZEICHEN_BILDER });
 
-    schreibeGif(bilder.map((b) => new Uint8Array(b)), breite, hoehe, `${zeichen.key}.gif`);
+    schreibeGif(bilder.map((b) => new Uint8Array(b)), breite, hoehe, `${zeichen.key}.gif`, zeichenTakt, true);
 }
 
 await browser.close();

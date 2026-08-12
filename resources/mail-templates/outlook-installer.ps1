@@ -95,7 +95,7 @@ function Get-PayloadRelativePaths {
     $paths += ($Name + '.rtf')
     $paths += ($Name + '.txt')
     $paths += (Join-Path $assetFolder 'zug-dampf.gif')
-    $paths += (Join-Path $assetFolder 'logo.png')
+    $paths += (Join-Path $assetFolder 'logo.gif')
     $paths += (Join-Path $assetFolder 'contact-location.png')
     $paths += (Join-Path $assetFolder 'contact-phone.png')
     $paths += (Join-Path $assetFolder 'contact-mobile.png')

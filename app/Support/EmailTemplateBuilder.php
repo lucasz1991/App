@@ -668,6 +668,10 @@ class EmailTemplateBuilder
             'ICON_RT_SRC' => $inlineImages
                 ? self::inlineImage(self::emailMarkAsset($theme), 'image/gif')
                 : 'cid:railtime-mark',
+            // Standbild fuer Outlook-Desktop, siehe email-master.html.
+            'ICON_RT_STILL_SRC' => $inlineImages
+                ? self::inlineImage(str_replace('.gif', '.png', self::emailMarkAsset($theme)), 'image/png')
+                : 'cid:railtime-mark-still',
         ]);
 
         // Signatur und Pflichtangaben kommen aus der gemeinsamen Quelle
@@ -1151,6 +1155,10 @@ TEXT;
             'railtime-mark' => [
                 'filename' => $markAsset,
                 'content' => file_get_contents(self::masterPath('assets/'.$markAsset)),
+            ],
+            'railtime-mark-still' => [
+                'filename' => str_replace('.gif', '.png', $markAsset),
+                'content' => file_get_contents(self::masterPath('assets/'.str_replace('.gif', '.png', $markAsset))),
             ],
         ];
 

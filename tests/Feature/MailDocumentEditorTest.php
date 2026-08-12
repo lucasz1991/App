@@ -388,9 +388,10 @@ class MailDocumentEditorTest extends TestCase
         ));
         $config = json_decode($match[1], true, flags: JSON_THROW_ON_ERROR);
 
-        foreach (['light.logo', 'dark.logo'] as $asset) {
+        // Wortmarke und Zeichen sind bewegt, siehe render-marken-animation.
+        foreach (['light.logo', 'dark.logo', 'light.mark', 'dark.mark'] as $asset) {
             $this->assertStringStartsWith(
-                'data:image/png;base64,',
+                'data:image/gif;base64,',
                 (string) data_get($config, 'previewAssets.'.$asset),
                 $asset,
             );

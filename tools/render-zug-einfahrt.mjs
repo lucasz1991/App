@@ -52,7 +52,25 @@ const SKALA = Number(process.env.RT_SKALA || 2);                       // 1400 x
 // Das Motiv ist 2053 : 151 breit zu hoch. Der Faktor sagt, wie viel
 // breiter der Zug als die Leinwand gezeichnet wird — je groesser, desto
 // naeher steht er am Betrachter und desto mehr laeuft links heraus.
-const ZUG_FAKTOR = Number(process.env.RT_FAKTOR || 1.8);
+/*
+ * WIE GROSS DER ZUG IM BILD STEHT — aus der geforderten Wagenzahl
+ * GERECHNET, nicht geschaetzt.
+ *
+ * Am Motiv nachgemessen: die Lok belegt die Einheiten 1338 bis 2046, ein
+ * Wagen misst 330 Einheiten. Fuer die Lok plus WAGEN_SICHTBAR Wagen muss
+ * die Leinwand also
+ *
+ *     708 + WAGEN_SICHTBAR * 330
+ *
+ * Einheiten zeigen. Der Faktor sagt, wie breit ein Motivdurchlauf
+ * gegenueber der Leinwand gezeichnet wird — er ergibt sich daraus als
+ * 2053 geteilt durch diese Zahl.
+ */
+const WAGEN_SICHTBAR = Number(process.env.RT_WAGEN || 6);
+const LOK_EINHEITEN = 708;
+const WAGEN_EINHEITEN = 330;
+const SICHTBARE_EINHEITEN = LOK_EINHEITEN + (WAGEN_SICHTBAR * WAGEN_EINHEITEN);
+const ZUG_FAKTOR = Number(process.env.RT_FAKTOR || (2053 / SICHTBARE_EINHEITEN));
 const ZUG_BREITE = BREITE * ZUG_FAKTOR;
 
 /*
@@ -73,7 +91,10 @@ const ZUG_HOEHE = ZUG_BREITE * (151 / 2053);
 // HOEHE = Zughoehe mal Kopfraum. Der Kopfraum ist der Himmel ueber dem
 // Zug, in dem die Rauchfahne aufsteigt — je groesser, desto hoeher darf
 // sie ziehen, bevor sie oben abgeschnitten wird.
-const KOPFRAUM = Number(process.env.RT_KOPFRAUM || 1.9);
+// Der Kopfraum ist jetzt ein VIELFACHES der Zughoehe, weil der Zug mit
+// sechs Wagen deutlich flacher im Bild steht. Ohne diese Entkopplung
+// schrumpfte der Himmel mit und die Fahne haette keinen Platz mehr.
+const KOPFRAUM = Number(process.env.RT_KOPFRAUM || 4.2);
 const HOEHE = Math.round(ZUG_HOEHE * KOPFRAUM);
 const RUHE_X = BREITE - ZUG_BREITE;     // Lok am rechten Bildrand
 const START_X = -ZUG_BREITE * (1 + (WAGENTEIL * ANHAENGE));
@@ -81,11 +102,13 @@ const ZUG_Y = HOEHE - ZUG_HOEHE;
 const SCHORNSTEIN_X = BREITE - (ZUG_BREITE * 0.035);
 
 // --- Zeiten (vertraglich, siehe EmailTemplatesPageTest) ---------------
-const BILDER = Number(process.env.RT_BILDER || 44);
+const BILDER = Number(process.env.RT_BILDER || 56);
 const ERSTES_CS = 30;
 const SUMME_CS = 740;
 const GESAMT_S = SUMME_CS / 100;
-const FAHRT_S = 2.6;                    // bis zum Stillstand
+// SIEBEN SEKUNDEN bis zum Stillstand. Danach bleibt das letzte Einzelbild
+// stehen — das ist der Ruhezustand.
+const FAHRT_S = 7.0;
 // Die Fahne VERWEHT NICHT. Sie bleibt stehen wie in der klassischen
 // Fassung — nur der Ausstoss endet, wenn der Zug haelt.
 
@@ -171,13 +194,15 @@ const rausch = (i, salz = 0) => {
 // und als einzelne Ballen stehen bleiben statt zu verschmelzen.
 // Bezugsmass ist die fruehere Leinwand von 560 Einheiten.
 const MASSSTAB = BREITE / 560;
-const WOLKEN = 260;
+const WOLKEN = 420;
 const wolken = Array.from({ length: WOLKEN }, (_, i) => ({
-    geburt: (i / WOLKEN) * 3.6,
-    drift: (-16 - (rausch(i, 1) * 22)) * MASSSTAB,
-    steigen: (-8 - (rausch(i, 2) * 7)) * MASSSTAB,
-    wuchs: (3.0 + (rausch(i, 3) * 3.6)) * MASSSTAB,
-    r0: (2.0 + (rausch(i, 1) * 2.2)) * MASSSTAB,
+    geburt: (i / WOLKEN) * (FAHRT_S * 0.92),
+    // Streuung breiter als zuvor: gleichfoermige Werte ergaben eine Bank,
+    // keine Fahne.
+    drift: (-11 - (rausch(i, 1) * 30)) * MASSSTAB,
+    steigen: (-6 - (rausch(i, 2) * 11)) * MASSSTAB,
+    wuchs: (2.4 + (rausch(i, 3) * 4.4)) * MASSSTAB,
+    r0: (1.4 + (rausch(i, 1) * 1.6)) * MASSSTAB,
     phase: rausch(i, 2) * Math.PI * 2,
 }));
 
@@ -188,12 +213,24 @@ function wolkeBei(w, t, schornsteinX) {
     // Der Rauch tritt dort aus, wo der Schornstein ZUM ZEITPUNKT DES
     // AUSTRITTS stand — nur so bleibt die Fahne hinter dem Zug zurueck.
     const auftauchen = glatt(w.geburt, w.geburt + 0.35, t);
+    const r = w.r0 + (w.wuchs * alter);
+
+    // DAS IST DER PUNKT FUER DIE GLAUBWUERDIGKEIT: Rauch wird duenner,
+    // waehrend er sich ausdehnt — dieselbe Menge verteilt sich auf eine
+    // groessere Flaeche. Ohne diese Abnahme steht die alte Fahne genauso
+    // dicht wie der frische Ausstoss am Schornstein, und das Ergebnis wirkt
+    // wie eine aufgemalte Bank statt wie Dampf.
+    const verduennung = (w.r0 / r) ** 1.35;
 
     return {
-        x: schornsteinX + (w.drift * alter) + (Math.sin(w.phase + (alter * 1.7)) * 2.4 * MASSSTAB),
-        y: (ZUG_Y + (ZUG_HOEHE * 0.16)) + (w.steigen * alter) + (Math.cos(w.phase + (alter * 1.3)) * 1.2 * MASSSTAB),
-        r: w.r0 + (w.wuchs * alter),
-        alpha: auftauchen * 0.085,
+        // Die seitliche Streuung waechst mit dem Alter: die Fahne faechert
+        // auf, statt als Schnur zu ziehen.
+        x: schornsteinX + (w.drift * alter)
+            + (Math.sin(w.phase + (alter * 1.7)) * 2.4 * MASSSTAB * (1 + (alter * 0.6))),
+        y: (ZUG_Y + (ZUG_HOEHE * 0.16)) + (w.steigen * alter)
+            + (Math.cos(w.phase + (alter * 1.3)) * 1.2 * MASSSTAB * (1 + (alter * 0.4))),
+        r,
+        alpha: auftauchen * 0.30 * verduennung,
     };
 }
 
@@ -347,8 +384,19 @@ for (const v of VARIANTEN) {
     const gif = Buffer.from(encoder.bytes());
     writeFileSync(`${ASSETS}/zug-dampf-${v.key}.gif`, gif);
 
-    // --- Standbild: Ruhelage, kein Rauch, echtes Alpha ------------------
-    const still = await page.evaluate((a) => {
+    // --- Standbild: EXAKT das letzte Einzelbild -------------------------
+    // Es liegt als Netz hinter dem GIF (siehe signature.blade.php). Waere
+    // es ein anderer Zustand — etwa ohne Rauch —, spraenge das Bild in dem
+    // Moment, in dem das GIF seine Flaeche doch raeumt. Gleiches Bild,
+    // kein Sprung.
+    const stillRoh = letztesBild;
+    const stillPng = new PNG({ width: BREITE * SKALA, height: HOEHE * SKALA });
+    stillPng.data.set(stillRoh);
+    const stillBytes = PNG.sync.write(stillPng, { deflateLevel: 9 });
+    writeFileSync(`${ASSETS}/zug-dampf-${v.key}.png`, stillBytes);
+    console.log(`  ${v.key}: Standbild ${(stillBytes.length / 1024).toFixed(1)} kB (deckungsgleich mit dem letzten Einzelbild)`);
+
+    const altStill = await page.evaluate((a) => {
         const c = document.createElement('canvas');
         c.width = a.breite * a.skala;
         c.height = a.hoehe * a.skala;

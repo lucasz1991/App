@@ -352,7 +352,7 @@ class EmailTemplatesPageTest extends TestCase
                 "{$signatureName}.rtf",
                 "{$signatureName}.txt",
                 "{$assetFolder}/zug-dampf.gif",
-                "{$assetFolder}/logo.png",
+                "{$assetFolder}/logo.gif",
                 "{$assetFolder}/contact-location.png",
                 "{$assetFolder}/contact-phone.png",
                 "{$assetFolder}/contact-mobile.png",
@@ -478,7 +478,7 @@ class EmailTemplatesPageTest extends TestCase
                         "{$signatureName}.rtf",
                         "{$signatureName}.txt",
                         "{$assetFolder}/zug-dampf.gif",
-                        "{$assetFolder}/logo.png",
+                        "{$assetFolder}/logo.gif",
                         "{$assetFolder}/contact-location.png",
                         "{$assetFolder}/contact-phone.png",
                         "{$assetFolder}/contact-mobile.png",
@@ -718,7 +718,7 @@ class EmailTemplatesPageTest extends TestCase
         );
         $this->assertStringContainsString('color:#111820;font-size:23px;', $light);
         $this->assertStringContainsString(
-            'data:image/png;base64,'.base64_encode(file_get_contents(resource_path('mail-templates/assets/wortmarke-signature-light.png'))),
+            'data:image/gif;base64,'.base64_encode(file_get_contents(resource_path('mail-templates/assets/wortmarke-signature-light.gif'))),
             $light
         );
         $this->assertStringNotContainsString('bgcolor="#080b10"', $light);
@@ -730,7 +730,7 @@ class EmailTemplatesPageTest extends TestCase
         );
         $this->assertStringContainsString('color:#ffffff;font-size:23px;', $dark);
         $this->assertStringContainsString(
-            'data:image/png;base64,'.base64_encode(file_get_contents(resource_path('mail-templates/assets/wortmarke-mail-dark.png'))),
+            'data:image/gif;base64,'.base64_encode(file_get_contents(resource_path('mail-templates/assets/wortmarke-mail-dark.gif'))),
             $dark
         );
         $this->assertNotSame($light, $dark);
@@ -790,8 +790,8 @@ class EmailTemplatesPageTest extends TestCase
 
             $this->assertStringContainsString("X-RailTime-Theme: {$theme}", $eml);
             $logoFilename = $theme === 'light'
-                ? 'wortmarke-signature-light.png'
-                : 'wortmarke-mail-dark.png';
+                ? 'wortmarke-signature-light.gif'
+                : 'wortmarke-mail-dark.gif';
             $this->assertStringContainsString("Content-Disposition: inline; filename=\"{$logoFilename}\"", $eml);
             $this->assertStringContainsString(
                 'Subject: =?UTF-8?B?'.base64_encode('{{BETREFF}} | RailTime Prüfgesellschaft mbH').'?=',
@@ -851,14 +851,13 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertStringContainsString('href="mailto:mara@example.test"', $html);
         $this->assertStringContainsString('href="https://rail-time.example/leistungen"', $html);
         $this->assertStringContainsString('>rail-time.example/leistungen<', $html);
-        // Wortmarke zweimal (breit in der Markenspalte, gestapelt oben),
-        // drei Personenicons, Firmenicons ZWEIMAL vier (gespiegelt fuer
-        // breit, ungespiegelt fuer gestapelt) und die beiden Ebenen der
-        // Hintergrundgrafik.
+        // PNG: drei Personenicons, Firmenicons zweimal vier, die beiden
+        // Ebenen der Hintergrundgrafik und ZWEIMAL das Standbild der
+        // Wortmarke (fuer Outlook, das von einem GIF nur das erste — beim
+        // Aufbau fast leere — Einzelbild zeigt).
         $this->assertSame(15, substr_count($html, 'data:image/png;base64,'));
-        // Nur noch EIN GIF: die Standrauch-Ebene ist entfallen, seit die
-        // Fahne der Einfahrt von selbst verweht.
-        $this->assertSame(1, substr_count($html, 'data:image/gif;base64,'));
+        // GIF: der Zug und zweimal die bewegte Wortmarke.
+        $this->assertSame(3, substr_count($html, 'data:image/gif;base64,'));
         $this->assertStringContainsString('class="rt-sign-logo"', $html);
         $this->assertStringNotContainsString('RT_PHONE_START', $html);
         $this->assertStringNotContainsString('{{TRAIN_SRC}}', $html);
