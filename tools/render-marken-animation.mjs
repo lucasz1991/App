@@ -39,8 +39,8 @@ const CHROME = process.env.RT_CHROME || 'C:/Program Files/Google/Chrome/Applicat
 const ASSETS = 'resources/mail-templates/assets';
 const OEFFENTLICH = 'public/mail-assets';
 
-const BILDER = 42;
-const SUMME_CS = 320;
+const BILDER = 60;
+const SUMME_CS = 620;
 
 // Das RT-Zeichen laeuft dauerhaft und braucht deshalb eine eigene, laengere
 // Folge. WICHTIG: Ein GIF wiederholt IMMER die ganze Animation — es gibt
@@ -222,6 +222,22 @@ for (const name of WORTMARKEN) {
         const glatt = (v) => v * v * (3 - (2 * v));
         const klemm = (v) => Math.min(1, Math.max(0, v));
 
+        // Aus der Spalten-Kennung zusammenhaengende Baender machen. Damit
+        // laesst sich in EINEM Zug zeichnen statt Spalte fuer Spalte.
+        const baender = (pruefe) => {
+            const raus = [];
+            let start = -1;
+            for (let sx = 0; sx <= B; sx += 1) {
+                const drin = sx < B && pruefe(sx);
+                if (drin && start < 0) start = sx;
+                if (! drin && start >= 0) { raus.push([start, sx]); start = -1; }
+            }
+
+            return raus;
+        };
+        const linienBaender = baender((sx) => ! istText[sx]);
+        const textBaender = baender((sx) => istText[sx]);
+
         const aus = [];
         for (let i = 0; i < a.bilder; i += 1) {
             const t = i / (a.bilder - 1);
@@ -243,7 +259,11 @@ for (const name of WORTMARKEN) {
                 const von = grenzen[k];
                 const bis = grenzen[k + 1];
                 const start = (k / (grenzen.length - 1)) * zeichenBis;
-                const p = klemm((t - start) / 0.17);
+                // Weicher gefuehrt: anlaufen, ziehen, auslaufen — statt mit
+                // gleichbleibender Geschwindigkeit durchzufahren. Eine
+                // Schreibbewegung ist nie gleichfoermig.
+                const roh = klemm((t - start) / 0.20);
+                const p = roh * roh * (3 - (2 * roh));
                 if (p <= 0) continue;
 
                 if (p >= 1) {
@@ -281,25 +301,33 @@ for (const name of WORTMARKEN) {
 
             // --- Danach die Linie, von links nach rechts -----------------
             // Wie ein Unterstrich, den man in einem Zug zieht.
-            const linieP = glatt(klemm((t - 0.6) / 0.2));
+            //
+            // FLAECHIG ueber einen Beschnitt, NICHT spaltenweise: Der frueher
+            // hier stehende 1-px-Blit je Spalte setzte an jeder Spaltenkante
+            // neu an. Bei weichen Kanten ergab das eine Reihe feiner Punkte —
+            // genau die gemeldeten Stoerungen an Strich und GMBH.
+            const linieP = glatt(klemm((t - 0.62) / 0.22));
             if (linieP > 0) {
-                const bisX = B * linieP;
-                for (let sx = 0; sx < B; sx += 1) {
-                    if (istText[sx]) continue;
-                    if (sx > bisX) continue;
-                    x.drawImage(bild, sx, trenner, 1, H - trenner, sx, trenner, 1, H - trenner);
+                x.save();
+                x.beginPath();
+                for (const [von, bis] of linienBaender) {
+                    const w = Math.min(bis, B * linieP) - von;
+                    if (w > 0) x.rect(von, trenner, w, H - trenner);
                 }
+                x.clip();
+                x.drawImage(bild, 0, trenner, B, H - trenner, 0, trenner, B, H - trenner);
+                x.restore();
             }
 
             // --- Zuletzt GMBH ------------------------------------------
-            const textP = glatt(klemm((t - 0.78) / 0.18));
+            const textP = glatt(klemm((t - 0.82) / 0.18));
             if (textP > 0) {
                 x.save();
                 x.globalAlpha = textP;
-                for (let sx = 0; sx < B; sx += 1) {
-                    if (!istText[sx]) continue;
-                    x.drawImage(bild, sx, trenner, 1, H - trenner, sx, trenner, 1, H - trenner);
-                }
+                x.beginPath();
+                for (const [von, bis] of textBaender) x.rect(von, trenner, bis - von, H - trenner);
+                x.clip();
+                x.drawImage(bild, 0, trenner, B, H - trenner, 0, trenner, B, H - trenner);
                 x.restore();
             }
 
@@ -351,8 +379,15 @@ for (const zeichen of ZEICHEN) {
         const REST = 0.16;
 
         const aus = [];
+        // PHASENVERSATZ: Der Zyklus startet am FERTIGEN Zeichen, nicht am
+        // leeren. Sichtbar ist derselbe Ablauf — aber das ERSTE Einzelbild
+        // zeigt die Marke vollstaendig, und genau dieses eine sehen alle
+        // Vorschauen und jeder Client, der Animationen nicht abspielt.
+        // Ohne den Versatz wirkte das Zeichen schlicht als fehlend.
+        const VERSATZ = 0.30;
+
         for (let i = 0; i < a.bilder; i += 1) {
-            const t = i / (a.bilder - 1);
+            const t = ((i / a.bilder) + VERSATZ) % 1;
 
             const c = document.createElement('canvas');
             c.width = G; c.height = G;

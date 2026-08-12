@@ -102,24 +102,30 @@ const ZUG_Y = HOEHE - ZUG_HOEHE;
 const SCHORNSTEIN_X = BREITE - (ZUG_BREITE * 0.035);
 
 // --- Zeiten (vertraglich, siehe EmailTemplatesPageTest) ---------------
-const BILDER = Number(process.env.RT_BILDER || 64);
+const BILDER = Number(process.env.RT_BILDER || 72);
 const ERSTES_CS = 30;
-const SUMME_CS = 1000;
+const SUMME_CS = 1300;
 const GESAMT_S = SUMME_CS / 100;
 // SIEBEN SEKUNDEN bis zum Stillstand. Danach bleibt das letzte Einzelbild
 // stehen — das ist der Ruhezustand.
 const FAHRT_S = 7.0;
+
+// VORLAUF, bevor der Zug ueberhaupt anfaengt. In dieser Zeit schreiben sich
+// Wortmarke und Zeichen fertig — erst danach setzt sich der Zug in
+// Bewegung. Ohne den Versatz laeuft alles gleichzeitig und die Signatur
+// wirkt unruhig.
+const WARTE_S = Number(process.env.RT_WARTE || 3.0);
 // Die Fahne VERWEHT NICHT. Sie bleibt stehen wie in der klassischen
 // Fassung — nur der Ausstoss endet, wenn der Zug haelt.
 
 const STUFEN = Number(process.env.RT_STUFEN || 7);
-// DECKEND, und das ist eine gemessene Entscheidung: Durchsichtigkeit
-// macht die Datei KEIN Byte kleiner (gifenc schreibt so oder so Vollbilder)
-// und zwingt zusaetzlich zur Entsorgungsmethode 2, damit der fahrende Zug
-// nicht schmiert. Der sichtbare Kasten hinter dem Zug wird stattdessen
-// dadurch vermieden, dass Raster und Wasserzeichen als durchsichtige
-// Ebenen UEBER dem Zug liegen (siehe signature.blade.php).
-const DURCHSICHTIG = process.env.RT_TRANSPARENT === '1';
+// DURCHSICHTIG. Der Zug steht in der versendeten Mail als eigenes <img>
+// UEBER der Zelle — ein deckender Grund verdeckte dort das Raster des
+// Streifens als sichtbaren Kasten. Dass die Datei dadurch kein Byte
+// groesser wird, ist gemessen (16 Farben mit und ohne: identisch); der
+// Preis ist die Entsorgungsmethode 2, ohne die der fahrende Zug schmieren
+// wuerde.
+const DURCHSICHTIG = process.env.RT_TRANSPARENT !== '0';
 
 const VARIANTEN = [
     { key: 'light', grund: [255, 255, 255], rauch: '90, 99, 110', deckkraft: 0.30 },
@@ -139,7 +145,7 @@ const VARIANTEN = [
  * statt der 5,9, die eine gleichmaessige Verteilung ergaebe.
  */
 function verzoegerungen() {
-    const fahrtAnteil = FAHRT_S / GESAMT_S;
+    const fahrtAnteil = (WARTE_S + FAHRT_S) / GESAMT_S;
     const fahrtBilder = Math.max(2, Math.round(BILDER * 0.72));
     const restBilder = BILDER - fahrtBilder;
 
@@ -202,11 +208,11 @@ const MASSSTAB = BREITE / 560;
  * (oder wenn ein Client die Animation abbricht) kein Sprung mehr
  * entstehen — es gibt keinen Unterschied, der springen koennte.
  */
-const RAUCH_AUS_AB = FAHRT_S * 0.62;
+const RAUCH_AUS_AB = WARTE_S + (FAHRT_S * 0.62);
 const RAUCH_AUS_BIS = 0.94;             // Anteil der Gesamtzeit
 const WOLKEN = 200;
 const wolken = Array.from({ length: WOLKEN }, (_, i) => ({
-    geburt: (i / WOLKEN) * (FAHRT_S * 0.72),
+    geburt: WARTE_S + ((i / WOLKEN) * (FAHRT_S * 0.72)),
     // Streuung breiter als zuvor: gleichfoermige Werte ergaben eine Bank,
     // keine Fahne.
     drift: (-11 - (rausch(i, 1) * 30)) * MASSSTAB,
@@ -362,11 +368,11 @@ for (const v of VARIANTEN) {
 
     for (let i = 0; i < BILDER; i += 1) {
         const t = zeiten[i];
-        const zugX = mische(START_X, RUHE_X, easeOut(t / FAHRT_S));
+        const zugX = mische(START_X, RUHE_X, easeOut((t - WARTE_S) / FAHRT_S));
 
         const sichtbar = [];
         for (const w of wolken) {
-            const xBeiGeburt = mische(START_X, RUHE_X, easeOut(w.geburt / FAHRT_S));
+            const xBeiGeburt = mische(START_X, RUHE_X, easeOut((w.geburt - WARTE_S) / FAHRT_S));
             const z = wolkeBei(w, t, SCHORNSTEIN_X + (xBeiGeburt - RUHE_X));
             if (z && z.alpha > 0.004 && z.x > -60 && z.x < BREITE + 60) sichtbar.push(z);
         }
