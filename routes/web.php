@@ -278,6 +278,10 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
                 ->whereUuid('creative')
                 ->middleware('throttle:30,1')
                 ->name('marketing.creatives.archive');
+            Route::delete('/marketing/motive/{creative}', [MarketingCreativeController::class, 'destroy'])
+                ->whereUuid('creative')
+                ->middleware('throttle:30,1')
+                ->name('marketing.creatives.destroy');
             Route::put('/marketing/motive/{creative}/varianten/{format}', [MarketingVariantController::class, 'update'])
                 ->whereUuid('creative')
                 ->whereIn('format', ['story', 'post', 'web'])

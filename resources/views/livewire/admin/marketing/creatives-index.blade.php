@@ -229,6 +229,20 @@
                                     <i data-feather="archive" class="h-4 w-4" aria-hidden="true"></i>
                                 </button>
                             @endif
+                            <button
+                                type="button"
+                                wire:click="deleteCreative('{{ $creative->public_id }}')"
+                                wire:confirm="Dieses Motiv endgültig aus dem Marketing-Studio entfernen? Es ist danach nicht mehr im Editor, in Vorschauen oder Exporten erreichbar."
+                                wire:loading.attr="disabled"
+                                @class([
+                                    'inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-rt-soft transition hover:bg-rose-50 hover:text-rt-red disabled:opacity-50 dark:hover:bg-rose-500/10',
+                                    'ml-auto' => $statusValue === 'archived',
+                                ])
+                                title="Motiv entfernen"
+                                aria-label="{{ $creative->title }} aus dem Marketing-Studio entfernen"
+                            >
+                                <i data-feather="trash-2" class="h-4 w-4" aria-hidden="true"></i>
+                            </button>
                         </div>
                     </article>
                 @endforeach

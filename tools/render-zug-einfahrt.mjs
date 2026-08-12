@@ -94,7 +94,7 @@ const ZUG_HOEHE = ZUG_BREITE * (151 / 2053);
 // Der Kopfraum ist jetzt ein VIELFACHES der Zughoehe, weil der Zug mit
 // sechs Wagen deutlich flacher im Bild steht. Ohne diese Entkopplung
 // schrumpfte der Himmel mit und die Fahne haette keinen Platz mehr.
-const KOPFRAUM = Number(process.env.RT_KOPFRAUM || 3.2);
+const KOPFRAUM = Number(process.env.RT_KOPFRAUM || 1.8);
 const HOEHE = Math.round(ZUG_HOEHE * KOPFRAUM);
 const RUHE_X = BREITE - ZUG_BREITE;     // Lok am rechten Bildrand
 const START_X = -ZUG_BREITE * (1 + (WAGENTEIL * ANHAENGE));

@@ -68,29 +68,6 @@ function spaltenTinte(png) {
     return tinte;
 }
 
-/**
- * Findet die Oberkante des Bandes mit Linie und GMBH.
- *
- * Der Schriftzug steht oben, darunter folgt nach einem leeren Streifen die
- * Linie mit dem Zusatz GMBH. Gesucht wird dieser leere Streifen: die erste
- * Zeile ohne Tinte, auf die wieder Tinte folgt. Gibt es ihn nicht, traegt
- * das Bild nur den Schriftzug und es ist nichts abzuschneiden.
- */
-function zusatzBand(png) {
-    const zeile = new Array(png.height).fill(0);
-    for (let y = 0; y < png.height; y++) {
-        for (let x = 0; x < png.width; x++) {
-            if (png.data[((png.width * y + x) << 2) + 3] > 16) zeile[y] += 1;
-        }
-    }
-
-    for (let y = Math.floor(png.height * 0.4); y < png.height - 1; y++) {
-        if (zeile[y] === 0 && zeile[y + 1] > 0) return y;
-    }
-
-    return png.height;
-}
-
 function beschneiden(png, links, bis = png.height) {
     let oben = bis;
     let unten = -1;
@@ -124,17 +101,16 @@ function beschneiden(png, links, bis = png.height) {
 function wortmarke(quelle, ziel) {
     const png = PNG.sync.read(readFileSync(`${QUELLE}/${quelle}`));
     const schnitt = schnittSpalte(png);
-    // OHNE die Zeile mit Linie und GMBH: Sie war eine zweite Ueberschrift
-    // unter der Marke und auf dem Telefon nur noch ein graues Band. Die
-    // Rechtsform steht ohnehin in den Pflichtangaben am Fuss.
-    const unten = zusatzBand(png);
-    const aus = beschneiden(png, schnitt, unten);
+    // Geschnitten wird NUR senkrecht: das RT-Zeichen faellt weg, die Zeile
+    // aus Linie und GMBH bleibt. Sie gehoert zur Marke — ein frueherer
+    // Versuch, auch sie abzuschneiden, wurde zurueckgenommen.
+    const aus = beschneiden(png, schnitt);
     const bytes = PNG.sync.write(aus, { deflateLevel: 9 });
 
     writeFileSync(`${QUELLE}/${ziel}`, bytes);
     console.log(
         `${ziel.padEnd(30)} ${png.width}x${png.height} -> ${aus.width}x${aus.height}`
-        + `  (Schnitt bei x=${schnitt}, ohne Zusatzband ab y=${unten}, ${(bytes.length / 1024).toFixed(1)} kB)`,
+        + `  (Zeichen abgeschnitten bei x=${schnitt}, ${(bytes.length / 1024).toFixed(1)} kB)`,
     );
 }
 

@@ -233,7 +233,7 @@ class FilePoolUploadWorkflowTest extends TestCase
         $this->assertDatabaseMissing('files', ['name' => 'ziel.txt']);
     }
 
-    public function test_upload_validation_limits_file_count_and_each_file_to_one_hundred_megabytes(): void
+    public function test_upload_validation_limits_file_count_and_each_file_to_fifty_megabytes(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $pool = $this->companyPool();
@@ -261,16 +261,17 @@ class FilePoolUploadWorkflowTest extends TestCase
             ])
             ->call('openUploadForm')
             ->set("fileUploads.{$pool->id}", [
-                UploadedFile::fake()->create('zu-gross.bin', 102401, 'application/octet-stream'),
+                UploadedFile::fake()->create('zu-gross.bin', 51201, 'application/octet-stream'),
             ])
             ->call('uploadFile', $pool->id)
-            // Livewires globale Temp-Upload-Regel ist ebenfalls 100 MB und
+            // Livewires globale Temp-Upload-Regel ist ebenfalls 50 MB und
             // weist die Datei bereits am Modellpfad ab, bevor die
             // komponenteneigene Wildcard-Regel laufen muss.
             ->assertHasErrors("fileUploads.$pool->id")
             ->assertSet('openFileForm', true);
 
         $this->assertDatabaseCount('files', 0);
+        $this->assertContains('max:51200', config('livewire.temporary_file_upload.rules'));
     }
 
     public function test_multi_file_database_failure_rolls_back_models_and_removes_new_blobs_without_closing_draft(): void

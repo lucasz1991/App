@@ -40,6 +40,7 @@ final class MarketingRenderController extends MarketingAdminController
         MarketingRenderService $renderer,
     ): JsonResponse {
         $this->marketingAdmin($request);
+        $this->assertAvailable($render);
 
         $render = $render->fresh();
 
@@ -55,6 +56,7 @@ final class MarketingRenderController extends MarketingAdminController
         MarketingRenderService $renderer,
     ): StreamedResponse {
         $this->marketingAdmin($request);
+        $this->assertAvailable($render);
         $snapshot = $renderer->downloadSnapshot($render);
         abort_unless(
             $snapshot !== null,
@@ -103,5 +105,17 @@ final class MarketingRenderController extends MarketingAdminController
                 ? route('admin.marketing.renders.download', $render)
                 : null,
         ];
+    }
+
+    private function assertAvailable(MarketingRender $render): void
+    {
+        $available = MarketingCreative::query()
+            ->whereKey($render->marketing_creative_id)
+            ->whereHas('variants', function ($query) use ($render): void {
+                $query->whereKey($render->marketing_creative_variant_id);
+            })
+            ->exists();
+
+        abort_unless($available, 404);
     }
 }

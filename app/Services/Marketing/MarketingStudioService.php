@@ -5,12 +5,16 @@ namespace App\Services\Marketing;
 use App\Enums\MarketingCreativeFormat;
 use App\Enums\MarketingCreativeStatus;
 use App\Enums\MarketingCreativeType;
+use App\Enums\MarketingRenderStatus;
 use App\Models\MarketingCreative;
 use App\Models\MarketingCreativeVariant;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use JsonException;
+use Throwable;
 
 final class MarketingStudioService
 {
@@ -525,6 +529,70 @@ final class MarketingStudioService
         });
     }
 
+    public function delete(MarketingCreative $creative, User $actor): void
+    {
+        abort_unless($actor->isAdmin(), 403);
+
+        DB::transaction(function () use ($creative, $actor): void {
+            $locked = MarketingCreative::query()->lockForUpdate()->findOrFail($creative->id);
+            $variants = $locked->variants()->orderBy('id')->lockForUpdate()->get();
+            $renders = $locked->renders()->orderBy('id')->lockForUpdate()->get();
+            $renderPaths = [];
+
+            foreach ($renders as $render) {
+                if ($render->path && $this->isPrivateDisk((string) $render->disk)) {
+                    $renderPaths[(string) $render->disk.'\0'.(string) $render->path] = [
+                        'disk' => (string) $render->disk,
+                        'path' => (string) $render->path,
+                    ];
+                }
+
+                $render->forceFill([
+                    'status' => MarketingRenderStatus::Failed,
+                    'path' => null,
+                    'mime_type' => null,
+                    'error' => 'Das Motiv wurde entfernt. Der Export ist nicht mehr abrufbar.',
+                    'rendered_at' => null,
+                ])->save();
+            }
+
+            $locked->forceFill(['updated_by' => $actor->id])->save();
+
+            activity('marketing')
+                ->causedBy($actor)
+                ->performedOn($locked)
+                ->event('deleted')
+                ->withProperties([
+                    'public_id' => (string) $locked->public_id,
+                    'title' => (string) $locked->title,
+                    'type' => $locked->type->value,
+                    'status' => $locked->status->value,
+                    'variant_ids' => $variants->modelKeys(),
+                    'render_ids' => $renders->modelKeys(),
+                ])
+                ->log('marketing_creative_deleted');
+
+            // Das Model-Event soft-loescht alle Varianten. Renderdatensaetze
+            // bleiben als Auditspur erhalten, koennen aber weder angezeigt
+            // noch heruntergeladen werden und verweisen auf keinen Blob mehr.
+            $locked->delete();
+
+            foreach ($renderPaths as $snapshot) {
+                DB::afterCommit(static function () use ($snapshot): void {
+                    try {
+                        Storage::disk($snapshot['disk'])->delete($snapshot['path']);
+                    } catch (Throwable $exception) {
+                        Log::warning('Konnte Export eines geloeschten Marketing-Motivs nicht entfernen.', [
+                            'disk' => $snapshot['disk'],
+                            'path' => $snapshot['path'],
+                            'error' => $exception->getMessage(),
+                        ]);
+                    }
+                });
+            }
+        });
+    }
+
     /** @param array<string, mixed> $builderData */
     public function contentHash(array $builderData, string $html, string $css): string
     {
@@ -556,6 +624,11 @@ final class MarketingStudioService
                 'creative' => 'Ein archiviertes Motiv kann nicht mehr bearbeitet werden.',
             ]);
         }
+    }
+
+    private function isPrivateDisk(string $disk): bool
+    {
+        return $disk !== '' && config('filesystems.disks.'.$disk.'.visibility') === 'private';
     }
 
     private function sortRecursively(mixed $value): mixed

@@ -1,7 +1,97 @@
 const INTERNAL_FILE_MIME = 'application/x-railtime-file';
 const FILES_TRANSFER_TYPE = 'Files';
 const DEFAULT_MAX_FILES = 20;
-const DEFAULT_MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
+const DEFAULT_MAX_FILE_SIZE_MB = 50;
+const DEFAULT_MAX_FILE_SIZE_BYTES = DEFAULT_MAX_FILE_SIZE_MB * 1024 * 1024;
+
+const FILE_KIND_RULES = [
+    { kind: 'image', icon: 'fa-file-image', extensions: ['avif', 'bmp', 'gif', 'heic', 'jpeg', 'jpg', 'png', 'svg', 'webp'] },
+    { kind: 'video', icon: 'fa-file-video', extensions: ['avi', 'm4v', 'mkv', 'mov', 'mp4', 'webm', 'wmv'] },
+    { kind: 'audio', icon: 'fa-file-audio', extensions: ['aac', 'flac', 'm4a', 'mp3', 'ogg', 'wav', 'wma'] },
+    { kind: 'pdf', icon: 'fa-file-pdf', extensions: ['pdf'] },
+    { kind: 'spreadsheet', icon: 'fa-file-excel', extensions: ['csv', 'ods', 'xls', 'xlsm', 'xlsx'] },
+    { kind: 'document', icon: 'fa-file-word', extensions: ['doc', 'docx', 'odt', 'rtf'] },
+    { kind: 'presentation', icon: 'fa-file-powerpoint', extensions: ['odp', 'ppt', 'pptx'] },
+    { kind: 'archive', icon: 'fa-file-archive', extensions: ['7z', 'gz', 'rar', 'tar', 'zip'] },
+    { kind: 'code', icon: 'fa-file-code', extensions: ['css', 'html', 'js', 'json', 'md', 'php', 'sql', 'ts', 'txt', 'xml', 'yaml', 'yml'] },
+];
+
+export function uploadFilePresentation(file) {
+    const filename = String(file?.name || '');
+    const extension = filename.includes('.') ? filename.split('.').pop().toLowerCase() : '';
+    const mimeGroup = String(file?.type || '').split('/')[0].toLowerCase();
+    const matched = FILE_KIND_RULES.find(({ kind, extensions }) => (
+        extensions.includes(extension) || ['image', 'video', 'audio'].includes(kind) && mimeGroup === kind
+    ));
+
+    return {
+        extension: extension ? extension.toUpperCase() : 'DATEI',
+        kind: matched?.kind || 'generic',
+        icon: matched?.icon || 'fa-file-alt',
+    };
+}
+
+export function formatUploadFileSize(bytes, locale = 'de-DE') {
+    const size = Math.max(0, Number(bytes) || 0);
+    if (size < 1024) {
+        return `${size} B`;
+    }
+
+    const units = ['KB', 'MB', 'GB'];
+    let value = size / 1024;
+    let unit = units[0];
+
+    for (let index = 1; index < units.length && value >= 1024; index += 1) {
+        value /= 1024;
+        unit = units[index];
+    }
+
+    return `${new Intl.NumberFormat(locale || 'de-DE', { maximumFractionDigits: value >= 10 ? 1 : 2 }).format(value)} ${unit}`;
+}
+
+export function uploadPreviewTemplate() {
+    return `
+        <article class="dz-preview rt-filepool-upload-file" data-file-kind="generic">
+            <div class="rt-filepool-upload-file__visual" aria-hidden="true">
+                <img class="rt-filepool-upload-file__thumbnail" data-dz-thumbnail alt="">
+                <span class="rt-filepool-upload-file__type-icon">
+                    <i class="fad fa-file-alt" data-upload-type-icon></i>
+                </span>
+                <span class="rt-filepool-upload-file__extension" data-upload-extension>DATEI</span>
+            </div>
+            <div class="rt-filepool-upload-file__body">
+                <div class="rt-filepool-upload-file__heading">
+                    <div class="rt-filepool-upload-file__identity">
+                        <span class="rt-filepool-upload-file__name" data-dz-name></span>
+                        <span class="rt-filepool-upload-file__meta">
+                            <span data-upload-file-size></span>
+                            <span aria-hidden="true">&bull;</span>
+                            <span data-upload-file-type>DATEI</span>
+                        </span>
+                    </div>
+                    <button type="button" class="dz-remove rt-filepool-upload-file__remove" data-dz-remove>
+                        <i class="far fa-trash-alt" aria-hidden="true"></i>
+                        <span class="sr-only" data-upload-remove-label>Datei entfernen</span>
+                    </button>
+                </div>
+                <div class="rt-filepool-upload-file__state">
+                    <span class="rt-filepool-upload-file__status">
+                        <i class="far fa-clock" data-upload-status-icon aria-hidden="true"></i>
+                        <span data-upload-status>Wird vorbereitet</span>
+                    </span>
+                    <span class="rt-filepool-upload-file__percent" data-upload-progress-value>0 %</span>
+                </div>
+                <div class="dz-progress rt-filepool-upload-file__progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                    <span class="dz-upload" data-dz-uploadprogress></span>
+                </div>
+                <div class="dz-error-message rt-filepool-upload-file__error" role="alert">
+                    <i class="far fa-exclamation-circle" aria-hidden="true"></i>
+                    <span data-dz-errormessage></span>
+                </div>
+            </div>
+        </article>
+    `.trim();
+}
 
 function transferTypes(dataTransfer) {
     if (!dataTransfer?.types) {
@@ -289,7 +379,7 @@ export function filePoolDropzone(config = {}) {
         single: config.single === true,
         opts: {
             maxFiles: Number(config.maxFiles || DEFAULT_MAX_FILES),
-            maxFilesize: Number(config.maxFilesize || 100),
+            maxFilesize: Number(config.maxFilesize || DEFAULT_MAX_FILE_SIZE_MB),
             acceptedFiles: config.acceptedFiles || '',
         },
         labels: config.labels || {},
@@ -342,18 +432,21 @@ export function filePoolDropzone(config = {}) {
 
             DropzoneClass.autoDiscover = false;
 
+            const picker = element.querySelector('.dz-message') || element;
+
             this.dz = new DropzoneClass(element, {
                 url: '#',
                 autoProcessQueue: false,
-                clickable: element,
+                clickable: picker,
                 previewsContainer: element.querySelector('.dz-previews') || element,
-                addRemoveLinks: true,
+                previewTemplate: uploadPreviewTemplate(),
+                addRemoveLinks: false,
                 maxFiles: this.single ? 1 : this.opts.maxFiles,
                 maxFilesize: this.opts.maxFilesize,
                 acceptedFiles: this.opts.acceptedFiles,
                 dictRemoveFile: this.labels.removeFile || 'Datei entfernen',
                 dictMaxFilesExceeded: this.labels.tooMany || 'Maximal 20 Dateien sind möglich.',
-                dictFileTooBig: this.labels.tooLarge || 'Die Datei ist größer als 100 MB.',
+                dictFileTooBig: this.labels.tooLarge || `Die Datei ist größer als ${this.opts.maxFilesize} MB.`,
                 dictInvalidFileType: this.labels.invalidType || 'Dieser Dateityp ist nicht erlaubt.',
                 dictResponseError: this.labels.uploadFailed || 'Upload fehlgeschlagen.',
                 dictCancelUpload: this.labels.cancelUpload || 'Upload abbrechen',
@@ -372,6 +465,8 @@ export function filePoolDropzone(config = {}) {
             });
 
             this.dz.on('addedfile', (file) => {
+                this.decorateFilePreview(file);
+
                 queueMicrotask(() => {
                     if (file.accepted !== true) {
                         return;
@@ -384,7 +479,103 @@ export function filePoolDropzone(config = {}) {
                 });
             });
 
+            this.dz.on('thumbnail', (file) => {
+                file.previewElement?.setAttribute('data-has-thumbnail', 'true');
+            });
+            this.dz.on('processing', (file) => {
+                this.updateFileStatus(file, 'uploading', this.labels.uploading || 'Wird übertragen');
+            });
+            this.dz.on('uploadprogress', (file, progress) => {
+                this.updateFileProgress(file, progress);
+            });
+            this.dz.on('success', (file) => {
+                this.updateFileProgress(file, 100);
+                this.updateFileStatus(file, 'ready', this.labels.ready || 'Bereit zum Speichern');
+            });
+            this.dz.on('error', (file) => {
+                this.updateFileStatus(file, 'error', this.labels.uploadFailed || 'Upload fehlgeschlagen.');
+            });
             this.dz.on('removedfile', () => this.scheduleInputSync());
+        },
+
+        decorateFilePreview(file) {
+            const preview = file?.previewElement;
+            if (!preview) {
+                return;
+            }
+
+            const presentation = uploadFilePresentation(file);
+            preview.dataset.fileKind = presentation.kind;
+            preview.setAttribute('aria-label', file?.name || presentation.extension);
+
+            const icon = preview.querySelector('[data-upload-type-icon]');
+            if (icon) {
+                icon.className = `fad ${presentation.icon}`;
+            }
+
+            const extension = preview.querySelector('[data-upload-extension]');
+            if (extension) {
+                extension.textContent = presentation.extension;
+            }
+
+            const type = preview.querySelector('[data-upload-file-type]');
+            if (type) {
+                type.textContent = presentation.extension;
+            }
+
+            const size = preview.querySelector('[data-upload-file-size]');
+            if (size) {
+                size.textContent = formatUploadFileSize(file?.size, document.documentElement.lang || 'de-DE');
+            }
+
+            const removeLabel = preview.querySelector('[data-upload-remove-label]');
+            if (removeLabel) {
+                removeLabel.textContent = `${this.labels.removeFile || 'Datei entfernen'}: ${file?.name || presentation.extension}`;
+            }
+
+            this.updateFileStatus(file, 'preparing', this.labels.preparing || 'Wird vorbereitet');
+            this.updateFileProgress(file, 0);
+        },
+
+        updateFileStatus(file, state, label) {
+            const preview = file?.previewElement;
+            if (!preview) {
+                return;
+            }
+
+            const icons = {
+                preparing: 'fa-clock',
+                uploading: 'fa-cloud-upload-alt',
+                ready: 'fa-check-circle',
+                error: 'fa-exclamation-circle',
+            };
+            preview.dataset.uploadState = state;
+            preview.setAttribute('aria-busy', ['preparing', 'uploading'].includes(state) ? 'true' : 'false');
+
+            const status = preview.querySelector('[data-upload-status]');
+            if (status) {
+                status.textContent = label;
+            }
+
+            const icon = preview.querySelector('[data-upload-status-icon]');
+            if (icon) {
+                icon.className = `far ${icons[state] || icons.preparing}`;
+            }
+        },
+
+        updateFileProgress(file, progress) {
+            const preview = file?.previewElement;
+            if (!preview) {
+                return;
+            }
+
+            const percent = Math.max(0, Math.min(100, Math.round(Number(progress) || 0)));
+            const label = preview.querySelector('[data-upload-progress-value]');
+            if (label) {
+                label.textContent = `${percent} %`;
+            }
+
+            preview.querySelector('[role="progressbar"]')?.setAttribute('aria-valuenow', String(percent));
         },
 
         handleExternalFiles(event) {

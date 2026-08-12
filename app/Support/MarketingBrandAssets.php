@@ -11,6 +11,9 @@ final class MarketingBrandAssets
         '/rt-brand/img/logo-horizontal.png' => 'image/png',
         '/rt-brand/img/logo-horizontal-darkbg.png' => 'image/png',
         '/rt-brand/img/hero-railtime.jpg' => 'image/jpeg',
+        '/rt-brand/img/wagenmeister-pruefung.jpg' => 'image/jpeg',
+        '/rt-brand/img/wagenmeister-team.webp' => 'image/webp',
+        '/rt-brand/img/deutschland-netzwerk.png' => 'image/png',
     ];
 
     /** @return array<string, string> */

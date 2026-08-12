@@ -1,12 +1,16 @@
 import assert from 'node:assert/strict';
 import test, { afterEach } from 'node:test';
+import { parseHTML } from 'linkedom';
 
 import {
     FILEPOOL_UPLOAD_LIMITS,
     filePoolDropzone,
     filePoolExternalDrop,
     filesFromTransfer,
+    formatUploadFileSize,
     isExternalFileTransfer,
+    uploadFilePresentation,
+    uploadPreviewTemplate,
     validateUploadFiles,
 } from '../../resources/js/filepool-upload.js';
 
@@ -74,9 +78,9 @@ test('filtert Ordner, ignoriert Nicht-Dateien und dedupliziert die Dateiliste', 
     assert.equal(result.files[0], report);
 });
 
-test('setzt 20 Dateien und 100 MB exakt als Clientgrenzen durch', () => {
+test('setzt 20 Dateien und 50 MB exakt als Clientgrenzen durch', () => {
     assert.equal(FILEPOOL_UPLOAD_LIMITS.maxFiles, 20);
-    assert.equal(FILEPOOL_UPLOAD_LIMITS.maxFileSizeBytes, 100 * 1024 * 1024);
+    assert.equal(FILEPOOL_UPLOAD_LIMITS.maxFileSizeBytes, 50 * 1024 * 1024);
 
     const files = Array.from({ length: 21 }, (_, index) => (
         makeFile(`file-${index}.bin`, index === 0
@@ -91,6 +95,62 @@ test('setzt 20 Dateien und 100 MB exakt als Clientgrenzen durch', () => {
     assert.equal(rejected.some(({ reason }) => reason === 'too-many'), true);
     assert.equal(rejected.some(({ reason }) => reason === 'too-large'), true);
     assert.equal(accepted[0].size, FILEPOOL_UPLOAD_LIMITS.maxFileSizeBytes);
+});
+
+test('liefert Dateityp, lesbare Größe und zugängliches RailTime-Kartenmarkup', () => {
+    assert.deepEqual(uploadFilePresentation({ name: 'einsatzfoto.JPG', type: 'image/jpeg' }), {
+        extension: 'JPG',
+        kind: 'image',
+        icon: 'fa-file-image',
+    });
+    assert.equal(uploadFilePresentation({ name: 'dienstplan.xlsx' }).kind, 'spreadsheet');
+    assert.equal(uploadFilePresentation({ name: 'ohne-endung' }).kind, 'generic');
+    assert.equal(formatUploadFileSize(50 * 1024 * 1024), '50 MB');
+    assert.equal(formatUploadFileSize(2.5 * 1024 * 1024, 'en-US'), '2.5 MB');
+
+    const { document } = parseHTML(`<main>${uploadPreviewTemplate()}</main>`);
+    const card = document.querySelector('.rt-filepool-upload-file');
+
+    assert.ok(card?.querySelector('[data-dz-thumbnail]'));
+    assert.ok(card?.querySelector('[data-upload-type-icon]'));
+    assert.ok(card?.querySelector('[data-upload-status]'));
+    assert.equal(card?.querySelector('[role="progressbar"]')?.getAttribute('aria-valuemax'), '100');
+    assert.equal(card?.querySelector('[data-dz-remove]')?.tagName, 'BUTTON');
+});
+
+test('befüllt Dateikarten und aktualisiert Fortschritt sowie Status nachvollziehbar', () => {
+    const { document } = parseHTML(`<main>${uploadPreviewTemplate()}</main>`);
+    const previewElement = document.querySelector('.rt-filepool-upload-file');
+    const file = {
+        name: 'Wagenmeister Einsatz.pdf',
+        size: 2.5 * 1024 * 1024,
+        previewElement,
+    };
+    const controller = filePoolDropzone({
+        labels: {
+            preparing: 'Vorbereitung',
+            uploading: 'Übertragung',
+            ready: 'Speicherbereit',
+            removeFile: 'Entfernen',
+        },
+    });
+
+    controller.decorateFilePreview(file);
+    assert.equal(previewElement.dataset.fileKind, 'pdf');
+    assert.equal(previewElement.querySelector('[data-upload-file-size]').textContent, '2,5 MB');
+    assert.equal(previewElement.querySelector('[data-upload-extension]').textContent, 'PDF');
+    assert.match(previewElement.querySelector('[data-upload-remove-label]').textContent, /Wagenmeister Einsatz\.pdf/);
+
+    controller.updateFileStatus(file, 'uploading', 'Übertragung');
+    controller.updateFileProgress(file, 63.6);
+    assert.equal(previewElement.dataset.uploadState, 'uploading');
+    assert.equal(previewElement.getAttribute('aria-busy'), 'true');
+    assert.equal(previewElement.querySelector('[data-upload-progress-value]').textContent, '64 %');
+    assert.equal(previewElement.querySelector('[role="progressbar"]').getAttribute('aria-valuenow'), '64');
+
+    controller.updateFileStatus(file, 'ready', 'Speicherbereit');
+    assert.equal(previewElement.getAttribute('aria-busy'), 'false');
+    assert.equal(previewElement.querySelector('[data-upload-status]').textContent, 'Speicherbereit');
 });
 
 test('weist bereits vorgemerkte Dateien als Duplikat zurück', () => {

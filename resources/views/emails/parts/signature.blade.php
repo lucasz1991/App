@@ -99,24 +99,34 @@
      * geforderte Reihenfolge Hintergrund < Zug < Daten ergibt sich daraus
      * von selbst, ganz ohne z-index (den viele Mailclients ignorieren).
      *
-     * DIE 70-PROZENT-GRENZE: Die Lok steht bei 91 % der Bildbreite. Damit
-     * sie bei 70 % der SIGNATUR endet, ist das Bild 77 % breit
-     * (0,91 x 0,77 = 0,70). Die rechten 30 % bleiben frei fuer die
-     * Firmenspalte.
+     * DER ZUG FUELLT DIE HOEHE, NICHT DIE BREITE.
+     *
+     * Frueher war er auf 77 % der Breite gelegt und lag als flaches Band am
+     * unteren Rand — unter den Daten, nicht dahinter. Mit `auto 100 %`
+     * richtet er sich stattdessen an der Streifenhoehe aus und reicht damit
+     * hinter die Schrift.
+     *
+     * Das macht ihn zugleich von selbst BREITENABHAENGIG: Auf einem
+     * schmalen Schirm ist der Streifen niedriger, der Zug also kleiner und
+     * weniger davon zu sehen; auf einem breiten Schirm faehrt mehr ins
+     * Bild. Es braucht dafuer keine einzige zusaetzliche Umbruchregel.
+     *
+     * Verankert RECHTS, weil die Lok am rechten Bildrand steht — links
+     * verankert waere gerade sie das Erste, was aus dem Bild faellt.
      *
      * IM OUTLOOK-WEG entfallen Zug und Schleier: dort steht der Zug als
      * eigene Bildzeile unter dem Inhalt. Als Hintergrund UND als Bildzeile
      * stuende er zweimal im Streifen.
      */
-    $zugBreite = '77%';
+    $zugMass = 'auto 100%';
     $ebenen = array_values(array_filter([
         ($values['GRUND_RASTER_SRC'] ?? '') !== ''
             ? "url({$values['GRUND_RASTER_SRC']})|left top|64px 64px|repeat" : '',
         ($values['GRUND_MARKE_SRC'] ?? '') !== ''
             ? "url({$values['GRUND_MARKE_SRC']})|right center|auto 100%|no-repeat" : '',
         $isOutlookExport ? '' : "linear-gradient({$values['SIGNATURE_TRAIN_WASH']},{$values['SIGNATURE_TRAIN_WASH']})|center center|100% 100%|no-repeat",
-        $hasIdleTrain ? "url({$values['TRAIN_IDLE_SRC']})|left bottom|{$zugBreite} auto|no-repeat" : '',
-        $isOutlookExport ? '' : "url({$values['TRAIN_SRC']})|left bottom|{$zugBreite} auto|no-repeat",
+        $hasIdleTrain ? "url({$values['TRAIN_IDLE_SRC']})|right bottom|{$zugMass}|no-repeat" : '',
+        $isOutlookExport ? '' : "url({$values['TRAIN_SRC']})|right bottom|{$zugMass}|no-repeat",
     ]));
     $teile = array_map(static fn (string $e): array => explode('|', $e), $ebenen);
     $backgroundImage = implode(',', array_column($teile, 0));

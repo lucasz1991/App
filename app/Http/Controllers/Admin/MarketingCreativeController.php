@@ -3,14 +3,15 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Enums\MarketingCreativeType;
-use App\Http\Requests\Marketing\StoreMarketingCreativeRequest;
 use App\Http\Requests\Marketing\RedesignMarketingCreativeRequest;
+use App\Http\Requests\Marketing\StoreMarketingCreativeRequest;
 use App\Http\Requests\Marketing\UpdateMarketingCreativeRequest;
 use App\Models\MarketingCreative;
 use App\Models\MarketingCreativeVariant;
 use App\Services\Marketing\MarketingStudioService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 
 final class MarketingCreativeController extends MarketingAdminController
 {
@@ -99,6 +100,16 @@ final class MarketingCreativeController extends MarketingAdminController
         $creative = $studio->archive($creative, $this->marketingAdmin($request));
 
         return response()->json(['creative' => $this->creativePayload($creative)]);
+    }
+
+    public function destroy(
+        Request $request,
+        MarketingCreative $creative,
+        MarketingStudioService $studio,
+    ): Response {
+        $studio->delete($creative, $this->marketingAdmin($request));
+
+        return response()->noContent();
     }
 
     /** @return array<string, mixed> */

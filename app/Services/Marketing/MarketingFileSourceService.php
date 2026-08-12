@@ -924,7 +924,10 @@ final class MarketingFileSourceService
             }
         });
 
-        $variants = MarketingCreativeVariant::query()->select(['id', 'html', 'css', 'builder_data'])->orderBy('id');
+        $variants = MarketingCreativeVariant::query()
+            ->whereHas('creative')
+            ->select(['id', 'html', 'css', 'builder_data'])
+            ->orderBy('id');
         if ($lockRows) {
             $variants->lockForUpdate();
         }
@@ -977,7 +980,9 @@ final class MarketingFileSourceService
 
         $wanted = array_fill_keys($fileIds, true);
         $creativeIds = [];
-        MarketingCreativeVariant::query()->select(['marketing_creative_id', 'html', 'css', 'builder_data'])
+        MarketingCreativeVariant::query()
+            ->whereHas('creative')
+            ->select(['marketing_creative_id', 'html', 'css', 'builder_data'])
             ->each(function (MarketingCreativeVariant $variant) use ($wanted, &$creativeIds): void {
                 $json = json_encode($variant->builder_data ?? [], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '';
                 foreach ($this->referencedFileIds($variant->html, $variant->css, $json) as $id) {

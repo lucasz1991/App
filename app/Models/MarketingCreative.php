@@ -44,6 +44,18 @@ class MarketingCreative extends Model
                 $creative->public_id = (string) Str::uuid();
             }
         });
+
+        // Varianten sind eigenstaendige Laufzeitobjekte und werden an einigen
+        // Stellen direkt abgefragt. Beim Soft-Delete des Motivs muessen sie
+        // deshalb ebenfalls aus allen normalen Queries verschwinden. Bei
+        // einem spaeteren Force-Delete uebernimmt weiterhin der FK-Cascade.
+        static::deleting(function (self $creative): void {
+            if ($creative->isForceDeleting()) {
+                return;
+            }
+
+            $creative->variants()->get()->each->delete();
+        });
     }
 
     public function getRouteKeyName(): string

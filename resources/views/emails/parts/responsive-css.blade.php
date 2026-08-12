@@ -134,16 +134,19 @@ tr.rt-stack > td.rt-sign-logo {
    signature.blade.php: Raster, Wasserzeichen, Schleier, Ruhefahne, Zug. Wer sie dort
    aendert, muss sie HIER mitziehen — sonst treffen die Groessen die
    falschen Ebenen. */
-/* GESTAPELT RUECKT DER ZUG NAEHER UND WIRD GROESSER.
-   Bei voller Breite (100%) nahm der Himmel ueber dem Zug den groessten
-   Teil des Streifens ein — viel leere Flaeche zwischen Kontaktdaten und
-   Motiv. Auf 150 % skaliert und an der RECHTEN unteren Ecke verankert
-   waechst der Zug deutlich, der ueberzaehlige Himmel faellt oben aus dem
-   Ausschnitt, und die Lok bleibt sichtbar (sie steht am rechten Bildrand;
-   verankerte man links, waere gerade sie abgeschnitten). */
+/* AUF SCHMALEN SCHIRMEN AN DER BREITE AUSRICHTEN, NICHT AN DER HOEHE.
+   Im Breitlayout haengt der Zug an der Streifenhoehe (auto 100%). Das
+   passt dort, weil der Streifen flach ist. Auf dem Telefon ist er fast
+   quadratisch — dieselbe Regel vergroesserte den Zug so stark, dass ein
+   einziger Wagen die Breite fuellte und das Motiv nicht mehr als Zug
+   lesbar war. Ueber die Breite skaliert bleiben Lok und drei Wagen im
+   Bild.
+   Aus demselben Grund wird der Markenschein begrenzt: an der Hoehe
+   ausgerichtet legte er sich als breiter Schleier ueber die halbe Karte.
+   Er soll ein Schein in der Ecke sein, kein Farbfeld. */
 .rt-sign-cell {
-  background-position: left top, right center, center center, right bottom, right bottom !important;
-  background-size: 64px 64px, auto 100%, 100% 100%, 150% auto, 150% auto !important;
+  background-position: left top, right center, center center, right 84%, right 84% !important;
+  background-size: 64px 64px, auto 52%, 100% 100%, 200% auto, 200% auto !important;
 }
 }
 

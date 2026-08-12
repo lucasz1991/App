@@ -64,7 +64,7 @@
             </div>
 
             <div class="mt-4">
-                <x-ui.filepool.drop-zone :model="'fileUploads'" />
+                <x-ui.filepool.drop-zone :model="'fileUploads'" :max-filesize="2" />
                 <x-input-error for="fileUploads.*" class="mt-2" />
             </div>
         </x-slot>

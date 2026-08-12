@@ -420,7 +420,7 @@
             <div class="rt-filepool-upload-panel__intro">
               <div>
                 <h3>{{ __('app.files') }}</h3>
-                <p>{{ app()->getLocale() === 'de' ? 'Wähle bis zu 20 Dateien aus. Gespeichert wird erst nach dem Klick auf Hochladen.' : 'Select up to 20 files. Files are only saved after you click Upload.' }}</p>
+                <p>{{ app()->getLocale() === 'de' ? 'Wähle bis zu 20 Dateien mit jeweils maximal 50 MB aus. Gespeichert wird erst nach dem Klick auf Hochladen.' : 'Select up to 20 files with a maximum of 50 MB each. Files are only saved after you click Upload.' }}</p>
               </div>
               @if($uploadTargetPath)
                 <span class="rt-filepool-upload-target" title="{{ $uploadTargetPath }}">
@@ -433,7 +433,7 @@
             <x-ui.filepool.drop-zone
               :model="'fileUploads.'.$filePool->id"
               :max-files="20"
-              :max-filesize="100"
+              :max-filesize="50"
             />
           </x-ui.accordion.tab-panel>
 

@@ -94,6 +94,21 @@ class CreativesIndex extends Component
         $this->dispatch('swal:toast', type: 'success', text: 'Motiv wurde archiviert.');
     }
 
+    public function deleteCreative(string $creativeId, MarketingStudioService $studio): void
+    {
+        $creative = $this->creative($creativeId);
+        $title = $creative->title;
+
+        $studio->delete($creative, auth()->user());
+        $this->resetPage();
+
+        $this->dispatch(
+            'swal:toast',
+            type: 'success',
+            text: sprintf('"%s" wurde aus dem Marketing-Studio entfernt.', $title),
+        );
+    }
+
     public function saveMediaFolder(MarketingFileSourceService $media): void
     {
         abort_unless(auth()->user()?->isAdmin(), 403);
