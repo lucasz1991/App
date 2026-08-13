@@ -29,6 +29,8 @@ class MailSignature
         protected ?string $playbackNonce = null,
         // Bilder verlinken statt einbetten. Siehe values().
         protected bool $remoteAssets = false,
+        // Vorschau bei reduzierter Bewegung: PNG statt GIF, keine Rauchfahne.
+        protected bool $staticAssets = false,
     ) {}
 
     public static function forUser(
@@ -37,8 +39,9 @@ class MailSignature
         bool $animated = false,
         ?string $playbackNonce = null,
         bool $remoteAssets = false,
+        bool $staticAssets = false,
     ): self {
-        return new self($user, $theme, $animated, $playbackNonce, $remoteAssets);
+        return new self($user, $theme, $animated, $playbackNonce, $remoteAssets, $staticAssets);
     }
 
     /**
@@ -58,8 +61,9 @@ class MailSignature
         bool $animated = true,
         ?string $playbackNonce = null,
         bool $remoteAssets = true,
+        bool $staticAssets = false,
     ): self {
-        return new self(null, $theme, $animated, $playbackNonce, $remoteAssets);
+        return new self(null, $theme, $animated, $playbackNonce, $remoteAssets, $staticAssets);
     }
 
     /**
@@ -97,6 +101,11 @@ class MailSignature
         // kaputtes Bild.
         $markAsset = EmailTemplateBuilder::emailMarkAsset($this->theme);
 
+        if ($this->staticAssets) {
+            $logoAsset = str_replace('.gif', '.png', $logoAsset);
+            $markAsset = str_replace('.gif', '.png', $markAsset);
+        }
+
         // STANDBILDER FUER OUTLOOK-DESKTOP. Die bewegten Marken bauen sich
         // auf, ihr erstes Einzelbild ist also fast leer — und genau dieses
         // eine zeigt Outlook. Ueber einen bedingten Kommentar bekommt es
@@ -127,33 +136,52 @@ class MailSignature
                 'ICON_RT_STILL_SRC' => EmailTemplateBuilder::mailAssetUrl($markStill),
                 'GRUND_RASTER_SRC' => EmailTemplateBuilder::mailAssetUrl($raster),
                 'GRUND_MARKE_SRC' => EmailTemplateBuilder::mailAssetUrl($marke),
-                'TRAIN_SRC' => EmailTemplateBuilder::signatureTrainUrl($this->theme, $this->animated),
+                'TRAIN_SRC' => EmailTemplateBuilder::signatureTrainUrl(
+                    $this->theme,
+                    $this->staticAssets ? false : $this->animated,
+                ),
                 // Das Standbild traegt den Ersatzweg fuer Outlook-Desktop
                 // (background-Attribut), siehe emails/parts/signature.blade.php.
                 'TRAIN_STILL_SRC' => EmailTemplateBuilder::signatureTrainStillUrl($this->theme),
                 // IMMER, nicht nur bei animierter Einfahrt: Die Ruhefahne
                 // ist die Dauerbewegung des Streifens. Ob der Zug EINFAEHRT,
                 // entscheidet $animated — ob er raucht, nicht.
-                'TRAIN_IDLE_SRC' => EmailTemplateBuilder::mailAssetUrl(
-                    'zug-dampf-idle-'.($this->theme === 'dark' ? 'dark' : 'light').'.gif'
-                ),
+                'TRAIN_IDLE_SRC' => $this->staticAssets
+                    ? ''
+                    : EmailTemplateBuilder::mailAssetUrl(
+                        'zug-dampf-idle-'.($this->theme === 'dark' ? 'dark' : 'light').'.gif'
+                    ),
             ]
             : [
-                'LOGO_SRC' => EmailTemplateBuilder::inlineImage($logoAsset, 'image/gif'),
+                'LOGO_SRC' => EmailTemplateBuilder::inlineImage(
+                    $logoAsset,
+                    str_ends_with($logoAsset, '.gif') ? 'image/gif' : 'image/png',
+                    $this->playbackNonce,
+                ),
                 'LOGO_STILL_SRC' => EmailTemplateBuilder::inlineImage($logoStill, 'image/png'),
-                'ICON_RT_SRC' => EmailTemplateBuilder::inlineImage($markAsset, 'image/gif'),
+                'ICON_RT_SRC' => EmailTemplateBuilder::inlineImage(
+                    $markAsset,
+                    str_ends_with($markAsset, '.gif') ? 'image/gif' : 'image/png',
+                    $this->playbackNonce,
+                ),
                 'ICON_RT_STILL_SRC' => EmailTemplateBuilder::inlineImage($markStill, 'image/png'),
                 'GRUND_RASTER_SRC' => EmailTemplateBuilder::inlineImage($raster, 'image/png'),
                 'GRUND_MARKE_SRC' => EmailTemplateBuilder::inlineImage($marke, 'image/png'),
                 'TRAIN_SRC' => EmailTemplateBuilder::signatureTrainAsset(
                     $this->theme,
-                    $this->animated,
+                    $this->staticAssets ? false : $this->animated,
                     $this->playbackNonce,
                 ),
                 // Ohne verlinkte Adresse gibt es keinen Outlook-Ersatzweg:
                 // das background-Attribut kann keine data:-URI laden.
                 'TRAIN_STILL_SRC' => '',
-                'TRAIN_IDLE_SRC' => EmailTemplateBuilder::signatureTrainIdleAsset($this->theme),
+                'TRAIN_IDLE_SRC' => $this->staticAssets
+                    ? ''
+                    : EmailTemplateBuilder::inlineImage(
+                        'zug-dampf-idle-'.($this->theme === 'dark' ? 'dark' : 'light').'.gif',
+                        'image/gif',
+                        $this->playbackNonce,
+                    ),
             ];
 
         $symbole = $this->remoteAssets
@@ -200,6 +228,21 @@ class MailSignature
     {
         $values = $this->values($overrides);
 
+        // Vor der MailDocument-Migration bleibt der bestehende Bootstrapweg
+        // verwendbar. In einer migrierten Installation erzwingt
+        // runtimeDocument dagegen eine echte Veröffentlichung.
+        $published = EmailTemplateBuilder::runtimeDocument(
+            MailDocumentKind::Signature,
+            requirePublished: $this->remoteAssets,
+        );
+        if ($published === null) {
+            $html = View::make('emails.parts.signature', array_merge([
+                'values' => $values,
+            ], $layout))->render();
+
+            return trim(EmailTemplateBuilder::stripEmptyContactRows($html, $values));
+        }
+
         // WER DEN ZUG ALS BILD BRAUCHT, BEKOMMT IMMER DIE BLADE-QUELLE.
         //
         // Das sind zwei Wege: der Outlook-Export (lokale Zugdatei im Paket)
@@ -220,12 +263,11 @@ class MailSignature
         // Deshalb bindet layout.blade.php auch bewusst KEIN freigegebenes
         // CSS ein — sonst laege neues CSS auf altem Markup.
         $zugAlsBild = trim((string) ($layout['outlookTrainSrc'] ?? '')) !== '';
-        $published = $zugAlsBild
-            ? null
-            : EmailTemplateBuilder::publishedDocument(MailDocumentKind::Signature);
-
         if ($published !== null) {
             $html = $this->applyPublishedLayout($published, $layout);
+            if ($zugAlsBild) {
+                $html = $this->projectPublishedTrainAsImage($html, $layout);
+            }
             // FRUEHER stand hier ein Rueckfall auf den Firmennamen, wenn
             // keine Person sendet — er bildete eine gleichlautende Bedingung
             // der Blade-Quelle nach. Diese Bedingung ist entfallen: Die
@@ -246,12 +288,53 @@ class MailSignature
             return trim(EmailTemplateBuilder::stripEmptyContactRows(strtr($html, $tokens), $values));
         }
 
-        $html = View::make('emails.parts.signature', array_merge([
-            'values' => $values,
-        ], $layout))->render();
+        throw new \RuntimeException('Die veröffentlichte Signatur konnte nicht gerendert werden.');
+    }
 
-        // Leere Kontaktzeilen fallen samt ihrer Marker heraus.
-        return trim(EmailTemplateBuilder::stripEmptyContactRows($html, $values));
+    /**
+     * Systemmails und Outlook brauchen den Zug als reguläres Bild. Der
+     * kanonische veröffentlichte Signaturstand enthält ihn als Hintergrund.
+     * Der feste Marker projiziert genau diesen Stand clientkompatibel, ohne
+     * auf eine zweite Blade-Signatur zurückzufallen.
+     *
+     * @param  array<string, string>  $layout
+     */
+    private function projectPublishedTrainAsImage(string $html, array $layout): string
+    {
+        $marker = '<!-- RT_SIGNATURE_MAIN_END -->';
+        if (substr_count($html, $marker) !== 1) {
+            throw new \RuntimeException(
+                'Die veröffentlichte Signatur besitzt keinen eindeutigen Bildzeilen-Anker.'
+            );
+        }
+
+        $source = htmlspecialchars((string) $layout['outlookTrainSrc'], ENT_QUOTES, 'UTF-8');
+        $fallback = htmlspecialchars(
+            (string) ($layout['outlookTrainFallbackSrc'] ?? ''),
+            ENT_QUOTES,
+            'UTF-8',
+        );
+        $padding = htmlspecialchars(
+            (string) ($layout['outlookTrainPadding'] ?? '6px 0 14px'),
+            ENT_QUOTES,
+            'UTF-8',
+        );
+        $animated = '<img data-rt-outlook-train src="'.$source.'" width="620" '
+            .'alt="Dampflok-Güterzug" style="display:block;width:70%;max-width:620px;'
+            .'height:auto;margin:0;border:0;outline:none;opacity:.7;">';
+        $images = $animated;
+
+        if ($fallback !== '') {
+            $images = '<!--[if !mso]><!-->'.$animated.'<!--<![endif]-->'
+                .'<!--[if mso]><img data-rt-outlook-train-still src="'.$fallback.'" width="620" '
+                .'alt="Dampflok-Güterzug" style="display:block;width:70%;max-width:620px;'
+                .'height:auto;margin:0;border:0;outline:none;"><![endif]-->';
+        }
+
+        $row = '<tr><td align="left" style="padding:'.$padding
+            .';text-align:left;font-size:0;line-height:0;">'.$images.'</td></tr>';
+
+        return str_replace($marker, $marker.$row, $html);
     }
 
     /**

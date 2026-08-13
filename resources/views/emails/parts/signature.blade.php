@@ -289,6 +289,7 @@
         @endif
     </td>
 </tr>
+<!-- RT_SIGNATURE_MAIN_END -->
 <tr>
     <td class="rt-pad" bgcolor="{{ $values['SIGNATURE_LEGAL_BG'] }}" style="padding:{{ $legalPadding }};background:{{ $values['SIGNATURE_LEGAL_BG'] }};color:{{ $values['SIGNATURE_LEGAL_TEXT'] }};font-size:9px;line-height:15px;">
         {{-- Beschriftung und Wert gehoeren zusammen: eine nicht gepflegte

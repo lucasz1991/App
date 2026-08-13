@@ -11,10 +11,6 @@
 </x-slot:subcopy>
 @endisset
 
-{{-- Footer: der gemeinsame RailTime-Signaturblock. Er bringt Pflichtangaben
-     UND den Vertraulichkeitshinweis bereits mit, deshalb bekommt er hier
-     bewusst keinen eigenen Inhalt mehr. --}}
-<x-slot:footer>
-<x-mail::footer />
-</x-slot:footer>
+{{-- Die veröffentlichte Nachrichtenschale fügt ihren kanonischen
+     Signaturblock nach dem APPLICATION_CONTENT-Slot selbst ein. --}}
 </x-mail::layout>

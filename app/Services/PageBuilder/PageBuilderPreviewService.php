@@ -23,6 +23,8 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
  */
 final class PageBuilderPreviewService
 {
+    private const TRANSPARENT_PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+QZkWAAAAAElFTkSuQmCC';
+
     public function __construct(
         private readonly MarketingHtmlSanitizer $marketingSanitizer,
         private readonly MarketingRenderAssetHydrator $marketingAssets,
@@ -67,14 +69,31 @@ final class PageBuilderPreviewService
     }
 
     /** @return array{html: string, width: int, height: int} */
-    public function mail(MailDocument $document, User $user, string $theme): array
-    {
+    public function mail(
+        MailDocument $document,
+        User $user,
+        string $theme,
+        bool $animated = false,
+        ?string $playbackNonce = null,
+    ): array {
         $theme = $theme === 'dark' ? 'dark' : 'light';
         $signatureDocument = $document->kind === MailDocumentKind::Signature
             ? $document
             : MailDocument::query()->where('kind', MailDocumentKind::Signature->value)->first();
 
-        $values = MailSignature::forUser($user, $theme, animated: false)->values();
+        $values = MailSignature::forUser(
+            $user,
+            $theme,
+            animated: $animated,
+            playbackNonce: $playbackNonce,
+        )->values();
+        $values = $animated
+            ? $this->uniquePreviewGifValues($values, $playbackNonce ?? bin2hex(random_bytes(12)))
+            : array_merge($values, [
+                'LOGO_SRC' => (string) ($values['LOGO_STILL_SRC'] ?? ''),
+                'ICON_RT_SRC' => (string) ($values['ICON_RT_STILL_SRC'] ?? ''),
+                'TRAIN_IDLE_SRC' => self::TRANSPARENT_PIXEL,
+            ]);
         $values = array_merge($values, $this->sampleMailValues($user));
         $signature = $signatureDocument === null
             ? ''
@@ -83,6 +102,10 @@ final class PageBuilderPreviewService
         $html = $this->renderTokenHtml((string) $document->html, $values, [
             'SIGNATURE_BLOCK' => $signature,
             'RESPONSIVE_CSS' => EmailTemplateBuilder::responsiveCss($values['SIGNATURE_BORDER'] ?? null),
+            // Die Adminvorschau zeigt das im Entwurf vorhandene Muster. Der
+            // Slot selbst wird erst beim produktiven Versand durch echten
+            // Anwendungsinhalt ersetzt und darf hier nicht doppelt erscheinen.
+            'APPLICATION_CONTENT' => '',
         ]);
 
         $css = $this->mailCss((string) $document->css, $values);
@@ -96,11 +119,11 @@ final class PageBuilderPreviewService
                 content: '<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tbody>'.$html.'</tbody></table>',
                 css: $this->mailPreviewCss($theme)."\n".$css,
                 theme: $theme,
-                bodyAttributes: 'data-preview-kind="mail" data-preview-document="signature" data-preview-theme="'.$theme.'"',
+                bodyAttributes: 'data-preview-kind="mail" data-preview-document="signature" data-preview-theme="'.$theme.'" data-preview-animation="'.($animated ? 'animated' : 'static').'"',
             );
         } else {
             $html = $this->embedStyle($html, $css, 'template');
-            $html = $this->ensureDocumentMetadata($html, 'template', $theme);
+            $html = $this->ensureDocumentMetadata($html, 'template', $theme, $animated);
         }
 
         // XML namespace identifiers are not fetched by browsers, but keeping
@@ -195,6 +218,31 @@ CSS, $width, $height);
         ];
     }
 
+    /** @param array<string, string> $values @return array<string, string> */
+    private function uniquePreviewGifValues(array $values, string $nonce): array
+    {
+        foreach (['LOGO_SRC', 'ICON_RT_SRC', 'TRAIN_SRC', 'TRAIN_IDLE_SRC'] as $key) {
+            $source = (string) ($values[$key] ?? '');
+            if (! str_starts_with($source, 'data:image/gif;base64,')) {
+                continue;
+            }
+
+            $binary = base64_decode(substr($source, strlen('data:image/gif;base64,')), true);
+            $trailer = is_string($binary) ? strrpos($binary, "\x3b") : false;
+            if ($trailer === false) {
+                continue;
+            }
+
+            $comment = 'RailTime-Preview:'.substr($nonce.'-'.$key, 0, 120);
+            $binary = substr($binary, 0, $trailer)
+                ."\x21\xfe".chr(strlen($comment)).$comment."\x00"
+                .substr($binary, $trailer);
+            $values[$key] = 'data:image/gif;base64,'.base64_encode($binary);
+        }
+
+        return $values;
+    }
+
     private function neutralizeNavigation(string $html): string
     {
         return preg_replace_callback(
@@ -224,9 +272,9 @@ CSS, $width, $height);
             : $this->document('RailTime Mailvorschau', $html, $css, 'light', 'data-preview-kind="mail"');
     }
 
-    private function ensureDocumentMetadata(string $html, string $kind, string $theme): string
+    private function ensureDocumentMetadata(string $html, string $kind, string $theme, bool $animated): string
     {
-        $attributes = ' data-preview-kind="mail" data-preview-document="'.$kind.'" data-preview-theme="'.$theme.'"';
+        $attributes = ' data-preview-kind="mail" data-preview-document="'.$kind.'" data-preview-theme="'.$theme.'" data-preview-animation="'.($animated ? 'animated' : 'static').'"';
 
         if (preg_match('/<body\b/i', $html) === 1) {
             return (string) preg_replace('/<body\b/i', '<body'.$attributes, $html, 1);

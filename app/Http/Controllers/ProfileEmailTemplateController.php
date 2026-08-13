@@ -42,7 +42,7 @@ class ProfileEmailTemplateController extends Controller
         $builder = new EmailTemplateBuilder($request->user());
         $file = $request->boolean('animate')
             ? $builder->buildPreview($template, bin2hex(random_bytes(12)))
-            : $builder->build($template);
+            : $builder->buildStaticPreview($template);
 
         return response($file['content'], 200, [
             'Content-Type' => 'text/html; charset=UTF-8',

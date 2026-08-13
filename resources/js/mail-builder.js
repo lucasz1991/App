@@ -8,9 +8,11 @@ import {
     createLmzEditorChrome,
     createLmzAssistantAdapter,
     createPageBuilderLifecycleController,
+    componentAnimationContext,
     handleScopedRtePaste,
     pageBuilderWorkspaceIsActive,
     refreshPausedAnimatedPreviewElement,
+    restartAnimatedPreview,
     waitForPageBuilderActivation,
 } from './lmz-editor-core.js';
 
@@ -126,6 +128,43 @@ function markSignatureTrainPreviews(signature) {
     }
 
     return transformed;
+}
+
+function markMailPreviewImageTokens(root) {
+    let marked = 0;
+
+    Array.from(root?.querySelectorAll?.('img') || []).forEach((image) => {
+        if (image.hasAttribute(MAIL_PREVIEW_IMAGE_ATTRIBUTE)) {
+            throw new Error('Das Maildokument enthaelt einen reservierten Bildvorschau-Marker.');
+        }
+
+        const source = String(image.getAttribute('src') || '');
+        const token = MAIL_PREVIEW_IMAGE_TOKENS.find((candidate) => source === `{{${candidate}}}`);
+        if (!token) return;
+
+        image.setAttribute(MAIL_PREVIEW_IMAGE_ATTRIBUTE, token);
+        image.setAttribute('src', MAIL_PREVIEW_TRANSPARENT_PIXEL);
+        marked += 1;
+    });
+
+    return marked;
+}
+
+function restoreMailPreviewImageTokens(root) {
+    let restored = 0;
+
+    Array.from(root?.querySelectorAll?.(`[${MAIL_PREVIEW_IMAGE_ATTRIBUTE}]`) || []).forEach((image) => {
+        const token = image.getAttribute(MAIL_PREVIEW_IMAGE_ATTRIBUTE);
+        if (image.tagName !== 'IMG' || !MAIL_PREVIEW_IMAGE_TOKENS.includes(token)) {
+            throw new Error('Der Mail-Editor enthaelt einen unbekannten Bildplatzhalter.');
+        }
+
+        image.setAttribute('src', `{{${token}}}`);
+        image.removeAttribute(MAIL_PREVIEW_IMAGE_ATTRIBUTE);
+        restored += 1;
+    });
+
+    return restored;
 }
 
 function domParserFor(environment) {
@@ -706,6 +745,7 @@ export function projectForMailDocument(draft, parseCss = () => [], options = {})
         // GrapesJS editiert ausschließlich den Body. Head und Dokumenthülle
         // werden beim Speichern aus der letzten kanonischen Serverfassung
         // rekonstruiert und können dadurch nicht still verloren gehen.
+        markMailPreviewImageTokens(parsed.body);
         markImportedInlineStyles(parsed.body);
         page.component = parsed.body.innerHTML;
     }
@@ -778,6 +818,7 @@ export function serializeMailDocumentForSave({
         if (previewRows.length !== 1 || !canvasDocument.body) {
             throw new Error('Die sichere Position des Signaturblocks in der Mailvorlage fehlt.');
         }
+        restoreMailPreviewImageTokens(canvasDocument.body);
 
         const canonicalDocument = parser.parseFromString(String(baselineHtml || ''), 'text/html');
         if (!canonicalDocument.documentElement || !canonicalDocument.head || !canonicalDocument.body) {
@@ -793,7 +834,8 @@ export function serializeMailDocumentForSave({
             + '</html>';
         const placeholderCount = canonicalHtml.split(SIGNATURE_PLACEHOLDER).length - 1;
         if (placeholderCount !== 1
-            || /data-rt-mail-(?:preview-only|signature-preview)/i.test(canonicalHtml)) {
+            || /data-rt-mail-(?:preview(?:-[\w-]+)?|signature-preview)/i.test(canonicalHtml)
+            || mailPreviewAssetSources(previewAssets).some((source) => canonicalHtml.includes(source))) {
             throw new Error('Die Mailvorlage konnte nicht verlustfrei rekonstruiert werden.');
         }
 
@@ -1048,6 +1090,35 @@ export function hydrateMailCanvasAssets(editor, theme = 'light', previewAssets =
     });
 
     return hydrated;
+}
+
+/**
+ * Startet alle nur im Canvas eingesetzten Marken-GIFs neu. Die GrapesJS-
+ * Modelle und damit der gespeicherte Mailentwurf bleiben vollständig
+ * unverändert; ausgetauscht wird ausschließlich die gerenderte Bildidentität.
+ */
+export function restartMailCanvasAnimations(editor, { nonce = Date.now() } = {}) {
+    const root = editor?.getWrapper?.();
+    if (!root) return 0;
+
+    const children = (component) => {
+        const collection = component?.components?.();
+        if (Array.isArray(collection)) return collection;
+        if (Array.isArray(collection?.models)) return collection.models;
+        if (typeof collection?.toArray === 'function') return collection.toArray();
+        return [];
+    };
+    let restarted = 0;
+    const visit = (component) => {
+        if (componentAnimationContext(component).animated
+            && restartAnimatedPreview(component, { nonce: `${nonce}-${restarted}` })) {
+            restarted += 1;
+        }
+        children(component).forEach(visit);
+    };
+
+    visit(root);
+    return restarted;
 }
 
 export function resolveMailPreviewDevice(device = 'desktop') {
@@ -1576,6 +1647,11 @@ export async function createMailBuilder({
         },
 
         getPreviewGeometry: () => preview?.getGeometry() || null,
+
+        /** Alle Marken-GIFs auf der Leinwand ohne Modellmutation neu starten. */
+        restartAllGifs() {
+            return restartMailCanvasAnimations(editor);
+        },
 
         /** Leinwandfarben wechseln; die Wahl wird nicht mitgespeichert. */
         setTheme(nextTheme = activeTheme) {

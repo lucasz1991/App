@@ -9,16 +9,28 @@
         $templateValues = $templateBuilder->profileValues();
         $availableTemplates = collect(\App\Support\EmailTemplateBuilder::available());
         $mailTemplates = $availableTemplates->where('category', 'mail');
-        $signatureTemplates = $availableTemplates->where('category', 'signature');
+        $primaryDownloads = [
+            'vorlage-html' => [
+                'title' => 'Personalisierte Mailvorlage',
+                'description' => 'Die fertige HTML-Vorlage mit Ihren Kontaktdaten für moderne Mailprogramme und den manuellen Import.',
+                'eyebrow' => 'Mailvorlage',
+                'format' => 'HTML',
+                'icon' => 'far fa-envelope-open-text',
+                'action' => 'Mailvorlage herunterladen',
+            ],
+            'signatur-outlook-hell' => [
+                'title' => 'Outlook & Signatur einrichten',
+                'description' => 'Ein Paket für beide Outlook-Generationen: Classic wird automatisch eingerichtet, das neue Outlook mit der enthaltenen HTML-Datei.',
+                'eyebrow' => 'Einrichtungspaket',
+                'format' => 'ZIP',
+                'icon' => 'fab fa-microsoft',
+                'action' => 'Outlook-Paket herunterladen',
+            ],
+        ];
         $previewTemplates = $mailTemplates->where('previewable', true);
         $previewUrls = $previewTemplates
             ->mapWithKeys(fn (array $template, string $key) => [
                 $template['theme'] => route('email-templates.preview', ['template' => $key]),
-            ])
-            ->all();
-        $previewDownloadUrls = $previewTemplates
-            ->mapWithKeys(fn (array $template, string $key) => [
-                $template['theme'] => route('email-templates.download', ['template' => $key]),
             ])
             ->all();
         $previewLabels = $previewTemplates
@@ -60,7 +72,7 @@
         :title="__('app.email_templates')"
         :description="__('app.email_templates_intro')"
         :eyebrow="__('app.personal_data')"
-        :count="$availableTemplates->count()"
+        :count="count($primaryDownloads)"
     >
         @if ($user?->isAdmin())
             <x-slot:actions>
@@ -78,23 +90,33 @@
 
         <div
             x-data="{
-                openAccordionSection: null,
                 profileModalOpen: false,
                 previewModalOpen: false,
                 mailTheme: 'light',
-                signatureTheme: 'light',
                 previewPlaybackId: 0,
                 previewAnimated: false,
+                previewFrameReady: false,
+                previewReadyTimer: null,
                 reducedMotion: false,
+                motionMedia: null,
+                motionListener: null,
                 previewUrls: @js($previewUrls),
-                previewDownloadUrls: @js($previewDownloadUrls),
                 previewLabels: @js($previewLabels),
                 lastModalTrigger: null,
                 init() {
-                    this.reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                    this.motionMedia = window.matchMedia('(prefers-reduced-motion: reduce)');
+                    this.motionListener = () => {
+                        const changed = this.reducedMotion !== this.motionMedia.matches;
+                        this.reducedMotion = this.motionMedia.matches;
+                        if (this.reducedMotion) this.previewAnimated = false;
+                        if (changed && this.previewModalOpen) this.previewFrameReady = false;
+                    };
+                    this.motionListener();
+                    this.motionMedia.addEventListener?.('change', this.motionListener);
                 },
-                toggleAccordionSection(section) {
-                    this.openAccordionSection = this.openAccordionSection === section ? null : section;
+                destroy() {
+                    this.motionMedia?.removeEventListener?.('change', this.motionListener);
+                    window.clearTimeout(this.previewReadyTimer);
                 },
                 openModal(name, event) {
                     this.lastModalTrigger = event?.currentTarget ?? document.activeElement;
@@ -104,27 +126,47 @@
                 openPreview(theme, event) {
                     this.mailTheme = theme;
                     this.previewAnimated = !this.reducedMotion;
+                    this.previewFrameReady = false;
                     if (this.previewAnimated) this.previewPlaybackId++;
                     this.openModal('preview', event);
                 },
                 selectPreviewTheme(theme) {
                     this.mailTheme = theme;
                     this.previewAnimated = !this.reducedMotion;
+                    this.previewFrameReady = false;
                     if (this.previewAnimated) this.previewPlaybackId++;
                 },
                 replayPreview() {
+                    if (this.reducedMotion) return;
                     this.previewAnimated = true;
+                    this.previewFrameReady = false;
                     this.previewPlaybackId++;
                 },
                 previewFrameUrl() {
                     const url = this.previewUrls[this.mailTheme];
-                    return this.previewAnimated
-                        ? `${url}?animate=1&play=${this.previewPlaybackId}`
-                        : url;
+                    if (!url) return 'about:blank';
+                    const preview = new URL(url, window.location.href);
+                    if (this.previewAnimated) {
+                        preview.searchParams.set('animate', '1');
+                        preview.searchParams.set('play', String(this.previewPlaybackId));
+                    } else {
+                        preview.searchParams.set('static', '1');
+                    }
+                    return preview.href;
+                },
+                previewFrameLoaded() {
+                    window.clearTimeout(this.previewReadyTimer);
+                    this.previewReadyTimer = window.setTimeout(() => {
+                        this.previewFrameReady = true;
+                    }, this.reducedMotion ? 0 : 120);
                 },
                 closeModal(name) {
                     this[name + 'ModalOpen'] = false;
-                    if (name === 'preview') this.previewAnimated = false;
+                    if (name === 'preview') {
+                        this.previewAnimated = false;
+                        this.previewFrameReady = false;
+                        window.clearTimeout(this.previewReadyTimer);
+                    }
                     const trigger = this.lastModalTrigger;
                     this.lastModalTrigger = null;
                     this.$nextTick(() => trigger?.focus());
@@ -207,7 +249,7 @@
                                     $documentPreviewSources = collect(['light' => 'Hell', 'dark' => 'Dunkel'])
                                         ->mapWithKeys(fn (string $label, string $theme): array => [$theme => [
                                             'label' => $label,
-                                            'url' => route('admin.mail-documents.preview', [$document, 'theme' => $theme]),
+                                            'url' => route('admin.mail-documents.preview', [$document, 'theme' => $theme, 'animate' => 1]),
                                             'editUrl' => $documentEditUrl,
                                             'width' => 1024,
                                             'height' => $previewHeight,
@@ -221,6 +263,7 @@
                                     :sources="$documentPreviewSources"
                                     default-source="light"
                                     :edit-url="$documentEditUrl"
+                                    :replayable="true"
                                 />
                             @endif
                         @endforeach
@@ -228,339 +271,112 @@
                 </section>
             @endif
 
-            <div class="space-y-3" data-email-template-accordions>
-                <x-ui.accordion.section
-                    section="mail"
-                    :label="__('app.email_templates_mail_section')"
-                    :description="__('app.email_templates_mail_section_hint')"
-                    icon="fad fa-envelope-open-text"
-                    id-prefix="email-templates"
-                    data-email-template-accordion="mail"
-                >
-                    <div class="space-y-3.5">
-                        <div class="flex flex-col gap-3 rounded-2xl bg-rt-surface p-3 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60 sm:flex-row sm:items-center sm:justify-between sm:p-4">
-                            <div class="min-w-0">
-                                <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-rt-red dark:text-rt-dark-accent">{{ __('app.toggle_theme') }}</p>
-                                <p class="mt-1 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted" x-text="mailTheme === 'dark' ? @js($themes['dark']['hint']) : @js($themes['light']['hint'])"></p>
-                            </div>
-                            <div
-                                class="grid shrink-0 grid-cols-2 rounded-xl bg-rt-surface-muted p-1 ring-1 ring-rt-border/70 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/70"
-                                role="group"
-                                aria-label="{{ __('app.toggle_theme') }}"
-                                data-email-template-theme-toggle="mail"
-                            >
-                                @foreach ($themes as $themeKey => $theme)
-                                    <button
-                                        type="button"
-                                        x-on:click="mailTheme = @js($themeKey)"
-                                        x-bind:aria-pressed="(mailTheme === @js($themeKey)).toString()"
-                                        data-email-template-theme-option="mail-{{ $themeKey }}"
-                                        class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/35 sm:min-w-24"
-                                        x-bind:class="mailTheme === @js($themeKey)
-                                            ? 'bg-rt-surface text-rt-red shadow-rt-xs ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:text-rt-dark-accent dark:ring-rt-dark-border/70'
-                                            : 'text-rt-muted hover:text-rt-text dark:text-rt-dark-muted dark:hover:text-rt-dark-text'"
-                                    >
-                                        <i class="{{ $theme['icon'] }}" aria-hidden="true"></i>
-                                        <span>{{ $theme['label'] }}</span>
-                                    </button>
-                                @endforeach
-                            </div>
+            <section
+                class="overflow-hidden rounded-[1.4rem] bg-rt-surface shadow-rt-sm ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70"
+                aria-labelledby="email-template-downloads-heading"
+                data-email-template-primary-downloads
+            >
+                <div class="border-b border-rt-border/70 px-4 py-4 dark:border-rt-dark-border/70 sm:px-5 sm:py-5">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                        <div class="min-w-0">
+                            <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-rt-red dark:text-rt-dark-accent">Ihre Dateien</p>
+                            <h2 id="email-template-downloads-heading" class="mt-1 text-lg font-semibold tracking-tight text-rt-text dark:text-rt-dark-text sm:text-xl">
+                                Zwei Downloads, alles enthalten
+                            </h2>
+                            <p class="mt-1 max-w-2xl text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">
+                                Keine Format- oder Farbwahl mehr: Die empfohlenen Fassungen sind bereits personalisiert und einsatzbereit.
+                            </p>
                         </div>
-
-                        @foreach ($themes as $themeKey => $theme)
-                            @php
-                                $themeTemplates = $mailTemplates->where('theme', $themeKey);
-                            @endphp
-                            <article
-                                x-show="mailTheme === @js($themeKey)"
-                                x-cloak
-                                @if ($themeKey === 'dark') style="display: none;" @endif
-                                class="overflow-hidden rounded-2xl bg-rt-surface ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70"
-                                data-email-template-theme-panel="mail-{{ $themeKey }}"
-                                data-template-category="mail"
-                                data-template-theme="{{ $themeKey }}"
-                            >
-                                <div class="grid lg:grid-cols-[minmax(0,1.1fr)_minmax(19rem,0.9fr)]">
-                                    <div @class([
-                                        'flex items-center justify-center p-4 sm:p-6',
-                                        'bg-[#f4f2ed]' => $themeKey === 'light',
-                                        'bg-[#090d12]' => $themeKey === 'dark',
-                                    ])>
-                                        <div @class([
-                                            'w-full max-w-md overflow-hidden rounded-xl shadow-lg ring-1',
-                                            'bg-white ring-slate-900/10' => $themeKey === 'light',
-                                            'bg-[#151d26] ring-white/10' => $themeKey === 'dark',
-                                        ]) aria-hidden="true">
-                                            <div class="h-1.5 bg-rt-red"></div>
-                                            <div class="flex items-center justify-between gap-4 px-4 py-3">
-                                                <div class="font-mono text-[9px] font-black italic tracking-tight">
-                                                    <span class="text-rt-red">RAIL</span><span @class(['text-slate-800' => $themeKey === 'light', 'text-white' => $themeKey === 'dark'])>TIME</span>
-                                                </div>
-                                                <span @class([
-                                                    'rounded-full px-2 py-1 text-[8px] font-bold uppercase tracking-[0.12em]',
-                                                    'bg-slate-100 text-slate-500' => $themeKey === 'light',
-                                                    'bg-white/5 text-white/55' => $themeKey === 'dark',
-                                                ])>{{ $theme['label'] }}</span>
-                                            </div>
-                                            <div @class([
-                                                'space-y-2.5 border-y px-4 py-4',
-                                                'border-slate-100 bg-[#fbfaf7]' => $themeKey === 'light',
-                                                'border-white/5 bg-[#111820]' => $themeKey === 'dark',
-                                            ])>
-                                                <span @class(['block h-2 w-28 rounded-full', 'bg-slate-800' => $themeKey === 'light', 'bg-white/85' => $themeKey === 'dark'])></span>
-                                                <span @class(['block h-1.5 w-full rounded-full', 'bg-slate-200' => $themeKey === 'light', 'bg-white/10' => $themeKey === 'dark'])></span>
-                                                <span @class(['block h-1.5 w-4/5 rounded-full', 'bg-slate-200' => $themeKey === 'light', 'bg-white/10' => $themeKey === 'dark'])></span>
-                                                <div @class([
-                                                    'mt-3 grid grid-cols-2 gap-px overflow-hidden rounded-md',
-                                                    'bg-slate-200' => $themeKey === 'light',
-                                                    'bg-white/10' => $themeKey === 'dark',
-                                                ])>
-                                                    <span @class(['h-9', 'bg-white' => $themeKey === 'light', 'bg-white/5' => $themeKey === 'dark'])></span>
-                                                    <span @class(['h-9', 'bg-white' => $themeKey === 'light', 'bg-white/5' => $themeKey === 'dark'])></span>
-                                                </div>
-                                            </div>
-                                            <div @class([
-                                                'flex items-center justify-between gap-3 px-4 py-3',
-                                                'bg-white text-slate-700' => $themeKey === 'light',
-                                                'bg-[#080b10] text-white' => $themeKey === 'dark',
-                                            ])>
-                                                <span @class(['h-2 w-20 rounded-full', 'bg-slate-300' => $themeKey === 'light', 'bg-white/70' => $themeKey === 'dark'])></span>
-                                                <span class="h-2 w-12 rounded-full bg-rt-red"></span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="flex flex-col p-4 sm:p-5">
-                                        <div class="flex items-start gap-3">
-                                            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft text-rt-red dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent">
-                                                <i class="{{ $theme['icon'] }}" aria-hidden="true"></i>
-                                            </span>
-                                            <div class="min-w-0">
-                                                <h3 class="font-semibold text-rt-text dark:text-rt-dark-text">{{ $theme['label'] }}</h3>
-                                                <p class="mt-1 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">{{ $theme['hint'] }}</p>
-                                            </div>
-                                        </div>
-
-                                        <div class="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
-                                            @foreach ($themeTemplates as $key => $template)
-                                                <a
-                                                    href="{{ route('email-templates.download', ['template' => $key]) }}"
-                                                    data-template-key="{{ $key }}"
-                                                    data-template-format="{{ $template['format'] }}"
-                                                    data-no-navigate
-                                                    class="group flex min-h-14 items-center gap-3 rounded-xl bg-rt-surface-muted/70 px-3.5 py-3 ring-1 ring-rt-border/60 transition hover:-translate-y-0.5 hover:bg-rt-accent-soft hover:ring-rt-red/20 dark:bg-rt-dark-surface-muted/60 dark:ring-rt-dark-border/60 dark:hover:bg-rt-dark-accent-soft dark:hover:ring-rt-dark-accent/20"
-                                                >
-                                                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-rt-surface text-rt-red shadow-rt-xs ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:text-rt-dark-accent dark:ring-rt-dark-border/70">
-                                                        <i class="far {{ $template['format'] === 'eml' ? 'fa-envelope' : 'fa-code' }}" aria-hidden="true"></i>
-                                                    </span>
-                                                    <span class="min-w-0 flex-1">
-                                                        <span class="block text-sm font-semibold text-rt-text dark:text-rt-dark-text">{{ __($template['label']) }}</span>
-                                                        <span class="mt-0.5 block text-[11px] text-rt-muted dark:text-rt-dark-muted">{{ strtoupper($template['extension']) }}</span>
-                                                    </span>
-                                                    <i class="far fa-download shrink-0 text-xs text-rt-muted transition group-hover:text-rt-red dark:text-rt-dark-muted dark:group-hover:text-rt-dark-accent" aria-hidden="true"></i>
-                                                </a>
-                                            @endforeach
-                                        </div>
-
-                                        <button
-                                            type="button"
-                                            x-on:click="openPreview(@js($themeKey), $event)"
-                                            class="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-rt-red ring-1 ring-inset ring-rt-red/20 transition hover:bg-rt-accent-soft focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/15 dark:text-rt-dark-accent dark:ring-rt-dark-accent/25 dark:hover:bg-rt-dark-accent-soft"
-                                        >
-                                            <i class="far fa-eye" aria-hidden="true"></i>
-                                            {{ __('app.email_templates_preview_accordion') }}
-                                        </button>
-                                    </div>
-                                </div>
-                            </article>
-                        @endforeach
+                        <span class="inline-flex min-h-8 w-fit items-center gap-2 rounded-full bg-emerald-50 px-3 text-xs font-semibold text-emerald-800 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/25">
+                            <i class="far fa-check-circle" aria-hidden="true"></i>
+                            2 von 2 bereit
+                        </span>
                     </div>
-                </x-ui.accordion.section>
+                </div>
 
-                <x-ui.accordion.section
-                    section="signature"
-                    :label="__('app.email_templates_signature_section')"
-                    :description="__('app.email_templates_signature_section_hint')"
-                    icon="fad fa-signature"
-                    id-prefix="email-templates"
-                    data-email-template-accordion="signature"
-                >
-                    <div class="space-y-3.5">
-                        <div class="flex flex-col gap-3 rounded-2xl bg-rt-surface p-3 ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60 sm:flex-row sm:items-center sm:justify-between sm:p-4">
-                            <div class="min-w-0">
-                                <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-rt-red dark:text-rt-dark-accent">{{ __('app.toggle_theme') }}</p>
-                                <p class="mt-1 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted" x-text="signatureTheme === 'dark' ? @js($themes['dark']['hint']) : @js($themes['light']['hint'])"></p>
-                            </div>
-                            <div
-                                class="grid shrink-0 grid-cols-2 rounded-xl bg-rt-surface-muted p-1 ring-1 ring-rt-border/70 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/70"
-                                role="group"
-                                aria-label="{{ __('app.toggle_theme') }}"
-                                data-email-template-theme-toggle="signature"
-                            >
-                                @foreach ($themes as $themeKey => $theme)
-                                    <button
-                                        type="button"
-                                        x-on:click="signatureTheme = @js($themeKey)"
-                                        x-bind:aria-pressed="(signatureTheme === @js($themeKey)).toString()"
-                                        data-email-template-theme-option="signature-{{ $themeKey }}"
-                                        class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-red/35 sm:min-w-24"
-                                        x-bind:class="signatureTheme === @js($themeKey)
-                                            ? 'bg-rt-surface text-rt-red shadow-rt-xs ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:text-rt-dark-accent dark:ring-rt-dark-border/70'
-                                            : 'text-rt-muted hover:text-rt-text dark:text-rt-dark-muted dark:hover:text-rt-dark-text'"
-                                    >
-                                        <i class="{{ $theme['icon'] }}" aria-hidden="true"></i>
-                                        <span>{{ $theme['label'] }}</span>
-                                    </button>
-                                @endforeach
-                            </div>
-                        </div>
-
-                        @foreach ($themes as $themeKey => $theme)
-                            @php
-                                $signatureKey = $themeKey === 'light' ? 'signatur-hell' : 'signatur-dunkel';
-                                $signature = $signatureTemplates->get($signatureKey);
-                                $outlookSignatureKey = $themeKey === 'light' ? 'signatur-outlook-hell' : 'signatur-outlook-dunkel';
-                                $outlookSignature = $signatureTemplates->get($outlookSignatureKey);
-                            @endphp
-                            <article
-                                x-show="signatureTheme === @js($themeKey)"
-                                x-cloak
-                                @if ($themeKey === 'dark') style="display: none;" @endif
-                                class="overflow-hidden rounded-2xl bg-rt-surface ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70"
-                                data-email-template-theme-panel="signature-{{ $themeKey }}"
-                                data-template-category="signature"
-                                data-template-theme="{{ $themeKey }}"
-                            >
-                                <div class="grid lg:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.85fr)]">
-                                    <div @class([
-                                        'flex items-center justify-center p-4 sm:p-6',
-                                        'bg-[#f4f2ed]' => $themeKey === 'light',
-                                        'bg-[#090d12]' => $themeKey === 'dark',
-                                    ])>
-                                        <div @class([
-                                            'w-full max-w-lg overflow-hidden rounded-xl px-4 py-4 shadow-lg ring-1 sm:px-5',
-                                            'bg-white ring-slate-900/10' => $themeKey === 'light',
-                                            'bg-[#080b10] ring-white/10' => $themeKey === 'dark',
-                                        ]) aria-hidden="true">
-                                            <div class="grid grid-cols-[minmax(0,1fr)_4.75rem] items-stretch gap-4">
-                                                <div class="min-w-0">
-                                                    <p @class(['truncate text-sm font-bold', 'text-slate-900' => $themeKey === 'light', 'text-white' => $themeKey === 'dark'])>{{ $user->name }}</p>
-                                                    <p class="mt-0.5 truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-rt-red">{{ $templateValues['POSITION'] }}</p>
-                                                    <div @class([
-                                                        'mt-3 space-y-1.5 border-t pt-3 text-[9px]',
-                                                        'border-slate-200 text-slate-600' => $themeKey === 'light',
-                                                        'border-white/10 text-white/65' => $themeKey === 'dark',
-                                                    ])>
-                                                        @if ($templateValues['DURCHWAHL'] !== '')
-                                                            <p class="flex min-w-0 items-center gap-2">
-                                                                <i class="far fa-phone w-4 shrink-0 text-center text-rt-red"></i>
-                                                                <span class="truncate">{{ $templateValues['DURCHWAHL'] }}</span>
-                                                            </p>
-                                                        @endif
-                                                        @if ($templateValues['MOBIL'] !== '')
-                                                            <p class="flex min-w-0 items-center gap-2">
-                                                                <i class="far fa-mobile-alt w-4 shrink-0 text-center text-rt-red"></i>
-                                                                <span class="truncate">{{ $templateValues['MOBIL'] }}</span>
-                                                            </p>
-                                                        @endif
-                                                        <p class="flex min-w-0 items-center gap-2">
-                                                            <i class="far fa-envelope w-4 shrink-0 text-center text-rt-red"></i>
-                                                            <span class="truncate">{{ $templateValues['E_MAIL'] }}</span>
-                                                        </p>
-                                                        @if ($templateValues['FIRMEN_WEBSITE_LABEL'] !== '')
-                                                            <p class="flex min-w-0 items-center gap-2">
-                                                                <i class="far fa-globe w-4 shrink-0 text-center text-rt-red"></i>
-                                                                <span class="truncate">{{ $templateValues['FIRMEN_WEBSITE_LABEL'] }}</span>
-                                                            </p>
-                                                        @endif
-                                                    </div>
-                                                </div>
-                                                <div @class([
-                                                    'flex flex-col justify-end border-l pl-3 text-right',
-                                                    'border-slate-200' => $themeKey === 'light',
-                                                    'border-white/10' => $themeKey === 'dark',
-                                                ])>
-                                                    <span class="block text-base font-black italic leading-none tracking-tighter text-rt-red">RAIL</span>
-                                                    <span @class([
-                                                        'block text-base font-black italic leading-none tracking-tighter',
-                                                        'text-slate-700' => $themeKey === 'light',
-                                                        'text-white' => $themeKey === 'dark',
-                                                    ])>TIME</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="flex flex-col p-4 sm:p-5">
-                                        <div class="flex items-start gap-3">
-                                            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rt-accent-soft text-rt-red dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent">
-                                                <i class="{{ $theme['icon'] }}" aria-hidden="true"></i>
-                                            </span>
-                                            <div class="min-w-0">
-                                                <h3 class="font-semibold text-rt-text dark:text-rt-dark-text">{{ __($signature['label']) }}</h3>
-                                                <p class="mt-1 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">{{ __($signature['hint']) }}</p>
-                                            </div>
-                                        </div>
-                                        <div class="mt-4 grid gap-2 lg:mt-auto">
-                                            <a
-                                                href="{{ route('email-templates.download', ['template' => $outlookSignatureKey]) }}"
-                                                data-template-key="{{ $outlookSignatureKey }}"
-                                                data-template-format="zip"
-                                                data-no-navigate
-                                                class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-4 py-2 text-sm font-semibold text-white shadow-rt-xs transition hover:-translate-y-0.5 hover:bg-rt-red-dark focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/20"
-                                            >
-                                                <i class="fab fa-microsoft" aria-hidden="true"></i>
-                                                {{ __('app.email_templates_outlook_install') }} · ZIP
-                                            </a>
-                                            <a
-                                                href="{{ route('email-templates.download', ['template' => $signatureKey]) }}"
-                                                data-template-key="{{ $signatureKey }}"
-                                                data-template-format="html"
-                                                data-no-navigate
-                                                class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-surface-muted px-4 py-2 text-sm font-semibold text-rt-text ring-1 ring-inset ring-rt-border/70 transition hover:-translate-y-0.5 hover:text-rt-red focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/15 dark:bg-rt-dark-surface-muted dark:text-rt-dark-text dark:ring-rt-dark-border/70 dark:hover:text-rt-dark-accent"
-                                            >
-                                                <i class="far fa-download" aria-hidden="true"></i>
-                                                {{ __('app.email_templates_standard_html') }}
-                                            </a>
-                                            <p class="text-[11px] leading-4 text-rt-muted dark:text-rt-dark-muted">{{ __($outlookSignature['hint']) }}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </article>
-                        @endforeach
-
-                        @php
-                            $textSignature = $signatureTemplates->get('signatur-text');
-                        @endphp
+                <div class="grid gap-px bg-rt-border/70 dark:bg-rt-dark-border/70 lg:grid-cols-2">
+                    @foreach ($primaryDownloads as $key => $download)
                         <article
-                            class="flex flex-col gap-4 rounded-2xl bg-rt-surface p-4 ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:ring-rt-dark-border/70 sm:flex-row sm:items-center sm:justify-between sm:p-5"
-                            data-template-category="signature"
-                            data-template-theme="neutral"
+                            class="flex min-w-0 flex-col bg-rt-surface p-4 dark:bg-rt-dark-surface sm:p-5"
+                            data-email-template-primary-download="{{ $key }}"
                         >
-                            <div class="flex min-w-0 items-start gap-3">
-                                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rt-surface-muted text-rt-red ring-1 ring-rt-border/70 dark:bg-rt-dark-surface-muted dark:text-rt-dark-accent dark:ring-rt-dark-border/70">
-                                    <i class="far fa-align-left" aria-hidden="true"></i>
+                            <div class="flex items-start gap-3.5">
+                                <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-rt-accent-soft text-lg text-rt-red ring-1 ring-inset ring-rt-red/10 dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent dark:ring-rt-dark-accent/15">
+                                    <i class="{{ $download['icon'] }}" aria-hidden="true"></i>
                                 </span>
-                                <div class="min-w-0">
-                                    <h3 class="font-semibold text-rt-text dark:text-rt-dark-text">{{ __($textSignature['label']) }}</h3>
-                                    <p class="mt-1 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">{{ __($textSignature['hint']) }}</p>
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <p class="text-[10px] font-bold uppercase tracking-[0.14em] text-rt-red dark:text-rt-dark-accent">{{ $download['eyebrow'] }}</p>
+                                        <span class="rounded-full bg-rt-surface-muted px-2 py-0.5 text-[10px] font-bold tracking-[0.08em] text-rt-muted ring-1 ring-inset ring-rt-border/70 dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted dark:ring-rt-dark-border/70">{{ $download['format'] }}</span>
+                                    </div>
+                                    <h3 class="mt-1.5 text-base font-semibold tracking-tight text-rt-text dark:text-rt-dark-text sm:text-lg">{{ $download['title'] }}</h3>
+                                    <p class="mt-1.5 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted sm:text-sm sm:leading-6">{{ $download['description'] }}</p>
                                 </div>
                             </div>
-                            <a
-                                href="{{ route('email-templates.download', ['template' => 'signatur-text']) }}"
-                                data-template-key="signatur-text"
-                                data-template-format="txt"
-                                data-no-navigate
-                                class="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-rt-surface-muted px-4 py-2 text-sm font-semibold text-rt-text ring-1 ring-rt-border/70 transition hover:-translate-y-0.5 hover:text-rt-red focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/15 dark:bg-rt-dark-surface-muted dark:text-rt-dark-text dark:ring-rt-dark-border/70 dark:hover:text-rt-dark-accent"
-                            >
-                                <i class="far fa-download" aria-hidden="true"></i>
-                                {{ __('app.download') }} · TXT
-                            </a>
-                        </article>
-                    </div>
-                </x-ui.accordion.section>
-            </div>
 
+                            @if ($key === 'vorlage-html')
+                                <div class="my-4 grid grid-cols-2 gap-2" aria-label="Inhalt der Mailvorlage">
+                                    <span class="flex min-h-11 items-center gap-2 rounded-xl bg-rt-surface-muted px-3 text-xs font-medium text-rt-text ring-1 ring-inset ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:text-rt-dark-text dark:ring-rt-dark-border/60">
+                                        <i class="far fa-user-check text-rt-red dark:text-rt-dark-accent" aria-hidden="true"></i>
+                                        Profildaten enthalten
+                                    </span>
+                                    <span class="flex min-h-11 items-center gap-2 rounded-xl bg-rt-surface-muted px-3 text-xs font-medium text-rt-text ring-1 ring-inset ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:text-rt-dark-text dark:ring-rt-dark-border/60">
+                                        <i class="far fa-shield-check text-rt-red dark:text-rt-dark-accent" aria-hidden="true"></i>
+                                        Freigegebenes Design
+                                    </span>
+                                </div>
+                            @else
+                                <div class="my-4 grid gap-2 sm:grid-cols-2">
+                                    <div class="rounded-xl bg-rt-surface-muted p-3 ring-1 ring-inset ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60">
+                                        <p class="flex items-center gap-2 text-xs font-semibold text-rt-text dark:text-rt-dark-text">
+                                            <i class="far fa-bolt text-rt-red dark:text-rt-dark-accent" aria-hidden="true"></i>
+                                            Classic Outlook
+                                        </p>
+                                        <p class="mt-1 text-[11px] leading-4 text-rt-muted dark:text-rt-dark-muted">CMD starten, Prüfung und Zuordnung laufen geführt automatisch.</p>
+                                    </div>
+                                    <div class="rounded-xl bg-rt-surface-muted p-3 ring-1 ring-inset ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:ring-rt-dark-border/60">
+                                        <p class="flex items-center gap-2 text-xs font-semibold text-rt-text dark:text-rt-dark-text">
+                                            <i class="far fa-cloud text-rt-red dark:text-rt-dark-accent" aria-hidden="true"></i>
+                                            Neues Outlook
+                                        </p>
+                                        <p class="mt-1 text-[11px] leading-4 text-rt-muted dark:text-rt-dark-muted">Enthaltene HTML-Datei öffnen, kopieren und in Konten → Signaturen einsetzen.</p>
+                                    </div>
+                                </div>
+                            @endif
+
+                            <div class="mt-auto grid gap-2 sm:grid-cols-2">
+                                <a
+                                    href="{{ route('email-templates.download', ['template' => $key]) }}"
+                                    data-template-key="{{ $key }}"
+                                    data-template-format="{{ strtolower($download['format']) }}"
+                                    data-email-template-primary-action
+                                    data-no-navigate
+                                    class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-4 py-2 text-center text-sm font-semibold text-white shadow-rt-xs transition hover:-translate-y-0.5 hover:bg-rt-red-dark focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/20"
+                                >
+                                    <i class="far fa-download" aria-hidden="true"></i>
+                                    {{ $download['action'] }}
+                                </a>
+
+                                @if ($key === 'vorlage-html')
+                                    <button
+                                        type="button"
+                                        x-on:click="openPreview(mailTheme, $event)"
+                                        class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-rt-red ring-1 ring-inset ring-rt-red/20 transition hover:bg-rt-accent-soft focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/15 dark:text-rt-dark-accent dark:ring-rt-dark-accent/25 dark:hover:bg-rt-dark-accent-soft"
+                                    >
+                                        <i class="far fa-eye" aria-hidden="true"></i>
+                                        Vorschau öffnen
+                                    </button>
+                                @else
+                                    <span class="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-surface-muted px-4 text-center text-xs font-semibold text-rt-muted ring-1 ring-inset ring-rt-border/60 dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted dark:ring-rt-dark-border/60">
+                                        <i class="far fa-file-archive" aria-hidden="true"></i>
+                                        Anleitung im Paket
+                                    </span>
+                                @endif
+                            </div>
+                        </article>
+                    @endforeach
+                </div>
+            </section>
             <aside class="flex items-start gap-3 rounded-2xl bg-rt-surface-muted px-4 py-4 text-xs leading-5 text-rt-muted ring-1 ring-rt-border/70 dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted dark:ring-rt-dark-border/70">
                 <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rt-surface text-rt-red ring-1 ring-rt-border/70 dark:bg-rt-dark-surface dark:text-rt-dark-accent dark:ring-rt-dark-border/70">
                     <i class="far fa-info-circle" aria-hidden="true"></i>
@@ -700,10 +516,12 @@
                             @endforeach
                         </div>
 
-                        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                        <div class="grid grid-cols-2 gap-2">
                             <button
                                 type="button"
                                 x-on:click="replayPreview()"
+                                x-bind:disabled="reducedMotion"
+                                x-bind:title="reducedMotion ? @js(__('app.email_templates_preview_reduced_motion_hint')) : @js(__('app.email_templates_preview_replay'))"
                                 class="col-span-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-rt-red ring-1 ring-inset ring-rt-red/20 transition hover:bg-rt-accent-soft focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/20 dark:text-rt-dark-accent dark:ring-rt-dark-accent/25 dark:hover:bg-rt-dark-accent-soft sm:col-span-1 sm:px-4"
                                 data-email-template-preview-replay
                             >
@@ -719,14 +537,6 @@
                                 <i class="far fa-external-link-alt" aria-hidden="true"></i>
                                 <span>{{ __('app.open') }}</span>
                             </a>
-                            <a
-                                x-bind:href="previewDownloadUrls[mailTheme]"
-                                data-no-navigate
-                                class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-3 py-2 text-xs font-semibold text-white shadow-rt-xs transition hover:bg-rt-red-dark sm:px-4"
-                            >
-                                <i class="far fa-download" aria-hidden="true"></i>
-                                <span>{{ __('app.download') }}</span>
-                            </a>
                         </div>
                     </div>
 
@@ -738,13 +548,29 @@
                     </p>
 
                     <template x-if="previewModalOpen">
-                        <div class="min-h-0 flex-1 overflow-hidden rounded-2xl bg-white shadow-inner ring-1 ring-rt-border/70 dark:ring-rt-dark-border/70" data-email-template-preview>
+                        <div class="relative min-h-0 flex-1 overflow-hidden rounded-2xl bg-white shadow-inner ring-1 ring-rt-border/70 dark:ring-rt-dark-border/70" data-email-template-preview>
+                            <div
+                                x-show="!previewFrameReady"
+                                x-transition.opacity
+                                class="pointer-events-none absolute inset-0 z-10 grid place-items-center bg-white/95 px-5 text-center text-sm text-slate-600 backdrop-blur-sm"
+                                role="status"
+                                aria-live="polite"
+                                data-email-template-preview-loading
+                            >
+                                <span class="flex items-center gap-2.5">
+                                    <i class="far fa-spinner-third animate-spin text-rt-red" aria-hidden="true"></i>
+                                    Sichere Vorschau wird vorbereitet …
+                                </span>
+                            </div>
                             <iframe
                                 x-bind:src="previewFrameUrl()"
+                                x-on:load="previewFrameLoaded()"
                                 title="{{ __('app.email_templates_preview_accordion') }}"
                                 sandbox=""
+                                referrerpolicy="no-referrer"
                                 loading="lazy"
-                                class="h-full min-h-[22rem] w-full border-0 bg-white"
+                                x-bind:class="previewFrameReady ? 'opacity-100' : 'opacity-0'"
+                                class="h-full min-h-[22rem] w-full border-0 bg-white transition-opacity duration-200 motion-reduce:transition-none"
                                 data-email-template-preview-frame
                             ></iframe>
                         </div>

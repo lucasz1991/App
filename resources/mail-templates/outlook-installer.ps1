@@ -13,6 +13,7 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
 $script:InstallerTitle = 'RailTime Outlook-Einrichtung'
+$script:InstallerVersion = '3.0'
 $script:AccountContainerName = '9375CFF0413111d3B88A00104B2A6676'
 $script:LogPath = ''
 $script:Mutex = $null
@@ -63,6 +64,14 @@ function Initialize-InstallerLog {
     $script:LogPath = Join-Path $tempRoot 'RailTime-Outlook-Signatur-Installation.log'
     $header = '[START] {0} RailTime Outlook-Einrichtung' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
     [System.IO.File]::WriteAllText($script:LogPath, $header + [Environment]::NewLine, (New-Object System.Text.UTF8Encoding($true)))
+
+    Write-InstallerLog -Level INFO -Message ('Installer-Version: {0}' -f $script:InstallerVersion)
+    Write-InstallerLog -Level INFO -Message ('Windows PowerShell: {0}' -f $PSVersionTable.PSVersion)
+    Write-InstallerLog -Level INFO -Message ('Betriebssystem: {0}' -f [Environment]::OSVersion.VersionString)
+    Write-InstallerLog -Level INFO -Message ('Prozessarchitektur: {0}-Bit' -f ([IntPtr]::Size * 8))
+    if ($TestMode) {
+        Write-InstallerLog -Level INFO -Message 'Sicherer Testmodus aktiv: Prozesse und Registry bleiben unberührt.'
+    }
 }
 
 function Write-InstallerLog {
@@ -78,6 +87,17 @@ function Write-InstallerLog {
 
     $line = '[{0}] {1} {2}' -f $Level, (Get-Date -Format 'HH:mm:ss'), $Message
     [System.IO.File]::AppendAllText($script:LogPath, $line + [Environment]::NewLine, (New-Object System.Text.UTF8Encoding($true)))
+}
+
+function Write-InstallerStatus {
+    param(
+        [ValidateSet('INFO', 'ERFOLG', 'FEHLER', 'WARNUNG')]
+        [string] $Level,
+        [string] $Message
+    )
+
+    Write-InstallerLog -Level $Level -Message $Message
+    Write-Host ('[{0}] {1}' -f $Level, $Message)
 }
 
 function Get-FullPath {
@@ -105,6 +125,48 @@ function Get-PayloadRelativePaths {
     return $paths
 }
 
+function Convert-ToPortablePath {
+    param([string] $Path)
+
+    return ($Path -replace '\\', '/')
+}
+
+function Get-PackageRelativePaths {
+    param([string] $Name)
+
+    $paths = @()
+    foreach ($payloadPath in (Get-PayloadRelativePaths -Name $Name)) {
+        $paths += Convert-ToPortablePath -Path $payloadPath
+    }
+    $paths += 'README-Outlook.html'
+    $paths += 'Outlook-klassisch-installieren.cmd'
+    $paths += 'RailTime-Outlook-Installer.ps1'
+
+    return $paths
+}
+
+function Get-ShortHash {
+    param([string] $Hash)
+
+    if ([string]::IsNullOrWhiteSpace($Hash) -or $Hash.Length -le 16) {
+        return $Hash
+    }
+
+    return $Hash.Substring(0, 16)
+}
+
+function Get-TextSha256 {
+    param([string] $Text)
+
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $bytes = (New-Object System.Text.UTF8Encoding($false)).GetBytes($Text)
+        return ([BitConverter]::ToString($sha256.ComputeHash($bytes))).Replace('-', '').ToLowerInvariant()
+    } finally {
+        $sha256.Dispose()
+    }
+}
+
 function Test-Package {
     param(
         [string] $Name,
@@ -119,15 +181,75 @@ function Test-Package {
         Throw-InstallerError -ExitCode 11 -Message 'Der entpackte Paketordner wurde nicht gefunden.'
     }
 
-    foreach ($relativePath in (Get-PayloadRelativePaths -Name $Name)) {
-        $sourcePath = Join-Path $Root $relativePath
+    $manifestPath = Join-Path $Root 'RailTime-Paketmanifest.json'
+    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+        Throw-InstallerError -ExitCode 11 -Message 'Das ZIP wurde nicht vollständig entpackt. Es fehlt: RailTime-Paketmanifest.json'
+    }
+
+    try {
+        $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    } catch {
+        Throw-InstallerError -ExitCode 11 -Message 'Das Paketmanifest ist nicht lesbar. Bitte das ZIP erneut herunterladen und vollständig entpacken.'
+    }
+
+    if ([int] $manifest.schema -ne 1 -or [string] $manifest.signatureName -cne $Name) {
+        Throw-InstallerError -ExitCode 11 -Message 'Das Paketmanifest gehört nicht zu dieser RailTime-Signatur.'
+    }
+
+    $entries = @($manifest.files)
+    $expectedPaths = @(Get-PackageRelativePaths -Name $Name)
+    if ($entries.Count -ne $expectedPaths.Count) {
+        Throw-InstallerError -ExitCode 11 -Message 'Das Paketmanifest enthält nicht die erwartete Anzahl an Dateien.'
+    }
+
+    $verifiedFiles = @()
+    foreach ($relativePath in $expectedPaths) {
+        $entry = $entries | Where-Object { [string] $_.path -ceq $relativePath } | Select-Object -First 1
+        if ($null -eq $entry) {
+            Throw-InstallerError -ExitCode 11 -Message ('Im Paketmanifest fehlt: {0}' -f $relativePath)
+        }
+
+        $nativeRelativePath = $relativePath -replace '/', [System.IO.Path]::DirectorySeparatorChar
+        $sourcePath = Join-Path $Root $nativeRelativePath
         if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {
             Throw-InstallerError -ExitCode 11 -Message ('Das ZIP wurde nicht vollständig entpackt. Es fehlt: {0}' -f $relativePath)
         }
 
-        if ((Get-Item -LiteralPath $sourcePath).Length -le 0) {
+        $sourceItem = Get-Item -LiteralPath $sourcePath
+        if ($sourceItem.Length -le 0) {
             Throw-InstallerError -ExitCode 11 -Message ('Eine Installationsdatei ist leer: {0}' -f $relativePath)
         }
+
+        $actualHash = (Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash.ToLowerInvariant()
+        $expectedHash = ([string] $entry.sha256).ToLowerInvariant()
+        if ($sourceItem.Length -ne [long] $entry.bytes -or $actualHash -cne $expectedHash) {
+            Throw-InstallerError -ExitCode 11 -Message ('Die Paketprüfung ist fehlgeschlagen: {0}. Bitte das ZIP erneut herunterladen.' -f $relativePath)
+        }
+
+        $verifiedFiles += [pscustomobject] @{
+            Path = $relativePath
+            Bytes = [long] $sourceItem.Length
+            Sha256 = $actualHash
+        }
+    }
+
+    $fingerprintMaterial = @()
+    foreach ($manifestEntry in $entries) {
+        $verifiedEntry = $verifiedFiles | Where-Object { [string] $_.Path -ceq [string] $manifestEntry.path } | Select-Object -First 1
+        $fingerprintMaterial += '{0}:{1}' -f $verifiedEntry.Path, $verifiedEntry.Sha256
+    }
+    $computedFingerprint = Get-TextSha256 -Text ($fingerprintMaterial -join "`n")
+    $fingerprint = ([string] $manifest.packageFingerprint).ToLowerInvariant()
+    if ($fingerprint -notmatch '^[a-f0-9]{64}$' -or $fingerprint -cne $computedFingerprint) {
+        Throw-InstallerError -ExitCode 11 -Message 'Der Paketfingerabdruck im Manifest ist ungültig.'
+    }
+
+    Write-InstallerStatus -Level INFO -Message ('Paketmanifest geprüft: {0} Dateien, SHA-256 {1}…' -f $verifiedFiles.Count, (Get-ShortHash -Hash $fingerprint))
+
+    return [pscustomobject] @{
+        Fingerprint = $fingerprint
+        Files = $verifiedFiles
+        ManifestPath = $manifestPath
     }
 }
 
@@ -205,7 +327,7 @@ function Get-DefaultOutlookProfileName {
     return $profileName.Trim()
 }
 
-function Get-FixtureAccount {
+function Get-FixtureAccounts {
     param([string] $FixturePath)
 
     if ([string]::IsNullOrWhiteSpace($FixturePath) -or -not (Test-Path -LiteralPath $FixturePath -PathType Leaf)) {
@@ -228,10 +350,11 @@ function Get-FixtureAccount {
         return [int]::MaxValue
     } }, @{ Expression = { [string] $_.Key } }
 
+    $foundAccounts = @()
     foreach ($account in $accounts) {
         $email = ([string] $account.Email).Trim()
         if ($email -match '^[^@\s]+@rail-time\.de$') {
-            return [pscustomobject] @{
+            $foundAccounts += [pscustomobject] @{
                 ProfileName = [string] $profile.Name
                 AccountKeyName = [string] $account.Key
                 AccountKeyPath = 'fixture://{0}/{1}' -f $profile.Name, $account.Key
@@ -241,14 +364,14 @@ function Get-FixtureAccount {
         }
     }
 
-    return $null
+    return @($foundAccounts)
 }
 
-function Get-ClassicOutlookAccount {
+function Get-ClassicOutlookAccounts {
     param([string] $FixturePath)
 
     if ($TestMode) {
-        return Get-FixtureAccount -FixturePath $FixturePath
+        return @(Get-FixtureAccounts -FixturePath $FixturePath)
     }
 
     $profileName = Get-DefaultOutlookProfileName
@@ -268,12 +391,13 @@ function Get-ClassicOutlookAccount {
         return [int]::MaxValue
     } }, PSChildName
 
+    $foundAccounts = @()
     foreach ($accountKey in $accountKeys) {
         $rawName = $accountKey.GetValue('Account Name', $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
         $email = Convert-RegistryAccountName -Value $rawName
 
         if ($email -match '^[^@\s]+@rail-time\.de$') {
-            return [pscustomobject] @{
+            $foundAccounts += [pscustomobject] @{
                 ProfileName = $profileName
                 AccountKeyName = [string] $accountKey.PSChildName
                 AccountKeyPath = [string] $accountKey.PSPath
@@ -283,7 +407,7 @@ function Get-ClassicOutlookAccount {
         }
     }
 
-    return $null
+    return @($foundAccounts)
 }
 
 function Test-ClassicOutlookSignaturePolicy {
@@ -308,12 +432,13 @@ function Test-ClassicOutlookSignaturePolicy {
 }
 
 function Get-InstallationContext {
-    Test-Package -Name $SignatureName -Root $SourceDirectory
+    $package = Test-Package -Name $SignatureName -Root $SourceDirectory
 
-    $account = Get-ClassicOutlookAccount -FixturePath $AccountFixturePath
-    if ($null -eq $account) {
+    $accounts = @(Get-ClassicOutlookAccounts -FixturePath $AccountFixturePath)
+    if ($accounts.Count -eq 0) {
         Throw-InstallerError -ExitCode 12 -Message 'Im aktiven Classic-Outlook-Profil wurde kein Konto mit der Domain @rail-time.de gefunden. Outlook-Einstellungen und Signaturdateien wurden nicht geändert.'
     }
+    $account = $accounts[0]
 
     Test-ClassicOutlookSignaturePolicy
 
@@ -325,21 +450,31 @@ function Get-InstallationContext {
         $resolvedTarget = Join-Path $env:APPDATA 'Microsoft\Signatures'
     }
 
+    $resolvedTarget = Get-FullPath -Path $resolvedTarget
+    Write-InstallerStatus -Level INFO -Message ('Classic-Profil: {0}' -f $account.ProfileName)
+    Write-InstallerStatus -Level INFO -Message ('RailTime-Konten erkannt: {0}' -f $accounts.Count)
+    foreach ($detectedAccount in $accounts) {
+        Write-InstallerStatus -Level INFO -Message ('Konto: {0} (Schlüssel {1})' -f $detectedAccount.Email, $detectedAccount.AccountKeyName)
+    }
+    Write-InstallerStatus -Level INFO -Message ('Ausgewähltes Konto: {0}' -f $account.Email)
+    Write-InstallerStatus -Level INFO -Message ('Installationsziel: {0}' -f $resolvedTarget)
+
     return [pscustomobject] @{
         Account = $account
+        Accounts = $accounts
+        Package = $package
         SourceDirectory = $SourceDirectory
-        TargetDirectory = Get-FullPath -Path $resolvedTarget
+        TargetDirectory = $resolvedTarget
         RelativePaths = @(Get-PayloadRelativePaths -Name $SignatureName)
     }
 }
 
 function Get-OutlookProcesses {
-    $processes = @()
-    foreach ($name in @('OUTLOOK', 'olk')) {
-        $processes += @(Get-Process -Name $name -ErrorAction SilentlyContinue)
-    }
+    return @(Get-Process -Name 'OUTLOOK' -ErrorAction SilentlyContinue | Sort-Object Id -Unique)
+}
 
-    return @($processes | Sort-Object Id -Unique)
+function Get-NewOutlookProcesses {
+    return @(Get-Process -Name 'olk' -ErrorAction SilentlyContinue | Sort-Object Id -Unique)
 }
 
 function Invoke-UiPump {
@@ -356,15 +491,22 @@ function Close-OutlookApplications {
         return
     }
 
+    $newOutlookProcesses = @(Get-NewOutlookProcesses)
+    if ($newOutlookProcesses.Count -gt 0) {
+        Write-InstallerStatus -Level INFO -Message ('Neues Outlook erkannt ({0} Prozess(e)); es bleibt geöffnet und wird nicht verändert.' -f $newOutlookProcesses.Count)
+    } else {
+        Write-InstallerLog -Level INFO -Message 'Neues Outlook läuft nicht. Sein kontogebundener Signaturspeicher wird nicht verändert.'
+    }
+
     $running = @(Get-OutlookProcesses)
     if ($running.Count -eq 0) {
         Write-InstallerLog -Level INFO -Message 'Outlook war bereits geschlossen.'
         return
     }
 
-    Write-InstallerLog -Level INFO -Message ('Outlook wird automatisch geschlossen ({0} Prozess(e)).' -f $running.Count)
+    Write-InstallerStatus -Level INFO -Message ('Classic Outlook wird regulär geschlossen ({0} Prozess(e)).' -f $running.Count)
 
-    if (@($running | Where-Object { $_.ProcessName -ieq 'OUTLOOK' }).Count -gt 0) {
+    if ($running.Count -gt 0) {
         $outlookApplication = $null
         try {
             $outlookApplication = [System.Runtime.InteropServices.Marshal]::GetActiveObject('Outlook.Application')
@@ -456,7 +598,10 @@ function Copy-AndVerifyPayload {
         [void] (New-Item -ItemType Directory -Path $Context.TargetDirectory -Force)
     }
 
+    $verifiedCopies = @()
+    $fileIndex = 0
     foreach ($relativePath in $Context.RelativePaths) {
+        $fileIndex++
         $sourcePath = Join-Path $Context.SourceDirectory $relativePath
         $destinationPath = Join-Path $Context.TargetDirectory $relativePath
         $destinationParent = Split-Path -Parent $destinationPath
@@ -467,14 +612,27 @@ function Copy-AndVerifyPayload {
 
         Copy-Item -LiteralPath $sourcePath -Destination $destinationPath -Force
 
-        $sourceHash = (Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash
-        $destinationHash = (Get-FileHash -LiteralPath $destinationPath -Algorithm SHA256).Hash
-        if ($sourceHash -ne $destinationHash) {
+        $sourceHash = (Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash.ToLowerInvariant()
+        $destinationHash = (Get-FileHash -LiteralPath $destinationPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        $portablePath = Convert-ToPortablePath -Path $relativePath
+        $manifestEntry = $Context.Package.Files | Where-Object { [string] $_.Path -ceq $portablePath } | Select-Object -First 1
+        if ($null -eq $manifestEntry -or $sourceHash -cne $destinationHash -or $destinationHash -cne [string] $manifestEntry.Sha256) {
             Throw-InstallerError -ExitCode 21 -Message ('Die kopierte Datei konnte nicht verifiziert werden: {0}' -f $relativePath)
         }
+
+        $bytes = (Get-Item -LiteralPath $destinationPath).Length
+        $verifiedCopies += [pscustomobject] @{
+            Path = $portablePath
+            Bytes = [long] $bytes
+            Sha256 = $destinationHash
+        }
+        Write-InstallerLog -Level INFO -Message ('Datei {0}/{1}: {2} | {3} Byte | SHA-256 {4}' -f $fileIndex, $Context.RelativePaths.Count, $portablePath, $bytes, $destinationHash)
+        Write-Host ('[DATEI {0}/{1}] {2} | {3} Byte | SHA-256 {4}…' -f $fileIndex, $Context.RelativePaths.Count, $portablePath, $bytes, (Get-ShortHash -Hash $destinationHash))
     }
 
-    Write-InstallerLog -Level INFO -Message ('{0} Signaturdateien wurden kopiert und per SHA-256 verifiziert.' -f $Context.RelativePaths.Count)
+    Write-InstallerStatus -Level INFO -Message ('{0} Signaturdateien wurden kopiert und per SHA-256 verifiziert.' -f $Context.RelativePaths.Count)
+
+    return @($verifiedCopies)
 }
 
 function Get-RegistryValueState {
@@ -627,23 +785,26 @@ function Invoke-RailTimeInstallation {
     )
 
     if ($null -ne $StatusCallback) {
-        & $StatusCallback 'Outlook wird geschlossen …' 20
+        & $StatusCallback 'Classic Outlook wird vorbereitet …' 20 'Das neue Outlook bleibt geöffnet und unverändert.'
     }
+    Write-InstallerStatus -Level INFO -Message 'Schritt 1/3: Classic Outlook sicher schließen.'
     Close-OutlookApplications -ConfirmForceClose $ConfirmForceClose
     Confirm-SelectedAccount -Account $Context.Account
 
     if ($null -ne $StatusCallback) {
-        & $StatusCallback 'Signaturdateien werden installiert …' 55
+        & $StatusCallback 'Signaturdateien werden installiert …' 55 ('Ziel: {0}' -f $Context.TargetDirectory)
     }
-    Copy-AndVerifyPayload -Context $Context
+    Write-InstallerStatus -Level INFO -Message ('Schritt 2/3: Dateien nach {0} kopieren und prüfen.' -f $Context.TargetDirectory)
+    $verifiedFiles = @(Copy-AndVerifyPayload -Context $Context)
 
     if ($null -ne $StatusCallback) {
-        & $StatusCallback 'Konto wird zugeordnet …' 80
+        & $StatusCallback 'Classic-Konto wird zugeordnet …' 80 ('Konto: {0}' -f $Context.Account.Email)
     }
+    Write-InstallerStatus -Level INFO -Message ('Schritt 3/3: Signatur dem Konto {0} zuordnen.' -f $Context.Account.Email)
     $assignment = Set-AndVerifyAccountDefaults -Context $Context
 
     if ($null -ne $StatusCallback) {
-        & $StatusCallback 'Installation erfolgreich verifiziert.' 100
+        & $StatusCallback 'Installation erfolgreich verifiziert.' 100 ('{0} Dateien · SHA-256 {1}…' -f $verifiedFiles.Count, (Get-ShortHash -Hash $Context.Package.Fingerprint))
     }
 
     $result = [pscustomobject] @{
@@ -652,8 +813,11 @@ function Invoke-RailTimeInstallation {
         AccountEmail = $Context.Account.Email
         ProfileName = $Context.Account.ProfileName
         AccountKey = $Context.Account.AccountKeyName
+        DetectedAccounts = @($Context.Accounts | ForEach-Object { $_.Email })
         TargetDirectory = $Context.TargetDirectory
-        InstalledFiles = $Context.RelativePaths.Count
+        InstalledFiles = $verifiedFiles.Count
+        FileHashes = $verifiedFiles
+        PackageFingerprint = $Context.Package.Fingerprint
         NewSignature = $assignment.NewSignature
         ReplyForwardSignature = $assignment.ReplyForwardSignature
         LocalSignatureMode = $assignment.LocalSignatureMode
@@ -661,7 +825,7 @@ function Invoke-RailTimeInstallation {
         LogPath = $script:LogPath
     }
 
-    Write-InstallerLog -Level ERFOLG -Message ('Signatur {0} wurde für {1} installiert.' -f $SignatureName, $Context.Account.Email)
+    Write-InstallerStatus -Level ERFOLG -Message ('Signatur {0} wurde für {1} installiert und vollständig verifiziert.' -f $SignatureName, $Context.Account.Email)
 
     return $result
 }
@@ -687,6 +851,12 @@ function Invoke-TestInstallation {
         $context = Get-InstallationContext
         $result = Invoke-RailTimeInstallation -Context $context -ConfirmForceClose { return $false } -StatusCallback $null
         Write-TestResult -Value $result
+        Write-Host ('[INFO] Profil: {0}' -f $result.ProfileName)
+        Write-Host ('[INFO] Erkannte RailTime-Konten: {0}' -f $result.DetectedAccounts.Count)
+        Write-Host ('[INFO] Zielordner: {0}' -f $result.TargetDirectory)
+        Write-Host ('[INFO] Verifizierte Dateien: {0}' -f $result.InstalledFiles)
+        Write-Host ('[INFO] Paket-SHA-256: {0}' -f $result.PackageFingerprint)
+        Write-Host '[INFO] Neues Outlook: keine lokale Änderung; Signatur manuell unter Einstellungen > Konten > Signaturen einfügen.'
         Write-Host ('[ERFOLG] Signatur für {0} installiert.' -f $result.AccountEmail)
         return 0
     } catch {
@@ -710,29 +880,15 @@ function Open-InstallerLog {
     }
 }
 
-function Hide-InstallerConsole {
-    if ($TestMode) {
-        return
+function Open-NewOutlookTemplate {
+    [void] (Test-Package -Name $SignatureName -Root $SourceDirectory)
+    $templatePath = Join-Path $SourceDirectory ($SignatureName + '.htm')
+    if (-not (Test-Path -LiteralPath $templatePath -PathType Leaf)) {
+        Throw-InstallerError -ExitCode 11 -Message 'Die HTML-Kopiervorlage für das neue Outlook wurde nicht gefunden.'
     }
 
-    Add-Type -TypeDefinition @'
-using System;
-using System.Runtime.InteropServices;
-
-public static class RailTimeConsoleWindow
-{
-    [DllImport("kernel32.dll")]
-    public static extern IntPtr GetConsoleWindow();
-
-    [DllImport("user32.dll")]
-    public static extern bool ShowWindow(IntPtr windowHandle, int command);
-}
-'@
-
-    $consoleHandle = [RailTimeConsoleWindow]::GetConsoleWindow()
-    if ($consoleHandle -ne [IntPtr]::Zero) {
-        [void] [RailTimeConsoleWindow]::ShowWindow($consoleHandle, 0)
-    }
+    Start-Process -FilePath $templatePath
+    Write-InstallerStatus -Level INFO -Message 'HTML-Kopiervorlage für das neue Outlook wurde geöffnet.'
 }
 
 function Show-InstallerGui {
@@ -745,8 +901,12 @@ function Show-InstallerGui {
     $form.Text = $script:InstallerTitle
     $form.StartPosition = 'CenterScreen'
     $form.AutoScaleMode = [System.Windows.Forms.AutoScaleMode]::Dpi
-    $form.ClientSize = New-Object System.Drawing.Size(680, 570)
-    $form.MinimumSize = New-Object System.Drawing.Size(696, 609)
+    $workingHeight = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea.Height
+    $clientHeight = [Math]::Max(560, [Math]::Min(750, $workingHeight - 80))
+    $form.ClientSize = New-Object System.Drawing.Size(680, $clientHeight)
+    $form.MinimumSize = New-Object System.Drawing.Size(696, ([Math]::Min(609, $workingHeight - 20)))
+    $form.AutoScroll = $true
+    $form.AutoScrollMinSize = New-Object System.Drawing.Size(680, 750)
     $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedSingle
     $form.MaximizeBox = $false
     $form.BackColor = [System.Drawing.ColorTranslator]::FromHtml('#F5F7FA')
@@ -805,8 +965,19 @@ function Show-InstallerGui {
     $accountValue.ForeColor = [System.Drawing.ColorTranslator]::FromHtml('#071C33')
     $form.Controls.Add($accountValue)
 
+    $detailsBox = New-Object System.Windows.Forms.TextBox
+    $detailsBox.Location = New-Object System.Drawing.Point(28, 252)
+    $detailsBox.Size = New-Object System.Drawing.Size(620, 130)
+    $detailsBox.Multiline = $true
+    $detailsBox.ReadOnly = $true
+    $detailsBox.ScrollBars = 'Vertical'
+    $detailsBox.BackColor = [System.Drawing.Color]::White
+    $detailsBox.ForeColor = [System.Drawing.ColorTranslator]::FromHtml('#24364A')
+    $detailsBox.Text = "Installer $($script:InstallerVersion)`r`nPaket, Konten und Zielpfad werden geprüft …"
+    $form.Controls.Add($detailsBox)
+
     $statusPanel = New-Object System.Windows.Forms.Panel
-    $statusPanel.Location = New-Object System.Drawing.Point(28, 256)
+    $statusPanel.Location = New-Object System.Drawing.Point(28, 394)
     $statusPanel.Size = New-Object System.Drawing.Size(620, 96)
     $statusPanel.Anchor = 'Top,Left,Right'
     $statusPanel.BackColor = [System.Drawing.Color]::White
@@ -829,7 +1000,7 @@ function Show-InstallerGui {
     $statusPanel.Controls.Add($statusText)
 
     $progress = New-Object System.Windows.Forms.ProgressBar
-    $progress.Location = New-Object System.Drawing.Point(28, 365)
+    $progress.Location = New-Object System.Drawing.Point(28, 503)
     $progress.Size = New-Object System.Drawing.Size(620, 8)
     $progress.Minimum = 0
     $progress.Maximum = 100
@@ -838,15 +1009,25 @@ function Show-InstallerGui {
     $form.Controls.Add($progress)
 
     $notice = New-Object System.Windows.Forms.Label
-    $notice.Text = 'Hinweis: Offene Entwürfe bitte speichern. Nur wenn Outlook regulär nicht beendet werden kann, fragt die Einrichtung vor einem erzwungenen Schließen nach. Für die zuverlässige lokale Zuordnung wird der von Microsoft dokumentierte Classic-Signaturmodus aktiviert. Neues Outlook bleibt kontogebunden und wird nicht lokal eingerichtet.'
-    $notice.Location = New-Object System.Drawing.Point(28, 390)
-    $notice.Size = New-Object System.Drawing.Size(620, 96)
+    $notice.Text = 'Classic Outlook: Offene Entwürfe speichern. Nur wenn es regulär nicht beendet werden kann, fragt die Einrichtung vor einem erzwungenen Schließen nach. Neues Outlook: bleibt geöffnet und unverändert; die Signatur wird dort über den manuellen Kontoweg eingerichtet.'
+    $notice.Location = New-Object System.Drawing.Point(28, 524)
+    $notice.Size = New-Object System.Drawing.Size(620, 76)
     $notice.ForeColor = [System.Drawing.ColorTranslator]::FromHtml('#5D6B7A')
     $form.Controls.Add($notice)
 
+    $newOutlookButton = New-Object System.Windows.Forms.Button
+    $newOutlookButton.Text = 'Kopiervorlage für neues Outlook öffnen'
+    $newOutlookButton.Location = New-Object System.Drawing.Point(28, 615)
+    $newOutlookButton.Size = New-Object System.Drawing.Size(620, 44)
+    $newOutlookButton.FlatStyle = 'Flat'
+    $newOutlookButton.FlatAppearance.BorderColor = [System.Drawing.ColorTranslator]::FromHtml('#AAB5C0')
+    $newOutlookButton.ForeColor = [System.Drawing.ColorTranslator]::FromHtml('#24364A')
+    $newOutlookButton.AccessibleDescription = 'Öffnet die HTML-Kopiervorlage für die manuelle Einrichtung im neuen Outlook.'
+    $form.Controls.Add($newOutlookButton)
+
     $installButton = New-Object System.Windows.Forms.Button
     $installButton.Text = 'Outlook schließen und installieren'
-    $installButton.Location = New-Object System.Drawing.Point(28, 508)
+    $installButton.Location = New-Object System.Drawing.Point(28, 677)
     $installButton.Size = New-Object System.Drawing.Size(278, 46)
     $installButton.BackColor = [System.Drawing.ColorTranslator]::FromHtml('#D0D5DD')
     $installButton.ForeColor = [System.Drawing.ColorTranslator]::FromHtml('#667085')
@@ -860,7 +1041,7 @@ function Show-InstallerGui {
 
     $logButton = New-Object System.Windows.Forms.Button
     $logButton.Text = 'Protokoll öffnen'
-    $logButton.Location = New-Object System.Drawing.Point(316, 508)
+    $logButton.Location = New-Object System.Drawing.Point(316, 677)
     $logButton.Size = New-Object System.Drawing.Size(148, 46)
     $logButton.FlatStyle = 'Flat'
     $logButton.FlatAppearance.BorderColor = [System.Drawing.ColorTranslator]::FromHtml('#AAB5C0')
@@ -869,7 +1050,7 @@ function Show-InstallerGui {
 
     $closeButton = New-Object System.Windows.Forms.Button
     $closeButton.Text = 'Schließen'
-    $closeButton.Location = New-Object System.Drawing.Point(474, 508)
+    $closeButton.Location = New-Object System.Drawing.Point(474, 677)
     $closeButton.Size = New-Object System.Drawing.Size(174, 46)
     $closeButton.FlatStyle = 'Flat'
     $closeButton.FlatAppearance.BorderColor = [System.Drawing.ColorTranslator]::FromHtml('#AAB5C0')
@@ -881,12 +1062,13 @@ function Show-InstallerGui {
     $guiState = @{
         Context = $null
         Installing = $false
+        Installed = $false
     }
 
     $setStatus = {
-        param([string] $Message, [int] $Percent)
+        param([string] $Message, [int] $Percent, [string] $Detail)
         $statusTitle.Text = $Message
-        $statusText.Text = 'Bitte warten. Die Einrichtung wird sicher abgeschlossen.'
+        $statusText.Text = $Detail
         $progress.Value = [Math]::Max(0, [Math]::Min(100, $Percent))
         [System.Windows.Forms.Application]::DoEvents()
     }
@@ -912,7 +1094,26 @@ function Show-InstallerGui {
             $guiState.Context = Get-InstallationContext
             $accountValue.Text = $guiState.Context.Account.Email
             $statusTitle.Text = 'Bereit zur Installation'
-            $statusText.Text = 'Die Signatur wird nur diesem ersten passenden RailTime-Konto zugeordnet.'
+            $statusText.Text = ('{0} RailTime-Konto/Konten erkannt. Automatische Zuordnung nur zum ersten Konto.' -f $guiState.Context.Accounts.Count)
+            $accountLines = @($guiState.Context.Accounts | ForEach-Object { '  • ' + $_.Email })
+            $detailLines = @(
+                ('Installer: {0}' -f $script:InstallerVersion),
+                ('Classic-Profil: {0}' -f $guiState.Context.Account.ProfileName),
+                'Erkannte RailTime-Konten:'
+            )
+            $detailLines += $accountLines
+            $detailLines += @(
+                ('Paketordner: {0}' -f $guiState.Context.SourceDirectory),
+                ('Zielordner: {0}' -f $guiState.Context.TargetDirectory),
+                ('Signaturdateien: {0}' -f $guiState.Context.RelativePaths.Count),
+                ('Paket-SHA-256: {0}…' -f (Get-ShortHash -Hash $guiState.Context.Package.Fingerprint)),
+                'Neues Outlook: manueller Kontoweg, keine lokale Änderung',
+                'SHA-256-Dateiprüfung:'
+            )
+            foreach ($verifiedFile in $guiState.Context.Package.Files) {
+                $detailLines += '  • {0} · {1} Byte · {2}…' -f $verifiedFile.Path, $verifiedFile.Bytes, (Get-ShortHash -Hash $verifiedFile.Sha256)
+            }
+            $detailsBox.Lines = $detailLines
             $statusTitle.ForeColor = [System.Drawing.ColorTranslator]::FromHtml('#0F6B44')
             $installButton.BackColor = [System.Drawing.ColorTranslator]::FromHtml('#E4002B')
             $installButton.ForeColor = [System.Drawing.Color]::White
@@ -924,6 +1125,7 @@ function Show-InstallerGui {
             $accountValue.Text = 'Kein passendes @rail-time.de-Konto'
             $statusTitle.Text = 'Installation nicht möglich'
             $statusText.Text = $_.Exception.Message
+            $detailsBox.Text = "Classic Outlook kann nicht automatisch eingerichtet werden.`r`n`r`nDas neue Outlook kann weiterhin über die HTML-Kopiervorlage manuell eingerichtet werden."
             $statusTitle.ForeColor = [System.Drawing.ColorTranslator]::FromHtml('#B42318')
             $statusPanel.BackColor = [System.Drawing.ColorTranslator]::FromHtml('#FFF2F0')
             $installButton.Text = 'Kein RailTime-Konto gefunden'
@@ -939,6 +1141,7 @@ function Show-InstallerGui {
 
         $guiState.Installing = $true
         $installButton.Enabled = $false
+        $newOutlookButton.Enabled = $false
         $closeButton.Enabled = $false
         $statusPanel.BackColor = [System.Drawing.Color]::White
         $statusTitle.ForeColor = [System.Drawing.ColorTranslator]::FromHtml('#071C33')
@@ -946,6 +1149,7 @@ function Show-InstallerGui {
         try {
             $result = Invoke-RailTimeInstallation -Context $guiState.Context -ConfirmForceClose $confirmForceClose -StatusCallback $setStatus
             $script:LastExitCode = 0
+            $guiState.Installed = $true
             $statusTitle.Text = 'Installation erfolgreich'
             $statusText.Text = ('Die Signatur wurde installiert und {0} für neue Nachrichten sowie Antworten zugeordnet.' -f $result.AccountEmail)
             $statusTitle.ForeColor = [System.Drawing.ColorTranslator]::FromHtml('#0F6B44')
@@ -953,7 +1157,7 @@ function Show-InstallerGui {
             $installButton.Text = 'Erneut installieren'
             [void] [System.Windows.Forms.MessageBox]::Show(
                 $form,
-                ("Die RailTime-Signatur wurde erfolgreich installiert.`r`n`r`nKonto: {0}`r`nSignatur: {1}`r`n`r`nClassic Outlook kann jetzt wieder gestartet werden." -f $result.AccountEmail, $result.SignatureName),
+                ("Die RailTime-Signatur wurde erfolgreich installiert.`r`n`r`nKonto: {0}`r`nSignatur: {1}`r`nZiel: {2}`r`nDateien: {3}`r`nPaket-SHA-256: {4}…`r`n`r`nClassic Outlook kann jetzt wieder gestartet und mit einer Testmail geprüft werden. Das neue Outlook bleibt separat manuell einzurichten." -f $result.AccountEmail, $result.SignatureName, $result.TargetDirectory, $result.InstalledFiles, (Get-ShortHash -Hash $result.PackageFingerprint)),
                 'Installation erfolgreich',
                 [System.Windows.Forms.MessageBoxButtons]::OK,
                 [System.Windows.Forms.MessageBoxIcon]::Information
@@ -975,11 +1179,26 @@ function Show-InstallerGui {
         } finally {
             $guiState.Installing = $false
             $installButton.Enabled = $true
+            $newOutlookButton.Enabled = $true
             $closeButton.Enabled = $true
         }
     })
 
     $logButton.Add_Click({ Open-InstallerLog })
+    $newOutlookButton.Add_Click({
+        try {
+            Open-NewOutlookTemplate
+            [void] [System.Windows.Forms.MessageBox]::Show(
+                $form,
+                "Die HTML-Kopiervorlage wurde geöffnet.`r`n`r`n1. Im Browser Strg+A und Strg+C.`r`n2. Neues Outlook: Einstellungen > Konten > Signaturen.`r`n3. Richtiges RailTime-Konto wählen, Signatur einfügen und speichern.`r`n4. Für neue Nachrichten und Antworten auswählen und eine Testmail erstellen.`r`n`r`nDies ist bewusst ein manueller, von Outlook unterstützter Kontoweg; der lokale Classic-Ordner wird vom neuen Outlook nicht eingelesen.",
+                'Neues Outlook manuell einrichten',
+                [System.Windows.Forms.MessageBoxButtons]::OK,
+                [System.Windows.Forms.MessageBoxIcon]::Information
+            )
+        } catch {
+            [void] [System.Windows.Forms.MessageBox]::Show($form, $_.Exception.Message, $script:InstallerTitle, [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
+        }
+    })
     $closeButton.Add_Click({ $form.Close() })
     $form.Add_FormClosing({
         param($sender, $eventArgs)
@@ -988,8 +1207,11 @@ function Show-InstallerGui {
         }
     })
 
-    Hide-InstallerConsole
     [void] $form.ShowDialog()
+    if (-not $guiState.Installed -and $script:LastExitCode -eq 0) {
+        $script:LastExitCode = 2
+        Write-InstallerStatus -Level WARNUNG -Message 'Die Einrichtung wurde ohne Installation geschlossen.'
+    }
     return $script:LastExitCode
 }
 

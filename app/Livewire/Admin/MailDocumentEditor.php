@@ -46,13 +46,13 @@ class MailDocumentEditor extends Component
             'editorPreviewSources' => $current === null ? [] : [
                 'light' => [
                     'label' => 'Hell',
-                    'url' => route('admin.mail-documents.preview', [$current, 'theme' => 'light']),
+                    'url' => route('admin.mail-documents.preview', [$current, 'theme' => 'light', 'animate' => 1]),
                     'width' => 1024,
                     'height' => $current->kind === MailDocumentKind::Signature ? 620 : 820,
                 ],
                 'dark' => [
                     'label' => 'Dunkel',
-                    'url' => route('admin.mail-documents.preview', [$current, 'theme' => 'dark']),
+                    'url' => route('admin.mail-documents.preview', [$current, 'theme' => 'dark', 'animate' => 1]),
                     'width' => 1024,
                     'height' => $current->kind === MailDocumentKind::Signature ? 620 : 820,
                 ],

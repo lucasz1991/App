@@ -58,6 +58,27 @@ class PageBuilderPreviewTest extends TestCase
         $this->assertStringNotContainsString('x-bind:title="`', $html);
     }
 
+    public function test_replayable_preview_card_defers_animated_frame_and_respects_reduced_motion(): void
+    {
+        $html = Blade::render(
+            '<x-ui.page-builder.preview-card title="Mail" :sources="$sources" :replayable="true" />',
+            ['sources' => ['light' => [
+                'label' => 'Hell',
+                'url' => '/preview?theme=light&animate=1',
+                'width' => 1024,
+                'height' => 820,
+            ]]],
+        );
+
+        $this->assertStringContainsString('data-page-builder-preview-replay', $html);
+        $this->assertStringContainsString('data-page-builder-preview-loading', $html);
+        $this->assertStringContainsString('src="about:blank"', $html);
+        $this->assertStringContainsString('x-bind:src="activeUrl"', $html);
+        $this->assertStringContainsString("url.searchParams.set('play', String(this.playbackId))", $html);
+        $this->assertStringContainsString("url.searchParams.set('static', '1')", $html);
+        $this->assertStringContainsString("window.matchMedia('(prefers-reduced-motion: reduce)')", $html);
+    }
+
     public function test_marketing_preview_is_admin_only_sandbox_ready_and_network_free(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
@@ -108,7 +129,7 @@ class PageBuilderPreviewTest extends TestCase
         // Carbon-Objekt, und zwei Abfragen liefern zwei INSTANZEN. Ein
         // identischer Vergleich schluege daran fehl, obwohl der Wert gleich
         // ist — geprueft werden soll der Inhalt, nicht die Objektgleichheit.
-        $zustand = static fn (\App\Models\MailDocument $d): array => [
+        $zustand = static fn (MailDocument $d): array => [
             'html' => $d->html,
             'css' => $d->css,
             'published_html' => $d->published_html,
@@ -134,10 +155,25 @@ class PageBuilderPreviewTest extends TestCase
         $this->assertStringContainsString('data:image/png;base64,', $html);
         $this->assertStringContainsString('data-preview-document="template"', $html);
         $this->assertStringContainsString('data-preview-theme="dark"', $html);
+        $this->assertStringContainsString('data-preview-animation="static"', $html);
+        $this->assertStringNotContainsString('{{APPLICATION_CONTENT}}', $html);
         $this->assertStringNotContainsString('{{', $html);
         $this->assertStringNotContainsString('<script', strtolower($html));
         $this->assertStringNotContainsString('http://', strtolower($html));
         $this->assertStringNotContainsString('https://', strtolower($html));
+        $this->assertSame($before, $zustand($document->fresh()));
+
+        $animatedA = $this->actingAs($admin)->get($url.'&animate=1&play=1')->assertOk();
+        $animatedB = $this->actingAs($admin)->get($url.'&animate=1&play=2')->assertOk();
+        $animatedHtml = (string) $animatedA->getContent();
+
+        $this->assertStringContainsString('data-preview-animation="animated"', $animatedHtml);
+        $this->assertNotSame($animatedHtml, (string) $animatedB->getContent());
+        preg_match_all('/data:image\/gif;base64,([A-Za-z0-9+\/=]+)/', $animatedHtml, $gifMatches);
+        $this->assertGreaterThanOrEqual(3, count(array_unique($gifMatches[1] ?? [])));
+        foreach (array_unique($gifMatches[1] ?? []) as $encodedGif) {
+            $this->assertStringContainsString('RailTime-Preview:', base64_decode($encodedGif, true) ?: '');
+        }
         $this->assertSame($before, $zustand($document->fresh()));
     }
 

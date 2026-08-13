@@ -748,7 +748,7 @@ export function componentAnimationContext(component) {
     return {
         source,
         token,
-        animated: token === 'TRAIN_SRC'
+        animated: ['LOGO_SRC', 'ICON_RT_SRC', 'TRAIN_SRC', 'TRAIN_IDLE_SRC'].includes(token)
             || attributes['data-rt-animated-media'] === 'gif'
             || isAnimatedImageSource(source, attributes.type || attributes['data-mime-type'] || ''),
     };
@@ -949,6 +949,7 @@ export function restartAnimatedPreview(component, { nonce = Date.now() } = {}) {
     const attributes = componentAttributes(component);
     const style = component?.getStyle?.() || component?.get?.('style') || {};
     const modelSource = String(component?.get?.('src') || attributes.src || '');
+    const renderedImageSource = String(element.getAttribute?.('src') || element.src || '');
     const renderedBackground = String(element.style?.backgroundImage || element.ownerDocument?.defaultView?.getComputedStyle?.(element)?.backgroundImage || '');
     const previewState = animatedPreviewState.get(element);
     const renderedBackgroundIsNew = Boolean(
@@ -972,18 +973,28 @@ export function restartAnimatedPreview(component, { nonce = Date.now() } = {}) {
     const backgroundSource = token === 'TRAIN_SRC'
         ? (renderedBackgroundIsNew ? renderedBackgroundSource : (previewState?.source || renderedBackgroundSource || ''))
         : (modelBackgroundSource || renderedBackgroundSource || previewState?.source || '');
-    const persistentSource = modelSource || backgroundSource;
+    // Mail-Tokens tragen im Grapes-Modell absichtlich nur einen neutralen
+    // Platzhalter. Für die Vorschau-Steuerung ist deshalb die ausschließlich
+    // im Canvas hydrierte GIF-Quelle maßgeblich; das Modell bleibt unangetastet.
+    const imageSource = token && String(element.tagName || '').toLowerCase() === 'img'
+        ? (renderedImageSource || previewState?.source || modelSource)
+        : modelSource;
+    const persistentSource = imageSource || backgroundSource;
     if (!persistentSource) return false;
-    const dataSource = /^data:image\//i.test(persistentSource);
+    const restartMarker = '#_rt_preview_restart=';
+    const canonicalSource = persistentSource.replace(/#_rt_preview_restart=.*$/i, '');
+    const dataSource = /^data:image\//i.test(canonicalSource);
     const nextFrame = globalThis.requestAnimationFrame || ((callback) => globalThis.queueMicrotask?.(callback));
-    let previewSource = persistentSource;
-    try {
-        const url = new URL(persistentSource, element.ownerDocument?.baseURI || globalThis.location?.href || 'http://localhost/');
-        url.searchParams.set('_rt_preview_restart', String(nonce));
-        previewSource = url.href;
-    } catch {
-        const separator = persistentSource.includes('?') ? '&' : '?';
-        previewSource = `${persistentSource}${separator}_rt_preview_restart=${encodeURIComponent(String(nonce))}`;
+    let previewSource = `${canonicalSource}${restartMarker}${encodeURIComponent(String(nonce))}`;
+    if (!dataSource) {
+        try {
+            const url = new URL(canonicalSource, element.ownerDocument?.baseURI || globalThis.location?.href || 'http://localhost/');
+            url.searchParams.set('_rt_preview_restart', String(nonce));
+            previewSource = url.href;
+        } catch {
+            const separator = canonicalSource.includes('?') ? '&' : '?';
+            previewSource = `${canonicalSource}${separator}_rt_preview_restart=${encodeURIComponent(String(nonce))}`;
+        }
     }
     // Ausschliesslich das Canvas-DOM aendern. Das Grapes-Modell bleibt exakt.
     // TRAIN_SRC sitzt in der Signatur auf einer TD-Hintergrundflaeche, waehrend
@@ -991,16 +1002,16 @@ export function restartAnimatedPreview(component, { nonce = Date.now() } = {}) {
     // neu gestartet.
     animatedPreviewState.set(element, {
         playing: true,
-        source: persistentSource,
-        isImage: modelSource && String(element.tagName || '').toLowerCase() === 'img',
+        source: canonicalSource,
+        isImage: imageSource && String(element.tagName || '').toLowerCase() === 'img',
         backgroundImage,
         backgroundPriority,
     });
     delete element.dataset.rtLmzAnimationPaused;
-    if (modelSource && String(element.tagName || '').toLowerCase() === 'img') {
+    if (imageSource && String(element.tagName || '').toLowerCase() === 'img') {
         if (dataSource) {
             element.removeAttribute?.('src');
-            nextFrame(() => element.setAttribute?.('src', persistentSource));
+            nextFrame(() => element.setAttribute?.('src', previewSource));
         } else {
             element.setAttribute?.('src', previewSource);
         }
@@ -1014,7 +1025,7 @@ export function restartAnimatedPreview(component, { nonce = Date.now() } = {}) {
         );
         nextFrame(() => element.style?.setProperty?.(
             'background-image',
-            replaceFirstCssMediaSource(backgroundImage, persistentSource),
+            replaceFirstCssMediaSource(backgroundImage, previewSource),
             backgroundPriority,
         ));
     } else {

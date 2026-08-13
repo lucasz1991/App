@@ -38,7 +38,14 @@ final class PageBuilderPreviewController extends Controller
         $theme = (string) $request->query('theme', 'light');
         abort_unless(in_array($theme, ['light', 'dark'], true), 404);
 
-        $preview = $previews->mail($document, $request->user(), $theme);
+        $animated = $request->boolean('animate') && ! $request->boolean('static');
+        $preview = $previews->mail(
+            $document,
+            $request->user(),
+            $theme,
+            animated: $animated,
+            playbackNonce: $animated ? bin2hex(random_bytes(12)) : null,
+        );
 
         return $this->response($preview);
     }

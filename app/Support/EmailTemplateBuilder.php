@@ -5,9 +5,12 @@ namespace App\Support;
 use App\Enums\MailDocumentKind;
 use App\Models\User;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
+use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use RuntimeException;
+use Throwable;
 use ZipArchive;
 
 /**
@@ -224,6 +227,31 @@ class EmailTemplateBuilder
     }
 
     /**
+     * Bewegungsarme Vorschau: alle animierten Marken werden durch ihre
+     * Standbilder ersetzt und die endlose Rauchfahne wird ausgelassen.
+     * Download-Dateien bleiben davon vollständig unberührt.
+     *
+     * @return array{filename: string, mime: string, content: string}
+     */
+    public function buildStaticPreview(string $template): array
+    {
+        $file = $this->build($template);
+        $theme = match ($template) {
+            'vorlage-html' => 'light',
+            'vorlage-dunkel-html' => 'dark',
+            default => abort(404),
+        };
+
+        $file['content'] = $this->buildEmailHtml(
+            inlineImages: true,
+            theme: $theme,
+            staticAnimations: true,
+        );
+
+        return $file;
+    }
+
+    /**
      * Personalisierungswerte des Benutzers (fuer Vorlagen und Vorschau).
      *
      * @return array<string, string>
@@ -354,6 +382,101 @@ class EmailTemplateBuilder
         return self::publishedDocumentSnapshot($kind)['css'] ?? '';
     }
 
+    /**
+     * Auslieferbarer Datenbankstand für produktive Ausgabewege.
+     *
+     * Vor der Migration darf die ausgelieferte Masterdatei einspringen. Ist
+     * die Tabelle vorhanden, aber der veröffentlichte Stand fehlt, brechen
+     * wir bewusst ab: Eine Systemmail darf dann weder einen Entwurf noch
+     * heimlich eine andere Codefassung versenden.
+     */
+    public static function runtimeDocument(
+        MailDocumentKind $kind,
+        bool $requirePublished = false,
+    ): ?string {
+        $published = self::publishedDocument($kind);
+        if ($published !== null) {
+            return $published;
+        }
+
+        try {
+            $tableExists = Schema::hasTable('mail_documents');
+        } catch (Throwable $exception) {
+            throw new RuntimeException(
+                'Der veröffentlichte Maildokument-Stand konnte nicht geprüft werden.',
+                0,
+                $exception,
+            );
+        }
+
+        if (! $tableExists || ! $requirePublished) {
+            return null;
+        }
+
+        throw new RuntimeException(
+            "Das veröffentlichte Maildokument \"{$kind->label()}\" fehlt. Bitte den MailDocumentSeeder ausführen."
+        );
+    }
+
+    /**
+     * Verbindet die veröffentlichte Nachrichtenschale mit ausschließlich
+     * bereits durch Laravels Mail-/Markdown-Komponenten gerendertem HTML.
+     * Der Htmlable-Vertrag verhindert, dass Aufrufer versehentlich freien
+     * Klartext als ungeprüftes HTML in den Anwendungsslot einsetzen.
+     */
+    public static function buildSystemMailHtml(Htmlable $applicationContent): string
+    {
+        $html = self::runtimeDocument(MailDocumentKind::Template, requirePublished: true)
+            ?? (string) file_get_contents(self::masterPath('email-master.html'));
+        $slot = '__RT_APPLICATION_CONTENT_'.Str::random(32).'__';
+        $count = 0;
+        $html = preg_replace(
+            '/<!--\s*RT_APPLICATION_CONTENT_START\s*-->.*?<!--\s*RT_APPLICATION_CONTENT_END\s*-->/s',
+            $slot,
+            $html,
+            1,
+            $count,
+        ) ?? $html;
+
+        if ($count !== 1 || substr_count($html, $slot) !== 1) {
+            throw new RuntimeException(
+                'Die veröffentlichte E-Mail-Vorlage besitzt keinen eindeutigen Anwendungsslot.'
+            );
+        }
+
+        $signature = MailSignature::forCompany(
+            theme: 'light',
+            animated: true,
+            remoteAssets: true,
+        );
+        $values = $signature->values();
+        $values['RESPONSIVE_CSS'] = self::responsiveCss($values['SIGNATURE_BORDER'] ?? null);
+        $values['SIGNATURE_BLOCK'] = $signature->render([
+            'outlookTrainSrc' => $values['TRAIN_SRC'],
+            'outlookTrainFallbackSrc' => $values['TRAIN_STILL_SRC'],
+        ]);
+        $values['APPLICATION_CONTENT'] = '';
+
+        foreach ($values as $key => $value) {
+            $html = str_replace('{{'.$key.'}}', $value, $html);
+        }
+
+        $trusted = $applicationContent->toHtml();
+        $applicationRow = '<tr><td class="rt-pad" bgcolor="'.$values['SURFACE_BG'].'" '
+            .'style="padding:0 36px 42px;background:'.$values['SURFACE_BG'].';'
+            .'font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:27px;'
+            .'color:'.$values['TEXT_SECONDARY'].';text-align:left;">'
+            .$trusted
+            .'</td></tr>';
+        $html = str_replace($slot, $applicationRow, $html);
+
+        return self::embedPublishedCss(
+            $html,
+            $signature->publishedCss(),
+            MailDocumentKind::Signature,
+        );
+    }
+
     private static function embedPublishedCss(string $html, string $css, MailDocumentKind $kind): string
     {
         if ($css === '' || stripos($css, '</style') !== false) {
@@ -469,9 +592,37 @@ class EmailTemplateBuilder
         ) ?? $html;
     }
 
-    public static function inlineImage(string $asset, string $mime): string
+    public static function inlineImage(string $asset, string $mime, ?string $playbackNonce = null): string
     {
-        return "data:{$mime};base64,".base64_encode(file_get_contents(self::masterPath('assets/'.$asset)));
+        $binary = file_get_contents(self::masterPath('assets/'.$asset));
+        if ($binary === false) {
+            throw new RuntimeException("Mailasset konnte nicht gelesen werden: {$asset}");
+        }
+
+        if ($mime === 'image/gif' && $playbackNonce !== null) {
+            $binary = self::withGifPlaybackNonce($binary, $playbackNonce);
+        }
+
+        return "data:{$mime};base64,".base64_encode($binary);
+    }
+
+    /**
+     * Verändert ausschließlich die technische GIF-Identität. Bilddaten,
+     * Timing, Disposal und Loop-Vertrag bleiben bytegleich; Browser laden
+     * Logo, RT-Zeichen, Zug und Rauchfahne dadurch bei Replay neu.
+     */
+    private static function withGifPlaybackNonce(string $binary, string $playbackNonce): string
+    {
+        $comment = 'RailTime-Playback:'.substr($playbackNonce, 0, 120);
+        $trailer = strrpos($binary, "\x3b");
+
+        if ($trailer === false || strlen($comment) > 255) {
+            return $binary;
+        }
+
+        return substr($binary, 0, $trailer)
+            ."\x21\xfe".chr(strlen($comment)).$comment."\x00"
+            .substr($binary, $trailer);
     }
 
     /**
@@ -664,24 +815,32 @@ class EmailTemplateBuilder
         string $theme = 'light',
         bool $animatedSignature = false,
         ?string $playbackNonce = null,
+        bool $staticAnimations = false,
     ): string {
         $values = $this->profileValues();
-        // Veroeffentlichte Fassung aus dem Editor bevorzugen; ohne sie bleibt
-        // die Master-Datei die Quelle. Beides ist Token-HTML, die drei
-        // Ersetzungsdurchgaenge darunter bleiben deshalb unveraendert.
-        $html = self::publishedDocument(MailDocumentKind::Template)
+        // In einer migrierten Installation ist ausschließlich die
+        // veröffentlichte Datenbankfassung auslieferbar. Nur vor Anlegen der
+        // Tabelle greift der Bootstrap-Fallback auf die Masterdatei.
+        $html = self::runtimeDocument(MailDocumentKind::Template)
             ?? (string) file_get_contents(self::masterPath('email-master.html'));
         // Motivfarben ZUERST: der erste Durchgang loest {{RESPONSIVE_CSS}}
         // auf und braucht dafuer SIGNATURE_BORDER (siehe substitute()).
         $html = $this->substitute($html, self::emailThemeValues($theme));
         $html = $this->substitute($html, $this->escapeForHtml($values));
+        $html = $this->substitute($html, ['APPLICATION_CONTENT' => '']);
 
         // Das RT-Zeichen oben rechts. Es steht bewusst NUR hier: die
         // Signatur darunter traegt den Schriftzug, zusammen ergeben beide
         // die Marke einmal — nicht zweimal.
+        $markAsset = self::emailMarkAsset($theme);
+        if ($staticAnimations) {
+            $markAsset = str_replace('.gif', '.png', $markAsset);
+        }
+        $markMime = str_ends_with($markAsset, '.gif') ? 'image/gif' : 'image/png';
+
         $html = $this->substitute($html, [
             'ICON_RT_SRC' => $inlineImages
-                ? self::inlineImage(self::emailMarkAsset($theme), 'image/gif')
+                ? self::inlineImage($markAsset, $markMime, $playbackNonce)
                 : 'cid:railtime-mark',
             // Standbild fuer Outlook-Desktop, siehe email-master.html.
             'ICON_RT_STILL_SRC' => $inlineImages
@@ -696,11 +855,17 @@ class EmailTemplateBuilder
             $theme,
             animated: $animatedSignature,
             playbackNonce: $playbackNonce,
+            staticAssets: $staticAnimations,
         );
+        $logoAsset = $this->emailLogoAsset($theme);
+        if ($staticAnimations) {
+            $logoAsset = str_replace('.gif', '.png', $logoAsset);
+        }
+        $logoMime = str_ends_with($logoAsset, '.gif') ? 'image/gif' : 'image/png';
         $signatureOverrides = array_merge(
             [
                 'LOGO_SRC' => $inlineImages
-                    ? self::inlineImage($this->emailLogoAsset($theme), 'image/gif')
+                    ? self::inlineImage($logoAsset, $logoMime, $playbackNonce)
                     : 'cid:railtime-logo',
             ],
             self::contactIconSources($inlineImages),
@@ -738,14 +903,7 @@ class EmailTemplateBuilder
         $binary = file_get_contents(self::masterPath("assets/zug-dampf-{$variant}.{$extension}"));
 
         if ($animated && $playbackNonce !== null) {
-            $comment = 'RailTime-Playback:'.substr($playbackNonce, 0, 120);
-            $trailer = strrpos($binary, "\x3b");
-
-            if ($trailer !== false) {
-                $binary = substr($binary, 0, $trailer)
-                    ."\x21\xfe".chr(strlen($comment)).$comment."\x00"
-                    .substr($binary, $trailer);
-            }
+            $binary = self::withGifPlaybackNonce($binary, $playbackNonce);
         }
 
         return "data:{$mime};base64,".base64_encode($binary);
@@ -846,6 +1004,8 @@ class EmailTemplateBuilder
                 $files["{$assetFolder}/contact-{$name}.png"] = base64_decode($base64, true) ?: '';
             }
 
+            $files['RailTime-Paketmanifest.json'] = $this->buildOutlookPackageManifest($signatureName, $files);
+
             foreach ($files as $path => $content) {
                 if (! is_string($content) || ! $zip->addFromString($path, $content)) {
                     throw new RuntimeException("Outlook-Exportdatei konnte nicht hinzugefügt werden: {$path}");
@@ -909,29 +1069,74 @@ class EmailTemplateBuilder
 @echo off
 setlocal EnableExtensions
 title RailTime Outlook-Einrichtung
+color 0F
 
 set "SIGNATURE_NAME={$signatureName}"
 set "INSTALLER_SCRIPT=%~dp0RailTime-Outlook-Installer.ps1"
 set "POWERSHELL_EXE=%SystemRoot%\System32\WindowsPowerShell\\v1.0\powershell.exe"
 
+echo.
+echo ================================================================
+echo   RAILTIME OUTLOOK-EINRICHTUNG
+echo ================================================================
+echo [INFO] Signatur: %SIGNATURE_NAME%
+echo [INFO] Paketordner: %~dp0
+echo [INFO] Benutzer: %USERNAME%
+echo [INFO] Classic Outlook: automatische lokale Einrichtung
+echo [INFO] Neues Outlook: gefuehrte manuelle Einrichtung laut README
+echo [INFO] Protokoll: %TEMP%\RailTime-Outlook-Signatur-Installation.log
+echo.
+echo [PRUEFUNG] Das vollstaendig entpackte Paket wird kontrolliert ...
+
 if not exist "%INSTALLER_SCRIPT%" (
   echo.
   echo [FEHLER] Das ZIP wurde nicht vollstaendig entpackt. RailTime-Outlook-Installer.ps1 fehlt.
   echo Bitte das ZIP per Rechtsklick vollstaendig extrahieren und erneut starten.
+  echo Es wurden keine Outlook-Einstellungen geaendert.
+  if not defined RAILTIME_INSTALLER_TEST_MODE pause
+  exit /b 11
+)
+
+if not exist "%~dp0RailTime-Paketmanifest.json" (
+  echo.
+  echo [FEHLER] Das Paketmanifest fehlt. Bitte das ZIP erneut herunterladen und vollstaendig entpacken.
+  echo Es wurden keine Outlook-Einstellungen geaendert.
   if not defined RAILTIME_INSTALLER_TEST_MODE pause
   exit /b 11
 )
 
 if not exist "%POWERSHELL_EXE%" set "POWERSHELL_EXE=powershell.exe"
 
+echo [INFO] PowerShell: %POWERSHELL_EXE%
+echo [INFO] Die grafische Pruefung wird jetzt gestartet.
+echo.
+
 "%POWERSHELL_EXE%" -NoLogo -NoProfile -STA -ExecutionPolicy Bypass -File "%INSTALLER_SCRIPT%" %*
 set "INSTALLER_EXIT=%ERRORLEVEL%"
 
-if not "%INSTALLER_EXIT%"=="0" (
+if "%INSTALLER_EXIT%"=="0" (
   echo.
+  echo ================================================================
+  echo [ERFOLG] Die Classic-Outlook-Einrichtung wurde verifiziert.
+  echo [INFO] Ziel: %APPDATA%\Microsoft\Signatures
+  echo [INFO] Neue Nachrichten und Antworten wurden dem erkannten
+  echo        RailTime-Konto zugeordnet.
+  echo [NAECHSTER SCHRITT] Classic Outlook starten und eine Testmail oeffnen.
+  echo [NEUES OUTLOOK] README-Outlook.html oeffnen und die Signatur dort
+  echo                 unter Einstellungen - Konten - Signaturen einfuegen.
+  echo [PROTOKOLL] %TEMP%\RailTime-Outlook-Signatur-Installation.log
+  echo ================================================================
+) else (
+  echo.
+  echo ================================================================
   echo [FEHLER] Die RailTime Outlook-Einrichtung wurde nicht abgeschlossen ^(Code %INSTALLER_EXIT%^).
-  echo Details stehen in der grafischen Meldung und im Installationsprotokoll.
+  echo [INFO] Es wurde kein ungepruefter Erfolg gemeldet.
+  echo [HILFE] Details stehen in der grafischen Meldung, in README-Outlook.html
+  echo         und unter %TEMP%\RailTime-Outlook-Signatur-Installation.log.
+  echo ================================================================
 )
+
+if not defined RAILTIME_INSTALLER_TEST_MODE pause
 
 exit /b %INSTALLER_EXIT%
 CMD;
@@ -969,28 +1174,66 @@ CMD;
 <head><meta charset="utf-8"><title>RailTime Signatur in Outlook einrichten</title></head>
 <body style="max-width:760px;margin:40px auto;padding:0 20px;font-family:Arial,Helvetica,sans-serif;color:#111820;line-height:1.55;">
   <h1 style="font-size:26px;">RailTime-Signatur in Outlook einrichten</h1>
-  <p>Das Paket enthält eine Outlook-kompatible Signatur mit einem normalen, einmalig abspielenden GIF und eine grafische Windows-Einrichtung. Bitte das ZIP zuerst vollständig entpacken. Ein Start direkt aus der ZIP-Ansicht kann die Begleitdateien nicht installieren.</p>
+  <p>Das Paket enthält eine Outlook-kompatible Signatur mit einem normalen, einmalig abspielenden GIF, eine geprüfte Windows-Einrichtung und ein SHA-256-Paketmanifest. Bitte das ZIP zuerst vollständig entpacken. Ein Start direkt aus der ZIP-Ansicht kann die Begleitdateien nicht installieren.</p>
   <h2 style="font-size:19px;">Klassisches Outlook für Windows</h2>
   <ol>
     <li>Das heruntergeladene ZIP mit <strong>Rechtsklick → Alle extrahieren</strong> vollständig entpacken.</li>
     <li>Offene Entwürfe speichern und im entpackten Ordner <strong>Outlook-klassisch-installieren.cmd</strong> doppelt anklicken.</li>
-    <li>Die grafische Einrichtung prüft zuerst das Paket und das aktive Profil, schließt Classic Outlook und das neue Outlook anschließend automatisch und installiert die Signatur. Falls Outlook nicht regulär reagiert, fragt sie vor einem erzwungenen Schließen ausdrücklich nach.</li>
+    <li>Die grafische Einrichtung prüft Paketmanifest, Dateigrößen und SHA-256-Hashes, zeigt erkanntes Profil, Konten und Zielordner an und schließt anschließend ausschließlich Classic Outlook. Falls Classic Outlook nicht regulär reagiert, fragt sie vor einem erzwungenen Schließen ausdrücklich nach.</li>
     <li>„{$name}“ wird automatisch für neue Nachrichten sowie Antworten/Weiterleitungen dem <strong>ersten Konto mit einer Adresse, die exakt auf @rail-time.de endet</strong>, zugeordnet. Ohne passendes Konto erscheint ein Fehler und es wird nichts geändert.</li>
+    <li>Nach dem Erfolg Classic Outlook wieder öffnen, eine neue Testmail erstellen und kontrollieren, ob Signatur, Bilder, Links und Animation sichtbar sind.</li>
   </ol>
   <p><strong>Lokaler Classic-Modus:</strong> Damit die lokale Installation zuverlässig bleibt, aktiviert die Einrichtung den von Microsoft dokumentierten Classic-Signaturmodus. Dadurch werden Roaming-Signaturen im klassischen Outlook für diesen Windows-Benutzer deaktiviert. Vorherige Zuordnungswerte werden lokal gesichert.</p>
   <p>Erfolg oder Fehler erscheinen direkt in der Oberfläche. Das vollständige Protokoll liegt unter <strong>%TEMP%\RailTime-Outlook-Signatur-Installation.log</strong>.</p>
   <h2 style="font-size:19px;">Neues Outlook oder Outlook im Web</h2>
-  <p><strong>Wichtig:</strong> Das neue Outlook speichert Signaturen konto- beziehungsweise cloudgebunden und liest den lokalen Classic-Outlook-Ordner nicht ein. Eine lokale Windows-Installationsroutine kann diese Signatur daher nicht direkt im neuen Outlook registrieren.</p>
+  <p><strong>Wichtig:</strong> Das neue Outlook speichert Signaturen konto- beziehungsweise cloudgebunden und liest den lokalen Classic-Outlook-Ordner nicht ein. Eine lokale Windows-Installationsroutine kann diese Signatur daher nicht direkt im neuen Outlook registrieren. Die Windows-Einrichtung lässt das neue Outlook deshalb geöffnet und verändert dort nichts.</p>
   <ol>
     <li><strong>{$name}.htm</strong> in Edge oder Chrome öffnen.</li>
     <li>Mit <strong>Strg+A</strong> alles markieren und mit <strong>Strg+C</strong> kopieren.</li>
-    <li>In Outlook <strong>Einstellungen → Konten → Signaturen</strong> öffnen, eine neue Signatur anlegen und einfügen.</li>
+    <li>Im neuen Outlook <strong>Einstellungen → Konten → Signaturen</strong> öffnen, das richtige RailTime-Konto auswählen, eine neue Signatur anlegen und einfügen.</li>
     <li>Falls Outlook das Zugbild nicht übernimmt: über „Bild einfügen“ die Datei <strong>{$folder}/zug-dampf.gif</strong> unter der Signatur einsetzen.</li>
+    <li>Die Signatur für neue Nachrichten und Antworten/Weiterleitungen auswählen, speichern und anschließend eine Testmail erstellen.</li>
   </ol>
+  <p><strong>E-Mail-Vorlagen sind davon getrennt:</strong> Das neue Outlook kann lokale OFT-Dateien bei einem qualifizierenden Microsoft-365-Abonnement unter <strong>Einstellungen → E-Mail → Vorlagen → Hinzufügen → OFT hinzufügen</strong> importieren. Dieses Signaturpaket enthält bewusst keine OFT-Datei und behauptet keinen automatischen Import. Die Mailvorlage wird in der RailTime-App separat heruntergeladen.</p>
+  <p>Microsoft-Anleitungen: <a href="https://support.microsoft.com/en-us/outlook/mail/how-to-add-and-change-an-email-signature-in-outlook">Signaturen in Outlook</a> und <a href="https://support.microsoft.com/en-au/office/download-add-and-share-templates-as-oft-files-in-outlook-a410e7b9-8bb0-437e-828d-a9954ff2ac2c">OFT-Vorlagen im neuen Outlook</a>.</p>
   <p><strong>Animationshinweis:</strong> Das Outlook-GIF spielt die Einfahrt, den Rauch-Ausklang und einen vollständigen Standrauch-Zyklus einmal ab. Danach bleibt der Zug sichtbar stehen. Ein endloser Idle-Teil in derselben GIF-Datei würde immer auch die Einfahrt wiederholen.</p>
 </body>
 </html>
 HTML;
+    }
+
+    /**
+     * @param  array<string, string>  $files
+     */
+    protected function buildOutlookPackageManifest(string $signatureName, array $files): string
+    {
+        $manifestFiles = [];
+        foreach ($files as $path => $content) {
+            if (! is_string($content)) {
+                throw new RuntimeException("Outlook-Exportdatei ist ungültig: {$path}");
+            }
+
+            $normalizedPath = str_replace('\\', '/', $path);
+            $hash = hash('sha256', $content);
+            $manifestFiles[] = [
+                'path' => $normalizedPath,
+                'bytes' => strlen($content),
+                'sha256' => $hash,
+            ];
+        }
+
+        usort($manifestFiles, static fn (array $left, array $right): int => strcmp($left['path'], $right['path']));
+        $fingerprintMaterial = array_map(
+            static fn (array $file): string => "{$file['path']}:{$file['sha256']}",
+            $manifestFiles,
+        );
+
+        return json_encode([
+            'schema' => 1,
+            'signatureName' => $signatureName,
+            'packageFingerprint' => hash('sha256', implode("\n", $fingerprintMaterial)),
+            'files' => $manifestFiles,
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)."\n";
     }
 
     protected function buildOutlookRtf(string $plain): string

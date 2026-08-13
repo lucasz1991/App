@@ -12,7 +12,12 @@ use App\Support\Mail\EmailHtmlSanitizer;
 use App\Support\MailSignature;
 use Database\Seeders\MailDocumentSeeder;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Mail\Markdown;
+use Illuminate\Notifications\Messages\MailMessage;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
+use Illuminate\View\ViewException;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
 
@@ -109,8 +114,8 @@ class MailDocumentEditorTest extends TestCase
         $frisch = $this->document(MailDocumentKind::Signature);
         $this->assertStringNotContainsString('Von Hand geaendert', (string) $frisch->html);
         $this->assertSame(MailDocumentStatus::Published, $frisch->status);
-        $this->assertSame(8, $frisch->version);
-        $this->assertSame(3, data_get($frisch->builder_data, 'railtime.schema'));
+        $this->assertSame(1, $frisch->version);
+        $this->assertSame(4, data_get($frisch->builder_data, 'railtime.schema'));
     }
 
     public function test_der_seeder_veroeffentlicht_vorlage_und_signatur_als_idempotenten_release(): void
@@ -130,7 +135,7 @@ class MailDocumentEditorTest extends TestCase
             $dokument = $this->document($kind);
             $this->assertSame(MailDocumentStatus::Published, $dokument->status, $kind->value);
             $this->assertSame(1, $dokument->version, $kind->value);
-            $this->assertSame(3, data_get($dokument->builder_data, 'railtime.schema'), $kind->value);
+            $this->assertSame(4, data_get($dokument->builder_data, 'railtime.schema'), $kind->value);
             $this->assertSame(trim((string) $dokument->html), trim((string) $dokument->published_html), $kind->value);
             $this->assertSame((string) data_get($dokument->builder_data, 'pages.0.component'), (string) $dokument->html, $kind->value);
             $this->assertSame(
@@ -140,19 +145,17 @@ class MailDocumentEditorTest extends TestCase
             );
         }
 
-        // Ein identischer Deployment-Lauf ist ein No-op: keine Scheinversion
-        // und kein neu gesetzter Veroeffentlichungszeitpunkt.
+        // Ein identischer Deployment-Lauf bleibt die einzige Version 1.
         (new MailDocumentSeeder)->run();
 
         foreach (MailDocumentKind::cases() as $kind) {
             $dokument = $this->document($kind);
             $this->assertSame($ersterRelease[$kind->value]['version'], $dokument->version, $kind->value);
-            $this->assertSame($ersterRelease[$kind->value]['published_at'], $dokument->published_at?->toIso8601String(), $kind->value);
-            $this->assertSame($ersterRelease[$kind->value]['updated_at'], $dokument->updated_at?->toIso8601String(), $kind->value);
+            $this->assertSame(1, $dokument->version, $kind->value);
         }
     }
 
-    public function test_der_autoritative_seeder_ueberschreibt_beide_editorstaende_und_zaehlt_ihre_version_hoch(): void
+    public function test_der_autoritative_seeder_ueberschreibt_beide_editorstaende_und_setzt_version_eins(): void
     {
         (new MailDocumentSeeder)->run();
 
@@ -170,12 +173,12 @@ class MailDocumentEditorTest extends TestCase
         $template = $this->document(MailDocumentKind::Template);
         $signatur = $this->document(MailDocumentKind::Signature);
 
-        $this->assertSame(12, $template->version);
-        $this->assertSame(8, $signatur->version);
+        $this->assertSame(1, $template->version);
+        $this->assertSame(1, $signatur->version);
 
         foreach ([$template, $signatur] as $dokument) {
             $this->assertSame(MailDocumentStatus::Published, $dokument->status);
-            $this->assertSame(3, data_get($dokument->builder_data, 'railtime.schema'));
+            $this->assertSame(4, data_get($dokument->builder_data, 'railtime.schema'));
             $this->assertSame(trim((string) $dokument->html), trim((string) $dokument->published_html));
             $this->assertSame((string) data_get($dokument->builder_data, 'pages.0.component'), (string) $dokument->html);
         }
@@ -185,10 +188,9 @@ class MailDocumentEditorTest extends TestCase
     }
 
     /**
-     * Mit RT_MAIL_STARTER_KEEP=1 bleibt vorhandene Arbeit stehen — der Weg
-     * fuer alle, die den ausgelieferten Stand NICHT wollen.
+     * Fremde Zwischenzeilen und alte Arbeitsstaende werden verworfen.
      */
-    public function test_der_seeder_schont_vorhandene_arbeit_auf_ausdrueckliche_anweisung(): void
+    public function test_der_seeder_ignoriert_alte_umgebungsvariablen_und_loescht_fremde_zwischenzeilen(): void
     {
         (new MailDocumentSeeder)->run();
 
@@ -201,29 +203,30 @@ class MailDocumentEditorTest extends TestCase
             'version' => 7,
         ])->save();
 
-        $vorher = MailDocument::query()
-            ->get()
-            ->mapWithKeys(fn (MailDocument $document): array => [$document->kind->value => [
-                'html' => $document->html,
-                'version' => $document->version,
-                'updated_at' => $document->updated_at?->toIso8601String(),
-            ]])
-            ->all();
+        DB::table('mail_documents')->insert([
+            'public_id' => (string) Str::uuid(),
+            'kind' => 'temporary-preview',
+            'status' => 'draft',
+            'builder_data' => '{}',
+            'html' => '<div>Zwischenspeicher</div>',
+            'css' => '',
+            'content_hash' => str_repeat('a', 64),
+            'version' => 42,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
 
-        putenv('RT_MAIL_STARTER_KEEP=1');
-
-        try {
-            (new MailDocumentSeeder)->run();
-        } finally {
-            putenv('RT_MAIL_STARTER_KEEP');
-        }
+        (new MailDocumentSeeder)->run();
 
         foreach (MailDocumentKind::cases() as $kind) {
             $dokument = $this->document($kind);
-            $this->assertSame($vorher[$kind->value]['html'], $dokument->html, $kind->value);
-            $this->assertSame($vorher[$kind->value]['version'], $dokument->version, $kind->value);
-            $this->assertSame($vorher[$kind->value]['updated_at'], $dokument->updated_at?->toIso8601String(), $kind->value);
+            $this->assertStringNotContainsString('Eigene', (string) $dokument->html, $kind->value);
+            $this->assertSame(1, $dokument->version, $kind->value);
+            $this->assertSame(MailDocumentStatus::Published, $dokument->status, $kind->value);
         }
+
+        $this->assertSame(2, MailDocument::query()->count());
+        $this->assertFalse(DB::table('mail_documents')->where('kind', 'temporary-preview')->exists());
     }
 
     public function test_der_seeder_rollt_beide_dokumente_zurueck_wenn_ein_release_scheitert(): void
@@ -273,6 +276,104 @@ class MailDocumentEditorTest extends TestCase
     private function document(MailDocumentKind $kind): MailDocument
     {
         return MailDocument::query()->where('kind', $kind->value)->firstOrFail();
+    }
+
+    private function renderSystemMail(string $line = 'Kanonischer Anwendungsinhalt'): string
+    {
+        $message = (new MailMessage)
+            ->greeting('Guten Tag')
+            ->line($line)
+            ->action('RailTime öffnen', 'https://rail-time.example');
+
+        return (string) app(Markdown::class)
+            ->render($message->markdown ?: 'notifications::email', $message->data());
+    }
+
+    public function test_systemmail_verwendet_veroeffentlichte_vorlage_und_signatur_genau_einmal(): void
+    {
+        (new MailDocumentSeeder)->run();
+        $template = $this->document(MailDocumentKind::Template);
+        $signature = $this->document(MailDocumentKind::Signature);
+
+        $templateHtml = str_replace(
+            '<table class="rt-shell"',
+            '<!-- RT-RUNTIME-TEMPLATE --><table class="rt-shell"',
+            (string) $template->html,
+        );
+        $signatureHtml = str_replace(
+            '{{POSITION}}',
+            'RT-RUNTIME-SIGNATURE {{POSITION}}',
+            (string) $signature->html,
+        );
+
+        foreach ([[$template, $templateHtml], [$signature, $signatureHtml]] as [$document, $html]) {
+            $document->forceFill([
+                'html' => $html,
+                'builder_data' => [
+                    'pages' => [['name' => $document->kind->label(), 'component' => $html]],
+                    'styles' => [],
+                    'railtime' => ['document' => $document->kind->value, 'schema' => 4],
+                ],
+                'content_hash' => MailDocument::contentHashFor(
+                    [
+                        'pages' => [['name' => $document->kind->label(), 'component' => $html]],
+                        'styles' => [],
+                        'railtime' => ['document' => $document->kind->value, 'schema' => 4],
+                    ],
+                    $html,
+                    '',
+                ),
+            ])->save();
+
+            $this->actingAs($this->admin())
+                ->postJson(route('admin.mail-documents.publish', $document), [
+                    'expected_hash' => $document->content_hash,
+                ])
+                ->assertOk();
+        }
+
+        $this->app->forgetScopedInstances();
+        $html = $this->renderSystemMail();
+
+        $this->assertSame(1, substr_count($html, 'Kanonischer Anwendungsinhalt'));
+        $this->assertSame(1, substr_count($html, 'RT-RUNTIME-TEMPLATE'));
+        $this->assertSame(1, substr_count($html, 'RT-RUNTIME-SIGNATURE'));
+        $this->assertSame(1, preg_match_all('/class="[^"]*rt-sign-cell[^"]*"/', $html));
+        $this->assertSame(1, substr_count($html, 'data-rt-outlook-train '));
+        $this->assertSame(1, substr_count($html, 'data-rt-outlook-train-still'));
+        $this->assertStringContainsString('zug-dampf-light.gif', $html);
+        $this->assertStringContainsString('zug-dampf-light.png', $html);
+        $this->assertStringNotContainsString('data:image', $html);
+        $this->assertLessThan(60 * 1024, strlen($html));
+    }
+
+    public function test_systemmail_schlaegt_bei_fehlender_freigabe_in_migrierter_installation_fehl(): void
+    {
+        (new MailDocumentSeeder)->run();
+        $this->document(MailDocumentKind::Template)->forceFill([
+            'status' => MailDocumentStatus::Draft,
+            'published_html' => null,
+            'published_css' => null,
+            'published_at' => null,
+        ])->save();
+        $this->app->forgetScopedInstances();
+
+        $this->expectException(ViewException::class);
+        $this->expectExceptionMessage('veröffentlichte Maildokument');
+
+        $this->renderSystemMail();
+    }
+
+    public function test_systemmail_hat_vor_der_maildocument_migration_einen_bootstrap_fallback(): void
+    {
+        Schema::drop('mail_documents');
+        $this->app->forgetScopedInstances();
+
+        $html = $this->renderSystemMail('Bootstrap-Inhalt');
+
+        $this->assertSame(1, substr_count($html, 'Bootstrap-Inhalt'));
+        $this->assertSame(1, substr_count($html, 'class="rt-sign-cell"'));
+        $this->assertStringContainsString('mail-assets/', $html);
     }
 
     public function test_ohne_veroeffentlichte_fassung_bleibt_alles_wie_bisher(): void
@@ -336,6 +437,14 @@ class MailDocumentEditorTest extends TestCase
             'published_at' => now(),
             'status' => MailDocumentStatus::Published,
         ])->save();
+        $templateDocument = $this->document(MailDocumentKind::Template);
+        $templateDocument->forceFill([
+            'published_html' => (string) $templateDocument->html,
+            'published_css' => '',
+            'published_at' => now(),
+            'status' => MailDocumentStatus::Published,
+        ])->save();
+        $this->app->forgetScopedInstances();
 
         $builder = new EmailTemplateBuilder($user->fresh());
 
@@ -368,8 +477,9 @@ class MailDocumentEditorTest extends TestCase
         // braucht (Begruendung in MailSignature::render). Das freigegebene
         // CSS ist gegen das freigegebene MARKUP geschrieben — eingebunden
         // laege es auf einem anderen Stand.
-        $this->assertStringNotContainsString('.rt-sign-name{letter-spacing:0;}', $systemMail);
-        $this->assertStringNotContainsString('RT-SIGNATUR', $systemMail);
+        $this->assertStringContainsString('.rt-sign-name{letter-spacing:0;}', $systemMail);
+        $this->assertStringContainsString('RT-SIGNATUR', $systemMail);
+        $this->assertStringContainsString('data-rt-outlook-train', $systemMail);
 
         // Nur die bekannten Starterabstaende werden fuer den eigenstaendigen
         // Download auf den kompakten Vertrag abgebildet.
@@ -381,7 +491,7 @@ class MailDocumentEditorTest extends TestCase
         $outlookMethod->setAccessible(true);
         $outlook = $outlookMethod->invoke($builder, 'light', 'RailTime_files');
         $this->assertIsString($outlook);
-        $this->assertStringNotContainsString('RT-SIGNATUR', $outlook);
+        $this->assertStringContainsString('RT-SIGNATUR Mara Beispiel', $outlook);
         $this->assertStringContainsString('data-rt-outlook-train', $outlook);
     }
 
@@ -490,8 +600,12 @@ class MailDocumentEditorTest extends TestCase
             ->assertSee('data-mail-preview-device="desktop"', escape: false)
             ->assertSee('data-mail-preview-device="tablet"', escape: false)
             ->assertSee('data-mail-preview-device="mobile"', escape: false)
+            ->assertSee('data-mail-preview-replay', escape: false)
+            ->assertSee('restartAllGifs', escape: false)
             ->assertSee('data-mail-editor-frame', escape: false)
             ->assertSee('data-page-builder-preview-first', escape: false)
+            ->assertSee('data-page-builder-preview-replay', escape: false)
+            ->assertSee('animate=1', escape: false)
             ->assertSee('data-page-builder-assist', escape: false)
             ->assertSee('Mail- &amp; Signatur-Editor', escape: false);
 

@@ -274,9 +274,19 @@ final class MailDocumentController extends Controller
             $completeDocument = preg_match('/^\s*<!doctype\s+html\b/i', $html) === 1
                 && preg_match('/<html\b[^>]*>.*<head\b[^>]*>.*<\/head>.*<body\b[^>]*>.*<\/body>.*<\/html>\s*$/is', $html) === 1;
 
-            if (! $completeDocument || substr_count($html, '{{SIGNATURE_BLOCK}}') !== 1) {
+            $hasApplicationSlot = substr_count($html, '{{APPLICATION_CONTENT}}') === 1
+                && substr_count($html, 'RT_APPLICATION_CONTENT_START') === 1
+                && substr_count($html, 'RT_APPLICATION_CONTENT_END') === 1
+                && (int) strpos($html, 'RT_APPLICATION_CONTENT_START')
+                    < (int) strpos($html, '{{APPLICATION_CONTENT}}')
+                && (int) strpos($html, '{{APPLICATION_CONTENT}}')
+                    < (int) strpos($html, 'RT_APPLICATION_CONTENT_END');
+
+            if (! $completeDocument
+                || substr_count($html, '{{SIGNATURE_BLOCK}}') !== 1
+                || ! $hasApplicationSlot) {
                 throw ValidationException::withMessages([
-                    'html' => 'Die Nachrichtenvorlage braucht eine vollstaendige HTML-Schale und genau einen Signaturblock.',
+                    'html' => 'Die Nachrichtenvorlage braucht eine vollständige HTML-Schale, genau einen Signaturblock und genau einen APPLICATION_CONTENT-Slot zwischen seinen beiden Systemmail-Markern.',
                 ]);
             }
 
@@ -300,6 +310,7 @@ final class MailDocumentController extends Controller
             '{{STEUERNUMMER}}',
         ];
         $requiredMarkers = [
+            'RT_SIGNATURE_MAIN_END',
             'RT_PHONE_START', 'RT_PHONE_END',
             'RT_MOBILE_START', 'RT_MOBILE_END',
             'RT_WEBSITE_START', 'RT_WEBSITE_END',

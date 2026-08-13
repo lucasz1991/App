@@ -16,192 +16,102 @@ use Illuminate\Support\Facades\View;
 use RuntimeException;
 
 /**
- * Setzt die beiden Maildokumente auf die ausgelieferte Startfassung — und
- * GIBT SIE SOFORT FREI, damit unmittelbar danach eine Systemnachricht
- * geprueft werden kann.
+ * Stellt nach einem Deployment genau zwei kanonische Maildokumente her.
  *
  *   php artisan db:seed --class=MailDocumentSeeder --force
  *
- * UEBERSCHREIBT BEIDE DOKUMENTE OHNE RUECKFRAGE. Das ist ausdruecklich so
- * gewollt: Der Lauf gehoert ans Ende eines Deployments und stellt Vorlage
- * und Signatur als EINEN atomaren Release her. Editor-Arbeit geht dabei
- * verloren. Wer sie behalten will, setzt beim Lauf
- *
- *   RT_MAIL_STARTER_KEEP=1
- *
- * Dann bleiben alle vorhandenen Dokumente unangetastet und nur fehlende
- * werden angelegt.
- *
- * WAS DIE FREIGABE BEWIRKT — UND WAS NICHT:
- * Sie wirkt auf die DOWNLOADS (Vorlage und Signaturdateien) und auf die
- * Vorschau. Eine VERSENDETE Systemmail folgt dagegen immer der
- * Blade-Quelle, also dem ausgelieferten Code (Begruendung in
- * App\Support\MailSignature::render — die Systemmail braucht den Zug als
- * Bildzeile, die ein gespeicherter Markup-Stand nicht tragen kann). Nach
- * diesem Lauf zeigen beide Wege denselben Stand, weil die Startfassung aus
- * genau derselben Blade-Quelle erzeugt wird.
+ * Der Lauf ist bewusst autoritativ: Entwürfe, Zwischenstände und unbekannte
+ * Maildokument-Zeilen werden verworfen. Vorlage und Signatur werden vor dem
+ * ersten Write vollständig vorbereitet und anschließend in einer gemeinsamen
+ * Transaktion als veröffentlichte Version 1 gespeichert. Danach verwenden
+ * Downloads, Vorschauen und versendete Laravel-Mails denselben Stand.
  */
 final class MailDocumentSeeder extends Seeder
 {
     /**
-     * Kennzeichen der ausgelieferten Startfassung. Bei jeder Erneuerung des
-     * Startlayouts hochzaehlen, sonst frisst der naechste Auffrischungslauf
-     * dieselben Zeilen erneut.
+     * Kennzeichen der ausgelieferten Startfassung.
      *
-     *   1  Erstauslieferung
-     *   2  Symmetrische Signatur (Person links, Firma rechts, Wortmarke
-     *      ohne Zeichen, Anschrift einmal) + RT-Zeichen in der Vorlage
-     *   3  Sequentiell aufgebaute Logo-/Wortmarkenanimationen
+     * 1  Erstauslieferung
+     * 2  Symmetrische Signatur und RT-Zeichen in der Vorlage
+     * 3  Sequentiell aufgebaute Logo-/Wortmarkenanimationen
+     * 4  Kanonischer APPLICATION_CONTENT-Slot für Systemmails
      */
-    private const STARTER_SCHEMA = 3;
+    private const STARTER_SCHEMA = 4;
 
     public function run(): void
     {
         $actorId = $this->actorId();
 
-        // Beide Quellen werden vorbereitet und gehaertet, bevor die erste
-        // Datenbankzeile geschrieben wird. So kann kein halber Release
-        // entstehen, wenn etwa die neue Signatur ungueltig ist.
+        // Beide Quellen werden gehärtet, bevor die Transaktion beginnt. Eine
+        // ungültige zweite Quelle kann damit niemals einen halben Release
+        // hinterlassen.
         $release = [];
         foreach (MailDocumentKind::cases() as $kind) {
             $html = $this->starterHtml($kind);
-            // Das Markup traegt seine Formatierung im style-Attribut und im
-            // eigenen <style>-Block; eine getrennte Stilebene entsteht erst,
-            // wenn jemand im Editor arbeitet.
             $css = '';
             $builderData = $this->starterBuilderData($kind, $html);
-
-            // Gehaertet wie im Editor: was dort nicht freigegeben werden
-            // duerfte, darf es hier auch nicht. Schlaegt die Pruefung fehl,
-            // bricht der Lauf mit der Meldung des Editors ab statt
-            // stillschweigend etwas Unerlaubtes zu veroeffentlichen.
-            $geprueft = app(EmailHtmlSanitizer::class)->assertClean($html)->html;
+            $geprüft = app(EmailHtmlSanitizer::class)->assertClean($html)->html;
 
             $release[$kind->value] = [
                 'kind' => $kind,
                 'status' => MailDocumentStatus::Published,
                 'builder_data' => $builderData,
-                'html' => $geprueft,
+                'html' => $geprüft,
                 'css' => $css,
-                'content_hash' => MailDocument::contentHashFor($builderData, $geprueft, $css),
-                // SOFORT FREIGEGEBEN: Downloads und Vorschau zeigen den
-                // neuen Stand ohne weiteren Handgriff im Editor.
-                'published_html' => $geprueft,
+                'content_hash' => MailDocument::contentHashFor($builderData, $geprüft, $css),
+                'published_html' => $geprüft,
                 'published_css' => $css,
                 'published_at' => null,
+                'version' => 1,
             ];
-
         }
 
-        /** @var list<MailDocumentKind> $releasedKinds */
-        $releasedKinds = DB::transaction(function () use ($actorId, $release): array {
+        DB::transaction(function () use ($actorId, $release): void {
+            $canonicalKinds = array_map(
+                static fn (MailDocumentKind $kind): string => $kind->value,
+                MailDocumentKind::cases(),
+            );
+
+            // Query Builder statt Eloquent: ein fremder kind-Wert würde beim
+            // Enum-Cast bereits das Laden der Sammlung abbrechen.
+            DB::table('mail_documents')
+                ->whereNotIn('kind', $canonicalKinds)
+                ->delete();
+
             $documents = MailDocument::query()
-                ->whereIn('kind', array_keys($release))
+                ->whereIn('kind', $canonicalKinds)
                 ->orderBy('id')
                 ->lockForUpdate()
                 ->get()
                 ->keyBy(fn (MailDocument $document): string => $document->kind->value);
-            $released = [];
 
             foreach (MailDocumentKind::cases() as $kind) {
                 /** @var MailDocument|null $document */
                 $document = $documents->get($kind->value);
-
-                if ($document instanceof MailDocument && $this->behalten($document, $kind)) {
-                    continue;
-                }
-
-                $werte = $release[$kind->value];
-                $werte['published_at'] = now();
-                $werte['updated_by'] = $actorId;
+                $values = $release[$kind->value];
+                $values['published_at'] = now();
+                $values['updated_by'] = $actorId;
 
                 if ($document instanceof MailDocument) {
-                    $currentBuilderData = is_array($document->builder_data)
-                        ? $document->builder_data
-                        : [];
-                    $currentContentHash = MailDocument::contentHashFor(
-                        $currentBuilderData,
-                        (string) $document->html,
-                        (string) $document->css,
-                    );
-                    $contentChanged = ! hash_equals(
-                        (string) $werte['content_hash'],
-                        $currentContentHash,
-                    );
-                    $alreadyReleased = ! $contentChanged
-                        && $document->status === MailDocumentStatus::Published
-                        && $document->published_at !== null
-                        && trim((string) $document->published_html) === trim((string) $werte['published_html'])
-                        && trim((string) $document->published_css) === trim((string) $werte['published_css'])
-                        && hash_equals((string) $document->content_hash, (string) $werte['content_hash']);
-
-                    if ($alreadyReleased) {
-                        $this->command?->info(
-                            "Maildokument \"{$kind->value}\" ist bereits als Startfassung ".self::STARTER_SCHEMA.' veroeffentlicht.'
-                        );
-
-                        continue;
-                    }
-
-                    // Eine Version bezeichnet einen Inhaltsstand. Nur ein
-                    // echter Inhaltswechsel zaehlt hoch; die erneute Freigabe
-                    // desselben Arbeitsstands bleibt versionsneutral.
-                    $werte['version'] = $contentChanged
-                        ? max(1, (int) $document->version) + 1
-                        : max(1, (int) $document->version);
-
-                    $document->forceFill($werte)->save();
-                    $this->command?->info(
-                        "Maildokument \"{$kind->value}\" als Version {$werte['version']} freigegeben (Startfassung ".self::STARTER_SCHEMA.').'
-                    );
+                    $document->forceFill($values)->save();
                 } else {
-                    $werte['version'] = 1;
-                    MailDocument::query()->create($werte + ['created_by' => $actorId]);
-                    $this->command?->info(
-                        "Maildokument \"{$kind->value}\" als Version 1 angelegt und freigegeben (Startfassung ".self::STARTER_SCHEMA.').'
-                    );
+                    MailDocument::query()->create($values + ['created_by' => $actorId]);
                 }
 
-                $released[] = $kind;
+                $this->command?->info(
+                    "Maildokument \"{$kind->value}\" als einzige kanonische Version 1 freigegeben (Startfassung ".self::STARTER_SCHEMA.').'
+                );
             }
-
-            return $released;
         });
 
-        // Erst nach dem Commit die pro Anfrage gehaltene Momentaufnahme
-        // vergessen. Ein Rollback kann dadurch keinen Cache-Mischstand bauen.
-        foreach ($releasedKinds as $kind) {
+        // Erst nach erfolgreichem Commit vergessen. Ein Rollback lässt damit
+        // auch die request-/job-lokale Momentaufnahme konsistent unverändert.
+        foreach (MailDocumentKind::cases() as $kind) {
             app(PublishedMailDocumentSnapshotStore::class)->forget($kind);
         }
     }
 
-    /**
-     * Soll ein vorhandenes Dokument stehen bleiben?
-     *
-     * Standard ist NEIN — der Lauf stellt einen bekannten Zustand her. Nur
-     * mit RT_MAIL_STARTER_KEEP=1 bleibt Editor-Arbeit erhalten.
-     */
-    private function behalten(MailDocument $document, MailDocumentKind $kind): bool
-    {
-        if (! $this->schonend()) {
-            return false;
-        }
-
-        $this->command?->warn(
-            "Maildokument \"{$kind->value}\" bleibt unangetastet (RT_MAIL_STARTER_KEEP=1). "
-            .'Ohne diese Kennzeichnung wuerde der Lauf es auf die Startfassung setzen und freigeben.'
-        );
-
-        return true;
-    }
-
-    /**
-     * Startinhalt als Token-HTML — die {{PLATZHALTER}} bleiben stehen.
-     *
-     * Sie sind der Grund, warum ein einziges Dokument genuegt: Palette (hell
-     * und dunkel), Profilwerte und Bildquellen werden erst beim Rendern
-     * eingesetzt.
-     */
+    /** Token-HTML; die Werte werden erst im jeweiligen Ausgabeweg eingesetzt. */
     private function starterHtml(MailDocumentKind $kind): string
     {
         $html = match ($kind) {
@@ -222,13 +132,8 @@ final class MailDocumentSeeder extends Seeder
     }
 
     /**
-     * Der Signaturblock aus derselben einzigen Quelle wie Downloads und
-     * Systemmails — nur mit Platzhaltern statt Werten.
-     *
-     * Bewusst nicht ueber MailSignature::render(): dort raeumt
-     * stripEmptyContactRows() am Ende ALLE RT_*-Marker weg. Ein Dokument mit
-     * Platzhaltern braucht sie aber noch, weil erst nach dem Einsetzen der
-     * Werte feststeht, welche Kontaktzeile leer bleibt.
+     * Signaturblock aus derselben Quelle wie Downloads und Systemmails, aber
+     * mit Platzhaltern statt Benutzer- beziehungsweise Firmenwerten.
      */
     private function signatureStarterHtml(): string
     {
@@ -237,19 +142,10 @@ final class MailDocumentSeeder extends Seeder
             $tokens[$key] = '{{'.$key.'}}';
         }
 
-        // FRUEHER STAND HIER EINE AUSNAHME fuer TRAIN_IDLE_SRC: der Wert
-        // wurde geleert, weil ein Platzhalter die Ebene immer eingeschaltet
-        // haette und sie auf nicht animierten Wegen in ein leeres url()
-        // gelaufen waere. Die Ruhefahne wird inzwischen IMMER gesetzt
-        // (MailSignature::values), damit entfaellt der Grund — und mit der
-        // Ausnahme fehlte die Ebene in jeder veroeffentlichten Fassung.
-
         return View::make('emails.parts.signature', ['values' => $tokens])->render();
     }
 
-    /**
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> */
     private function starterBuilderData(MailDocumentKind $kind, string $html): array
     {
         return [
@@ -265,25 +161,7 @@ final class MailDocumentSeeder extends Seeder
         ];
     }
 
-    /**
-     * Ausdrueckliche Anweisung, vorhandene Dokumente NICHT zu ueberschreiben:
-     *
-     *   RT_MAIL_STARTER_KEEP=1 php artisan db:seed --class=MailDocumentSeeder --force
-     *
-     * Ohne sie stellt der Lauf den ausgelieferten Zustand beider Dokumente
-     * atomar her und gibt ihn frei — das ist der Sinn des Aufrufs am Ende
-     * eines Deployments.
-     */
-    private function schonend(): bool
-    {
-        return filter_var(env('RT_MAIL_STARTER_KEEP'), FILTER_VALIDATE_BOOL);
-    }
-
-    /**
-     * Ersteller ist der erste Administrator, falls es schon einen gibt. Ohne
-     * Administrator bleiben die Spalten leer — die Dokumente selbst sind
-     * Systeminhalt und haengen an niemandem.
-     */
+    /** Systeminhalt kann auch vor dem ersten Administratorkonto existieren. */
     private function actorId(): ?int
     {
         return User::query()->where('role', 'admin')->orderBy('id')->value('id');

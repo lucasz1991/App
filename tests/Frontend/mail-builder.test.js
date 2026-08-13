@@ -11,6 +11,7 @@ import {
     parseMailCssProjectStyles,
     projectForMailDocument,
     rehydrateAuthoritativeMailProject,
+    restartMailCanvasAnimations,
     resolveMailPreviewDevice,
     serializeMailDocumentForSave,
     serializeMailProjectStyles,
@@ -51,6 +52,58 @@ test('mail canvas renders real local token assets in light and dark without muta
     assert.match(dark, /data:image\/png;base64,dark-train/);
     assert.doesNotMatch(dark, /light-logo/);
     assert.deepEqual(previewAssets, snapshot);
+});
+
+test('global mail replay restarts every animated token without touching component models', () => {
+    const nextFrames = [];
+    const previousFrame = globalThis.requestAnimationFrame;
+    globalThis.requestAnimationFrame = (callback) => {
+        nextFrames.push(callback);
+        return nextFrames.length;
+    };
+
+    try {
+        const component = (token, renderedSource, children = []) => {
+            const model = {
+                src: 'data:image/png;base64,neutral-model-pixel',
+                'data-rt-mail-preview-token': token,
+            };
+            const element = {
+                tagName: 'IMG',
+                src: renderedSource,
+                dataset: {},
+                getAttribute: (name) => name === 'src' ? element.src : null,
+                setAttribute: (name, value) => { if (name === 'src') element.src = value; },
+                removeAttribute: (name) => { if (name === 'src') element.src = ''; },
+                ownerDocument: { baseURI: 'https://app.rail-time.test/' },
+            };
+
+            return {
+                components: () => ({ models: children }),
+                get: (key) => model[key],
+                getAttributes: () => model,
+                getStyle: () => ({}),
+                getEl: () => element,
+                snapshot: () => structuredClone(model),
+                rendered: () => element.src,
+            };
+        };
+        const logo = component('LOGO_SRC', 'data:image/gif;base64,logo');
+        const mark = component('ICON_RT_SRC', 'data:image/gif;base64,mark');
+        const plain = component('ICON_EMAIL_SRC', 'data:image/png;base64,email');
+        const root = component('', '', [logo, mark, plain]);
+        const snapshots = [logo.snapshot(), mark.snapshot(), plain.snapshot()];
+
+        assert.equal(restartMailCanvasAnimations({ getWrapper: () => root }, { nonce: 41 }), 2);
+        assert.deepEqual([logo.snapshot(), mark.snapshot(), plain.snapshot()], snapshots);
+        assert.equal(logo.rendered(), '');
+        assert.equal(mark.rendered(), '');
+        nextFrames.splice(0).forEach((callback) => callback());
+        assert.equal(logo.rendered(), 'data:image/gif;base64,logo#_rt_preview_restart=41-0');
+        assert.equal(mark.rendered(), 'data:image/gif;base64,mark#_rt_preview_restart=41-1');
+    } finally {
+        globalThis.requestAnimationFrame = previousFrame;
+    }
 });
 
 test('signature project gets a valid editor-only table and neutral preview sources', () => {
@@ -233,8 +286,8 @@ test('GrapesJS border and background expansions collapse to sanitizer-safe mail 
     assert.doesNotMatch(serialized, /border-bottom-(?:width|style|color)|background-(?:position-[xy]|attachment|origin|clip)/);
 });
 
-test('template preview preserves doctype and head while restoring exactly one signature slot', () => {
-    const canonical = '<!doctype html><html lang="de"><head><meta charset="utf-8"><title>RailTime</title><style>.rt-shell{width:100%}</style></head><body bgcolor="#fff"><table class="rt-shell"><tbody><tr><td>Inhalt</td></tr>{{SIGNATURE_BLOCK}}</tbody></table></body></html>';
+test('template preview preserves its shell and restores image tokens plus exactly one signature slot', () => {
+    const canonical = '<!doctype html><html lang="de"><head><meta charset="utf-8"><title>RailTime</title><style>.rt-shell{width:100%}</style></head><body bgcolor="#fff"><table class="rt-shell"><tbody><tr><td>Inhalt<img src="{{ICON_RT_SRC}}" alt=""></td></tr>{{SIGNATURE_BLOCK}}</tbody></table></body></html>';
     const project = projectForMailDocument({
         builderData: { pages: [{ component: canonical }], styles: [] },
         css: '',
@@ -242,6 +295,9 @@ test('template preview preserves doctype and head while restoring exactly one si
 
     assert.doesNotMatch(project.pages[0].component, /<!doctype|<html|<head/i);
     assert.match(project.pages[0].component, /data-rt-mail-preview-only="signature"/);
+    assert.match(project.pages[0].component, /data-rt-mail-preview-token="ICON_RT_SRC"/);
+    assert.match(project.pages[0].component, /src="data:image\/png;base64,/);
+    assert.doesNotMatch(project.pages[0].component, /src="\{\{ICON_RT_SRC\}\}"/);
 
     const outgoing = serializeMailDocumentForSave({
         project,
@@ -256,8 +312,34 @@ test('template preview preserves doctype and head while restoring exactly one si
     assert.match(outgoing.html, /<head><meta charset="utf-8"><title>RailTime<\/title><style>/i);
     assert.match(outgoing.html, /Bearbeitet/);
     assert.equal((outgoing.html.match(/\{\{SIGNATURE_BLOCK\}\}/g) || []).length, 1);
-    assert.doesNotMatch(outgoing.html, /data-rt-mail-(?:preview-only|signature-preview)/);
+    assert.equal((outgoing.html.match(/src="\{\{ICON_RT_SRC\}\}"/g) || []).length, 1);
+    assert.doesNotMatch(outgoing.html, /data-rt-mail-(?:preview(?:-[\w-]+)?|signature-preview)/);
+    assert.doesNotMatch(outgoing.html, /data:image\//);
     assert.equal(outgoing.project.pages[0].component, outgoing.html);
+});
+
+test('template save never persists a detached or unknown image preview binding', () => {
+    const canonical = '<!doctype html><html><head><title>RailTime</title></head><body><table><tbody><tr><td><img src="{{ICON_RT_SRC}}" alt=""></td></tr>{{SIGNATURE_BLOCK}}</tbody></table></body></html>';
+    const project = projectForMailDocument({
+        builderData: { pages: [{ component: canonical }], styles: [] },
+        css: '',
+    }, () => [], { kind: 'template', environment: { DOMParser } });
+
+    assert.throws(() => serializeMailDocumentForSave({
+        project,
+        html: project.pages[0].component.replace(' data-rt-mail-preview-token="ICON_RT_SRC"', ''),
+        kind: 'template',
+        baselineHtml: canonical,
+        environment: { DOMParser },
+    }), /verlustfrei/);
+
+    assert.throws(() => serializeMailDocumentForSave({
+        project,
+        html: project.pages[0].component.replace('ICON_RT_SRC', 'UNBEKANNTES_BILD'),
+        kind: 'template',
+        baselineHtml: canonical,
+        environment: { DOMParser },
+    }), /unbekannten Bildplatzhalter/);
 });
 
 test('template save fails closed without its canonical shell or preview signature binding', () => {

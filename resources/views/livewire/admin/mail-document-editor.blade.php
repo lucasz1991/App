@@ -2,19 +2,20 @@
 
 @php
     $kinds = [
-        \App\Enums\MailDocumentKind::Template->value => ['Nachrichtenvorlage', 'HTML- und EML-Vorlagendownloads'],
-        \App\Enums\MailDocumentKind::Signature->value => ['Signaturblock', 'Downloads und Systemmails'],
+        \App\Enums\MailDocumentKind::Template->value => ['Nachrichtenvorlage', 'HTML-Mailvorlage und Systemmails'],
+        \App\Enums\MailDocumentKind::Signature->value => ['Signaturblock', 'Outlook-Paket und Systemmails'],
     ];
 @endphp
 
 <x-ui.page-builder.editor-shell
     title="Mail- & Signatur-Editor"
     eyebrow="E-Mail-Vorlagen"
-    description="Vorlagendateien und Signaturblock bearbeiten. Die Nachrichtenvorlage gilt für Downloads; der Signaturblock zusätzlich für Systemmails."
+    description="Nachrichtenschale und Signaturblock zentral bearbeiten. Die veröffentlichten Fassungen gelten für Downloads und Systemmails."
     :back-url="route('email-templates.index')"
     back-label="Zur Vorlagen-Seite"
     :preview-sources="$editorPreviewSources"
     preview-default="light"
+    preview-replayable
     :auto-open="request()->boolean('open')"
     workspace-class="min-h-0 flex-1 overflow-hidden p-0"
     data-mail-document-studio
@@ -69,6 +70,16 @@
                             <span>Mobil</span>
                         </button>
                     </div>
+
+                    <button
+                        type="button"
+                        data-mail-preview-replay
+                        class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 text-xs font-semibold text-rt-accent ring-1 ring-inset ring-rt-accent/25 transition hover:bg-rt-accent-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rt-accent/30 dark:text-rt-dark-accent dark:ring-rt-dark-accent/25 dark:hover:bg-rt-dark-accent-soft"
+                        title="Alle GIF-Animationen in der Editorvorschau neu starten"
+                    >
+                        <i data-feather="rotate-cw" class="h-4 w-4" aria-hidden="true"></i>
+                        <span>Animation neu starten</span>
+                    </button>
                 </div>
 
                 <div class="rt-mail-studio-toolbar__actions" data-mail-toolbar-region="actions">
@@ -84,7 +95,7 @@
                         @if ($currentDocument->isPublished())
                             Veröffentlicht am {{ $currentDocument->published_at?->translatedFormat('d.m.Y H:i') }} Uhr.
                         @else
-                            Noch nichts veröffentlicht — es gilt die heutige Blade-Quelle.
+                            Nicht veröffentlicht — Systemmails bleiben bis zur Freigabe gesperrt.
                         @endif
                     </p>
 
@@ -111,10 +122,9 @@
                 <div>
                     <p><strong>Die Maildokumente sind noch nicht eingerichtet.</strong></p>
                     <p class="mt-1 leading-6">
-                        Solange nichts veröffentlicht ist, arbeiten Downloads und Systemmails unverändert mit den heutigen
-                        Blade-Quellen weiter — es fehlt also nichts, es lässt sich nur nichts bearbeiten.
-                        Zum Einrichten <code class="rounded bg-black/5 px-1 py-0.5 dark:bg-white/10">php artisan migrate</code>
-                        und <code class="rounded bg-black/5 px-1 py-0.5 dark:bg-white/10">php artisan db:seed --class=MailDocumentSeeder</code> ausführen.
+                        Ohne die beiden veröffentlichten Dokumente sind Downloads und Systemmails bewusst gesperrt.
+                        Zum autoritativen Einrichten <code class="rounded bg-black/5 px-1 py-0.5 dark:bg-white/10">php artisan migrate --force</code>
+                        und danach <code class="rounded bg-black/5 px-1 py-0.5 dark:bg-white/10">php artisan db:seed --class=MailDocumentSeeder --force</code> ausführen.
                     </p>
                 </div>
             </div>
@@ -207,6 +217,7 @@
                     const previewStatus = studioRoot.querySelector('[data-mail-preview-status]');
                     const themeButtons = Array.from(studioRoot.querySelectorAll('[data-mail-theme-button]'));
                     const deviceButtons = Array.from(studioRoot.querySelectorAll('[data-mail-preview-device]'));
+                    const replayButton = studioRoot.querySelector('[data-mail-preview-replay]');
 
                     if (!document_) {
                         return;
@@ -506,6 +517,13 @@
                         });
                     });
 
+                    replayButton?.addEventListener('click', () => {
+                        const restarted = Number(instance?.restartAllGifs?.() || 0);
+                        setMessage(restarted > 0
+                            ? `${restarted} Animation${restarted === 1 ? '' : 'en'} neu gestartet.`
+                            : 'In der aktuellen Vorschau wurde keine GIF-Animation gefunden.');
+                    }, { signal: controlListeners.signal });
+
                     publishButton?.addEventListener('click', async () => {
                         publishButton.disabled = true;
 
@@ -523,8 +541,8 @@
                             showFindings(payload.report);
                             setMessage(`Veröffentlicht am ${payload.document?.published_label ?? ''} Uhr.`);
                             const successText = config.currentDocument === 'signature'
-                                ? 'Signaturdownloads und Systemmails verwenden ab sofort diese Fassung.'
-                                : 'HTML- und EML-Vorlagendownloads verwenden ab sofort diese Fassung.';
+                                ? 'Outlook-Paket und Systemmails verwenden ab sofort diese Signatur.'
+                                : 'HTML-Mailvorlage und Systemmails verwenden ab sofort diese Nachrichtenschale.';
                             toast('success', successText, 'Veröffentlicht');
                         } catch (error) {
                             showFindings({ messages: error.messages || [error.message], findings: [{ severity: 'violation' }] });

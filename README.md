@@ -183,18 +183,21 @@ php artisan db:seed --class=MarketingStudioSeeder --force
 Ohne diese Angabe verwendet der Seeder den ersten Administrator. Bestehende oder
 gelöschte Startmotive werden nicht überschrieben und nicht doppelt angelegt.
 
-Der administrative **Mail- & Signatur-Editor** benötigt ebenfalls zwei
-idempotente Startdokumente. Nach der Migration werden sie auf dem Server mit
-dem folgenden Befehl angelegt; vorhandene Entwürfe oder Veröffentlichungen
-bleiben dabei unverändert:
+Der administrative **Mail- & Signatur-Editor** verwendet exakt zwei
+kanonische Dokumente. Nach der Migration stellt der folgende autoritative
+Deployment-Schritt Vorlage und Signatur atomar als veröffentlichte Version 1
+her. Vorhandene Entwürfe, Zwischenstände und unbekannte Maildokument-Zeilen
+werden dabei bewusst verworfen:
 
 ```bash
 php artisan db:seed --class=MailDocumentSeeder --force
 ```
 
-Ohne diesen einmaligen Schritt verwenden Downloads und Systemmails weiterhin
-die unveränderten Blade-Vorlagen. Die Editor-Seite zeigt dann bewusst den
-Einrichtungshinweis statt einen leeren oder fehlerhaften Builder zu öffnen.
+Nach vorhandener `mail_documents`-Migration versenden Laravel-Mails und
+Notifications ausschließlich diese veröffentlichten Datenbankstände. Fehlt
+eine Freigabe, bricht der Versand sichtbar ab, statt still auf einen Entwurf
+oder eine andere Blade-Fassung auszuweichen. Nur vor Anlegen der Tabelle steht
+für Migration und Erstinstallation ein Bootstrap-Fallback bereit.
 
 Der Chromium-Unterprozess endet spätestens nach 75 Sekunden, der Render-Job
 nach 85 Sekunden und der Worker nach 90 Sekunden. Diese Staffelung lässt Zeit

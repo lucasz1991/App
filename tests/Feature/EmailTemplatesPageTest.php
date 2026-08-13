@@ -31,7 +31,7 @@ class EmailTemplatesPageTest extends TestCase
             ->assertRedirect(route('login'));
     }
 
-    public function test_verified_user_sees_two_modals_and_two_initially_closed_download_accordions(): void
+    public function test_verified_user_sees_exactly_two_primary_downloads_and_a_lazy_animated_preview(): void
     {
         $user = User::factory()->create();
 
@@ -40,17 +40,17 @@ class EmailTemplatesPageTest extends TestCase
 
         $response->assertOk()
             ->assertSee(__('app.email_templates'))
-            ->assertSee(route('email-templates.download', ['template' => 'vorlage-eml']), escape: false)
             ->assertSee(route('email-templates.download', ['template' => 'vorlage-html']), escape: false)
-            ->assertSee(route('email-templates.download', ['template' => 'vorlage-dunkel-eml']), escape: false)
-            ->assertSee(route('email-templates.download', ['template' => 'vorlage-dunkel-html']), escape: false)
+            ->assertSee(route('email-templates.download', ['template' => 'signatur-outlook-hell']), escape: false)
+            ->assertDontSee(route('email-templates.download', ['template' => 'vorlage-eml']), escape: false)
+            ->assertDontSee(route('email-templates.download', ['template' => 'vorlage-dunkel-eml']), escape: false)
+            ->assertDontSee(route('email-templates.download', ['template' => 'vorlage-dunkel-html']), escape: false)
+            ->assertDontSee(route('email-templates.download', ['template' => 'signatur-text']), escape: false)
             ->assertSee('previewUrls:', escape: false)
-            ->assertSee('previewDownloadUrls:', escape: false)
+            ->assertDontSee('previewDownloadUrls:', escape: false)
             ->assertSee('profileModalOpen: false', escape: false)
             ->assertSee('previewModalOpen: false', escape: false)
-            ->assertSee('openAccordionSection: null', escape: false)
             ->assertSee("mailTheme: 'light'", escape: false)
-            ->assertSee("signatureTheme: 'light'", escape: false)
             ->assertSee('data-email-template-modal-trigger="profile"', escape: false)
             ->assertSee('data-email-template-modal-trigger="preview"', escape: false)
             ->assertSee('data-email-template-modal="profile"', escape: false)
@@ -58,46 +58,37 @@ class EmailTemplatesPageTest extends TestCase
             ->assertSee('aria-haspopup="dialog"', escape: false)
             ->assertSee('aria-controls="email-template-profile-modal"', escape: false)
             ->assertSee('aria-controls="email-template-preview-modal"', escape: false)
-            ->assertSee('data-email-template-accordion="mail"', escape: false)
-            ->assertSee('data-email-template-accordion="signature"', escape: false)
-            ->assertSee('data-email-template-theme-toggle="mail"', escape: false)
-            ->assertSee('data-email-template-theme-toggle="signature"', escape: false)
-            ->assertSee(__('app.email_templates_outlook_install'))
+            ->assertSee('data-email-template-primary-downloads', escape: false)
+            ->assertSee('Classic Outlook')
+            ->assertSee('Neues Outlook')
             ->assertSee('data-template-format="zip"', escape: false)
+            ->assertSee('data-template-format="html"', escape: false)
             ->assertSee('<template x-if="previewModalOpen">', escape: false)
             ->assertSee('x-bind:src="previewFrameUrl()"', escape: false)
+            ->assertSee('x-on:load="previewFrameLoaded()"', escape: false)
+            ->assertSee('data-email-template-preview-loading', escape: false)
             ->assertSee('data-email-template-preview-replay', escape: false)
             ->assertSee("window.matchMedia('(prefers-reduced-motion: reduce)')", escape: false)
             ->assertSee('previewPlaybackId: 0', escape: false)
+            ->assertSee("preview.searchParams.set('play', String(this.previewPlaybackId))", escape: false)
+            ->assertSee("preview.searchParams.set('static', '1')", escape: false)
             ->assertDontSee('data-email-template-motif-toggle', escape: false)
             ->assertSee('data-email-template-preview-frame', escape: false)
-            ->assertDontSee('data-email-template-accordion="profile"', escape: false)
-            ->assertDontSee('data-email-template-accordion="preview"', escape: false)
-            ->assertSee('rounded-xl px-4 py-4 shadow-lg', escape: false)
-            ->assertSee('grid-cols-[minmax(0,1fr)_4.75rem] items-stretch', escape: false)
-            ->assertSee('flex flex-col justify-end border-l pl-3 text-right', escape: false)
+            ->assertDontSee('data-email-template-accordion=', escape: false)
             ->assertSee('data-menu-active="true"', escape: false);
 
         preg_match_all('/data-template-key="([^"]+)"/', $content, $matches);
 
-        $this->assertCount(9, $matches[1]);
-        $this->assertCount(9, array_unique($matches[1]));
+        $this->assertCount(2, $matches[1]);
+        $this->assertCount(2, array_unique($matches[1]));
         $this->assertEqualsCanonicalizing([
-            'vorlage-eml',
             'vorlage-html',
-            'vorlage-dunkel-eml',
-            'vorlage-dunkel-html',
-            'signatur-hell',
-            'signatur-dunkel',
             'signatur-outlook-hell',
-            'signatur-outlook-dunkel',
-            'signatur-text',
         ], $matches[1]);
         $this->assertSame(2, substr_count($content, 'data-email-template-modal="'));
         $this->assertSame(2, substr_count($content, 'data-email-template-modal-trigger="'));
-        $this->assertSame(2, substr_count($content, 'data-email-template-accordion="'));
-        $this->assertSame(2, substr_count($content, 'data-email-template-theme-toggle="'));
-        $this->assertSame(4, substr_count($content, 'data-email-template-theme-option="'));
+        $this->assertSame(2, substr_count($content, 'data-email-template-primary-download="'));
+        $this->assertSame(2, substr_count($content, 'data-email-template-primary-action'));
         $this->assertSame(1, substr_count($content, '<iframe'));
         $this->assertDoesNotMatchRegularExpression('/<iframe\b[^>]*\ssrc=/i', $content);
         $this->assertSame(1, substr_count($content, 'data-testid="message-viewer-host"'));
@@ -362,6 +353,7 @@ class EmailTemplatesPageTest extends TestCase
                 "{$assetFolder}/contact-web.png",
                 'Outlook-klassisch-installieren.cmd',
                 'RailTime-Outlook-Installer.ps1',
+                'RailTime-Paketmanifest.json',
                 'README-Outlook.html',
             ] as $path) {
                 $this->assertNotFalse($zip->locateName($path), $path);
@@ -411,7 +403,47 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertStringNotContainsString('\\{'.$signatureName.'}', $installer);
             $this->assertStringContainsString('Das ZIP wurde nicht vollstaendig entpackt', $installer);
             $this->assertStringContainsString('[FEHLER]', $installer);
+            $this->assertStringContainsString('[PRUEFUNG]', $installer);
+            $this->assertStringContainsString('[NAECHSTER SCHRITT]', $installer);
+            $this->assertStringContainsString('[NEUES OUTLOOK]', $installer);
+            $this->assertStringContainsString('Ziel: %APPDATA%\Microsoft\Signatures', $installer);
+            $this->assertStringNotContainsString('%%APPDATA%%', $installer);
+            $this->assertStringContainsString('RailTime-Paketmanifest.json', $installer);
+            $this->assertStringContainsString('if not defined RAILTIME_INSTALLER_TEST_MODE pause', $installer);
             $this->assertSame(0, preg_match('/(?<!\r)\n/', $installer), 'CMD muss reine CRLF-Zeilenenden verwenden.');
+
+            $manifest = json_decode($zip->getFromName('RailTime-Paketmanifest.json'), true, 512, JSON_THROW_ON_ERROR);
+            $this->assertSame(1, $manifest['schema']);
+            $this->assertSame($signatureName, $manifest['signatureName']);
+            $this->assertMatchesRegularExpression('/^[a-f0-9]{64}$/', $manifest['packageFingerprint']);
+            $this->assertCount(13, $manifest['files']);
+            $this->assertSame(
+                $manifest['packageFingerprint'],
+                hash('sha256', collect($manifest['files'])->map(
+                    static fn (array $file): string => "{$file['path']}:{$file['sha256']}",
+                )->implode("\n")),
+            );
+            $manifestFiles = collect($manifest['files'])->keyBy('path');
+            foreach ([
+                "{$signatureName}.htm",
+                "{$signatureName}.rtf",
+                "{$signatureName}.txt",
+                "{$assetFolder}/zug-dampf.gif",
+                "{$assetFolder}/logo.gif",
+                "{$assetFolder}/contact-location.png",
+                "{$assetFolder}/contact-phone.png",
+                "{$assetFolder}/contact-mobile.png",
+                "{$assetFolder}/contact-email.png",
+                "{$assetFolder}/contact-web.png",
+                'README-Outlook.html',
+                'Outlook-klassisch-installieren.cmd',
+                'RailTime-Outlook-Installer.ps1',
+            ] as $manifestPath) {
+                $this->assertTrue($manifestFiles->has($manifestPath), $manifestPath);
+                $manifestEntry = $manifestFiles->get($manifestPath);
+                $this->assertSame(strlen($zip->getFromName($manifestPath)), $manifestEntry['bytes']);
+                $this->assertSame(hash('sha256', $zip->getFromName($manifestPath)), $manifestEntry['sha256']);
+            }
 
             $installerScript = $zip->getFromName('RailTime-Outlook-Installer.ps1');
             $this->assertIsString($installerScript);
@@ -420,11 +452,16 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertStringContainsString("[string] \$SignatureName = '{$signatureName}'", $installerScript);
             $this->assertStringContainsString('System.Windows.Forms', $installerScript);
             $this->assertStringContainsString('AutoScaleMode]::Dpi', $installerScript);
+            $this->assertStringContainsString('$form.AutoScroll = $true', $installerScript);
+            $this->assertStringContainsString('PrimaryScreen.WorkingArea.Height', $installerScript);
+            $this->assertStringContainsString('[Math]::Min(750, $workingHeight - 80)', $installerScript);
             $this->assertStringContainsString('Outlook schließen und installieren', $installerScript);
             $this->assertStringContainsString('$installButton.Size = New-Object System.Drawing.Size(278, 46)', $installerScript);
             $this->assertStringContainsString('$logButton.Size = New-Object System.Drawing.Size(148, 46)', $installerScript);
             $this->assertStringContainsString('$closeButton.Size = New-Object System.Drawing.Size(174, 46)', $installerScript);
-            $this->assertStringContainsString("@('OUTLOOK', 'olk')", $installerScript);
+            $this->assertStringContainsString("Get-Process -Name 'OUTLOOK'", $installerScript);
+            $this->assertStringContainsString("Get-Process -Name 'olk'", $installerScript);
+            $this->assertStringContainsString('es bleibt geöffnet und wird nicht verändert', $installerScript);
             $this->assertStringContainsString('CloseMainWindow()', $installerScript);
             $this->assertStringContainsString('Stop-Process -Id $process.Id -Force', $installerScript);
             $this->assertStringContainsString('MessageBoxDefaultButton]::Button2', $installerScript);
@@ -434,6 +471,18 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertStringContainsString("'DisableRoamingSignatures'", $installerScript);
             $this->assertStringContainsString('RailTime-Outlook-Signatur-Installation.log', $installerScript);
             $this->assertStringContainsString('Testmodus: Outlook-Prozesse werden nicht berührt.', $installerScript);
+            $this->assertStringContainsString('Paketmanifest geprüft', $installerScript);
+            $this->assertStringContainsString('PackageFingerprint', $installerScript);
+            $this->assertStringContainsString('FileHashes', $installerScript);
+            $this->assertStringContainsString('Erkannte RailTime-Konten', $installerScript);
+            $this->assertStringContainsString('SHA-256-Dateiprüfung:', $installerScript);
+            $this->assertStringContainsString('[DATEI {0}/{1}]', $installerScript);
+            $this->assertStringContainsString('Kopiervorlage für neues Outlook öffnen', $installerScript);
+            $this->assertStringContainsString('param([string] $Message, [int] $Percent, [string] $Detail)', $installerScript);
+            $this->assertStringContainsString('$statusText.Text = $Detail', $installerScript);
+            $this->assertStringContainsString('Die Einrichtung wurde ohne Installation geschlossen.', $installerScript);
+            $this->assertStringContainsString('$newOutlookButton.Enabled = $false', $installerScript);
+            $this->assertStringNotContainsString('Hide-InstallerConsole', $installerScript);
             $this->assertStringNotContainsString('Common\\MailSettings', $installerScript);
 
             if (PHP_OS_FAMILY === 'Windows') {
@@ -464,10 +513,17 @@ class EmailTemplatesPageTest extends TestCase
                     $this->assertStringNotContainsString('ECHO ', $installation['output']);
                     $this->assertTrue($installation['result']['Success']);
                     $this->assertSame('first@rail-time.de', $installation['result']['AccountEmail']);
+                    $this->assertSame(['first@rail-time.de', 'second@rail-time.de'], $installation['result']['DetectedAccounts']);
                     $this->assertSame('00000003', $installation['result']['AccountKey']);
                     $this->assertSame($signatureName, $installation['result']['NewSignature']);
                     $this->assertSame($signatureName, $installation['result']['ReplyForwardSignature']);
                     $this->assertTrue($installation['result']['LocalSignatureMode']);
+                    $this->assertSame(10, $installation['result']['InstalledFiles']);
+                    $this->assertCount(10, $installation['result']['FileHashes']);
+                    $this->assertMatchesRegularExpression('/^[a-f0-9]{64}$/', $installation['result']['PackageFingerprint']);
+                    $this->assertStringContainsString('[INFO] Erkannte RailTime-Konten: 2', $installation['output']);
+                    $this->assertStringContainsString('[INFO] Verifizierte Dateien: 10', $installation['output']);
+                    $this->assertStringContainsString('[INFO] Neues Outlook: keine lokale Änderung', $installation['output']);
 
                     $reinstallation = $this->runOutlookInstaller($packageDirectory, $fakeWindowsProfile, $accountFixture);
                     $this->assertSame(0, $reinstallation['exitCode'], $reinstallation['output']);
@@ -495,6 +551,8 @@ class EmailTemplatesPageTest extends TestCase
                         .DIRECTORY_SEPARATOR.'RailTime-Outlook-Signatur-Installation.log';
                     $this->assertFileExists($logPath);
                     $this->assertStringContainsString('[ERFOLG]', File::get($logPath));
+                    $this->assertStringContainsString('RailTime-Konten erkannt: 2', File::get($logPath));
+                    $this->assertSame(10, substr_count(File::get($logPath), ' | SHA-256 '));
 
                     if ($variant === 'hell') {
                         $incompleteDirectory = $installerTestRoot.DIRECTORY_SEPARATOR.'incomplete-package';
@@ -509,6 +567,20 @@ class EmailTemplatesPageTest extends TestCase
                         $this->assertSame(11, $incompleteInstallation['exitCode'], $incompleteInstallation['output']);
                         $this->assertStringContainsString('[FEHLER]', $incompleteInstallation['output']);
                         $this->assertStringContainsString('vollstaendig entpackt', $incompleteInstallation['output']);
+
+                        $tamperedDirectory = $installerTestRoot.DIRECTORY_SEPARATOR.'tampered-package';
+                        $tamperedProfile = $installerTestRoot.DIRECTORY_SEPARATOR.'tampered-profile';
+                        File::copyDirectory($packageDirectory, $tamperedDirectory);
+                        File::append($tamperedDirectory.DIRECTORY_SEPARATOR.$assetFolder.DIRECTORY_SEPARATOR.'logo.gif', 'tampered');
+                        $tamperedInstallation = $this->runOutlookInstaller($tamperedDirectory, $tamperedProfile, $accountFixture);
+                        $this->assertSame(11, $tamperedInstallation['exitCode'], $tamperedInstallation['output']);
+                        $this->assertStringContainsString('Paketprüfung ist fehlgeschlagen', $tamperedInstallation['output']);
+                        $this->assertFalse($tamperedInstallation['result']['Success']);
+                        $this->assertSame(11, $tamperedInstallation['result']['ExitCode']);
+                        $this->assertDirectoryDoesNotExist(
+                            $tamperedProfile.DIRECTORY_SEPARATOR.'AppData'.DIRECTORY_SEPARATOR.'Roaming'
+                            .DIRECTORY_SEPARATOR.'Microsoft'.DIRECTORY_SEPARATOR.'Signatures',
+                        );
 
                         $missingAccountProfile = $installerTestRoot.DIRECTORY_SEPARATOR.'missing-account-profile';
                         $missingAccountFixture = [
@@ -540,12 +612,16 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertStringContainsString('Einstellungen → Konten → Signaturen', $readme);
             $this->assertStringContainsString('ZIP zuerst vollständig entpacken', $readme);
             $this->assertStringContainsString('Rechtsklick → Alle extrahieren', $readme);
-            $this->assertStringContainsString('grafische Windows-Einrichtung', $readme);
-            $this->assertStringContainsString('schließt Classic Outlook und das neue Outlook anschließend automatisch', $readme);
+            $this->assertStringContainsString('geprüfte Windows-Einrichtung', $readme);
+            $this->assertStringContainsString('schließt anschließend ausschließlich Classic Outlook', $readme);
+            $this->assertStringContainsString('Die Windows-Einrichtung lässt das neue Outlook deshalb geöffnet', $readme);
             $this->assertStringContainsString('ersten Konto mit einer Adresse, die exakt auf @rail-time.de endet', $readme);
             $this->assertStringContainsString('Classic-Signaturmodus', $readme);
             $this->assertStringContainsString('Erfolg oder Fehler erscheinen direkt in der Oberfläche', $readme);
             $this->assertStringContainsString('lokale Windows-Installationsroutine kann diese Signatur daher nicht direkt im neuen Outlook registrieren', $readme);
+            $this->assertStringContainsString('Einstellungen → E-Mail → Vorlagen → Hinzufügen → OFT hinzufügen', $readme);
+            $this->assertStringContainsString('Dieses Signaturpaket enthält bewusst keine OFT-Datei', $readme);
+            $this->assertStringContainsString('qualifizierenden Microsoft-365-Abonnement', $readme);
 
             $zip->close();
             unlink($tempPath);
@@ -661,7 +737,7 @@ class EmailTemplatesPageTest extends TestCase
         }
 
         $layout = file_get_contents(resource_path('views/vendor/mail/html/layout.blade.php'));
-        $this->assertStringContainsString("@include('emails.parts.responsive-css'", $layout);
+        $this->assertStringContainsString('EmailTemplateBuilder::buildSystemMailHtml', $layout);
         $this->assertStringNotContainsString('@media only screen', $layout);
     }
 
@@ -1169,18 +1245,24 @@ class EmailTemplatesPageTest extends TestCase
         App::setLocale('de');
         $german = $catalog->forRoute('email-templates.index');
         $this->assertStringContainsString('Vorlagen & Signaturen', $german['title']);
-        $this->assertStringContainsString('Einstellungen → Konten → Signaturen', implode(' ', $german['points']));
-        $this->assertStringContainsString('vollständig entpacken', implode(' ', $german['points']));
-        $this->assertStringContainsString('Thunderbird', implode(' ', $german['points']));
-        $this->assertStringContainsString('Testmail', implode(' ', $german['points']));
+        $germanPoints = implode(' ', $german['points']);
+        $this->assertStringContainsString('Einstellungen → Konten → Signaturen', $germanPoints);
+        $this->assertStringContainsString('vollständig', $germanPoints);
+        $this->assertStringContainsString('Thunderbird', $germanPoints);
+        $this->assertStringContainsString('Testmail', $germanPoints);
+        $this->assertStringContainsString('beiden Downloads', $germanPoints);
+        $this->assertStringNotContainsString('EML', $germanPoints);
 
         App::setLocale('en');
         $english = $catalog->forRoute('email-templates.index');
         $this->assertStringContainsString('templates & signatures', $english['title']);
-        $this->assertStringContainsString('Settings → Accounts → Signatures', implode(' ', $english['points']));
-        $this->assertStringContainsString('fully extract', implode(' ', $english['points']));
-        $this->assertStringContainsString('Thunderbird', implode(' ', $english['points']));
-        $this->assertStringContainsString('test email', implode(' ', $english['points']));
+        $englishPoints = implode(' ', $english['points']);
+        $this->assertStringContainsString('Settings → Accounts → Signatures', $englishPoints);
+        $this->assertStringContainsString('Fully extract', $englishPoints);
+        $this->assertStringContainsString('Thunderbird', $englishPoints);
+        $this->assertStringContainsString('test email', $englishPoints);
+        $this->assertStringContainsString('Both downloads', $englishPoints);
+        $this->assertStringNotContainsString('EML', $englishPoints);
     }
 
     /**
