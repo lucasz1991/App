@@ -7,6 +7,7 @@ use App\Enums\MarketingCreativeType;
 use App\Models\MarketingCreative;
 use App\Models\User;
 use App\Services\Marketing\MarketingStudioService;
+use App\Services\Marketing\MarketingTemplateFactory;
 use Database\Seeders\MarketingStudioSeeder;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use RuntimeException;
@@ -28,15 +29,19 @@ class MarketingStudioSeederTest extends TestCase
         $this->assertCount(3, $creatives);
         $this->assertSame(
             [
-                'railtime_info_deutschland_netzwerk',
-                'railtime_info_wagenmeister',
-                'railtime_job_wagenmeister',
+                MarketingTemplateFactory::PREMIUM_GERMANY_NETWORK,
+                MarketingTemplateFactory::PREMIUM_JOB_WAGENMEISTER,
+                MarketingTemplateFactory::PREMIUM_COMPANY_PROFILE,
             ],
             $creatives->pluck('shared_content.template_key')->sort()->values()->all(),
         );
         $this->assertSame(9, $creatives->sum(fn (MarketingCreative $creative): int => $creative->variants->count()));
         $this->assertSame(
-            ['Deutschlandweit im Einsatz', 'Wagenmeister (m/w/d)', 'Was macht ein Wagenmeister?'],
+            [
+                'Deutschlandweit im Einsatz.',
+                'Menschen, die Verantwortung auf der Schiene übernehmen.',
+                'Wagenmeister (m/w/d)',
+            ],
             $creatives->pluck('shared_content.title')->sort()->values()->all(),
         );
 
@@ -44,10 +49,13 @@ class MarketingStudioSeederTest extends TestCase
             $this->assertSame(MarketingCreativeStatus::Draft, $creative->status);
             $this->assertSame($preferred->id, $creative->created_by);
             $this->assertSame($preferred->id, $creative->updated_by);
+            $this->assertSame(4, data_get($creative->shared_content, 'seed_version'));
             $this->assertCount(3, $creative->variants);
 
             foreach ($creative->variants as $variant) {
-                $this->assertSame(3, data_get($variant->builder_data, 'railtime.schema'));
+                $this->assertSame(4, data_get($variant->builder_data, 'railtime.schema'));
+                $this->assertStringContainsString('/rt-brand/fonts/manrope-latin.woff2', $variant->css);
+                $this->assertStringContainsString('/rt-brand/fonts/space-mono-700-latin.woff2', $variant->css);
                 $this->assertMatchesRegularExpression(
                     '#src="/rt-brand/img/logo-horizontal(?:-darkbg)?\.png"#',
                     $variant->html,
@@ -113,7 +121,7 @@ class MarketingStudioSeederTest extends TestCase
         $this->seed(MarketingStudioSeeder::class);
 
         $this->assertSame(1, MarketingCreative::withTrashed()
-            ->where('shared_content->template_key', 'railtime_job_wagenmeister')
+            ->where('shared_content->template_key', MarketingTemplateFactory::PREMIUM_JOB_WAGENMEISTER)
             ->count());
         $this->assertSoftDeleted('marketing_creatives', ['id' => $deleted->id]);
         $this->assertDatabaseCount('marketing_creatives', 3);

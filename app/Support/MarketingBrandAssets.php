@@ -14,6 +14,8 @@ final class MarketingBrandAssets
         '/rt-brand/img/wagenmeister-pruefung.jpg' => 'image/jpeg',
         '/rt-brand/img/wagenmeister-team.webp' => 'image/webp',
         '/rt-brand/img/deutschland-netzwerk.png' => 'image/png',
+        '/rt-brand/fonts/manrope-latin.woff2' => 'font/woff2',
+        '/rt-brand/fonts/space-mono-700-latin.woff2' => 'font/woff2',
     ];
 
     /** @return array<string, string> */

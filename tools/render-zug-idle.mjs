@@ -1,13 +1,16 @@
 /**
- * Erzeugt die RUHEFAHNE des Signaturzuges — nur Rauch, kein Zug.
+ * Erzeugt die transparente Endlosschleife der Ruhefahne — nur Rauch,
+ * niemals einen zweiten Zug. Die Mailsignatur revealt sie erst nach der
+ * 13-s-Hauptanimation als dauerhaft laufendes Overlay.
  *
  *   zug-dampf-idle-{light,dark}.gif
  *
  * WARUM EINE ZWEITE EBENE
- * Ein einzelnes GIF kann nicht "einmal einfahren und danach in Schleife
- * bleiben" — es wiederholt immer die GANZE Folge. Die Einfahrt faehrt
- * deshalb einmal und bleibt stehen; die Ruhebewegung liegt als eigene,
- * endlos laufende Ebene DARUEBER.
+ * Ein GIF kann keine Teilschleife nach einer einmaligen Einfahrt bilden.
+ * Die Ebene darf nicht sofort sichtbar sein: sonst raucht es am Haltepunkt,
+ * bevor der Zug dort ankommt. `render-zug-einfahrt.mjs` traegt Einfahrt und
+ * zwei Idle-Zyklen bis 13 s. Erst dann wird diese Schleife eingeblendet; ihr
+ * Phasenversatz setzt exakt den gehaltenen letzten Hauptframe fort.
  *
  * Und sie enthaelt AUSSCHLIESSLICH die Fahne. Eine fruehere Fassung trug
  * den kompletten Zug ein zweites Mal — sobald die Einfahrt durchsichtig
@@ -34,27 +37,35 @@ const ASSETS = 'resources/mail-templates/assets';
 const OEFFENTLICH = 'public/mail-assets';
 
 // --- Muss zur Einfahrt passen ----------------------------------------
-const BREITE = 1080;
+const BREITE = 1440;
 const SKALA = 2;
 const WAGEN_SICHTBAR = 6;
 const SICHTBARE_EINHEITEN = 708 + (WAGEN_SICHTBAR * 330);
-const ZUG_FAKTOR = 2053 / SICHTBARE_EINHEITEN;
+const BASIS_ZUG_FAKTOR = 2053 / SICHTBARE_EINHEITEN;
+const ZUG_MASSSTAB = 0.90;
+const ZUG_FAKTOR = BASIS_ZUG_FAKTOR * ZUG_MASSSTAB;
 const ZUG_BREITE = BREITE * ZUG_FAKTOR;
 const ZUG_HOEHE = ZUG_BREITE * (151 / 2053);
+const BASIS_ZUG_HOEHE = (BREITE * BASIS_ZUG_FAKTOR) * (151 / 2053);
 const KOPFRAUM = 1.8;
-const HOEHE = Math.round(ZUG_HOEHE * KOPFRAUM);
+const HOEHE = Math.round(BASIS_ZUG_HOEHE * KOPFRAUM);
 const ZUG_Y = HOEHE - ZUG_HOEHE;
-const SCHORNSTEIN_X = BREITE - (ZUG_BREITE * 0.035);
+const ZIEL_RECHTS = 0.75;
+const SCHORNSTEIN_X = (BREITE * ZIEL_RECHTS) - (ZUG_BREITE * 0.035);
 const SCHORNSTEIN_Y = ZUG_Y + (ZUG_HOEHE * 0.16);
 
 // --- Schleife ---------------------------------------------------------
-const BILDER = 40;
-const SUMME_CS = 600;                   // 6 s je Umlauf
+const BILDER = 20;
+const SUMME_CS = 200;                   // 2 s je Umlauf
 const MASSSTAB = BREITE / 560;
+// Haupt-GIF haelt nach zwei 2-s-Zyklen bei Phase 0,94. Das Overlay laeuft
+// waehrend seiner 13 s Unsichtbarkeit bereits 6,5 Zyklen; +0,44 landet beim
+// Reveal wieder exakt bei 0,94.
+const PHASEN_OFFSET = 0.44;
 
 const VARIANTEN = [
-    { key: 'light', rauch: [90, 99, 110] },
-    { key: 'dark', rauch: [196, 206, 219] },
+    { key: 'light', rauch: [90, 99, 110], grund: [255, 255, 255], tinte: [115, 125, 137] },
+    { key: 'dark', rauch: [196, 206, 219], grund: [12, 16, 23], tinte: [216, 221, 228] },
 ];
 
 const rausch = (i, salz = 0) => {
@@ -64,14 +75,14 @@ const rausch = (i, salz = 0) => {
 };
 
 // Deutlich weniger als bei der Einfahrt: im Stand raucht eine Lok leise.
-const WOLKEN = 70;
+const WOLKEN = 64;
 const wolken = Array.from({ length: WOLKEN }, (_, i) => ({
     versatz: i / WOLKEN,
-    drift: (-9 - (rausch(i, 1) * 16)) * MASSSTAB,
-    steigen: (-5 - (rausch(i, 2) * 8)) * MASSSTAB,
-    wuchs: (2.0 + (rausch(i, 3) * 3.0)) * MASSSTAB,
-    r0: (1.2 + (rausch(i, 1) * 1.3)) * MASSSTAB,
-    phase: rausch(i, 2) * Math.PI * 2,
+    drift: (-8 - (rausch(i, 11) * 15)) * MASSSTAB,
+    steigen: (-5 - (rausch(i, 12) * 8)) * MASSSTAB,
+    wuchs: (1.8 + (rausch(i, 13) * 2.8)) * MASSSTAB,
+    r0: (1.1 + (rausch(i, 14) * 1.2)) * MASSSTAB,
+    phase: rausch(i, 15) * Math.PI * 2,
 }));
 
 const LEBEN_S = SUMME_CS / 100;
@@ -100,7 +111,7 @@ for (const v of VARIANTEN) {
             // Periodische Bahn: das Alter laeuft von 0 bis LEBEN_S und
             // springt dann zurueck. Weil jede Wolke einen eigenen Versatz
             // hat, ist zu jedem Zeitpunkt dieselbe Verteilung im Bild.
-            const u = ((t + w.versatz) % 1);
+            const u = ((t + w.versatz + PHASEN_OFFSET) % 1);
             const alter = u * LEBEN_S;
             const r = w.r0 + (w.wuchs * alter);
 
@@ -112,11 +123,11 @@ for (const v of VARIANTEN) {
 
             return {
                 x: SCHORNSTEIN_X + (w.drift * alter)
-                    + (Math.sin(w.phase + (alter * 1.7)) * 2.4 * MASSSTAB * (1 + (alter * 0.6))),
+                    + (Math.sin(w.phase + (alter * 1.7)) * 2.2 * MASSSTAB * (1 + (alter * 0.5))),
                 y: SCHORNSTEIN_Y + (w.steigen * alter)
-                    + (Math.cos(w.phase + (alter * 1.3)) * 1.2 * MASSSTAB * (1 + (alter * 0.4))),
+                    + (Math.cos(w.phase + (alter * 1.3)) * 1.1 * MASSSTAB * (1 + (alter * 0.35))),
                 r,
-                alpha: blende * 0.22 * verduennung,
+                alpha: blende * 0.20 * verduennung,
             };
         }).filter((z) => z.alpha > 0.004 && z.x > -60 && z.x < BREITE + 60);
 
@@ -126,6 +137,13 @@ for (const v of VARIANTEN) {
             c.height = a.hoehe * a.skala;
             const x = c.getContext('2d');
             x.scale(a.skala, a.skala);
+
+            // Wie im Hauptgenerator zuerst auf den Theme-Grund rechnen.
+            // Index 0 wird beim GIF-Encoding anschliessend transparent;
+            // dadurch bleiben Rauchmaske und Farbstufen am 13-s-Handoff
+            // pixelgleich, ohne einen deckenden Kasten auszuliefern.
+            x.fillStyle = `rgb(${a.grund})`;
+            x.fillRect(0, 0, a.breite, a.hoehe);
 
             for (const w of a.wolken) {
                 const g = x.createRadialGradient(w.x, w.y, 0, w.x, w.y, w.r);
@@ -139,27 +157,34 @@ for (const v of VARIANTEN) {
             }
 
             return Array.from(new Uint8Array(x.getImageData(0, 0, c.width, c.height).data.buffer));
-        }, { breite: BREITE, hoehe: HOEHE, skala: SKALA, rauch: v.rauch.join(','), wolken: sichtbar });
+        }, {
+            breite: BREITE,
+            hoehe: HOEHE,
+            skala: SKALA,
+            grund: v.grund.join(','),
+            rauch: v.rauch.join(','),
+            wolken: sichtbar,
+        });
 
         bilder.push(new Uint8Array(roh));
     }
 
     // --- Farbtabelle: durchsichtig plus eine Rampe zur Rauchfarbe -------
-    const STUFEN = 15;
-    const tabelle = [[255, 0, 255]];
+    const STUFEN = 7;
+    const tabelle = [v.grund.slice()];
     for (let k = 1; k <= STUFEN; k += 1) tabelle.push(v.rauch.slice());
     const durchsichtig = 0;
 
     // Die Rampe traegt die Deckung ueber die Farbe: auf hellem Grund hellt
     // der Rauch auf, auf dunklem dunkelt er ab. Weil GIF kein Alpha je
     // Bildpunkt kennt, wird die Deckkraft in die Helligkeit gerechnet.
-    const grundton = v.key === 'dark' ? [12, 16, 23] : [255, 255, 255];
+    const grundton = v.grund;
     for (let k = 1; k <= STUFEN; k += 1) {
         const anteil = k / STUFEN;
         tabelle[k] = [
-            Math.round(grundton[0] + ((v.rauch[0] - grundton[0]) * anteil)),
-            Math.round(grundton[1] + ((v.rauch[1] - grundton[1]) * anteil)),
-            Math.round(grundton[2] + ((v.rauch[2] - grundton[2]) * anteil)),
+            Math.round(grundton[0] + ((v.tinte[0] - grundton[0]) * anteil)),
+            Math.round(grundton[1] + ((v.tinte[1] - grundton[1]) * anteil)),
+            Math.round(grundton[2] + ((v.tinte[2] - grundton[2]) * anteil)),
         ];
     }
 
@@ -169,9 +194,19 @@ for (const v of VARIANTEN) {
         const n = rgba.length / 4;
         const indizes = new Uint8Array(n);
         for (let p = 0; p < n; p += 1) {
-            const a = rgba[(p * 4) + 3];
-            if (a < 10) { indizes[p] = durchsichtig; continue; }
-            indizes[p] = Math.max(1, Math.min(STUFEN, Math.round((a / 255) * STUFEN)));
+            const r = rgba[p * 4];
+            const g = rgba[(p * 4) + 1];
+            const b = rgba[(p * 4) + 2];
+            let beste = 0;
+            let abstand = Infinity;
+            for (let k = 0; k < tabelle.length; k += 1) {
+                const dr = tabelle[k][0] - r;
+                const dg = tabelle[k][1] - g;
+                const db = tabelle[k][2] - b;
+                const d = (dr * dr) + (dg * dg) + (db * db);
+                if (d < abstand) { abstand = d; beste = k; }
+            }
+            indizes[p] = beste;
         }
 
         encoder.writeFrame(indizes, BREITE * SKALA, HOEHE * SKALA, {

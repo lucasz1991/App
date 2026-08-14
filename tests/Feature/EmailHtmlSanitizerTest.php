@@ -106,6 +106,15 @@ class EmailHtmlSanitizerTest extends TestCase
         $this->assertStringContainsString('mail-assets/', $signature);
         $this->assertStringNotContainsString('data:image', $signature);
         $this->assertStringContainsString('position:relative', $signature);
+        $this->assertSame(1, substr_count($signature, 'data-rt-train-idle-overlay'));
+        $this->assertSame(
+            1,
+            preg_match('/<span[^>]*data-rt-train-idle-overlay[^>]*>/', $signature, $idleOverlay),
+        );
+        $this->assertStringContainsString('width:0;height:0;max-width:0;max-height:0;overflow:hidden', $idleOverlay[0]);
+        $this->assertStringContainsString('mso-hide:all', $idleOverlay[0]);
+        $this->assertStringNotContainsString('opacity:', $idleOverlay[0]);
+        $this->assertStringNotContainsString('visibility:', $idleOverlay[0]);
 
         $report = $this->sanitizer()->clean($signature);
 
@@ -142,8 +151,24 @@ class EmailHtmlSanitizerTest extends TestCase
 
         $this->assertStringContainsString('@media', $css);
         $this->assertStringContainsString('tr.rt-stack > td', $css);
+        $this->assertStringContainsString('@keyframes rt-train-idle-reveal', $css);
+        $this->assertStringContainsString(".rt-train-idle-overlay {\n  opacity: 0;\n  visibility: hidden;\n}", $css);
+        $this->assertStringContainsString('@supports (animation-name: rt-train-idle-reveal)', $css);
+        $this->assertStringContainsString('animation-timing-function: step-start;', $css);
+        $this->assertStringContainsString('animation-delay: 13s;', $css);
 
-        $document = "<!doctype html>\n<html lang=\"de\">\n<head>\n<style>\n{$css}\n</style>\n</head>\n<body><p>x</p></body>\n</html>";
+        // Keyframes und position:absolute stammen nicht aus dem editierbaren
+        // Dokument, sondern werden erst nach dessen Sanitization aus dieser
+        // serverkontrollierten Quelle hydriert. Der uebrige Stilbogen muss
+        // weiterhin unveraendert durch den Editor-Sanitizer kommen.
+        $sanitizableCss = preg_replace(
+            '~/\* RT_SERVER_IDLE_REVEAL_START.*?RT_SERVER_IDLE_REVEAL_END \*/\s*~s',
+            '',
+            $css,
+        );
+        $this->assertIsString($sanitizableCss);
+
+        $document = "<!doctype html>\n<html lang=\"de\">\n<head>\n<style>\n{$sanitizableCss}\n</style>\n</head>\n<body><p>x</p></body>\n</html>";
 
         $report = $this->sanitizer()->clean($document);
 

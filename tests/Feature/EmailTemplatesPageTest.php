@@ -227,13 +227,13 @@ class EmailTemplatesPageTest extends TestCase
             // Die Ebenenliste beginnt mit dem gekachelten Raster, danach
             // folgen drei nicht wiederholte Ebenen.
             $this->assertStringContainsString('background-repeat:repeat,no-repeat,no-repeat,no-repeat', $html, $template);
-            $this->assertStringContainsString('background-position:left top,right center,center center,right bottom,right bottom', $html, $template);
+            $this->assertStringContainsString('background-position:left top,right center,center center,75% bottom', $html, $template);
             // Der Zug haengt an der HOEHE des Streifens (auto 100%), nicht an
             // dessen Breite. Nur so reicht er hinter die Schrift statt als
             // flaches Band darunter zu liegen — und nur so faehrt auf einem
             // breiten Schirm von selbst mehr ins Bild als auf einem schmalen.
             // Rechts verankert, weil dort die Lok steht.
-            $this->assertStringContainsString('background-size:64px 64px,auto 100%,100% 100%,auto 100%,auto 100%', $html, $template);
+            $this->assertStringContainsString('background-size:64px 64px,auto 100%,100% 100%,auto 100%', $html, $template);
 
             // Frueher stand hier die Kurzform background:, und die SETZT
             // background-image zurueck — stand sie danach, verschwand der Zug
@@ -284,36 +284,41 @@ class EmailTemplatesPageTest extends TestCase
             }
 
             $this->assertSame(30, $durations[0], "{$file}: Startverzoegerung muss 300 ms betragen.");
-            // ZEHN SEKUNDEN Gesamtlaufzeit: sieben Sekunden Einfahrt, danach
-            // verweht die Fahne, bis das letzte Einzelbild rauchfrei steht.
-            // 10 s: kurzer Vorlauf, damit Wortmarke und Zeichen anlaufen,
-            // danach die Einfahrt und das Verwehen der Fahne.
-            $this->assertSame(1000, array_sum($durations), "{$file}: 10 s Gesamtlaufzeit erwartet.");
-            // 700 kB statt der frueheren 200. Die Grenze wurde ANGEHOBEN,
-            // nicht vergessen: Die Einfahrt liegt jetzt in 2160 x 388 statt
-            // 720 x 75, weil sie auf breiten Schirmen sichtbar hochskaliert
-            // wurde und sechs Wagen zeigen soll. Nachgemessen kostet das
-            // unvermeidlich Bytes — gifenc schreibt Vollbilder, und
-            // Durchsichtigkeit aendert daran kein einziges (16 Farben mit
-            // und ohne: identische Groesse). Gemessene Stufen:
-            // 1400x200/16 Farben/65 Bilder = 1019 kB; die gelieferten
-            // 2160x388/8 Farben/64 Bilder = 650 kB. Vertretbar, weil die
+            // 13 Sekunden Gesamtlaufzeit: 1,2 s Vorlauf und 7 s Einfahrt bis
+            // zur exakten Ankunft bei 8,2 s. Erst danach folgen zwei ruhige
+            // Idle-Rauchzyklen und ein kurzer End-Hold. Alles bleibt in genau
+            // einem nicht-loopenden GIF, damit kein Rauch rechts vorauseilt.
+            $this->assertSame(1300, array_sum($durations), "{$file}: 13 s Gesamtlaufzeit erwartet.");
+            // 1,5 MiB statt der frueheren 700 kB: Die Einfahrt liegt jetzt
+            // in 2880 x 292 statt 2160 x 218, damit Zug und RT-Monogramm auf
+            // hochaufloesenden Displays klar bleiben. Die deterministische
+            // 8-Farben-Fassung misst rund 1008 KiB (hell) bzw. 851 KiB
+            // (dunkel). Vertretbar, weil die
             // Datei in versendeten Mails VERLINKT ist — Gmails 102-kB-Schnitt
             // gilt fuer die Nachricht, nicht fuer das Bild.
-            $this->assertLessThanOrEqual(700 * 1024, strlen($binary), $file);
+            $this->assertLessThanOrEqual(1536 * 1024, strlen($binary), $file);
         }
 
-        // DIE STANDRAUCH-EBENE IST ENTFALLEN. Sie lag als zweites GIF unter
-        // der Einfahrt und trug dabei den GANZEN Zug ein zweites Mal — sobald
-        // die Einfahrt durchsichtig wurde, haette er doppelt gestanden.
-        // Seit die Fahne der Einfahrt von selbst verweht, braucht es sie
-        // nicht mehr: das letzte Einzelbild ist rauchfrei und deckungsgleich
-        // mit dem Standbild. Die frueher hier geprueften Nahtbedingungen
-        // (Idle-Loop 370 cs, Gesamtlaufzeit ohne Rest teilbar) sind damit
-        // gegenstandslos. Was bleibt, ist die Zusicherung, dass die Ebene
-        // wirklich nicht mehr eingebunden wird.
+        // Das Haupt-GIF traegt Einfahrt und die ersten Rauchzyklen bis 13 s.
+        // Danach uebernimmt genau EIN rauch-only Overlay im selben oberen
+        // Carrier. Sein Inline-Zustand bleibt bis dahin unsichtbar; Clients
+        // ohne Keyframe-Unterstuetzung laden niemals eine zweite Zugzeile.
         $signatur = (new EmailTemplateBuilder(User::factory()->create()))->build('signatur-hell')['content'];
-        $this->assertStringNotContainsString('zug-dampf-idle', $signatur);
+        $idle = 'data:image/gif;base64,'.base64_encode(file_get_contents(
+            resource_path('mail-templates/assets/zug-dampf-idle-light.gif')
+        ));
+        $this->assertSame(1, substr_count($signatur, 'data-rt-train-idle-overlay'));
+        $this->assertSame(1, substr_count($signatur, $idle));
+        $this->assertSame(
+            1,
+            preg_match('/<span[^>]*data-rt-train-idle-overlay[^>]*>/', $signatur, $idleOverlay),
+        );
+        $this->assertStringNotContainsString('opacity:', $idleOverlay[0]);
+        $this->assertStringNotContainsString('visibility:', $idleOverlay[0]);
+        $this->assertStringContainsString(".rt-train-idle-overlay {\n  opacity: 0;\n  visibility: hidden;\n}", $signatur);
+        $this->assertStringContainsString('animation-delay: 13s;', $signatur);
+        $this->assertStringContainsString('background-position:75% bottom', $signatur);
+        $this->assertStringNotContainsString('data-rt-outlook-train', $signatur);
     }
 
     public function test_outlook_export_contains_installable_signature_and_one_regular_gif(): void
@@ -370,7 +375,7 @@ class EmailTemplatesPageTest extends TestCase
             // schmalen Schirmen doppelt eingerueckt (24+36 statt 24 px).
             $this->assertStringContainsString('class="rt-sign-cell"', $html);
             $this->assertStringNotContainsString('class="rt-pad rt-sign-cell"', $html);
-            $this->assertStringContainsString('style="padding:0;background-color:', $html);
+            $this->assertStringContainsString('style="padding:0;position:relative;overflow:hidden;background-color:', $html);
             $this->assertStringContainsString('<td class="rt-pad" style="padding:16px 28px 0;">', $html);
             $this->assertStringContainsString('<td align="left" style="padding:6px 0 14px;text-align:left;', $html);
             $this->assertStringContainsString('height:auto;margin:0;border:0;outline:none;', $html);
@@ -393,7 +398,7 @@ class EmailTemplatesPageTest extends TestCase
                 $durations[] = ord($gif[$offset + 4]) | (ord($gif[$offset + 5]) << 8);
                 $offset += 8;
             }
-            $this->assertSame(1110, array_sum($durations), 'Outlook-GIF muss 11,1 Sekunden dauern.');
+            $this->assertSame(1300, array_sum($durations), 'Outlook-GIF muss dieselbe 13-s-Sequenz wie die Systemsignatur tragen.');
 
             $installer = $zip->getFromName('Outlook-klassisch-installieren.cmd');
             $this->assertStringContainsString("set \"SIGNATURE_NAME={$signatureName}\"", $installer);
@@ -695,13 +700,13 @@ class EmailTemplatesPageTest extends TestCase
     {
         [$width, $height] = getimagesize(resource_path('mail-templates/assets/zug-dampf-light.png'));
 
-        // Das Bild ist BREIT und FLACH (2160 x 218). Der Himmel darueber
+        // Das Bild ist BREIT und FLACH (2880 x 292). Der Himmel darueber
         // wurde bewusst knapp gehalten: die Zelle zeigt es mit auto 100%,
         // also an ihrer Hoehe ausgerichtet. Je mehr leerer Himmel im Bild
         // steckt, desto kleiner geriete der Zug darin — bei reichlich
         // Kopfraum lag er als flaches Band unter den Daten statt dahinter.
-        $this->assertSame(2160, $width);
-        $this->assertSame(218, $height);
+        $this->assertSame(2880, $width);
+        $this->assertSame(292, $height);
 
         // Die Umbruchregeln stehen in EINER Quelle. Vorher lagen sie
         // viermal im Projekt und waren bereits auseinandergelaufen: die
@@ -712,7 +717,15 @@ class EmailTemplatesPageTest extends TestCase
         // an die Hoehe. Der Streifen ist dort fast quadratisch; an der Hoehe
         // ausgerichtet fuellte ein einzelner Wagen die ganze Karte.
         $this->assertStringContainsString(
-            'background-size: 64px 64px, auto 52%, 100% 100%, 200% auto, 200% auto !important;',
+            'background-size: 64px 64px, auto 52%, 100% 100%, 200% auto !important;',
+            $regeln,
+        );
+        $this->assertStringContainsString(
+            'background-position: left top, right center, center center, 75% 84% !important;',
+            $regeln,
+        );
+        $this->assertStringContainsString(
+            ".rt-train-idle-surface {\n  background-position: 75% 84% !important;",
             $regeln,
         );
         // Die Trennlinie wandert NICHT mehr nach oben: Person und Firma stehen
@@ -802,7 +815,7 @@ class EmailTemplatesPageTest extends TestCase
         // Kein Beige mehr: die helle Fassung steht auf Weiss.
         $this->assertStringContainsString('background:#ffffff', $light);
         $this->assertStringContainsString(
-            '<td class="rt-pad rt-sign-cell" bgcolor="#ffffff" style="padding:18px 36px 20px;background-color:#ffffff;',
+            '<td class="rt-pad rt-sign-cell" bgcolor="#ffffff" style="padding:18px 36px 20px;position:relative;overflow:hidden;background-color:#ffffff;',
             $light
         );
         $this->assertStringContainsString('color:#111820;font-size:23px;', $light);
@@ -814,7 +827,7 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertStringContainsString('data-rt-theme="dark"', $dark);
         $this->assertStringContainsString('background:#111820', $dark);
         $this->assertStringContainsString(
-            '<td class="rt-pad rt-sign-cell" bgcolor="#0c1017" style="padding:18px 36px 20px;background-color:#0c1017;',
+            '<td class="rt-pad rt-sign-cell" bgcolor="#0c1017" style="padding:18px 36px 20px;position:relative;overflow:hidden;background-color:#0c1017;',
             $dark
         );
         $this->assertStringContainsString('color:#ffffff;font-size:23px;', $dark);
@@ -845,7 +858,7 @@ class EmailTemplatesPageTest extends TestCase
             // mehr als erste — geprueft wird seine Anwesenheit, nicht seine
             // Position.
             $this->assertMatchesRegularExpression('/rt-sign-cell[^>]*linear-gradient\(rgba\(/', $html);
-            $this->assertStringContainsString('background-size:64px 64px,auto 100%,100% 100%,auto 100%,auto 100%', $html);
+            $this->assertStringContainsString('background-size:64px 64px,auto 100%,100% 100%,auto 100%', $html);
             $this->assertStringContainsString(
                 'class="rt-sign-logo" width="50%" valign="top"',
                 $html,
@@ -945,16 +958,19 @@ class EmailTemplatesPageTest extends TestCase
         // Wortmarke (fuer Outlook, das von einem GIF nur das erste — beim
         // Aufbau fast leere — Einzelbild zeigt).
         $this->assertSame(15, substr_count($html, 'data:image/png;base64,'));
-        // GIF: die Einfahrt, die endlose Ruhefahne und zweimal die bewegte
-        // Wortmarke (breit und gestapelt).
+        // GIF: die kombinierte Einfahrt-/Idle-Sequenz, die verzögert
+        // uebernehmende Rauchschleife und zweimal die bewegte Wortmarke
+        // (breit und gestapelt).
         $this->assertSame(4, substr_count($html, 'data:image/gif;base64,'));
+        $this->assertSame(1, substr_count($html, 'data-rt-train-idle-overlay'));
+        $this->assertStringNotContainsString('background=""', $html);
         $this->assertStringContainsString('class="rt-sign-logo"', $html);
         $this->assertStringNotContainsString('RT_PHONE_START', $html);
         $this->assertStringNotContainsString('{{TRAIN_SRC}}', $html);
         // Der Schleier ist die DRITTE Ebene, nicht mehr die erste: darueber
         // liegen Raster und Wasserzeichen. Die Liste beginnt deshalb mit url().
         $this->assertMatchesRegularExpression('/rt-sign-cell[^>]*linear-gradient\(/', $html);
-        $this->assertStringContainsString('background-position:left top,right center,center center,right bottom,right bottom', $html);
+        $this->assertStringContainsString('background-position:left top,right center,center center,75% bottom', $html);
 
         // NATUERLICHE QUELLREIHENFOLGE seit dem symmetrischen Umbau: Person
         // links, Firma rechts. Vorher stand die Markenspalte zuerst und ein

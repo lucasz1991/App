@@ -49,15 +49,15 @@ class MarketingStudioBackendTest extends TestCase
         $network = $studio->createFromTemplate(
             MarketingCreativeType::Info,
             $admin,
-            MarketingTemplateFactory::INFO_GERMANY_NETWORK,
+            MarketingTemplateFactory::PREMIUM_GERMANY_NETWORK,
         );
 
         $this->assertSame(MarketingCreativeStatus::Draft, $job->status);
         $this->assertSame('Wagenmeister (m/w/d)', $job->shared_content['title']);
         $this->assertSame(CompanyData::all()['name'], $job->shared_content['company_name']);
         $this->assertArrayNotHasKey('hero_image_url', $job->shared_content);
-        $this->assertSame('Was macht ein Wagenmeister?', $info->shared_content['title']);
-        $this->assertSame('Deutschlandweit im Einsatz', $network->shared_content['title']);
+        $this->assertSame('Menschen, die Verantwortung auf der Schiene übernehmen.', $info->shared_content['title']);
+        $this->assertSame('Deutschlandweit im Einsatz.', $network->shared_content['title']);
 
         foreach ([$job, $info, $network] as $creative) {
             $this->assertCount(3, $creative->variants);
@@ -76,7 +76,9 @@ class MarketingStudioBackendTest extends TestCase
                 $this->assertStringNotContainsString('<span>RAILTIME</span>', $variant->html);
                 $this->assertStringNotContainsString('data-rt-binding-src="hero_image_url"', $variant->html);
                 $this->assertSame($format->value, $variant->builder_data['railtime']['format']);
-                $this->assertSame(3, $variant->builder_data['railtime']['schema']);
+                $this->assertSame(4, $variant->builder_data['railtime']['schema']);
+                $this->assertStringContainsString('/rt-brand/fonts/manrope-latin.woff2', $variant->css);
+                $this->assertStringContainsString('/rt-brand/fonts/space-mono-700-latin.woff2', $variant->css);
             }
         }
 
@@ -100,23 +102,23 @@ class MarketingStudioBackendTest extends TestCase
         $post = $job->variants->firstWhere('format', MarketingCreativeFormat::Post);
         $web = $job->variants->firstWhere('format', MarketingCreativeFormat::Web);
 
-        $this->assertStringContainsString('class="rt-job-body"', $story->html);
-        $this->assertStringContainsString('class="rt-columns"', $story->html);
-        $this->assertStringContainsString('class="rt-photo-code"', $story->html);
-        $this->assertStringContainsString('data-rt-binding-list="tasks"', $story->html);
-        $this->assertStringContainsString('data-rt-binding-list="profile"', $story->html);
-        $this->assertStringContainsString('height:880px', $story->css);
-        $this->assertStringContainsString('height:710px', $story->css);
-        $this->assertStringContainsString('height:330px', $story->css);
+        $this->assertStringContainsString('rt-job-premium-story', $story->html);
+        $this->assertStringContainsString('class="rt-job-panel"', $story->html);
+        $this->assertStringContainsString('data-rt-binding-list="benefits"', $story->html);
+        $this->assertStringContainsString('data-rt-binding-facts="facts"', $story->html);
+        $this->assertStringContainsString('height:1120px', $story->css);
+        $this->assertStringContainsString('height:300px', $story->css);
 
         $this->assertStringContainsString('class="rt-copy"', $post->html);
         $this->assertStringContainsString('data-rt-binding-list="benefits"', $post->html);
-        $this->assertStringContainsString('.rt-job-post>.rt-copy{position:absolute', $post->css);
+        $this->assertStringContainsString('rt-job-premium-post', $post->html);
+        $this->assertStringContainsString('.rt-job-premium-post .rt-copy{', $post->css);
 
         $this->assertStringContainsString('class="rt-intro" data-rt-binding="intro"', $web->html);
         $this->assertStringContainsString('class="rt-actions"', $web->html);
-        $this->assertStringContainsString('class="rt-photo-code"', $web->html);
-        $this->assertStringContainsString('.rt-job-web{display:grid', $web->css);
+        $this->assertStringContainsString('rt-job-premium-web', $web->html);
+        $this->assertStringContainsString('TECHNIK / VERANTWORTUNG / TEAM', $web->html);
+        $this->assertStringContainsString('.rt-job-premium-web{', $web->css);
 
         foreach ($job->variants as $variant) {
             $dimensions = $variant->format->dimensions();
@@ -172,7 +174,7 @@ class MarketingStudioBackendTest extends TestCase
         $this->assertNull($refreshed->approved_at);
         foreach ($refreshed->variants as $variant) {
             $this->assertSame(2, $variant->version);
-            $this->assertSame(3, $variant->builder_data['railtime']['schema']);
+            $this->assertSame(4, $variant->builder_data['railtime']['schema']);
             $this->assertMatchesRegularExpression(
                 '#/rt-brand/img/logo-horizontal(?:-darkbg)?\.png#',
                 $variant->html,
@@ -417,6 +419,141 @@ class MarketingStudioBackendTest extends TestCase
         );
         $this->assertSame('railtime_modern', $savedStory->builder_data['railtime']['design_preset']);
         $this->assertArrayNotHasKey('provider_injected', $savedStory->builder_data['railtime']);
+    }
+
+    public function test_complete_redesign_maps_legacy_and_premium_identity_to_the_matching_premium_layout(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $studio = app(MarketingStudioService::class);
+        $templates = app(MarketingTemplateFactory::class);
+        $sanitizer = app(MarketingHtmlSanitizer::class);
+        $mappings = [
+            [
+                MarketingTemplateFactory::JOB_WAGENMEISTER,
+                MarketingTemplateFactory::PREMIUM_JOB_WAGENMEISTER,
+                MarketingCreativeType::Job,
+                'rt-job-premium',
+            ],
+            [
+                MarketingTemplateFactory::INFO_WAGENMEISTER_ROLE,
+                MarketingTemplateFactory::PREMIUM_COMPANY_PROFILE,
+                MarketingCreativeType::Info,
+                'rt-company',
+            ],
+            [
+                MarketingTemplateFactory::INFO_GERMANY_NETWORK,
+                MarketingTemplateFactory::PREMIUM_GERMANY_NETWORK,
+                MarketingCreativeType::Info,
+                'rt-network-premium',
+            ],
+            [
+                MarketingTemplateFactory::PREMIUM_COMPANY_PROFILE,
+                MarketingTemplateFactory::PREMIUM_COMPANY_PROFILE,
+                MarketingCreativeType::Info,
+                'rt-company',
+            ],
+            [
+                MarketingTemplateFactory::PREMIUM_JOB_WAGENMEISTER,
+                MarketingTemplateFactory::PREMIUM_JOB_WAGENMEISTER,
+                MarketingCreativeType::Job,
+                'rt-job-premium',
+            ],
+            [
+                MarketingTemplateFactory::PREMIUM_GERMANY_NETWORK,
+                MarketingTemplateFactory::PREMIUM_GERMANY_NETWORK,
+                MarketingCreativeType::Info,
+                'rt-network-premium',
+            ],
+        ];
+
+        foreach ($mappings as [$storedTemplateKey, $premiumTemplateKey, $type, $premiumHtmlClass]) {
+            $creative = $studio->createFromTemplate($type, $admin, $storedTemplateKey);
+            $sharedContent = $creative->shared_content;
+            $premiumDefinition = $templates->definitionByKey($premiumTemplateKey);
+
+            $result = $studio->redesignFromPreset(
+                $creative,
+                'railtime_modern',
+                $this->variantHashes($creative),
+                $admin,
+            );
+
+            $this->assertTrue($result['changed']);
+            $this->assertSame($sharedContent, $result['creative']->shared_content);
+            $this->assertSame($storedTemplateKey, $result['creative']->shared_content['template_key']);
+
+            foreach (MarketingCreativeFormat::cases() as $format) {
+                $variant = $result['creative']->variants->firstWhere('format', $format);
+
+                $this->assertNotNull($variant);
+                $this->assertSame($storedTemplateKey, $variant->builder_data['railtime']['template']);
+                $this->assertSame(4, $variant->builder_data['railtime']['schema']);
+                $this->assertSame('railtime_modern', $variant->builder_data['railtime']['design_preset']);
+                $this->assertStringContainsString($premiumHtmlClass, $variant->html);
+                $this->assertSame(
+                    $sanitizer->css($premiumDefinition['variants'][$format->value]['css']),
+                    $variant->css,
+                );
+            }
+
+            $unchanged = $studio->redesignFromPreset(
+                $result['creative'],
+                'railtime_modern',
+                $this->variantHashes($result['creative']),
+                $admin,
+            );
+
+            $this->assertFalse($unchanged['changed']);
+            foreach ($unchanged['creative']->variants as $variant) {
+                $this->assertSame($storedTemplateKey, $variant->builder_data['railtime']['template']);
+            }
+        }
+    }
+
+    public function test_complete_redesign_fails_closed_without_a_known_type_compatible_template_identity(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $studio = app(MarketingStudioService::class);
+
+        foreach ([null, 'railtime_not_registered', MarketingTemplateFactory::JOB_WAGENMEISTER] as $templateKey) {
+            $creative = $studio->createFromTemplate(MarketingCreativeType::Info, $admin);
+            $sharedContent = $creative->shared_content;
+
+            if ($templateKey === null) {
+                unset($sharedContent['template_key']);
+            } else {
+                $sharedContent['template_key'] = $templateKey;
+            }
+
+            $creative->forceFill(['shared_content' => $sharedContent])->save();
+            $creative = $creative->fresh(['variants']);
+            $beforeHashes = $this->variantHashes($creative);
+            $beforeVersions = $creative->variants->mapWithKeys(
+                static fn ($variant): array => [$variant->format->value => $variant->version],
+            )->all();
+
+            try {
+                $studio->redesignFromPreset(
+                    $creative,
+                    'railtime_modern',
+                    $beforeHashes,
+                    $admin,
+                );
+                $this->fail('Ein Motiv ohne kompatible VorlagenidentitÃ¤t durfte nicht automatisch neu gestaltet werden.');
+            } catch (ValidationException $exception) {
+                $this->assertArrayHasKey('creative', $exception->errors());
+            }
+
+            $unchanged = $creative->fresh(['variants']);
+            $this->assertSame($beforeHashes, $this->variantHashes($unchanged));
+            $this->assertSame($beforeVersions, $unchanged->variants->mapWithKeys(
+                static fn ($variant): array => [$variant->format->value => $variant->version],
+            )->all());
+            $this->assertDatabaseMissing('activity_log', [
+                'description' => 'marketing_creative_redesigned',
+                'subject_id' => $creative->id,
+            ]);
+        }
     }
 
     public function test_complete_redesign_rolls_back_atomically_for_a_stale_format_and_denies_archived_creatives(): void

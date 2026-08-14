@@ -31,6 +31,49 @@
 @php
     $border = $border ?? '#e6e8ec';
 @endphp
+/* RT_SERVER_IDLE_REVEAL_START
+   Dieser Block wird erst serverseitig ueber den RESPONSIVE_CSS-Platzhalter eingesetzt,
+   nachdem das editierbare Maildokument sanitisiert wurde. Das Overlay ist
+   inline unsichtbar und layoutneutral; nur Clients mit CSS-Keyframes zeigen
+   die reine Rauchschleife nach dem 13-s-Haupt-GIF. */
+@keyframes rt-train-idle-reveal {
+  0% { opacity: 0; visibility: hidden; }
+  100% { opacity: .7; visibility: visible; }
+}
+.rt-train-idle-overlay {
+  opacity: 0;
+  visibility: hidden;
+}
+@supports (animation-name: rt-train-idle-reveal) {
+  .rt-train-idle-overlay {
+    overflow: visible !important;
+    animation-name: rt-train-idle-reveal;
+    animation-duration: 1ms;
+    animation-timing-function: step-start;
+    animation-delay: 13s;
+    animation-iteration-count: 1;
+    animation-fill-mode: forwards;
+  }
+}
+.rt-train-idle-surface {
+  position: absolute !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  z-index: 0 !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rt-train-idle-overlay {
+    animation: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+  }
+}
+/* RT_SERVER_IDLE_REVEAL_END */
+
 /* ---- Tablet quer: enger setzen, aber zweispaltig bleiben ---- */
 @media only screen and (max-width: 1000px) {
 .rt-pad { padding-left: 30px !important; padding-right: 30px !important; }
@@ -131,7 +174,7 @@ tr.rt-stack > td.rt-sign-logo {
 /* Gestapelt stehen die Spalten untereinander — die rechten 30 % sind dann
    nicht mehr fuer die Firmendaten reserviert und der Zug darf ueber die
    ganze Breite laufen. Die Reihenfolge der Werte folgt der Ebenenliste in
-   signature.blade.php: Raster, Wasserzeichen, Schleier, Ruhefahne, Zug. Wer sie dort
+   signature.blade.php: Raster, Wasserzeichen, Schleier, Zug. Wer sie dort
    aendert, muss sie HIER mitziehen — sonst treffen die Groessen die
    falschen Ebenen. */
 /* AUF SCHMALEN SCHIRMEN AN DER BREITE AUSRICHTEN, NICHT AN DER HOEHE.
@@ -145,8 +188,12 @@ tr.rt-stack > td.rt-sign-logo {
    ausgerichtet legte er sich als breiter Schleier ueber die halbe Karte.
    Er soll ein Schein in der Ecke sein, kein Farbfeld. */
 .rt-sign-cell {
-  background-position: left top, right center, center center, right 84%, right 84% !important;
-  background-size: 64px 64px, auto 52%, 100% 100%, 200% auto, 200% auto !important;
+  background-position: left top, right center, center center, 75% 84% !important;
+  background-size: 64px 64px, auto 52%, 100% 100%, 200% auto !important;
+}
+.rt-train-idle-surface {
+  background-position: 75% 84% !important;
+  background-size: 200% auto !important;
 }
 }
 

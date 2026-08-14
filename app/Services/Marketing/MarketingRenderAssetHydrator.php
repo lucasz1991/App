@@ -220,6 +220,10 @@ final class MarketingRenderAssetHydrator
 
     private function hasExpectedMimeType(string $expectedMimeType, string $contents): bool
     {
+        if ($expectedMimeType === 'font/woff2') {
+            return str_starts_with($contents, 'wOF2');
+        }
+
         if ($expectedMimeType === 'image/svg+xml') {
             return (bool) preg_match('/^\s*(?:<\?xml[^>]*>\s*)?<svg\b/i', $contents);
         }

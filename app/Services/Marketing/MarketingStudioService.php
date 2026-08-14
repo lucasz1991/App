@@ -24,6 +24,16 @@ final class MarketingStudioService
         '/rt-brand/img/logo-horizontal-darkbg.png',
     ];
 
+    /** @var array<string, string> */
+    private const PREMIUM_REDESIGN_TEMPLATES = [
+        MarketingTemplateFactory::JOB_WAGENMEISTER => MarketingTemplateFactory::PREMIUM_JOB_WAGENMEISTER,
+        MarketingTemplateFactory::INFO_WAGENMEISTER_ROLE => MarketingTemplateFactory::PREMIUM_COMPANY_PROFILE,
+        MarketingTemplateFactory::INFO_GERMANY_NETWORK => MarketingTemplateFactory::PREMIUM_GERMANY_NETWORK,
+        MarketingTemplateFactory::PREMIUM_COMPANY_PROFILE => MarketingTemplateFactory::PREMIUM_COMPANY_PROFILE,
+        MarketingTemplateFactory::PREMIUM_JOB_WAGENMEISTER => MarketingTemplateFactory::PREMIUM_JOB_WAGENMEISTER,
+        MarketingTemplateFactory::PREMIUM_GERMANY_NETWORK => MarketingTemplateFactory::PREMIUM_GERMANY_NETWORK,
+    ];
+
     public function __construct(
         private readonly MarketingTemplateFactory $templates,
         private readonly MarketingContentBinder $binder,
@@ -294,10 +304,19 @@ final class MarketingStudioService
                 }
             }
 
-            $templateKey = data_get($locked->shared_content, 'template_key');
-            $definition = is_string($templateKey) && $this->templates->hasTemplateKey($templateKey)
-                ? $this->templates->definitionByKey($templateKey)
-                : $this->templates->definition($locked->type);
+            $storedTemplateKey = data_get($locked->shared_content, 'template_key');
+            if (! is_string($storedTemplateKey)
+                || ! $this->templates->hasTemplateKey($storedTemplateKey)
+                || $this->templates->typeForKey($storedTemplateKey) !== $locked->type
+                || ! isset(self::PREMIUM_REDESIGN_TEMPLATES[$storedTemplateKey])) {
+                throw ValidationException::withMessages([
+                    'creative' => 'Dieses Motiv besitzt keine unterstÃ¼tzte RailTime-Startvorlage und kann nicht automatisch neu gestaltet werden.',
+                ]);
+            }
+
+            $definition = $this->templates->definitionByKey(
+                self::PREMIUM_REDESIGN_TEMPLATES[$storedTemplateKey],
+            );
             $changed = false;
             foreach (MarketingCreativeFormat::cases() as $format) {
                 $variant = $variants->get($format->value);
@@ -309,6 +328,7 @@ final class MarketingStudioService
                 $css = $this->sanitizer->css((string) $template['css']);
                 $this->assertOfficialBrandLockup($html, $css);
                 $builderData = (array) $template['builder_data'];
+                $builderData['railtime']['template'] = $storedTemplateKey;
                 $builderData['railtime']['design_preset'] = $preset;
                 $builderData = $this->binder->syncBuilderData($builderData, $html);
                 $hash = $this->contentHash($builderData, $html, $css);

@@ -40,6 +40,7 @@
     // Standbild fuer Outlook-Desktop. Leer = kein bedingter Kommentar.
     $outlookTrainFallbackSrc = trim((string) ($outlookTrainFallbackSrc ?? ''));
     $isOutlookExport = $outlookTrainSrc !== '';
+    $trainStillSrc = trim((string) ($values['TRAIN_STILL_SRC'] ?? ''));
     $cellPadding = $isOutlookExport ? '0' : $padding;
     $outlookTrainPadding = $outlookTrainPadding ?? '6px 0 14px';
     $hasPerson = trim((string) ($values['VORNAME_NACHNAME'] ?? '')) !== '';
@@ -84,8 +85,10 @@
      * weniger davon zu sehen; auf einem breiten Schirm faehrt mehr ins
      * Bild. Es braucht dafuer keine einzige zusaetzliche Umbruchregel.
      *
-     * Verankert RECHTS, weil die Lok am rechten Bildrand steht — links
-     * verankert waere gerade sie das Erste, was aus dem Bild faellt.
+     * Die Zugfront liegt im Asset bei 75 Prozent seiner Breite. Mit derselben
+     * horizontalen background-position bleibt sie mathematisch bei exakt
+     * 75 Prozent der Carrierbreite — unabhaengig davon, wie breit das auf
+     * `auto 100%` skalierte Bild gegenueber der Zelle ist.
      *
      * IM OUTLOOK-WEG entfallen Zug und Schleier: dort steht der Zug als
      * eigene Bildzeile unter dem Inhalt. Als Hintergrund UND als Bildzeile
@@ -98,7 +101,7 @@
         ($values['GRUND_MARKE_SRC'] ?? '') !== ''
             ? "url({$values['GRUND_MARKE_SRC']})|right center|auto 100%|no-repeat" : '',
         $isOutlookExport ? '' : "linear-gradient({$values['SIGNATURE_TRAIN_WASH']},{$values['SIGNATURE_TRAIN_WASH']})|center center|100% 100%|no-repeat",
-        $isOutlookExport ? '' : "url({$values['TRAIN_SRC']})|right bottom|{$zugMass}|no-repeat",
+        $isOutlookExport ? '' : "url({$values['TRAIN_SRC']})|75% bottom|{$zugMass}|no-repeat",
     ]));
     $teile = array_map(static fn (string $e): array => explode('|', $e), $ebenen);
     $backgroundImage = implode(',', array_column($teile, 0));
@@ -111,7 +114,7 @@
          zurueck und muss deshalb VOR der Bildangabe stehen. Clients ohne
          CSS-Hintergrundbilder nutzen das background-Attribut als Standbild-
          Ersatzweg im selben oberen Carrier. --}}
-    <td class="{{ $isOutlookExport ? '' : 'rt-pad ' }}rt-sign-cell" bgcolor="{{ $values['SIGNATURE_BG'] }}" @unless($isOutlookExport) background="{{ $values['TRAIN_STILL_SRC'] }}" @endunless style="padding:{{ $cellPadding }};background-color:{{ $values['SIGNATURE_BG'] }};background-image:{{ $backgroundImage }};background-repeat:{{ $backgroundRepeat }};background-position:{{ $backgroundPosition }};background-size:{{ $backgroundSize }};{{ $topRule }}">
+    <td class="{{ $isOutlookExport ? '' : 'rt-pad ' }}rt-sign-cell" bgcolor="{{ $values['SIGNATURE_BG'] }}"@if(! $isOutlookExport && $trainStillSrc !== '') background="{{ $values['TRAIN_STILL_SRC'] }}"@endif style="padding:{{ $cellPadding }};position:relative;overflow:hidden;background-color:{{ $values['SIGNATURE_BG'] }};background-image:{{ $backgroundImage }};background-repeat:{{ $backgroundRepeat }};background-position:{{ $backgroundPosition }};background-size:{{ $backgroundSize }};{{ $topRule }}">
         @if($isOutlookExport)
             {{-- Der Inhalt behaelt seinen gewohnten Innenabstand, waehrend
                  die nachfolgende Zugzeile bis an die Signaturkante reicht. --}}
@@ -134,11 +137,11 @@
              responsive-css). Das ist der uebliche Weg in E-Mails: was
              Umbruchregeln nicht umsortieren koennen, wird gedoppelt und
              geschaltet. --}}
-        <div class="rt-only-narrow rt-marke-mobil" style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:0;line-height:0;">
+        <div class="rt-only-narrow rt-marke-mobil" style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:0;line-height:0;position:relative;z-index:1;">
             <img src="{{ $values['LOGO_SRC'] }}" width="190" alt="{{ $values['FIRMENNAME'] }}" style="display:block;width:190px;max-width:100%;height:auto;margin:0 0 16px;mso-hide:all;">
             <!--[if mso]><img src="{{ $values['LOGO_STILL_SRC'] ?? $values['LOGO_SRC'] }}" width="190" alt="{{ $values['FIRMENNAME'] }}" style="display:block;width:190px;height:auto;margin:0 0 16px;"><![endif]-->
         </div>
-        <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">
+        <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;position:relative;z-index:1;">
             <tr class="rt-stack">
                 {{-- Ohne Person bleibt die Namenszeile LEER: Die Marke steht
                      bereits als Wortmarke in der rechten Spalte, der

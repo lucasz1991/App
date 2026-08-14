@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\Marketing\MarketingFileSourceService;
 use App\Services\Marketing\MarketingRenderService;
 use App\Services\Marketing\MarketingStudioService;
+use App\Services\Marketing\MarketingTemplateFactory;
 use Database\Seeders\MarketingStudioSeeder;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\Queue;
@@ -168,17 +169,17 @@ class MarketingCreativeDeletionTest extends TestCase
         $this->seed(MarketingStudioSeeder::class);
 
         $deletedStarter = MarketingCreative::withTrashed()
-            ->where('shared_content->template_key', 'railtime_job_wagenmeister')
+            ->where('shared_content->template_key', MarketingTemplateFactory::PREMIUM_JOB_WAGENMEISTER)
             ->sole();
         $this->assertTrue($deletedStarter->trashed());
         $this->assertSame(0, MarketingCreative::query()
-            ->where('shared_content->template_key', 'railtime_job_wagenmeister')
+            ->where('shared_content->template_key', MarketingTemplateFactory::PREMIUM_JOB_WAGENMEISTER)
             ->count());
         $this->assertSame(1, MarketingCreative::withTrashed()
-            ->where('shared_content->template_key', 'railtime_job_wagenmeister')
+            ->where('shared_content->template_key', MarketingTemplateFactory::PREMIUM_JOB_WAGENMEISTER)
             ->count());
         $this->assertSame(1, MarketingCreative::query()
-            ->where('shared_content->template_key', 'railtime_info_wagenmeister')
+            ->where('shared_content->template_key', MarketingTemplateFactory::PREMIUM_COMPANY_PROFILE)
             ->count());
         $this->assertSame(3, $deletedStarter->variants()->withTrashed()->count());
         $this->assertSame(0, $deletedStarter->variants()->count());

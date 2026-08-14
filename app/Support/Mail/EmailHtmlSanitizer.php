@@ -386,6 +386,7 @@ final class EmailHtmlSanitizer
         'rt-shell', 'rt-pad', 'rt-title', 'rt-stack', 'rt-logo', 'rt-mark',
         'rt-card', 'rt-card-cell',
         'rt-sign-cell', 'rt-sign-logo', 'rt-sign-identity', 'rt-sign-name',
+        'rt-train-idle-overlay', 'rt-train-idle-surface',
         // Die Anschrift steht seit dem symmetrischen Umbau nur noch einmal
         // in der Firmenspalte. Die beiden Namen bleiben zugelassen, damit
         // frueher veroeffentlichte Dokumente keinen Hinweis ausloesen.

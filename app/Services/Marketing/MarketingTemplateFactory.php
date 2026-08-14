@@ -15,15 +15,25 @@ final class MarketingTemplateFactory
 
     public const INFO_GERMANY_NETWORK = 'railtime_info_deutschland_netzwerk';
 
+    public const PREMIUM_COMPANY_PROFILE = 'railtime_2026_unternehmen';
+
+    public const PREMIUM_JOB_WAGENMEISTER = 'railtime_2026_job_wagenmeister';
+
+    public const PREMIUM_GERMANY_NETWORK = 'railtime_2026_deutschland_netzwerk';
+
     public const SEED_VERSION = 3;
+
+    public const PREMIUM_SEED_VERSION = 4;
+
+    public function __construct(private readonly MarketingPremiumTemplateCatalog $premium) {}
 
     /** @return list<array{title:string,shared_content:array<string,mixed>,variants:array<string,array{builder_data:array<string,mixed>,html:string,css:string}>}> */
     public function starterDefinitions(): array
     {
         return [
-            $this->definitionByKey(self::JOB_WAGENMEISTER),
-            $this->definitionByKey(self::INFO_WAGENMEISTER_ROLE),
-            $this->definitionByKey(self::INFO_GERMANY_NETWORK),
+            $this->definitionByKey(self::PREMIUM_COMPANY_PROFILE),
+            $this->definitionByKey(self::PREMIUM_JOB_WAGENMEISTER),
+            $this->definitionByKey(self::PREMIUM_GERMANY_NETWORK),
         ];
     }
 
@@ -37,15 +47,18 @@ final class MarketingTemplateFactory
     public function definition(MarketingCreativeType $type): array
     {
         return $this->definitionByKey($type === MarketingCreativeType::Job
-            ? self::JOB_WAGENMEISTER
-            : self::INFO_WAGENMEISTER_ROLE);
+            ? self::PREMIUM_JOB_WAGENMEISTER
+            : self::PREMIUM_COMPANY_PROFILE);
     }
 
     public function typeForKey(string $templateKey): MarketingCreativeType
     {
         return match ($templateKey) {
-            self::JOB_WAGENMEISTER => MarketingCreativeType::Job,
-            self::INFO_WAGENMEISTER_ROLE, self::INFO_GERMANY_NETWORK => MarketingCreativeType::Info,
+            self::JOB_WAGENMEISTER, self::PREMIUM_JOB_WAGENMEISTER => MarketingCreativeType::Job,
+            self::INFO_WAGENMEISTER_ROLE,
+            self::INFO_GERMANY_NETWORK,
+            self::PREMIUM_COMPANY_PROFILE,
+            self::PREMIUM_GERMANY_NETWORK => MarketingCreativeType::Info,
             default => throw new InvalidArgumentException('Unbekannte Marketing-Startvorlage: '.$templateKey),
         };
     }
@@ -56,12 +69,19 @@ final class MarketingTemplateFactory
             self::JOB_WAGENMEISTER,
             self::INFO_WAGENMEISTER_ROLE,
             self::INFO_GERMANY_NETWORK,
+            self::PREMIUM_COMPANY_PROFILE,
+            self::PREMIUM_JOB_WAGENMEISTER,
+            self::PREMIUM_GERMANY_NETWORK,
         ], true);
     }
 
     /** @return array{title:string,shared_content:array<string,mixed>,variants:array<string,array{builder_data:array<string,mixed>,html:string,css:string}>} */
     public function definitionByKey(string $templateKey): array
     {
+        if ($this->premium->hasTemplateKey($templateKey)) {
+            return $this->premium->definitionByKey($templateKey);
+        }
+
         $company = CompanyData::all();
         [$type, $title, $content] = match ($templateKey) {
             self::JOB_WAGENMEISTER => [

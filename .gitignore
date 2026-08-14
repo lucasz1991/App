@@ -41,6 +41,7 @@ Homestead.json
 !/tests/Feature/MarketingStudioBackendTest.php
 !/tests/Feature/MarketingStudioSeederTest.php
 !/tests/Feature/MarketingStarterCatalogRefreshMigrationTest.php
+!/tests/Feature/MarketingStarterCatalogV4MigrationTest.php
 !/tests/Feature/MarketingCreativeDeletionTest.php
 !/tests/Feature/MarketingFilePoolBackendTest.php
 !/tests/Feature/AssistantPageBuilderToolsTest.php
@@ -49,6 +50,7 @@ Homestead.json
 !/tests/Feature/FilePreviewFullscreenTest.php
 !/tests/Feature/FilePreviewModalUiTest.php
 !/tests/Feature/MailBrandAnimationGifTest.php
+!/tests/Feature/SignatureTrainTimelineTest.php
 !/tests/Frontend/
 /tests/Frontend/*
 !/tests/Frontend/call-recording-gate.test.js

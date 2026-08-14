@@ -143,10 +143,10 @@ class MailSignature
                 // Das Standbild traegt den Ersatzweg fuer Outlook-Desktop
                 // (background-Attribut), siehe emails/parts/signature.blade.php.
                 'TRAIN_STILL_SRC' => EmailTemplateBuilder::signatureTrainStillUrl($this->theme),
-                // IMMER, nicht nur bei animierter Einfahrt: Die Ruhefahne
-                // ist die Dauerbewegung des Streifens. Ob der Zug EINFAEHRT,
-                // entscheidet $animated — ob er raucht, nicht.
-                'TRAIN_IDLE_SRC' => $this->staticAssets
+                // Die Rauchschleife wird erst nach dem Ende der einmaligen
+                // 13-s-Einfahrt eingeblendet. Statische Fassungen und
+                // Signaturen ohne Einfahrt laden sie deshalb gar nicht.
+                'TRAIN_IDLE_SRC' => ($this->staticAssets || ! $this->animated)
                     ? ''
                     : EmailTemplateBuilder::mailAssetUrl(
                         'zug-dampf-idle-'.($this->theme === 'dark' ? 'dark' : 'light').'.gif'
@@ -175,7 +175,7 @@ class MailSignature
                 // Ohne verlinkte Adresse gibt es keinen Outlook-Ersatzweg:
                 // das background-Attribut kann keine data:-URI laden.
                 'TRAIN_STILL_SRC' => '',
-                'TRAIN_IDLE_SRC' => $this->staticAssets
+                'TRAIN_IDLE_SRC' => ($this->staticAssets || ! $this->animated)
                     ? ''
                     : EmailTemplateBuilder::inlineImage(
                         'zug-dampf-idle-'.($this->theme === 'dark' ? 'dark' : 'light').'.gif',
@@ -255,10 +255,12 @@ class MailSignature
                 'values' => $values,
             ], $layout))->render();
 
-            return trim(EmailTemplateBuilder::stripEmptyContactRows(
+            $html = trim(EmailTemplateBuilder::stripEmptyContactRows(
                 $html,
                 $this->contactRowValues($values),
             ));
+
+            return $this->injectDelayedIdleOverlay($html, $values, $layout);
         }
 
         // DER OUTLOOK-EXPORT BEKOMMT DEN ZUG ALS REGULAERES BILD.
@@ -302,10 +304,19 @@ class MailSignature
                 $tokens['{{'.$key.'}}'] = $value;
             }
 
-            return trim(EmailTemplateBuilder::stripEmptyContactRows(
-                strtr($html, $tokens),
+            $html = strtr($html, $tokens);
+            // Der kanonische Entwurf traegt den Classic-Outlook-Fallback als
+            // Platzhalter. Eigenstaendige Inline-Signaturen besitzen dafuer
+            // bewusst keine URL; nach der Ersetzung darf kein leeres
+            // background="" im ausgelieferten HTML zurueckbleiben.
+            $html = preg_replace('/\s+background=(["\'])\s*\1/i', '', $html) ?? $html;
+
+            $html = trim(EmailTemplateBuilder::stripEmptyContactRows(
+                $html,
                 $this->contactRowValues($values),
             ));
+
+            return $this->injectDelayedIdleOverlay($html, $values, $layout);
         }
 
         throw new \RuntimeException('Die veröffentlichte Signatur konnte nicht gerendert werden.');
@@ -331,6 +342,55 @@ class MailSignature
         }
 
         return $values;
+    }
+
+    /**
+     * Haengt die reine Rauchschleife in DENSELBEN oberen Zug-Carrier.
+     *
+     * Das gespeicherte Maildokument bleibt frei von Animation und absoluter
+     * Positionierung. Erst der serverkontrollierte Renderweg setzt dieses
+     * feste Markup ein; die ebenfalls serverkontrollierten Umbruchregeln
+     * blenden es nach exakt 13 Sekunden ein. Ohne Keyframe-Unterstuetzung
+     * bleibt der leere Span unsichtbar und layoutneutral. Der Outlook-
+     * Paketexport behaelt seine einzelne regulaere Bildzeile ohne Overlay.
+     *
+     * @param  array<string, string>  $values
+     * @param  array<string, string>  $layout
+     */
+    private function injectDelayedIdleOverlay(string $html, array $values, array $layout): string
+    {
+        $idleSource = trim((string) ($values['TRAIN_IDLE_SRC'] ?? ''));
+        $outlookExport = trim((string) ($layout['outlookTrainSrc'] ?? '')) !== '';
+
+        if (! $this->animated || $this->staticAssets || $idleSource === '' || $outlookExport) {
+            return $html;
+        }
+
+        if (str_contains($html, 'data-rt-train-idle-overlay')) {
+            throw new \RuntimeException('Die veroeffentlichte Signatur enthaelt bereits eine unzulaessige Idle-Ebene.');
+        }
+
+        $source = htmlspecialchars($idleSource, ENT_QUOTES, 'UTF-8');
+        $overlay = '<span class="rt-train-idle-overlay" data-rt-train-idle-overlay '
+            .'style="display:block;width:0;height:0;max-width:0;max-height:0;overflow:hidden;'
+            .'font-size:0;line-height:0;mso-hide:all;">'
+            .'<span class="rt-train-idle-surface" style="display:block;width:1px;height:1px;'
+            .'max-width:1px;max-height:1px;background-image:url('.$source.');background-repeat:no-repeat;'
+            .'background-position:75% bottom;background-size:auto 100%;"></span></span>';
+        $replacements = 0;
+        $rendered = preg_replace_callback(
+            '/<td\b[^>]*class=(["\'])[^"\']*\brt-sign-cell\b[^"\']*\1[^>]*>/i',
+            static fn (array $match): string => $match[0].$overlay,
+            $html,
+            1,
+            $replacements,
+        );
+
+        if (! is_string($rendered) || $replacements !== 1) {
+            throw new \RuntimeException('Die veroeffentlichte Signatur besitzt keinen eindeutigen Zug-Carrier.');
+        }
+
+        return $rendered;
     }
 
     /**

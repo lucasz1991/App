@@ -348,7 +348,21 @@ class MailDocumentEditorTest extends TestCase
         );
         $this->assertStringContainsString('zug-dampf-light.gif', $html);
         $this->assertStringContainsString('zug-dampf-light.png', $html);
-        $this->assertStringNotContainsString('zug-dampf-idle-light.gif', $html);
+        $this->assertSame(1, substr_count($html, 'zug-dampf-idle-light.gif'));
+        $this->assertSame(1, substr_count($html, 'data-rt-train-idle-overlay'));
+        $this->assertStringContainsString('animation-delay: 13s;', $html);
+        $this->assertSame(
+            1,
+            preg_match('/<span[^>]*data-rt-train-idle-overlay[^>]*>/', $html, $idleOverlay),
+        );
+        $this->assertMatchesRegularExpression('/(?<!max-)width:\s*0(?:;|\")/', $idleOverlay[0]);
+        $this->assertMatchesRegularExpression('/(?<!max-)height:\s*0(?:;|\")/', $idleOverlay[0]);
+        $this->assertMatchesRegularExpression('/max-width:\s*0(?:;|\")/', $idleOverlay[0]);
+        $this->assertMatchesRegularExpression('/max-height:\s*0(?:;|\")/', $idleOverlay[0]);
+        $this->assertMatchesRegularExpression('/opacity:\s*0(?:;|\")/', $idleOverlay[0]);
+        $this->assertMatchesRegularExpression('/visibility:\s*hidden(?:;|\")/', $idleOverlay[0]);
+        $this->assertStringNotContainsString('position: absolute', $idleOverlay[0]);
+        $this->assertSame(1, substr_count($html, 'class="rt-train-idle-surface"'));
         $this->assertStringNotContainsString('data:image', $html);
         $this->assertLessThan(60 * 1024, strlen($html));
     }
@@ -393,7 +407,7 @@ class MailDocumentEditorTest extends TestCase
         $html = $this->renderSystemMail('Bootstrap-Inhalt');
 
         $this->assertSame(1, substr_count($html, 'Bootstrap-Inhalt'));
-        $this->assertSame(1, substr_count($html, 'class="rt-sign-cell"'));
+        $this->assertSame(1, preg_match_all('/class="[^"]*rt-sign-cell[^"]*"/', $html));
         $this->assertStringContainsString('mail-assets/', $html);
     }
 
@@ -493,14 +507,15 @@ class MailDocumentEditorTest extends TestCase
         $this->assertStringNotContainsString('<style', $systemSignature);
         $this->assertLessThan(stripos($standalone, '</head>'), stripos($standalone, 'data-rt-mail-document-css="signature"'));
 
-        // DIE SYSTEMMAIL BEKOMMT KEIN FREIGEGEBENES CSS. Ihre Fusszeile
-        // rendert immer die Blade-Quelle, weil sie den Zug als Bildzeile
-        // braucht (Begruendung in MailSignature::render). Das freigegebene
-        // CSS ist gegen das freigegebene MARKUP geschrieben — eingebunden
-        // laege es auf einem anderen Stand.
+        // Die Systemmail verwendet die freigegebene Signatur samt CSS und
+        // genau den oberen Zug-Carrier. Nur der Outlook-Paketexport ergaenzt
+        // weiterhin seine lokale Bildzeile.
         $this->assertStringContainsString('.rt-sign-name{letter-spacing:0;}', $systemMail);
         $this->assertStringContainsString('RT-SIGNATUR', $systemMail);
-        $this->assertStringContainsString('data-rt-outlook-train', $systemMail);
+        $this->assertStringNotContainsString('data-rt-outlook-train', $systemMail);
+        $this->assertSame(1, substr_count($systemMail, 'data-rt-train-idle-overlay'));
+        $this->assertStringContainsString('background="', $systemMail);
+        $this->assertStringContainsString('zug-dampf-light.png', $systemMail);
 
         // Nur die bekannten Starterabstaende werden fuer den eigenstaendigen
         // Download auf den kompakten Vertrag abgebildet.

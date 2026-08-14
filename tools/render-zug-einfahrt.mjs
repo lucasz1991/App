@@ -25,7 +25,10 @@
  *
  * GEOMETRIE: Der Zug wird gegenueber der vorherigen Fassung proportional
  * auf 90 Prozent verkleinert. Seine rechte Kante kommt bei 75 Prozent der
- * Leinwand zur Ruhe; das rechte Viertel bleibt bewusst frei.
+ * Leinwand zur Ruhe; das rechte Viertel bleibt bewusst frei. Der Zugkoerper
+ * wird mit 75 Prozent Deckkraft gezeichnet. Auf der Seitenflaeche der
+ * vordersten Lok sitzt dezent das offizielle RT-Monogramm in derselben
+ * Grautoenung; es bewegt sich als Teil des Zuges mit.
  *
  * DER RAUCH IST SEQUENZIERT: Waehrend der Fahrt kommt er nur aus dem
  * mitfahrenden Schornstein. Die stehende Idle-Fahne beginnt erst, nachdem
@@ -46,10 +49,11 @@ const ASSETS = 'resources/mail-templates/assets';
 const OEFFENTLICH = 'public/mail-assets';
 const OUTLOOK_BREITE = 720;
 const OUTLOOK_HOEHE = 75;
+const OFFIZIELLES_RT_ICON = 'public/rt-brand/rt-logo.svg';
 
 // --- Leinwand ---------------------------------------------------------
-const BREITE = Number(process.env.RT_BREITE || 1080);
-const SKALA = Number(process.env.RT_SKALA || 2);                       // 1400 x 200 echte Bildpunkte
+const BREITE = Number(process.env.RT_BREITE || 1440);
+const SKALA = Number(process.env.RT_SKALA || 2);                       // 2880 x 292 echte Bildpunkte
 
 // --- Zug --------------------------------------------------------------
 // Das Motiv ist 2053 : 151 breit zu hoch. Der Faktor sagt, wie viel
@@ -111,6 +115,13 @@ const START_X = -ZUG_BREITE * (1 + (WAGENTEIL * ANHAENGE));
 const ZUG_Y = HOEHE - ZUG_HOEHE;
 const SCHORNSTEIN_X = RUHE_RECHTS - (ZUG_BREITE * 0.035);
 const SCHORNSTEIN_Y = ZUG_Y + (ZUG_HOEHE * 0.16);
+// Dezente Seitenmarke auf dem Boiler-Paneel der vordersten Lok. Die Werte
+// beziehen sich auf das
+// vollstaendige offizielle RT-Icon und bewegen sich deshalb exakt mit dem
+// vordersten Zugmotiv.
+const MARKEN_X_ANTEIL = 0.90;
+const MARKEN_Y_ANTEIL = 0.49;
+const MARKEN_GROESSE_ANTEIL = 0.26;
 
 // --- Zeiten (vertraglich, siehe EmailTemplatesPageTest) ---------------
 const BILDER = Number(process.env.RT_BILDER || 72);
@@ -146,8 +157,14 @@ const STUFEN = Number(process.env.RT_STUFEN || 7);
 const DURCHSICHTIG = process.env.RT_TRANSPARENT !== '0';
 
 const VARIANTEN = [
-    { key: 'light', grund: [255, 255, 255], rauch: '90, 99, 110', deckkraft: 0.30 },
-    { key: 'dark', grund: [12, 16, 23], rauch: '196, 206, 219', deckkraft: 0.26 },
+    {
+        key: 'light', grund: [255, 255, 255], rauch: '90, 99, 110',
+        markeR: [128, 138, 149], markeT: [78, 88, 100], deckkraft: 0.75,
+    },
+    {
+        key: 'dark', grund: [12, 16, 23], rauch: '196, 206, 219',
+        markeR: [186, 196, 207], markeT: [236, 241, 246], deckkraft: 0.75,
+    },
 ];
 
 /**
@@ -315,16 +332,25 @@ function idleWolkenBei(t) {
 
 const svg = readFileSync(`${ASSETS}/zug-dampf-ohne-rauch.svg`, 'utf8')
     .replace('viewBox="0 0 2053 151"', 'viewBox="0 0 2053 151" width="2053" height="151"');
+const offiziellesRtIcon = readFileSync(OFFIZIELLES_RT_ICON, 'utf8');
 
 const browser = await puppeteer.launch({ executablePath: CHROME, headless: 'new' });
 const page = await browser.newPage();
 await page.setContent('<!doctype html><html><body style="margin:0"></body></html>', { waitUntil: 'load' });
-await page.evaluate((markup) => new Promise((res, rej) => {
-    const i = new Image();
-    i.onload = () => { window.rtZug = i; res(); };
-    i.onerror = rej;
-    i.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(markup);
-}), svg);
+await page.evaluate((zugMarkup, iconMarkup) => Promise.all([
+    new Promise((res, rej) => {
+        const i = new Image();
+        i.onload = () => { window.rtZug = i; res(); };
+        i.onerror = rej;
+        i.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(zugMarkup);
+    }),
+    new Promise((res, rej) => {
+        const i = new Image();
+        i.onload = () => { window.rtIcon = i; res(); };
+        i.onerror = rej;
+        i.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(iconMarkup);
+    }),
+]), svg, offiziellesRtIcon);
 
 /** Zeichnet ein Einzelbild und liefert die rohen RGBA-Werte. */
 async function zeichne(auftrag) {
@@ -363,6 +389,35 @@ async function zeichne(auftrag) {
             x.restore();
         }
         x.drawImage(window.rtZug, a.zugX, a.zugY, a.zugBreite, a.zugHoehe);
+        x.globalAlpha = 1;
+
+        // Offizielles RT-Monogramm als Rastermaske: Es wird nicht
+        // nachgezeichnet, sondern direkt aus public/rt-brand/rt-logo.svg
+        // uebernommen. R und T erhalten zwei nahe neutrale Tonstufen, damit
+        // die original ueberlappenden Glyphen auch im kleinen Format getrennt
+        // lesbar bleiben, ohne die graue Zugpalette zu verlassen.
+        const markenPixel = Math.max(1, Math.ceil(a.markeGroesse * a.skala));
+        const marke = document.createElement('canvas');
+        marke.width = markenPixel;
+        marke.height = markenPixel;
+        const mx = marke.getContext('2d');
+        mx.drawImage(window.rtIcon, 0, 0, markenPixel, markenPixel);
+        const markenBild = mx.getImageData(0, 0, markenPixel, markenPixel);
+        for (let p = 0; p < markenBild.data.length; p += 4) {
+            if (markenBild.data[p + 3] === 0) continue;
+            const rot = markenBild.data[p];
+            const gruen = markenBild.data[p + 1];
+            const blau = markenBild.data[p + 2];
+            const istR = rot > (gruen * 1.20) && rot > (blau * 1.12);
+            const ton = istR ? a.markeR : a.markeT;
+            markenBild.data[p] = ton[0];
+            markenBild.data[p + 1] = ton[1];
+            markenBild.data[p + 2] = ton[2];
+        }
+        mx.putImageData(markenBild, 0, 0);
+
+        x.globalAlpha = a.markeDeckkraft;
+        x.drawImage(marke, a.markeX, a.markeY, a.markeGroesse, a.markeGroesse);
         x.globalAlpha = 1;
 
         return Array.from(new Uint8Array(x.getImageData(0, 0, c.width, c.height).data.buffer));
@@ -418,7 +473,7 @@ function aufTabelle(rgba, tabelle) {
 
 /**
  * Leitet die Classic-/New-Outlook-Datei deterministisch aus exakt denselben
- * Einzelbildern ab. Die breite 2160×218-Fassung wird proportional auf 720 px
+ * Einzelbildern ab. Die breite 2880×292-Fassung wird proportional auf 720 px
  * Breite verkleinert und in der 75-px-Leinwand unten ausgerichtet.
  */
 function skaliereFuerOutlook(rgba, grund) {
@@ -483,6 +538,10 @@ for (const v of VARIANTEN) {
             deckkraft: v.deckkraft, wolken: sichtbar,
             zugX, zugY: ZUG_Y, zugBreite: ZUG_BREITE, zugHoehe: ZUG_HOEHE,
             wagenteil: WAGENTEIL, anhaenge: ANHAENGE,
+            markeR: v.markeR, markeT: v.markeT, markeDeckkraft: 0.52,
+            markeX: zugX + (ZUG_BREITE * MARKEN_X_ANTEIL),
+            markeY: ZUG_Y + (ZUG_HOEHE * MARKEN_Y_ANTEIL),
+            markeGroesse: ZUG_HOEHE * MARKEN_GROESSE_ANTEIL,
         });
 
         letztesBild = rgba;
