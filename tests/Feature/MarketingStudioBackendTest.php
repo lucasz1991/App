@@ -14,11 +14,13 @@ use App\Services\Ai\AssistantKnowledgeToolRunner;
 use App\Services\Ai\OpenRouterChatClient;
 use App\Services\Ai\OpenRouterModelProfile;
 use App\Services\Ai\OpenRouterToolDecision;
+use App\Services\Marketing\MarketingContentBinder;
 use App\Services\Marketing\MarketingHtmlSanitizer;
 use App\Services\Marketing\MarketingRenderService;
 use App\Services\Marketing\MarketingStudioService;
 use App\Services\Marketing\MarketingTemplateFactory;
 use App\Support\CompanyData;
+use App\Support\MarketingBrandAssets;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Support\Facades\Queue;
@@ -57,6 +59,11 @@ class MarketingStudioBackendTest extends TestCase
         $this->assertSame('Komm ins Team', $job->shared_content['kicker']);
         $this->assertSame('Deutschlandweit im Einsatz', $job->shared_content['subtitle']);
         $this->assertSame([
+            ['value' => '60+', 'label' => 'Wagenmeister'],
+            ['value' => '24/7', 'label' => 'Einsatzbereitschaft'],
+            ['value' => 'DE', 'label' => 'deutschlandweit'],
+        ], $job->shared_content['facts']);
+        $this->assertSame([
             'Technische Untersuchung von Güterwagen und Zügen',
             'Bremsproben, Wagendokumentation und Schadenerfassung',
             'Abstimmung mit Disposition, Betrieb und Werkstätten',
@@ -73,6 +80,11 @@ class MarketingStudioBackendTest extends TestCase
             'Wertschätzendes Team mit direkter Kommunikation',
             'Zeitgemäße Arbeitsmittel und fachliche Weiterentwicklung',
         ], $job->shared_content['benefits']);
+        $this->assertSame('Jetzt bewerben', $job->shared_content['cta_label']);
+        $this->assertSame(
+            'Aufgaben, Anforderungen und Vorteile sind ein realistischer HR-Entwurf und vor Veröffentlichung zu bestätigen.',
+            $job->shared_content['editorial_note'],
+        );
         $this->assertSame(CompanyData::all()['name'], $job->shared_content['company_name']);
         $this->assertArrayNotHasKey('hero_image_url', $job->shared_content);
         $this->assertSame('Menschen, die Verantwortung auf der Schiene übernehmen.', $info->shared_content['title']);
@@ -128,7 +140,7 @@ class MarketingStudioBackendTest extends TestCase
         $this->assertStringContainsString('data-rt-binding-list="benefits"', $story->html);
         $this->assertStringContainsString('data-rt-binding-facts="facts"', $story->html);
         $this->assertStringContainsString('height:1060px', $story->css);
-        $this->assertStringContainsString('height:440px', $story->css);
+        $this->assertStringContainsString('.rt-job-premium-story footer{height:340px', $story->css);
         $this->assertStringContainsString('radial-gradient(70% 180% at 96% 48%', $story->css);
         $this->assertStringContainsString('linear-gradient(112deg,#111923 0,#0c1119 54%,#070a0f 100%)', $story->css);
         $this->assertStringContainsString('background:url("/rt-brand/rt-logo.svg")', $story->css);
@@ -159,6 +171,13 @@ class MarketingStudioBackendTest extends TestCase
             $this->assertStringContainsString('Technische Untersuchung von Güterwagen und Zügen', $variant->html);
             $this->assertStringContainsString('Abgeschlossene Ausbildung oder Qualifikation als Wagenmeister', $variant->html);
             $this->assertStringContainsString('Zeitgemäße Arbeitsmittel und fachliche Weiterentwicklung', $variant->html);
+            $this->assertSame(3, substr_count($variant->html, 'class="rt-job-card '));
+            $this->assertStringContainsString('class="rt-job-card__head"', $variant->html);
+            $this->assertStringContainsString('class="rt-job-card__icon" aria-hidden="true"', $variant->html);
+            $this->assertStringContainsString('src="/rt-brand/icons/job-tasks.svg"', $variant->html);
+            $this->assertStringContainsString('src="/rt-brand/icons/job-profile.svg"', $variant->html);
+            $this->assertStringContainsString('src="/rt-brand/icons/job-benefits.svg"', $variant->html);
+            $this->assertStringNotContainsString('<svg', $variant->html);
             $this->assertStringContainsString("width:{$dimensions['width']}px", $variant->css);
             $this->assertStringContainsString("height:{$dimensions['height']}px", $variant->css);
         }
@@ -186,6 +205,65 @@ class MarketingStudioBackendTest extends TestCase
             '3804D49808E2AB9EEF85AADD8A25390E988214CBFD8C335E0D11D9D1A491256A',
             strtoupper(hash_file('sha256', $path)),
         );
+    }
+
+    public function test_job_information_icons_are_pinned_safe_local_vector_assets(): void
+    {
+        $icons = [
+            '/rt-brand/icons/job-tasks.svg' => '9F7883E88EE91EEBCDAAF77A94E3433AF89804CFAE543C7A627800E8919073A9',
+            '/rt-brand/icons/job-profile.svg' => '1CF47BD5847A9CCC9460BB9A417F11F200B631B9AF1F702C34EB77C564483076',
+            '/rt-brand/icons/job-benefits.svg' => '3A6D6CE06FAE80E3A9B04DDB6A0C936127170E9A4E34FB01B086D6F327FDE2CF',
+        ];
+
+        foreach ($icons as $publicPath => $expectedHash) {
+            $this->assertTrue(MarketingBrandAssets::allows($publicPath));
+            $path = public_path(ltrim($publicPath, '/'));
+            $this->assertFileExists($path);
+            $this->assertSame($expectedHash, strtoupper(hash_file('sha256', $path)));
+
+            $contents = file_get_contents($path);
+            $this->assertIsString($contents);
+            $document = new \DOMDocument('1.0', 'UTF-8');
+            $previous = libxml_use_internal_errors(true);
+            $loaded = $document->loadXML($contents, LIBXML_NONET);
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+
+            $this->assertTrue($loaded);
+            $this->assertSame('svg', $document->documentElement?->localName);
+            $this->assertSame('0 0 48 48', $document->documentElement?->getAttribute('viewBox'));
+
+            $xpath = new \DOMXPath($document);
+            $this->assertSame(0, $xpath->query('//*[local-name()="script" or local-name()="style" or local-name()="animation" or local-name()="foreignObject" or local-name()="image" or local-name()="use"]')?->length);
+            $this->assertSame(0, $xpath->query('//@*[starts-with(translate(local-name(), "ON", "on"), "on") or local-name()="href"]')?->length);
+        }
+    }
+
+    public function test_job_information_cards_survive_repeated_binding_and_builder_sync_without_duplicates(): void
+    {
+        $definition = app(MarketingTemplateFactory::class)
+            ->definitionByKey(MarketingTemplateFactory::PREMIUM_JOB_WAGENMEISTER);
+        $template = $definition['variants'][MarketingCreativeFormat::Story->value];
+        $binder = app(MarketingContentBinder::class);
+        $sanitizer = app(MarketingHtmlSanitizer::class);
+
+        $first = $sanitizer->html($binder->bindHtml($template['html'], $definition['shared_content']));
+        $second = $sanitizer->html($binder->bindHtml($first, $definition['shared_content']));
+        $builderData = $binder->syncBuilderData($template['builder_data'], $second);
+
+        $this->assertSame($first, $second);
+        $this->assertSame($second, data_get($builderData, 'pages.0.component'));
+        $this->assertSame(3, substr_count($second, 'class="rt-job-card '));
+        $this->assertSame(1, substr_count($second, '>Deine Aufgaben</strong>'));
+        $this->assertSame(1, substr_count($second, '>Deine Anforderungen</strong>'));
+        $this->assertSame(1, substr_count($second, '>Deine Benefits</strong>'));
+
+        foreach (['job-tasks.svg', 'job-profile.svg', 'job-benefits.svg'] as $icon) {
+            $this->assertSame(1, substr_count($second, '/rt-brand/icons/'.$icon));
+        }
+        foreach (['tasks', 'profile', 'benefits'] as $binding) {
+            $this->assertSame(1, substr_count($second, 'data-rt-binding-list="'.$binding.'"'));
+        }
     }
 
     public function test_untouched_schema_one_starter_motives_are_refreshed_to_the_official_brand_design(): void
@@ -1101,6 +1179,12 @@ class MarketingStudioBackendTest extends TestCase
             .'<img src="/rt-brand/img/wagenmeister-team.webp">'
             .'<img src="/rt-brand/img/wagenmeister-team-gleis.jpeg">'
             .'<img src="/rt-brand/img/deutschland-netzwerk.png">'
+            .'<img src="/rt-brand/icons/job-tasks.svg">'
+            .'<img src="/rt-brand/icons/job-profile.svg">'
+            .'<img src="/rt-brand/icons/job-benefits.svg">'
+            .'<img src="/rt-brand/icons/job-benefits.svg.php">'
+            .'<img src="/rt-brand/icons/job-unknown.svg">'
+            .'<svg onload="alert(1)"><path d="M0 0h1v1z"></path></svg>'
             .'<img src="/rt-brand/img/logo-horizontal.png.exe">'
             .'<img src="/rt-brand/img/unofficial-logo.png">',
         );
@@ -1111,6 +1195,12 @@ class MarketingStudioBackendTest extends TestCase
         $this->assertStringContainsString('src="/rt-brand/img/wagenmeister-team.webp"', $html);
         $this->assertStringContainsString('src="/rt-brand/img/wagenmeister-team-gleis.jpeg"', $html);
         $this->assertStringContainsString('src="/rt-brand/img/deutschland-netzwerk.png"', $html);
+        $this->assertStringContainsString('src="/rt-brand/icons/job-tasks.svg"', $html);
+        $this->assertStringContainsString('src="/rt-brand/icons/job-profile.svg"', $html);
+        $this->assertStringContainsString('src="/rt-brand/icons/job-benefits.svg"', $html);
+        $this->assertStringNotContainsString('job-benefits.svg.php', $html);
+        $this->assertStringNotContainsString('job-unknown.svg', $html);
+        $this->assertStringNotContainsString('<svg', $html);
         $this->assertStringNotContainsString('logo-horizontal.png.exe', $html);
         $this->assertStringNotContainsString('unofficial-logo.png', $html);
     }

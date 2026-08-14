@@ -149,8 +149,8 @@ class SignatureTrainTimelineTest extends TestCase
         );
 
         // Die 30-Prozent-Fassung bleibt nach der GIF-Quantisierung bewusst
-        // in den beiden hellsten Tonstufen. Der Boiler mit seinem separat
-        // staerkeren RT-Icon wird rechts davon in einer eigenen Region
+        // in den beiden hellsten Tonstufen. Der Boiler mit seinem
+        // einfarbigen RT-Icon wird rechts davon in einer eigenen Region
         // geprueft und darf die Koerpermessung nicht verfaelschen.
         $bodyPixels = $this->countIndexAtLeastInRegion(
             $decoded[$arrivalFrame],
@@ -180,23 +180,104 @@ class SignatureTrainTimelineTest extends TestCase
             "{$filename}: Der Zugkoerper ist staerker als die zugesicherten 30 Prozent.",
         );
 
-        // Das offizielle RT-Monogramm sitzt auf dem Boiler-Paneel bei rund
-        // 68 Prozent der Leinwand. Seine Akzenttonstufe muss in Standard- und
-        // Outlook-Ableitung vorhanden sein; damit bleibt das Branding Teil
-        // desselben mitbewegten Frames.
+        // Das kleine, aber lesbare offizielle RT-Monogramm sitzt auf dem
+        // Boiler-Paneel zwischen rund 68 und 70 Prozent der Leinwand. Zug und
+        // Marke muessen nach der Quantisierung exakt dieselbe staerkste
+        // Palettenstufe besitzen: Ein zusaetzliches 30-Prozent-Overlay ueber
+        // dem Zug ergäbe sonst optisch rund 51 Prozent.
+        $expectedInkIndex = str_contains($filename, 'dark') ? 1 : 2;
+
         $brandPixels = $this->countIndexAtLeastInRegion(
             $decoded[$arrivalFrame],
-            3,
+            $expectedInkIndex,
             $width,
-            (int) floor($width * 0.677),
-            (int) floor($height * 0.68),
-            (int) ceil($width * 0.696),
-            (int) ceil($height * 0.90),
+            (int) floor($width * 0.675),
+            (int) floor($height * 0.67),
+            (int) ceil($width * 0.705),
+            (int) ceil($height * 0.93),
         );
         $this->assertGreaterThan(
-            $width === 2880 ? 900 : 45,
+            $width === 2880 ? 700 : 35,
             $brandPixels,
-            "{$filename}: Das gegenueber dem Koerper deutlichere RT-Icon fehlt auf der Lokseitenflaeche.",
+            "{$filename}: Die kleine RT-Aufschrift fehlt auf der Lokseitenflaeche.",
+        );
+        $bodyMaximum = $this->maximumIndexInRegion(
+            $decoded[$arrivalFrame],
+            $width,
+            0,
+            (int) floor($height * 0.55),
+            (int) floor($width * 0.67),
+            $height,
+        );
+        $brandMaximum = $this->maximumIndexInRegion(
+            $decoded[$arrivalFrame],
+            $width,
+            (int) floor($width * 0.675),
+            (int) floor($height * 0.67),
+            (int) ceil($width * 0.705),
+            (int) ceil($height * 0.93),
+        );
+        $this->assertSame(2, $bodyMaximum, "{$filename}: Die 30-Prozent-Zugrampe ist abgewichen.");
+        $this->assertLessThanOrEqual(
+            $bodyMaximum,
+            $brandMaximum,
+            "{$filename}: Das RT-Icon ist staerker als der Zugkoerper.",
+        );
+        $this->assertSame(
+            0,
+            $this->countIndexAtLeastInRegion(
+                $decoded[$arrivalFrame],
+                3,
+                $width,
+                (int) floor($width * 0.675),
+                (int) floor($height * 0.67),
+                (int) ceil($width * 0.705),
+                (int) ceil($height * 0.93),
+            ),
+            "{$filename}: Die RT-Marke enthaelt eine unzulaessig dunkle Palettenstufe.",
+        );
+
+        // Vier sichere Innenpunkte treffen R-Querbalken, T-Querbalken,
+        // T-Stamm und R-Diagonale. Sie muessen dieselbe Rampenstufe wie die
+        // Zugkontur besitzen. Dadurch wuerde auch ein optisches 30 % + 30 %
+        // Overlay trotz identischer Binaermaske auffallen.
+        $assetScale = $width / 2880;
+        $markLeft = 1968.0 * $assetScale;
+        $markTop = (220.0 * $assetScale) + ($width === 720 ? 2 : 0);
+        $markSize = 48.0 * $assetScale;
+        $isolatedMarkRaster = '';
+        for ($markRasterY = 0; $markRasterY < 12; $markRasterY++) {
+            for ($markRasterX = 0; $markRasterX < 12; $markRasterX++) {
+                $pixelX = (int) round($markLeft + ($markSize * ($markRasterX / 12)));
+                $pixelY = (int) round($markTop + ($markSize * ($markRasterY / 12)));
+                $isolatedMarkRaster .= (string) ord($decoded[$arrivalFrame][($pixelY * $width) + $pixelX]);
+            }
+            $isolatedMarkRaster .= "\n";
+        }
+        $approvedMarkRasterHash = str_contains($filename, 'dark')
+            ? '52d32c77c735ba2e3be44740acbb9c02f884b81847cf68db27aedd7deae12332'
+            : 'e21c9dd3ea276fb237b0869ed1c51d5b488d3f0a90d5351e7c03d48f156c6f47';
+        $this->assertSame(
+            $approvedMarkRasterHash,
+            hash('sha256', $isolatedMarkRaster),
+            "{$filename}: Das isolierte 12-x-12-RT-Raster ist abgewichen.",
+        );
+
+        foreach ([[6, 1], [2, 3], [3, 8], [9, 10]] as [$markGridX, $markGridY]) {
+            $sampleX = (int) round($markLeft + ($markSize * ($markGridX / 12)));
+            $sampleY = (int) round($markTop + ($markSize * ($markGridY / 12)));
+            $this->assertSame(
+                $expectedInkIndex,
+                ord($decoded[$arrivalFrame][($sampleY * $width) + $sampleX]),
+                "{$filename}: Die RT-Marke besitzt im Raster {$markGridX}/{$markGridY} nicht exakt die Zug-Deckkraft.",
+            );
+        }
+        $gapX = (int) round($markLeft + ($markSize * (8 / 12)));
+        $gapY = (int) round($markTop + ($markSize * (3 / 12)));
+        $this->assertSame(
+            $gif['frames'][$arrivalFrame]['transparentIndex'],
+            ord($decoded[$arrivalFrame][($gapY * $width) + $gapX]),
+            "{$filename}: Die negative R/T-Trennfuge ist nicht mehr frei.",
         );
 
         // Die letzten 720 ms sind ein echtes End-Hold. Das sichtbare Bild
@@ -233,6 +314,43 @@ class SignatureTrainTimelineTest extends TestCase
             imagedestroy($image);
 
             $this->assertEqualsWithDelta(2160, $right, 15, "{$theme}: PNG-Zug endet nicht bei 75 Prozent.");
+        }
+    }
+
+    public function test_outlook_arrival_is_the_exact_four_to_one_derivative_of_the_main_frame(): void
+    {
+        foreach (['light', 'dark'] as $theme) {
+            $main = $this->parseGif(file_get_contents(resource_path("mail-templates/assets/zug-dampf-{$theme}.gif")));
+            $outlook = $this->parseGif(file_get_contents(resource_path("mail-templates/assets/zug-dampf-outlook-{$theme}.gif")));
+            $mainFrame = $main['frames'][52];
+            $outlookFrame = $outlook['frames'][52];
+            $mainPixels = $this->decodeLzw(
+                $mainFrame['imageData'],
+                $mainFrame['minimumCodeSize'],
+                $main['width'] * $main['height'],
+            );
+            $outlookPixels = $this->decodeLzw(
+                $outlookFrame['imageData'],
+                $outlookFrame['minimumCodeSize'],
+                $outlook['width'] * $outlook['height'],
+            );
+
+            // 2880 x 292 wird mit Faktor 0,25 auf 720 x 73 skaliert und in
+            // der 75-px-Outlook-Leinwand um zwei Pixel nach unten gesetzt.
+            // Der Vergleich umfasst die komplette sichtbare Ableitung und
+            // damit auch die monochrome RT-Aufschrift.
+            $sampledMain = '';
+            for ($y = 0; $y < 73; $y++) {
+                for ($x = 0; $x < 720; $x++) {
+                    $sampledMain .= $mainPixels[(($y * 4) * 2880) + ($x * 4)];
+                }
+            }
+
+            $this->assertSame(
+                $sampledMain,
+                substr($outlookPixels, 2 * 720, 73 * 720),
+                "{$theme}: Outlook ist nicht mehr die exakte 4:1-Ableitung des Hauptframes.",
+            );
         }
     }
 
@@ -311,20 +429,32 @@ class SignatureTrainTimelineTest extends TestCase
         }
     }
 
-    public function test_generator_uses_the_official_rt_icon_with_two_neutral_glyph_tones(): void
+    public function test_generator_uses_the_official_rt_icon_as_a_single_thirty_percent_train_grey_layer(): void
     {
         $generator = file_get_contents(base_path('tools/render-zug-einfahrt.mjs'));
 
         $this->assertIsString($generator);
         $this->assertStringContainsString("const OFFIZIELLES_RT_ICON = 'public/rt-brand/rt-logo.svg';", $generator);
+        $this->assertStringContainsString("const ZUG_GRAU = '#737d89';", $generator);
         $this->assertStringContainsString('readFileSync(OFFIZIELLES_RT_ICON', $generator);
-        $this->assertStringContainsString('window.rtIcon', $generator);
-        $this->assertStringContainsString('const istR =', $generator);
-        $this->assertStringContainsString('markeR:', $generator);
-        $this->assertStringContainsString('markeT:', $generator);
+        $this->assertStringContainsString("ladeSvg(nurGlyph('R_Red'), 'rtIconR')", $generator);
+        $this->assertStringContainsString("ladeSvg(nurGlyph('T_Dark'), 'rtIconT')", $generator);
+        $this->assertStringContainsString('const MARKEN_GROESSE_ANTEIL = 0.34;', $generator);
+        $this->assertStringContainsString('const MARKEN_RASTER_MAIN_PX = 4;', $generator);
+        $this->assertStringContainsString('const MARKEN_KONTUR_CSS_PX = 2.0;', $generator);
+        $this->assertStringContainsString('const MARKEN_TRENNFUGE_CSS_PX = 2.0;', $generator);
+        $this->assertStringContainsString('markeGroesse: MARKEN_GROESSE,', $generator);
+        $this->assertStringContainsString("zx.globalCompositeOperation = 'destination-out';", $generator);
+        $this->assertStringContainsString('hx.fillStyle = a.markenFarbe;', $generator);
+        $this->assertStringContainsString('markenFarbe: ZUG_GRAU,', $generator);
+        $this->assertStringContainsString('x.globalAlpha = a.deckkraft;', $generator);
         $this->assertSame(2, substr_count($generator, 'deckkraft: 0.30'));
         $this->assertStringNotContainsString('deckkraft: 0.75', $generator);
-        $this->assertStringContainsString('markeDeckkraft: 0.52', $generator);
+        $this->assertStringNotContainsString('markeDeckkraft', $generator);
+        $this->assertStringNotContainsString('markeR:', $generator);
+        $this->assertStringNotContainsString('markeT:', $generator);
+        $this->assertStringNotContainsString('const istR =', $generator);
+        $this->assertStringNotContainsString('0.52', $generator);
         $this->assertFileExists(public_path('rt-brand/rt-logo.svg'));
     }
 
@@ -557,6 +687,24 @@ class SignatureTrainTimelineTest extends TestCase
         }
 
         return $matches;
+    }
+
+    private function maximumIndexInRegion(
+        string $indices,
+        int $width,
+        int $left,
+        int $top,
+        int $right,
+        int $bottom,
+    ): int {
+        $maximum = 0;
+        for ($y = $top; $y < $bottom; $y++) {
+            for ($x = $left; $x < $right; $x++) {
+                $maximum = max($maximum, ord($indices[($y * $width) + $x]));
+            }
+        }
+
+        return $maximum;
     }
 
     /** @return array{left: int, top: int, right: int, bottom: int}|null */

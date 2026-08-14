@@ -108,6 +108,17 @@ class PageBuilderPreviewTest extends TestCase
         $this->assertStringContainsString('data-preview-width="1080"', $html);
         $this->assertStringContainsString('data-preview-height="1920"', $html);
         $this->assertStringContainsString('data:image/', $html);
+        $this->assertStringContainsString('data:image/svg+xml;base64,', $html);
+        foreach (['job-tasks.svg', 'job-profile.svg', 'job-benefits.svg'] as $icon) {
+            $contents = file_get_contents(public_path('rt-brand/icons/'.$icon));
+            $this->assertIsString($contents);
+            $this->assertStringContainsString(
+                'data:image/svg+xml;base64,'.base64_encode($contents),
+                $html,
+            );
+        }
+        $this->assertStringContainsString('class="rt-job-card ', $html);
+        $this->assertStringNotContainsString('/rt-brand/icons/', $html);
         $this->assertStringNotContainsString('<script', strtolower($html));
         $this->assertStringNotContainsString('http://', strtolower($html));
         $this->assertStringNotContainsString('https://', strtolower($html));

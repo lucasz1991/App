@@ -15,6 +15,9 @@ final class MarketingBrandAssets
         '/rt-brand/img/wagenmeister-team.webp' => 'image/webp',
         '/rt-brand/img/wagenmeister-team-gleis.jpeg' => 'image/jpeg',
         '/rt-brand/img/deutschland-netzwerk.png' => 'image/png',
+        '/rt-brand/icons/job-tasks.svg' => 'image/svg+xml',
+        '/rt-brand/icons/job-profile.svg' => 'image/svg+xml',
+        '/rt-brand/icons/job-benefits.svg' => 'image/svg+xml',
         '/rt-brand/fonts/manrope-latin.woff2' => 'font/woff2',
         '/rt-brand/fonts/space-mono-700-latin.woff2' => 'font/woff2',
     ];

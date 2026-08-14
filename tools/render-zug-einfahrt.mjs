@@ -50,6 +50,7 @@ const OEFFENTLICH = 'public/mail-assets';
 const OUTLOOK_BREITE = 720;
 const OUTLOOK_HOEHE = 75;
 const OFFIZIELLES_RT_ICON = 'public/rt-brand/rt-logo.svg';
+const ZUG_GRAU = '#737d89';
 
 // --- Leinwand ---------------------------------------------------------
 const BREITE = Number(process.env.RT_BREITE || 1440);
@@ -115,13 +116,29 @@ const START_X = -ZUG_BREITE * (1 + (WAGENTEIL * ANHAENGE));
 const ZUG_Y = HOEHE - ZUG_HOEHE;
 const SCHORNSTEIN_X = RUHE_RECHTS - (ZUG_BREITE * 0.035);
 const SCHORNSTEIN_Y = ZUG_Y + (ZUG_HOEHE * 0.16);
-// Dezente Seitenmarke auf dem Boiler-Paneel der vordersten Lok. Die Werte
-// beziehen sich auf das
-// vollstaendige offizielle RT-Icon und bewegen sich deshalb exakt mit dem
-// vordersten Zugmotiv.
-const MARKEN_X_ANTEIL = 0.90;
-const MARKEN_Y_ANTEIL = 0.49;
-const MARKEN_GROESSE_ANTEIL = 0.26;
+// Monochrome Seitenmarke auf dem Boiler-Paneel der vordersten Lok. Ihre
+// Zielgroesse wird auf das physische 4-px-Raster des 2880er Hauptassets
+// gerundet: 48 x 48 Main-Pixel werden exakt 12 x 12 Outlook-Pixel. Die
+// bisherige optische Mitte bleibt dabei erhalten. Negativfuge und Kontur
+// messen je vier Main- beziehungsweise einen Outlook-Pixel.
+const MARKEN_GROESSE_ANTEIL = 0.34;
+const MARKEN_MITTE_X_ANTEIL = 0.90 + ((151 / 2053) * 0.20);
+const MARKEN_MITTE_Y_ANTEIL = 0.66;
+const MARKEN_RASTER_MAIN_PX = 4;
+const aufMarkenRaster = (cssWert) => (
+    Math.round((cssWert * SKALA) / MARKEN_RASTER_MAIN_PX) * MARKEN_RASTER_MAIN_PX
+) / SKALA;
+const MARKEN_GROESSE = aufMarkenRaster(ZUG_HOEHE * MARKEN_GROESSE_ANTEIL);
+const MARKEN_RUHE_X = aufMarkenRaster(
+    RUHE_X + (ZUG_BREITE * MARKEN_MITTE_X_ANTEIL) - (MARKEN_GROESSE / 2),
+);
+const MARKEN_RELATIV_X = MARKEN_RUHE_X - RUHE_X;
+const MARKEN_Y = aufMarkenRaster(
+    ZUG_Y + (ZUG_HOEHE * MARKEN_MITTE_Y_ANTEIL) - (MARKEN_GROESSE / 2),
+);
+const MARKEN_KONTUR_CSS_PX = 2.0;
+const MARKEN_TRENNFUGE_CSS_PX = 2.0;
+const MARKEN_UEBERABTASTUNG = 4;
 
 // --- Zeiten (vertraglich, siehe EmailTemplatesPageTest) ---------------
 const BILDER = Number(process.env.RT_BILDER || 72);
@@ -159,11 +176,11 @@ const DURCHSICHTIG = process.env.RT_TRANSPARENT !== '0';
 const VARIANTEN = [
     {
         key: 'light', grund: [255, 255, 255], rauch: '90, 99, 110',
-        markeR: [128, 138, 149], markeT: [78, 88, 100], deckkraft: 0.30,
+        deckkraft: 0.30,
     },
     {
         key: 'dark', grund: [12, 16, 23], rauch: '196, 206, 219',
-        markeR: [186, 196, 207], markeT: [236, 241, 246], deckkraft: 0.30,
+        deckkraft: 0.30,
     },
 ];
 
@@ -337,20 +354,30 @@ const offiziellesRtIcon = readFileSync(OFFIZIELLES_RT_ICON, 'utf8');
 const browser = await puppeteer.launch({ executablePath: CHROME, headless: 'new' });
 const page = await browser.newPage();
 await page.setContent('<!doctype html><html><body style="margin:0"></body></html>', { waitUntil: 'load' });
-await page.evaluate((zugMarkup, iconMarkup) => Promise.all([
-    new Promise((res, rej) => {
+await page.evaluate((zugMarkup, iconMarkup) => {
+    const ladeSvg = (markup, ziel) => new Promise((res, rej) => {
         const i = new Image();
-        i.onload = () => { window.rtZug = i; res(); };
+        i.onload = () => { window[ziel] = i; res(); };
         i.onerror = rej;
-        i.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(zugMarkup);
-    }),
-    new Promise((res, rej) => {
-        const i = new Image();
-        i.onload = () => { window.rtIcon = i; res(); };
-        i.onerror = rej;
-        i.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(iconMarkup);
-    }),
-]), svg, offiziellesRtIcon);
+        i.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(markup);
+    });
+    const nurGlyph = (glyphId) => {
+        const dokument = new DOMParser().parseFromString(iconMarkup, 'image/svg+xml');
+        for (const id of ['R_Red', 'T_Dark']) {
+            if (id !== glyphId) dokument.getElementById(id)?.remove();
+        }
+
+        return new XMLSerializer().serializeToString(dokument);
+    };
+
+    window.rtMarkenCache = {};
+
+    return Promise.all([
+        ladeSvg(zugMarkup, 'rtZug'),
+        ladeSvg(nurGlyph('R_Red'), 'rtIconR'),
+        ladeSvg(nurGlyph('T_Dark'), 'rtIconT'),
+    ]);
+}, svg, offiziellesRtIcon);
 
 /** Zeichnet ein Einzelbild und liefert die rohen RGBA-Werte. */
 async function zeichne(auftrag) {
@@ -375,49 +402,97 @@ async function zeichne(auftrag) {
             x.fill();
         }
 
-        x.globalAlpha = a.deckkraft;
+        // Zug und Monogramm entstehen zuerst gemeinsam auf einem transparenten
+        // Layer. Der Layer wird spaeter genau EINMAL mit 30 Prozent
+        // komponiert. Dadurch kann das Icon nie durch 30 % + 30 % ungewollt
+        // auf rund 51 Prozent abdunkeln.
+        const zugLayer = document.createElement('canvas');
+        zugLayer.width = c.width;
+        zugLayer.height = c.height;
+        const zx = zugLayer.getContext('2d');
+        zx.scale(a.skala, a.skala);
+
         // Angehaengte Waggons ZUERST: jede Kopie wird auf den Bereich links
         // der vorigen beschnitten, damit ihre eigene Lok nicht mitgezeichnet
         // wird.
         const schritt = a.zugBreite * a.wagenteil;
         for (let k = a.anhaenge; k >= 1; k -= 1) {
-            x.save();
-            x.beginPath();
-            x.rect(a.zugX - (k * schritt), 0, schritt, a.hoehe);
-            x.clip();
-            x.drawImage(window.rtZug, a.zugX - (k * schritt), a.zugY, a.zugBreite, a.zugHoehe);
-            x.restore();
+            zx.save();
+            zx.beginPath();
+            zx.rect(a.zugX - (k * schritt), 0, schritt, a.hoehe);
+            zx.clip();
+            zx.drawImage(window.rtZug, a.zugX - (k * schritt), a.zugY, a.zugBreite, a.zugHoehe);
+            zx.restore();
         }
-        x.drawImage(window.rtZug, a.zugX, a.zugY, a.zugBreite, a.zugHoehe);
-        x.globalAlpha = 1;
+        zx.drawImage(window.rtZug, a.zugX, a.zugY, a.zugBreite, a.zugHoehe);
 
-        // Offizielles RT-Monogramm als Rastermaske: Es wird nicht
-        // nachgezeichnet, sondern direkt aus public/rt-brand/rt-logo.svg
-        // uebernommen. R und T erhalten zwei nahe neutrale Tonstufen, damit
-        // die original ueberlappenden Glyphen auch im kleinen Format getrennt
-        // lesbar bleiben, ohne die graue Zugpalette zu verlassen.
+        // Das offizielle SVG wird vierfach ueberabgetastet. R und T stammen
+        // aus seinen originalen Gruppen; die T-Silhouette stanzt lediglich
+        // eine schmale Negativfuge aus dem R. Erst danach werden beide Glyphen
+        // in EINEM Zug-Grau zusammengefuehrt und hochwertig verkleinert.
         const markenPixel = Math.max(1, Math.ceil(a.markeGroesse * a.skala));
-        const marke = document.createElement('canvas');
-        marke.width = markenPixel;
-        marke.height = markenPixel;
-        const mx = marke.getContext('2d');
-        mx.drawImage(window.rtIcon, 0, 0, markenPixel, markenPixel);
-        const markenBild = mx.getImageData(0, 0, markenPixel, markenPixel);
-        for (let p = 0; p < markenBild.data.length; p += 4) {
-            if (markenBild.data[p + 3] === 0) continue;
-            const rot = markenBild.data[p];
-            const gruen = markenBild.data[p + 1];
-            const blau = markenBild.data[p + 2];
-            const istR = rot > (gruen * 1.20) && rot > (blau * 1.12);
-            const ton = istR ? a.markeR : a.markeT;
-            markenBild.data[p] = ton[0];
-            markenBild.data[p + 1] = ton[1];
-            markenBild.data[p + 2] = ton[2];
-        }
-        mx.putImageData(markenBild, 0, 0);
+        const cacheKey = `${markenPixel}:${a.markeTrennfuge}:${a.markenFarbe}`;
+        let marke = window.rtMarkenCache[cacheKey];
+        if (!marke) {
+            const hochPixel = markenPixel * a.markenUeberabtastung;
+            const hoch = document.createElement('canvas');
+            hoch.width = hochPixel;
+            hoch.height = hochPixel;
+            const hx = hoch.getContext('2d');
+            hx.drawImage(window.rtIconR, 0, 0, hochPixel, hochPixel);
 
-        x.globalAlpha = a.markeDeckkraft;
-        x.drawImage(marke, a.markeX, a.markeY, a.markeGroesse, a.markeGroesse);
+            const fuge = Math.max(
+                1,
+                Math.round(a.markeTrennfuge * a.skala * a.markenUeberabtastung),
+            );
+            hx.globalCompositeOperation = 'destination-out';
+            for (let winkel = 0; winkel < Math.PI * 2; winkel += Math.PI / 12) {
+                hx.drawImage(
+                    window.rtIconT,
+                    Math.round(Math.cos(winkel) * fuge),
+                    Math.round(Math.sin(winkel) * fuge),
+                    hochPixel,
+                    hochPixel,
+                );
+            }
+            hx.drawImage(window.rtIconT, 0, 0, hochPixel, hochPixel);
+
+            hx.globalCompositeOperation = 'source-over';
+            hx.drawImage(window.rtIconT, 0, 0, hochPixel, hochPixel);
+            hx.globalCompositeOperation = 'source-in';
+            hx.fillStyle = a.markenFarbe;
+            hx.fillRect(0, 0, hochPixel, hochPixel);
+
+            marke = document.createElement('canvas');
+            marke.width = markenPixel;
+            marke.height = markenPixel;
+            const mx = marke.getContext('2d');
+            mx.imageSmoothingEnabled = true;
+            mx.imageSmoothingQuality = 'high';
+            mx.drawImage(hoch, 0, 0, markenPixel, markenPixel);
+            window.rtMarkenCache[cacheKey] = marke;
+        }
+
+        // Nur die dilatierte Alpha-Silhouette wird aus der Lok ausmaskiert;
+        // niemals ein Rechteck. Die darunterliegenden Nieten und Naehte
+        // koennen das Monogramm dadurch nicht zerschneiden.
+        zx.save();
+        zx.globalCompositeOperation = 'destination-out';
+        for (let winkel = 0; winkel < Math.PI * 2; winkel += Math.PI / 12) {
+            zx.drawImage(
+                marke,
+                a.markeX + (Math.cos(winkel) * a.markeKontur),
+                a.markeY + (Math.sin(winkel) * a.markeKontur),
+                a.markeGroesse,
+                a.markeGroesse,
+            );
+        }
+        zx.drawImage(marke, a.markeX, a.markeY, a.markeGroesse, a.markeGroesse);
+        zx.restore();
+        zx.drawImage(marke, a.markeX, a.markeY, a.markeGroesse, a.markeGroesse);
+
+        x.globalAlpha = a.deckkraft;
+        x.drawImage(zugLayer, 0, 0, a.breite, a.hoehe);
         x.globalAlpha = 1;
 
         return Array.from(new Uint8Array(x.getImageData(0, 0, c.width, c.height).data.buffer));
@@ -538,10 +613,13 @@ for (const v of VARIANTEN) {
             deckkraft: v.deckkraft, wolken: sichtbar,
             zugX, zugY: ZUG_Y, zugBreite: ZUG_BREITE, zugHoehe: ZUG_HOEHE,
             wagenteil: WAGENTEIL, anhaenge: ANHAENGE,
-            markeR: v.markeR, markeT: v.markeT, markeDeckkraft: 0.52,
-            markeX: zugX + (ZUG_BREITE * MARKEN_X_ANTEIL),
-            markeY: ZUG_Y + (ZUG_HOEHE * MARKEN_Y_ANTEIL),
-            markeGroesse: ZUG_HOEHE * MARKEN_GROESSE_ANTEIL,
+            markenFarbe: ZUG_GRAU,
+            markeX: zugX + MARKEN_RELATIV_X,
+            markeY: MARKEN_Y,
+            markeGroesse: MARKEN_GROESSE,
+            markeKontur: MARKEN_KONTUR_CSS_PX,
+            markeTrennfuge: MARKEN_TRENNFUGE_CSS_PX,
+            markenUeberabtastung: MARKEN_UEBERABTASTUNG,
         });
 
         letztesBild = rgba;
