@@ -342,15 +342,34 @@ class MailDocumentEditorTest extends TestCase
         $this->assertSame(1, preg_match_all('/class="[^"]*rt-sign-cell[^"]*"/', $html));
         $this->assertSame(0, substr_count($html, 'data-rt-outlook-train '));
         $this->assertSame(0, substr_count($html, 'data-rt-outlook-train-still'));
-        $this->assertMatchesRegularExpression(
-            '/class="[^"]*rt-sign-cell[^"]*"[^>]*background="[^"]*zug-dampf-light\.png\?v=[^"]+"/',
+        $this->assertDoesNotMatchRegularExpression(
+            '/class="[^"]*rt-sign-cell[^"]*"[^>]*\sbackground=/',
             $html,
         );
-        $this->assertStringContainsString('zug-dampf-light.gif', $html);
-        $this->assertStringContainsString('zug-dampf-light.png', $html);
+        $this->assertSame(1, substr_count($html, 'class="rt-classic-outlook-train"'));
+        $this->assertMatchesRegularExpression(
+            '/<!--\[if mso\]>.*?<img[^>]*class="rt-classic-outlook-train"[^>]*src="[^"]*zug-dampf-light\.gif\?v=[^"]+"[^>]*>.*?<!\[endif\]-->/s',
+            $html,
+        );
+        $this->assertMatchesRegularExpression(
+            '/<img[^>]*class="rt-classic-outlook-train"[^>]*width="100%"[^>]*style="[^"]*width:100%;height:auto;[^"]*"/',
+            $html,
+        );
+        $this->assertSame(
+            1,
+            preg_match('/<img[^>]*class="rt-classic-outlook-train"[^>]*>/', $html, $classicTrain),
+        );
+        $this->assertStringNotContainsString('opacity:', $classicTrain[0]);
+        $this->assertStringNotContainsString('max-width:', $classicTrain[0]);
+        $this->assertSame(2, substr_count($html, 'zug-dampf-light.gif'));
+        $this->assertStringNotContainsString('zug-dampf-light.png', $html);
         $this->assertSame(1, substr_count($html, 'zug-dampf-idle-light.gif'));
         $this->assertSame(1, substr_count($html, 'data-rt-train-idle-overlay'));
         $this->assertStringContainsString('animation-delay: 13s;', $html);
+        $this->assertStringContainsString('100% { opacity: 1; visibility: visible; }', $html);
+        $this->assertStringNotContainsString('100% { opacity: .7;', $html);
+        $this->assertStringContainsString('rgba(255,255,255,0)', $html);
+        $this->assertStringNotContainsString('rgba(255,255,255,.30)', $html);
         $this->assertSame(
             1,
             preg_match('/<span[^>]*data-rt-train-idle-overlay[^>]*>/', $html, $idleOverlay),
@@ -466,6 +485,18 @@ class MailDocumentEditorTest extends TestCase
             'RT-SIGNATUR {{VORNAME_NACHNAME}}',
             (string) $signature->html,
         );
+        // Simuliert eine bereits vor dem Fix veroeffentlichte Datenbank-
+        // version. Der Runtime-Pfad muss das kachelnde Word-Attribut auch
+        // ohne vorherigen Seeder-Lauf sicher entfernen.
+        $publishedHtml = preg_replace(
+            '/<td class="rt-pad rt-sign-cell"/',
+            '<td class="rt-pad rt-sign-cell" background="{{TRAIN_STILL_SRC}}"',
+            $publishedHtml,
+            1,
+            $legacyBackgroundCount,
+        );
+        $this->assertIsString($publishedHtml);
+        $this->assertSame(1, $legacyBackgroundCount);
         $signature->forceFill([
             'published_html' => $publishedHtml,
             'published_css' => '.rt-sign-name{letter-spacing:0;}',
@@ -507,15 +538,19 @@ class MailDocumentEditorTest extends TestCase
         $this->assertStringNotContainsString('<style', $systemSignature);
         $this->assertLessThan(stripos($standalone, '</head>'), stripos($standalone, 'data-rt-mail-document-css="signature"'));
 
-        // Die Systemmail verwendet die freigegebene Signatur samt CSS und
-        // genau den oberen Zug-Carrier. Nur der Outlook-Paketexport ergaenzt
-        // weiterhin seine lokale Bildzeile.
+        // Die Systemmail verwendet die freigegebene Signatur samt CSS. Fuer
+        // Classic Outlook wird genau ein bedingtes regulaeres GIF ergaenzt;
+        // der Legacy-background-Weg darf nie wieder kacheln.
         $this->assertStringContainsString('.rt-sign-name{letter-spacing:0;}', $systemMail);
         $this->assertStringContainsString('RT-SIGNATUR', $systemMail);
         $this->assertStringNotContainsString('data-rt-outlook-train', $systemMail);
         $this->assertSame(1, substr_count($systemMail, 'data-rt-train-idle-overlay'));
-        $this->assertStringContainsString('background="', $systemMail);
-        $this->assertStringContainsString('zug-dampf-light.png', $systemMail);
+        $this->assertSame(1, substr_count($systemMail, 'class="rt-classic-outlook-train"'));
+        $this->assertDoesNotMatchRegularExpression(
+            '/class="[^"]*rt-sign-cell[^"]*"[^>]*\sbackground=/',
+            $systemMail,
+        );
+        $this->assertStringNotContainsString('zug-dampf-light.png', $systemMail);
 
         // Nur die bekannten Starterabstaende werden fuer den eigenstaendigen
         // Download auf den kompakten Vertrag abgebildet.
@@ -529,6 +564,14 @@ class MailDocumentEditorTest extends TestCase
         $this->assertIsString($outlook);
         $this->assertStringContainsString('RT-SIGNATUR Mara Beispiel', $outlook);
         $this->assertStringContainsString('data-rt-outlook-train', $outlook);
+        $this->assertSame(
+            1,
+            preg_match('/<img[^>]*data-rt-outlook-train\s[^>]*>/', $outlook, $outlookAnimatedTrain),
+        );
+        $this->assertStringNotContainsString('opacity:', $outlookAnimatedTrain[0]);
+        $this->assertStringContainsString('width="100%"', $outlookAnimatedTrain[0]);
+        $this->assertStringContainsString('style="display:block;width:100%;height:auto;', $outlookAnimatedTrain[0]);
+        $this->assertStringNotContainsString('max-width:', $outlookAnimatedTrain[0]);
     }
 
     public function test_systemmail_css_und_signatur_html_teilen_einen_request_lokalen_snapshot(): void

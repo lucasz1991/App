@@ -148,24 +148,36 @@ class SignatureTrainTimelineTest extends TestCase
             "{$filename}: Die auf 90 Prozent verkleinerte Zughoehe ist abgewichen.",
         );
 
-        // 75 Prozent Koerperdeckkraft muessen auch nach der GIF-Quantisierung
-        // als tiefe Tonstufen erhalten bleiben. Die fruehere 26/30-Prozent-
-        // Fassung erreichte diese Indizes nicht flaechig.
-        $light = str_contains($filename, 'light');
-        $bodyThreshold = $light ? 5 : 3;
-        $strongBodyPixels = $this->countIndexAtLeastInRegion(
+        // Die 30-Prozent-Fassung bleibt nach der GIF-Quantisierung bewusst
+        // in den beiden hellsten Tonstufen. Der Boiler mit seinem separat
+        // staerkeren RT-Icon wird rechts davon in einer eigenen Region
+        // geprueft und darf die Koerpermessung nicht verfaelschen.
+        $bodyPixels = $this->countIndexAtLeastInRegion(
             $decoded[$arrivalFrame],
-            $bodyThreshold,
+            1,
             $width,
             0,
             (int) floor($height * 0.55),
-            $width,
+            (int) floor($width * 0.67),
             $height,
         );
         $this->assertGreaterThan(
-            $width === 2880 ? 50_000 : 3_000,
-            $strongBodyPixels,
-            "{$filename}: Die zugesicherte 75-Prozent-Zugdeckkraft fehlt.",
+            $width === 2880 ? 60_000 : 3_700,
+            $bodyPixels,
+            "{$filename}: Der Zugkoerper mit 30 Prozent Deckkraft fehlt.",
+        );
+        $this->assertSame(
+            0,
+            $this->countIndexAtLeastInRegion(
+                $decoded[$arrivalFrame],
+                3,
+                $width,
+                0,
+                (int) floor($height * 0.55),
+                (int) floor($width * 0.67),
+                $height,
+            ),
+            "{$filename}: Der Zugkoerper ist staerker als die zugesicherten 30 Prozent.",
         );
 
         // Das offizielle RT-Monogramm sitzt auf dem Boiler-Paneel bei rund
@@ -174,7 +186,7 @@ class SignatureTrainTimelineTest extends TestCase
         // desselben mitbewegten Frames.
         $brandPixels = $this->countIndexAtLeastInRegion(
             $decoded[$arrivalFrame],
-            $light ? 6 : 5,
+            3,
             $width,
             (int) floor($width * 0.677),
             (int) floor($height * 0.68),
@@ -182,9 +194,9 @@ class SignatureTrainTimelineTest extends TestCase
             (int) ceil($height * 0.90),
         );
         $this->assertGreaterThan(
-            $width === 2880 ? ($light ? 150 : 50) : ($light ? 6 : 4),
+            $width === 2880 ? 900 : 45,
             $brandPixels,
-            "{$filename}: Das tonale RT-Icon fehlt auf der Lokseitenflaeche.",
+            "{$filename}: Das gegenueber dem Koerper deutlichere RT-Icon fehlt auf der Lokseitenflaeche.",
         );
 
         // Die letzten 720 ms sind ein echtes End-Hold. Das sichtbare Bild
@@ -310,7 +322,9 @@ class SignatureTrainTimelineTest extends TestCase
         $this->assertStringContainsString('const istR =', $generator);
         $this->assertStringContainsString('markeR:', $generator);
         $this->assertStringContainsString('markeT:', $generator);
-        $this->assertSame(2, substr_count($generator, 'deckkraft: 0.75'));
+        $this->assertSame(2, substr_count($generator, 'deckkraft: 0.30'));
+        $this->assertStringNotContainsString('deckkraft: 0.75', $generator);
+        $this->assertStringContainsString('markeDeckkraft: 0.52', $generator);
         $this->assertFileExists(public_path('rt-brand/rt-logo.svg'));
     }
 

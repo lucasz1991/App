@@ -54,6 +54,25 @@ class MarketingStudioBackendTest extends TestCase
 
         $this->assertSame(MarketingCreativeStatus::Draft, $job->status);
         $this->assertSame('Wagenmeister (m/w/d)', $job->shared_content['title']);
+        $this->assertSame('Komm ins Team', $job->shared_content['kicker']);
+        $this->assertSame('Deutschlandweit im Einsatz', $job->shared_content['subtitle']);
+        $this->assertSame([
+            'Technische Untersuchung von Güterwagen und Zügen',
+            'Bremsproben, Wagendokumentation und Schadenerfassung',
+            'Abstimmung mit Disposition, Betrieb und Werkstätten',
+        ], $job->shared_content['tasks']);
+        $this->assertSame([
+            'Abgeschlossene Ausbildung oder Qualifikation als Wagenmeister',
+            'Verantwortungsbewusstsein und zuverlässige Arbeitsweise',
+            'Bereitschaft zu wechselnden Einsatzzeiten und Einsatzorten',
+            'Teamgeist und klare Kommunikation',
+        ], $job->shared_content['profile']);
+        $this->assertSame([
+            'Unbefristete Perspektive',
+            'Planbare und abwechslungsreiche Einsätze',
+            'Wertschätzendes Team mit direkter Kommunikation',
+            'Zeitgemäße Arbeitsmittel und fachliche Weiterentwicklung',
+        ], $job->shared_content['benefits']);
         $this->assertSame(CompanyData::all()['name'], $job->shared_content['company_name']);
         $this->assertArrayNotHasKey('hero_image_url', $job->shared_content);
         $this->assertSame('Menschen, die Verantwortung auf der Schiene übernehmen.', $info->shared_content['title']);
@@ -104,20 +123,27 @@ class MarketingStudioBackendTest extends TestCase
 
         $this->assertStringContainsString('rt-job-premium-story', $story->html);
         $this->assertStringContainsString('class="rt-job-panel"', $story->html);
+        $this->assertStringContainsString('data-rt-binding-list="tasks"', $story->html);
+        $this->assertStringContainsString('data-rt-binding-list="profile"', $story->html);
         $this->assertStringContainsString('data-rt-binding-list="benefits"', $story->html);
         $this->assertStringContainsString('data-rt-binding-facts="facts"', $story->html);
-        $this->assertStringContainsString('height:1120px', $story->css);
-        $this->assertStringContainsString('height:390px', $story->css);
+        $this->assertStringContainsString('height:1060px', $story->css);
+        $this->assertStringContainsString('height:440px', $story->css);
         $this->assertStringContainsString('radial-gradient(70% 180% at 96% 48%', $story->css);
         $this->assertStringContainsString('linear-gradient(112deg,#111923 0,#0c1119 54%,#070a0f 100%)', $story->css);
         $this->assertStringContainsString('background:url("/rt-brand/rt-logo.svg")', $story->css);
 
         $this->assertStringContainsString('class="rt-copy"', $post->html);
+        $this->assertStringContainsString('data-rt-binding-list="tasks"', $post->html);
+        $this->assertStringContainsString('data-rt-binding-list="profile"', $post->html);
         $this->assertStringContainsString('data-rt-binding-list="benefits"', $post->html);
         $this->assertStringContainsString('rt-job-premium-post', $post->html);
         $this->assertStringContainsString('.rt-job-premium-post .rt-copy{', $post->css);
 
         $this->assertStringContainsString('class="rt-intro" data-rt-binding="intro"', $web->html);
+        $this->assertStringContainsString('data-rt-binding-list="tasks"', $web->html);
+        $this->assertStringContainsString('data-rt-binding-list="profile"', $web->html);
+        $this->assertStringContainsString('data-rt-binding-list="benefits"', $web->html);
         $this->assertStringContainsString('class="rt-actions"', $web->html);
         $this->assertStringContainsString('rt-job-premium-web', $web->html);
         $this->assertStringContainsString('TECHNIK / VERANTWORTUNG / TEAM', $web->html);
@@ -130,6 +156,9 @@ class MarketingStudioBackendTest extends TestCase
             $this->assertStringContainsString('src="/rt-brand/img/logo-horizontal-darkbg.png"', $variant->html);
             $this->assertStringContainsString('src="/rt-brand/img/wagenmeister-team-gleis.jpeg"', $variant->html);
             $this->assertStringContainsString('data-rt-binding-href="cta_url"', $variant->html);
+            $this->assertStringContainsString('Technische Untersuchung von Güterwagen und Zügen', $variant->html);
+            $this->assertStringContainsString('Abgeschlossene Ausbildung oder Qualifikation als Wagenmeister', $variant->html);
+            $this->assertStringContainsString('Zeitgemäße Arbeitsmittel und fachliche Weiterentwicklung', $variant->html);
             $this->assertStringContainsString("width:{$dimensions['width']}px", $variant->css);
             $this->assertStringContainsString("height:{$dimensions['height']}px", $variant->css);
         }

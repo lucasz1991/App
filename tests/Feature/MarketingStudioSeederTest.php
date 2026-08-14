@@ -45,6 +45,26 @@ class MarketingStudioSeederTest extends TestCase
             $creatives->pluck('shared_content.title')->sort()->values()->all(),
         );
 
+        $job = $creatives->firstWhere('shared_content.template_key', MarketingTemplateFactory::PREMIUM_JOB_WAGENMEISTER);
+        $this->assertNotNull($job);
+        $this->assertSame([
+            'Technische Untersuchung von Güterwagen und Zügen',
+            'Bremsproben, Wagendokumentation und Schadenerfassung',
+            'Abstimmung mit Disposition, Betrieb und Werkstätten',
+        ], $job->shared_content['tasks']);
+        $this->assertSame([
+            'Abgeschlossene Ausbildung oder Qualifikation als Wagenmeister',
+            'Verantwortungsbewusstsein und zuverlässige Arbeitsweise',
+            'Bereitschaft zu wechselnden Einsatzzeiten und Einsatzorten',
+            'Teamgeist und klare Kommunikation',
+        ], $job->shared_content['profile']);
+        $this->assertSame([
+            'Unbefristete Perspektive',
+            'Planbare und abwechslungsreiche Einsätze',
+            'Wertschätzendes Team mit direkter Kommunikation',
+            'Zeitgemäße Arbeitsmittel und fachliche Weiterentwicklung',
+        ], $job->shared_content['benefits']);
+
         foreach ($creatives as $creative) {
             $this->assertSame(MarketingCreativeStatus::Draft, $creative->status);
             $this->assertSame($preferred->id, $creative->created_by);

@@ -1023,6 +1023,9 @@ test('shared form bracket names serialize into the backend shared_content contra
         ['shared_content[facts][0][label]', 'Wagenmeister'],
         ['shared_content[tasks][]', 'Technische Untersuchung'],
         ['shared_content[tasks][]', '  '],
+        ['shared_content[profile][]', 'Qualifikation als Wagenmeister'],
+        ['shared_content[benefits][]', 'Unbefristete Perspektive'],
+        ['shared_content[benefits][]', 'Fachliche Weiterentwicklung'],
         ['shared_content[cta_url]', 'https://www.rail-time.de/de/karriere'],
     ];
     const data = {
@@ -1036,6 +1039,8 @@ test('shared form bracket names serialize into the backend shared_content contra
             kicker: 'Komm ins Team',
             facts: [{ value: '60+', label: 'Wagenmeister' }],
             tasks: ['Technische Untersuchung'],
+            profile: ['Qualifikation als Wagenmeister'],
+            benefits: ['Unbefristete Perspektive', 'Fachliche Weiterentwicklung'],
             cta_url: 'https://www.rail-time.de/de/karriere',
         },
     });

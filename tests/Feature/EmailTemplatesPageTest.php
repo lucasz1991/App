@@ -368,6 +368,12 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertIsString($html);
             $this->assertStringContainsString('<img data-rt-outlook-train', $html);
             $this->assertStringContainsString("src=\"{$assetFolder}/zug-dampf.gif\"", $html);
+            $this->assertMatchesRegularExpression(
+                '/<img[^>]*data-rt-outlook-train\s[^>]*width="100%"[^>]*style="[^"]*width:100%;height:auto;[^"]*"/',
+                $html,
+            );
+            $this->assertStringNotContainsString('width:70%', $html);
+            $this->assertStringNotContainsString('max-width:620px', $html);
             // OHNE rt-pad an der aeusseren Zelle: die traegt padding:0, damit
             // die Zugzeile bis an die Kante reicht. Sass die Klasse dort,
             // verkleinerten die Umbruchregeln die Null und der Innenabstand

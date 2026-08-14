@@ -451,11 +451,9 @@ class EmailTemplateBuilder
         );
         $values = $signature->values();
         $values['RESPONSIVE_CSS'] = self::responsiveCss($values['SIGNATURE_BORDER'] ?? null);
-        // Die versendete Mail behaelt den Zug im oberen Signatur-Carrier.
-        // Eine zusaetzliche Bildzeile erzeugte in modernen Outlook-Clients
-        // denselben Zug ein zweites Mal unterhalb der Signatur. Classic
-        // Outlook erhaelt das Standbild stattdessen ueber das background-
-        // Attribut desselben Carriers (siehe signature.blade.php).
+        // Moderne Clients behalten den Zug im oberen CSS-Carrier. Classic
+        // Outlook erhaelt serverseitig genau ein bedingtes regulaeres GIF;
+        // das fruehere background-Attribut kachelte Word ueber die Zelle.
         $values['SIGNATURE_BLOCK'] = $signature->render();
         $values['APPLICATION_CONTENT'] = '';
 
@@ -746,7 +744,11 @@ class EmailTemplateBuilder
                 // Pflichtangaben eine Stufe darunter — dezente Staffelung
                 // statt harter Kanten.
                 'SIGNATURE_BG' => '#0c1017',
-                'SIGNATURE_TRAIN_WASH' => 'rgba(12,16,23,.30)',
+                // Kompatibilitaet fuer bereits publizierte Signaturen, die
+                // noch eine Wash-Ebene enthalten. Die Zugassets tragen ihre
+                // endgueltigen 30 Prozent Alpha selbst; ein weiterer Schleier
+                // wuerde sie erneut auf rund 21 Prozent reduzieren.
+                'SIGNATURE_TRAIN_WASH' => 'rgba(12,16,23,0)',
                 'SIGNATURE_LEGAL_BG' => '#080b10',
                 'SIGNATURE_TEXT_PRIMARY' => '#ffffff',
                 'SIGNATURE_CONTACT_TEXT' => '#b9c1ca',
@@ -778,9 +780,11 @@ class EmailTemplateBuilder
                 // er wurde dafuer auf Weiss umgesetzt (tools/zug-auf-weiss.mjs),
                 // sonst stuende hier ein beiger Block auf weissem Grund.
                 'SIGNATURE_BG' => '#ffffff',
-                // Der Schleier liegt UEBER dem Zug und nimmt ihm Kraft:
-                // rund 30 % Weiss ergeben die gewuenschten 70 % Deckkraft.
-                'SIGNATURE_TRAIN_WASH' => 'rgba(255,255,255,.30)',
+                // Transparenter Kompatibilitaetswert fuer alte publizierte
+                // Vier-Ebenen-Signaturen. Die endgueltigen 30 Prozent Alpha
+                // sind bereits in Main-, Idle-, PNG- und Outlook-Asset
+                // gebacken und duerfen hier nicht nochmals reduziert werden.
+                'SIGNATURE_TRAIN_WASH' => 'rgba(255,255,255,0)',
                 'SIGNATURE_LEGAL_BG' => '#f4f5f7',
                 'SIGNATURE_TEXT_PRIMARY' => '#111820',
                 'SIGNATURE_CONTACT_TEXT' => '#5c6671',

@@ -26,7 +26,7 @@
  * GEOMETRIE: Der Zug wird gegenueber der vorherigen Fassung proportional
  * auf 90 Prozent verkleinert. Seine rechte Kante kommt bei 75 Prozent der
  * Leinwand zur Ruhe; das rechte Viertel bleibt bewusst frei. Der Zugkoerper
- * wird mit 75 Prozent Deckkraft gezeichnet. Auf der Seitenflaeche der
+ * wird mit 30 Prozent Deckkraft gezeichnet. Auf der Seitenflaeche der
  * vordersten Lok sitzt dezent das offizielle RT-Monogramm in derselben
  * Grautoenung; es bewegt sich als Teil des Zuges mit.
  *
@@ -159,11 +159,11 @@ const DURCHSICHTIG = process.env.RT_TRANSPARENT !== '0';
 const VARIANTEN = [
     {
         key: 'light', grund: [255, 255, 255], rauch: '90, 99, 110',
-        markeR: [128, 138, 149], markeT: [78, 88, 100], deckkraft: 0.75,
+        markeR: [128, 138, 149], markeT: [78, 88, 100], deckkraft: 0.30,
     },
     {
         key: 'dark', grund: [12, 16, 23], rauch: '196, 206, 219',
-        markeR: [186, 196, 207], markeT: [236, 241, 246], deckkraft: 0.75,
+        markeR: [186, 196, 207], markeT: [236, 241, 246], deckkraft: 0.30,
     },
 ];
 

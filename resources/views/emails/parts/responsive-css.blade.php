@@ -38,7 +38,7 @@
    die reine Rauchschleife nach dem 13-s-Haupt-GIF. */
 @keyframes rt-train-idle-reveal {
   0% { opacity: 0; visibility: hidden; }
-  100% { opacity: .7; visibility: visible; }
+  100% { opacity: 1; visibility: visible; }
 }
 .rt-train-idle-overlay {
   opacity: 0;

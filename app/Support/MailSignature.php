@@ -140,8 +140,10 @@ class MailSignature
                     $this->theme,
                     $this->staticAssets ? false : $this->animated,
                 ),
-                // Das Standbild traegt den Ersatzweg fuer Outlook-Desktop
-                // (background-Attribut), siehe emails/parts/signature.blade.php.
+                // Das Standbild bleibt dem expliziten Outlook-Paketexport
+                // vorbehalten. Versendete Systemmails nutzen TRAIN_SRC als
+                // ein einzelnes MSO-only <img>; ein background-Attribut
+                // wuerde Word als wiederholte Zelltextur kacheln.
                 'TRAIN_STILL_SRC' => EmailTemplateBuilder::signatureTrainStillUrl($this->theme),
                 // Die Rauchschleife wird erst nach dem Ende der einmaligen
                 // 13-s-Einfahrt eingeblendet. Statische Fassungen und
@@ -260,7 +262,7 @@ class MailSignature
                 $this->contactRowValues($values),
             ));
 
-            return $this->injectDelayedIdleOverlay($html, $values, $layout);
+            return $this->finalizeTrainRendering($html, $values, $layout);
         }
 
         // DER OUTLOOK-EXPORT BEKOMMT DEN ZUG ALS REGULAERES BILD.
@@ -305,10 +307,10 @@ class MailSignature
             }
 
             $html = strtr($html, $tokens);
-            // Der kanonische Entwurf traegt den Classic-Outlook-Fallback als
-            // Platzhalter. Eigenstaendige Inline-Signaturen besitzen dafuer
-            // bewusst keine URL; nach der Ersetzung darf kein leeres
-            // background="" im ausgelieferten HTML zurueckbleiben.
+            // Alte publizierte Staende koennen bis zum erneuten Seedern noch
+            // den inzwischen entfernten Classic-Outlook-Fallback tragen.
+            // Leere Attribute verschwinden sofort; ein befuelltes Attribut
+            // wird im zentralen Train-Finalizer gezielt am Carrier entfernt.
             $html = preg_replace('/\s+background=(["\'])\s*\1/i', '', $html) ?? $html;
 
             $html = trim(EmailTemplateBuilder::stripEmptyContactRows(
@@ -316,7 +318,7 @@ class MailSignature
                 $this->contactRowValues($values),
             ));
 
-            return $this->injectDelayedIdleOverlay($html, $values, $layout);
+            return $this->finalizeTrainRendering($html, $values, $layout);
         }
 
         throw new \RuntimeException('Die veröffentlichte Signatur konnte nicht gerendert werden.');
@@ -342,6 +344,89 @@ class MailSignature
         }
 
         return $values;
+    }
+
+    /**
+     * Finalisiert die clientgetrennten Zugpfade erst nach dem autoritativen
+     * Dokument-Render. Dadurch werden auch bereits publizierte Signaturen mit
+     * dem fehlerhaften legacy background-Attribut sofort sicher ausgeliefert,
+     * ohne auf einen Seeder-Lauf angewiesen zu sein.
+     *
+     * @param  array<string, string>  $values
+     * @param  array<string, string>  $layout
+     */
+    private function finalizeTrainRendering(string $html, array $values, array $layout): string
+    {
+        $html = $this->removeLegacyTrainBackground($html);
+        $html = $this->injectClassicOutlookTrain($html, $values, $layout);
+
+        return $this->injectDelayedIdleOverlay($html, $values, $layout);
+    }
+
+    /**
+     * Word interpretiert das HTML-Attribut background als wiederholbare
+     * Zelltextur und ignoriert dabei die modernen no-repeat-/size-Regeln.
+     * Entfernt wird es ausschliesslich am eindeutigen Signatur-Carrier;
+     * Raster und Grundfarben anderer Zellen bleiben unberuehrt.
+     */
+    private function removeLegacyTrainBackground(string $html): string
+    {
+        $replacements = 0;
+        $rendered = preg_replace_callback(
+            '/<td\b[^>]*class=(["\'])[^"\']*\brt-sign-cell\b[^"\']*\1[^>]*>/i',
+            static function (array $match): string {
+                return preg_replace('/\s+background=(["\'])[^"\']*\1/i', '', $match[0]) ?? $match[0];
+            },
+            $html,
+            1,
+            $replacements,
+        );
+
+        if (! is_string($rendered) || $replacements !== 1) {
+            throw new \RuntimeException('Die veroeffentlichte Signatur besitzt keinen eindeutigen Zug-Carrier.');
+        }
+
+        return $rendered;
+    }
+
+    /**
+     * Classic Outlook bekommt genau ein regulaeres Main-GIF in einem
+     * MSO-only Tabellenabschnitt. Anders als das legacy background-Attribut
+     * kann ein img nicht kacheln; New Outlook, Webmailer und Browser sehen
+     * weiterhin ausschliesslich den animierten CSS-Carrier.
+     *
+     * @param  array<string, string>  $values
+     * @param  array<string, string>  $layout
+     */
+    private function injectClassicOutlookTrain(string $html, array $values, array $layout): string
+    {
+        $outlookExport = trim((string) ($layout['outlookTrainSrc'] ?? '')) !== '';
+        $source = trim((string) ($values['TRAIN_SRC'] ?? ''));
+
+        if (! $this->remoteAssets || $outlookExport || $source === '') {
+            return $html;
+        }
+
+        if (str_contains($html, 'class="rt-classic-outlook-train"')) {
+            throw new \RuntimeException('Die veroeffentlichte Signatur enthaelt bereits einen Classic-Outlook-Zug.');
+        }
+
+        $marker = '<!-- RT_SIGNATURE_MAIN_END -->';
+        if (substr_count($html, $marker) !== 1) {
+            throw new \RuntimeException(
+                'Die veroeffentlichte Signatur besitzt keinen eindeutigen Classic-Outlook-Anker.'
+            );
+        }
+
+        $source = htmlspecialchars($source, ENT_QUOTES, 'UTF-8');
+        $row = '<!--[if mso]><tr><td width="100%" align="left" style="width:100%;padding:0;text-align:left;'
+            .'font-size:0;line-height:0;mso-line-height-rule:exactly;">'
+            .'<img class="rt-classic-outlook-train" src="'.$source.'" width="100%" '
+            .'alt="Dampflok-G&uuml;terzug" style="display:block;width:100%;height:auto;'
+            .'margin:0;border:0;outline:none;text-decoration:none;">'
+            .'</td></tr><![endif]-->';
+
+        return str_replace($marker, $marker.$row, $html);
     }
 
     /**
@@ -422,15 +507,15 @@ class MailSignature
             ENT_QUOTES,
             'UTF-8',
         );
-        $animated = '<img data-rt-outlook-train src="'.$source.'" width="620" '
-            .'alt="Dampflok-Güterzug" style="display:block;width:70%;max-width:620px;'
-            .'height:auto;margin:0;border:0;outline:none;opacity:.7;">';
+        $animated = '<img data-rt-outlook-train src="'.$source.'" width="100%" '
+            .'alt="Dampflok-Güterzug" style="display:block;width:100%;'
+            .'height:auto;margin:0;border:0;outline:none;">';
         $images = $animated;
 
         if ($fallback !== '') {
             $images = '<!--[if !mso]><!-->'.$animated.'<!--<![endif]-->'
-                .'<!--[if mso]><img data-rt-outlook-train-still src="'.$fallback.'" width="620" '
-                .'alt="Dampflok-Güterzug" style="display:block;width:70%;max-width:620px;'
+                .'<!--[if mso]><img data-rt-outlook-train-still src="'.$fallback.'" width="100%" '
+                .'alt="Dampflok-Güterzug" style="display:block;width:100%;'
                 .'height:auto;margin:0;border:0;outline:none;"><![endif]-->';
         }
 

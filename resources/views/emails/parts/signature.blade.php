@@ -37,10 +37,12 @@
     $topRule = $topRule ?? 'border-top:5px solid #e4002b;';
     $legalPadding = $legalPadding ?? '14px 36px';
     $outlookTrainSrc = trim((string) ($outlookTrainSrc ?? ''));
-    // Standbild fuer Outlook-Desktop. Leer = kein bedingter Kommentar.
+    // Standbild fuer den expliziten Outlook-Paketexport. Versendete
+    // Systemmails bekommen ihren MSO-Fallback erst nach der Sanitization als
+    // regulaeres, einmaliges Haupt-GIF; ein legacy background-Attribut wuerde
+    // Word als gekachelte Zelltextur ausgeben.
     $outlookTrainFallbackSrc = trim((string) ($outlookTrainFallbackSrc ?? ''));
     $isOutlookExport = $outlookTrainSrc !== '';
-    $trainStillSrc = trim((string) ($values['TRAIN_STILL_SRC'] ?? ''));
     $cellPadding = $isOutlookExport ? '0' : $padding;
     $outlookTrainPadding = $outlookTrainPadding ?? '6px 0 14px';
     $hasPerson = trim((string) ($values['VORNAME_NACHNAME'] ?? '')) !== '';
@@ -58,16 +60,15 @@
      *
      *   1  Raster        feines technisches Netz, gekachelt, durchsichtig
      *   2  Wasserzeichen RT-Marke und roter Schimmer, EINMAL rechts
-     *   3  Schleier      nimmt dem Zug Kraft (rund 30 % Grundfarbe)
+     *   3  Kompatibilitaetsebene (transparent; fuer alte DB-Dokumente)
      *   4  Zug           Einfahrt und anschliessende Idle-Rauchphase
      *   5  Grundfarbe    weiss beziehungsweise dunkel
      *
-     * RASTER UND MARKE LIEGEN OBEN, nicht unten. Das GIF ist deckend —
-     * laege die Grafik darunter, schnitte der Zug einen sichtbaren Kasten
-     * hinein. Als durchsichtige Ebenen darueber laufen Netz und
-     * Wasserzeichen ohne Bruch durch. Bei 5 bis 6 Prozent Deckkraft ist
-     * nicht zu unterscheiden, ob sie vor oder hinter dem Zug liegen —
-     * wohl aber der Kasten, den die andere Reihenfolge erzeugte.
+     * RASTER UND MARKE LIEGEN OBEN, nicht unten. Die Zugassets tragen die
+     * endgueltigen 30 Prozent Alpha bereits selbst. Die dritte Ebene bleibt
+     * nur transparent erhalten, damit alte publizierte Vier-Ebenen-Staende
+     * und ihre mobilen Positionslisten kompatibel bleiben; sie darf die
+     * Deckkraft nicht ein zweites Mal reduzieren.
      *
      * Der Text liegt in der Zelle und damit ueber allen Ebenen — die
      * geforderte Reihenfolge Hintergrund < Zug < Daten ergibt sich daraus
@@ -90,7 +91,7 @@
      * 75 Prozent der Carrierbreite — unabhaengig davon, wie breit das auf
      * `auto 100%` skalierte Bild gegenueber der Zelle ist.
      *
-     * IM OUTLOOK-WEG entfallen Zug und Schleier: dort steht der Zug als
+     * IM OUTLOOK-WEG entfallen Zug und Kompatibilitaetsebene: dort steht der Zug als
      * eigene Bildzeile unter dem Inhalt. Als Hintergrund UND als Bildzeile
      * stuende er zweimal im Streifen.
      */
@@ -110,11 +111,11 @@
     $backgroundRepeat = implode(',', array_column($teile, 3));
 @endphp
 <tr>
-    {{-- Reihenfolge beachten: die background-Kurzform setzt background-image
-         zurueck und muss deshalb VOR der Bildangabe stehen. Clients ohne
-         CSS-Hintergrundbilder nutzen das background-Attribut als Standbild-
-         Ersatzweg im selben oberen Carrier. --}}
-    <td class="{{ $isOutlookExport ? '' : 'rt-pad ' }}rt-sign-cell" bgcolor="{{ $values['SIGNATURE_BG'] }}"@if(! $isOutlookExport && $trainStillSrc !== '') background="{{ $values['TRAIN_STILL_SRC'] }}"@endif style="padding:{{ $cellPadding }};position:relative;overflow:hidden;background-color:{{ $values['SIGNATURE_BG'] }};background-image:{{ $backgroundImage }};background-repeat:{{ $backgroundRepeat }};background-position:{{ $backgroundPosition }};background-size:{{ $backgroundSize }};{{ $topRule }}">
+    {{-- Kein legacy background-Attribut: Classic Outlook/Word kachelt dessen
+         Bild ungeachtet von background-repeat und background-size. Moderne
+         Clients behalten die CSS-Ebenen; Classic Outlook erhaelt nach der
+         Sanitization genau ein bedingtes regulaeres GIF. --}}
+    <td class="{{ $isOutlookExport ? '' : 'rt-pad ' }}rt-sign-cell" bgcolor="{{ $values['SIGNATURE_BG'] }}" style="padding:{{ $cellPadding }};position:relative;overflow:hidden;background-color:{{ $values['SIGNATURE_BG'] }};background-image:{{ $backgroundImage }};background-repeat:{{ $backgroundRepeat }};background-position:{{ $backgroundPosition }};background-size:{{ $backgroundSize }};{{ $topRule }}">
         @if($isOutlookExport)
             {{-- Der Inhalt behaelt seinen gewohnten Innenabstand, waehrend
                  die nachfolgende Zugzeile bis an die Signaturkante reicht. --}}
@@ -244,13 +245,13 @@
                     <td align="left" style="padding:{{ $outlookTrainPadding }};text-align:left;font-size:0;line-height:0;">
                         @if ($outlookTrainFallbackSrc !== '')
                             <!--[if !mso]><!-->
-                            <img data-rt-outlook-train src="{{ $outlookTrainSrc }}" width="620" alt="Dampflok-Güterzug" style="display:block;width:70%;max-width:620px;height:auto;margin:0;border:0;outline:none;opacity:.7;">
+                            <img data-rt-outlook-train src="{{ $outlookTrainSrc }}" width="100%" alt="Dampflok-Güterzug" style="display:block;width:100%;height:auto;margin:0;border:0;outline:none;">
                             <!--<![endif]-->
                             <!--[if mso]>
-                            <img data-rt-outlook-train-still src="{{ $outlookTrainFallbackSrc }}" width="620" alt="Dampflok-Güterzug" style="display:block;width:70%;max-width:620px;height:auto;margin:0;border:0;outline:none;">
+                            <img data-rt-outlook-train-still src="{{ $outlookTrainFallbackSrc }}" width="100%" alt="Dampflok-Güterzug" style="display:block;width:100%;height:auto;margin:0;border:0;outline:none;">
                             <![endif]-->
                         @else
-                            <img data-rt-outlook-train src="{{ $outlookTrainSrc }}" width="620" alt="Dampflok-Güterzug" style="display:block;width:70%;max-width:620px;height:auto;margin:0;border:0;outline:none;opacity:.7;">
+                            <img data-rt-outlook-train src="{{ $outlookTrainSrc }}" width="100%" alt="Dampflok-Güterzug" style="display:block;width:100%;height:auto;margin:0;border:0;outline:none;">
                         @endif
                     </td>
                 </tr>
