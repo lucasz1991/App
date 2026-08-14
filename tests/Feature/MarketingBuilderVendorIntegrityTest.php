@@ -130,6 +130,7 @@ class MarketingBuilderVendorIntegrityTest extends TestCase
             ->assertSee('Feste Exportfläche')
             ->assertSee('1080 × 1920')
             ->assertSee('Bildquelle:')
+            ->assertSee(asset('rt-brand/img/wagenmeister-einsatz-team.webp'), false)
             ->assertSee(route('admin.marketing.files.show', $file), false);
 
         $this->actingAs($admin)

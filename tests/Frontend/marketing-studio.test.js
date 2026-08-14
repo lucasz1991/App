@@ -992,6 +992,18 @@ test('official horizontal Joomla lockups stay byte-identical in the public brand
     }
 });
 
+test('marketing editor trusts the server supplied brand image manifest without duplicating paths in JavaScript', async () => {
+    const source = await import('node:fs/promises')
+        .then(({ readFile }) => readFile(new URL('../../resources/js/marketing-studio.js', import.meta.url), 'utf8'));
+    const editorSource = await import('node:fs/promises')
+        .then(({ readFile }) => readFile(new URL('../../app/Livewire/Admin/Marketing/CreativeEditor.php', import.meta.url), 'utf8'));
+
+    assert.match(source, /Array\.isArray\(config\.brandImageUrls\)/);
+    assert.match(editorSource, /MarketingBrandAssets::manifest\(\)/);
+    assert.match(editorSource, /'brandImageUrls'/);
+    assert.doesNotMatch(source, /wagenmeister-einsatz-team\.webp/);
+});
+
 test('route placeholders are replaced with encoded public ids', () => {
     assert.equal(
         replaceEndpointToken('/marketing/motive/id/varianten/__FORMAT__', '__FORMAT__', 'story'),

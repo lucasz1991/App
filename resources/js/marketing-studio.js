@@ -1411,7 +1411,12 @@ export async function createMarketingStudio(workspace, config) {
             },
             media: {
                 assets: config.assets || [],
-                trustedSources: [config.logoLightUrl, config.logoDarkUrl, '/rt-brand/img/hero-railtime.jpg'].filter(Boolean),
+                trustedSources: [
+                    ...(Array.isArray(config.brandImageUrls) ? config.brandImageUrls : []),
+                    config.logoLightUrl,
+                    config.logoDarkUrl,
+                    '/rt-brand/img/hero-railtime.jpg',
+                ].filter(Boolean),
                 baseUrl: window.location.origin + '/',
             },
         });

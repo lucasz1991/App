@@ -5,6 +5,7 @@ namespace App\Livewire\Admin\Marketing;
 use App\Enums\MarketingCreativeFormat;
 use App\Models\MarketingCreative;
 use App\Services\Marketing\MarketingFileSourceService;
+use App\Support\MarketingBrandAssets;
 use BackedEnum;
 use Livewire\Component;
 
@@ -70,6 +71,12 @@ class CreativeEditor extends Component
             ],
             'logoLightUrl' => asset('rt-brand/img/logo-horizontal.png'),
             'logoDarkUrl' => asset('rt-brand/img/logo-horizontal-darkbg.png'),
+            'brandImageUrls' => collect(MarketingBrandAssets::manifest())
+                ->filter(fn (string $mimeType): bool => str_starts_with($mimeType, 'image/'))
+                ->keys()
+                ->map(fn (string $publicPath): string => asset(ltrim($publicPath, '/')))
+                ->values()
+                ->all(),
             'endpoints' => [
                 'creativeUpdate' => route('admin.marketing.creatives.update', $creative),
                 'redesign' => route('admin.marketing.creatives.redesign', $creative),
