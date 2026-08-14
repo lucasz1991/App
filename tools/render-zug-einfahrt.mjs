@@ -492,4 +492,55 @@ for (const v of VARIANTEN) {
             delay: cs[i] * 10,
             transparent: DURCHSICHTIG,
             transparentIndex: 0,
-            // 2 = raeumen. Mit durchsichtigen Punkten muss jedes Bild v
+            // 2 = raeumen. Mit durchsichtigen Punkten muss jedes Bild vor
+            // dem naechsten weg, sonst schmiert der fahrende Zug. Nur das
+            // LETZTE bleibt stehen.
+            dispose: DURCHSICHTIG && i !== BILDER - 1 ? 2 : 1,
+            repeat: -1,
+        });
+
+        const outlookRgba = skaliereFuerOutlook(rgba, v.grund);
+        outlookEncoder.writeFrame(aufTabelle(outlookRgba, tabelle), OUTLOOK_BREITE, OUTLOOK_HOEHE, {
+            palette: i === 0 ? tabelle : undefined,
+            delay: cs[i] * 10,
+            transparent: true,
+            transparentIndex: 0,
+            dispose: i !== BILDER - 1 ? 2 : 1,
+            repeat: -1,
+        });
+
+        if (i % 16 === 0) process.stdout.write(`  ${v.key}: Bild ${i + 1}/${BILDER}\r`);
+    }
+
+    encoder.finish();
+    const gif = Buffer.from(encoder.bytes());
+    writeFileSync(`${ASSETS}/zug-dampf-${v.key}.gif`, gif);
+    outlookEncoder.finish();
+    const outlookGif = Buffer.from(outlookEncoder.bytes());
+    writeFileSync(`${ASSETS}/zug-dampf-outlook-${v.key}.gif`, outlookGif);
+
+    // --- Standbild: EXAKT das letzte Einzelbild -------------------------
+    // Es liegt als Netz hinter dem GIF (siehe signature.blade.php). Waere
+    // es ein anderer Zustand — etwa ohne Rauch —, spraenge das Bild in dem
+    // Moment, in dem das GIF seine Flaeche doch raeumt. Gleiches Bild,
+    // kein Sprung.
+    const stillRoh = letztesBild;
+    const stillPng = new PNG({ width: BREITE * SKALA, height: HOEHE * SKALA });
+    stillPng.data.set(stillRoh);
+    const stillBytes = PNG.sync.write(stillPng, { deflateLevel: 9 });
+    writeFileSync(`${ASSETS}/zug-dampf-${v.key}.png`, stillBytes);
+    console.log(`  ${v.key}: Standbild ${(stillBytes.length / 1024).toFixed(1)} kB (deckungsgleich mit dem letzten Einzelbild)`);
+
+    console.log(`  ${v.key}: GIF ${(gif.length / 1024).toFixed(1)} kB (${BREITE * SKALA}x${HOEHE * SKALA}, Zug ${Math.round(ZUG_MASSSTAB * 100)} %, Endkante ${Math.round(ZIEL_RECHTS * 100)} %, Idle ab ${FAHRT_ENDE_S.toFixed(1)} s)`);
+    console.log(`  ${v.key}: Outlook ${(outlookGif.length / 1024).toFixed(1)} kB (${OUTLOOK_BREITE}x${OUTLOOK_HOEHE}, gleiche Timeline)`);
+}
+
+await browser.close();
+
+for (const v of VARIANTEN) {
+    for (const name of [`zug-dampf-${v.key}.gif`, `zug-dampf-${v.key}.png`]) {
+        copyFileSync(`${ASSETS}/${name}`, `${OEFFENTLICH}/${name}`);
+    }
+}
+
+console.log('Nach public/mail-assets kopiert.');
