@@ -2,10 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Enums\MarketingCreativeFormat;
 use App\Enums\MarketingCreativeStatus;
 use App\Models\MarketingCreative;
 use App\Models\MarketingCreativeVariant;
 use App\Models\User;
+use App\Services\Marketing\MarketingContentBinder;
+use App\Services\Marketing\MarketingHtmlSanitizer;
 use App\Services\Marketing\MarketingStudioService;
 use App\Services\Marketing\MarketingTemplateFactory;
 use Illuminate\Database\Migrations\Migration;
@@ -163,9 +166,144 @@ class MarketingStarterCatalogV4MigrationTest extends TestCase
         $this->assertSame($state, $this->catalogState());
     }
 
+    public function test_job_only_refresh_updates_an_exact_old_v4_draft_in_place_and_is_idempotent(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $oldJob = $this->createOldV4Job($admin);
+        $oldJob->forceFill([
+            'shared_content' => array_replace($oldJob->shared_content, [
+                'contact_phone' => '+49 4171 000000',
+            ]),
+        ])->save();
+        $oldVersions = $oldJob->variants
+            ->mapWithKeys(fn (MarketingCreativeVariant $variant): array => [
+                $variant->format->value => $variant->version,
+            ])
+            ->all();
+
+        $alreadyCurrentJob = $this->createFromKey($admin, MarketingTemplateFactory::PREMIUM_JOB_WAGENMEISTER);
+        $company = $this->createFromKey($admin, MarketingTemplateFactory::PREMIUM_COMPANY_PROFILE);
+        $network = $this->createFromKey($admin, MarketingTemplateFactory::PREMIUM_GERMANY_NETWORK);
+        $protectedState = $this->catalogStateForIds([
+            $alreadyCurrentJob->id,
+            $company->id,
+            $network->id,
+        ]);
+
+        $migration = $this->jobRefreshMigration();
+        $migration->up();
+
+        $oldJob->refresh()->load('variants');
+        $definition = app(MarketingTemplateFactory::class)
+            ->definitionByKey(MarketingTemplateFactory::PREMIUM_JOB_WAGENMEISTER);
+        $expectedContent = array_replace($definition['shared_content'], [
+            'contact_phone' => '+49 4171 000000',
+        ]);
+
+        $this->assertSame($definition['title'], $oldJob->title);
+        $this->assertSame($expectedContent, $oldJob->shared_content);
+        $this->assertSame(MarketingCreativeStatus::Draft, $oldJob->status);
+        $this->assertNull($oldJob->approved_by);
+        $this->assertNull($oldJob->approved_at);
+        $this->assertNull($oldJob->approval_dependency_hash);
+        $this->assertCount(3, $oldJob->variants);
+
+        $binder = app(MarketingContentBinder::class);
+        $sanitizer = app(MarketingHtmlSanitizer::class);
+        $studio = app(MarketingStudioService::class);
+
+        foreach ($oldJob->variants as $variant) {
+            $format = $variant->format->value;
+            $template = $definition['variants'][$format];
+            $expectedHtml = $sanitizer->html($binder->bindHtml($template['html'], $expectedContent));
+            $expectedCss = $sanitizer->css($template['css']);
+            $expectedBuilderData = $binder->syncBuilderData($template['builder_data'], $expectedHtml);
+
+            $this->assertSame($oldVersions[$format] + 1, $variant->version);
+            $this->assertSame($expectedHtml, $variant->html);
+            $this->assertSame($expectedCss, $variant->css);
+            $this->assertSame($expectedBuilderData, $variant->builder_data);
+            $this->assertSame(
+                $studio->contentHash($expectedBuilderData, $expectedHtml, $expectedCss),
+                $variant->content_hash,
+            );
+        }
+
+        $this->assertSame($protectedState, $this->catalogStateForIds([
+            $alreadyCurrentJob->id,
+            $company->id,
+            $network->id,
+        ]));
+
+        $stateAfterRefresh = $this->catalogState();
+        $migration->up();
+
+        $this->assertSame($stateAfterRefresh, $this->catalogState());
+        $this->assertSame($oldJob->id, MarketingCreative::query()
+            ->whereKey($oldJob->id)
+            ->value('id'));
+    }
+
+    public function test_job_only_refresh_preserves_custom_approved_incomplete_and_soft_deleted_old_v4_jobs(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $contentEdited = $this->createOldV4Job($admin);
+        $contentEdited->forceFill([
+            'shared_content' => array_replace($contentEdited->shared_content, [
+                'intro' => 'Individuell gepflegte Recruiting-Kampagne',
+            ]),
+        ])->save();
+
+        $layoutEdited = $this->createOldV4Job($admin);
+        $layoutVariant = $layoutEdited->variants()
+            ->where('format', MarketingCreativeFormat::Story->value)
+            ->firstOrFail();
+        $layoutCss = $layoutVariant->css.'.rt-user-layout{display:block}';
+        $layoutVariant->forceFill([
+            'css' => $layoutCss,
+            'content_hash' => app(MarketingStudioService::class)->contentHash(
+                $layoutVariant->builder_data,
+                $layoutVariant->html,
+                $layoutCss,
+            ),
+            'version' => $layoutVariant->version + 1,
+        ])->save();
+
+        $approved = $this->createOldV4Job($admin);
+        $approved->forceFill([
+            'status' => MarketingCreativeStatus::Approved,
+            'approved_by' => $admin->id,
+            'approved_at' => now(),
+            'approval_dependency_hash' => str_repeat('a', 64),
+        ])->save();
+
+        $incomplete = $this->createOldV4Job($admin);
+        $incomplete->variants()
+            ->where('format', MarketingCreativeFormat::Web->value)
+            ->firstOrFail()
+            ->delete();
+
+        $deleted = $this->createOldV4Job($admin);
+        $deleted->delete();
+
+        $state = $this->catalogState();
+        $this->jobRefreshMigration()->up();
+
+        $this->assertSame($state, $this->catalogState());
+        $this->assertSoftDeleted('marketing_creatives', ['id' => $deleted->id]);
+        $this->assertSame(MarketingCreativeStatus::Approved, $approved->fresh()->status);
+        $this->assertSame(1, $incomplete->variants()->withTrashed()->whereNotNull('deleted_at')->count());
+    }
+
     private function migration(): Migration
     {
         return require database_path('migrations/2026_08_14_000100_install_premium_marketing_catalog_v4.php');
+    }
+
+    private function jobRefreshMigration(): Migration
+    {
+        return require database_path('migrations/2026_08_14_000200_refresh_untouched_premium_job_catalog.php');
     }
 
     private function createFromKey(User $admin, string $templateKey): MarketingCreative
@@ -177,6 +315,55 @@ class MarketingStarterCatalogV4MigrationTest extends TestCase
             $admin,
             $templateKey,
         );
+    }
+
+    private function createOldV4Job(User $admin): MarketingCreative
+    {
+        $creative = $this->createFromKey($admin, MarketingTemplateFactory::PREMIUM_JOB_WAGENMEISTER);
+        $definition = app(MarketingTemplateFactory::class)
+            ->definitionByKey(MarketingTemplateFactory::PREMIUM_JOB_WAGENMEISTER);
+        $binder = app(MarketingContentBinder::class);
+        $sanitizer = app(MarketingHtmlSanitizer::class);
+        $studio = app(MarketingStudioService::class);
+
+        foreach ($creative->variants as $variant) {
+            $format = $variant->format;
+            $template = $definition['variants'][$format->value];
+            $templateHtml = preg_replace(
+                '#(<figure class="rt-photo"><img )src="[^"]+" alt="[^"]+"#',
+                '$1src="/rt-brand/img/wagenmeister-pruefung.jpg" alt="Wagenmeister bei der technischen Prüfung eines Güterwagens"',
+                $template['html'],
+                1,
+            );
+            if (! is_string($templateHtml)) {
+                throw new \RuntimeException('Das alte Premium-Job-HTML konnte nicht rekonstruiert werden.');
+            }
+            $templateCss = $this->oldV4JobCss($format, $template['css']);
+            $html = $sanitizer->html($binder->bindHtml($templateHtml, $creative->shared_content));
+            $css = $sanitizer->css($templateCss);
+            $builderData = $binder->syncBuilderData($template['builder_data'], $html);
+
+            $variant->forceFill([
+                'builder_data' => $builderData,
+                'html' => $html,
+                'css' => $css,
+                'content_hash' => $studio->contentHash($builderData, $html, $css),
+                'version' => 2,
+            ])->save();
+        }
+
+        return $creative->refresh()->load('variants');
+    }
+
+    private function oldV4JobCss(MarketingCreativeFormat $format, string $currentCss): string
+    {
+        $marker = '.rt-job-premium-'.$format->value;
+        $specificOffset = strpos($currentCss, $marker);
+        if ($specificOffset === false) {
+            throw new \RuntimeException('Der Premium-Job-CSS-Marker fehlt.');
+        }
+
+        return substr($currentCss, 0, $specificOffset).$this->oldV4JobSpecificCss($format);
     }
 
     /** @return array<int, array<string, mixed>> */
