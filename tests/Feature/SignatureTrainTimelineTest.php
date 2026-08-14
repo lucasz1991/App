@@ -76,7 +76,7 @@ class SignatureTrainTimelineTest extends TestCase
         }
 
         $decoded = [];
-        foreach ([0, 6, 21, 37, 51, $arrivalFrame, $idleFrame, 69, 70, 71] as $index) {
+        foreach ([0, 6, 7, 11, 16, 21, 37, 51, $arrivalFrame, $idleFrame, 69, 70, 71] as $index) {
             $frame = $gif['frames'][$index];
             $decoded[$index] = $this->decodeLzw(
                 $frame['imageData'],
@@ -90,6 +90,49 @@ class SignatureTrainTimelineTest extends TestCase
             0,
             $this->countInk($decoded[0], $gif['frames'][0]['transparentIndex']),
             "{$filename}: Die Animation muss leer beginnen.",
+        );
+        $this->assertSame(
+            0,
+            $this->countInk($decoded[6], $gif['frames'][6]['transparentIndex']),
+            "{$filename}: Der Zug darf vor dem Bewegungsbeginn nicht im Bild stehen.",
+        );
+        $this->assertSame(126, $starts[7], "{$filename}: Der erste Einfahrtsframe muss bei 1,26 s beginnen.");
+
+        // Die Lokfront beginnt links ausserhalb und wird direkt im ersten
+        // Bewegungsframe sichtbar. Danach muss sie ueber mehrere klar
+        // getrennte Positionen bis zum unveraenderten 75-Prozent-Endstand
+        // fahren. So faellt eine erneute unsichtbare Vorfahrt auf, die in
+        // skalierten Desktop-/Mobile-Carriern wie ein ploetzlicher Endstand
+        // wirken wuerde.
+        $previousRight = 0;
+        foreach ([7, 11, 16, 21, 37, $arrivalFrame] as $motionFrame) {
+            $motionBounds = $this->inkBounds(
+                $decoded[$motionFrame],
+                $gif['frames'][$motionFrame]['transparentIndex'],
+                $width,
+                $height,
+                (int) floor($height * 0.55),
+            );
+            $this->assertNotNull($motionBounds, "{$filename}: Frame {$motionFrame} enthaelt keine sichtbare Zugposition.");
+            $this->assertGreaterThan(
+                $previousRight,
+                $motionBounds['right'],
+                "{$filename}: Die sichtbare Einfahrt bewegt sich in Frame {$motionFrame} nicht weiter.",
+            );
+            $previousRight = $motionBounds['right'];
+        }
+        $firstMotionBounds = $this->inkBounds(
+            $decoded[7],
+            $gif['frames'][7]['transparentIndex'],
+            $width,
+            $height,
+            (int) floor($height * 0.55),
+        );
+        $this->assertNotNull($firstMotionBounds);
+        $this->assertLessThanOrEqual(
+            (int) ceil($width * 0.03),
+            $firstMotionBounds['right'],
+            "{$filename}: Der Zug startet nicht mehr knapp ausserhalb der linken Kante.",
         );
 
         // Die finale Schornsteinzone liegt zwischen 68 und 76 Prozent der
@@ -444,6 +487,8 @@ class SignatureTrainTimelineTest extends TestCase
         $this->assertStringContainsString('const MARKEN_KONTUR_CSS_PX = 2.0;', $generator);
         $this->assertStringContainsString('const MARKEN_TRENNFUGE_CSS_PX = 2.0;', $generator);
         $this->assertStringContainsString('markeGroesse: MARKEN_GROESSE,', $generator);
+        $this->assertStringContainsString('const START_X = -ZUG_BREITE;', $generator);
+        $this->assertStringNotContainsString('START_X = -ZUG_BREITE *', $generator);
         $this->assertStringContainsString("zx.globalCompositeOperation = 'destination-out';", $generator);
         $this->assertStringContainsString('hx.fillStyle = a.markenFarbe;', $generator);
         $this->assertStringContainsString('markenFarbe: ZUG_GRAU,', $generator);

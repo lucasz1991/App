@@ -112,7 +112,11 @@ const HOEHE = Math.round(BASIS_ZUG_HOEHE * KOPFRAUM);
 const ZIEL_RECHTS = Number(process.env.RT_ZIEL_RECHTS || 0.75);
 const RUHE_RECHTS = BREITE * ZIEL_RECHTS;
 const RUHE_X = RUHE_RECHTS - ZUG_BREITE;
-const START_X = -ZUG_BREITE * (1 + (WAGENTEIL * ANHAENGE));
+// Die rechte Kante der vordersten Lok beginnt exakt an der linken
+// Leinwandkante. Die angehaengten Waggons liegen ausschliesslich dahinter;
+// sie nochmals in START_X einzurechnen erzeugte 1,6 s unsichtbare Fahrt und
+// liess den Zug in skalierten Mail-Carriern erst nach 3 bis 4 s auftauchen.
+const START_X = -ZUG_BREITE;
 const ZUG_Y = HOEHE - ZUG_HOEHE;
 const SCHORNSTEIN_X = RUHE_RECHTS - (ZUG_BREITE * 0.035);
 const SCHORNSTEIN_Y = ZUG_Y + (ZUG_HOEHE * 0.16);
