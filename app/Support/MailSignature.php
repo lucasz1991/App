@@ -201,17 +201,32 @@ class MailSignature
      */
     protected function companyAsSender(array $company): array
     {
+        $companyPhone = trim((string) $company['FIRMEN_TELEFON']);
+        $emergencyPhone = trim((string) $company['NOTFALLNUMMER']);
+        $companyPhoneHref = EmailTemplateBuilder::telHref($companyPhone);
+        $emergencyPhoneHref = EmailTemplateBuilder::telHref($emergencyPhone);
+
+        // In den offiziellen Firmendaten koennen Zentrale und 24/7-Nummer
+        // identisch sein. In einer automatischen Nachricht ist das dann
+        // keine zweite Kontaktmoeglichkeit, sondern dieselbe Nummer mit
+        // einem zweiten Symbol. Nur echte, abweichende Nummern bleiben als
+        // zusaetzliche Mobil-/Notfallzeile sichtbar.
+        if ($companyPhoneHref !== '' && $companyPhoneHref === $emergencyPhoneHref) {
+            $emergencyPhone = '';
+            $emergencyPhoneHref = '';
+        }
+
         return [
             'VORNAME_NACHNAME' => '',
             'POSITION' => __('app.mail_signature_company_role'),
             // Die Durchwahl der Firma ist der Festnetzanschluss, die
             // "Mobil"-Zeile die 24/7-Rufbereitschaft.
-            'DURCHWAHL' => $company['FIRMEN_TELEFON'],
-            'DURCHWAHL_TEL' => EmailTemplateBuilder::telHref($company['FIRMEN_TELEFON']),
-            'MOBIL' => $company['NOTFALLNUMMER'],
-            'MOBIL_TEL' => EmailTemplateBuilder::telHref($company['NOTFALLNUMMER']),
+            'DURCHWAHL' => $companyPhone,
+            'DURCHWAHL_TEL' => $companyPhoneHref,
+            'MOBIL' => $emergencyPhone,
+            'MOBIL_TEL' => $emergencyPhoneHref,
             'E_MAIL' => $company['FIRMEN_EMAIL'],
-            'FIRMEN_TELEFON_TEL' => EmailTemplateBuilder::telHref($company['FIRMEN_TELEFON']),
+            'FIRMEN_TELEFON_TEL' => $companyPhoneHref,
             'FIRMEN_WEBSITE_HREF' => EmailTemplateBuilder::webHref($company['FIRMEN_WEBSITE']),
             'FIRMEN_WEBSITE_LABEL' => EmailTemplateBuilder::webLabel($company['FIRMEN_WEBSITE']),
         ];
@@ -240,15 +255,18 @@ class MailSignature
                 'values' => $values,
             ], $layout))->render();
 
-            return trim(EmailTemplateBuilder::stripEmptyContactRows($html, $values));
+            return trim(EmailTemplateBuilder::stripEmptyContactRows(
+                $html,
+                $this->contactRowValues($values),
+            ));
         }
 
-        // WER DEN ZUG ALS BILD BRAUCHT, BEKOMMT IMMER DIE BLADE-QUELLE.
+        // DER OUTLOOK-EXPORT BEKOMMT DEN ZUG ALS REGULAERES BILD.
         //
-        // Das sind zwei Wege: der Outlook-Export (lokale Zugdatei im Paket)
-        // UND jede versendete Systemmail (verlinkte Adresse, weil Outlook-
-        // Desktop und Gmail keine CSS-Hintergrundbilder darstellen — siehe
-        // vendor/mail/html/footer.blade.php).
+        // Er braucht eine lokale Zugdatei im installierbaren Paket. Eine
+        // versendete Systemmail bleibt dagegen beim oberen Hintergrund-
+        // Carrier; eine zusaetzliche Bildzeile wuerde in modernen Clients
+        // denselben Zug sichtbar verdoppeln.
         //
         // Das ist keine Einschraenkung, sondern strukturell notwendig: Das
         // veroeffentlichte Dokument ist EIN gespeicherter Markup-Stand. Es
@@ -258,10 +276,9 @@ class MailSignature
         // gespeicherten Stand verwenden, verschwaende der Zug dort wieder,
         // genau wie vor der Umstellung auf die Bildzeile.
         //
-        // Folge fuer den Editor: Eine Freigabe wirkt auf die DOWNLOADS. Die
-        // Systemmails folgen der Blade-Quelle, also dem ausgelieferten Code.
-        // Deshalb bindet layout.blade.php auch bewusst KEIN freigegebenes
-        // CSS ein — sonst laege neues CSS auf altem Markup.
+        // Folge fuer den Editor: Eine Freigabe wirkt auf Downloads und
+        // Systemmails. Nur die strukturell besondere Outlook-Bildzeile wird
+        // bei Bedarf am stabilen Marker ergaenzt.
         $zugAlsBild = trim((string) ($layout['outlookTrainSrc'] ?? '')) !== '';
         if ($published !== null) {
             $html = $this->applyPublishedLayout($published, $layout);
@@ -285,17 +302,43 @@ class MailSignature
                 $tokens['{{'.$key.'}}'] = $value;
             }
 
-            return trim(EmailTemplateBuilder::stripEmptyContactRows(strtr($html, $tokens), $values));
+            return trim(EmailTemplateBuilder::stripEmptyContactRows(
+                strtr($html, $tokens),
+                $this->contactRowValues($values),
+            ));
         }
 
         throw new \RuntimeException('Die veröffentlichte Signatur konnte nicht gerendert werden.');
     }
 
     /**
-     * Systemmails und Outlook brauchen den Zug als reguläres Bild. Der
-     * kanonische veröffentlichte Signaturstand enthält ihn als Hintergrund.
-     * Der feste Marker projiziert genau diesen Stand clientkompatibel, ohne
-     * auf eine zweite Blade-Signatur zurückzufallen.
+     * Sichtbarkeitswerte fuer die markergebundenen Kontaktzeilen.
+     *
+     * Der kanonische Signaturentwurf wird mit Platzhaltern gespeichert. Beim
+     * Seed-Zeitpunkt ist {{VORNAME_NACHNAME}} technisch nicht leer; deshalb
+     * enthaelt er auch die Firmen-Telefonzeile der persoenlichen Fassung.
+     * Automatische Nachrichten zeigen den Anschluss bereits links als
+     * DURCHWAHL. Die rechte Wiederholung wird hier beim finalen Rendern ueber
+     * den vorhandenen COMPANY_PHONE-Marker entfernt.
+     *
+     * @param  array<string, string>  $values
+     * @return array<string, string>
+     */
+    private function contactRowValues(array $values): array
+    {
+        if ($this->user === null) {
+            $values['FIRMEN_TELEFON'] = '';
+        }
+
+        return $values;
+    }
+
+    /**
+     * Der Outlook-Export braucht den Zug als regulaeres lokales Bild. Der
+     * kanonische veroeffentlichte Signaturstand enthaelt ihn als Hintergrund;
+     * der feste Marker projiziert ihn ausschliesslich fuer das installierbare
+     * Classic-Outlook-Paket. Versendete Systemmails bleiben bei genau einem
+     * oberen Hintergrund-Carrier.
      *
      * @param  array<string, string>  $layout
      */

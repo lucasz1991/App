@@ -7,6 +7,7 @@ use App\Enums\MailDocumentStatus;
 use App\Models\MailDocument;
 use App\Models\User;
 use App\Models\UserProfile;
+use App\Support\CompanyData;
 use App\Support\EmailTemplateBuilder;
 use App\Support\Mail\EmailHtmlSanitizer;
 use App\Support\MailSignature;
@@ -339,12 +340,32 @@ class MailDocumentEditorTest extends TestCase
         $this->assertSame(1, substr_count($html, 'RT-RUNTIME-TEMPLATE'));
         $this->assertSame(1, substr_count($html, 'RT-RUNTIME-SIGNATURE'));
         $this->assertSame(1, preg_match_all('/class="[^"]*rt-sign-cell[^"]*"/', $html));
-        $this->assertSame(1, substr_count($html, 'data-rt-outlook-train '));
-        $this->assertSame(1, substr_count($html, 'data-rt-outlook-train-still'));
+        $this->assertSame(0, substr_count($html, 'data-rt-outlook-train '));
+        $this->assertSame(0, substr_count($html, 'data-rt-outlook-train-still'));
+        $this->assertMatchesRegularExpression(
+            '/class="[^"]*rt-sign-cell[^"]*"[^>]*background="[^"]*zug-dampf-light\.png\?v=[^"]+"/',
+            $html,
+        );
         $this->assertStringContainsString('zug-dampf-light.gif', $html);
         $this->assertStringContainsString('zug-dampf-light.png', $html);
+        $this->assertStringNotContainsString('zug-dampf-idle-light.gif', $html);
         $this->assertStringNotContainsString('data:image', $html);
         $this->assertLessThan(60 * 1024, strlen($html));
+    }
+
+    public function test_systemmail_zeigt_identische_firmen_und_notfallnummer_genau_einmal(): void
+    {
+        CompanyData::save(array_merge(CompanyData::defaults(), [
+            'phone' => '04171 546803',
+            'emergency_phone' => '+49 (0) 4171 546803',
+        ]));
+        (new MailDocumentSeeder)->run();
+
+        $html = $this->renderSystemMail();
+
+        $this->assertSame(1, substr_count($html, 'href="tel:+494171546803"'));
+        $this->assertSame(1, preg_match_all('/>04171 546803<\/a>/', $html));
+        $this->assertStringNotContainsString('>+49 (0) 4171 546803</a>', $html);
     }
 
     public function test_systemmail_schlaegt_bei_fehlender_freigabe_in_migrierter_installation_fehl(): void

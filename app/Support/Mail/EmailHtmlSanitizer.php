@@ -86,7 +86,7 @@ final class EmailHtmlSanitizer
         'tfoot' => [],
         'tr' => ['bgcolor', 'align', 'valign'],
         'th' => ['width', 'height', 'align', 'valign', 'colspan', 'rowspan', 'bgcolor', 'nowrap', 'scope'],
-        'td' => ['width', 'height', 'align', 'valign', 'colspan', 'rowspan', 'bgcolor', 'nowrap'],
+        'td' => ['width', 'height', 'align', 'valign', 'colspan', 'rowspan', 'bgcolor', 'background', 'nowrap'],
 
         // --- Text ---
         'div' => ['align'],
@@ -349,7 +349,7 @@ final class EmailHtmlSanitizer
 
     /** Ausschliesslich serverkontrollierte Bildquellen fuer src und CSS-url(). */
     private const IMAGE_URL_PLACEHOLDERS = [
-        'LOGO_SRC', 'LOGO_STILL_SRC', 'TRAIN_SRC', 'TRAIN_IDLE_SRC',
+        'LOGO_SRC', 'LOGO_STILL_SRC', 'TRAIN_SRC', 'TRAIN_STILL_SRC', 'TRAIN_IDLE_SRC',
         'ICON_RT_SRC', 'ICON_RT_STILL_SRC',
         'GRUND_RASTER_SRC', 'GRUND_MARKE_SRC',
         'ICON_PHONE_SRC', 'ICON_MOBILE_SRC', 'ICON_EMAIL_SRC',
@@ -754,6 +754,18 @@ final class EmailHtmlSanitizer
 
             if ($attributeName === 'href' || $attributeName === 'src') {
                 if (! $this->checkUrlAttribute($attributeName, $value, $path)) {
+                    $element->removeAttribute($attribute->nodeName);
+                }
+
+                continue;
+            }
+
+            // Das obsolete background-Attribut ist nur an <td> erlaubt und
+            // dient dort als Classic-Outlook-Fallback. Sicherheitsseitig ist
+            // es exakt eine Bildquelle: dieselben erlaubten Hosts, data-/cid-
+            // Regeln und serverkontrollierten Platzhalter wie bei img[src].
+            if ($attributeName === 'background') {
+                if (! $this->checkUrlAttribute('src', $value, $path)) {
                     $element->removeAttribute($attribute->nodeName);
                 }
 

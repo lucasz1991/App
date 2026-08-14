@@ -407,6 +407,7 @@ class EmailHtmlSanitizerTest extends TestCase
             .'<a href="tel:{{DURCHWAHL_TEL}}">Telefon</a>'
             .'<img src="{{LOGO_SRC}}" alt="">'
             .'<img src="cid:{{LOGO_CID}}" alt="">'
+            .'<td background="{{TRAIN_STILL_SRC}}">Outlook</td>'
             .'<td style="background-image:url(\'{{TRAIN_SRC}}\');color:{{TEXT_PRIMARY}};">Text</td>';
 
         $report = $this->sanitizer()->clean($html);
@@ -420,6 +421,7 @@ class EmailHtmlSanitizerTest extends TestCase
         $html = '<a href="javascript:{{CTA_URL}}">A</a>'
             .'<a href="{{SCHEME}}:alert(1)">B</a>'
             .'<img src="https://tracker.example/{{LOGO_SRC}}" alt="">'
+            .'<td background="javascript:alert(1)">Outlook</td>'
             .'<td style="background-image:url(https://tracker.example/{{TRAIN_SRC}});">Text</td>';
 
         $report = $this->sanitizer()->clean($html);

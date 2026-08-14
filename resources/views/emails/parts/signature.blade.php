@@ -42,22 +42,6 @@
     $isOutlookExport = $outlookTrainSrc !== '';
     $cellPadding = $isOutlookExport ? '0' : $padding;
     $outlookTrainPadding = $outlookTrainPadding ?? '6px 0 14px';
-    // HINTER dem Zug-GIF liegt die RUHEFAHNE, nicht mehr das Standbild.
-    //
-    // Das Standbild war als Netz gedacht: Raeumt das GIF seine Flaeche,
-    // bleibt der Zug trotzdem stehen. Das funktionierte aber NUR, solange
-    // das GIF deckte. Seit es durchsichtig ist, scheint das Netz durch —
-    // und es stehen ZWEI Zuege im Bild, ein fahrender und ein stehender.
-    // Gemeldet und nachvollzogen.
-    //
-    // Stattdessen liegt dort die Ruhefahne: reiner Rauch, kein Zug, endlos.
-    // Sie kann sich nicht mit dem Zug doppeln und liefert die
-    // Ruhebewegung auch dort, wo es keine Hintergrundebenen gibt.
-    // url() OHNE Anfuehrungszeichen: Blade escaped sie sonst zu &#039;.
-    $ruheFahneSrc = trim((string) ($values['TRAIN_IDLE_SRC'] ?? ''));
-    $ruhebild = $ruheFahneSrc !== '' && ! str_starts_with($ruheFahneSrc, 'data:')
-        ? "background-image:url({$ruheFahneSrc});background-repeat:no-repeat;background-position:left bottom;background-size:100% 100%;"
-        : '';
     $hasPerson = trim((string) ($values['VORNAME_NACHNAME'] ?? '')) !== '';
     $pflichtangaben = implode(' · ', array_filter([
         ($values['GESCHAEFTSFUEHRUNG'] ?? '') !== '' ? 'Geschäftsführung: '.$values['GESCHAEFTSFUEHRUNG'] : '',
@@ -66,16 +50,6 @@
         ($values['UST_ID'] ?? '') !== '' ? 'USt-IdNr. '.$values['UST_ID'] : '',
         ($values['STEUERNUMMER'] ?? '') !== '' ? 'Steuernummer '.$values['STEUERNUMMER'] : '',
     ]));
-    // DIE RUHEFAHNE ALS EIGENE EBENE. Ein einzelnes GIF kann nicht einmal
-    // einfahren und danach in Schleife bleiben — es wiederholt immer die
-    // ganze Folge. Die Einfahrt faehrt deshalb einmal und bleibt stehen,
-    // darueber laeuft die Fahne endlos weiter.
-    //
-    // Sie enthaelt AUSSCHLIESSLICH Rauch. Eine fruehere Fassung trug den
-    // ganzen Zug ein zweites Mal; seit die Einfahrt durchsichtig ist, haette
-    // er darin doppelt gestanden.
-    $hasIdleTrain = ! $isOutlookExport && ($values['TRAIN_IDLE_SRC'] ?? '') !== '';
-
     /*
      * DIE EBENEN DES STREIFENS, von oben nach unten.
      *
@@ -84,9 +58,8 @@
      *   1  Raster        feines technisches Netz, gekachelt, durchsichtig
      *   2  Wasserzeichen RT-Marke und roter Schimmer, EINMAL rechts
      *   3  Schleier      nimmt dem Zug Kraft (rund 30 % Grundfarbe)
-     *   4  Ruhefahne     Rauch allein, endlos — die Idle-Bewegung
-     *   5  Zug           Einfahrt, einmalig, bleibt danach stehen
-     *   6  Grundfarbe    weiss beziehungsweise dunkel
+     *   4  Zug           Einfahrt und anschliessende Idle-Rauchphase
+     *   5  Grundfarbe    weiss beziehungsweise dunkel
      *
      * RASTER UND MARKE LIEGEN OBEN, nicht unten. Das GIF ist deckend —
      * laege die Grafik darunter, schnitte der Zug einen sichtbaren Kasten
@@ -125,7 +98,6 @@
         ($values['GRUND_MARKE_SRC'] ?? '') !== ''
             ? "url({$values['GRUND_MARKE_SRC']})|right center|auto 100%|no-repeat" : '',
         $isOutlookExport ? '' : "linear-gradient({$values['SIGNATURE_TRAIN_WASH']},{$values['SIGNATURE_TRAIN_WASH']})|center center|100% 100%|no-repeat",
-        $hasIdleTrain ? "url({$values['TRAIN_IDLE_SRC']})|right bottom|{$zugMass}|no-repeat" : '',
         $isOutlookExport ? '' : "url({$values['TRAIN_SRC']})|right bottom|{$zugMass}|no-repeat",
     ]));
     $teile = array_map(static fn (string $e): array => explode('|', $e), $ebenen);
@@ -137,9 +109,9 @@
 <tr>
     {{-- Reihenfolge beachten: die background-Kurzform setzt background-image
          zurueck und muss deshalb VOR der Bildangabe stehen. Clients ohne
-         CSS-Hintergrundbilder (Outlook-Desktop, Gmail bei data-URIs) zeigen
-         schlicht die Farbflaeche — es geht kein Inhalt verloren. --}}
-    <td class="{{ $isOutlookExport ? '' : 'rt-pad ' }}rt-sign-cell" bgcolor="{{ $values['SIGNATURE_BG'] }}" style="padding:{{ $cellPadding }};background-color:{{ $values['SIGNATURE_BG'] }};background-image:{{ $backgroundImage }};background-repeat:{{ $backgroundRepeat }};background-position:{{ $backgroundPosition }};background-size:{{ $backgroundSize }};{{ $topRule }}">
+         CSS-Hintergrundbilder nutzen das background-Attribut als Standbild-
+         Ersatzweg im selben oberen Carrier. --}}
+    <td class="{{ $isOutlookExport ? '' : 'rt-pad ' }}rt-sign-cell" bgcolor="{{ $values['SIGNATURE_BG'] }}" @unless($isOutlookExport) background="{{ $values['TRAIN_STILL_SRC'] }}" @endunless style="padding:{{ $cellPadding }};background-color:{{ $values['SIGNATURE_BG'] }};background-image:{{ $backgroundImage }};background-repeat:{{ $backgroundRepeat }};background-position:{{ $backgroundPosition }};background-size:{{ $backgroundSize }};{{ $topRule }}">
         @if($isOutlookExport)
             {{-- Der Inhalt behaelt seinen gewohnten Innenabstand, waehrend
                  die nachfolgende Zugzeile bis an die Signaturkante reicht. --}}
@@ -261,27 +233,21 @@
                  bekommt deshalb ueber den bedingten Kommentar das Standbild
                  in Ruhestellung, alle anderen das GIF.
 
-                 DAS STANDBILD LIEGT ZUSAETZLICH HINTER DEM GIF (siehe
-                 $ruhebild unten). Es ist waehrend der Fahrt unsichtbar, weil
-                 das GIF vollstaendig deckt (nachgemessen: 0 % scheint
-                 durch), und traegt den stehenden Zug in genau den Faellen,
-                 in denen das GIF die Flaeche am Ende doch raeumt: fremde
-                 Entsorgungsauslegung, ein Bilder-Proxy, der das GIF neu
-                 kodiert, oder ein Client, der die Animation abbricht. Ohne
-                 dieses Netz ist das Ergebnis eine leere Flaeche — und genau
-                 das war gemeldet. --}}
+                 Der Export nutzt ausschliesslich diese Bildzeile. Die
+                 separate Idle-Hintergrundebene ist entfernt; Einfahrt und
+                 nachgelagerter Rauch sind eine zusammenhaengende Animation. --}}
             <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">
                 <tr>
                     <td align="left" style="padding:{{ $outlookTrainPadding }};text-align:left;font-size:0;line-height:0;">
                         @if ($outlookTrainFallbackSrc !== '')
                             <!--[if !mso]><!-->
-                            <img data-rt-outlook-train src="{{ $outlookTrainSrc }}" width="620" alt="Dampflok-Güterzug" style="display:block;width:70%;max-width:620px;height:auto;margin:0;border:0;outline:none;opacity:.7;{{ $ruhebild }}">
+                            <img data-rt-outlook-train src="{{ $outlookTrainSrc }}" width="620" alt="Dampflok-Güterzug" style="display:block;width:70%;max-width:620px;height:auto;margin:0;border:0;outline:none;opacity:.7;">
                             <!--<![endif]-->
                             <!--[if mso]>
                             <img data-rt-outlook-train-still src="{{ $outlookTrainFallbackSrc }}" width="620" alt="Dampflok-Güterzug" style="display:block;width:70%;max-width:620px;height:auto;margin:0;border:0;outline:none;">
                             <![endif]-->
                         @else
-                            <img data-rt-outlook-train src="{{ $outlookTrainSrc }}" width="620" alt="Dampflok-Güterzug" style="display:block;width:70%;max-width:620px;height:auto;margin:0;border:0;outline:none;opacity:.7;{{ $ruhebild }}">
+                            <img data-rt-outlook-train src="{{ $outlookTrainSrc }}" width="620" alt="Dampflok-Güterzug" style="display:block;width:70%;max-width:620px;height:auto;margin:0;border:0;outline:none;opacity:.7;">
                         @endif
                     </td>
                 </tr>

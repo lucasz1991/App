@@ -451,10 +451,12 @@ class EmailTemplateBuilder
         );
         $values = $signature->values();
         $values['RESPONSIVE_CSS'] = self::responsiveCss($values['SIGNATURE_BORDER'] ?? null);
-        $values['SIGNATURE_BLOCK'] = $signature->render([
-            'outlookTrainSrc' => $values['TRAIN_SRC'],
-            'outlookTrainFallbackSrc' => $values['TRAIN_STILL_SRC'],
-        ]);
+        // Die versendete Mail behaelt den Zug im oberen Signatur-Carrier.
+        // Eine zusaetzliche Bildzeile erzeugte in modernen Outlook-Clients
+        // denselben Zug ein zweites Mal unterhalb der Signatur. Classic
+        // Outlook erhaelt das Standbild stattdessen ueber das background-
+        // Attribut desselben Carriers (siehe signature.blade.php).
+        $values['SIGNATURE_BLOCK'] = $signature->render();
         $values['APPLICATION_CONTENT'] = '';
 
         foreach ($values as $key => $value) {
