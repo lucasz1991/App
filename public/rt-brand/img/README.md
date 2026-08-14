@@ -5,13 +5,13 @@ templates never load these images from remote URLs.
 
 ## Wagenmeister job image
 
-- Local file: `wagenmeister-einsatz-team.webp`
-- Source URL: `https://www.rail-time.de/images/l3/serie/v2/rt-home-card-wagenmeister.webp`
+- Local file: `wagenmeister-team-gleis.jpeg`
+- Source file: `railtime-joomla-website/images/01082026/WhatsApp Image 2026-08-03 at 07.05.06 (5).jpeg`
 - Retrieved: 2026-08-14
-- Source label: `Wagenmeister im Güterterminal`
-- MIME type: `image/webp`
-- Dimensions: `1200 x 720`
-- SHA-256: `E4DDD74858037473CB5058E8669D2C68139C8E46F410716DD5ECA0B30BF75EBE`
+- Source label: `RailTime-Wagenmeister zwischen Güterwagen`
+- MIME type: `image/jpeg`
+- Dimensions: `1200 x 1600`
+- SHA-256: `3804D49808E2AB9EEF85AADD8A25390E988214CBFD8C335E0D11D9D1A491256A`
 
 The photo is used only as a locally versioned brand asset. Existing internal
 approval requirements for identifiable employees continue to apply.

@@ -82,7 +82,7 @@ class MarketingStudioBackendTest extends TestCase
             }
         }
 
-        $this->assertTrue($job->variants->every(fn ($variant): bool => str_contains($variant->html, '/rt-brand/img/wagenmeister-einsatz-team.webp')));
+        $this->assertTrue($job->variants->every(fn ($variant): bool => str_contains($variant->html, '/rt-brand/img/wagenmeister-team-gleis.jpeg')));
         $this->assertTrue($info->variants->every(fn ($variant): bool => str_contains($variant->html, '/rt-brand/img/wagenmeister-team.webp')));
         $this->assertTrue($network->variants->every(fn ($variant): bool => str_contains($variant->html, '/rt-brand/img/deutschland-netzwerk.png')));
 
@@ -128,7 +128,7 @@ class MarketingStudioBackendTest extends TestCase
 
             $this->assertStringContainsString('data-rt-brand-lockup="official"', $variant->html);
             $this->assertStringContainsString('src="/rt-brand/img/logo-horizontal-darkbg.png"', $variant->html);
-            $this->assertStringContainsString('src="/rt-brand/img/wagenmeister-einsatz-team.webp"', $variant->html);
+            $this->assertStringContainsString('src="/rt-brand/img/wagenmeister-team-gleis.jpeg"', $variant->html);
             $this->assertStringContainsString('data-rt-binding-href="cta_url"', $variant->html);
             $this->assertStringContainsString("width:{$dimensions['width']}px", $variant->css);
             $this->assertStringContainsString("height:{$dimensions['height']}px", $variant->css);
@@ -141,9 +141,9 @@ class MarketingStudioBackendTest extends TestCase
         }
     }
 
-    public function test_wagenmeister_terminal_photo_is_the_pinned_first_party_brand_asset(): void
+    public function test_wagenmeister_team_photo_is_the_pinned_first_party_brand_asset(): void
     {
-        $path = public_path('rt-brand/img/wagenmeister-einsatz-team.webp');
+        $path = public_path('rt-brand/img/wagenmeister-team-gleis.jpeg');
 
         $this->assertFileExists($path);
 
@@ -151,10 +151,10 @@ class MarketingStudioBackendTest extends TestCase
 
         $this->assertIsArray($dimensions);
         $this->assertSame(1200, $dimensions[0]);
-        $this->assertSame(720, $dimensions[1]);
-        $this->assertSame('image/webp', $dimensions['mime']);
+        $this->assertSame(1600, $dimensions[1]);
+        $this->assertSame('image/jpeg', $dimensions['mime']);
         $this->assertSame(
-            'E4DDD74858037473CB5058E8669D2C68139C8E46F410716DD5ECA0B30BF75EBE',
+            '3804D49808E2AB9EEF85AADD8A25390E988214CBFD8C335E0D11D9D1A491256A',
             strtoupper(hash_file('sha256', $path)),
         );
     }
@@ -215,7 +215,7 @@ class MarketingStudioBackendTest extends TestCase
             $creative,
             MarketingCreativeFormat::Post,
             $post->builder_data,
-            str_replace('/rt-brand/img/wagenmeister-einsatz-team.webp', $formatSpecificImage, $post->html),
+            str_replace('/rt-brand/img/wagenmeister-team-gleis.jpeg', $formatSpecificImage, $post->html),
             $post->css,
             $post->content_hash,
             $admin,
@@ -1070,7 +1070,7 @@ class MarketingStudioBackendTest extends TestCase
             .'<img src="/rt-brand/img/logo-horizontal-darkbg.png">'
             .'<img src="/rt-brand/img/wagenmeister-pruefung.jpg">'
             .'<img src="/rt-brand/img/wagenmeister-team.webp">'
-            .'<img src="/rt-brand/img/wagenmeister-einsatz-team.webp">'
+            .'<img src="/rt-brand/img/wagenmeister-team-gleis.jpeg">'
             .'<img src="/rt-brand/img/deutschland-netzwerk.png">'
             .'<img src="/rt-brand/img/logo-horizontal.png.exe">'
             .'<img src="/rt-brand/img/unofficial-logo.png">',
@@ -1080,7 +1080,7 @@ class MarketingStudioBackendTest extends TestCase
         $this->assertStringContainsString('src="/rt-brand/img/logo-horizontal-darkbg.png"', $html);
         $this->assertStringContainsString('src="/rt-brand/img/wagenmeister-pruefung.jpg"', $html);
         $this->assertStringContainsString('src="/rt-brand/img/wagenmeister-team.webp"', $html);
-        $this->assertStringContainsString('src="/rt-brand/img/wagenmeister-einsatz-team.webp"', $html);
+        $this->assertStringContainsString('src="/rt-brand/img/wagenmeister-team-gleis.jpeg"', $html);
         $this->assertStringContainsString('src="/rt-brand/img/deutschland-netzwerk.png"', $html);
         $this->assertStringNotContainsString('logo-horizontal.png.exe', $html);
         $this->assertStringNotContainsString('unofficial-logo.png', $html);

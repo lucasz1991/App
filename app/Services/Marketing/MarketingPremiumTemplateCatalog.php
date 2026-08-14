@@ -243,7 +243,7 @@ HTML,
         return match ($format) {
             MarketingCreativeFormat::Story => <<<HTML
 <main class="rt-marketing-canvas rt-premium rt-job-premium rt-job-premium-story">
-  <figure class="rt-photo"><img src="/rt-brand/img/wagenmeister-einsatz-team.webp" alt="RailTime-Wagenmeister im Einsatz zwischen Güterwagen"></figure>
+  <figure class="rt-photo"><img src="/rt-brand/img/wagenmeister-team-gleis.jpeg" alt="RailTime-Wagenmeister im Einsatz zwischen Güterwagen"></figure>
   <header class="rt-mast">{$logo}<span class="rt-code">KARRIERE / 001</span></header>
   <section class="rt-copy"><p class="rt-kicker" data-rt-binding="kicker"></p><h1 data-rt-binding="title"></h1><p class="rt-subtitle" data-rt-binding="subtitle"></p></section>
   <section class="rt-job-panel"><p class="rt-intro" data-rt-binding="intro"></p><ul class="rt-keywords" data-rt-binding-list="benefits"></ul><div class="rt-facts" data-rt-binding-facts="facts"></div></section>
@@ -252,7 +252,7 @@ HTML,
 HTML,
             MarketingCreativeFormat::Post => <<<HTML
 <main class="rt-marketing-canvas rt-premium rt-job-premium rt-job-premium-post">
-  <figure class="rt-photo"><img src="/rt-brand/img/wagenmeister-einsatz-team.webp" alt="RailTime-Wagenmeister im Einsatz zwischen Güterwagen"></figure>
+  <figure class="rt-photo"><img src="/rt-brand/img/wagenmeister-team-gleis.jpeg" alt="RailTime-Wagenmeister im Einsatz zwischen Güterwagen"></figure>
   <header class="rt-mast">{$logo}<span class="rt-code">JOB / 001</span></header>
   <section class="rt-copy"><p class="rt-kicker" data-rt-binding="kicker"></p><h1 data-rt-binding="title"></h1><p class="rt-subtitle" data-rt-binding="subtitle"></p><ul class="rt-keywords" data-rt-binding-list="benefits"></ul><a class="rt-cta" data-rt-binding="cta_label" data-rt-binding-href="cta_url"></a></section>
   <footer><div class="rt-facts" data-rt-binding-facts="facts"></div><strong data-rt-binding="website"></strong></footer>
@@ -261,7 +261,7 @@ HTML,
             MarketingCreativeFormat::Web => <<<HTML
 <main class="rt-marketing-canvas rt-premium rt-job-premium rt-job-premium-web">
   <section class="rt-copy">{$logo}<p class="rt-kicker" data-rt-binding="kicker"></p><h1 data-rt-binding="title"></h1><p class="rt-subtitle" data-rt-binding="subtitle"></p><p class="rt-intro" data-rt-binding="intro"></p><div class="rt-actions"><a class="rt-cta" data-rt-binding="cta_label" data-rt-binding-href="cta_url"></a><strong data-rt-binding="website"></strong></div></section>
-  <figure class="rt-photo"><img src="/rt-brand/img/wagenmeister-einsatz-team.webp" alt="RailTime-Wagenmeister im Einsatz zwischen Güterwagen"><figcaption>TECHNIK / VERANTWORTUNG / TEAM</figcaption></figure>
+  <figure class="rt-photo"><img src="/rt-brand/img/wagenmeister-team-gleis.jpeg" alt="RailTime-Wagenmeister im Einsatz zwischen Güterwagen"><figcaption>TECHNIK / VERANTWORTUNG / TEAM</figcaption></figure>
   <footer><div class="rt-facts" data-rt-binding-facts="facts"></div></footer>
 </main>
 HTML,

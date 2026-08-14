@@ -101,7 +101,7 @@ return new class extends Migration
         if ($creative->trashed()
             || $creative->getRawOriginal('type') !== MarketingCreativeType::Job->value
             || $creative->getRawOriginal('status') !== MarketingCreativeStatus::Draft->value
-            || $creative->title !== 'Wagenmeister (m/w/d) – Karriere'
+            || $creative->title !== 'Wagenmeister (m/w/d) – Gemeinsam Sicherheit bewegen'
             || $creative->approved_by !== null
             || $creative->approved_at !== null
             || $creative->approval_dependency_hash !== null
@@ -160,8 +160,8 @@ return new class extends Migration
     }
 
     /**
-     * @param Collection<int, MarketingCreativeVariant> $variants
-     * @param array{title:string,shared_content:array<string,mixed>,variants:array<string,array{builder_data:array<string,mixed>,html:string,css:string}>} $definition
+     * @param  Collection<int, MarketingCreativeVariant>  $variants
+     * @param  array{title:string,shared_content:array<string,mixed>,variants:array<string,array{builder_data:array<string,mixed>,html:string,css:string}>}  $definition
      */
     private function installDefinition(
         MarketingCreative $creative,

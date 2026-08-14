@@ -26,6 +26,22 @@ class MarketingStarterCatalogV4MigrationTest extends TestCase
         MarketingTemplateFactory::INFO_GERMANY_NETWORK => MarketingTemplateFactory::PREMIUM_GERMANY_NETWORK,
     ];
 
+    /** @var array<string, array{html:string,css:string}> */
+    private const OLD_JOB_FINGERPRINTS = [
+        'story' => [
+            'html' => 'c3a69b9f28f3c78cc97cf461c242e2ace52cbb7bad252cf94886080c5e88e987',
+            'css' => '9450c08ae1ec9123e4797e67a6ce4c158ae7fca0149236f1b8d845e0f7bc01fe',
+        ],
+        'post' => [
+            'html' => '1ec4fba2037151d43cde74e721b069a350062dbde3f795c375bff5337d759882',
+            'css' => 'f24176b5aa449ec6498f0f4bfa76d840b2f23a1f25bfa133f5f5338c73362d85',
+        ],
+        'web' => [
+            'html' => 'e62c8bb8b19ad21fbd875c09f7d50a20df5e46d61497ad44123961f0e09be8bf',
+            'css' => '6335bfd68b24c5da5ffd494cc60ccf811f1de61d82d6144a138d3a264f6abf36',
+        ],
+    ];
+
     public function test_it_converts_exact_v3_starters_in_place_and_is_idempotent(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
@@ -191,6 +207,23 @@ class MarketingStarterCatalogV4MigrationTest extends TestCase
         ]);
 
         $migration = $this->jobRefreshMigration();
+        $editorialHash = new \ReflectionMethod($migration, 'editorialHash');
+        $htmlStructureHash = new \ReflectionMethod($migration, 'htmlStructureHash');
+        $this->assertSame(
+            'f7f211de5fbfae7fc4a337d05c9078cf2cdcfbbb8ade341b55c4b2a9e8dacaf9',
+            $editorialHash->invoke($migration, $oldJob->shared_content),
+        );
+        foreach ($oldJob->variants as $variant) {
+            $format = $variant->format->value;
+            $this->assertSame(
+                self::OLD_JOB_FINGERPRINTS[$format]['html'],
+                $htmlStructureHash->invoke($migration, $variant->html),
+            );
+            $this->assertSame(
+                self::OLD_JOB_FINGERPRINTS[$format]['css'],
+                hash('sha256', $variant->css),
+            );
+        }
         $migration->up();
 
         $oldJob->refresh()->load('variants');
@@ -364,6 +397,56 @@ class MarketingStarterCatalogV4MigrationTest extends TestCase
         }
 
         return substr($currentCss, 0, $specificOffset).$this->oldV4JobSpecificCss($format);
+    }
+
+    private function oldV4JobSpecificCss(MarketingCreativeFormat $format): string
+    {
+        return match ($format) {
+            MarketingCreativeFormat::Story => <<<'CSS'
+.rt-job-premium-story{background:#090c11;color:#fff}.rt-job-premium-story:before{z-index:2;background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px)}.rt-job-premium-story .rt-photo{inset:0 0 auto;height:1120px;background:#090c11}.rt-job-premium-story .rt-photo:after{position:absolute;inset:0;background:linear-gradient(180deg,rgba(9,12,17,.2),rgba(9,12,17,.08) 35%,#090c11 96%),linear-gradient(90deg,rgba(9,12,17,.18),transparent 62%);content:""}.rt-job-premium-story .rt-photo img{object-position:55% center}.rt-job-premium-story .rt-mast{top:52px;right:58px;left:58px;display:flex;align-items:center;justify-content:space-between}.rt-job-premium-story .rt-brand-lockup{width:260px}.rt-job-premium-story .rt-code{color:#fff}.rt-job-premium-story .rt-copy{top:430px;right:58px;left:58px}.rt-job-premium-story .rt-kicker{font-size:15px}.rt-job-premium-story h1{max-width:900px;margin-top:18px;font-size:113px;line-height:.86}.rt-job-premium-story .rt-subtitle{max-width:800px;margin-top:27px;font-size:31px;line-height:1.2}.rt-job-premium-story .rt-job-panel{position:absolute;z-index:3;top:1080px;right:58px;left:58px}.rt-job-premium-story .rt-intro{max-width:890px;color:#c2cbd3;font-size:20px}.rt-job-premium-story .rt-keywords{margin-top:28px;font-size:14px}.rt-job-premium-story .rt-facts{margin-top:42px;grid-template-columns:repeat(3,1fr);border-top:1px solid rgba(255,255,255,.18);border-bottom:1px solid rgba(255,255,255,.18)}.rt-job-premium-story .rt-facts>div{min-height:150px;padding:27px 18px;border-right:1px solid rgba(255,255,255,.18)}.rt-job-premium-story .rt-facts>div:last-child{border:0}.rt-job-premium-story .rt-facts strong{color:#fff;font-size:50px}.rt-job-premium-story .rt-facts span{margin-top:10px;color:#aab4bd;font-size:14px;text-transform:uppercase}.rt-job-premium-story footer{right:0;bottom:0;left:0;display:flex;height:300px;padding:53px 58px;background:#f4f2ed;color:#10151b}.rt-job-premium-story footer>div{display:grid;margin-left:auto;text-align:right;gap:9px}.rt-job-premium-story footer strong{font-size:23px}.rt-job-premium-story footer span{font-size:14px}
+.rt-job-premium-story .rt-mast{top:104px}.rt-job-premium-story .rt-code,.rt-job-premium-story .rt-kicker{font-size:18px}.rt-job-premium-story .rt-copy{top:450px}.rt-job-premium-story .rt-intro{font-size:26px;line-height:1.42}.rt-job-premium-story .rt-keywords{font-size:17px}.rt-job-premium-story .rt-facts span{font-size:17px}.rt-job-premium-story footer{align-items:flex-start}.rt-job-premium-story .rt-cta{font-size:16px}.rt-job-premium-story footer strong{font-size:24px}.rt-job-premium-story footer span{font-size:18px}
+CSS,
+            MarketingCreativeFormat::Post => <<<'CSS'
+.rt-job-premium-post{background:#090c11;color:#fff}.rt-job-premium-post .rt-photo{top:0;right:0;width:55%;height:815px}.rt-job-premium-post .rt-photo:after{position:absolute;inset:0;background:linear-gradient(90deg,#090c11 0,transparent 31%),linear-gradient(0deg,#090c11 0,transparent 27%);content:""}.rt-job-premium-post .rt-photo img{object-position:60% center}.rt-job-premium-post .rt-mast{top:42px;right:48px;left:48px;display:flex;align-items:center;justify-content:space-between}.rt-job-premium-post .rt-brand-lockup{width:230px}.rt-job-premium-post .rt-code{color:#fff}.rt-job-premium-post .rt-copy{top:240px;left:48px;width:690px}.rt-job-premium-post h1{margin-top:13px;font-size:78px;line-height:.87}.rt-job-premium-post .rt-subtitle{max-width:570px;margin-top:20px;font-size:25px}.rt-job-premium-post .rt-keywords{margin-top:25px;font-size:12px}.rt-job-premium-post .rt-cta{margin-top:32px}.rt-job-premium-post footer{right:0;bottom:0;left:0;display:flex;height:265px;padding:39px 48px;background:#f4f2ed;color:#10151b}.rt-job-premium-post footer .rt-facts{width:790px;grid-template-columns:repeat(3,1fr)}.rt-job-premium-post .rt-facts>div{padding-right:24px;border-right:1px solid rgba(16,21,27,.17)}.rt-job-premium-post .rt-facts>div+div{padding-left:24px}.rt-job-premium-post .rt-facts strong{font-size:39px}.rt-job-premium-post .rt-facts span{margin-top:7px;font-size:12px;text-transform:uppercase}.rt-job-premium-post footer>strong{margin-left:auto;font-size:14px}
+CSS,
+            MarketingCreativeFormat::Web => <<<'CSS'
+.rt-job-premium-web{background:#090c11;color:#fff}.rt-job-premium-web .rt-copy{top:0;bottom:0;left:0;width:59%;padding:35px 48px}.rt-job-premium-web .rt-brand-lockup{width:205px}.rt-job-premium-web .rt-kicker{margin-top:28px;font-size:11px}.rt-job-premium-web h1{margin-top:10px;font-size:59px;line-height:.86}.rt-job-premium-web .rt-subtitle{max-width:620px;margin-top:14px;font-size:20px}.rt-job-premium-web .rt-intro{max-width:610px;margin-top:14px;color:#bcc5cd;font-size:13px}.rt-job-premium-web .rt-actions{margin-top:20px}.rt-job-premium-web .rt-cta{min-height:46px;padding:0 19px;font-size:11px}.rt-job-premium-web .rt-actions strong{font-size:12px}.rt-job-premium-web .rt-photo{top:0;right:0;width:45%;height:630px}.rt-job-premium-web .rt-photo:after{position:absolute;inset:0;background:linear-gradient(90deg,#090c11 0,transparent 25%),linear-gradient(0deg,rgba(9,12,17,.7),transparent 50%);content:""}.rt-job-premium-web .rt-photo img{object-position:58% center}.rt-job-premium-web .rt-photo figcaption{right:22px;bottom:20px}.rt-job-premium-web footer{right:22px;bottom:66px;width:430px;padding:17px 18px;background:rgba(9,12,17,.91)}.rt-job-premium-web footer .rt-facts{grid-template-columns:repeat(3,1fr)}.rt-job-premium-web .rt-facts strong{font-size:24px}.rt-job-premium-web .rt-facts span{margin-top:4px;color:#fff;font-size:9px;text-transform:uppercase}
+CSS,
+        };
+    }
+
+    /** @param list<int> $creativeIds
+     * @return array<int, array<string, mixed>>
+     */
+    private function catalogStateForIds(array $creativeIds): array
+    {
+        return MarketingCreative::withTrashed()
+            ->whereIn('id', $creativeIds)
+            ->with(['variants' => fn ($query) => $query->withTrashed()->orderBy('id')])
+            ->orderBy('id')
+            ->get()
+            ->map(fn (MarketingCreative $creative): array => [
+                'id' => $creative->id,
+                'type' => $creative->getRawOriginal('type'),
+                'status' => $creative->getRawOriginal('status'),
+                'title' => $creative->title,
+                'content' => $creative->shared_content,
+                'approved_by' => $creative->approved_by,
+                'approved_at' => $creative->approved_at?->toISOString(),
+                'approval_dependency_hash' => $creative->approval_dependency_hash,
+                'deleted_at' => $creative->deleted_at?->toISOString(),
+                'variants' => $creative->variants->map(fn (MarketingCreativeVariant $variant): array => [
+                    'id' => $variant->id,
+                    'format' => $variant->getRawOriginal('format'),
+                    'builder_data' => $variant->builder_data,
+                    'html' => $variant->html,
+                    'css' => $variant->css,
+                    'version' => $variant->version,
+                    'hash' => $variant->content_hash,
+                    'deleted_at' => $variant->deleted_at?->toISOString(),
+                ])->all(),
+            ])
+            ->all();
     }
 
     /** @return array<int, array<string, mixed>> */

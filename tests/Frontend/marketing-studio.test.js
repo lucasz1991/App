@@ -1001,7 +1001,7 @@ test('marketing editor trusts the server supplied brand image manifest without d
     assert.match(source, /Array\.isArray\(config\.brandImageUrls\)/);
     assert.match(editorSource, /MarketingBrandAssets::manifest\(\)/);
     assert.match(editorSource, /'brandImageUrls'/);
-    assert.doesNotMatch(source, /wagenmeister-einsatz-team\.webp/);
+    assert.doesNotMatch(source, /wagenmeister-team-gleis\.jpeg/);
 });
 
 test('route placeholders are replaced with encoded public ids', () => {
