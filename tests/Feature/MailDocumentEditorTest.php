@@ -9,7 +9,9 @@ use App\Models\User;
 use App\Models\UserProfile;
 use App\Support\CompanyData;
 use App\Support\EmailTemplateBuilder;
+use App\Support\Mail\CssSemantic;
 use App\Support\Mail\EmailHtmlSanitizer;
+use App\Support\Mail\SignatureTrainCarrier;
 use App\Support\MailSignature;
 use Database\Seeders\MailDocumentSeeder;
 use Illuminate\Database\Schema\Blueprint;
@@ -17,6 +19,7 @@ use Illuminate\Mail\Markdown;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use Illuminate\View\ViewException;
 use Tests\Support\BuildsMinimalRailTimeSchema;
@@ -290,6 +293,21 @@ class MailDocumentEditorTest extends TestCase
             ->render($message->markdown ?: 'notifications::email', $message->data());
     }
 
+    /** @return list<string> */
+    private function trainUrlsFromSystemMail(string $html): array
+    {
+        preg_match_all(
+            '~https?://[^"\'\s\)]+zug-dampf-light\.gif[^"\'\s\)]*~i',
+            $html,
+            $matches,
+        );
+
+        return array_map(
+            static fn (string $url): string => html_entity_decode($url, ENT_QUOTES | ENT_HTML5),
+            $matches[0] ?? [],
+        );
+    }
+
     public function test_systemmail_verwendet_veroeffentlichte_vorlage_und_signatur_genau_einmal(): void
     {
         (new MailDocumentSeeder)->run();
@@ -384,6 +402,284 @@ class MailDocumentEditorTest extends TestCase
         $this->assertSame(1, substr_count($html, 'class="rt-train-idle-surface"'));
         $this->assertStringNotContainsString('data:image', $html);
         $this->assertLessThan(60 * 1024, strlen($html));
+    }
+
+    public function test_systemmail_normalisiert_einen_legacy_idle_layer_vor_der_tokenersetzung(): void
+    {
+        (new MailDocumentSeeder)->run();
+        $signature = $this->document(MailDocumentKind::Signature);
+        $legacy = str_replace(
+            'url({{TRAIN_SRC}});background-repeat:repeat,no-repeat,no-repeat,no-repeat;'
+                .'background-position:left top,right center,center center,75% bottom;'
+                .'background-size:64px 64px,auto 100%,100% 100%,auto 100%;',
+            'url(\'{{TRAIN_IDLE_SRC}}\'),url(&quot;{{TRAIN_SRC}}&quot;);'
+                .'background-repeat:repeat,no-repeat,no-repeat,no-repeat,no-repeat;'
+                .'background-position:left top,right center,center center,right bottom,right bottom;'
+                .'background-size:64px 64px,auto 100%,100% 100%,auto 100%,auto 100%;',
+            (string) $signature->published_html,
+            $legacyReplacementCount,
+        );
+        $this->assertSame(1, $legacyReplacementCount);
+        $signature->forceFill([
+            'html' => $legacy,
+            'published_html' => $legacy,
+            'published_at' => now(),
+            'status' => MailDocumentStatus::Published,
+        ])->save();
+        $this->app->forgetScopedInstances();
+
+        $html = MailSignature::forCompany(playbackNonce: 'legacy-contract')->render();
+        $this->assertSame(
+            1,
+            preg_match('/<td[^>]*class="[^"]*rt-sign-cell[^"]*"[^>]*>/', $html, $carrier),
+        );
+
+        // Der Legacy-Idle-Layer ist entfernt. Seine URL existiert nur noch im
+        // nach 13 s eingeblendeten, serverkontrollierten Overlay.
+        $this->assertSame(2, substr_count($html, 'zug-dampf-light.gif'));
+        $this->assertSame(1, substr_count($html, 'zug-dampf-idle-light.gif'));
+        $this->assertSame(1, substr_count($html, 'data-rt-train-idle-overlay'));
+        $this->assertStringNotContainsString('zug-dampf-idle-light.gif', $carrier[0]);
+        $this->assertStringContainsString(
+            'background-repeat:repeat,no-repeat,no-repeat,no-repeat;',
+            $carrier[0],
+        );
+        $this->assertStringContainsString(
+            'background-position:left top,right center,center center,75% bottom;',
+            $carrier[0],
+        );
+        $this->assertStringContainsString(
+            'background-size:64px 64px,auto 100%,100% 100%,auto 100%;',
+            $carrier[0],
+        );
+        $this->assertStringContainsString(
+            'linear-gradient(rgba(255,255,255,0),rgba(255,255,255,0))',
+            $carrier[0],
+        );
+        $this->assertStringNotContainsString('right bottom', $carrier[0]);
+        $this->assertStringContainsString(
+            '&amp;p='.substr(hash('sha256', 'legacy-contract'), 0, 32),
+            $carrier[0],
+        );
+
+        $report = (new EmailHtmlSanitizer(['127.0.0.1', 'rail-time.de']))->clean($html);
+        $this->assertSame([], $report->findings, implode(' | ', $report->messages()));
+        $this->assertSame($html, $report->html);
+    }
+
+    public function test_aktuelle_zugstruktur_wird_bytegleich_idempotent_normalisiert(): void
+    {
+        (new MailDocumentSeeder)->run();
+        $published = (string) $this->document(MailDocumentKind::Signature)->published_html;
+        $signature = MailSignature::forCompany(playbackNonce: 'idempotent-contract');
+        $normalizer = new \ReflectionMethod($signature, 'normalizePublishedTrainCarrier');
+        $normalizer->setAccessible(true);
+
+        $once = $normalizer->invoke($signature, $published);
+        $twice = $normalizer->invoke($signature, $once);
+
+        $this->assertSame($published, $once);
+        $this->assertSame($once, $twice);
+    }
+
+    public function test_zugnormalisierung_aendert_nur_das_echte_style_attribut_des_carriers(): void
+    {
+        (new MailDocumentSeeder)->run();
+        $published = (string) $this->document(MailDocumentKind::Signature)->published_html;
+        $legacy = str_replace(
+            'url({{TRAIN_SRC}});background-repeat:repeat,no-repeat,no-repeat,no-repeat;'
+                .'background-position:left top,right center,center center,75% bottom;'
+                .'background-size:64px 64px,auto 100%,100% 100%,auto 100%;',
+            'url({{TRAIN_IDLE_SRC}}),url({{TRAIN_SRC}});'
+                .'background-repeat:repeat,no-repeat,no-repeat,no-repeat,no-repeat;'
+                .'background-position:left top,right center,center center,right bottom,right bottom;'
+                .'background-size:64px 64px,auto 100%,100% 100%,auto 100%,auto 100%;',
+            $published,
+            $legacyCount,
+        );
+        $decoy = <<<'HTML'
+data-decoy='<td class="rt-sign-cell" style="background:none">'
+HTML;
+        $withDecoy = str_replace(
+            '<td class="rt-pad rt-sign-cell"',
+            '<td '.$decoy.' class="rt-pad rt-sign-cell"',
+            $legacy,
+            $carrierCount,
+        );
+
+        $this->assertSame(1, $legacyCount);
+        $this->assertSame(1, $carrierCount);
+        $normalized = SignatureTrainCarrier::normalize($withDecoy);
+
+        $this->assertStringContainsString($decoy, $normalized);
+        $this->assertStringNotContainsString('{{TRAIN_IDLE_SRC}}', $normalized);
+        $this->assertSame(1, substr_count($normalized, '{{TRAIN_SRC}}'));
+    }
+
+    public function test_mehrdeutige_oder_malformed_background_listen_brechen_fail_closed_ab(): void
+    {
+        (new MailDocumentSeeder)->run();
+        $published = (string) $this->document(MailDocumentKind::Signature)->published_html;
+        $signature = MailSignature::forCompany(playbackNonce: 'malformed-contract');
+        $normalizer = new \ReflectionMethod($signature, 'normalizePublishedTrainCarrier');
+        $normalizer->setAccessible(true);
+        $withTrailingBackgroundShorthand = preg_replace(
+            '/(<td\b[^>]*class="[^"]*\brt-sign-cell\b[^"]*"[^>]*style="[^"]*)(?=")/i',
+            '${1}background:none;',
+            $published,
+            1,
+            $shorthandReplacementCount,
+        );
+        $this->assertSame(1, $shorthandReplacementCount);
+        $this->assertIsString($withTrailingBackgroundShorthand);
+        $withDuplicateRealStyle = str_replace(
+            '<td class="rt-pad rt-sign-cell"',
+            '<td style="background:none" class="rt-pad rt-sign-cell"',
+            $published,
+            $duplicateRealStyleCount,
+        );
+        $this->assertSame(1, $duplicateRealStyleCount);
+
+        $cases = [
+            'missing main' => str_replace('{{TRAIN_SRC}}', '{{BROKEN_TRAIN_SRC}}', $published),
+            'duplicate main' => str_replace(
+                'url({{TRAIN_SRC}})',
+                'url({{TRAIN_SRC}}),url({{TRAIN_SRC}})',
+                $published,
+            ),
+            'duplicate idle' => str_replace(
+                'url({{TRAIN_SRC}})',
+                'url({{TRAIN_IDLE_SRC}}),url({{TRAIN_IDLE_SRC}}),url({{TRAIN_SRC}})',
+                $published,
+            ),
+            'non parallel lists' => str_replace(
+                'background-repeat:repeat,no-repeat,no-repeat,no-repeat;',
+                'background-repeat:repeat,no-repeat,no-repeat;',
+                $published,
+            ),
+            'unbalanced function' => str_replace('linear-gradient(', 'linear-gradient((', $published),
+            'duplicate declaration' => str_replace(
+                'background-size:',
+                'background-size:auto;background-size:',
+                $published,
+            ),
+            'missing background size' => preg_replace(
+                '/background-size:[^;]*;/',
+                '',
+                $published,
+                1,
+            ),
+            'duplicate background image declaration' => str_replace(
+                'background-image:',
+                'background-image:none;background-image:',
+                $published,
+            ),
+            'commented duplicate background image declaration' => str_replace(
+                'background-image:',
+                'background-image:none;background-image/**/:',
+                $published,
+            ),
+            'background shorthand after longhands' => $withTrailingBackgroundShorthand,
+            'commented background shorthand after longhands' => str_replace(
+                'background:none;',
+                'background/**/:none;',
+                $withTrailingBackgroundShorthand,
+            ),
+            'entity encoded comment shorthand after longhands' => str_replace(
+                'background:none;',
+                'background&#47;*;*&#47;:none;',
+                $withTrailingBackgroundShorthand,
+            ),
+            'entity encoded escaped semicolon before background image' => str_replace(
+                'background-image:',
+                'x&#92;;background-image:',
+                $published,
+            ),
+            'duplicate actual carrier style attribute' => $withDuplicateRealStyle,
+            'raw text fake carrier' => '<script type="text/plain"><td class="rt-sign-cell" style="background:none"></script>'.$published,
+            'bogus declaration fake carrier' => '<!fake <td class="rt-sign-cell" style="background:none">>'.$published,
+        ];
+
+        foreach ($cases as $label => $malformed) {
+            try {
+                $normalizer->invoke($signature, $malformed);
+                $this->fail("{$label}: Die mehrdeutige Signatur wurde nicht abgelehnt.");
+            } catch (\ReflectionException $exception) {
+                throw $exception;
+            } catch (\Throwable $exception) {
+                $this->assertInstanceOf(\RuntimeException::class, $exception, $label);
+            }
+        }
+    }
+
+    public function test_outlook_bildprojektion_umgeht_den_signaturvertrag_nicht(): void
+    {
+        (new MailDocumentSeeder)->run();
+        $signature = $this->document(MailDocumentKind::Signature);
+        $malformedForBackgroundRuntime = str_replace(
+            'background-repeat:repeat,no-repeat,no-repeat,no-repeat;',
+            'background-repeat:repeat,no-repeat,no-repeat;',
+            (string) $signature->published_html,
+            $replacementCount,
+        );
+        $this->assertSame(1, $replacementCount);
+        $signature->forceFill([
+            'published_html' => $malformedForBackgroundRuntime,
+            'published_at' => now(),
+            'status' => MailDocumentStatus::Published,
+        ])->save();
+        $this->app->forgetScopedInstances();
+
+        $builder = new EmailTemplateBuilder(User::factory()->create(['name' => 'Outlook Test']));
+        $method = new \ReflectionMethod($builder, 'buildOutlookSignatureHtml');
+        $method->setAccessible(true);
+        $this->expectException(\RuntimeException::class);
+        $method->invoke($builder, 'light', 'RailTime_files');
+    }
+
+    public function test_systemmail_replay_urls_sind_innerhalb_einer_mail_identisch_und_pro_mail_eindeutig(): void
+    {
+        (new MailDocumentSeeder)->run();
+
+        $first = MailSignature::forCompany();
+        $firstValues = $first->values();
+        $this->assertSame($firstValues['TRAIN_SRC'], $first->values()['TRAIN_SRC']);
+        $this->assertSame($firstValues['TRAIN_IDLE_SRC'], $first->values()['TRAIN_IDLE_SRC']);
+
+        parse_str((string) parse_url($firstValues['TRAIN_SRC'], PHP_URL_QUERY), $firstTrainQuery);
+        parse_str((string) parse_url($firstValues['TRAIN_IDLE_SRC'], PHP_URL_QUERY), $firstIdleQuery);
+        $this->assertArrayHasKey('v', $firstTrainQuery);
+        $this->assertArrayHasKey('p', $firstTrainQuery);
+        $this->assertMatchesRegularExpression('/^[a-f0-9]{32}$/', $firstTrainQuery['p']);
+        $this->assertSame($firstTrainQuery['p'], $firstIdleQuery['p']);
+
+        $secondValues = MailSignature::forCompany()->values();
+        parse_str((string) parse_url($secondValues['TRAIN_SRC'], PHP_URL_QUERY), $secondQuery);
+        $this->assertNotSame($firstTrainQuery['p'], $secondQuery['p']);
+
+        $explicitA = MailSignature::forCompany(playbackNonce: 'mail/42')->values();
+        $explicitB = MailSignature::forCompany(playbackNonce: 'mail/42')->values();
+        $this->assertSame($explicitA['TRAIN_SRC'], $explicitB['TRAIN_SRC']);
+        $this->assertStringContainsString(
+            '&p='.substr(hash('sha256', 'mail/42'), 0, 32),
+            $explicitA['TRAIN_SRC'],
+        );
+        $this->assertStringNotContainsString('mail%2F42', $explicitA['TRAIN_SRC']);
+
+        $withoutAnimation = MailSignature::forCompany(animated: false)->values();
+        parse_str((string) parse_url($withoutAnimation['TRAIN_SRC'], PHP_URL_QUERY), $staticQuery);
+        $this->assertArrayNotHasKey('p', $staticQuery);
+
+        $mailA = EmailTemplateBuilder::buildSystemMailHtml(new HtmlString('<p>Replay A</p>'));
+        $mailB = EmailTemplateBuilder::buildSystemMailHtml(new HtmlString('<p>Replay B</p>'));
+        $urlsA = $this->trainUrlsFromSystemMail($mailA);
+        $urlsB = $this->trainUrlsFromSystemMail($mailB);
+
+        $this->assertCount(2, $urlsA);
+        $this->assertCount(2, $urlsB);
+        $this->assertCount(1, array_unique($urlsA));
+        $this->assertCount(1, array_unique($urlsB));
+        $this->assertNotSame($urlsA[0], $urlsB[0]);
     }
 
     public function test_systemmail_zeigt_identische_firmen_und_notfallnummer_genau_einmal(): void
@@ -785,6 +1081,11 @@ class MailDocumentEditorTest extends TestCase
     {
         $this->seedDocuments();
         $document = $this->document(MailDocumentKind::Template);
+        $unsafeHtml = str_replace(
+            '{{APPLICATION_CONTENT}}',
+            '<tr><td onclick="alert(1)">Text</td></tr>{{APPLICATION_CONTENT}}<script>alert(2)</script>',
+            (string) $document->html,
+        );
 
         $response = $this->actingAs($this->admin())
             ->putJson(route('admin.mail-documents.update', $document), [
@@ -801,7 +1102,7 @@ class MailDocumentEditorTest extends TestCase
                     ],
                     'unsafe' => '<iframe src="https://example.test"></iframe>',
                 ],
-                'html' => '<table><tr><td onclick="alert(1)">Text</td></tr></table><script>alert(2)</script>',
+                'html' => $unsafeHtml,
                 'css' => 'td { color:#111820; } body { behavior:url(x.htc); }',
                 'expected_hash' => $document->content_hash,
             ])
@@ -991,6 +1292,1118 @@ class MailDocumentEditorTest extends TestCase
         $this->assertNull($document->fresh()->published_at);
     }
 
+    public function test_signatur_save_und_publish_lehnen_background_kurzform_am_zugcarrier_ab(): void
+    {
+        $this->seedDocuments();
+        $document = $this->document(MailDocumentKind::Signature);
+        $admin = $this->admin();
+        $canonicalHtml = (string) $document->html;
+        $shorthandHtml = str_replace(
+            'background-image:',
+            'background:',
+            $canonicalHtml,
+            $replacementCount,
+        );
+        $this->assertSame(1, $replacementCount);
+
+        $this->actingAs($admin)
+            ->putJson(route('admin.mail-documents.update', $document), [
+                'builder_data' => $document->builder_data,
+                'html' => $shorthandHtml,
+                'css' => (string) $document->css,
+                'expected_hash' => $document->content_hash,
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('html');
+
+        $this->assertSame($canonicalHtml, (string) $document->fresh()->html);
+
+        $document->forceFill([
+            'html' => $shorthandHtml,
+            'content_hash' => MailDocument::contentHashFor(
+                $document->builder_data,
+                $shorthandHtml,
+                (string) $document->css,
+            ),
+        ])->save();
+
+        $this->actingAs($admin)
+            ->postJson(route('admin.mail-documents.publish', $document), [
+                'expected_hash' => $document->content_hash,
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('html');
+
+        $this->assertNull($document->fresh()->published_at);
+    }
+
+    public function test_signatur_lehnt_den_css_kommentarzustand_bypass_beim_save_publish_und_rendern_ab(): void
+    {
+        $this->seedDocuments();
+        $document = $this->document(MailDocumentKind::Signature);
+        $admin = $this->admin();
+        $canonicalHtml = (string) $document->html;
+        $attackHtml = preg_replace(
+            '/(<td\b[^>]*class="[^"]*\brt-sign-cell\b[^"]*"[^>]*style="[^"]*)(?=")/i',
+            '${1}background/*;*/:none;',
+            $canonicalHtml,
+            1,
+            $replacementCount,
+        );
+        $this->assertSame(1, $replacementCount);
+        $this->assertIsString($attackHtml);
+
+        $this->actingAs($admin)
+            ->putJson(route('admin.mail-documents.update', $document), [
+                'builder_data' => $document->builder_data,
+                'html' => $attackHtml,
+                'css' => (string) $document->css,
+                'expected_hash' => $document->content_hash,
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('html');
+
+        $this->assertSame($canonicalHtml, (string) $document->fresh()->html);
+
+        $document->forceFill([
+            'html' => $attackHtml,
+            'content_hash' => MailDocument::contentHashFor(
+                $document->builder_data,
+                $attackHtml,
+                (string) $document->css,
+            ),
+        ])->save();
+
+        $this->actingAs($admin)
+            ->postJson(route('admin.mail-documents.publish', $document), [
+                'expected_hash' => $document->content_hash,
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('html');
+
+        $this->assertNull($document->fresh()->published_at);
+
+        $document->forceFill([
+            'published_html' => $attackHtml,
+            'published_at' => now(),
+            'status' => MailDocumentStatus::Published,
+        ])->save();
+        $this->app->forgetScopedInstances();
+
+        try {
+            MailSignature::forCompany(playbackNonce: 'comment-state-bypass')->render();
+            $this->fail('Der CSS-Kommentarzustand-BYPASS wurde beim Rendern nicht abgelehnt.');
+        } catch (\RuntimeException $exception) {
+            $this->assertStringContainsString('CSS-Kommentare', $exception->getMessage());
+        }
+    }
+
+    public function test_signatur_lehnt_den_css_escape_zustand_bypass_beim_save_publish_und_rendern_ab(): void
+    {
+        $this->seedDocuments();
+        $document = $this->document(MailDocumentKind::Signature);
+        $admin = $this->admin();
+        $canonicalHtml = (string) $document->html;
+        $attackHtml = str_replace(
+            'background-image:',
+            'x\\;background-image:',
+            $canonicalHtml,
+            $replacementCount,
+        );
+        $this->assertSame(1, $replacementCount);
+
+        $this->actingAs($admin)
+            ->putJson(route('admin.mail-documents.update', $document), [
+                'builder_data' => $document->builder_data,
+                'html' => $attackHtml,
+                'css' => (string) $document->css,
+                'expected_hash' => $document->content_hash,
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('html');
+
+        $this->assertSame($canonicalHtml, (string) $document->fresh()->html);
+
+        $document->forceFill([
+            'html' => $attackHtml,
+            'content_hash' => MailDocument::contentHashFor(
+                $document->builder_data,
+                $attackHtml,
+                (string) $document->css,
+            ),
+        ])->save();
+
+        $this->actingAs($admin)
+            ->postJson(route('admin.mail-documents.publish', $document), [
+                'expected_hash' => $document->content_hash,
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('html');
+
+        $this->assertNull($document->fresh()->published_at);
+
+        $document->forceFill([
+            'published_html' => $attackHtml,
+            'published_at' => now(),
+            'status' => MailDocumentStatus::Published,
+        ])->save();
+        $this->app->forgetScopedInstances();
+
+        try {
+            MailSignature::forCompany(playbackNonce: 'escape-state-bypass')->render();
+            $this->fail('Der CSS-Escape-Zustand-BYPASS wurde beim Rendern nicht abgelehnt.');
+        } catch (\RuntimeException $exception) {
+            $this->assertStringContainsString('CSS-Escape-Zeichen', $exception->getMessage());
+        }
+    }
+
+    public function test_signatur_lehnt_html_entity_delimiter_beim_save_publish_und_rendern_ab(): void
+    {
+        $this->seedDocuments();
+        $document = $this->document(MailDocumentKind::Signature);
+        $admin = $this->admin();
+        $canonicalHtml = (string) $document->html;
+        $attackHtml = preg_replace(
+            '/(<td\b[^>]*class="[^"]*\brt-sign-cell\b[^"]*"[^>]*style="[^"]*)(?=")/i',
+            '${1}&#59;background:none;',
+            $canonicalHtml,
+            1,
+            $replacementCount,
+        );
+        $this->assertSame(1, $replacementCount);
+        $this->assertIsString($attackHtml);
+
+        $this->actingAs($admin)
+            ->putJson(route('admin.mail-documents.update', $document), [
+                'builder_data' => $document->builder_data,
+                'html' => $attackHtml,
+                'css' => (string) $document->css,
+                'expected_hash' => $document->content_hash,
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('html');
+
+        $this->assertSame($canonicalHtml, (string) $document->fresh()->html);
+
+        $document->forceFill([
+            'html' => $attackHtml,
+            'content_hash' => MailDocument::contentHashFor(
+                $document->builder_data,
+                $attackHtml,
+                (string) $document->css,
+            ),
+        ])->save();
+
+        $this->actingAs($admin)
+            ->postJson(route('admin.mail-documents.publish', $document), [
+                'expected_hash' => $document->content_hash,
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('html');
+
+        $this->assertNull($document->fresh()->published_at);
+
+        $document->forceFill([
+            'published_html' => $attackHtml,
+            'published_at' => now(),
+            'status' => MailDocumentStatus::Published,
+        ])->save();
+        $this->app->forgetScopedInstances();
+
+        try {
+            MailSignature::forCompany(playbackNonce: 'entity-delimiter-bypass')->render();
+            $this->fail('Der HTML-Entity-Delimiter wurde beim Rendern nicht abgelehnt.');
+        } catch (\RuntimeException $exception) {
+            $this->assertStringContainsString('background-Kurzform', $exception->getMessage());
+        }
+    }
+
+    public function test_signatur_lehnt_ungueltige_css_envelope_zustaende_beim_save_publish_und_rendern_ab(): void
+    {
+        $this->seedDocuments();
+        $document = $this->document(MailDocumentKind::Signature);
+        $admin = $this->admin();
+        $canonicalHtml = (string) $document->html;
+        $canonicalBuilderData = $document->builder_data;
+        $canonicalCss = (string) $document->css;
+        $canonicalHash = MailDocument::contentHashFor(
+            $canonicalBuilderData,
+            $canonicalHtml,
+            $canonicalCss,
+        );
+        $canonicalPublishedHtml = $document->published_html;
+        $canonicalPublishedCss = $document->published_css;
+        $canonicalPublishedAt = $document->published_at;
+        $canonicalStatus = $document->status;
+
+        $attacks = [
+            'raw vertical tab' => [
+                str_replace('background-image:', "\vbackground-image:", $canonicalHtml),
+                'CSS-Steuerzeichen',
+            ],
+            'entity vertical tab' => [
+                str_replace('background-image:', '&#11;background-image:', $canonicalHtml),
+                'CSS-Steuerzeichen',
+            ],
+            'unmatched opening brace' => [
+                str_replace('background-image:', 'x{;background-image:', $canonicalHtml),
+                'CSS-Klammern',
+            ],
+            'unmatched opening bracket' => [
+                str_replace('background-image:', 'x[;background-image:', $canonicalHtml),
+                'CSS-Klammern',
+            ],
+            'stray closing brace' => [
+                str_replace('background-image:', 'x};background-image:', $canonicalHtml),
+                'CSS-Klammern',
+            ],
+            'stray closing bracket' => [
+                str_replace('background-image:', 'x];background-image:', $canonicalHtml),
+                'CSS-Klammern',
+            ],
+            'raw carriage return in url string' => [
+                str_replace(
+                    'url({{GRUND_RASTER_SRC}})',
+                    "url('{{GRUND_RASTER_SRC}}\r')",
+                    $canonicalHtml,
+                ),
+                'CSS-Stringumbruch',
+            ],
+            'raw line feed in url string' => [
+                str_replace(
+                    'url({{GRUND_RASTER_SRC}})',
+                    "url('{{GRUND_RASTER_SRC}}\n')",
+                    $canonicalHtml,
+                ),
+                'CSS-Stringumbruch',
+            ],
+            'raw form feed in url string' => [
+                str_replace(
+                    'url({{GRUND_RASTER_SRC}})',
+                    "url('{{GRUND_RASTER_SRC}}\f')",
+                    $canonicalHtml,
+                ),
+                'CSS-Stringumbruch',
+            ],
+            'entity carriage return in url string' => [
+                str_replace(
+                    'url({{GRUND_RASTER_SRC}})',
+                    "url('{{GRUND_RASTER_SRC}}&#13;')",
+                    $canonicalHtml,
+                ),
+                'CSS-Stringumbruch',
+            ],
+            'entity line feed in url string' => [
+                str_replace(
+                    'url({{GRUND_RASTER_SRC}})',
+                    "url('{{GRUND_RASTER_SRC}}&#10;')",
+                    $canonicalHtml,
+                ),
+                'CSS-Stringumbruch',
+            ],
+            'entity form feed in url string' => [
+                str_replace(
+                    'url({{GRUND_RASTER_SRC}})',
+                    "url('{{GRUND_RASTER_SRC}}&#12;')",
+                    $canonicalHtml,
+                ),
+                'CSS-Stringumbruch',
+            ],
+        ];
+
+        foreach ($attacks as $label => [$attackHtml, $runtimeMessage]) {
+            $this->assertNotSame($canonicalHtml, $attackHtml, $label);
+            $document->forceFill([
+                'html' => $canonicalHtml,
+                'content_hash' => $canonicalHash,
+                'published_html' => $canonicalPublishedHtml,
+                'published_css' => $canonicalPublishedCss,
+                'published_at' => $canonicalPublishedAt,
+                'status' => $canonicalStatus,
+            ])->save();
+            $document->refresh();
+
+            $this->actingAs($admin)
+                ->putJson(route('admin.mail-documents.update', $document), [
+                    'builder_data' => $canonicalBuilderData,
+                    'html' => $attackHtml,
+                    'css' => $canonicalCss,
+                    'expected_hash' => $document->content_hash,
+                ])
+                ->assertStatus(422)
+                ->assertJsonValidationErrors('html');
+
+            $this->assertSame($canonicalHtml, (string) $document->fresh()->html, $label);
+
+            $document->forceFill([
+                'html' => $attackHtml,
+                'content_hash' => MailDocument::contentHashFor(
+                    $canonicalBuilderData,
+                    $attackHtml,
+                    $canonicalCss,
+                ),
+            ])->save();
+            $document->refresh();
+
+            $this->actingAs($admin)
+                ->postJson(route('admin.mail-documents.publish', $document), [
+                    'expected_hash' => $document->content_hash,
+                ])
+                ->assertStatus(422)
+                ->assertJsonValidationErrors('html');
+
+            $this->assertSame($canonicalPublishedAt, $document->fresh()->published_at, $label);
+
+            $document->forceFill([
+                'published_html' => $attackHtml,
+                'published_at' => now(),
+                'status' => MailDocumentStatus::Published,
+            ])->save();
+            $this->app->forgetScopedInstances();
+
+            try {
+                MailSignature::forCompany(playbackNonce: 'css-envelope-'.$label)->render();
+                $this->fail("{$label}: Der ungueltige CSS-Envelope wurde beim Rendern nicht abgelehnt.");
+            } catch (\RuntimeException $exception) {
+                $this->assertStringContainsString($runtimeMessage, $exception->getMessage(), $label);
+            }
+        }
+    }
+
+    public function test_signatur_erlaubt_nur_den_gekoppelten_kanonischen_layervertrag_beim_save_publish_und_rendern(): void
+    {
+        $this->seedDocuments();
+        $document = $this->document(MailDocumentKind::Signature);
+        $admin = $this->admin();
+        $canonicalHtml = (string) $document->html;
+        $canonicalBuilderData = $document->builder_data;
+        $canonicalCss = (string) $document->css;
+        $canonicalHash = MailDocument::contentHashFor(
+            $canonicalBuilderData,
+            $canonicalHtml,
+            $canonicalCss,
+        );
+        $canonicalPublishedHtml = $document->published_html;
+        $canonicalPublishedCss = $document->published_css;
+        $canonicalPublishedAt = $document->published_at;
+        $canonicalStatus = $document->status;
+
+        $extraLayer = function (string $image) use ($canonicalHtml): string {
+            $html = str_replace(
+                'url({{TRAIN_SRC}})',
+                $image.',url({{TRAIN_SRC}})',
+                $canonicalHtml,
+                $imageCount,
+            );
+            $html = str_replace(
+                'background-repeat:repeat,no-repeat,no-repeat,no-repeat;',
+                'background-repeat:repeat,no-repeat,no-repeat,no-repeat,no-repeat;',
+                $html,
+                $repeatCount,
+            );
+            $html = str_replace(
+                'background-position:left top,right center,center center,75% bottom;',
+                'background-position:left top,right center,center center,right bottom,75% bottom;',
+                $html,
+                $positionCount,
+            );
+            $html = str_replace(
+                'background-size:64px 64px,auto 100%,100% 100%,auto 100%;',
+                'background-size:64px 64px,auto 100%,100% 100%,auto 100%,auto 100%;',
+                $html,
+                $sizeCount,
+            );
+
+            $this->assertSame([1, 1, 1, 1], [$imageCount, $repeatCount, $positionCount, $sizeCount]);
+
+            return $html;
+        };
+        $importantLonghand = function (string $property) use ($canonicalHtml): string {
+            $html = preg_replace(
+                '/('.preg_quote($property, '/').':[^;]*);/',
+                '$1!important;',
+                $canonicalHtml,
+                1,
+                $replacementCount,
+            );
+            $this->assertSame(1, $replacementCount);
+            $this->assertIsString($html);
+
+            return $html;
+        };
+
+        $attacks = [
+            'unknown image function' => [
+                str_replace('url({{GRUND_RASTER_SRC}})', 'foo()', $canonicalHtml),
+                'Basis-Layer',
+            ],
+            'global repeat value' => [
+                str_replace(
+                    'background-repeat:repeat,no-repeat,no-repeat,no-repeat;',
+                    'background-repeat:inherit,no-repeat,no-repeat,no-repeat;',
+                    $canonicalHtml,
+                ),
+                'Wiederholungswerte',
+            ],
+            'bogus position value' => [
+                str_replace(
+                    'background-position:left top,right center,center center,75% bottom;',
+                    'background-position:bogus,right center,center center,75% bottom;',
+                    $canonicalHtml,
+                ),
+                'Basispositionen',
+            ],
+            'bogus size value' => [
+                str_replace(
+                    'background-size:64px 64px,auto 100%,100% 100%,auto 100%;',
+                    'background-size:bogus,auto 100%,100% 100%,auto 100%;',
+                    $canonicalHtml,
+                ),
+                'Basisgroessen',
+            ],
+            'foreign url layer' => [
+                $extraLayer('url(https://rail-time.de/foreign-train.gif)'),
+                'Legacy-Idle-Layer',
+            ],
+            'foreign data uri layer' => [
+                $extraLayer('url(data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==)'),
+                'Legacy-Idle-Layer',
+            ],
+            'important background image' => [$importantLonghand('background-image'), '!important'],
+            'important background repeat' => [$importantLonghand('background-repeat'), '!important'],
+            'important background position' => [$importantLonghand('background-position'), '!important'],
+            'important background size' => [$importantLonghand('background-size'), '!important'],
+        ];
+
+        foreach ($attacks as $label => [$attackHtml, $runtimeMessage]) {
+            $this->assertNotSame($canonicalHtml, $attackHtml, $label);
+            $document->forceFill([
+                'html' => $canonicalHtml,
+                'content_hash' => $canonicalHash,
+                'published_html' => $canonicalPublishedHtml,
+                'published_css' => $canonicalPublishedCss,
+                'published_at' => $canonicalPublishedAt,
+                'status' => $canonicalStatus,
+            ])->save();
+            $document->refresh();
+
+            $this->actingAs($admin)
+                ->putJson(route('admin.mail-documents.update', $document), [
+                    'builder_data' => $canonicalBuilderData,
+                    'html' => $attackHtml,
+                    'css' => $canonicalCss,
+                    'expected_hash' => $document->content_hash,
+                ])
+                ->assertStatus(422)
+                ->assertJsonValidationErrors('html');
+
+            $this->assertSame($canonicalHtml, (string) $document->fresh()->html, $label);
+
+            $document->forceFill([
+                'html' => $attackHtml,
+                'content_hash' => MailDocument::contentHashFor(
+                    $canonicalBuilderData,
+                    $attackHtml,
+                    $canonicalCss,
+                ),
+            ])->save();
+            $document->refresh();
+
+            $this->actingAs($admin)
+                ->postJson(route('admin.mail-documents.publish', $document), [
+                    'expected_hash' => $document->content_hash,
+                ])
+                ->assertStatus(422)
+                ->assertJsonValidationErrors('html');
+
+            $this->assertEquals($canonicalPublishedAt, $document->fresh()->published_at, $label);
+
+            $document->forceFill([
+                'published_html' => $attackHtml,
+                'published_at' => now(),
+                'status' => MailDocumentStatus::Published,
+            ])->save();
+            $this->app->forgetScopedInstances();
+
+            try {
+                MailSignature::forCompany(playbackNonce: 'layer-contract-'.$label)->render();
+                $this->fail("{$label}: Der ungueltige Layervertrag wurde beim Rendern nicht abgelehnt.");
+            } catch (\RuntimeException $exception) {
+                $this->assertStringContainsString($runtimeMessage, $exception->getMessage(), $label);
+            }
+        }
+    }
+
+    public function test_signatur_save_und_publish_lehnen_unvollstaendige_oder_mehrdeutige_longhand_vertraege_ab(): void
+    {
+        $this->seedDocuments();
+        $document = $this->document(MailDocumentKind::Signature);
+        $admin = $this->admin();
+        $canonicalHtml = (string) $document->html;
+        $canonicalBuilderData = $document->builder_data;
+        $canonicalCss = (string) $document->css;
+
+        $missingSizeHtml = preg_replace(
+            '/background-size:[^;]*;/',
+            '',
+            $canonicalHtml,
+            1,
+            $missingSizeCount,
+        );
+        $duplicateImageHtml = str_replace(
+            'background-image:',
+            'background-image:none;background-image:',
+            $canonicalHtml,
+            $duplicateImageCount,
+        );
+        $nonParallelHtml = str_replace(
+            'background-repeat:repeat,no-repeat,no-repeat,no-repeat;',
+            'background-repeat:repeat,no-repeat,no-repeat;',
+            $canonicalHtml,
+            $nonParallelCount,
+        );
+
+        $this->assertSame(1, $missingSizeCount);
+        $this->assertIsString($missingSizeHtml);
+        $this->assertSame(1, $duplicateImageCount);
+        $this->assertSame(1, $nonParallelCount);
+
+        $attacks = [
+            'fehlendes background-size' => $missingSizeHtml,
+            'doppeltes background-image' => $duplicateImageHtml,
+            'nicht parallele background-Listen' => $nonParallelHtml,
+        ];
+
+        foreach ($attacks as $label => $attackHtml) {
+            $document->forceFill([
+                'html' => $canonicalHtml,
+                'content_hash' => MailDocument::contentHashFor(
+                    $canonicalBuilderData,
+                    $canonicalHtml,
+                    $canonicalCss,
+                ),
+            ])->save();
+            $document->refresh();
+
+            $this->actingAs($admin)
+                ->putJson(route('admin.mail-documents.update', $document), [
+                    'builder_data' => $canonicalBuilderData,
+                    'html' => $attackHtml,
+                    'css' => $canonicalCss,
+                    'expected_hash' => $document->content_hash,
+                ])
+                ->assertStatus(422)
+                ->assertJsonValidationErrors('html');
+
+            $this->assertSame($canonicalHtml, (string) $document->fresh()->html, $label);
+
+            $document->forceFill([
+                'html' => $attackHtml,
+                'content_hash' => MailDocument::contentHashFor(
+                    $canonicalBuilderData,
+                    $attackHtml,
+                    $canonicalCss,
+                ),
+            ])->save();
+            $document->refresh();
+
+            $this->actingAs($admin)
+                ->postJson(route('admin.mail-documents.publish', $document), [
+                    'expected_hash' => $document->content_hash,
+                ])
+                ->assertStatus(422)
+                ->assertJsonValidationErrors('html');
+
+            $this->assertNull($document->fresh()->published_at, $label);
+        }
+    }
+
+    public function test_separate_mail_css_spalten_sperren_important_und_reservierte_zugquellen(): void
+    {
+        $this->seedDocuments();
+        $admin = $this->admin();
+        $attacks = [
+            '.rt-sign-cell{background:none!important;}',
+            '*{opacity:1&#33;important;}',
+            '.rt-train-idle-overlay{visibility:visible!\\69mportant;}',
+            '.x{content:"unterminated;}',
+            ".x{content:\"line\nbreak\";}",
+            ".x{content:\"line\rbreak\";}",
+            ".x{content:\"line\fbreak\";}",
+            sprintf('.x{content:"unfinished%c', 92),
+            '@keyframes injected{from{opacity:0}to{opacity:1}}',
+            '.x{animation:injected 1s linear;}',
+            '.x{animation-delay:1s;}',
+            '.x{anim\\61 tion:injected 1s;}',
+            '.rt-sign-\\63 ell::before{content:"x";}',
+            '.rt-train-idle-overlay::before{content:"x";}',
+            '.rt-train-idle-surface::after{content:"x";}',
+            '.rt-classic-outlook-train::before{content:"x";}',
+            '[class]{color:red;}',
+            '[class="foo rt-sign-cell"]::before{content:"x";}',
+            '[cl\\61 ss~="rt-sign-\\63 ell"]::before{content:"x";}',
+            '[class*="train-idle"]::after{content:"x";}',
+            '[class~="ordinary-card"]{color:inherit;}',
+            'td[class$=" rt-sign-cell"]{background:none;}',
+            'td[class^="rt-pad rt-sign-\\63 ell"]{background:none;}',
+            "[cl\\61\r\nss~='ordinary-card']{color:inherit;}",
+            ".rt-sign-\\63\r\nell::before{content:\"x\";}",
+            ".rt-sign-\\63\rell::before{content:\"x\";}",
+            ".rt-sign-\\63\fell::before{content:\"x\";}",
+            '.rt-sign-\\63&#13;&#10;ell::before{content:"x";}',
+            "*{opacity:1!imp\\6f\r\nrtant;}",
+            "*{opacity:1!imp\\6f\frtant;}",
+            '.rt-sign-logo{background-image:url({{TRAIN_SRC}});}',
+            '.rt-sign-logo{background-image:url({{TRAIN_IDLE_SRC}});}',
+            '.rt-sign-logo{background-image:url({{TRAIN_STILL_SRC}});}',
+            '.x{content:"{{RESPONSIVE_CSS}}";}',
+            '.x{content:"{{SIGNATURE_BLOCK}}";}',
+            '.x{content:"{{APPLICATION_CONTENT}}";}',
+        ];
+
+        foreach (MailDocumentKind::cases() as $kind) {
+            $document = $this->document($kind);
+            $canonicalCss = (string) $document->css;
+
+            foreach ($attacks as $css) {
+                $document->forceFill([
+                    'css' => $canonicalCss,
+                    'content_hash' => MailDocument::contentHashFor(
+                        $document->builder_data,
+                        (string) $document->html,
+                        $canonicalCss,
+                    ),
+                ])->save();
+                $document->refresh();
+
+                $this->actingAs($admin)
+                    ->putJson(route('admin.mail-documents.update', $document), [
+                        'builder_data' => $document->builder_data,
+                        'html' => (string) $document->html,
+                        'css' => $css,
+                        'expected_hash' => $document->content_hash,
+                    ])
+                    ->assertStatus(422)
+                    ->assertJsonValidationErrors('css');
+
+                $document->forceFill([
+                    'css' => $css,
+                    'content_hash' => MailDocument::contentHashFor(
+                        $document->builder_data,
+                        (string) $document->html,
+                        $css,
+                    ),
+                ])->save();
+                $document->refresh();
+
+                $this->actingAs($admin)
+                    ->postJson(route('admin.mail-documents.publish', $document), [
+                        'expected_hash' => $document->content_hash,
+                    ])
+                    ->assertStatus(422)
+                    ->assertJsonValidationErrors('css');
+            }
+        }
+    }
+
+    public function test_template_style_und_signatur_slot_bleiben_kanonisch_und_strukturell_echt(): void
+    {
+        $this->seedDocuments();
+        $document = $this->document(MailDocumentKind::Template);
+        $admin = $this->admin();
+        $canonical = (string) $document->html;
+        $withoutSignature = str_replace('{{SIGNATURE_BLOCK}}', '', $canonical);
+        $attacks = [
+            'extra style' => str_replace('</head>', '<style>*{opacity:1!important}</style></head>', $canonical),
+            'commented canonical style' => str_replace(
+                ['<style>', '</style>'],
+                ['<!-- <style>', '</style> -->'],
+                $canonical,
+            ),
+            'changed canonical style' => str_replace(
+                'a { color: inherit; }',
+                'a { color: inherit; } * { opacity: 1 !important; }',
+                $canonical,
+            ),
+            'comment signature slot' => str_replace(
+                '{{SIGNATURE_BLOCK}}',
+                '<!-- {{SIGNATURE_BLOCK}} -->',
+                $canonical,
+            ),
+            'head signature slot' => str_replace(
+                '</head>',
+                '{{SIGNATURE_BLOCK}}</head>',
+                $withoutSignature,
+            ),
+            'early train source' => str_replace(
+                '</body>',
+                '<img src="{{TRAIN_SRC}}" alt=""></body>',
+                $canonical,
+            ),
+            'text application marker' => str_replace(
+                '<!-- RT_APPLICATION_CONTENT_START -->',
+                'RT_APPLICATION_CONTENT_START',
+                $canonical,
+            ),
+            'attribute application marker' => str_replace(
+                '<!-- RT_APPLICATION_CONTENT_START -->',
+                '<span data-marker="<!-- RT_APPLICATION_CONTENT_START -->"></span>',
+                $canonical,
+            ),
+        ];
+
+        foreach ($attacks as $html) {
+            $document->forceFill([
+                'html' => $canonical,
+                'content_hash' => MailDocument::contentHashFor(
+                    $document->builder_data,
+                    $canonical,
+                    (string) $document->css,
+                ),
+            ])->save();
+            $document->refresh();
+
+            $this->actingAs($admin)
+                ->putJson(route('admin.mail-documents.update', $document), [
+                    'builder_data' => $document->builder_data,
+                    'html' => $html,
+                    'css' => (string) $document->css,
+                    'expected_hash' => $document->content_hash,
+                ])
+                ->assertStatus(422)
+                ->assertJsonValidationErrors('html');
+
+            $document->forceFill([
+                'html' => $html,
+                'content_hash' => MailDocument::contentHashFor(
+                    $document->builder_data,
+                    $html,
+                    (string) $document->css,
+                ),
+            ])->save();
+            $document->refresh();
+
+            $this->actingAs($admin)
+                ->postJson(route('admin.mail-documents.publish', $document), [
+                    'expected_hash' => $document->content_hash,
+                ])
+                ->assertStatus(422)
+                ->assertJsonValidationErrors('html');
+        }
+    }
+
+    public function test_signatur_html_sperrt_eigene_stylebloecke_und_standzugquellen(): void
+    {
+        $this->seedDocuments();
+        $document = $this->document(MailDocumentKind::Signature);
+        $admin = $this->admin();
+        $canonical = (string) $document->html;
+
+        foreach ([
+            $canonical.'<style>.rt-sign-cell{background:none!important}</style>',
+            str_replace(
+                'RT_SIGNATURE_MAIN_END',
+                'RT_SIGNATURE_MAIN_END<img src="{{TRAIN_STILL_SRC}}" alt="">',
+                $canonical,
+            ),
+        ] as $html) {
+            $document->forceFill([
+                'html' => $canonical,
+                'content_hash' => MailDocument::contentHashFor(
+                    $document->builder_data,
+                    $canonical,
+                    (string) $document->css,
+                ),
+            ])->save();
+            $document->refresh();
+
+            $this->actingAs($admin)
+                ->putJson(route('admin.mail-documents.update', $document), [
+                    'builder_data' => $document->builder_data,
+                    'html' => $html,
+                    'css' => (string) $document->css,
+                    'expected_hash' => $document->content_hash,
+                ])
+                ->assertStatus(422)
+                ->assertJsonValidationErrors('html');
+        }
+    }
+
+    public function test_runtime_erlaubt_train_still_nicht_als_bild_oder_zweiten_zug(): void
+    {
+        $this->seedDocuments();
+        $document = $this->document(MailDocumentKind::Signature);
+        $invalid = str_replace(
+            'RT_SIGNATURE_MAIN_END',
+            'RT_SIGNATURE_MAIN_END<img src="{{TRAIN_STILL_SRC}}" alt="">',
+            (string) $document->published_html,
+        );
+        $document->forceFill([
+            'published_html' => $invalid,
+            'published_at' => now(),
+            'status' => MailDocumentStatus::Published,
+        ])->save();
+        $this->app->forgetScopedInstances();
+
+        $this->expectException(\RuntimeException::class);
+        MailSignature::forCompany(playbackNonce: 'invalid-still-source')->render();
+    }
+
+    public function test_signaturmarker_muessen_exakte_geordnete_kommentarpaare_bleiben(): void
+    {
+        $this->seedDocuments();
+        $document = $this->document(MailDocumentKind::Signature);
+        $admin = $this->admin();
+        $canonical = (string) $document->html;
+        $attacks = [
+            str_replace(
+                '<!-- RT_SIGNATURE_MAIN_END -->',
+                '<!-- RT_SIGNATURE_MAIN_END_EXTRA -->',
+                $canonical,
+            ),
+            str_replace(
+                '<!-- RT_SIGNATURE_MAIN_END -->',
+                '<!-- RT_SIGNATURE_MAIN_END --><!-- RT_SIGNATURE_MAIN_END -->',
+                $canonical,
+            ),
+            str_replace(
+                '<!-- RT_PHONE_START -->',
+                '<!-- RT_PHONE_START_EXTRA -->',
+                $canonical,
+            ),
+            strtr($canonical, [
+                '<!-- RT_PHONE_START -->' => '<!-- RT_PHONE_END -->',
+                '<!-- RT_PHONE_END -->' => '<!-- RT_PHONE_START -->',
+            ]),
+            str_replace('<!-- RT_WEBSITE_START -->', '', $canonical),
+            str_replace(
+                '<!-- RT_COMPANY_PHONE_END -->',
+                '<!-- RT_COMPANY_PHONE_END --><!-- RT_COMPANY_PHONE_END -->',
+                $canonical,
+            ),
+            str_replace(
+                '<!-- RT_SIGNATURE_MAIN_END -->',
+                '<span><!-- RT_SIGNATURE_MAIN_END --></span>',
+                $canonical,
+            ),
+            str_replace(
+                '<!-- RT_PHONE_END -->',
+                '<tr><td>unerlaubte Zusatzzeile</td></tr><!-- RT_PHONE_END -->',
+                $canonical,
+            ),
+            str_replace(
+                '<table class="rt-contact"',
+                '<table class="rt-contact rt-company-contact"',
+                $canonical,
+            ),
+            str_replace(
+                'rt-contact rt-company-contact rt-firma-rechts',
+                'rt-contact rt-firma-rechts',
+                $canonical,
+            ),
+            str_replace('{{DURCHWAHL}}', '{{MOBIL}}', $canonical),
+            str_replace('{{FIRMEN_WEBSITE_LABEL}}', '{{FIRMEN_TELEFON}}', $canonical),
+        ];
+
+        foreach ($attacks as $html) {
+            $document->forceFill([
+                'html' => $canonical,
+                'content_hash' => MailDocument::contentHashFor(
+                    $document->builder_data,
+                    $canonical,
+                    (string) $document->css,
+                ),
+            ])->save();
+            $document->refresh();
+
+            $this->actingAs($admin)
+                ->putJson(route('admin.mail-documents.update', $document), [
+                    'builder_data' => $document->builder_data,
+                    'html' => $html,
+                    'css' => (string) $document->css,
+                    'expected_hash' => $document->content_hash,
+                ])
+                ->assertStatus(422)
+                ->assertJsonValidationErrors('html');
+
+            $document->forceFill([
+                'html' => $html,
+                'content_hash' => MailDocument::contentHashFor(
+                    $document->builder_data,
+                    $html,
+                    (string) $document->css,
+                ),
+            ])->save();
+            $document->refresh();
+
+            $this->actingAs($admin)
+                ->postJson(route('admin.mail-documents.publish', $document), [
+                    'expected_hash' => $document->content_hash,
+                ])
+                ->assertStatus(422)
+                ->assertJsonValidationErrors('html');
+        }
+    }
+
+    public function test_runtime_bettet_editierbares_css_vor_trusted_regeln_ein_und_startet_idle_fail_closed(): void
+    {
+        $this->seedDocuments();
+        $template = $this->document(MailDocumentKind::Template);
+        $signature = $this->document(MailDocumentKind::Signature);
+
+        $template->forceFill([
+            'published_css' => '.rt-title{letter-spacing:0;}',
+            'published_at' => now(),
+            'status' => MailDocumentStatus::Published,
+        ])->save();
+        $signature->forceFill([
+            'published_css' => '.rt-sign-name{letter-spacing:0;}',
+            'published_at' => now(),
+            'status' => MailDocumentStatus::Published,
+        ])->save();
+        $this->app->forgetScopedInstances();
+
+        $html = EmailTemplateBuilder::buildSystemMailHtml(new HtmlString('<p>CSS-Vertrag</p>'));
+        $templateCss = strpos($html, 'data-rt-mail-document-css="template"');
+        $signatureCss = strpos($html, 'data-rt-mail-document-css="signature"');
+        $trusted = strpos($html, '/* RT_SERVER_IDLE_REVEAL_START');
+
+        $this->assertIsInt($templateCss);
+        $this->assertIsInt($signatureCss);
+        $this->assertIsInt($trusted);
+        $this->assertLessThan($trusted, $templateCss);
+        $this->assertLessThan($trusted, $signatureCss);
+        $this->assertGreaterThan($signatureCss, strrpos($html, '@keyframes rt-train-idle-reveal'));
+        $this->assertMatchesRegularExpression(
+            '/data-rt-train-idle-overlay[^>]*style="[^"]*opacity:0;visibility:hidden;animation:rt-train-idle-reveal 1ms step-start 13s forwards;[^"]*"/',
+            $html,
+        );
+        $this->assertStringContainsString(
+            '@media (prefers-reduced-motion: reduce)',
+            $html,
+        );
+    }
+
+    public function test_legacy_published_css_mit_important_bricht_runtime_fail_closed_ab(): void
+    {
+        $this->seedDocuments();
+        $template = $this->document(MailDocumentKind::Template);
+        $template->forceFill([
+            'published_css' => '*{opacity:1!important;}',
+            'published_at' => now(),
+            'status' => MailDocumentStatus::Published,
+        ])->save();
+        $this->app->forgetScopedInstances();
+
+        $this->expectException(\RuntimeException::class);
+        EmailTemplateBuilder::buildSystemMailHtml(new HtmlString('<p>Fail closed</p>'));
+    }
+
+    public function test_legacy_template_css_mit_keyframes_bricht_runtime_fail_closed_ab(): void
+    {
+        $this->seedDocuments();
+        $template = $this->document(MailDocumentKind::Template);
+        $template->forceFill([
+            'published_css' => '@keyframes injected{from{opacity:0}to{opacity:1}}',
+            'published_at' => now(),
+            'status' => MailDocumentStatus::Published,
+        ])->save();
+        $this->app->forgetScopedInstances();
+
+        $this->expectExceptionMessage(CssSemantic::PROTECTED_EDITABLE_CSS_MESSAGE);
+        EmailTemplateBuilder::buildSystemMailHtml(new HtmlString('<p>Fail closed</p>'));
+    }
+
+    public function test_legacy_signature_css_mit_escape_geschuetztem_selector_bricht_runtime_ab(): void
+    {
+        $this->seedDocuments();
+        $signature = $this->document(MailDocumentKind::Signature);
+        $signature->forceFill([
+            'published_css' => '.rt-sign-\\63 ell::before{content:"zweiter Zug";}',
+            'published_at' => now(),
+            'status' => MailDocumentStatus::Published,
+        ])->save();
+        $this->app->forgetScopedInstances();
+
+        $this->expectExceptionMessage(CssSemantic::PROTECTED_EDITABLE_CSS_MESSAGE);
+        EmailTemplateBuilder::buildSystemMailHtml(new HtmlString('<p>Fail closed</p>'));
+    }
+
+    public function test_legacy_signature_css_mit_crlf_hexescape_bricht_runtime_ab(): void
+    {
+        $this->seedDocuments();
+        $signature = $this->document(MailDocumentKind::Signature);
+        $signature->forceFill([
+            'published_css' => ".rt-sign-\\63\r\nell::before{content:\"zweiter Zug\";}",
+            'published_at' => now(),
+            'status' => MailDocumentStatus::Published,
+        ])->save();
+        $this->app->forgetScopedInstances();
+
+        $this->expectExceptionMessage(CssSemantic::PROTECTED_EDITABLE_CSS_MESSAGE);
+        EmailTemplateBuilder::buildSystemMailHtml(new HtmlString('<p>Fail closed</p>'));
+    }
+
+    public function test_legacy_template_css_mit_crlf_important_bricht_runtime_ab(): void
+    {
+        $this->seedDocuments();
+        $template = $this->document(MailDocumentKind::Template);
+        $template->forceFill([
+            'published_css' => "*{opacity:1!imp\\6f\r\nrtant;}",
+            'published_at' => now(),
+            'status' => MailDocumentStatus::Published,
+        ])->save();
+        $this->app->forgetScopedInstances();
+
+        $this->expectException(\RuntimeException::class);
+        EmailTemplateBuilder::buildSystemMailHtml(new HtmlString('<p>Fail closed</p>'));
+    }
+
+    public function test_legacy_template_css_mit_responsive_runtime_token_bricht_fail_closed_ab(): void
+    {
+        $this->seedDocuments();
+        $template = $this->document(MailDocumentKind::Template);
+        $template->forceFill([
+            'published_css' => '.x{content:"{{RESPONSIVE_CSS}}";}',
+            'published_at' => now(),
+            'status' => MailDocumentStatus::Published,
+        ])->save();
+        $this->app->forgetScopedInstances();
+
+        $this->expectException(\RuntimeException::class);
+        EmailTemplateBuilder::buildSystemMailHtml(new HtmlString('<p>Fail closed</p>'));
+    }
+
+    public function test_legacy_signature_css_mit_html_runtime_token_bricht_fail_closed_ab(): void
+    {
+        $this->seedDocuments();
+        $signature = $this->document(MailDocumentKind::Signature);
+        $signature->forceFill([
+            'published_css' => '.x{content:"{{SIGNATURE_BLOCK}} {{APPLICATION_CONTENT}}";}',
+            'published_at' => now(),
+            'status' => MailDocumentStatus::Published,
+        ])->save();
+        $this->app->forgetScopedInstances();
+
+        $this->expectException(\RuntimeException::class);
+        EmailTemplateBuilder::buildSystemMailHtml(new HtmlString('<p>Fail closed</p>'));
+    }
+
+    public function test_legacy_published_signature_css_mit_zugtoken_bricht_runtime_fail_closed_ab(): void
+    {
+        $this->seedDocuments();
+        $signature = $this->document(MailDocumentKind::Signature);
+        $signature->forceFill([
+            'published_css' => '.rt-sign-logo{background-image:url({{TRAIN_SRC}});}',
+            'published_at' => now(),
+            'status' => MailDocumentStatus::Published,
+        ])->save();
+        $this->app->forgetScopedInstances();
+
+        $this->expectException(\RuntimeException::class);
+        EmailTemplateBuilder::buildSystemMailHtml(new HtmlString('<p>Fail closed</p>'));
+    }
+
     public function test_unveraendertes_speichern_zaehlt_die_version_nicht_hoch(): void
     {
         $this->seedDocuments();
@@ -1054,7 +2467,10 @@ class MailDocumentEditorTest extends TestCase
             ->assertJsonPath('document.has_unpublished_changes', false);
 
         $document = $document->fresh();
-        $css = '.rt-title{letter-spacing:0;}';
+        $css = '.rt-title{letter-spacing:0;}'
+            .'.animation-card{content:"@keyframes rt-sign-cell";}'
+            .'[data-label="rt-sign-cell"]{letter-spacing:0;}'
+            .'.ordinary-card{content:"[class=rt-sign-cell]";}';
         $saved = $this->putJson(route('admin.mail-documents.update', $document), [
             'builder_data' => $document->builder_data,
             'html' => $document->html,

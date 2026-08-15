@@ -637,3 +637,62 @@ test('mail toolbar keeps documents, preview and publishing in non-overlapping re
     assert.match(mobile, /\.rt-mail-studio-toolbar__publish-label[\s\S]*?clip:\s*rect\(0, 0, 0, 0\)/);
     assert.match(mobile, /\.rt-mail-studio-toolbar__actions > \.rt-ui-button[\s\S]*?width:\s*2\.75rem/);
 });
+
+test('very wide mail carriers anchor the main and idle train at the uncropped left edge', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const [css, signatureSource, trainAsset] = await Promise.all([
+        readFile(new URL('../../resources/views/emails/parts/responsive-css.blade.php', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/views/emails/parts/signature.blade.php', import.meta.url), 'utf8'),
+        readFile(new URL('../../resources/mail-templates/assets/zug-dampf-light.png', import.meta.url)),
+    ]);
+    const wideRule = css.match(
+        /@media only screen and \(min-width: (\d+)px\)\s*\{\s*\.rt-sign-cell\s*\{\s*background-position:\s*left top,\s*right center,\s*center center,\s*left bottom !important;\s*\}\s*\.rt-train-idle-surface\s*\{\s*background-position:\s*left bottom !important;\s*\}\s*\}/,
+    );
+
+    assert.ok(wideRule, 'main and idle layers need one identical wide left-bottom contract');
+    const breakpoint = Number(wideRule[1]);
+    assert.equal(breakpoint, 1820);
+
+    for (const ordinaryWidth of [1440, 720, 390]) {
+        assert.ok(ordinaryWidth < breakpoint, `${ordinaryWidth}px must keep the 75% position`);
+    }
+    for (const wideWidth of [1920, 2560]) {
+        assert.ok(wideWidth >= breakpoint, `${wideWidth}px must use the wide left edge`);
+    }
+
+    assert.match(signatureSource, /\|75% bottom\|\{\$zugMass\}/);
+    assert.match(
+        css,
+        /background-position:\s*left top, right center, center center, 75% 84% !important;/,
+    );
+    assert.match(
+        css,
+        /\.rt-train-idle-surface\s*\{\s*background-position:\s*75% 84% !important;/,
+    );
+
+    assert.equal(trainAsset.toString('ascii', 1, 4), 'PNG');
+    const assetWidth = trainAsset.readUInt32BE(16);
+    const assetHeight = trainAsset.readUInt32BE(20);
+    assert.deepEqual([assetWidth, assetHeight], [2880, 292]);
+
+    // Real Chromium geometry at 1440/1920/2560: the desktop carrier is
+    // 184px high, so `auto 100%` renders the train layer at 1814.8px.
+    const renderedAssetWidth = assetWidth * (184 / assetHeight);
+    assert.ok(renderedAssetWidth < breakpoint);
+
+    const ordinaryImageX = (1440 - renderedAssetWidth) * 0.75;
+    const ordinaryFrontX = ordinaryImageX + (renderedAssetWidth * 0.75);
+    assert.ok(Math.abs(ordinaryFrontX - (1440 * 0.75)) < 0.01);
+
+    const wideFrontRatios = [1920, 2560].map((wideWidth) => {
+        const wideImageX = 0; // `left bottom`: the complete tail starts at x=0.
+        const wideFrontX = wideImageX + (renderedAssetWidth * 0.75);
+
+        assert.equal(wideImageX, 0);
+        assert.ok(wideFrontX < wideWidth * 0.75);
+
+        return wideFrontX / wideWidth;
+    });
+
+    assert.ok(wideFrontRatios[1] < wideFrontRatios[0]);
+});

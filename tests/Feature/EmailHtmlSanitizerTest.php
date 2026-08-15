@@ -106,6 +106,14 @@ class EmailHtmlSanitizerTest extends TestCase
         $this->assertStringContainsString('mail-assets/', $signature);
         $this->assertStringNotContainsString('data:image', $signature);
         $this->assertStringContainsString('position:relative', $signature);
+        $this->assertSame(
+            2,
+            preg_match_all('/zug-dampf-light\.gif\?v=\d+&amp;p=[a-f0-9]{32}/', $signature),
+        );
+        $this->assertSame(
+            1,
+            preg_match_all('/zug-dampf-idle-light\.gif\?v=\d+&amp;p=[a-f0-9]{32}/', $signature),
+        );
         $this->assertSame(1, substr_count($signature, 'data-rt-train-idle-overlay'));
         $this->assertSame(
             1,

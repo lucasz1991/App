@@ -4,6 +4,9 @@ namespace App\Support;
 
 use App\Enums\MailDocumentKind;
 use App\Models\User;
+use App\Support\Mail\CssSemantic;
+use App\Support\Mail\SignatureDocumentContract;
+use App\Support\Mail\SignatureTrainCarrier;
 use Illuminate\Support\Facades\View;
 
 /**
@@ -63,6 +66,16 @@ class MailSignature
         bool $remoteAssets = true,
         bool $staticAssets = false,
     ): self {
+        // Ein einmal abgespieltes, remote verlinktes GIF darf nicht die
+        // Bildidentitaet einer spaeter geoeffneten Systemmail teilen. Einige
+        // Clients uebernehmen sonst den bereits erreichten Endframe aus ihrem
+        // Bildcache. Der Nonce entsteht genau einmal pro Signaturinstanz:
+        // innerhalb EINER Mail bleiben CSS-Carrier und MSO-Bild identisch,
+        // zwei unabhaengige Mails erhalten dagegen getrennte Playback-URLs.
+        if ($animated && $remoteAssets && ! $staticAssets && $playbackNonce === null) {
+            $playbackNonce = bin2hex(random_bytes(18));
+        }
+
         return new self(null, $theme, $animated, $playbackNonce, $remoteAssets, $staticAssets);
     }
 
@@ -136,9 +149,11 @@ class MailSignature
                 'ICON_RT_STILL_SRC' => EmailTemplateBuilder::mailAssetUrl($markStill),
                 'GRUND_RASTER_SRC' => EmailTemplateBuilder::mailAssetUrl($raster),
                 'GRUND_MARKE_SRC' => EmailTemplateBuilder::mailAssetUrl($marke),
-                'TRAIN_SRC' => EmailTemplateBuilder::signatureTrainUrl(
-                    $this->theme,
-                    $this->staticAssets ? false : $this->animated,
+                'TRAIN_SRC' => $this->withRemotePlaybackNonce(
+                    EmailTemplateBuilder::signatureTrainUrl(
+                        $this->theme,
+                        $this->staticAssets ? false : $this->animated,
+                    ),
                 ),
                 // Das Standbild bleibt dem expliziten Outlook-Paketexport
                 // vorbehalten. Versendete Systemmails nutzen TRAIN_SRC als
@@ -150,8 +165,10 @@ class MailSignature
                 // Signaturen ohne Einfahrt laden sie deshalb gar nicht.
                 'TRAIN_IDLE_SRC' => ($this->staticAssets || ! $this->animated)
                     ? ''
-                    : EmailTemplateBuilder::mailAssetUrl(
-                        'zug-dampf-idle-'.($this->theme === 'dark' ? 'dark' : 'light').'.gif'
+                    : $this->withRemotePlaybackNonce(
+                        EmailTemplateBuilder::mailAssetUrl(
+                            'zug-dampf-idle-'.($this->theme === 'dark' ? 'dark' : 'light').'.gif'
+                        )
                     ),
             ]
             : [
@@ -191,6 +208,29 @@ class MailSignature
             : EmailTemplateBuilder::contactIconSources(true);
 
         return array_merge($company, $person, $theme, $bilder, $symbole, $overrides);
+    }
+
+    /**
+     * Ergaenzt die pro Mail stabile Playback-Identitaet getrennt von der
+     * dauerhaften Asset-Version (?v=...). Der Wert ist zufaellig bzw. vom
+     * Aufrufer explizit gesetzt und enthaelt keinerlei Benutzerinformation.
+     */
+    private function withRemotePlaybackNonce(string $url): string
+    {
+        if (! $this->remoteAssets
+            || ! $this->animated
+            || $this->staticAssets
+            || $this->playbackNonce === null) {
+            return $url;
+        }
+
+        $separator = str_contains($url, '?') ? '&' : '?';
+        // Auch ein explizit gesetzter Nonce darf keine fachliche ID oder
+        // sonstige Aufruferdaten in einer oeffentlichen Bild-URL verraten.
+        // Der feste Digest bleibt deterministisch, kurz und URL-sicher.
+        $playbackId = substr(hash('sha256', $this->playbackNonce), 0, 32);
+
+        return $url.$separator.'p='.$playbackId;
     }
 
     /**
@@ -285,9 +325,16 @@ class MailSignature
         // bei Bedarf am stabilen Marker ergaenzt.
         $zugAlsBild = trim((string) ($layout['outlookTrainSrc'] ?? '')) !== '';
         if ($published !== null) {
+            SignatureDocumentContract::assertValid(
+                $published,
+                allowLegacyTrainStill: true,
+            );
+
             $html = $this->applyPublishedLayout($published, $layout);
             if ($zugAlsBild) {
                 $html = $this->projectPublishedTrainAsImage($html, $layout);
+            } else {
+                $html = $this->normalizePublishedTrainCarrier($html);
             }
             // FRUEHER stand hier ein Rueckfall auf den Firmennamen, wenn
             // keine Person sendet — er bildete eine gleichlautende Bedingung
@@ -361,6 +408,15 @@ class MailSignature
         $html = $this->injectClassicOutlookTrain($html, $values, $layout);
 
         return $this->injectDelayedIdleOverlay($html, $values, $layout);
+    }
+
+    /**
+     * Erzwingt denselben serverkontrollierten Zugvertrag, den der Editor
+     * bereits beim Speichern und Veroeffentlichen validiert.
+     */
+    private function normalizePublishedTrainCarrier(string $html): string
+    {
+        return SignatureTrainCarrier::normalize($html);
     }
 
     /**
@@ -458,6 +514,7 @@ class MailSignature
         $source = htmlspecialchars($idleSource, ENT_QUOTES, 'UTF-8');
         $overlay = '<span class="rt-train-idle-overlay" data-rt-train-idle-overlay '
             .'style="display:block;width:0;height:0;max-width:0;max-height:0;overflow:hidden;'
+            .'opacity:0;visibility:hidden;animation:rt-train-idle-reveal 1ms step-start 13s forwards;'
             .'font-size:0;line-height:0;mso-hide:all;">'
             .'<span class="rt-train-idle-surface" style="display:block;width:1px;height:1px;'
             .'max-width:1px;max-height:1px;background-image:url('.$source.');background-repeat:no-repeat;'
@@ -537,6 +594,18 @@ class MailSignature
         $css = EmailTemplateBuilder::publishedDocumentCss(MailDocumentKind::Signature);
         if ($css === '') {
             return '';
+        }
+
+        if (CssSemantic::containsForbiddenAnimationOrProtectedSelector($css)) {
+            throw new \RuntimeException(CssSemantic::PROTECTED_EDITABLE_CSS_MESSAGE);
+        }
+
+        if (CssSemantic::containsImportant($css)
+            || CssSemantic::containsReservedRuntimeToken($css)
+            || stripos($css, '</style') !== false) {
+            throw new \RuntimeException(
+                'Das veroeffentlichte Signatur-CSS verletzt den geschuetzten Runtime-Vertrag.'
+            );
         }
 
         $values = $this->values($overrides);

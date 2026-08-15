@@ -388,6 +388,9 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertStringNotContainsString('data:image/gif;base64,', $html);
             $this->assertStringNotContainsString('background-image:linear-gradient(', $html);
             $this->assertSame(1, substr_count($html, '/zug-dampf.gif'));
+            $this->assertStringNotContainsString('?p=', $html);
+            $this->assertStringNotContainsString('&p=', $html);
+            $this->assertStringNotContainsString('mail-assets/zug-dampf-', $html);
 
             $gif = $zip->getFromName("{$assetFolder}/zug-dampf.gif");
             $this->assertSame(

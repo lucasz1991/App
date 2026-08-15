@@ -8,9 +8,12 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Mail\SaveMailDocumentRequest;
 use App\Models\MailDocument;
 use App\Models\User;
+use App\Support\Mail\CssSemantic;
 use App\Support\Mail\EmailHtmlReport;
 use App\Support\Mail\EmailHtmlSanitizer;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
+use App\Support\Mail\SignatureDocumentContract;
+use App\Support\Mail\TemplateDocumentContract;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -50,11 +53,19 @@ final class MailDocumentController extends Controller
                 ]);
             }
 
+            // Struktur- und Reservierungsvertraege gelten bereits fuer die
+            // eingereichte Quelle. Der Sanitizer darf einen zusaetzlichen
+            // style-Block oder Zugtoken nicht still entfernen und dadurch
+            // aus einem verbotenen Entwurf scheinbar einen gueltigen machen.
+            $this->assertEditableCssSource((string) $validated['css']);
+            $this->assertDocumentStructure(
+                $locked,
+                (string) $validated['html'],
+                (string) $validated['css'],
+            );
             $htmlReport = $sanitizer->clean((string) $validated['html']);
             $cssReport = $this->cleanStyleSheet($sanitizer, (string) $validated['css']);
-            if ($locked->kind === MailDocumentKind::Signature) {
-                $this->assertDocumentStructure($locked, $htmlReport->html, $cssReport->html);
-            }
+            $this->assertDocumentStructure($locked, $htmlReport->html, $cssReport->html);
             $builderData = $this->syncBuilderData(
                 $locked,
                 $validated['builder_data'],
@@ -123,6 +134,7 @@ final class MailDocumentController extends Controller
             // Streng statt bereinigend: der Bearbeiter soll sehen, was nicht
             // durchgeht, statt eine stillschweigend beschnittene Fassung an
             // echte Empfaenger zu schicken.
+            $this->assertEditableCssSource((string) $locked->css);
             $htmlReport = $sanitizer->assertClean($html);
             $cssReport = $this->cleanStyleSheet($sanitizer, (string) $locked->css);
 
@@ -225,6 +237,29 @@ final class MailDocumentController extends Controller
         return new EmailHtmlReport($matches[1], $report->findings);
     }
 
+    /** Freie CSS-Spalten duerfen serverkontrollierte Mailregeln nie schlagen. */
+    private function assertEditableCssSource(string $css): void
+    {
+        if (CssSemantic::containsForbiddenAnimationOrProtectedSelector($css)) {
+            throw ValidationException::withMessages([
+                'css' => CssSemantic::PROTECTED_EDITABLE_CSS_MESSAGE,
+            ]);
+        }
+
+        if (CssSemantic::containsImportant($css)) {
+            throw ValidationException::withMessages([
+                'css' => 'Separate Mail-CSS-Regeln duerfen kein !important enthalten.',
+            ]);
+        }
+
+        if (CssSemantic::containsReservedRuntimeToken($css)) {
+            throw ValidationException::withMessages([
+                'css' => 'Reservierte Runtime-Platzhalter duerfen nicht in separaten Mail-CSS-Regeln verwendet werden.',
+            ]);
+        }
+
+    }
+
     /**
      * Das Builder-Projekt ist kein zweiter, ungepruefter HTML-Speicher.
      *
@@ -270,52 +305,19 @@ final class MailDocumentController extends Controller
      */
     private function assertDocumentStructure(MailDocument $document, string $html, string $css = ''): void
     {
+        $this->assertEditableCssSource($css);
+
         if ($document->kind === MailDocumentKind::Template) {
-            $completeDocument = preg_match('/^\s*<!doctype\s+html\b/i', $html) === 1
-                && preg_match('/<html\b[^>]*>.*<head\b[^>]*>.*<\/head>.*<body\b[^>]*>.*<\/body>.*<\/html>\s*$/is', $html) === 1;
-
-            $hasApplicationSlot = substr_count($html, '{{APPLICATION_CONTENT}}') === 1
-                && substr_count($html, 'RT_APPLICATION_CONTENT_START') === 1
-                && substr_count($html, 'RT_APPLICATION_CONTENT_END') === 1
-                && (int) strpos($html, 'RT_APPLICATION_CONTENT_START')
-                    < (int) strpos($html, '{{APPLICATION_CONTENT}}')
-                && (int) strpos($html, '{{APPLICATION_CONTENT}}')
-                    < (int) strpos($html, 'RT_APPLICATION_CONTENT_END');
-
-            if (! $completeDocument
-                || substr_count($html, '{{SIGNATURE_BLOCK}}') !== 1
-                || ! $hasApplicationSlot) {
+            try {
+                TemplateDocumentContract::assertValid($html);
+            } catch (\RuntimeException $exception) {
                 throw ValidationException::withMessages([
-                    'html' => 'Die Nachrichtenvorlage braucht eine vollständige HTML-Schale, genau einen Signaturblock und genau einen APPLICATION_CONTENT-Slot zwischen seinen beiden Systemmail-Markern.',
+                    'html' => $exception->getMessage(),
                 ]);
             }
 
             return;
         }
-
-        $requiredTokens = [
-            '{{LOGO_SRC}}',
-            '{{VORNAME_NACHNAME}}',
-            '{{POSITION}}',
-            '{{E_MAIL}}',
-            '{{FIRMENNAME}}',
-            '{{FIRMENSTRASSE}}',
-            '{{FIRMEN_PLZ_ORT}}',
-            '{{FIRMEN_TELEFON}}',
-            '{{FIRMEN_EMAIL}}',
-            '{{GESCHAEFTSFUEHRUNG}}',
-            '{{REGISTERGERICHT}}',
-            '{{HRB}}',
-            '{{UST_ID}}',
-            '{{STEUERNUMMER}}',
-        ];
-        $requiredMarkers = [
-            'RT_SIGNATURE_MAIN_END',
-            'RT_PHONE_START', 'RT_PHONE_END',
-            'RT_MOBILE_START', 'RT_MOBILE_END',
-            'RT_WEBSITE_START', 'RT_WEBSITE_END',
-            'RT_COMPANY_PHONE_START', 'RT_COMPANY_PHONE_END',
-        ];
 
         if (stripos($html, 'data-rt-mail-') !== false
             || str_contains($html, EmailHtmlSanitizer::PREVIEW_TRANSPARENT_PIXEL)) {
@@ -331,77 +333,13 @@ final class MailDocumentController extends Controller
             ]);
         }
 
-        if (! $this->hasCanonicalSignatureTrain($html)
-            || collect([...$requiredTokens, ...$requiredMarkers])
-                ->contains(fn (string $needle): bool => ! str_contains($html, $needle))) {
+        try {
+            SignatureDocumentContract::assertValid($html);
+        } catch (\RuntimeException $exception) {
             throw ValidationException::withMessages([
-                'html' => 'Die Signatur muss das zweizeilige Tabellenfragment, genau eine kanonische Zugquelle, alle Kontaktmarker und rechtlichen Pflichtangaben behalten; Editor-Vorschauwerte sind nicht speicherbar.',
+                'html' => $exception->getMessage(),
             ]);
         }
-    }
-
-    /**
-     * {{TRAIN_SRC}} darf genau einmal und nur als url() der aeusseren
-     * Signaturzelle vorkommen. Klassenkopien, Texttokens und zusaetzliche
-     * Zugquellen koennten sonst den neutralen Canvas-Pixel ausliefern.
-     */
-    private function hasCanonicalSignatureTrain(string $html): bool
-    {
-        if (substr_count($html, '{{TRAIN_SRC}}') !== 1) {
-            return false;
-        }
-
-        $previousErrors = libxml_use_internal_errors(true);
-
-        try {
-            $document = new \DOMDocument('1.0', 'UTF-8');
-            $loaded = $document->loadHTML(
-                '<?xml encoding="UTF-8"><table id="rt-signature-contract"><tbody>'.$html.'</tbody></table>',
-                LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING,
-            );
-        } finally {
-            libxml_clear_errors();
-            libxml_use_internal_errors($previousErrors);
-        }
-
-        if (! $loaded) {
-            return false;
-        }
-
-        $wrapper = $document->getElementById('rt-signature-contract');
-        $tbody = $wrapper?->getElementsByTagName('tbody')->item(0);
-        if (! $tbody instanceof \DOMElement) {
-            return false;
-        }
-
-        $topRows = [];
-        foreach ($tbody->childNodes as $child) {
-            if ($child instanceof \DOMElement && strtolower($child->tagName) === 'tr') {
-                $topRows[] = $child;
-            }
-        }
-
-        if (count($topRows) !== 2) {
-            return false;
-        }
-
-        $trainCells = [];
-        foreach ($wrapper->getElementsByTagName('td') as $cell) {
-            $classes = preg_split('/\s+/', trim($cell->getAttribute('class')), -1, PREG_SPLIT_NO_EMPTY) ?: [];
-            if (in_array('rt-sign-cell', $classes, true)) {
-                $trainCells[] = $cell;
-            }
-        }
-
-        if (count($trainCells) !== 1
-            || ! $trainCells[0]->parentNode?->isSameNode($topRows[0])) {
-            return false;
-        }
-
-        return preg_match(
-            "~(?:^|;)\\s*background(?:-image)?\\s*:\\s*[^;]*url\\(\\s*(['\"]?)\\{\\{TRAIN_SRC\\}\\}\\1\\s*\\)[^;]*(?:;|$)~i",
-            $trainCells[0]->getAttribute('style'),
-        ) === 1;
     }
 
     /**

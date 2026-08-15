@@ -135,10 +135,12 @@ class SignatureTrainTimelineTest extends TestCase
             "{$filename}: Der Zug startet nicht mehr knapp ausserhalb der linken Kante.",
         );
 
-        // Die finale Schornsteinzone liegt zwischen 68 und 76 Prozent der
-        // Breite und oberhalb des Zugkoerpers. Vor der Ankunft darf dort kein
-        // vorauseilender Standrauch sichtbar sein.
-        foreach ([0, 6, 21, 37, 51, $arrivalFrame] as $index) {
+        // Fahrrauch darf waehrend der sichtbaren Einfahrt durch die spaetere
+        // Schornsteinzone ziehen. Unmittelbar vor und exakt bei der Ankunft
+        // muss diese Zone jedoch leer sein; erst der Folgeschritt blendet den
+        // ortsfesten Idle-Rauch ein. Der Quellvertrag weiter unten prueft
+        // zusaetzlich die harte Zeitgrenze in idleWolkenBei().
+        foreach ([51, $arrivalFrame] as $index) {
             $this->assertSame(
                 0,
                 $this->countInkInRegion(
@@ -489,6 +491,9 @@ class SignatureTrainTimelineTest extends TestCase
         $this->assertStringContainsString('markeGroesse: MARKEN_GROESSE,', $generator);
         $this->assertStringContainsString('const START_X = -ZUG_BREITE;', $generator);
         $this->assertStringNotContainsString('START_X = -ZUG_BREITE *', $generator);
+        $this->assertStringContainsString('function idleWolkenBei(t) {', $generator);
+        $this->assertStringContainsString('if (t <= FAHRT_ENDE_S) return [];', $generator);
+        $this->assertStringContainsString('sichtbar.push(...idleWolkenBei(t));', $generator);
         $this->assertStringContainsString("zx.globalCompositeOperation = 'destination-out';", $generator);
         $this->assertStringContainsString('hx.fillStyle = a.markenFarbe;', $generator);
         $this->assertStringContainsString('markenFarbe: ZUG_GRAU,', $generator);

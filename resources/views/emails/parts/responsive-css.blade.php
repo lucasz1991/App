@@ -74,6 +74,24 @@
 }
 /* RT_SERVER_IDLE_REVEAL_END */
 
+/* ---- Sehr breite Mailflaechen: Zug am linken Rand verankern ---------
+   Bei 184 px Carrierhoehe ist das 2880-x-292-Asset 1814,8 CSS-Pixel
+   breit. Oberhalb davon wuerde die sonst richtige 75-Prozent-Position
+   das vollstaendige Zugheck immer weiter nach rechts schieben. Ab 1820 px
+   beginnt deshalb das Haupt-GIF exakt links; die Front darf mit wachsender
+   Flaeche bewusst unter 75 Prozent fallen. Das spaeter eingeblendete
+   Idle-GIF muss pixelgleich an derselben Stelle uebernehmen. Clients ohne
+   min-width-Media-Queries behalten fail-closed die normale 75-Prozent-
+   Position aus dem Inline-Stil. */
+@media only screen and (min-width: 1820px) {
+.rt-sign-cell {
+  background-position: left top, right center, center center, left bottom !important;
+}
+.rt-train-idle-surface {
+  background-position: left bottom !important;
+}
+}
+
 /* ---- Tablet quer: enger setzen, aber zweispaltig bleiben ---- */
 @media only screen and (max-width: 1000px) {
 .rt-pad { padding-left: 30px !important; padding-right: 30px !important; }

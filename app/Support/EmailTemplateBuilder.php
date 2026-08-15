@@ -4,7 +4,9 @@ namespace App\Support;
 
 use App\Enums\MailDocumentKind;
 use App\Models\User;
+use App\Support\Mail\CssSemantic;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
+use App\Support\Mail\TemplateDocumentContract;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
@@ -360,9 +362,13 @@ class EmailTemplateBuilder
             return null;
         }
 
-        return $kind === MailDocumentKind::Template
-            ? self::embedPublishedCss($snapshot['html'], $snapshot['css'], $kind)
-            : $snapshot['html'];
+        if ($kind === MailDocumentKind::Template) {
+            TemplateDocumentContract::assertValid($snapshot['html']);
+
+            return self::embedPublishedCss($snapshot['html'], $snapshot['css'], $kind);
+        }
+
+        return $snapshot['html'];
     }
 
     /**
@@ -431,7 +437,7 @@ class EmailTemplateBuilder
         $slot = '__RT_APPLICATION_CONTENT_'.Str::random(32).'__';
         $count = 0;
         $html = preg_replace(
-            '/<!--\s*RT_APPLICATION_CONTENT_START\s*-->.*?<!--\s*RT_APPLICATION_CONTENT_END\s*-->/s',
+            '/<!-- RT_APPLICATION_CONTENT_START -->.*?<!-- RT_APPLICATION_CONTENT_END -->/s',
             $slot,
             $html,
             1,
@@ -479,20 +485,38 @@ class EmailTemplateBuilder
 
     private static function embedPublishedCss(string $html, string $css, MailDocumentKind $kind): string
     {
-        if ($css === '' || stripos($css, '</style') !== false) {
+        if ($css === '') {
             return $html;
         }
 
-        $style = '<style data-rt-mail-document-css="'.$kind->value.'">'.$css.'</style>';
-
-        if (preg_match('/<\/head\s*>/i', $html) === 1) {
-            return (string) preg_replace('/<\/head\s*>/i', $style.'</head>', $html, 1);
+        if (CssSemantic::containsForbiddenAnimationOrProtectedSelector($css)) {
+            throw new RuntimeException(CssSemantic::PROTECTED_EDITABLE_CSS_MESSAGE);
         }
 
-        // Nie einen style-Block in ein <tr>-Fragment legen: innerhalb der
-        // umgebenden Tabelle waere er strukturell ungueltig. Die drei Wrapper
-        // binden Signatur-CSS stattdessen in ihrem echten <head> ein.
-        return $html;
+        if (stripos($css, '</style') !== false
+            || CssSemantic::containsImportant($css)
+            || CssSemantic::containsReservedRuntimeToken($css)) {
+            throw new RuntimeException('Das veroeffentlichte Mail-CSS verletzt den geschuetzten Runtime-Vertrag.');
+        }
+
+        $style = '<style data-rt-mail-document-css="'.$kind->value.'">'.$css.'</style>';
+        $marker = $kind === MailDocumentKind::Template
+            ? '{{RESPONSIVE_CSS}}'
+            : '/* RT_SERVER_IDLE_REVEAL_START';
+
+        if (substr_count($html, $marker) !== 1) {
+            throw new RuntimeException('Der serverkontrollierte Responsive-CSS-Einhaengepunkt ist nicht eindeutig.');
+        }
+
+        // Editierbares CSS steht bewusst VOR dem serverkontrollierten Block.
+        // Dessen Keyframes, Reduced-Motion- und Carrier-Regeln werden damit
+        // zuletzt geparst und koennen nicht durch eine alte Publikation
+        // ueberschrieben werden.
+        return str_replace(
+            $marker,
+            '</style>'.$style.'<style>'.$marker,
+            $html,
+        );
     }
 
     /**
