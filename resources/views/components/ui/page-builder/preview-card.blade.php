@@ -222,14 +222,16 @@
             @endif
 
             @if (filled($editUrl) || filled($initialSource['editUrl'] ?? null))
-                <a
-                    href="{{ $initialSource['editUrl'] ?? $editUrl }}"
-                    x-bind:href="active?.editUrl || @js($editUrl)"
-                    wire:navigate
-                    class="absolute inset-0 z-10 rounded-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rt-accent"
-                    aria-label="{{ $editLabel }}: {{ $title }}"
-                    data-page-builder-preview-edit-link
-                ></a>
+                <template x-if="@js(! $replayable) || !frameReady">
+                    <a
+                        href="{{ $initialSource['editUrl'] ?? $editUrl }}"
+                        x-bind:href="active?.editUrl || @js($editUrl)"
+                        wire:navigate
+                        class="absolute inset-0 z-10 rounded-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rt-accent"
+                        aria-label="{{ $editLabel }}: {{ $title }}"
+                        data-page-builder-preview-edit-link
+                    ></a>
+                </template>
             @endif
         </div>
 
