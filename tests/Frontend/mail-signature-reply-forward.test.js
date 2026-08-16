@@ -64,7 +64,7 @@ test('mobile rules restyle the same signature nodes without hide-and-show copies
     assert.doesNotMatch(css, /rt-marke-mobil|\.rt-sign-logo img\.rt-logo\s*\{[^}]*display:\s*none/);
 });
 
-test('Outlook export and sent-mail fallback keep the train as a regular image', async () => {
+test('Outlook export and sent mail each keep exactly one regular train image', async () => {
     const [signature, runtime] = await Promise.all([
         source('../../resources/views/emails/parts/signature.blade.php'),
         source('../../app/Support/MailSignature.php'),
@@ -75,7 +75,8 @@ test('Outlook export and sent-mail fallback keep the train as a regular image', 
     assert.match(signature, /<img data-rt-outlook-train-still src="\{\{ \$outlookTrainFallbackSrc \}\}" width="100%"/);
     assert.doesNotMatch(signature, /<td[^>]+background="\{\{[^}]*TRAIN/);
 
-    assert.match(runtime, /<!--\[if mso\]><tr><td width="100%"/);
-    assert.match(runtime, /<img class="rt-classic-outlook-train" src="'\.\$source\.'" width="100%"/);
-    assert.match(runtime, /style="display:block;width:100%;height:auto;/);
+    assert.match(runtime, /<img class="rt-train-main-image" data-rt-train-main-image/);
+    assert.match(runtime, /SignatureTrainCarrier::withoutMainLayer\(\$html\)/);
+    assert.doesNotMatch(runtime, /rt-classic-outlook-train/);
+    assert.match(runtime, /max-width:1815px!important/);
 });

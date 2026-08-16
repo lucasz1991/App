@@ -69,7 +69,12 @@
   margin: 0 !important;
   opacity: 1 !important;
   visibility: visible !important;
+}
+.rt-train-main-image {
   z-index: 0 !important;
+}
+.rt-train-idle-image {
+  z-index: 1 !important;
 }
 @media (prefers-reduced-motion: reduce) {
   .rt-train-idle-overlay {

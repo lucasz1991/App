@@ -465,10 +465,8 @@ class MailSignature
         $html = SignatureTrainCarrier::withoutMainLayer($html);
         $image = '<img class="rt-train-main-image" data-rt-train-main-image '
             .'src="{{TRAIN_SRC}}" width="100%" alt="Dampflok-G&uuml;terzug" '
-            .'style="display:block;position:absolute!important;z-index:0;left:0!important;'
-            .'right:auto!important;bottom:0!important;width:100%!important;max-width:1815px!important;'
-            .'height:auto!important;max-height:none!important;margin:0;border:0;outline:none;'
-            .'text-decoration:none;opacity:1!important;visibility:visible!important;">';
+            .'style="display:block;width:100%;max-width:1815px;height:auto;margin:0;'
+            .'border:0;outline:none;text-decoration:none;opacity:1;visibility:visible;">';
         $replacements = 0;
         $rendered = preg_replace(
             '/(<\/td>[ \t\r\n]*<\/tr>[ \t\r\n]*)(<!-- RT_SIGNATURE_MAIN_END -->)/',
@@ -551,10 +549,8 @@ class MailSignature
             .'font-size:0;line-height:0;mso-hide:all;">'
             .'<img class="rt-train-idle-surface rt-train-idle-image" data-rt-train-idle-image '
             .'src="'.$source.'" width="100%" alt="" '
-            .'style="display:block;position:absolute!important;z-index:1;left:0!important;'
-            .'right:auto!important;bottom:0!important;width:100%!important;max-width:1815px!important;'
-            .'height:auto!important;max-height:none!important;margin:0;border:0;outline:none;'
-            .'text-decoration:none;opacity:1!important;visibility:visible!important;"></span>';
+            .'style="display:block;width:100%;max-width:1815px;height:auto;max-height:none;'
+            .'margin:0;border:0;outline:none;text-decoration:none;opacity:1;visibility:visible;"></span>';
         $replacements = 0;
         $rendered = preg_replace_callback(
             '/<td\b[^>]*class=(["\'])[^"\']*\brt-sign-cell\b[^"\']*\1[^>]*>/i',

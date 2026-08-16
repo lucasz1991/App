@@ -32,6 +32,7 @@ test('plain Laravel mail layout appends the canonical company signature', () => 
     assert.match(builder, /Geschäftsführung:/);
     assert.match(builder, /Registergericht:/);
     assert.match(builder, /USt-IdNr\.:/);
+    assert.match(builder, /Diese E-Mail kann vertrauliche Informationen enthalten\./);
 });
 
 test('RTF encoder emits signed UTF-16 surrogate pairs for non-BMP codepoints', () => {

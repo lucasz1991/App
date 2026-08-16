@@ -1457,6 +1457,7 @@ TEXT;
             implode("\n", $addressLines),
             implode("\n", $contactLines),
             implode(' · ', $legalParts),
+            'Diese E-Mail kann vertrauliche Informationen enthalten. Sollten Sie nicht der vorgesehene Empfänger sein, informieren Sie bitte den Absender und löschen Sie diese Nachricht.',
         ], static fn (string $section): bool => trim($section) !== '');
 
         return implode("\n\n", $sections)."\n";
