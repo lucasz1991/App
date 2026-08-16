@@ -95,8 +95,6 @@
                 mailTheme: 'light',
                 previewPlaybackId: 0,
                 previewAnimated: false,
-                previewFrameReady: false,
-                previewReadyTimer: null,
                 reducedMotion: false,
                 motionMedia: null,
                 motionListener: null,
@@ -106,17 +104,14 @@
                 init() {
                     this.motionMedia = window.matchMedia('(prefers-reduced-motion: reduce)');
                     this.motionListener = () => {
-                        const changed = this.reducedMotion !== this.motionMedia.matches;
                         this.reducedMotion = this.motionMedia.matches;
                         if (this.reducedMotion) this.previewAnimated = false;
-                        if (changed && this.previewModalOpen) this.previewFrameReady = false;
                     };
                     this.motionListener();
                     this.motionMedia.addEventListener?.('change', this.motionListener);
                 },
                 destroy() {
                     this.motionMedia?.removeEventListener?.('change', this.motionListener);
-                    window.clearTimeout(this.previewReadyTimer);
                 },
                 openModal(name, event) {
                     this.lastModalTrigger = event?.currentTarget ?? document.activeElement;
@@ -126,20 +121,17 @@
                 openPreview(theme, event) {
                     this.mailTheme = theme;
                     this.previewAnimated = !this.reducedMotion;
-                    this.previewFrameReady = false;
                     if (this.previewAnimated) this.previewPlaybackId++;
                     this.openModal('preview', event);
                 },
                 selectPreviewTheme(theme) {
                     this.mailTheme = theme;
                     this.previewAnimated = !this.reducedMotion;
-                    this.previewFrameReady = false;
                     if (this.previewAnimated) this.previewPlaybackId++;
                 },
                 replayPreview() {
                     if (this.reducedMotion) return;
                     this.previewAnimated = true;
-                    this.previewFrameReady = false;
                     this.previewPlaybackId++;
                 },
                 previewFrameUrl() {
@@ -154,18 +146,10 @@
                     }
                     return preview.href;
                 },
-                previewFrameLoaded() {
-                    window.clearTimeout(this.previewReadyTimer);
-                    this.previewReadyTimer = window.setTimeout(() => {
-                        this.previewFrameReady = true;
-                    }, this.reducedMotion ? 0 : 120);
-                },
                 closeModal(name) {
                     this[name + 'ModalOpen'] = false;
                     if (name === 'preview') {
                         this.previewAnimated = false;
-                        this.previewFrameReady = false;
-                        window.clearTimeout(this.previewReadyTimer);
                     }
                     const trigger = this.lastModalTrigger;
                     this.lastModalTrigger = null;
@@ -550,30 +534,12 @@
 
                     <template x-if="previewModalOpen">
                         <div class="relative min-h-0 flex-1 overflow-hidden rounded-2xl bg-white shadow-inner ring-1 ring-rt-border/70 dark:ring-rt-dark-border/70" data-email-template-preview>
-                            <div
-                                x-show="!previewFrameReady"
-                                x-transition.opacity
-                                class="pointer-events-none absolute inset-0 z-10 grid place-items-center bg-white/95 px-5 text-center text-sm text-slate-600 backdrop-blur-sm"
-                                role="status"
-                                aria-live="polite"
-                                data-email-template-preview-loading
-                            >
-                                <span class="flex items-center gap-2.5">
-                                    <i class="far fa-spinner-third animate-spin text-rt-red" aria-hidden="true"></i>
-                                    Sichere Vorschau wird vorbereitet …
-                                </span>
-                            </div>
-                            <iframe
+                            <x-ui.preview.frame
                                 x-bind:src="previewFrameUrl()"
-                                x-on:load="previewFrameLoaded()"
-                                title="{{ __('app.email_templates_preview_accordion') }}"
-                                sandbox=""
-                                referrerpolicy="no-referrer"
-                                loading="lazy"
-                                x-bind:class="previewFrameReady ? 'opacity-100' : 'opacity-0'"
-                                class="h-full min-h-[22rem] w-full border-0 bg-white transition-opacity duration-200 motion-reduce:transition-none"
+                                :title="__('app.email_templates_preview_accordion')"
+                                class="h-full min-h-[22rem] w-full"
                                 data-email-template-preview-frame
-                            ></iframe>
+                            />
                         </div>
                     </template>
                 </div>

@@ -214,24 +214,18 @@
                         </span>
                     </div>
                 @endif
-                <iframe
-                    src="{{ $replayable ? 'about:blank' : $initialSource['url'] }}"
+                <x-ui.preview.frame
+                    :src="$replayable ? 'about:blank' : $initialSource['url']"
                     x-bind:src="activeUrl"
-                    @if ($loadingOverlay)
-                        x-on:load="frameLoaded($event)"
-                    @endif
-                    title="Vorschau: {{ $title }} – {{ $initialSource['label'] }}"
+                    x-on:load="@js((bool) $loadingOverlay) && frameLoaded($event)"
+                    :title="'Vorschau: '.$title.' – '.$initialSource['label']"
                     x-bind:title="titlePrefix + (active?.label || 'Vorschau')"
-                    sandbox=""
-                    referrerpolicy="no-referrer"
-                    loading="lazy"
-                    tabindex="-1"
-                    class="pointer-events-none absolute left-1/2 top-1/2 max-w-none origin-center border-0 bg-white shadow-xl transition-opacity duration-200 motion-reduce:transition-none"
+                    class="pointer-events-none absolute left-1/2 top-1/2 max-w-none origin-center shadow-xl transition-opacity duration-200 motion-reduce:transition-none"
                     x-bind:class="@js((bool) ($replayable && $loadingOverlay)) && !frameReady ? 'opacity-0' : 'opacity-100'"
                     x-bind:style="active ? `width:${active.width}px;height:${active.height}px;transform:translate(-50%,-50%) scale(${scale})` : ''"
                     style="width: {{ $initialSource['width'] }}px; height: {{ $initialSource['height'] }}px; transform: translate(-50%, -50%) scale(.2);"
                     data-page-builder-preview-frame
-                ></iframe>
+                />
             @else
                 <div class="absolute inset-0 grid place-items-center px-6 text-center text-sm text-rt-muted dark:text-rt-dark-muted">
                     Noch keine Vorschau verfügbar.
