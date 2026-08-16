@@ -7,6 +7,7 @@
     'previewSources' => [],
     'previewDefault' => null,
     'previewReplayable' => false,
+    'previewLoadingOverlay' => true,
     'autoOpen' => false,
     'workspaceClass' => 'min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-5',
 ])
@@ -140,6 +141,7 @@
             :sources="$previewSources"
             :default-source="$previewDefault"
             :replayable="$previewReplayable"
+            :loading-overlay="$previewLoadingOverlay"
         />
     </x-ui.page>
 

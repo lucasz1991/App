@@ -7,6 +7,7 @@
     'defaultSource' => null,
     'status' => null,
     'replayable' => false,
+    'loadingOverlay' => true,
 ])
 
 @php
@@ -53,7 +54,7 @@
             scale: 1,
             resizeObserver: null,
             playbackId: 1,
-            frameReady: @js(! $replayable),
+            frameReady: @js(! $replayable || ! $loadingOverlay),
             reducedMotion: false,
             readyTimer: null,
             motionMedia: null,
@@ -79,20 +80,24 @@
             choose(key) {
                 this.activeKey = key;
                 if (@js((bool) $replayable)) {
-                    window.clearTimeout(this.readyTimer);
-                    this.frameReady = false;
+                    if (@js((bool) $loadingOverlay)) {
+                        window.clearTimeout(this.readyTimer);
+                        this.frameReady = false;
+                    }
                     if (!this.reducedMotion) this.playbackId++;
                 }
                 this.$nextTick(() => this.measure());
             },
             replay() {
                 if (!@js((bool) $replayable) || this.reducedMotion) return;
-                window.clearTimeout(this.readyTimer);
-                this.frameReady = false;
+                if (@js((bool) $loadingOverlay)) {
+                    window.clearTimeout(this.readyTimer);
+                    this.frameReady = false;
+                }
                 this.playbackId++;
             },
             frameLoaded(event) {
-                if (!@js((bool) $replayable)) return;
+                if (!@js((bool) ($replayable && $loadingOverlay))) return;
                 const frame = event?.currentTarget;
                 const loadedSrc = frame?.getAttribute?.('src') || '';
                 if (!loadedSrc || loadedSrc === 'about:blank') return;
@@ -113,7 +118,7 @@
                 this.motionListener = () => {
                     const changed = this.reducedMotion !== this.motionMedia.matches;
                     this.reducedMotion = this.motionMedia.matches;
-                    if (changed && @js((bool) $replayable)) {
+                    if (changed && @js((bool) ($replayable && $loadingOverlay))) {
                         window.clearTimeout(this.readyTimer);
                         this.frameReady = false;
                     }
@@ -194,7 +199,7 @@
             data-page-builder-preview-viewport
         >
             @if ($previewSources !== [])
-                @if ($replayable)
+                @if ($replayable && $loadingOverlay)
                     <div
                         x-show="!frameReady"
                         x-transition.opacity
@@ -212,7 +217,9 @@
                 <iframe
                     src="{{ $replayable ? 'about:blank' : $initialSource['url'] }}"
                     x-bind:src="activeUrl"
-                    x-on:load="frameLoaded($event)"
+                    @if ($loadingOverlay)
+                        x-on:load="frameLoaded($event)"
+                    @endif
                     title="Vorschau: {{ $title }} – {{ $initialSource['label'] }}"
                     x-bind:title="titlePrefix + (active?.label || 'Vorschau')"
                     sandbox=""
@@ -220,7 +227,7 @@
                     loading="lazy"
                     tabindex="-1"
                     class="pointer-events-none absolute left-1/2 top-1/2 max-w-none origin-center border-0 bg-white shadow-xl transition-opacity duration-200 motion-reduce:transition-none"
-                    x-bind:class="@js((bool) $replayable) && !frameReady ? 'opacity-0' : 'opacity-100'"
+                    x-bind:class="@js((bool) ($replayable && $loadingOverlay)) && !frameReady ? 'opacity-0' : 'opacity-100'"
                     x-bind:style="active ? `width:${active.width}px;height:${active.height}px;transform:translate(-50%,-50%) scale(${scale})` : ''"
                     style="width: {{ $initialSource['width'] }}px; height: {{ $initialSource['height'] }}px; transform: translate(-50%, -50%) scale(.2);"
                     data-page-builder-preview-frame
@@ -231,7 +238,7 @@
                 </div>
             @endif
 
-            @if (filled($editUrl) || filled($initialSource['editUrl'] ?? null))
+            @if ($loadingOverlay && (filled($editUrl) || filled($initialSource['editUrl'] ?? null)))
                 <template x-if="@js(! $replayable) || !frameReady">
                     <a
                         href="{{ $initialSource['editUrl'] ?? $editUrl }}"

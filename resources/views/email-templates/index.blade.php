@@ -264,6 +264,7 @@
                                     default-source="light"
                                     :edit-url="$documentEditUrl"
                                     :replayable="true"
+                                    :loading-overlay="false"
                                 />
                             @endif
                         @endforeach

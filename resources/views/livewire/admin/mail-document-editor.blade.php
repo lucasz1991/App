@@ -16,6 +16,7 @@
     :preview-sources="$editorPreviewSources"
     preview-default="light"
     preview-replayable
+    :preview-loading-overlay="false"
     :auto-open="request()->boolean('open')"
     workspace-class="min-h-0 flex-1 overflow-hidden p-0"
     data-mail-document-studio
