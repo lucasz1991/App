@@ -12,5 +12,3 @@ use Illuminate\Support\Facades\Route;
 | be assigned to the "api" middleware group. Make something great!
 |
 */
-
-// RT_ROUTE_EOF_SENTINEL

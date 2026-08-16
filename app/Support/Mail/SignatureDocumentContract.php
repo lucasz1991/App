@@ -40,6 +40,7 @@ final class SignatureDocumentContract
         // manchen Mailclients gleichzeitig sichtbar.
         'WEBSITE' => 1,
         'COMPANY_PHONE' => 1,
+        'COMPANY_EMAIL' => 1,
     ];
 
     /** @var array<string, array{tableClass:string, forbiddenClass:?string, valueToken:string}> */
@@ -63,6 +64,11 @@ final class SignatureDocumentContract
             'tableClass' => 'rt-company-contact',
             'forbiddenClass' => null,
             'valueToken' => '{{FIRMEN_TELEFON}}',
+        ],
+        'COMPANY_EMAIL' => [
+            'tableClass' => 'rt-company-contact',
+            'forbiddenClass' => null,
+            'valueToken' => '{{FIRMEN_EMAIL}}',
         ],
     ];
 

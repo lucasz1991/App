@@ -32,13 +32,10 @@
                    Signatur unten traegt den Schriftzug, zusammen ergeben
                    beide die Marke einmal statt zweimal.
 
-                   NUR EIN BILD, ohne Verzweigung: Die Schleife des Zeichens
-                   ist so gelegt, dass ihr ERSTES Einzelbild die Marke bereits
-                   vollstaendig zeigt. Damit sieht auch Outlook-Desktop — das
-                   von einem GIF ausschliesslich dieses erste Bild darstellt —
-                   das fertige Zeichen. Ein zweites Bild hinter einem
-                   bedingten Kommentar war nicht nur unnoetig, es war die
-                   Stelle, an der das Zeichen verschwand. -->
+                   EIN SICHTBARER PFAD JE CLIENT: moderne Clients bekommen die
+                   Aufbauanimation. Classic Outlook bekommt im bedingten
+                   Zweig das PNG-Standbild, weil das erste GIF-Einzelbild der
+                   Animation noch leer ist. -->
               <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">
                 <tr>
                   <td valign="top" style="vertical-align:top;">
@@ -46,12 +43,15 @@
                       <tr><td bgcolor="#e4002b" height="3" style="width:34px;height:3px;background:#e4002b;font-size:0;line-height:0;">&nbsp;</td></tr>
                     </table>
                   </td>
+                  <!-- RT_TEMPLATE_MARK_START -->
                   <td width="44" valign="top" align="right" style="width:44px;padding-left:18px;text-align:right;vertical-align:top;font-size:0;line-height:0;">
                     <!-- Outlook-Desktop zeigt von einem GIF nur das erste
                          Einzelbild; beim Aufbau ist das fast leer. Es bekommt
                          deshalb das Standbild. -->
-                    <img class="rt-mark" src="{{ICON_RT_SRC}}" width="44" height="44" alt="" style="display:block;width:44px;height:44px;margin-left:auto;border:0;">
+                    <img class="rt-mark" src="{{ICON_RT_SRC}}" width="44" height="44" alt="" style="display:block;width:44px;height:44px;margin-left:auto;border:0;mso-hide:all;">
+                    <!--[if mso]><img class="rt-mark" src="{{ICON_RT_STILL_SRC}}" width="44" height="44" alt="" style="display:block;width:44px;height:44px;margin-left:auto;border:0;"><![endif]-->
                   </td>
+                  <!-- RT_TEMPLATE_MARK_END -->
                 </tr>
               </table>
             </td>

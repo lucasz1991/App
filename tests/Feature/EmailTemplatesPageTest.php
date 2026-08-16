@@ -248,13 +248,16 @@ class EmailTemplatesPageTest extends TestCase
             );
         }
 
-        // Auch die .eml-Fassungen tragen ihn (dort immer eingebettet, weil
-        // ein cid: im CSS-Hintergrund client-abhaengig waere).
-        foreach (['vorlage-eml' => $lightTrain, 'vorlage-dunkel-eml' => $darkTrain] as $template => $train) {
+        // Auch die .eml-Fassungen tragen ihn. Outlook bekommt ihn dort als
+        // regulaeres CID-Bild samt MIME-Teil; CSS-Hintergrund und Data-URI
+        // gingen beim Oeffnen oder Zitieren verloren.
+        foreach (['vorlage-eml', 'vorlage-dunkel-eml'] as $template) {
+            $eml = $builder->build($template)['content'];
+            $this->assertStringContainsString('Content-ID: <railtime-train>', $eml, $template);
             $this->assertStringContainsString(
-                'url(data:image/png;base64,',
-                $this->decodeEmlHtmlPart($builder->build($template)['content']),
-                $template
+                'src="cid:railtime-train"',
+                $this->decodeEmlHtmlPart($eml),
+                $template,
             );
         }
 
@@ -284,8 +287,8 @@ class EmailTemplatesPageTest extends TestCase
             }
 
             $this->assertSame(30, $durations[0], "{$file}: Startverzoegerung muss 300 ms betragen.");
-            // 13 Sekunden Gesamtlaufzeit: 1,2 s Vorlauf und 7 s Einfahrt bis
-            // zur exakten Ankunft bei 8,2 s. Erst danach folgen zwei ruhige
+            // 13 Sekunden Gesamtlaufzeit: 0,35 s Vorlauf und 7 s Einfahrt bis
+            // zur exakten Ankunft bei 7,35 s. Erst danach folgen zwei ruhige
             // Idle-Rauchzyklen und ein kurzer End-Hold. Alles bleibt in genau
             // einem nicht-loopenden GIF, damit kein Rauch rechts vorauseilt.
             $this->assertSame(1300, array_sum($durations), "{$file}: 13 s Gesamtlaufzeit erwartet.");
@@ -313,8 +316,9 @@ class EmailTemplatesPageTest extends TestCase
             1,
             preg_match('/<span[^>]*data-rt-train-idle-overlay[^>]*>/', $signatur, $idleOverlay),
         );
-        $this->assertStringNotContainsString('opacity:', $idleOverlay[0]);
-        $this->assertStringNotContainsString('visibility:', $idleOverlay[0]);
+        $this->assertStringContainsString('opacity:0', $idleOverlay[0]);
+        $this->assertStringContainsString('visibility:hidden', $idleOverlay[0]);
+        $this->assertStringNotContainsString('data-rt-train-idle-image', $signatur);
         $this->assertStringContainsString(".rt-train-idle-overlay {\n  opacity: 0;\n  visibility: hidden;\n}", $signatur);
         $this->assertStringContainsString('animation-delay: 13s;', $signatur);
         $this->assertStringContainsString('background-position:75% bottom', $signatur);
@@ -909,6 +913,12 @@ class EmailTemplatesPageTest extends TestCase
                 $eml
             );
             $this->assertStringContainsString('Content-ID: <railtime-logo>', $eml);
+            $this->assertStringContainsString('Content-ID: <railtime-logo-still>', $eml);
+            $this->assertStringContainsString('Content-ID: <railtime-mark>', $eml);
+            $this->assertStringContainsString('Content-ID: <railtime-mark-still>', $eml);
+            $this->assertStringContainsString('Content-ID: <railtime-train>', $eml);
+            $this->assertStringContainsString('Content-ID: <railtime-signature-grid>', $eml);
+            $this->assertStringContainsString('Content-ID: <railtime-signature-watermark>', $eml);
             $this->assertStringContainsString('Content-ID: <railtime-icon-location>', $eml);
             $this->assertStringContainsString('Content-ID: <railtime-icon-phone>', $eml);
             $this->assertStringContainsString('Content-ID: <railtime-icon-mobile>', $eml);
@@ -927,7 +937,12 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertIsString($html);
             $this->assertStringContainsString('data-rt-theme="'.$theme.'"', $html);
             $this->assertStringContainsString('src="cid:railtime-logo"', $html);
+            $this->assertStringContainsString('src="cid:railtime-logo-still"', $html);
+            $this->assertStringContainsString('src="cid:railtime-mark"', $html);
+            $this->assertStringContainsString('src="cid:railtime-mark-still"', $html);
+            $this->assertStringContainsString('src="cid:railtime-train"', $html);
             $this->assertStringContainsString('src="cid:railtime-icon-email"', $html);
+            $this->assertStringNotContainsString('data:image/', $html);
         }
     }
 
@@ -962,15 +977,12 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertStringContainsString('href="mailto:mara@example.test"', $html);
         $this->assertStringContainsString('href="https://rail-time.example/leistungen"', $html);
         $this->assertStringContainsString('>rail-time.example/leistungen<', $html);
-        // PNG: drei Personenicons, Firmenicons zweimal vier, die beiden
-        // Ebenen der Hintergrundgrafik und ZWEIMAL das Standbild der
-        // Wortmarke (fuer Outlook, das von einem GIF nur das erste — beim
-        // Aufbau fast leere — Einzelbild zeigt).
-        $this->assertSame(15, substr_count($html, 'data:image/png;base64,'));
+        // PNG: drei Personenicons, vier einmalige Firmenicons, die beiden
+        // Hintergrundebenen und ein Outlook-Standbild der Wortmarke.
+        $this->assertSame(10, substr_count($html, 'data:image/png;base64,'));
         // GIF: die kombinierte Einfahrt-/Idle-Sequenz, die verzögert
-        // uebernehmende Rauchschleife und zweimal die bewegte Wortmarke
-        // (breit und gestapelt).
-        $this->assertSame(4, substr_count($html, 'data:image/gif;base64,'));
+        // uebernehmende Rauchschleife und eine bewegte Wortmarke.
+        $this->assertSame(3, substr_count($html, 'data:image/gif;base64,'));
         $this->assertSame(1, substr_count($html, 'data-rt-train-idle-overlay'));
         $this->assertStringNotContainsString('background=""', $html);
         $this->assertStringContainsString('class="rt-sign-logo"', $html);
@@ -1023,17 +1035,15 @@ class EmailTemplatesPageTest extends TestCase
         foreach (['vorlage-html', 'vorlage-dunkel-html', 'signatur-hell', 'signatur-dunkel'] as $key) {
             $html = $builder->build($key)['content'];
 
-            // Elf Symbolzellen: drei in der Personenspalte, dazu die
-            // Firmenliste ZWEIMAL mit je vier — gespiegelt fuer das
-            // Breitlayout (Symbol rechts), ungespiegelt fuer die gestapelte
-            // Ansicht (Symbol links). Sichtbar ist immer nur eine.
-            $this->assertSame(11, substr_count($html, '<td width="22" align="center" valign="middle"'));
-            $this->assertSame(11, substr_count($html, 'mso-line-height-rule:exactly;text-align:center;'));
-            $this->assertSame(11, substr_count($html, 'style="display:block;width:22px;height:22px;margin:0 auto;"'));
-            // Symbol LINKS vom Text: zwei Personenzeilen mit Abstand nach
-            // unten plus die beiden Gruppen der ungespiegelten Firmenliste.
-            $this->assertSame(4, substr_count($html, 'padding:0 0 6px 9px;'));
-            $this->assertSame(3, substr_count($html, 'padding:0 0 0 9px;'));
+            // Sieben einmalige Symbolzellen: drei Personen- und vier
+            // Firmenkontakte. Es gibt keine versteckte Mobilkopie mehr.
+            $this->assertSame(7, substr_count($html, '<td width="22" align="center" valign="middle"'));
+            $this->assertSame(7, substr_count($html, 'mso-line-height-rule:exactly;text-align:center;'));
+            $this->assertSame(7, substr_count($html, 'style="display:block;width:22px;height:22px;margin:0 auto;"'));
+            // Symbol LINKS vom Text: zwei Personen- und drei Firmenzeilen
+            // besitzen Abstand; die beiden letzten Zeilen schliessen ab.
+            $this->assertSame(5, substr_count($html, 'padding:0 0 6px 9px;'));
+            $this->assertSame(2, substr_count($html, 'padding:0 0 0 9px;'));
             $this->assertStringNotContainsString('width="30"', $html);
         }
     }
@@ -1076,9 +1086,7 @@ class EmailTemplatesPageTest extends TestCase
             // Zeile. Vorher lag sie doppelt vor (breit in der Marken-,
             // schmal in der Personenspalte) und kostete in jedem Client die
             // doppelte Menge Markup fuer denselben Inhalt.
-            // Zweimal im Markup, aber immer nur einmal sichtbar: gespiegelt
-            // fuer breit, ungespiegelt fuer gestapelt.
-            $this->assertSame(2, substr_count($html, 'Borsteler Weg 29–31'), $key);
+            $this->assertSame(1, substr_count($html, 'Borsteler Weg 29–31'), $key);
             $this->assertStringContainsString('Borsteler Weg 29–31 · 21423 Winsen (Luhe)', $html, $key);
             $this->assertStringNotContainsString('class="rt-only-wide"', $html, $key);
             $this->assertStringNotContainsString('class="rt-only-narrow"', $html, $key);
@@ -1153,9 +1161,8 @@ class EmailTemplatesPageTest extends TestCase
         $html = (new EmailTemplateBuilder($user->fresh()))->build('signatur-hell')['content'];
 
         preg_match_all('/<img src="data:image\/png;base64,([^"]+)" width="22"/', $html, $matches);
-        // Drei Personenicons plus zweimal vier Firmenicons (gespiegelt
-        // fuer breit, ungespiegelt fuer gestapelt).
-        $this->assertCount(11, $matches[1]);
+        // Drei Personenicons plus vier einmalige Firmenicons.
+        $this->assertCount(7, $matches[1]);
 
         foreach ($matches[1] as $index => $base64) {
             $binary = base64_decode($base64, true);

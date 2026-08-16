@@ -25,8 +25,57 @@ final class TemplateDocumentContract
         }
 
         self::assertCanonicalHeadStyle($html);
+        self::assertCanonicalMarkFragment($html);
         self::assertApplicationSlot($html);
         self::assertSignatureSlot($html);
+    }
+
+    /**
+     * Das animierte RT-Zeichen und sein MSO-Standbild sind ein untrennbarer
+     * Headervertrag. Ohne das Standbild zeigt Outlook bei deaktivierten
+     * Animationen nur den transparenten ersten GIF-Frame.
+     */
+    private static function assertCanonicalMarkFragment(string $html): void
+    {
+        $master = file_get_contents(resource_path('mail-templates/email-master.html'));
+        if (! is_string($master)) {
+            throw new RuntimeException('Die kanonische Nachrichtenvorlage konnte nicht gelesen werden.');
+        }
+
+        $startMarker = '<!-- RT_TEMPLATE_MARK_START -->';
+        $endMarker = '<!-- RT_TEMPLATE_MARK_END -->';
+        $fragment = static function (string $source) use ($startMarker, $endMarker): ?string {
+            if (substr_count($source, $startMarker) !== 1
+                || substr_count($source, $endMarker) !== 1
+                || substr_count($source, 'RT_TEMPLATE_MARK_START') !== 1
+                || substr_count($source, 'RT_TEMPLATE_MARK_END') !== 1) {
+                return null;
+            }
+
+            $start = strpos($source, $startMarker);
+            $end = strpos($source, $endMarker);
+            if ($start === false || $end === false || $end <= $start) {
+                return null;
+            }
+
+            return substr($source, $start, ($end + strlen($endMarker)) - $start);
+        };
+
+        $masterFragment = $fragment($master);
+        $documentFragment = $fragment($html);
+        $applicationSlot = strpos($html, '<!-- RT_APPLICATION_CONTENT_START -->');
+        $markOffset = strpos($html, $startMarker);
+
+        if ($masterFragment === null
+            || $documentFragment === null
+            || ! hash_equals($masterFragment, $documentFragment)
+            || substr_count($html, '{{ICON_RT_SRC}}') !== 1
+            || substr_count($html, '{{ICON_RT_STILL_SRC}}') !== 1
+            || $applicationSlot === false
+            || $markOffset === false
+            || $markOffset >= $applicationSlot) {
+            throw new RuntimeException('Das RT-Zeichen und sein Outlook-Standbild muessen den kanonischen Headervertrag behalten.');
+        }
     }
 
     private static function assertCanonicalHeadStyle(string $html): void

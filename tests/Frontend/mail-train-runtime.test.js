@@ -63,8 +63,13 @@ test('system mail projects one replayable train IMG and no cache endpoint', () =
     const routes = text('routes/api.php');
 
     assert.match(signature, /<img class="rt-train-main-image" data-rt-train-main-image/);
+    assert.match(signature, /<span class="rt-train-main-layer" data-rt-train-main-layer/);
+    assert.match(signature, /width:100%;height:0;max-height:0;overflow:visible/);
+    assert.match(signature, /position:absolute;left:0;right:auto;bottom:0;z-index:0/);
     assert.match(signature, /width="100%"[\s\S]+?max-width:1815px;[\s\S]+?height:auto/);
     assert.match(signature, /<img class="rt-train-idle-surface rt-train-idle-image" data-rt-train-idle-image/);
+    assert.match(signature, /\$idleSurface = str_contains\(\$html, 'data-rt-train-main-image'\)/);
+    assert.match(signature, /<span class="rt-train-idle-surface"[\s\S]+?background-position:75% bottom;background-size:auto 100%/);
     assert.match(signature, /SignatureTrainCarrier::withoutMainLayer\(\$html\)/);
     assert.doesNotMatch(signature, /function injectClassicOutlookTrain/);
     assert.doesNotMatch(signature, /class="rt-classic-outlook-train"/);
@@ -73,8 +78,11 @@ test('system mail projects one replayable train IMG and no cache endpoint', () =
     assert.match(carrier, /array_splice\(\$lists\[\$property\], \$mainIndex, 1\)/);
     for (const identifier of [
         'rt-train-main-image',
+        'rt-train-main-layer',
         'rt-train-idle-image',
         'data-rt-train-main-image',
+        'data-rt-train-main-layer',
+        'data-rt-train-idle-overlay',
         'data-rt-train-idle-image',
     ]) {
         assert.match(cssSemantic, new RegExp(`'${identifier}'`));

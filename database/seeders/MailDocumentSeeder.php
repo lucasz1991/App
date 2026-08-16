@@ -36,8 +36,9 @@ final class MailDocumentSeeder extends Seeder
      * 3  Sequentiell aufgebaute Logo-/Wortmarkenanimationen
      * 4  Kanonischer APPLICATION_CONTENT-Slot für Systemmails
      * 5  Antwortsichere Einzelelemente für Wortmarke und Firmenkontakte
+     * 6  Vollständiges Outlook-Standbild für das animierte RT-Zeichen
      */
-    private const STARTER_SCHEMA = 5;
+    private const STARTER_SCHEMA = 6;
 
     public function run(): void
     {

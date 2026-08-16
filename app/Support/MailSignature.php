@@ -68,10 +68,11 @@ class MailSignature
     ): self {
         // Ein einmal abgespieltes, remote verlinktes GIF darf nicht die
         // Bildidentitaet einer anderen Systemmail teilen. Der Nonce entsteht
-        // genau einmal pro Signaturinstanz: innerhalb EINER Mail bleiben CSS-
-        // Carrier und MSO-Bild identisch, zwei unabhaengige Mails erhalten
-        // getrennte Playback-URLs. Beim Wiedereroeffnen derselben Mail startet
-        // der echte Runtime-IMG-Decoder wie bei Wortmarke und RT-Zeichen neu.
+        // genau einmal pro Signaturinstanz: innerhalb EINER Mail bleiben alle
+        // Verweise identisch, zwei unabhaengige Mails erhalten getrennte
+        // Playback-URLs. Der echte Runtime-IMG-Weg verbessert auch das erneute
+        // Abspielen beim Oeffnen; ob dieselbe Mail wirklich neu startet, bleibt
+        // jedoch eine Entscheidung des jeweiligen Mailclient-/Proxy-Caches.
         if ($animated && $remoteAssets && ! $staticAssets && $playbackNonce === null) {
             $playbackNonce = bin2hex(random_bytes(18));
         }
@@ -98,11 +99,10 @@ class MailSignature
         // NUR DER SCHRIFTZUG, ohne das RT-Zeichen davor: die Markenspalte
         // der Signatur zeigt die Marke einmal. Das Zeichen steht allein
         // oben rechts in der E-Mail-Vorlage.
-        // ALS GIF: Der Schriftzug traegt einen Lichtstreifen, der einmal
-        // darueberlaeuft (tools/render-marken-animation.mjs). Das ERSTE
-        // Einzelbild zeigt die Marke bereits vollstaendig — nur deshalb ist
-        // das in E-Mails ueberhaupt zulaessig: Outlook-Desktop zeigt von
-        // einem GIF ausschliesslich dieses erste Bild.
+        // ALS GIF: Der Schriftzug baut sich einmal auf
+        // (tools/render-marken-animation.mjs). Classic Outlook bekommt ueber
+        // den bedingten IMG-Zweig das zugehoerige PNG-Standbild, weil bei
+        // deaktivierter GIF-Wiedergabe nur das leere Aufbau-Startbild bliebe.
         $logoAsset = $this->theme === 'dark' ? 'wortmarke-mail-dark.gif' : 'wortmarke-signature-light.gif';
 
         // Das RT-Zeichen gehoert zur VORLAGE (oben rechts), nicht zum
@@ -156,9 +156,9 @@ class MailSignature
                     ),
                 ),
                 // Das Standbild bleibt dem expliziten Outlook-Paketexport
-                // vorbehalten. Versendete Systemmails nutzen TRAIN_SRC als
-                // ein einzelnes MSO-only <img>; ein background-Attribut
-                // wuerde Word als wiederholte Zelltextur kacheln.
+                // vorbehalten. Versendete Systemmails projizieren TRAIN_SRC
+                // genau einmal als unbedingtes Runtime-IMG; der moderne CSS-
+                // Hauptlayer wird dabei entfernt, damit nie zwei Zuege stehen.
                 'TRAIN_STILL_SRC' => EmailTemplateBuilder::signatureTrainStillUrl($this->theme),
                 // Die Rauchschleife wird erst nach dem Ende der einmaligen
                 // 13-s-Einfahrt eingeblendet. Statische Fassungen und
@@ -395,9 +395,9 @@ class MailSignature
      * Der kanonische Signaturentwurf wird mit Platzhaltern gespeichert. Beim
      * Seed-Zeitpunkt ist {{VORNAME_NACHNAME}} technisch nicht leer; deshalb
      * enthaelt er auch die Firmen-Telefonzeile der persoenlichen Fassung.
-     * Automatische Nachrichten zeigen den Anschluss bereits links als
-     * DURCHWAHL. Die rechte Wiederholung wird hier beim finalen Rendern ueber
-     * den vorhandenen COMPANY_PHONE-Marker entfernt.
+     * Automatische Nachrichten zeigen Anschluss und Firmenmail bereits links
+     * als Absenderkontakte. Die rechten Wiederholungen werden hier beim
+     * finalen Rendern ueber COMPANY_PHONE/COMPANY_EMAIL entfernt.
      *
      * @param  array<string, string>  $values
      * @return array<string, string>
@@ -406,6 +406,10 @@ class MailSignature
     {
         if ($this->user === null) {
             $values['FIRMEN_TELEFON'] = '';
+            // Automatische Nachrichten zeigen dieselbe Firmenadresse bereits
+            // links als Absenderkontakt. Die rechte Firmenkopie wird ueber
+            // ihren stabilen Marker entfernt, statt zweimal sichtbar zu sein.
+            $values['FIRMEN_EMAIL'] = '';
         }
 
         return $values;
@@ -448,29 +452,35 @@ class MailSignature
      * Projiziert den bereits validierten Hauptzug in genau EIN regulaeres
      * Bild innerhalb des oberen Carriers.
      *
-     * Das IMG liegt in modernen Clients absolut hinter dem Inhalt. Falls ein
-     * Reply-/Forward-Client Positionierungs-CSS entfernt, bleibt dasselbe
-     * Element dank width-Attribut und normaler Quellposition sichtbar unter
-     * den Kontakten; es gibt keine zweite Fallback-Kopie. Bis 1815 px skaliert
-     * die Leinwand fluide, darueber bleibt sie linksbuendig auf ihrer echten
-     * Maximalbreite. Damit endet die Lok bis 1815 px bei 75 Prozent und auf
-     * breiteren Ansichten wird das Zugheck nicht abgeschnitten.
+     * Das IMG liegt absolut hinter dem Inhalt und steckt in einem explizit
+     * null Pixel hohen, ueberlaufenden Layer. So reservieren auch Clients mit
+     * lueckenhafter Positionierungsunterstuetzung keine zweite Bildhoehe; bei
+     * CSS-Verlust bleibt dasselbe regulaere IMG erhalten, aber niemals als
+     * zusaetzliche Signaturzeile. Bis 1815 px skaliert die Leinwand fluide,
+     * darueber bleibt sie linksbuendig auf ihrer echten Maximalbreite. Damit
+     * endet die Lok bis 1815 px bei 75 Prozent und auf breiteren Ansichten
+     * wird das Zugheck nicht abgeschnitten.
      */
     private function projectPublishedTrainAsRuntimeImage(string $html): string
     {
-        if (str_contains($html, 'data-rt-train-main-image')) {
+        if (str_contains($html, 'data-rt-train-main-image')
+            || str_contains($html, 'data-rt-train-main-layer')) {
             throw new \RuntimeException('Die veroeffentlichte Signatur enthaelt bereits einen Runtime-Zug.');
         }
 
         $html = SignatureTrainCarrier::withoutMainLayer($html);
         $image = '<img class="rt-train-main-image" data-rt-train-main-image '
             .'src="{{TRAIN_SRC}}" width="100%" alt="Dampflok-G&uuml;terzug" '
-            .'style="display:block;width:100%;max-width:1815px;height:auto;margin:0;'
+            .'style="display:block;position:absolute;left:0;right:auto;bottom:0;z-index:0;'
+            .'width:100%;max-width:1815px;height:auto;margin:0;'
             .'border:0;outline:none;text-decoration:none;opacity:1;visibility:visible;">';
+        $layer = '<span class="rt-train-main-layer" data-rt-train-main-layer '
+            .'style="display:block;width:100%;height:0;max-height:0;overflow:visible;'
+            .'font-size:0;line-height:0;mso-line-height-rule:exactly;">'.$image.'</span>';
         $replacements = 0;
-        $rendered = preg_replace(
-            '/(<\/td>[ \t\r\n]*<\/tr>[ \t\r\n]*)(<!-- RT_SIGNATURE_MAIN_END -->)/',
-            $image.'$1$2',
+        $rendered = preg_replace_callback(
+            '/<td\b[^>]*class=(["\'])[^"\']*\brt-sign-cell\b[^"\']*\1[^>]*>/i',
+            static fn (array $match): string => $match[0].$layer,
             $html,
             1,
             $replacements,
@@ -478,6 +488,7 @@ class MailSignature
 
         if (! is_string($rendered)
             || $replacements !== 1
+            || substr_count($rendered, 'data-rt-train-main-layer') !== 1
             || substr_count($rendered, 'data-rt-train-main-image') !== 1
             || substr_count($rendered, '{{TRAIN_SRC}}') !== 1) {
             throw new \RuntimeException('Der Runtime-Zug konnte nicht eindeutig in den oberen Carrier projiziert werden.');
@@ -519,9 +530,11 @@ class MailSignature
      * Positionierung. Erst der serverkontrollierte Renderweg setzt dieses
      * feste Markup ein; die ebenfalls serverkontrollierten Umbruchregeln
      * blenden es nach exakt 13 Sekunden ein. Ohne Keyframe-Unterstuetzung
-     * bleibt der Span samt echtem Smoke-IMG unsichtbar und layoutneutral.
-     * Hauptzug und Smoke-IMG teilen exakt dieselbe fluide Geometrie. Der Outlook-
-     * Paketexport behaelt seine einzelne regulaere Bildzeile ohne Overlay.
+     * bleibt das Overlay unsichtbar und layoutneutral. Runtime-Hauptzug und
+     * Smoke-IMG teilen exakt dieselbe fluide Geometrie. Standalone-/Editor-
+     * Fassungen behalten dagegen die zum dortigen CSS-Hauptzug passende
+     * Background-Surface. Der Outlook-Paketexport behaelt seine einzelne
+     * regulaere Bildzeile ohne Overlay.
      *
      * @param  array<string, string>  $values
      * @param  array<string, string>  $layout
@@ -538,19 +551,26 @@ class MailSignature
             return $html;
         }
 
-        if (str_contains($html, 'data-rt-train-idle-overlay')) {
+        if (str_contains($html, 'data-rt-train-idle-overlay')
+            || str_contains($html, 'data-rt-train-idle-image')) {
             throw new \RuntimeException('Die veroeffentlichte Signatur enthaelt bereits eine unzulaessige Idle-Ebene.');
         }
 
         $source = htmlspecialchars($idleSource, ENT_QUOTES, 'UTF-8');
+        $idleSurface = str_contains($html, 'data-rt-train-main-image')
+            ? '<img class="rt-train-idle-surface rt-train-idle-image" data-rt-train-idle-image '
+                .'src="'.$source.'" width="100%" alt="" '
+                .'style="display:block;position:absolute;left:0;right:auto;bottom:0;z-index:1;'
+                .'width:100%;max-width:1815px;height:auto;max-height:none;'
+                .'margin:0;border:0;outline:none;text-decoration:none;opacity:1;visibility:visible;">'
+            : '<span class="rt-train-idle-surface" style="display:block;width:1px;height:1px;'
+                .'max-width:1px;max-height:1px;background-image:url('.$source.');background-repeat:no-repeat;'
+                .'background-position:75% bottom;background-size:auto 100%;"></span>';
         $overlay = '<span class="rt-train-idle-overlay" data-rt-train-idle-overlay '
-            .'style="display:block;width:0;height:0;max-width:0;max-height:0;overflow:hidden;'
+            .'style="display:block;width:100%;height:0;max-height:0;overflow:hidden;'
             .'opacity:0;visibility:hidden;animation:rt-train-idle-reveal 1ms step-start 13s forwards;'
             .'font-size:0;line-height:0;mso-hide:all;">'
-            .'<img class="rt-train-idle-surface rt-train-idle-image" data-rt-train-idle-image '
-            .'src="'.$source.'" width="100%" alt="" '
-            .'style="display:block;width:100%;max-width:1815px;height:auto;max-height:none;'
-            .'margin:0;border:0;outline:none;text-decoration:none;opacity:1;visibility:visible;"></span>';
+            .$idleSurface.'</span>';
         $replacements = 0;
         $rendered = preg_replace_callback(
             '/<td\b[^>]*class=(["\'])[^"\']*\brt-sign-cell\b[^"\']*\1[^>]*>/i',
@@ -571,8 +591,9 @@ class MailSignature
      * Der Outlook-Export braucht den Zug als regulaeres lokales Bild. Der
      * kanonische veroeffentlichte Signaturstand enthaelt ihn als Hintergrund;
      * der feste Marker projiziert ihn ausschliesslich fuer das installierbare
-     * Classic-Outlook-Paket. Versendete Systemmails bleiben bei genau einem
-     * oberen Hintergrund-Carrier.
+     * Classic-Outlook-Paket in eine eigene Bildzeile. Versendete Systemmails
+     * laufen nicht durch diesen Paketpfad, sondern erhalten ihr einzelnes
+     * Runtime-IMG direkt im oberen Carrier.
      *
      * @param  array<string, string>  $layout
      */

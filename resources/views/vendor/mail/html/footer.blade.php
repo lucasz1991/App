@@ -14,10 +14,10 @@
     Rechtsblock der Signatur; er wird deshalb bewusst nicht erneut ausgegeben.
 --}}
 @php
-    // Systemmails verlinken die Assets und bleiben dadurch klein. Moderne
-    // Clients verwenden das GIF aus background-image; Classic Outlook
-    // erhaelt serverseitig ein einzelnes MSO-only <img> desselben Haupt-GIFs.
-    // Ein legacy background-Attribut ist verboten, weil Word es kachelt.
+    // Systemmails verlinken die Assets und bleiben dadurch klein. Der
+    // validierte CSS-Hauptlayer wird beim Rendern durch genau ein regulaeres,
+    // hoehenneutrales Zug-IMG ersetzt. Ein legacy background-Attribut ist
+    // verboten, weil Word es kachelt.
     $signatur = \App\Support\MailSignature::forCompany();
 @endphp
 {!! $signatur->render() !!}

@@ -33,9 +33,10 @@
 @endphp
 /* RT_SERVER_IDLE_REVEAL_START
    Dieser Block wird erst serverseitig ueber den RESPONSIVE_CSS-Platzhalter eingesetzt,
-   nachdem das editierbare Maildokument sanitisiert wurde. Das Overlay ist
-   inline unsichtbar und layoutneutral; nur Clients mit CSS-Keyframes zeigen
-   die reine Rauchschleife nach dem 13-s-Haupt-GIF. */
+   nachdem das editierbare Maildokument sanitisiert wurde. Hauptzug und Idle-
+   IMG liegen in null Pixel hohen Layern hinter den Kontakten und reservieren
+   keine zweite Signaturhoehe. Das Idle-Overlay ist inline unsichtbar; nur
+   Clients mit CSS-Keyframes zeigen die Rauchschleife nach dem 13-s-Haupt-GIF. */
 @keyframes rt-train-idle-reveal {
   0% { opacity: 0; visibility: hidden; }
   100% { opacity: 1; visibility: visible; }
@@ -54,6 +55,25 @@
     animation-iteration-count: 1;
     animation-fill-mode: forwards;
   }
+}
+.rt-train-idle-surface {
+  position: absolute !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  z-index: 0 !important;
+}
+.rt-train-main-layer {
+  display: block !important;
+  width: 100% !important;
+  height: 0 !important;
+  max-height: 0 !important;
+  overflow: visible !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
 }
 .rt-train-main-image,
 .rt-train-idle-image {
@@ -97,6 +117,9 @@
 @media only screen and (min-width: 1820px) {
 .rt-sign-cell {
   background-position: left top, right center, center center, left bottom !important;
+}
+.rt-train-idle-surface {
+  background-position: left bottom !important;
 }
 }
 
@@ -224,6 +247,10 @@ img.rt-logo { width: 150px !important; }
 .rt-sign-cell {
   background-position: left top, right center, center center, 75% 84% !important;
   background-size: 64px 64px, auto 52%, 100% 100%, 200% auto !important;
+}
+.rt-train-idle-surface {
+  background-position: 75% 84% !important;
+  background-size: 200% auto !important;
 }
 }
 

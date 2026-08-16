@@ -34,7 +34,7 @@
             'text' => $values['FIRMEN_TELEFON'],
         ],
         $ohneDoppelung ? null : [
-            'marker' => null,
+            'marker' => 'COMPANY_EMAIL',
             'icon' => 'ICON_EMAIL_SRC',
             'href' => 'mailto:'.$values['FIRMEN_EMAIL'],
             'text' => $values['FIRMEN_EMAIL'],

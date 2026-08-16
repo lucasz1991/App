@@ -312,7 +312,7 @@ final class EmailHtmlSanitizer
      * haengt daran; ohne sie bleiben leere Durchwahl-, Mobil- und
      * Website-Zeilen stehen.
      */
-    private const CONTACT_MARKER_PATTERN = '/^\s*RT_(?:PHONE|MOBILE|WEBSITE|COMPANY_PHONE)_(?:START|END)\s*$/';
+    private const CONTACT_MARKER_PATTERN = '/^\s*RT_(?:PHONE|MOBILE|WEBSITE|COMPANY_PHONE|COMPANY_EMAIL)_(?:START|END)\s*$/';
 
     /** Bedingter Outlook-Kommentar, ausschliesslich in der "downlevel-hidden"-Form. */
     private const MSO_COMMENT_PATTERN = '/^\[if\s+([^\]]{1,60})\]>(.*)<!\[endif\]$/si';

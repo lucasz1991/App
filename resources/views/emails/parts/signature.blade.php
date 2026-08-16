@@ -37,10 +37,10 @@
     $topRule = $topRule ?? 'border-top:5px solid #e4002b;';
     $legalPadding = $legalPadding ?? '14px 36px';
     $outlookTrainSrc = trim((string) ($outlookTrainSrc ?? ''));
-    // Standbild fuer den expliziten Outlook-Paketexport. Versendete
-    // Systemmails bekommen ihren MSO-Fallback erst nach der Sanitization als
-    // regulaeres, einmaliges Haupt-GIF; ein legacy background-Attribut wuerde
-    // Word als gekachelte Zelltextur ausgeben.
+    // Optionales Standbild nur fuer einen expliziten Outlook-Paketexport.
+    // Versendete Systemmails projizieren das Haupt-GIF spaeter genau einmal
+    // als regulaeres Bild; ein legacy background-Attribut wuerde Word als
+    // gekachelte Zelltextur ausgeben.
     $outlookTrainFallbackSrc = trim((string) ($outlookTrainFallbackSrc ?? ''));
     $isOutlookExport = $outlookTrainSrc !== '';
     $cellPadding = $isOutlookExport ? '0' : $padding;
@@ -112,9 +112,10 @@
 @endphp
 <tr>
     {{-- Kein legacy background-Attribut: Classic Outlook/Word kachelt dessen
-         Bild ungeachtet von background-repeat und background-size. Moderne
-         Clients behalten die CSS-Ebenen; Classic Outlook erhaelt nach der
-         Sanitization genau ein bedingtes regulaeres GIF. --}}
+         Bild ungeachtet von background-repeat und background-size. Beim
+         Systemmail-Render wird der validierte Hauptlayer aus diesen CSS-Listen
+         entfernt und genau einmal als regulaeres Nullhoehen-IMG hinter den
+         Inhaltsdaten eingesetzt. --}}
     <td class="{{ $isOutlookExport ? '' : 'rt-pad ' }}rt-sign-cell" bgcolor="{{ $values['SIGNATURE_BG'] }}" style="padding:{{ $cellPadding }};position:relative;overflow:hidden;background-color:{{ $values['SIGNATURE_BG'] }};background-image:{{ $backgroundImage }};background-repeat:{{ $backgroundRepeat }};background-position:{{ $backgroundPosition }};background-size:{{ $backgroundSize }};{{ $topRule }}">
         @if($isOutlookExport)
             {{-- Der Inhalt behaelt seinen gewohnten Innenabstand, waehrend
@@ -203,26 +204,11 @@
                     </td>
                 </tr>
             </table>
-            {{-- Der Zug als REGULAERES Bild statt als Hintergrundebene.
-                 Zwei Wege nutzen das:
-
-                 - Outlook-Export: lokale Datei, damit Outlook das GIF als
-                   echte Signaturressource uebernimmt.
-                 - Versendete Systemmail: verlinkte Adresse, weil weder
-                   Outlook-Desktop noch Gmail data:-URIs oder CSS-Hinter-
-                   grundbilder darstellen. Als Hintergrund erschien der Zug
-                   dort schlicht nie.
-
-                 GETRENNTE QUELLEN JE CLIENT: Outlook zeigt von einem
-                 animierten GIF nur das ERSTE Einzelbild — und das ist bei
-                 beiden Zugfassungen komplett leer (nachgemessen: 0 % Tinte),
-                 weil der Zug dort noch ausserhalb des Bildes steht. Outlook
-                 bekommt deshalb ueber den bedingten Kommentar das Standbild
-                 in Ruhestellung, alle anderen das GIF.
-
-                 Der Export nutzt ausschliesslich diese Bildzeile. Die
-                 separate Idle-Hintergrundebene ist entfernt; Einfahrt und
-                 nachgelagerter Rauch sind eine zusammenhaengende Animation. --}}
+            {{-- Outlook-Paketexport: Der Zug ist eine lokale regulaere
+                 Bildressource statt einer CSS-Hintergrundebene. Falls ein
+                 explizites Standbild mitgegeben wird, trennt der bedingte
+                 Zweig Classic Outlook vom animierten Pfad; ohne Standbild
+                 verwenden alle Clients dasselbe GIF. --}}
             <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">
                 <tr>
                     <td align="left" style="padding:{{ $outlookTrainPadding }};text-align:left;font-size:0;line-height:0;">

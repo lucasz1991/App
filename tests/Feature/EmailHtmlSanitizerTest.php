@@ -107,31 +107,59 @@ class EmailHtmlSanitizerTest extends TestCase
         $this->assertStringNotContainsString('data:image', $signature);
         $this->assertStringContainsString('position:relative', $signature);
         $this->assertSame(
-            2,
+            1,
             preg_match_all('/zug-dampf-light\.gif\?v=\d+&amp;p=[a-f0-9]{32}/', $signature),
         );
         $this->assertSame(
             1,
             preg_match_all('/zug-dampf-idle-light\.gif\?v=\d+&amp;p=[a-f0-9]{32}/', $signature),
         );
+        $this->assertSame(1, substr_count($signature, 'data-rt-train-main-image'));
+        $this->assertStringNotContainsString('rt-classic-outlook-train', $signature);
+        $this->assertSame(
+            1,
+            preg_match('/<img[^>]*data-rt-train-main-image[^>]*>/', $signature, $mainTrain),
+        );
+        $this->assertStringContainsString('width="100%"', $mainTrain[0]);
+        $this->assertStringContainsString('max-width:1815px', $mainTrain[0]);
+        $this->assertStringContainsString('position:absolute', $mainTrain[0]);
+        $this->assertStringContainsString('opacity:1', $mainTrain[0]);
+        $this->assertSame(1, substr_count($signature, 'data-rt-train-main-layer'));
+        $this->assertSame(
+            1,
+            preg_match('/<span[^>]*data-rt-train-main-layer[^>]*>/', $signature, $mainLayer),
+        );
+        $this->assertStringContainsString('width:100%;height:0;max-height:0;overflow:visible', $mainLayer[0]);
         $this->assertSame(1, substr_count($signature, 'data-rt-train-idle-overlay'));
+        $this->assertSame(1, substr_count($signature, 'data-rt-train-idle-image'));
         $this->assertSame(
             1,
             preg_match('/<span[^>]*data-rt-train-idle-overlay[^>]*>/', $signature, $idleOverlay),
         );
-        $this->assertStringContainsString('width:0;height:0;max-width:0;max-height:0;overflow:hidden', $idleOverlay[0]);
+        $this->assertStringContainsString('width:100%;height:0;max-height:0;overflow:hidden', $idleOverlay[0]);
         $this->assertStringContainsString('mso-hide:all', $idleOverlay[0]);
-        $this->assertStringNotContainsString('opacity:', $idleOverlay[0]);
-        $this->assertStringNotContainsString('visibility:', $idleOverlay[0]);
+        $this->assertStringContainsString('opacity:0', $idleOverlay[0]);
+        $this->assertStringContainsString('visibility:hidden', $idleOverlay[0]);
 
-        $report = $this->sanitizer()->clean($signature);
+        // Die beiden absoluten Zuglayer entstehen absichtlich erst NACH der
+        // Dokument-Sanitization aus festem Servermarkup. Fuer den Bytegleich-
+        // Vertrag wird deshalb der zugrunde liegende, editierbare Stand ohne
+        // diese beiden geschuetzten Runtime-Layer erneut sanitisiert.
+        $sanitizableSignature = preg_replace(
+            '/<span\b[^>]*data-rt-train-(?:main-layer|idle-overlay)[^>]*>.*?<\/span>/is',
+            '',
+            $signature,
+        );
+        $this->assertIsString($sanitizableSignature);
+
+        $report = $this->sanitizer()->clean($sanitizableSignature);
 
         $this->assertSame(
             [],
             $report->findings,
             'Signaturblock beanstandet: '.implode(' | ', $report->messages()),
         );
-        $this->assertSame($signature, $report->html);
+        $this->assertSame($sanitizableSignature, $report->html);
     }
 
     /**
@@ -164,6 +192,10 @@ class EmailHtmlSanitizerTest extends TestCase
         $this->assertStringContainsString('@supports (animation-name: rt-train-idle-reveal)', $css);
         $this->assertStringContainsString('animation-timing-function: step-start;', $css);
         $this->assertStringContainsString('animation-delay: 13s;', $css);
+        $this->assertStringContainsString(".rt-train-main-image,\n.rt-train-idle-image {", $css);
+        $this->assertStringContainsString('max-width: 1815px !important;', $css);
+        $this->assertStringContainsString('left: -75% !important;', $css);
+        $this->assertStringContainsString('width: 200% !important;', $css);
 
         // Keyframes und position:absolute stammen nicht aus dem editierbaren
         // Dokument, sondern werden erst nach dessen Sanitization aus dieser
@@ -847,13 +879,14 @@ class EmailHtmlSanitizerTest extends TestCase
             .'<!-- RT_MOBILE_START --><tr><td>Mobil</td></tr><!-- RT_MOBILE_END -->'
             .'<!-- RT_WEBSITE_START --><tr><td>Web</td></tr><!-- RT_WEBSITE_END -->'
             .'<!-- RT_COMPANY_PHONE_START --><tr><td>Firma</td></tr><!-- RT_COMPANY_PHONE_END -->'
+            .'<!-- RT_COMPANY_EMAIL_START --><tr><td>Firmenmail</td></tr><!-- RT_COMPANY_EMAIL_END -->'
             .'</table>';
 
         $report = $this->sanitizer()->clean($html);
 
         $this->assertTrue($report->has('element.forbidden'));
 
-        foreach (['PHONE', 'MOBILE', 'WEBSITE', 'COMPANY_PHONE'] as $marker) {
+        foreach (['PHONE', 'MOBILE', 'WEBSITE', 'COMPANY_PHONE', 'COMPANY_EMAIL'] as $marker) {
             $this->assertStringContainsString("<!-- RT_{$marker}_START -->", $report->html);
             $this->assertStringContainsString("<!-- RT_{$marker}_END -->", $report->html);
         }

@@ -598,6 +598,7 @@ class EmailTemplateBuilder
             'MOBILE' => 'MOBIL',
             'WEBSITE' => 'FIRMEN_WEBSITE_HREF',
             'COMPANY_PHONE' => 'FIRMEN_TELEFON',
+            'COMPANY_EMAIL' => 'FIRMEN_EMAIL',
         ] as $marker => $valueKey) {
             if (($values[$valueKey] ?? '') !== '') {
                 continue;
@@ -611,7 +612,7 @@ class EmailTemplateBuilder
         }
 
         return preg_replace(
-            '/<!-- RT_(?:PHONE|MOBILE|WEBSITE|COMPANY_PHONE)_(?:START|END) -->/',
+            '/<!-- RT_(?:PHONE|MOBILE|WEBSITE|COMPANY_PHONE|COMPANY_EMAIL)_(?:START|END) -->/',
             '',
             $html
         ) ?? $html;
@@ -1341,17 +1342,7 @@ HTML;
 
     protected function buildPlainBody(): string
     {
-        $values = $this->profileValues();
-
-        $phoneParts = array_filter([
-            $values['DURCHWAHL'] !== '' ? "T {$values['DURCHWAHL']}" : null,
-            $values['MOBIL'] !== '' ? "M {$values['MOBIL']}" : null,
-        ]);
-        $phoneLine = $phoneParts === [] ? '' : implode(' · ', $phoneParts)."\n";
-        // Wie in den HTML-Fassungen: Festnetzanschluss statt Notfall-Mobilnummer.
-        $companyPhoneLine = $values['FIRMEN_TELEFON'] !== ''
-            ? "Telefon (Zentrale): {$values['FIRMEN_TELEFON']}\n"
-            : '';
+        $signature = rtrim($this->buildPlainSignature());
 
         return <<<TEXT
 {{ANREDE}},
@@ -1369,47 +1360,13 @@ Ansprechpartner: {{ANSPRECHPARTNER}}
 {{CTA_TEXT}}: {{CTA_URL}}
 
 Freundliche Grüße
-{$values['VORNAME_NACHNAME']}
-{$values['POSITION']}
-
-{$values['FIRMENNAME']}
-{$values['FIRMENSTRASSE']} · {$values['FIRMEN_PLZ_ORT']}
-{$phoneLine}E {$values['E_MAIL']}
-{$companyPhoneLine}
-Geschäftsführung: {$values['GESCHAEFTSFUEHRUNG']}
-Registergericht: {$values['REGISTERGERICHT']} · HRB {$values['HRB']}
-USt-IdNr.: {$values['UST_ID']} · Steuernummer: {$values['STEUERNUMMER']}
+{$signature}
 TEXT;
     }
 
     protected function buildPlainSignature(): string
     {
-        $values = $this->profileValues();
-
-        $contactLines = implode('', array_filter([
-            $values['DURCHWAHL'] !== '' ? "T {$values['DURCHWAHL']}\n" : null,
-            $values['MOBIL'] !== '' ? "M {$values['MOBIL']}\n" : null,
-        ]));
-        // Wie in den HTML-Fassungen: Festnetzanschluss statt Notfall-Mobilnummer.
-        $companyPhoneLine = $values['FIRMEN_TELEFON'] !== ''
-            ? "Telefon (Zentrale): {$values['FIRMEN_TELEFON']}\n"
-            : '';
-
-        return <<<TEXT
-{$values['VORNAME_NACHNAME']}
-{$values['POSITION']}
-
-{$values['FIRMENNAME']}
-{$values['FIRMENSTRASSE']}
-{$values['FIRMEN_PLZ_ORT']}
-
-{$contactLines}E {$values['E_MAIL']}
-{$companyPhoneLine}Zentrale E-Mail: {$values['FIRMEN_EMAIL']}
-
-Geschäftsführung: {$values['GESCHAEFTSFUEHRUNG']}
-Registergericht: {$values['REGISTERGERICHT']} · HRB {$values['HRB']}
-USt-IdNr.: {$values['UST_ID']} · Steuernummer: {$values['STEUERNUMMER']}
-TEXT;
+        return self::formatPlainSignature($this->profileValues());
     }
 
     /**
@@ -1419,41 +1376,70 @@ TEXT;
     public static function buildSystemMailTextSignature(): string
     {
         $values = CompanyData::templateValues();
-        $companyPhone = trim((string) $values['FIRMEN_TELEFON']);
-        $emergencyPhone = trim((string) $values['NOTFALLNUMMER']);
 
-        if (self::telHref($companyPhone) === self::telHref($emergencyPhone)) {
-            $emergencyPhone = '';
+        return self::formatPlainSignature(array_merge($values, [
+            'VORNAME_NACHNAME' => '',
+            'POSITION' => __('app.mail_signature_company_role'),
+            'DURCHWAHL' => $values['FIRMEN_TELEFON'],
+            'MOBIL' => $values['NOTFALLNUMMER'],
+            'E_MAIL' => $values['FIRMEN_EMAIL'],
+        ]));
+    }
+
+    /** @param array<string, string> $values */
+    private static function formatPlainSignature(array $values): string
+    {
+        $directPhone = trim((string) ($values['DURCHWAHL'] ?? ''));
+        $mobilePhone = trim((string) ($values['MOBIL'] ?? ''));
+        $companyPhone = trim((string) ($values['FIRMEN_TELEFON'] ?? ''));
+        $directHref = self::telHref($directPhone);
+        $mobileHref = self::telHref($mobilePhone);
+        $companyHref = self::telHref($companyPhone);
+
+        if ($directHref !== '' && $directHref === $mobileHref) {
+            $mobilePhone = '';
+            $mobileHref = '';
         }
 
+        $personalEmail = trim((string) ($values['E_MAIL'] ?? ''));
+        $companyEmail = trim((string) ($values['FIRMEN_EMAIL'] ?? ''));
+        $website = self::webLabel($values['FIRMEN_WEBSITE'] ?? '');
         $contactLines = array_filter([
-            $companyPhone !== '' ? "T {$companyPhone}" : null,
-            $emergencyPhone !== '' ? "M {$emergencyPhone}" : null,
-            trim((string) $values['FIRMEN_EMAIL']) !== '' ? "E {$values['FIRMEN_EMAIL']}" : null,
-            self::webLabel($values['FIRMEN_WEBSITE']) !== ''
-                ? 'W '.self::webLabel($values['FIRMEN_WEBSITE'])
+            $directPhone !== '' ? "T {$directPhone}" : null,
+            $mobilePhone !== '' ? "M {$mobilePhone}" : null,
+            $personalEmail !== '' ? "E {$personalEmail}" : null,
+            $companyPhone !== '' && ! in_array($companyHref, array_filter([$directHref, $mobileHref]), true)
+                ? "Telefon (Zentrale): {$companyPhone}"
                 : null,
+            $companyEmail !== '' && mb_strtolower($companyEmail) !== mb_strtolower($personalEmail)
+                ? "Zentrale E-Mail: {$companyEmail}"
+                : null,
+            $website !== '' ? "W {$website}" : null,
         ]);
         $legalParts = array_filter([
-            trim((string) $values['GESCHAEFTSFUEHRUNG']) !== ''
+            trim((string) ($values['GESCHAEFTSFUEHRUNG'] ?? '')) !== ''
                 ? "Geschäftsführung: {$values['GESCHAEFTSFUEHRUNG']}"
                 : null,
-            trim((string) $values['REGISTERGERICHT']) !== ''
+            trim((string) ($values['REGISTERGERICHT'] ?? '')) !== ''
                 ? "Registergericht: {$values['REGISTERGERICHT']}"
                 : null,
-            trim((string) $values['HRB']) !== '' ? "HRB {$values['HRB']}" : null,
-            trim((string) $values['UST_ID']) !== '' ? "USt-IdNr.: {$values['UST_ID']}" : null,
-            trim((string) $values['STEUERNUMMER']) !== '' ? "Steuernummer: {$values['STEUERNUMMER']}" : null,
+            trim((string) ($values['HRB'] ?? '')) !== '' ? "HRB {$values['HRB']}" : null,
+            trim((string) ($values['UST_ID'] ?? '')) !== '' ? "USt-IdNr.: {$values['UST_ID']}" : null,
+            trim((string) ($values['STEUERNUMMER'] ?? '')) !== '' ? "Steuernummer: {$values['STEUERNUMMER']}" : null,
         ]);
 
+        $identityLines = array_filter([
+            trim((string) ($values['VORNAME_NACHNAME'] ?? '')),
+            trim((string) ($values['POSITION'] ?? '')),
+        ], static fn (string $line): bool => $line !== '');
         $addressLines = array_filter([
-            $values['FIRMENNAME'],
-            $values['FIRMENSTRASSE'],
-            $values['FIRMEN_PLZ_ORT'],
-            $values['FIRMENLAND'],
+            trim((string) ($values['FIRMENNAME'] ?? '')),
+            trim((string) ($values['FIRMENSTRASSE'] ?? '')),
+            trim((string) ($values['FIRMEN_PLZ_ORT'] ?? '')),
+            trim((string) ($values['FIRMENLAND'] ?? '')),
         ], static fn (string $line): bool => trim($line) !== '');
         $sections = array_filter([
-            __('app.mail_signature_company_role'),
+            implode("\n", $identityLines),
             implode("\n", $addressLines),
             implode("\n", $contactLines),
             implode(' · ', $legalParts),

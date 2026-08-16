@@ -13,6 +13,8 @@ namespace Illuminate\Support {
 }
 
 namespace {
+    use App\Support\EmailTemplateBuilder;
+
     function resource_path(string $path = ''): string
     {
         return dirname(__DIR__, 2).'/resources'.($path === '' ? '' : '/'.$path);
@@ -20,7 +22,7 @@ namespace {
 
     require dirname(__DIR__, 2).'/app/Support/EmailTemplateBuilder.php';
 
-    final class IsolatedEmailTemplateBuilder extends App\Support\EmailTemplateBuilder
+    final class IsolatedEmailTemplateBuilder extends EmailTemplateBuilder
     {
         public function __construct() {}
 
@@ -60,12 +62,12 @@ namespace {
         }
     }
 
-    $reflection = new ReflectionClass(App\Support\EmailTemplateBuilder::class);
+    $reflection = new ReflectionClass(EmailTemplateBuilder::class);
     $builder = $reflection->newInstanceWithoutConstructor();
     $method = $reflection->getMethod('buildOutlookRtf');
     $method->setAccessible(true);
 
-    $rtf = $method->invoke($builder, "BMP é · Astral 😀 𝄞");
+    $rtf = $method->invoke($builder, 'BMP é · Astral 😀 𝄞');
     $expected = [
         '\\u233?',       // é
         '\\u183?',       // ·
@@ -87,6 +89,39 @@ namespace {
         exit(1);
     }
 
+    $plainFormatter = $reflection->getMethod('formatPlainSignature');
+    $plainFormatter->setAccessible(true);
+    $plainSignature = $plainFormatter->invoke(null, [
+        'VORNAME_NACHNAME' => 'Mara Beispiel',
+        'POSITION' => 'Wagenmeisterin',
+        'DURCHWAHL' => '04171 546803',
+        'MOBIL' => '',
+        'E_MAIL' => 'info@rail-time.de',
+        'FIRMENNAME' => 'RT Rail Time GmbH',
+        'FIRMENSTRASSE' => 'Borsteler Weg 29–31',
+        'FIRMEN_PLZ_ORT' => '21423 Winsen (Luhe)',
+        'FIRMENLAND' => 'Deutschland',
+        'FIRMEN_TELEFON' => '04171 546803',
+        'FIRMEN_EMAIL' => 'info@rail-time.de',
+        'FIRMEN_WEBSITE' => 'https://www.rail-time.de',
+        'GESCHAEFTSFUEHRUNG' => 'Beispiel Name',
+        'REGISTERGERICHT' => 'Amtsgericht Tostedt',
+        'HRB' => '204604',
+        'UST_ID' => 'DE169651368',
+        'STEUERNUMMER' => '',
+    ]);
+
+    if (substr_count($plainSignature, '04171 546803') !== 1) {
+        fwrite(STDERR, "Plain signature duplicated the normalized company phone.\n");
+        exit(1);
+    }
+    foreach (['W rail-time.de', 'Geschäftsführung:', 'Diese E-Mail kann vertrauliche Informationen enthalten.'] as $requiredText) {
+        if (! str_contains($plainSignature, $requiredText)) {
+            fwrite(STDERR, "Plain signature is incomplete: {$requiredText}\n");
+            exit(1);
+        }
+    }
+
     $eml = (new IsolatedEmailTemplateBuilder)->eml('light');
     foreach (['railtime-logo', 'railtime-logo-still', 'railtime-train'] as $contentId) {
         if (substr_count($eml, "Content-ID: <{$contentId}>\r\n") !== 1) {
@@ -95,7 +130,7 @@ namespace {
         }
     }
 
-    if (! str_contains($eml, "Content-Type: image/gif; name=\"zug-dampf-light.gif\"")) {
+    if (! str_contains($eml, 'Content-Type: image/gif; name="zug-dampf-light.gif"')) {
         fwrite(STDERR, "Train GIF MIME part is missing.\n");
         exit(1);
     }

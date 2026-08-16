@@ -26,7 +26,7 @@ test('reply and forward markup has one company contact DOM and one responsive wo
     assert.doesNotMatch(contacts, /\$gruppen|@foreach\(\$gruppen/);
     assert.equal(occurrences(contacts, /RT_\{\{ \$zeile\['marker'\] \}\}_START/g), 1);
     assert.equal(occurrences(contacts, /RT_\{\{ \$zeile\['marker'\] \}\}_END/g), 1);
-    for (const marker of ['COMPANY_PHONE', 'WEBSITE']) {
+    for (const marker of ['COMPANY_PHONE', 'COMPANY_EMAIL', 'WEBSITE']) {
         assert.match(contacts, new RegExp(`'marker' => '${marker}'`));
     }
 
@@ -76,7 +76,10 @@ test('Outlook export and sent mail each keep exactly one regular train image', a
     assert.doesNotMatch(signature, /<td[^>]+background="\{\{[^}]*TRAIN/);
 
     assert.match(runtime, /<img class="rt-train-main-image" data-rt-train-main-image/);
+    assert.match(runtime, /<span class="rt-train-main-layer" data-rt-train-main-layer/);
+    assert.match(runtime, /width:100%;height:0;max-height:0;overflow:visible/);
+    assert.match(runtime, /position:absolute;left:0;right:auto;bottom:0;z-index:0/);
     assert.match(runtime, /SignatureTrainCarrier::withoutMainLayer\(\$html\)/);
     assert.doesNotMatch(runtime, /rt-classic-outlook-train/);
-    assert.match(runtime, /max-width:1815px!important/);
+    assert.match(runtime, /max-width:1815px/);
 });
