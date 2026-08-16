@@ -64,7 +64,7 @@ test('mobile rules restyle the same signature nodes without hide-and-show copies
     assert.doesNotMatch(css, /rt-marke-mobil|\.rt-sign-logo img\.rt-logo\s*\{[^}]*display:\s*none/);
 });
 
-test('Outlook export and sent mail each keep exactly one regular train image', async () => {
+test('Outlook export keeps one image while sent mail keeps one CSS train layer', async () => {
     const [signature, runtime] = await Promise.all([
         source('../../resources/views/emails/parts/signature.blade.php'),
         source('../../app/Support/MailSignature.php'),
@@ -75,13 +75,12 @@ test('Outlook export and sent mail each keep exactly one regular train image', a
     assert.match(signature, /<img data-rt-outlook-train-still src="\{\{ \$outlookTrainFallbackSrc \}\}" width="100%"/);
     assert.doesNotMatch(signature, /<td[^>]+background="\{\{[^}]*TRAIN/);
 
-    assert.match(runtime, /<img class="rt-train-main-image" data-rt-train-main-image/);
-    assert.match(runtime, /<span class="rt-train-main-layer" data-rt-train-main-layer/);
-    assert.match(runtime, /position:relative;z-index:0;width:100%;max-width:1815px;[\s\S]+?height:0;max-height:0;overflow:visible/);
-    assert.match(runtime, /max-width:none;height:auto;margin:0/);
+    assert.doesNotMatch(runtime, /data-rt-train-main-(?:image|layer)/);
+    assert.doesNotMatch(runtime, /projectPublishedTrainAsRuntimeImage/);
+    assert.match(runtime, /usesTokenizedTrainCarrier/);
+    assert.match(runtime, /normalizePublishedTrainCarrier/);
     assert.match(runtime, /injectRuntimeLayerAtCarrierBottom/);
-    assert.match(runtime, /position:absolute;left:0;right:auto;bottom:0;z-index:0/);
-    assert.match(runtime, /SignatureTrainCarrier::withoutMainLayer\(\$html\)/);
+    assert.match(runtime, /<span class="rt-train-idle-surface"[\s\S]+?background-position:75% bottom;background-size:auto 100%/);
+    assert.doesNotMatch(runtime, /SignatureTrainCarrier::withoutMainLayer\(\$html\)/);
     assert.doesNotMatch(runtime, /rt-classic-outlook-train/);
-    assert.match(runtime, /max-width:1815px/);
 });

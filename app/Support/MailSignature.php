@@ -70,9 +70,9 @@ class MailSignature
         // Bildidentitaet einer anderen Systemmail teilen. Der Nonce entsteht
         // genau einmal pro Signaturinstanz: innerhalb EINER Mail bleiben alle
         // Verweise identisch, zwei unabhaengige Mails erhalten getrennte
-        // Playback-URLs. Der echte Runtime-IMG-Weg verbessert auch das erneute
-        // Abspielen beim Oeffnen; ob dieselbe Mail wirklich neu startet, bleibt
-        // jedoch eine Entscheidung des jeweiligen Mailclient-/Proxy-Caches.
+        // Playback-URLs. Ob dieselbe bereits geladene Mail beim erneuten Oeffnen
+        // wirklich neu startet, bleibt eine Entscheidung des jeweiligen
+        // Mailclient-/Proxy-Caches.
         if ($animated && $remoteAssets && ! $staticAssets && $playbackNonce === null) {
             $playbackNonce = bin2hex(random_bytes(18));
         }
@@ -156,9 +156,10 @@ class MailSignature
                     ),
                 ),
                 // Das Standbild bleibt dem expliziten Outlook-Paketexport
-                // vorbehalten. Versendete Systemmails projizieren TRAIN_SRC
-                // genau einmal als unbedingtes Runtime-IMG; der moderne CSS-
-                // Hauptlayer wird dabei entfernt, damit nie zwei Zuege stehen.
+                // vorbehalten. Versendete Systemmails behalten TRAIN_SRC genau
+                // einmal im kanonischen CSS-Hintergrund. Ein null Pixel hoher,
+                // absolut positionierter IMG-Layer wird von Outlook verworfen
+                // und kann den Zug dadurch vollstaendig unsichtbar machen.
                 'TRAIN_STILL_SRC' => EmailTemplateBuilder::signatureTrainStillUrl($this->theme),
                 // Die Rauchschleife wird erst nach dem Ende der einmaligen
                 // 13-s-Einfahrt eingeblendet. Statische Fassungen und
@@ -284,7 +285,7 @@ class MailSignature
     public function render(array $layout = [], array $overrides = []): string
     {
         $values = $this->values($overrides);
-        $runtimeTrainImage = $this->usesRuntimeTrainImage($values, $layout);
+        $tokenizedTrainCarrier = $this->usesTokenizedTrainCarrier($values, $layout);
 
         // Vor der MailDocument-Migration bleibt der bestehende Bootstrapweg
         // verwendbar. In einer migrierten Installation erzwingt
@@ -295,7 +296,7 @@ class MailSignature
         );
         if ($published === null) {
             $viewValues = $values;
-            if ($runtimeTrainImage) {
+            if ($tokenizedTrainCarrier) {
                 // Dieselbe tokenisierte Zwischenform wie ein publiziertes
                 // Dokument verwenden, damit auch der Bootstrap-Fallback den
                 // fail-closed Carrier-Parser durchlaeuft.
@@ -305,10 +306,8 @@ class MailSignature
                 'values' => $viewValues,
             ], $layout))->render();
 
-            if ($runtimeTrainImage) {
-                $html = $this->projectPublishedTrainAsRuntimeImage(
-                    $this->normalizePublishedTrainCarrier($html),
-                );
+            if ($tokenizedTrainCarrier) {
+                $html = $this->normalizePublishedTrainCarrier($html);
                 $html = str_replace(
                     '{{TRAIN_SRC}}',
                     htmlspecialchars($values['TRAIN_SRC'], ENT_QUOTES, 'UTF-8'),
@@ -324,20 +323,19 @@ class MailSignature
             return $this->finalizeTrainRendering($html, $values, $layout);
         }
 
-        // JEDER VERSANDWEG BEKOMMT DEN ZUG ALS REGULAERES BILD.
+        // JEDER VERSANDWEG BEKOMMT GENAU EINEN HAUPTZUG.
         //
         // Der gespeicherte Entwurf behaelt den geschuetzten Background-Token
-        // fuer Editor und Downloads. Erst nach seiner vollstaendigen Runtime-
-        // Validierung wird dieser eine Layer aus allen vier gekoppelten CSS-
-        // Listen geloest und als genau ein echtes IMG in denselben oberen
-        // Carrier projiziert. Deshalb startet der Zug beim Oeffnen wie die
-        // Logo-/Icon-GIFs neu und bleibt auch in Reply-/Forward-Zitaten als
-        // normales Bild erhalten.
+        // fuer Editor, Downloads und versendete Systemmails. Nach seiner
+        // vollstaendigen Runtime-Validierung bleibt dieser eine Layer in den
+        // vier gekoppelten CSS-Listen. Damit reserviert er keine eigene Hoehe
+        // und Outlook kann ihn nicht wegen eines null Pixel hohen, absolut
+        // positionierten Wrappers vollstaendig verwerfen.
         //
         // Das installierbare Outlook-Paket nutzt weiterhin seine lokale
-        // Bildquelle. Systemmails nutzen die remote URL mit einer pro Mail
-        // stabilen Playback-ID; es existiert niemals gleichzeitig noch ein
-        // moderner Hauptzug-CSS-Layer.
+        // Bildquelle. Systemmails nutzen im CSS-Hauptlayer die remote URL mit
+        // einer pro Mail stabilen Playback-ID; ein zusaetzliches Runtime-IMG
+        // wird nicht mehr erzeugt.
         $zugAlsBild = trim((string) ($layout['outlookTrainSrc'] ?? '')) !== '';
         if ($published !== null) {
             SignatureDocumentContract::assertRuntimeValid($published);
@@ -347,9 +345,6 @@ class MailSignature
                 $html = $this->projectPublishedTrainAsImage($html, $layout);
             } else {
                 $html = $this->normalizePublishedTrainCarrier($html);
-                if ($runtimeTrainImage) {
-                    $html = $this->projectPublishedTrainAsRuntimeImage($html);
-                }
             }
             // FRUEHER stand hier ein Rueckfall auf den Firmennamen, wenn
             // keine Person sendet — er bildete eine gleichlautende Bedingung
@@ -438,58 +433,11 @@ class MailSignature
     }
 
     /** @param array<string, string> $values @param array<string, string> $layout */
-    private function usesRuntimeTrainImage(array $values, array $layout): bool
+    private function usesTokenizedTrainCarrier(array $values, array $layout): bool
     {
         return $this->remoteAssets
             && trim((string) ($layout['outlookTrainSrc'] ?? '')) === ''
             && trim((string) ($values['TRAIN_SRC'] ?? '')) !== '';
-    }
-
-    /**
-     * Projiziert den bereits validierten Hauptzug in genau EIN regulaeres
-     * Bild innerhalb des oberen Carriers.
-     *
-     * Das IMG liegt absolut hinter dem Inhalt und steckt am unteren Ende des
-     * Carriers in einem explizit positionierten, null Pixel hohen Layer. Damit
-     * bezieht sich `bottom:0` nicht mehr auf die in CSS 2.1 undefinierte
-     * Positionierung einer Tabellenzelle, sondern auf einen normalen Wrapper.
-     * Entfernt ein Client Positionierung vollstaendig, bleibt der Wrapper null
-     * Pixel hoch und der Carrier stabil, statt eine zweite Bildhoehe zu
-     * reservieren. Bis 1815 px skaliert die Leinwand fluide,
-     * darueber bleibt sie linksbuendig auf ihrer echten Maximalbreite. Damit
-     * endet die Lok bis 1815 px bei 75 Prozent und auf breiteren Ansichten
-     * wird das Zugheck nicht abgeschnitten.
-     */
-    private function projectPublishedTrainAsRuntimeImage(string $html): string
-    {
-        if (str_contains($html, 'data-rt-train-main-image')
-            || str_contains($html, 'data-rt-train-main-layer')) {
-            throw new \RuntimeException('Die veroeffentlichte Signatur enthaelt bereits einen Runtime-Zug.');
-        }
-
-        $html = SignatureTrainCarrier::withoutMainLayer($html);
-        $image = '<img class="rt-train-main-image" data-rt-train-main-image '
-            .'src="{{TRAIN_SRC}}" width="100%" alt="Dampflok-G&uuml;terzug" '
-            .'style="display:block;position:absolute;left:0;right:auto;bottom:0;z-index:0;'
-            .'width:100%;max-width:none;height:auto;margin:0;'
-            .'border:0;outline:none;text-decoration:none;opacity:1;visibility:visible;">';
-        $layer = '<span class="rt-train-main-layer" data-rt-train-main-layer '
-            .'style="display:block;position:relative;z-index:0;width:100%;max-width:1815px;'
-            .'height:0;max-height:0;overflow:visible;margin:0;'
-            .'font-size:0;line-height:0;mso-line-height-rule:exactly;">'.$image.'</span>';
-        $rendered = $this->injectRuntimeLayerAtCarrierBottom(
-            $html,
-            $layer,
-            'Der Runtime-Zug konnte nicht eindeutig am unteren Carrier-Anker projiziert werden.',
-        );
-
-        if (substr_count($rendered, 'data-rt-train-main-layer') !== 1
-            || substr_count($rendered, 'data-rt-train-main-image') !== 1
-            || substr_count($rendered, '{{TRAIN_SRC}}') !== 1) {
-            throw new \RuntimeException('Der Runtime-Zug konnte nicht eindeutig in den oberen Carrier projiziert werden.');
-        }
-
-        return $rendered;
     }
 
     /**
@@ -525,11 +473,9 @@ class MailSignature
      * Positionierung. Erst der serverkontrollierte Renderweg setzt dieses
      * feste Markup ein; die ebenfalls serverkontrollierten Umbruchregeln
      * blenden es nach exakt 13 Sekunden ein. Ohne Keyframe-Unterstuetzung
-     * bleibt das Overlay unsichtbar und layoutneutral. Runtime-Hauptzug und
-     * Smoke-IMG teilen exakt dieselbe fluide Geometrie. Standalone-/Editor-
-     * Fassungen behalten dagegen die zum dortigen CSS-Hauptzug passende
-     * Background-Surface. Der Outlook-Paketexport behaelt seine einzelne
-     * regulaere Bildzeile ohne Overlay.
+     * bleibt das Overlay unsichtbar und layoutneutral. Hauptzug und Rauch
+     * bleiben dabei auf derselben CSS-Hintergrundgeometrie. Der Outlook-
+     * Paketexport behaelt seine einzelne regulaere Bildzeile ohne Overlay.
      *
      * @param  array<string, string>  $values
      * @param  array<string, string>  $layout
@@ -552,22 +498,11 @@ class MailSignature
         }
 
         $source = htmlspecialchars($idleSource, ENT_QUOTES, 'UTF-8');
-        $usesRuntimeImage = str_contains($html, 'data-rt-train-main-image');
-        $idleSurface = $usesRuntimeImage
-            ? '<img class="rt-train-idle-surface rt-train-idle-image" data-rt-train-idle-image '
-                .'src="'.$source.'" width="100%" alt="" '
-                .'style="display:block;position:absolute;left:0;right:auto;bottom:0;z-index:1;'
-                .'width:100%;max-width:none;height:auto;max-height:none;'
-                .'margin:0;border:0;outline:none;text-decoration:none;opacity:1;visibility:visible;">'
-            : '<span class="rt-train-idle-surface" style="display:block;width:1px;height:1px;'
-                .'max-width:1px;max-height:1px;background-image:url('.$source.');background-repeat:no-repeat;'
-                .'background-position:75% bottom;background-size:auto 100%;"></span>';
-        $overlayClass = 'rt-train-idle-overlay'.($usesRuntimeImage ? ' rt-train-idle-runtime-layer' : '');
-        $overlayGeometry = $usesRuntimeImage
-            ? 'position:relative;z-index:0;width:100%;max-width:1815px;margin:0;'
-            : 'width:100%;';
-        $overlay = '<span class="'.$overlayClass.'" data-rt-train-idle-overlay '
-            .'style="display:block;'.$overlayGeometry.'height:0;max-height:0;overflow:hidden;'
+        $idleSurface = '<span class="rt-train-idle-surface" style="display:block;width:1px;height:1px;'
+            .'max-width:1px;max-height:1px;background-image:url('.$source.');background-repeat:no-repeat;'
+            .'background-position:75% bottom;background-size:auto 100%;"></span>';
+        $overlay = '<span class="rt-train-idle-overlay" data-rt-train-idle-overlay '
+            .'style="display:block;width:100%;height:0;max-height:0;overflow:hidden;'
             .'opacity:0;visibility:hidden;animation:rt-train-idle-reveal 1ms step-start 13s forwards;'
             .'font-size:0;line-height:0;mso-hide:all;">'
             .$idleSurface.'</span>';
@@ -607,8 +542,8 @@ class MailSignature
      * kanonische veroeffentlichte Signaturstand enthaelt ihn als Hintergrund;
      * der feste Marker projiziert ihn ausschliesslich fuer das installierbare
      * Classic-Outlook-Paket in eine eigene Bildzeile. Versendete Systemmails
-     * laufen nicht durch diesen Paketpfad, sondern erhalten ihr einzelnes
-     * Runtime-IMG direkt im oberen Carrier.
+     * laufen nicht durch diesen Paketpfad, sondern behalten ihren einzelnen
+     * CSS-Hauptzug direkt im oberen Carrier.
      *
      * @param  array<string, string>  $layout
      */

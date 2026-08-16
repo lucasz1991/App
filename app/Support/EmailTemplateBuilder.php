@@ -457,10 +457,10 @@ class EmailTemplateBuilder
         );
         $values = $signature->values();
         $values['RESPONSIVE_CSS'] = self::responsiveCss($values['SIGNATURE_BORDER'] ?? null);
-        // Der serverseitige Signatur-Render loest den Zug aus dem editierbaren
-        // CSS-Carrier und setzt ihn genau einmal als regulaeres IMG in dieselbe
-        // obere Zelle. So startet er beim Oeffnen wie Logo und RT-Zeichen neu
-        // und ueberlebt Reply-/Forward-Zitate ohne doppelte Fallbackzeile.
+        // Der serverseitige Signatur-Render validiert den editierbaren
+        // CSS-Carrier und behaelt den Hauptzug dort genau einmal. Dadurch
+        // bleibt er hinter den Kontaktdaten, erzeugt keine Zusatzhoehe und
+        // wird nicht in einem von Outlook verworfenen Nullhoehen-IMG versteckt.
         $values['SIGNATURE_BLOCK'] = $signature->render();
         $values['APPLICATION_CONTENT'] = '';
 

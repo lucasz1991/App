@@ -365,27 +365,15 @@ class MailDocumentEditorTest extends TestCase
             '/class="[^"]*rt-sign-cell[^"]*"[^>]*\sbackground=/',
             $html,
         );
-        $this->assertSame(1, substr_count($html, 'data-rt-train-main-image'));
+        $this->assertStringNotContainsString('data-rt-train-main-image', $html);
+        $this->assertStringNotContainsString('data-rt-train-main-layer', $html);
         $this->assertSame(0, substr_count($html, 'rt-classic-outlook-train'));
-        $this->assertMatchesRegularExpression(
-            '/<img[^>]*class="rt-train-main-image"[^>]*data-rt-train-main-image[^>]*src="[^"]*zug-dampf-light\.gif\?v=[^"]+"[^>]*>/',
-            $html,
-        );
-        $this->assertMatchesRegularExpression(
-            '/<img[^>]*data-rt-train-main-image[^>]*width="100%"[^>]*style="[^"]*width:100%;max-width:none;height:auto;[^"]*"/',
-            $html,
-        );
-        $this->assertSame(
-            1,
-            preg_match('/<img[^>]*data-rt-train-main-image[^>]*>/', $html, $runtimeTrain),
-        );
-        $this->assertStringContainsString('opacity:1', $runtimeTrain[0]);
-        $this->assertStringContainsString('visibility:visible', $runtimeTrain[0]);
         $this->assertSame(1, substr_count($html, 'zug-dampf-light.gif'));
         $this->assertStringNotContainsString('zug-dampf-light.png', $html);
+        $this->assertSame(0, preg_match_all('/<img\b[^>]*zug-dampf-light\.gif[^>]*>/i', $html));
         $this->assertSame(1, substr_count($html, 'zug-dampf-idle-light.gif'));
         $this->assertSame(1, substr_count($html, 'data-rt-train-idle-overlay'));
-        $this->assertSame(1, substr_count($html, 'data-rt-train-idle-image'));
+        $this->assertStringNotContainsString('data-rt-train-idle-image', $html);
         $this->assertStringContainsString('animation-delay: 13s;', $html);
         $this->assertStringContainsString('100% { opacity: 1; visibility: visible; }', $html);
         $this->assertStringNotContainsString('100% { opacity: .7;', $html);
@@ -397,27 +385,27 @@ class MailDocumentEditorTest extends TestCase
         );
         $this->assertMatchesRegularExpression('/(?<!max-)width:\s*100%(?:;|\")/', $idleOverlay[0]);
         $this->assertMatchesRegularExpression('/(?<!max-)height:\s*0(?:;|\")/', $idleOverlay[0]);
-        $this->assertStringContainsString('max-width:1815px', $idleOverlay[0]);
         $this->assertMatchesRegularExpression('/max-height:\s*0(?:;|\")/', $idleOverlay[0]);
         $this->assertMatchesRegularExpression('/opacity:\s*0(?:;|\")/', $idleOverlay[0]);
         $this->assertMatchesRegularExpression('/visibility:\s*hidden(?:;|\")/', $idleOverlay[0]);
         $this->assertStringNotContainsString('position: absolute', $idleOverlay[0]);
-        $this->assertSame(1, substr_count($html, 'class="rt-train-idle-surface rt-train-idle-image"'));
         $this->assertSame(
             1,
-            preg_match('/<span[^>]*data-rt-train-main-layer[^>]*>/', $html, $mainLayer),
+            preg_match('/<span[^>]*class="rt-train-idle-surface"[^>]*>/', $html, $idleSurface),
         );
-        $this->assertStringContainsString('position:relative;z-index:0;width:100%;max-width:1815px', $mainLayer[0]);
-        $this->assertStringContainsString('height:0;max-height:0;overflow:visible', $mainLayer[0]);
-        $this->assertStringContainsString('position:absolute', $runtimeTrain[0]);
+        $this->assertStringContainsString('zug-dampf-idle-light.gif', $idleSurface[0]);
+        $this->assertStringContainsString('background-position:75% bottom', $idleSurface[0]);
+        $this->assertStringContainsString('background-size:auto 100%', $idleSurface[0]);
         $this->assertSame(
             1,
             preg_match('/<td[^>]*class="[^"]*rt-sign-cell[^"]*"[^>]*>/', $html, $trainCarrier),
         );
-        $this->assertStringNotContainsString('zug-dampf-light.gif', $trainCarrier[0]);
-        $this->assertStringContainsString('background-repeat:repeat,no-repeat,no-repeat;', $trainCarrier[0]);
-        $this->assertStringContainsString('background-position:left top,right center,center center;', $trainCarrier[0]);
-        $this->assertStringContainsString('background-size:64px 64px,auto 100%,100% 100%;', $trainCarrier[0]);
+        $this->assertStringContainsString('padding:0;', $trainCarrier[0]);
+        $this->assertStringContainsString('zug-dampf-light.gif', $trainCarrier[0]);
+        $this->assertStringContainsString('background-repeat:repeat,no-repeat,no-repeat,no-repeat;', $trainCarrier[0]);
+        $this->assertStringContainsString('background-position:left top,right center,center center,75% bottom;', $trainCarrier[0]);
+        $this->assertStringContainsString('background-size:64px 64px,auto 100%,100% 100%,auto 100%;', $trainCarrier[0]);
+        $this->assertSame(1, substr_count($html, 'class="rt-pad rt-sign-content"'));
         $this->assertStringNotContainsString('data:image', $html);
         $this->assertLessThan(60 * 1024, strlen($html));
     }
@@ -602,19 +590,21 @@ class MailDocumentEditorTest extends TestCase
         $this->assertSame(1, substr_count($html, 'zug-dampf-light.gif'));
         $this->assertSame(1, substr_count($html, 'zug-dampf-idle-light.gif'));
         $this->assertSame(1, substr_count($html, 'data-rt-train-idle-overlay'));
-        $this->assertSame(1, substr_count($html, 'data-rt-train-main-image'));
-        $this->assertSame(1, substr_count($html, 'data-rt-train-idle-image'));
+        $this->assertStringNotContainsString('data-rt-train-main-image', $html);
+        $this->assertStringNotContainsString('data-rt-train-main-layer', $html);
+        $this->assertStringNotContainsString('data-rt-train-idle-image', $html);
         $this->assertStringNotContainsString('zug-dampf-idle-light.gif', $carrier[0]);
+        $this->assertStringContainsString('zug-dampf-light.gif', $carrier[0]);
         $this->assertStringContainsString(
-            'background-repeat:repeat,no-repeat,no-repeat;',
+            'background-repeat:repeat,no-repeat,no-repeat,no-repeat;',
             $carrier[0],
         );
         $this->assertStringContainsString(
-            'background-position:left top,right center,center center;',
+            'background-position:left top,right center,center center,75% bottom;',
             $carrier[0],
         );
         $this->assertStringContainsString(
-            'background-size:64px 64px,auto 100%,100% 100%;',
+            'background-size:64px 64px,auto 100%,100% 100%,auto 100%;',
             $carrier[0],
         );
         $this->assertStringContainsString(
@@ -1012,19 +1002,31 @@ HTML;
         $this->assertLessThan(stripos($standalone, '</head>'), stripos($standalone, 'data-rt-mail-document-css="signature"'));
 
         // Die Systemmail verwendet die freigegebene Signatur samt CSS. Der
-        // Hauptzug steht genau einmal als regulaeres Runtime-IMG im oberen
-        // Carrier; der Legacy-background-Weg darf nie wieder kacheln.
+        // Hauptzug steht genau einmal im nicht kachelnden CSS-Hintergrund des
+        // oberen Carriers. Ein Nullhoehen-Runtime-IMG darf nicht zurueckkehren.
         $this->assertStringContainsString('.rt-sign-name{letter-spacing:0;}', $systemMail);
         $this->assertStringContainsString('RT-SIGNATUR', $systemMail);
         $this->assertStringNotContainsString('data-rt-outlook-train', $systemMail);
         $this->assertSame(1, substr_count($systemMail, 'data-rt-train-idle-overlay'));
-        $this->assertSame(1, substr_count($systemMail, 'data-rt-train-main-image'));
-        $this->assertSame(1, substr_count($systemMail, 'data-rt-train-idle-image'));
+        $this->assertStringNotContainsString('data-rt-train-main-image', $systemMail);
+        $this->assertStringNotContainsString('data-rt-train-main-layer', $systemMail);
+        $this->assertStringNotContainsString('data-rt-train-idle-image', $systemMail);
+        $this->assertSame(1, substr_count($systemMail, 'zug-dampf-light.gif'));
+        $this->assertSame(0, preg_match_all('/<img\b[^>]*zug-dampf-light\.gif[^>]*>/i', $systemMail));
         $this->assertSame(0, substr_count($systemMail, 'rt-classic-outlook-train'));
         $this->assertDoesNotMatchRegularExpression(
             '/class="[^"]*rt-sign-cell[^"]*"[^>]*\sbackground=/',
             $systemMail,
         );
+        $this->assertSame(
+            1,
+            preg_match('/<td\b[^>]*class="[^"]*\brt-sign-cell\b[^"]*"[^>]*>/', $systemMail, $systemTrainCarrier),
+        );
+        $this->assertStringContainsString('padding:0;', $systemTrainCarrier[0]);
+        $this->assertStringContainsString('zug-dampf-light.gif', $systemTrainCarrier[0]);
+        $this->assertStringContainsString('background-repeat:repeat,no-repeat,no-repeat,no-repeat;', $systemTrainCarrier[0]);
+        $this->assertStringContainsString('background-position:left top,right center,center center,75% bottom;', $systemTrainCarrier[0]);
+        $this->assertSame(1, substr_count($systemMail, 'class="rt-pad rt-sign-content"'));
         $this->assertStringNotContainsString('zug-dampf-light.png', $systemMail);
 
         // Nur die bekannten Starterabstaende werden fuer den eigenstaendigen

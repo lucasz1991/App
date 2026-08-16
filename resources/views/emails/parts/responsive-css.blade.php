@@ -33,10 +33,10 @@
 @endphp
 /* RT_SERVER_IDLE_REVEAL_START
    Dieser Block wird erst serverseitig ueber den RESPONSIVE_CSS-Platzhalter eingesetzt,
-   nachdem das editierbare Maildokument sanitisiert wurde. Hauptzug und Idle-
-   IMG liegen in null Pixel hohen Layern hinter den Kontakten und reservieren
-   keine zweite Signaturhoehe. Das Idle-Overlay ist inline unsichtbar; nur
-   Clients mit CSS-Keyframes zeigen die Rauchschleife nach dem 13-s-Haupt-GIF. */
+   nachdem das editierbare Maildokument sanitisiert wurde. Der Hauptzug bleibt
+   als mailclient-fester Hintergrund hinter den Kontakten und reserviert keine
+   zweite Signaturhoehe. Das Idle-Overlay ist inline unsichtbar; nur Clients mit
+   CSS-Keyframes zeigen die Rauchschleife nach dem 13-s-Haupt-GIF. */
 @keyframes rt-train-idle-reveal {
   0% { opacity: 0; visibility: hidden; }
   100% { opacity: 1; visibility: visible; }
@@ -65,41 +65,6 @@
   max-width: none !important;
   max-height: none !important;
   z-index: 0 !important;
-}
-.rt-train-main-layer,
-.rt-train-idle-runtime-layer {
-  display: block !important;
-  position: relative !important;
-  z-index: 0 !important;
-  width: 100% !important;
-  max-width: 1815px !important;
-  height: 0 !important;
-  max-height: 0 !important;
-  margin: 0 !important;
-  font-size: 0 !important;
-  line-height: 0 !important;
-}
-.rt-train-main-layer { overflow: visible !important; }
-.rt-train-main-image,
-.rt-train-idle-image {
-  display: block !important;
-  position: absolute !important;
-  left: 0 !important;
-  right: auto !important;
-  bottom: 0 !important;
-  width: 100% !important;
-  max-width: none !important;
-  height: auto !important;
-  max-height: none !important;
-  margin: 0 !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-}
-.rt-train-main-image {
-  z-index: 0 !important;
-}
-.rt-train-idle-image {
-  z-index: 1 !important;
 }
 @media (prefers-reduced-motion: reduce) {
   .rt-train-idle-overlay {
@@ -149,21 +114,6 @@ tr.rt-stack > td.rt-card-cell, tr.rt-stack > td.rt-card-cell + td { padding-left
 
 /* ---- Tablet hoch und kleiner: stapeln ---- */
 @media only screen and (max-width: 860px) {
-.rt-train-main-layer,
-.rt-train-idle-runtime-layer {
-  width: 200% !important;
-  max-width: none !important;
-  margin-left: -75% !important;
-}
-.rt-train-main-image,
-.rt-train-idle-image {
-  left: 0 !important;
-  right: auto !important;
-  bottom: 0 !important;
-  width: 100% !important;
-  max-width: none !important;
-  height: auto !important;
-}
 .rt-pad { padding-left: 24px !important; padding-right: 24px !important; }
 .rt-title { font-size: 27px !important; line-height: 32px !important; }
 {{-- Nur DIREKTE Zellen der markierten Zeile umbrechen: ein Nachfahren-

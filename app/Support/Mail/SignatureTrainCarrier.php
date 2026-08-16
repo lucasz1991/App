@@ -87,52 +87,6 @@ final class SignatureTrainCarrier
     }
 
     /**
-     * Entfernt nach vollstaendiger Vertragspruefung ausschliesslich den
-     * Hauptzug aus den vier gekoppelten Background-Longhands.
-     *
-     * Der Versand projiziert denselben {{TRAIN_SRC}} anschliessend als echtes
-     * IMG in den Carrier. Raster, Wasserzeichen und Wash bleiben unveraendert;
-     * eine blinde String-/Regex-Manipulation paralleler CSS-Listen ist damit
-     * ausgeschlossen.
-     */
-    public static function withoutMainLayer(string $html): string
-    {
-        $normalized = self::normalize($html);
-        $carrier = self::inspectCarrier($normalized);
-        $styles = $carrier['attributes']['style'] ?? [];
-        if (count($styles) !== 1 || $styles[0]['valueOffset'] === null) {
-            throw new RuntimeException(
-                'Der veroeffentlichte Zug-Carrier besitzt kein eindeutiges style-Attribut.'
-            );
-        }
-
-        $styleAttribute = $styles[0];
-        $projectedStyle = htmlspecialchars(
-            self::normalizeStyle(
-                CssSemantic::decodeHtmlEntitiesOnce($styleAttribute['raw']),
-                removeMainLayer: true,
-            ),
-            ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5,
-            'UTF-8',
-        );
-        $projected = substr_replace(
-            $normalized,
-            $projectedStyle,
-            $styleAttribute['valueOffset'],
-            $styleAttribute['valueLength'],
-        );
-
-        if (str_contains($projected, '{{TRAIN_SRC}}')
-            || str_contains($projected, '{{TRAIN_IDLE_SRC}}')) {
-            throw new RuntimeException(
-                'Der Hauptzug konnte nicht eindeutig aus dem Background-Carrier geloest werden.'
-            );
-        }
-
-        return $projected;
-    }
-
-    /**
      * Liefert ein echtes Attribut des per DOM bestaetigten Carrier-TD.
      * Doppelte Attribute sind immer mehrdeutig und werden fail-closed
      * abgelehnt.
@@ -446,7 +400,7 @@ final class SignatureTrainCarrier
         return $attributes;
     }
 
-    private static function normalizeStyle(string $style, bool $removeMainLayer = false): string
+    private static function normalizeStyle(string $style): string
     {
         $controlState = preg_match(
             '/[\x{0000}-\x{0008}\x{000B}\x{000E}-\x{001F}\x{007F}-\x{009F}]/u',
@@ -613,15 +567,9 @@ final class SignatureTrainCarrier
         }
 
         $mainIndex = $mainIndexes[0];
-        if ($removeMainLayer) {
-            foreach ($required as $property) {
-                array_splice($lists[$property], $mainIndex, 1);
-            }
-        } else {
-            $lists['background-repeat'][$mainIndex] = 'no-repeat';
-            $lists['background-position'][$mainIndex] = '75% bottom';
-            $lists['background-size'][$mainIndex] = 'auto 100%';
-        }
+        $lists['background-repeat'][$mainIndex] = 'no-repeat';
+        $lists['background-position'][$mainIndex] = '75% bottom';
+        $lists['background-size'][$mainIndex] = 'auto 100%';
 
         foreach ($required as $property) {
             $declaration = $declarations[$property];

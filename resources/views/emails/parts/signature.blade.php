@@ -111,19 +111,15 @@
 @endphp
 <tr>
     {{-- Kein legacy background-Attribut: Classic Outlook/Word kachelt dessen
-         Bild ungeachtet von background-repeat und background-size. Beim
-         Systemmail-Render wird der validierte Hauptlayer aus diesen CSS-Listen
-         entfernt und genau einmal als regulaeres Nullhoehen-IMG hinter den
-         Inhaltsdaten eingesetzt. --}}
+         Bild ungeachtet von background-repeat und background-size. Der
+         validierte Hauptzug bleibt deshalb genau einmal in den gekoppelten
+         CSS-Listen und liegt ohne eigene Layouthoehe hinter den Inhaltsdaten. --}}
     <td class="rt-sign-cell" bgcolor="{{ $values['SIGNATURE_BG'] }}" style="padding:0;position:relative;overflow:hidden;background-color:{{ $values['SIGNATURE_BG'] }};background-image:{{ $backgroundImage }};background-repeat:{{ $backgroundRepeat }};background-position:{{ $backgroundPosition }};background-size:{{ $backgroundSize }};{{ $topRule }}">
-        {{-- Der aeussere Zug-Carrier bleibt absichtlich ohne Padding. Einige
-             Outlook-Renderer beziehen `bottom:0` bei absolut positionierten
-             Elementen in Tabellenzellen auf deren Inhaltskante. Lag der
-             Innenabstand direkt auf dieser Zelle, schwebten die Radunterkanten
-             deshalb um exakt 20 px (mobil 14 px) ueber dem Legal-Footer.
-             Der mail-sichere innere Tabellenwrapper behaelt dieselben
-             Inhaltsabstaende, waehrend Main- und Idle-Zug an der echten
-             unteren Carrierkante auf dem grauen Footer stehen. --}}
+        {{-- Der aeussere Zug-Carrier bleibt absichtlich ohne Padding. So
+             endet die `bottom`-Ausrichtung von Hauptzug und Idle-Rauch an der
+             echten unteren Carrierkante direkt auf dem grauen Legal-Footer.
+             Der mail-sichere innere Tabellenwrapper behaelt unabhaengig davon
+             dieselben Inhaltsabstaende und die kompakte Signaturhoehe. --}}
         <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;position:relative;z-index:1;">
             <tr>
                 <td class="rt-pad rt-sign-content" style="padding:{{ $padding }};position:relative;z-index:1;">
