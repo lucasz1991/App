@@ -79,6 +79,7 @@
             choose(key) {
                 this.activeKey = key;
                 if (@js((bool) $replayable)) {
+                    window.clearTimeout(this.readyTimer);
                     this.frameReady = false;
                     if (!this.reducedMotion) this.playbackId++;
                 }
@@ -86,14 +87,20 @@
             },
             replay() {
                 if (!@js((bool) $replayable) || this.reducedMotion) return;
+                window.clearTimeout(this.readyTimer);
                 this.frameReady = false;
                 this.playbackId++;
             },
             frameLoaded(event) {
                 if (!@js((bool) $replayable)) return;
-                if (event?.currentTarget?.src !== this.activeUrl) return;
+                const frame = event?.currentTarget;
+                const loadedSrc = frame?.getAttribute?.('src') || '';
+                if (!loadedSrc || loadedSrc === 'about:blank') return;
                 window.clearTimeout(this.readyTimer);
-                this.readyTimer = window.setTimeout(() => { this.frameReady = true; }, 120);
+                this.readyTimer = window.setTimeout(() => {
+                    if (frame?.getAttribute?.('src') !== loadedSrc) return;
+                    this.frameReady = true;
+                }, 120);
             },
             measure() {
                 if (! this.$refs.viewport || ! this.active) return;
@@ -106,7 +113,10 @@
                 this.motionListener = () => {
                     const changed = this.reducedMotion !== this.motionMedia.matches;
                     this.reducedMotion = this.motionMedia.matches;
-                    if (changed && @js((bool) $replayable)) this.frameReady = false;
+                    if (changed && @js((bool) $replayable)) {
+                        window.clearTimeout(this.readyTimer);
+                        this.frameReady = false;
+                    }
                 };
                 this.motionListener();
                 this.motionMedia.addEventListener?.('change', this.motionListener);
