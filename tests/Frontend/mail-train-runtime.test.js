@@ -57,6 +57,7 @@ function gifTimeline(bytes) {
 
 test('system mail projects one replayable train IMG and no cache endpoint', () => {
     const signature = text('app/Support/MailSignature.php');
+    const signatureView = text('resources/views/emails/parts/signature.blade.php');
     const carrier = text('app/Support/Mail/SignatureTrainCarrier.php');
     const cssSemantic = text('app/Support/Mail/CssSemantic.php');
     const responsiveCss = text('resources/views/emails/parts/responsive-css.blade.php');
@@ -64,11 +65,12 @@ test('system mail projects one replayable train IMG and no cache endpoint', () =
 
     assert.match(signature, /<img class="rt-train-main-image" data-rt-train-main-image/);
     assert.match(signature, /<span class="rt-train-main-layer" data-rt-train-main-layer/);
-    assert.match(signature, /width:100%;height:0;max-height:0;overflow:visible/);
+    assert.match(signature, /position:relative;z-index:0;width:100%;max-width:1815px;[\s\S]+?height:0;max-height:0;overflow:visible/);
     assert.match(signature, /position:absolute;left:0;right:auto;bottom:0;z-index:0/);
-    assert.match(signature, /width="100%"[\s\S]+?max-width:1815px;[\s\S]+?height:auto/);
+    assert.match(signature, /width="100%"[\s\S]+?max-width:none;[\s\S]+?height:auto;[\s\S]+?margin:0/);
     assert.match(signature, /<img class="rt-train-idle-surface rt-train-idle-image" data-rt-train-idle-image/);
-    assert.match(signature, /\$idleSurface = str_contains\(\$html, 'data-rt-train-main-image'\)/);
+    assert.match(signature, /\$usesRuntimeImage = str_contains\(\$html, 'data-rt-train-main-image'\);/);
+    assert.match(signature, /\$overlayClass = 'rt-train-idle-overlay'\.\(\$usesRuntimeImage \? ' rt-train-idle-runtime-layer' : ''\);/);
     assert.match(signature, /<span class="rt-train-idle-surface"[\s\S]+?background-position:75% bottom;background-size:auto 100%/);
     assert.match(signature, /SignatureTrainCarrier::withoutMainLayer\(\$html\)/);
     assert.doesNotMatch(signature, /function injectClassicOutlookTrain/);
@@ -80,6 +82,7 @@ test('system mail projects one replayable train IMG and no cache endpoint', () =
         'rt-train-main-image',
         'rt-train-main-layer',
         'rt-train-idle-image',
+        'rt-train-idle-runtime-layer',
         'data-rt-train-main-image',
         'data-rt-train-main-layer',
         'data-rt-train-idle-overlay',
@@ -88,12 +91,26 @@ test('system mail projects one replayable train IMG and no cache endpoint', () =
         assert.match(cssSemantic, new RegExp(`'${identifier}'`));
     }
     assert.match(cssSemantic, /\$isProtectedAttribute = in_array\(/);
-    assert.match(responsiveCss, /\.rt-train-main-image,\s*\.rt-train-idle-image\s*\{[\s\S]+?width: 100% !important;[\s\S]+?max-width: 1815px !important;[\s\S]+?height: auto !important;/);
+    assert.match(responsiveCss, /\.rt-train-main-layer,\s*\.rt-train-idle-runtime-layer\s*\{[\s\S]+?position: relative !important;[\s\S]+?width: 100% !important;[\s\S]+?max-width: 1815px !important;/);
+    assert.match(responsiveCss, /\.rt-train-main-image,\s*\.rt-train-idle-image\s*\{[\s\S]+?width: 100% !important;[\s\S]+?max-width: none !important;[\s\S]+?margin: 0 !important;/);
     assert.match(responsiveCss, /\.rt-train-main-image\s*\{\s*z-index: 0 !important;\s*\}/);
     assert.match(responsiveCss, /\.rt-train-idle-image\s*\{\s*z-index: 1 !important;\s*\}/);
     const mobile = responsiveCss.slice(responsiveCss.indexOf('@media only screen and (max-width: 860px)'));
-    assert.match(mobile, /\.rt-train-main-image,\s*\.rt-train-idle-image\s*\{[\s\S]+?left: -75% !important;[\s\S]+?width: 200% !important;[\s\S]+?max-width: none !important;[\s\S]+?height: auto !important;/);
+    assert.match(mobile, /\.rt-train-main-layer,\s*\.rt-train-idle-runtime-layer\s*\{[\s\S]+?width: 200% !important;[\s\S]+?max-width: none !important;[\s\S]+?margin-left: -75% !important;/);
+    assert.match(mobile, /\.rt-train-main-image,\s*\.rt-train-idle-image\s*\{[\s\S]+?left: 0 !important;[\s\S]+?width: 100% !important;[\s\S]+?max-width: none !important;[\s\S]+?height: auto !important;/);
+    assert.match(signature, /injectRuntimeLayerAtCarrierBottom\([\s\S]+?RT_SIGNATURE_MAIN_END/);
     assert.doesNotMatch(routes, /mail-animations\/train/);
+    assert.match(
+        signatureView,
+        /<td class="rt-sign-cell"[^>]+style="padding:0;position:relative;overflow:hidden;/,
+    );
+    assert.match(
+        signatureView,
+        /<td class="rt-pad rt-sign-content" style="padding:\{\{ \$padding \}\};position:relative;z-index:1;">/,
+    );
+    assert.doesNotMatch(signatureView, /class="rt-pad rt-sign-cell"/);
+    assert.doesNotMatch(signatureView, /\$cellPadding/);
+    assert.match(signatureView, /\$outlookTrainPadding = \$outlookTrainPadding \?\? '6px 0 0';/);
 });
 
 test('fluid main and idle IMG keep mobile and desktop train geometry', () => {

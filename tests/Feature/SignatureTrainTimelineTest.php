@@ -184,6 +184,24 @@ class SignatureTrainTimelineTest extends TestCase
             max(3, (int) ceil($width * 0.005)),
             "{$filename}: Zug endet nicht bei 75 Prozent der Leinwand.",
         );
+        $this->assertSame(
+            $height,
+            $arrivalBounds['bottom'],
+            "{$filename}: Die Radauflage endet nicht exakt an der unteren Assetkante.",
+        );
+        $this->assertGreaterThan(
+            0,
+            $this->countInkInRegion(
+                $decoded[$arrivalFrame],
+                $gif['frames'][$arrivalFrame]['transparentIndex'],
+                $width,
+                0,
+                $height - 1,
+                $arrivalBounds['right'],
+                $height,
+            ),
+            "{$filename}: Die letzte Assetzeile enthaelt keine Rad-/Fahrwerkpixel.",
+        );
 
         $expectedBodyHeight = $width === 2880 ? 115 : 29;
         $this->assertEqualsWithDelta(
@@ -347,6 +365,7 @@ class SignatureTrainTimelineTest extends TestCase
             $this->assertInstanceOf(\GdImage::class, $image);
             $background = $theme === 'light' ? [255, 255, 255] : [12, 16, 23];
             $right = 0;
+            $bottom = 0;
 
             for ($y = (int) floor(imagesy($image) * 0.55); $y < imagesy($image); $y++) {
                 for ($x = 0; $x < imagesx($image); $x++) {
@@ -354,12 +373,14 @@ class SignatureTrainTimelineTest extends TestCase
                     $rgb = [($colour >> 16) & 0xFF, ($colour >> 8) & 0xFF, $colour & 0xFF];
                     if ($rgb !== $background) {
                         $right = max($right, $x + 1);
+                        $bottom = max($bottom, $y + 1);
                     }
                 }
             }
             imagedestroy($image);
 
             $this->assertEqualsWithDelta(2160, $right, 15, "{$theme}: PNG-Zug endet nicht bei 75 Prozent.");
+            $this->assertSame(292, $bottom, "{$theme}: PNG-Radauflage endet nicht an der unteren Assetkante.");
         }
     }
 
@@ -492,6 +513,8 @@ class SignatureTrainTimelineTest extends TestCase
         $this->assertStringContainsString('markeGroesse: MARKEN_GROESSE,', $generator);
         $this->assertStringContainsString('const START_X = -ZUG_BREITE;', $generator);
         $this->assertStringNotContainsString('START_X = -ZUG_BREITE *', $generator);
+        $this->assertStringContainsString('const ZUG_Y = HOEHE - ZUG_HOEHE;', $generator);
+        $this->assertStringContainsString('const oben = OUTLOOK_HOEHE - zielHoehe;', $generator);
         $this->assertStringContainsString('const WARTE_S = Number(process.env.RT_WARTE || 0.35);', $generator);
         $this->assertStringContainsString('const ENDE_HALT_S = Number(process.env.RT_ENDE_HALT || 1.65);', $generator);
         $this->assertStringContainsString('function idleWolkenBei(t) {', $generator);

@@ -11,6 +11,7 @@ use App\Support\CompanyData;
 use App\Support\EmailTemplateBuilder;
 use App\Support\Mail\CssSemantic;
 use App\Support\Mail\EmailHtmlSanitizer;
+use App\Support\Mail\SignatureDocumentContract;
 use App\Support\Mail\SignatureTrainCarrier;
 use App\Support\MailSignature;
 use Database\Seeders\MailDocumentSeeder;
@@ -119,7 +120,7 @@ class MailDocumentEditorTest extends TestCase
         $this->assertStringNotContainsString('Von Hand geaendert', (string) $frisch->html);
         $this->assertSame(MailDocumentStatus::Published, $frisch->status);
         $this->assertSame(1, $frisch->version);
-        $this->assertSame(6, data_get($frisch->builder_data, 'railtime.schema'));
+        $this->assertSame(7, data_get($frisch->builder_data, 'railtime.schema'));
     }
 
     public function test_der_seeder_veroeffentlicht_vorlage_und_signatur_als_idempotenten_release(): void
@@ -139,7 +140,7 @@ class MailDocumentEditorTest extends TestCase
             $dokument = $this->document($kind);
             $this->assertSame(MailDocumentStatus::Published, $dokument->status, $kind->value);
             $this->assertSame(1, $dokument->version, $kind->value);
-            $this->assertSame(6, data_get($dokument->builder_data, 'railtime.schema'), $kind->value);
+            $this->assertSame(7, data_get($dokument->builder_data, 'railtime.schema'), $kind->value);
             $this->assertSame(trim((string) $dokument->html), trim((string) $dokument->published_html), $kind->value);
             $this->assertSame((string) data_get($dokument->builder_data, 'pages.0.component'), (string) $dokument->html, $kind->value);
             $this->assertSame(
@@ -182,7 +183,7 @@ class MailDocumentEditorTest extends TestCase
 
         foreach ([$template, $signatur] as $dokument) {
             $this->assertSame(MailDocumentStatus::Published, $dokument->status);
-            $this->assertSame(6, data_get($dokument->builder_data, 'railtime.schema'));
+            $this->assertSame(7, data_get($dokument->builder_data, 'railtime.schema'));
             $this->assertSame(trim((string) $dokument->html), trim((string) $dokument->published_html));
             $this->assertSame((string) data_get($dokument->builder_data, 'pages.0.component'), (string) $dokument->html);
         }
@@ -371,7 +372,7 @@ class MailDocumentEditorTest extends TestCase
             $html,
         );
         $this->assertMatchesRegularExpression(
-            '/<img[^>]*data-rt-train-main-image[^>]*width="100%"[^>]*style="[^"]*width:100%;max-width:1815px;height:auto;[^"]*"/',
+            '/<img[^>]*data-rt-train-main-image[^>]*width="100%"[^>]*style="[^"]*width:100%;max-width:none;height:auto;[^"]*"/',
             $html,
         );
         $this->assertSame(
@@ -396,7 +397,7 @@ class MailDocumentEditorTest extends TestCase
         );
         $this->assertMatchesRegularExpression('/(?<!max-)width:\s*100%(?:;|\")/', $idleOverlay[0]);
         $this->assertMatchesRegularExpression('/(?<!max-)height:\s*0(?:;|\")/', $idleOverlay[0]);
-        $this->assertStringNotContainsString('max-width:', $idleOverlay[0]);
+        $this->assertStringContainsString('max-width:1815px', $idleOverlay[0]);
         $this->assertMatchesRegularExpression('/max-height:\s*0(?:;|\")/', $idleOverlay[0]);
         $this->assertMatchesRegularExpression('/opacity:\s*0(?:;|\")/', $idleOverlay[0]);
         $this->assertMatchesRegularExpression('/visibility:\s*hidden(?:;|\")/', $idleOverlay[0]);
@@ -406,7 +407,8 @@ class MailDocumentEditorTest extends TestCase
             1,
             preg_match('/<span[^>]*data-rt-train-main-layer[^>]*>/', $html, $mainLayer),
         );
-        $this->assertStringContainsString('width:100%;height:0;max-height:0;overflow:visible', $mainLayer[0]);
+        $this->assertStringContainsString('position:relative;z-index:0;width:100%;max-width:1815px', $mainLayer[0]);
+        $this->assertStringContainsString('height:0;max-height:0;overflow:visible', $mainLayer[0]);
         $this->assertStringContainsString('position:absolute', $runtimeTrain[0]);
         $this->assertSame(
             1,
@@ -418,6 +420,151 @@ class MailDocumentEditorTest extends TestCase
         $this->assertStringContainsString('background-size:64px 64px,auto 100%,100% 100%;', $trainCarrier[0]);
         $this->assertStringNotContainsString('data:image', $html);
         $this->assertLessThan(60 * 1024, strlen($html));
+    }
+
+    public function test_schema_7_schuetzt_den_paddingfreien_carrier_und_den_inneren_inhaltswrapper(): void
+    {
+        (new MailDocumentSeeder)->run();
+        $canonical = (string) $this->document(MailDocumentKind::Signature)->published_html;
+
+        SignatureDocumentContract::assertValid($canonical);
+        SignatureDocumentContract::assertRuntimeValid($canonical);
+
+        $cases = [
+            'Aussenpadding' => preg_replace(
+                '/(<td class="rt-sign-cell"[^>]*style=")padding:0;/i',
+                '${1}padding:20px;',
+                $canonical,
+                1,
+                $outerPaddingCount,
+            ),
+            'Padding-Longhand' => preg_replace(
+                '/(<td class="rt-sign-cell"[^>]*style=")padding:0;/i',
+                '${1}padding:0;padding-bottom:20px;',
+                $canonical,
+                1,
+                $longhandCount,
+            ),
+            'Outlook-MSO-Padding' => preg_replace(
+                '/(<td class="rt-sign-cell"[^>]*style=")padding:0;/i',
+                '${1}padding:0;MSO-PADDING-ALT:20px;',
+                $canonical,
+                1,
+                $msoPaddingCount,
+            ),
+            'Entity-MSO-Padding' => preg_replace(
+                '/(<td class="rt-sign-cell"[^>]*style=")padding:0;/i',
+                '${1}padding:0;mso-padding&#45;alt:20px;',
+                $canonical,
+                1,
+                $entityMsoPaddingCount,
+            ),
+            'doppeltes MSO-Padding' => preg_replace(
+                '/(<td class="rt-sign-cell"[^>]*style=")padding:0;/i',
+                '${1}padding:0;mso-padding-alt:0;mso-padding-alt:20px;',
+                $canonical,
+                1,
+                $duplicateMsoPaddingCount,
+            ),
+            'inneres MSO-Padding' => preg_replace(
+                '/(<td class="rt-pad rt-sign-content" style="padding:[^;]+;)/i',
+                '${1}mso-padding-alt:20px;',
+                $canonical,
+                1,
+                $innerMsoPaddingCount,
+            ),
+            'unterer Carrier-Rahmen' => preg_replace(
+                '/(<td class="rt-sign-cell"[^>]*style=")padding:0;/i',
+                '${1}padding:0;border-bottom:20px solid transparent;',
+                $canonical,
+                1,
+                $bottomBorderCount,
+            ),
+            'Outlook-MSO-Rahmen' => preg_replace(
+                '/(<td class="rt-sign-cell"[^>]*style=")padding:0;/i',
+                '${1}padding:0;mso-border-alt:solid #000 20px;',
+                $canonical,
+                1,
+                $msoBorderCount,
+            ),
+            'fehlende Contentklasse' => str_replace('rt-pad rt-sign-content', 'rt-pad', $canonical, $missingClassCount),
+            'inneres Nullpadding' => preg_replace(
+                '/(<td class="rt-pad rt-sign-content" style=")padding:[^;]+;/i',
+                '${1}padding:0;',
+                $canonical,
+                1,
+                $innerPaddingCount,
+            ),
+            'verschobener Content-Decoy' => str_replace(
+                ['rt-pad rt-sign-content', 'rt-sign-identity'],
+                ['rt-pad', 'rt-sign-content rt-sign-identity'],
+                $canonical,
+                $decoyCount,
+            ),
+        ];
+
+        $this->assertSame(1, $outerPaddingCount);
+        $this->assertSame(1, $longhandCount);
+        $this->assertSame(1, $msoPaddingCount);
+        $this->assertSame(1, $entityMsoPaddingCount);
+        $this->assertSame(1, $duplicateMsoPaddingCount);
+        $this->assertSame(1, $innerMsoPaddingCount);
+        $this->assertSame(1, $bottomBorderCount);
+        $this->assertSame(1, $msoBorderCount);
+        $this->assertSame(1, $missingClassCount);
+        $this->assertSame(1, $innerPaddingCount);
+        $this->assertSame(2, $decoyCount);
+
+        foreach ($cases as $name => $invalid) {
+            $this->assertIsString($invalid, $name);
+            try {
+                SignatureDocumentContract::assertValid($invalid);
+                $this->fail("Der Schema-7-Vertrag akzeptierte: {$name}");
+            } catch (\RuntimeException $exception) {
+                $this->assertStringContainsString('padding:0', $exception->getMessage(), $name);
+            }
+        }
+    }
+
+    public function test_runtime_erlaubt_bis_zum_pflichtseeder_nur_die_exakte_schema_6_carrierform(): void
+    {
+        (new MailDocumentSeeder)->run();
+        $canonical = (string) $this->document(MailDocumentKind::Signature)->published_html;
+        $legacy = preg_replace(
+            '~<table\b[^>]*>\s*<tr>\s*<td class="rt-pad rt-sign-content" style="padding:([^;]+);position:relative;z-index:1;">~i',
+            '',
+            $canonical,
+            1,
+            $wrapperOpenCount,
+        );
+        $this->assertIsString($legacy);
+        $this->assertSame(1, $wrapperOpenCount);
+        preg_match('/rt-pad rt-sign-content" style="padding:([^;]+);/', $canonical, $paddingMatch);
+        $this->assertArrayHasKey(1, $paddingMatch);
+        $legacy = preg_replace(
+            '~</td>\s*</tr>\s*</table>\s*(?=</td>\s*</tr>\s*<!-- RT_SIGNATURE_MAIN_END -->)~i',
+            '',
+            $legacy,
+            1,
+            $wrapperCloseCount,
+        );
+        $this->assertIsString($legacy);
+        $this->assertSame(1, $wrapperCloseCount);
+        $legacy = preg_replace_callback(
+            '/<td class="rt-sign-cell"([^>]*style=")padding:0;/i',
+            static fn (array $match): string => '<td class="rt-pad rt-sign-cell"'.$match[1]
+                .'padding:'.$paddingMatch[1].';',
+            $legacy,
+            1,
+            $carrierCount,
+        );
+        $this->assertIsString($legacy);
+        $this->assertSame(1, $carrierCount);
+
+        SignatureDocumentContract::assertRuntimeValid($legacy);
+
+        $this->expectException(\RuntimeException::class);
+        SignatureDocumentContract::assertValid($legacy);
     }
 
     public function test_systemmail_normalisiert_einen_legacy_idle_layer_vor_der_tokenersetzung(): void
@@ -529,8 +676,8 @@ class MailDocumentEditorTest extends TestCase
 data-decoy='<td class="rt-sign-cell" style="background:none">'
 HTML;
         $withDecoy = str_replace(
-            '<td class="rt-pad rt-sign-cell"',
-            '<td '.$decoy.' class="rt-pad rt-sign-cell"',
+            '<td class="rt-sign-cell"',
+            '<td '.$decoy.' class="rt-sign-cell"',
             $legacy,
             $carrierCount,
         );
@@ -561,8 +708,8 @@ HTML;
         $this->assertSame(1, $shorthandReplacementCount);
         $this->assertIsString($withTrailingBackgroundShorthand);
         $withDuplicateRealStyle = str_replace(
-            '<td class="rt-pad rt-sign-cell"',
-            '<td style="background:none" class="rt-pad rt-sign-cell"',
+            '<td class="rt-sign-cell"',
+            '<td style="background:none" class="rt-sign-cell"',
             $published,
             $duplicateRealStyleCount,
         );
@@ -815,8 +962,8 @@ HTML;
         // version. Der Runtime-Pfad muss das kachelnde Word-Attribut auch
         // ohne vorherigen Seeder-Lauf sicher entfernen.
         $publishedHtml = preg_replace(
-            '/<td class="rt-pad rt-sign-cell"/',
-            '<td class="rt-pad rt-sign-cell" background="{{TRAIN_STILL_SRC}}"',
+            '/<td class="rt-sign-cell"/',
+            '<td class="rt-sign-cell" background="{{TRAIN_STILL_SRC}}"',
             $publishedHtml,
             1,
             $legacyBackgroundCount,
@@ -1176,8 +1323,8 @@ HTML;
         $document = $this->document(MailDocumentKind::Signature);
         $admin = $this->admin();
         $withPreviewAttribute = preg_replace(
-            '/<td class="rt-pad rt-sign-cell"/',
-            '<td data-rt-mail-preview-train="TRAIN_SRC" class="rt-pad rt-sign-cell"',
+            '/<td class="rt-sign-cell"/',
+            '<td data-rt-mail-preview-train="TRAIN_SRC" class="rt-sign-cell"',
             (string) $document->html,
             1,
         );
@@ -1216,8 +1363,8 @@ HTML;
                 $canonicalHtml,
             ),
             'frei erfundene traegerklasse' => str_replace(
-                'rt-pad rt-sign-cell',
-                'rt-pad custom-sign-cell',
+                'rt-sign-cell',
+                'custom-sign-cell',
                 $canonicalHtml,
             ),
         ];
@@ -1260,8 +1407,8 @@ HTML;
         $validHtml = (string) $document->html;
         $attacks = [
             'preview attribut' => preg_replace(
-                '/<td class="rt-pad rt-sign-cell"/',
-                '<td data-rt-mail-preview-train="TRAIN_SRC" class="rt-pad rt-sign-cell"',
+                '/<td class="rt-sign-cell"/',
+                '<td data-rt-mail-preview-train="TRAIN_SRC" class="rt-sign-cell"',
                 $validHtml,
                 1,
             ),
@@ -1967,6 +2114,11 @@ HTML;
             '.x{animation:injected 1s linear;}',
             '.x{animation-delay:1s;}',
             '.x{anim\\61 tion:injected 1s;}',
+            'td{mso-padding-alt:20px;}',
+            'td{MSO-PADDING-ALT:20px;}',
+            'td{mso-padding&#45;alt:20px;}',
+            'td{mso-padd\\69 ng-alt:20px;}',
+            'td{mso-padding/**/-alt:20px;}',
             '.rt-sign-\\63 ell::before{content:"x";}',
             '.rt-train-main-image{opacity:0;}',
             '.rt-train-main-layer{height:auto;}',

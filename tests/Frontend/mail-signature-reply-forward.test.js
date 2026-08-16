@@ -77,7 +77,9 @@ test('Outlook export and sent mail each keep exactly one regular train image', a
 
     assert.match(runtime, /<img class="rt-train-main-image" data-rt-train-main-image/);
     assert.match(runtime, /<span class="rt-train-main-layer" data-rt-train-main-layer/);
-    assert.match(runtime, /width:100%;height:0;max-height:0;overflow:visible/);
+    assert.match(runtime, /position:relative;z-index:0;width:100%;max-width:1815px;[\s\S]+?height:0;max-height:0;overflow:visible/);
+    assert.match(runtime, /max-width:none;height:auto;margin:0/);
+    assert.match(runtime, /injectRuntimeLayerAtCarrierBottom/);
     assert.match(runtime, /position:absolute;left:0;right:auto;bottom:0;z-index:0/);
     assert.match(runtime, /SignatureTrainCarrier::withoutMainLayer\(\$html\)/);
     assert.doesNotMatch(runtime, /rt-classic-outlook-train/);

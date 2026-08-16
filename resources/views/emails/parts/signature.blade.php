@@ -43,8 +43,7 @@
     // gekachelte Zelltextur ausgeben.
     $outlookTrainFallbackSrc = trim((string) ($outlookTrainFallbackSrc ?? ''));
     $isOutlookExport = $outlookTrainSrc !== '';
-    $cellPadding = $isOutlookExport ? '0' : $padding;
-    $outlookTrainPadding = $outlookTrainPadding ?? '6px 0 14px';
+    $outlookTrainPadding = $outlookTrainPadding ?? '6px 0 0';
     $hasPerson = trim((string) ($values['VORNAME_NACHNAME'] ?? '')) !== '';
     $pflichtangaben = implode(' · ', array_filter([
         ($values['GESCHAEFTSFUEHRUNG'] ?? '') !== '' ? 'Geschäftsführung: '.$values['GESCHAEFTSFUEHRUNG'] : '',
@@ -116,22 +115,20 @@
          Systemmail-Render wird der validierte Hauptlayer aus diesen CSS-Listen
          entfernt und genau einmal als regulaeres Nullhoehen-IMG hinter den
          Inhaltsdaten eingesetzt. --}}
-    <td class="{{ $isOutlookExport ? '' : 'rt-pad ' }}rt-sign-cell" bgcolor="{{ $values['SIGNATURE_BG'] }}" style="padding:{{ $cellPadding }};position:relative;overflow:hidden;background-color:{{ $values['SIGNATURE_BG'] }};background-image:{{ $backgroundImage }};background-repeat:{{ $backgroundRepeat }};background-position:{{ $backgroundPosition }};background-size:{{ $backgroundSize }};{{ $topRule }}">
-        @if($isOutlookExport)
-            {{-- Der Inhalt behaelt seinen gewohnten Innenabstand, waehrend
-                 die nachfolgende Zugzeile bis an die Signaturkante reicht. --}}
-            <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">
-                <tr>
-                    {{-- .rt-pad gehoert HIER hin, nicht an die aeussere Zelle:
-                         dort steht im Outlook-Zweig padding:0, damit die
-                         Zugzeile bis an die Kante reicht. Sass die Klasse
-                         oben, verkleinerten die Umbruchregeln die Null und
-                         diese 36 px blieben stehen — der Block war schmal
-                         doppelt eingerueckt (24+36 statt 24). --}}
-                    <td class="rt-pad" style="padding:{{ $padding }};">
-        @endif
+    <td class="rt-sign-cell" bgcolor="{{ $values['SIGNATURE_BG'] }}" style="padding:0;position:relative;overflow:hidden;background-color:{{ $values['SIGNATURE_BG'] }};background-image:{{ $backgroundImage }};background-repeat:{{ $backgroundRepeat }};background-position:{{ $backgroundPosition }};background-size:{{ $backgroundSize }};{{ $topRule }}">
+        {{-- Der aeussere Zug-Carrier bleibt absichtlich ohne Padding. Einige
+             Outlook-Renderer beziehen `bottom:0` bei absolut positionierten
+             Elementen in Tabellenzellen auf deren Inhaltskante. Lag der
+             Innenabstand direkt auf dieser Zelle, schwebten die Radunterkanten
+             deshalb um exakt 20 px (mobil 14 px) ueber dem Legal-Footer.
+             Der mail-sichere innere Tabellenwrapper behaelt dieselben
+             Inhaltsabstaende, waehrend Main- und Idle-Zug an der echten
+             unteren Carrierkante auf dem grauen Footer stehen. --}}
         <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;position:relative;z-index:1;">
-            <tr class="rt-stack">
+            <tr>
+                <td class="rt-pad rt-sign-content" style="padding:{{ $padding }};position:relative;z-index:1;">
+                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;position:relative;z-index:1;">
+                        <tr class="rt-stack">
                 {{-- Ohne Person bleibt die Namenszeile LEER: Die Marke steht
                      bereits als Wortmarke in der rechten Spalte, der
                      Firmenname darunter waere eine Doppelung. --}}
@@ -198,12 +195,12 @@
                         ])
                     </div>
                 </td>
+                        </tr>
+                    </table>
+                </td>
             </tr>
         </table>
         @if($isOutlookExport)
-                    </td>
-                </tr>
-            </table>
             {{-- Outlook-Paketexport: Der Zug ist eine lokale regulaere
                  Bildressource statt einer CSS-Hintergrundebene. Falls ein
                  explizites Standbild mitgegeben wird, trennt der bedingte

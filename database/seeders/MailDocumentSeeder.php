@@ -37,8 +37,9 @@ final class MailDocumentSeeder extends Seeder
      * 4  Kanonischer APPLICATION_CONTENT-Slot für Systemmails
      * 5  Antwortsichere Einzelelemente für Wortmarke und Firmenkontakte
      * 6  Vollständiges Outlook-Standbild für das animierte RT-Zeichen
+     * 7  Zug-Carrier ohne Außenpadding für eine bündige Rad-/Footerkante
      */
-    private const STARTER_SCHEMA = 6;
+    private const STARTER_SCHEMA = 7;
 
     public function run(): void
     {

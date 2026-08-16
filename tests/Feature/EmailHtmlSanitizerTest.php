@@ -121,7 +121,7 @@ class EmailHtmlSanitizerTest extends TestCase
             preg_match('/<img[^>]*data-rt-train-main-image[^>]*>/', $signature, $mainTrain),
         );
         $this->assertStringContainsString('width="100%"', $mainTrain[0]);
-        $this->assertStringContainsString('max-width:1815px', $mainTrain[0]);
+        $this->assertStringContainsString('max-width:none', $mainTrain[0]);
         $this->assertStringContainsString('position:absolute', $mainTrain[0]);
         $this->assertStringContainsString('opacity:1', $mainTrain[0]);
         $this->assertSame(1, substr_count($signature, 'data-rt-train-main-layer'));
@@ -129,14 +129,16 @@ class EmailHtmlSanitizerTest extends TestCase
             1,
             preg_match('/<span[^>]*data-rt-train-main-layer[^>]*>/', $signature, $mainLayer),
         );
-        $this->assertStringContainsString('width:100%;height:0;max-height:0;overflow:visible', $mainLayer[0]);
+        $this->assertStringContainsString('position:relative;z-index:0;width:100%;max-width:1815px', $mainLayer[0]);
+        $this->assertStringContainsString('height:0;max-height:0;overflow:visible', $mainLayer[0]);
         $this->assertSame(1, substr_count($signature, 'data-rt-train-idle-overlay'));
         $this->assertSame(1, substr_count($signature, 'data-rt-train-idle-image'));
         $this->assertSame(
             1,
             preg_match('/<span[^>]*data-rt-train-idle-overlay[^>]*>/', $signature, $idleOverlay),
         );
-        $this->assertStringContainsString('width:100%;height:0;max-height:0;overflow:hidden', $idleOverlay[0]);
+        $this->assertStringContainsString('position:relative;z-index:0;width:100%;max-width:1815px', $idleOverlay[0]);
+        $this->assertStringContainsString('height:0;max-height:0;overflow:hidden', $idleOverlay[0]);
         $this->assertStringContainsString('mso-hide:all', $idleOverlay[0]);
         $this->assertStringContainsString('opacity:0', $idleOverlay[0]);
         $this->assertStringContainsString('visibility:hidden', $idleOverlay[0]);
@@ -194,7 +196,7 @@ class EmailHtmlSanitizerTest extends TestCase
         $this->assertStringContainsString('animation-delay: 13s;', $css);
         $this->assertStringContainsString(".rt-train-main-image,\n.rt-train-idle-image {", $css);
         $this->assertStringContainsString('max-width: 1815px !important;', $css);
-        $this->assertStringContainsString('left: -75% !important;', $css);
+        $this->assertStringContainsString('margin-left: -75% !important;', $css);
         $this->assertStringContainsString('width: 200% !important;', $css);
 
         // Keyframes und position:absolute stammen nicht aus dem editierbaren

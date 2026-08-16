@@ -32,6 +32,7 @@ final class CssSemantic
         'rt-train-main-layer',
         'rt-train-main-image',
         'rt-train-idle-overlay',
+        'rt-train-idle-runtime-layer',
         'rt-train-idle-surface',
         'rt-train-idle-image',
         'rt-classic-outlook-train',
@@ -246,7 +247,7 @@ final class CssSemantic
                 continue;
             }
 
-            [$identifier, $cursor, $validIdentifier] = self::readIdentifier($css, $index);
+            [$identifier, $cursor, $validIdentifier] = self::readIdentifierAcrossAdjacentComments($css, $index);
             if (! $validIdentifier || $cursor <= $index) {
                 return true;
             }
@@ -261,7 +262,13 @@ final class CssSemantic
             $isAnimationProperty = $normalized === 'animation'
                 || str_starts_with($normalized, 'animation-')
                 || preg_match('/^-[a-z]+-animation(?:-|$)/', $normalized) === 1;
-            if ($isAnimationProperty) {
+            // Outlooks Word-Renderer kann mso-padding-alt auch ueber einen
+            // generischen Selektor wie `td` auf den geschuetzten Carrier
+            // anwenden und damit dessen Inline-padding:0 umgehen. Darum ist
+            // diese Property in jeder frei editierbaren CSS-Spalte gesperrt;
+            // readIdentifier normalisiert dabei auch CSS-Escapes.
+            $isProtectedGeometryProperty = $normalized === 'mso-padding-alt';
+            if ($isAnimationProperty || $isProtectedGeometryProperty) {
                 $propertyEnd = self::skipWhitespaceAndComments($css, $cursor);
                 if ($propertyEnd === null) {
                     return true;
@@ -476,6 +483,34 @@ final class CssSemantic
         }
 
         return $index;
+    }
+
+    /** @return array{string, int, bool} */
+    private static function readIdentifierAcrossAdjacentComments(string $css, int $start): array
+    {
+        [$identifier, $cursor, $valid] = self::readIdentifier($css, $start);
+        $length = strlen($css);
+
+        while ($valid && $cursor < $length && substr($css, $cursor, 2) === '/*') {
+            $commentEnd = strpos($css, '*/', $cursor + 2);
+            if ($commentEnd === false) {
+                return [$identifier, $length, false];
+            }
+
+            $cursor = $commentEnd + 2;
+            $next = $css[$cursor] ?? '';
+            if ($next !== '\\' && preg_match('/[A-Za-z0-9_-]/', $next) !== 1) {
+                break;
+            }
+
+            [$suffix, $cursor, $validSuffix] = self::readIdentifier($css, $cursor);
+            if (! $validSuffix || $suffix === '') {
+                return [$identifier, $cursor, false];
+            }
+            $identifier .= $suffix;
+        }
+
+        return [$identifier, $cursor, $valid];
     }
 
     /** @return array{string, int, bool} */

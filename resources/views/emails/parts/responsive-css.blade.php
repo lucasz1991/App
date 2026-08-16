@@ -66,15 +66,20 @@
   max-height: none !important;
   z-index: 0 !important;
 }
-.rt-train-main-layer {
+.rt-train-main-layer,
+.rt-train-idle-runtime-layer {
   display: block !important;
+  position: relative !important;
+  z-index: 0 !important;
   width: 100% !important;
+  max-width: 1815px !important;
   height: 0 !important;
   max-height: 0 !important;
-  overflow: visible !important;
+  margin: 0 !important;
   font-size: 0 !important;
   line-height: 0 !important;
 }
+.rt-train-main-layer { overflow: visible !important; }
 .rt-train-main-image,
 .rt-train-idle-image {
   display: block !important;
@@ -83,7 +88,7 @@
   right: auto !important;
   bottom: 0 !important;
   width: 100% !important;
-  max-width: 1815px !important;
+  max-width: none !important;
   height: auto !important;
   max-height: none !important;
   margin: 0 !important;
@@ -144,12 +149,18 @@ tr.rt-stack > td.rt-card-cell, tr.rt-stack > td.rt-card-cell + td { padding-left
 
 /* ---- Tablet hoch und kleiner: stapeln ---- */
 @media only screen and (max-width: 860px) {
+.rt-train-main-layer,
+.rt-train-idle-runtime-layer {
+  width: 200% !important;
+  max-width: none !important;
+  margin-left: -75% !important;
+}
 .rt-train-main-image,
 .rt-train-idle-image {
-  left: -75% !important;
+  left: 0 !important;
   right: auto !important;
   bottom: 0 !important;
-  width: 200% !important;
+  width: 100% !important;
   max-width: none !important;
   height: auto !important;
 }
@@ -245,11 +256,11 @@ img.rt-logo { width: 150px !important; }
    ausgerichtet legte er sich als breiter Schleier ueber die halbe Karte.
    Er soll ein Schein in der Ecke sein, kein Farbfeld. */
 .rt-sign-cell {
-  background-position: left top, right center, center center, 75% 84% !important;
+  background-position: left top, right center, center center, 75% bottom !important;
   background-size: 64px 64px, auto 52%, 100% 100%, 200% auto !important;
 }
 .rt-train-idle-surface {
-  background-position: 75% 84% !important;
+  background-position: 75% bottom !important;
   background-size: 200% auto !important;
 }
 }

@@ -340,10 +340,7 @@ class MailSignature
         // moderner Hauptzug-CSS-Layer.
         $zugAlsBild = trim((string) ($layout['outlookTrainSrc'] ?? '')) !== '';
         if ($published !== null) {
-            SignatureDocumentContract::assertValid(
-                $published,
-                allowLegacyTrainStill: true,
-            );
+            SignatureDocumentContract::assertRuntimeValid($published);
 
             $html = $this->applyPublishedLayout($published, $layout);
             if ($zugAlsBild) {
@@ -452,11 +449,13 @@ class MailSignature
      * Projiziert den bereits validierten Hauptzug in genau EIN regulaeres
      * Bild innerhalb des oberen Carriers.
      *
-     * Das IMG liegt absolut hinter dem Inhalt und steckt in einem explizit
-     * null Pixel hohen, ueberlaufenden Layer. So reservieren auch Clients mit
-     * lueckenhafter Positionierungsunterstuetzung keine zweite Bildhoehe; bei
-     * CSS-Verlust bleibt dasselbe regulaere IMG erhalten, aber niemals als
-     * zusaetzliche Signaturzeile. Bis 1815 px skaliert die Leinwand fluide,
+     * Das IMG liegt absolut hinter dem Inhalt und steckt am unteren Ende des
+     * Carriers in einem explizit positionierten, null Pixel hohen Layer. Damit
+     * bezieht sich `bottom:0` nicht mehr auf die in CSS 2.1 undefinierte
+     * Positionierung einer Tabellenzelle, sondern auf einen normalen Wrapper.
+     * Entfernt ein Client Positionierung vollstaendig, bleibt der Wrapper null
+     * Pixel hoch und der Carrier stabil, statt eine zweite Bildhoehe zu
+     * reservieren. Bis 1815 px skaliert die Leinwand fluide,
      * darueber bleibt sie linksbuendig auf ihrer echten Maximalbreite. Damit
      * endet die Lok bis 1815 px bei 75 Prozent und auf breiteren Ansichten
      * wird das Zugheck nicht abgeschnitten.
@@ -472,23 +471,19 @@ class MailSignature
         $image = '<img class="rt-train-main-image" data-rt-train-main-image '
             .'src="{{TRAIN_SRC}}" width="100%" alt="Dampflok-G&uuml;terzug" '
             .'style="display:block;position:absolute;left:0;right:auto;bottom:0;z-index:0;'
-            .'width:100%;max-width:1815px;height:auto;margin:0;'
+            .'width:100%;max-width:none;height:auto;margin:0;'
             .'border:0;outline:none;text-decoration:none;opacity:1;visibility:visible;">';
         $layer = '<span class="rt-train-main-layer" data-rt-train-main-layer '
-            .'style="display:block;width:100%;height:0;max-height:0;overflow:visible;'
+            .'style="display:block;position:relative;z-index:0;width:100%;max-width:1815px;'
+            .'height:0;max-height:0;overflow:visible;margin:0;'
             .'font-size:0;line-height:0;mso-line-height-rule:exactly;">'.$image.'</span>';
-        $replacements = 0;
-        $rendered = preg_replace_callback(
-            '/<td\b[^>]*class=(["\'])[^"\']*\brt-sign-cell\b[^"\']*\1[^>]*>/i',
-            static fn (array $match): string => $match[0].$layer,
+        $rendered = $this->injectRuntimeLayerAtCarrierBottom(
             $html,
-            1,
-            $replacements,
+            $layer,
+            'Der Runtime-Zug konnte nicht eindeutig am unteren Carrier-Anker projiziert werden.',
         );
 
-        if (! is_string($rendered)
-            || $replacements !== 1
-            || substr_count($rendered, 'data-rt-train-main-layer') !== 1
+        if (substr_count($rendered, 'data-rt-train-main-layer') !== 1
             || substr_count($rendered, 'data-rt-train-main-image') !== 1
             || substr_count($rendered, '{{TRAIN_SRC}}') !== 1) {
             throw new \RuntimeException('Der Runtime-Zug konnte nicht eindeutig in den oberen Carrier projiziert werden.');
@@ -557,31 +552,51 @@ class MailSignature
         }
 
         $source = htmlspecialchars($idleSource, ENT_QUOTES, 'UTF-8');
-        $idleSurface = str_contains($html, 'data-rt-train-main-image')
+        $usesRuntimeImage = str_contains($html, 'data-rt-train-main-image');
+        $idleSurface = $usesRuntimeImage
             ? '<img class="rt-train-idle-surface rt-train-idle-image" data-rt-train-idle-image '
                 .'src="'.$source.'" width="100%" alt="" '
                 .'style="display:block;position:absolute;left:0;right:auto;bottom:0;z-index:1;'
-                .'width:100%;max-width:1815px;height:auto;max-height:none;'
+                .'width:100%;max-width:none;height:auto;max-height:none;'
                 .'margin:0;border:0;outline:none;text-decoration:none;opacity:1;visibility:visible;">'
             : '<span class="rt-train-idle-surface" style="display:block;width:1px;height:1px;'
                 .'max-width:1px;max-height:1px;background-image:url('.$source.');background-repeat:no-repeat;'
                 .'background-position:75% bottom;background-size:auto 100%;"></span>';
-        $overlay = '<span class="rt-train-idle-overlay" data-rt-train-idle-overlay '
-            .'style="display:block;width:100%;height:0;max-height:0;overflow:hidden;'
+        $overlayClass = 'rt-train-idle-overlay'.($usesRuntimeImage ? ' rt-train-idle-runtime-layer' : '');
+        $overlayGeometry = $usesRuntimeImage
+            ? 'position:relative;z-index:0;width:100%;max-width:1815px;margin:0;'
+            : 'width:100%;';
+        $overlay = '<span class="'.$overlayClass.'" data-rt-train-idle-overlay '
+            .'style="display:block;'.$overlayGeometry.'height:0;max-height:0;overflow:hidden;'
             .'opacity:0;visibility:hidden;animation:rt-train-idle-reveal 1ms step-start 13s forwards;'
             .'font-size:0;line-height:0;mso-hide:all;">'
             .$idleSurface.'</span>';
+
+        return $this->injectRuntimeLayerAtCarrierBottom(
+            $html,
+            $overlay,
+            'Die Idle-Ebene konnte nicht eindeutig am unteren Carrier-Anker projiziert werden.',
+        );
+    }
+
+    /**
+     * Setzt einen nullhoehen Runtime-Layer unmittelbar vor das Ende der ersten
+     * validierten Signaturzeile. Der exakte MAIN_END-Kommentar ist bereits Teil
+     * des gemeinsamen Save-/Publish-/Runtime-Vertrags.
+     */
+    private function injectRuntimeLayerAtCarrierBottom(string $html, string $layer, string $error): string
+    {
         $replacements = 0;
         $rendered = preg_replace_callback(
-            '/<td\b[^>]*class=(["\'])[^"\']*\brt-sign-cell\b[^"\']*\1[^>]*>/i',
-            static fn (array $match): string => $match[0].$overlay,
+            '/(?=<\/td>\s*<\/tr>\s*<!--\s*RT_SIGNATURE_MAIN_END\s*-->)/i',
+            static fn (): string => $layer,
             $html,
             1,
             $replacements,
         );
 
         if (! is_string($rendered) || $replacements !== 1) {
-            throw new \RuntimeException('Die veroeffentlichte Signatur besitzt keinen eindeutigen Zug-Carrier.');
+            throw new \RuntimeException($error);
         }
 
         return $rendered;
@@ -613,7 +628,7 @@ class MailSignature
             'UTF-8',
         );
         $padding = htmlspecialchars(
-            (string) ($layout['outlookTrainPadding'] ?? '6px 0 14px'),
+            (string) ($layout['outlookTrainPadding'] ?? '6px 0 0'),
             ENT_QUOTES,
             'UTF-8',
         );

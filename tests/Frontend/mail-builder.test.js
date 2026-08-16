@@ -663,11 +663,11 @@ test('very wide mail carriers anchor the main and idle train at the uncropped le
     assert.match(signatureSource, /\|75% bottom\|\{\$zugMass\}/);
     assert.match(
         css,
-        /background-position:\s*left top, right center, center center, 75% 84% !important;/,
+        /background-position:\s*left top, right center, center center, 75% bottom !important;/,
     );
     assert.match(
         css,
-        /\.rt-train-idle-surface\s*\{\s*background-position:\s*75% 84% !important;/,
+        /\.rt-train-idle-surface\s*\{\s*background-position:\s*75% bottom !important;/,
     );
 
     assert.equal(trainAsset.toString('ascii', 1, 4), 'PNG');

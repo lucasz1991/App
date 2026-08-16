@@ -74,6 +74,37 @@ final class SignatureDocumentContract
 
     public static function assertValid(string $html, bool $allowLegacyTrainStill = false): void
     {
+        self::assertContract(
+            $html,
+            allowLegacyTrainStill: $allowLegacyTrainStill,
+            allowLegacyPaddedCarrier: false,
+        );
+    }
+
+    /**
+     * Laufzeitvertrag fuer bereits veroeffentlichte Signaturen.
+     *
+     * Neue Editor-/Publish-Staende muessen immer Schema 7 besitzen. Bis der
+     * autoritative Seeder nach dem Deployment gelaufen ist, darf der Versand
+     * jedoch noch genau die alte Schema-6-Topologie lesen. Sie wird bewusst
+     * nicht per Regex umgebaut: ein solcher Umbau waere bei verschachtelten
+     * Mailtabellen nicht positionssicher. Jede andere Zwischenform bricht
+     * fail-closed ab.
+     */
+    public static function assertRuntimeValid(string $html): void
+    {
+        self::assertContract(
+            $html,
+            allowLegacyTrainStill: true,
+            allowLegacyPaddedCarrier: true,
+        );
+    }
+
+    private static function assertContract(
+        string $html,
+        bool $allowLegacyTrainStill,
+        bool $allowLegacyPaddedCarrier,
+    ): void {
         $decodedHtml = CssSemantic::decodeHtmlEntitiesOnce($html);
         if (preg_match('/<style\b/i', $decodedHtml) === 1) {
             throw new RuntimeException('Das Signaturfragment darf keinen eigenen style-Block enthalten.');
@@ -87,12 +118,12 @@ final class SignatureDocumentContract
 
         self::assertExactMarkers($html);
         self::assertLegacyTrainStill($html, $decodedHtml, $allowLegacyTrainStill);
-        self::assertTableStructure($html);
 
         // Dieselbe kanonische Carrier-Semantik gilt auch vor der Outlook-
         // Bildprojektion. Kein Ausgabezweig darf die Background-Pruefung
         // umgehen.
         SignatureTrainCarrier::normalize($html);
+        self::assertTableStructure($html, $allowLegacyPaddedCarrier);
     }
 
     private static function assertExactMarkers(string $html): void
@@ -301,8 +332,10 @@ final class SignatureDocumentContract
         }
     }
 
-    private static function assertTableStructure(string $html): void
-    {
+    private static function assertTableStructure(
+        string $html,
+        bool $allowLegacyPaddedCarrier,
+    ): void {
         $wrapperId = 'rt-signature-contract-'.hash('sha256', $html);
         while (str_contains($html, $wrapperId)) {
             $wrapperId .= 'x';
@@ -348,5 +381,310 @@ final class SignatureDocumentContract
             || ! $trainCells[0]->parentNode?->isSameNode($topRows[0])) {
             throw new RuntimeException('Der kanonische Zug-Carrier muss in der ersten obersten Signaturzeile liegen.');
         }
+
+        $carrier = $trainCells[0];
+        $carrierClasses = self::classes($carrier);
+        $contentCells = [];
+        foreach ($wrapper->getElementsByTagName('td') as $cell) {
+            if (in_array('rt-sign-content', self::classes($cell), true)) {
+                $contentCells[] = $cell;
+            }
+        }
+
+        if (self::isSchemaSevenCarrier($html, $carrier, $carrierClasses, $contentCells)) {
+            return;
+        }
+
+        if ($allowLegacyPaddedCarrier
+            && self::isExactLegacySchemaSixCarrier($html, $carrier, $carrierClasses, $contentCells)) {
+            return;
+        }
+
+        throw new RuntimeException(
+            'Der Zug-Carrier muss aussen exakt padding:0 und innen genau einen mail-sicheren rt-pad/rt-sign-content-Wrapper mit Inhaltspadding besitzen.'
+        );
+    }
+
+    /**
+     * @param  list<string>  $carrierClasses
+     * @param  list<DOMElement>  $contentCells
+     */
+    private static function isSchemaSevenCarrier(
+        string $html,
+        DOMElement $carrier,
+        array $carrierClasses,
+        array $contentCells,
+    ): bool {
+        if (! self::hasExactClasses($carrierClasses, ['rt-sign-cell'])
+            || ! self::hasExactPadding($carrier, 'zero')
+            || count($contentCells) !== 1
+            || substr_count($html, 'rt-sign-content') !== 1) {
+            return false;
+        }
+
+        $content = $contentCells[0];
+        $contentClasses = self::classes($content);
+        if (! self::hasExactClasses($contentClasses, ['rt-pad', 'rt-sign-content'])
+            || ! self::hasExactPadding($content, 'content')) {
+            return false;
+        }
+
+        $contentRow = $content->parentNode;
+        $contentTable = $contentRow instanceof DOMElement
+            ? self::closestAncestorElement($contentRow, 'table')
+            : null;
+        if (! $contentRow instanceof DOMElement
+            || strtolower($contentRow->tagName) !== 'tr'
+            || ! $contentTable instanceof DOMElement
+            || ! $contentTable->parentNode?->isSameNode($carrier)
+            || ! self::isMailSafeWrapperTable($contentTable)
+            || ! self::firstElementChild($carrier)?->isSameNode($contentTable)
+            || ! self::firstTableRow($contentTable)?->isSameNode($contentRow)) {
+            return false;
+        }
+
+        $rowElements = self::elementChildren($contentRow);
+
+        return count($rowElements) === 1 && $rowElements[0]->isSameNode($content);
+    }
+
+    /**
+     * Exakt die bis Schema 6 ausgelieferte Form: das Inhaltspadding liegt auf
+     * dem aeusseren rt-pad/rt-sign-cell, die erste direkte Tabelle enthaelt
+     * unmittelbar die zweispaltige rt-stack-Zeile. Diese Ausnahme existiert
+     * ausschliesslich im Runtime-Einstieg und verschwindet nach dem Seeder.
+     *
+     * @param  list<string>  $carrierClasses
+     * @param  list<DOMElement>  $contentCells
+     */
+    private static function isExactLegacySchemaSixCarrier(
+        string $html,
+        DOMElement $carrier,
+        array $carrierClasses,
+        array $contentCells,
+    ): bool {
+        if ($contentCells !== []
+            || str_contains($html, 'rt-sign-content')
+            || ! self::hasExactClasses($carrierClasses, ['rt-pad', 'rt-sign-cell'])
+            || ! self::hasExactPadding($carrier, 'content')) {
+            return false;
+        }
+
+        $contentTable = self::firstElementChild($carrier);
+        if (! $contentTable instanceof DOMElement
+            || strtolower($contentTable->tagName) !== 'table'
+            || ! self::isMailSafeWrapperTable($contentTable)) {
+            return false;
+        }
+
+        $contentRow = self::firstTableRow($contentTable);
+
+        return $contentRow instanceof DOMElement
+            && in_array('rt-stack', self::classes($contentRow), true);
+    }
+
+    /** @return list<string> */
+    private static function classes(DOMElement $element): array
+    {
+        return preg_split('/\s+/', trim($element->getAttribute('class')), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    }
+
+    /** @param list<string> $actual @param list<string> $expected */
+    private static function hasExactClasses(array $actual, array $expected): bool
+    {
+        sort($actual);
+        sort($expected);
+
+        return $actual === $expected;
+    }
+
+    private static function isMailSafeWrapperTable(DOMElement $table): bool
+    {
+        return strtolower($table->tagName) === 'table'
+            && strtolower(trim($table->getAttribute('role'))) === 'presentation'
+            && trim($table->getAttribute('width')) === '100%'
+            && trim($table->getAttribute('border')) === '0'
+            && trim($table->getAttribute('cellspacing')) === '0'
+            && trim($table->getAttribute('cellpadding')) === '0';
+    }
+
+    private static function firstTableRow(DOMElement $table): ?DOMElement
+    {
+        $child = self::firstElementChild($table);
+        if ($child instanceof DOMElement && strtolower($child->tagName) === 'tbody') {
+            $child = self::firstElementChild($child);
+        }
+
+        return $child instanceof DOMElement && strtolower($child->tagName) === 'tr'
+            ? $child
+            : null;
+    }
+
+    private static function firstElementChild(DOMNode $node): ?DOMElement
+    {
+        foreach ($node->childNodes as $child) {
+            if ($child instanceof DOMElement) {
+                return $child;
+            }
+        }
+
+        return null;
+    }
+
+    /** @return list<DOMElement> */
+    private static function elementChildren(DOMNode $node): array
+    {
+        $children = [];
+        foreach ($node->childNodes as $child) {
+            if ($child instanceof DOMElement) {
+                $children[] = $child;
+            }
+        }
+
+        return $children;
+    }
+
+    private static function hasExactPadding(DOMElement $element, string $mode): bool
+    {
+        if (! $element->hasAttribute('style')) {
+            return false;
+        }
+
+        try {
+            $declarations = self::paddingDeclarations(
+                $element->getAttribute('style'),
+                rejectBottomBorder: $mode === 'zero',
+            );
+        } catch (RuntimeException) {
+            return false;
+        }
+
+        if (array_keys($declarations) !== ['padding']) {
+            return false;
+        }
+
+        $value = strtolower(trim(preg_replace(
+            '/[ \t\r\n\f]+/',
+            ' ',
+            $declarations['padding'],
+        ) ?? $declarations['padding']));
+        if ($mode === 'zero') {
+            return $value === '0';
+        }
+
+        if (preg_match(
+            '/^(?:0|(?:\d+(?:\.\d+)?|\.\d+)px)(?: (?:0|(?:\d+(?:\.\d+)?|\.\d+)px)){0,3}$/',
+            $value,
+        ) !== 1) {
+            return false;
+        }
+
+        preg_match_all('/(?:\d+(?:\.\d+)?|\.\d+)px/', $value, $lengths);
+        foreach ($lengths[0] ?? [] as $length) {
+            if ((float) substr($length, 0, -2) > 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** @return array<string, string> */
+    private static function paddingDeclarations(string $style, bool $rejectBottomBorder): array
+    {
+        $style = CssSemantic::decodeHtmlEntitiesOnce($style);
+        if (preg_match('/[\x{0000}-\x{0008}\x{000B}\x{000E}-\x{001F}\x{007F}-\x{009F}]/u', $style) !== 0
+            || str_contains($style, '/*')
+            || str_contains($style, '*/')
+            || str_contains($style, '\\')) {
+            throw new RuntimeException('Der Padding-Vertrag enthaelt unlesbares CSS.');
+        }
+
+        $declarations = [];
+        foreach (self::splitCssAtTopLevel($style, ';') as $segment) {
+            $colon = strpos($segment, ':');
+            if ($colon === false) {
+                continue;
+            }
+
+            $property = strtolower(trim(substr($segment, 0, $colon)));
+            if ($property === 'mso-padding-alt') {
+                throw new RuntimeException('mso-padding-alt darf den Padding-Vertrag nicht ueberschreiben.');
+            }
+            if ($rejectBottomBorder && self::canCreateBottomBorder($property)) {
+                throw new RuntimeException('Der Zug-Carrier darf unterhalb des Zuges keinen Rahmen erzeugen.');
+            }
+            if ($property !== 'padding' && ! str_starts_with($property, 'padding-')) {
+                continue;
+            }
+            if (! in_array($property, ['padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left'], true)
+                || array_key_exists($property, $declarations)) {
+                throw new RuntimeException('Der Padding-Vertrag ist mehrdeutig.');
+            }
+
+            $declarations[$property] = trim(substr($segment, $colon + 1));
+        }
+
+        return $declarations;
+    }
+
+    private static function canCreateBottomBorder(string $property): bool
+    {
+        // Nur die kanonische rote Oberkante darf am aeusseren TD bleiben.
+        // Insbesondere mso-border-alt und mso-border-bottom-alt koennen im
+        // Word-Renderer trotz padding:0 wieder Abstand zum Legal-Footer
+        // erzeugen.
+        return str_contains($property, 'border')
+            && ! str_starts_with($property, 'border-top');
+    }
+
+    /** @return list<string> */
+    private static function splitCssAtTopLevel(string $value, string $delimiter): array
+    {
+        $parts = [];
+        $start = 0;
+        $depth = 0;
+        $quote = null;
+        $length = strlen($value);
+        for ($index = 0; $index < $length; $index++) {
+            $character = $value[$index];
+            if ($quote !== null) {
+                if ($character === $quote) {
+                    $quote = null;
+                }
+
+                continue;
+            }
+            if ($character === '"' || $character === "'") {
+                $quote = $character;
+
+                continue;
+            }
+            if ($character === '(') {
+                $depth++;
+
+                continue;
+            }
+            if ($character === ')') {
+                if ($depth === 0) {
+                    throw new RuntimeException('Der Padding-Vertrag enthaelt unbalanciertes CSS.');
+                }
+                $depth--;
+
+                continue;
+            }
+            if ($character === $delimiter && $depth === 0) {
+                $parts[] = substr($value, $start, $index - $start);
+                $start = $index + 1;
+            }
+        }
+
+        if ($quote !== null || $depth !== 0) {
+            throw new RuntimeException('Der Padding-Vertrag enthaelt unbalanciertes CSS.');
+        }
+
+        $parts[] = substr($value, $start);
+
+        return $parts;
     }
 }

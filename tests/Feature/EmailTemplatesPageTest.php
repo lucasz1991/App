@@ -386,8 +386,8 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertStringContainsString('class="rt-sign-cell"', $html);
             $this->assertStringNotContainsString('class="rt-pad rt-sign-cell"', $html);
             $this->assertStringContainsString('style="padding:0;position:relative;overflow:hidden;background-color:', $html);
-            $this->assertStringContainsString('<td class="rt-pad" style="padding:16px 28px 0;">', $html);
-            $this->assertStringContainsString('<td align="left" style="padding:6px 0 14px;text-align:left;', $html);
+            $this->assertStringContainsString('<td class="rt-pad rt-sign-content" style="padding:16px 28px 0;position:relative;z-index:1;">', $html);
+            $this->assertStringContainsString('<td align="left" style="padding:6px 0 0;text-align:left;', $html);
             $this->assertStringContainsString('height:auto;margin:0;border:0;outline:none;', $html);
             $this->assertStringNotContainsString('data:image/gif;base64,', $html);
             $this->assertStringNotContainsString('background-image:linear-gradient(', $html);
@@ -734,11 +734,11 @@ class EmailTemplatesPageTest extends TestCase
             $regeln,
         );
         $this->assertStringContainsString(
-            'background-position: left top, right center, center center, 75% 84% !important;',
+            'background-position: left top, right center, center center, 75% bottom !important;',
             $regeln,
         );
         $this->assertStringContainsString(
-            ".rt-train-idle-surface {\n  background-position: 75% 84% !important;",
+            ".rt-train-idle-surface {\n  background-position: 75% bottom !important;",
             $regeln,
         );
         // Die Trennlinie wandert NICHT mehr nach oben: Person und Firma stehen
@@ -828,7 +828,11 @@ class EmailTemplatesPageTest extends TestCase
         // Kein Beige mehr: die helle Fassung steht auf Weiss.
         $this->assertStringContainsString('background:#ffffff', $light);
         $this->assertStringContainsString(
-            '<td class="rt-pad rt-sign-cell" bgcolor="#ffffff" style="padding:18px 36px 20px;position:relative;overflow:hidden;background-color:#ffffff;',
+            '<td class="rt-sign-cell" bgcolor="#ffffff" style="padding:0;position:relative;overflow:hidden;background-color:#ffffff;',
+            $light
+        );
+        $this->assertStringContainsString(
+            '<td class="rt-pad rt-sign-content" style="padding:18px 36px 20px;position:relative;z-index:1;">',
             $light
         );
         $this->assertStringContainsString('color:#111820;font-size:23px;', $light);
@@ -840,7 +844,11 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertStringContainsString('data-rt-theme="dark"', $dark);
         $this->assertStringContainsString('background:#111820', $dark);
         $this->assertStringContainsString(
-            '<td class="rt-pad rt-sign-cell" bgcolor="#0c1017" style="padding:18px 36px 20px;position:relative;overflow:hidden;background-color:#0c1017;',
+            '<td class="rt-sign-cell" bgcolor="#0c1017" style="padding:0;position:relative;overflow:hidden;background-color:#0c1017;',
+            $dark
+        );
+        $this->assertStringContainsString(
+            '<td class="rt-pad rt-sign-content" style="padding:18px 36px 20px;position:relative;z-index:1;">',
             $dark
         );
         $this->assertStringContainsString('color:#ffffff;font-size:23px;', $dark);
@@ -967,7 +975,11 @@ class EmailTemplatesPageTest extends TestCase
         $html = (new EmailTemplateBuilder($user->fresh()))->build('signatur-hell')['content'];
 
         $this->assertStringContainsString(
-            '<td class="rt-pad rt-sign-cell" bgcolor="#ffffff" style="padding:16px 28px 18px;',
+            '<td class="rt-sign-cell" bgcolor="#ffffff" style="padding:0;position:relative;overflow:hidden;',
+            $html,
+        );
+        $this->assertStringContainsString(
+            '<td class="rt-pad rt-sign-content" style="padding:16px 28px 18px;position:relative;z-index:1;">',
             $html,
         );
         $this->assertStringContainsString('Mara Beispiel', $html);
