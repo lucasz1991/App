@@ -59,6 +59,7 @@ const MAIL_CSS_TOKEN_COLORS = Object.freeze([
 const MAIL_PREVIEW_IMAGE_TOKENS = Object.freeze([
     'LOGO_SRC',
     'ICON_RT_SRC',
+    'TRAIN_SRC',
     'ICON_PHONE_SRC',
     'ICON_MOBILE_SRC',
     'ICON_EMAIL_SRC',
@@ -783,6 +784,23 @@ export function projectForMailDocument(draft, parseCss = () => [], options = {})
             throw new Error('Die Signatur benoetigt zwei Tabellenzeilen und genau ein gebundenes Zugmotiv in ihrer Hauptflaeche.');
         }
 
+        const trainRow = parsed.createElement('tr');
+        trainRow.setAttribute('data-rt-mail-preview-only', 'train');
+        const trainCell = parsed.createElement('td');
+        trainCell.setAttribute('align', 'left');
+        trainCell.setAttribute('style', 'padding:0;text-align:left;font-size:0;line-height:0;');
+        const trainImage = parsed.createElement('img');
+        trainImage.setAttribute('class', 'rt-sign-train');
+        trainImage.setAttribute('data-rt-train', '');
+        trainImage.setAttribute(MAIL_PREVIEW_IMAGE_ATTRIBUTE, 'TRAIN_SRC');
+        trainImage.setAttribute('src', MAIL_PREVIEW_TRANSPARENT_PIXEL);
+        trainImage.setAttribute('width', '100%');
+        trainImage.setAttribute('alt', '');
+        trainImage.setAttribute('style', 'display:block;width:100%;max-width:1815px;height:auto;margin:0;border:0;outline:none;text-decoration:none;');
+        trainCell.appendChild(trainImage);
+        trainRow.appendChild(trainCell);
+        body.insertBefore(trainRow, rows[1]);
+
         markImportedInlineStyles(wrapper);
         page.component = wrapper.outerHTML;
     }
@@ -858,6 +876,15 @@ export function serializeMailDocumentForSave({
     const wrappers = parsed.querySelectorAll(`table[${MAIL_SIGNATURE_CANVAS_ATTRIBUTE}]`);
     const wrapper = wrappers[0];
     const body = wrapper?.tBodies?.[0] || wrapper?.querySelector('tbody');
+    const trainPreviewRows = wrapper?.querySelectorAll?.('[data-rt-mail-preview-only="train"]') || [];
+    const trainPreviewRow = trainPreviewRows[0];
+    if (trainPreviewRows.length !== 1
+        || trainPreviewRow?.parentElement !== body
+        || trainPreviewRow !== body?.children?.[1]
+        || trainPreviewRow.querySelectorAll?.(`img.rt-sign-train[data-rt-train][${MAIL_PREVIEW_IMAGE_ATTRIBUTE}="TRAIN_SRC"]`).length !== 1) {
+        throw new Error('Die sichere Zugvorschau des Signatur-Editors fehlt.');
+    }
+    trainPreviewRow.remove();
     const rows = Array.from(body?.children || []);
     const trainCarriers = wrapper?.querySelectorAll?.(`[${MAIL_PREVIEW_TRAIN_ATTRIBUTE}]`) || [];
     const trainCarrier = trainCarriers[0];
@@ -1058,6 +1085,7 @@ export function hydrateMailCanvasAssets(editor, theme = 'light', previewAssets =
     const sources = {
         LOGO_SRC: themed.logo,
         ICON_RT_SRC: themed.mark,
+        TRAIN_SRC: themed.train,
         ICON_PHONE_SRC: icons.phone,
         ICON_MOBILE_SRC: icons.mobile,
         ICON_EMAIL_SRC: icons.email,
@@ -1071,21 +1099,6 @@ export function hydrateMailCanvasAssets(editor, theme = 'light', previewAssets =
         if (!source) return;
         image.setAttribute('src', source);
         refreshPausedAnimatedPreviewElement(image);
-        hydrated += 1;
-    });
-
-    canvasDocument.querySelectorAll(`[${MAIL_PREVIEW_TRAIN_ATTRIBUTE}]`).forEach((cell) => {
-        if (!themed.train) return;
-        const wash = theme === 'dark' ? 'rgba(12,16,23,.15)' : 'rgba(247,246,243,.15)';
-        cell.style.setProperty(
-            'background-image',
-            `linear-gradient(${wash},${wash}),url("${String(themed.train).replaceAll('"', '\\"')}")`,
-            'important',
-        );
-        cell.style.setProperty('background-repeat', 'no-repeat', 'important');
-        cell.style.setProperty('background-position', 'center center,left bottom', 'important');
-        cell.style.setProperty('background-size', '100% 100%,86% auto', 'important');
-        refreshPausedAnimatedPreviewElement(cell);
         hydrated += 1;
     });
 

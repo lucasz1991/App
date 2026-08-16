@@ -470,19 +470,12 @@ body.rt-mail-canvas {
 [style*="{{SIGNATURE_BORDER}}"], [style*="{{SIGNATURE_RULE}}"] { border-color: ${theme === 'dark' ? '#313944' : '#dfe3e6'} !important; }
 
 ${imageRule('LOGO_SRC', themedAssets.logo)}
+${imageRule('TRAIN_SRC', themedAssets.train)}
 ${imageRule('ICON_PHONE_SRC', icons.phone)}
 ${imageRule('ICON_MOBILE_SRC', icons.mobile)}
 ${imageRule('ICON_EMAIL_SRC', icons.email)}
 ${imageRule('ICON_WEB_SRC', icons.web)}
 ${imageRule('ICON_LOCATION_SRC', icons.location)}
-
-.rt-sign-cell[style*="{{TRAIN_SRC}}"] {
-    background-color: ${theme === 'dark' ? '#0c1017' : '#f7f6f3'} !important;
-    ${themedAssets.train ? `background-image:linear-gradient(${theme === 'dark' ? 'rgba(12,16,23,.15)' : 'rgba(247,246,243,.15)'},${theme === 'dark' ? 'rgba(12,16,23,.15)' : 'rgba(247,246,243,.15)'}),url("${cssImage(themedAssets.train)}") !important;` : ''}
-    background-repeat:no-repeat !important;
-    background-position:center center,left bottom !important;
-    background-size:100% 100%,86% auto !important;
-}
 
 /* ---- Personendaten: Platzhalter aus, Beispielwert an ---- */
 [data-rt-mail-sample] > [data-rt-mail-token] {

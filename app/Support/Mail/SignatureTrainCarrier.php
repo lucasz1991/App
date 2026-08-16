@@ -87,6 +87,80 @@ final class SignatureTrainCarrier
     }
 
     /**
+     * Loest den nach demselben Vertrag validierten Hauptzug aus den vier
+     * parallelen Background-Listen. Raster, Wasserzeichen und Grundschleier
+     * bleiben unveraendert; der Zug kann danach genau einmal als regulaeres
+     * IMG ausgegeben werden.
+     */
+    public static function withoutMainLayer(string $html): string
+    {
+        $normalized = self::normalize($html);
+        $carrier = self::inspectCarrier($normalized);
+        $styles = $carrier['attributes']['style'] ?? [];
+        if (count($styles) !== 1 || $styles[0]['valueOffset'] === null) {
+            throw new RuntimeException(
+                'Der veroeffentlichte Zug-Carrier besitzt kein eindeutiges style-Attribut.'
+            );
+        }
+
+        $styleAttribute = $styles[0];
+        $projectedStyle = htmlspecialchars(
+            self::normalizeStyle(
+                CssSemantic::decodeHtmlEntitiesOnce($styleAttribute['raw']),
+                removeMainLayer: true,
+            ),
+            ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5,
+            'UTF-8',
+        );
+        $projected = substr_replace(
+            $normalized,
+            $projectedStyle,
+            $styleAttribute['valueOffset'],
+            $styleAttribute['valueLength'],
+        );
+
+        if (str_contains($projected, '{{TRAIN_SRC}}')
+            || str_contains($projected, '{{TRAIN_IDLE_SRC}}')) {
+            throw new RuntimeException(
+                'Der Hauptzug konnte nicht eindeutig aus dem Background-Carrier geloest werden.'
+            );
+        }
+
+        return $projected;
+    }
+
+    /**
+     * Projiziert den streng validierten Carrier in denselben einfachen
+     * Ein-GIF-Vertrag wie Logo und RT-Icon. Versand, Download und Admin-
+     * Vorschau teilen dadurch exakt dieselbe Bildstruktur.
+     */
+    public static function projectAsImage(string $html, string $source, string $padding = '0'): string
+    {
+        $source = trim($source);
+        if ($source === '') {
+            throw new RuntimeException('Die Zuganimation besitzt keine eindeutige Bildquelle.');
+        }
+
+        $html = self::withoutMainLayer($html);
+        $marker = '<!-- RT_SIGNATURE_MAIN_END -->';
+        if (substr_count($html, $marker) !== 1) {
+            throw new RuntimeException(
+                'Die veroeffentlichte Signatur besitzt keinen eindeutigen Bildzeilen-Anker.'
+            );
+        }
+
+        $source = htmlspecialchars($source, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
+        $padding = htmlspecialchars($padding, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
+        $image = '<img class="rt-sign-train" data-rt-train src="'.$source.'" width="100%" '
+            .'alt="" style="display:block;width:100%;max-width:1815px;'
+            .'height:auto;margin:0;border:0;outline:none;text-decoration:none;">';
+        $row = '<tr><td align="left" style="padding:'.$padding
+            .';text-align:left;font-size:0;line-height:0;">'.$image.'</td></tr>';
+
+        return str_replace($marker, $marker.$row, $html);
+    }
+
+    /**
      * Liefert ein echtes Attribut des per DOM bestaetigten Carrier-TD.
      * Doppelte Attribute sind immer mehrdeutig und werden fail-closed
      * abgelehnt.
@@ -400,7 +474,7 @@ final class SignatureTrainCarrier
         return $attributes;
     }
 
-    private static function normalizeStyle(string $style): string
+    private static function normalizeStyle(string $style, bool $removeMainLayer = false): string
     {
         $controlState = preg_match(
             '/[\x{0000}-\x{0008}\x{000B}\x{000E}-\x{001F}\x{007F}-\x{009F}]/u',
@@ -567,9 +641,15 @@ final class SignatureTrainCarrier
         }
 
         $mainIndex = $mainIndexes[0];
-        $lists['background-repeat'][$mainIndex] = 'no-repeat';
-        $lists['background-position'][$mainIndex] = '75% bottom';
-        $lists['background-size'][$mainIndex] = 'auto 100%';
+        if ($removeMainLayer) {
+            foreach ($required as $property) {
+                array_splice($lists[$property], $mainIndex, 1);
+            }
+        } else {
+            $lists['background-repeat'][$mainIndex] = 'no-repeat';
+            $lists['background-position'][$mainIndex] = '75% bottom';
+            $lists['background-size'][$mainIndex] = 'auto 100%';
+        }
 
         foreach ($required as $property) {
             $declaration = $declarations[$property];

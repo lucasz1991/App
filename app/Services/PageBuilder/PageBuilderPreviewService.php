@@ -11,6 +11,7 @@ use App\Services\Marketing\MarketingHtmlSanitizer;
 use App\Services\Marketing\MarketingRenderAssetHydrator;
 use App\Support\EmailTemplateBuilder;
 use App\Support\Mail\EmailHtmlSanitizer;
+use App\Support\Mail\SignatureTrainCarrier;
 use App\Support\MailSignature;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
@@ -92,12 +93,18 @@ final class PageBuilderPreviewService
             : array_merge($values, [
                 'LOGO_SRC' => (string) ($values['LOGO_STILL_SRC'] ?? ''),
                 'ICON_RT_SRC' => (string) ($values['ICON_RT_STILL_SRC'] ?? ''),
-                'TRAIN_IDLE_SRC' => self::TRANSPARENT_PIXEL,
+                'TRAIN_IDLE_SRC' => '',
             ]);
         $values = array_merge($values, $this->sampleMailValues($user));
         $signature = $signatureDocument === null
             ? ''
-            : $this->renderTokenHtml((string) $signatureDocument->html, $values);
+            : $this->renderTokenHtml(
+                SignatureTrainCarrier::projectAsImage(
+                    (string) $signatureDocument->html,
+                    '{{TRAIN_SRC}}',
+                ),
+                $values,
+            );
 
         $html = $this->renderTokenHtml((string) $document->html, $values, [
             'SIGNATURE_BLOCK' => $signature,
@@ -221,7 +228,7 @@ CSS, $width, $height);
     /** @param array<string, string> $values @return array<string, string> */
     private function uniquePreviewGifValues(array $values, string $nonce): array
     {
-        foreach (['LOGO_SRC', 'ICON_RT_SRC', 'TRAIN_SRC', 'TRAIN_IDLE_SRC'] as $key) {
+        foreach (['LOGO_SRC', 'ICON_RT_SRC', 'TRAIN_SRC'] as $key) {
             $source = (string) ($values[$key] ?? '');
             if (! str_starts_with($source, 'data:image/gif;base64,')) {
                 continue;

@@ -31,65 +31,23 @@
 @php
     $border = $border ?? '#e6e8ec';
 @endphp
-/* RT_SERVER_IDLE_REVEAL_START
-   Dieser Block wird erst serverseitig ueber den RESPONSIVE_CSS-Platzhalter eingesetzt,
-   nachdem das editierbare Maildokument sanitisiert wurde. Der Hauptzug bleibt
-   als mailclient-fester Hintergrund hinter den Kontakten und reserviert keine
-   zweite Signaturhoehe. Das Idle-Overlay ist inline unsichtbar; nur Clients mit
-   CSS-Keyframes zeigen die Rauchschleife nach dem 13-s-Haupt-GIF. */
-@keyframes rt-train-idle-reveal {
-  0% { opacity: 0; visibility: hidden; }
-  100% { opacity: 1; visibility: visible; }
-}
-.rt-train-idle-overlay {
-  opacity: 0;
-  visibility: hidden;
-}
-@supports (animation-name: rt-train-idle-reveal) {
-  .rt-train-idle-overlay {
-    overflow: visible !important;
-    animation-name: rt-train-idle-reveal;
-    animation-duration: 1ms;
-    animation-timing-function: step-start;
-    animation-delay: 13s;
-    animation-iteration-count: 1;
-    animation-fill-mode: forwards;
-  }
-}
-.rt-train-idle-surface {
-  position: absolute !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  width: 100% !important;
-  height: 100% !important;
-  max-width: none !important;
-  max-height: none !important;
-  z-index: 0 !important;
-}
-@media (prefers-reduced-motion: reduce) {
-  .rt-train-idle-overlay {
-    animation: none !important;
-    opacity: 0 !important;
-    visibility: hidden !important;
-  }
-}
-/* RT_SERVER_IDLE_REVEAL_END */
+/* RT_SERVER_SIGNATURE_RUNTIME_START
+   Stabiler Einhaengepunkt fuer freigegebenes Signatur-CSS. Zug-Einfahrt,
+   Idle-Rauch und Schlusszustand stecken vollstaendig im einen Haupt-GIF;
+   ein zweites Rauch-Overlay wird nicht mehr erzeugt. */
 
 /* ---- Sehr breite Mailflaechen: Zug am linken Rand verankern ---------
    Bei 184 px Carrierhoehe ist das 2880-x-292-Asset 1814,8 CSS-Pixel
    breit. Oberhalb davon wuerde die sonst richtige 75-Prozent-Position
    das vollstaendige Zugheck immer weiter nach rechts schieben. Ab 1820 px
    beginnt deshalb das Haupt-GIF exakt links; die Front darf mit wachsender
-   Flaeche bewusst unter 75 Prozent fallen. Das spaeter eingeblendete
-   Idle-GIF muss pixelgleich an derselben Stelle uebernehmen. Clients ohne
-   min-width-Media-Queries behalten fail-closed die normale 75-Prozent-
-   Position aus dem Inline-Stil. */
+   Flaeche bewusst unter 75 Prozent fallen. Clients ohne min-width-Media-
+   Queries behalten fail-closed die normale 75-Prozent-
+   Position aus dem Inline-Stil. Diese Regeln betreffen nur den geschuetzten
+   Editor-Carrier; versendete Mails nutzen ein regulaeres IMG. */
 @media only screen and (min-width: 1820px) {
 .rt-sign-cell {
   background-position: left top, right center, center center, left bottom !important;
-}
-.rt-train-idle-surface {
-  background-position: left bottom !important;
 }
 }
 
@@ -208,10 +166,6 @@ img.rt-logo { width: 150px !important; }
 .rt-sign-cell {
   background-position: left top, right center, center center, 75% bottom !important;
   background-size: 64px 64px, auto 52%, 100% 100%, 200% auto !important;
-}
-.rt-train-idle-surface {
-  background-position: 75% bottom !important;
-  background-size: 200% auto !important;
 }
 }
 

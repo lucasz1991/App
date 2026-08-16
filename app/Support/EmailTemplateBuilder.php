@@ -229,8 +229,8 @@ class EmailTemplateBuilder
     }
 
     /**
-     * Bewegungsarme Vorschau: alle animierten Marken werden durch ihre
-     * Standbilder ersetzt und die endlose Rauchfahne wird ausgelassen.
+     * Bewegungsarme Vorschau: alle animierten Marken und der kombinierte Zug
+     * werden durch ihre jeweiligen Standbilder ersetzt.
      * Download-Dateien bleiben davon vollständig unberührt.
      *
      * @return array{filename: string, mime: string, content: string}
@@ -503,7 +503,7 @@ class EmailTemplateBuilder
         $style = '<style data-rt-mail-document-css="'.$kind->value.'">'.$css.'</style>';
         $marker = $kind === MailDocumentKind::Template
             ? '{{RESPONSIVE_CSS}}'
-            : '/* RT_SERVER_IDLE_REVEAL_START';
+            : '/* RT_SERVER_SIGNATURE_RUNTIME_START';
 
         if (substr_count($html, $marker) !== 1) {
             throw new RuntimeException('Der serverkontrollierte Responsive-CSS-Einhaengepunkt ist nicht eindeutig.');
@@ -702,12 +702,11 @@ class EmailTemplateBuilder
     }
 
     /**
-     * Standbild des Zuges fuer Outlook-Desktop.
+     * Legacy-Standbildadresse fuer alte Dokumentstaende.
      *
-     * Outlook zeigt von einem animierten GIF nur das ERSTE Einzelbild — und
-     * das ist bei der Einfahrt fast leer, weil der Zug dort noch am linken
-     * Rand steht. Fuer den Ersatzweg ueber das background-Attribut wird
-     * deshalb bewusst das Standbild in Ruhestellung verlinkt.
+     * Neue Ausgaben verwenden bewusst nur das kombinierte Haupt-GIF. Die
+     * Adresse bleibt waehrend der Kompatibilitaetsphase fuer bereits
+     * gespeicherte Token erhalten.
      */
     public static function signatureTrainStillUrl(string $theme): string
     {
@@ -808,7 +807,7 @@ class EmailTemplateBuilder
                 'SIGNATURE_BG' => '#ffffff',
                 // Transparenter Kompatibilitaetswert fuer alte publizierte
                 // Vier-Ebenen-Signaturen. Die endgueltigen 30 Prozent Alpha
-                // sind bereits in Main-, Idle-, PNG- und Outlook-Asset
+                // sind bereits in Main-, PNG- und Outlook-Asset
                 // gebacken und duerfen hier nicht nochmals reduziert werden.
                 'SIGNATURE_TRAIN_WASH' => 'rgba(255,255,255,0)',
                 'SIGNATURE_LEGAL_BG' => '#f4f5f7',
@@ -845,7 +844,7 @@ class EmailTemplateBuilder
     protected function buildEmailHtml(
         bool $inlineImages,
         string $theme = 'light',
-        bool $animatedSignature = false,
+        bool $animatedSignature = true,
         ?string $playbackNonce = null,
         bool $staticAnimations = false,
         bool $cidOutlookImages = false,
@@ -943,8 +942,8 @@ class EmailTemplateBuilder
      * eingebettet, damit eine Vorschau technisch eine neue Bildidentitaet
      * erhaelt, ohne sich visuell zu veraendern.
      *
-     * Die E-Mail-Vorlagen behalten das Standbild — sie haengen an jeder
-     * gesendeten Nachricht, dort waegt Dateigroesse schwerer als der Effekt.
+     * Vorlage, Signatur und Versand nutzen denselben kombinierten Zug.
+     * Nur explizit bewegungsarme Vorschauen waehlen weiterhin das PNG.
      */
     public static function signatureTrainAsset(
         string $theme,
@@ -961,14 +960,6 @@ class EmailTemplateBuilder
         }
 
         return "data:{$mime};base64,".base64_encode($binary);
-    }
-
-    /** Nahtlos loopender Standrauch; wird nur unter die Einfahrt gelegt. */
-    public static function signatureTrainIdleAsset(string $theme): string
-    {
-        $variant = $theme === 'dark' ? 'dark' : 'light';
-
-        return self::inlineImage("zug-dampf-idle-{$variant}.gif", 'image/gif');
     }
 
     protected function buildSignature(string $master, string $logo): string
@@ -1047,7 +1038,7 @@ class EmailTemplateBuilder
                 'Outlook-klassisch-installieren.cmd' => $installer,
                 'RailTime-Outlook-Installer.ps1' => $installerScript,
                 "{$assetFolder}/zug-dampf.gif" => file_get_contents(
-                    self::masterPath('assets/zug-dampf-outlook-'.($theme === 'dark' ? 'dark' : 'light').'.gif')
+                    self::masterPath('assets/zug-dampf-'.($theme === 'dark' ? 'dark' : 'light').'.gif')
                 ),
                 "{$assetFolder}/logo.gif" => file_get_contents(
                     self::masterPath('assets/'.$this->emailLogoAsset($theme))

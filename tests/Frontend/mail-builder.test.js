@@ -90,17 +90,20 @@ test('global mail replay restarts every animated token without touching componen
         };
         const logo = component('LOGO_SRC', 'data:image/gif;base64,logo');
         const mark = component('ICON_RT_SRC', 'data:image/gif;base64,mark');
+        const train = component('TRAIN_SRC', 'data:image/gif;base64,train');
         const plain = component('ICON_EMAIL_SRC', 'data:image/png;base64,email');
-        const root = component('', '', [logo, mark, plain]);
-        const snapshots = [logo.snapshot(), mark.snapshot(), plain.snapshot()];
+        const root = component('', '', [logo, mark, train, plain]);
+        const snapshots = [logo.snapshot(), mark.snapshot(), train.snapshot(), plain.snapshot()];
 
-        assert.equal(restartMailCanvasAnimations({ getWrapper: () => root }, { nonce: 41 }), 2);
-        assert.deepEqual([logo.snapshot(), mark.snapshot(), plain.snapshot()], snapshots);
+        assert.equal(restartMailCanvasAnimations({ getWrapper: () => root }, { nonce: 41 }), 3);
+        assert.deepEqual([logo.snapshot(), mark.snapshot(), train.snapshot(), plain.snapshot()], snapshots);
         assert.equal(logo.rendered(), '');
         assert.equal(mark.rendered(), '');
+        assert.equal(train.rendered(), '');
         nextFrames.splice(0).forEach((callback) => callback());
         assert.equal(logo.rendered(), 'data:image/gif;base64,logo#_rt_preview_restart=41-0');
         assert.equal(mark.rendered(), 'data:image/gif;base64,mark#_rt_preview_restart=41-1');
+        assert.equal(train.rendered(), 'data:image/gif;base64,train#_rt_preview_restart=41-2');
     } finally {
         globalThis.requestAnimationFrame = previousFrame;
     }
@@ -125,12 +128,17 @@ test('signature project gets a valid editor-only table and neutral preview sourc
     assert.match(component, /data-rt-mail-preview-token="ICON_EMAIL_SRC"/);
     assert.match(component, /data-rt-mail-preview-token="ICON_LOCATION_SRC"/);
     assert.match(component, /data-rt-mail-preview-train="TRAIN_SRC"/);
+    assert.match(component, /data-rt-mail-preview-only="train"/);
+    assert.match(
+        component,
+        /<img\b(?=[^>]*class="rt-sign-train")(?=[^>]*data-rt-mail-preview-token="TRAIN_SRC")[^>]*>/,
+    );
     assert.doesNotMatch(component, /src="\{\{LOGO_SRC\}\}"/);
     assert.doesNotMatch(component, /\{\{TRAIN_SRC\}\}/);
     assert.deepEqual(draft.builderData, source);
 });
 
-test('signature preview roundtrips the single strict train carrier and two top-level rows', () => {
+test('signature preview uses a regular train image and roundtrips two canonical rows', () => {
     const original = '<tr><td class="rt-sign-cell" style="background-image:url(\'{{TRAIN_SRC}}\')"><img src="{{LOGO_SRC}}"></td></tr><tr><td style="color:{{SIGNATURE_LEGAL_TEXT}}"><img src="{{ICON_EMAIL_SRC}}"></td></tr>';
     const project = projectForMailDocument({
         builderData: { pages: [{ component: original }], styles: [] },
@@ -138,6 +146,8 @@ test('signature preview roundtrips the single strict train carrier and two top-l
     }, () => [], { kind: 'signature', environment: { DOMParser } });
 
     assert.equal((project.pages[0].component.match(/data-rt-mail-preview-train/g) || []).length, 1);
+    assert.equal((project.pages[0].component.match(/data-rt-mail-preview-only="train"/g) || []).length, 1);
+    assert.equal((project.pages[0].component.match(/data-rt-mail-preview-token="TRAIN_SRC"/g) || []).length, 1);
     const outgoing = serializeMailDocumentForSave({
         project,
         html: project.pages[0].component,
@@ -149,6 +159,7 @@ test('signature preview roundtrips the single strict train carrier and two top-l
     assert.equal((outgoing.html.match(/^<tr|\n<tr/g) || []).length, 2);
     assert.match(outgoing.html, /class="rt-sign-cell"/);
     assert.doesNotMatch(outgoing.html, /data-rt-mail-(?:signature-canvas|preview)/);
+    assert.doesNotMatch(outgoing.html, /class="rt-sign-train"|data-rt-train/);
     assert.doesNotMatch(outgoing.html, /data:image\//);
     assert.equal(outgoing.project.pages[0].component, outgoing.html);
 });
@@ -175,6 +186,14 @@ test('signature save fails closed when a preview marker is removed', () => {
         kind: 'signature',
         environment: { DOMParser },
     }), /Vorschauwerte/);
+
+    const withoutTrainImage = project.pages[0].component.replace(/<tr data-rt-mail-preview-only="train">[\s\S]*?<\/tr>/, '');
+    assert.throws(() => serializeMailDocumentForSave({
+        project,
+        html: withoutTrainImage,
+        kind: 'signature',
+        environment: { DOMParser },
+    }), /Zugvorschau/);
 });
 
 test('signature load fails closed for a second or displaced train binding', () => {
@@ -195,6 +214,7 @@ test('GrapesJS inline import rules are merged in cascade order without touching 
     const transparent = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=';
     const html = '<table data-rt-mail-signature-canvas="true"><tbody>'
         + '<tr><td class="rt-sign-cell c777 c101 c102" data-rt-mail-inline-source="s1" data-rt-mail-preview-train="TRAIN_SRC" style="padding:9px;">Inhalt</td></tr>'
+        + '<tr data-rt-mail-preview-only="train"><td><img class="rt-sign-train" data-rt-train data-rt-mail-preview-token="TRAIN_SRC" src="data:image/png;base64,preview"></td></tr>'
         + '<tr><td class="c777">Rechtliches</td></tr>'
         + '</tbody></table>';
     const project = {
@@ -638,7 +658,7 @@ test('mail toolbar keeps documents, preview and publishing in non-overlapping re
     assert.match(mobile, /\.rt-mail-studio-toolbar__actions > \.rt-ui-button[\s\S]*?width:\s*2\.75rem/);
 });
 
-test('very wide mail carriers anchor the main and idle train at the uncropped left edge', async () => {
+test('very wide editor carriers anchor the train at the uncropped left edge', async () => {
     const { readFile } = await import('node:fs/promises');
     const [css, signatureSource, trainAsset] = await Promise.all([
         readFile(new URL('../../resources/views/emails/parts/responsive-css.blade.php', import.meta.url), 'utf8'),
@@ -646,10 +666,10 @@ test('very wide mail carriers anchor the main and idle train at the uncropped le
         readFile(new URL('../../resources/mail-templates/assets/zug-dampf-light.png', import.meta.url)),
     ]);
     const wideRule = css.match(
-        /@media only screen and \(min-width: (\d+)px\)\s*\{\s*\.rt-sign-cell\s*\{\s*background-position:\s*left top,\s*right center,\s*center center,\s*left bottom !important;\s*\}\s*\.rt-train-idle-surface\s*\{\s*background-position:\s*left bottom !important;\s*\}\s*\}/,
+        /@media only screen and \(min-width: (\d+)px\)\s*\{\s*\.rt-sign-cell\s*\{\s*background-position:\s*left top,\s*right center,\s*center center,\s*left bottom !important;\s*\}\s*\}/,
     );
 
-    assert.ok(wideRule, 'main and idle layers need one identical wide left-bottom contract');
+    assert.ok(wideRule, 'the editor train needs a wide left-bottom contract');
     const breakpoint = Number(wideRule[1]);
     assert.equal(breakpoint, 1820);
 
@@ -665,10 +685,7 @@ test('very wide mail carriers anchor the main and idle train at the uncropped le
         css,
         /background-position:\s*left top, right center, center center, 75% bottom !important;/,
     );
-    assert.match(
-        css,
-        /\.rt-train-idle-surface\s*\{\s*background-position:\s*75% bottom !important;/,
-    );
+    assert.doesNotMatch(css, /rt-train-idle/);
 
     assert.equal(trainAsset.toString('ascii', 1, 4), 'PNG');
     const assetWidth = trainAsset.readUInt32BE(16);

@@ -155,22 +155,13 @@ class MailSignature
                         $this->staticAssets ? false : $this->animated,
                     ),
                 ),
-                // Das Standbild bleibt dem expliziten Outlook-Paketexport
-                // vorbehalten. Versendete Systemmails behalten TRAIN_SRC genau
-                // einmal im kanonischen CSS-Hintergrund. Ein null Pixel hoher,
-                // absolut positionierter IMG-Layer wird von Outlook verworfen
-                // und kann den Zug dadurch vollstaendig unsichtbar machen.
+                // Nur als Legacy-Wert fuer alte Dokumente vorhanden. Neue
+                // Ausgaben transportieren ausschliesslich das kombinierte GIF.
                 'TRAIN_STILL_SRC' => EmailTemplateBuilder::signatureTrainStillUrl($this->theme),
-                // Die Rauchschleife wird erst nach dem Ende der einmaligen
-                // 13-s-Einfahrt eingeblendet. Statische Fassungen und
-                // Signaturen ohne Einfahrt laden sie deshalb gar nicht.
-                'TRAIN_IDLE_SRC' => ($this->staticAssets || ! $this->animated)
-                    ? ''
-                    : $this->withRemotePlaybackNonce(
-                        EmailTemplateBuilder::mailAssetUrl(
-                            'zug-dampf-idle-'.($this->theme === 'dark' ? 'dark' : 'light').'.gif'
-                        )
-                    ),
+                // Einfahrt, Idle-Rauch und sichtbarer Schlusszustand stecken
+                // gemeinsam im Haupt-GIF. Eine zweite Rauchquelle wuerde den
+                // Zug beim Antworten oder Weiterleiten wieder duplizieren.
+                'TRAIN_IDLE_SRC' => '',
             ]
             : [
                 'LOGO_SRC' => EmailTemplateBuilder::inlineImage(
@@ -192,16 +183,9 @@ class MailSignature
                     $this->staticAssets ? false : $this->animated,
                     $this->playbackNonce,
                 ),
-                // Ohne verlinkte Adresse gibt es keinen Outlook-Ersatzweg:
-                // das background-Attribut kann keine data:-URI laden.
+                // Nur als Legacy-Wert fuer alte Dokumente vorhanden.
                 'TRAIN_STILL_SRC' => '',
-                'TRAIN_IDLE_SRC' => ($this->staticAssets || ! $this->animated)
-                    ? ''
-                    : EmailTemplateBuilder::inlineImage(
-                        'zug-dampf-idle-'.($this->theme === 'dark' ? 'dark' : 'light').'.gif',
-                        'image/gif',
-                        $this->playbackNonce,
-                    ),
+                'TRAIN_IDLE_SRC' => '',
             ];
 
         $symbole = $this->remoteAssets
@@ -286,6 +270,14 @@ class MailSignature
     {
         $values = $this->values($overrides);
         $tokenizedTrainCarrier = $this->usesTokenizedTrainCarrier($values, $layout);
+        $explicitTrainSource = trim((string) ($layout['outlookTrainSrc'] ?? ''));
+        $singleTrainSource = $explicitTrainSource !== ''
+            ? $explicitTrainSource
+            : trim((string) ($values['TRAIN_SRC'] ?? ''));
+        $singleTrainLayout = array_merge($layout, [
+            'outlookTrainSrc' => $singleTrainSource,
+            'outlookTrainPadding' => (string) ($layout['outlookTrainPadding'] ?? '0'),
+        ]);
 
         // Vor der MailDocument-Migration bleibt der bestehende Bootstrapweg
         // verwendbar. In einer migrierten Installation erzwingt
@@ -308,11 +300,7 @@ class MailSignature
 
             if ($tokenizedTrainCarrier) {
                 $html = $this->normalizePublishedTrainCarrier($html);
-                $html = str_replace(
-                    '{{TRAIN_SRC}}',
-                    htmlspecialchars($values['TRAIN_SRC'], ENT_QUOTES, 'UTF-8'),
-                    $html,
-                );
+                $html = $this->projectPublishedTrainAsImage($html, $singleTrainLayout);
             }
 
             $html = trim(EmailTemplateBuilder::stripEmptyContactRows(
@@ -320,32 +308,20 @@ class MailSignature
                 $this->contactRowValues($values),
             ));
 
-            return $this->finalizeTrainRendering($html, $values, $layout);
+            return $this->finalizeTrainRendering($html);
         }
 
-        // JEDER VERSANDWEG BEKOMMT GENAU EINEN HAUPTZUG.
-        //
-        // Der gespeicherte Entwurf behaelt den geschuetzten Background-Token
-        // fuer Editor, Downloads und versendete Systemmails. Nach seiner
-        // vollstaendigen Runtime-Validierung bleibt dieser eine Layer in den
-        // vier gekoppelten CSS-Listen. Damit reserviert er keine eigene Hoehe
-        // und Outlook kann ihn nicht wegen eines null Pixel hohen, absolut
-        // positionierten Wrappers vollstaendig verwerfen.
-        //
-        // Das installierbare Outlook-Paket nutzt weiterhin seine lokale
-        // Bildquelle. Systemmails nutzen im CSS-Hauptlayer die remote URL mit
-        // einer pro Mail stabilen Playback-ID; ein zusaetzliches Runtime-IMG
-        // wird nicht mehr erzeugt.
-        $zugAlsBild = trim((string) ($layout['outlookTrainSrc'] ?? '')) !== '';
+        // JEDER AUSGABEPFAD BEKOMMT GENAU EIN REGULAERES ZUGBILD.
+        // Der gespeicherte Entwurf behaelt seinen streng validierten Token.
+        // Erst nach der Runtime-Pruefung wird der CSS-Layer atomar aus allen
+        // parallelen Listen geloest und wie Logo/RT-Icon als IMG-Zeile direkt
+        // vor den Pflichtangaben ausgegeben. Damit gibt es weder einen zweiten
+        // Idle-Zug noch einen Nullhoehen-/z-index-Sonderpfad.
         if ($published !== null) {
             SignatureDocumentContract::assertRuntimeValid($published);
 
             $html = $this->applyPublishedLayout($published, $layout);
-            if ($zugAlsBild) {
-                $html = $this->projectPublishedTrainAsImage($html, $layout);
-            } else {
-                $html = $this->normalizePublishedTrainCarrier($html);
-            }
+            $html = $this->projectPublishedTrainAsImage($html, $singleTrainLayout);
             // FRUEHER stand hier ein Rueckfall auf den Firmennamen, wenn
             // keine Person sendet — er bildete eine gleichlautende Bedingung
             // der Blade-Quelle nach. Diese Bedingung ist entfallen: Die
@@ -375,7 +351,7 @@ class MailSignature
                 $this->contactRowValues($values),
             ));
 
-            return $this->finalizeTrainRendering($html, $values, $layout);
+            return $this->finalizeTrainRendering($html);
         }
 
         throw new \RuntimeException('Die veröffentlichte Signatur konnte nicht gerendert werden.');
@@ -412,15 +388,10 @@ class MailSignature
      * Dokument-Render. Dadurch werden auch bereits publizierte Signaturen mit
      * dem fehlerhaften legacy background-Attribut sofort sicher ausgeliefert,
      * ohne auf einen Seeder-Lauf angewiesen zu sein.
-     *
-     * @param  array<string, string>  $values
-     * @param  array<string, string>  $layout
      */
-    private function finalizeTrainRendering(string $html, array $values, array $layout): string
+    private function finalizeTrainRendering(string $html): string
     {
-        $html = $this->removeLegacyTrainBackground($html);
-
-        return $this->injectDelayedIdleOverlay($html, $values, $layout);
+        return $this->removeLegacyTrainBackground($html);
     }
 
     /**
@@ -435,8 +406,7 @@ class MailSignature
     /** @param array<string, string> $values @param array<string, string> $layout */
     private function usesTokenizedTrainCarrier(array $values, array $layout): bool
     {
-        return $this->remoteAssets
-            && trim((string) ($layout['outlookTrainSrc'] ?? '')) === ''
+        return trim((string) ($layout['outlookTrainSrc'] ?? '')) === ''
             && trim((string) ($values['TRAIN_SRC'] ?? '')) !== '';
     }
 
@@ -467,122 +437,23 @@ class MailSignature
     }
 
     /**
-     * Haengt die reine Rauchschleife in DENSELBEN oberen Zug-Carrier.
-     *
-     * Das gespeicherte Maildokument bleibt frei von Animation und absoluter
-     * Positionierung. Erst der serverkontrollierte Renderweg setzt dieses
-     * feste Markup ein; die ebenfalls serverkontrollierten Umbruchregeln
-     * blenden es nach exakt 13 Sekunden ein. Ohne Keyframe-Unterstuetzung
-     * bleibt das Overlay unsichtbar und layoutneutral. Hauptzug und Rauch
-     * bleiben dabei auf derselben CSS-Hintergrundgeometrie. Der Outlook-
-     * Paketexport behaelt seine einzelne regulaere Bildzeile ohne Overlay.
-     *
-     * @param  array<string, string>  $values
-     * @param  array<string, string>  $layout
-     */
-    private function injectDelayedIdleOverlay(string $html, array $values, array $layout): string
-    {
-        $idleSource = trim((string) ($values['TRAIN_IDLE_SRC'] ?? ''));
-        $outlookExport = trim((string) ($layout['outlookTrainSrc'] ?? '')) !== '';
-
-        if (! $this->animated
-            || $this->staticAssets
-            || $idleSource === ''
-            || $outlookExport) {
-            return $html;
-        }
-
-        if (str_contains($html, 'data-rt-train-idle-overlay')
-            || str_contains($html, 'data-rt-train-idle-image')) {
-            throw new \RuntimeException('Die veroeffentlichte Signatur enthaelt bereits eine unzulaessige Idle-Ebene.');
-        }
-
-        $source = htmlspecialchars($idleSource, ENT_QUOTES, 'UTF-8');
-        $idleSurface = '<span class="rt-train-idle-surface" style="display:block;width:1px;height:1px;'
-            .'max-width:1px;max-height:1px;background-image:url('.$source.');background-repeat:no-repeat;'
-            .'background-position:75% bottom;background-size:auto 100%;"></span>';
-        $overlay = '<span class="rt-train-idle-overlay" data-rt-train-idle-overlay '
-            .'style="display:block;width:100%;height:0;max-height:0;overflow:hidden;'
-            .'opacity:0;visibility:hidden;animation:rt-train-idle-reveal 1ms step-start 13s forwards;'
-            .'font-size:0;line-height:0;mso-hide:all;">'
-            .$idleSurface.'</span>';
-
-        return $this->injectRuntimeLayerAtCarrierBottom(
-            $html,
-            $overlay,
-            'Die Idle-Ebene konnte nicht eindeutig am unteren Carrier-Anker projiziert werden.',
-        );
-    }
-
-    /**
-     * Setzt einen nullhoehen Runtime-Layer unmittelbar vor das Ende der ersten
-     * validierten Signaturzeile. Der exakte MAIN_END-Kommentar ist bereits Teil
-     * des gemeinsamen Save-/Publish-/Runtime-Vertrags.
-     */
-    private function injectRuntimeLayerAtCarrierBottom(string $html, string $layer, string $error): string
-    {
-        $replacements = 0;
-        $rendered = preg_replace_callback(
-            '/(?=<\/td>\s*<\/tr>\s*<!--\s*RT_SIGNATURE_MAIN_END\s*-->)/i',
-            static fn (): string => $layer,
-            $html,
-            1,
-            $replacements,
-        );
-
-        if (! is_string($rendered) || $replacements !== 1) {
-            throw new \RuntimeException($error);
-        }
-
-        return $rendered;
-    }
-
-    /**
-     * Der Outlook-Export braucht den Zug als regulaeres lokales Bild. Der
-     * kanonische veroeffentlichte Signaturstand enthaelt ihn als Hintergrund;
-     * der feste Marker projiziert ihn ausschliesslich fuer das installierbare
-     * Classic-Outlook-Paket in eine eigene Bildzeile. Versendete Systemmails
-     * laufen nicht durch diesen Paketpfad, sondern behalten ihren einzelnen
-     * CSS-Hauptzug direkt im oberen Carrier.
+     * Alle Ausgabewege bekommen den Zug wie Logo und RT-Icon als regulaeres
+     * Bild. Der kanonische Editorstand enthaelt den streng validierten Token
+     * weiterhin im Carrier; diese Methode loest ihn atomar aus den parallelen
+     * CSS-Listen und setzt genau eine kompakte Bildzeile vor die Pflichtdaten.
      *
      * @param  array<string, string>  $layout
      */
     private function projectPublishedTrainAsImage(string $html, array $layout): string
     {
-        $marker = '<!-- RT_SIGNATURE_MAIN_END -->';
-        if (substr_count($html, $marker) !== 1) {
-            throw new \RuntimeException(
-                'Die veröffentlichte Signatur besitzt keinen eindeutigen Bildzeilen-Anker.'
-            );
-        }
+        $rawSource = trim((string) ($layout['outlookTrainSrc'] ?? ''));
+        $padding = (string) ($layout['outlookTrainPadding'] ?? '6px 0 0');
 
-        $source = htmlspecialchars((string) $layout['outlookTrainSrc'], ENT_QUOTES, 'UTF-8');
-        $fallback = htmlspecialchars(
-            (string) ($layout['outlookTrainFallbackSrc'] ?? ''),
-            ENT_QUOTES,
-            'UTF-8',
+        return SignatureTrainCarrier::projectAsImage(
+            $html,
+            $rawSource,
+            $padding,
         );
-        $padding = htmlspecialchars(
-            (string) ($layout['outlookTrainPadding'] ?? '6px 0 0'),
-            ENT_QUOTES,
-            'UTF-8',
-        );
-        $animated = '<img data-rt-outlook-train src="'.$source.'" width="100%" '
-            .'alt="Dampflok-Güterzug" style="display:block;width:100%;'
-            .'height:auto;margin:0;border:0;outline:none;">';
-        $images = $animated;
-
-        if ($fallback !== '') {
-            $images = '<!--[if !mso]><!-->'.$animated.'<!--<![endif]-->'
-                .'<!--[if mso]><img data-rt-outlook-train-still src="'.$fallback.'" width="100%" '
-                .'alt="Dampflok-Güterzug" style="display:block;width:100%;'
-                .'height:auto;margin:0;border:0;outline:none;"><![endif]-->';
-        }
-
-        $row = '<tr><td align="left" style="padding:'.$padding
-            .';text-align:left;font-size:0;line-height:0;">'.$images.'</td></tr>';
-
-        return str_replace($marker, $marker.$row, $html);
     }
 
     /**

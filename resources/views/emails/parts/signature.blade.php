@@ -6,10 +6,11 @@
       - der herunterladbaren E-Mail-Vorlage (email-master.html)
       - jeder Laravel-Mail und -Notification (vendor/mail/html/footer.blade.php)
 
-    Gerendert werden ZWEI Tabellenzeilen: der Signaturblock (mit dem
-    Dampflok-Gueterzug als Hintergrund) und die Pflichtangaben darunter.
-    Der Aufrufer stellt die umgebende <table> — dadurch passt derselbe Block
-    in die schmale Signaturdatei wie in die breite Nachrichtenschale.
+    Der kanonische Editorstand besitzt zwei Tabellenzeilen: Signaturblock und
+    Pflichtangaben. Beim Ausliefern wird der dort streng gebundene Zug-Layer
+    entfernt und genau eine normale GIF-Bildzeile dazwischen eingesetzt. Der
+    Aufrufer stellt die umgebende <table> — dadurch passt derselbe Block in die
+    schmale Signaturdatei wie in die breite Nachrichtenschale.
 
     AUFBAU: zwei gleich breite Spalten an einer Mittelachse. Links die
     Person, rechts die Firma. Die Firmenkontakte existieren genau einmal:
@@ -37,11 +38,9 @@
     $topRule = $topRule ?? 'border-top:5px solid #e4002b;';
     $legalPadding = $legalPadding ?? '14px 36px';
     $outlookTrainSrc = trim((string) ($outlookTrainSrc ?? ''));
-    // Optionales Standbild nur fuer einen expliziten Outlook-Paketexport.
-    // Versendete Systemmails projizieren das Haupt-GIF spaeter genau einmal
-    // als regulaeres Bild; ein legacy background-Attribut wuerde Word als
-    // gekachelte Zelltextur ausgeben.
-    $outlookTrainFallbackSrc = trim((string) ($outlookTrainFallbackSrc ?? ''));
+    // Der Zug wird in jedem Ausgabeweg als genau ein regulaeres Bild
+    // transportiert. Ein zweites Stand- oder Idle-Bild ist nicht noetig:
+    // das Haupt-GIF enthaelt Einfahrt, Rauchphase und sichtbaren Endzustand.
     $isOutlookExport = $outlookTrainSrc !== '';
     $outlookTrainPadding = $outlookTrainPadding ?? '6px 0 0';
     $hasPerson = trim((string) ($values['VORNAME_NACHNAME'] ?? '')) !== '';
@@ -116,7 +115,7 @@
          CSS-Listen und liegt ohne eigene Layouthoehe hinter den Inhaltsdaten. --}}
     <td class="rt-sign-cell" bgcolor="{{ $values['SIGNATURE_BG'] }}" style="padding:0;position:relative;overflow:hidden;background-color:{{ $values['SIGNATURE_BG'] }};background-image:{{ $backgroundImage }};background-repeat:{{ $backgroundRepeat }};background-position:{{ $backgroundPosition }};background-size:{{ $backgroundSize }};{{ $topRule }}">
         {{-- Der aeussere Zug-Carrier bleibt absichtlich ohne Padding. So
-             endet die `bottom`-Ausrichtung von Hauptzug und Idle-Rauch an der
+             endet die `bottom`-Ausrichtung des kombinierten Haupt-GIFs an der
              echten unteren Carrierkante direkt auf dem grauen Legal-Footer.
              Der mail-sichere innere Tabellenwrapper behaelt unabhaengig davon
              dieselben Inhaltsabstaende und die kompakte Signaturhoehe. --}}
@@ -197,24 +196,12 @@
             </tr>
         </table>
         @if($isOutlookExport)
-            {{-- Outlook-Paketexport: Der Zug ist eine lokale regulaere
-                 Bildressource statt einer CSS-Hintergrundebene. Falls ein
-                 explizites Standbild mitgegeben wird, trennt der bedingte
-                 Zweig Classic Outlook vom animierten Pfad; ohne Standbild
-                 verwenden alle Clients dasselbe GIF. --}}
+            {{-- Bootstrap-/Outlook-Paketpfad: dieselbe einzelne GIF-Zeile wie
+                 in versendeten und heruntergeladenen HTML-Fassungen. --}}
             <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">
                 <tr>
                     <td align="left" style="padding:{{ $outlookTrainPadding }};text-align:left;font-size:0;line-height:0;">
-                        @if ($outlookTrainFallbackSrc !== '')
-                            <!--[if !mso]><!-->
-                            <img data-rt-outlook-train src="{{ $outlookTrainSrc }}" width="100%" alt="Dampflok-Güterzug" style="display:block;width:100%;height:auto;margin:0;border:0;outline:none;">
-                            <!--<![endif]-->
-                            <!--[if mso]>
-                            <img data-rt-outlook-train-still src="{{ $outlookTrainFallbackSrc }}" width="100%" alt="Dampflok-Güterzug" style="display:block;width:100%;height:auto;margin:0;border:0;outline:none;">
-                            <![endif]-->
-                        @else
-                            <img data-rt-outlook-train src="{{ $outlookTrainSrc }}" width="100%" alt="Dampflok-Güterzug" style="display:block;width:100%;height:auto;margin:0;border:0;outline:none;">
-                        @endif
+                        <img class="rt-sign-train" data-rt-train src="{{ $outlookTrainSrc }}" width="100%" alt="" style="display:block;width:100%;max-width:1815px;height:auto;margin:0;border:0;outline:none;text-decoration:none;">
                     </td>
                 </tr>
             </table>

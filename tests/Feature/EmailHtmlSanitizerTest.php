@@ -111,7 +111,7 @@ class EmailHtmlSanitizerTest extends TestCase
             preg_match_all('/zug-dampf-light\.gif\?v=\d+&amp;p=[a-f0-9]{32}/', $signature),
         );
         $this->assertSame(
-            1,
+            0,
             preg_match_all('/zug-dampf-idle-light\.gif\?v=\d+&amp;p=[a-f0-9]{32}/', $signature),
         );
         $this->assertStringNotContainsString('data-rt-train-main-image', $signature);
@@ -122,59 +122,44 @@ class EmailHtmlSanitizerTest extends TestCase
             preg_match('/<td\b[^>]*class="[^"]*\brt-sign-cell\b[^"]*"[^>]*>/', $signature, $trainCarrier),
         );
         $this->assertStringContainsString('padding:0;', $trainCarrier[0]);
-        $this->assertStringContainsString('zug-dampf-light.gif', $trainCarrier[0]);
+        $this->assertStringNotContainsString('zug-dampf-light.gif', $trainCarrier[0]);
         $this->assertStringContainsString(
-            'background-repeat:repeat,no-repeat,no-repeat,no-repeat;',
+            'background-repeat:repeat,no-repeat,no-repeat;',
             $trainCarrier[0],
         );
         $this->assertStringContainsString(
-            'background-position:left top,right center,center center,75% bottom;',
+            'background-position:left top,right center,center center;',
             $trainCarrier[0],
         );
         $this->assertStringContainsString(
-            'background-size:64px 64px,auto 100%,100% 100%,auto 100%;',
+            'background-size:64px 64px,auto 100%,100% 100%;',
             $trainCarrier[0],
         );
-        $this->assertSame(0, preg_match_all('/<img\b[^>]*zug-dampf-light\.gif[^>]*>/i', $signature));
+        $this->assertSame(
+            1,
+            preg_match_all(
+                '/<img\b(?=[^>]*class="[^"]*\brt-sign-train\b[^"]*")(?=[^>]*\bdata-rt-train(?:\s|=|>))[^>]*zug-dampf-light\.gif[^>]*>/i',
+                $signature,
+            ),
+        );
         $this->assertSame(1, substr_count($signature, 'class="rt-pad rt-sign-content"'));
-        $this->assertSame(1, substr_count($signature, 'data-rt-train-idle-overlay'));
+        $this->assertSame(1, substr_count($signature, 'data-rt-train'));
+        $this->assertSame(1, substr_count($signature, 'class="rt-sign-train"'));
+        $this->assertStringNotContainsString('zug-dampf-idle-light.gif', $signature);
+        $this->assertStringNotContainsString('data-rt-train-idle-overlay', $signature);
         $this->assertStringNotContainsString('data-rt-train-idle-image', $signature);
-        $this->assertSame(
-            1,
-            preg_match('/<span[^>]*data-rt-train-idle-overlay[^>]*>/', $signature, $idleOverlay),
-        );
-        $this->assertStringContainsString('width:100%', $idleOverlay[0]);
-        $this->assertStringContainsString('height:0;max-height:0;overflow:hidden', $idleOverlay[0]);
-        $this->assertStringContainsString('mso-hide:all', $idleOverlay[0]);
-        $this->assertStringContainsString('opacity:0', $idleOverlay[0]);
-        $this->assertStringContainsString('visibility:hidden', $idleOverlay[0]);
-        $this->assertSame(
-            1,
-            preg_match('/<span[^>]*class="rt-train-idle-surface"[^>]*>/', $signature, $idleSurface),
-        );
-        $this->assertStringContainsString('zug-dampf-idle-light.gif', $idleSurface[0]);
-        $this->assertStringContainsString('background-position:75% bottom', $idleSurface[0]);
-        $this->assertStringContainsString('background-size:auto 100%', $idleSurface[0]);
 
-        // Der absolute Idle-Layer entsteht absichtlich erst NACH der
-        // Dokument-Sanitization aus festem Servermarkup. Fuer den Bytegleich-
-        // Vertrag wird deshalb der zugrunde liegende, editierbare Stand ohne
-        // dieses geschuetzte Runtime-Overlay erneut sanitisiert.
-        $sanitizableSignature = preg_replace(
-            '/<span\b[^>]*data-rt-train-idle-overlay[^>]*>\s*<span\b[^>]*class="rt-train-idle-surface"[^>]*><\/span>\s*<\/span>/is',
-            '',
-            $signature,
-        );
-        $this->assertIsString($sanitizableSignature);
-
-        $report = $this->sanitizer()->clean($sanitizableSignature);
+        // Das kombinierte GIF ist jetzt genau wie Logo und RT-Zeichen ein
+        // regulaeres Bild. Es benoetigt weder ein nachtraegliches Runtime-
+        // Overlay noch eine Sonderbehandlung vor der Sanitization.
+        $report = $this->sanitizer()->clean($signature);
 
         $this->assertSame(
             [],
             $report->findings,
             'Signaturblock beanstandet: '.implode(' | ', $report->messages()),
         );
-        $this->assertSame($sanitizableSignature, $report->html);
+        $this->assertSame($signature, $report->html);
     }
 
     /**
@@ -202,32 +187,19 @@ class EmailHtmlSanitizerTest extends TestCase
 
         $this->assertStringContainsString('@media', $css);
         $this->assertStringContainsString('tr.rt-stack > td', $css);
-        $this->assertStringContainsString('@keyframes rt-train-idle-reveal', $css);
-        $this->assertStringContainsString(".rt-train-idle-overlay {\n  opacity: 0;\n  visibility: hidden;\n}", $css);
-        $this->assertStringContainsString('@supports (animation-name: rt-train-idle-reveal)', $css);
-        $this->assertStringContainsString('animation-timing-function: step-start;', $css);
-        $this->assertStringContainsString('animation-delay: 13s;', $css);
-        $this->assertStringContainsString('.rt-train-idle-surface {', $css);
-        $this->assertStringContainsString('position: absolute !important;', $css);
-        $this->assertStringContainsString('background-position: 75% bottom !important;', $css);
-        $this->assertStringContainsString('background-size: 200% auto !important;', $css);
+        $this->assertStringContainsString('RT_SERVER_SIGNATURE_RUNTIME_START', $css);
+        $this->assertStringNotContainsString('@keyframes rt-train-idle-reveal', $css);
+        $this->assertStringNotContainsString('.rt-train-idle-overlay', $css);
+        $this->assertStringNotContainsString('.rt-train-idle-surface', $css);
+        $this->assertStringNotContainsString('animation-delay: 13s;', $css);
         $this->assertStringNotContainsString('.rt-train-main-image', $css);
         $this->assertStringNotContainsString('.rt-train-main-layer', $css);
         $this->assertStringNotContainsString('.rt-train-idle-image', $css);
         $this->assertStringNotContainsString('.rt-train-idle-runtime-layer', $css);
 
-        // Keyframes und position:absolute stammen nicht aus dem editierbaren
-        // Dokument, sondern werden erst nach dessen Sanitization aus dieser
-        // serverkontrollierten Quelle hydriert. Der uebrige Stilbogen muss
-        // weiterhin unveraendert durch den Editor-Sanitizer kommen.
-        $sanitizableCss = preg_replace(
-            '~/\* RT_SERVER_IDLE_REVEAL_START.*?RT_SERVER_IDLE_REVEAL_END \*/\s*~s',
-            '',
-            $css,
-        );
-        $this->assertIsString($sanitizableCss);
-
-        $document = "<!doctype html>\n<html lang=\"de\">\n<head>\n<style>\n{$sanitizableCss}\n</style>\n</head>\n<body><p>x</p></body>\n</html>";
+        // Ohne Keyframes und absolute Idle-Ebene darf der komplette
+        // serverkontrollierte Stilbogen unveraendert durch den Sanitizer.
+        $document = "<!doctype html>\n<html lang=\"de\">\n<head>\n<style>\n{$css}\n</style>\n</head>\n<body><p>x</p></body>\n</html>";
 
         $report = $this->sanitizer()->clean($document);
 

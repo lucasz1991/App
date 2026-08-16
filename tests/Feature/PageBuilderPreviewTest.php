@@ -167,6 +167,12 @@ class PageBuilderPreviewTest extends TestCase
         $this->assertStringContainsString('data-preview-document="template"', $html);
         $this->assertStringContainsString('data-preview-theme="dark"', $html);
         $this->assertStringContainsString('data-preview-animation="static"', $html);
+        $this->assertSame(1, substr_count($html, 'data-rt-train'));
+        $this->assertMatchesRegularExpression(
+            '/<img class="rt-sign-train" data-rt-train src="data:image\/png;base64,[^"]+"/',
+            $html,
+        );
+        $this->assertStringNotContainsString('data-rt-train-idle', $html);
         $this->assertStringNotContainsString('{{APPLICATION_CONTENT}}', $html);
         $this->assertStringNotContainsString('{{', $html);
         $this->assertStringNotContainsString('<script', strtolower($html));
@@ -179,6 +185,12 @@ class PageBuilderPreviewTest extends TestCase
         $animatedHtml = (string) $animatedA->getContent();
 
         $this->assertStringContainsString('data-preview-animation="animated"', $animatedHtml);
+        $this->assertSame(1, substr_count($animatedHtml, 'data-rt-train'));
+        $this->assertMatchesRegularExpression(
+            '/<img class="rt-sign-train" data-rt-train src="data:image\/gif;base64,[^"]+"/',
+            $animatedHtml,
+        );
+        $this->assertStringNotContainsString('data-rt-train-idle', $animatedHtml);
         $this->assertNotSame($animatedHtml, (string) $animatedB->getContent());
         preg_match_all('/data:image\/gif;base64,([A-Za-z0-9+\/=]+)/', $animatedHtml, $gifMatches);
         $this->assertGreaterThanOrEqual(3, count(array_unique($gifMatches[1] ?? [])));

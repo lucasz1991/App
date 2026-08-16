@@ -29,6 +29,7 @@ final class CssSemantic
     /** @var list<string> */
     private const PROTECTED_SELECTOR_IDENTIFIERS = [
         'rt-sign-cell',
+        'rt-sign-train',
         'rt-train-main-layer',
         'rt-train-main-image',
         'rt-train-idle-overlay',
@@ -40,6 +41,7 @@ final class CssSemantic
         'data-rt-train-main-image',
         'data-rt-train-idle-overlay',
         'data-rt-train-idle-image',
+        'data-rt-train',
     ];
 
     /**

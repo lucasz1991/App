@@ -997,9 +997,9 @@ export function restartAnimatedPreview(component, { nonce = Date.now() } = {}) {
         }
     }
     // Ausschliesslich das Canvas-DOM aendern. Das Grapes-Modell bleibt exakt.
-    // TRAIN_SRC sitzt in der Signatur auf einer TD-Hintergrundflaeche, waehrend
-    // normale GIFs als IMG vorkommen. Beide Pfade werden ohne Modellmutation
-    // neu gestartet.
+    // Alle Mail-GIFs einschliesslich TRAIN_SRC sitzen in der Vorschau als IMG.
+    // Der Background-Zweig bleibt nur fuer andere Builder-Medien kompatibel;
+    // beide Varianten werden ohne Modellmutation neu gestartet.
     animatedPreviewState.set(element, {
         playing: true,
         source: canonicalSource,

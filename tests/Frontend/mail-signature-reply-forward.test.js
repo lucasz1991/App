@@ -64,23 +64,27 @@ test('mobile rules restyle the same signature nodes without hide-and-show copies
     assert.doesNotMatch(css, /rt-marke-mobil|\.rt-sign-logo img\.rt-logo\s*\{[^}]*display:\s*none/);
 });
 
-test('Outlook export keeps one image while sent mail keeps one CSS train layer', async () => {
-    const [signature, runtime] = await Promise.all([
+test('Outlook export, sent mail, and live preview share one regular train image contract', async () => {
+    const [signature, runtime, carrier, preview] = await Promise.all([
         source('../../resources/views/emails/parts/signature.blade.php'),
         source('../../app/Support/MailSignature.php'),
+        source('../../app/Support/Mail/SignatureTrainCarrier.php'),
+        source('../../app/Services/PageBuilder/PageBuilderPreviewService.php'),
     ]);
 
     assert.match(signature, /\$isOutlookExport \? '' : "url\(\{\$values\['TRAIN_SRC'\]\}\)/);
-    assert.match(signature, /<img data-rt-outlook-train src="\{\{ \$outlookTrainSrc \}\}" width="100%"[^>]*style="[^"]*display:block;width:100%;height:auto;/);
-    assert.match(signature, /<img data-rt-outlook-train-still src="\{\{ \$outlookTrainFallbackSrc \}\}" width="100%"/);
+    assert.match(signature, /<img class="rt-sign-train" data-rt-train src="\{\{ \$outlookTrainSrc \}\}" width="100%"[^>]*style="[^"]*display:block;width:100%;max-width:1815px;height:auto;/);
+    assert.doesNotMatch(signature, /data-rt-outlook-train|outlookTrainFallbackSrc/);
     assert.doesNotMatch(signature, /<td[^>]+background="\{\{[^}]*TRAIN/);
 
     assert.doesNotMatch(runtime, /data-rt-train-main-(?:image|layer)/);
     assert.doesNotMatch(runtime, /projectPublishedTrainAsRuntimeImage/);
     assert.match(runtime, /usesTokenizedTrainCarrier/);
     assert.match(runtime, /normalizePublishedTrainCarrier/);
-    assert.match(runtime, /injectRuntimeLayerAtCarrierBottom/);
-    assert.match(runtime, /<span class="rt-train-idle-surface"[\s\S]+?background-position:75% bottom;background-size:auto 100%/);
-    assert.doesNotMatch(runtime, /SignatureTrainCarrier::withoutMainLayer\(\$html\)/);
+    assert.match(runtime, /SignatureTrainCarrier::projectAsImage\(/);
+    assert.match(carrier, /public static function projectAsImage/);
+    assert.match(carrier, /<img class="rt-sign-train" data-rt-train src="'\.\$source\.'" width="100%"/);
+    assert.match(preview, /SignatureTrainCarrier::projectAsImage\([\s\S]+?'\{\{TRAIN_SRC\}\}'/);
+    assert.doesNotMatch(runtime, /injectDelayedIdleOverlay|data-rt-train-idle/);
     assert.doesNotMatch(runtime, /rt-classic-outlook-train/);
 });

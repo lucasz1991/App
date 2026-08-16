@@ -1898,19 +1898,13 @@ test('shared LMZ motion writes only the server-side allowlisted data contract', 
     });
 }));
 
-test('mail TRAIN_SRC preview restarts a background GIF without mutating persisted model data', () => coreWithDom(
-    '<table><tr><td id="train"></td></tr></table>',
+test('mail TRAIN_SRC preview restarts the regular GIF image without mutating persisted model data', () => coreWithDom(
+    '<img id="train" data-rt-mail-preview-token="TRAIN_SRC" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==">',
     async ({ document }) => {
         const element = document.querySelector('#train');
-        const data = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
-        const layeredBackground = `linear-gradient(rgba(247,246,243,.15),rgba(247,246,243,.15)),url("${data}")`;
-        element.setAttribute('data-rt-mail-preview-train', 'TRAIN_SRC');
-        element.style.setProperty('background-image', layeredBackground, 'important');
-        element.style.backgroundPosition = 'center center, left bottom';
-        element.style.backgroundSize = '100% 100%, 86% auto';
         const component = coreFakeComponent(element, {
-            attributes: { 'data-rt-mail-preview-train': 'TRAIN_SRC' },
-            style: { 'background-image': 'url("{{TRAIN_SRC}}")' },
+            src: 'data:image/png;base64,neutral-model-pixel',
+            attributes: { 'data-rt-mail-preview-token': 'TRAIN_SRC' },
         });
         const before = structuredClone(component.state);
         const capturedSources = [];
@@ -1923,10 +1917,7 @@ test('mail TRAIN_SRC preview restarts a background GIF without mutating persiste
         assert.equal(setAnimatedPreviewPlayback(component, false), true);
         await new Promise((resolve) => setTimeout(resolve, 5));
         assert.equal(animatedPreviewIsPlaying(component), false);
-        assert.match(element.style.backgroundImage, /^linear-gradient\(.+\),\s*url\(/);
-        assert.match(element.style.backgroundImage, /data:image\/png/);
-        assert.equal(element.style.backgroundPosition.replaceAll(' ', ''), 'centercenter,leftbottom');
-        assert.equal(element.style.backgroundSize.replaceAll(' ', ''), '100%100%,86%auto');
+        assert.match(element.getAttribute('src'), /^data:image\/png/);
         assert.deepEqual(component.state, before);
 
         hydrateMailCanvasAssets({ Canvas: { getDocument: () => document } }, 'dark', {
@@ -1934,26 +1925,19 @@ test('mail TRAIN_SRC preview restarts a background GIF without mutating persiste
         });
         await new Promise((resolve) => setTimeout(resolve, 5));
         assert.equal(animatedPreviewIsPlaying(component), false);
-        assert.match(element.style.backgroundImage, /rgba\(12,\s*16,\s*23/);
-        assert.match(element.style.backgroundImage, /data:image\/png/);
+        assert.match(element.getAttribute('src'), /^data:image\/png/);
         assert.equal(capturedSources.at(-1), '/mail/dark-train.gif');
 
         assert.equal(setAnimatedPreviewPlayback(component, true), true);
         await new Promise((resolve) => setTimeout(resolve, 5));
         assert.equal(animatedPreviewIsPlaying(component), true);
-        assert.match(element.style.backgroundImage, /^linear-gradient\(.+\),\s*url\(/);
-        assert.match(element.style.backgroundImage, /dark-train\.gif/);
-        assert.equal(element.style.backgroundPosition.replaceAll(' ', ''), 'centercenter,leftbottom');
-        assert.equal(element.style.backgroundSize.replaceAll(' ', ''), '100%100%,86%auto');
+        assert.match(element.getAttribute('src'), /dark-train\.gif/);
         assert.deepEqual(component.state, before);
 
         assert.equal(restartAnimatedPreview(component, { nonce: 7 }), true);
         await new Promise((resolve) => setTimeout(resolve, 5));
         assert.deepEqual(component.state, before);
-        assert.match(element.style.backgroundImage, /^linear-gradient\(.+\),\s*url\(/);
-        assert.match(element.style.backgroundImage, /dark-train\.gif/);
-        assert.equal(element.style.backgroundPosition.replaceAll(' ', ''), 'centercenter,leftbottom');
-        assert.equal(element.style.backgroundSize.replaceAll(' ', ''), '100%100%,86%auto');
+        assert.match(element.getAttribute('src'), /dark-train\.gif/);
         delete globalThis.__rtLmzCaptureAnimatedFrame;
     },
 ));
