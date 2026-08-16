@@ -151,11 +151,11 @@ const ERSTES_CS = 30;
 // an exakt 75 Prozent der Leinwand stehen.
 const FAHRT_S = 7.0;
 
-// VORLAUF, bevor der Zug ueberhaupt anfaengt. In dieser Zeit schreiben sich
-// Wortmarke und Zeichen fertig — erst danach setzt sich der Zug in
-// Bewegung. Ohne den Versatz laeuft alles gleichzeitig und die Signatur
-// wirkt unruhig.
-const WARTE_S = Number(process.env.RT_WARTE || 1.2);
+// Nur ein kurzer Vorlauf: Der Zug soll beim Oeffnen ebenso unmittelbar als
+// Animation erkennbar sein wie Wortmarke und RT-Zeichen. 350 ms lassen dem
+// Mailclient Zeit, das erste transparente GIF-Bild aufzubauen, ohne die
+// bisherige, wie ein Standbild wirkende 1,2-s-Pause.
+const WARTE_S = Number(process.env.RT_WARTE || 0.35);
 const FAHRT_ENDE_S = WARTE_S + FAHRT_S;
 
 // Zwei ruhige Rauchzyklen beginnen NACH der vollstaendigen Einfahrt. Ein
@@ -164,7 +164,10 @@ const FAHRT_ENDE_S = WARTE_S + FAHRT_S;
 const IDLE_ZYKLUS_S = Number(process.env.RT_IDLE_ZYKLUS || 2.0);
 const IDLE_ZYKLEN = Number(process.env.RT_IDLE_ZYKLEN || 2);
 const IDLE_DAUER_S = IDLE_ZYKLUS_S * IDLE_ZYKLEN;
-const ENDE_HALT_S = Number(process.env.RT_ENDE_HALT || 0.8);
+// Der verkuerzte Vorlauf wird dem unsichtbaren End-Hold zugeschlagen. Die
+// Datei bleibt dadurch exakt 13,0 s lang und der bestehende Uebergang in die
+// separat geloopte Idle-Rauchspur bleibt zeitlich und visuell unveraendert.
+const ENDE_HALT_S = Number(process.env.RT_ENDE_HALT || 1.65);
 const GESAMT_S = FAHRT_ENDE_S + IDLE_DAUER_S + ENDE_HALT_S;
 const SUMME_CS = Math.round(GESAMT_S * 100);
 

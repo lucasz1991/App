@@ -1113,7 +1113,7 @@ class EmailTemplatesPageTest extends TestCase
         foreach (['vorlage-html', 'vorlage-dunkel-html', 'signatur-hell', 'signatur-dunkel'] as $key) {
             $html = $builder->build($key)['content'];
 
-            // Beide Kontakttabellen schreiben ihre Leserichtung ausdruecklich
+            // Beide Kontaktbereiche schreiben ihre Leserichtung ausdruecklich
             // fest. Ein Client mit geerbtem rtl wuerde die schrumpfende
             // Tabelle sonst an die falsche Kante schieben — und mit ihr die
             // Symbole auf die falsche Seite.
@@ -1123,16 +1123,17 @@ class EmailTemplatesPageTest extends TestCase
                 $html,
                 $key
             );
-            // Die Firmenliste steht spiegelbildlich rechtsbuendig — und in
-            // ZWEI Gruppen (Anschrift/Telefon, E-Mail/Website). Breit stehen
-            // sie untereinander und wirken wie eine Liste, gestapelt
-            // nebeneinander.
+            // Die Firmenliste existiert absichtlich genau einmal. Symbole und
+            // Text behalten in jeder Breite dieselbe Quellreihenfolge; nur der
+            // gemeinsame Block wechselt mobil von rechts nach links.
             $this->assertStringContainsString(
-                'class="rt-contact rt-company-contact rt-firma-links" role="presentation" dir="ltr" border="0" cellspacing="0" cellpadding="0" style="direction:ltr;margin-left:auto;margin-right:0;',
+                'class="rt-contact rt-company-contact" role="presentation" dir="ltr" border="0" cellspacing="0" cellpadding="0" style="direction:ltr;margin-left:auto;margin-right:0;',
                 $html,
                 $key
             );
-            $this->assertStringContainsString('rt-company-contact rt-firma-rechts', $html, $key);
+            $this->assertSame(1, substr_count($html, 'class="rt-contact rt-company-contact"'), $key);
+            $this->assertStringNotContainsString('rt-firma-schmal', $html, $key);
+            $this->assertStringNotContainsString('rt-marke-mobil', $html, $key);
         }
     }
 

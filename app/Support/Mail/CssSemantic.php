@@ -29,9 +29,13 @@ final class CssSemantic
     /** @var list<string> */
     private const PROTECTED_SELECTOR_IDENTIFIERS = [
         'rt-sign-cell',
+        'rt-train-main-image',
         'rt-train-idle-overlay',
         'rt-train-idle-surface',
+        'rt-train-idle-image',
         'rt-classic-outlook-train',
+        'data-rt-train-main-image',
+        'data-rt-train-idle-image',
     ];
 
     /**
@@ -288,9 +292,15 @@ final class CssSemantic
             return [$start, false, false];
         }
 
-        $isClassAttribute = strtolower($attribute) === 'class';
+        $normalizedAttribute = strtolower($attribute);
+        $isClassAttribute = $normalizedAttribute === 'class';
+        $isProtectedAttribute = in_array(
+            $normalizedAttribute,
+            self::PROTECTED_SELECTOR_IDENTIFIERS,
+            true,
+        );
         if ($css[$cursor] === ']') {
-            return [$cursor, $isClassAttribute, true];
+            return [$cursor, $isClassAttribute || $isProtectedAttribute, true];
         }
 
         $operator = $css[$cursor];
@@ -343,7 +353,7 @@ final class CssSemantic
         // keinen isolierten geschuetzten Klassennamen enthaelt. Jede
         // syntaktisch lesbare Auswahl ueber das class-Attribut wird daher
         // bewusst fail-closed behandelt; andere Attributstrings bleiben frei.
-        return [$cursor, $isClassAttribute, true];
+        return [$cursor, $isClassAttribute || $isProtectedAttribute, true];
     }
 
     /** @return array{string, int, bool} Wert, Index nach Schlussquote, gueltig */

@@ -35,8 +35,11 @@ final class SignatureDocumentContract
     private const EXPECTED_MARKER_PAIRS = [
         'PHONE' => 1,
         'MOBILE' => 1,
-        'WEBSITE' => 2,
-        'COMPANY_PHONE' => 2,
+        // Firmenkontakte existieren bewusst nur einmal im DOM. Versteckte
+        // Desktop-/Mobilkopien werden beim Antworten oder Weiterleiten von
+        // manchen Mailclients gleichzeitig sichtbar.
+        'WEBSITE' => 1,
+        'COMPANY_PHONE' => 1,
     ];
 
     /** @var array<string, array{tableClass:string, forbiddenClass:?string, valueToken:string}> */

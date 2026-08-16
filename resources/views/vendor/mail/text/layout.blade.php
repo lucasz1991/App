@@ -5,3 +5,5 @@
 @endisset
 
 {!! strip_tags($footer ?? '') !!}
+
+{!! \App\Support\EmailTemplateBuilder::buildSystemMailTextSignature() !!}

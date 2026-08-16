@@ -12,16 +12,16 @@
     in die schmale Signaturdatei wie in die breite Nachrichtenschale.
 
     AUFBAU: zwei gleich breite Spalten an einer Mittelachse. Links die
-    Person (Symbole am linken Rand), rechts die Firma (Wortmarke und
-    Symbole am rechten Rand). Beide Kontaktlisten beginnen auf derselben
-    Hoehe — der Vorsprung der Personenspalte (Name plus Funktion sind
-    hoeher als die Wortmarke) steckt im groesseren Abstand der rechten
-    Liste, siehe company-contact-table.blade.php.
+    Person, rechts die Firma. Die Firmenkontakte existieren genau einmal:
+    Der gemeinsame Tabellenblock sitzt im Breitlayout rechts und wird auf
+    schmalen Ansichten linksbuendig dargestellt. Damit koennen Mailclients
+    beim Antworten oder Weiterleiten niemals eine versteckte zweite Fassung
+    zusaetzlich sichtbar machen.
 
     Die Markenspalte zeigt bewusst NUR den Schriftzug: das RT-Zeichen davor
     doppelte die Marke auf engem Raum, und der Claim darunter kostete eine
-    Zeile, ohne etwas zu sagen. Das Zeichen steht jetzt allein oben rechts
-    in der E-Mail-Vorlage.
+    Zeile, ohne etwas zu sagen. Auch die Wortmarke existiert nur einmal im
+    DOM; mobil wird dieselbe Firmenspalte unter die Person gesetzt.
 
     Alle Werte kommen bereits HTML-escaped aus App\Support\MailSignature.
     Optionale Zeilen (Durchwahl, Mobil, Website, Firmentelefon) tragen die
@@ -129,19 +129,6 @@
                          doppelt eingerueckt (24+36 statt 24). --}}
                     <td class="rt-pad" style="padding:{{ $padding }};">
         @endif
-        {{-- MOBIL FUEHRT DIE MARKE. Gestapelt soll die Reihenfolge
-             Wortmarke, Person, Firma sein; im Breitlayout steht die
-             Wortmarke aber ueber den Firmendaten in der rechten Spalte.
-             Eine Tabellenzelle kann nicht an zwei Stellen zugleich stehen,
-             deshalb gibt es die Wortmarke zweimal — und immer ist genau
-             eine sichtbar (rt-only-narrow / img.rt-logo, siehe
-             responsive-css). Das ist der uebliche Weg in E-Mails: was
-             Umbruchregeln nicht umsortieren koennen, wird gedoppelt und
-             geschaltet. --}}
-        <div class="rt-only-narrow rt-marke-mobil" style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:0;line-height:0;position:relative;z-index:1;">
-            <img src="{{ $values['LOGO_SRC'] }}" width="190" alt="{{ $values['FIRMENNAME'] }}" style="display:block;width:190px;max-width:100%;height:auto;margin:0 0 16px;mso-hide:all;">
-            <!--[if mso]><img src="{{ $values['LOGO_STILL_SRC'] ?? $values['LOGO_SRC'] }}" width="190" alt="{{ $values['FIRMENNAME'] }}" style="display:block;width:190px;height:auto;margin:0 0 16px;"><![endif]-->
-        </div>
         <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;position:relative;z-index:1;">
             <tr class="rt-stack">
                 {{-- Ohne Person bleibt die Namenszeile LEER: Die Marke steht
@@ -193,23 +180,19 @@
                          Firmen-E-Mail bereits links an der Stelle von
                          Durchwahl und Mailadresse. Rechts blieben sie eine
                          sichtbare Doppelung. --}}
-                    {{-- ZWEIMAL, weil sich die Reihenfolge von Symbol und
-                         Text per CSS nicht umstellen laesst. Breit steht das
-                         Symbol RECHTS (Aussenkante der Signatur), gestapelt
-                         LINKS — dort schliesst der Block links ab, wie der
-                         Personenblock darueber. Immer ist genau eine der
-                         beiden Fassungen sichtbar. --}}
-                    <div class="rt-firma-breit">
+                    {{-- EIN gemeinsamer Kontaktblock fuer alle Breiten.
+                         Frueher lagen hier eine rechte Desktop- und eine
+                         versteckte linke Mobilkopie. Outlook und andere
+                         Clients koennen beim Antworten/Weiterleiten die
+                         zugehoerigen Media-Queries entfernen und dadurch
+                         beide Fassungen anzeigen. Die Tabelle verwendet
+                         deshalb in jeder Ansicht dieselbe mailclient-sichere
+                         Reihenfolge: Symbol links, Text rechts. Lediglich die
+                         Position des Blocks wird responsiv angepasst. --}}
+                    <div align="right" style="text-align:right;">
                         @include('emails.parts.company-contact-table', [
                             'values' => $values,
                             'align' => 'right',
-                            'ohneDoppelung' => ! $hasPerson,
-                        ])
-                    </div>
-                    <div class="rt-firma-schmal" style="display:none;max-height:0;overflow:hidden;mso-hide:all;">
-                        @include('emails.parts.company-contact-table', [
-                            'values' => $values,
-                            'align' => 'left',
                             'ohneDoppelung' => ! $hasPerson,
                         ])
                     </div>

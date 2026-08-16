@@ -59,10 +59,10 @@ class SignatureTrainTimelineTest extends TestCase
             $elapsed += $delay;
         }
 
-        $arrivalFrame = array_search(820, $starts, true);
-        $this->assertSame(52, $arrivalFrame, "{$filename}: Ankunft muss exakt bei 8,2 s beginnen.");
+        $arrivalFrame = array_search(735, $starts, true);
+        $this->assertSame(52, $arrivalFrame, "{$filename}: Ankunft muss exakt bei 7,35 s beginnen.");
         $idleFrame = $arrivalFrame + 1;
-        $this->assertSame(844, $starts[$idleFrame], "{$filename}: erster sichtbarer Idle-Schritt erwartet.");
+        $this->assertSame(764, $starts[$idleFrame], "{$filename}: erster sichtbarer Idle-Schritt erwartet.");
 
         foreach ($gif['frames'] as $index => $frame) {
             $this->assertTrue($frame['transparent'], "{$filename}: Frame {$index} muss transparent sein.");
@@ -76,7 +76,7 @@ class SignatureTrainTimelineTest extends TestCase
         }
 
         $decoded = [];
-        foreach ([0, 6, 7, 11, 16, 21, 37, 51, $arrivalFrame, $idleFrame, 69, 70, 71] as $index) {
+        foreach ([0, 1, 2, 6, 11, 16, 21, 37, 51, $arrivalFrame, $idleFrame, 69, 70, 71] as $index) {
             $frame = $gif['frames'][$index];
             $decoded[$index] = $this->decodeLzw(
                 $frame['imageData'],
@@ -93,10 +93,10 @@ class SignatureTrainTimelineTest extends TestCase
         );
         $this->assertSame(
             0,
-            $this->countInk($decoded[6], $gif['frames'][6]['transparentIndex']),
-            "{$filename}: Der Zug darf vor dem Bewegungsbeginn nicht im Bild stehen.",
+            $this->countInk($decoded[1], $gif['frames'][1]['transparentIndex']),
+            "{$filename}: Der Zug darf im kurzen 300-ms-Vorlauf noch nicht im Bild stehen.",
         );
-        $this->assertSame(126, $starts[7], "{$filename}: Der erste Einfahrtsframe muss bei 1,26 s beginnen.");
+        $this->assertSame(44, $starts[2], "{$filename}: Der erste Einfahrtsframe muss bei 0,44 s beginnen.");
 
         // Die Lokfront beginnt links ausserhalb und wird direkt im ersten
         // Bewegungsframe sichtbar. Danach muss sie ueber mehrere klar
@@ -105,7 +105,7 @@ class SignatureTrainTimelineTest extends TestCase
         // skalierten Desktop-/Mobile-Carriern wie ein ploetzlicher Endstand
         // wirken wuerde.
         $previousRight = 0;
-        foreach ([7, 11, 16, 21, 37, $arrivalFrame] as $motionFrame) {
+        foreach ([2, 6, 11, 16, 21, 37, $arrivalFrame] as $motionFrame) {
             $motionBounds = $this->inkBounds(
                 $decoded[$motionFrame],
                 $gif['frames'][$motionFrame]['transparentIndex'],
@@ -122,8 +122,8 @@ class SignatureTrainTimelineTest extends TestCase
             $previousRight = $motionBounds['right'];
         }
         $firstMotionBounds = $this->inkBounds(
-            $decoded[7],
-            $gif['frames'][7]['transparentIndex'],
+            $decoded[2],
+            $gif['frames'][2]['transparentIndex'],
             $width,
             $height,
             (int) floor($height * 0.55),
@@ -325,8 +325,9 @@ class SignatureTrainTimelineTest extends TestCase
             "{$filename}: Die negative R/T-Trennfuge ist nicht mehr frei.",
         );
 
-        // Die letzten 720 ms sind ein echtes End-Hold. Das sichtbare Bild
-        // bleibt stehen, statt Zug oder Rauch erneut zu starten.
+        // Die Schlussframes sind ein echtes End-Hold. Das sichtbare Bild
+        // bleibt stehen, statt Zug oder Rauch erneut zu starten; der auf
+        // 350 ms verkuerzte Vorlauf steckt nur in diesem unsichtbaren Hold.
         $this->assertSame($decoded[69], $decoded[70], "{$filename}: End-Hold springt in Frame 70.");
         $this->assertSame($decoded[70], $decoded[71], "{$filename}: End-Hold springt in Frame 71.");
     }
@@ -491,6 +492,8 @@ class SignatureTrainTimelineTest extends TestCase
         $this->assertStringContainsString('markeGroesse: MARKEN_GROESSE,', $generator);
         $this->assertStringContainsString('const START_X = -ZUG_BREITE;', $generator);
         $this->assertStringNotContainsString('START_X = -ZUG_BREITE *', $generator);
+        $this->assertStringContainsString('const WARTE_S = Number(process.env.RT_WARTE || 0.35);', $generator);
+        $this->assertStringContainsString('const ENDE_HALT_S = Number(process.env.RT_ENDE_HALT || 1.65);', $generator);
         $this->assertStringContainsString('function idleWolkenBei(t) {', $generator);
         $this->assertStringContainsString('if (t <= FAHRT_ENDE_S) return [];', $generator);
         $this->assertStringContainsString('sichtbar.push(...idleWolkenBei(t));', $generator);

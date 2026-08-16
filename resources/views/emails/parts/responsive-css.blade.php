@@ -21,10 +21,10 @@
                                  der Vorlage einspaltig.
       <=  480 px  Telefon      — Innenabstaende weiter zuruecknehmen.
 
-    GESTAPELT BLEIBT DIE ACHSE ERHALTEN: die Personenspalte schliesst links
-    ab, die Firmenspalte rechts. Beide Bloecke sind dadurch je fuer sich
-    buendig — die Symbole der Firmenspalte stehen in der Quelle hinter dem
-    Text und liessen sich per CSS ohnehin nicht zuverlaessig umstellen.
+    GESTAPELT BLEIBT DIE QUELLREIHENFOLGE ERHALTEN: erst die Person, dann
+    dieselbe Firmenspalte. Wortmarke und Firmendaten werden nicht fuer Mobil
+    gedoppelt oder per CSS umsortiert. Dadurch bleibt auch ein Reply- oder
+    Forward-Zitat korrekt, wenn ein Mailclient Media-Queries entfernt.
 
     @param string $border  Farbwert der Trennlinie (SIGNATURE_BORDER)
 --}}
@@ -55,14 +55,20 @@
     animation-fill-mode: forwards;
   }
 }
-.rt-train-idle-surface {
+.rt-train-main-image,
+.rt-train-idle-image {
+  display: block !important;
   position: absolute !important;
-  right: 0 !important;
+  left: 0 !important;
+  right: auto !important;
   bottom: 0 !important;
   width: 100% !important;
-  height: 100% !important;
-  max-width: none !important;
+  max-width: 1815px !important;
+  height: auto !important;
   max-height: none !important;
+  margin: 0 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
   z-index: 0 !important;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -87,9 +93,6 @@
 .rt-sign-cell {
   background-position: left top, right center, center center, left bottom !important;
 }
-.rt-train-idle-surface {
-  background-position: left bottom !important;
-}
 }
 
 /* ---- Tablet quer: enger setzen, aber zweispaltig bleiben ---- */
@@ -113,6 +116,15 @@ tr.rt-stack > td.rt-card-cell, tr.rt-stack > td.rt-card-cell + td { padding-left
 
 /* ---- Tablet hoch und kleiner: stapeln ---- */
 @media only screen and (max-width: 860px) {
+.rt-train-main-image,
+.rt-train-idle-image {
+  left: -75% !important;
+  right: auto !important;
+  bottom: 0 !important;
+  width: 200% !important;
+  max-width: none !important;
+  height: auto !important;
+}
 .rt-pad { padding-left: 24px !important; padding-right: 24px !important; }
 .rt-title { font-size: 27px !important; line-height: 32px !important; }
 {{-- Nur DIREKTE Zellen der markierten Zeile umbrechen: ein Nachfahren-
@@ -129,43 +141,43 @@ tr.rt-stack > td + td { padding-top: 12px !important; }
 .rt-contact td.rt-contact-icon { width: 22px !important; }
 .rt-contact td.rt-contact-text { width: auto !important; font-size: 13px !important; line-height: 19px !important; }
 .rt-sign-name { font-size: 21px !important; line-height: 25px !important; }
-/* MOBIL: WORTMARKE OBEN, DARUNTER PERSON LINKS UND FIRMA RECHTS.
-   Die Wortmarke steht dafuer zweimal im Markup — im Breitlayout in der
-   rechten Spalte, gestapelt als eigene Zeile ganz oben. Hier wird
-   getauscht, welche der beiden sichtbar ist. */
-.rt-marke-mobil { display: block !important; max-height: none !important; overflow: visible !important; }
-.rt-sign-logo img.rt-logo { display: none !important; }
-
-/* DIE BEIDEN SPALTEN BLEIBEN NEBENEINANDER. Die Regel eine Zeile weiter
-   oben bricht ALLE markierten Zeilen um — die Karten der Vorlage sollen
-   das auch. Die Signatur nicht: dort stuenden Person und Firma sonst
-   untereinander, und die Listen begaennen auf verschiedenen Hoehen.
-   Deshalb hier ausdruecklich zurueckgenommen. */
-tr.rt-stack > td.rt-sign-identity,
-tr.rt-stack > td.rt-sign-logo {
-  display: table-cell !important;
-  width: 50% !important;
-  padding-top: 0 !important;
+/* SIGNATUR OHNE RESPONSIVE DOM-DOPPELUNGEN. Person und Firma werden in
+   ihrer Quellreihenfolge gestapelt. Dieselbe Wortmarke und dieselben
+   Firmendaten bleiben sichtbar; es gibt keine versteckte Mobilfassung, die
+   ein Reply-/Forward-Client versehentlich zusaetzlich einblenden koennte. */
+.rt-sign-identity { padding: 0 !important; }
+.rt-sign-logo {
+  padding: 14px 0 0 !important;
+  border-left: 0 !important;
+  border-top: 1px solid {{ $border }} !important;
+  text-align: left !important;
 }
-.rt-sign-identity { padding: 0 12px 0 0 !important; }
+img.rt-logo {
+  width: 150px !important;
+  margin-left: 0 !important;
+}
 .rt-person-kopf, .rt-sign-identity .rt-contact,
-.rt-firma-links, .rt-firma-rechts {
+.rt-company-contact {
   display: block !important;
   width: auto !important;
   margin-left: 0 !important;
   margin-right: 0 !important;
 }
-/* Beide Listen beginnen auf DERSELBEN Hoehe. Links kosten Name und
-   Funktion Platz, den die Firmenspalte als Vorlauf nachbildet — sonst
-   staende sie hoeher und die Zeilen liefen gegeneinander. */
+/* Die Personenkontakte bleiben eng unter der Funktion. Die Firmendaten
+   folgen nach der einmaligen Wortmarke in derselben gestapelten Zelle. */
 .rt-sign-identity .rt-contact { margin-top: 10px !important; }
-.rt-firma-links { margin-top: 52px !important; }
-.rt-firma-rechts { margin-top: 4px !important; }
-/* Gestapelt traegt die ungespiegelte Fassung: Symbol links, Text rechts
-   daneben, der ganze Block linksbuendig — genau wie der Personenblock
-   darueber. */
-.rt-firma-breit { display: none !important; max-height: 0 !important; overflow: hidden !important; }
-.rt-firma-schmal { display: block !important; max-height: none !important; overflow: visible !important; }
+/* Es gibt nur noch EINEN Firmenkontaktblock. Mobil wird genau dieselbe
+   Tabelle linksbuendig und ueber die verfuegbare Spaltenbreite gesetzt;
+   keine versteckte Kopie kann beim Antworten oder Weiterleiten auftauchen. */
+.rt-company-contact {
+  float: none !important;
+  display: table !important;
+  width: 100% !important;
+  margin-top: 14px !important;
+  margin-left: 0 !important;
+  margin-right: auto !important;
+}
+.rt-company-contact td.rt-company-contact-text { text-align: left !important; }
 /* ---- Gestapelt wird ALLES eine Nummer kleiner ----------------------
    Auf dem Telefon steht die Signatur unter einer Nachricht, nicht als
    Aushaengeschild. Sie soll lesbar sein und wenig Hoehe kosten — deshalb
@@ -184,8 +196,7 @@ tr.rt-stack > td.rt-sign-logo {
    bemessen. */
 .rt-contact td.rt-contact-icon, .rt-contact td.rt-contact-text { padding-bottom: 4px !important; }
 .rt-sign-name { font-size: 18px !important; line-height: 22px !important; }
-.rt-marke-mobil img { width: 150px !important; margin-bottom: 12px !important; }
-.rt-sign-logo { padding: 0 0 0 12px !important; }
+img.rt-logo { width: 150px !important; }
 /* Die Firmenliste sitzt gestapelt direkt unter der Wortmarke — der
    Vorsprung, den sie im Breitlayout ausgleicht, faellt hier weg. */
 
@@ -209,10 +220,6 @@ tr.rt-stack > td.rt-sign-logo {
   background-position: left top, right center, center center, 75% 84% !important;
   background-size: 64px 64px, auto 52%, 100% 100%, 200% auto !important;
 }
-.rt-train-idle-surface {
-  background-position: 75% 84% !important;
-  background-size: 200% auto !important;
-}
 }
 
 /* ---- Telefon: Innenabstaende weiter zuruecknehmen ---- */
@@ -220,7 +227,7 @@ tr.rt-stack > td.rt-sign-logo {
 .rt-pad { padding-left: 18px !important; padding-right: 18px !important; }
 .rt-title { font-size: 24px !important; line-height: 29px !important; }
 .rt-sign-name { font-size: 17px !important; line-height: 21px !important; }
-.rt-marke-mobil img { width: 138px !important; margin-bottom: 10px !important; }
+img.rt-logo { width: 138px !important; }
 
 
 tr.rt-stack > td + td { padding-top: 10px !important; }

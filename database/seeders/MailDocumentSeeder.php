@@ -35,8 +35,9 @@ final class MailDocumentSeeder extends Seeder
      * 2  Symmetrische Signatur und RT-Zeichen in der Vorlage
      * 3  Sequentiell aufgebaute Logo-/Wortmarkenanimationen
      * 4  Kanonischer APPLICATION_CONTENT-Slot für Systemmails
+     * 5  Antwortsichere Einzelelemente für Wortmarke und Firmenkontakte
      */
-    private const STARTER_SCHEMA = 4;
+    private const STARTER_SCHEMA = 5;
 
     public function run(): void
     {

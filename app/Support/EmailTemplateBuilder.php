@@ -457,9 +457,10 @@ class EmailTemplateBuilder
         );
         $values = $signature->values();
         $values['RESPONSIVE_CSS'] = self::responsiveCss($values['SIGNATURE_BORDER'] ?? null);
-        // Moderne Clients behalten den Zug im oberen CSS-Carrier. Classic
-        // Outlook erhaelt serverseitig genau ein bedingtes regulaeres GIF;
-        // das fruehere background-Attribut kachelte Word ueber die Zelle.
+        // Der serverseitige Signatur-Render loest den Zug aus dem editierbaren
+        // CSS-Carrier und setzt ihn genau einmal als regulaeres IMG in dieselbe
+        // obere Zelle. So startet er beim Oeffnen wie Logo und RT-Zeichen neu
+        // und ueberlebt Reply-/Forward-Zitate ohne doppelte Fallbackzeile.
         $values['SIGNATURE_BLOCK'] = $signature->render();
         $values['APPLICATION_CONTENT'] = '';
 
@@ -846,6 +847,7 @@ class EmailTemplateBuilder
         bool $animatedSignature = false,
         ?string $playbackNonce = null,
         bool $staticAnimations = false,
+        bool $cidOutlookImages = false,
     ): string {
         $values = $this->profileValues();
         // In einer migrierten Installation ist ausschließlich die
@@ -900,8 +902,29 @@ class EmailTemplateBuilder
             ],
             self::contactIconSources($inlineImages),
         );
+        $signatureLayout = [];
+        if ($cidOutlookImages) {
+            // Eine heruntergeladene EML muss ihre fuer Outlook notwendigen
+            // Bilder als echte MIME-Teile mitbringen. Data-URIs werden von
+            // Outlook nicht verlaesslich dargestellt, und einen Zug nur als
+            // CSS-Hintergrund verliert der Client beim Oeffnen oder Zitieren.
+            $signatureOverrides = array_merge($signatureOverrides, [
+                'LOGO_STILL_SRC' => 'cid:railtime-logo-still',
+                'GRUND_RASTER_SRC' => 'cid:railtime-signature-grid',
+                'GRUND_MARKE_SRC' => 'cid:railtime-signature-watermark',
+                'TRAIN_SRC' => '',
+                'TRAIN_IDLE_SRC' => '',
+            ]);
+            $signatureLayout = [
+                'outlookTrainSrc' => 'cid:railtime-train',
+            ];
+        }
         $html = $this->substitute($html, [
-            'SIGNATURE_BLOCK' => $this->signatureBlock($signature, overrides: $signatureOverrides),
+            'SIGNATURE_BLOCK' => $this->signatureBlock(
+                $signature,
+                layout: $signatureLayout,
+                overrides: $signatureOverrides,
+            ),
         ]);
 
         return self::embedPublishedCss(
@@ -1291,14 +1314,29 @@ HTML;
                 continue;
             }
 
-            if ($codepoint > 32767) {
-                $codepoint -= 65536;
+            if ($codepoint <= 0xFFFF) {
+                $escaped .= $this->rtfUnicodeCodeUnit($codepoint);
+
+                continue;
             }
 
-            $escaped .= "\\u{$codepoint}?";
+            // RTFs \\u-Steuerwort transportiert signierte UTF-16-Codeunits,
+            // keine vollstaendigen Unicode-Codepoints. Zeichen ausserhalb der
+            // BMP (z. B. Emoji) muessen deshalb als Surrogatpaar geschrieben
+            // werden, sonst erzeugt Outlook eine ungueltige Zahl.
+            $supplementary = $codepoint - 0x10000;
+            $escaped .= $this->rtfUnicodeCodeUnit(0xD800 + ($supplementary >> 10));
+            $escaped .= $this->rtfUnicodeCodeUnit(0xDC00 + ($supplementary & 0x3FF));
         }
 
         return "{\\rtf1\\ansi\\deff0{\\fonttbl{\\f0 Arial;}}\\uc1\\f0\\fs20\n{$escaped}\n}";
+    }
+
+    private function rtfUnicodeCodeUnit(int $codeUnit): string
+    {
+        $signedCodeUnit = $codeUnit > 0x7FFF ? $codeUnit - 0x10000 : $codeUnit;
+
+        return "\\u{$signedCodeUnit}?";
     }
 
     protected function buildPlainBody(): string
@@ -1374,6 +1412,56 @@ USt-IdNr.: {$values['UST_ID']} · Steuernummer: {$values['STEUERNUMMER']}
 TEXT;
     }
 
+    /**
+     * Kanonische Nur-Text-Signatur fuer Laravel-Mailables und Notifications.
+     * Sie nutzt dieselben zentral gepflegten Firmendaten wie der HTML-Footer.
+     */
+    public static function buildSystemMailTextSignature(): string
+    {
+        $values = CompanyData::templateValues();
+        $companyPhone = trim((string) $values['FIRMEN_TELEFON']);
+        $emergencyPhone = trim((string) $values['NOTFALLNUMMER']);
+
+        if (self::telHref($companyPhone) === self::telHref($emergencyPhone)) {
+            $emergencyPhone = '';
+        }
+
+        $contactLines = array_filter([
+            $companyPhone !== '' ? "T {$companyPhone}" : null,
+            $emergencyPhone !== '' ? "M {$emergencyPhone}" : null,
+            trim((string) $values['FIRMEN_EMAIL']) !== '' ? "E {$values['FIRMEN_EMAIL']}" : null,
+            self::webLabel($values['FIRMEN_WEBSITE']) !== ''
+                ? 'W '.self::webLabel($values['FIRMEN_WEBSITE'])
+                : null,
+        ]);
+        $legalParts = array_filter([
+            trim((string) $values['GESCHAEFTSFUEHRUNG']) !== ''
+                ? "Geschäftsführung: {$values['GESCHAEFTSFUEHRUNG']}"
+                : null,
+            trim((string) $values['REGISTERGERICHT']) !== ''
+                ? "Registergericht: {$values['REGISTERGERICHT']}"
+                : null,
+            trim((string) $values['HRB']) !== '' ? "HRB {$values['HRB']}" : null,
+            trim((string) $values['UST_ID']) !== '' ? "USt-IdNr.: {$values['UST_ID']}" : null,
+            trim((string) $values['STEUERNUMMER']) !== '' ? "Steuernummer: {$values['STEUERNUMMER']}" : null,
+        ]);
+
+        $addressLines = array_filter([
+            $values['FIRMENNAME'],
+            $values['FIRMENSTRASSE'],
+            $values['FIRMEN_PLZ_ORT'],
+            $values['FIRMENLAND'],
+        ], static fn (string $line): bool => trim($line) !== '');
+        $sections = array_filter([
+            __('app.mail_signature_company_role'),
+            implode("\n", $addressLines),
+            implode("\n", $contactLines),
+            implode(' · ', $legalParts),
+        ], static fn (string $section): bool => trim($section) !== '');
+
+        return implode("\n\n", $sections)."\n";
+    }
+
     protected function mimeHeaderValue(string $value): string
     {
         $value = trim(preg_replace('/[\r\n]+/', ' ', $value) ?? '');
@@ -1407,7 +1495,11 @@ TEXT;
         $companyName = trim(preg_replace('/[\r\n]+/', ' ', $values['FIRMENNAME']));
         $subject = $this->mimeHeaderValue("{{BETREFF}} | {$companyName}");
         $plain = chunk_split(base64_encode($this->buildPlainBody()), 76, "\r\n");
-        $html = chunk_split(base64_encode($this->buildEmailHtml(inlineImages: false, theme: $theme)), 76, "\r\n");
+        $html = chunk_split(base64_encode($this->buildEmailHtml(
+            inlineImages: false,
+            theme: $theme,
+            cidOutlookImages: true,
+        )), 76, "\r\n");
 
         $lines = [
             'MIME-Version: 1.0',
@@ -1434,11 +1526,19 @@ TEXT;
         ];
 
         $logoAsset = $this->emailLogoAsset($theme);
+        $logoStillAsset = str_replace('.gif', '.png', $logoAsset);
         $markAsset = self::emailMarkAsset($theme);
+        $trainAsset = 'zug-dampf-'.($theme === 'dark' ? 'dark' : 'light').'.gif';
+        $gridAsset = 'signatur-raster-'.($theme === 'dark' ? 'dark' : 'light').'.png';
+        $watermarkAsset = 'signatur-marke-'.($theme === 'dark' ? 'dark' : 'light').'.png';
         $inlineImages = [
             'railtime-logo' => [
                 'filename' => $logoAsset,
                 'content' => file_get_contents(self::masterPath('assets/'.$logoAsset)),
+            ],
+            'railtime-logo-still' => [
+                'filename' => $logoStillAsset,
+                'content' => file_get_contents(self::masterPath('assets/'.$logoStillAsset)),
             ],
             'railtime-mark' => [
                 'filename' => $markAsset,
@@ -1447,6 +1547,18 @@ TEXT;
             'railtime-mark-still' => [
                 'filename' => str_replace('.gif', '.png', $markAsset),
                 'content' => file_get_contents(self::masterPath('assets/'.str_replace('.gif', '.png', $markAsset))),
+            ],
+            'railtime-train' => [
+                'filename' => $trainAsset,
+                'content' => file_get_contents(self::masterPath('assets/'.$trainAsset)),
+            ],
+            'railtime-signature-grid' => [
+                'filename' => $gridAsset,
+                'content' => file_get_contents(self::masterPath('assets/'.$gridAsset)),
+            ],
+            'railtime-signature-watermark' => [
+                'filename' => $watermarkAsset,
+                'content' => file_get_contents(self::masterPath('assets/'.$watermarkAsset)),
             ],
         ];
 

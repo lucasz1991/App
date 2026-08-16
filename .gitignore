@@ -58,11 +58,16 @@ Homestead.json
 !/tests/Frontend/chat-message-actions.test.js
 !/tests/Frontend/live-location.test.js
 !/tests/Frontend/mail-builder.test.js
+!/tests/Frontend/mail-signature-reply-forward.test.js
+!/tests/Frontend/mail-text-eml-hardening.test.js
 !/tests/Frontend/marketing-render.test.js
 !/tests/Frontend/marketing-studio.test.js
 !/tests/Frontend/lmz-editor-assistant.test.js
 !/tests/Frontend/filepool-upload.test.js
 !/tests/Frontend/file-preview.test.js
+!/tests/Static/
+/tests/Static/*
+!/tests/Static/email-template-builder-rtf.php
 /.lmzdev/
 /railtime
 
