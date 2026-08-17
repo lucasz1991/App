@@ -433,6 +433,7 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertStringContainsString('[PRUEFUNG]', $installer);
             $this->assertStringContainsString('[NAECHSTER SCHRITT]', $installer);
             $this->assertStringContainsString('[NEUES OUTLOOK]', $installer);
+            $this->assertStringContainsString('README-Outlook.html oeffnen, "Signatur kopieren"', $installer);
             $this->assertStringContainsString('Ziel: %APPDATA%\Microsoft\Signatures', $installer);
             $this->assertStringNotContainsString('%%APPDATA%%', $installer);
             $this->assertStringContainsString('RailTime-Paketmanifest.json', $installer);
@@ -505,6 +506,14 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertStringContainsString('SHA-256-Dateiprüfung:', $installerScript);
             $this->assertStringContainsString('[DATEI {0}/{1}]', $installerScript);
             $this->assertStringContainsString('Kopiervorlage für neues Outlook öffnen', $installerScript);
+            $this->assertStringContainsString(
+                "\$templatePath = Join-Path \$SourceDirectory 'README-Outlook.html'",
+                $installerScript,
+            );
+            $this->assertStringNotContainsString(
+                "\$templatePath = Join-Path \$SourceDirectory (\$SignatureName + '.htm')",
+                $installerScript,
+            );
             $this->assertStringContainsString('param([string] $Message, [int] $Percent, [string] $Detail)', $installerScript);
             $this->assertStringContainsString('$statusText.Text = $Detail', $installerScript);
             $this->assertStringContainsString('Die Einrichtung wurde ohne Installation geschlossen.', $installerScript);
@@ -636,6 +645,38 @@ class EmailTemplatesPageTest extends TestCase
             }
 
             $readme = $zip->getFromName('README-Outlook.html');
+            $this->assertIsString($readme);
+            $this->assertStringContainsString('id="railtime-signature-copy-frame"', $readme);
+            $this->assertStringContainsString('sandbox="allow-same-origin"', $readme);
+            $this->assertStringContainsString('id="railtime-copy-signature"', $readme);
+            $this->assertStringContainsString('id="railtime-select-signature"', $readme);
+            $this->assertStringContainsString("execCommand('copy')", $readme);
+            $this->assertStringContainsString('body > table[role="presentation"]', $readme);
+            $this->assertStringContainsString('Der rote Button übernimmt ausschließlich die Signatur', $readme);
+            $this->assertMatchesRegularExpression('/\bsrcdoc="([^"]*)"/s', $readme);
+            preg_match('/\bsrcdoc="([^"]*)"/s', $readme, $srcdocMatch);
+            $copyHtml = html_entity_decode($srcdocMatch[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $this->assertSame(1, substr_count($copyHtml, 'data-rt-train'));
+            $this->assertStringContainsString('position:absolute;left:0;bottom:0;z-index:0;width:100%;max-width:720px;', $copyHtml);
+            $this->assertStringContainsString('border-top:5px solid #e4002b;', $copyHtml);
+            $this->assertStringNotContainsString('border-left:5px solid #e4002b;', $copyHtml);
+            $this->assertMatchesRegularExpression(
+                '/<td\b[^>]*class="[^"]*\brt-sign-cell\b[^"]*"[^>]*style="[^"]*border-top:5px solid #e4002b;[^"]*"/i',
+                $copyHtml,
+            );
+            $this->assertMatchesRegularExpression(
+                '/<td\b[^>]*class="[^"]*\brt-sign-cell\b[^"]*"[^>]*>.*<\/table>\s*<img\b[^>]*\bdata-rt-train\b[^>]*>\s*<\/td>\s*<\/tr>\s*<!-- RT_SIGNATURE_MAIN_END -->/is',
+                $copyHtml,
+            );
+            $this->assertStringNotContainsString("{$assetFolder}/", $copyHtml);
+            $this->assertStringNotContainsString('data:image/', $copyHtml);
+            preg_match_all('/<img\b[^>]*\bsrc="([^"]+)"/i', $copyHtml, $copyImageMatches);
+            $this->assertNotEmpty($copyImageMatches[1]);
+            foreach ($copyImageMatches[1] as $copyImageSource) {
+                $this->assertStringStartsWith('https://', html_entity_decode($copyImageSource, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+            }
+            $this->assertStringContainsString('.rt-copy-preview iframe { display:block; width:min(720px,100%); height:1px;', $readme);
+            $this->assertStringNotContainsString('min-height:320px', $readme);
             $this->assertStringContainsString('Einstellungen → Konten → Signaturen', $readme);
             $this->assertStringContainsString('ZIP zuerst vollständig entpacken', $readme);
             $this->assertStringContainsString('Rechtsklick → Alle extrahieren', $readme);
@@ -649,6 +690,7 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertStringContainsString('Einstellungen → E-Mail → Vorlagen → Hinzufügen → OFT hinzufügen', $readme);
             $this->assertStringContainsString('Dieses Signaturpaket enthält bewusst keine OFT-Datei', $readme);
             $this->assertStringContainsString('qualifizierenden Microsoft-365-Abonnement', $readme);
+            $this->assertStringContainsString('Zum Anschauen und Kopieren dient ausschließlich diese README-Kopieransicht', $readme);
 
             $zip->close();
             unlink($tempPath);

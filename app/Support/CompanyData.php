@@ -42,11 +42,20 @@ class CompanyData
             $stored = [];
         }
 
-        return collect(static::defaults())
+        $values = collect(static::defaults())
             ->mapWithKeys(fn (string $default, string $key) => [
                 $key => trim((string) ($stored[$key] ?? $default)),
             ])
             ->all();
+
+        // Die Beschriftung "HRB" kommt in allen Mail-/Exportlayouts bereits
+        // aus der Vorlage. Altdaten wie "HRB 204604" werden deshalb beim
+        // Lesen bereinigt, ohne dafuer die Datenbank umschreiben zu muessen.
+        $values['commercial_register_number'] = static::commercialRegisterNumber(
+            $values['commercial_register_number']
+        );
+
+        return $values;
     }
 
     public static function save(array $values): void
@@ -56,6 +65,10 @@ class CompanyData
                 $key => trim((string) ($values[$key] ?? $default)),
             ])
             ->all();
+
+        $normalized['commercial_register_number'] = static::commercialRegisterNumber(
+            $normalized['commercial_register_number']
+        );
 
         Setting::setValue('company', 'profile', $normalized);
     }
@@ -95,5 +108,10 @@ class CompanyData
             'UST_ID' => $company['vat_id'],
             'STEUERNUMMER' => $company['tax_number'],
         ];
+    }
+
+    private static function commercialRegisterNumber(string $value): string
+    {
+        return trim((string) preg_replace('/^HRB\s*[:#.-]?\s*/iu', '', trim($value)));
     }
 }

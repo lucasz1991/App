@@ -135,5 +135,44 @@ namespace {
         exit(1);
     }
 
-    fwrite(STDOUT, "RTF Unicode and EML CID tests passed.\n");
+    $browserTrainMethod = $reflection->getMethod('placeBrowserCopyTrainBehindContent');
+    $browserTrainMethod->setAccessible(true);
+    $browserTrainFixture = <<<'HTML'
+<!doctype html><html><body><table role="presentation" style="border-top:5px solid #e4002b;">
+<tr><td class="rt-sign-cell"><table><tr><td class="rt-sign-identity"><img src="https://app.rail-time.de/mail-assets/contact-email.png"></td><td class="rt-sign-logo"><img src="https://app.rail-time.de/mail-assets/logo.gif"></td></tr></table></td></tr><!-- RT_SIGNATURE_MAIN_END --><tr><td align="left"><img class="rt-sign-train" data-rt-train src="https://app.rail-time.de/mail-assets/zug-dampf-light.gif" width="100%"></td></tr><tr><td>Legal</td></tr>
+</table></body></html>
+HTML;
+    $browserTrain = $browserTrainMethod->invoke(null, $browserTrainFixture);
+    if (substr_count($browserTrain, 'data-rt-train') !== 1
+        || ! str_contains($browserTrain, 'position:absolute;left:0;bottom:0;z-index:0;width:100%;max-width:720px;')
+        || ! str_contains($browserTrain, '</table><img class="rt-sign-train"')
+        || str_contains($browserTrain, '<!-- RT_SIGNATURE_MAIN_END --><tr><td align="left"><img class="rt-sign-train"')) {
+        fwrite(STDERR, "Browser copy train was not placed behind the signature content.\n");
+        exit(1);
+    }
+
+    $readmeMethod = $reflection->getMethod('buildOutlookReadme');
+    $readmeMethod->setAccessible(true);
+    $readme = $readmeMethod->invoke(
+        $builder,
+        'RailTime-Signatur-hell-mara-beispiel',
+        'RailTime-Signatur-hell-mara-beispiel_files',
+        $browserTrain,
+    );
+    foreach ([
+        'id="railtime-signature-copy-frame"',
+        'id="railtime-copy-signature"',
+        'id="railtime-select-signature"',
+        "execCommand('copy')",
+        'body > table[role="presentation"]',
+        '.rt-copy-preview iframe { display:block; width:min(720px,100%); height:1px;',
+        "frame.style.height = '1px';",
+    ] as $requiredCopyContract) {
+        if (! str_contains($readme, $requiredCopyContract)) {
+            fwrite(STDERR, "Browser copy README is incomplete: {$requiredCopyContract}\n");
+            exit(1);
+        }
+    }
+
+    fwrite(STDOUT, "RTF, EML CID and Outlook browser-copy tests passed.\n");
 }

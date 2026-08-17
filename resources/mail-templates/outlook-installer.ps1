@@ -882,13 +882,13 @@ function Open-InstallerLog {
 
 function Open-NewOutlookTemplate {
     [void] (Test-Package -Name $SignatureName -Root $SourceDirectory)
-    $templatePath = Join-Path $SourceDirectory ($SignatureName + '.htm')
+    $templatePath = Join-Path $SourceDirectory 'README-Outlook.html'
     if (-not (Test-Path -LiteralPath $templatePath -PathType Leaf)) {
-        Throw-InstallerError -ExitCode 11 -Message 'Die HTML-Kopiervorlage für das neue Outlook wurde nicht gefunden.'
+        Throw-InstallerError -ExitCode 11 -Message 'Die sichere HTML-Kopieransicht für das neue Outlook wurde nicht gefunden.'
     }
 
     Start-Process -FilePath $templatePath
-    Write-InstallerStatus -Level INFO -Message 'HTML-Kopiervorlage für das neue Outlook wurde geöffnet.'
+    Write-InstallerStatus -Level INFO -Message 'HTML-Kopieransicht für das neue Outlook wurde geöffnet.'
 }
 
 function Show-InstallerGui {

@@ -999,9 +999,9 @@ class EmailTemplateBuilder
      * Outlook-kompatible Signatur als installierbares ZIP-Paket.
      *
      * Klassisches Outlook liest lokale .htm/.rtf/.txt-Signaturen aus dem
-     * Signatures-Ordner. Neues Outlook besitzt keinen entsprechenden
-     * Dateiimport; dafuer dient dieselbe .htm-Datei als Kopiervorlage mit
-     * regulaeren lokalen <img>-Elementen und einem manuellen Bild-Fallback.
+     * Signatures-Ordner. Diese technische .htm-Datei bleibt deshalb frei von
+     * Browser-Bedienelementen. Neues Outlook verwendet stattdessen die
+     * manifestgepruefte README als isolierte Kopieransicht derselben Signatur.
      */
     protected function buildOutlookPackage(string $theme, string $slug): string
     {
@@ -1009,9 +1009,10 @@ class EmailTemplateBuilder
         $signatureName = "RailTime-Signatur-{$variant}-{$slug}";
         $assetFolder = "{$signatureName}_files";
         $html = $this->buildOutlookSignatureHtml($theme, $assetFolder);
+        $browserCopyHtml = $this->buildOutlookBrowserCopySignatureHtml($theme);
         $plain = $this->buildPlainSignature();
         $rtf = $this->buildOutlookRtf($plain);
-        $readme = $this->buildOutlookReadme($signatureName, $assetFolder);
+        $readme = $this->buildOutlookReadme($signatureName, $assetFolder, $browserCopyHtml);
         $installer = $this->buildOutlookInstaller($signatureName);
         $installerScript = $this->buildOutlookInstallerScript($signatureName);
 
@@ -1108,6 +1109,165 @@ class EmailTemplateBuilder
         ]);
     }
 
+    /**
+     * Eigenstaendige Kopierfassung fuer neues Outlook und Outlook im Web.
+     *
+     * Die Classic-Payload verwendet absichtlich lokale Begleitdateien. Beim
+     * Einfuegen in eine cloudgespeicherte Signatur waeren file:-Quellen aber
+     * nach dem Schliessen des Browsers unbrauchbar. Diese Fassung rendert
+     * deshalb dieselbe Signatur mit absoluten HTTPS-Mailassets. Das einzelne
+     * Zug-GIF liegt nur in dieser Web-Kopierfassung als normales IMG hinter
+     * den Daten; die technische Classic-Payload behaelt ihre Flow-Zeile.
+     */
+    protected function buildOutlookBrowserCopySignatureHtml(string $theme): string
+    {
+        $master = $theme === 'dark' ? 'signature-dark-master.html' : 'signature-light-master.html';
+        $html = file_get_contents(self::masterPath($master));
+        if (! is_string($html)) {
+            throw new RuntimeException('Die HTML-Kopiervorlage konnte nicht geladen werden.');
+        }
+
+        $outerAccent = $theme === 'dark'
+            ? 'border-top:5px solid #e4002b;'
+            : 'border-left:5px solid #e4002b;';
+        $outerAccentCount = 0;
+        $html = str_replace($outerAccent, '', $html, $outerAccentCount);
+        if ($outerAccentCount !== 1) {
+            throw new RuntimeException('Die Browser-Kopiervorlage besitzt keine eindeutige aeussere Akzentkante.');
+        }
+
+        $html = $this->substitute($html, self::emailThemeValues($theme));
+        $html = $this->substitute($html, $this->escapeForHtml($this->profileValues()));
+
+        $variant = $theme === 'dark' ? 'dark' : 'light';
+        $logoAsset = $this->emailLogoAsset($theme);
+        $markAsset = self::emailMarkAsset($theme);
+        $remoteSources = array_merge([
+            'LOGO_SRC' => self::httpsMailAssetUrl($logoAsset),
+            'LOGO_STILL_SRC' => self::httpsMailAssetUrl(str_replace('.gif', '.png', $logoAsset)),
+            'ICON_RT_SRC' => self::httpsMailAssetUrl($markAsset),
+            'ICON_RT_STILL_SRC' => self::httpsMailAssetUrl(str_replace('.gif', '.png', $markAsset)),
+            'TRAIN_SRC' => self::httpsMailAssetUrl("zug-dampf-{$variant}.gif"),
+            'TRAIN_STILL_SRC' => self::httpsMailAssetUrl("zug-dampf-{$variant}.png"),
+            'TRAIN_IDLE_SRC' => '',
+            'GRUND_RASTER_SRC' => self::httpsMailAssetUrl("signatur-raster-{$variant}.png"),
+            'GRUND_MARKE_SRC' => self::httpsMailAssetUrl("signatur-marke-{$variant}.png"),
+        ], array_map(
+            static fn (string $source): string => self::forceHttpsUrl($source),
+            self::contactIconUrls(),
+        ));
+
+        $signature = MailSignature::forUser($this->user, $theme, animated: true);
+        $html = $this->substitute($html, [
+            'SIGNATURE_BLOCK' => $this->signatureBlock(
+                $signature,
+                layout: [
+                    'padding' => '16px 28px 0',
+                    'topRule' => 'border-top:5px solid #e4002b;',
+                    'legalPadding' => '11px 28px',
+                ],
+                overrides: $remoteSources,
+            ),
+        ]);
+
+        $html = self::embedPublishedCss(
+            $html,
+            $signature->publishedCss($remoteSources),
+            MailDocumentKind::Signature,
+        );
+
+        return self::placeBrowserCopyTrainBehindContent($html);
+    }
+
+    private static function httpsMailAssetUrl(string $asset): string
+    {
+        return self::forceHttpsUrl(self::mailAssetUrl($asset));
+    }
+
+    private static function forceHttpsUrl(string $url): string
+    {
+        $url = preg_replace('/^http:\/\//i', 'https://', trim($url)) ?? '';
+        if (! str_starts_with($url, 'https://')) {
+            throw new RuntimeException('Die Browser-Kopiervorlage besitzt keine absolute HTTPS-Bildquelle.');
+        }
+
+        return $url;
+    }
+
+    /**
+     * Loest die eine Flow-Zeile ausschliesslich fuer die New-Outlook-/Web-
+     * Kopierfassung und setzt dasselbe HTTPS-GIF direkt in den bestehenden
+     * Carrier. Der Carrier ist bereits positioniert und ausgeblendet; Inhalt
+     * und Firmendaten liegen mit z-index:1 darueber. Dadurch bleiben 75-Prozent-
+     * Geometrie, erkennbares RT-Icon und null zusaetzliche Hoehe erhalten.
+     */
+    private static function placeBrowserCopyTrainBehindContent(string $html): string
+    {
+        $marker = '<!-- RT_SIGNATURE_MAIN_END -->';
+        $rowPattern = '~'.preg_quote($marker, '~')
+            .'<tr><td\b[^>]*>\s*(<img\b[^>]*\bdata-rt-train\b[^>]*>)\s*</td></tr>~i';
+
+        if (! preg_match($rowPattern, $html, $match)) {
+            throw new RuntimeException('Die Browser-Kopiervorlage besitzt keine eindeutige Zugzeile.');
+        }
+
+        if (! preg_match('/\bsrc="([^"]+)"/i', $match[1], $sourceMatch)) {
+            throw new RuntimeException('Die Browser-Kopiervorlage besitzt keine Zugbildquelle.');
+        }
+
+        $source = self::forceHttpsUrl(html_entity_decode(
+            $sourceMatch[1],
+            ENT_QUOTES | ENT_HTML5,
+            'UTF-8',
+        ));
+        $source = htmlspecialchars($source, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
+        $train = '<img class="rt-sign-train" data-rt-train src="'.$source.'" width="720" alt="" '
+            .'style="display:block;position:absolute;left:0;bottom:0;z-index:0;width:100%;max-width:720px;'
+            .'height:auto;margin:0;border:0;outline:none;text-decoration:none;">';
+
+        $removed = 0;
+        $html = preg_replace($rowPattern, $marker, $html, 1, $removed) ?? $html;
+        if ($removed !== 1 || preg_match($rowPattern, $html)) {
+            throw new RuntimeException('Die Zugzeile der Browser-Kopiervorlage ist nicht eindeutig.');
+        }
+
+        $carrierPattern = '~(<td\b[^>]*class="[^"]*\brt-sign-cell\b[^"]*"[^>]*>.*?)(</td>\s*</tr>\s*'
+            .preg_quote($marker, '~').')~is';
+        $inserted = 0;
+        $html = preg_replace(
+            $carrierPattern,
+            '$1'.$train.'$2',
+            $html,
+            1,
+            $inserted,
+        ) ?? $html;
+
+        if ($inserted !== 1 || substr_count($html, 'data-rt-train') !== 1) {
+            throw new RuntimeException('Der Zug konnte nicht in den Carrier der Browser-Kopiervorlage eingesetzt werden.');
+        }
+
+        foreach (self::imageSources($html) as $imageSource) {
+            self::forceHttpsUrl($imageSource);
+        }
+
+        return $html;
+    }
+
+    /** @return list<string> */
+    private static function imageSources(string $html): array
+    {
+        preg_match_all('/<img\b[^>]*\bsrc="([^"]+)"/i', $html, $matches);
+
+        return array_map(
+            static fn (string $source): string => html_entity_decode(
+                $source,
+                ENT_QUOTES | ENT_HTML5,
+                'UTF-8',
+            ),
+            $matches[1] ?? [],
+        );
+    }
+
     protected function buildOutlookInstaller(string $signatureName): string
     {
         $installer = <<<CMD
@@ -1167,8 +1327,9 @@ if "%INSTALLER_EXIT%"=="0" (
   echo [INFO] Neue Nachrichten und Antworten wurden dem erkannten
   echo        RailTime-Konto zugeordnet.
   echo [NAECHSTER SCHRITT] Classic Outlook starten und eine Testmail oeffnen.
-  echo [NEUES OUTLOOK] README-Outlook.html oeffnen und die Signatur dort
-  echo                 unter Einstellungen - Konten - Signaturen einfuegen.
+  echo [NEUES OUTLOOK] README-Outlook.html oeffnen, "Signatur kopieren"
+  echo                 anklicken und unter Einstellungen - Konten -
+  echo                 Signaturen einfuegen.
   echo [PROTOKOLL] %TEMP%\RailTime-Outlook-Signatur-Installation.log
   echo ================================================================
 ) else (
@@ -1208,19 +1369,78 @@ CMD;
         return "\xEF\xBB\xBF".$script."\n";
     }
 
-    protected function buildOutlookReadme(string $signatureName, string $assetFolder): string
-    {
+    protected function buildOutlookReadme(
+        string $signatureName,
+        string $assetFolder,
+        string $signatureHtml,
+    ): string {
         $name = htmlspecialchars($signatureName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $folder = htmlspecialchars($assetFolder, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $signatureSrcdoc = htmlspecialchars(
+            $signatureHtml,
+            ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5,
+            'UTF-8',
+        );
 
         return <<<HTML
 <!doctype html>
 <html lang="de">
-<head><meta charset="utf-8"><title>RailTime Signatur in Outlook einrichten</title></head>
-<body style="max-width:760px;margin:40px auto;padding:0 20px;font-family:Arial,Helvetica,sans-serif;color:#111820;line-height:1.55;">
-  <h1 style="font-size:26px;">RailTime-Signatur in Outlook einrichten</h1>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>RailTime-Signatur kopieren und Outlook einrichten</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin:0; background:#f3f5f7; color:#111820; font-family:Arial,Helvetica,sans-serif; line-height:1.55; }
+    main { width:min(1040px,calc(100% - 32px)); margin:32px auto 56px; }
+    h1 { margin:0; font-size:clamp(25px,4vw,34px); line-height:1.2; }
+    h2 { margin:0 0 12px; font-size:20px; }
+    p { margin:12px 0; }
+    ol { margin:12px 0 0; padding-left:24px; }
+    li + li { margin-top:8px; }
+    .rt-card { margin-top:20px; padding:24px; border:1px solid #d8dde3; border-radius:14px; background:#fff; box-shadow:0 12px 32px rgba(17,24,32,.08); }
+    .rt-copy-preview { display:flex; justify-content:center; overflow:hidden; margin-top:18px; border:1px solid #d8dde3; border-radius:10px; background:#e9edf1; }
+    .rt-copy-preview iframe { display:block; width:min(720px,100%); height:1px; border:0; background:transparent; }
+    .rt-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:18px; }
+    button { min-height:44px; padding:10px 16px; border:1px solid #bdc5ce; border-radius:8px; background:#fff; color:#111820; font:700 15px Arial,Helvetica,sans-serif; cursor:pointer; }
+    button:first-child { border-color:#e4002b; background:#e4002b; color:#fff; }
+    button:focus-visible { outline:3px solid rgba(228,0,43,.28); outline-offset:2px; }
+    .rt-status { min-height:24px; margin:10px 0 0; color:#425466; font-weight:700; }
+    .rt-note { padding:12px 14px; border-left:4px solid #e4002b; background:#fff4f6; }
+    @media (max-width:640px) {
+      main { width:min(100% - 20px,1040px); margin-top:10px; }
+      .rt-card { padding:16px; border-radius:10px; }
+      .rt-actions button { width:100%; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>RailTime-Signatur kopieren und Outlook einrichten</h1>
   <p>Das Paket enthält eine Outlook-kompatible Signatur mit einem normalen, einmalig abspielenden GIF, eine geprüfte Windows-Einrichtung und ein SHA-256-Paketmanifest. Bitte das ZIP zuerst vollständig entpacken. Ein Start direkt aus der ZIP-Ansicht kann die Begleitdateien nicht installieren.</p>
-  <h2 style="font-size:19px;">Klassisches Outlook für Windows</h2>
+
+  <section class="rt-card" aria-labelledby="rt-copy-heading">
+    <h2 id="rt-copy-heading">Signatur für das neue Outlook kopieren</h2>
+    <p>Die folgende Ansicht ist die Kopiervorlage. Der rote Button übernimmt ausschließlich die Signatur – nicht diese Anleitung oder die Bedienelemente.</p>
+    <div class="rt-copy-preview">
+      <iframe
+        id="railtime-signature-copy-frame"
+        title="Vorschau der RailTime-Signatur"
+        sandbox="allow-same-origin"
+        scrolling="no"
+        srcdoc="{$signatureSrcdoc}"
+      ></iframe>
+    </div>
+    <div class="rt-actions">
+      <button type="button" id="railtime-copy-signature">Signatur kopieren</button>
+      <button type="button" id="railtime-select-signature">Nur Signatur markieren</button>
+    </div>
+    <p class="rt-status" id="railtime-copy-status" role="status" aria-live="polite">Noch nicht kopiert.</p>
+    <noscript><p class="rt-note">Für die isolierte Signaturauswahl muss JavaScript im Browser aktiviert sein. Bitte JavaScript aktivieren und diese README-Kopieransicht erneut öffnen; die technische Classic-Datei ist dafür nicht geeignet.</p></noscript>
+  </section>
+
+  <section class="rt-card">
+  <h2>Klassisches Outlook für Windows</h2>
   <ol>
     <li>Das heruntergeladene ZIP mit <strong>Rechtsklick → Alle extrahieren</strong> vollständig entpacken.</li>
     <li>Offene Entwürfe speichern und im entpackten Ordner <strong>Outlook-klassisch-installieren.cmd</strong> doppelt anklicken.</li>
@@ -1230,18 +1450,102 @@ CMD;
   </ol>
   <p><strong>Lokaler Classic-Modus:</strong> Damit die lokale Installation zuverlässig bleibt, aktiviert die Einrichtung den von Microsoft dokumentierten Classic-Signaturmodus. Dadurch werden Roaming-Signaturen im klassischen Outlook für diesen Windows-Benutzer deaktiviert. Vorherige Zuordnungswerte werden lokal gesichert.</p>
   <p>Erfolg oder Fehler erscheinen direkt in der Oberfläche. Das vollständige Protokoll liegt unter <strong>%TEMP%\RailTime-Outlook-Signatur-Installation.log</strong>.</p>
-  <h2 style="font-size:19px;">Neues Outlook oder Outlook im Web</h2>
+  </section>
+
+  <section class="rt-card">
+  <h2>Neues Outlook oder Outlook im Web</h2>
   <p><strong>Wichtig:</strong> Das neue Outlook speichert Signaturen konto- beziehungsweise cloudgebunden und liest den lokalen Classic-Outlook-Ordner nicht ein. Eine lokale Windows-Installationsroutine kann diese Signatur daher nicht direkt im neuen Outlook registrieren. Die Windows-Einrichtung lässt das neue Outlook deshalb geöffnet und verändert dort nichts.</p>
   <ol>
-    <li><strong>{$name}.htm</strong> in Edge oder Chrome öffnen.</li>
-    <li>Mit <strong>Strg+A</strong> alles markieren und mit <strong>Strg+C</strong> kopieren.</li>
+    <li>Diese Datei <strong>README-Outlook.html</strong> in Edge oder Chrome öffnen.</li>
+    <li>Oben <strong>Signatur kopieren</strong> anklicken. Falls der Browser das automatische Kopieren blockiert, <strong>Nur Signatur markieren</strong> anklicken und anschließend <strong>Strg+C</strong> drücken.</li>
     <li>Im neuen Outlook <strong>Einstellungen → Konten → Signaturen</strong> öffnen, das richtige RailTime-Konto auswählen, eine neue Signatur anlegen und einfügen.</li>
-    <li>Falls Outlook das Zugbild nicht übernimmt: über „Bild einfügen“ die Datei <strong>{$folder}/zug-dampf.gif</strong> unter der Signatur einsetzen.</li>
+    <li>Nach dem Einfügen Logo, Symbole und Zug kontrollieren. Falls Bilder fehlen, diese README bei bestehender Internetverbindung erneut öffnen und die Signatur noch einmal kopieren. Nur wenn weiterhin ausschließlich der Zug fehlt, über „Bild einfügen“ die Datei <strong>{$folder}/zug-dampf.gif</strong> einsetzen.</li>
     <li>Die Signatur für neue Nachrichten und Antworten/Weiterleitungen auswählen, speichern und anschließend eine Testmail erstellen.</li>
   </ol>
   <p><strong>E-Mail-Vorlagen sind davon getrennt:</strong> Das neue Outlook kann lokale OFT-Dateien bei einem qualifizierenden Microsoft-365-Abonnement unter <strong>Einstellungen → E-Mail → Vorlagen → Hinzufügen → OFT hinzufügen</strong> importieren. Dieses Signaturpaket enthält bewusst keine OFT-Datei und behauptet keinen automatischen Import. Die Mailvorlage wird in der RailTime-App separat heruntergeladen.</p>
   <p>Microsoft-Anleitungen: <a href="https://support.microsoft.com/en-us/outlook/mail/how-to-add-and-change-an-email-signature-in-outlook">Signaturen in Outlook</a> und <a href="https://support.microsoft.com/en-au/office/download-add-and-share-templates-as-oft-files-in-outlook-a410e7b9-8bb0-437e-828d-a9954ff2ac2c">OFT-Vorlagen im neuen Outlook</a>.</p>
   <p><strong>Animationshinweis:</strong> Das Outlook-GIF spielt die Einfahrt, den Rauch-Ausklang und einen vollständigen Standrauch-Zyklus einmal ab. Danach bleibt der Zug sichtbar stehen. Ein endloser Idle-Teil in derselben GIF-Datei würde immer auch die Einfahrt wiederholen.</p>
+  <p class="rt-note"><strong>Technischer Hinweis:</strong> <strong>{$name}.htm</strong> ist ausschließlich die Installationsdatei für Classic Outlook und nicht zum Browserkopieren bestimmt. Zum Anschauen und Kopieren dient ausschließlich diese README-Kopieransicht.</p>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  var frame = document.getElementById('railtime-signature-copy-frame');
+  var copyButton = document.getElementById('railtime-copy-signature');
+  var selectButton = document.getElementById('railtime-select-signature');
+  var status = document.getElementById('railtime-copy-status');
+
+  function frameDocument() {
+    try {
+      return frame.contentDocument || frame.contentWindow.document;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function fitFrame() {
+    var doc = frameDocument();
+    if (! doc || ! doc.body || ! doc.documentElement) return;
+
+    frame.style.height = '1px';
+    var height = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight, 1);
+    frame.style.height = Math.ceil(height) + 'px';
+  }
+
+  function selectSignature() {
+    var doc = frameDocument();
+    var selection = frame.contentWindow && frame.contentWindow.getSelection
+      ? frame.contentWindow.getSelection()
+      : null;
+    var signature = doc && doc.querySelector('body > table[role="presentation"]');
+
+    if (! doc || ! selection || ! signature) return false;
+
+    var range = doc.createRange();
+    range.selectNode(signature);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    frame.contentWindow.focus();
+
+    return true;
+  }
+
+  function copySignature() {
+    if (! selectSignature()) {
+      status.textContent = 'Die Signatur konnte nicht markiert werden. Bitte die Datei erneut öffnen.';
+      return;
+    }
+
+    var copied = false;
+    try {
+      copied = frameDocument().execCommand('copy');
+    } catch (error) {
+      copied = false;
+    }
+
+    status.textContent = copied
+      ? 'Signatur kopiert. Sie kann jetzt im neuen Outlook eingefügt werden.'
+      : 'Die Signatur ist markiert. Bitte jetzt Strg+C drücken.';
+  }
+
+  frame.addEventListener('load', function () {
+    fitFrame();
+    window.setTimeout(fitFrame, 120);
+  });
+  window.addEventListener('resize', fitFrame);
+  copyButton.addEventListener('click', copySignature);
+  selectButton.addEventListener('click', function () {
+    status.textContent = selectSignature()
+      ? 'Nur die Signatur ist markiert. Bitte jetzt Strg+C drücken.'
+      : 'Die Signatur konnte nicht markiert werden. Bitte die Datei erneut öffnen.';
+  });
+  fitFrame();
+  window.setTimeout(fitFrame, 120);
+}());
+</script>
 </body>
 </html>
 HTML;
