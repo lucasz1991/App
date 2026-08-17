@@ -551,7 +551,7 @@ final class SignatureDocumentContract
         }
 
         try {
-            $declarations = self::paddingDeclarations(
+            $padding = self::effectivePadding(
                 $element->getAttribute('style'),
                 rejectBottomBorder: $mode === 'zero',
             );
@@ -559,38 +559,32 @@ final class SignatureDocumentContract
             return false;
         }
 
-        if (array_keys($declarations) !== ['padding']) {
+        if (in_array(null, $padding, true)) {
             return false;
         }
 
-        $value = strtolower(trim(preg_replace(
-            '/[ \t\r\n\f]+/',
-            ' ',
-            $declarations['padding'],
-        ) ?? $declarations['padding']));
         if ($mode === 'zero') {
-            return $value === '0';
+            return count(array_filter(
+                $padding,
+                static fn (?float $value): bool => $value !== 0.0,
+            )) === 0;
         }
 
-        if (preg_match(
-            '/^(?:0|(?:\d+(?:\.\d+)?|\.\d+)px)(?: (?:0|(?:\d+(?:\.\d+)?|\.\d+)px)){0,3}$/',
-            $value,
-        ) !== 1) {
-            return false;
-        }
-
-        preg_match_all('/(?:\d+(?:\.\d+)?|\.\d+)px/', $value, $lengths);
-        foreach ($lengths[0] ?? [] as $length) {
-            if ((float) substr($length, 0, -2) > 0) {
-                return true;
-            }
-        }
-
-        return false;
+        return count(array_filter(
+            $padding,
+            static fn (?float $value): bool => $value !== null && $value > 0,
+        )) > 0;
     }
 
-    /** @return array<string, string> */
-    private static function paddingDeclarations(string $style, bool $rejectBottomBorder): array
+    /**
+     * Loest die CSS-Kaskade der Inline-Paddingdeklarationen semantisch auf.
+     * GrapesJS schreibt je nach Bedienweg eine Kurzform, vier Longhands oder
+     * beides. Entscheidend ist deshalb wie im Mailclient die letzte gueltige
+     * Deklaration je Seite, nicht ihre bloss zufaellige Schreibweise.
+     *
+     * @return array{top:?float,right:?float,bottom:?float,left:?float}
+     */
+    private static function effectivePadding(string $style, bool $rejectBottomBorder): array
     {
         $style = CssSemantic::decodeHtmlEntitiesOnce($style);
         if (preg_match('/[\x{0000}-\x{0008}\x{000B}\x{000E}-\x{001F}\x{007F}-\x{009F}]/u', $style) !== 0
@@ -600,10 +594,21 @@ final class SignatureDocumentContract
             throw new RuntimeException('Der Padding-Vertrag enthaelt unlesbares CSS.');
         }
 
-        $declarations = [];
+        $padding = [
+            'top' => null,
+            'right' => null,
+            'bottom' => null,
+            'left' => null,
+        ];
         foreach (self::splitCssAtTopLevel($style, ';') as $segment) {
             $colon = strpos($segment, ':');
             if ($colon === false) {
+                $malformedProperty = strtolower(trim($segment));
+                if (str_starts_with($malformedProperty, 'padding')
+                    || str_starts_with($malformedProperty, 'mso-padding-alt')) {
+                    throw new RuntimeException('Der Padding-Vertrag enthaelt eine unlesbare Deklaration.');
+                }
+
                 continue;
             }
 
@@ -617,15 +622,67 @@ final class SignatureDocumentContract
             if ($property !== 'padding' && ! str_starts_with($property, 'padding-')) {
                 continue;
             }
-            if (! in_array($property, ['padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left'], true)
-                || array_key_exists($property, $declarations)) {
-                throw new RuntimeException('Der Padding-Vertrag ist mehrdeutig.');
+            if (! in_array($property, ['padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left'], true)) {
+                throw new RuntimeException('Der Padding-Vertrag enthaelt eine unbekannte Padding-Eigenschaft.');
             }
 
-            $declarations[$property] = trim(substr($segment, $colon + 1));
+            $value = strtolower(trim(preg_replace(
+                '/[ \t\r\n\f]+/',
+                ' ',
+                substr($segment, $colon + 1),
+            ) ?? substr($segment, $colon + 1)));
+
+            if ($property === 'padding') {
+                $values = preg_split('/[ \t\r\n\f]+/', $value, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+                if (count($values) < 1 || count($values) > 4) {
+                    throw new RuntimeException('Die Padding-Kurzform besitzt nicht ein bis vier Werte.');
+                }
+
+                $lengths = array_map(self::paddingLength(...), $values);
+                $padding = match (count($lengths)) {
+                    1 => array_fill_keys(array_keys($padding), $lengths[0]),
+                    2 => [
+                        'top' => $lengths[0],
+                        'right' => $lengths[1],
+                        'bottom' => $lengths[0],
+                        'left' => $lengths[1],
+                    ],
+                    3 => [
+                        'top' => $lengths[0],
+                        'right' => $lengths[1],
+                        'bottom' => $lengths[2],
+                        'left' => $lengths[1],
+                    ],
+                    4 => [
+                        'top' => $lengths[0],
+                        'right' => $lengths[1],
+                        'bottom' => $lengths[2],
+                        'left' => $lengths[3],
+                    ],
+                };
+
+                continue;
+            }
+
+            $side = substr($property, strlen('padding-'));
+            $padding[$side] = self::paddingLength($value);
         }
 
-        return $declarations;
+        return $padding;
+    }
+
+    /** Nur einheitenlose Null oder eine nichtnegative Pixel-Laenge. */
+    private static function paddingLength(string $value): float
+    {
+        if (preg_match('/^(?:0+(?:\.0+)?|\.0+)$/', $value) === 1) {
+            return 0.0;
+        }
+
+        if (preg_match('/^(?:\d+(?:\.\d+)?|\.\d+)px$/', $value) !== 1) {
+            throw new RuntimeException('Padding darf nur nichtnegative Null- oder Pixelwerte enthalten.');
+        }
+
+        return (float) substr($value, 0, -2);
     }
 
     private static function canCreateBottomBorder(string $property): bool

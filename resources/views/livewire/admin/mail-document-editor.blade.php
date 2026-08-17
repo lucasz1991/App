@@ -248,6 +248,7 @@
                     let selectedTheme = 'light';
                     let selectedDevice = 'desktop';
                     let unregisterNavigation = null;
+                    let lastEditorSaveError = null;
                     const controlListeners = new AbortController();
 
                     const toast = (type, text, title) => window.dispatchEvent(new CustomEvent('swal:toast', {
@@ -326,10 +327,11 @@
                         }
 
                         const removed = (report.findings || []).some((finding) => finding.severity === 'violation');
+                        const explicitTitle = typeof report?.title === 'string' ? report.title.trim() : '';
                         if (findingsTitle) {
-                            findingsTitle.textContent = removed
+                            findingsTitle.textContent = explicitTitle || (removed
                                 ? 'Die Prüfung hat Inhalte entfernt'
-                                : 'Hinweise der Prüfung';
+                                : 'Hinweise der Prüfung');
                         }
 
                         messages.forEach((message) => {
@@ -340,6 +342,37 @@
 
                         findingsBox.hidden = false;
                         findingsBox.classList.remove('hidden');
+                    };
+
+                    const normalizeError = (error, fallback) => {
+                        if (error instanceof Error) return error;
+
+                        const normalized = new Error(
+                            typeof error?.message === 'string' && error.message.trim() !== ''
+                                ? error.message
+                                : fallback,
+                        );
+                        if (Array.isArray(error?.messages)) normalized.messages = error.messages;
+
+                        return normalized;
+                    };
+
+                    const showRequestError = (error, title) => {
+                        const normalized = normalizeError(error, title);
+                        const validationMessages = Array.isArray(normalized.messages)
+                            ? normalized.messages.filter((message) => typeof message === 'string' && message.trim() !== '')
+                            : [];
+                        const messages = validationMessages.length > 0
+                            ? validationMessages
+                            : [normalized.message];
+
+                        // Ein fehlgeschlagener Request ist kein erfolgreicher
+                        // Sanitizer-Bericht. Nur payload.report darf behaupten,
+                        // dass Inhalte tatsächlich entfernt wurden.
+                        showFindings({ title, messages, findings: [] });
+                        setMessage(messages[0]);
+
+                        return normalized;
                     };
 
                     const applyDocumentState = (payload) => {
@@ -482,44 +515,59 @@
                                     { kind: config.currentDocument, environment: window },
                                 ),
                                 onSave: async ({ project, html, css, editor }) => {
-                                    const outgoing = runtimeBridge.serializeForSave({
-                                        project,
-                                        html,
-                                        css,
-                                        kind: config.currentDocument,
-                                        baselineHtml: document_.html || '',
-                                        previewAssets: config.previewAssets || {},
-                                        environment: editor.Canvas?.getWindow?.()
-                                            || editor.Canvas?.getDocument?.()?.defaultView
-                                            || window,
-                                    });
-                                    const payload = await request(document_.endpoints.update, 'PUT', {
-                                        builder_data: outgoing.project,
-                                        html: outgoing.html,
-                                        css: outgoing.css,
-                                        expected_hash: document_.contentHash || '',
-                                    });
+                                    lastEditorSaveError = null;
 
-                                    // Die Serverfassung ist nach der
-                                    // E-Mail-Haertung autoritativ. Vor allem
-                                    // builder_data darf kein unsauberes
-                                    // Parallel-Markup behalten.
-                                    document_.builderData = payload.document?.builder_data ?? outgoing.project;
-                                    document_.html = payload.document?.html ?? outgoing.html;
-                                    document_.css = payload.document?.css ?? outgoing.css;
-                                    applyDocumentState(payload.document);
-                                    showFindings(payload.report);
-                                    await runtimeBridge.rehydrateAuthoritative({
-                                        editor,
-                                        draft: document_,
-                                        sanitizationChanged: (payload.report?.findings || [])
-                                            .some((finding) => finding.severity === 'violation'),
-                                        parseCss: (canonicalCss) => editor.Parser?.parseCss?.(canonicalCss) || [],
-                                        projectOptions: { kind: config.currentDocument, environment: window },
-                                    });
-                                    setMessage(document_.hasUnpublishedChanges
-                                        ? 'Gespeichert — noch nicht veröffentlicht.'
-                                        : 'Gespeichert.');
+                                    try {
+                                        const outgoing = runtimeBridge.serializeForSave({
+                                            project,
+                                            html,
+                                            css,
+                                            kind: config.currentDocument,
+                                            baselineHtml: document_.html || '',
+                                            previewAssets: config.previewAssets || {},
+                                            environment: editor.Canvas?.getWindow?.()
+                                                || editor.Canvas?.getDocument?.()?.defaultView
+                                                || window,
+                                        });
+                                        const payload = await request(document_.endpoints.update, 'PUT', {
+                                            builder_data: outgoing.project,
+                                            html: outgoing.html,
+                                            css: outgoing.css,
+                                            expected_hash: document_.contentHash || '',
+                                        });
+
+                                        // Die Serverfassung ist nach der
+                                        // E-Mail-Haertung autoritativ. Vor allem
+                                        // builder_data darf kein unsauberes
+                                        // Parallel-Markup behalten.
+                                        document_.builderData = payload.document?.builder_data ?? outgoing.project;
+                                        document_.html = payload.document?.html ?? outgoing.html;
+                                        document_.css = payload.document?.css ?? outgoing.css;
+                                        applyDocumentState(payload.document);
+                                        showFindings(payload.report);
+                                        await runtimeBridge.rehydrateAuthoritative({
+                                            editor,
+                                            draft: document_,
+                                            sanitizationChanged: (payload.report?.findings || [])
+                                                .some((finding) => finding.severity === 'violation'),
+                                            parseCss: (canonicalCss) => editor.Parser?.parseCss?.(canonicalCss) || [],
+                                            projectOptions: { kind: config.currentDocument, environment: window },
+                                        });
+                                        setMessage(document_.hasUnpublishedChanges
+                                            ? 'Gespeichert — noch nicht veröffentlicht.'
+                                            : 'Gespeichert.');
+                                    } catch (error) {
+                                        // LMZ 2.4.5 protokolliert onSave-Fehler
+                                        // und liefert seinem Aufrufer nur false.
+                                        // Die echte Server-/Vertragsmeldung
+                                        // bleibt deshalb hier fuer den
+                                        // expliziten Save erhalten.
+                                        lastEditorSaveError = normalizeError(
+                                            error,
+                                            'Der Entwurf konnte nicht gespeichert werden.',
+                                        );
+                                        throw lastEditorSaveError;
+                                    }
                                 },
                             },
                         });
@@ -561,9 +609,15 @@
                         // Ein manueller LMZ-Save wartet auch auf einen bereits
                         // laufenden Autosave und wiederholt sich bei Aenderungen
                         // waehrend des Requests bis zu einem stabilen Stand.
+                        lastEditorSaveError = null;
                         if (!(await instance.save('manual'))) {
-                            throw new Error('Der Entwurf konnte nicht gespeichert werden.');
+                            const saveError = lastEditorSaveError;
+                            lastEditorSaveError = null;
+
+                            throw saveError || new Error('Der Entwurf konnte nicht gespeichert werden.');
                         }
+
+                        lastEditorSaveError = null;
                     };
 
                     saveButton?.addEventListener('click', async () => {
@@ -577,8 +631,8 @@
                             setMessage(successText);
                             toast('success', successText, 'Entwurf gespeichert');
                         } catch (error) {
-                            showFindings({ messages: error.messages || [error.message], findings: [{ severity: 'violation' }] });
-                            toast('error', error.message, 'Nicht gespeichert');
+                            const surfaced = showRequestError(error, 'Speichern nicht möglich');
+                            toast('error', surfaced.message, 'Nicht gespeichert');
                         } finally {
                             setActionsBusy(false);
                         }
@@ -605,8 +659,8 @@
                                 : 'Mail-Notifications und Systemmails verwenden ab sofort diese Nachrichtenschale.';
                             toast('success', successText, 'Veröffentlicht');
                         } catch (error) {
-                            showFindings({ messages: error.messages || [error.message], findings: [{ severity: 'violation' }] });
-                            toast('error', error.message, 'Nicht veröffentlicht');
+                            const surfaced = showRequestError(error, 'Veröffentlichung nicht möglich');
+                            toast('error', surfaced.message, 'Nicht veröffentlicht');
                         } finally {
                             setActionsBusy(false);
                         }

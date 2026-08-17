@@ -42,6 +42,8 @@ const MAIL_PREVIEW_TRAIN_ATTRIBUTE = 'data-rt-mail-preview-train';
 const MAIL_IMPORTED_INLINE_ATTRIBUTE = 'data-rt-mail-inline-source';
 const MAIL_PREVIEW_TRANSPARENT_PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=';
 const MAIL_PREVIEW_TRAIN_PLACEHOLDER = 'about:blank#rt-mail-train-preview';
+const MAIL_SIGNATURE_MAIN_MARKER_NAME = 'RT_SIGNATURE_MAIN_END';
+const MAIL_SIGNATURE_MAIN_MARKER = `<!-- ${MAIL_SIGNATURE_MAIN_MARKER_NAME} -->`;
 const MAIL_AUTO_STYLE_CLASS = /^c\d+$/i;
 const MAIL_CSS_TOKEN = /\{\{([A-Z][A-Z0-9_]*)\}\}/g;
 const MAIL_CSS_TOKEN_COLORS = Object.freeze([
@@ -184,6 +186,49 @@ function parseMailFragment(parser, html) {
     );
 }
 
+/**
+ * Kommentare sind keine `children`: die bisherige Signatur-Serialisierung
+ * uebernahm deshalb beide kanonischen TRs, verlor aber den Bildzeilen-Anker
+ * dazwischen. Kein beliebiger Markerzustand wird dabei still repariert. Ein
+ * fehlender Kommentar ist der bekannte DOM-/GrapesJS-Verlust und wird spaeter
+ * kanonisch eingesetzt; Duplikate, Near-Misses und verschobene echte Marker
+ * bleiben ein harter Fehler.
+ */
+function assertRestorableSignatureMainMarker(body, rows) {
+    const markerNodes = [];
+    const visit = (node) => {
+        Array.from(node?.childNodes || []).forEach((child) => {
+            if (child.nodeType === 8
+                && String(child.data || child.nodeValue || '').includes(MAIL_SIGNATURE_MAIN_MARKER_NAME)) {
+                markerNodes.push(child);
+            }
+            visit(child);
+        });
+    };
+    visit(body);
+
+    const source = String(body?.innerHTML || '');
+    const tokenCount = source.split(MAIL_SIGNATURE_MAIN_MARKER_NAME).length - 1;
+    if (markerNodes.length === 0 && tokenCount === 0) return;
+
+    const marker = markerNodes[0];
+    const significantNodes = Array.from(body?.childNodes || []).filter((node) => (
+        node.nodeType === 1
+        || node.nodeType === 8
+        || (node.nodeType === 3 && String(node.textContent || '').trim() !== '')
+    ));
+    const markerIndex = significantNodes.indexOf(marker);
+
+    if (markerNodes.length !== 1
+        || tokenCount !== 1
+        || String(marker?.data || marker?.nodeValue || '').trim() !== MAIL_SIGNATURE_MAIN_MARKER_NAME
+        || marker?.parentNode !== body
+        || significantNodes[markerIndex - 1] !== rows[0]
+        || significantNodes[markerIndex + 1] !== rows[1]) {
+        throw new Error('Der Hauptsignatur-Marker wurde im Editor verschoben, vervielfacht oder verändert.');
+    }
+}
+
 function serializeElementAttributes(element) {
     return Array.from(element?.attributes || [])
         .map((attribute) => ` ${attribute.name}="${String(attribute.value)
@@ -205,6 +250,33 @@ function markImportedInlineStyles(root) {
     });
 
     return elements.length;
+}
+
+/**
+ * Entfernt ausschliesslich die Attribute, die der Mail-Builder fuer seine
+ * Leinwand braucht. Die sichtbaren Elemente, Texte und Inline-Stile bleiben
+ * unveraendert. Reservierte Preview-Bindungen werden vorher in den beiden
+ * Serializerzweigen validiert und duerfen deshalb nie durch diese Bereinigung
+ * zu einem scheinbar gueltigen Dokument werden.
+ */
+function stripMailEditorAttributes(root, excludedRoots = []) {
+    const excluded = (Array.isArray(excludedRoots) ? excludedRoots : [excludedRoots]).filter(Boolean);
+    const elements = [];
+    if (root?.nodeType === 1) elements.push(root);
+    elements.push(...Array.from(root?.querySelectorAll?.('*') || []));
+    let removed = 0;
+
+    elements.forEach((element) => {
+        if (excluded.some((candidate) => candidate === element || candidate.contains?.(element))) return;
+
+        Array.from(element.attributes || []).forEach((attribute) => {
+            if (!String(attribute.name || '').toLowerCase().startsWith('data-rt-mail-')) return;
+            element.removeAttribute(attribute.name);
+            removed += 1;
+        });
+    });
+
+    return removed;
 }
 
 function decodeMailCssTokens(value, sentinels) {
@@ -838,13 +910,28 @@ export function serializeMailDocumentForSave({
         }
         restoreMailPreviewImageTokens(canvasDocument.body);
 
+        // Erst den kompletten unsauberen Canvaszustand pruefen. Ein zweiter
+        // Preview-Marker oder eine echte Vorschauquelle darf nicht dadurch
+        // legitimiert werden, dass unten die harmlosen Block-Metadaten
+        // entfernt werden.
+        const previewRowHtml = previewRows[0].outerHTML;
+        const uncheckedBody = canvasDocument.body.innerHTML.replace(previewRowHtml, SIGNATURE_PLACEHOLDER);
+        const uncheckedPlaceholderCount = uncheckedBody.split(SIGNATURE_PLACEHOLDER).length - 1;
+        if (uncheckedPlaceholderCount !== 1
+            || /data-rt-mail-(?:preview(?:-[\w-]+)?|signature-preview)/i.test(uncheckedBody)
+            || mailPreviewAssetSources(previewAssets).some((source) => uncheckedBody.includes(source))) {
+            throw new Error('Die Mailvorlage konnte nicht verlustfrei rekonstruiert werden.');
+        }
+
+        stripMailEditorAttributes(canvasDocument.body, previewRows[0]);
+
         const canonicalDocument = parser.parseFromString(String(baselineHtml || ''), 'text/html');
         if (!canonicalDocument.documentElement || !canonicalDocument.head || !canonicalDocument.body) {
             throw new Error('Die kanonische Dokumenthülle der Mailvorlage fehlt.');
         }
 
-        const previewRowHtml = previewRows[0].outerHTML;
-        const canonicalBody = canvasDocument.body.innerHTML.replace(previewRowHtml, SIGNATURE_PLACEHOLDER);
+        const canonicalPreviewRowHtml = previewRows[0].outerHTML;
+        const canonicalBody = canvasDocument.body.innerHTML.replace(canonicalPreviewRowHtml, SIGNATURE_PLACEHOLDER);
         let canonicalHtml = '<!doctype html>\n'
             + `<html${serializeElementAttributes(canonicalDocument.documentElement)}>`
             + canonicalDocument.head.outerHTML
@@ -922,20 +1009,29 @@ export function serializeMailDocumentForSave({
         cell.removeAttribute(MAIL_PREVIEW_TRAIN_ATTRIBUTE);
     });
 
-    const canonicalHtml = Array.from(body.children)
-        .map((child) => child.outerHTML)
-        .join('\n')
-        .trim();
-    if (!canonicalHtml.startsWith('<tr')) {
+    assertRestorableSignatureMainMarker(body, rows);
+    const uncheckedCanonicalHtml = [
+        rows[0].outerHTML,
+        MAIL_SIGNATURE_MAIN_MARKER,
+        rows[1].outerHTML,
+    ].join('\n').trim();
+    if (!uncheckedCanonicalHtml.startsWith('<tr')) {
         throw new Error('Die Signatur besitzt nach dem Speichern kein gültiges Tabellenfragment.');
     }
-    if (!canonicalHtml.includes('{{TRAIN_SRC}}')) {
+    if (!uncheckedCanonicalHtml.includes('{{TRAIN_SRC}}')) {
         throw new Error('Das RailTime-Zugmotiv fehlt nach dem Speichern der Signatur.');
     }
-    if (/data-rt-mail-(?:signature-canvas|preview(?:-[\w-]+)?)/i.test(canonicalHtml)
-        || mailPreviewAssetSources(previewAssets).some((source) => canonicalHtml.includes(source))) {
+    if (/data-rt-mail-(?:signature-canvas|signature-preview|preview(?:-[\w-]+)?)/i.test(uncheckedCanonicalHtml)
+        || mailPreviewAssetSources(previewAssets).some((source) => uncheckedCanonicalHtml.includes(source))) {
         throw new Error('Reine Vorschauwerte dürfen nicht in der Signatur gespeichert werden.');
     }
+
+    stripMailEditorAttributes(wrapper);
+    const canonicalHtml = [
+        rows[0].outerHTML,
+        MAIL_SIGNATURE_MAIN_MARKER,
+        rows[1].outerHTML,
+    ].join('\n').trim();
 
     const canonicalProject = normalizeMailProject(structuredClone(project || {}));
     if (!canonicalProject.pages?.[0]) {
@@ -1132,6 +1228,56 @@ export function restartMailCanvasAnimations(editor, { nonce = Date.now() } = {})
 
     visit(root);
     return restarted;
+}
+
+/**
+ * Der Zug-Carrier und das kanonische RT-Zeichen sind serverkontrollierte
+ * Geometrie. Der Style-Manager darf dort keine scheinbar speicherbaren
+ * Aenderungen anbieten. Ihre Kinder bzw. die restliche Signatur bleiben
+ * normal bearbeitbar.
+ */
+export function protectMailSystemComponents(editor) {
+    const root = editor?.getWrapper?.();
+    if (!root) return 0;
+
+    const children = (component) => {
+        const collection = component?.components?.();
+        if (Array.isArray(collection)) return collection;
+        if (Array.isArray(collection?.models)) return collection.models;
+        if (typeof collection?.toArray === 'function') return collection.toArray();
+        return [];
+    };
+    const protectedComponents = new Set();
+    const protect = (component) => {
+        if (!component || protectedComponents.has(component)) return;
+        component.set?.({
+            stylable: false,
+            draggable: false,
+            removable: false,
+            copyable: false,
+        }, { silent: true });
+        protectedComponents.add(component);
+    };
+    const visit = (component) => {
+        const attributes = component?.getAttributes?.() || component?.get?.('attributes') || {};
+        if (attributes[MAIL_PREVIEW_TRAIN_ATTRIBUTE] === 'TRAIN_SRC') {
+            protect(component);
+        }
+        if (attributes[MAIL_PREVIEW_IMAGE_ATTRIBUTE] === 'ICON_RT_SRC') {
+            protect(component);
+            let ancestor = component?.parent?.();
+            while (ancestor) {
+                protect(ancestor);
+                const tagName = String(ancestor?.get?.('tagName') || '').toLowerCase();
+                if (tagName === 'td') break;
+                ancestor = ancestor?.parent?.();
+            }
+        }
+        children(component).forEach(visit);
+    };
+
+    visit(root);
+    return protectedComponents.size;
 }
 
 export function resolveMailPreviewDevice(device = 'desktop') {
@@ -1557,12 +1703,19 @@ export async function createMailBuilder({
 
     const editor = instance.editor;
     const onComponentAdd = (component) => {
-        if (markAddedMailComponentStyles(editor, component)) return;
+        const marked = markAddedMailComponentStyles(editor, component);
+        protectMailSystemComponents(editor);
         // Bei per Block eingefuegtem HTML entsteht die cNN-Regel je nach
         // Komponententyp erst direkt nach component:add.
-        globalThis.queueMicrotask?.(() => markAddedMailComponentStyles(editor, component));
+        if (!marked) {
+            globalThis.queueMicrotask?.(() => {
+                markAddedMailComponentStyles(editor, component);
+                protectMailSystemComponents(editor);
+            });
+        }
     };
     editor.on?.('component:add', onComponentAdd);
+    protectMailSystemComponents(editor);
     const rootElement = typeof root === 'string' ? document.querySelector(root) : root;
     const frame = rootElement?.closest?.('[data-mail-editor-frame]') || null;
     const preview = frame

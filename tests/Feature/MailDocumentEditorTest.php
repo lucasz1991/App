@@ -408,6 +408,56 @@ class MailDocumentEditorTest extends TestCase
         SignatureDocumentContract::assertValid($canonical);
         SignatureDocumentContract::assertRuntimeValid($canonical);
 
+        $outerPadding = function (string $declarations) use ($canonical): string {
+            $html = preg_replace(
+                '/(<td class="rt-sign-cell"[^>]*style=")padding:0;/i',
+                '${1}'.$declarations,
+                $canonical,
+                1,
+                $count,
+            );
+            $this->assertIsString($html);
+            $this->assertSame(1, $count);
+
+            return $html;
+        };
+        $innerPadding = function (string $declarations) use ($canonical): string {
+            $html = preg_replace(
+                '/(<td class="rt-pad rt-sign-content" style=")padding:[^;]+;/i',
+                '${1}'.$declarations,
+                $canonical,
+                1,
+                $count,
+            );
+            $this->assertIsString($html);
+            $this->assertSame(1, $count);
+
+            return $html;
+        };
+
+        // GrapesJS kann dieselbe effektive Box als Kurzform, Longhands oder
+        // als Kaskade aus beidem schreiben. Alle Fassungen muessen denselben
+        // sicheren Vertrag erfuellen wie der kanonische Starter.
+        foreach ([
+            'Aussen-Null mit px' => $outerPadding('padding:0px;'),
+            'Aussen-Null als Kurzform' => $outerPadding('padding:0 0px 0.0 0.00px;'),
+            'Aussen-Null als Longhands' => $outerPadding(
+                'padding-top:0px;padding-right:0;padding-bottom:0.0;padding-left:0.00px;'
+            ),
+            'Aussen-Null nach Kaskade' => $outerPadding(
+                'padding:20px;padding-bottom:5px;padding:0 0 0 0;'
+            ),
+            'Inhalt als Longhands' => $innerPadding(
+                'padding-top:18px;padding-right:36px;padding-bottom:0px;padding-left:36px;'
+            ),
+            'Inhalt nach Kaskade' => $innerPadding(
+                'padding:1px;padding:18px 36px 20px;padding-bottom:0;'
+            ),
+        ] as $name => $equivalent) {
+            SignatureDocumentContract::assertValid($equivalent);
+            SignatureDocumentContract::assertRuntimeValid($equivalent);
+        }
+
         $cases = [
             'Aussenpadding' => preg_replace(
                 '/(<td class="rt-sign-cell"[^>]*style=")padding:0;/i',
@@ -473,6 +523,13 @@ class MailDocumentEditorTest extends TestCase
                 1,
                 $innerPaddingCount,
             ),
+            'negatives Inhaltspadding' => $innerPadding('padding:18px 36px -1px;'),
+            'fremde Padding-Einheit' => $innerPadding('padding:18px 2rem 0;'),
+            'unvollstaendige Padding-Longhands' => $innerPadding(
+                'padding-top:18px;padding-right:36px;padding-bottom:0;'
+            ),
+            'unlesbare Padding-Deklaration' => $innerPadding('padding(18px);'),
+            'unlesbares Outlook-Padding' => $innerPadding('padding:18px;mso-padding-alt(20px);'),
             'verschobener Content-Decoy' => str_replace(
                 ['rt-pad rt-sign-content', 'rt-sign-identity'],
                 ['rt-pad', 'rt-sign-content rt-sign-identity'],
@@ -1192,6 +1249,7 @@ HTML;
         $template = $this->document(MailDocumentKind::Template);
         $signature = $this->document(MailDocumentKind::Signature);
         $originalTemplateBuilderData = $template->builder_data;
+        $originalSignatureBuilderData = $signature->builder_data;
         $originalSignatureHtml = (string) $signature->html;
 
         $response = $this->actingAs($this->admin())
@@ -1241,6 +1299,16 @@ HTML;
             '{{LOGO_SRC}}',
             (string) data_get($config, 'documents.signature.builderData.pages.0.component'),
         );
+        // Der Body wird im Builder editiert; die vollstaendige HTML-Fassung
+        // bleibt als serverautoritative Baseline fuer Head, Markenfragment
+        // und Dokumenthuelle im Payload. CSS und Builderprojekt muessen
+        // daneben unverkuerzt ankommen.
+        $this->assertSame((string) $template->html, data_get($config, 'documents.template.html'));
+        $this->assertSame((string) $signature->html, data_get($config, 'documents.signature.html'));
+        $this->assertSame((string) $template->css, data_get($config, 'documents.template.css'));
+        $this->assertSame((string) $signature->css, data_get($config, 'documents.signature.css'));
+        $this->assertSame($originalTemplateBuilderData, data_get($config, 'documents.template.builderData'));
+        $this->assertSame($originalSignatureBuilderData, data_get($config, 'documents.signature.builderData'));
         $this->assertSame($originalTemplateBuilderData, $template->fresh()->builder_data);
         $this->assertSame($originalSignatureHtml, (string) $signature->fresh()->html);
     }

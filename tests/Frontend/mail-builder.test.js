@@ -9,6 +9,7 @@ import {
     createMailNavigationController,
     createMailPreviewController,
     parseMailCssProjectStyles,
+    protectMailSystemComponents,
     projectForMailDocument,
     rehydrateAuthoritativeMailProject,
     restartMailCanvasAnimations,
@@ -16,7 +17,7 @@ import {
     serializeMailDocumentForSave,
     serializeMailProjectStyles,
 } from '../../resources/js/mail-builder.js';
-import { mailCanvasStyles } from '../../resources/js/mail-builder-blocks.js';
+import { createMailBlocks, mailCanvasStyles } from '../../resources/js/mail-builder-blocks.js';
 
 test('mail canvas renders real local token assets in light and dark without mutating config', () => {
     const previewAssets = {
@@ -139,7 +140,7 @@ test('signature project gets a valid editor-only table and neutral preview sourc
 });
 
 test('signature preview uses a regular train image and roundtrips two canonical rows', () => {
-    const original = '<tr><td class="rt-sign-cell" style="background-image:url(\'{{TRAIN_SRC}}\')"><img src="{{LOGO_SRC}}"></td></tr><tr><td style="color:{{SIGNATURE_LEGAL_TEXT}}"><img src="{{ICON_EMAIL_SRC}}"></td></tr>';
+    const original = '<tr><td class="rt-sign-cell" style="background-image:url(\'{{TRAIN_SRC}}\')"><span data-rt-mail-block="paragraph" data-rt-mail-text="secondary">Inhalt</span><img src="{{LOGO_SRC}}"></td></tr><!-- RT_SIGNATURE_MAIN_END --><tr><td style="color:{{SIGNATURE_LEGAL_TEXT}}"><img src="{{ICON_EMAIL_SRC}}"></td></tr>';
     const project = projectForMailDocument({
         builderData: { pages: [{ component: original }], styles: [] },
         css: '',
@@ -148,6 +149,7 @@ test('signature preview uses a regular train image and roundtrips two canonical 
     assert.equal((project.pages[0].component.match(/data-rt-mail-preview-train/g) || []).length, 1);
     assert.equal((project.pages[0].component.match(/data-rt-mail-preview-only="train"/g) || []).length, 1);
     assert.equal((project.pages[0].component.match(/data-rt-mail-preview-token="TRAIN_SRC"/g) || []).length, 1);
+    assert.equal((project.pages[0].component.match(/RT_SIGNATURE_MAIN_END/g) || []).length, 1);
     const outgoing = serializeMailDocumentForSave({
         project,
         html: project.pages[0].component,
@@ -157,15 +159,30 @@ test('signature preview uses a regular train image and roundtrips two canonical 
 
     assert.equal((outgoing.html.match(/\{\{TRAIN_SRC\}\}/g) || []).length, 1);
     assert.equal((outgoing.html.match(/^<tr|\n<tr/g) || []).length, 2);
+    assert.equal((outgoing.html.match(/<!-- RT_SIGNATURE_MAIN_END -->/g) || []).length, 1);
+    assert.match(outgoing.html, /<\/tr>\n<!-- RT_SIGNATURE_MAIN_END -->\n<tr>/);
     assert.match(outgoing.html, /class="rt-sign-cell"/);
-    assert.doesNotMatch(outgoing.html, /data-rt-mail-(?:signature-canvas|preview)/);
+    assert.match(outgoing.html, /<span>Inhalt<\/span>/);
+    assert.doesNotMatch(outgoing.html, /data-rt-mail-/);
     assert.doesNotMatch(outgoing.html, /class="rt-sign-train"|data-rt-train/);
     assert.doesNotMatch(outgoing.html, /data:image\//);
     assert.equal(outgoing.project.pages[0].component, outgoing.html);
+
+    // GrapesJS-/DOM-Serialisierer duerfen Kommentare verlieren. Genau dieser
+    // bekannte Verlust wird kanonisch repariert, ohne den PHP-Vertrag zu
+    // lockern oder einen zweiten Zug einzufuehren.
+    const withoutMainMarker = project.pages[0].component.replace('<!-- RT_SIGNATURE_MAIN_END -->', '');
+    const restored = serializeMailDocumentForSave({
+        project,
+        html: withoutMainMarker,
+        kind: 'signature',
+        environment: { DOMParser },
+    });
+    assert.equal((restored.html.match(/<!-- RT_SIGNATURE_MAIN_END -->/g) || []).length, 1);
 });
 
 test('signature save fails closed when a preview marker is removed', () => {
-    const original = '<tr><td class="rt-sign-cell" style="background-image:url(\'{{TRAIN_SRC}}\')"><img src="{{LOGO_SRC}}"></td></tr><tr><td>Rechtliches</td></tr>';
+    const original = '<tr><td class="rt-sign-cell" style="background-image:url(\'{{TRAIN_SRC}}\')"><img src="{{LOGO_SRC}}"></td></tr><!-- RT_SIGNATURE_MAIN_END --><tr><td>Rechtliches</td></tr>';
     const project = projectForMailDocument({
         builderData: { pages: [{ component: original }], styles: [] },
         css: '',
@@ -194,6 +211,39 @@ test('signature save fails closed when a preview marker is removed', () => {
         kind: 'signature',
         environment: { DOMParser },
     }), /Zugvorschau/);
+
+    const duplicatedMainMarker = project.pages[0].component.replace(
+        '<tr><td>Rechtliches</td></tr>',
+        '<!-- RT_SIGNATURE_MAIN_END --><tr><td>Rechtliches</td></tr>',
+    );
+    assert.throws(() => serializeMailDocumentForSave({
+        project,
+        html: duplicatedMainMarker,
+        kind: 'signature',
+        environment: { DOMParser },
+    }), /Hauptsignatur-Marker/);
+
+    const changedMainMarker = project.pages[0].component.replace(
+        '<!-- RT_SIGNATURE_MAIN_END -->',
+        '<!-- RT_SIGNATURE_MAIN_END_EXTRA -->',
+    );
+    assert.throws(() => serializeMailDocumentForSave({
+        project,
+        html: changedMainMarker,
+        kind: 'signature',
+        environment: { DOMParser },
+    }), /Hauptsignatur-Marker/);
+
+    const injectedTemplatePreview = project.pages[0].component.replace(
+        '<tr><td>Rechtliches</td></tr>',
+        '<tr><td data-rt-mail-signature-preview="true">Rechtliches</td></tr>',
+    );
+    assert.throws(() => serializeMailDocumentForSave({
+        project,
+        html: injectedTemplatePreview,
+        kind: 'signature',
+        environment: { DOMParser },
+    }), /Vorschauwerte/);
 });
 
 test('signature load fails closed for a second or displaced train binding', () => {
@@ -336,6 +386,73 @@ test('template preview preserves its shell and restores image tokens plus exactl
     assert.doesNotMatch(outgoing.html, /data-rt-mail-(?:preview(?:-[\w-]+)?|signature-preview)/);
     assert.doesNotMatch(outgoing.html, /data:image\//);
     assert.equal(outgoing.project.pages[0].component, outgoing.html);
+});
+
+test('built-in mail blocks keep content and formatting without persisting editor metadata', () => {
+    const canonical = '<!doctype html><html lang="de"><head><style>.rt-shell{width:100%}</style></head><body><table class="rt-shell"><tbody><tr><td>Inhalt<img src="{{ICON_RT_SRC}}" alt=""></td></tr>{{SIGNATURE_BLOCK}}</tbody></table></body></html>';
+    const project = projectForMailDocument({
+        builderData: { pages: [{ component: canonical }], styles: [] },
+        css: '',
+    }, () => [], { kind: 'template', environment: { DOMParser } });
+    const paragraph = createMailBlocks()
+        .find((block) => block.id === 'rt-mail-paragraph')
+        .definition.content;
+    const edited = project.pages[0].component.replace('Inhalt', `Inhalt${paragraph}`);
+    const outgoing = serializeMailDocumentForSave({
+        project,
+        html: edited,
+        kind: 'template',
+        baselineHtml: canonical,
+        environment: { DOMParser },
+    });
+
+    assert.match(outgoing.html, /Hier steht der Text der Nachricht\./);
+    assert.match(outgoing.html, /font-size:16px;line-height:27px/);
+    assert.doesNotMatch(outgoing.html, /data-rt-mail-/);
+    assert.doesNotMatch(outgoing.project.pages[0].component, /data-rt-mail-/);
+
+    const tampered = edited.replace('data-rt-mail-block="paragraph"', 'data-rt-mail-preview-only="rogue"');
+    assert.throws(() => serializeMailDocumentForSave({
+        project,
+        html: tampered,
+        kind: 'template',
+        baselineHtml: canonical,
+        environment: { DOMParser },
+    }), /verlustfrei/);
+});
+
+test('protected mail system carriers are not offered as styleable components', () => {
+    const component = (attributes = {}, tagName = 'div', children = []) => {
+        const state = { attributes, tagName };
+        const item = {
+            components: () => ({ models: children }),
+            get: (key) => state[key],
+            getAttributes: () => attributes,
+            parent: () => item.parentComponent || null,
+            set: (values) => Object.assign(state, values),
+            state,
+        };
+        children.forEach((child) => { child.parentComponent = item; });
+        return item;
+    };
+    const mark = component({ 'data-rt-mail-preview-token': 'ICON_RT_SRC' }, 'img');
+    const markCell = component({}, 'td', [mark]);
+    const markRow = component({}, 'tr', [markCell]);
+    const carrierContent = component({}, 'table');
+    const carrier = component({ 'data-rt-mail-preview-train': 'TRAIN_SRC' }, 'td', [carrierContent]);
+    const ordinary = component({}, 'p');
+    const root = component({}, 'body', [markRow, carrier, ordinary]);
+
+    assert.equal(protectMailSystemComponents({ getWrapper: () => root }), 3);
+    [mark, markCell, carrier].forEach((protectedComponent) => {
+        assert.equal(protectedComponent.state.stylable, false);
+        assert.equal(protectedComponent.state.draggable, false);
+        assert.equal(protectedComponent.state.removable, false);
+        assert.equal(protectedComponent.state.copyable, false);
+    });
+    [markRow, carrierContent, ordinary].forEach((editableComponent) => {
+        assert.equal(editableComponent.state.stylable, undefined);
+    });
 });
 
 test('template save never persists a detached or unknown image preview binding', () => {
@@ -612,6 +729,12 @@ test('shared page builder opens from preview into a compact responsive Mail Stud
     assert.match(mailView, /data-mail-document-save/);
     assert.match(mailView, /data-mail-document-publish/);
     assert.match(mailView, /await saveCurrentDraft\(\)[\s\S]*?endpoints\.publish/);
+    assert.match(mailView, /let lastEditorSaveError = null/);
+    assert.match(mailView, /onSave:\s*async[\s\S]*?lastEditorSaveError = normalizeError[\s\S]*?throw lastEditorSaveError/);
+    assert.match(mailView, /const saveError = lastEditorSaveError[\s\S]*?throw saveError \|\| new Error/);
+    assert.match(mailView, /showRequestError\(error, 'Speichern nicht möglich'\)/);
+    assert.match(mailView, /showRequestError\(error, 'Veröffentlichung nicht möglich'\)/);
+    assert.doesNotMatch(mailView, /showFindings\(\{ messages: error\.messages[\s\S]*?severity: 'violation'/);
     assert.match(mailView, /workspace-class="min-h-0 flex-1 overflow-hidden p-0"/);
     assert.match(mailView, /const studioRoot = workspace\.closest\('\[data-page-builder-fullscreen-root\]'\)/);
     assert.doesNotMatch(mailView, /class="rt-mail-preview-toolbar"/);

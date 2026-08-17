@@ -100,6 +100,13 @@ class MailDocumentEditor extends Component
                 'id' => $document->public_id,
                 'label' => $document->kind->label(),
                 'builderData' => $document->builder_data ?: [],
+                // Der Template-Serializer editiert nur den <body> und baut
+                // die geschuetzte Dokumenthuelle beim Speichern aus dieser
+                // serverautoritativen Fassung wieder auf. Ohne `html` waere
+                // die Baseline beim ersten Save leer; der Browser erzeugte
+                // daraus zwar <html>/<head>/<body>, aber ohne den kanonischen
+                // Style- und Markenvertrag.
+                'html' => (string) $document->html,
                 'css' => (string) $document->css,
                 'contentHash' => (string) $document->content_hash,
                 'version' => (int) $document->version,
