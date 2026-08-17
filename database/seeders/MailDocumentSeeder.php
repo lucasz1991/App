@@ -38,8 +38,9 @@ final class MailDocumentSeeder extends Seeder
      * 5  Antwortsichere Einzelelemente für Wortmarke und Firmenkontakte
      * 6  Vollständiges Outlook-Standbild für das animierte RT-Zeichen
      * 7  Zug-Carrier ohne Außenpadding für eine bündige Rad-/Footerkante
+     * 8  Kontaktinhalt und reguläre Zugzeile ohne künstlichen Zwischenraum
      */
-    private const STARTER_SCHEMA = 7;
+    private const STARTER_SCHEMA = 8;
 
     public function run(): void
     {

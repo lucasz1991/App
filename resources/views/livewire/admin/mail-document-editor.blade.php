@@ -2,7 +2,7 @@
 
 @php
     $kinds = [
-        \App\Enums\MailDocumentKind::Template->value => ['Nachrichtenvorlage', 'HTML-Mailvorlage und Systemmails'],
+        \App\Enums\MailDocumentKind::Template->value => ['Nachrichtenvorlage', 'Mail-Notifications und Systemmails'],
         \App\Enums\MailDocumentKind::Signature->value => ['Signaturblock', 'Outlook-Paket und Systemmails'],
     ];
 @endphp
@@ -90,27 +90,45 @@
                         data-status-label="{{ $currentDocument->status->label() }}"
                         data-has-unpublished-changes="{{ $currentDocument->hasUnpublishedChanges() ? 'true' : 'false' }}"
                         class="rt-mail-document-status"
-                    >{{ $currentDocument->status->label() }}{{ $currentDocument->isPublished() && $currentDocument->hasUnpublishedChanges() ? ' · Entwurf' : '' }}</span>
+                    >{{ $currentDocument->isPublished() && $currentDocument->hasUnpublishedChanges() ? 'Entwurf' : $currentDocument->status->label() }}</span>
 
                     <p class="rt-mail-studio-toolbar__message" data-mail-document-message aria-live="polite">
                         @if ($currentDocument->isPublished())
-                            Veröffentlicht am {{ $currentDocument->published_at?->translatedFormat('d.m.Y H:i') }} Uhr.
+                            @if ($currentDocument->hasUnpublishedChanges())
+                                Entwurf gespeichert — Systemmails verwenden weiterhin die Veröffentlichung vom {{ $currentDocument->published_at?->translatedFormat('d.m.Y H:i') }} Uhr.
+                            @else
+                                Systemmails verwenden die Veröffentlichung vom {{ $currentDocument->published_at?->translatedFormat('d.m.Y H:i') }} Uhr.
+                            @endif
                         @else
                             Nicht veröffentlicht — Systemmails bleiben bis zur Freigabe gesperrt.
                         @endif
                     </p>
 
-                    <x-ui.buttons.button-basic
-                        type="button"
-                        mode="primary"
-                        size="sm"
-                        class="min-h-11 shrink-0 rounded-lg px-3"
-                        data-mail-document-publish
-                        title="Gespeicherten Entwurf veröffentlichen"
-                    >
-                        <i data-feather="upload-cloud" class="h-4 w-4" aria-hidden="true"></i>
-                        <span class="rt-mail-studio-toolbar__publish-label">Veröffentlichen</span>
-                    </x-ui.buttons.button-basic>
+                    <div class="rt-mail-studio-toolbar__action-buttons" role="group" aria-label="Entwurf speichern oder veröffentlichen">
+                        <x-ui.buttons.button-basic
+                            type="button"
+                            mode="secondary"
+                            size="sm"
+                            class="min-h-11 shrink-0 rounded-lg px-3"
+                            data-mail-document-save
+                            title="Aktuellen Arbeitsstand als Entwurf speichern"
+                        >
+                            <i data-feather="save" class="h-4 w-4" aria-hidden="true"></i>
+                            <span class="rt-mail-studio-toolbar__action-label">Speichern</span>
+                        </x-ui.buttons.button-basic>
+
+                        <x-ui.buttons.button-basic
+                            type="button"
+                            mode="primary"
+                            size="sm"
+                            class="min-h-11 shrink-0 rounded-lg px-3"
+                            data-mail-document-publish
+                            title="Aktuellen Entwurf speichern und für Mail-Notifications sowie Systemmails veröffentlichen"
+                        >
+                            <i data-feather="upload-cloud" class="h-4 w-4" aria-hidden="true"></i>
+                            <span class="rt-mail-studio-toolbar__action-label">Speichern &amp; veröffentlichen</span>
+                        </x-ui.buttons.button-basic>
+                    </div>
                 </div>
             </div>
         </x-slot:toolbar>
@@ -208,6 +226,7 @@
                     const studioRoot = workspace.closest('[data-page-builder-fullscreen-root]') || workspace;
                     const config = JSON.parse(workspace.querySelector('[data-mail-document-config]')?.textContent || '{}');
                     const document_ = config.documents?.[config.currentDocument];
+                    const saveButton = studioRoot.querySelector('[data-mail-document-save]');
                     const publishButton = studioRoot.querySelector('[data-mail-document-publish]');
                     const messageNode = studioRoot.querySelector('[data-mail-document-message]');
                     const findingsBox = studioRoot.querySelector('[data-mail-document-findings]');
@@ -237,6 +256,15 @@
 
                     const setMessage = (text) => {
                         if (messageNode) messageNode.textContent = text;
+                    };
+
+                    const setActionsBusy = (busy) => {
+                        [saveButton, publishButton].forEach((button) => {
+                            if (!button) return;
+
+                            button.disabled = busy;
+                            button.setAttribute('aria-busy', String(busy));
+                        });
                     };
 
                     const navigationCoordinator = window.ensureRailTimeNavigationCoordinator?.()
@@ -329,7 +357,7 @@
                             statusBadge.dataset.hasUnpublishedChanges = String(document_.hasUnpublishedChanges);
                             statusBadge.dataset.statusLabel = payload.status_label || statusBadge.dataset.statusLabel || statusBadge.textContent;
                             statusBadge.textContent = document_.status === 'published' && document_.hasUnpublishedChanges
-                                ? `${statusBadge.dataset.statusLabel} · Entwurf`
+                                ? 'Entwurf'
                                 : statusBadge.dataset.statusLabel;
                         }
                     };
@@ -525,33 +553,64 @@
                             : 'In der aktuellen Vorschau wurde keine GIF-Animation gefunden.');
                     }, { signal: controlListeners.signal });
 
+                    const saveCurrentDraft = async () => {
+                        if (!instance) {
+                            throw new Error('Der Editor ist noch nicht vollständig geladen.');
+                        }
+
+                        // Ein manueller LMZ-Save wartet auch auf einen bereits
+                        // laufenden Autosave und wiederholt sich bei Aenderungen
+                        // waehrend des Requests bis zu einem stabilen Stand.
+                        if (!(await instance.save('manual'))) {
+                            throw new Error('Der Entwurf konnte nicht gespeichert werden.');
+                        }
+                    };
+
+                    saveButton?.addEventListener('click', async () => {
+                        setActionsBusy(true);
+
+                        try {
+                            await saveCurrentDraft();
+                            const successText = document_.hasUnpublishedChanges
+                                ? 'Entwurf gespeichert. Mail-Notifications und Systemmails verwenden weiterhin die veröffentlichte Fassung.'
+                                : 'Der aktuelle veröffentlichte Stand ist vollständig gespeichert.';
+                            setMessage(successText);
+                            toast('success', successText, 'Entwurf gespeichert');
+                        } catch (error) {
+                            showFindings({ messages: error.messages || [error.message], findings: [{ severity: 'violation' }] });
+                            toast('error', error.message, 'Nicht gespeichert');
+                        } finally {
+                            setActionsBusy(false);
+                        }
+                    }, { signal: controlListeners.signal });
+
                     publishButton?.addEventListener('click', async () => {
-                        publishButton.disabled = true;
+                        setActionsBusy(true);
 
                         try {
                             // Erst der Arbeitsstand, dann die Freigabe:
-                            // veroeffentlicht wird der gespeicherte Entwurf.
-                            if (instance && instance.hasUnsavedChanges() && !(await instance.save('manual'))) {
-                                throw new Error('Der Entwurf konnte nicht gespeichert werden.');
-                            }
+                            // veroeffentlicht wird exakt der serverautoritative
+                            // Entwurf. Der manuelle Save laeuft bewusst auch,
+                            // wenn GrapesJS keinen Dirty-Stand meldet.
+                            await saveCurrentDraft();
 
                             const payload = await request(document_.endpoints.publish, 'POST', {
                                 expected_hash: document_.contentHash || '',
                             });
                             applyDocumentState(payload.document);
                             showFindings(payload.report);
-                            setMessage(`Veröffentlicht am ${payload.document?.published_label ?? ''} Uhr.`);
+                            setMessage(`Veröffentlicht am ${payload.document?.published_label ?? ''} Uhr — diese Fassung wird jetzt für Systemmails verwendet.`);
                             const successText = config.currentDocument === 'signature'
                                 ? 'Outlook-Paket und Systemmails verwenden ab sofort diese Signatur.'
-                                : 'HTML-Mailvorlage und Systemmails verwenden ab sofort diese Nachrichtenschale.';
+                                : 'Mail-Notifications und Systemmails verwenden ab sofort diese Nachrichtenschale.';
                             toast('success', successText, 'Veröffentlicht');
                         } catch (error) {
                             showFindings({ messages: error.messages || [error.message], findings: [{ severity: 'violation' }] });
                             toast('error', error.message, 'Nicht veröffentlicht');
                         } finally {
-                            publishButton.disabled = false;
+                            setActionsBusy(false);
                         }
-                    });
+                    }, { signal: controlListeners.signal });
 
                     boot().catch((error) => {
                         if (destroyed) return;

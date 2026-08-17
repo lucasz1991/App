@@ -447,7 +447,7 @@ class MailSignature
     private function projectPublishedTrainAsImage(string $html, array $layout): string
     {
         $rawSource = trim((string) ($layout['outlookTrainSrc'] ?? ''));
-        $padding = (string) ($layout['outlookTrainPadding'] ?? '6px 0 0');
+        $padding = (string) ($layout['outlookTrainPadding'] ?? '0');
 
         return SignatureTrainCarrier::projectAsImage(
             $html,
@@ -515,7 +515,13 @@ class MailSignature
         $replacements = [];
 
         if (array_key_exists('padding', $layout)) {
-            $replacements['padding:18px 36px 20px;'] = 'padding:'.$layout['padding'].';';
+            $targetPadding = 'padding:'.$layout['padding'].';';
+            // Schema-7-Publikationen koennen noch den frueheren unteren
+            // 20-px-Starterabstand enthalten. Beide exakten Starterwerte
+            // werden abgebildet; individuell editierte Abstaende bleiben
+            // unangetastet.
+            $replacements['padding:18px 36px 20px;'] = $targetPadding;
+            $replacements['padding:18px 36px 0;'] = $targetPadding;
         }
 
         if (array_key_exists('topRule', $layout)) {

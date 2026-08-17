@@ -89,7 +89,11 @@ test('all mail outputs project one regular train GIF and no idle overlay', () =>
     );
     assert.doesNotMatch(signatureView, /class="rt-pad rt-sign-cell"/);
     assert.doesNotMatch(signatureView, /\$cellPadding/);
-    assert.match(signatureView, /\$outlookTrainPadding = \$outlookTrainPadding \?\? '6px 0 0';/);
+    assert.match(signatureView, /\$padding = \$padding \?\? '18px 36px 0';/);
+    assert.match(signatureView, /\$outlookTrainPadding = \$outlookTrainPadding \?\? '0';/);
+    assert.match(carrier, /compactDefaultContentPadding/);
+    assert.match(carrier, /'padding:18px 36px 20px;' => 'padding:18px 36px 0;'/);
+    assert.match(responsiveCss, /\.rt-sign-content \{ padding-bottom: 0 !important; \}/);
 });
 
 test('editor carrier preserves train geometry while delivery has no second idle layer', () => {

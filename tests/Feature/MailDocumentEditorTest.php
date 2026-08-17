@@ -120,7 +120,7 @@ class MailDocumentEditorTest extends TestCase
         $this->assertStringNotContainsString('Von Hand geaendert', (string) $frisch->html);
         $this->assertSame(MailDocumentStatus::Published, $frisch->status);
         $this->assertSame(1, $frisch->version);
-        $this->assertSame(7, data_get($frisch->builder_data, 'railtime.schema'));
+        $this->assertSame(8, data_get($frisch->builder_data, 'railtime.schema'));
     }
 
     public function test_der_seeder_veroeffentlicht_vorlage_und_signatur_als_idempotenten_release(): void
@@ -140,7 +140,7 @@ class MailDocumentEditorTest extends TestCase
             $dokument = $this->document($kind);
             $this->assertSame(MailDocumentStatus::Published, $dokument->status, $kind->value);
             $this->assertSame(1, $dokument->version, $kind->value);
-            $this->assertSame(7, data_get($dokument->builder_data, 'railtime.schema'), $kind->value);
+            $this->assertSame(8, data_get($dokument->builder_data, 'railtime.schema'), $kind->value);
             $this->assertSame(trim((string) $dokument->html), trim((string) $dokument->published_html), $kind->value);
             $this->assertSame((string) data_get($dokument->builder_data, 'pages.0.component'), (string) $dokument->html, $kind->value);
             $this->assertSame(
@@ -183,7 +183,7 @@ class MailDocumentEditorTest extends TestCase
 
         foreach ([$template, $signatur] as $dokument) {
             $this->assertSame(MailDocumentStatus::Published, $dokument->status);
-            $this->assertSame(7, data_get($dokument->builder_data, 'railtime.schema'));
+            $this->assertSame(8, data_get($dokument->builder_data, 'railtime.schema'));
             $this->assertSame(trim((string) $dokument->html), trim((string) $dokument->published_html));
             $this->assertSame((string) data_get($dokument->builder_data, 'pages.0.component'), (string) $dokument->html);
         }
@@ -1043,7 +1043,7 @@ HTML;
 
         // Nur die bekannten Starterabstaende werden fuer den eigenstaendigen
         // Download auf den kompakten Vertrag abgebildet.
-        $this->assertStringContainsString('padding:16px 28px 18px;', $standalone);
+        $this->assertStringContainsString('padding:16px 28px 0;', $standalone);
         $this->assertStringContainsString('padding:11px 28px;', $standalone);
         $this->assertStringNotContainsString('border-top:5px solid #e4002b;', $standalone);
 
@@ -1115,7 +1115,7 @@ HTML;
         $this->seedDocuments();
         $signature = $this->document(MailDocumentKind::Signature);
         $custom = strtr((string) $signature->html, [
-            'padding:18px 36px 20px;' => 'padding:21px 41px 29px;',
+            'padding:18px 36px 0;' => 'padding:21px 41px 29px;',
             'border-top:5px solid #e4002b;' => 'border-top:7px solid #123456;',
             'padding:14px 36px;' => 'padding:19px 41px;',
         ]);
@@ -1159,7 +1159,9 @@ HTML;
             ->assertSee('data-mail-toolbar-region="preview"', escape: false)
             ->assertSee('data-mail-toolbar-region="actions"', escape: false)
             ->assertSee('data-mail-document-status', escape: false)
+            ->assertSee('data-mail-document-save', escape: false)
             ->assertSee('data-mail-document-publish', escape: false)
+            ->assertSee('Mail-Notifications sowie Systemmails veröffentlichen', escape: false)
             // OHNE escape: false — Blade escaped das Trennzeichen & der
             // Query im href zu &amp;. Die rohe URL steht so nie im Markup.
             ->assertSee(route('admin.mail-documents.editor', ['dokument' => 'signature', 'open' => 1]))

@@ -458,9 +458,10 @@ class EmailTemplateBuilder
         $values = $signature->values();
         $values['RESPONSIVE_CSS'] = self::responsiveCss($values['SIGNATURE_BORDER'] ?? null);
         // Der serverseitige Signatur-Render validiert den editierbaren
-        // CSS-Carrier und behaelt den Hauptzug dort genau einmal. Dadurch
-        // bleibt er hinter den Kontaktdaten, erzeugt keine Zusatzhoehe und
-        // wird nicht in einem von Outlook verworfenen Nullhoehen-IMG versteckt.
+        // CSS-Carrier und projiziert den kombinierten Hauptzug danach genau
+        // einmal als regulaere Bildzeile direkt unter die Kontaktdaten. Der
+        // alte Background- und Idle-Sonderpfad kann dadurch weder doppeln
+        // noch in Outlook als Nullhoehenbild verschwinden.
         $values['SIGNATURE_BLOCK'] = $signature->render();
         $values['APPLICATION_CONTENT'] = '';
 
@@ -980,7 +981,7 @@ class EmailTemplateBuilder
             'SIGNATURE_BLOCK' => $this->signatureBlock(
                 $signature,
                 layout: [
-                    'padding' => '16px 28px 18px',
+                    'padding' => '16px 28px 0',
                     'topRule' => '',
                     'legalPadding' => '11px 28px',
                 ],

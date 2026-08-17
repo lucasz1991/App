@@ -142,6 +142,7 @@ final class SignatureTrainCarrier
         }
 
         $html = self::withoutMainLayer($html);
+        $html = self::compactDefaultContentPadding($html);
         $marker = '<!-- RT_SIGNATURE_MAIN_END -->';
         if (substr_count($html, $marker) !== 1) {
             throw new RuntimeException(
@@ -158,6 +159,25 @@ final class SignatureTrainCarrier
             .';text-align:left;font-size:0;line-height:0;">'.$image.'</td></tr>';
 
         return str_replace($marker, $marker.$row, $html);
+    }
+
+    /**
+     * Entfernt nur die bekannten alten Starterabstaende direkt vor der
+     * regulaeren Zugzeile. Dadurch werden bereits publizierte Signaturen und
+     * Editorvorschauen sofort kompakt, waehrend individuell gesetzte
+     * Innenabstaende unveraendert bleiben.
+     */
+    private static function compactDefaultContentPadding(string $html): string
+    {
+        return preg_replace_callback(
+            '/<td\b[^>]*class=(["\'])[^"\']*\brt-sign-content\b[^"\']*\1[^>]*>/i',
+            static fn (array $match): string => strtr($match[0], [
+                'padding:18px 36px 20px;' => 'padding:18px 36px 0;',
+                'padding:16px 28px 18px;' => 'padding:16px 28px 0;',
+            ]),
+            $html,
+            1,
+        ) ?? $html;
     }
 
     /**

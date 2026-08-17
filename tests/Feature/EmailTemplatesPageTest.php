@@ -878,7 +878,7 @@ class EmailTemplatesPageTest extends TestCase
             $light
         );
         $this->assertStringContainsString(
-            '<td class="rt-pad rt-sign-content" style="padding:18px 36px 20px;position:relative;z-index:1;">',
+            '<td class="rt-pad rt-sign-content" style="padding:18px 36px 0;position:relative;z-index:1;">',
             $light
         );
         $this->assertStringContainsString('color:#111820;font-size:23px;', $light);
@@ -894,7 +894,7 @@ class EmailTemplatesPageTest extends TestCase
             $dark
         );
         $this->assertStringContainsString(
-            '<td class="rt-pad rt-sign-content" style="padding:18px 36px 20px;position:relative;z-index:1;">',
+            '<td class="rt-pad rt-sign-content" style="padding:18px 36px 0;position:relative;z-index:1;">',
             $dark
         );
         $this->assertStringContainsString('color:#ffffff;font-size:23px;', $dark);
@@ -1035,7 +1035,7 @@ class EmailTemplatesPageTest extends TestCase
             $html,
         );
         $this->assertStringContainsString(
-            '<td class="rt-pad rt-sign-content" style="padding:16px 28px 18px;position:relative;z-index:1;">',
+            '<td class="rt-pad rt-sign-content" style="padding:16px 28px 0;position:relative;z-index:1;">',
             $html,
         );
         $this->assertStringContainsString('Mara Beispiel', $html);

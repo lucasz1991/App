@@ -34,7 +34,10 @@
     @param string $topRule  Akzentlinie oben (in der Signaturdatei leer)
 --}}
 @php
-    $padding = $padding ?? '18px 36px 20px';
+    // Kein unterer Leerraum vor der regulaeren Zugzeile: Das GIF besitzt
+    // selbst den benoetigten Rauch-/Himmelsbereich. Zusaetzliches Padding
+    // vergroessert nur den sichtbaren Abstand und die Signaturhoehe.
+    $padding = $padding ?? '18px 36px 0';
     $topRule = $topRule ?? 'border-top:5px solid #e4002b;';
     $legalPadding = $legalPadding ?? '14px 36px';
     $outlookTrainSrc = trim((string) ($outlookTrainSrc ?? ''));
@@ -42,7 +45,7 @@
     // transportiert. Ein zweites Stand- oder Idle-Bild ist nicht noetig:
     // das Haupt-GIF enthaelt Einfahrt, Rauchphase und sichtbaren Endzustand.
     $isOutlookExport = $outlookTrainSrc !== '';
-    $outlookTrainPadding = $outlookTrainPadding ?? '6px 0 0';
+    $outlookTrainPadding = $outlookTrainPadding ?? '0';
     $hasPerson = trim((string) ($values['VORNAME_NACHNAME'] ?? '')) !== '';
     $pflichtangaben = implode(' · ', array_filter([
         ($values['GESCHAEFTSFUEHRUNG'] ?? '') !== '' ? 'Geschäftsführung: '.$values['GESCHAEFTSFUEHRUNG'] : '',
@@ -197,7 +200,8 @@
         </table>
         @if($isOutlookExport)
             {{-- Bootstrap-/Outlook-Paketpfad: dieselbe einzelne GIF-Zeile wie
-                 in versendeten und heruntergeladenen HTML-Fassungen. --}}
+                 in versendeten und heruntergeladenen HTML-Fassungen. Die
+                 Zeile beginnt ohne Zusatzabstand direkt nach den Daten. --}}
             <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">
                 <tr>
                     <td align="left" style="padding:{{ $outlookTrainPadding }};text-align:left;font-size:0;line-height:0;">

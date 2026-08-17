@@ -609,6 +609,9 @@ test('shared page builder opens from preview into a compact responsive Mail Stud
     assert.doesNotMatch(shell, /data-page-builder-panel-host/);
 
     assert.match(mailView, /data-mail-studio-toolbar/);
+    assert.match(mailView, /data-mail-document-save/);
+    assert.match(mailView, /data-mail-document-publish/);
+    assert.match(mailView, /await saveCurrentDraft\(\)[\s\S]*?endpoints\.publish/);
     assert.match(mailView, /workspace-class="min-h-0 flex-1 overflow-hidden p-0"/);
     assert.match(mailView, /const studioRoot = workspace\.closest\('\[data-page-builder-fullscreen-root\]'\)/);
     assert.doesNotMatch(mailView, /class="rt-mail-preview-toolbar"/);
@@ -654,8 +657,11 @@ test('mail toolbar keeps documents, preview and publishing in non-overlapping re
 
     const mobile = css.slice(css.indexOf('@media (max-width: 639.98px)'));
     assert.match(mobile, /\.rt-mail-preview-toggle > button span/);
-    assert.match(mobile, /\.rt-mail-studio-toolbar__publish-label[\s\S]*?clip:\s*rect\(0, 0, 0, 0\)/);
-    assert.match(mobile, /\.rt-mail-studio-toolbar__actions > \.rt-ui-button[\s\S]*?width:\s*2\.75rem/);
+    assert.match(mobile, /\.rt-mail-studio-toolbar__action-label[\s\S]*?clip:\s*rect\(0, 0, 0, 0\)/);
+    assert.match(mobile, /\.rt-mail-studio-toolbar__action-buttons > \.rt-ui-button[\s\S]*?width:\s*2\.75rem/);
+    assert.match(mobile, /grid-template-columns:\s*minmax\(0, 1fr\) auto/);
+    assert.match(mobile, /\.rt-mail-studio-toolbar__documents[\s\S]*?grid-column:\s*1 \/ -1[\s\S]*?grid-row:\s*1/);
+    assert.match(mobile, /\.rt-mail-studio-toolbar__action-buttons[\s\S]*?grid-column:\s*2[\s\S]*?grid-row:\s*2/);
 });
 
 test('very wide editor carriers anchor the train at the uncropped left edge', async () => {

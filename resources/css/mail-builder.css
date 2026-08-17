@@ -147,6 +147,14 @@
     gap: 0.5rem;
 }
 
+.rt-mail-studio-toolbar__action-buttons {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.375rem;
+}
+
 .rt-mail-studio-toolbar > [data-mail-toolbar-region] {
     width: 100%;
     max-width: 100%;
@@ -392,7 +400,8 @@ body[data-mode='dark'] [data-mail-document-status][data-status='published'][data
  */
 @media (min-width: 1100px) and (max-width: 1399.98px) {
     .rt-mail-studio-toolbar__documents > .rt-mail-studio-document > small,
-    .rt-mail-studio-toolbar__preview .rt-mail-preview-toggle > button > span {
+    .rt-mail-studio-toolbar__preview .rt-mail-preview-toggle > button > span,
+    .rt-mail-studio-toolbar__action-label {
         position: absolute;
         width: 1px;
         height: 1px;
@@ -441,7 +450,7 @@ body[data-mode='dark'] [data-mail-document-status][data-status='published'][data
         grid-row: 1;
     }
 
-    .rt-mail-studio-toolbar__actions > .rt-ui-button {
+    .rt-mail-studio-toolbar__action-buttons {
         grid-column: 3;
         grid-row: 1;
     }
@@ -564,7 +573,7 @@ body[data-mode='dark'] [data-mail-document-status][data-status='published'][data
     .rt-mail-studio-document > small,
     .rt-mail-preview-context > strong,
     .rt-mail-preview-toggle > button span,
-    .rt-mail-studio-toolbar__publish-label {
+    .rt-mail-studio-toolbar__action-label {
         position: absolute;
         width: 1px;
         height: 1px;
@@ -587,9 +596,37 @@ body[data-mode='dark'] [data-mail-document-status][data-status='published'][data
         padding: 0.375rem;
     }
 
-    .rt-mail-studio-toolbar__actions > .rt-ui-button {
+    .rt-mail-studio-toolbar__action-buttons > .rt-ui-button {
         width: 2.75rem;
         padding-inline: 0;
+    }
+
+    .rt-mail-studio-toolbar {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .rt-mail-studio-toolbar__documents {
+        grid-column: 1 / -1;
+        grid-row: 1;
+    }
+
+    .rt-mail-document-status {
+        grid-column: 1;
+        grid-row: 2;
+        justify-self: start;
+    }
+
+    .rt-mail-studio-toolbar__action-buttons {
+        grid-column: 2;
+        grid-row: 2;
+    }
+
+    .rt-mail-studio-toolbar__preview {
+        grid-row: 3;
+    }
+
+    .rt-mail-studio-toolbar__message {
+        grid-row: 4;
     }
 
     .rt-mail-document-status {
