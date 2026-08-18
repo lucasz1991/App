@@ -21,7 +21,6 @@ class AuthServiceProvider extends ServiceProvider
     /**
      * Register any authentication / authorization services.
      */
-
     public function boot(): void
     {
         $this->registerPolicies();
@@ -46,6 +45,16 @@ class AuthServiceProvider extends ServiceProvider
                 return $user->hasRbacPermission($permission);
             });
         }
+
+        // Destructive wipe and provider configuration are deliberately absent
+        // from the delegable team RBAC catalog. Even if similarly named team
+        // values exist, only a global RailTime administrator may pass them.
+        Gate::define('devices.wipe', static function ($user): bool {
+            return $user->isAdmin();
+        });
+        Gate::define('devices.providers.manage', static function ($user): bool {
+            return $user->isAdmin();
+        });
 
         Auth::provider('user_auth', function ($app, array $config) {
             return new UserAuthProvider($app['hash'], $config['model']);

@@ -38,6 +38,13 @@ class RouteServiceProvider extends ServiceProvider
             return Limit::perMinute(300)->by($request->user()?->id ?: $request->ip());
         });
 
+        RateLimiter::for('device-provider-webhook', function (Request $request) {
+            return [
+                Limit::perMinute(120)->by('device-provider-minute:'.$request->ip()),
+                Limit::perHour(3000)->by('device-provider-hour:'.$request->ip()),
+            ];
+        });
+
         RateLimiter::for('push-subscriptions', function (Request $request) {
             return Limit::perMinute(30)->by($request->user()?->id ?: $request->ip());
         });

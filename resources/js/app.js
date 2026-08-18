@@ -2881,6 +2881,25 @@ function initFeather() {
     }
 }
 
+let featherFrame = null;
+
+function queueFeatherInit() {
+    if (featherFrame !== null) {
+        return;
+    }
+
+    featherFrame = window.requestAnimationFrame(() => {
+        featherFrame = null;
+        initFeather();
+    });
+}
+
+// Livewire morphs can introduce fresh <i data-feather> placeholders without
+// triggering a full wire:navigate lifecycle. Coalesce the element-level hook
+// into one replacement pass per frame so newly rendered actions keep both
+// their icon and their intended touch target.
+Livewire.hook('morph.updated', queueFeatherInit);
+
 function initSidebarInteractions() {
     document.querySelectorAll('.vertical-menu, .topbar-brand').forEach((element) => {
         if (element.dataset.webreachSidebarHoverBound === '1') {
@@ -3005,7 +3024,7 @@ function initAdminLayout() {
     initSidebarInteractions();
     initActiveMenu();
     initMenuItemScroll();
-    initFeather();
+    queueFeatherInit();
 }
 
 let sidebarLayoutFrame = null;

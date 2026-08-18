@@ -1,0 +1,320 @@
+openapi: 3.1.0
+info:
+  title: RailTime Device Connector Contract
+  version: 1.0.0
+  description: >-
+    Versionierter Vertrag zwischen RailTime und einem separaten Connector für
+    OpenUEM, MeshCentral, Headwind/Android-EMM, NanoMDM oder Identitätsprovider.
+    Der Connector kapselt die herstellerspezifische API. Secrets und
+    Mitarbeiterpasswörter gehören weder in Anfragen noch Antworten.
+servers:
+  - url: https://connector.example.invalid
+security:
+  - bearerAuth: []
+paths:
+  /v1/health:
+    get:
+      operationId: connectorHealth
+      responses:
+        "200":
+          description: Begrenzte, geheimnisfreie Zustandsantwort.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /v1/enrollments:
+    post:
+      operationId: prepareEnrollment
+      description: >-
+        Muss anhand enrollment_id idempotent sein. Der Connector liefert nur
+        kurzlebige Hersteller- oder Agent-Schritte zurück.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrollmentRequest"
+      responses:
+        "200":
+          description: Registrierung ist vorbereitet.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnrollmentResponse"
+  /v1/commands:
+    post:
+      operationId: dispatchCommand
+      description: >-
+        correlation_id ist der zwingende Idempotency-Key. Der Connector darf
+        denselben logischen Befehl bei einem Retry nicht erneut erzeugen.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommandRequest"
+      responses:
+        "200":
+          description: Befehl angenommen oder synchron abgeschlossen.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandResponse"
+webhooks:
+  providerEvent:
+    post:
+      description: >-
+        POST an /api/device-management/providers/{provider}/events. Der rohe
+        JSON-Body wird mit HMAC-SHA256 signiert: hex(hmac(secret,
+        timestamp + "." + rawBody)). Header: X-RailTime-Timestamp und
+        X-RailTime-Signature: sha256=<hex>. event_id muss idempotent sein.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/CommandEvent"
+                - $ref: "#/components/schemas/EnrollmentCompletedEvent"
+                - $ref: "#/components/schemas/DeviceSeenEvent"
+                - $ref: "#/components/schemas/ReadinessEvent"
+                - $ref: "#/components/schemas/IdentityEvent"
+                - $ref: "#/components/schemas/ProfilesAppliedEvent"
+      responses:
+        "200":
+          description: Ereignis wurde idempotent angenommen.
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      required: [healthy, status, contract_version, connector_version, provider, capabilities, upstream]
+      properties:
+        healthy: { type: boolean }
+        status: { type: string, maxLength: 80 }
+        contract_version:
+          type: string
+          pattern: '^[0-9]+(?:\.[0-9]+){0,2}(?:[-+][0-9A-Za-z.-]+)?$'
+          maxLength: 32
+        connector_version: { type: string, maxLength: 64 }
+        provider: { type: string, pattern: '^[a-z0-9_-]{2,64}$' }
+        capabilities:
+          type: object
+          maxProperties: 64
+          required:
+            - platforms
+            - inventory
+            - enrollment
+            - remote_support
+            - unattended_remote_support
+            - commands
+            - readiness_checks
+          properties:
+            platforms:
+              type: array
+              maxItems: 64
+              uniqueItems: true
+              items: { type: string, pattern: '^[a-z0-9_-]+$', maxLength: 80 }
+            inventory: { type: boolean }
+            enrollment: { type: boolean }
+            remote_support: { type: boolean }
+            unattended_remote_support: { type: boolean }
+            commands:
+              type: array
+              maxItems: 64
+              uniqueItems: true
+              items: { type: string, pattern: '^[a-z0-9_-]+$', maxLength: 80 }
+            readiness_checks:
+              type: array
+              maxItems: 64
+              uniqueItems: true
+              items: { type: string, pattern: '^[a-z0-9_-]+$', maxLength: 80 }
+          additionalProperties:
+            oneOf:
+              - { type: boolean }
+              - { type: string, maxLength: 80 }
+              - type: array
+                maxItems: 64
+                items: { type: string, maxLength: 80 }
+        upstream:
+          type: object
+          additionalProperties: false
+          required: [reachable, authenticated, status]
+          properties:
+            reachable: { type: boolean }
+            authenticated: { type: boolean }
+            status: { type: string, maxLength: 80 }
+            api_version: { type: [string, "null"], maxLength: 64 }
+            last_success_at: { type: [string, "null"], format: date-time }
+        details:
+          type: object
+          additionalProperties:
+            type: [string, number, boolean, "null"]
+    EnrollmentRequest:
+      type: object
+      additionalProperties: false
+      required: [enrollment_id, device_id, platform, mode, expires_at]
+      properties:
+        enrollment_id: { type: string, maxLength: 64 }
+        device_id: { type: string, maxLength: 64 }
+        provider_device_id: { type: [string, "null"], maxLength: 191 }
+        platform:
+          enum: [windows, macos, linux, android, ios, ipados, chromeos]
+        mode: { type: string, maxLength: 40 }
+        expires_at: { type: string, format: date-time }
+    EnrollmentResponse:
+      type: object
+      additionalProperties: false
+      required: [status, steps]
+      properties:
+        status: { type: string, maxLength: 80 }
+        steps:
+          type: array
+          minItems: 1
+          maxItems: 12
+          items: { type: string, maxLength: 500 }
+        enrollment_url: { type: [string, "null"], format: uri, maxLength: 2000 }
+        expires_at: { type: [string, "null"], format: date-time }
+        limited_management: { type: boolean, default: false }
+        message: { type: [string, "null"], maxLength: 500 }
+    CommandRequest:
+      type: object
+      additionalProperties: false
+      required: [command_id, correlation_id, device_id, command, options]
+      properties:
+        command_id: { type: string, maxLength: 64 }
+        correlation_id: { type: string, maxLength: 128 }
+        device_id: { type: string, maxLength: 64 }
+        provider_device_id: { type: [string, "null"], maxLength: 191 }
+        command:
+          enum:
+            - sync
+            - lock
+            - unlock
+            - wipe
+            - restart
+            - execute_script
+            - install_software
+            - uninstall_software
+            - collect_diagnostics
+            - apply_profile
+            - start_remote_support
+        options: { type: object }
+        artifact:
+          $ref: "#/components/schemas/ArtifactReference"
+    ArtifactReference:
+      type: object
+      additionalProperties: false
+      required: [download_url, sha256, size_bytes, name, authentication]
+      properties:
+        download_url: { type: string, format: uri, maxLength: 2000 }
+        sha256: { type: string, pattern: "^[a-f0-9]{64}$" }
+        size_bytes: { type: integer, minimum: 1 }
+        name: { type: string, maxLength: 191 }
+        authentication: { const: railtime-hmac-v1 }
+    CommandResponse:
+      type: object
+      additionalProperties: false
+      required: [accepted, completed]
+      properties:
+        accepted: { type: boolean }
+        completed: { type: boolean }
+        provider_job_id: { type: [string, "null"], maxLength: 191 }
+        message: { type: [string, "null"], maxLength: 500 }
+        details:
+          type: object
+          additionalProperties:
+            type: [string, number, boolean, "null"]
+    BaseEvent:
+      type: object
+      required: [event_id, event_type]
+      properties:
+        event_id: { type: string, maxLength: 128 }
+        event_type: { type: string, maxLength: 64 }
+    CommandEvent:
+      allOf:
+        - $ref: "#/components/schemas/BaseEvent"
+        - type: object
+          required: [correlation_id]
+          properties:
+            event_type:
+              enum: [command.running, command.succeeded, command.failed]
+            correlation_id: { type: string, maxLength: 128 }
+            provider_job_id: { type: [string, "null"], maxLength: 191 }
+            message: { type: [string, "null"], maxLength: 500 }
+            details: { type: object }
+    EnrollmentCompletedEvent:
+      allOf:
+        - $ref: "#/components/schemas/BaseEvent"
+        - type: object
+          required: [enrollment_id]
+          properties:
+            event_type: { const: enrollment.completed }
+            enrollment_id: { type: string, maxLength: 64 }
+    DeviceSeenEvent:
+      allOf:
+        - $ref: "#/components/schemas/BaseEvent"
+        - type: object
+          required: [device_id]
+          properties:
+            event_type: { const: device.seen }
+            device_id: { type: string, maxLength: 64 }
+    ReadinessEvent:
+      allOf:
+        - $ref: "#/components/schemas/BaseEvent"
+        - type: object
+          required: [device_id, checks]
+          properties:
+            event_type: { const: readiness.updated }
+            device_id: { type: string, maxLength: 64 }
+            checks:
+              type: array
+              maxItems: 12
+              items:
+                type: object
+                required: [key, status]
+                properties:
+                  key: { type: string, maxLength: 80 }
+                  status:
+                    enum: [passed, warning, blocked, unknown, pending, not_applicable, stale]
+                  evidence: { type: object }
+    IdentityEvent:
+      allOf:
+        - $ref: "#/components/schemas/BaseEvent"
+        - type: object
+          required: [device_id, accounts]
+          properties:
+            event_type: { const: identity.updated }
+            device_id: { type: string, maxLength: 64 }
+            accounts:
+              type: array
+              maxItems: 4
+              items:
+                type: object
+                required: [provider, provisioning_status, license_status, signed_in]
+                properties:
+                  provider:
+                    enum: [microsoft_365, google_workspace, apple_managed]
+                  external_id: { type: [string, "null"], maxLength: 191 }
+                  provisioning_status:
+                    enum: [pending_provider, applied, ready, error, revoked]
+                  license_status:
+                    enum: [unknown, assigned, active, not_required, missing, error]
+                  signed_in: { type: boolean }
+    ProfilesAppliedEvent:
+      allOf:
+        - $ref: "#/components/schemas/BaseEvent"
+        - type: object
+          required: [device_id, assignment_ids]
+          properties:
+            event_type: { const: profiles.applied }
+            device_id: { type: string, maxLength: 64 }
+            assignment_ids:
+              type: array
+              minItems: 1
+              maxItems: 30
+              items: { type: integer, minimum: 1 }

@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Api\DeviceArtifactDownloadController;
+use App\Http\Controllers\Api\DeviceProviderWebhookController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -12,3 +14,15 @@ use Illuminate\Support\Facades\Route;
 | be assigned to the "api" middleware group. Make something great!
 |
 */
+
+// Connector-Rueckmeldungen sind HMAC-signiert (Zeitstempel + Rohbody),
+// groessenbegrenzt und zusaetzlich durch den allgemeinen API-Limiter geschuetzt.
+Route::post('/device-management/providers/{provider}/events', DeviceProviderWebhookController::class)
+    ->where('provider', '[a-z0-9_-]{2,64}')
+    ->middleware('throttle:device-provider-webhook')
+    ->name('api.device-management.providers.events');
+
+Route::get('/device-management/providers/{provider}/artifacts/{artifact}', DeviceArtifactDownloadController::class)
+    ->where('provider', '[a-z0-9_-]{2,64}')
+    ->middleware('throttle:device-provider-webhook')
+    ->name('api.device-management.artifacts.show');

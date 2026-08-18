@@ -42,6 +42,18 @@
             </x-menu.sidebar-nav>
         @endcan
 
+        @can('devices.view')
+            <x-menu.sidebar-nav :label="__('app.management')">
+                <x-menu.sidebar-nav-link
+                    :href="route('devices.index')"
+                    icon="monitor"
+                    :active="request()->routeIs('devices.index')"
+                >
+                    Geräte & Lager
+                </x-menu.sidebar-nav-link>
+            </x-menu.sidebar-nav>
+        @endcan
+
         <x-menu.sidebar-nav :label="__('app.communication')">
             <x-menu.sidebar-nav-group
                 icon="message-square"
@@ -117,6 +129,14 @@
         </x-menu.sidebar-nav>
 
         <x-menu.sidebar-nav :label="__('app.my_area')">
+            <x-menu.sidebar-nav-link
+                :href="route('devices.mine')"
+                icon="smartphone"
+                :active="request()->routeIs('devices.mine', 'devices.enrollment')"
+            >
+                Meine Geräte
+            </x-menu.sidebar-nav-link>
+
             <x-menu.sidebar-nav-link
                 :href="route('profile.show')"
                 icon="user"

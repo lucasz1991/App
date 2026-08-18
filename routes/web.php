@@ -18,6 +18,7 @@ use App\Http\Controllers\Calls\CallTokenController;
 use App\Http\Controllers\ChatAttachmentController;
 use App\Http\Controllers\ChatExportController;
 use App\Http\Controllers\ChatLiveLocationController;
+use App\Http\Controllers\DeviceInventoryTemplateController;
 use App\Http\Controllers\ManagedDocumentDownloadController;
 use App\Http\Controllers\ProfileEmailTemplateController;
 use App\Http\Controllers\PushSubscriptionController;
@@ -43,6 +44,9 @@ use App\Livewire\Calls\CallDetails;
 use App\Livewire\Calls\CallHistory;
 use App\Livewire\Calls\CallWindow;
 use App\Livewire\ChatBox;
+use App\Livewire\Devices\DeviceEnrollmentSetup;
+use App\Livewire\Devices\DeviceManagement;
+use App\Livewire\Devices\MyDevices;
 use App\Livewire\HelpCenter;
 use App\Livewire\ItSupport;
 use App\Livewire\MessageBox;
@@ -130,6 +134,16 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
     Route::get('/dashboard', UserDashboard::class)->name('dashboard');
     Route::get('/employees', Employees::class)->name('employees.index');
     Route::get('/employees/{userId}', UserProfile::class)->name('employees.show');
+    // Die neutrale Route bleibt fuer delegierte Verwaltungs-/Teamrechte
+    // erreichbar. Jede Livewire-Aktion prueft ihr konkretes Device-Gate erneut.
+    Route::get('/geraete', DeviceManagement::class)->name('devices.index');
+    Route::get('/geraete/import-vorlage.csv', DeviceInventoryTemplateController::class)
+        ->name('devices.import-template');
+    Route::get('/meine-geraete', MyDevices::class)->name('devices.mine');
+    Route::get('/geraete/einrichten/{token}', DeviceEnrollmentSetup::class)
+        ->where('token', '[A-Za-z0-9_-]{40,128}')
+        ->middleware('throttle:10,1')
+        ->name('devices.enrollment');
     Route::get('/betrieb/wagenliste', WagonListPrototype::class)
         ->middleware(RedirectAdminWagonList::class)
         ->name('operations.wagon-list');
@@ -221,6 +235,7 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
         Route::get('/settings', Settings::class)->name('settings');
         Route::get('/employees', Employees::class)->name('employees');
         Route::get('/user/{userId}', UserProfile::class)->name('user-profile');
+        Route::get('/geraete', DeviceManagement::class)->name('devices');
         Route::get('/files', FileManager::class)->name('files');
         Route::get('/files/verbindlich', ManagedDocuments::class)->name('managed-documents');
         Route::get('/mails', MailManagement::class)->name('mail-management');

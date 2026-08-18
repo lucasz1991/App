@@ -20,6 +20,7 @@ sein wie die Auftrags- und Schichtdaten darunter.
 |---|---|---|---|
 | 1 | **Plattform & Kommunikation** | Konten, Rollen und Team-Rechte, Nachrichten, Chat, Dateien, Push, Firmendaten und Marketing-Studio | umgesetzt |
 | 1b | **Video- und Sprachanrufe** | Anrufe aus dem Chat, Gruppenräume, Moderation, Bildschirmfreigabe | umgesetzt |
+| 1c | **Geräteverwaltung** | Virtuelles Lager, Mitarbeiterzuordnung, Remote-Enrollment, Bereitschaft, Kontenprofile, Connectoren und Geräteaktionen | RailTime-Kern umgesetzt; echte Provider noch zu provisionieren |
 | 2 | **Auftragsverwaltung** | Aufträge, Kunden, Einsatzorte, Dokumente, Nachweise vor Ort | in Umsetzung |
 | 3 | **Schichtplanung & Kalender** | Dienstpläne, Qualifikationen, Verfügbarkeiten, Ruhezeiten, Abwesenheiten, Schichttausch | in Umsetzung |
 | 4 | **Assistierte Disposition** | Begründete Vorschlagsliste statt manueller Suche | geplant |
@@ -67,6 +68,47 @@ setzt eine bestehende Freigabe zurück. Uploads und gerenderte Dateien liegen au
 dem privaten Dateisystem und werden ausschließlich über geschützte Adminrouten
 ausgeliefert. Kampagnenplanung, direkte Kanalveröffentlichung und PDF-Export
 gehören bewusst noch nicht zu V1.
+
+### Geräteverwaltung
+
+Unter **Geräte & Lager** verwaltet RailTime den Gerätebestand, historische und
+aktive Mitarbeiterzuordnungen, Remote-Registrierungen, Microsoft-365-/Outlook-,
+Google-Workspace- und Apple-Sollprofile, Readiness-Nachweise, freigegebene
+Dateien/Skripte sowie protokollierte Geräteaktionen. Mitarbeitende sehen unter
+**Meine Geräte** nur ihre eigenen aktiven Zuweisungen und persönlichen
+Einrichtungsschritte.
+
+RailTime ist dabei die abgesicherte fachliche Steuerungsebene. OpenUEM,
+MeshCentral, Headwind beziehungsweise ein qualifizierter Android-EMM und der
+NanoMDM-/Apple-Baustein werden ausschließlich über versionierte HTTPS-
+Connectoren angebunden. Nicht belegte Fähigkeiten bleiben in der Oberfläche
+gesperrt; externe Gerätebefehle sind zusätzlich durch einen standardmäßig
+deaktivierten globalen Kill-Switch geschützt. Fernlöschung benötigt immer zwei
+verschiedene globale Administratoren.
+
+Die RailTime-seitige Connector-Konfiguration benötigt keine `DEVICE_*`-
+Umgebungsvariablen. Benutzer #1 richtet Basisdomain, Plesk-Betriebsart,
+RailTime-Adapterports, Identitätsdomänen, Zugriffstoken und Webhook-Secrets unter
+**Einstellungen → Geräte-Setup** ein. Geheimnisse werden mit dem
+Anwendungsschlüssel verschlüsselt in der bestehenden `settings`-Tabelle
+gespeichert und nach dem Speichern nur noch maskiert angezeigt. Ein
+nicht-destruktiver Verbindungstest prüft ausschließlich den versionierten
+`GET /v1/health`-Endpunkt; er führt weder Enrollment noch Gerätebefehle aus.
+
+Für denselben Plesk-Server ist eine HTTPS-Subdomain je öffentlich benötigtem
+Dienst der empfohlene Weg. Alternativ kann RailTime seine eigenen Adapter über
+die vorbelegten Loopback-Ports erreichen; diese Ports sind keine behaupteten
+Herstellerports und sollen nicht öffentlich in der Firewall freigegeben werden.
+Die Oberfläche legt weder Plesk-Subdomains noch Container automatisch an. Die
+Laravel-Grundkonfiguration (`APP_KEY`, Datenbank usw.) und die eigenen
+Betriebsgeheimnisse der externen Dienste bleiben weiterhin erforderlich.
+
+RailTime speichert keine Mitarbeiterpasswörter und meldet Konten nicht durch
+Imitation des Mitarbeiters an. Es verteilt lediglich UPN/E-Mail, Modern-Auth-/
+SSO-, App-, WLAN-, VPN- und Zertifikatsprofile. Der Mitarbeiter bestätigt danach
+einmal den offiziellen OAuth-/SSO-/MFA-Dialog. Das vollständige Dossier, die
+Mockups, der Connectorvertrag und der gestufte Produktions-Testlauf liegen unter
+[`.dev/railtime-device-management-research`](.dev/railtime-device-management-research/README.md).
 
 Nach dem Aktualisieren des Codes muss das neue Fachschema angelegt werden:
 
@@ -154,14 +196,17 @@ MARKETING_CHROME_NO_SANDBOX=false
 MARKETING_RENDER_TIMEOUT=75
 ```
 
-Es wird **ein** dauerhafter Worker auf der Queue `default` benötigt:
+Es wird **ein** dauerhafter Worker benötigt, der die fachlichen Queues in
+Prioritätsreihenfolge verarbeitet:
 
 ```bash
-php artisan queue:work database --queue=default --tries=4 --backoff=30 --timeout=90
+php artisan queue:work database --queue=default,calls,devices --tries=4 --backoff=30 --timeout=90
 ```
 
-Der Prozess muss automatisch neu starten. **Auf Plesk** übernimmt das der im
-Laravel-Toolkit aktivierte Queue-Worker — RailTime startet bewusst keinen
+Der Prozess muss automatisch neu starten. Gerätejobs haben zusätzlich einen
+internen Timeout von 35 Sekunden, idempotente Korrelations-IDs und eine Sperre
+pro Gerät. **Auf Plesk** übernimmt das im Laravel-Toolkit aktivierte Queue-
+Worker-Setup den Prozess — RailTime startet bewusst keinen
 zweiten Worker über den Scheduler und richtet auch keinen über Supervisor ein.
 Zwei Worker auf derselben Queue führen zu doppelt verarbeiteten Jobs.
 
@@ -404,10 +449,10 @@ und serverseitige Verschlüsselung als Bucket-Standard erzwingen. Zugangsdaten
 liegen ausschließlich im Deployment-Secret-Store. Der Scheduler gleicht jede
 Minute Egress-Zustände ab und löscht fertige Dateien nach 90 Tagen; Metadaten,
 Call-Chat und Ereignisse bleiben erhalten. Der Queue-Worker muss deshalb neben
-`default` auch `calls` bedienen:
+`default` auch `calls` und die abgesonderte Gerätequeue `devices` bedienen:
 
 ```bash
-php artisan queue:work database --queue=default,calls --tries=4 --backoff=30 --timeout=90
+php artisan queue:work database --queue=default,calls,devices --tries=4 --backoff=30 --timeout=90
 ```
 
 Self-hosting benötigt einen separaten Egress-Dienst am selben privaten Redis

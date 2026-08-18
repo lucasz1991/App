@@ -44,6 +44,35 @@ const MAIL_PREVIEW_TRANSPARENT_PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSU
 const MAIL_PREVIEW_TRAIN_PLACEHOLDER = 'about:blank#rt-mail-train-preview';
 const MAIL_SIGNATURE_MAIN_MARKER_NAME = 'RT_SIGNATURE_MAIN_END';
 const MAIL_SIGNATURE_MAIN_MARKER = `<!-- ${MAIL_SIGNATURE_MAIN_MARKER_NAME} -->`;
+const MAIL_SIGNATURE_CONTACT_MARKER_ATTRIBUTE = 'data-rt-mail-contact-marker';
+const MAIL_SIGNATURE_CONTACT_MARKERS = Object.freeze({
+    PHONE: Object.freeze({
+        tableClass: 'rt-contact',
+        forbiddenClass: 'rt-company-contact',
+        valueToken: '{{DURCHWAHL}}',
+    }),
+    MOBILE: Object.freeze({
+        tableClass: 'rt-contact',
+        forbiddenClass: 'rt-company-contact',
+        valueToken: '{{MOBIL}}',
+    }),
+    WEBSITE: Object.freeze({
+        tableClass: 'rt-company-contact',
+        forbiddenClass: null,
+        valueToken: '{{FIRMEN_WEBSITE_LABEL}}',
+    }),
+    COMPANY_PHONE: Object.freeze({
+        tableClass: 'rt-company-contact',
+        forbiddenClass: null,
+        valueToken: '{{FIRMEN_TELEFON}}',
+    }),
+    COMPANY_EMAIL: Object.freeze({
+        tableClass: 'rt-company-contact',
+        forbiddenClass: null,
+        valueToken: '{{FIRMEN_EMAIL}}',
+    }),
+});
+const MAIL_SIGNATURE_RAW_CONTACT_MARKER = /RT_(?:PHONE|MOBILE|WEBSITE|COMPANY_PHONE|COMPANY_EMAIL)_(?:START|END)/i;
 const MAIL_AUTO_STYLE_CLASS = /^c\d+$/i;
 const MAIL_CSS_TOKEN = /\{\{([A-Z][A-Z0-9_]*)\}\}/g;
 const MAIL_CSS_TOKEN_COLORS = Object.freeze([
@@ -184,6 +213,208 @@ function parseMailFragment(parser, html) {
         `<!doctype html><html><head></head><body>${String(html || '')}</body></html>`,
         'text/html',
     );
+}
+
+/** Findet das Ende eines Starttags, ohne `>` in quotierten Attributen als
+ * Tagende fehlzuinterpretieren. HTML kennt in Attributwerten kein
+ * Backslash-Escaping; geschlossen wird nur durch dasselbe Quotezeichen. */
+function findHtmlOpeningTag(source, tagName) {
+    const start = new RegExp(`<${tagName}(?=[\\s/>])`, 'i').exec(source);
+    if (!start) return null;
+
+    let quote = null;
+    for (let index = start.index + start[0].length; index < source.length; index += 1) {
+        const character = source[index];
+        if (quote !== null) {
+            if (character === quote) quote = null;
+            continue;
+        }
+        if (character === '"' || character === "'") {
+            quote = character;
+            continue;
+        }
+        if (character === '>') {
+            return {
+                index: start.index,
+                html: source.slice(start.index, index + 1),
+            };
+        }
+    }
+
+    return null;
+}
+
+function isSignificantHtmlNode(node) {
+    if (node?.nodeType === 1 || node?.nodeType === 8) return true;
+    if (node?.nodeType !== 3) return false;
+
+    // PHP trim(), wie im SignatureDocumentContract, entfernt nur diesen
+    // ASCII-Whitespace. NBSP und andere sichtbare Unicode-Zeichen muessen den
+    // Markerabstand weiterhin ungueltig machen statt still zu verschwinden.
+    return String(node.textContent || '').replace(/[ \t\n\r\u0000\u000B]/g, '') !== '';
+}
+
+/**
+ * Browser erzeugen fuer Tabellen ohne ausdrueckliches tbody selbst einen
+ * Tabellenkoerper. Ein Kommentar direkt vor der ersten Zeile bleibt dabei am
+ * table, waehrend Zeile und Endkommentar in das neue tbody wandern. Genau das
+ * zerlegt die serverseitig benoetigten Kontaktmarker-Siblings.
+ *
+ * Vor dem ersten DOM-/GrapesJS-Import werden die bereits servervalidierten
+ * Marker deshalb in ein reserviertes Attribut ihrer sichtbaren Zeile
+ * ueberfuehrt. Kommentare koennen danach vom Builder verworfen werden, ohne
+ * dass Text, Links, Icons oder Formatierungen verlorengehen. Beliebige
+ * Markerzustaende werden nicht repariert: nur alle fuenf exakten, geordneten
+ * Paare sind bindbar.
+ */
+function bindSignatureContactMarkerRows(signature, parser = null) {
+    let source = String(signature || '');
+    if (new RegExp(`\\b${MAIL_SIGNATURE_CONTACT_MARKER_ATTRIBUTE}\\b`, 'i').test(source)) {
+        throw new Error('Die Signatur enthaelt einen reservierten Kontaktmarker des Editors.');
+    }
+
+    const pairs = [];
+    Object.entries(MAIL_SIGNATURE_CONTACT_MARKERS).forEach(([marker, context]) => {
+        const startName = `RT_${marker}_START`;
+        const endName = `RT_${marker}_END`;
+        const startComment = `<!-- ${startName} -->`;
+        const endComment = `<!-- ${endName} -->`;
+        const start = source.indexOf(startComment);
+        const end = source.indexOf(endComment);
+        const exactStarts = source.split(startComment).length - 1;
+        const exactEnds = source.split(endComment).length - 1;
+        const namedStarts = source.split(startName).length - 1;
+        const namedEnds = source.split(endName).length - 1;
+
+        if (exactStarts === 0 && exactEnds === 0 && namedStarts === 0 && namedEnds === 0) return;
+        if (exactStarts !== 1 || exactEnds !== 1 || namedStarts !== 1 || namedEnds !== 1 || start >= end) {
+            throw new Error('Die Kontaktmarker der Signatur sind unvollstaendig, dupliziert oder veraendert.');
+        }
+
+        const between = source.slice(start + startComment.length, end);
+        const row = findHtmlOpeningTag(between, 'tr');
+        if (!row) {
+            throw new Error('Ein Kontaktmarker besitzt nicht mehr seine gebundene Wertzeile.');
+        }
+        if (parser) {
+            const probe = parseMailFragment(
+                parser,
+                `<table data-rt-mail-contact-probe="true"><tbody>${between}</tbody></table>`,
+            );
+            const probeTables = probe.querySelectorAll('table[data-rt-mail-contact-probe="true"]');
+            const probeBody = probeTables[0]?.tBodies?.[0] || probeTables[0]?.querySelector?.('tbody');
+            const bodyChildren = Array.from(probe.body?.childNodes || []).filter(isSignificantHtmlNode);
+            const significant = Array.from(probeBody?.childNodes || []).filter(isSignificantHtmlNode);
+            const directRow = significant[0];
+            if (probeTables.length !== 1
+                || bodyChildren.length !== 1
+                || bodyChildren[0] !== probeTables[0]
+                || significant.length !== 1
+                || directRow?.tagName !== 'TR'
+                || !String(directRow.textContent || '').includes(context.valueToken)) {
+                throw new Error('Jeder Kontaktmarker muss genau eine direkte Tabellenzeile binden.');
+            }
+        } else if (!between.includes(context.valueToken)) {
+            throw new Error('Ein Kontaktmarker besitzt nicht mehr seine gebundene Wertzeile.');
+        }
+
+        pairs.push({
+            marker,
+            start,
+            end,
+            startComment,
+            endComment,
+            rowOffset: row.index,
+            rowTag: row.html,
+        });
+    });
+
+    if (pairs.length === 0) return { html: source, hasMarkers: false };
+    if (pairs.length !== Object.keys(MAIL_SIGNATURE_CONTACT_MARKERS).length) {
+        throw new Error('Die Signatur enthaelt nicht alle gebundenen Kontaktzeilen.');
+    }
+
+    const ordered = [...pairs].sort((left, right) => left.start - right.start);
+    ordered.forEach((pair, index) => {
+        if (index > 0 && pair.start <= ordered[index - 1].end) {
+            throw new Error('Die Kontaktmarker der Signatur ueberlappen sich.');
+        }
+    });
+
+    [...ordered].reverse().forEach((pair) => {
+        const between = source.slice(pair.start + pair.startComment.length, pair.end);
+        const taggedRow = pair.rowTag.replace(
+            /\/?>$/,
+            (ending) => ` ${MAIL_SIGNATURE_CONTACT_MARKER_ATTRIBUTE}="${pair.marker}"${ending}`,
+        );
+        const taggedBetween = between.slice(0, pair.rowOffset)
+            + taggedRow
+            + between.slice(pair.rowOffset + pair.rowTag.length);
+        source = source.slice(0, pair.start)
+            + taggedBetween
+            + source.slice(pair.end + pair.endComment.length);
+    });
+
+    return { html: source, hasMarkers: true };
+}
+
+function assertSignatureContactMarkerBindings(root, required = false) {
+    const source = String(root?.innerHTML || '');
+    if (MAIL_SIGNATURE_RAW_CONTACT_MARKER.test(source)) {
+        throw new Error('Kontaktmarker duerfen im Editor nicht neben ihrer gebundenen Zeile liegen.');
+    }
+
+    const rows = Array.from(root?.querySelectorAll?.(`[${MAIL_SIGNATURE_CONTACT_MARKER_ATTRIBUTE}]`) || []);
+    if (!required && rows.length === 0) return new Map();
+    if (rows.length !== Object.keys(MAIL_SIGNATURE_CONTACT_MARKERS).length) {
+        throw new Error('Die gebundenen Kontaktzeilen der Signatur sind unvollstaendig oder dupliziert.');
+    }
+
+    const bindings = new Map();
+    rows.forEach((row) => {
+        const marker = String(row.getAttribute(MAIL_SIGNATURE_CONTACT_MARKER_ATTRIBUTE) || '');
+        const context = MAIL_SIGNATURE_CONTACT_MARKERS[marker];
+        const table = row.closest?.('table');
+        if (!context || bindings.has(marker) || row.tagName !== 'TR' || !table
+            || !table.classList.contains(context.tableClass)
+            || (context.forbiddenClass && table.classList.contains(context.forbiddenClass))
+            || !String(row.textContent || '').includes(context.valueToken)) {
+            throw new Error('Eine Kontaktzeile wurde im Editor verschoben, vervielfacht oder veraendert.');
+        }
+        bindings.set(marker, row);
+    });
+
+    if (bindings.size !== Object.keys(MAIL_SIGNATURE_CONTACT_MARKERS).length) {
+        throw new Error('Die gebundenen Kontaktzeilen der Signatur sind unvollstaendig.');
+    }
+
+    return bindings;
+}
+
+function restoreSignatureContactMarkers(root, required = false) {
+    const bindings = assertSignatureContactMarkerBindings(root, required);
+    bindings.forEach((row, marker) => {
+        const parent = row.parentNode;
+        if (!parent || !row.ownerDocument?.createComment) {
+            throw new Error('Eine Kontaktzeile konnte nicht kanonisch rekonstruiert werden.');
+        }
+
+        row.removeAttribute(MAIL_SIGNATURE_CONTACT_MARKER_ATTRIBUTE);
+        parent.insertBefore(row.ownerDocument.createComment(` RT_${marker}_START `), row);
+        parent.insertBefore(row.ownerDocument.createComment(` RT_${marker}_END `), row.nextSibling);
+    });
+
+    if (required) {
+        const source = String(root?.innerHTML || '');
+        Object.keys(MAIL_SIGNATURE_CONTACT_MARKERS).forEach((marker) => {
+            if ((source.split(`<!-- RT_${marker}_START -->`).length - 1) !== 1
+                || (source.split(`<!-- RT_${marker}_END -->`).length - 1) !== 1) {
+                throw new Error('Die Kontaktmarker konnten nicht exakt wiederhergestellt werden.');
+            }
+        });
+    }
+
+    return bindings.size;
 }
 
 /**
@@ -828,7 +1059,9 @@ export function projectForMailDocument(draft, parseCss = () => [], options = {})
             throw new Error('Der Signatur-Editor benötigt ein kanonisches HTML-Fragment.');
         }
 
-        let signature = page.component;
+        const signatureParser = domParserFor(options.environment || globalThis);
+        const contactProjection = bindSignatureContactMarkerRows(page.component, signatureParser);
+        let signature = contactProjection.html;
         MAIL_PREVIEW_IMAGE_TOKENS.forEach((token) => {
             const source = new RegExp(`src=(["'])\\{\\{${token}\\}\\}\\1`, 'gi');
             signature = signature.replace(
@@ -839,7 +1072,7 @@ export function projectForMailDocument(draft, parseCss = () => [], options = {})
         signature = markSignatureTrainPreviews(signature);
 
         const parsed = parseMailFragment(
-            domParserFor(options.environment || globalThis),
+            signatureParser,
             `<table ${MAIL_SIGNATURE_CANVAS_ATTRIBUTE}="true" role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;"><tbody>${signature}</tbody></table>`,
         );
         const wrapper = parsed.querySelector(`table[${MAIL_SIGNATURE_CANVAS_ATTRIBUTE}]`);
@@ -855,6 +1088,7 @@ export function projectForMailDocument(draft, parseCss = () => [], options = {})
             || trainCarrier.parentElement !== rows[0]) {
             throw new Error('Die Signatur benoetigt zwei Tabellenzeilen und genau ein gebundenes Zugmotiv in ihrer Hauptflaeche.');
         }
+        assertSignatureContactMarkerBindings(wrapper, contactProjection.hasMarkers);
 
         const trainRow = parsed.createElement('tr');
         trainRow.setAttribute('data-rt-mail-preview-only', 'train');
@@ -983,6 +1217,9 @@ export function serializeMailDocumentForSave({
         || trainCarrier.parentElement !== rows[0]) {
         throw new Error('Die sichere Tabellenstruktur des Signatur-Editors fehlt.');
     }
+
+    const baselineContactProjection = bindSignatureContactMarkerRows(baselineHtml, parser);
+    restoreSignatureContactMarkers(wrapper, baselineContactProjection.hasMarkers);
 
     wrapper.querySelectorAll(`[${MAIL_PREVIEW_IMAGE_ATTRIBUTE}]`).forEach((image) => {
         const token = image.getAttribute(MAIL_PREVIEW_IMAGE_ATTRIBUTE);

@@ -181,6 +181,151 @@ test('signature preview uses a regular train image and roundtrips two canonical 
     assert.equal((restored.html.match(/<!-- RT_SIGNATURE_MAIN_END -->/g) || []).length, 1);
 });
 
+test('signature contact rows survive the element-only GrapesJS roundtrip as exact marker siblings', () => {
+    const original = '<tr><td class="rt-sign-cell" style="background-image:url(\'{{TRAIN_SRC}}\')">'
+        + '<table class="rt-contact">'
+        + '<!-- RT_PHONE_START --><tr><td>{{DURCHWAHL}}</td></tr><!-- RT_PHONE_END -->'
+        + '<!-- RT_MOBILE_START --><tr><td>{{MOBIL}}</td></tr><!-- RT_MOBILE_END -->'
+        + '</table>'
+        + '<table class="rt-contact rt-company-contact">'
+        + '<!-- RT_COMPANY_PHONE_START --><tr><td>{{FIRMEN_TELEFON}}</td></tr><!-- RT_COMPANY_PHONE_END -->'
+        + '<!-- RT_COMPANY_EMAIL_START --><tr><td>{{FIRMEN_EMAIL}}</td></tr><!-- RT_COMPANY_EMAIL_END -->'
+        + '<!-- RT_WEBSITE_START --><tr><td>{{FIRMEN_WEBSITE_LABEL}}</td></tr><!-- RT_WEBSITE_END -->'
+        + '</table><img src="{{LOGO_SRC}}"></td></tr>'
+        + '<!-- RT_SIGNATURE_MAIN_END --><tr><td>Rechtliches</td></tr>';
+    const project = projectForMailDocument({
+        builderData: { pages: [{ component: original }], styles: [] },
+        css: '',
+    }, () => [], { kind: 'signature', environment: { DOMParser } });
+    const editorHtml = project.pages[0].component;
+
+    // GrapesJS serialisiert verlaesslich Elemente und Attribute, nicht aber
+    // Kommentare zwischen Tabellenzeilen. Im Canvas existieren deshalb nur
+    // die fuenf gebundenen sichtbaren Zeilen.
+    assert.equal((editorHtml.match(/data-rt-mail-contact-marker=/g) || []).length, 5);
+    assert.doesNotMatch(editorHtml, /RT_(?:PHONE|MOBILE|WEBSITE|COMPANY_PHONE|COMPANY_EMAIL)_(?:START|END)/);
+
+    const outgoing = serializeMailDocumentForSave({
+        project,
+        html: editorHtml,
+        kind: 'signature',
+        baselineHtml: original,
+        environment: { DOMParser },
+    });
+    const markerTokens = {
+        PHONE: '{{DURCHWAHL}}',
+        MOBILE: '{{MOBIL}}',
+        COMPANY_PHONE: '{{FIRMEN_TELEFON}}',
+        COMPANY_EMAIL: '{{FIRMEN_EMAIL}}',
+        WEBSITE: '{{FIRMEN_WEBSITE_LABEL}}',
+    };
+    Object.entries(markerTokens).forEach(([marker, token]) => {
+        assert.equal((outgoing.html.match(new RegExp(`<!-- RT_${marker}_START -->`, 'g')) || []).length, 1);
+        assert.equal((outgoing.html.match(new RegExp(`<!-- RT_${marker}_END -->`, 'g')) || []).length, 1);
+        assert.match(
+            outgoing.html,
+            new RegExp(`<!-- RT_${marker}_START -->\\s*<tr[^>]*>[\\s\\S]*?${token.replace(/[{}]/g, '\\$&')}[\\s\\S]*?<\\/tr>\\s*<!-- RT_${marker}_END -->`),
+        );
+    });
+    assert.doesNotMatch(outgoing.html, /data-rt-mail-contact-marker/);
+
+    const withoutBinding = editorHtml.replace(' data-rt-mail-contact-marker="PHONE"', '');
+    assert.throws(() => serializeMailDocumentForSave({
+        project,
+        html: withoutBinding,
+        kind: 'signature',
+        baselineHtml: original,
+        environment: { DOMParser },
+    }), /Kontaktzeilen/);
+
+    const duplicatedBinding = editorHtml.replace(
+        'data-rt-mail-contact-marker="MOBILE"',
+        'data-rt-mail-contact-marker="PHONE"',
+    );
+    assert.throws(() => serializeMailDocumentForSave({
+        project,
+        html: duplicatedBinding,
+        kind: 'signature',
+        baselineHtml: original,
+        environment: { DOMParser },
+    }), /verschoben, vervielfacht|unvollstaendig/);
+
+    const movedBinding = editorHtml
+        .replace('data-rt-mail-contact-marker="PHONE"', 'data-rt-mail-contact-marker="TEMP"')
+        .replace('data-rt-mail-contact-marker="COMPANY_PHONE"', 'data-rt-mail-contact-marker="PHONE"')
+        .replace('data-rt-mail-contact-marker="TEMP"', 'data-rt-mail-contact-marker="COMPANY_PHONE"');
+    assert.throws(() => serializeMailDocumentForSave({
+        project,
+        html: movedBinding,
+        kind: 'signature',
+        baselineHtml: original,
+        environment: { DOMParser },
+    }), /verschoben, vervielfacht|veraendert/);
+
+    const nearMiss = editorHtml.replace('</table>', '<!-- RT_PHONE_START_EXTRA --></table>');
+    assert.throws(() => serializeMailDocumentForSave({
+        project,
+        html: nearMiss,
+        kind: 'signature',
+        baselineHtml: original,
+        environment: { DOMParser },
+    }), /Kontaktmarker/);
+
+    const extraSibling = original.replace(
+        '{{DURCHWAHL}}</td></tr><!-- RT_PHONE_END -->',
+        '{{DURCHWAHL}}</td></tr><tr><td>Zusatzzeile</td></tr><!-- RT_PHONE_END -->',
+    );
+    assert.throws(() => projectForMailDocument({
+        builderData: { pages: [{ component: extraSibling }], styles: [] },
+        css: '',
+    }, () => [], { kind: 'signature', environment: { DOMParser } }), /genau eine direkte Tabellenzeile/);
+
+    const fosterParentedSibling = original.replace(
+        '<!-- RT_PHONE_START --><tr>',
+        '<!-- RT_PHONE_START --><div>Fremdinhalt</div><tr>',
+    );
+    assert.throws(() => projectForMailDocument({
+        builderData: { pages: [{ component: fosterParentedSibling }], styles: [] },
+        css: '',
+    }, () => [], { kind: 'signature', environment: { DOMParser } }), /genau eine direkte Tabellenzeile/);
+
+    const nonBreakingSibling = original.replace(
+        '<!-- RT_PHONE_START --><tr>',
+        '<!-- RT_PHONE_START -->&nbsp;<tr>',
+    );
+    assert.throws(() => projectForMailDocument({
+        builderData: { pages: [{ component: nonBreakingSibling }], styles: [] },
+        css: '',
+    }, () => [], { kind: 'signature', environment: { DOMParser } }), /genau eine direkte Tabellenzeile/);
+
+    const tokenOnlyInAttribute = original.replace(
+        '<!-- RT_PHONE_START --><tr><td>{{DURCHWAHL}}</td></tr>',
+        '<!-- RT_PHONE_START --><tr title="{{DURCHWAHL}}"><td>Kein Werttoken</td></tr>',
+    );
+    assert.throws(() => projectForMailDocument({
+        builderData: { pages: [{ component: tokenOnlyInAttribute }], styles: [] },
+        css: '',
+    }, () => [], { kind: 'signature', environment: { DOMParser } }), /genau eine direkte Tabellenzeile/);
+
+    const quotedTagEnd = original.replace(
+        '<!-- RT_PHONE_START --><tr>',
+        '<!-- RT_PHONE_START --><tr title="Durchwahl > Zentrale">',
+    );
+    const quotedProject = projectForMailDocument({
+        builderData: { pages: [{ component: quotedTagEnd }], styles: [] },
+        css: '',
+    }, () => [], { kind: 'signature', environment: { DOMParser } });
+    const quotedOutgoing = serializeMailDocumentForSave({
+        project: quotedProject,
+        html: quotedProject.pages[0].component,
+        kind: 'signature',
+        baselineHtml: quotedTagEnd,
+        environment: { DOMParser },
+    });
+    assert.match(quotedOutgoing.html, /<tr title="Durchwahl > Zentrale">/);
+    assert.match(quotedOutgoing.html, /<!-- RT_PHONE_START -->\s*<tr/);
+});
+
 test('signature save fails closed when a preview marker is removed', () => {
     const original = '<tr><td class="rt-sign-cell" style="background-image:url(\'{{TRAIN_SRC}}\')"><img src="{{LOGO_SRC}}"></td></tr><!-- RT_SIGNATURE_MAIN_END --><tr><td>Rechtliches</td></tr>';
     const project = projectForMailDocument({

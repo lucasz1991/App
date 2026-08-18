@@ -63,11 +63,11 @@
             </x-menu.sidebar-nav-group>
         </x-menu.sidebar-nav>
 
-        @if (auth()->user()?->role === 'admin' || auth()->user()?->can('employees.view') || auth()->user()?->can('manage.messages'))
+        @if (auth()->user()?->role === 'admin' || auth()->user()?->can('employees.view') || auth()->user()?->can('devices.view') || auth()->user()?->can('manage.messages'))
             <x-menu.sidebar-nav :label="__('app.management')">
                 <x-menu.sidebar-nav-group
                     icon="briefcase"
-                    :active="request()->routeIs('admin.employees', 'employees.show', 'admin.mail-management', 'admin.mail-documents.*') || (request()->routeIs('admin.operations.preview') && request()->route('module') === 'customers')"
+                    :active="request()->routeIs('admin.employees', 'employees.show', 'admin.devices', 'admin.mail-management', 'admin.mail-documents.*') || (request()->routeIs('admin.operations.preview') && request()->route('module') === 'customers')"
                 >
                     <x-slot:label>{{ __('app.management_administration') }}</x-slot:label>
 
@@ -79,6 +79,17 @@
                             class="!pl-8"
                         >
                             {{ __('app.employees') }}
+                        </x-menu.sidebar-nav-link>
+                    @endcan
+
+                    @can('devices.view')
+                        <x-menu.sidebar-nav-link
+                            :href="route('admin.devices')"
+                            icon="monitor"
+                            :active="request()->routeIs('admin.devices')"
+                            class="!pl-8"
+                        >
+                            Geräte & Lager
                         </x-menu.sidebar-nav-link>
                     @endcan
 
@@ -216,6 +227,14 @@
         @endcan
 
         <x-menu.sidebar-nav :label="__('app.my_area')">
+            <x-menu.sidebar-nav-link
+                :href="route('devices.mine')"
+                icon="smartphone"
+                :active="request()->routeIs('devices.mine', 'devices.enrollment')"
+            >
+                Meine Geräte
+            </x-menu.sidebar-nav-link>
+
             <x-menu.sidebar-nav-link
                 :href="route('profile.show')"
                 icon="user"

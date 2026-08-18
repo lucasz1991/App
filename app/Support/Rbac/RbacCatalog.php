@@ -54,6 +54,17 @@ class RbacCatalog
                 ['key' => 'calls.join', 'label' => 'Videoanrufen beitreten'],
                 ['key' => 'calls.moderate', 'label' => 'Videoanrufe moderieren'],
             ],
+            'Geräteverwaltung' => [
+                ['key' => 'devices.view', 'label' => 'Geräte anzeigen'],
+                ['key' => 'devices.manage', 'label' => 'Geräte und Lager verwalten'],
+                ['key' => 'devices.assign', 'label' => 'Geräte zuweisen und zurücknehmen'],
+                ['key' => 'devices.enrollment.manage', 'label' => 'Geräteregistrierung verwalten'],
+                ['key' => 'devices.accounts.manage', 'label' => 'Gerätekonten und Profile verwalten'],
+                ['key' => 'devices.support', 'label' => 'Fernwartung starten'],
+                ['key' => 'devices.commands.execute', 'label' => 'Freigegebene Gerätebefehle ausführen'],
+                ['key' => 'devices.lock', 'label' => 'Geräte sperren und entsperren'],
+                ['key' => 'devices.audit.view', 'label' => 'Geräteprotokoll anzeigen'],
+            ],
         ];
     }
 

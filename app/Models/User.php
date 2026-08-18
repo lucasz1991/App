@@ -244,6 +244,27 @@ class User extends Authenticatable
         return $this->hasMany(EmployeeDocumentRequirement::class);
     }
 
+    /** Vollstaendige Geraete-Zuordnungshistorie des Mitarbeiters. */
+    public function deviceAssignments(): HasMany
+    {
+        return $this->hasMany(DeviceAssignment::class)->latest('assigned_at');
+    }
+
+    /** Aktuell aktiv zugewiesene Geraete des Mitarbeiters. */
+    public function devices(): BelongsToMany
+    {
+        return $this->belongsToMany(Device::class, 'device_assignments')
+            ->wherePivot('status', DeviceAssignment::STATUS_ACTIVE)
+            ->withPivot(['status', 'assigned_at', 'returned_at', 'handover_at', 'handover_notes'])
+            ->withTimestamps();
+    }
+
+    /** Externe, nicht geheime Identitaetskonten (z. B. Microsoft 365/Google). */
+    public function identityAccounts(): HasMany
+    {
+        return $this->hasMany(EmployeeIdentityAccount::class);
+    }
+
     public function notes(): HasMany
     {
         return $this->hasMany(UserNote::class);

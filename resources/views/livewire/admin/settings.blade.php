@@ -10,6 +10,9 @@
         $assistantKnowledgeLabel = app()->getLocale() === 'de'
             ? 'Informationspool des Chatbot-Assistenten'
             : 'Chatbot assistant knowledge pool';
+        $deviceManagementLabel = app()->getLocale() === 'de'
+            ? 'Geräte-Setup'
+            : 'Device setup';
         $settingsTabs = [
             'overview' => ['label' => __('app.settings_overview'), 'icon' => 'fad fa-th-large'],
             'company' => ['label' => __('app.company_data'), 'icon' => 'fad fa-building'],
@@ -18,6 +21,7 @@
         ];
 
         if ($isSuperAdmin) {
+            $settingsTabs['device-management'] = ['label' => $deviceManagementLabel, 'icon' => 'fad fa-network-wired'];
             $settingsTabs['superadmin'] = ['label' => __('app.settings_superadmin'), 'icon' => 'fad fa-shield-alt'];
         }
 
@@ -57,6 +61,18 @@
         ];
 
         if ($isSuperAdmin) {
+            $settingsTeasers[] = [
+                'tab' => 'device-management',
+                'section' => 'device-deployment',
+                'label' => $deviceManagementLabel,
+                'description' => app()->getLocale() === 'de'
+                    ? 'Plesk-Adressen, Geräteprovider, Kontendomänen und sichere Verbindungstests einrichten.'
+                    : 'Configure Plesk addresses, device providers, identity domains and safe connection tests.',
+                'icon' => 'fad fa-network-wired',
+                'items' => app()->getLocale() === 'de'
+                    ? ['Subdomains oder Ports', 'Provider', 'Funktionstests']
+                    : ['Subdomains or ports', 'Providers', 'Connection tests'],
+            ];
             $settingsTeasers[] = [
                 'tab' => 'superadmin',
                 'section' => 'assistant-runtime',
@@ -477,10 +493,17 @@
     </x-ui.accordion.tab-panel>
 
     @if ($isSuperAdmin)
+        {{-- Geräte-Setup: Providerzugänge und Diagnosen bleiben ausschließlich
+             bei Benutzer #1. Die Child-Komponente prüft diese Grenze in mount
+             und in jeder einzelnen Aktion erneut auf dem Server. --}}
+        <x-ui.accordion.tab-panel for="device-management" :order="4" content-class="">
+            <livewire:admin.device-management-settings />
+        </x-ui.accordion.tab-panel>
+
         {{-- Superadmin: Sprach-/Modellrouting, Anrufbetrieb und Wissenspool.
              Der Tab wird nur für Benutzer #1 gerendert; alle Aktionen prüfen
              diese Grenze zusätzlich auf dem Server. --}}
-        <x-ui.accordion.tab-panel for="superadmin" :order="4" content-class="">
+        <x-ui.accordion.tab-panel for="superadmin" :order="5" content-class="">
         <div
             x-data="{
                 openAccordionSection: 'assistant-runtime',

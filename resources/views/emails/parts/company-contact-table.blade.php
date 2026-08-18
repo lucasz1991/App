@@ -49,6 +49,7 @@
 @endphp
 @php $letzte = count($zeilen) - 1; @endphp
 <table class="rt-contact rt-company-contact" role="presentation" dir="ltr" border="0" cellspacing="0" cellpadding="0" style="direction:ltr;margin-left:{{ $rechtsPositioniert ? 'auto' : '0' }};margin-right:{{ $rechtsPositioniert ? '0' : 'auto' }};margin-top:26px;border-collapse:collapse;">
+    <tbody>
     @foreach($zeilen as $index => $zeile)
         @php $unten = $index === $letzte ? '0' : '6px'; @endphp
         @if($zeile['marker'])<!-- RT_{{ $zeile['marker'] }}_START -->@endif
@@ -58,4 +59,5 @@
         </tr>
         @if($zeile['marker'])<!-- RT_{{ $zeile['marker'] }}_END -->@endif
     @endforeach
+    </tbody>
 </table>

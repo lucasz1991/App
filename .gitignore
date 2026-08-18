@@ -51,6 +51,10 @@ Homestead.json
 !/tests/Feature/FilePreviewModalUiTest.php
 !/tests/Feature/MailBrandAnimationGifTest.php
 !/tests/Feature/SignatureTrainTimelineTest.php
+!/tests/Feature/DeviceManagementTest.php
+!/tests/Feature/DeviceManagementSettingsTest.php
+!/tests/Feature/AdminSettingsOverviewAndSuperadminTest.php
+!/tests/Feature/DeviceProviderDiagnosticsServiceTest.php
 !/tests/Frontend/
 /tests/Frontend/*
 !/tests/Frontend/call-recording-gate.test.js

@@ -62,6 +62,9 @@
             'userFiles' => ['label' => __('app.files'), 'icon' => 'fad fa-folder-open'],
             'userMessages' => ['label' => __('app.messages'), 'icon' => 'fad fa-envelope'],
         ];
+        if (auth()->user()->can('devices.view')) {
+            $employeeProfileTabs['devices'] = ['label' => 'Geräte', 'icon' => 'fad fa-laptop'];
+        }
         if ($canViewMasterData) {
             $employeeProfileTabs['masterData'] = ['label' => __('app.master_data'), 'icon' => 'fad fa-user-lock'];
             $employeeProfileTabs['documents'] = ['label' => __('app.employee_documents'), 'icon' => 'fad fa-folder-check'];
@@ -198,6 +201,49 @@
                 </div>
             @endif
         </x-ui.accordion.tab-panel>
+
+        @can('devices.view')
+            <x-ui.accordion.tab-panel for="devices" contentClass="space-y-4">
+                <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+                    <div>
+                        <h3 class="text-sm font-semibold text-rt-text dark:text-white">Zugewiesene Geräte und Historie</h3>
+                        <p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">Inventar, Übergabe, Einrichtungsstatus und letzte Synchronisierung sind mit diesem Mitarbeiter verknüpft.</p>
+                    </div>
+                    <a href="{{ route(auth()->user()->usesAdminLayout() ? 'admin.devices' : 'devices.index') }}" wire:navigate class="inline-flex min-h-10 items-center gap-2 rounded-xl bg-rt-red px-3 text-xs font-semibold text-white">
+                        <i class="far fa-laptop"></i> Geräteverwaltung öffnen
+                    </a>
+                </div>
+
+                <div class="grid gap-4 lg:grid-cols-2">
+                    @forelse($deviceAssignments as $deviceAssignment)
+                        @php
+                            $assignedDevice = $deviceAssignment->device;
+                            $checks = $assignedDevice?->readinessChecks?->keyBy('check_key') ?? collect();
+                            $requiredKeys = array_keys(\App\Services\DeviceManagement\DeviceReadinessService::REQUIRED_CHECKS);
+                            $ready = collect($requiredKeys)->every(fn($key) => in_array($checks->get($key)?->status, ['passed','not_applicable'], true));
+                        @endphp
+                        <article class="rounded-xl bg-rt-surface p-4 shadow-rt-sm ring-1 ring-rt-border/60 dark:bg-rt-dark-surface dark:ring-rt-dark-border/60">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="flex min-w-0 items-start gap-3">
+                                    <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-rt-accent-soft text-rt-accent dark:bg-rt-dark-accent-soft dark:text-rt-dark-accent"><i class="far {{ in_array($assignedDevice?->form_factor, ['phone','tablet']) ? 'fa-mobile-alt' : 'fa-laptop' }}"></i></span>
+                                    <div class="min-w-0"><h4 class="truncate text-sm font-semibold text-rt-text dark:text-white">{{ $assignedDevice?->display_name ?: $assignedDevice?->hostname ?: 'Gelöschtes Gerät' }}</h4><p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $assignedDevice?->asset_tag ?: $assignedDevice?->serial_number }} · {{ $deviceAssignment->assigned_at?->format('d.m.Y') }}</p></div>
+                                </div>
+                                <span class="rounded-full px-2 py-1 text-[11px] font-semibold {{ $deviceAssignment->status === 'active' ? ($ready ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800') : 'bg-slate-100 text-slate-700' }}">{{ $deviceAssignment->status === 'active' ? ($ready ? 'bereit' : 'Einrichtung offen') : 'zurückgegeben' }}</span>
+                            </div>
+                            <dl class="mt-3 grid grid-cols-2 gap-2 text-xs">
+                                <div class="rounded-lg bg-rt-surface-muted px-3 py-2 dark:bg-rt-dark-surface-muted"><dt class="text-rt-muted dark:text-rt-dark-muted">Standort</dt><dd class="mt-1 font-medium text-rt-text dark:text-white">{{ $assignedDevice?->declared_location ?: 'Nicht gemeldet' }}</dd></div>
+                                <div class="rounded-lg bg-rt-surface-muted px-3 py-2 dark:bg-rt-dark-surface-muted"><dt class="text-rt-muted dark:text-rt-dark-muted">Letzter Sync</dt><dd class="mt-1 font-medium text-rt-text dark:text-white">{{ $assignedDevice?->last_synced_at?->diffForHumans() ?? 'Noch nie' }}</dd></div>
+                            </dl>
+                            @if($assignedDevice)
+                                <a href="{{ route(auth()->user()->usesAdminLayout() ? 'admin.devices' : 'devices.index', ['device' => $assignedDevice->public_id]) }}" wire:navigate class="mt-3 inline-flex text-xs font-semibold text-rt-red hover:underline">Gerätedetail öffnen</a>
+                            @endif
+                        </article>
+                    @empty
+                        <div class="rounded-xl border border-dashed border-rt-border p-8 text-center text-sm text-rt-muted dark:border-rt-dark-border dark:text-rt-dark-muted lg:col-span-2">Diesem Mitarbeiter wurde noch kein Gerät zugewiesen.</div>
+                    @endforelse
+                </div>
+            </x-ui.accordion.tab-panel>
+        @endcan
 
         @if ($canViewMasterData)
             <x-ui.accordion.tab-panel for="masterData" contentClass="space-y-4">

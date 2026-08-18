@@ -3,6 +3,7 @@
 namespace App\Livewire\Admin;
 
 use App\Actions\Jetstream\DeleteUser;
+use App\Models\DeviceAssignment;
 use App\Models\User;
 use App\Models\UserProfile as ProfileModel;
 use Illuminate\Support\Facades\DB;
@@ -394,10 +395,18 @@ class UserProfile extends Component
     public function render()
     {
         $profile = ProfileModel::firstWhere('user_id', $this->userId);
+        $deviceAssignments = Gate::allows('devices.view')
+            ? DeviceAssignment::query()
+                ->where('user_id', $this->userId)
+                ->with(['device.readinessChecks'])
+                ->latest('assigned_at')
+                ->get()
+            : collect();
 
         return view('livewire.admin.user-profile', [
             'user' => $this->user,
             'profile' => $profile,
+            'deviceAssignments' => $deviceAssignments,
             'canEditEmployee' => Gate::allows('employees.create'),
             'canViewMasterData' => Gate::allows('employees.master-data.view'),
             'canEditMasterData' => Gate::allows('employees.master-data.view')

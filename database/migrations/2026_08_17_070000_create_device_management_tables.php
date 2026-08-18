@@ -1,0 +1,236 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create('devices', function (Blueprint $table): void {
+            $table->id();
+            $table->uuid('public_id')->unique();
+            $table->string('asset_tag', 64)->nullable()->unique();
+            $table->string('serial_number', 128)->nullable()->unique();
+            $table->string('hostname', 191)->nullable()->index();
+            $table->string('display_name', 191)->nullable();
+            $table->string('form_factor', 40)->default('unknown')->index();
+            $table->string('platform', 32)->default('unknown')->index();
+            $table->string('ownership', 32)->default('corporate')->index();
+            $table->string('lifecycle_status', 32)->default('inventory')->index();
+            $table->string('management_status', 32)->default('unmanaged')->index();
+            $table->string('compliance_status', 32)->default('unknown')->index();
+            $table->string('primary_provider', 64)->nullable()->index();
+            $table->string('primary_provider_device_id', 128)->nullable();
+            $table->string('manufacturer', 100)->nullable();
+            $table->string('model', 150)->nullable();
+            $table->string('os_version', 100)->nullable();
+            $table->string('declared_location', 191)->nullable()->index();
+            // Praezise Positionen und erweiterte Inventardaten werden durch
+            // Eloquent verschluesselt; deshalb bewusst kein JSON-Spaltentyp.
+            $table->longText('location_data')->nullable();
+            $table->longText('metadata')->nullable();
+            $table->timestamp('last_seen_at')->nullable()->index();
+            $table->timestamp('last_synced_at')->nullable();
+            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('updated_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamps();
+            $table->softDeletes();
+
+            $table->unique(
+                ['primary_provider', 'primary_provider_device_id'],
+                'devices_provider_external_unique'
+            );
+            $table->index(
+                ['lifecycle_status', 'management_status', 'compliance_status'],
+                'devices_operational_status_index'
+            );
+        });
+
+        Schema::create('employee_identity_accounts', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
+            $table->string('provider', 40)->index();
+            $table->string('external_id', 191)->nullable();
+            $table->string('principal', 191);
+            $table->string('email', 191)->nullable()->index();
+            $table->string('lifecycle_status', 32)->default('active')->index();
+            $table->string('provisioning_status', 32)->default('pending')->index();
+            $table->string('license_status', 32)->default('unknown')->index();
+            $table->longText('metadata')->nullable();
+            $table->timestamp('last_synced_at')->nullable();
+            $table->timestamps();
+
+            $table->unique(['provider', 'external_id'], 'identity_provider_external_unique');
+            $table->unique(['provider', 'principal'], 'identity_provider_principal_unique');
+            $table->index(['user_id', 'provider'], 'identity_user_provider_index');
+        });
+
+        Schema::create('device_provisioning_profiles', function (Blueprint $table): void {
+            $table->id();
+            $table->uuid('public_id')->unique();
+            $table->string('provider', 64)->index();
+            $table->string('type', 64)->index();
+            $table->string('name', 120);
+            $table->unsignedInteger('version')->default(1);
+            $table->json('platforms');
+            $table->longText('configuration');
+            $table->boolean('is_active')->default(true)->index();
+            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('updated_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamps();
+
+            $table->unique(
+                ['provider', 'type', 'name', 'version'],
+                'provisioning_profile_version_unique'
+            );
+        });
+
+        Schema::create('device_assignments', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('device_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
+            $table->string('status', 24)->default('active')->index();
+            $table->foreignId('assigned_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('returned_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamp('assigned_at')->useCurrent();
+            $table->timestamp('returned_at')->nullable();
+            $table->timestamp('handover_at')->nullable();
+            $table->text('handover_notes')->nullable();
+            $table->timestamps();
+
+            $table->index(['device_id', 'status'], 'device_assignment_device_status_index');
+            $table->index(['user_id', 'status'], 'device_assignment_user_status_index');
+        });
+
+        Schema::create('device_account_assignments', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('device_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
+            $table->foreignId('employee_identity_account_id')
+                ->nullable()
+                ->constrained()
+                ->nullOnDelete();
+            $table->foreignId('device_provisioning_profile_id')
+                ->constrained()
+                ->restrictOnDelete();
+            $table->string('desired_state', 32)->default('assigned')->index();
+            $table->string('status', 32)->default('pending')->index();
+            $table->timestamp('requested_at')->nullable();
+            $table->timestamp('configured_at')->nullable();
+            $table->timestamp('last_attempted_at')->nullable();
+            $table->string('error_code', 80)->nullable();
+            $table->text('error_message')->nullable();
+            $table->timestamps();
+
+            $table->index(['device_id', 'status'], 'device_account_device_status_index');
+            $table->index(['user_id', 'status'], 'device_account_user_status_index');
+            $table->unique(
+                ['device_id', 'employee_identity_account_id', 'device_provisioning_profile_id'],
+                'device_account_profile_unique'
+            );
+        });
+
+        Schema::create('device_enrollments', function (Blueprint $table): void {
+            $table->id();
+            $table->uuid('public_id')->unique();
+            $table->foreignId('device_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
+            $table->string('provider', 64)->index();
+            $table->string('mode', 40)->index();
+            // Ausschliesslich der SHA-256-Hash; der Klartext-Token wird nie gespeichert.
+            $table->char('token_hash', 64)->unique();
+            $table->string('status', 24)->default('invited')->index();
+            $table->timestamp('invited_at')->useCurrent();
+            $table->timestamp('expires_at')->index();
+            $table->timestamp('claimed_at')->nullable();
+            $table->timestamp('completed_at')->nullable();
+            $table->timestamp('revoked_at')->nullable();
+            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->longText('metadata')->nullable();
+            $table->timestamps();
+
+            $table->index(['device_id', 'status'], 'device_enrollment_device_status_index');
+            $table->index(['user_id', 'status'], 'device_enrollment_user_status_index');
+            $table->index(['provider', 'status'], 'device_enrollment_provider_status_index');
+        });
+
+        Schema::create('device_readiness_checks', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('device_id')->constrained()->cascadeOnDelete();
+            $table->string('check_key', 80);
+            $table->string('label', 160);
+            $table->string('status', 32)->default('unknown')->index();
+            $table->string('source', 64)->nullable()->index();
+            $table->longText('evidence')->nullable();
+            $table->timestamp('checked_at')->nullable()->index();
+            $table->timestamps();
+
+            $table->unique(['device_id', 'check_key'], 'device_readiness_check_unique');
+        });
+
+        Schema::create('device_artifacts', function (Blueprint $table): void {
+            $table->id();
+            $table->uuid('public_id')->unique();
+            $table->foreignId('device_id')->nullable()->constrained()->cascadeOnDelete();
+            $table->foreignId('device_provisioning_profile_id')
+                ->nullable()
+                ->constrained()
+                ->nullOnDelete();
+            $table->string('kind', 64)->index();
+            $table->string('platform', 32)->default('unknown')->index();
+            $table->string('name', 191);
+            $table->string('original_name', 191)->nullable();
+            $table->string('disk', 40)->default('private');
+            $table->string('storage_path', 500)->unique();
+            $table->string('mime_type', 120)->nullable();
+            $table->unsignedBigInteger('size_bytes')->nullable();
+            $table->char('sha256', 64)->index();
+            $table->longText('metadata')->nullable();
+            $table->foreignId('uploaded_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('approved_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamp('approved_at')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('device_commands', function (Blueprint $table): void {
+            $table->id();
+            $table->uuid('public_id')->unique();
+            $table->foreignId('device_id')->constrained()->cascadeOnDelete();
+            $table->string('provider', 64)->index();
+            $table->string('type', 64)->index();
+            $table->string('status', 32)->default('pending_approval')->index();
+            $table->boolean('is_destructive')->default(false)->index();
+            $table->text('justification');
+            $table->longText('payload')->nullable();
+            $table->longText('result')->nullable();
+            $table->string('correlation_id', 128)->nullable()->unique();
+            $table->string('provider_job_id', 191)->nullable();
+            $table->foreignId('requested_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('approved_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamp('requested_at')->useCurrent();
+            $table->timestamp('approved_at')->nullable();
+            $table->timestamp('dispatched_at')->nullable();
+            $table->timestamp('completed_at')->nullable();
+            $table->text('error')->nullable();
+            $table->timestamps();
+
+            $table->index(['device_id', 'status'], 'device_command_device_status_index');
+            $table->index(['provider', 'provider_job_id'], 'device_command_provider_job_index');
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('device_commands');
+        Schema::dropIfExists('device_artifacts');
+        Schema::dropIfExists('device_readiness_checks');
+        Schema::dropIfExists('device_enrollments');
+        Schema::dropIfExists('device_account_assignments');
+        Schema::dropIfExists('device_assignments');
+        Schema::dropIfExists('device_provisioning_profiles');
+        Schema::dropIfExists('employee_identity_accounts');
+        Schema::dropIfExists('devices');
+    }
+};
