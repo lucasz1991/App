@@ -116,6 +116,13 @@ Nach dem Aktualisieren des Codes muss das neue Fachschema angelegt werden:
 php artisan migrate
 ```
 
+Falls die Geräte-Migration `2026_08_17_070000` bei einer älteren Fassung an
+einem zu langen MySQL-Constraintnamen abgebrochen ist, kann derselbe Befehl nach
+dem Code-Update erneut ausgeführt werden. Die Migration erkennt ausschließlich
+leere, unvollständig angelegte Gerätetabellen und baut sie in korrekter
+Abhängigkeitsreihenfolge neu auf. Sobald eine dieser Tabellen Daten enthält,
+bricht sie ohne Löschung ab und verlangt eine manuelle Sicherung und Prüfung.
+
 Die derzeit für Teilstringsuche benötigten geschäftlichen Kundenkontakte werden
 noch unverschlüsselt gespeichert. Vor einem produktiven Rollout ist die
 Entscheidung zwischen verschlüsseltem Suchindex beziehungsweise Blindindex und

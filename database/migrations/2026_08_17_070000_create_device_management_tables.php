@@ -2,12 +2,32 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    /**
+     * Reverse dependency order for rollback and interrupted-install recovery.
+     *
+     * @var list<string>
+     */
+    private const DEVICE_TABLES = [
+        'device_commands',
+        'device_artifacts',
+        'device_readiness_checks',
+        'device_enrollments',
+        'device_account_assignments',
+        'device_assignments',
+        'device_provisioning_profiles',
+        'employee_identity_accounts',
+        'devices',
+    ];
+
     public function up(): void
     {
+        $this->recoverInterruptedEmptyInstallation();
+
         Schema::create('devices', function (Blueprint $table): void {
             $table->id();
             $table->uuid('public_id')->unique();
@@ -110,10 +130,10 @@ return new class extends Migration
             $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
             $table->foreignId('employee_identity_account_id')
                 ->nullable()
-                ->constrained()
+                ->constrained('employee_identity_accounts', 'id', 'dev_acc_identity_fk')
                 ->nullOnDelete();
             $table->foreignId('device_provisioning_profile_id')
-                ->constrained()
+                ->constrained('device_provisioning_profiles', 'id', 'dev_acc_profile_fk')
                 ->restrictOnDelete();
             $table->string('desired_state', 32)->default('assigned')->index();
             $table->string('status', 32)->default('pending')->index();
@@ -223,14 +243,39 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('device_commands');
-        Schema::dropIfExists('device_artifacts');
-        Schema::dropIfExists('device_readiness_checks');
-        Schema::dropIfExists('device_enrollments');
-        Schema::dropIfExists('device_account_assignments');
-        Schema::dropIfExists('device_assignments');
-        Schema::dropIfExists('device_provisioning_profiles');
-        Schema::dropIfExists('employee_identity_accounts');
-        Schema::dropIfExists('devices');
+        $this->dropDeviceTables();
+    }
+
+    private function recoverInterruptedEmptyInstallation(): void
+    {
+        $existingTables = array_values(array_filter(
+            self::DEVICE_TABLES,
+            static fn (string $table): bool => Schema::hasTable($table),
+        ));
+
+        if ($existingTables === []) {
+            return;
+        }
+
+        $populatedTables = array_values(array_filter(
+            $existingTables,
+            static fn (string $table): bool => DB::table($table)->limit(1)->exists(),
+        ));
+
+        if ($populatedTables !== []) {
+            throw new RuntimeException(sprintf(
+                'Die unvollständige Geräte-Migration enthält bereits Daten (%s) und wird nicht automatisch gelöscht. Bitte Daten sichern und den Tabellenstand manuell prüfen.',
+                implode(', ', $populatedTables),
+            ));
+        }
+
+        $this->dropDeviceTables();
+    }
+
+    private function dropDeviceTables(): void
+    {
+        foreach (self::DEVICE_TABLES as $table) {
+            Schema::dropIfExists($table);
+        }
     }
 };

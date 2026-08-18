@@ -25,6 +25,7 @@ use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
@@ -44,6 +45,51 @@ class DeviceManagementTest extends TestCase
         config()->set('device_management.production_commands_enabled', false);
         config()->set('device_management.artifacts.disk', 'private');
         Storage::fake('private');
+    }
+
+    public function test_device_migration_uses_mysql_safe_constraint_names_and_recovers_an_empty_interruption(): void
+    {
+        $migrationPath = database_path('migrations/2026_08_17_070000_create_device_management_tables.php');
+        $source = file_get_contents($migrationPath);
+
+        $this->assertIsString($source);
+        $this->assertMatchesRegularExpression(
+            "/foreignId\\('employee_identity_account_id'\\).*?constrained\\('employee_identity_accounts', 'id', 'dev_acc_identity_fk'\\)/s",
+            $source,
+        );
+        $this->assertMatchesRegularExpression(
+            "/foreignId\\('device_provisioning_profile_id'\\).*?constrained\\('device_provisioning_profiles', 'id', 'dev_acc_profile_fk'\\)/s",
+            $source,
+        );
+        $this->assertLessThanOrEqual(64, strlen('dev_acc_identity_fk'));
+        $this->assertLessThanOrEqual(64, strlen('dev_acc_profile_fk'));
+
+        $migration = require $migrationPath;
+        $migration->up();
+
+        $this->assertTrue(Schema::hasTable('devices'));
+        $this->assertTrue(Schema::hasTable('device_account_assignments'));
+        $this->assertTrue(Schema::hasTable('device_commands'));
+    }
+
+    public function test_device_migration_never_deletes_an_interrupted_installation_with_data(): void
+    {
+        DB::table('devices')->insert([
+            'public_id' => '8beef463-b375-4bca-8dd5-5cc46a6cbab4',
+        ]);
+
+        $migration = require database_path('migrations/2026_08_17_070000_create_device_management_tables.php');
+
+        try {
+            $migration->up();
+            $this->fail('A populated interrupted installation must never be dropped automatically.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('enthält bereits Daten', $exception->getMessage());
+        }
+
+        $this->assertDatabaseHas('devices', [
+            'public_id' => '8beef463-b375-4bca-8dd5-5cc46a6cbab4',
+        ]);
     }
 
     public function test_device_permissions_are_fail_closed_for_normal_staff_and_available_to_admin(): void
