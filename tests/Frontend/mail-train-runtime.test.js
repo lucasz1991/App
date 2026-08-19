@@ -82,7 +82,7 @@ test('all delivered mail outputs use one regular train image', () => {
     assert.doesNotMatch(responsiveCss, /rt-train-idle|rt-train-idle-reveal/);
     assert.doesNotMatch(routes, /mail-animations\/train/);
     assert.match(signatureView, /<img class="rt-sign-train" data-rt-train src="\{\{ \$trainSrc \}\}"/);
-    assert.match(signatureView, /<div class="rt-sign-train-layer" data-rt-layer-train style="position:absolute;/);
+    assert.match(signatureView, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" style="position:absolute;/);
     assert.doesNotMatch(signatureView, /url\(\{\$values\['TRAIN_SRC'\]\}\)/);
     assert.match(
         signatureView,

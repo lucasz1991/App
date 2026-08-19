@@ -85,11 +85,12 @@ class MailSignature
      * selbst. Vorher escapen wuerde zu doppelt maskierten Zeichen fuehren.
      *
      * @param  array<string, string>  $overrides  z. B. cid:-Bildquellen
+     * @param  array<string, string>|null  $companyProfile  bereits geladene Roh-Firmendaten
      * @return array<string, string>
      */
-    public function values(array $overrides = []): array
+    public function values(array $overrides = [], ?array $companyProfile = null): array
     {
-        $company = CompanyData::templateValues();
+        $company = CompanyData::templateValues($companyProfile);
         $theme = EmailTemplateBuilder::emailThemeValues($this->theme);
 
         $person = $this->user !== null

@@ -1749,18 +1749,85 @@ export function synchronizeMailTrainLayerAlignment(component) {
     const alignment = ['left', 'center', 'right'].includes(attributes['data-rt-layer-align'])
         ? attributes['data-rt-layer-align']
         : 'left';
+    const sizeName = ['100', '125', '150', '200'].includes(String(attributes['data-rt-layer-size']))
+        ? String(attributes['data-rt-layer-size'])
+        : '100';
+    const mobileCrop = ['left', 'center', 'train', 'right'].includes(attributes['data-rt-layer-mobile'])
+        ? attributes['data-rt-layer-mobile']
+        : 'train';
+    const size = {
+        100: { width: '100%', maxWidth: '1815px', imageWidth: '1815', centerLeft: '0' },
+        125: { width: '125%', maxWidth: '2269px', imageWidth: '2269', centerLeft: '-12.5%' },
+        150: { width: '150%', maxWidth: '2723px', imageWidth: '2723', centerLeft: '-25%' },
+        200: { width: '200%', maxWidth: '3630px', imageWidth: '3630', centerLeft: '-50%' },
+    }[sizeName];
     const horizontal = {
-        left: { left: '0', right: 'auto', margin: '0' },
-        center: { left: '0', right: '0', margin: '0 auto' },
-        right: { left: 'auto', right: '0', margin: '0' },
+        left: { left: '0', right: 'auto' },
+        center: { left: size.centerLeft, right: 'auto' },
+        right: { left: 'auto', right: '0' },
     }[alignment];
+    const canonicalAttributes = {
+        'data-rt-layer-align': alignment,
+        'data-rt-layer-size': sizeName,
+        'data-rt-layer-mobile': mobileCrop,
+    };
+    const attributesChanged = Object.entries(canonicalAttributes)
+        .some(([name, value]) => attributes[name] !== value);
+    if (attributesChanged) {
+        if (typeof component?.addAttributes === 'function') {
+            component.addAttributes(canonicalAttributes, { silent: true });
+        } else {
+            Object.assign(attributes, canonicalAttributes);
+        }
+    }
     const current = component?.getStyle?.() || {};
-    if (current.left === horizontal.left
+    const layerChanged = current.left !== horizontal.left
+        || current.right !== horizontal.right
+        || current.width !== size.width
+        || current['max-width'] !== size.maxWidth
+        || current.margin !== '0';
+    if (layerChanged) {
+        component?.setStyle?.({
+            ...current,
+            left: horizontal.left,
+            right: horizontal.right,
+            width: size.width,
+            'max-width': size.maxWidth,
+            margin: '0',
+        });
+    }
+
+    const children = component?.components?.();
+    const models = Array.isArray(children)
+        ? children
+        : (Array.isArray(children?.models) ? children.models : children?.toArray?.() || []);
+    const image = models.find((child) => {
+        const childAttributes = child?.getAttributes?.() || child?.get?.('attributes') || {};
+        const childClasses = String(childAttributes.class || '').split(/\s+/).filter(Boolean);
+        return childClasses.includes('rt-sign-train') && childAttributes['data-rt-train'] !== undefined;
+    });
+    let imageChanged = false;
+    if (image) {
+        const imageAttributes = image.getAttributes?.() || image.get?.('attributes') || {};
+        const imageStyle = image.getStyle?.() || {};
+        imageChanged = String(imageAttributes.width || '') !== size.imageWidth
+            || imageStyle['max-width'] !== size.maxWidth;
+        if (imageChanged) {
+            if (typeof image.addAttributes === 'function') {
+                image.addAttributes({ width: size.imageWidth }, { silent: true });
+            } else {
+                imageAttributes.width = size.imageWidth;
+            }
+            image.setStyle?.({ ...imageStyle, 'max-width': size.maxWidth });
+        }
+    }
+
+    if (!attributesChanged && !layerChanged && !imageChanged
+        && current.left === horizontal.left
         && current.right === horizontal.right
-        && current.margin === horizontal.margin) {
+        && current.margin === '0') {
         return false;
     }
-    component?.setStyle?.({ ...current, ...horizontal });
 
     return true;
 }
@@ -1855,16 +1922,40 @@ export function protectMailSystemComponents(editor) {
         if (attributes['data-rt-layer-train'] !== undefined
             || classNames(attributes).includes('rt-sign-train-layer')) {
             component.set?.({
-                traits: [{
-                    type: 'select',
-                    name: 'data-rt-layer-align',
-                    label: 'Zugposition',
-                    options: [
-                        { id: 'left', name: 'Links' },
-                        { id: 'center', name: 'Mittig' },
-                        { id: 'right', name: 'Rechts' },
-                    ],
-                }],
+                traits: [
+                    {
+                        type: 'select',
+                        name: 'data-rt-layer-align',
+                        label: 'Desktop-Ausschnitt',
+                        options: [
+                            { id: 'left', name: 'Links' },
+                            { id: 'center', name: 'Mittig' },
+                            { id: 'right', name: 'Rechts' },
+                        ],
+                    },
+                    {
+                        type: 'select',
+                        name: 'data-rt-layer-size',
+                        label: 'Zugbreite',
+                        options: [
+                            { id: '100', name: '100 % · Standard' },
+                            { id: '125', name: '125 %' },
+                            { id: '150', name: '150 %' },
+                            { id: '200', name: '200 %' },
+                        ],
+                    },
+                    {
+                        type: 'select',
+                        name: 'data-rt-layer-mobile',
+                        label: 'Mobil-Ausschnitt',
+                        options: [
+                            { id: 'left', name: 'Links' },
+                            { id: 'center', name: 'Mittig' },
+                            { id: 'train', name: 'Lok bei 75 %' },
+                            { id: 'right', name: 'Rechts' },
+                        ],
+                    },
+                ],
             }, { silent: true });
             synchronizeMailTrainLayerAlignment(component);
             protect(component, { layerable: true });

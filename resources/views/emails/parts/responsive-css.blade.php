@@ -148,6 +148,10 @@ img.rt-logo { width: 150px !important; }
   max-width: none !important;
   margin: 0 !important;
 }
+.rt-sign-train-layer[data-rt-layer-mobile="left"] { left: 0 !important; }
+.rt-sign-train-layer[data-rt-layer-mobile="center"] { left: -50% !important; }
+.rt-sign-train-layer[data-rt-layer-mobile="train"] { left: -75% !important; }
+.rt-sign-train-layer[data-rt-layer-mobile="right"] { left: -100% !important; }
 .rt-sign-train {
   left: 0 !important;
   right: auto !important;

@@ -45,6 +45,8 @@ final class CssSemantic
         'data-rt-train',
         'data-rt-layer-train',
         'data-rt-layer-align',
+        'data-rt-layer-size',
+        'data-rt-layer-mobile',
     ];
 
     /**

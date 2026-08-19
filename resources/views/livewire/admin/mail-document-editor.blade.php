@@ -104,7 +104,43 @@
                         @endif
                     </p>
 
-                    <div class="rt-mail-studio-toolbar__action-buttons" role="group" aria-label="Entwurf speichern oder veröffentlichen">
+                    <div class="rt-mail-studio-toolbar__action-buttons" role="group" aria-label="Code, Import, Export, Entwurf und Veröffentlichung">
+                        <x-ui.buttons.button-basic
+                            type="button"
+                            mode="secondary"
+                            size="sm"
+                            class="min-h-11 shrink-0 rounded-lg px-3"
+                            data-mail-code-open
+                            title="Kanonischen HTML- und CSS-Code ansehen oder bearbeiten"
+                        >
+                            <i data-feather="code" class="h-4 w-4" aria-hidden="true"></i>
+                            <span class="rt-mail-studio-toolbar__action-label">Code</span>
+                        </x-ui.buttons.button-basic>
+
+                        <x-ui.buttons.button-basic
+                            type="button"
+                            mode="secondary"
+                            size="sm"
+                            class="min-h-11 shrink-0 rounded-lg px-3"
+                            data-mail-code-export
+                            title="Kanonischen Entwurf als portables JSON-Bundle exportieren"
+                        >
+                            <i data-feather="download" class="h-4 w-4" aria-hidden="true"></i>
+                            <span class="rt-mail-studio-toolbar__action-label">Export</span>
+                        </x-ui.buttons.button-basic>
+
+                        <x-ui.buttons.button-basic
+                            type="button"
+                            mode="secondary"
+                            size="sm"
+                            class="min-h-11 shrink-0 rounded-lg px-3"
+                            data-mail-code-import
+                            title="JSON-Bundle, HTML- oder CSS-Datei als Entwurf importieren"
+                        >
+                            <i data-feather="file-plus" class="h-4 w-4" aria-hidden="true"></i>
+                            <span class="rt-mail-studio-toolbar__action-label">Import</span>
+                        </x-ui.buttons.button-basic>
+
                         <x-ui.buttons.button-basic
                             type="button"
                             mode="secondary"
@@ -174,6 +210,95 @@
             </div>
         </div>
 
+        <input
+            type="file"
+            class="hidden"
+            accept="application/json,.json,text/html,.html,.htm,text/css,.css"
+            data-mail-code-import-file
+            aria-hidden="true"
+            tabindex="-1"
+        >
+
+        <dialog
+            class="rt-mail-code-dialog"
+            data-mail-code-dialog
+            aria-labelledby="rt-mail-code-dialog-title-{{ $currentDocument->public_id }}"
+            aria-describedby="rt-mail-code-dialog-description-{{ $currentDocument->public_id }}"
+        >
+            <form method="dialog" class="rt-mail-code-dialog__surface">
+                <header class="rt-mail-code-dialog__header">
+                    <div>
+                        <p class="rt-mail-code-dialog__eyebrow">Mail-kompatibler Quellcode</p>
+                        <h2 id="rt-mail-code-dialog-title-{{ $currentDocument->public_id }}">HTML &amp; CSS bearbeiten</h2>
+                        <p id="rt-mail-code-dialog-description-{{ $currentDocument->public_id }}" data-mail-code-origin>
+                            Kanonischer Stand des aktuellen Entwurfs
+                        </p>
+                    </div>
+                    <button type="submit" value="cancel" class="rt-mail-code-dialog__close" aria-label="Codeansicht schließen">
+                        <i data-feather="x" class="h-5 w-5" aria-hidden="true"></i>
+                    </button>
+                </header>
+
+                <div class="rt-mail-code-dialog__notice" role="note">
+                    <i data-feather="shield" class="h-5 w-5" aria-hidden="true"></i>
+                    <p>
+                        Beim Übernehmen wird der Code zuerst serverseitig geprüft und anschließend über denselben sicheren Speicherweg als
+                        <strong>Entwurf</strong> gespeichert. Die veröffentlichte Fassung ändert sich dadurch nicht.
+                    </p>
+                </div>
+
+                <div class="rt-mail-code-dialog__editors">
+                    <label class="rt-mail-code-dialog__field">
+                        <span>HTML</span>
+                        <textarea
+                            data-mail-code-html
+                            spellcheck="false"
+                            autocomplete="off"
+                            autocapitalize="off"
+                            wrap="off"
+                            aria-label="HTML-Code des Maildokuments"
+                        ></textarea>
+                    </label>
+
+                    <label class="rt-mail-code-dialog__field">
+                        <span>CSS</span>
+                        <textarea
+                            data-mail-code-css
+                            spellcheck="false"
+                            autocomplete="off"
+                            autocapitalize="off"
+                            wrap="off"
+                            aria-label="CSS-Code des Maildokuments"
+                        ></textarea>
+                    </label>
+                </div>
+
+                <footer class="rt-mail-code-dialog__footer">
+                    <p data-mail-code-size aria-live="polite">Maximal 1 MiB pro Importdatei.</p>
+                    <div class="rt-mail-code-dialog__footer-actions">
+                        <x-ui.buttons.button-basic
+                            type="submit"
+                            value="cancel"
+                            mode="secondary"
+                            size="sm"
+                            class="min-h-11 rounded-lg px-4"
+                        >Abbrechen</x-ui.buttons.button-basic>
+
+                        <x-ui.buttons.button-basic
+                            type="button"
+                            mode="primary"
+                            size="sm"
+                            class="min-h-11 rounded-lg px-4"
+                            data-mail-code-apply
+                        >
+                            <i data-feather="shield-check" class="h-4 w-4" aria-hidden="true"></i>
+                            <span>Prüfen &amp; als Entwurf speichern</span>
+                        </x-ui.buttons.button-basic>
+                    </div>
+                </footer>
+            </form>
+        </dialog>
+
         @script
             <script>
                 (async function () {
@@ -238,6 +363,16 @@
                     const themeButtons = Array.from(studioRoot.querySelectorAll('[data-mail-theme-button]'));
                     const deviceButtons = Array.from(studioRoot.querySelectorAll('[data-mail-preview-device]'));
                     const replayButton = studioRoot.querySelector('[data-mail-preview-replay]');
+                    const codeButton = studioRoot.querySelector('[data-mail-code-open]');
+                    const exportButton = studioRoot.querySelector('[data-mail-code-export]');
+                    const importButton = studioRoot.querySelector('[data-mail-code-import]');
+                    const importFile = studioRoot.querySelector('[data-mail-code-import-file]');
+                    const codeDialog = studioRoot.querySelector('[data-mail-code-dialog]');
+                    const codeHtml = studioRoot.querySelector('[data-mail-code-html]');
+                    const codeCss = studioRoot.querySelector('[data-mail-code-css]');
+                    const codeOrigin = studioRoot.querySelector('[data-mail-code-origin]');
+                    const codeSize = studioRoot.querySelector('[data-mail-code-size]');
+                    const codeApplyButton = studioRoot.querySelector('[data-mail-code-apply]');
 
                     if (!document_) {
                         return;
@@ -249,7 +384,12 @@
                     let selectedDevice = 'desktop';
                     let unregisterNavigation = null;
                     let lastEditorSaveError = null;
+                    let activeBaselineHtml = String(document_.html || '');
+                    let codeDialogOpener = null;
                     const controlListeners = new AbortController();
+                    const MAIL_SOURCE_FORMAT = 'railtime-mail-document';
+                    const MAIL_SOURCE_VERSION = 1;
+                    const MAX_IMPORT_BYTES = 1024 * 1024;
 
                     const toast = (type, text, title) => window.dispatchEvent(new CustomEvent('swal:toast', {
                         detail: { type, text, title: title || undefined },
@@ -260,7 +400,14 @@
                     };
 
                     const setActionsBusy = (busy) => {
-                        [saveButton, publishButton].forEach((button) => {
+                        [
+                            saveButton,
+                            publishButton,
+                            codeButton,
+                            exportButton,
+                            importButton,
+                            codeApplyButton,
+                        ].forEach((button) => {
                             if (!button) return;
 
                             button.disabled = busy;
@@ -524,7 +671,7 @@
                                             html,
                                             css,
                                             kind: config.currentDocument,
-                                            baselineHtml: document_.html || '',
+                                            baselineHtml: activeBaselineHtml,
                                             previewAssets: config.previewAssets || {},
                                             environment: editor.Canvas?.getWindow?.()
                                                 || editor.Canvas?.getDocument?.()?.defaultView
@@ -544,6 +691,7 @@
                                         document_.builderData = payload.document?.builder_data ?? outgoing.project;
                                         document_.html = payload.document?.html ?? outgoing.html;
                                         document_.css = payload.document?.css ?? outgoing.css;
+                                        activeBaselineHtml = document_.html;
                                         applyDocumentState(payload.document);
                                         showFindings(payload.report);
                                         await runtimeBridge.rehydrateAuthoritative({

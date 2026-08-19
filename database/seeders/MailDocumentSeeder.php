@@ -6,9 +6,12 @@ use App\Enums\MailDocumentKind;
 use App\Enums\MailDocumentStatus;
 use App\Models\MailDocument;
 use App\Models\User;
+use App\Support\CompanyData;
 use App\Support\EmailTemplateBuilder;
 use App\Support\Mail\EmailHtmlSanitizer;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
+use App\Support\Mail\SignatureDocumentContract;
+use App\Support\Mail\TemplateDocumentContract;
 use App\Support\MailSignature;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -42,8 +45,9 @@ final class MailDocumentSeeder extends Seeder
      * 9  Zug in jeder finalen Ausgabe als kopierbares reguläres GIF-Bild
      * 10 Zug bereits im kanonischen Seeder-/Editorstand als regulaeres IMG
      * 11 Zug-IMG im absoluten, hoehenneutralen Layer hinter den Kontaktdaten
+     * 12 Mail-sichere Presets fuer Zugbreite, Desktop- und Mobil-Ausschnitt
      */
-    private const STARTER_SCHEMA = 11;
+    private const STARTER_SCHEMA = 12;
 
     public function run(): void
     {
@@ -56,8 +60,12 @@ final class MailDocumentSeeder extends Seeder
         foreach (MailDocumentKind::cases() as $kind) {
             $html = $this->starterHtml($kind);
             $css = '';
-            $builderData = $this->starterBuilderData($kind, $html);
             $geprüft = app(EmailHtmlSanitizer::class)->assertClean($html)->html;
+            match ($kind) {
+                MailDocumentKind::Template => TemplateDocumentContract::assertValid($geprüft),
+                MailDocumentKind::Signature => SignatureDocumentContract::assertValid($geprüft),
+            };
+            $builderData = $this->starterBuilderData($kind, $geprüft);
 
             $release[$kind->value] = [
                 'kind' => $kind,
@@ -145,7 +153,7 @@ final class MailDocumentSeeder extends Seeder
     private function signatureStarterHtml(): string
     {
         $tokens = [];
-        foreach (array_keys(MailSignature::forCompany()->values()) as $key) {
+        foreach (array_keys(MailSignature::forCompany()->values([], CompanyData::defaults())) as $key) {
             $tokens[$key] = '{{'.$key.'}}';
         }
 

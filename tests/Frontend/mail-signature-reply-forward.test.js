@@ -73,7 +73,7 @@ test('all delivered HTML uses one regular train image like logo and RT icon', as
     ]);
 
     assert.match(signature, /\$trainSrc = \$outlookTrainSrc !== ''/);
-    assert.match(signature, /<div class="rt-sign-train-layer" data-rt-layer-train style="position:absolute;/);
+    assert.match(signature, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" style="position:absolute;/);
     assert.match(signature, /<img class="rt-sign-train" data-rt-train src="\{\{ \$trainSrc \}\}" width="100%"[^>]*style="[^"]*position:absolute;[^\"]*display:block;width:100%;max-width:1815px;height:auto;/);
     assert.doesNotMatch(signature, /url\(\{\$values\['TRAIN_SRC'\]\}\)/);
     assert.doesNotMatch(signature, /data-rt-outlook-train|outlookTrainFallbackSrc/);

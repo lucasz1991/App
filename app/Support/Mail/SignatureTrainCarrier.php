@@ -13,27 +13,20 @@ use RuntimeException;
  */
 final class SignatureTrainCarrier
 {
-    /** @var array<string, string> */
-    private const CANONICAL_LAYER_ALIGNMENT = [
-        'left' => ['left' => '0', 'right' => 'auto', 'margin' => '0'],
-        'center' => ['left' => '0', 'right' => '0', 'margin' => '0 auto'],
-        'right' => ['left' => 'auto', 'right' => '0', 'margin' => '0'],
+    /** @var array<string, array{width:string,maxWidth:string,centerLeft:string,imageWidth:string}> */
+    private const CANONICAL_LAYER_SIZE = [
+        '100' => ['width' => '100%', 'maxWidth' => '1815px', 'centerLeft' => '0', 'imageWidth' => '1815'],
+        '125' => ['width' => '125%', 'maxWidth' => '2269px', 'centerLeft' => '-12.5%', 'imageWidth' => '2269'],
+        '150' => ['width' => '150%', 'maxWidth' => '2723px', 'centerLeft' => '-25%', 'imageWidth' => '2723'],
+        '200' => ['width' => '200%', 'maxWidth' => '3630px', 'centerLeft' => '-50%', 'imageWidth' => '3630'],
     ];
 
-    /** @var array<string, string> */
-    private const CANONICAL_IMAGE_STYLE = [
-        'position' => 'absolute',
-        'left' => '0',
-        'right' => 'auto',
-        'bottom' => '0',
-        'display' => 'block',
-        'width' => '100%',
-        'max-width' => '1815px',
-        'height' => 'auto',
-        'margin' => '0',
-        'border' => '0',
-        'outline' => 'none',
-        'text-decoration' => 'none',
+    /** @var list<string> */
+    private const CANONICAL_MOBILE_CROPS = [
+        'left',
+        'center',
+        'train',
+        'right',
     ];
 
     /** @var list<string> */
@@ -302,34 +295,64 @@ final class SignatureTrainCarrier
         }
 
         $alignment = strtolower(trim($layer->getAttribute('data-rt-layer-align')));
-        $alignmentStyle = self::CANONICAL_LAYER_ALIGNMENT[$alignment] ?? null;
-        if (! is_array($alignmentStyle)) {
+        $sizeName = strtolower(trim($layer->getAttribute('data-rt-layer-size')));
+        $mobileCrop = strtolower(trim($layer->getAttribute('data-rt-layer-mobile')));
+        $legacyGeometry = $sizeName === '' && $mobileCrop === '';
+        $sizeName = $sizeName === '' ? '100' : $sizeName;
+        $mobileCrop = $mobileCrop === '' ? 'train' : $mobileCrop;
+        $size = self::CANONICAL_LAYER_SIZE[$sizeName] ?? null;
+        if (! in_array($alignment, ['left', 'center', 'right'], true)
+            || ! is_array($size)
+            || ! in_array($mobileCrop, self::CANONICAL_MOBILE_CROPS, true)) {
             throw new RuntimeException('Der Zug-Layer besitzt keine erlaubte horizontale Position.');
         }
+        $horizontal = match ($alignment) {
+            'left' => ['left' => '0', 'right' => 'auto'],
+            'center' => ['left' => $size['centerLeft'], 'right' => 'auto'],
+            'right' => ['left' => 'auto', 'right' => '0'],
+        };
         self::assertExactSimpleStyle($layer, [
             'position' => 'absolute',
-            'left' => $alignmentStyle['left'],
-            'right' => $alignmentStyle['right'],
+            'left' => $horizontal['left'],
+            'right' => $horizontal['right'],
             'top' => '0',
             'bottom' => '0',
-            'width' => '100%',
-            'max-width' => '1815px',
+            'width' => $size['width'],
+            'max-width' => $size['maxWidth'],
             'height' => '100%',
-            'margin' => $alignmentStyle['margin'],
+            'margin' => '0',
             'overflow' => 'hidden',
             'z-index' => '0',
             'font-size' => '0',
             'line-height' => '0',
             'text-align' => 'left',
         ], 'Zug-Layer');
-        self::assertExactSimpleStyle($image, self::CANONICAL_IMAGE_STYLE, 'Zugbild');
+        self::assertExactSimpleStyle($image, [
+            'position' => 'absolute',
+            'left' => '0',
+            'right' => 'auto',
+            'bottom' => '0',
+            'display' => 'block',
+            'width' => '100%',
+            'max-width' => $size['maxWidth'],
+            'height' => 'auto',
+            'margin' => '0',
+            'border' => '0',
+            'outline' => 'none',
+            'text-decoration' => 'none',
+        ], 'Zugbild');
+        $widthAttribute = strtolower(trim($image->getAttribute('width')));
+        if ($widthAttribute !== $size['imageWidth']
+            && ! ($legacyGeometry && $widthAttribute === '100%')) {
+            throw new RuntimeException('Das Zugbild besitzt keine zur Zugbreite passende HTML-Breite.');
+        }
     }
 
     private static function canonicalLayerMarkup(string $source): string
     {
-        return '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" '
+        return '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" '
             .'style="position:absolute;left:0;right:auto;top:0;bottom:0;width:100%;max-width:1815px;height:100%;margin:0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;">'
-            .'<img class="rt-sign-train" data-rt-train src="'.$source.'" width="100%" alt="" '
+            .'<img class="rt-sign-train" data-rt-train src="'.$source.'" width="1815" alt="" '
             .'style="position:absolute;left:0;right:auto;bottom:0;display:block;width:100%;max-width:1815px;height:auto;margin:0;border:0;outline:none;text-decoration:none;">'
             .'</div>';
     }
