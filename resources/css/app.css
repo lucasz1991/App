@@ -5504,6 +5504,109 @@ body[data-mode='dark'] .rt-employee-mobile-header {
         width: 100%;
         max-width: 100%;
     }
+
+    .rt-device-mobile-header {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) 2.75rem;
+        align-items: center;
+        gap: 0.5rem;
+        border: 1px solid #dbe3ee;
+        border-bottom: 0;
+        border-radius: 0.75rem 0.75rem 0 0;
+        background: #f1f5f9;
+        color: #637188;
+    }
+
+    html.dark .rt-device-mobile-header,
+    body[data-mode='dark'] .rt-device-mobile-header {
+        border-color: #2a394d;
+        background: #182435;
+        color: #aeb9c9;
+    }
+
+    .rt-device-mobile-header-grid {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) max-content;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .rt-device-table {
+        margin-top: 0;
+        border-radius: 0 0 0.75rem 0.75rem;
+    }
+
+    .rt-device-table .rt-table-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 2.75rem;
+        align-items: center;
+        gap: 0.5rem;
+        min-height: 4.25rem;
+        padding: 0.65rem 0.5rem 0.65rem 0.75rem !important;
+    }
+
+    .rt-device-table .rt-table-row-grid {
+        grid-column: 1;
+        grid-row: 1;
+        grid-template-columns: minmax(0, 1fr) max-content;
+        align-items: center;
+        gap: 0.5rem !important;
+    }
+
+    .rt-device-table .rt-table-row-grid > [data-rt-table-label]:not(.hidden) {
+        display: block;
+        grid-column: auto !important;
+        min-height: 0;
+        overflow: hidden;
+        padding: 0 !important;
+        border-bottom: 0;
+    }
+
+    .rt-device-table .rt-table-row-grid > [data-rt-table-label]:not(.hidden)::before {
+        display: none;
+    }
+
+    .rt-device-table .rt-device-status-cell {
+        flex-wrap: nowrap !important;
+        justify-content: flex-end;
+    }
+
+    .rt-device-table .rt-device-status-badge {
+        position: relative;
+        width: 2rem;
+        height: 2rem;
+        min-height: 2rem;
+        flex: 0 0 2rem;
+        justify-content: center;
+        padding: 0;
+    }
+
+    .rt-device-table .rt-device-status-label {
+        position: absolute !important;
+        width: 1px !important;
+        height: 1px !important;
+        padding: 0 !important;
+        margin: -1px !important;
+        overflow: hidden !important;
+        clip: rect(0, 0, 0, 0) !important;
+        white-space: nowrap !important;
+        border: 0 !important;
+    }
+
+    .rt-device-table .rt-table-row-actions {
+        position: static !important;
+        inset: auto !important;
+        z-index: auto !important;
+        grid-column: 2;
+        grid-row: 1;
+        justify-self: end;
+    }
+
+    .rt-device-table .rt-device-action-trigger {
+        width: 2.75rem !important;
+        height: 2.75rem !important;
+        padding: 0 !important;
+    }
 }
 
 /* Alte semantische Tabellen koennen dieselbe Mobile-Kartendarstellung

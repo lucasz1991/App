@@ -270,6 +270,16 @@ class DeviceManagement extends Component
         $this->resetValidation();
     }
 
+    public function selectDeviceById(int $deviceId): void
+    {
+        Gate::authorize('devices.view');
+
+        $publicId = Device::query()->whereKey($deviceId)->value('public_id');
+        abort_unless(is_string($publicId) && $publicId !== '', 404);
+
+        $this->selectDevice($publicId);
+    }
+
     public function closeDevice(): void
     {
         $this->selectedDevicePublicId = null;

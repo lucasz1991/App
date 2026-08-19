@@ -40,6 +40,15 @@ const MAIL_SIGNATURE_CANVAS_ATTRIBUTE = 'data-rt-mail-signature-canvas';
 const MAIL_PREVIEW_IMAGE_ATTRIBUTE = 'data-rt-mail-preview-token';
 const MAIL_PREVIEW_TRAIN_ATTRIBUTE = 'data-rt-mail-preview-train';
 const MAIL_IMPORTED_INLINE_ATTRIBUTE = 'data-rt-mail-inline-source';
+const MAIL_TEMPLATE_MARK_START_NAME = 'RT_TEMPLATE_MARK_START';
+const MAIL_TEMPLATE_MARK_END_NAME = 'RT_TEMPLATE_MARK_END';
+const MAIL_TEMPLATE_MARK_START = `<!-- ${MAIL_TEMPLATE_MARK_START_NAME} -->`;
+const MAIL_TEMPLATE_MARK_END = `<!-- ${MAIL_TEMPLATE_MARK_END_NAME} -->`;
+const MAIL_TEMPLATE_APPLICATION_START_NAME = 'RT_APPLICATION_CONTENT_START';
+const MAIL_TEMPLATE_APPLICATION_END_NAME = 'RT_APPLICATION_CONTENT_END';
+const MAIL_TEMPLATE_APPLICATION_START = `<!-- ${MAIL_TEMPLATE_APPLICATION_START_NAME} -->`;
+const MAIL_TEMPLATE_APPLICATION_END = `<!-- ${MAIL_TEMPLATE_APPLICATION_END_NAME} -->`;
+const MAIL_TEMPLATE_APPLICATION_PLACEHOLDER = '{{APPLICATION_CONTENT}}';
 const MAIL_PREVIEW_TRANSPARENT_PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=';
 const MAIL_PREVIEW_TRAIN_PLACEHOLDER = 'about:blank#rt-mail-train-preview';
 const MAIL_SIGNATURE_MAIN_MARKER_NAME = 'RT_SIGNATURE_MAIN_END';
@@ -114,6 +123,7 @@ export function mailTokenMediaDefinitions(previewAssets = {}, theme = 'light') {
 }
 
 const MAIL_TEMPLATE_SIGNATURE_PREVIEW = '<tr data-rt-mail-preview-only="signature"><td style="padding:0;"><div data-rt-mail-signature-preview="true" contenteditable="false" role="note" aria-label="Hier wird beim Versand der zentrale Signaturblock eingesetzt.">Signaturblock wird beim Versand hier eingesetzt</div></td></tr>';
+const MAIL_TEMPLATE_APPLICATION_PREVIEW = '<tr data-rt-mail-preview-only="application"><td style="padding:0;"><div role="note" aria-label="Hier werden beim Versand die Anwendungsinhalte eingesetzt.">Anwendungsinhalte werden beim Versand hier eingesetzt</div></td></tr>';
 
 function mailPreviewAssetSources(previewAssets = {}) {
     return [
@@ -213,6 +223,273 @@ function parseMailFragment(parser, html) {
         `<!doctype html><html><head></head><body>${String(html || '')}</body></html>`,
         'text/html',
     );
+}
+
+function templateMarkFragment(source, required = false) {
+    const html = String(source || '');
+    const exactStarts = html.split(MAIL_TEMPLATE_MARK_START).length - 1;
+    const exactEnds = html.split(MAIL_TEMPLATE_MARK_END).length - 1;
+    const namedStarts = html.split(MAIL_TEMPLATE_MARK_START_NAME).length - 1;
+    const namedEnds = html.split(MAIL_TEMPLATE_MARK_END_NAME).length - 1;
+
+    if (exactStarts === 0 && exactEnds === 0 && namedStarts === 0 && namedEnds === 0) {
+        if (required) {
+            throw new Error('Der kanonische RT-Headervertrag der Mailvorlage fehlt.');
+        }
+
+        return null;
+    }
+
+    const start = html.indexOf(MAIL_TEMPLATE_MARK_START);
+    const end = html.indexOf(MAIL_TEMPLATE_MARK_END);
+    if (exactStarts !== 1 || exactEnds !== 1 || namedStarts !== 1 || namedEnds !== 1
+        || start < 0 || end <= start) {
+        throw new Error('Der RT-Headervertrag der Mailvorlage ist unvollstaendig, dupliziert oder veraendert.');
+    }
+
+    return {
+        start,
+        end,
+        html: html.slice(start, end + MAIL_TEMPLATE_MARK_END.length),
+    };
+}
+
+function templateApplicationMarkers(source, required = false) {
+    const html = String(source || '');
+    const exactStarts = html.split(MAIL_TEMPLATE_APPLICATION_START).length - 1;
+    const exactEnds = html.split(MAIL_TEMPLATE_APPLICATION_END).length - 1;
+    const namedStarts = html.split(MAIL_TEMPLATE_APPLICATION_START_NAME).length - 1;
+    const namedEnds = html.split(MAIL_TEMPLATE_APPLICATION_END_NAME).length - 1;
+
+    if (exactStarts === 0 && exactEnds === 0 && namedStarts === 0 && namedEnds === 0) {
+        if (required) throw new Error('Der kanonische Anwendungsslot der Mailvorlage fehlt.');
+        return null;
+    }
+
+    const start = html.indexOf(MAIL_TEMPLATE_APPLICATION_START);
+    const end = html.indexOf(MAIL_TEMPLATE_APPLICATION_END);
+    if (exactStarts !== 1 || exactEnds !== 1 || namedStarts !== 1 || namedEnds !== 1
+        || start < 0 || end <= start) {
+        throw new Error('Die Anwendungsslot-Marker der Mailvorlage sind unvollstaendig, dupliziert oder veraendert.');
+    }
+
+    return { start, end };
+}
+
+function projectTemplateApplicationSlot(source) {
+    const html = String(source || '');
+    const markers = templateApplicationMarkers(html);
+    const placeholderCount = html.split(MAIL_TEMPLATE_APPLICATION_PLACEHOLDER).length - 1;
+    if (!markers && placeholderCount === 0) return html;
+    if (!markers || placeholderCount !== 1) {
+        throw new Error('Die Mailvorlage benoetigt genau einen kanonisch markierten Anwendungsslot.');
+    }
+
+    const placeholder = html.indexOf(MAIL_TEMPLATE_APPLICATION_PLACEHOLDER);
+    if (placeholder <= markers.start || placeholder >= markers.end) {
+        throw new Error('Der Anwendungsslot liegt nicht mehr zwischen seinen kanonischen Markern.');
+    }
+
+    return html.replace(MAIL_TEMPLATE_APPLICATION_PLACEHOLDER, MAIL_TEMPLATE_APPLICATION_PREVIEW);
+}
+
+function templateMarkElementSignature(element) {
+    if (!element || element.nodeType !== 1) return null;
+
+    return {
+        tag: String(element.tagName || '').toLowerCase(),
+        attributes: Array.from(element.attributes || [])
+            .map((attribute) => [String(attribute.name || '').toLowerCase(), String(attribute.value || '')])
+            .sort(([left], [right]) => left.localeCompare(right)),
+        children: Array.from(element.childNodes || [])
+            .filter((node) => node.nodeType === 1
+                || (node.nodeType === 3 && String(node.textContent || '').trim() !== ''))
+            .map((node) => node.nodeType === 1
+                ? templateMarkElementSignature(node)
+                : { text: String(node.textContent || '') }),
+    };
+}
+
+function templateMarkComments(element) {
+    const comments = [];
+    const visit = (node) => {
+        Array.from(node?.childNodes || []).forEach((child) => {
+            if (child.nodeType === 8) comments.push(String(child.data || child.nodeValue || ''));
+            visit(child);
+        });
+    };
+    visit(element);
+
+    return comments;
+}
+
+function canonicalTemplateMarkBinding(parser, root, baselineHtml) {
+    const canonical = templateMarkFragment(baselineHtml);
+    if (!canonical) return null;
+
+    const probe = parseMailFragment(
+        parser,
+        `<table data-rt-template-mark-probe="true"><tbody><tr>${canonical.html}</tr></tbody></table>`,
+    );
+    const probeTable = probe.querySelector('table[data-rt-template-mark-probe="true"]');
+    const probeRow = probeTable?.tBodies?.[0]?.rows?.[0] || probeTable?.querySelector?.('tr');
+    const canonicalCells = Array.from(probeRow?.children || []);
+    const canonicalCell = canonicalCells[0];
+    const canonicalImages = canonicalCell?.querySelectorAll?.('img') || [];
+    if (canonicalCells.length !== 1
+        || canonicalCell?.tagName !== 'TD'
+        || canonicalImages.length !== 1
+        || canonicalImages[0].getAttribute('src') !== '{{ICON_RT_SRC}}'
+        || (canonical.html.split('{{ICON_RT_SRC}}').length - 1) !== 1
+        || (canonical.html.split('{{ICON_RT_STILL_SRC}}').length - 1) !== 1) {
+        throw new Error('Die kanonische RT-Headerquelle der Mailvorlage ist nicht eindeutig gebunden.');
+    }
+
+    const bindings = Array.from(root?.querySelectorAll?.(
+        `img[${MAIL_PREVIEW_IMAGE_ATTRIBUTE}="ICON_RT_SRC"]`,
+    ) || []);
+    const image = bindings[0];
+    const cell = image?.closest?.('td');
+    const row = cell?.parentElement;
+    const headerTable = row?.parentElement?.tagName === 'TBODY'
+        ? row.parentElement.parentElement
+        : row?.parentElement;
+    const headerPad = headerTable?.closest?.('td.rt-pad');
+    const shell = headerPad?.closest?.('table.rt-shell');
+    const shellBody = shell?.tBodies?.[0] || shell?.querySelector?.('tbody') || shell;
+    if (bindings.length !== 1
+        || image?.tagName !== 'IMG'
+        || cell?.tagName !== 'TD'
+        || row?.tagName !== 'TR'
+        || Array.from(row.children || []).length !== 2
+        || row.children[1] !== cell
+        || headerTable?.tagName !== 'TABLE'
+        || !headerPad
+        || !shell
+        || shellBody?.children?.[0] !== headerPad.parentElement) {
+        throw new Error('Das RT-Zeichen wurde aus seinem kanonischen Header verschoben oder vervielfacht.');
+    }
+
+    const currentSource = String(root?.innerHTML || '');
+    const current = templateMarkFragment(currentSource);
+    const cellSource = cell.outerHTML;
+    if (current) {
+        const cellOffset = current.html.indexOf(cellSource);
+        if (cellOffset < 0) {
+            throw new Error('Die RT-Headermarker umschliessen nicht mehr das gebundene RT-Zeichen.');
+        }
+    }
+
+    const canonicalComments = templateMarkComments(canonicalCell);
+    const currentComments = templateMarkComments(cell);
+    if (currentComments.length !== 0
+        && JSON.stringify(currentComments) !== JSON.stringify(canonicalComments)) {
+        throw new Error('Das Outlook-Standbild des RT-Zeichens wurde im Editor veraendert oder verschoben.');
+    }
+
+    return { canonical, canonicalCell, cell };
+}
+
+function assertCanonicalTemplateMarkBinding(binding) {
+    if (!binding) return;
+
+    if (JSON.stringify(templateMarkElementSignature(binding.cell))
+        !== JSON.stringify(templateMarkElementSignature(binding.canonicalCell))) {
+        throw new Error('Das RT-Zeichen wurde im Editor veraendert oder aus seinem Header geloest.');
+    }
+}
+
+function restoreCanonicalTemplateMark(root, binding) {
+    if (!binding) return String(root?.innerHTML || '');
+
+    const source = String(root?.innerHTML || '');
+    const current = templateMarkFragment(source);
+    const cellSource = binding.cell.outerHTML;
+    let restored = '';
+
+    if (current) {
+        if (!current.html.includes(cellSource)) {
+            throw new Error('Die RT-Headermarker umschliessen nicht mehr das gebundene RT-Zeichen.');
+        }
+        restored = source.slice(0, current.start)
+            + binding.canonical.html
+            + source.slice(current.end + MAIL_TEMPLATE_MARK_END.length);
+    } else {
+        const cellCount = source.split(cellSource).length - 1;
+        if (cellCount !== 1) {
+            throw new Error('Das gebundene RT-Zeichen konnte nicht eindeutig in den Header eingesetzt werden.');
+        }
+        restored = source.replace(cellSource, binding.canonical.html);
+    }
+
+    const fragment = templateMarkFragment(restored, true);
+    if (fragment.html !== binding.canonical.html
+        || (restored.split('{{ICON_RT_SRC}}').length - 1) !== 1
+        || (restored.split('{{ICON_RT_STILL_SRC}}').length - 1) !== 1) {
+        throw new Error('Der kanonische RT-Headervertrag konnte nicht verlustfrei wiederhergestellt werden.');
+    }
+
+    return restored;
+}
+
+function canonicalTemplateApplicationBinding(parser, root, baselineHtml) {
+    const baselineMarkers = templateApplicationMarkers(baselineHtml);
+    const baselinePlaceholderCount = String(baselineHtml || '')
+        .split(MAIL_TEMPLATE_APPLICATION_PLACEHOLDER).length - 1;
+    if (!baselineMarkers && baselinePlaceholderCount === 0) return null;
+    if (!baselineMarkers || baselinePlaceholderCount !== 1) {
+        throw new Error('Die kanonische Anwendungsslot-Quelle der Mailvorlage ist nicht eindeutig.');
+    }
+
+    const rows = Array.from(root?.querySelectorAll?.('[data-rt-mail-preview-only="application"]') || []);
+    const row = rows[0];
+    const shell = row?.closest?.('table.rt-shell');
+    const shellBody = shell?.tBodies?.[0] || shell?.querySelector?.('tbody') || shell;
+    const expectedDocument = parseMailFragment(
+        parser,
+        `<table><tbody>${MAIL_TEMPLATE_APPLICATION_PREVIEW}</tbody></table>`,
+    );
+    const expectedRow = expectedDocument.querySelector('[data-rt-mail-preview-only="application"]');
+    if (rows.length !== 1
+        || row?.tagName !== 'TR'
+        || !shell
+        || shellBody?.children?.[1] !== row
+        || JSON.stringify(templateMarkElementSignature(row))
+            !== JSON.stringify(templateMarkElementSignature(expectedRow))) {
+        throw new Error('Der Anwendungsslot wurde im Editor verschoben, vervielfacht oder veraendert.');
+    }
+
+    const source = String(root?.innerHTML || '');
+    const markers = templateApplicationMarkers(source, true);
+    const rowOffset = source.indexOf(row.outerHTML);
+    if (rowOffset <= markers.start || rowOffset >= markers.end
+        || (source.split(MAIL_TEMPLATE_APPLICATION_PLACEHOLDER).length - 1) !== 0) {
+        throw new Error('Die Anwendungsslot-Marker umschliessen nicht mehr ihre gebundene Tabellenzeile.');
+    }
+
+    return { row };
+}
+
+function restoreCanonicalTemplateApplication(root, binding, sourceHtml = null) {
+    const source = sourceHtml === null ? String(root?.innerHTML || '') : String(sourceHtml);
+    if (!binding) return source;
+
+    const markers = templateApplicationMarkers(source, true);
+    const rowSource = binding.row.outerHTML;
+    const rowCount = source.split(rowSource).length - 1;
+    const rowOffset = source.indexOf(rowSource);
+    if (rowCount !== 1 || rowOffset <= markers.start || rowOffset >= markers.end) {
+        throw new Error('Der gebundene Anwendungsslot konnte nicht eindeutig wiederhergestellt werden.');
+    }
+
+    const restored = source.replace(rowSource, MAIL_TEMPLATE_APPLICATION_PLACEHOLDER);
+    const placeholder = restored.indexOf(MAIL_TEMPLATE_APPLICATION_PLACEHOLDER);
+    if ((restored.split(MAIL_TEMPLATE_APPLICATION_PLACEHOLDER).length - 1) !== 1
+        || placeholder <= markers.start || placeholder >= markers.end) {
+        throw new Error('Der kanonische Anwendungsslot konnte nicht verlustfrei wiederhergestellt werden.');
+    }
+
+    return restored;
 }
 
 /** Findet das Ende eines Starttags, ohne `>` in quotierten Attributen als
@@ -878,6 +1155,25 @@ const MOTION_CONTROL_SELECTORS = [
  */
 export const MAIL_STYLE_SECTORS = Object.freeze([
     Object.freeze({
+        id: 'rt-mail-train-background',
+        name: 'Zug-Hintergrund',
+        open: true,
+        properties: [
+            {
+                property: 'background-position',
+                name: 'Position (Desktop)',
+                type: 'select',
+                options: [
+                    { id: 'left top,right center,center center,left bottom', label: 'Links' },
+                    { id: 'left top,right center,center center,25% bottom', label: '25 %' },
+                    { id: 'left top,right center,center center,50% bottom', label: 'Mitte' },
+                    { id: 'left top,right center,center center,75% bottom', label: '75 %' },
+                    { id: 'left top,right center,center center,right bottom', label: 'Rechts' },
+                ],
+            },
+        ],
+    }),
+    Object.freeze({
         id: 'rt-mail-typography',
         name: 'Schrift',
         open: true,
@@ -1035,13 +1331,25 @@ export function projectForMailDocument(draft, parseCss = () => [], options = {})
             throw new Error('Der Vorlagen-Editor benötigt ein vollständiges HTML-Dokument.');
         }
 
+        // `html` ist die serverseitig gehaertete Quelle. Aeltere
+        // builder_data-Staende koennen noch nur den Body oder eine bereits
+        // von GrapesJS normalisierte Kopie enthalten; sie duerfen die
+        // vollstaendige autoritative Dokumentfassung nicht ueberstimmen.
+        if (typeof draft?.html === 'string' && draft.html.trim() !== '') {
+            page.component = draft.html;
+        }
+
         const placeholderCount = page.component.split(SIGNATURE_PLACEHOLDER).length - 1;
         if (placeholderCount !== 1) {
             throw new Error('Die Mailvorlage benötigt genau einen gebundenen Signaturblock.');
         }
 
+        const projectedTemplate = projectTemplateApplicationSlot(page.component);
         const parsed = domParserFor(options.environment || globalThis)
-            .parseFromString(page.component.replace(SIGNATURE_PLACEHOLDER, MAIL_TEMPLATE_SIGNATURE_PREVIEW), 'text/html');
+            .parseFromString(
+                projectedTemplate.replace(SIGNATURE_PLACEHOLDER, MAIL_TEMPLATE_SIGNATURE_PREVIEW),
+                'text/html',
+            );
         if (!parsed.head || !parsed.body || !parsed.documentElement) {
             throw new Error('Die Mailvorlage besitzt keine vollständige HTML-Struktur.');
         }
@@ -1090,23 +1398,6 @@ export function projectForMailDocument(draft, parseCss = () => [], options = {})
         }
         assertSignatureContactMarkerBindings(wrapper, contactProjection.hasMarkers);
 
-        const trainRow = parsed.createElement('tr');
-        trainRow.setAttribute('data-rt-mail-preview-only', 'train');
-        const trainCell = parsed.createElement('td');
-        trainCell.setAttribute('align', 'left');
-        trainCell.setAttribute('style', 'padding:0;text-align:left;font-size:0;line-height:0;');
-        const trainImage = parsed.createElement('img');
-        trainImage.setAttribute('class', 'rt-sign-train');
-        trainImage.setAttribute('data-rt-train', '');
-        trainImage.setAttribute(MAIL_PREVIEW_IMAGE_ATTRIBUTE, 'TRAIN_SRC');
-        trainImage.setAttribute('src', MAIL_PREVIEW_TRANSPARENT_PIXEL);
-        trainImage.setAttribute('width', '100%');
-        trainImage.setAttribute('alt', '');
-        trainImage.setAttribute('style', 'display:block;width:100%;max-width:1815px;height:auto;margin:0;border:0;outline:none;text-decoration:none;');
-        trainCell.appendChild(trainImage);
-        trainRow.appendChild(trainCell);
-        body.insertBefore(trainRow, rows[1]);
-
         markImportedInlineStyles(wrapper);
         page.component = wrapper.outerHTML;
     }
@@ -1142,14 +1433,33 @@ export function serializeMailDocumentForSave({
         if (previewRows.length !== 1 || !canvasDocument.body) {
             throw new Error('Die sichere Position des Signaturblocks in der Mailvorlage fehlt.');
         }
+        const templateMarkBinding = canonicalTemplateMarkBinding(
+            parser,
+            canvasDocument.body,
+            baselineHtml,
+        );
+        const templateApplicationBinding = canonicalTemplateApplicationBinding(
+            parser,
+            canvasDocument.body,
+            baselineHtml,
+        );
         restoreMailPreviewImageTokens(canvasDocument.body);
+        assertCanonicalTemplateMarkBinding(templateMarkBinding);
 
         // Erst den kompletten unsauberen Canvaszustand pruefen. Ein zweiter
         // Preview-Marker oder eine echte Vorschauquelle darf nicht dadurch
         // legitimiert werden, dass unten die harmlosen Block-Metadaten
         // entfernt werden.
         const previewRowHtml = previewRows[0].outerHTML;
-        const uncheckedBody = canvasDocument.body.innerHTML.replace(previewRowHtml, SIGNATURE_PLACEHOLDER);
+        const applicationRowHtml = templateApplicationBinding?.row?.outerHTML || '';
+        let uncheckedBody = canvasDocument.body.innerHTML
+            .replace(previewRowHtml, SIGNATURE_PLACEHOLDER);
+        if (applicationRowHtml) {
+            uncheckedBody = uncheckedBody.replace(
+                applicationRowHtml,
+                MAIL_TEMPLATE_APPLICATION_PLACEHOLDER,
+            );
+        }
         const uncheckedPlaceholderCount = uncheckedBody.split(SIGNATURE_PLACEHOLDER).length - 1;
         if (uncheckedPlaceholderCount !== 1
             || /data-rt-mail-(?:preview(?:-[\w-]+)?|signature-preview)/i.test(uncheckedBody)
@@ -1157,7 +1467,10 @@ export function serializeMailDocumentForSave({
             throw new Error('Die Mailvorlage konnte nicht verlustfrei rekonstruiert werden.');
         }
 
-        stripMailEditorAttributes(canvasDocument.body, previewRows[0]);
+        stripMailEditorAttributes(
+            canvasDocument.body,
+            [previewRows[0], templateApplicationBinding?.row].filter(Boolean),
+        );
 
         const canonicalDocument = parser.parseFromString(String(baselineHtml || ''), 'text/html');
         if (!canonicalDocument.documentElement || !canonicalDocument.head || !canonicalDocument.body) {
@@ -1165,7 +1478,16 @@ export function serializeMailDocumentForSave({
         }
 
         const canonicalPreviewRowHtml = previewRows[0].outerHTML;
-        const canonicalBody = canvasDocument.body.innerHTML.replace(canonicalPreviewRowHtml, SIGNATURE_PLACEHOLDER);
+        const canonicalApplicationRowHtml = templateApplicationBinding?.row?.outerHTML || '';
+        const canonicalBody = restoreCanonicalTemplateApplication(
+            canvasDocument.body,
+            templateApplicationBinding,
+            restoreCanonicalTemplateMark(canvasDocument.body, templateMarkBinding),
+        )
+            .replace(canonicalPreviewRowHtml, SIGNATURE_PLACEHOLDER);
+        if (canonicalApplicationRowHtml && canonicalBody.includes(canonicalApplicationRowHtml)) {
+            throw new Error('Die Anwendungsslot-Vorschau wurde nicht vollstaendig entfernt.');
+        }
         let canonicalHtml = '<!doctype html>\n'
             + `<html${serializeElementAttributes(canonicalDocument.documentElement)}>`
             + canonicalDocument.head.outerHTML
@@ -1198,14 +1520,9 @@ export function serializeMailDocumentForSave({
     const wrapper = wrappers[0];
     const body = wrapper?.tBodies?.[0] || wrapper?.querySelector('tbody');
     const trainPreviewRows = wrapper?.querySelectorAll?.('[data-rt-mail-preview-only="train"]') || [];
-    const trainPreviewRow = trainPreviewRows[0];
-    if (trainPreviewRows.length !== 1
-        || trainPreviewRow?.parentElement !== body
-        || trainPreviewRow !== body?.children?.[1]
-        || trainPreviewRow.querySelectorAll?.(`img.rt-sign-train[data-rt-train][${MAIL_PREVIEW_IMAGE_ATTRIBUTE}="TRAIN_SRC"]`).length !== 1) {
-        throw new Error('Die sichere Zugvorschau des Signatur-Editors fehlt.');
+    if (trainPreviewRows.length !== 0 || wrapper?.querySelectorAll?.('[data-rt-train]').length !== 0) {
+        throw new Error('Der Signatur-Editor darf keine zweite Zugbildzeile enthalten.');
     }
-    trainPreviewRow.remove();
     const rows = Array.from(body?.children || []);
     const trainCarriers = wrapper?.querySelectorAll?.(`[${MAIL_PREVIEW_TRAIN_ATTRIBUTE}]`) || [];
     const trainCarrier = trainCarriers[0];
@@ -1435,6 +1752,29 @@ export function hydrateMailCanvasAssets(editor, theme = 'light', previewAssets =
         hydrated += 1;
     });
 
+    canvasDocument.querySelectorAll(`[${MAIL_PREVIEW_TRAIN_ATTRIBUTE}="TRAIN_SRC"]`).forEach((carrier) => {
+        const source = sources.TRAIN_SRC;
+        if (!source || carrier.tagName !== 'TD' || !carrier.classList.contains('rt-sign-cell')) return;
+
+        let style = String(carrier.getAttribute('style') || '');
+        const candidates = [
+            MAIL_PREVIEW_TRAIN_PLACEHOLDER,
+            previewAssets?.light?.train,
+            previewAssets?.dark?.train,
+        ].filter((candidate, index, values) => typeof candidate === 'string'
+            && candidate.length > 0
+            && values.indexOf(candidate) === index);
+        const bound = candidates.some((candidate) => style.includes(candidate));
+        if (!bound) return;
+
+        candidates.forEach((candidate) => {
+            style = style.replaceAll(candidate, source);
+        });
+        carrier.setAttribute('style', style);
+        refreshPausedAnimatedPreviewElement(carrier);
+        hydrated += 1;
+    });
+
     return hydrated;
 }
 
@@ -1485,28 +1825,80 @@ export function protectMailSystemComponents(editor) {
         return [];
     };
     const protectedComponents = new Set();
-    const protect = (component) => {
+    const setName = (component, name) => {
+        if (component && name) component.set?.({ 'custom-name': name }, { silent: true });
+    };
+    const classNames = (attributes) => String(attributes.class || '').split(/\s+/).filter(Boolean);
+    const label = (component, attributes) => {
+        const classes = classNames(attributes);
+        const token = attributes[MAIL_PREVIEW_IMAGE_ATTRIBUTE];
+        const preview = attributes['data-rt-mail-preview-only'];
+        const block = attributes[MAIL_BLOCK_ATTRIBUTE];
+        if (attributes[MAIL_PREVIEW_TRAIN_ATTRIBUTE] === 'TRAIN_SRC') return 'Zug-Hintergrund (geschützt)';
+        if (preview === 'application') return 'Anwendungsinhalt (geschützt)';
+        if (preview === 'signature') return 'Signatur-Platzhalter (geschützt)';
+        if (token === 'ICON_RT_SRC') return 'RT-Zeichen (geschützt)';
+        if (token === 'LOGO_SRC') return 'Firmenlogo (geschützt)';
+        if (token?.startsWith?.('ICON_')) return 'Kontakt-Icon (geschützt)';
+        if (classes.includes('rt-shell')) return 'Nachrichtenschale';
+        if (classes.includes('rt-sign-content')) return 'Signatur-Inhalt';
+        if (classes.includes('rt-sign-identity')) return 'Personendaten';
+        if (classes.includes('rt-sign-logo')) return 'Firmendaten';
+        if (classes.includes('rt-company-contact')) return 'Firmenkontakte';
+        if (classes.includes('rt-contact')) return 'Personenkontakte';
+        if (block) return `Inhalt: ${String(block).replaceAll('-', ' ')}`;
+        return '';
+    };
+    const protect = (component, { layerable = false, stylable = false } = {}) => {
         if (!component || protectedComponents.has(component)) return;
         component.set?.({
-            stylable: false,
+            stylable,
+            editable: false,
             draggable: false,
             removable: false,
             copyable: false,
+            droppable: false,
+            layerable,
         }, { silent: true });
         protectedComponents.add(component);
     };
+    const protectBranch = (component, root = true) => {
+        protect(component, { layerable: root });
+        children(component).forEach((child) => protectBranch(child, false));
+    };
     const visit = (component) => {
         const attributes = component?.getAttributes?.() || component?.get?.('attributes') || {};
+        setName(component, label(component, attributes));
+        const tagName = String(component?.get?.('tagName') || '').toLowerCase();
+        if (tagName === 'img' && !attributes[MAIL_PREVIEW_IMAGE_ATTRIBUTE]) {
+            setName(component, String(attributes.alt || '').trim() || 'Inhaltsbild');
+            component.set?.({
+                traits: [
+                    { type: 'text', name: 'alt', label: 'Alternativtext' },
+                    { type: 'text', name: 'title', label: 'Beschreibung' },
+                    { type: 'number', name: 'width', label: 'Breite', min: 1 },
+                    { type: 'number', name: 'height', label: 'Höhe', min: 1 },
+                ],
+            }, { silent: true });
+        }
+        if (['application', 'signature'].includes(attributes['data-rt-mail-preview-only'])) {
+            protectBranch(component);
+        }
         if (attributes[MAIL_PREVIEW_TRAIN_ATTRIBUTE] === 'TRAIN_SRC') {
-            protect(component);
+            protect(component, {
+                layerable: true,
+                stylable: ['background-position'],
+            });
         }
         if (attributes[MAIL_PREVIEW_IMAGE_ATTRIBUTE] === 'ICON_RT_SRC') {
-            protect(component);
+            protect(component, { layerable: false });
             let ancestor = component?.parent?.();
             while (ancestor) {
-                protect(ancestor);
-                const tagName = String(ancestor?.get?.('tagName') || '').toLowerCase();
-                if (tagName === 'td') break;
+                const ancestorTagName = String(ancestor?.get?.('tagName') || '').toLowerCase();
+                const isCell = ancestorTagName === 'td';
+                protect(ancestor, { layerable: isCell });
+                if (isCell) setName(ancestor, 'RT-Zeichen (geschützt)');
+                if (ancestorTagName === 'td') break;
                 ancestor = ancestor?.parent?.();
             }
         }
@@ -2013,9 +2405,27 @@ export async function createMailBuilder({
         },
         media: {
             tokenMedia: () => mailTokenMediaDefinitions(previewAssets, activeTheme),
+            assets: () => (Array.isArray(assets) ? assets : []),
             baseUrl: window.location.origin + '/',
         },
     });
+    const onTrainStyleUpdate = (component) => {
+        const attributes = component?.getAttributes?.() || component?.get?.('attributes') || {};
+        if (attributes[MAIL_PREVIEW_TRAIN_ATTRIBUTE] !== 'TRAIN_SRC') return;
+
+        // GrapesJS schreibt beim Aendern der Position zuerst den reversiblen
+        // about:-Platzhalter aus dem Modell zurueck ins Canvas. Erst danach
+        // darf die echte Vorschauquelle wieder ausschliesslich im gerenderten
+        // DOM eingesetzt werden; das gespeicherte Modell bleibt tokenisiert.
+        const rehydrate = () => hydrateMailCanvasAssets(editor, activeTheme, previewAssets);
+        if (typeof globalThis.queueMicrotask === 'function') globalThis.queueMicrotask(rehydrate);
+        else rehydrate();
+    };
+    editor.on?.('component:styleUpdate', onTrainStyleUpdate);
+    // Die gemeinsame Chrome-Haertung sperrt Systemkomponenten pauschal.
+    // Danach bekommt ausschliesslich der Zug-Carrier seine eng begrenzte
+    // background-position-Auswahl zurueck; Strukturaktionen bleiben gesperrt.
+    protectMailSystemComponents(editor);
     let shellLifecycle = null;
     let assistantAdapter = null;
     let disposed = false;
@@ -2080,6 +2490,7 @@ export async function createMailBuilder({
             assistantAdapter = null;
             editorChrome.destroy();
             editor.off?.('component:add', onComponentAdd);
+            editor.off?.('component:styleUpdate', onTrainStyleUpdate);
             editor.off?.('canvas:frame:load', onFrameLoad);
             preview?.destroy();
             instance.destroy?.();

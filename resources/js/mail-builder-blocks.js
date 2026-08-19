@@ -470,7 +470,6 @@ body.rt-mail-canvas {
 [style*="{{SIGNATURE_BORDER}}"], [style*="{{SIGNATURE_RULE}}"] { border-color: ${theme === 'dark' ? '#313944' : '#dfe3e6'} !important; }
 
 ${imageRule('LOGO_SRC', themedAssets.logo)}
-${imageRule('TRAIN_SRC', themedAssets.train)}
 ${imageRule('ICON_PHONE_SRC', icons.phone)}
 ${imageRule('ICON_MOBILE_SRC', icons.mobile)}
 ${imageRule('ICON_EMAIL_SRC', icons.email)}

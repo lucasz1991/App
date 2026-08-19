@@ -167,11 +167,17 @@ class PageBuilderPreviewTest extends TestCase
         $this->assertStringContainsString('data-preview-document="template"', $html);
         $this->assertStringContainsString('data-preview-theme="dark"', $html);
         $this->assertStringContainsString('data-preview-animation="static"', $html);
-        $this->assertSame(1, substr_count($html, 'data-rt-train'));
-        $this->assertMatchesRegularExpression(
-            '/<img class="rt-sign-train" data-rt-train src="data:image\/png;base64,[^"]+"/',
-            $html,
+        $this->assertSame(0, substr_count($html, 'data-rt-train'));
+        $this->assertSame(
+            1,
+            preg_match('/<td\b[^>]*class="[^"]*\brt-sign-cell\b[^"]*"[^>]*>/', $html, $staticCarrier),
         );
+        $this->assertStringContainsString('url(data:image/png;base64,', $staticCarrier[0]);
+        $this->assertStringContainsString(
+            'background-repeat:repeat,no-repeat,no-repeat,no-repeat;',
+            $staticCarrier[0],
+        );
+        $this->assertStringContainsString(',75% bottom;', $staticCarrier[0]);
         $this->assertStringNotContainsString('data-rt-train-idle', $html);
         $this->assertStringNotContainsString('{{APPLICATION_CONTENT}}', $html);
         $this->assertStringNotContainsString('{{', $html);
@@ -185,10 +191,15 @@ class PageBuilderPreviewTest extends TestCase
         $animatedHtml = (string) $animatedA->getContent();
 
         $this->assertStringContainsString('data-preview-animation="animated"', $animatedHtml);
-        $this->assertSame(1, substr_count($animatedHtml, 'data-rt-train'));
-        $this->assertMatchesRegularExpression(
-            '/<img class="rt-sign-train" data-rt-train src="data:image\/gif;base64,[^"]+"/',
-            $animatedHtml,
+        $this->assertSame(0, substr_count($animatedHtml, 'data-rt-train'));
+        $this->assertSame(
+            1,
+            preg_match('/<td\b[^>]*class="[^"]*\brt-sign-cell\b[^"]*"[^>]*>/', $animatedHtml, $animatedCarrier),
+        );
+        $this->assertStringContainsString('url(data:image/gif;base64,', $animatedCarrier[0]);
+        $this->assertStringContainsString(
+            'background-repeat:repeat,no-repeat,no-repeat,no-repeat;',
+            $animatedCarrier[0],
         );
         $this->assertStringNotContainsString('data-rt-train-idle', $animatedHtml);
         $this->assertNotSame($animatedHtml, (string) $animatedB->getContent());

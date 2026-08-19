@@ -139,15 +139,15 @@ namespace {
     $browserTrainMethod->setAccessible(true);
     $browserTrainFixture = <<<'HTML'
 <!doctype html><html><body><table role="presentation" style="border-top:5px solid #e4002b;">
-<tr><td class="rt-sign-cell"><table><tr><td class="rt-sign-identity"><img src="https://app.rail-time.de/mail-assets/contact-email.png"></td><td class="rt-sign-logo"><img src="https://app.rail-time.de/mail-assets/logo.gif"></td></tr></table></td></tr><!-- RT_SIGNATURE_MAIN_END --><tr><td align="left"><img class="rt-sign-train" data-rt-train src="https://app.rail-time.de/mail-assets/zug-dampf-light.gif" width="100%"></td></tr><tr><td>Legal</td></tr>
+<tr><td class="rt-sign-cell" style="background-image:url(https://app.rail-time.de/mail-assets/signatur-raster-light.png),url(https://app.rail-time.de/mail-assets/signatur-marke-light.png),linear-gradient(rgba(0,0,0,0),rgba(0,0,0,0)),url(https://app.rail-time.de/mail-assets/zug-dampf-light.gif);background-repeat:repeat,no-repeat,no-repeat,no-repeat;background-position:left top,right center,center center,75% bottom;background-size:64px 64px,auto 100%,100% 100%,auto 100%;"><table><tr><td class="rt-sign-identity"><img src="https://app.rail-time.de/mail-assets/contact-email.png"></td><td class="rt-sign-logo"><img src="https://app.rail-time.de/mail-assets/logo.gif"></td></tr></table></td></tr><!-- RT_SIGNATURE_MAIN_END --><tr><td>Legal</td></tr>
 </table></body></html>
 HTML;
-    $browserTrain = $browserTrainMethod->invoke(null, $browserTrainFixture);
-    if (substr_count($browserTrain, 'data-rt-train') !== 1
-        || ! str_contains($browserTrain, 'position:absolute;left:0;bottom:0;z-index:0;width:100%;max-width:720px;')
-        || ! str_contains($browserTrain, '</table><img class="rt-sign-train"')
-        || str_contains($browserTrain, '<!-- RT_SIGNATURE_MAIN_END --><tr><td align="left"><img class="rt-sign-train"')) {
-        fwrite(STDERR, "Browser copy train was not placed behind the signature content.\n");
+    $browserTrainSource = 'https://app.rail-time.de/mail-assets/zug-dampf-light.gif';
+    $browserTrain = $browserTrainMethod->invoke(null, $browserTrainFixture, $browserTrainSource);
+    if ($browserTrain !== $browserTrainFixture
+        || substr_count($browserTrain, 'url('.$browserTrainSource.')') !== 1
+        || str_contains($browserTrain, 'data-rt-train')) {
+        fwrite(STDERR, "Browser copy train was not preserved as the single HTTPS background.\n");
         exit(1);
     }
 

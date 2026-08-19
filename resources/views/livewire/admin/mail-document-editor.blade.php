@@ -499,6 +499,7 @@
                             projectId: `mail:${document_.id}`,
                             vendor: config.vendor,
                             theme: selectedTheme,
+                            assets: config.mailAssets || [],
                             previewAssets: config.previewAssets || {},
                             previewDevice: selectedDevice,
                             onPreviewChange: updatePreviewStatus,

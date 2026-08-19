@@ -94,6 +94,32 @@ class MailDocumentEditor extends Component
     {
         $payload = [];
         $contactIcons = EmailTemplateBuilder::contactIconSources(true);
+        $contactIconUrls = EmailTemplateBuilder::contactIconUrls();
+        $mailAssets = [
+            ['src' => EmailTemplateBuilder::mailAssetUrl('wortmarke-signature-light.gif'), 'name' => 'RailTime Wortmarke hell', 'type' => 'image', 'mime_type' => 'image/gif', 'animated' => true, 'category' => 'RailTime Marke'],
+            ['src' => EmailTemplateBuilder::mailAssetUrl('wortmarke-mail-dark.gif'), 'name' => 'RailTime Wortmarke dunkel', 'type' => 'image', 'mime_type' => 'image/gif', 'animated' => true, 'category' => 'RailTime Marke'],
+            ['src' => EmailTemplateBuilder::mailAssetUrl('icon-rt-light.gif'), 'name' => 'RT-Zeichen hell', 'type' => 'image', 'mime_type' => 'image/gif', 'animated' => true, 'category' => 'RailTime Marke'],
+            ['src' => EmailTemplateBuilder::mailAssetUrl('icon-rt-dark.gif'), 'name' => 'RT-Zeichen dunkel', 'type' => 'image', 'mime_type' => 'image/gif', 'animated' => true, 'category' => 'RailTime Marke'],
+        ];
+        foreach ([
+            'LOCATION' => 'Standort-Icon',
+            'PHONE' => 'Telefon-Icon',
+            'MOBILE' => 'Mobil-Icon',
+            'EMAIL' => 'E-Mail-Icon',
+            'WEB' => 'Web-Icon',
+        ] as $icon => $name) {
+            $source = (string) ($contactIconUrls['ICON_'.$icon.'_SRC'] ?? '');
+            if ($source !== '') {
+                $mailAssets[] = [
+                    'src' => $source,
+                    'name' => $name,
+                    'type' => 'image',
+                    'mime_type' => 'image/png',
+                    'animated' => false,
+                    'category' => 'Kontakt',
+                ];
+            }
+        }
 
         foreach ($documents as $key => $document) {
             $payload[$key] = [
@@ -123,6 +149,10 @@ class MailDocumentEditor extends Component
         return [
             'currentDocument' => $this->kind,
             'documents' => $payload,
+            // Nur diese oeffentlichen, stabilen Mail-URLs duerfen normale
+            // Inhaltsbilder ersetzen. Private Admin-Dateien, Uploads und
+            // freie Fremd-URLs bleiben im E-Mail-Editor ausgeschlossen.
+            'mailAssets' => $mailAssets,
             // Nur fuer das isolierte Editor-iframe: Die gespeicherten
             // {{...}}-Tokens bleiben unangetastet, waehrend Logo, Zug und
             // Kontakticons in Hell und Dunkel trotzdem real dargestellt

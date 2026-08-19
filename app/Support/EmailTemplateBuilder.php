@@ -1117,8 +1117,9 @@ class EmailTemplateBuilder
      * Einfuegen in eine cloudgespeicherte Signatur waeren file:-Quellen aber
      * nach dem Schliessen des Browsers unbrauchbar. Diese Fassung rendert
      * deshalb dieselbe Signatur mit absoluten HTTPS-Mailassets. Das einzelne
-     * Zug-GIF liegt nur in dieser Web-Kopierfassung als normales IMG hinter
-     * den Daten; die technische Classic-Payload behaelt ihre Flow-Zeile.
+     * Zug-GIF liegt in dieser Web-Kopierfassung als normalisierter
+     * CSS-Background hinter den Daten; die technische Classic-Payload
+     * behaelt ihre robuste Flow-Zeile.
      */
     protected function buildOutlookBrowserCopySignatureHtml(string $theme): string
     {
@@ -1177,7 +1178,10 @@ class EmailTemplateBuilder
             MailDocumentKind::Signature,
         );
 
-        return self::placeBrowserCopyTrainBehindContent($html);
+        return self::placeBrowserCopyTrainBehindContent(
+            $html,
+            $remoteSources['TRAIN_SRC'],
+        );
     }
 
     private static function httpsMailAssetUrl(string $asset): string
@@ -1196,55 +1200,69 @@ class EmailTemplateBuilder
     }
 
     /**
-     * Loest die eine Flow-Zeile ausschliesslich fuer die New-Outlook-/Web-
-     * Kopierfassung und setzt dasselbe HTTPS-GIF direkt in den bestehenden
-     * Carrier. Der Carrier ist bereits positioniert und ausgeblendet; Inhalt
-     * und Firmendaten liegen mit z-index:1 darueber. Dadurch bleiben 75-Prozent-
-     * Geometrie, erkennbares RT-Icon und null zusaetzliche Hoehe erhalten.
+     * Prueft die eigenstaendige New-Outlook-/Web-Kopierfassung nach der
+     * Runtime-Projektion. Der kombinierte Zug bleibt dort als ein HTTPS-
+     * Background im bereits validierten Carrier: hinter den Kontaktdaten,
+     * an der Unterkante und ohne zusaetzliche Bildzeile oder Layouthoehe.
      */
-    private static function placeBrowserCopyTrainBehindContent(string $html): string
+    private static function placeBrowserCopyTrainBehindContent(
+        string $html,
+        string $expectedTrainSource,
+    ): string
     {
-        $marker = '<!-- RT_SIGNATURE_MAIN_END -->';
-        $rowPattern = '~'.preg_quote($marker, '~')
-            .'<tr><td\b[^>]*>\s*(<img\b[^>]*\bdata-rt-train\b[^>]*>)\s*</td></tr>~i';
+        $expectedTrainSource = self::forceHttpsUrl($expectedTrainSource);
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $previous = libxml_use_internal_errors(true);
 
-        if (! preg_match($rowPattern, $html, $match)) {
-            throw new RuntimeException('Die Browser-Kopiervorlage besitzt keine eindeutige Zugzeile.');
+        try {
+            $loaded = $dom->loadHTML(
+                '<?xml encoding="UTF-8">'.$html,
+                LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD,
+            );
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
         }
 
-        if (! preg_match('/\bsrc="([^"]+)"/i', $match[1], $sourceMatch)) {
-            throw new RuntimeException('Die Browser-Kopiervorlage besitzt keine Zugbildquelle.');
+        if (! $loaded) {
+            throw new RuntimeException('Die Browser-Kopiervorlage ist kein gueltiges HTML-Dokument.');
         }
 
-        $source = self::forceHttpsUrl(html_entity_decode(
-            $sourceMatch[1],
+        $xpath = new \DOMXPath($dom);
+        $carriers = $xpath->query(
+            '//td[contains(concat(" ", normalize-space(@class), " "), " rt-sign-cell ")]',
+        );
+        if ($carriers === false || $carriers->length !== 1) {
+            throw new RuntimeException('Die Browser-Kopiervorlage besitzt keinen eindeutigen Zug-Carrier.');
+        }
+
+        $carrier = $carriers->item(0);
+        if (! $carrier instanceof \DOMElement) {
+            throw new RuntimeException('Der Zug-Carrier der Browser-Kopiervorlage ist unlesbar.');
+        }
+
+        $style = html_entity_decode(
+            $carrier->getAttribute('style'),
             ENT_QUOTES | ENT_HTML5,
             'UTF-8',
-        ));
-        $source = htmlspecialchars($source, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
-        $train = '<img class="rt-sign-train" data-rt-train src="'.$source.'" width="720" alt="" '
-            .'style="display:block;position:absolute;left:0;bottom:0;z-index:0;width:100%;max-width:720px;'
-            .'height:auto;margin:0;border:0;outline:none;text-decoration:none;">';
-
-        $removed = 0;
-        $html = preg_replace($rowPattern, $marker, $html, 1, $removed) ?? $html;
-        if ($removed !== 1 || preg_match($rowPattern, $html)) {
-            throw new RuntimeException('Die Zugzeile der Browser-Kopiervorlage ist nicht eindeutig.');
+        );
+        if (substr_count($style, 'url('.$expectedTrainSource.')') !== 1
+            || str_contains($style, '{{TRAIN_SRC}}')) {
+            throw new RuntimeException('Der HTTPS-Zug ist nicht eindeutig hinter den Signaturdaten gebunden.');
         }
 
-        $carrierPattern = '~(<td\b[^>]*class="[^"]*\brt-sign-cell\b[^"]*"[^>]*>.*?)(</td>\s*</tr>\s*'
-            .preg_quote($marker, '~').')~is';
-        $inserted = 0;
-        $html = preg_replace(
-            $carrierPattern,
-            '$1'.$train.'$2',
-            $html,
-            1,
-            $inserted,
-        ) ?? $html;
+        $trainImages = $xpath->query('//*[@data-rt-train]');
+        if ($trainImages === false || $trainImages->length !== 0) {
+            throw new RuntimeException('Die Browser-Kopiervorlage darf keine zusaetzliche Zugbildzeile enthalten.');
+        }
 
-        if ($inserted !== 1 || substr_count($html, 'data-rt-train') !== 1) {
-            throw new RuntimeException('Der Zug konnte nicht in den Carrier der Browser-Kopiervorlage eingesetzt werden.');
+        preg_match_all(
+            '~url\(\s*["\']?([^"\')]+)["\']?\s*\)~i',
+            $style,
+            $backgroundMatches,
+        );
+        foreach ($backgroundMatches[1] ?? [] as $backgroundSource) {
+            self::forceHttpsUrl($backgroundSource);
         }
 
         foreach (self::imageSources($html) as $imageSource) {

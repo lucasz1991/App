@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { DOMParser } from 'linkedom';
 
 import {
@@ -8,6 +9,8 @@ import {
     closeInitialMailPopovers,
     createMailNavigationController,
     createMailPreviewController,
+    hydrateMailCanvasAssets,
+    MAIL_STYLE_SECTORS,
     parseMailCssProjectStyles,
     protectMailSystemComponents,
     projectForMailDocument,
@@ -45,12 +48,12 @@ test('mail canvas renders real local token assets in light and dark without muta
     assert.match(light, /\[bgcolor="\{\{PAGE_BG\}\}"\]/);
     assert.match(light, /#e7eaed/);
     assert.match(light, /data:image\/png;base64,light-logo/);
-    assert.match(light, /data:image\/png;base64,light-train/);
+    assert.doesNotMatch(light, /data:image\/png;base64,light-train/);
     assert.match(light, /data:image\/png;base64,phone-icon/);
     assert.match(light, /data:image\/png;base64,location-icon/);
     assert.match(dark, /#070a0e/);
     assert.match(dark, /data:image\/png;base64,dark-logo/);
-    assert.match(dark, /data:image\/png;base64,dark-train/);
+    assert.doesNotMatch(dark, /data:image\/png;base64,dark-train/);
     assert.doesNotMatch(dark, /light-logo/);
     assert.deepEqual(previewAssets, snapshot);
 });
@@ -110,7 +113,7 @@ test('global mail replay restarts every animated token without touching componen
     }
 });
 
-test('signature project gets a valid editor-only table and neutral preview sources', () => {
+test('signature project gets a valid editor-only table and a reversible train background', () => {
     const source = {
         pages: [{
             component: '<tr><td class="rt-pad rt-sign-cell" style="background-image:url(\'{{TRAIN_SRC}}\')"><img src="{{LOGO_SRC}}" alt="{{FIRMENNAME}}"><img src="{{ICON_EMAIL_SRC}}"><img src="{{ICON_LOCATION_SRC}}"></td></tr><tr><td style="color:{{SIGNATURE_LEGAL_TEXT}}">Rechtliches</td></tr>',
@@ -129,17 +132,13 @@ test('signature project gets a valid editor-only table and neutral preview sourc
     assert.match(component, /data-rt-mail-preview-token="ICON_EMAIL_SRC"/);
     assert.match(component, /data-rt-mail-preview-token="ICON_LOCATION_SRC"/);
     assert.match(component, /data-rt-mail-preview-train="TRAIN_SRC"/);
-    assert.match(component, /data-rt-mail-preview-only="train"/);
-    assert.match(
-        component,
-        /<img\b(?=[^>]*class="rt-sign-train")(?=[^>]*data-rt-mail-preview-token="TRAIN_SRC")[^>]*>/,
-    );
+    assert.doesNotMatch(component, /data-rt-mail-preview-only="train"|data-rt-train/);
     assert.doesNotMatch(component, /src="\{\{LOGO_SRC\}\}"/);
     assert.doesNotMatch(component, /\{\{TRAIN_SRC\}\}/);
     assert.deepEqual(draft.builderData, source);
 });
 
-test('signature preview uses a regular train image and roundtrips two canonical rows', () => {
+test('signature preview hydrates the train behind content and roundtrips two canonical rows', () => {
     const original = '<tr><td class="rt-sign-cell" style="background-image:url(\'{{TRAIN_SRC}}\')"><span data-rt-mail-block="paragraph" data-rt-mail-text="secondary">Inhalt</span><img src="{{LOGO_SRC}}"></td></tr><!-- RT_SIGNATURE_MAIN_END --><tr><td style="color:{{SIGNATURE_LEGAL_TEXT}}"><img src="{{ICON_EMAIL_SRC}}"></td></tr>';
     const project = projectForMailDocument({
         builderData: { pages: [{ component: original }], styles: [] },
@@ -147,8 +146,8 @@ test('signature preview uses a regular train image and roundtrips two canonical 
     }, () => [], { kind: 'signature', environment: { DOMParser } });
 
     assert.equal((project.pages[0].component.match(/data-rt-mail-preview-train/g) || []).length, 1);
-    assert.equal((project.pages[0].component.match(/data-rt-mail-preview-only="train"/g) || []).length, 1);
-    assert.equal((project.pages[0].component.match(/data-rt-mail-preview-token="TRAIN_SRC"/g) || []).length, 1);
+    assert.equal((project.pages[0].component.match(/data-rt-mail-preview-only="train"/g) || []).length, 0);
+    assert.equal((project.pages[0].component.match(/data-rt-mail-preview-token="TRAIN_SRC"/g) || []).length, 0);
     assert.equal((project.pages[0].component.match(/RT_SIGNATURE_MAIN_END/g) || []).length, 1);
     const outgoing = serializeMailDocumentForSave({
         project,
@@ -349,13 +348,16 @@ test('signature save fails closed when a preview marker is removed', () => {
         environment: { DOMParser },
     }), /Vorschauwerte/);
 
-    const withoutTrainImage = project.pages[0].component.replace(/<tr data-rt-mail-preview-only="train">[\s\S]*?<\/tr>/, '');
+    const withSecondTrainImage = project.pages[0].component.replace(
+        '<tr><td>Rechtliches</td></tr>',
+        '<tr data-rt-mail-preview-only="train"><td><img data-rt-train src="x.gif"></td></tr><tr><td>Rechtliches</td></tr>',
+    );
     assert.throws(() => serializeMailDocumentForSave({
         project,
-        html: withoutTrainImage,
+        html: withSecondTrainImage,
         kind: 'signature',
         environment: { DOMParser },
-    }), /Zugvorschau/);
+    }), /zweite Zugbildzeile/);
 
     const duplicatedMainMarker = project.pages[0].component.replace(
         '<tr><td>Rechtliches</td></tr>',
@@ -409,7 +411,6 @@ test('GrapesJS inline import rules are merged in cascade order without touching 
     const transparent = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=';
     const html = '<table data-rt-mail-signature-canvas="true"><tbody>'
         + '<tr><td class="rt-sign-cell c777 c101 c102" data-rt-mail-inline-source="s1" data-rt-mail-preview-train="TRAIN_SRC" style="padding:9px;">Inhalt</td></tr>'
-        + '<tr data-rt-mail-preview-only="train"><td><img class="rt-sign-train" data-rt-train data-rt-mail-preview-token="TRAIN_SRC" src="data:image/png;base64,preview"></td></tr>'
         + '<tr><td class="c777">Rechtliches</td></tr>'
         + '</tbody></table>';
     const project = {
@@ -533,6 +534,91 @@ test('template preview preserves its shell and restores image tokens plus exactl
     assert.equal(outgoing.project.pages[0].component, outgoing.html);
 });
 
+test('canonical template mark and Outlook still survive normalized or comment-free header roundtrips', () => {
+    const canonical = readFileSync(
+        new URL('../../resources/mail-templates/email-master.html', import.meta.url),
+        'utf8',
+    );
+    const start = '<!-- RT_TEMPLATE_MARK_START -->';
+    const end = '<!-- RT_TEMPLATE_MARK_END -->';
+    const fragment = (html) => {
+        const from = html.indexOf(start);
+        const to = html.indexOf(end);
+        return from < 0 || to <= from ? '' : html.slice(from, to + end.length);
+    };
+    const expectedMark = fragment(canonical);
+    const project = projectForMailDocument({
+        // `html` bleibt fuer alte, nur-Body enthaltende builder_data die
+        // autoritative vollstaendige Serverfassung.
+        html: canonical,
+        builderData: {
+            pages: [{ component: '<table><tbody><tr><td>Legacy-Body</td></tr></tbody></table>' }],
+            styles: [],
+        },
+        css: '',
+    }, () => [], { kind: 'template', environment: { DOMParser } });
+
+    assert.equal(fragment(project.pages[0].component) !== '', true);
+    assert.doesNotMatch(project.pages[0].component, /Legacy-Body/);
+    assert.doesNotMatch(project.pages[0].component, /\{\{APPLICATION_CONTENT\}\}/);
+    assert.match(project.pages[0].component, /data-rt-mail-preview-only="application"/);
+
+    const normalized = serializeMailDocumentForSave({
+        project,
+        html: project.pages[0].component,
+        kind: 'template',
+        baselineHtml: canonical,
+        environment: { DOMParser },
+    });
+    assert.equal(fragment(normalized.html), expectedMark);
+    const applicationStart = normalized.html.indexOf('<!-- RT_APPLICATION_CONTENT_START -->');
+    const applicationSlot = normalized.html.indexOf('{{APPLICATION_CONTENT}}');
+    const applicationEnd = normalized.html.indexOf('<!-- RT_APPLICATION_CONTENT_END -->');
+    assert.equal(applicationStart < applicationSlot && applicationSlot < applicationEnd, true);
+    assert.doesNotMatch(normalized.html, /data-rt-mail-preview-only="application"/);
+
+    const projectedMark = fragment(project.pages[0].component);
+    const withoutHeaderComments = project.pages[0].component.replace(
+        projectedMark,
+        projectedMark.replace(/<!--[\s\S]*?-->/g, ''),
+    );
+    const restored = serializeMailDocumentForSave({
+        project,
+        html: withoutHeaderComments,
+        kind: 'template',
+        baselineHtml: canonical,
+        environment: { DOMParser },
+    });
+    assert.equal(fragment(restored.html), expectedMark);
+    assert.equal((restored.html.match(/\{\{ICON_RT_SRC\}\}/g) || []).length, 1);
+    assert.equal((restored.html.match(/\{\{ICON_RT_STILL_SRC\}\}/g) || []).length, 1);
+
+    assert.throws(() => serializeMailDocumentForSave({
+        project,
+        html: project.pages[0].component.replace('ICON_RT_STILL_SRC', 'ICON_RT_STILL_SOURCE'),
+        kind: 'template',
+        baselineHtml: canonical,
+        environment: { DOMParser },
+    }), /Outlook-Standbild/);
+    assert.throws(() => serializeMailDocumentForSave({
+        project,
+        html: project.pages[0].component.replace(start, ''),
+        kind: 'template',
+        baselineHtml: canonical,
+        environment: { DOMParser },
+    }), /RT-Headervertrag/);
+    assert.throws(() => serializeMailDocumentForSave({
+        project,
+        html: project.pages[0].component.replace(
+            'data-rt-mail-preview-only="application"',
+            'data-rt-mail-preview-only="application-moved"',
+        ),
+        kind: 'template',
+        baselineHtml: canonical,
+        environment: { DOMParser },
+    }), /Anwendungsslot/);
+});
+
 test('built-in mail blocks keep content and formatting without persisting editor metadata', () => {
     const canonical = '<!doctype html><html lang="de"><head><style>.rt-shell{width:100%}</style></head><body><table class="rt-shell"><tbody><tr><td>Inhalt<img src="{{ICON_RT_SRC}}" alt=""></td></tr>{{SIGNATURE_BLOCK}}</tbody></table></body></html>';
     const project = projectForMailDocument({
@@ -566,7 +652,7 @@ test('built-in mail blocks keep content and formatting without persisting editor
     }), /verlustfrei/);
 });
 
-test('protected mail system carriers are not offered as styleable components', () => {
+test('protected mail layers stay named and structural while train position remains styleable', () => {
     const component = (attributes = {}, tagName = 'div', children = []) => {
         const state = { attributes, tagName };
         const item = {
@@ -585,19 +671,81 @@ test('protected mail system carriers are not offered as styleable components', (
     const markRow = component({}, 'tr', [markCell]);
     const carrierContent = component({}, 'table');
     const carrier = component({ 'data-rt-mail-preview-train': 'TRAIN_SRC' }, 'td', [carrierContent]);
+    const applicationNote = component({}, 'div');
+    const applicationCell = component({}, 'td', [applicationNote]);
+    const applicationRow = component({ 'data-rt-mail-preview-only': 'application' }, 'tr', [applicationCell]);
     const ordinary = component({}, 'p');
-    const root = component({}, 'body', [markRow, carrier, ordinary]);
+    const ordinaryImage = component({ src: 'https://app.rail-time.test/mail-assets/content.png', alt: 'Teambild' }, 'img');
+    const root = component({}, 'body', [markRow, carrier, applicationRow, ordinary, ordinaryImage]);
 
-    assert.equal(protectMailSystemComponents({ getWrapper: () => root }), 3);
-    [mark, markCell, carrier].forEach((protectedComponent) => {
+    assert.equal(protectMailSystemComponents({ getWrapper: () => root }), 6);
+    [mark, markCell, applicationRow, applicationCell, applicationNote].forEach((protectedComponent) => {
         assert.equal(protectedComponent.state.stylable, false);
+        assert.equal(protectedComponent.state.editable, false);
         assert.equal(protectedComponent.state.draggable, false);
         assert.equal(protectedComponent.state.removable, false);
         assert.equal(protectedComponent.state.copyable, false);
     });
+    assert.deepEqual(carrier.state.stylable, ['background-position']);
+    assert.equal(carrier.state.layerable, true);
+    assert.equal(carrier.state['custom-name'], 'Zug-Hintergrund (geschützt)');
+    assert.equal(markCell.state['custom-name'], 'RT-Zeichen (geschützt)');
+    assert.equal(applicationRow.state['custom-name'], 'Anwendungsinhalt (geschützt)');
+    for (const property of ['editable', 'draggable', 'removable', 'copyable', 'droppable']) {
+        assert.equal(carrier.state[property], false);
+    }
     [markRow, carrierContent, ordinary].forEach((editableComponent) => {
         assert.equal(editableComponent.state.stylable, undefined);
     });
+    assert.equal(ordinaryImage.state['custom-name'], 'Teambild');
+    assert.deepEqual(
+        ordinaryImage.state.traits.map((trait) => trait.name),
+        ['alt', 'title', 'width', 'height'],
+    );
+});
+
+test('mail-safe train controls expose only five bottom-aligned desktop positions', () => {
+    const sector = MAIL_STYLE_SECTORS.find((item) => item.id === 'rt-mail-train-background');
+    const position = sector?.properties?.find((item) => item.property === 'background-position');
+    assert.ok(position);
+    assert.equal(position.name, 'Position (Desktop)');
+    assert.deepEqual(position.options.map((item) => item.label), ['Links', '25 %', 'Mitte', '75 %', 'Rechts']);
+    position.options.forEach((item) => {
+        assert.match(item.id, /^left top,right center,center center,(?:left|25%|50%|75%|right) bottom$/);
+        assert.doesNotMatch(item.id, /calc\(|var\(|!important|\btop$/);
+    });
+});
+
+test('canvas hydrates the train background without creating a second image or mutating its token model', () => {
+    const project = projectForMailDocument({
+        builderData: { pages: [{ component: '<tr><td class="rt-sign-cell" style="background-image:url(\'{{TRAIN_SRC}}\')">Inhalt</td></tr><tr><td>Rechtliches</td></tr>' }], styles: [] },
+        css: '',
+    }, () => [], { kind: 'signature', environment: { DOMParser } });
+    const document_ = new DOMParser().parseFromString(project.pages[0].component, 'text/html');
+    const carrier = document_.querySelector('[data-rt-mail-preview-train="TRAIN_SRC"]');
+    const modelStyle = carrier.getAttribute('style');
+
+    assert.equal(hydrateMailCanvasAssets({ Canvas: { getDocument: () => document_ } }, 'light', {
+        light: { train: 'https://app.rail-time.test/mail-assets/train.gif' },
+    }), 1);
+    assert.match(carrier.getAttribute('style'), /https:\/\/app\.rail-time\.test\/mail-assets\/train\.gif/);
+    assert.equal(document_.querySelectorAll('[data-rt-train], img.rt-sign-train').length, 0);
+    assert.match(modelStyle, /about:blank#rt-mail-train-preview/);
+    assert.equal(project.pages[0].component.includes('https://app.rail-time.test'), false);
+
+    // Ein Style-Update schreibt zunaechst wieder den tokenisierten Modellwert
+    // ins Canvas. Die erneute Hydrierung muss die neue Position sichtbar
+    // lassen, ohne die echte Asset-URL ins speicherbare Projekt zu uebernehmen.
+    carrier.setAttribute('style', modelStyle.replace(
+        'background-image:',
+        'background-position:50% bottom;background-image:',
+    ));
+    assert.equal(hydrateMailCanvasAssets({ Canvas: { getDocument: () => document_ } }, 'light', {
+        light: { train: 'https://app.rail-time.test/mail-assets/train.gif' },
+    }), 1);
+    assert.match(carrier.getAttribute('style'), /background-position:50% bottom/);
+    assert.match(carrier.getAttribute('style'), /https:\/\/app\.rail-time\.test\/mail-assets\/train\.gif/);
+    assert.doesNotMatch(project.pages[0].component, /background-position:50% bottom/);
 });
 
 test('template save never persists a detached or unknown image preview binding', () => {

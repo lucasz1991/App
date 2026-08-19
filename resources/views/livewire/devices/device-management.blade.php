@@ -181,8 +181,8 @@
         </section>
 
         <div class="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]">
-            <section class="min-w-0 overflow-hidden rounded-xl border border-rt-border/80 bg-white shadow-rt-xs dark:border-rt-dark-border dark:bg-rt-dark-surface" aria-labelledby="device-inventory-title">
-                <div class="flex items-center justify-between gap-3 border-b border-rt-border/70 px-4 py-3 dark:border-rt-dark-border">
+            <section class="min-w-0" aria-labelledby="device-inventory-title">
+                <div class="flex items-center justify-between gap-3 px-1 pb-2">
                     <div>
                         <h2 id="device-inventory-title" class="text-sm font-bold text-rt-text dark:text-white">Gerätebestand</h2>
                         <p class="mt-0.5 text-xs text-rt-muted dark:text-rt-dark-muted">{{ number_format($devices->total(), 0, ',', '.') }} Treffer in Inventar und Ausgabe</p>
@@ -192,56 +192,31 @@
                     @endif
                 </div>
 
-                <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-rt-border/70 text-left text-sm dark:divide-rt-dark-border">
-                    <thead class="bg-rt-surface-muted/70 text-[11px] uppercase tracking-[0.08em] text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted">
-                        <tr>
-                            <th class="px-3 py-2.5 font-semibold sm:px-4">Gerät</th><th class="px-3 py-2.5 font-semibold">Mitarbeiter</th><th class="px-3 py-2.5 font-semibold">Plattform</th><th class="px-3 py-2.5 font-semibold">Standort</th><th class="px-3 py-2.5 font-semibold">Compliance</th><th class="hidden px-3 py-2.5 font-semibold 2xl:table-cell">Verwaltung</th><th class="hidden px-3 py-2.5 font-semibold xl:table-cell">Sync</th><th class="px-2 py-2.5"><span class="sr-only">Aktion</span></th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-rt-border/60 dark:divide-rt-dark-border/70">
-                        @forelse($devices as $device)
-                            @php
-                                $assignment = $device->activeAssignment;
-                                $compliance = $device->compliance_status->value;
-                                $management = $device->management_status->value;
-                            @endphp
-                            <tr class="transition duration-200 hover:bg-rt-surface-muted/60 dark:hover:bg-rt-dark-surface-muted/60">
-                                <td class="px-3 py-2.5 sm:px-4">
-                                    <button type="button" wire:click="selectDevice('{{ $device->public_id }}')" class="text-left font-semibold text-rt-text hover:text-rt-red dark:text-white dark:hover:text-rt-red-light">
-                                        {{ $device->display_name ?: $device->hostname ?: 'Unbenanntes Gerät' }}
-                                        <span class="mt-0.5 block text-xs font-normal text-rt-muted dark:text-rt-dark-muted">{{ $device->asset_tag ?: $device->serial_number }}</span>
-                                    </button>
-                                </td>
-                                <td class="px-3 py-2.5 text-rt-text dark:text-white">{{ $assignment?->user?->name ?? 'Im Lager' }}</td>
-                                <td class="px-3 py-2.5"><span class="rounded-md border border-rt-border px-2 py-1 text-xs font-medium dark:border-rt-dark-border">{{ match($device->platform->value) {'macos' => 'macOS', 'ios' => 'iOS', 'ipados' => 'iPadOS', default => ucfirst($device->platform->value)} }}</span></td>
-                                <td class="px-3 py-2.5 text-rt-muted dark:text-rt-dark-muted">{{ $device->declared_location ?: 'Nicht gemeldet' }}</td>
-                                <td class="px-3 py-2.5">
-                                    <span @class([
-                                        'inline-flex rounded-full px-2.5 py-1 text-xs font-semibold',
-                                        'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' => $compliance === 'compliant',
-                                        'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' => $compliance === 'warning',
-                                        'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300' => $compliance === 'non_compliant',
-                                        'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300' => !in_array($compliance, ['compliant','warning','non_compliant'], true),
-                                    ])>{{ match($compliance) {'compliant' => 'Konform', 'warning' => 'Warnung', 'non_compliant' => 'Nicht konform', 'exempt' => 'Ausgenommen', default => 'Unbekannt'} }}</span>
-                                </td>
-                                <td class="hidden px-3 py-2.5 text-rt-muted 2xl:table-cell dark:text-rt-dark-muted">{{ match($management) {'managed' => 'Verwaltet', 'limited' => 'Eingeschränkt', 'pending' => 'Einladung offen', 'error' => 'Fehler', default => 'Nicht verwaltet'} }}</td>
-                                <td class="hidden whitespace-nowrap px-3 py-2.5 text-xs text-rt-muted xl:table-cell dark:text-rt-dark-muted">{{ $device->last_synced_at?->diffForHumans() ?? 'Noch nie' }}</td>
-                                <td class="px-2 py-2.5 text-right"><button type="button" wire:click="selectDevice('{{ $device->public_id }}')" class="grid min-h-10 min-w-10 place-items-center rounded-lg text-rt-muted transition hover:bg-rt-surface-muted hover:text-rt-red active:scale-[0.96] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/15 dark:hover:bg-rt-dark-surface-muted" aria-label="Details zu {{ $device->display_name }}"><i data-feather="chevron-right" class="h-4 w-4"></i></button></td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="8" class="px-4 py-10 text-center">
-                                    <span class="mx-auto grid h-11 w-11 place-items-center rounded-xl bg-rt-surface-muted text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted"><i data-feather="monitor" class="h-5 w-5" aria-hidden="true"></i></span>
-                                    <p class="mt-3 text-sm font-semibold text-rt-text dark:text-white">Noch keine passenden Geräte gefunden</p>
-                                    <p class="mx-auto mt-1 max-w-sm text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Passe die Filter an oder erfasse das erste Gerät für das virtuelle Lager.</p>
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
+                <div class="rt-device-mobile-header px-3 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] md:hidden">
+                    <div class="rt-device-mobile-header-grid min-w-0">
+                        <span>Gerät</span>
+                        <span class="text-right">Status</span>
+                    </div>
+                    <span aria-hidden="true"></span>
                 </div>
-                <div class="border-t border-rt-border/70 px-4 py-3 dark:border-rt-dark-border">{{ $devices->links() }}</div>
+                <x-tables.table
+                    class="rt-device-table"
+                    :flush-top="true"
+                    :columns="[
+                        ['label' => 'Gerät', 'key' => 'device', 'width' => '29%', 'hideOn' => 'none'],
+                        ['label' => 'Mitarbeiter', 'key' => 'employee', 'width' => '21%', 'hideOn' => 'md'],
+                        ['label' => 'Plattform', 'key' => 'platform', 'width' => '13%', 'hideOn' => 'md'],
+                        ['label' => 'Standort', 'key' => 'location', 'width' => '17%', 'hideOn' => 'md'],
+                        ['label' => 'Status', 'key' => 'status', 'width' => '20%', 'hideOn' => 'none'],
+                    ]"
+                    :items="$devices"
+                    :selected-items="$selectedDevice ? [$selectedDevice->id] : []"
+                    selection-action="selectDeviceById"
+                    row-view="components.tables.rows.devices.device-row"
+                    actions-view="components.tables.rows.devices.device-actions"
+                    empty="Noch keine passenden Geräte gefunden. Passe die Filter an oder erfasse das erste Gerät für das virtuelle Lager."
+                />
+                <div class="py-3">{{ $devices->links() }}</div>
             </section>
 
             <aside class="overflow-hidden rounded-xl border border-rt-border/80 bg-white shadow-rt-xs dark:border-rt-dark-border dark:bg-rt-dark-surface" aria-labelledby="device-locations-title">

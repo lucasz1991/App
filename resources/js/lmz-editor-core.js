@@ -407,7 +407,38 @@ export function collectUsedMedia({
             });
         });
 
-        return { used, library: [], warnings };
+        // Neben den serverkontrollierten Marken-Tokens duerfen normale
+        // Inhaltsbilder im Maildokument vorkommen. Sie werden wie im
+        // Marketing-Editor nur dann als ersetzbar eingestuft, wenn ihre
+        // Quelle aus dem explizit freigegebenen Asset-Bestand kommt oder als
+        // eingebettetes Bild bereits Bestandteil des Dokuments ist.
+        extractHtmlMediaSources(html, environment).forEach((mediaSource) => {
+            if (/^(?:about:blank|\{\{[A-Z0-9_]+}})$/i.test(mediaSource)) return;
+            const key = canonicalMediaSource(mediaSource, baseUrl);
+            if (!key || seen.has(key)) return;
+            seen.add(key);
+            const matched = libraryBySource.get(key);
+            const embedded = /^data:image\//i.test(mediaSource);
+            const isTrusted = trusted.has(key);
+            const allowed = Boolean(matched || embedded || isTrusted);
+            used.push({
+                id: `source:${key}`,
+                src: mediaSource,
+                name: matched?.name || (embedded ? 'Eingebettetes Bild' : mediaSource.split('/').pop() || mediaSource),
+                kind: matched ? 'library' : (embedded ? 'embedded' : (isTrusted ? 'brand' : 'unknown')),
+                allowed,
+                protected: embedded || isTrusted,
+                status: allowed ? (matched ? 'available' : 'protected') : 'out-of-scope',
+                asset: matched?.asset || null,
+            });
+            if (!allowed) warnings.push({
+                code: 'media.out-of-scope',
+                source: mediaSource,
+                message: `Die verwendete Bildquelle ${mediaSource} liegt nicht in der freigegebenen Bibliothek.`,
+            });
+        });
+
+        return { used, library, warnings };
     }
 
     const sources = [
@@ -466,17 +497,6 @@ function isImageComponent(component) {
     return type === 'image' || tag === 'img';
 }
 
-function componentOrAncestorHas(component, predicate) {
-    let current = component;
-    let guard = 0;
-    while (current && guard < 30) {
-        if (predicate(componentAttributes(current), current)) return true;
-        current = typeof current.parent === 'function' ? current.parent() : null;
-        guard += 1;
-    }
-    return false;
-}
-
 function hasProtectedEditorMarker(component) {
     const attributes = componentAttributes(component);
     const block = String(attributes['data-rt-block'] || '');
@@ -490,17 +510,44 @@ function hasProtectedEditorMarker(component) {
     );
 }
 
-export function isProtectedEditorImage(component, mode = 'marketing') {
+function isMailTrainCarrier(component) {
+    return Boolean(componentAttributes(component)['data-rt-mail-preview-train']);
+}
+
+function isMailSystemLayer(component) {
+    const attributes = componentAttributes(component);
+
+    return Boolean(
+        attributes['data-rt-mail-preview-token']
+        || attributes['data-rt-mail-preview-train']
+    );
+}
+
+export function isProtectedEditorImage(component) {
     if (!component) return true;
-    if (mode === 'mail') return true;
 
     return isProtectedEditorStructure(component);
 }
 
 export function isProtectedEditorStructure(component) {
     if (!component) return false;
+    let current = component;
+    let isSelectedComponent = true;
+    let guard = 0;
 
-    return componentOrAncestorHas(component, (_attributes, current) => hasProtectedEditorMarker(current));
+    while (current && guard < 30) {
+        if (hasProtectedEditorMarker(current)) {
+            // Der Zug-Carrier schuetzt seine eigene mailkritische Geometrie,
+            // ist aber kein Schloss fuer die darin liegenden Kontakt- und
+            // Inhaltsbloecke. Diese bleiben im Ebenenpanel einzeln erreichbar.
+            if (isSelectedComponent || !isMailTrainCarrier(current)) return true;
+        }
+        current = typeof current.parent === 'function' ? current.parent() : null;
+        isSelectedComponent = false;
+        guard += 1;
+    }
+
+    return false;
 }
 
 /**
@@ -534,7 +581,6 @@ const IMMUTABLE_COMPONENT_PROPERTIES = Object.freeze({
     editable: false,
     stylable: false,
     resizable: false,
-    layerable: false,
 });
 
 export function enforceProtectedComponentModels(editor, { readOnly = false } = {}) {
@@ -542,14 +588,23 @@ export function enforceProtectedComponentModels(editor, { readOnly = false } = {
     if (!wrapper) return 0;
     let locked = 0;
     const visit = (component, protectedAncestor = false) => {
-        const protectedComponent = protectedAncestor || isProtectedEditorStructure(component);
+        const directProtectedComponent = hasProtectedEditorMarker(component);
+        const protectedComponent = protectedAncestor || directProtectedComponent;
         if (readOnly || protectedComponent) {
             Object.entries(IMMUTABLE_COMPONENT_PROPERTIES).forEach(([property, value]) => {
                 component?.set?.(property, value, { silent: true });
             });
+            component?.set?.(
+                'layerable',
+                readOnly
+                    ? false
+                    : Boolean(directProtectedComponent && !protectedAncestor && isMailSystemLayer(component)),
+                { silent: true },
+            );
             locked += 1;
         }
-        componentChildren(component).forEach((child) => visit(child, protectedComponent));
+        const protectChildren = protectedComponent && !isMailTrainCarrier(component);
+        componentChildren(component).forEach((child) => visit(child, protectChildren));
     };
     visit(wrapper);
     return locked;
@@ -620,10 +675,10 @@ export function createImageAssetSelection({
             ? 'Markenmedien und Mail-Tokens sind geschützt und können hier nicht ersetzt werden.'
             : 'Bitte genau ein bearbeitbares Bild auswählen.');
     }
-    const allowed = new Map((assets || []).map((asset) => {
-        const source = assetSource(asset);
-        return [canonicalMediaSource(source, baseUrl), asset];
-    }));
+    const allowed = new Map((assets || [])
+        .map((asset) => ({ asset, normalized: normalizeAsset(asset, baseUrl) }))
+        .filter(({ normalized }) => normalized.src && normalized.type === 'image')
+        .map(({ asset, normalized }) => [normalized.key, asset]));
     editor?.AssetManager?.setTarget?.(image);
 
     return {
@@ -703,11 +758,12 @@ export function installScopedAssetAccess({ editor, mediaDrawer, mode = 'marketin
         }
 
         const image = resolveEditableImageComponent(editor, candidate, { mode });
-        mediaDrawer.open(image
+        if (image && mediaDrawer.canReplace?.(image) === false) return false;
+        const opened = mediaDrawer.open(image
             ? { replaceTarget: image, initialTab: 'library' }
             : { initialTab: 'used' });
 
-        return true;
+        return opened !== false;
     };
     const scopedCommand = {
         run(_editor, sender = null, options = {}) {
@@ -1672,6 +1728,11 @@ function markMoveHandleReady(handle) {
     return true;
 }
 
+function scopedImageReplacementEnabled(capabilities, mode) {
+    return capabilities.imageReplace === true
+        || (mode === 'mail' && capabilities.imageReplace === 'tokens-only');
+}
+
 function createMediaDrawer({ root, editor, mode, media, capabilities, onChanged }) {
     const document_ = root.ownerDocument;
     const viewport = root.querySelector('.lmz-builder__viewport') || root;
@@ -1680,10 +1741,10 @@ function createMediaDrawer({ root, editor, mode, media, capabilities, onChanged 
     drawer.hidden = true;
     drawer.setAttribute('role', 'dialog');
     drawer.setAttribute('aria-modal', 'false');
-    drawer.setAttribute('aria-label', mode === 'mail' ? 'Markenmedien' : 'Medien');
+    drawer.setAttribute('aria-label', mode === 'mail' ? 'Mail-Bilder' : 'Medien');
     drawer.innerHTML = `
         <header class="rt-lmz-media-drawer__header">
-            <div><strong>${mode === 'mail' ? 'Markenmedien' : 'Medien'}</strong><small data-rt-lmz-media-summary></small></div>
+            <div><strong>${mode === 'mail' ? 'Mail-Bilder' : 'Medien'}</strong><small data-rt-lmz-media-summary></small></div>
             <button type="button" data-rt-lmz-media-close aria-label="Medien schliessen">&times;</button>
         </header>
         <div class="rt-lmz-media-drawer__tabs" role="tablist">
@@ -1709,6 +1770,18 @@ function createMediaDrawer({ root, editor, mode, media, capabilities, onChanged 
         const value = typeof media.tokenMedia === 'function' ? media.tokenMedia() : media.tokenMedia;
         return Array.isArray(value) ? value : [];
     };
+    const currentAssets = () => {
+        const value = typeof media.assets === 'function' ? media.assets() : media.assets;
+        return (Array.isArray(value) ? value : []).filter((asset) => {
+            const normalized = normalizeAsset(asset, media.baseUrl || globalThis.location?.origin || 'http://localhost/');
+            return normalized.src && normalized.type === 'image';
+        });
+    };
+    const canReplace = (target = editor.getSelected?.()) => (
+        scopedImageReplacementEnabled(capabilities, mode)
+        && currentAssets().length > 0
+        && Boolean(resolveEditableImageComponent(editor, target, { mode }))
+    );
 
     const currentDocument = () => ({
         html: editor.getHtml?.() || '',
@@ -1719,19 +1792,20 @@ function createMediaDrawer({ root, editor, mode, media, capabilities, onChanged 
         state = collectUsedMedia({
             ...documentState,
             mode,
-            assets: media.assets || [],
+            assets: currentAssets(),
             trustedSources: media.trustedSources || [],
             tokenMedia: currentTokenMedia(),
             baseUrl: media.baseUrl || globalThis.location?.origin || 'http://localhost/',
             environment: { DOMParser: globalThis.DOMParser },
         });
         const query = String(filter.value || '').trim().toLocaleLowerCase('de');
+        const tokenLibrary = currentTokenMedia().map((item) => ({
+            id: `token:${normalizedToken(item.token)}`, token: normalizedToken(item.token),
+            src: item.src || '', name: item.label || item.token, protected: true, allowed: true,
+        }));
         const items = (tab === 'used'
             ? state.used
-            : (mode === 'mail' ? currentTokenMedia().map((item) => ({
-                id: `token:${normalizedToken(item.token)}`, token: normalizedToken(item.token),
-                src: item.src || '', name: item.label || item.token, protected: true, allowed: true,
-            })) : state.library))
+            : (mode === 'mail' ? [...tokenLibrary, ...state.library] : state.library))
             .filter((item) => !query || `${item.name} ${item.category || ''} ${item.token || ''}`.toLocaleLowerCase('de').includes(query));
         list.replaceChildren();
         items.forEach((item) => {
@@ -1756,9 +1830,9 @@ function createMediaDrawer({ root, editor, mode, media, capabilities, onChanged 
             button.querySelector('small').textContent = item.allowed === false
                 ? 'Nicht mehr im freigegebenen Dateibereich'
                 : (item.protected ? 'Geschütztes Markenmedium' : (item.category || 'Dateibibliothek'));
-            const canSelect = tab === 'library' && mode === 'marketing' && replaceSession && !item.protected;
-            button.disabled = !canSelect;
-            if (canSelect) button.addEventListener('click', () => {
+            const selectable = tab === 'library' && replaceSession && !item.protected;
+            button.disabled = !selectable;
+            if (selectable) button.addEventListener('click', () => {
                 try {
                     replaceSession.select(item.asset || item, true);
                     replaceSession = null;
@@ -1780,9 +1854,11 @@ function createMediaDrawer({ root, editor, mode, media, capabilities, onChanged 
         }
         warning.hidden = state.warnings.length === 0;
         warning.textContent = state.warnings.map((item) => item.message).join(' ');
-        summary.textContent = `${state.used.length} verwendet · ${mode === 'mail' ? currentTokenMedia().length : state.library.length} verfügbar`;
+        summary.textContent = `${state.used.length} verwendet · ${mode === 'mail' ? currentTokenMedia().length + state.library.length : state.library.length} verfügbar`;
         hint.textContent = mode === 'mail'
-            ? 'Mail-Markenmedien sind geschützt. Freie Dateipoolbilder werden nicht als private Admin-URL in E-Mails eingesetzt.'
+            ? (replaceSession
+                ? 'Wähle ein ausdrücklich für E-Mails freigegebenes Bild. Markenmedien und System-Tokens bleiben geschützt.'
+                : 'Markenmedien und System-Tokens sind geschützt. Inhaltsbilder lassen sich nur aus dem freigegebenen Mail-Asset-Bestand ersetzen.')
             : (replaceSession ? 'Wähle ein Bild aus der freigegebenen Bibliothek.' : 'Zum Ersetzen zuerst ein bearbeitbares Bild im Motiv auswählen.');
     };
 
@@ -1821,11 +1897,12 @@ function createMediaDrawer({ root, editor, mode, media, capabilities, onChanged 
             replaceSession?.cancel?.();
             replaceSession = null;
             boundSelection = null;
-            if (replaceTarget && capabilities.imageReplace === true) {
+            if (replaceTarget && !canReplace(replaceTarget)) return false;
+            if (replaceTarget) {
                 replaceSession = createImageAssetSelection({
                     editor,
                     target: replaceTarget,
-                    assets: media.assets || [],
+                    assets: currentAssets(),
                     mode,
                     baseUrl: media.baseUrl,
                     onSelected: onChanged,
@@ -1847,7 +1924,9 @@ function createMediaDrawer({ root, editor, mode, media, capabilities, onChanged 
             drawer.hidden = false;
             refresh();
             drawer.querySelector(`[data-rt-lmz-media-tab="${tab}"]`)?.focus?.();
+            return true;
         },
+        canReplace,
         close,
         selectionChanged(selected, { deselected = false } = {}) {
             if (drawer.hidden || !replaceSession || !boundSelection) return false;
@@ -2307,16 +2386,20 @@ function createInlineMenu({ root, editor, capabilities, mode, mediaDrawer, anima
         const image = resolveEditableImageComponent(editor, component, { mode });
         const protectedStructure = isProtectedEditorStructure(component);
         const protectedStructureTree = isProtectedEditorStructureTree(component);
+        const selectedStylable = component?.get?.('stylable');
+        const protectedStyleAllowed = protectedStructure
+            && (selectedStylable === true
+                || (Array.isArray(selectedStylable) && selectedStylable.length > 0));
         const animationTarget = resolveAnimatedComponent(component);
         const animation = componentAnimationContext(animationTarget || image || component);
         return [
             { id: 'assistant', label: 'Mit Assist bearbeiten', group: 'assistant', enabled: true },
             { id: 'content', label: 'Inhalt', group: 'edit', enabled: capabilities.writable && !protectedStructure },
             { id: 'traits', label: 'Eigenschaften', group: 'edit', panel: 'right:traits', enabled: capabilities.writable && capabilities.traits && !protectedStructure },
-            { id: 'styles', label: 'Stile', group: 'edit', panel: 'right:styles', enabled: capabilities.writable && capabilities.styles && !protectedStructure },
+            { id: 'styles', label: 'Stile', group: 'edit', panel: 'right:styles', enabled: capabilities.writable && capabilities.styles && (!protectedStructure || protectedStyleAllowed) },
             { id: 'spacing', label: 'Abstände', group: 'edit', panel: 'right:styles', enabled: capabilities.writable && capabilities.spacing && !protectedStructure },
             { id: 'media', label: 'Medien', group: 'edit', enabled: capabilities.media && (image || mode === 'mail') },
-            { id: 'replace', label: 'Bild ersetzen', group: 'edit', enabled: capabilities.imageReplace === true && Boolean(image) },
+            { id: 'replace', label: 'Bild ersetzen', group: 'edit', enabled: Boolean(image) && mediaDrawer.canReplace?.(component) === true },
             {
                 id: 'animation',
                 label: animation.animated ? 'Animation & GIF' : 'Animation',

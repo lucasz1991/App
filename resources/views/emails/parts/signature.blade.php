@@ -7,10 +7,11 @@
       - jeder Laravel-Mail und -Notification (vendor/mail/html/footer.blade.php)
 
     Der kanonische Editorstand besitzt zwei Tabellenzeilen: Signaturblock und
-    Pflichtangaben. Beim Ausliefern wird der dort streng gebundene Zug-Layer
-    entfernt und genau eine normale GIF-Bildzeile dazwischen eingesetzt. Der
-    Aufrufer stellt die umgebende <table> — dadurch passt derselbe Block in die
-    schmale Signaturdatei wie in die breite Nachrichtenschale.
+    Pflichtangaben. Im normalen HTML-, Browser-, Vorschau- und Versandpfad
+    bleibt der streng gebundene Zug als Hintergrund im Signaturblock. Dadurch
+    liegt er ohne eigene Layouthoehe hinter den Daten. Nur explizite
+    Outlook-/EML-/ZIP-Exporte erhalten stattdessen eine normale Bildzeile; der
+    Aufrufer stellt jeweils die umgebende <table>.
 
     AUFBAU: zwei gleich breite Spalten an einer Mittelachse. Links die
     Person, rechts die Firma. Die Firmenkontakte existieren genau einmal:
@@ -41,9 +42,9 @@
     $topRule = $topRule ?? 'border-top:5px solid #e4002b;';
     $legalPadding = $legalPadding ?? '14px 36px';
     $outlookTrainSrc = trim((string) ($outlookTrainSrc ?? ''));
-    // Der Zug wird in jedem Ausgabeweg als genau ein regulaeres Bild
-    // transportiert. Ein zweites Stand- oder Idle-Bild ist nicht noetig:
-    // das Haupt-GIF enthaelt Einfahrt, Rauchphase und sichtbaren Endzustand.
+    // Nur der explizite Outlook-/EML-/ZIP-Export transportiert den Zug als
+    // regulaere Bildzeile. Alle normalen HTML-Pfade behalten ihn als
+    // Hintergrund; ein zweites Stand- oder Idle-Bild gibt es weiterhin nicht.
     $isOutlookExport = $outlookTrainSrc !== '';
     $outlookTrainPadding = $outlookTrainPadding ?? '0';
     $hasPerson = trim((string) ($values['VORNAME_NACHNAME'] ?? '')) !== '';
@@ -92,9 +93,11 @@
      * 75 Prozent der Carrierbreite — unabhaengig davon, wie breit das auf
      * `auto 100%` skalierte Bild gegenueber der Zelle ist.
      *
-     * IM OUTLOOK-WEG entfallen Zug und Kompatibilitaetsebene: dort steht der Zug als
-     * eigene Bildzeile unter dem Inhalt. Als Hintergrund UND als Bildzeile
-     * stuende er zweimal im Streifen.
+     * IM EXPLIZITEN OUTLOOK-/EML-/ZIP-EXPORT entfallen Zug und
+     * Kompatibilitaetsebene: dort steht der Zug als eigene Bildzeile unter dem
+     * Inhalt. Versendete Remote-Mails behalten den Background; MailSignature
+     * ergaenzt fuer Classic Outlook nach der Validierung einen MSO-only
+     * Fallback mit demselben kombinierten GIF.
      */
     $zugMass = 'auto 100%';
     $ebenen = array_values(array_filter([
@@ -201,9 +204,8 @@
             </tr>
         </table>
         @if($isOutlookExport)
-            {{-- Bootstrap-/Outlook-Paketpfad: dieselbe einzelne GIF-Zeile wie
-                 in versendeten und heruntergeladenen HTML-Fassungen. Die
-                 Zeile beginnt ohne Zusatzabstand direkt nach den Daten. --}}
+            {{-- Expliziter Outlook-/EML-/ZIP-Paketpfad: genau eine normale
+                 GIF-Zeile ohne zusaetzlichen Abstand direkt nach den Daten. --}}
             <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">
                 <tr>
                     <td align="left" style="padding:{{ $outlookTrainPadding }};text-align:left;font-size:0;line-height:0;">

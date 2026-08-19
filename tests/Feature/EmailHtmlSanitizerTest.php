@@ -107,7 +107,7 @@ class EmailHtmlSanitizerTest extends TestCase
         $this->assertStringNotContainsString('data:image', $signature);
         $this->assertStringContainsString('position:relative', $signature);
         $this->assertSame(
-            1,
+            2,
             preg_match_all('/zug-dampf-light\.gif\?v=\d+&amp;p=[a-f0-9]{32}/', $signature),
         );
         $this->assertSame(
@@ -122,17 +122,17 @@ class EmailHtmlSanitizerTest extends TestCase
             preg_match('/<td\b[^>]*class="[^"]*\brt-sign-cell\b[^"]*"[^>]*>/', $signature, $trainCarrier),
         );
         $this->assertStringContainsString('padding:0;', $trainCarrier[0]);
-        $this->assertStringNotContainsString('zug-dampf-light.gif', $trainCarrier[0]);
+        $this->assertStringContainsString('zug-dampf-light.gif', $trainCarrier[0]);
         $this->assertStringContainsString(
-            'background-repeat:repeat,no-repeat,no-repeat;',
+            'background-repeat:repeat,no-repeat,no-repeat,no-repeat;',
             $trainCarrier[0],
         );
         $this->assertStringContainsString(
-            'background-position:left top,right center,center center;',
+            'background-position:left top,right center,center center,75% bottom;',
             $trainCarrier[0],
         );
         $this->assertStringContainsString(
-            'background-size:64px 64px,auto 100%,100% 100%;',
+            'background-size:64px 64px,auto 100%,100% 100%,auto 100%;',
             $trainCarrier[0],
         );
         $this->assertSame(
@@ -145,13 +145,17 @@ class EmailHtmlSanitizerTest extends TestCase
         $this->assertSame(1, substr_count($signature, 'class="rt-pad rt-sign-content"'));
         $this->assertSame(1, substr_count($signature, 'data-rt-train'));
         $this->assertSame(1, substr_count($signature, 'class="rt-sign-train"'));
+        $this->assertMatchesRegularExpression(
+            '/<!--\[if mso\]><tr><td\b[^>]*>\s*<img\b[^>]*\bdata-rt-train\b[^>]*zug-dampf-light\.gif[^>]*>\s*<\/td><\/tr><!\[endif\]-->/i',
+            $signature,
+        );
         $this->assertStringNotContainsString('zug-dampf-idle-light.gif', $signature);
         $this->assertStringNotContainsString('data-rt-train-idle-overlay', $signature);
         $this->assertStringNotContainsString('data-rt-train-idle-image', $signature);
 
-        // Das kombinierte GIF ist jetzt genau wie Logo und RT-Zeichen ein
-        // regulaeres Bild. Es benoetigt weder ein nachtraegliches Runtime-
-        // Overlay noch eine Sonderbehandlung vor der Sanitization.
+        // Das kombinierte GIF bleibt fuer moderne Clients als Background
+        // hinter den Daten. Nur Classic Outlook sieht dieselbe Quelle im
+        // MSO-only-IMG; ein zweiter Idle-Zug existiert nicht.
         $report = $this->sanitizer()->clean($signature);
 
         $this->assertSame(

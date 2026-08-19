@@ -514,6 +514,25 @@ class DeviceManagementTest extends TestCase
             ->assertSet('locationFilter', '');
     }
 
+    public function test_device_inventory_uses_the_shared_responsive_table_component(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'status' => true]);
+        $employee = User::factory()->create(['role' => 'staff', 'status' => true]);
+        $device = $this->device($admin, $employee);
+
+        Livewire::actingAs($admin)
+            ->test(DeviceManagement::class)
+            ->assertSeeHtml('class="rt-ui-surface rt-ui-table')
+            ->assertSeeHtml('rt-device-table')
+            ->assertSeeHtml('data-table-row-interactive="true"')
+            ->assertSeeHtml('data-device-row')
+            ->assertSee($device->display_name)
+            ->assertSee($employee->name)
+            ->call('selectDeviceById', $device->id)
+            ->assertSet('selectedDevicePublicId', $device->public_id)
+            ->assertSeeHtml('aria-selected="true"');
+    }
+
     public function test_device_detail_tabs_expose_their_accessible_relationships(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'status' => true]);

@@ -23,6 +23,15 @@ final class SignatureTrainCarrier
         'TRAIN_IDLE_SRC',
     ];
 
+    /** @var list<string> */
+    private const ALLOWED_TRAIN_POSITIONS = [
+        'left bottom',
+        '25% bottom',
+        '50% bottom',
+        '75% bottom',
+        'right bottom',
+    ];
+
     public static function isValid(string $html): bool
     {
         try {
@@ -641,6 +650,10 @@ final class SignatureTrainCarrier
             );
         }
 
+        $mainPosition = self::normalizedCssValue(
+            $lists['background-position'][$mainIndexes[0]],
+        );
+
         if ($idleIndexes !== []) {
             $idleIndex = $idleIndexes[0];
             foreach ($required as $property) {
@@ -667,7 +680,7 @@ final class SignatureTrainCarrier
             }
         } else {
             $lists['background-repeat'][$mainIndex] = 'no-repeat';
-            $lists['background-position'][$mainIndex] = '75% bottom';
+            $lists['background-position'][$mainIndex] = $mainPosition;
             $lists['background-size'][$mainIndex] = 'auto 100%';
         }
 
@@ -738,13 +751,20 @@ final class SignatureTrainCarrier
         for ($index = 3; $index < $layerCount; $index++) {
             if (! in_array(
                 self::normalizedCssValue($lists['background-position'][$index]),
-                ['right bottom', '75% bottom'],
+                self::ALLOWED_TRAIN_POSITIONS,
                 true,
             )) {
                 throw new RuntimeException(
                     'Die Zugpositionen des veroeffentlichten Zug-Carriers sind nicht kanonisch.'
                 );
             }
+        }
+        if ($layerCount === 5
+            && self::normalizedCssValue($lists['background-position'][3])
+                !== self::normalizedCssValue($lists['background-position'][4])) {
+            throw new RuntimeException(
+                'Legacy-Idle-Zug und Hauptzug muessen dieselbe Position besitzen.'
+            );
         }
 
         $expectedSizes = ['64px 64px', 'auto 100%', '100% 100%'];

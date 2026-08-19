@@ -300,7 +300,10 @@ class MailSignature
 
             if ($tokenizedTrainCarrier) {
                 $html = $this->normalizePublishedTrainCarrier($html);
-                $html = $this->projectPublishedTrainAsImage($html, $singleTrainLayout);
+                $html = $this->hydrateTrainBackground($html, $singleTrainSource);
+                if ($this->remoteAssets) {
+                    $html = $this->appendClassicOutlookTrainFallback($html, $singleTrainSource);
+                }
             }
 
             $html = trim(EmailTemplateBuilder::stripEmptyContactRows(
@@ -311,17 +314,20 @@ class MailSignature
             return $this->finalizeTrainRendering($html);
         }
 
-        // JEDER AUSGABEPFAD BEKOMMT GENAU EIN REGULAERES ZUGBILD.
-        // Der gespeicherte Entwurf behaelt seinen streng validierten Token.
-        // Erst nach der Runtime-Pruefung wird der CSS-Layer atomar aus allen
-        // parallelen Listen geloest und wie Logo/RT-Icon als IMG-Zeile direkt
-        // vor den Pflichtangaben ausgegeben. Damit gibt es weder einen zweiten
-        // Idle-Zug noch einen Nullhoehen-/z-index-Sonderpfad.
+        // Der normale HTML-Pfad behaelt den streng normalisierten Zug-Layer
+        // im Carrier: Der Zug liegt damit ohne eigene Layouthoehe hinter den
+        // Kontakt- und Firmendaten. Nur explizite Outlook-/EML-/ZIP-Exporte
+        // loesen ihn in eine regulaere Bildzeile auf. Versendete Remote-Mails
+        // erhalten zusaetzlich einen ausschliesslich fuer Word sichtbaren
+        // conditional-comment-Fallback; moderne Clients sehen weiterhin nur
+        // den einen Background-Layer.
         if ($published !== null) {
             SignatureDocumentContract::assertRuntimeValid($published);
 
             $html = $this->applyPublishedLayout($published, $layout);
-            $html = $this->projectPublishedTrainAsImage($html, $singleTrainLayout);
+            $html = $explicitTrainSource !== ''
+                ? $this->projectPublishedTrainAsImage($html, $singleTrainLayout)
+                : $this->normalizePublishedTrainCarrier($html);
             // FRUEHER stand hier ein Rueckfall auf den Firmennamen, wenn
             // keine Person sendet — er bildete eine gleichlautende Bedingung
             // der Blade-Quelle nach. Diese Bedingung ist entfallen: Die
@@ -340,6 +346,9 @@ class MailSignature
             }
 
             $html = strtr($html, $tokens);
+            if ($this->remoteAssets && $explicitTrainSource === '') {
+                $html = $this->appendClassicOutlookTrainFallback($html, $singleTrainSource);
+            }
             // Alte publizierte Staende koennen bis zum erneuten Seedern noch
             // den inzwischen entfernten Classic-Outlook-Fallback tragen.
             // Leere Attribute verschwinden sofort; ein befuelltes Attribut
@@ -403,6 +412,58 @@ class MailSignature
         return SignatureTrainCarrier::normalize($html);
     }
 
+    /**
+     * Ersetzt den einen serverkontrollierten Zug-Token erst nach der
+     * Carrier-Normalisierung. So bleibt die editierte, erlaubte Position in
+     * allen gekoppelten Background-Listen erhalten, waehrend freie Quellen
+     * niemals in einen CSS-Kontext gelangen.
+     */
+    private function hydrateTrainBackground(string $html, string $source): string
+    {
+        if (substr_count($html, '{{TRAIN_SRC}}') !== 1 || trim($source) === '') {
+            throw new \RuntimeException('Der Zug-Hintergrund besitzt keine eindeutige Bildquelle.');
+        }
+
+        return str_replace(
+            '{{TRAIN_SRC}}',
+            htmlspecialchars($source, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8'),
+            $html,
+        );
+    }
+
+    /**
+     * Classic Outlook/Word stellt CSS-Hintergrundbilder nicht verlaesslich
+     * dar. Ausschliesslich versendete Remote-Mails erhalten deshalb dieselbe
+     * kombinierte Zugdatei als normale, MSO-only Tabellenzeile. Der bedingte
+     * Kommentar ist fuer Browser, Webmail und New Outlook unsichtbar; dort
+     * bleibt der Zug genau einmal als Background hinter dem Inhalt.
+     */
+    private function appendClassicOutlookTrainFallback(string $html, string $source): string
+    {
+        $source = trim($source);
+        $marker = '<!-- RT_SIGNATURE_MAIN_END -->';
+        if ($source === '' || substr_count($html, $marker) !== 1) {
+            throw new \RuntimeException('Der Classic-Outlook-Zug besitzt keinen eindeutigen Anker.');
+        }
+        if (substr_count($html, 'data-rt-train') !== 0) {
+            throw new \RuntimeException('Der Classic-Outlook-Zug ist bereits vorhanden.');
+        }
+
+        $source = htmlspecialchars($source, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
+        $fallback = '<!--[if mso]><tr><td align="left" style="padding:0;text-align:left;'
+            .'font-size:0;line-height:0;"><img class="rt-sign-train" data-rt-train '
+            .'src="'.$source.'" width="100%" alt="" style="display:block;width:100%;'
+            .'max-width:1815px;height:auto;margin:0;border:0;outline:none;'
+            .'text-decoration:none;"></td></tr><![endif]-->';
+        $rendered = str_replace($marker, $marker.$fallback, $html);
+
+        if (substr_count($rendered, 'data-rt-train') !== 1) {
+            throw new \RuntimeException('Der Classic-Outlook-Zug konnte nicht eindeutig eingesetzt werden.');
+        }
+
+        return $rendered;
+    }
+
     /** @param array<string, string> $values @param array<string, string> $layout */
     private function usesTokenizedTrainCarrier(array $values, array $layout): bool
     {
@@ -437,10 +498,11 @@ class MailSignature
     }
 
     /**
-     * Alle Ausgabewege bekommen den Zug wie Logo und RT-Icon als regulaeres
-     * Bild. Der kanonische Editorstand enthaelt den streng validierten Token
-     * weiterhin im Carrier; diese Methode loest ihn atomar aus den parallelen
-     * CSS-Listen und setzt genau eine kompakte Bildzeile vor die Pflichtdaten.
+     * Ausschliesslich explizite Outlook-/EML-/ZIP-Ausgaben bekommen den Zug
+     * wie Logo und RT-Icon als regulaeres Bild. Der kanonische Editorstand
+     * enthaelt den streng validierten Token weiterhin im Carrier; diese
+     * Methode loest ihn atomar aus den parallelen CSS-Listen und setzt genau
+     * eine kompakte Bildzeile vor die Pflichtdaten.
      *
      * @param  array<string, string>  $layout
      */

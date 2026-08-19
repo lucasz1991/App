@@ -55,7 +55,7 @@ function gifTimeline(bytes) {
     return delays;
 }
 
-test('all mail outputs project one regular train GIF and no idle overlay', () => {
+test('normal mail outputs keep one train background while explicit Outlook uses one image', () => {
     const signature = text('app/Support/MailSignature.php');
     const signatureView = text('resources/views/emails/parts/signature.blade.php');
     const carrier = text('app/Support/Mail/SignatureTrainCarrier.php');
@@ -68,12 +68,15 @@ test('all mail outputs project one regular train GIF and no idle overlay', () =>
     assert.doesNotMatch(signature, /data-rt-train-idle|injectDelayedIdleOverlay|TRAIN_IDLE_SRC' => \([^\n]+zug-dampf-idle/);
     assert.match(signature, /\$tokenizedTrainCarrier = \$this->usesTokenizedTrainCarrier\(\$values, \$layout\);/);
     assert.match(signature, /\$html = \$this->normalizePublishedTrainCarrier\(\$html\);/);
-    assert.doesNotMatch(signature, /function injectClassicOutlookTrain/);
+    assert.match(signature, /function appendClassicOutlookTrainFallback/);
+    assert.match(signature, /\$this->remoteAssets && \$explicitTrainSource === ''/);
+    assert.match(signature, /<!--\[if mso\]><tr><td align="left"/);
     assert.doesNotMatch(signature, /class="rt-classic-outlook-train"/);
     assert.match(carrier, /public static function withoutMainLayer/);
     assert.match(carrier, /public static function projectAsImage/);
     assert.match(carrier, /<img class="rt-sign-train" data-rt-train src="'\.\$source\.'" width="100%"/);
-    assert.match(previewService, /SignatureTrainCarrier::projectAsImage\([\s\S]+?'\{\{TRAIN_SRC\}\}'/);
+    assert.match(previewService, /SignatureTrainCarrier::normalize\(\(string\) \$signatureDocument->html\)/);
+    assert.doesNotMatch(previewService, /SignatureTrainCarrier::projectAsImage/);
     assert.match(cssSemantic, /'data-rt-train-idle-overlay'/);
     assert.match(cssSemantic, /\$isProtectedAttribute = in_array\(/);
     assert.doesNotMatch(responsiveCss, /rt-train-idle|rt-train-idle-reveal/);

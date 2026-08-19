@@ -1738,6 +1738,82 @@ test('scoped FilePool GIF metadata survives opaque admin URLs and is cleared by 
     assert.equal(componentAnimationContext(selected).animated, false);
 }));
 
+test('mail content images use only scoped replacement assets while system-token images stay immutable', () => coreWithDom('<img id="content"><img id="token">', ({ document }) => {
+    const contentImage = coreFakeComponent(document.querySelector('#content'), {
+        type: 'image',
+        attributes: { src: 'data:image/png;base64,b2xk' },
+    });
+    const tokenImage = coreFakeComponent(document.querySelector('#token'), {
+        type: 'image',
+        attributes: {
+            src: 'about:blank',
+            'data-rt-mail-preview-token': 'LOGO_SRC',
+        },
+    });
+    const allowed = {
+        src: 'data:image/gif;base64,bmV1',
+        name: 'Freigegebenes Mailbild.gif',
+        type: 'image',
+        mime_type: 'image/gif',
+    };
+    const editor = coreFakeEditor(document.body, contentImage);
+    const selection = createImageAssetSelection({
+        editor,
+        target: contentImage,
+        assets: [allowed],
+        mode: 'mail',
+    });
+
+    assert.equal(selection.select(allowed, false), allowed.src);
+    assert.equal(contentImage.state.src, allowed.src);
+    assert.equal(contentImage.state.attributes['data-rt-animated-media'], 'gif');
+    assert.throws(
+        () => createImageAssetSelection({ editor, target: tokenImage, assets: [allowed], mode: 'mail' }),
+        /Mail-Tokens sind geschuetzt|Mail-Tokens sind geschützt/,
+    );
+    assert.throws(
+        () => selection.select({ src: 'https://evil.example/frei.png' }, false),
+        /freigegebenen Dateibibliothek/,
+    );
+}));
+
+test('mail content images keep alt size and GIF tools without advertising replacement when no mail assets exist', () => coreWithDom(`
+    <div data-page-builder-shell><div data-page-builder-fullscreen-root data-page-builder-shell-id="shell-mail-image">
+    <div id="root"><div class="lmz-builder__topbar"><button data-lmz-action="assets">Medien</button></div>
+    <div class="lmz-builder__viewport"><div data-tools><div data-toolbar></div></div></div></div></div></div>
+`, ({ document }) => {
+    const root = document.querySelector('#root');
+    const selected = coreFakeComponent(document.createElement('img'), {
+        type: 'image',
+        attributes: {
+            src: 'data:image/gif;base64,bWFpbA==',
+            alt: 'Inhaltsbild',
+            'data-mime-type': 'image/gif',
+        },
+    });
+    const editor = coreFakeEditor(root, selected);
+    const chrome = createLmzEditorChrome({
+        instance: { editor },
+        root,
+        mode: 'mail',
+        capabilities: { imageReplace: 'tokens-only', gifControls: true },
+        media: { assets: [], tokenMedia: [] },
+    });
+
+    root.querySelector('.rt-lmz-inline-edit-trigger').click();
+    const actions = [...root.querySelectorAll('[data-rt-lmz-inline-action]')]
+        .map((item) => item.dataset.rtLmzInlineAction);
+    assert.equal(actions.includes('traits'), true);
+    assert.equal(actions.includes('styles'), true);
+    assert.equal(actions.includes('media'), true);
+    assert.equal(actions.includes('animation'), true);
+    assert.equal(actions.includes('gif-playback'), true);
+    assert.equal(actions.includes('gif-restart'), true);
+    assert.equal(actions.includes('replace'), false);
+
+    chrome.destroy();
+}));
+
 test('native GrapesJS asset entry points use only the scoped drawer and reject protected logo or QR targets', () => {
     const commandMap = new Map([['open-assets', { run: () => 'native-dialog' }]]);
     const openings = [];
@@ -2247,6 +2323,33 @@ test('official lockups and QR structures expose only read-only Assist help and n
     adapter.destroy();
     chrome.destroy();
 }));
+
+test('protected mail carriers remain visible as locked layers without hiding editable content children', () => {
+    const carrier = coreFakeComponent({ tagName: 'TD' }, {
+        tagName: 'td',
+        attributes: { 'data-rt-mail-preview-train': 'TRAIN_SRC' },
+    });
+    const content = coreFakeComponent({ tagName: 'P' }, {
+        tagName: 'p',
+        parent: carrier,
+    });
+    carrier.components([content]);
+    const editor = {
+        getWrapper: () => carrier,
+        getSelected: () => carrier,
+    };
+
+    assert.equal(enforceProtectedComponentModels(editor), 1);
+    assert.equal(carrier.state.layerable, true);
+    assert.equal(carrier.state.draggable, false);
+    assert.equal(carrier.state.removable, false);
+    assert.equal(carrier.state.copyable, false);
+    assert.equal(carrier.state.stylable, false);
+    assert.equal(content.state.layerable, undefined);
+    assert.equal(content.state.stylable, undefined);
+    assert.equal(isProtectedEditorStructure(carrier), true);
+    assert.equal(isProtectedEditorStructure(content), false);
+});
 
 test('structure actions protect neutral parents around lockup, QR and train descendants without locking parent styles', () => coreWithDom(`
     <div data-page-builder-shell><div data-page-builder-fullscreen-root data-page-builder-shell-id="shell-subtree">
