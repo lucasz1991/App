@@ -36,15 +36,9 @@
    Idle-Rauch und Schlusszustand stecken vollstaendig im einen Haupt-GIF;
    ein zweites Rauch-Overlay wird nicht mehr erzeugt. */
 
-/* ---- Sehr breite Mailflaechen: Zug am linken Rand verankern ---------
-   Bei 184 px Carrierhoehe ist das 2880-x-292-Asset 1814,8 CSS-Pixel
-   breit. Oberhalb davon wuerde die sonst richtige 75-Prozent-Position
-   das vollstaendige Zugheck immer weiter nach rechts schieben. Ab 1820 px
-   beginnt deshalb das Haupt-GIF exakt links; die Front darf mit wachsender
-   Flaeche bewusst unter 75 Prozent fallen. Clients ohne min-width-Media-
-   Queries behalten fail-closed die normale 75-Prozent-
-   Position aus dem Inline-Stil. Diese Regeln betreffen nur den geschuetzten
-   Editor-Carrier; versendete Mails nutzen ein regulaeres IMG. */
+/* Der Zug bleibt ein regulaeres IMG. Nur sein absoluter Layer wird auf
+   kleinen Flaechen breiter als der Carrier gesetzt; so endet die Lok wie im
+   Desktoplayout bei etwa 75 Prozent, ohne eine eigene Tabellenzeile. */
 /* ---- Tablet quer: enger setzen, aber zweispaltig bleiben ---- */
 @media only screen and (max-width: 1000px) {
 .rt-pad { padding-left: 30px !important; padding-right: 30px !important; }
@@ -146,6 +140,19 @@ img.rt-logo { width: 150px !important; }
 .rt-sign-cell {
   background-position: left top, right center, center center !important;
   background-size: 64px 64px, auto 52%, 100% 100% !important;
+}
+.rt-sign-train-layer {
+  left: -75% !important;
+  right: auto !important;
+  width: 200% !important;
+  max-width: none !important;
+  margin: 0 !important;
+}
+.rt-sign-train {
+  left: 0 !important;
+  right: auto !important;
+  width: 100% !important;
+  max-width: none !important;
 }
 }
 

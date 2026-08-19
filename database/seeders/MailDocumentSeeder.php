@@ -41,8 +41,9 @@ final class MailDocumentSeeder extends Seeder
      * 8  Kontaktinhalt und reguläre Zugzeile ohne künstlichen Zwischenraum
      * 9  Zug in jeder finalen Ausgabe als kopierbares reguläres GIF-Bild
      * 10 Zug bereits im kanonischen Seeder-/Editorstand als regulaeres IMG
+     * 11 Zug-IMG im absoluten, hoehenneutralen Layer hinter den Kontaktdaten
      */
-    private const STARTER_SCHEMA = 10;
+    private const STARTER_SCHEMA = 11;
 
     public function run(): void
     {

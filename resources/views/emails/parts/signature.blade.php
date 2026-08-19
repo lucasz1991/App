@@ -8,9 +8,10 @@
 
     Der kanonische Editorstand besitzt zwei Tabellenzeilen: Signaturblock und
     Pflichtangaben. Der Zug ist in allen Pfaden genau ein regulaeres IMG wie
-    Logo und RT-Zeichen. Dadurch bleibt er beim Kopieren, Antworten und
-    Weiterleiten erhalten und der gespeicherte Seeder-Stand enthaelt keinen
-    versteckten Zug-Background mehr.
+    Logo und RT-Zeichen. Sein eigener, absolut positionierter Layer liegt
+    hinter den Kontaktdaten und beansprucht keine zusaetzliche Tabellenhoehe.
+    Dadurch bleibt er beim Kopieren, Antworten und Weiterleiten ein echtes
+    Bildelement; der Seeder-Stand enthaelt keinen CSS-Bildhintergrund.
 
     AUFBAU: zwei gleich breite Spalten an einer Mittelachse. Links die
     Person, rechts die Firma. Die Firmenkontakte existieren genau einmal:
@@ -67,9 +68,8 @@
      * und ihre mobilen Positionslisten kompatibel bleiben; sie darf die
      * Deckkraft nicht ein zweites Mal reduzieren.
      *
-     * Der Zug gehoert absichtlich nicht mehr zu diesen Listen. Er folgt als
-     * normales IMG direkt unter den Kontaktdaten und kann deshalb von
-     * Mailclients nicht als CSS-Hintergrund verworfen werden.
+     * Der Zug gehoert absichtlich nicht mehr zu diesen Listen. Er liegt als
+     * normales IMG in einem eigenen absoluten Layer hinter den Kontaktdaten.
      */
     $ebenen = array_values(array_filter([
         ($values['GRUND_RASTER_SRC'] ?? '') !== ''
@@ -169,15 +169,14 @@
             </tr>
         </table>
         @if($trainSrc !== '')
-            {{-- Genau derselbe normale Bildpfad fuer Seeder, Editor, Versand,
-                 Browserkopie, EML und Outlook. --}}
-            <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">
-                <tr>
-                    <td align="left" style="padding:{{ $outlookTrainPadding }};text-align:left;font-size:0;line-height:0;">
-                        <img class="rt-sign-train" data-rt-train src="{{ $trainSrc }}" width="100%" alt="" style="display:block;width:100%;max-width:1815px;height:auto;margin:0;border:0;outline:none;text-decoration:none;">
-                    </td>
-                </tr>
-            </table>
+            {{-- Nur HTM-/Mail-Grundelemente: ein DIV und ein echtes IMG.
+                 Beide sind absolut unten verankert; die Tabelleninhalte
+                 bleiben als spaeteres z-index:1-Markup davor. Falls ein
+                 Client Positionierung entfernt, steht der Layer als letztes
+                 Carrier-Kind wenigstens unter statt ueber den Kontaktdaten. --}}
+            <div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" style="position:absolute;left:0;right:auto;top:0;bottom:0;width:100%;max-width:1815px;height:100%;margin:0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;">
+                <img class="rt-sign-train" data-rt-train src="{{ $trainSrc }}" width="100%" alt="" style="position:absolute;left:0;right:auto;bottom:0;display:block;width:100%;max-width:1815px;height:auto;margin:0;border:0;outline:none;text-decoration:none;">
+            </div>
         @endif
     </td>
 </tr>

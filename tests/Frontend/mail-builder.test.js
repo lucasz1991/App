@@ -19,8 +19,11 @@ import {
     resolveMailPreviewDevice,
     serializeMailDocumentForSave,
     serializeMailProjectStyles,
+    synchronizeMailTrainLayerAlignment,
 } from '../../resources/js/mail-builder.js';
 import { createMailBlocks, mailCanvasStyles } from '../../resources/js/mail-builder-blocks.js';
+
+const canonicalTrain = '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}"></div>';
 
 test('mail canvas renders real local token assets in light and dark without mutating config', () => {
     const previewAssets = {
@@ -116,7 +119,7 @@ test('global mail replay restarts every animated token without touching componen
 test('signature project gets a valid editor-only table and a reversible train image', () => {
     const source = {
         pages: [{
-            component: '<tr><td class="rt-pad rt-sign-cell"><img src="{{LOGO_SRC}}" alt="{{FIRMENNAME}}"><img src="{{ICON_EMAIL_SRC}}"><img src="{{ICON_LOCATION_SRC}}"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}"></td></tr><tr><td style="color:{{SIGNATURE_LEGAL_TEXT}}">Rechtliches</td></tr>',
+            component: `<tr><td class="rt-pad rt-sign-cell"><img src="{{LOGO_SRC}}" alt="{{FIRMENNAME}}"><img src="{{ICON_EMAIL_SRC}}"><img src="{{ICON_LOCATION_SRC}}">${canonicalTrain}</td></tr><tr><td style="color:{{SIGNATURE_LEGAL_TEXT}}">Rechtliches</td></tr>`,
         }],
         styles: [],
     };
@@ -140,7 +143,7 @@ test('signature project gets a valid editor-only table and a reversible train im
 });
 
 test('signature preview hydrates the train image and roundtrips two canonical rows', () => {
-    const original = '<tr><td class="rt-sign-cell"><span data-rt-mail-block="paragraph" data-rt-mail-text="secondary">Inhalt</span><img src="{{LOGO_SRC}}"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}"></td></tr><!-- RT_SIGNATURE_MAIN_END --><tr><td style="color:{{SIGNATURE_LEGAL_TEXT}}"><img src="{{ICON_EMAIL_SRC}}"></td></tr>';
+    const original = `<tr><td class="rt-sign-cell"><span data-rt-mail-block="paragraph" data-rt-mail-text="secondary">Inhalt</span><img src="{{LOGO_SRC}}">${canonicalTrain}</td></tr><!-- RT_SIGNATURE_MAIN_END --><tr><td style="color:{{SIGNATURE_LEGAL_TEXT}}"><img src="{{ICON_EMAIL_SRC}}"></td></tr>`;
     const project = projectForMailDocument({
         builderData: { pages: [{ component: original }], styles: [] },
         css: '',
@@ -190,7 +193,7 @@ test('signature contact rows survive the element-only GrapesJS roundtrip as exac
         + '<!-- RT_COMPANY_PHONE_START --><tr><td>{{FIRMEN_TELEFON}}</td></tr><!-- RT_COMPANY_PHONE_END -->'
         + '<!-- RT_COMPANY_EMAIL_START --><tr><td>{{FIRMEN_EMAIL}}</td></tr><!-- RT_COMPANY_EMAIL_END -->'
         + '<!-- RT_WEBSITE_START --><tr><td>{{FIRMEN_WEBSITE_LABEL}}</td></tr><!-- RT_WEBSITE_END -->'
-        + '</table><img src="{{LOGO_SRC}}"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}"></td></tr>'
+        + `</table><img src="{{LOGO_SRC}}">${canonicalTrain}</td></tr>`
         + '<!-- RT_SIGNATURE_MAIN_END --><tr><td>Rechtliches</td></tr>';
     const project = projectForMailDocument({
         builderData: { pages: [{ component: original }], styles: [] },
@@ -326,7 +329,7 @@ test('signature contact rows survive the element-only GrapesJS roundtrip as exac
 });
 
 test('signature save fails closed when a preview marker is removed', () => {
-    const original = '<tr><td class="rt-sign-cell"><img src="{{LOGO_SRC}}"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}"></td></tr><!-- RT_SIGNATURE_MAIN_END --><tr><td>Rechtliches</td></tr>';
+    const original = `<tr><td class="rt-sign-cell"><img src="{{LOGO_SRC}}">${canonicalTrain}</td></tr><!-- RT_SIGNATURE_MAIN_END --><tr><td>Rechtliches</td></tr>`;
     const project = projectForMailDocument({
         builderData: { pages: [{ component: original }], styles: [] },
         css: '',
@@ -394,8 +397,8 @@ test('signature save fails closed when a preview marker is removed', () => {
 });
 
 test('signature load fails closed for a second or displaced train binding', () => {
-    const duplicateTrain = '<tr><td class="rt-sign-cell"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}"></td></tr><tr><td>Rechtliches</td></tr>';
-    const displacedTrain = '<tr><td class="rt-sign-cell">Inhalt</td><td><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}"></td></tr><tr><td>Rechtliches</td></tr>';
+    const duplicateTrain = `<tr><td class="rt-sign-cell">${canonicalTrain}${canonicalTrain}</td></tr><tr><td>Rechtliches</td></tr>`;
+    const displacedTrain = `<tr><td class="rt-sign-cell">Inhalt</td><td>${canonicalTrain}</td></tr><tr><td>Rechtliches</td></tr>`;
 
     assert.throws(() => projectForMailDocument({
         builderData: { pages: [{ component: duplicateTrain }], styles: [] },
@@ -410,7 +413,7 @@ test('signature load fails closed for a second or displaced train binding', () =
 test('GrapesJS inline import rules are merged in cascade order without touching user CSS', () => {
     const transparent = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=';
     const html = '<table data-rt-mail-signature-canvas="true"><tbody>'
-        + `<tr><td class="rt-sign-cell c777 c101 c102" data-rt-mail-inline-source="s1" style="padding:9px;">Inhalt<img class="rt-sign-train" data-rt-train data-rt-mail-preview-token="TRAIN_SRC" src="${transparent}"></td></tr>`
+        + `<tr><td class="rt-sign-cell c777 c101 c102" data-rt-mail-inline-source="s1" style="padding:9px;">Inhalt<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left"><img class="rt-sign-train" data-rt-train data-rt-mail-preview-token="TRAIN_SRC" src="${transparent}"></div></td></tr>`
         + '<tr><td class="c777">Rechtliches</td></tr>'
         + '</tbody></table>';
     const project = {
@@ -670,8 +673,9 @@ test('protected mail layers keep the regular train image visible and structural'
     const markCell = component({}, 'td', [mark]);
     const markRow = component({}, 'tr', [markCell]);
     const train = component({ 'data-rt-mail-preview-token': 'TRAIN_SRC', 'data-rt-train': '' }, 'img');
+    const trainLayer = component({ class: 'rt-sign-train-layer', 'data-rt-layer-train': '', 'data-rt-layer-align': 'left' }, 'div', [train]);
     const carrierContent = component({}, 'table');
-    const carrier = component({ class: 'rt-sign-cell' }, 'td', [carrierContent, train]);
+    const carrier = component({ class: 'rt-sign-cell' }, 'td', [carrierContent, trainLayer]);
     const applicationNote = component({}, 'div');
     const applicationCell = component({}, 'td', [applicationNote]);
     const applicationRow = component({ 'data-rt-mail-preview-only': 'application' }, 'tr', [applicationCell]);
@@ -679,7 +683,7 @@ test('protected mail layers keep the regular train image visible and structural'
     const ordinaryImage = component({ src: 'https://app.rail-time.test/mail-assets/content.png', alt: 'Teambild' }, 'img');
     const root = component({}, 'body', [markRow, carrier, applicationRow, ordinary, ordinaryImage]);
 
-    assert.equal(protectMailSystemComponents({ getWrapper: () => root }), 6);
+    assert.equal(protectMailSystemComponents({ getWrapper: () => root }), 7);
     [mark, markCell, applicationRow, applicationCell, applicationNote].forEach((protectedComponent) => {
         assert.equal(protectedComponent.state.stylable, false);
         assert.equal(protectedComponent.state.editable, false);
@@ -689,7 +693,10 @@ test('protected mail layers keep the regular train image visible and structural'
     });
     assert.equal(train.state.stylable, false);
     assert.equal(train.state.layerable, true);
-    assert.equal(train.state['custom-name'], 'Zuganimation (geschützt)');
+    assert.equal(train.state['custom-name'], 'Zugbild (geschützt)');
+    assert.equal(trainLayer.state['custom-name'], 'Zug-Hintergrundebene (geschützt)');
+    assert.equal(trainLayer.state.layerable, true);
+    assert.equal(trainLayer.state.traits[0].label, 'Zugposition');
     assert.equal(markCell.state['custom-name'], 'RT-Zeichen (geschützt)');
     assert.equal(applicationRow.state['custom-name'], 'Anwendungsinhalt (geschützt)');
     for (const property of ['editable', 'draggable', 'removable', 'copyable', 'droppable']) {
@@ -705,13 +712,36 @@ test('protected mail layers keep the regular train image visible and structural'
     );
 });
 
+test('train layer position editor is limited to mail-safe left center and right presets', () => {
+    const state = { left: '0', right: 'auto', margin: '0' };
+    const attributes = {
+        class: 'rt-sign-train-layer',
+        'data-rt-layer-train': '',
+        'data-rt-layer-align': 'center',
+    };
+    const component = {
+        getAttributes: () => attributes,
+        getStyle: () => state,
+        setStyle: (next) => Object.assign(state, next),
+    };
+
+    assert.equal(synchronizeMailTrainLayerAlignment(component), true);
+    assert.deepEqual(state, { left: '0', right: '0', margin: '0 auto' });
+    attributes['data-rt-layer-align'] = 'right';
+    assert.equal(synchronizeMailTrainLayerAlignment(component), true);
+    assert.deepEqual(state, { left: 'auto', right: '0', margin: '0' });
+    attributes['data-rt-layer-align'] = 'calc(1px)';
+    assert.equal(synchronizeMailTrainLayerAlignment(component), true);
+    assert.deepEqual(state, { left: '0', right: 'auto', margin: '0' });
+});
+
 test('mail editor no longer offers misleading train background controls', () => {
     assert.equal(MAIL_STYLE_SECTORS.some((item) => item.id === 'rt-mail-train-background'), false);
 });
 
 test('canvas hydrates exactly one regular train image without mutating its token model', () => {
     const project = projectForMailDocument({
-        builderData: { pages: [{ component: '<tr><td class="rt-sign-cell">Inhalt<img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}"></td></tr><tr><td>Rechtliches</td></tr>' }], styles: [] },
+        builderData: { pages: [{ component: `<tr><td class="rt-sign-cell">Inhalt${canonicalTrain}</td></tr><tr><td>Rechtliches</td></tr>` }], styles: [] },
         css: '',
     }, () => [], { kind: 'signature', environment: { DOMParser } });
     const document_ = new DOMParser().parseFromString(project.pages[0].component, 'text/html');
@@ -1059,7 +1089,7 @@ test('mail toolbar keeps documents, preview and publishing in non-overlapping re
     assert.match(mobile, /\.rt-mail-studio-toolbar__action-buttons[\s\S]*?grid-column:\s*2[\s\S]*?grid-row:\s*2/);
 });
 
-test('signature source uses one normal train image and no train background layer', async () => {
+test('signature source uses one absolute train image layer and no CSS image background', async () => {
     const { readFile } = await import('node:fs/promises');
     const [css, signatureSource, trainAsset] = await Promise.all([
         readFile(new URL('../../resources/views/emails/parts/responsive-css.blade.php', import.meta.url), 'utf8'),
@@ -1067,6 +1097,8 @@ test('signature source uses one normal train image and no train background layer
         readFile(new URL('../../resources/mail-templates/assets/zug-dampf-light.png', import.meta.url)),
     ]);
     assert.match(signatureSource, /<img class="rt-sign-train" data-rt-train src="\{\{ \$trainSrc \}\}"/);
+    assert.match(signatureSource, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" style="position:absolute;/);
+    assert.match(signatureSource, /<img class="rt-sign-train"[^>]*style="position:absolute;/);
     assert.doesNotMatch(signatureSource, /url\(\{\$values\['TRAIN_SRC'\]\}\)/);
     assert.doesNotMatch(css, /left top, right center, center center, (?:left|75%) bottom/);
     assert.doesNotMatch(css, /rt-train-idle/);

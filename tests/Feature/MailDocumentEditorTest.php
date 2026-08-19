@@ -107,6 +107,7 @@ class MailDocumentEditorTest extends TestCase
         }
 
         $seededSignature = (string) $this->document(MailDocumentKind::Signature)->published_html;
+        $this->assertSame(1, substr_count($seededSignature, 'data-rt-layer-train'));
         $this->assertSame(1, substr_count($seededSignature, 'data-rt-train'));
         $this->assertSame(1, substr_count($seededSignature, 'src="{{TRAIN_SRC}}"'));
         $this->assertStringNotContainsString('url({{TRAIN_SRC}})', $seededSignature);
@@ -115,19 +116,21 @@ class MailDocumentEditorTest extends TestCase
             $seededSignature,
         );
 
-        $schemaTenSignature = MailSignature::forCompany(
-            playbackNonce: 'schema-ten-release',
+        $schemaElevenSignature = MailSignature::forCompany(
+            playbackNonce: 'schema-eleven-release',
         )->render();
-        $this->assertSame(1, substr_count($schemaTenSignature, 'data-rt-train'));
-        $this->assertSame(1, substr_count($schemaTenSignature, 'class="rt-sign-train"'));
-        $this->assertSame(1, substr_count($schemaTenSignature, 'zug-dampf-light.gif'));
+        $this->assertSame(1, substr_count($schemaElevenSignature, 'data-rt-layer-train'));
+        $this->assertSame(1, substr_count($schemaElevenSignature, 'class="rt-sign-train"'));
+        $this->assertSame(1, substr_count($schemaElevenSignature, 'zug-dampf-light.gif'));
+        $this->assertStringContainsString('class="rt-sign-train-layer"', $schemaElevenSignature);
+        $this->assertStringContainsString('style="position:absolute;', $schemaElevenSignature);
         $this->assertMatchesRegularExpression(
             '/<img\b(?=[^>]*class="[^"]*\brt-sign-train\b[^"]*")(?=[^>]*\bdata-rt-train(?:\s|=|>))[^>]*zug-dampf-light\.gif[^>]*>/i',
-            $schemaTenSignature,
+            $schemaElevenSignature,
         );
         $this->assertDoesNotMatchRegularExpression(
             '/<td\b[^>]*class="[^"]*\brt-sign-cell\b[^"]*"[^>]*zug-dampf-light\.gif/i',
-            $schemaTenSignature,
+            $schemaElevenSignature,
         );
 
         // ZWEITER LAUF: Er ueberschreibt ohne Rueckfrage — auch Editor-Arbeit.
@@ -144,7 +147,7 @@ class MailDocumentEditorTest extends TestCase
         $this->assertStringNotContainsString('Von Hand geaendert', (string) $frisch->html);
         $this->assertSame(MailDocumentStatus::Published, $frisch->status);
         $this->assertSame(1, $frisch->version);
-        $this->assertSame(10, data_get($frisch->builder_data, 'railtime.schema'));
+        $this->assertSame(11, data_get($frisch->builder_data, 'railtime.schema'));
     }
 
     public function test_der_seeder_veroeffentlicht_vorlage_und_signatur_als_idempotenten_release(): void
@@ -164,7 +167,7 @@ class MailDocumentEditorTest extends TestCase
             $dokument = $this->document($kind);
             $this->assertSame(MailDocumentStatus::Published, $dokument->status, $kind->value);
             $this->assertSame(1, $dokument->version, $kind->value);
-            $this->assertSame(10, data_get($dokument->builder_data, 'railtime.schema'), $kind->value);
+            $this->assertSame(11, data_get($dokument->builder_data, 'railtime.schema'), $kind->value);
             $this->assertSame(trim((string) $dokument->html), trim((string) $dokument->published_html), $kind->value);
             $this->assertSame((string) data_get($dokument->builder_data, 'pages.0.component'), (string) $dokument->html, $kind->value);
             $this->assertSame(
@@ -207,7 +210,7 @@ class MailDocumentEditorTest extends TestCase
 
         foreach ([$template, $signatur] as $dokument) {
             $this->assertSame(MailDocumentStatus::Published, $dokument->status);
-            $this->assertSame(10, data_get($dokument->builder_data, 'railtime.schema'));
+            $this->assertSame(11, data_get($dokument->builder_data, 'railtime.schema'));
             $this->assertSame(trim((string) $dokument->html), trim((string) $dokument->published_html));
             $this->assertSame((string) data_get($dokument->builder_data, 'pages.0.component'), (string) $dokument->html);
         }

@@ -13,6 +13,29 @@ use RuntimeException;
  */
 final class SignatureTrainCarrier
 {
+    /** @var array<string, string> */
+    private const CANONICAL_LAYER_ALIGNMENT = [
+        'left' => ['left' => '0', 'right' => 'auto', 'margin' => '0'],
+        'center' => ['left' => '0', 'right' => '0', 'margin' => '0 auto'],
+        'right' => ['left' => 'auto', 'right' => '0', 'margin' => '0'],
+    ];
+
+    /** @var array<string, string> */
+    private const CANONICAL_IMAGE_STYLE = [
+        'position' => 'absolute',
+        'left' => '0',
+        'right' => 'auto',
+        'bottom' => '0',
+        'display' => 'block',
+        'width' => '100%',
+        'max-width' => '1815px',
+        'height' => 'auto',
+        'margin' => '0',
+        'border' => '0',
+        'outline' => 'none',
+        'text-decoration' => 'none',
+    ];
+
     /** @var list<string> */
     private const ALLOWED_STYLE_TOKENS = [
         'SIGNATURE_BG',
@@ -146,8 +169,9 @@ final class SignatureTrainCarrier
 
     /**
      * Projiziert den streng validierten Carrier fuer alle Ausgaben in den
-     * einfachen Ein-GIF-Vertrag von Logo und RT-Icon. Das normale IMG bleibt
-     * beim Kopieren, Antworten und Weiterleiten erhalten.
+     * Ein-GIF-Vertrag von Logo und RT-Icon. Der absolute Bild-Layer bleibt
+     * innerhalb des Carriers hinter dem Inhalt und erzeugt keine eigene
+     * Tabellenhoehe.
      */
     public static function projectAsImage(string $html, string $source, string $padding = '0'): string
     {
@@ -181,19 +205,21 @@ final class SignatureTrainCarrier
         $marker = '<!-- RT_SIGNATURE_MAIN_END -->';
         if (substr_count($html, $marker) !== 1) {
             throw new RuntimeException(
-                'Die veroeffentlichte Signatur besitzt keinen eindeutigen Bildzeilen-Anker.'
+                'Die veroeffentlichte Signatur besitzt keinen eindeutigen Zug-Layer-Anker.'
             );
         }
 
         $source = htmlspecialchars($source, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
-        $padding = htmlspecialchars($padding, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
-        $image = '<img class="rt-sign-train" data-rt-train src="'.$source.'" width="100%" '
-            .'alt="" style="display:block;width:100%;max-width:1815px;'
-            .'height:auto;margin:0;border:0;outline:none;text-decoration:none;">';
-        $row = '<tr><td align="left" style="padding:'.$padding
-            .';text-align:left;font-size:0;line-height:0;">'.$image.'</td></tr>';
+        $layer = self::canonicalLayerMarkup($source);
+        $markerOffset = strpos($html, $marker);
+        $beforeMarker = substr($html, 0, $markerOffset);
+        if (preg_match('/<\/td>[ \t\r\n\f]*<\/tr>[ \t\r\n\f]*$/i', $beforeMarker, $match, PREG_OFFSET_CAPTURE) !== 1) {
+            throw new RuntimeException('Der Zug-Layer konnte nicht innerhalb des Carriers verankert werden.');
+        }
 
-        return str_replace($marker, $marker.$row, $html);
+        $carrierCloseOffset = $match[0][1];
+
+        return substr_replace($html, $layer, $carrierCloseOffset, 0);
     }
 
     public static function hasCanonicalImage(string $html): bool
@@ -203,7 +229,8 @@ final class SignatureTrainCarrier
 
     /**
      * Neuer Seeder-/Editorvertrag: TRAIN_SRC lebt ausschliesslich im src
-     * eines einzigen normalen Bildes innerhalb des eindeutigen Carriers.
+     * eines einzigen normalen Bildes in einem eindeutigen absoluten Layer
+     * innerhalb des Carriers.
      */
     public static function assertCanonicalImage(string $html): void
     {
@@ -231,6 +258,7 @@ final class SignatureTrainCarrier
 
         $carriers = [];
         $images = [];
+        $layers = [];
         foreach ($wrapper->getElementsByTagName('*') as $element) {
             if (! $element instanceof DOMElement) {
                 continue;
@@ -243,27 +271,114 @@ final class SignatureTrainCarrier
                 && ($element->hasAttribute('data-rt-train') || in_array('rt-sign-train', $classes, true))) {
                 $images[] = $element;
             }
-        }
-
-        $image = $images[0] ?? null;
-        $carrier = $carriers[0] ?? null;
-        if (count($carriers) !== 1
-            || count($images) !== 1
-            || ! $image instanceof DOMElement
-            || ! $carrier instanceof DOMElement
-            || ! $image->hasAttribute('data-rt-train')
-            || ! in_array('rt-sign-train', preg_split('/\s+/', trim($image->getAttribute('class')), -1, PREG_SPLIT_NO_EMPTY) ?: [], true)
-            || $image->getAttribute('src') !== '{{TRAIN_SRC}}') {
-            throw new RuntimeException('Das Zugmotiv muss genau einmal als regulaeres kanonisches Bild vorliegen.');
-        }
-
-        for ($ancestor = $image->parentNode; $ancestor !== null; $ancestor = $ancestor->parentNode) {
-            if ($ancestor instanceof DOMElement && $ancestor->isSameNode($carrier)) {
-                return;
+            if ($element->tagName === 'div'
+                && ($element->hasAttribute('data-rt-layer-train') || in_array('rt-sign-train-layer', $classes, true))) {
+                $layers[] = $element;
             }
         }
 
-        throw new RuntimeException('Das kanonische Zugbild muss innerhalb des Signatur-Carriers liegen.');
+        $image = $images[0] ?? null;
+        $layer = $layers[0] ?? null;
+        $carrier = $carriers[0] ?? null;
+        if (count($carriers) !== 1
+            || count($images) !== 1
+            || count($layers) !== 1
+            || ! $image instanceof DOMElement
+            || ! $layer instanceof DOMElement
+            || ! $carrier instanceof DOMElement
+            || ! $image->hasAttribute('data-rt-train')
+            || ! $layer->hasAttribute('data-rt-layer-train')
+            || ! $layer->hasAttribute('data-rt-layer-align')
+            || self::elementClasses($layer) !== ['rt-sign-train-layer']
+            || self::elementClasses($image) !== ['rt-sign-train']
+            || $image->getAttribute('src') !== '{{TRAIN_SRC}}') {
+            throw new RuntimeException('Das Zugmotiv muss genau einmal im kanonischen Bild-Layer vorliegen.');
+        }
+
+        if (! $image->parentNode?->isSameNode($layer)
+            || ! $layer->parentNode?->isSameNode($carrier)
+            || ! self::lastElementChild($carrier)?->isSameNode($layer)) {
+            throw new RuntimeException('Der Zug-Layer muss das letzte direkte Kind des Signatur-Carriers sein.');
+        }
+
+        $alignment = strtolower(trim($layer->getAttribute('data-rt-layer-align')));
+        $alignmentStyle = self::CANONICAL_LAYER_ALIGNMENT[$alignment] ?? null;
+        if (! is_array($alignmentStyle)) {
+            throw new RuntimeException('Der Zug-Layer besitzt keine erlaubte horizontale Position.');
+        }
+        self::assertExactSimpleStyle($layer, [
+            'position' => 'absolute',
+            'left' => $alignmentStyle['left'],
+            'right' => $alignmentStyle['right'],
+            'top' => '0',
+            'bottom' => '0',
+            'width' => '100%',
+            'max-width' => '1815px',
+            'height' => '100%',
+            'margin' => $alignmentStyle['margin'],
+            'overflow' => 'hidden',
+            'z-index' => '0',
+            'font-size' => '0',
+            'line-height' => '0',
+            'text-align' => 'left',
+        ], 'Zug-Layer');
+        self::assertExactSimpleStyle($image, self::CANONICAL_IMAGE_STYLE, 'Zugbild');
+    }
+
+    private static function canonicalLayerMarkup(string $source): string
+    {
+        return '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" '
+            .'style="position:absolute;left:0;right:auto;top:0;bottom:0;width:100%;max-width:1815px;height:100%;margin:0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;">'
+            .'<img class="rt-sign-train" data-rt-train src="'.$source.'" width="100%" alt="" '
+            .'style="position:absolute;left:0;right:auto;bottom:0;display:block;width:100%;max-width:1815px;height:auto;margin:0;border:0;outline:none;text-decoration:none;">'
+            .'</div>';
+    }
+
+    /** @param array<string, string> $expected */
+    private static function assertExactSimpleStyle(DOMElement $element, array $expected, string $label): void
+    {
+        $actual = [];
+        foreach (explode(';', $element->getAttribute('style')) as $segment) {
+            if (trim($segment) === '') {
+                continue;
+            }
+            if (substr_count($segment, ':') !== 1) {
+                throw new RuntimeException("Der {$label}-Stil ist nicht eindeutig lesbar.");
+            }
+            [$property, $value] = array_map('trim', explode(':', $segment, 2));
+            $property = strtolower($property);
+            $value = strtolower(preg_replace('/[ \t\r\n\f]+/', ' ', $value) ?? $value);
+            if ($property === '' || isset($actual[$property]) || str_contains($value, '!important')) {
+                throw new RuntimeException("Der {$label}-Stil ist nicht eindeutig.");
+            }
+            $actual[$property] = $value;
+        }
+
+        if (count($actual) !== count($expected)) {
+            throw new RuntimeException("Der {$label} muss seine mail-sichere absolute Position behalten.");
+        }
+        foreach ($expected as $property => $value) {
+            if (($actual[$property] ?? null) !== $value) {
+                throw new RuntimeException("Der {$label} muss seine mail-sichere absolute Position behalten.");
+            }
+        }
+    }
+
+    private static function lastElementChild(DOMElement $element): ?DOMElement
+    {
+        for ($child = $element->lastChild; $child !== null; $child = $child->previousSibling) {
+            if ($child instanceof DOMElement) {
+                return $child;
+            }
+        }
+
+        return null;
+    }
+
+    /** @return list<string> */
+    private static function elementClasses(DOMElement $element): array
+    {
+        return preg_split('/\s+/', trim($element->getAttribute('class')), -1, PREG_SPLIT_NO_EMPTY) ?: [];
     }
 
     /**

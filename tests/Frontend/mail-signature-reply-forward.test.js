@@ -73,7 +73,8 @@ test('all delivered HTML uses one regular train image like logo and RT icon', as
     ]);
 
     assert.match(signature, /\$trainSrc = \$outlookTrainSrc !== ''/);
-    assert.match(signature, /<img class="rt-sign-train" data-rt-train src="\{\{ \$trainSrc \}\}" width="100%"[^>]*style="[^"]*display:block;width:100%;max-width:1815px;height:auto;/);
+    assert.match(signature, /<div class="rt-sign-train-layer" data-rt-layer-train style="position:absolute;/);
+    assert.match(signature, /<img class="rt-sign-train" data-rt-train src="\{\{ \$trainSrc \}\}" width="100%"[^>]*style="[^"]*position:absolute;[^\"]*display:block;width:100%;max-width:1815px;height:auto;/);
     assert.doesNotMatch(signature, /url\(\{\$values\['TRAIN_SRC'\]\}\)/);
     assert.doesNotMatch(signature, /data-rt-outlook-train|outlookTrainFallbackSrc/);
     assert.doesNotMatch(signature, /<td[^>]+background="\{\{[^}]*TRAIN/);
@@ -85,6 +86,7 @@ test('all delivered HTML uses one regular train image like logo and RT icon', as
     assert.doesNotMatch(runtime, /appendClassicOutlookTrainFallback/);
     assert.doesNotMatch(runtime, /<!--\[if mso\]><tr><td align="left"/);
     assert.match(carrier, /public static function projectAsImage/);
+    assert.match(carrier, /<div class="rt-sign-train-layer" data-rt-layer-train/);
     assert.match(carrier, /<img class="rt-sign-train" data-rt-train src="'\.\$source\.'" width="100%"/);
     assert.match(preview, /SignatureTrainCarrier::projectAsImage\(/);
     assert.doesNotMatch(runtime, /injectDelayedIdleOverlay|data-rt-train-idle/);

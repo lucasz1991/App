@@ -311,10 +311,10 @@ class MailSignature
         }
 
         // Alle Ausgabewege projizieren den streng validierten Zug-Token in
-        // genau ein regulaeres IMG. Damit wird das GIF wie Logo und RT-Icon
-        // beim Kopieren, Antworten und Weiterleiten als echtes Bildelement
-        // uebernommen. Der Editor speichert weiterhin den fail-closed
-        // Background-Carrier; erst dieser finale Render loest ihn atomar auf.
+        // genau ein regulaeres IMG in einem absoluten Carrier-Layer. Damit
+        // wird das GIF wie Logo und RT-Icon beim Kopieren, Antworten und
+        // Weiterleiten als echtes Bildelement uebernommen, liegt aber ohne
+        // zusaetzliche Tabellenhoehe hinter den Kontaktdaten.
         if ($published !== null) {
             SignatureDocumentContract::assertRuntimeValid($published);
 
@@ -436,10 +436,9 @@ class MailSignature
 
     /**
      * Jede ausgelieferte Fassung bekommt den Zug wie Logo und RT-Icon als
-     * regulaeres Bild. Der kanonische Editorstand enthaelt den streng
-     * validierten Token weiterhin im Carrier; diese Methode loest ihn atomar
-     * aus den parallelen CSS-Listen und setzt genau eine Bildzeile vor die
-     * Pflichtdaten.
+     * regulaeres Bild. Neue Editorstaende tragen bereits den absoluten
+     * Bild-Layer; alte Background-Staende werden atomar daraus geloest und
+     * in genau denselben Layer innerhalb des Carriers ueberfuehrt.
      *
      * @param  array<string, string>  $layout
      */

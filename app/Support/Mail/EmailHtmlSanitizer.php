@@ -386,7 +386,7 @@ final class EmailHtmlSanitizer
         'rt-shell', 'rt-pad', 'rt-title', 'rt-stack', 'rt-logo', 'rt-mark',
         'rt-card', 'rt-card-cell',
         'rt-sign-cell', 'rt-sign-content', 'rt-sign-logo', 'rt-sign-identity', 'rt-sign-name',
-        'rt-sign-train',
+        'rt-sign-train', 'rt-sign-train-layer',
         'rt-train-idle-overlay', 'rt-train-idle-runtime-layer', 'rt-train-idle-surface',
         // Die Anschrift steht seit dem symmetrischen Umbau nur noch einmal
         // in der Firmenspalte. Die beiden Namen bleiben zugelassen, damit
@@ -1210,7 +1210,11 @@ final class EmailHtmlSanitizer
 
     private function applyStyleAttribute(DOMElement $element, string $css, string $path): void
     {
-        [$filtered, $findings] = $this->filterDeclarationList($css, $path);
+        [$filtered, $findings] = $this->filterDeclarationList(
+            $css,
+            $path,
+            $this->allowsAbsoluteTrainPosition($element),
+        );
 
         if ($findings === []) {
             return;
@@ -1261,7 +1265,7 @@ final class EmailHtmlSanitizer
      *
      * @return array{0: string, 1: list<array{code: string, severity: string, message: string, context: string}>}
      */
-    private function filterDeclarationList(string $css, string $path): array
+    private function filterDeclarationList(string $css, string $path, bool $allowAbsolutePosition = false): array
     {
         $mask = self::maskPlaceholders($css);
         $findings = [];
@@ -1279,7 +1283,7 @@ final class EmailHtmlSanitizer
             $property = strtolower(trim(substr($css, $start, $colon - $start)));
             $value = trim(substr($css, $colon + 1, $end - $colon - 1));
 
-            $verdict = $this->judgeDeclaration($property, $value);
+            $verdict = $this->judgeDeclaration($property, $value, $allowAbsolutePosition);
 
             if ($verdict === null) {
                 continue;
@@ -1376,7 +1380,7 @@ final class EmailHtmlSanitizer
     /**
      * @return array{0: string, 1: string}|null [Code, Meldung] bei Verstoss
      */
-    private function judgeDeclaration(string $property, string $value): ?array
+    private function judgeDeclaration(string $property, string $value, bool $allowAbsolutePosition = false): ?array
     {
         if ($property === '') {
             return null;
@@ -1429,12 +1433,33 @@ final class EmailHtmlSanitizer
         if ($enum !== null) {
             $bare = strtolower(trim(str_ireplace('!important', '', $value)));
 
+            if ($property === 'position' && $allowAbsolutePosition && $bare === 'absolute') {
+                return null;
+            }
+
             if (! in_array($bare, $enum, true)) {
                 return ['css.value.forbidden', "{$property}:{$bare} ist in E-Mails nicht zulaessig und wurde entfernt."];
             }
         }
 
         return null;
+    }
+
+    /**
+     * position:absolute bleibt global verboten. Die einzige Ausnahme sind
+     * die beiden serverkontrollierten Teile des kanonischen Zug-Layers; der
+     * Signaturvertrag prueft Anzahl, Verschachtelung und Quelle nochmals.
+     */
+    private function allowsAbsoluteTrainPosition(DOMElement $element): bool
+    {
+        $classes = preg_split('/\s+/', trim($element->getAttribute('class')), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        return (strtolower($element->tagName) === 'div'
+                && $element->hasAttribute('data-rt-layer-train')
+                && $classes === ['rt-sign-train-layer'])
+            || (strtolower($element->tagName) === 'img'
+                && $element->hasAttribute('data-rt-train')
+                && $classes === ['rt-sign-train']);
     }
 
     private function isAllowedProperty(string $property): bool

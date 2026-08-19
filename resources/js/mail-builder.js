@@ -664,7 +664,7 @@ function restoreSignatureContactMarkers(root, required = false) {
 
 /**
  * Kommentare sind keine `children`: die bisherige Signatur-Serialisierung
- * uebernahm deshalb beide kanonischen TRs, verlor aber den Bildzeilen-Anker
+ * uebernahm deshalb beide kanonischen TRs, verlor aber den Zug-Layer-Anker
  * dazwischen. Kein beliebiger Markerzustand wird dabei still repariert. Ein
  * fehlender Kommentar ist der bekannte DOM-/GrapesJS-Verlust und wird spaeter
  * kanonisch eingesetzt; Duplikate, Near-Misses und verschobene echte Marker
@@ -1474,12 +1474,18 @@ export function serializeMailDocumentForSave({
     const rows = Array.from(body?.children || []);
     const trainImages = wrapper?.querySelectorAll?.(`img[data-rt-train][${MAIL_PREVIEW_IMAGE_ATTRIBUTE}="TRAIN_SRC"]`) || [];
     const trainImage = trainImages[0];
-    const trainCarrier = trainImage?.closest?.('td.rt-sign-cell');
+    const trainLayer = trainImage?.closest?.('div.rt-sign-train-layer[data-rt-layer-train]');
+    const trainCarrier = trainLayer?.parentElement;
     if (wrappers.length !== 1 || !wrapper || !body
         || rows.length !== 2 || rows.some((row) => row.tagName !== 'TR')
         || trainImages.length !== 1
         || trainImage?.tagName !== 'IMG'
+        || trainLayer?.tagName !== 'DIV'
         || trainCarrier?.tagName !== 'TD'
+        || !trainCarrier.classList.contains('rt-sign-cell')
+        || trainImage.parentElement !== trainLayer
+        || trainLayer.parentElement !== trainCarrier
+        || trainCarrier.lastElementChild !== trainLayer
         || trainCarrier.parentElement !== rows[0]) {
         throw new Error('Die sichere Tabellenstruktur des Signatur-Editors fehlt.');
     }
@@ -1497,7 +1503,10 @@ export function serializeMailDocumentForSave({
     });
 
     const restoredTrainImages = wrapper.querySelectorAll('img[data-rt-train]');
+    const restoredTrainLayers = wrapper.querySelectorAll('div.rt-sign-train-layer[data-rt-layer-train]');
     if (restoredTrainImages.length !== 1
+        || restoredTrainLayers.length !== 1
+        || restoredTrainImages[0].parentElement !== restoredTrainLayers[0]
         || !restoredTrainImages[0].classList.contains('rt-sign-train')
         || restoredTrainImages[0].getAttribute('src') !== '{{TRAIN_SRC}}') {
         throw new Error('Die Bindung des RailTime-Zugbildes wurde im Editor beschädigt.');
@@ -1730,6 +1739,32 @@ export function restartMailCanvasAnimations(editor, { nonce = Date.now() } = {})
  * Aenderungen anbieten. Ihre Kinder bzw. die restliche Signatur bleiben
  * normal bearbeitbar.
  */
+export function synchronizeMailTrainLayerAlignment(component) {
+    const attributes = component?.getAttributes?.() || component?.get?.('attributes') || {};
+    const classes = String(attributes.class || '').split(/\s+/).filter(Boolean);
+    if (!classes.includes('rt-sign-train-layer') || attributes['data-rt-layer-train'] === undefined) {
+        return false;
+    }
+
+    const alignment = ['left', 'center', 'right'].includes(attributes['data-rt-layer-align'])
+        ? attributes['data-rt-layer-align']
+        : 'left';
+    const horizontal = {
+        left: { left: '0', right: 'auto', margin: '0' },
+        center: { left: '0', right: '0', margin: '0 auto' },
+        right: { left: 'auto', right: '0', margin: '0' },
+    }[alignment];
+    const current = component?.getStyle?.() || {};
+    if (current.left === horizontal.left
+        && current.right === horizontal.right
+        && current.margin === horizontal.margin) {
+        return false;
+    }
+    component?.setStyle?.({ ...current, ...horizontal });
+
+    return true;
+}
+
 export function protectMailSystemComponents(editor) {
     const root = editor?.getWrapper?.();
     if (!root) return 0;
@@ -1751,7 +1786,7 @@ export function protectMailSystemComponents(editor) {
         const token = attributes[MAIL_PREVIEW_IMAGE_ATTRIBUTE];
         const preview = attributes['data-rt-mail-preview-only'];
         const block = attributes[MAIL_BLOCK_ATTRIBUTE];
-        if (token === 'TRAIN_SRC') return 'Zuganimation (geschützt)';
+        if (token === 'TRAIN_SRC') return 'Zugbild (geschützt)';
         if (preview === 'application') return 'Anwendungsinhalt (geschützt)';
         if (preview === 'signature') return 'Signatur-Platzhalter (geschützt)';
         if (token === 'ICON_RT_SRC') return 'RT-Zeichen (geschützt)';
@@ -1759,6 +1794,7 @@ export function protectMailSystemComponents(editor) {
         if (token?.startsWith?.('ICON_')) return 'Kontakt-Icon (geschützt)';
         if (classes.includes('rt-shell')) return 'Nachrichtenschale';
         if (classes.includes('rt-sign-content')) return 'Signatur-Inhalt';
+        if (classes.includes('rt-sign-train-layer')) return 'Zug-Hintergrundebene (geschützt)';
         if (classes.includes('rt-sign-identity')) return 'Personendaten';
         if (classes.includes('rt-sign-logo')) return 'Firmendaten';
         if (classes.includes('rt-company-contact')) return 'Firmenkontakte';
@@ -1814,6 +1850,23 @@ export function protectMailSystemComponents(editor) {
             }
         }
         if (attributes[MAIL_PREVIEW_IMAGE_ATTRIBUTE] === 'TRAIN_SRC') {
+            protect(component, { layerable: true });
+        }
+        if (attributes['data-rt-layer-train'] !== undefined
+            || classNames(attributes).includes('rt-sign-train-layer')) {
+            component.set?.({
+                traits: [{
+                    type: 'select',
+                    name: 'data-rt-layer-align',
+                    label: 'Zugposition',
+                    options: [
+                        { id: 'left', name: 'Links' },
+                        { id: 'center', name: 'Mittig' },
+                        { id: 'right', name: 'Rechts' },
+                    ],
+                }],
+            }, { silent: true });
+            synchronizeMailTrainLayerAlignment(component);
             protect(component, { layerable: true });
         }
         children(component).forEach(visit);
@@ -2257,7 +2310,12 @@ export async function createMailBuilder({
             });
         }
     };
+    const onComponentUpdate = (component) => {
+        synchronizeMailTrainLayerAlignment(component);
+        protectMailSystemComponents(editor);
+    };
     editor.on?.('component:add', onComponentAdd);
+    editor.on?.('component:update', onComponentUpdate);
     protectMailSystemComponents(editor);
     const rootElement = typeof root === 'string' ? document.querySelector(root) : root;
     const frame = rootElement?.closest?.('[data-mail-editor-frame]') || null;
@@ -2389,6 +2447,7 @@ export async function createMailBuilder({
             assistantAdapter = null;
             editorChrome.destroy();
             editor.off?.('component:add', onComponentAdd);
+            editor.off?.('component:update', onComponentUpdate);
             editor.off?.('canvas:frame:load', onFrameLoad);
             preview?.destroy();
             instance.destroy?.();

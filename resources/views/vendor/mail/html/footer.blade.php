@@ -9,7 +9,7 @@
     setzt Firmenname und Claim an die Stelle von Name und Funktion und zeigt
     die Firmenanschluesse. Einfahrt, Rauchphase und Schlussbild laufen als
     ein kombiniertes GIF hinter den Daten. Nur Classic Outlook bekommt
-    dieselbe Datei als MSO-only Bildzeile.
+    dieselbe Datei als normales IMG im geschuetzten Carrier-Layer.
 
     Der uebergebene $slot (Vertraulichkeitshinweis) steckt bereits im
     Rechtsblock der Signatur; er wird deshalb bewusst nicht erneut ausgegeben.

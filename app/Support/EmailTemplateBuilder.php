@@ -459,7 +459,7 @@ class EmailTemplateBuilder
         $values['RESPONSIVE_CSS'] = self::responsiveCss($values['SIGNATURE_BORDER'] ?? null);
         // Der serverseitige Signatur-Render validiert den editierbaren
         // CSS-Carrier und projiziert den kombinierten Hauptzug danach genau
-        // einmal als regulaere Bildzeile direkt unter die Kontaktdaten. Der
+        // einmal als regulaeres IMG im absoluten Carrier-Layer. Der
         // alte Background- und Idle-Sonderpfad kann dadurch weder doppeln
         // noch in Outlook als Nullhoehenbild verschwinden.
         $values['SIGNATURE_BLOCK'] = $signature->render();
@@ -1201,7 +1201,7 @@ class EmailTemplateBuilder
     /**
      * Prueft die eigenstaendige New-Outlook-/Web-Kopierfassung nach der
      * Runtime-Projektion. Der kombinierte Zug muss dort genau einmal als
-     * regulaeres HTTPS-IMG vorliegen.
+     * regulaeres HTTPS-IMG im absoluten Carrier-Layer vorliegen.
      */
     private static function placeBrowserCopyTrainBehindContent(
         string $html,
@@ -1246,6 +1246,20 @@ class EmailTemplateBuilder
         if (! $trainImage instanceof \DOMElement
             || self::forceHttpsUrl($trainImage->getAttribute('src')) !== $expectedTrainSource) {
             throw new RuntimeException('Das Zugbild der Browser-Kopiervorlage besitzt nicht die erwartete HTTPS-Quelle.');
+        }
+
+        $trainLayers = $xpath->query(
+            '//*[@data-rt-layer-train and contains(concat(" ", normalize-space(@class), " "), " rt-sign-train-layer ")]',
+        );
+        $trainLayer = $trainLayers !== false ? $trainLayers->item(0) : null;
+        if ($trainLayers === false
+            || $trainLayers->length !== 1
+            || ! $trainLayer instanceof \DOMElement
+            || ! $trainLayer->parentNode?->isSameNode($carrier)
+            || ! $trainImage->parentNode?->isSameNode($trainLayer)
+            || ! str_contains(strtolower($trainLayer->getAttribute('style')), 'position:absolute')
+            || ! str_contains(strtolower($trainImage->getAttribute('style')), 'position:absolute')) {
+            throw new RuntimeException('Das Zugbild der Browser-Kopiervorlage liegt nicht im sicheren absoluten Carrier-Layer.');
         }
 
         foreach (self::imageSources($html) as $imageSource) {
