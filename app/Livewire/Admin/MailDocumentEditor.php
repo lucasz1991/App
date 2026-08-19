@@ -156,6 +156,13 @@ class MailDocumentEditor extends Component
             // Inhaltsbilder ersetzen. Private Admin-Dateien, Uploads und
             // freie Fremd-URLs bleiben im E-Mail-Editor ausgeschlossen.
             'mailAssets' => $mailAssets,
+            // Das portable Editor-Bundle transportiert die tatsaechlichen
+            // Bildbytes mit. Die oeffentliche Quelladresse ist nur die
+            // Zuordnung; beim Import bindet der Browser ueber SHA-256 an das
+            // Asset der aktuellen Installation zurueck. Dadurch gelangen
+            // weder private FilePool-URLs noch Vorschau-Data-URIs in einen
+            // gespeicherten Mailentwurf.
+            'portableMedia' => $this->portableMediaAssets(),
             // Nur fuer das isolierte Editor-iframe: Die gespeicherten
             // {{...}}-Tokens bleiben unangetastet, waehrend Logo, Zug und
             // Kontakticons in Hell und Dunkel trotzdem real dargestellt
@@ -187,5 +194,73 @@ class MailDocumentEditor extends Component
                 'coreCss' => asset('vendor/lmz-builder/2.4.5/lmz-builder-core.css'),
             ],
         ];
+    }
+
+    /**
+     * Medien, die zum aktuell geoeffneten Dokumentvertrag gehoeren.
+     *
+     * @return list<array<string, int|string>>
+     */
+    private function portableMediaAssets(): array
+    {
+        $templateAssets = [
+            'icon-rt-light.gif',
+            'icon-rt-light.png',
+            'icon-rt-dark.gif',
+            'icon-rt-dark.png',
+        ];
+        $signatureAssets = [
+            'wortmarke-signature-light.gif',
+            'wortmarke-signature-light.png',
+            'wortmarke-signature-dark.gif',
+            'wortmarke-signature-dark.png',
+            'wortmarke-mail-dark.gif',
+            'wortmarke-mail-dark.png',
+            'signatur-raster-light.png',
+            'signatur-raster-dark.png',
+            'signatur-marke-light.png',
+            'signatur-marke-dark.png',
+            'zug-dampf-light.gif',
+            'zug-dampf-light.png',
+            'zug-dampf-dark.gif',
+            'zug-dampf-dark.png',
+            'zug-dampf-idle-light.gif',
+            'zug-dampf-idle-dark.gif',
+            'contact-location.png',
+            'contact-phone.png',
+            'contact-mobile.png',
+            'contact-email.png',
+            'contact-web.png',
+        ];
+        $assets = $this->kind === MailDocumentKind::Signature->value
+            ? $signatureAssets
+            : $templateAssets;
+
+        return array_values(array_filter(array_map(static function (string $asset): ?array {
+            $path = public_path('mail-assets/'.$asset);
+            if (! is_file($path)) {
+                return null;
+            }
+
+            $extension = strtolower((string) pathinfo($asset, PATHINFO_EXTENSION));
+            $mime = match ($extension) {
+                'gif' => 'image/gif',
+                'jpg', 'jpeg' => 'image/jpeg',
+                'webp' => 'image/webp',
+                default => 'image/png',
+            };
+            $dimensions = @getimagesize($path);
+
+            return [
+                'id' => $asset,
+                'name' => str_replace(['-', '_'], ' ', (string) pathinfo($asset, PATHINFO_FILENAME)),
+                'source' => EmailTemplateBuilder::mailAssetUrl($asset),
+                'mime_type' => $mime,
+                'bytes' => (int) filesize($path),
+                'sha256' => hash_file('sha256', $path),
+                'width' => (int) ($dimensions[0] ?? 0),
+                'height' => (int) ($dimensions[1] ?? 0),
+            ];
+        }, $assets)));
     }
 }

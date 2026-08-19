@@ -17,6 +17,8 @@ use App\Support\Mail\TemplateDocumentContract;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -53,8 +55,11 @@ final class MailDocumentController extends Controller
             ]);
         }
 
-        $html = (string) $validated['html'];
-        $css = (string) $validated['css'];
+        [$html, $css, $portableFiles] = $this->preparePortableMedia(
+            (string) $validated['html'],
+            (string) $validated['css'],
+            (array) ($validated['portable_media'] ?? []),
+        );
         $this->assertEditableCssSource($css);
         $this->assertDocumentStructure($document, $html, $css);
         $htmlReport = $sanitizer->assertClean($html);
@@ -73,6 +78,7 @@ final class MailDocumentController extends Controller
             $validated['builder_data'],
             $htmlReport->html,
         );
+        $this->storePortableMedia($portableFiles);
 
         $candidate = $this->payload($document);
         $candidate['builder_data'] = $builderData;
@@ -83,6 +89,116 @@ final class MailDocumentController extends Controller
             'document' => $candidate,
             'report' => $this->reportPayload($htmlReport, $cssReport),
         ]);
+    }
+
+    /**
+     * Prueft ein portables Medienpaket vollstaendig im Speicher und ersetzt
+     * nur seine exakten alten Quelladressen durch inhaltsadressierte URLs der
+     * aktuellen Installation. Geschrieben wird erst, nachdem auch HTML, CSS
+     * und Dokumentvertrag akzeptiert wurden.
+     *
+     * @param  list<array<string, mixed>>  $media
+     * @return array{0: string, 1: string, 2: list<array{path: string, binary: string}>}
+     */
+    private function preparePortableMedia(string $html, string $css, array $media): array
+    {
+        $files = [];
+        $sources = [];
+        $extensions = [
+            'image/gif' => 'gif',
+            'image/png' => 'png',
+            'image/jpeg' => 'jpg',
+            'image/webp' => 'webp',
+        ];
+
+        foreach ($media as $index => $entry) {
+            if (! is_array($entry)) {
+                throw ValidationException::withMessages([
+                    'portable_media' => 'Das Medienpaket enthaelt einen ungueltigen Eintrag.',
+                ]);
+            }
+
+            $source = trim((string) ($entry['source'] ?? ''));
+            $mime = strtolower(trim((string) ($entry['mime_type'] ?? '')));
+            $sha256 = strtolower(trim((string) ($entry['sha256'] ?? '')));
+            $declaredBytes = (int) ($entry['bytes'] ?? 0);
+            $encoded = (string) ($entry['data'] ?? '');
+            $scheme = strtolower((string) parse_url($source, PHP_URL_SCHEME));
+
+            if ($source === ''
+                || (! str_starts_with($source, '/') && ! in_array($scheme, ['http', 'https'], true))
+                || str_contains($source, '{{')
+                || isset($sources[$source])
+                || ! isset($extensions[$mime])
+                || preg_match('/^[A-Za-z0-9+\/]*={0,2}$/', $encoded) !== 1
+                || strlen($encoded) % 4 !== 0) {
+                throw ValidationException::withMessages([
+                    'portable_media' => 'Das Medienpaket enthaelt doppelte oder nicht portable Quellen.',
+                ]);
+            }
+
+            $binary = base64_decode($encoded, true);
+            if (! is_string($binary)
+                || $binary === ''
+                || strlen($binary) !== $declaredBytes
+                || strlen($binary) > 2 * 1024 * 1024
+                || ! hash_equals($sha256, hash('sha256', $binary))) {
+                throw ValidationException::withMessages([
+                    'portable_media.'.$index => 'Groesse oder SHA-256 des Mediums stimmt nicht.',
+                ]);
+            }
+
+            set_error_handler(static fn (): bool => true);
+            try {
+                $image = getimagesizefromstring($binary);
+            } finally {
+                restore_error_handler();
+            }
+            $actualMime = strtolower((string) ($image['mime'] ?? ''));
+            $width = (int) ($image[0] ?? 0);
+            $height = (int) ($image[1] ?? 0);
+            if (! is_array($image)
+                || $actualMime !== $mime
+                || $width < 1
+                || $height < 1
+                || $width > 4096
+                || $height > 4096
+                || ($width * $height) > 16_000_000) {
+                throw ValidationException::withMessages([
+                    'portable_media.'.$index => 'Das Medium ist kein erlaubtes GIF-, PNG-, JPEG- oder WebP-Bild.',
+                ]);
+            }
+
+            $path = 'mail-imports/'.$sha256.'.'.$extensions[$mime];
+            $target = URL::to(Storage::disk('public')->url($path));
+            $html = str_replace(
+                [$source, htmlspecialchars($source, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8')],
+                [$target, htmlspecialchars($target, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8')],
+                $html,
+            );
+            $css = str_replace($source, $target, $css);
+            $files[] = ['path' => $path, 'binary' => $binary];
+            $sources[$source] = true;
+        }
+
+        return [$html, $css, $files];
+    }
+
+    /** @param  list<array{path: string, binary: string}>  $files */
+    private function storePortableMedia(array $files): void
+    {
+        $disk = Storage::disk('public');
+        foreach ($files as $file) {
+            if ($disk->exists($file['path'])) {
+                continue;
+            }
+
+            if (! $disk->put($file['path'], $file['binary'])) {
+                throw ValidationException::withMessages([
+                    'portable_media' => 'Ein importiertes Medium konnte nicht gespeichert werden.',
+                ]);
+            }
+        }
     }
 
     public function update(

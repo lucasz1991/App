@@ -31,6 +31,20 @@ final class SaveMailDocumentRequest extends FormRequest
             'html' => ['required', 'string', 'max:600000'],
             'css' => ['present', 'string', 'max:250000'],
             'expected_hash' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/i'],
+            // Nur validateCode() wertet diese Daten aus. Der normale Save
+            // sendet keine Medien erneut. Das Bundle transportiert sie
+            // base64-kodiert; der Controller prueft Inhalt, MIME und Hash,
+            // bevor er sie als oeffentliche, inhaltsadressierte Mailassets
+            // ablegt und die Quelladressen im Entwurf ersetzt.
+            'portable_media' => ['sometimes', 'array', 'max:32'],
+            'portable_media.*' => ['required', 'array'],
+            'portable_media.*.id' => ['required', 'string', 'max:160'],
+            'portable_media.*.name' => ['required', 'string', 'max:200'],
+            'portable_media.*.source' => ['required', 'string', 'max:2048'],
+            'portable_media.*.mime_type' => ['required', 'string', 'in:image/gif,image/png,image/jpeg,image/webp'],
+            'portable_media.*.bytes' => ['required', 'integer', 'min:1', 'max:2097152'],
+            'portable_media.*.sha256' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/i'],
+            'portable_media.*.data' => ['required', 'string', 'max:2796204'],
         ];
     }
 
@@ -56,6 +70,19 @@ final class SaveMailDocumentRequest extends FormRequest
 
                 if ($encoded === false || strlen($encoded) > 1_000_000) {
                     $validator->errors()->add('builder_data', 'Die Builder-Daten sind zu umfangreich.');
+                }
+
+                $media = $this->input('portable_media', []);
+                if (is_array($media)) {
+                    $encodedBytes = array_sum(array_map(
+                        static fn ($entry): int => is_array($entry)
+                            ? strlen((string) ($entry['data'] ?? ''))
+                            : 0,
+                        $media,
+                    ));
+                    if ($encodedBytes > 16 * 1024 * 1024) {
+                        $validator->errors()->add('portable_media', 'Das Medienpaket ist groesser als 16 MiB.');
+                    }
                 }
             },
         ];

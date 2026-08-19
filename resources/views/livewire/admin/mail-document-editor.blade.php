@@ -390,10 +390,13 @@
                     let lastEditorSaveError = null;
                     let activeBaselineHtml = String(document_.html || '');
                     let codeDialogOpener = null;
+                    let pendingPortableMedia = [];
                     const controlListeners = new AbortController();
                     const MAIL_SOURCE_FORMAT = 'railtime-mail-document';
-                    const MAIL_SOURCE_VERSION = 1;
-                    const MAX_IMPORT_BYTES = 1024 * 1024;
+                    const MAIL_SOURCE_VERSION = 2;
+                    const MAX_SOURCE_BYTES = 1024 * 1024;
+                    const MAX_BUNDLE_BYTES = 16 * 1024 * 1024;
+                    const MAX_MEDIA_BYTES = 2 * 1024 * 1024;
 
                     const toast = (type, text, title) => window.dispatchEvent(new CustomEvent('swal:toast', {
                         detail: { type, text, title: title || undefined },
@@ -654,7 +657,7 @@
                         }
 
                         const bytes = sourceSize({ html, css });
-                        if (enforceLimit && bytes > MAX_IMPORT_BYTES) {
+                        if (enforceLimit && bytes > MAX_SOURCE_BYTES) {
                             throw new Error(`HTML und CSS sind zusammen ${formatBytes(bytes)} groß. Erlaubt sind maximal 1 MiB.`);
                         }
 
@@ -750,7 +753,7 @@
 
                         const bytes = sourceSize({ html: codeHtml?.value || '', css: codeCss?.value || '' });
                         codeSize.textContent = `${formatBytes(bytes)} von maximal 1 MiB`;
-                        codeSize.dataset.overLimit = String(bytes > MAX_IMPORT_BYTES);
+                        codeSize.dataset.overLimit = String(bytes > MAX_SOURCE_BYTES);
                     };
 
                     const setCodeError = (message = '') => {
@@ -761,7 +764,7 @@
                         codeError.hidden = visibleMessage === '';
                     };
 
-                    const openCodeDialog = (source, origin, opener) => {
+                    const openCodeDialog = (source, origin, opener, portableMedia = []) => {
                         if (!codeDialog?.showModal || !codeHtml || !codeCss) {
                             throw new Error('Die Codeansicht wird von diesem Browser nicht unterstützt.');
                         }
@@ -770,6 +773,7 @@
                         codeCss.value = source.css;
                         if (codeOrigin) codeOrigin.textContent = origin;
                         codeDialogOpener = opener || window.document.activeElement;
+                        pendingPortableMedia = Array.isArray(portableMedia) ? portableMedia : [];
                         setCodeError();
                         updateCodeSize();
                         if (!codeDialog.open) codeDialog.showModal();
