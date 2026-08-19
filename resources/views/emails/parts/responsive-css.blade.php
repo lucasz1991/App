@@ -142,16 +142,20 @@ img.rt-logo { width: 150px !important; }
   background-size: 64px 64px, auto 52%, 100% 100% !important;
 }
 .rt-sign-train-layer {
-  left: -75% !important;
+  left: 0 !important;
   right: auto !important;
-  width: 200% !important;
+  width: 100% !important;
   max-width: none !important;
   margin: 0 !important;
 }
-.rt-sign-train-layer[data-rt-layer-mobile="left"] { left: 0 !important; }
-.rt-sign-train-layer[data-rt-layer-mobile="center"] { left: -50% !important; }
-.rt-sign-train-layer[data-rt-layer-mobile="train"] { left: -75% !important; }
-.rt-sign-train-layer[data-rt-layer-mobile="right"] { left: -100% !important; }
+/* Das Asset selbst endet bei rund 75 Prozent. Fuer den Standardausschnitt ist
+   deshalb keine 200-Prozent-Vergroesserung noetig; sie legte den kompletten
+   Zug ueber die unteren Kontaktzeilen. Nur die expliziten Detailausschnitte
+   vergroessern weiterhin. */
+.rt-sign-train-layer[data-rt-layer-mobile="left"] { left: 0 !important; width: 200% !important; }
+.rt-sign-train-layer[data-rt-layer-mobile="center"] { left: -50% !important; width: 200% !important; }
+.rt-sign-train-layer[data-rt-layer-mobile="train"] { left: 0 !important; width: 100% !important; }
+.rt-sign-train-layer[data-rt-layer-mobile="right"] { left: -100% !important; width: 200% !important; }
 .rt-sign-train {
   left: 0 !important;
   right: auto !important;

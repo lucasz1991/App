@@ -184,8 +184,13 @@ class MailSignature
                     $this->staticAssets ? false : $this->animated,
                     $this->playbackNonce,
                 ),
-                // Nur als Legacy-Wert fuer alte Dokumente vorhanden.
-                'TRAIN_STILL_SRC' => '',
+                // Outlook-/Word-Fallback fuer den absolut positionierten
+                // modernen Zug-Layer. In normalen Browsern bleibt dieses PNG
+                // durch den bedingten MSO-Kommentar unsichtbar.
+                'TRAIN_STILL_SRC' => EmailTemplateBuilder::signatureTrainAsset(
+                    $this->theme,
+                    animated: false,
+                ),
                 'TRAIN_IDLE_SRC' => '',
             ];
 
@@ -279,6 +284,11 @@ class MailSignature
             'outlookTrainSrc' => $singleTrainSource,
             'outlookTrainPadding' => (string) ($layout['outlookTrainPadding'] ?? '0'),
         ]);
+        $outlookFallbackSource = trim((string) (
+            $layout['outlookTrainFallbackSrc']
+                ?? $values['TRAIN_STILL_SRC']
+                ?? ''
+        ));
 
         // Vor der MailDocument-Migration bleibt der bestehende Bootstrapweg
         // verwendbar. In einer migrierten Installation erzwingt
@@ -308,7 +318,7 @@ class MailSignature
                 $this->contactRowValues($values),
             ));
 
-            return $this->finalizeTrainRendering($html);
+            return $this->finalizeTrainRendering($html, $outlookFallbackSource);
         }
 
         // Alle Ausgabewege projizieren den streng validierten Zug-Token in
@@ -350,7 +360,7 @@ class MailSignature
                 $this->contactRowValues($values),
             ));
 
-            return $this->finalizeTrainRendering($html);
+            return $this->finalizeTrainRendering($html, $outlookFallbackSource);
         }
 
         throw new \RuntimeException('Die veröffentlichte Signatur konnte nicht gerendert werden.');
@@ -388,9 +398,12 @@ class MailSignature
      * dem fehlerhaften legacy background-Attribut sofort sicher ausgeliefert,
      * ohne auf einen Seeder-Lauf angewiesen zu sein.
      */
-    private function finalizeTrainRendering(string $html): string
+    private function finalizeTrainRendering(string $html, string $outlookFallbackSource): string
     {
-        return $this->removeLegacyTrainBackground($html);
+        return SignatureTrainCarrier::withMsoFallback(
+            $this->removeLegacyTrainBackground($html),
+            $outlookFallbackSource,
+        );
     }
 
     /**

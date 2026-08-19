@@ -386,7 +386,7 @@ final class EmailHtmlSanitizer
         'rt-shell', 'rt-pad', 'rt-title', 'rt-stack', 'rt-logo', 'rt-mark',
         'rt-card', 'rt-card-cell',
         'rt-sign-cell', 'rt-sign-content', 'rt-sign-logo', 'rt-sign-identity', 'rt-sign-name',
-        'rt-sign-train', 'rt-sign-train-layer',
+        'rt-sign-stage', 'rt-sign-train', 'rt-sign-train-layer',
         'rt-train-idle-overlay', 'rt-train-idle-runtime-layer', 'rt-train-idle-surface',
         // Die Anschrift steht seit dem symmetrischen Umbau nur noch einmal
         // in der Firmenspalte. Die beiden Namen bleiben zugelassen, damit
@@ -1462,7 +1462,12 @@ final class EmailHtmlSanitizer
             return false;
         }
 
-        $carrier = $layer->parentNode;
+        $stage = $layer->parentNode;
+        $carrier = $stage instanceof DOMElement
+            && strtolower($stage->tagName) === 'div'
+            && (preg_split('/\s+/', trim($stage->getAttribute('class')), -1, PREG_SPLIT_NO_EMPTY) ?: []) === ['rt-sign-stage']
+                ? $stage->parentNode
+                : $stage;
         if (! $carrier instanceof DOMElement
             || strtolower($carrier->tagName) !== 'td'
             || ! in_array('rt-sign-cell', preg_split('/\s+/', trim($carrier->getAttribute('class')), -1, PREG_SPLIT_NO_EMPTY) ?: [], true)) {

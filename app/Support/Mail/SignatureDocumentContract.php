@@ -78,10 +78,8 @@ final class SignatureDocumentContract
             $html,
             allowLegacyTrainStill: $allowLegacyTrainStill,
             allowLegacyPaddedCarrier: false,
-            // Bestehende Schema-9-Entwuerfe duerfen bis zum autoritativen
-            // Seeder-Lauf noch serverseitig validiert werden. Der neue
-            // Seeder und der Editor erzeugen ausschliesslich das IMG-Format.
-            allowLegacyTrainCarrier: true,
+            allowLegacyTrainCarrier: false,
+            allowLegacyDirectImage: false,
         );
     }
 
@@ -102,6 +100,7 @@ final class SignatureDocumentContract
             allowLegacyTrainStill: true,
             allowLegacyPaddedCarrier: true,
             allowLegacyTrainCarrier: true,
+            allowLegacyDirectImage: true,
         );
     }
 
@@ -110,6 +109,7 @@ final class SignatureDocumentContract
         bool $allowLegacyTrainStill,
         bool $allowLegacyPaddedCarrier,
         bool $allowLegacyTrainCarrier,
+        bool $allowLegacyDirectImage,
     ): void {
         $decodedHtml = CssSemantic::decodeHtmlEntitiesOnce($html);
         if (preg_match('/<style\b/i', $decodedHtml) === 1) {
@@ -126,7 +126,7 @@ final class SignatureDocumentContract
         self::assertLegacyTrainStill($html, $decodedHtml, $allowLegacyTrainStill);
 
         if (SignatureTrainCarrier::hasCanonicalImage($html)) {
-            SignatureTrainCarrier::assertCanonicalImage($html);
+            SignatureTrainCarrier::assertCanonicalImage($html, $allowLegacyDirectImage);
         } elseif ($allowLegacyTrainCarrier) {
             // Bereits publizierte Schema-9-Staende bleiben bis zum expliziten
             // Seeder-Lauf lesbar und werden beim Rendern in das Bildformat
@@ -446,12 +446,25 @@ final class SignatureDocumentContract
         $contentTable = $contentRow instanceof DOMElement
             ? self::closestAncestorElement($contentRow, 'table')
             : null;
+        $stage = $contentTable?->parentNode;
+        $usesSafeStage = $stage instanceof DOMElement
+            && strtolower($stage->tagName) === 'div'
+            && self::hasExactClasses(self::classes($stage), ['rt-sign-stage'])
+            && $stage->parentNode?->isSameNode($carrier)
+            && $contentTable?->parentNode?->isSameNode($stage)
+            && self::firstElementChild($carrier)?->isSameNode($stage)
+            && self::firstElementChild($stage)?->isSameNode($contentTable);
+        // Runtime-Kompatibilitaet fuer den unmittelbar vor Schema 13
+        // veroeffentlichten Bild-Layer. Neue Saves scheitern bereits am
+        // strengeren Zugbildvertrag, bevor sie diese Strukturpruefung erreichen.
+        $usesLegacyDirectCell = $contentTable instanceof DOMElement
+            && $contentTable->parentNode?->isSameNode($carrier)
+            && self::firstElementChild($carrier)?->isSameNode($contentTable);
         if (! $contentRow instanceof DOMElement
             || strtolower($contentRow->tagName) !== 'tr'
             || ! $contentTable instanceof DOMElement
-            || ! $contentTable->parentNode?->isSameNode($carrier)
+            || (! $usesSafeStage && ! $usesLegacyDirectCell)
             || ! self::isMailSafeWrapperTable($contentTable)
-            || ! self::firstElementChild($carrier)?->isSameNode($contentTable)
             || ! self::firstTableRow($contentTable)?->isSameNode($contentRow)) {
             return false;
         }

@@ -914,10 +914,12 @@ class EmailTemplateBuilder
                 'GRUND_RASTER_SRC' => 'cid:railtime-signature-grid',
                 'GRUND_MARKE_SRC' => 'cid:railtime-signature-watermark',
                 'TRAIN_SRC' => '',
+                'TRAIN_STILL_SRC' => 'cid:railtime-train-still',
                 'TRAIN_IDLE_SRC' => '',
             ]);
             $signatureLayout = [
                 'outlookTrainSrc' => 'cid:railtime-train',
+                'outlookTrainFallbackSrc' => 'cid:railtime-train-still',
             ];
         }
         $html = $this->substitute($html, [
@@ -1042,6 +1044,9 @@ class EmailTemplateBuilder
                 "{$assetFolder}/zug-dampf.gif" => file_get_contents(
                     self::masterPath('assets/zug-dampf-'.($theme === 'dark' ? 'dark' : 'light').'.gif')
                 ),
+                "{$assetFolder}/zug-dampf.png" => file_get_contents(
+                    self::masterPath('assets/zug-dampf-'.($theme === 'dark' ? 'dark' : 'light').'.png')
+                ),
                 "{$assetFolder}/logo.gif" => file_get_contents(
                     self::masterPath('assets/'.$this->emailLogoAsset($theme))
                 ),
@@ -1100,10 +1105,12 @@ class EmailTemplateBuilder
                     'topRule' => '',
                     'legalPadding' => '11px 28px',
                     'outlookTrainSrc' => "{$assetFolder}/zug-dampf.gif",
+                    'outlookTrainFallbackSrc' => "{$assetFolder}/zug-dampf.png",
                 ],
                 overrides: array_merge([
                     'LOGO_SRC' => "{$assetFolder}/logo.gif",
                     'TRAIN_SRC' => '',
+                    'TRAIN_STILL_SRC' => "{$assetFolder}/zug-dampf.png",
                     'TRAIN_IDLE_SRC' => '',
                 ], $iconSources),
             ),
@@ -1827,6 +1834,7 @@ TEXT;
         $logoStillAsset = str_replace('.gif', '.png', $logoAsset);
         $markAsset = self::emailMarkAsset($theme);
         $trainAsset = 'zug-dampf-'.($theme === 'dark' ? 'dark' : 'light').'.gif';
+        $trainStillAsset = 'zug-dampf-'.($theme === 'dark' ? 'dark' : 'light').'.png';
         $gridAsset = 'signatur-raster-'.($theme === 'dark' ? 'dark' : 'light').'.png';
         $watermarkAsset = 'signatur-marke-'.($theme === 'dark' ? 'dark' : 'light').'.png';
         $inlineImages = [
@@ -1849,6 +1857,10 @@ TEXT;
             'railtime-train' => [
                 'filename' => $trainAsset,
                 'content' => file_get_contents(self::masterPath('assets/'.$trainAsset)),
+            ],
+            'railtime-train-still' => [
+                'filename' => $trainStillAsset,
+                'content' => file_get_contents(self::masterPath('assets/'.$trainStillAsset)),
             ],
             'railtime-signature-grid' => [
                 'filename' => $gridAsset,

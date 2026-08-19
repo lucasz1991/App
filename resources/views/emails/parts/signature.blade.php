@@ -8,8 +8,11 @@
 
     Der kanonische Editorstand besitzt zwei Tabellenzeilen: Signaturblock und
     Pflichtangaben. Der Zug ist in allen Pfaden genau ein regulaeres IMG wie
-    Logo und RT-Zeichen. Sein eigener, absolut positionierter Layer liegt
-    hinter den Kontaktdaten und beansprucht keine zusaetzliche Tabellenhoehe.
+    Logo und RT-Zeichen. Sein eigener, absolut positionierter Layer liegt in
+    einer normalen Block-Buehne hinter den Kontaktdaten und beansprucht keine
+    zusaetzliche Tabellenhoehe. Die Tabellenzelle selbst ist bewusst nicht der
+    Positionierungskontext: das wird von Outlook-/Word-Engines uneinheitlich
+    interpretiert.
     Dadurch bleibt er beim Kopieren, Antworten und Weiterleiten ein echtes
     Bildelement; der Seeder-Stand enthaelt keinen CSS-Bildhintergrund.
 
@@ -87,7 +90,8 @@
 <tr>
     {{-- Kein legacy background-Attribut und kein Zug in background-image:
          Classic Outlook/Word kann solche Bilder kacheln oder entfernen. --}}
-    <td class="rt-sign-cell" bgcolor="{{ $values['SIGNATURE_BG'] }}" style="padding:0;position:relative;overflow:hidden;background-color:{{ $values['SIGNATURE_BG'] }};background-image:{{ $backgroundImage }};background-repeat:{{ $backgroundRepeat }};background-position:{{ $backgroundPosition }};background-size:{{ $backgroundSize }};{{ $topRule }}">
+    <td class="rt-sign-cell" bgcolor="{{ $values['SIGNATURE_BG'] }}" style="padding:0;overflow:hidden;background-color:{{ $values['SIGNATURE_BG'] }};background-image:{{ $backgroundImage }};background-repeat:{{ $backgroundRepeat }};background-position:{{ $backgroundPosition }};background-size:{{ $backgroundSize }};{{ $topRule }}">
+        <div class="rt-sign-stage" style="position:relative;overflow:hidden;">
         {{-- Der aeussere Carrier bleibt ohne Padding. Der mail-sichere innere
              Tabellenwrapper behaelt seine Inhaltsabstaende. --}}
         <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;position:relative;z-index:1;">
@@ -174,10 +178,11 @@
                  bleiben als spaeteres z-index:1-Markup davor. Falls ein
                  Client Positionierung entfernt, steht der Layer als letztes
                  Carrier-Kind wenigstens unter statt ueber den Kontaktdaten. --}}
-            <div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:absolute;left:0;right:auto;top:0;bottom:0;width:100%;max-width:1815px;height:100%;margin:0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;">
-                <img class="rt-sign-train" data-rt-train src="{{ $trainSrc }}" width="1815" alt="" style="position:absolute;left:0;right:auto;bottom:0;display:block;width:100%;max-width:1815px;height:auto;margin:0;border:0;outline:none;text-decoration:none;">
+            <div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:absolute;left:0;right:auto;top:0;bottom:0;width:100%;max-width:1815px;height:100%;margin:0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;mso-hide:all;">
+                <img class="rt-sign-train" data-rt-train src="{{ $trainSrc }}" width="720" alt="" style="position:absolute;left:0;right:auto;bottom:0;display:block;width:100%;max-width:1815px;height:auto;margin:0;border:0;outline:none;text-decoration:none;mso-hide:all;">
             </div>
         @endif
+        </div>
     </td>
 </tr>
 <!-- RT_SIGNATURE_MAIN_END -->
