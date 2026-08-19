@@ -22,9 +22,9 @@ class MarketingBuilderVendorIntegrityTest extends TestCase
     /** @var array<string, string> */
     private const EXPECTED_SHA256 = [
         'lmz-builder.js' => 'EF398B4F114D123B35F88103E7AFFC29ABA534DA738F6ADCA0B866E3946DA53E',
-        'grapesjs.js' => '1511DA9E52323A75F7329645778749FEAA11245BBADB93C8292A03C080283048',
+        'lmz-builder-core.js' => '1511DA9E52323A75F7329645778749FEAA11245BBADB93C8292A03C080283048',
         'lmz-builder.css' => '62C9335D4B7416F1CF3FDB4DE52A80F2F92CD888322323CDC028AF1A3C5C8E70',
-        'grapesjs.css' => '2DAA348D7C55F4E9DB7A3C7FD775AE4DFD651FFF56498559E569E4AF249C954A',
+        'lmz-builder-core.css' => '2DAA348D7C55F4E9DB7A3C7FD775AE4DFD651FFF56498559E569E4AF249C954A',
     ];
 
     public function test_versioned_builder_runtime_matches_the_approved_joomla_245_assets(): void

@@ -96,8 +96,8 @@
     const DEFAULT_OPTIONS = {
         root: '#studio-editor',
         projectId: null,
-        gjsScript: '/media/com_lmzpagebuilder/js/grapesjs.js?v=' + LMZ_VENDOR_VERSION,
-        gjsStyle: '/media/com_lmzpagebuilder/css/grapesjs.css?v=' + LMZ_VENDOR_VERSION,
+        gjsScript: '/media/com_lmzpagebuilder/js/lmz-builder-core.js?v=' + LMZ_VENDOR_VERSION,
+        gjsStyle: '/media/com_lmzpagebuilder/css/lmz-builder-core.css?v=' + LMZ_VENDOR_VERSION,
         canvasStyles: DEFAULT_CANVAS_STYLES,
         canvasScripts: [],
         canvasBaseUrl: '/',

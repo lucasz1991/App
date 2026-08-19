@@ -66,8 +66,8 @@ class CreativeEditor extends Component
             'vendor' => [
                 'builderJs' => asset('vendor/lmz-builder/2.4.5/lmz-builder.js'),
                 'builderCss' => asset('vendor/lmz-builder/2.4.5/lmz-builder.css'),
-                'grapesJs' => asset('vendor/lmz-builder/2.4.5/grapesjs.js'),
-                'grapesCss' => asset('vendor/lmz-builder/2.4.5/grapesjs.css'),
+                'coreJs' => asset('vendor/lmz-builder/2.4.5/lmz-builder-core.js'),
+                'coreCss' => asset('vendor/lmz-builder/2.4.5/lmz-builder-core.css'),
             ],
             'logoLightUrl' => asset('rt-brand/img/logo-horizontal.png'),
             'logoDarkUrl' => asset('rt-brand/img/logo-horizontal-darkbg.png'),

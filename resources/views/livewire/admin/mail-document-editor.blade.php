@@ -570,7 +570,7 @@
                         }
 
                         await Promise.all([
-                            loadOnce('link', { rel: 'stylesheet', href: config.vendor.grapesCss }),
+                            loadOnce('link', { rel: 'stylesheet', href: config.vendor.coreCss }),
                             loadOnce('link', { rel: 'stylesheet', href: config.vendor.builderCss }),
                         ]);
                         await loadOnce('script', { src: config.vendor.builderJs, defer: true });

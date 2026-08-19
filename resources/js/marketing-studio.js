@@ -177,7 +177,7 @@ async function ensureVendorRuntime(vendor) {
 
     if (!vendorRuntimePromise) {
         vendorRuntimePromise = Promise.all([
-            loadStyleOnce(vendor.grapesCss),
+            loadStyleOnce(vendor.coreCss),
             loadStyleOnce(vendor.builderCss),
         ])
             .then(() => loadScriptOnce(vendor.builderJs))
@@ -1322,8 +1322,8 @@ export async function createMarketingStudio(workspace, config) {
         instance = await builderRuntime.create({
             root,
             projectId: `${config.creativeId}:${format}`,
-            gjsScript: config.vendor.grapesJs,
-            gjsStyle: config.vendor.grapesCss,
+            gjsScript: config.vendor.coreJs,
+            gjsStyle: config.vendor.coreCss,
             canvasStyles: [],
             canvasScripts: [],
             canvasBaseUrl: window.location.origin + '/',

@@ -1117,7 +1117,7 @@ const MOTION_CONTROL_SELECTORS = [
  *   - box-shadow/text-shadow             faellt in Outlook ersatzlos weg
  *
  * Zur Bauform: ein Sektor liest ENTWEDER buildProps ODER properties, nie
- * beides (grapesjs.js, Sector-Konstruktor). 'display' braucht eine eigene
+ * beides (LMZ-Builder-Core, Sector-Konstruktor). 'display' braucht eine eigene
  * Werteliste, weil die eingebaute Fassung flex anbietet — deshalb steht der
  * Fluss-Sektor auf properties mit { extend: 'display', options: [...] }.
  */
@@ -2443,7 +2443,7 @@ export function createMailNavigationController({
  * @param {object}   options.runtime            window.LMZBuilder
  * @param {Element|string} options.root         Wurzelknoten; sein Inhalt wird geleert
  * @param {string}   options.projectId          nur Durchreichung an onLoad/onSave
- * @param {object}   options.vendor             { grapesJs, grapesCss }
+ * @param {object}   options.vendor             { coreJs, coreCss }
  * @param {object}   options.storage            { onLoad, onSave } — Pflicht
  * @param {Array}    options.assets             Bildliste fuer den Asset-Manager
  * @param {object}   options.blockOptions       Durchreichung an createMailBlocks
@@ -2492,8 +2492,8 @@ export async function createMailBuilder({
     const instance = await runtime.create({
         root,
         projectId,
-        gjsScript: vendor.grapesJs,
-        gjsStyle: vendor.grapesCss,
+        gjsScript: vendor.coreJs,
+        gjsStyle: vendor.coreCss,
 
         // Ohne die ausdrueckliche Leerung laedt der Builder das Website-
         // Tailwind in die Leinwand und haengt es alle zwei Sekunden erneut
