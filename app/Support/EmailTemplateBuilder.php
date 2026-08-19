@@ -913,7 +913,7 @@ class EmailTemplateBuilder
                 'GRUND_MARKE_SRC' => 'cid:railtime-signature-watermark',
                 'TRAIN_SRC' => '',
                 'TRAIN_STILL_SRC' => 'cid:railtime-train-still',
-                'TRAIN_IDLE_SRC' => '',
+                'TRAIN_IDLE_SRC' => 'cid:railtime-train-idle',
             ]);
             $signatureLayout = [
                 'outlookTrainSrc' => 'cid:railtime-train',
@@ -1155,7 +1155,7 @@ class EmailTemplateBuilder
             'ICON_RT_STILL_SRC' => self::httpsMailAssetUrl(str_replace('.gif', '.png', $markAsset)),
             'TRAIN_SRC' => self::httpsMailAssetUrl("zug-dampf-{$variant}.gif"),
             'TRAIN_STILL_SRC' => self::httpsMailAssetUrl("zug-dampf-{$variant}.png"),
-            'TRAIN_IDLE_SRC' => '',
+            'TRAIN_IDLE_SRC' => self::httpsMailAssetUrl("zug-dampf-idle-{$variant}.gif"),
             'GRUND_RASTER_SRC' => self::httpsMailAssetUrl("signatur-raster-{$variant}.png"),
             'GRUND_MARKE_SRC' => self::httpsMailAssetUrl("signatur-marke-{$variant}.png"),
         ], array_map(
@@ -1847,6 +1847,7 @@ TEXT;
         $markAsset = self::emailMarkAsset($theme);
         $trainAsset = 'zug-dampf-'.($theme === 'dark' ? 'dark' : 'light').'.gif';
         $trainStillAsset = 'zug-dampf-'.($theme === 'dark' ? 'dark' : 'light').'.png';
+        $trainIdleAsset = 'zug-dampf-idle-'.($theme === 'dark' ? 'dark' : 'light').'.gif';
         $gridAsset = 'signatur-raster-'.($theme === 'dark' ? 'dark' : 'light').'.png';
         $watermarkAsset = 'signatur-marke-'.($theme === 'dark' ? 'dark' : 'light').'.png';
         $inlineImages = [
@@ -1873,6 +1874,10 @@ TEXT;
             'railtime-train-still' => [
                 'filename' => $trainStillAsset,
                 'content' => file_get_contents(self::masterPath('assets/'.$trainStillAsset)),
+            ],
+            'railtime-train-idle' => [
+                'filename' => $trainIdleAsset,
+                'content' => file_get_contents(self::masterPath('assets/'.$trainIdleAsset)),
             ],
             'railtime-signature-grid' => [
                 'filename' => $gridAsset,

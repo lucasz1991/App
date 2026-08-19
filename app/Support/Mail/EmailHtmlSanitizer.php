@@ -388,6 +388,7 @@ final class EmailHtmlSanitizer
         'rt-sign-cell', 'rt-sign-content', 'rt-sign-logo', 'rt-sign-identity', 'rt-sign-name',
         'rt-sign-stage', 'rt-sign-train', 'rt-sign-train-layer',
         'rt-train-idle-overlay', 'rt-train-idle-runtime-layer', 'rt-train-idle-surface',
+        'rt-train-idle-image',
         // Die Anschrift steht seit dem symmetrischen Umbau nur noch einmal
         // in der Firmenspalte. Die beiden Namen bleiben zugelassen, damit
         // frueher veroeffentlichte Dokumente keinen Hinweis ausloesen.

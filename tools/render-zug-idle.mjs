@@ -38,7 +38,7 @@ const OEFFENTLICH = 'public/mail-assets';
 
 // --- Muss zur Einfahrt passen ----------------------------------------
 const BREITE = 1440;
-const SKALA = 2;
+const SKALA = 1.5;
 const WAGEN_SICHTBAR = 6;
 const SICHTBARE_EINHEITEN = 708 + (WAGEN_SICHTBAR * 330);
 const BASIS_ZUG_FAKTOR = 2053 / SICHTBARE_EINHEITEN;
@@ -50,7 +50,7 @@ const BASIS_ZUG_HOEHE = (BREITE * BASIS_ZUG_FAKTOR) * (151 / 2053);
 const KOPFRAUM = 1.8;
 const HOEHE = Math.round(BASIS_ZUG_HOEHE * KOPFRAUM);
 const ZUG_Y = HOEHE - ZUG_HOEHE;
-const ZIEL_RECHTS = 0.75;
+const ZIEL_RECHTS = 0.60;
 const SCHORNSTEIN_X = (BREITE * ZIEL_RECHTS) - (ZUG_BREITE * 0.035);
 const SCHORNSTEIN_Y = ZUG_Y + (ZUG_HOEHE * 0.16);
 

@@ -32,13 +32,38 @@
     $border = $border ?? '#e6e8ec';
 @endphp
 /* RT_SERVER_SIGNATURE_RUNTIME_START
-   Stabiler Einhaengepunkt fuer freigegebenes Signatur-CSS. Zug-Einfahrt,
-   Idle-Rauch und Schlusszustand stecken vollstaendig im einen Haupt-GIF;
-   ein zweites Rauch-Overlay wird nicht mehr erzeugt. */
+   Stabiler Einhaengepunkt fuer freigegebenes Signatur-CSS. Die Zug-Einfahrt
+   laeuft einmalig im Haupt-GIF. Danach wird nur die transparente, kleine
+   Rauchschleife sichtbar; der Zug selbst wird dadurch nicht dupliziert. */
+@keyframes rt-train-idle-reveal {
+  0% { opacity: 0; visibility: hidden; }
+  100% { opacity: 1; visibility: visible; }
+}
+.rt-train-idle-overlay {
+  opacity: 0;
+  visibility: hidden;
+}
+@supports (animation-name: rt-train-idle-reveal) {
+  .rt-train-idle-overlay {
+    animation-name: rt-train-idle-reveal;
+    animation-duration: 1ms;
+    animation-timing-function: step-start;
+    animation-delay: 13s;
+    animation-iteration-count: 1;
+    animation-fill-mode: forwards;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rt-train-idle-overlay {
+    animation: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+  }
+}
 
 /* Der Zug bleibt ein regulaeres IMG. Nur sein absoluter Layer wird auf
    kleinen Flaechen breiter als der Carrier gesetzt; so endet die Lok wie im
-   Desktoplayout bei etwa 75 Prozent, ohne eine eigene Tabellenzeile. */
+   Desktoplayout bei etwa 60 Prozent, ohne eine eigene Tabellenzeile. */
 /* ---- Tablet quer: enger setzen, aber zweispaltig bleiben ---- */
 @media only screen and (max-width: 1000px) {
 .rt-pad { padding-left: 30px !important; padding-right: 30px !important; }
@@ -148,7 +173,7 @@ img.rt-logo { width: 150px !important; }
   max-width: none !important;
   margin: 0 !important;
 }
-/* Das Asset selbst endet bei rund 75 Prozent. Fuer den Standardausschnitt ist
+/* Das Asset selbst endet bei rund 60 Prozent. Fuer den Standardausschnitt ist
    deshalb keine 200-Prozent-Vergroesserung noetig; sie legte den kompletten
    Zug ueber die unteren Kontaktzeilen. Nur die expliziten Detailausschnitte
    vergroessern weiterhin. */

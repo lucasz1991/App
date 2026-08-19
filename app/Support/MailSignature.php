@@ -160,10 +160,16 @@ class MailSignature
                 // absolut positionierte kombinierte GIF nicht darstellen.
                 // Moderne Clients sehen weiterhin nur das Haupt-GIF.
                 'TRAIN_STILL_SRC' => EmailTemplateBuilder::signatureTrainStillUrl($this->theme),
-                // Einfahrt, Idle-Rauch und sichtbarer Schlusszustand stecken
-                // gemeinsam im Haupt-GIF. Eine zweite Rauchquelle wuerde den
-                // Zug beim Antworten oder Weiterleiten wieder duplizieren.
-                'TRAIN_IDLE_SRC' => '',
+                // Nur der Rauch loopt. Die einmalige Einfahrt bleibt im
+                // Haupt-GIF und wird nie erneut abgespielt; die transparente
+                // Idle-Datei erscheint erst nach dessen 13-s-Timeline.
+                'TRAIN_IDLE_SRC' => ($this->staticAssets || ! $this->animated)
+                    ? ''
+                    : $this->withRemotePlaybackNonce(
+                        EmailTemplateBuilder::mailAssetUrl(
+                            'zug-dampf-idle-'.($this->theme === 'dark' ? 'dark' : 'light').'.gif'
+                        )
+                    ),
             ]
             : [
                 'LOGO_SRC' => EmailTemplateBuilder::inlineImage(
@@ -192,7 +198,13 @@ class MailSignature
                     $this->theme,
                     animated: false,
                 ),
-                'TRAIN_IDLE_SRC' => '',
+                'TRAIN_IDLE_SRC' => ($this->staticAssets || ! $this->animated)
+                    ? ''
+                    : EmailTemplateBuilder::inlineImage(
+                        'zug-dampf-idle-'.($this->theme === 'dark' ? 'dark' : 'light').'.gif',
+                        'image/gif',
+                        $this->playbackNonce,
+                    ),
             ];
 
         $symbole = $this->remoteAssets
@@ -319,7 +331,11 @@ class MailSignature
                 $this->contactRowValues($values),
             ));
 
-            return $this->finalizeTrainRendering($html, $outlookFallbackSource);
+            return $this->finalizeTrainRendering(
+                $html,
+                $outlookFallbackSource,
+                (string) ($values['TRAIN_IDLE_SRC'] ?? ''),
+            );
         }
 
         // Alle Ausgabewege projizieren den streng validierten Zug-Token in
@@ -360,7 +376,11 @@ class MailSignature
                 $this->contactRowValues($values),
             ));
 
-            return $this->finalizeTrainRendering($html, $outlookFallbackSource);
+            return $this->finalizeTrainRendering(
+                $html,
+                $outlookFallbackSource,
+                (string) ($values['TRAIN_IDLE_SRC'] ?? ''),
+            );
         }
 
         throw new \RuntimeException('Die veröffentlichte Signatur konnte nicht gerendert werden.');
@@ -398,12 +418,18 @@ class MailSignature
      * dem fehlerhaften legacy background-Attribut sofort sicher ausgeliefert,
      * ohne auf einen Seeder-Lauf angewiesen zu sein.
      */
-    private function finalizeTrainRendering(string $html, string $outlookFallbackSource): string
+    private function finalizeTrainRendering(
+        string $html,
+        string $outlookFallbackSource,
+        string $idleSource,
+    ): string
     {
-        return SignatureTrainCarrier::withMsoFallback(
-            $this->removeLegacyTrainBackground($html),
-            $outlookFallbackSource,
-        );
+        $html = $this->removeLegacyTrainBackground($html);
+        if ($this->animated && ! $this->staticAssets && trim($idleSource) !== '') {
+            $html = SignatureTrainCarrier::withIdleOverlay($html, $idleSource);
+        }
+
+        return SignatureTrainCarrier::withMsoFallback($html, $outlookFallbackSource);
     }
 
     /**

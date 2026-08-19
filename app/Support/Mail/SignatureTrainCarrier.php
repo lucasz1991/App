@@ -276,6 +276,51 @@ final class SignatureTrainCarrier
     }
 
     /**
+     * Legt die transparente Endlos-Rauchschleife direkt in denselben
+     * absoluten Layer wie das Haupt-GIF. Dadurch erbt sie alle erlaubten
+     * Desktop-/Mobil-Ausschnitte pixelgleich, erzeugt keine eigene Hoehe und
+     * kann den Zug beim Antworten oder Weiterleiten nicht duplizieren.
+     * Ohne CSS-Keyframe-Unterstuetzung bleibt sie fail-closed unsichtbar.
+     */
+    public static function withIdleOverlay(string $html, string $source): string
+    {
+        $source = trim($source);
+        if ($source === '') {
+            return $html;
+        }
+        if (preg_match('/\b(?:data-rt-train-idle-(?:overlay|image)|rt-train-idle-(?:overlay|image))\b/i', $html) === 1) {
+            throw new RuntimeException('Die Signatur enthaelt bereits eine unzulaessige Idle-Rauchebene.');
+        }
+
+        $layers = [];
+        $images = [];
+        foreach (self::scanStartTags($html) as $tag) {
+            if ($tag['name'] === 'div' && self::sourceTagHasClass($tag, 'rt-sign-train-layer')) {
+                $layers[] = $tag;
+            }
+            if ($tag['name'] === 'img' && self::sourceTagHasClass($tag, 'rt-sign-train')) {
+                $images[] = $tag;
+            }
+        }
+        if (count($layers) !== 1 || count($images) !== 1) {
+            throw new RuntimeException('Die Idle-Rauchebene besitzt keinen eindeutigen Zugbild-Anker.');
+        }
+
+        $escapedSource = htmlspecialchars(
+            $source,
+            ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5,
+            'UTF-8',
+        );
+        $overlay = '<span class="rt-train-idle-overlay" data-rt-train-idle-overlay '
+            .'style="position:absolute;left:0;right:auto;top:0;bottom:0;display:block;width:100%;height:100%;margin:0;overflow:hidden;opacity:0;visibility:hidden;animation:rt-train-idle-reveal 1ms step-start 13s forwards;font-size:0;line-height:0;mso-hide:all;">'
+            .'<img class="rt-train-idle-image" data-rt-train-idle-image src="'.$escapedSource.'" width="720" alt="" '
+            .'style="position:absolute;left:0;right:auto;bottom:0;display:block;width:100%;max-width:100%;height:auto;margin:0;border:0;outline:none;text-decoration:none;mso-hide:all;">'
+            .'</span>';
+
+        return substr_replace($html, $overlay, $images[0]['tagEnd'] + 1, 0);
+    }
+
+    /**
      * Entfernt ein altes HTML-background-Attribut ausschliesslich am zuvor
      * DOM- und quellseitig korrelierten Carrier. Aehnlich benannte data-*
      * Attribute oder Attributtexte koennen den positionssicheren Scanner

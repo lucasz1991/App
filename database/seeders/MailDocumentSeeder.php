@@ -47,8 +47,9 @@ final class MailDocumentSeeder extends Seeder
      * 11 Zug-IMG im absoluten, hoehenneutralen Layer hinter den Kontaktdaten
      * 12 Mail-sichere Presets fuer Zugbreite, Desktop- und Mobil-Ausschnitt
      * 13 Stabiler Block-Positionierungskontext und Outlook-Zugfallback
+     * 14 Zugmotiv bei 60 Prozent, kompakte 1,5x-Assets und dauerhafter Idle-Rauch
      */
-    private const STARTER_SCHEMA = 13;
+    private const STARTER_SCHEMA = 14;
 
     public function run(): void
     {

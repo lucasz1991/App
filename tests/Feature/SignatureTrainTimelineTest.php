@@ -147,9 +147,9 @@ class SignatureTrainTimelineTest extends TestCase
                     $decoded[$index],
                     $gif['frames'][$index]['transparentIndex'],
                     $width,
-                    (int) floor($width * 0.68),
+                    (int) floor($width * 0.53),
                     0,
-                    (int) ceil($width * 0.76),
+                    (int) ceil($width * 0.61),
                     (int) floor($height * 0.55),
                 ),
                 "{$filename}: Idle-Rauch ist in Frame {$index} vor der Ankunft sichtbar.",
@@ -161,9 +161,9 @@ class SignatureTrainTimelineTest extends TestCase
                 $decoded[$idleFrame],
                 $gif['frames'][$idleFrame]['transparentIndex'],
                 $width,
-                (int) floor($width * 0.68),
+                (int) floor($width * 0.53),
                 0,
-                (int) ceil($width * 0.76),
+                (int) ceil($width * 0.61),
                 (int) floor($height * 0.55),
             ),
             "{$filename}: Nach der Ankunft fehlt der Idle-Rauch.",
@@ -177,12 +177,12 @@ class SignatureTrainTimelineTest extends TestCase
             (int) floor($height * 0.55),
         );
         $this->assertNotNull($arrivalBounds);
-        $targetRight = (int) round($width * 0.75);
+        $targetRight = (int) round($width * 0.60);
         $this->assertEqualsWithDelta(
             $targetRight,
             $arrivalBounds['right'],
             max(3, (int) ceil($width * 0.005)),
-            "{$filename}: Zug endet nicht bei 75 Prozent der Leinwand.",
+            "{$filename}: Zug endet nicht bei 60 Prozent der Leinwand.",
         );
         $this->assertSame(
             $height,
@@ -379,7 +379,7 @@ class SignatureTrainTimelineTest extends TestCase
             }
             imagedestroy($image);
 
-            $this->assertEqualsWithDelta(2160, $right, 15, "{$theme}: PNG-Zug endet nicht bei 75 Prozent.");
+            $this->assertEqualsWithDelta(1728, $right, 15, "{$theme}: PNG-Zug endet nicht bei 60 Prozent.");
             $this->assertSame(292, $bottom, "{$theme}: PNG-Radauflage endet nicht an der unteren Assetkante.");
         }
     }
@@ -513,6 +513,7 @@ class SignatureTrainTimelineTest extends TestCase
         $this->assertStringContainsString('markeGroesse: MARKEN_GROESSE,', $generator);
         $this->assertStringContainsString('const START_X = -ZUG_BREITE;', $generator);
         $this->assertStringNotContainsString('START_X = -ZUG_BREITE *', $generator);
+        $this->assertStringContainsString('const ZIEL_RECHTS = Number(process.env.RT_ZIEL_RECHTS || 0.60);', $generator);
         $this->assertStringContainsString('const ZUG_Y = HOEHE - ZUG_HOEHE;', $generator);
         $this->assertStringContainsString('const oben = OUTLOOK_HOEHE - zielHoehe;', $generator);
         $this->assertStringContainsString('const WARTE_S = Number(process.env.RT_WARTE || 0.35);', $generator);

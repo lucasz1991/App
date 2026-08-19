@@ -1,9 +1,9 @@
 /**
- * Erzeugt die Einfahrt des Signaturzuges — DURCHSICHTIG, in doppelter
- * Aufloesung und groesser im Bild.
+ * Erzeugt die Einfahrt des Signaturzuges — DURCHSICHTIG, in mailtauglicher
+ * 1,5-facher Retina-Aufloesung und groesser im Bild.
  *
  *   zug-dampf-{light,dark}.gif        Einfahrt plus Idle-Rauch, einmalig
- *   zug-dampf-{light,dark}.png        Ruhelage als Standbild, 2x, mit Alpha
+ *   zug-dampf-{light,dark}.png        Ruhelage als Standbild, 1,5x, mit Alpha
  *
  * WARUM NEU GERENDERT STATT GEPATCHT
  * Drei Anforderungen zusammen liessen sich am fertigen GIF nicht mehr
@@ -24,8 +24,8 @@
  * Zug nach der Einfahrt nicht verschwindet.
  *
  * GEOMETRIE: Der Zug wird gegenueber der vorherigen Fassung proportional
- * auf 90 Prozent verkleinert. Seine rechte Kante kommt bei 75 Prozent der
- * Leinwand zur Ruhe; das rechte Viertel bleibt bewusst frei. Der Zugkoerper
+ * auf 90 Prozent verkleinert. Seine rechte Kante kommt bei 60 Prozent der
+ * Leinwand zur Ruhe; die rechten 40 Prozent bleiben bewusst frei. Der Zugkoerper
  * wird mit 30 Prozent Deckkraft gezeichnet. Auf der Seitenflaeche der
  * vordersten Lok sitzt dezent das offizielle RT-Monogramm in derselben
  * Grautoenung; es bewegt sich als Teil des Zuges mit.
@@ -54,7 +54,7 @@ const ZUG_GRAU = '#737d89';
 
 // --- Leinwand ---------------------------------------------------------
 const BREITE = Number(process.env.RT_BREITE || 1440);
-const SKALA = Number(process.env.RT_SKALA || 2);                       // 2880 x 292 echte Bildpunkte
+const SKALA = Number(process.env.RT_SKALA || 1.5);                     // 2160 x 219 echte Bildpunkte
 
 // --- Zug --------------------------------------------------------------
 // Das Motiv ist 2053 : 151 breit zu hoch. Der Faktor sagt, wie viel
@@ -109,7 +109,7 @@ const KOPFRAUM = Number(process.env.RT_KOPFRAUM || 1.8);
 // Die Leinwand bleibt gleich hoch. Nur das Motiv selbst wird um zehn
 // Prozent kleiner und weiterhin sauber am Boden ausgerichtet.
 const HOEHE = Math.round(BASIS_ZUG_HOEHE * KOPFRAUM);
-const ZIEL_RECHTS = Number(process.env.RT_ZIEL_RECHTS || 0.75);
+const ZIEL_RECHTS = Number(process.env.RT_ZIEL_RECHTS || 0.60);
 const RUHE_RECHTS = BREITE * ZIEL_RECHTS;
 const RUHE_X = RUHE_RECHTS - ZUG_BREITE;
 // Die rechte Kante der vordersten Lok beginnt exakt an der linken
@@ -121,14 +121,14 @@ const ZUG_Y = HOEHE - ZUG_HOEHE;
 const SCHORNSTEIN_X = RUHE_RECHTS - (ZUG_BREITE * 0.035);
 const SCHORNSTEIN_Y = ZUG_Y + (ZUG_HOEHE * 0.16);
 // Monochrome Seitenmarke auf dem Boiler-Paneel der vordersten Lok. Ihre
-// Zielgroesse wird auf das physische 4-px-Raster des 2880er Hauptassets
-// gerundet: 48 x 48 Main-Pixel werden exakt 12 x 12 Outlook-Pixel. Die
+// Zielgroesse wird auf das physische 3-px-Raster des 2160er Hauptassets
+// gerundet: 36 x 36 Main-Pixel werden exakt 12 x 12 Outlook-Pixel. Die
 // bisherige optische Mitte bleibt dabei erhalten. Negativfuge und Kontur
-// messen je vier Main- beziehungsweise einen Outlook-Pixel.
+// messen je drei Main- beziehungsweise einen Outlook-Pixel.
 const MARKEN_GROESSE_ANTEIL = 0.34;
 const MARKEN_MITTE_X_ANTEIL = 0.90 + ((151 / 2053) * 0.20);
 const MARKEN_MITTE_Y_ANTEIL = 0.66;
-const MARKEN_RASTER_MAIN_PX = 4;
+const MARKEN_RASTER_MAIN_PX = 3;
 const aufMarkenRaster = (cssWert) => (
     Math.round((cssWert * SKALA) / MARKEN_RASTER_MAIN_PX) * MARKEN_RASTER_MAIN_PX
 ) / SKALA;
@@ -148,7 +148,7 @@ const MARKEN_UEBERABTASTUNG = 4;
 const BILDER = Number(process.env.RT_BILDER || 72);
 const ERSTES_CS = 30;
 // SIEBEN SEKUNDEN bis zum Stillstand. Danach bleibt das letzte Einzelbild
-// an exakt 75 Prozent der Leinwand stehen.
+// an exakt 60 Prozent der Leinwand stehen.
 const FAHRT_S = 7.0;
 
 // Nur ein kurzer Vorlauf: Der Zug soll beim Oeffnen ebenso unmittelbar als
@@ -555,7 +555,7 @@ function aufTabelle(rgba, tabelle) {
 
 /**
  * Leitet die Classic-/New-Outlook-Datei deterministisch aus exakt denselben
- * Einzelbildern ab. Die breite 2880×292-Fassung wird proportional auf 720 px
+ * Einzelbildern ab. Die breite 2160×219-Fassung wird proportional auf 720 px
  * Breite verkleinert und in der 75-px-Leinwand unten ausgerichtet.
  */
 function skaliereFuerOutlook(rgba, grund) {

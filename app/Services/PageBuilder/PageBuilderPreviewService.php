@@ -99,7 +99,7 @@ final class PageBuilderPreviewService
         $signature = $signatureDocument === null
             ? ''
             : $this->renderTokenHtml(
-                // Die Livevorschau nutzt denselben regulaeren Ein-GIF-Pfad
+                // Die Livevorschau nutzt denselben regulaeren Haupt-GIF-Pfad
                 // wie Versand, Kopieransicht und Weiterleitung.
                 SignatureTrainCarrier::projectAsImage(
                     (string) $signatureDocument->html,
@@ -107,6 +107,12 @@ final class PageBuilderPreviewService
                 ),
                 array_merge($values, ['TRAIN_SRC' => '']),
             );
+        if ($signature !== '' && $animated && trim((string) ($values['TRAIN_IDLE_SRC'] ?? '')) !== '') {
+            $signature = SignatureTrainCarrier::withIdleOverlay(
+                $signature,
+                (string) $values['TRAIN_IDLE_SRC'],
+            );
+        }
 
         $html = $this->renderTokenHtml((string) $document->html, $values, [
             'SIGNATURE_BLOCK' => $signature,
