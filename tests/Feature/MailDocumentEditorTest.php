@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\MailDocumentKind;
 use App\Enums\MailDocumentStatus;
+use App\Http\Controllers\Admin\MailDocumentController;
 use App\Models\MailDocument;
 use App\Models\User;
 use App\Models\UserProfile;
@@ -20,8 +21,10 @@ use Illuminate\Mail\Markdown;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\ViewException;
 use Tests\Support\BuildsMinimalRailTimeSchema;
 use Tests\TestCase;
@@ -1402,6 +1405,22 @@ HTML;
             $this->assertGreaterThan(0, $asset['height']);
         }
 
+        $portableMedia = data_get($config, 'portableMedia');
+        $this->assertIsArray($portableMedia);
+        $expectedPortableIds = array_map(
+            static fn (string $path): string => basename($path),
+            glob(public_path('mail-assets/*.{gif,png,jpg,jpeg,webp}'), GLOB_BRACE) ?: [],
+        );
+        sort($expectedPortableIds, SORT_NATURAL | SORT_FLAG_CASE);
+        $this->assertSame($expectedPortableIds, array_column($portableMedia, 'id'));
+        foreach ($portableMedia as $asset) {
+            $path = public_path('mail-assets/'.($asset['id'] ?? ''));
+            $this->assertFileExists($path);
+            $this->assertSame(filesize($path), $asset['bytes'] ?? null);
+            $this->assertSame(hash_file('sha256', $path), $asset['sha256'] ?? null);
+            $this->assertStringContainsString('/mail-assets/', (string) ($asset['source'] ?? ''));
+        }
+
         foreach (['template', 'signature'] as $kind) {
             $this->assertSame(
                 route('admin.mail-documents.validate-code', $kind === 'template' ? $template : $signature),
@@ -1435,6 +1454,45 @@ HTML;
             ->assertSee('noch nicht eingerichtet', escape: false)
             ->assertDontSee('data-page-builder-shell-toolbar', escape: false)
             ->assertDontSee('data-mail-document-root', escape: false);
+    }
+
+    public function test_portables_medienbundle_prueft_hash_und_speichert_bilder_inhaltsadressiert(): void
+    {
+        Storage::fake('public');
+        $binary = file_get_contents(public_path('mail-assets/contact-phone.png'));
+        $this->assertIsString($binary);
+        $source = 'https://alte-installation.example/mail-assets/contact-phone.png?v=1';
+        $entry = [
+            'id' => 'contact-phone.png',
+            'name' => 'Telefon Icon',
+            'source' => $source,
+            'mime_type' => 'image/png',
+            'bytes' => strlen($binary),
+            'sha256' => hash('sha256', $binary),
+            'data' => base64_encode($binary),
+        ];
+
+        $controller = app(MailDocumentController::class);
+        $prepare = new \ReflectionMethod($controller, 'preparePortableMedia');
+        [$html, $css, $files] = $prepare->invoke(
+            $controller,
+            '<img src="'.$source.'" alt="">',
+            '.x{background-image:url('.$source.');}',
+            [$entry],
+        );
+        $expectedPath = 'mail-imports/'.$entry['sha256'].'.png';
+        $this->assertStringContainsString('/storage/'.$expectedPath, $html);
+        $this->assertStringContainsString('/storage/'.$expectedPath, $css);
+        $this->assertSame($expectedPath, $files[0]['path'] ?? null);
+
+        $store = new \ReflectionMethod($controller, 'storePortableMedia');
+        $store->invoke($controller, $files);
+        Storage::disk('public')->assertExists($expectedPath);
+        $this->assertSame($binary, Storage::disk('public')->get($expectedPath));
+
+        $entry['sha256'] = str_repeat('0', 64);
+        $this->expectException(ValidationException::class);
+        $prepare->invoke($controller, '<img src="'.$source.'" alt="">', '', [$entry]);
     }
 
     public function test_speichern_verlangt_den_aktuellen_fingerabdruck(): void

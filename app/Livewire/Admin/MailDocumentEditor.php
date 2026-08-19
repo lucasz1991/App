@@ -203,38 +203,11 @@ class MailDocumentEditor extends Component
      */
     private function portableMediaAssets(): array
     {
-        $templateAssets = [
-            'icon-rt-light.gif',
-            'icon-rt-light.png',
-            'icon-rt-dark.gif',
-            'icon-rt-dark.png',
-        ];
-        $signatureAssets = [
-            'wortmarke-signature-light.gif',
-            'wortmarke-signature-light.png',
-            'wortmarke-signature-dark.gif',
-            'wortmarke-signature-dark.png',
-            'wortmarke-mail-dark.gif',
-            'wortmarke-mail-dark.png',
-            'signatur-raster-light.png',
-            'signatur-raster-dark.png',
-            'signatur-marke-light.png',
-            'signatur-marke-dark.png',
-            'zug-dampf-light.gif',
-            'zug-dampf-light.png',
-            'zug-dampf-dark.gif',
-            'zug-dampf-dark.png',
-            'zug-dampf-idle-light.gif',
-            'zug-dampf-idle-dark.gif',
-            'contact-location.png',
-            'contact-phone.png',
-            'contact-mobile.png',
-            'contact-email.png',
-            'contact-web.png',
-        ];
-        $assets = $this->kind === MailDocumentKind::Signature->value
-            ? $signatureAssets
-            : $templateAssets;
+        $assets = array_map(
+            static fn (string $path): string => basename($path),
+            glob(public_path('mail-assets/*.{gif,png,jpg,jpeg,webp}'), GLOB_BRACE) ?: [],
+        );
+        sort($assets, SORT_NATURAL | SORT_FLAG_CASE);
 
         return array_values(array_filter(array_map(static function (string $asset): ?array {
             $path = public_path('mail-assets/'.$asset);

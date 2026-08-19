@@ -94,12 +94,15 @@ test('each mail client sees one train image through the modern stage or the sing
     assert.doesNotMatch(runtime, /appendClassicOutlookTrainFallback/);
     assert.match(carrier, /public static function projectAsImage/);
     assert.match(carrier, /public static function withMsoFallback/);
+    assert.match(carrier, /public static function withIdleOverlay/);
     assert.equal(occurrences(carrier, /<!--\[if mso\]><tr><td class="rt-sign-train-mso"/g), 1);
     assert.match(carrier, /<div class="rt-sign-stage" style="position:relative;overflow:hidden;">/);
     assert.match(carrier, /<div class="rt-sign-train-layer" data-rt-layer-train/);
     assert.match(carrier, /<img class="rt-sign-train" data-rt-train src="'\.\$source\.'" width="720"/);
     assert.match(carrier, /<img src="'\.\$escapedSource\.'" width="720"/);
     assert.match(preview, /SignatureTrainCarrier::projectAsImage\(/);
-    assert.doesNotMatch(runtime, /injectDelayedIdleOverlay|data-rt-train-idle/);
+    assert.match(runtime, /SignatureTrainCarrier::withIdleOverlay\(/);
+    assert.match(carrier, /data-rt-train-idle-overlay/);
+    assert.match(carrier, /data-rt-train-idle-image/);
     assert.doesNotMatch(runtime, /rt-classic-outlook-train/);
 });

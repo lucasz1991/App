@@ -198,8 +198,9 @@ class EmailTemplatesPageTest extends TestCase
     /**
      * Der Dampflok-Gueterzug steht in jeder normalen HTML-Fassung genau
      * einmal als absolutes Haupt-IMG hinter den Signaturdaten. Einfahrt,
-     * Idle-Rauch und sichtbarer Schlusszustand kommen gemeinsam aus dem
-     * thematisch passenden GIF; MSO erhaelt genau ein statisches PNG.
+     * sichtbarer Schlusszustand kommen aus dem Haupt-GIF; nach 13 Sekunden
+     * uebernimmt genau eine transparente Idle-Rauchschleife. MSO erhaelt
+     * genau ein statisches PNG.
      */
     public function test_every_downloadable_html_variant_carries_the_themed_steam_train(): void
     {
@@ -214,15 +215,17 @@ class EmailTemplatesPageTest extends TestCase
         $darkTrain = $asset('zug-dampf-dark.gif', 'image/gif');
         $lightTrainStill = $asset('zug-dampf-light.png', 'image/png');
         $darkTrainStill = $asset('zug-dampf-dark.png', 'image/png');
+        $lightTrainIdle = $asset('zug-dampf-idle-light.gif', 'image/gif');
+        $darkTrainIdle = $asset('zug-dampf-idle-dark.gif', 'image/gif');
 
         $expected = [
-            'vorlage-html' => [$lightTrain, $lightTrainStill],
-            'vorlage-dunkel-html' => [$darkTrain, $darkTrainStill],
-            'signatur-hell' => [$lightTrain, $lightTrainStill],
-            'signatur-dunkel' => [$darkTrain, $darkTrainStill],
+            'vorlage-html' => [$lightTrain, $lightTrainStill, $lightTrainIdle],
+            'vorlage-dunkel-html' => [$darkTrain, $darkTrainStill, $darkTrainIdle],
+            'signatur-hell' => [$lightTrain, $lightTrainStill, $lightTrainIdle],
+            'signatur-dunkel' => [$darkTrain, $darkTrainStill, $darkTrainIdle],
         ];
 
-        foreach ($expected as $template => [$train, $trainStill]) {
+        foreach ($expected as $template => [$train, $trainStill, $trainIdle]) {
             $html = $builder->build($template)['content'];
 
             $this->assertStringNotContainsString('{{TRAIN_SRC}}', $html, $template);
@@ -251,8 +254,10 @@ class EmailTemplatesPageTest extends TestCase
                 $template,
             );
             $this->assertSame(1, substr_count($html, $trainStill), $template);
-            $this->assertStringNotContainsString('data-rt-train-idle-', $html, $template);
-            $this->assertStringNotContainsString('@keyframes rt-train-idle-reveal', $html, $template);
+            $this->assertSame(1, substr_count($html, $trainIdle), $template);
+            $this->assertSame(1, substr_count($html, 'data-rt-train-idle-overlay'), $template);
+            $this->assertSame(1, substr_count($html, 'data-rt-train-idle-image'), $template);
+            $this->assertStringContainsString('@keyframes rt-train-idle-reveal', $html, $template);
             $this->assertStringContainsString('background-repeat:repeat,no-repeat,no-repeat', $carrier[0], $template);
             $this->assertStringContainsString('background-position:left top,right center,center center', $carrier[0], $template);
             $this->assertStringContainsString('background-size:64px 64px,auto 100%,100% 100%', $carrier[0], $template);
@@ -277,6 +282,7 @@ class EmailTemplatesPageTest extends TestCase
             $eml = $builder->build($template)['content'];
             $this->assertStringContainsString('Content-ID: <railtime-train>', $eml, $template);
             $this->assertStringContainsString('Content-ID: <railtime-train-still>', $eml, $template);
+            $this->assertStringContainsString('Content-ID: <railtime-train-idle>', $eml, $template);
             $html = $this->decodeEmlHtmlPart($eml);
             $this->assertSame(1, substr_count($html, 'class="rt-sign-stage"'), $template);
             $this->assertSame(1, substr_count($html, 'class="rt-sign-train"'), $template);
@@ -287,8 +293,9 @@ class EmailTemplatesPageTest extends TestCase
                 $template,
             );
             $this->assertStringContainsString('src="cid:railtime-train-still" width="720"', $html, $template);
-            $this->assertStringNotContainsString('data-rt-train-idle-', $html, $template);
-            $this->assertStringNotContainsString('@keyframes rt-train-idle-reveal', $html, $template);
+            $this->assertStringContainsString('data-rt-train-idle-overlay', $html, $template);
+            $this->assertStringContainsString('src="cid:railtime-train-idle"', $html, $template);
+            $this->assertStringContainsString('@keyframes rt-train-idle-reveal', $html, $template);
         }
 
         // Reine Textsignatur bleibt unberuehrt.
@@ -322,19 +329,21 @@ class EmailTemplatesPageTest extends TestCase
             // Idle-Rauchzyklen und ein kurzer End-Hold. Alles bleibt in genau
             // einem nicht-loopenden GIF, damit kein Rauch rechts vorauseilt.
             $this->assertSame(1300, array_sum($durations), "{$file}: 13 s Gesamtlaufzeit erwartet.");
-            // 1,5 MiB statt der frueheren 700 kB: Die Einfahrt liegt jetzt
-            // in 2880 x 292 statt 2160 x 218, damit Zug und RT-Monogramm auf
-            // hochaufloesenden Displays klar bleiben. Die deterministische
-            // 8-Farben-Fassung misst rund 1008 KiB (hell) bzw. 851 KiB
-            // (dunkel). Vertretbar, weil die
+            // Das 1,5x-Retina-Asset (2160 x 219) bleibt selbst am maximalen
+            // 1815-px-Carrier scharf und ist gegenueber der vorherigen
+            // 2x-Fassung etwa ein Drittel kleiner. Vertretbar, weil die
             // Datei in versendeten Mails VERLINKT ist — Gmails 102-kB-Schnitt
             // gilt fuer die Nachricht, nicht fuer das Bild.
-            $this->assertLessThanOrEqual(1536 * 1024, strlen($binary), $file);
+            $this->assertLessThanOrEqual(
+                str_contains($file, 'light') ? 620 * 1024 : 445 * 1024,
+                strlen($binary),
+                $file,
+            );
         }
 
-        // Das Haupt-GIF traegt Einfahrt, Idle-Rauch und Schlusszustand. Es
-        // steht genau einmal als regulaeres IMG in der Signatur; ein zweites
-        // zeitgesteuertes Rauch-Overlay existiert nicht mehr.
+        // Das Haupt-GIF traegt Einfahrt und Schlusszustand. Nach 13 Sekunden
+        // uebernimmt eine transparente Rauchschleife im selben absoluten
+        // Layer, ohne einen zweiten Zug oder zusaetzliche Hoehe zu erzeugen.
         $signatur = (new EmailTemplateBuilder(User::factory()->create()))->build('signatur-hell')['content'];
         $train = 'data:image/gif;base64,'.base64_encode(file_get_contents(
             resource_path('mail-templates/assets/zug-dampf-light.gif')
@@ -356,10 +365,10 @@ class EmailTemplatesPageTest extends TestCase
             '<img class="rt-sign-train" data-rt-train src="'.$train.'"',
             $signatur,
         );
-        $this->assertStringNotContainsString('data-rt-train-idle-overlay', $signatur);
-        $this->assertStringNotContainsString('data-rt-train-idle-image', $signatur);
-        $this->assertStringNotContainsString('@keyframes rt-train-idle-reveal', $signatur);
-        $this->assertStringNotContainsString('animation-delay: 13s;', $signatur);
+        $this->assertStringContainsString('data-rt-train-idle-overlay', $signatur);
+        $this->assertStringContainsString('data-rt-train-idle-image', $signatur);
+        $this->assertStringContainsString('@keyframes rt-train-idle-reveal', $signatur);
+        $this->assertStringContainsString('animation-delay: 13s;', $signatur);
         $this->assertStringNotContainsString('data-rt-outlook-train', $signatur);
     }
 
@@ -821,18 +830,18 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertStringContainsString($expectedGif, $legacyQuery->getContent());
     }
 
-    /** Das Retina-Asset bleibt hochaufloesend; Runtime-CSS erzeugt keinen Idle-Layer. */
-    public function test_the_train_asset_is_high_resolution_without_idle_overlay_css(): void
+    /** Das kompakte Retina-Asset bleibt hochaufloesend und der Idle-Layer ist zentral. */
+    public function test_the_train_asset_is_high_resolution_with_central_idle_overlay_css(): void
     {
         [$width, $height] = getimagesize(resource_path('mail-templates/assets/zug-dampf-light.png'));
 
-        // Das Bild ist BREIT und FLACH (2880 x 292). Der Himmel darueber
+        // Das Bild ist BREIT und FLACH (2160 x 219). Der Himmel darueber
         // wurde bewusst knapp gehalten: die Zelle zeigt es mit auto 100%,
         // also an ihrer Hoehe ausgerichtet. Je mehr leerer Himmel im Bild
         // steckt, desto kleiner geriete der Zug darin — bei reichlich
         // Kopfraum lag er als flaches Band unter den Daten statt dahinter.
-        $this->assertSame(2880, $width);
-        $this->assertSame(292, $height);
+        $this->assertSame(2160, $width);
+        $this->assertSame(219, $height);
 
         // Die Umbruchregeln stehen in EINER Quelle. Vorher lagen sie
         // viermal im Projekt und waren bereits auseinandergelaufen: die
@@ -842,16 +851,16 @@ class EmailTemplatesPageTest extends TestCase
         // Diese Regeln erhalten die geschuetzte Editoransicht des kanonischen
         // Carriers. Ausgelieferte Signaturen projizieren den Zug als IMG.
         $this->assertStringContainsString(
-            'background-size: 64px 64px, auto 52%, 100% 100%, 200% auto !important;',
+            'background-size: 64px 64px, auto 52%, 100% 100% !important;',
             $regeln,
         );
         $this->assertStringContainsString(
-            'background-position: left top, right center, center center, 75% bottom !important;',
+            'background-position: left top, right center, center center !important;',
             $regeln,
         );
         $this->assertStringContainsString('RT_SERVER_SIGNATURE_RUNTIME_START', $regeln);
-        $this->assertStringNotContainsString('rt-train-idle-', $regeln);
-        $this->assertStringNotContainsString('@keyframes rt-train-idle-reveal', $regeln);
+        $this->assertStringContainsString('.rt-train-idle-overlay', $regeln);
+        $this->assertStringContainsString('@keyframes rt-train-idle-reveal', $regeln);
         // Die Trennlinie wandert NICHT mehr nach oben: Person und Firma stehen
         // auch gestapelt nebeneinander, die senkrechte Linie zwischen ihnen
         // bleibt also richtig.

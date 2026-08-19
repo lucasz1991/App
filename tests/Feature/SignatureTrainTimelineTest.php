@@ -13,15 +13,15 @@ class SignatureTrainTimelineTest extends TestCase
     public static function trainAnimations(): array
     {
         return [
-            'mail light' => ['zug-dampf-light.gif', 2880, 292, 1536 * 1024, true],
-            'mail dark' => ['zug-dampf-dark.gif', 2880, 292, 1536 * 1024, true],
+            'mail light' => ['zug-dampf-light.gif', 2160, 219, 620 * 1024, true],
+            'mail dark' => ['zug-dampf-dark.gif', 2160, 219, 445 * 1024, true],
             'outlook light' => ['zug-dampf-outlook-light.gif', 720, 75, 200 * 1024, false],
             'outlook dark' => ['zug-dampf-outlook-dark.gif', 720, 75, 200 * 1024, false],
         ];
     }
 
     #[DataProvider('trainAnimations')]
-    public function test_train_arrives_at_seventy_five_percent_before_idle_smoke_starts(
+    public function test_train_arrives_at_sixty_percent_before_idle_smoke_starts(
         string $filename,
         int $width,
         int $height,
@@ -100,7 +100,7 @@ class SignatureTrainTimelineTest extends TestCase
 
         // Die Lokfront beginnt links ausserhalb und wird direkt im ersten
         // Bewegungsframe sichtbar. Danach muss sie ueber mehrere klar
-        // getrennte Positionen bis zum unveraenderten 75-Prozent-Endstand
+        // getrennte Positionen bis zum 60-Prozent-Endstand
         // fahren. So faellt eine erneute unsichtbare Vorfahrt auf, die in
         // skalierten Desktop-/Mobile-Carriern wie ein ploetzlicher Endstand
         // wirken wuerde.
@@ -203,7 +203,7 @@ class SignatureTrainTimelineTest extends TestCase
             "{$filename}: Die letzte Assetzeile enthaelt keine Rad-/Fahrwerkpixel.",
         );
 
-        $expectedBodyHeight = $width === 2880 ? 115 : 29;
+        $expectedBodyHeight = $width === 2160 ? 86 : 29;
         $this->assertEqualsWithDelta(
             $expectedBodyHeight,
             $arrivalBounds['bottom'] - $arrivalBounds['top'],
@@ -221,11 +221,11 @@ class SignatureTrainTimelineTest extends TestCase
             $width,
             0,
             (int) floor($height * 0.55),
-            (int) floor($width * 0.67),
+            (int) floor($width * 0.52),
             $height,
         );
         $this->assertGreaterThan(
-            $width === 2880 ? 60_000 : 3_700,
+            $width === 2160 ? 26_000 : 2_800,
             $bodyPixels,
             "{$filename}: Der Zugkoerper mit 30 Prozent Deckkraft fehlt.",
         );
@@ -237,14 +237,14 @@ class SignatureTrainTimelineTest extends TestCase
                 $width,
                 0,
                 (int) floor($height * 0.55),
-                (int) floor($width * 0.67),
+                (int) floor($width * 0.52),
                 $height,
             ),
             "{$filename}: Der Zugkoerper ist staerker als die zugesicherten 30 Prozent.",
         );
 
         // Das kleine, aber lesbare offizielle RT-Monogramm sitzt auf dem
-        // Boiler-Paneel zwischen rund 68 und 70 Prozent der Leinwand. Zug und
+        // Boiler-Paneel zwischen rund 52 und 56 Prozent der Leinwand. Zug und
         // Marke muessen nach der Quantisierung exakt dieselbe staerkste
         // Palettenstufe besitzen: Ein zusaetzliches 30-Prozent-Overlay ueber
         // dem Zug ergäbe sonst optisch rund 51 Prozent.
@@ -254,13 +254,13 @@ class SignatureTrainTimelineTest extends TestCase
             $decoded[$arrivalFrame],
             $expectedInkIndex,
             $width,
-            (int) floor($width * 0.675),
+            (int) floor($width * 0.525),
             (int) floor($height * 0.67),
-            (int) ceil($width * 0.705),
+            (int) ceil($width * 0.555),
             (int) ceil($height * 0.93),
         );
         $this->assertGreaterThan(
-            $width === 2880 ? 700 : 35,
+            $width === 2160 ? 390 : 35,
             $brandPixels,
             "{$filename}: Die kleine RT-Aufschrift fehlt auf der Lokseitenflaeche.",
         );
@@ -269,15 +269,15 @@ class SignatureTrainTimelineTest extends TestCase
             $width,
             0,
             (int) floor($height * 0.55),
-            (int) floor($width * 0.67),
+            (int) floor($width * 0.52),
             $height,
         );
         $brandMaximum = $this->maximumIndexInRegion(
             $decoded[$arrivalFrame],
             $width,
-            (int) floor($width * 0.675),
+            (int) floor($width * 0.525),
             (int) floor($height * 0.67),
-            (int) ceil($width * 0.705),
+            (int) ceil($width * 0.555),
             (int) ceil($height * 0.93),
         );
         $this->assertSame(2, $bodyMaximum, "{$filename}: Die 30-Prozent-Zugrampe ist abgewichen.");
@@ -292,9 +292,9 @@ class SignatureTrainTimelineTest extends TestCase
                 $decoded[$arrivalFrame],
                 3,
                 $width,
-                (int) floor($width * 0.675),
+                (int) floor($width * 0.525),
                 (int) floor($height * 0.67),
-                (int) ceil($width * 0.705),
+                (int) ceil($width * 0.555),
                 (int) ceil($height * 0.93),
             ),
             "{$filename}: Die RT-Marke enthaelt eine unzulaessig dunkle Palettenstufe.",
@@ -304,10 +304,10 @@ class SignatureTrainTimelineTest extends TestCase
         // T-Stamm und R-Diagonale. Sie muessen dieselbe Rampenstufe wie die
         // Zugkontur besitzen. Dadurch wuerde auch ein optisches 30 % + 30 %
         // Overlay trotz identischer Binaermaske auffallen.
-        $assetScale = $width / 2880;
-        $markLeft = 1968.0 * $assetScale;
-        $markTop = (220.0 * $assetScale) + ($width === 720 ? 2 : 0);
-        $markSize = 48.0 * $assetScale;
+        $assetScale = $width / 2160;
+        $markLeft = 1152.0 * $assetScale;
+        $markTop = (165.0 * $assetScale) + ($width === 720 ? 2 : 0);
+        $markSize = 36.0 * $assetScale;
         $isolatedMarkRaster = '';
         for ($markRasterY = 0; $markRasterY < 12; $markRasterY++) {
             for ($markRasterX = 0; $markRasterX < 12; $markRasterX++) {
@@ -319,7 +319,7 @@ class SignatureTrainTimelineTest extends TestCase
         }
         $approvedMarkRasterHash = str_contains($filename, 'dark')
             ? '52d32c77c735ba2e3be44740acbb9c02f884b81847cf68db27aedd7deae12332'
-            : 'e21c9dd3ea276fb237b0869ed1c51d5b488d3f0a90d5351e7c03d48f156c6f47';
+            : 'a123018034e077b3f40f9e87c4c3853921b84c7a29558064105af5fbd58d2905';
         $this->assertSame(
             $approvedMarkRasterHash,
             hash('sha256', $isolatedMarkRaster),
@@ -359,7 +359,7 @@ class SignatureTrainTimelineTest extends TestCase
             $this->assertSame(file_get_contents($resource), file_get_contents($public));
             $size = getimagesize($resource);
             $this->assertIsArray($size);
-            $this->assertSame([2880, 292], [$size[0], $size[1]]);
+            $this->assertSame([2160, 219], [$size[0], $size[1]]);
 
             $image = imagecreatefrompng($resource);
             $this->assertInstanceOf(\GdImage::class, $image);
@@ -379,12 +379,12 @@ class SignatureTrainTimelineTest extends TestCase
             }
             imagedestroy($image);
 
-            $this->assertEqualsWithDelta(1728, $right, 15, "{$theme}: PNG-Zug endet nicht bei 60 Prozent.");
-            $this->assertSame(292, $bottom, "{$theme}: PNG-Radauflage endet nicht an der unteren Assetkante.");
+            $this->assertEqualsWithDelta(1296, $right, 12, "{$theme}: PNG-Zug endet nicht bei 60 Prozent.");
+            $this->assertSame(219, $bottom, "{$theme}: PNG-Radauflage endet nicht an der unteren Assetkante.");
         }
     }
 
-    public function test_outlook_arrival_is_the_exact_four_to_one_derivative_of_the_main_frame(): void
+    public function test_outlook_arrival_is_the_exact_three_to_one_derivative_of_the_main_frame(): void
     {
         foreach (['light', 'dark'] as $theme) {
             $main = $this->parseGif(file_get_contents(resource_path("mail-templates/assets/zug-dampf-{$theme}.gif")));
@@ -402,21 +402,21 @@ class SignatureTrainTimelineTest extends TestCase
                 $outlook['width'] * $outlook['height'],
             );
 
-            // 2880 x 292 wird mit Faktor 0,25 auf 720 x 73 skaliert und in
+            // 2160 x 219 wird mit Faktor 1/3 auf 720 x 73 skaliert und in
             // der 75-px-Outlook-Leinwand um zwei Pixel nach unten gesetzt.
             // Der Vergleich umfasst die komplette sichtbare Ableitung und
             // damit auch die monochrome RT-Aufschrift.
             $sampledMain = '';
             for ($y = 0; $y < 73; $y++) {
                 for ($x = 0; $x < 720; $x++) {
-                    $sampledMain .= $mainPixels[(($y * 4) * 2880) + ($x * 4)];
+                    $sampledMain .= $mainPixels[(($y * 3) * 2160) + ($x * 3)];
                 }
             }
 
             $this->assertSame(
                 $sampledMain,
                 substr($outlookPixels, 2 * 720, 73 * 720),
-                "{$theme}: Outlook ist nicht mehr die exakte 4:1-Ableitung des Hauptframes.",
+                "{$theme}: Outlook ist nicht mehr die exakte 3:1-Ableitung des Hauptframes.",
             );
         }
     }
@@ -435,8 +435,8 @@ class SignatureTrainTimelineTest extends TestCase
             $this->assertStringContainsString('NETSCAPE2.0', $resource, "{$filename}: Endlosschleife fehlt.");
 
             $idle = $this->parseGif($resource);
-            $this->assertSame(2880, $idle['width']);
-            $this->assertSame(292, $idle['height']);
+            $this->assertSame(2160, $idle['width']);
+            $this->assertSame(219, $idle['height']);
             $this->assertCount(20, $idle['frames']);
             $this->assertSame(200, array_sum(array_column($idle['frames'], 'delayCs')));
 
@@ -507,7 +507,8 @@ class SignatureTrainTimelineTest extends TestCase
         $this->assertStringContainsString("ladeSvg(nurGlyph('R_Red'), 'rtIconR')", $generator);
         $this->assertStringContainsString("ladeSvg(nurGlyph('T_Dark'), 'rtIconT')", $generator);
         $this->assertStringContainsString('const MARKEN_GROESSE_ANTEIL = 0.34;', $generator);
-        $this->assertStringContainsString('const MARKEN_RASTER_MAIN_PX = 4;', $generator);
+        $this->assertStringContainsString('const SKALA = Number(process.env.RT_SKALA || 1.5);', $generator);
+        $this->assertStringContainsString('const MARKEN_RASTER_MAIN_PX = 3;', $generator);
         $this->assertStringContainsString('const MARKEN_KONTUR_CSS_PX = 2.0;', $generator);
         $this->assertStringContainsString('const MARKEN_TRENNFUGE_CSS_PX = 2.0;', $generator);
         $this->assertStringContainsString('markeGroesse: MARKEN_GROESSE,', $generator);

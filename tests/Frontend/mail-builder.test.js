@@ -1148,8 +1148,13 @@ test('shared page builder opens from preview into a compact responsive Mail Stud
     assert.match(mailView, /data-mail-code-export/);
     assert.match(mailView, /data-mail-code-import/);
     assert.match(mailView, /data-mail-code-dialog/);
-    assert.match(mailView, /const MAX_IMPORT_BYTES = 1024 \* 1024/);
-    assert.match(mailView, /format: MAIL_SOURCE_FORMAT,[\s\S]*?version: MAIL_SOURCE_VERSION,[\s\S]*?kind: config\.currentDocument,[\s\S]*?html: source\.html,[\s\S]*?css: source\.css/);
+    assert.match(mailView, /const MAIL_SOURCE_VERSION = 2/);
+    assert.match(mailView, /const MAX_SOURCE_BYTES = 1024 \* 1024/);
+    assert.match(mailView, /const MAX_BUNDLE_BYTES = 16 \* 1024 \* 1024/);
+    assert.match(mailView, /format: MAIL_SOURCE_FORMAT,[\s\S]*?version: MAIL_SOURCE_VERSION,[\s\S]*?kind: config\.currentDocument,[\s\S]*?html: source\.html,[\s\S]*?css: source\.css,[\s\S]*?media: await exportPortableMedia\(\)/);
+    assert.match(mailView, /crypto\.subtle\.digest\('SHA-256'/);
+    assert.match(mailView, /portable_media: portableMedia/);
+    assert.match(mailView, /Das Bundle enthält nicht den vollständigen Medienbestand dieses Dokuments/);
     assert.match(mailView, /validateSourceOnServer\(source\)[\s\S]*?runtimeBridge\.projectFor[\s\S]*?editor\.loadProjectData[\s\S]*?saveCurrentDraft\(\)/);
     assert.match(mailView, /document_\.endpoints\?\.validate[\s\S]*?Es wurde nichts übernommen/);
     assert.match(mailView, /URL\.revokeObjectURL\(objectUrl\)/);
@@ -1230,15 +1235,17 @@ test('signature source uses the relative stage, one modern train layer and one M
     assert.match(signatureSource, /<img class="rt-sign-train"[^>]*width="720"[^>]*style="position:absolute;[^"\r\n]*mso-hide:all;/);
     assert.doesNotMatch(signatureSource, /url\(\{\$values\['TRAIN_SRC'\]\}\)/);
     assert.doesNotMatch(css, /left top, right center, center center, (?:left|75%) bottom/);
-    assert.doesNotMatch(css, /rt-train-idle/);
+    assert.match(css, /@keyframes rt-train-idle-reveal/);
+    assert.match(css, /animation-delay:\s*13s/);
 
     assert.equal(trainAsset.toString('ascii', 1, 4), 'PNG');
     const assetWidth = trainAsset.readUInt32BE(16);
     const assetHeight = trainAsset.readUInt32BE(20);
-    assert.deepEqual([assetWidth, assetHeight], [2880, 292]);
+    assert.deepEqual([assetWidth, assetHeight], [2160, 219]);
 
     assert.equal((carrier.match(/<!--\[if mso\]><tr><td class="rt-sign-train-mso"/g) || []).length, 1);
     assert.equal((runtime.match(/SignatureTrainCarrier::withMsoFallback\(/g) || []).length, 1);
+    assert.equal((runtime.match(/SignatureTrainCarrier::withIdleOverlay\(/g) || []).length, 1);
     assert.match(carrier, /<img src="'\.\$escapedSource\.'" width="720"/);
 
     const mobile = css.slice(css.indexOf('@media only screen and (max-width: 860px)'));

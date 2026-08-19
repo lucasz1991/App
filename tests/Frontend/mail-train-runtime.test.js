@@ -55,7 +55,7 @@ function gifTimeline(bytes) {
     return delays;
 }
 
-test('all delivered mail outputs use one modern train image and one client-exclusive MSO fallback', () => {
+test('all delivered mail outputs use one modern train image, one delayed smoke loop and one client-exclusive MSO fallback', () => {
     const signature = text('app/Support/MailSignature.php');
     const signatureView = text('resources/views/emails/parts/signature.blade.php');
     const carrier = text('app/Support/Mail/SignatureTrainCarrier.php');
@@ -67,7 +67,8 @@ test('all delivered mail outputs use one modern train image and one client-exclu
     assert.match(signature, /SignatureTrainCarrier::projectAsImage\(/);
     assert.equal((signature.match(/SignatureTrainCarrier::withMsoFallback\(/g) || []).length, 1);
     assert.match(signature, /\$outlookFallbackSource = trim\(\(string\) \([\s\S]+?\$values\['TRAIN_STILL_SRC'\]/);
-    assert.doesNotMatch(signature, /data-rt-train-idle|injectDelayedIdleOverlay|TRAIN_IDLE_SRC' => \([^\n]+zug-dampf-idle/);
+    assert.match(signature, /zug-dampf-idle-/);
+    assert.match(signature, /SignatureTrainCarrier::withIdleOverlay\(/);
     assert.match(signature, /\$tokenizedTrainCarrier = \$this->usesTokenizedTrainCarrier\(\$values, \$layout\);/);
     assert.match(signature, /\$html = \$this->projectPublishedTrainAsImage\(\$html, \$singleTrainLayout\);/);
     assert.doesNotMatch(signature, /function appendClassicOutlookTrainFallback/);
@@ -75,6 +76,9 @@ test('all delivered mail outputs use one modern train image and one client-exclu
     assert.match(carrier, /public static function withoutMainLayer/);
     assert.match(carrier, /public static function projectAsImage/);
     assert.match(carrier, /public static function withMsoFallback/);
+    assert.match(carrier, /public static function withIdleOverlay/);
+    assert.match(carrier, /class="rt-train-idle-overlay" data-rt-train-idle-overlay/);
+    assert.match(carrier, /class="rt-train-idle-image" data-rt-train-idle-image/);
     assert.equal((carrier.match(/<!--\[if mso\]><tr><td class="rt-sign-train-mso"/g) || []).length, 1);
     assert.match(carrier, /<img src="'\.\$escapedSource\.'" width="720"/);
     assert.match(carrier, /<div class="rt-sign-stage" style="position:relative;overflow:hidden;">/);
@@ -82,9 +86,12 @@ test('all delivered mail outputs use one modern train image and one client-exclu
     assert.match(carrier, /style="position:absolute;left:0;right:auto;top:0;bottom:0;[^"\r\n]*mso-hide:all;/);
     assert.match(carrier, /<img class="rt-sign-train" data-rt-train src="'\.\$source\.'" width="720"[^>]*style="[^"\r\n]*mso-hide:all;/);
     assert.match(previewService, /SignatureTrainCarrier::projectAsImage\(/);
+    assert.match(previewService, /SignatureTrainCarrier::withIdleOverlay\(/);
     assert.match(cssSemantic, /'data-rt-train-idle-overlay'/);
     assert.match(cssSemantic, /\$isProtectedAttribute = in_array\(/);
-    assert.doesNotMatch(responsiveCss, /rt-train-idle|rt-train-idle-reveal/);
+    assert.match(responsiveCss, /@keyframes rt-train-idle-reveal/);
+    assert.match(responsiveCss, /animation-delay:\s*13s/);
+    assert.match(responsiveCss, /prefers-reduced-motion:[^)]+\)[\s\S]*?\.rt-train-idle-overlay/);
     assert.doesNotMatch(routes, /mail-animations\/train/);
     assert.match(signatureView, /<div class="rt-sign-stage" style="position:relative;overflow:hidden;">/);
     assert.match(signatureView, /<img class="rt-sign-train" data-rt-train src="\{\{ \$trainSrc \}\}" width="720"[^>]+mso-hide:all;/);
@@ -122,7 +129,7 @@ test('editor and delivery keep the default mobile train at 100 percent while exp
     assert.match(mobile, /data-rt-layer-mobile="left"[^}]+left: 0 !important;[^}]+width: 200% !important;/);
     assert.match(mobile, /data-rt-layer-mobile="center"[^}]+left: -50% !important;[^}]+width: 200% !important;/);
     assert.match(mobile, /data-rt-layer-mobile="right"[^}]+left: -100% !important;[^}]+width: 200% !important;/);
-    assert.doesNotMatch(responsiveCss, /rt-train-idle/);
+    assert.match(responsiveCss, /rt-train-idle-reveal/);
 });
 
 test('train GIF starts quickly but preserves the 13 second handoff', () => {
@@ -130,6 +137,8 @@ test('train GIF starts quickly but preserves the 13 second handoff', () => {
         const resource = read(`resources/mail-templates/assets/zug-dampf-${theme}.gif`);
         const publicCopy = read(`public/mail-assets/zug-dampf-${theme}.gif`);
         const outlook = read(`resources/mail-templates/assets/zug-dampf-outlook-${theme}.gif`);
+        const idle = read(`resources/mail-templates/assets/zug-dampf-idle-${theme}.gif`);
+        const idlePublic = read(`public/mail-assets/zug-dampf-idle-${theme}.gif`);
 
         assert.deepEqual(resource, publicCopy);
         for (const bytes of [resource, outlook]) {
@@ -147,5 +156,10 @@ test('train GIF starts quickly but preserves the 13 second handoff', () => {
             assert.equal(starts[53], 764);
             assert.equal(bytes.includes(Buffer.from('NETSCAPE2.0')), false);
         }
+        assert.deepEqual(idle, idlePublic);
+        const idleDelays = gifTimeline(idle);
+        assert.equal(idleDelays.length, 20);
+        assert.equal(idleDelays.reduce((sum, delay) => sum + delay, 0), 200);
+        assert.equal(idle.includes(Buffer.from('NETSCAPE2.0')), true);
     }
 });

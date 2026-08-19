@@ -689,8 +689,10 @@
                                 || window,
                         });
 
-                        // Das Exportformat enthaelt absichtlich weder
-                        // builder_data noch Vorschau-/Asset-Konfiguration.
+                        // Die kanonische Quelle enthaelt absichtlich weder
+                        // builder_data noch Vorschaukonfiguration. Der
+                        // Export haengt die geprueften Medien separat mit
+                        // MIME, Groesse und SHA-256 an.
                         return assertPortableSource({
                             html: String(outgoing.html || ''),
                             css: String(outgoing.css || ''),
@@ -780,19 +782,118 @@
                         window.requestAnimationFrame(() => codeHtml.focus());
                     };
 
-                    const portableBundle = (source) => ({
+                    const bytesToBase64 = (bytes) => {
+                        let binary = '';
+                        const chunkSize = 0x8000;
+                        for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+                            binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+                        }
+
+                        return window.btoa(binary);
+                    };
+
+                    const base64ToBytes = (encoded) => {
+                        if (typeof encoded !== 'string'
+                            || encoded.length === 0
+                            || encoded.length % 4 !== 0
+                            || !/^[A-Za-z0-9+/]*={0,2}$/.test(encoded)) {
+                            throw new Error('Ein Medium enthält keine gültigen Base64-Daten.');
+                        }
+
+                        const binary = window.atob(encoded);
+                        const bytes = new Uint8Array(binary.length);
+                        for (let index = 0; index < binary.length; index += 1) {
+                            bytes[index] = binary.charCodeAt(index);
+                        }
+
+                        return bytes;
+                    };
+
+                    const sha256 = async (bytes) => Array.from(
+                        new Uint8Array(await window.crypto.subtle.digest('SHA-256', bytes)),
+                    ).map((value) => value.toString(16).padStart(2, '0')).join('');
+
+                    const portableMediaCatalog = () => {
+                        const catalog = Array.isArray(config.portableMedia) ? config.portableMedia : [];
+                        const seen = new Set();
+
+                        return catalog.map((asset) => {
+                            const source = String(asset?.source || '').trim();
+                            const id = String(asset?.id || '').trim();
+                            const mimeType = String(asset?.mime_type || '').toLowerCase();
+                            const digest = String(asset?.sha256 || '').toLowerCase();
+                            const bytes = Number(asset?.bytes || 0);
+                            const resolved = new URL(source, window.location.href);
+                            if (!id
+                                || seen.has(id)
+                                || resolved.origin !== window.location.origin
+                                || !['image/gif', 'image/png', 'image/jpeg', 'image/webp'].includes(mimeType)
+                                || !/^[a-f0-9]{64}$/.test(digest)
+                                || !Number.isInteger(bytes)
+                                || bytes < 1
+                                || bytes > MAX_MEDIA_BYTES) {
+                                throw new Error('Der serverseitige Medienbestand ist nicht portabel konfiguriert.');
+                            }
+                            seen.add(id);
+
+                            return {
+                                id,
+                                name: String(asset?.name || id),
+                                source: resolved.href,
+                                mime_type: mimeType,
+                                bytes,
+                                sha256: digest,
+                            };
+                        });
+                    };
+
+                    const exportPortableMedia = async () => {
+                        const exported = [];
+                        let totalBytes = 0;
+
+                        for (const asset of portableMediaCatalog()) {
+                            const response = await fetch(asset.source, {
+                                credentials: 'same-origin',
+                                cache: 'no-store',
+                                redirect: 'error',
+                            });
+                            if (!response.ok || new URL(response.url).origin !== window.location.origin) {
+                                throw new Error(`„${asset.name}“ konnte nicht sicher gelesen werden.`);
+                            }
+
+                            const bytes = new Uint8Array(await response.arrayBuffer());
+                            const digest = await sha256(bytes);
+                            if (bytes.byteLength !== asset.bytes || digest !== asset.sha256) {
+                                throw new Error(`„${asset.name}“ wurde während des Exports verändert. Bitte Seite neu laden.`);
+                            }
+                            totalBytes += bytes.byteLength;
+                            if (totalBytes > MAX_BUNDLE_BYTES) {
+                                throw new Error('Die Medien des Bundles sind zusammen größer als 16 MiB.');
+                            }
+
+                            exported.push({ ...asset, data: bytesToBase64(bytes) });
+                        }
+
+                        return exported;
+                    };
+
+                    const portableBundle = async (source) => ({
                         format: MAIL_SOURCE_FORMAT,
                         version: MAIL_SOURCE_VERSION,
                         kind: config.currentDocument,
                         html: source.html,
                         css: source.css,
+                        media: await exportPortableMedia(),
                     });
 
-                    const downloadPortableBundle = (source) => {
-                        const bundle = portableBundle(source);
+                    const downloadPortableBundle = async (source) => {
+                        const bundle = await portableBundle(source);
                         const blob = new Blob([`${JSON.stringify(bundle, null, 2)}\n`], {
                             type: 'application/json;charset=utf-8',
                         });
+                        if (blob.size > MAX_BUNDLE_BYTES) {
+                            throw new Error(`Das vollständige Bundle ist ${formatBytes(blob.size)} groß und überschreitet 16 MiB.`);
+                        }
                         const objectUrl = URL.createObjectURL(blob);
                         const link = window.document.createElement('a');
                         const documentName = config.currentDocument === 'signature' ? 'signatur' : 'nachrichtenvorlage';
@@ -809,7 +910,7 @@
                         }
                     };
 
-                    const parsePortableBundle = (text) => {
+                    const parsePortableBundle = async (text) => {
                         let bundle;
                         try {
                             bundle = JSON.parse(String(text || '').replace(/^\uFEFF/, ''));
@@ -819,15 +920,78 @@
 
                         if (!bundle || Array.isArray(bundle) || typeof bundle !== 'object'
                             || bundle.format !== MAIL_SOURCE_FORMAT
-                            || bundle.version !== MAIL_SOURCE_VERSION) {
-                            throw new Error(`Erwartet wird ein RailTime-Mail-Bundle in Version ${MAIL_SOURCE_VERSION}.`);
+                            || ![1, MAIL_SOURCE_VERSION].includes(bundle.version)) {
+                            throw new Error(`Erwartet wird ein RailTime-Mail-Bundle in Version 1 oder ${MAIL_SOURCE_VERSION}.`);
                         }
                         if (bundle.kind !== config.currentDocument) {
                             const expected = config.currentDocument === 'signature' ? 'eine Signatur' : 'eine Nachrichtenvorlage';
                             throw new Error(`Dieses Bundle gehört zu „${bundle.kind || 'unbekannt'}“. Geöffnet ist ${expected}.`);
                         }
 
-                        return assertPortableSource({ html: bundle.html, css: bundle.css });
+                        const source = assertPortableSource({ html: bundle.html, css: bundle.css });
+                        if (bundle.version === 1) {
+                            return { source, media: [] };
+                        }
+                        if (!Array.isArray(bundle.media)) {
+                            throw new Error('Dem Bundle fehlt der vollständige Medienbestand.');
+                        }
+
+                        const seenIds = new Set();
+                        const seenSources = new Set();
+                        let totalBytes = 0;
+                        const media = [];
+                        for (const entry of bundle.media) {
+                            const id = String(entry?.id || '').trim();
+                            const name = String(entry?.name || id).trim();
+                            const sourceUrl = String(entry?.source || '').trim();
+                            const mimeType = String(entry?.mime_type || '').toLowerCase();
+                            const declaredBytes = Number(entry?.bytes || 0);
+                            const declaredHash = String(entry?.sha256 || '').toLowerCase();
+                            if (!id
+                                || !name
+                                || seenIds.has(id)
+                                || !sourceUrl
+                                || seenSources.has(sourceUrl)
+                                || !/^(?:https?:\/\/|\/)/i.test(sourceUrl)
+                                || sourceUrl.includes('{{')
+                                || !['image/gif', 'image/png', 'image/jpeg', 'image/webp'].includes(mimeType)
+                                || !Number.isInteger(declaredBytes)
+                                || declaredBytes < 1
+                                || declaredBytes > MAX_MEDIA_BYTES
+                                || !/^[a-f0-9]{64}$/.test(declaredHash)) {
+                                throw new Error('Das Bundle enthält einen ungültigen oder doppelten Medieneintrag.');
+                            }
+
+                            const bytes = base64ToBytes(entry.data);
+                            const digest = await sha256(bytes);
+                            if (bytes.byteLength !== declaredBytes || digest !== declaredHash) {
+                                throw new Error(`Prüfsumme oder Größe von „${name}“ stimmt nicht.`);
+                            }
+                            totalBytes += bytes.byteLength;
+                            if (totalBytes > MAX_BUNDLE_BYTES) {
+                                throw new Error('Die Medien des Bundles sind zusammen größer als 16 MiB.');
+                            }
+                            seenIds.add(id);
+                            seenSources.add(sourceUrl);
+                            media.push({
+                                id,
+                                name,
+                                source: sourceUrl,
+                                mime_type: mimeType,
+                                bytes: declaredBytes,
+                                sha256: declaredHash,
+                                data: entry.data,
+                            });
+                        }
+
+                        const expectedIds = portableMediaCatalog().map((asset) => asset.id).sort();
+                        const importedIds = Array.from(seenIds).sort();
+                        if (expectedIds.length !== importedIds.length
+                            || expectedIds.some((id, index) => id !== importedIds[index])) {
+                            throw new Error('Das Bundle enthält nicht den vollständigen Medienbestand dieses Dokuments.');
+                        }
+
+                        return { source, media };
                     };
 
                     const boot = async () => {
@@ -986,7 +1150,7 @@
                         };
                     };
 
-                    const validateSourceOnServer = async (source) => {
+                    const validateSourceOnServer = async (source, portableMedia = []) => {
                         if (typeof document_.endpoints?.validate !== 'string' || document_.endpoints.validate.trim() === '') {
                             throw new Error('Der sichere Prüf-Endpunkt für Codeimporte ist nicht verfügbar. Es wurde nichts übernommen.');
                         }
@@ -997,6 +1161,7 @@
                             html: candidate.html,
                             css: candidate.css,
                             expected_hash: document_.contentHash || '',
+                            portable_media: portableMedia,
                         });
 
                         return {
@@ -1019,7 +1184,7 @@
                         // Erst der serverseitig kanonisierte Stand darf auf die
                         // Leinwand und danach durch den normalen Save-Request.
                         setMessage('Code wird serverseitig geprüft …');
-                        const validated = await validateSourceOnServer(source);
+                        const validated = await validateSourceOnServer(source, pendingPortableMedia);
                         const editor = instance.editor;
                         const previousProject = structuredClone(editor.getProjectData());
                         const previousBaselineHtml = activeBaselineHtml;
@@ -1041,6 +1206,7 @@
                             if (Array.isArray(validated.report?.messages) && validated.report.messages.length > 0) {
                                 showFindings(validated.report);
                             }
+                            pendingPortableMedia = [];
 
                             const message = 'Code geprüft und als Entwurf gespeichert. Die veröffentlichte Fassung bleibt unverändert.';
                             setMessage(message);
@@ -1087,14 +1253,20 @@
                         }
                     }, { signal: controlListeners.signal });
 
-                    exportButton?.addEventListener('click', () => {
+                    exportButton?.addEventListener('click', async () => {
                         try {
-                            downloadPortableBundle(currentCanonicalSource());
-                            setMessage('Portables JSON-Bundle wurde exportiert.');
-                            toast('success', 'Das Bundle enthält nur kind, HTML und CSS — keine Vorschau- oder privaten Assetdaten.', 'Export erstellt');
+                            exportButton.disabled = true;
+                            exportButton.setAttribute('aria-busy', 'true');
+                            setMessage('HTML, CSS und Medien werden vollständig exportiert …');
+                            await downloadPortableBundle(currentCanonicalSource());
+                            setMessage('Portables JSON-Bundle mit Medien wurde exportiert.');
+                            toast('success', 'HTML, CSS und alle zugehörigen GIF-/Bilddateien sind mit SHA-256 im Bundle enthalten.', 'Export erstellt');
                         } catch (error) {
                             const surfaced = showRequestError(error, 'Export nicht möglich');
                             toast('error', surfaced.message, 'Export nicht möglich');
+                        } finally {
+                            exportButton.disabled = false;
+                            exportButton.setAttribute('aria-busy', 'false');
                         }
                     }, { signal: controlListeners.signal });
 
@@ -1116,20 +1288,23 @@
                         if (!file) return;
 
                         try {
-                            if (file.size > MAX_IMPORT_BYTES) {
-                                throw new Error(`„${file.name}“ ist größer als 1 MiB und wurde nicht gelesen.`);
-                            }
-
                             const extension = file.name.toLowerCase().match(/\.[^.]+$/)?.[0] || '';
                             if (!['.json', '.html', '.htm', '.css'].includes(extension)) {
                                 throw new Error('Unterstützt werden ausschließlich .json, .html, .htm und .css.');
+                            }
+                            const fileLimit = extension === '.json' ? MAX_BUNDLE_BYTES : MAX_SOURCE_BYTES;
+                            if (file.size > fileLimit) {
+                                throw new Error(`„${file.name}“ ist größer als ${extension === '.json' ? '16 MiB' : '1 MiB'} und wurde nicht gelesen.`);
                             }
 
                             const text = await file.text();
                             if (destroyed) return;
                             let source;
+                            let portableMedia = [];
                             if (extension === '.json') {
-                                source = parsePortableBundle(text);
+                                const parsed = await parsePortableBundle(text);
+                                source = parsed.source;
+                                portableMedia = parsed.media;
                             } else {
                                 const current = currentCanonicalSource();
                                 source = extension === '.css'
@@ -1137,7 +1312,12 @@
                                     : assertPortableSource({ html: text, css: current.css });
                             }
 
-                            openCodeDialog(source, `Importdatei: ${file.name} · Übernahme speichert einen Entwurf`, codeDialogOpener);
+                            openCodeDialog(
+                                source,
+                                `Importdatei: ${file.name} · ${portableMedia.length} Medien · Übernahme speichert einen Entwurf`,
+                                codeDialogOpener,
+                                portableMedia,
+                            );
                         } catch (error) {
                             const surfaced = showRequestError(error, 'Import nicht möglich');
                             toast('error', surfaced.message, 'Import nicht möglich');
@@ -1154,6 +1334,7 @@
                     codeDialog?.addEventListener('close', () => {
                         const opener = codeDialogOpener;
                         codeDialogOpener = null;
+                        pendingPortableMedia = [];
                         if (!destroyed && opener?.isConnected) opener.focus();
                     }, { signal: controlListeners.signal });
 
