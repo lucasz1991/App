@@ -171,7 +171,11 @@ const ENDE_HALT_S = Number(process.env.RT_ENDE_HALT || 1.65);
 const GESAMT_S = FAHRT_ENDE_S + IDLE_DAUER_S + ENDE_HALT_S;
 const SUMME_CS = Math.round(GESAMT_S * 100);
 
-const STUFEN = Number(process.env.RT_STUFEN || 7);
+// Sechs sichtbare Graustufen bewahren die weiche 30-Prozent-Silhouette,
+// reduzieren die Haupt-GIFs aber um mindestens ein Drittel gegenueber der
+// vorherigen 2x-Fassung. Mehr Stufen vergroessern nur die LZW-Tabelle, ohne
+// im halbtransparenten Mailmotiv einen wahrnehmbaren Qualitaetsgewinn.
+const STUFEN = Number(process.env.RT_STUFEN || 6);
 // DURCHSICHTIG. Der Zug steht in der versendeten Mail als eigenes <img>
 // UEBER der Zelle — ein deckender Grund verdeckte dort das Raster des
 // Streifens als sichtbaren Kasten. Dass die Datei dadurch kein Byte

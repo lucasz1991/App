@@ -422,8 +422,7 @@ class MailSignature
         string $html,
         string $outlookFallbackSource,
         string $idleSource,
-    ): string
-    {
+    ): string {
         $html = $this->removeLegacyTrainBackground($html);
         if ($this->animated && ! $this->staticAssets && trim($idleSource) !== '') {
             $html = SignatureTrainCarrier::withIdleOverlay($html, $idleSource);

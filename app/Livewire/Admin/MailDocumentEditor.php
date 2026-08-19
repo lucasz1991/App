@@ -6,6 +6,8 @@ use App\Enums\MailDocumentKind;
 use App\Models\MailDocument;
 use App\Support\EmailTemplateBuilder;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use Livewire\Component;
 use Throwable;
 
@@ -162,7 +164,7 @@ class MailDocumentEditor extends Component
             // Asset der aktuellen Installation zurueck. Dadurch gelangen
             // weder private FilePool-URLs noch Vorschau-Data-URIs in einen
             // gespeicherten Mailentwurf.
-            'portableMedia' => $this->portableMediaAssets(),
+            'portableMedia' => $this->portableMediaAssets($documents),
             // Nur fuer das isolierte Editor-iframe: Die gespeicherten
             // {{...}}-Tokens bleiben unangetastet, waehrend Logo, Zug und
             // Kontakticons in Hell und Dunkel trotzdem real dargestellt
@@ -199,9 +201,10 @@ class MailDocumentEditor extends Component
     /**
      * Medien, die zum aktuell geoeffneten Dokumentvertrag gehoeren.
      *
-     * @return list<array<string, int|string>>
+     * @param  array<string, MailDocument>  $documents
+     * @return list<array<string, bool|int|string>>
      */
-    private function portableMediaAssets(): array
+    private function portableMediaAssets(array $documents): array
     {
         $assets = array_map(
             static fn (string $path): string => basename($path),
@@ -209,7 +212,7 @@ class MailDocumentEditor extends Component
         );
         sort($assets, SORT_NATURAL | SORT_FLAG_CASE);
 
-        return array_values(array_filter(array_map(static function (string $asset): ?array {
+        $portable = array_values(array_filter(array_map(static function (string $asset): ?array {
             $path = public_path('mail-assets/'.$asset);
             if (! is_file($path)) {
                 return null;
@@ -233,7 +236,67 @@ class MailDocumentEditor extends Component
                 'sha256' => hash_file('sha256', $path),
                 'width' => (int) ($dimensions[0] ?? 0),
                 'height' => (int) ($dimensions[1] ?? 0),
+                'required' => true,
             ];
         }, $assets)));
+
+        // Bereits importierte Inhaltsbilder liegen absichtlich nicht im
+        // Markenbestand. Sie muessen bei jedem spaeteren Re-Export erneut
+        // mitkommen, sonst waere ein einmal transportierter Entwurf nicht
+        // mehr vollstaendig portabel. Eingesammelt werden nur Dateien, die
+        // in einem der beiden aktuellen Dokumente tatsaechlich vorkommen.
+        $source = html_entity_decode(implode("\n", array_map(
+            static fn (MailDocument $document): string => (string) $document->html."\n".(string) $document->css,
+            $documents,
+        )), ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
+        preg_match_all(
+            '~/storage/mail-imports/([a-f0-9]{64}\.(?:gif|png|jpe?g|webp))(?:\?[^\s"\'()<>]*)?~i',
+            $source,
+            $matches,
+        );
+
+        $disk = Storage::disk('public');
+        foreach (array_values(array_unique(array_map('strtolower', $matches[1] ?? []))) as $filename) {
+            $storagePath = 'mail-imports/'.$filename;
+            if (! $disk->exists($storagePath)) {
+                continue;
+            }
+
+            try {
+                $path = $disk->path($storagePath);
+            } catch (Throwable) {
+                continue;
+            }
+            if (! is_file($path)) {
+                continue;
+            }
+
+            $extension = strtolower((string) pathinfo($filename, PATHINFO_EXTENSION));
+            $mime = match ($extension) {
+                'gif' => 'image/gif',
+                'jpg', 'jpeg' => 'image/jpeg',
+                'webp' => 'image/webp',
+                default => 'image/png',
+            };
+            $dimensions = @getimagesize($path);
+            $portable[] = [
+                'id' => $storagePath,
+                'name' => 'Importiertes Mailmedium '.substr($filename, 0, 12),
+                'source' => URL::to($disk->url($storagePath)),
+                'mime_type' => $mime,
+                'bytes' => (int) filesize($path),
+                'sha256' => hash_file('sha256', $path),
+                'width' => (int) ($dimensions[0] ?? 0),
+                'height' => (int) ($dimensions[1] ?? 0),
+                'required' => false,
+            ];
+        }
+
+        usort($portable, static fn (array $left, array $right): int => strnatcasecmp(
+            (string) $left['id'],
+            (string) $right['id'],
+        ));
+
+        return $portable;
     }
 }

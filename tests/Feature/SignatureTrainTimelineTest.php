@@ -318,8 +318,8 @@ class SignatureTrainTimelineTest extends TestCase
             $isolatedMarkRaster .= "\n";
         }
         $approvedMarkRasterHash = str_contains($filename, 'dark')
-            ? '52d32c77c735ba2e3be44740acbb9c02f884b81847cf68db27aedd7deae12332'
-            : 'a123018034e077b3f40f9e87c4c3853921b84c7a29558064105af5fbd58d2905';
+            ? '2e2e255bd1e628bb871aef36159b84b7616c7b668e6f92a971ba0b4ca36834dd'
+            : 'cb9bcf36dada3628a3628c8b31e72b39c13affba72992350acda21ac9e171883';
         $this->assertSame(
             $approvedMarkRasterHash,
             hash('sha256', $isolatedMarkRaster),

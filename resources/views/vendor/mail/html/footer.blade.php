@@ -7,8 +7,9 @@
 
     Systemmails haben keinen menschlichen Absender: MailSignature::forCompany()
     setzt Firmenname und Claim an die Stelle von Name und Funktion und zeigt
-    die Firmenanschluesse. Einfahrt, Rauchphase und Schlussbild laufen als
-    ein kombiniertes GIF hinter den Daten. Classic Outlook bekommt wegen
+    die Firmenanschluesse. Einfahrt und Schlussbild laufen im einmaligen
+    Haupt-GIF hinter den Daten; nach 13 Sekunden uebernimmt nur eine kleine
+    transparente Idle-Rauchschleife im selben Layer. Classic Outlook bekommt wegen
     seiner Word-Engine stattdessen genau ein bedingtes PNG-Standbild in einer
     normalen Tabellenzeile.
 

@@ -147,17 +147,17 @@ class EmailHtmlSanitizerTest extends TestCase
         $this->assertStringContainsString('@media', $css);
         $this->assertStringContainsString('tr.rt-stack > td', $css);
         $this->assertStringContainsString('RT_SERVER_SIGNATURE_RUNTIME_START', $css);
-        $this->assertStringNotContainsString('@keyframes rt-train-idle-reveal', $css);
-        $this->assertStringNotContainsString('.rt-train-idle-overlay', $css);
+        $this->assertStringContainsString('@keyframes rt-train-idle-reveal', $css);
+        $this->assertStringContainsString('.rt-train-idle-overlay', $css);
         $this->assertStringNotContainsString('.rt-train-idle-surface', $css);
-        $this->assertStringNotContainsString('animation-delay: 13s;', $css);
+        $this->assertStringContainsString('animation-delay: 13s;', $css);
         $this->assertStringNotContainsString('.rt-train-main-image', $css);
         $this->assertStringNotContainsString('.rt-train-main-layer', $css);
         $this->assertStringNotContainsString('.rt-train-idle-image', $css);
         $this->assertStringNotContainsString('.rt-train-idle-runtime-layer', $css);
 
-        // Ohne Keyframes und absolute Idle-Ebene darf der komplette
-        // serverkontrollierte Stilbogen unveraendert durch den Sanitizer.
+        // Der serverkontrollierte Keyframe-Block darf unveraendert durch den
+        // Sanitizer; frei editierbares CSS bleibt davon strikt getrennt.
         $document = "<!doctype html>\n<html lang=\"de\">\n<head>\n<style>\n{$css}\n</style>\n</head>\n<body><p>x</p></body>\n</html>";
 
         $report = $this->sanitizer()->clean($document);

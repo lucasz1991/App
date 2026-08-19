@@ -843,6 +843,7 @@
                                 mime_type: mimeType,
                                 bytes,
                                 sha256: digest,
+                                required: Boolean(asset?.required),
                             };
                         });
                     };
@@ -936,6 +937,9 @@
                             throw new Error('Dem Bundle fehlt der vollständige Medienbestand.');
                         }
 
+                        const catalog = portableMediaCatalog();
+                        const knownIds = new Set(catalog.map((asset) => asset.id));
+                        const requiredIds = catalog.filter((asset) => asset.required).map((asset) => asset.id);
                         const seenIds = new Set();
                         const seenSources = new Set();
                         let totalBytes = 0;
@@ -947,9 +951,17 @@
                             const mimeType = String(entry?.mime_type || '').toLowerCase();
                             const declaredBytes = Number(entry?.bytes || 0);
                             const declaredHash = String(entry?.sha256 || '').toLowerCase();
+                            const importedId = id.match(/^mail-imports\/([a-f0-9]{64})\.(gif|png|jpg|webp)$/i);
+                            const expectedExtension = {
+                                'image/gif': 'gif',
+                                'image/png': 'png',
+                                'image/jpeg': 'jpg',
+                                'image/webp': 'webp',
+                            }[mimeType];
                             if (!id
                                 || !name
                                 || seenIds.has(id)
+                                || (!knownIds.has(id) && !importedId)
                                 || !sourceUrl
                                 || seenSources.has(sourceUrl)
                                 || !/^(?:https?:\/\/|\/)/i.test(sourceUrl)
@@ -958,7 +970,9 @@
                                 || !Number.isInteger(declaredBytes)
                                 || declaredBytes < 1
                                 || declaredBytes > MAX_MEDIA_BYTES
-                                || !/^[a-f0-9]{64}$/.test(declaredHash)) {
+                                || !/^[a-f0-9]{64}$/.test(declaredHash)
+                                || (importedId && (importedId[1].toLowerCase() !== declaredHash
+                                    || importedId[2].toLowerCase() !== expectedExtension))) {
                                 throw new Error('Das Bundle enthält einen ungültigen oder doppelten Medieneintrag.');
                             }
 
@@ -984,10 +998,7 @@
                             });
                         }
 
-                        const expectedIds = portableMediaCatalog().map((asset) => asset.id).sort();
-                        const importedIds = Array.from(seenIds).sort();
-                        if (expectedIds.length !== importedIds.length
-                            || expectedIds.some((id, index) => id !== importedIds[index])) {
+                        if (requiredIds.some((id) => !seenIds.has(id))) {
                             throw new Error('Das Bundle enthält nicht den vollständigen Medienbestand dieses Dokuments.');
                         }
 

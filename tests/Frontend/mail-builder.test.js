@@ -1154,8 +1154,10 @@ test('shared page builder opens from preview into a compact responsive Mail Stud
     assert.match(mailView, /format: MAIL_SOURCE_FORMAT,[\s\S]*?version: MAIL_SOURCE_VERSION,[\s\S]*?kind: config\.currentDocument,[\s\S]*?html: source\.html,[\s\S]*?css: source\.css,[\s\S]*?media: await exportPortableMedia\(\)/);
     assert.match(mailView, /crypto\.subtle\.digest\('SHA-256'/);
     assert.match(mailView, /portable_media: portableMedia/);
+    assert.match(mailView, /requiredIds\.some\(\(id\) => !seenIds\.has\(id\)\)/);
+    assert.match(mailView, /\^mail-imports\\\/\(\[a-f0-9\]\{64\}\)\\\.\(gif\|png\|jpg\|webp\)\$/);
     assert.match(mailView, /Das Bundle enthält nicht den vollständigen Medienbestand dieses Dokuments/);
-    assert.match(mailView, /validateSourceOnServer\(source\)[\s\S]*?runtimeBridge\.projectFor[\s\S]*?editor\.loadProjectData[\s\S]*?saveCurrentDraft\(\)/);
+    assert.match(mailView, /validateSourceOnServer\(source, pendingPortableMedia\)[\s\S]*?runtimeBridge\.projectFor[\s\S]*?editor\.loadProjectData[\s\S]*?saveCurrentDraft\(\)/);
     assert.match(mailView, /document_\.endpoints\?\.validate[\s\S]*?Es wurde nichts übernommen/);
     assert.match(mailView, /URL\.revokeObjectURL\(objectUrl\)/);
     assert.match(mailView, /await saveCurrentDraft\(\)[\s\S]*?endpoints\.publish/);

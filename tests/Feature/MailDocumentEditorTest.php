@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\MailDocumentKind;
 use App\Enums\MailDocumentStatus;
 use App\Http\Controllers\Admin\MailDocumentController;
+use App\Livewire\Admin\MailDocumentEditor;
 use App\Models\MailDocument;
 use App\Models\User;
 use App\Models\UserProfile;
@@ -22,6 +23,7 @@ use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -428,11 +430,11 @@ class MailDocumentEditorTest extends TestCase
             '/class="rt-sign-train-mso"[^>]*>\s*<img\b[^>]*zug-dampf-light\.png[^>]*width="720"[^>]*max-width:720px[^>]*>/i',
             $html,
         );
-        $this->assertStringNotContainsString('zug-dampf-idle-light.gif', $html);
-        $this->assertStringNotContainsString('data-rt-train-idle-overlay', $html);
-        $this->assertStringNotContainsString('data-rt-train-idle-image', $html);
+        $this->assertStringContainsString('zug-dampf-idle-light.gif', $html);
+        $this->assertStringContainsString('data-rt-train-idle-overlay', $html);
+        $this->assertStringContainsString('data-rt-train-idle-image', $html);
         $this->assertStringNotContainsString('animation-delay: 13s;', $html);
-        $this->assertStringNotContainsString('rt-train-idle-reveal', $html);
+        $this->assertStringContainsString('rt-train-idle-reveal', $html);
         $this->assertStringContainsString('rgba(255,255,255,0)', $html);
         $this->assertStringNotContainsString('rgba(255,255,255,.30)', $html);
         $this->assertSame(
@@ -721,15 +723,15 @@ class MailDocumentEditorTest extends TestCase
         // wird genau einmal modern ausgegeben, plus genau ein MSO-Still.
         $this->assertSame(1, substr_count($html, 'zug-dampf-light.gif'));
         $this->assertSame(1, substr_count($html, 'zug-dampf-light.png'));
-        $this->assertStringNotContainsString('zug-dampf-idle-light.gif', $html);
+        $this->assertStringContainsString('zug-dampf-idle-light.gif', $html);
         $this->assertSame(1, substr_count($html, 'class="rt-sign-stage"'));
         $this->assertSame(1, substr_count($html, 'class="rt-sign-train"'));
         $this->assertSame(1, substr_count($html, 'class="rt-sign-train-mso"'));
         $this->assertStringContainsString('<!--[if mso]><tr><td class="rt-sign-train-mso" width="100%"', $html);
-        $this->assertStringNotContainsString('data-rt-train-idle-overlay', $html);
+        $this->assertStringContainsString('data-rt-train-idle-overlay', $html);
         $this->assertStringNotContainsString('data-rt-train-main-image', $html);
         $this->assertStringNotContainsString('data-rt-train-main-layer', $html);
-        $this->assertStringNotContainsString('data-rt-train-idle-image', $html);
+        $this->assertStringContainsString('data-rt-train-idle-image', $html);
         $this->assertStringNotContainsString('zug-dampf-idle-light.gif', $carrier[0]);
         $this->assertStringNotContainsString('zug-dampf-light.gif', $carrier[0]);
         $this->assertStringContainsString(
@@ -1134,14 +1136,16 @@ HTML;
         $this->assertLessThan(stripos($standalone, '</head>'), stripos($standalone, 'data-rt-mail-document-css="signature"'));
 
         // Vorlage, eigenstaendige Signatur und Systemmail verwenden denselben
-        // Schema-13-Pfad: absolutes Haupt-GIF plus genau ein MSO-Still.
+        // Schema-14-Pfad: absolutes Haupt-GIF, eine transparente
+        // Idle-Rauchschleife plus genau ein MSO-Still.
         foreach ([
             'Vorlage' => $template,
             'Signatur' => $standalone,
             'Systemmail' => $systemMail,
         ] as $channel => $rendered) {
-            $this->assertStringNotContainsString('data-rt-train-idle', $rendered, $channel);
-            $this->assertStringNotContainsString('zug-dampf-idle-', $rendered, $channel);
+            $this->assertStringContainsString('data-rt-train-idle-overlay', $rendered, $channel);
+            $this->assertStringContainsString('data-rt-train-idle-image', $rendered, $channel);
+            $this->assertStringContainsString('zug-dampf-idle-', $rendered, $channel);
             $this->assertSame(
                 1,
                 preg_match(
@@ -1166,10 +1170,10 @@ HTML;
         $this->assertStringContainsString('.rt-sign-name{letter-spacing:0;}', $systemMail);
         $this->assertStringContainsString('RT-SIGNATUR', $systemMail);
         $this->assertStringNotContainsString('data-rt-outlook-train', $systemMail);
-        $this->assertStringNotContainsString('data-rt-train-idle-overlay', $systemMail);
+        $this->assertStringContainsString('data-rt-train-idle-overlay', $systemMail);
         $this->assertStringNotContainsString('data-rt-train-main-image', $systemMail);
         $this->assertStringNotContainsString('data-rt-train-main-layer', $systemMail);
-        $this->assertStringNotContainsString('data-rt-train-idle-image', $systemMail);
+        $this->assertStringContainsString('data-rt-train-idle-image', $systemMail);
         $this->assertSame(1, substr_count($systemMail, 'zug-dampf-light.gif'));
         $this->assertSame(1, preg_match_all('/<img\b[^>]*zug-dampf-light\.gif[^>]*>/i', $systemMail));
         $this->assertSame(0, substr_count($systemMail, 'rt-classic-outlook-train'));
@@ -1419,6 +1423,7 @@ HTML;
             $this->assertSame(filesize($path), $asset['bytes'] ?? null);
             $this->assertSame(hash_file('sha256', $path), $asset['sha256'] ?? null);
             $this->assertStringContainsString('/mail-assets/', (string) ($asset['source'] ?? ''));
+            $this->assertTrue($asset['required'] ?? false);
         }
 
         foreach (['template', 'signature'] as $kind) {
@@ -1489,6 +1494,19 @@ HTML;
         $store->invoke($controller, $files);
         Storage::disk('public')->assertExists($expectedPath);
         $this->assertSame($binary, Storage::disk('public')->get($expectedPath));
+
+        $document = new MailDocument;
+        $document->forceFill([
+            'html' => '<img src="'.URL::to(Storage::disk('public')->url($expectedPath)).'" alt="">',
+            'css' => '',
+        ]);
+        $editor = (new \ReflectionClass(MailDocumentEditor::class))->newInstanceWithoutConstructor();
+        $catalog = new \ReflectionMethod($editor, 'portableMediaAssets');
+        $portable = $catalog->invoke($editor, ['signature' => $document]);
+        $imported = collect($portable)->firstWhere('id', $expectedPath);
+        $this->assertIsArray($imported);
+        $this->assertFalse($imported['required'] ?? true);
+        $this->assertSame($entry['sha256'], $imported['sha256'] ?? null);
 
         $entry['sha256'] = str_repeat('0', 64);
         $this->expectException(ValidationException::class);
@@ -2809,9 +2827,10 @@ HTML;
             $carrier[0],
         );
         $this->assertStringNotContainsString(',75% bottom;', $carrier[0]);
-        $this->assertStringNotContainsString('data-rt-train-idle', $html);
-        $this->assertStringNotContainsString('zug-dampf-idle-', $html);
-        $this->assertStringNotContainsString('@keyframes rt-train-idle-reveal', $html);
+        $this->assertStringContainsString('data-rt-train-idle-overlay', $html);
+        $this->assertStringContainsString('data-rt-train-idle-image', $html);
+        $this->assertStringContainsString('zug-dampf-idle-', $html);
+        $this->assertStringContainsString('@keyframes rt-train-idle-reveal', $html);
     }
 
     public function test_legacy_published_css_mit_important_bricht_runtime_fail_closed_ab(): void

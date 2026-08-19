@@ -118,14 +118,24 @@ final class MailDocumentController extends Controller
                 ]);
             }
 
+            $id = trim((string) ($entry['id'] ?? ''));
             $source = trim((string) ($entry['source'] ?? ''));
             $mime = strtolower(trim((string) ($entry['mime_type'] ?? '')));
             $sha256 = strtolower(trim((string) ($entry['sha256'] ?? '')));
             $declaredBytes = (int) ($entry['bytes'] ?? 0);
             $encoded = (string) ($entry['data'] ?? '');
             $scheme = strtolower((string) parse_url($source, PHP_URL_SCHEME));
+            $isSystemAsset = basename($id) === $id
+                && preg_match('/^[A-Za-z0-9._-]+\.(?:gif|png|jpe?g|webp)$/i', $id) === 1
+                && is_file(public_path('mail-assets/'.$id));
+            $isImportedAsset = preg_match(
+                '~^mail-imports/([a-f0-9]{64})\.(gif|png|jpg|webp)$~i',
+                $id,
+                $importedId,
+            ) === 1;
 
-            if ($source === ''
+            if ((! $isSystemAsset && ! $isImportedAsset)
+                || $source === ''
                 || (! str_starts_with($source, '/') && ! in_array($scheme, ['http', 'https'], true))
                 || str_contains($source, '{{')
                 || isset($sources[$source])
@@ -146,6 +156,16 @@ final class MailDocumentController extends Controller
                 throw ValidationException::withMessages([
                     'portable_media.'.$index => 'Groesse oder SHA-256 des Mediums stimmt nicht.',
                 ]);
+            }
+
+            if ($isImportedAsset) {
+                $expectedExtension = $extensions[$mime];
+                if (! hash_equals(strtolower((string) $importedId[1]), $sha256)
+                    || strtolower((string) $importedId[2]) !== $expectedExtension) {
+                    throw ValidationException::withMessages([
+                        'portable_media.'.$index => 'Kennung, Dateityp und SHA-256 des importierten Mediums stimmen nicht ueberein.',
+                    ]);
+                }
             }
 
             set_error_handler(static fn (): bool => true);

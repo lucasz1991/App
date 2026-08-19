@@ -244,7 +244,9 @@ class PageBuilderPreviewTest extends TestCase
             'background-repeat:repeat,no-repeat,no-repeat;',
             $animatedCarrier[0],
         );
-        $this->assertStringNotContainsString('data-rt-train-idle', $animatedHtml);
+        $this->assertStringContainsString('data-rt-train-idle-overlay', $animatedHtml);
+        $this->assertStringContainsString('data-rt-train-idle-image', $animatedHtml);
+        $this->assertStringContainsString('@keyframes rt-train-idle-reveal', $animatedHtml);
         $this->assertNotSame($animatedHtml, (string) $animatedB->getContent());
         preg_match_all('/data:image\/gif;base64,([A-Za-z0-9+\/=]+)/', $animatedHtml, $gifMatches);
         $this->assertGreaterThanOrEqual(3, count(array_unique($gifMatches[1] ?? [])));
