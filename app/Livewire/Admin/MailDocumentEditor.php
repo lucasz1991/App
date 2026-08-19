@@ -116,6 +116,8 @@ class MailDocumentEditor extends Component
                     'type' => 'image',
                     'mime_type' => 'image/png',
                     'animated' => false,
+                    'width' => 44,
+                    'height' => 44,
                     'category' => 'Kontakt',
                 ];
             }
@@ -141,6 +143,7 @@ class MailDocumentEditor extends Component
                 'hasUnpublishedChanges' => $document->hasUnpublishedChanges(),
                 'endpoints' => [
                     'update' => route('admin.mail-documents.update', $document),
+                    'validate' => route('admin.mail-documents.validate-code', $document),
                     'publish' => route('admin.mail-documents.publish', $document),
                 ],
             ];

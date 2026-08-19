@@ -1058,6 +1058,15 @@ test('shared page builder opens from preview into a compact responsive Mail Stud
     assert.match(mailView, /data-mail-studio-toolbar/);
     assert.match(mailView, /data-mail-document-save/);
     assert.match(mailView, /data-mail-document-publish/);
+    assert.match(mailView, /data-mail-code-open/);
+    assert.match(mailView, /data-mail-code-export/);
+    assert.match(mailView, /data-mail-code-import/);
+    assert.match(mailView, /data-mail-code-dialog/);
+    assert.match(mailView, /const MAX_IMPORT_BYTES = 1024 \* 1024/);
+    assert.match(mailView, /format: MAIL_SOURCE_FORMAT,[\s\S]*?version: MAIL_SOURCE_VERSION,[\s\S]*?kind: config\.currentDocument,[\s\S]*?html: source\.html,[\s\S]*?css: source\.css/);
+    assert.match(mailView, /validateSourceOnServer\(source\)[\s\S]*?runtimeBridge\.projectFor[\s\S]*?editor\.loadProjectData[\s\S]*?saveCurrentDraft\(\)/);
+    assert.match(mailView, /document_\.endpoints\?\.validate[\s\S]*?Es wurde nichts übernommen/);
+    assert.match(mailView, /URL\.revokeObjectURL\(objectUrl\)/);
     assert.match(mailView, /await saveCurrentDraft\(\)[\s\S]*?endpoints\.publish/);
     assert.match(mailView, /let lastEditorSaveError = null/);
     assert.match(mailView, /onSave:\s*async[\s\S]*?lastEditorSaveError = normalizeError[\s\S]*?throw lastEditorSaveError/);
@@ -1070,6 +1079,8 @@ test('shared page builder opens from preview into a compact responsive Mail Stud
     assert.doesNotMatch(mailView, /class="rt-mail-preview-toolbar"/);
 
     assert.match(mailCss, /\.rt-mail-studio\s*\{[\s\S]*?overflow:\s*hidden;/);
+    assert.match(mailCss, /\.rt-mail-code-dialog\s*\{/);
+    assert.match(mailCss, /\.rt-mail-code-dialog::backdrop/);
     assert.doesNotMatch(mailCss, /min-height:\s*42rem/);
     assert.match(shellCss, /font-family:\s*'Plus Jakarta Sans Variable'/);
     assert.match(shellCss, /html\[data-rt-pagebuilder-assist-open='true'\]/);

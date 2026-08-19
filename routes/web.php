@@ -254,6 +254,10 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
                 ->whereUuid('document')
                 ->middleware('throttle:120,1')
                 ->name('mail-documents.update');
+            Route::post('/mail-vorlagen/{document}/code-pruefen', [MailDocumentController::class, 'validateCode'])
+                ->whereUuid('document')
+                ->middleware('throttle:60,1')
+                ->name('mail-documents.validate-code');
             Route::post('/mail-vorlagen/{document}/veroeffentlichen', [MailDocumentController::class, 'publish'])
                 ->whereUuid('document')
                 ->middleware('throttle:30,1')

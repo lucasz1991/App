@@ -377,7 +377,7 @@ body[data-mode='dark'] .rt-mail-builder-root {
     height: 100%;
     min-width: 0;
     min-height: 0;
-    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
 }
 
 .rt-mail-code-dialog__header,
@@ -470,6 +470,22 @@ body[data-mode='dark'] .rt-mail-builder-root {
 
 .rt-mail-code-dialog__notice p {
     margin: 0;
+}
+
+.rt-mail-code-dialog__error {
+    margin: 0.625rem 1.125rem 0;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid rgb(254 205 211);
+    border-radius: 0.7rem;
+    background: rgb(255 241 242);
+    color: rgb(159 18 57);
+    font-size: 0.75rem;
+    font-weight: 650;
+    line-height: 1.5;
+}
+
+.rt-mail-code-dialog__error[hidden] {
+    display: none;
 }
 
 .rt-mail-code-dialog__editors {
@@ -576,6 +592,13 @@ body[data-mode='dark'] .rt-mail-code-dialog__notice {
     border-color: rgb(14 116 144 / 0.55);
     background: rgb(8 47 73 / 0.42);
     color: rgb(186 230 253);
+}
+
+.dark .rt-mail-code-dialog__error,
+body[data-mode='dark'] .rt-mail-code-dialog__error {
+    border-color: rgb(190 18 60 / 0.55);
+    background: rgb(76 5 25 / 0.42);
+    color: rgb(253 164 175);
 }
 
 .dark .rt-mail-code-dialog__field > span,
@@ -831,6 +854,10 @@ body[data-mode='dark'] [data-mail-document-status][data-status='published'][data
 
     .rt-mail-code-dialog__notice {
         margin: 0.625rem 0.75rem 0;
+    }
+
+    .rt-mail-code-dialog__error {
+        margin: 0.5rem 0.75rem 0;
     }
 
     .rt-mail-code-dialog__editors {

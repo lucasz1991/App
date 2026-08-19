@@ -247,6 +247,8 @@
                     </p>
                 </div>
 
+                <p class="rt-mail-code-dialog__error" data-mail-code-error role="alert" hidden></p>
+
                 <div class="rt-mail-code-dialog__editors">
                     <label class="rt-mail-code-dialog__field">
                         <span>HTML</span>
@@ -291,7 +293,7 @@
                             class="min-h-11 rounded-lg px-4"
                             data-mail-code-apply
                         >
-                            <i data-feather="shield-check" class="h-4 w-4" aria-hidden="true"></i>
+                            <i data-feather="check-circle" class="h-4 w-4" aria-hidden="true"></i>
                             <span>Prüfen &amp; als Entwurf speichern</span>
                         </x-ui.buttons.button-basic>
                     </div>
@@ -372,7 +374,9 @@
                     const codeCss = studioRoot.querySelector('[data-mail-code-css]');
                     const codeOrigin = studioRoot.querySelector('[data-mail-code-origin]');
                     const codeSize = studioRoot.querySelector('[data-mail-code-size]');
+                    const codeError = studioRoot.querySelector('[data-mail-code-error]');
                     const codeApplyButton = studioRoot.querySelector('[data-mail-code-apply]');
+                    const codeCancelButtons = Array.from(studioRoot.querySelectorAll('[data-mail-code-dialog] button[type="submit"]'));
 
                     if (!document_) {
                         return;
@@ -407,6 +411,7 @@
                             exportButton,
                             importButton,
                             codeApplyButton,
+                            ...codeCancelButtons,
                         ].forEach((button) => {
                             if (!button) return;
 
@@ -748,6 +753,14 @@
                         codeSize.dataset.overLimit = String(bytes > MAX_IMPORT_BYTES);
                     };
 
+                    const setCodeError = (message = '') => {
+                        if (!codeError) return;
+
+                        const visibleMessage = String(message || '').trim();
+                        codeError.textContent = visibleMessage;
+                        codeError.hidden = visibleMessage === '';
+                    };
+
                     const openCodeDialog = (source, origin, opener) => {
                         if (!codeDialog?.showModal || !codeHtml || !codeCss) {
                             throw new Error('Die Codeansicht wird von diesem Browser nicht unterstützt.');
@@ -757,6 +770,7 @@
                         codeCss.value = source.css;
                         if (codeOrigin) codeOrigin.textContent = origin;
                         codeDialogOpener = opener || window.document.activeElement;
+                        setCodeError();
                         updateCodeSize();
                         if (!codeDialog.open) codeDialog.showModal();
                         window.requestAnimationFrame(() => codeHtml.focus());
@@ -1029,14 +1043,10 @@
                             toast('success', message, 'Import abgeschlossen');
                             codeDialog?.close('saved');
                         } catch (error) {
-                            activeBaselineHtml = previousBaselineHtml;
+                            activeBaselineHtml = String(document_.html || previousBaselineHtml);
 
                             if (editorWasReplaced) {
                                 try {
-                                    await editor.loadProjectData(previousProject);
-                                    selectTheme(selectedTheme);
-                                    selectDevice(selectedDevice);
-                                } catch (_) {
                                     await runtimeBridge.rehydrateAuthoritative({
                                         editor,
                                         draft: document_,
@@ -1044,6 +1054,15 @@
                                         parseCss: (canonicalCss) => editor.Parser?.parseCss?.(canonicalCss) || [],
                                         projectOptions: { kind: config.currentDocument, environment: window },
                                     });
+                                    selectTheme(selectedTheme);
+                                    selectDevice(selectedDevice);
+                                    if (error instanceof Error) {
+                                        error.message = `${error.message} Der zuletzt gespeicherte Serverentwurf wurde wiederhergestellt.`;
+                                    }
+                                } catch (_) {
+                                    await editor.loadProjectData(previousProject);
+                                    selectTheme(selectedTheme);
+                                    selectDevice(selectedDevice);
                                 }
                             }
 
@@ -1122,7 +1141,10 @@
                     }, { signal: controlListeners.signal });
 
                     [codeHtml, codeCss].forEach((field) => {
-                        field?.addEventListener('input', updateCodeSize, { signal: controlListeners.signal });
+                        field?.addEventListener('input', () => {
+                            setCodeError();
+                            updateCodeSize();
+                        }, { signal: controlListeners.signal });
                     });
 
                     codeDialog?.addEventListener('close', () => {
@@ -1131,15 +1153,23 @@
                         if (!destroyed && opener?.isConnected) opener.focus();
                     }, { signal: controlListeners.signal });
 
+                    codeDialog?.addEventListener('cancel', (event) => {
+                        if (codeApplyButton?.getAttribute('aria-busy') === 'true') {
+                            event.preventDefault();
+                        }
+                    }, { signal: controlListeners.signal });
+
                     codeApplyButton?.addEventListener('click', async () => {
                         setActionsBusy(true);
                         if (codeHtml) codeHtml.readOnly = true;
                         if (codeCss) codeCss.readOnly = true;
 
                         try {
+                            setCodeError();
                             await applyCodeAsDraft();
                         } catch (error) {
                             const surfaced = showRequestError(error, 'Code konnte nicht übernommen werden');
+                            setCodeError(surfaced.message);
                             toast('error', surfaced.message, 'Nicht gespeichert');
                         } finally {
                             if (codeHtml) codeHtml.readOnly = false;

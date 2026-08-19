@@ -1334,6 +1334,17 @@ HTML;
             $this->assertSame('image', $asset['type'] ?? null);
             $this->assertStringContainsString('/mail-assets/', (string) ($asset['src'] ?? ''));
             $this->assertStringNotContainsString('/administrator/', (string) ($asset['src'] ?? ''));
+            $this->assertIsInt($asset['width'] ?? null);
+            $this->assertGreaterThan(0, $asset['width']);
+            $this->assertIsInt($asset['height'] ?? null);
+            $this->assertGreaterThan(0, $asset['height']);
+        }
+
+        foreach (['template', 'signature'] as $kind) {
+            $this->assertSame(
+                route('admin.mail-documents.validate-code', $kind === 'template' ? $template : $signature),
+                data_get($config, "documents.{$kind}.endpoints.validate"),
+            );
         }
 
         $this->assertStringContainsString(

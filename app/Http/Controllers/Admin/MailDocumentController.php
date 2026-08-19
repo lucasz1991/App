@@ -34,6 +34,57 @@ use Illuminate\Validation\ValidationException;
  */
 final class MailDocumentController extends Controller
 {
+    /**
+     * Prueft importierten HTML-/CSS-Code mit exakt denselben Vertraegen wie
+     * ein Save, schreibt aber kein einziges Feld. Erst diese autoritative
+     * Antwort darf der Editor in seine Leinwand laden.
+     */
+    public function validateCode(
+        SaveMailDocumentRequest $request,
+        MailDocument $document,
+        EmailHtmlSanitizer $sanitizer,
+    ): JsonResponse {
+        $this->mailAdmin($request);
+        $validated = $request->validated();
+
+        if (! $document->matchesContentHash((string) $validated['expected_hash'])) {
+            throw ValidationException::withMessages([
+                'expected_hash' => 'Das Dokument wurde zwischenzeitlich geändert. Bitte lade die Seite vor dem Codeimport neu.',
+            ]);
+        }
+
+        $html = (string) $validated['html'];
+        $css = (string) $validated['css'];
+        $this->assertEditableCssSource($css);
+        $this->assertDocumentStructure($document, $html, $css);
+        $htmlReport = $sanitizer->assertClean($html);
+        $cssReport = $this->cleanStyleSheet($sanitizer, $css);
+        if ($cssReport->hasViolations()) {
+            throw ValidationException::withMessages([
+                'css' => array_merge(
+                    ['Die Stilregeln enthalten Syntax, die in E-Mails nicht erlaubt ist.'],
+                    $cssReport->violationMessages(),
+                ),
+            ]);
+        }
+        $this->assertDocumentStructure($document, $htmlReport->html, $cssReport->html);
+        $builderData = $this->syncBuilderData(
+            $document,
+            $validated['builder_data'],
+            $htmlReport->html,
+        );
+
+        $candidate = $this->payload($document);
+        $candidate['builder_data'] = $builderData;
+        $candidate['html'] = $htmlReport->html;
+        $candidate['css'] = $cssReport->html;
+
+        return response()->json([
+            'document' => $candidate,
+            'report' => $this->reportPayload($htmlReport, $cssReport),
+        ]);
+    }
+
     public function update(
         SaveMailDocumentRequest $request,
         MailDocument $document,
