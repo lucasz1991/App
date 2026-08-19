@@ -74,9 +74,32 @@ class PageBuilderPreviewTest extends TestCase
         $this->assertStringContainsString('data-page-builder-preview-loading', $html);
         $this->assertStringContainsString('src="about:blank"', $html);
         $this->assertStringContainsString('x-bind:src="activeUrl"', $html);
+        $this->assertStringContainsString('x-on:load="frameLoaded($event)"', $html);
+        $this->assertStringContainsString(
+            'x-bind:class="!frameReady ? &#039;opacity-0&#039; : &#039;opacity-100&#039;"',
+            $html,
+        );
+        $this->assertStringNotContainsString('x-on:load="@js(', $html);
+        $this->assertStringNotContainsString('x-bind:class="@js(', $html);
         $this->assertStringContainsString("url.searchParams.set('play', String(this.playbackId))", $html);
         $this->assertStringContainsString("url.searchParams.set('static', '1')", $html);
         $this->assertStringContainsString("window.matchMedia('(prefers-reduced-motion: reduce)')", $html);
+
+        $mailHtml = Blade::render(
+            '<x-ui.page-builder.preview-card title="Mail" :sources="$sources" :replayable="true" :loading-overlay="false" edit-url="/editor" />',
+            ['sources' => ['light' => [
+                'label' => 'Hell',
+                'url' => '/preview?theme=light&animate=1',
+                'width' => 1024,
+                'height' => 820,
+            ]]],
+        );
+
+        $this->assertStringNotContainsString('data-page-builder-preview-loading', $mailHtml);
+        $this->assertStringNotContainsString('data-page-builder-preview-edit-link', $mailHtml);
+        $this->assertStringContainsString('x-on:load="void 0"', $mailHtml);
+        $this->assertStringContainsString('x-bind:class="&#039;opacity-100&#039;"', $mailHtml);
+        $this->assertStringNotContainsString('@js(', $mailHtml);
     }
 
     public function test_marketing_preview_is_admin_only_sandbox_ready_and_network_free(): void

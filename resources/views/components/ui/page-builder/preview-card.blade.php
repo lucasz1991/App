@@ -38,6 +38,15 @@
         'width' => 1200,
         'height' => 800,
     ];
+    // Blade-Direktiven innerhalb der Attribute einer verschachtelten
+    // Komponente werden nicht erneut kompiliert. Ein `@js(...)` an
+    // <x-ui.preview.frame> wuerde deshalb wortwoertlich im Browser landen und
+    // Alpine mit "illegal character U+0040" abbrechen. Nur bereits fertige,
+    // datenfreie Alpine-Ausdruecke an die Unterkomponente weiterreichen.
+    $frameLoadExpression = $loadingOverlay ? 'frameLoaded($event)' : 'void 0';
+    $frameClassExpression = $replayable && $loadingOverlay
+        ? "!frameReady ? 'opacity-0' : 'opacity-100'"
+        : "'opacity-100'";
 @endphp
 
 <x-ui.surface.card
@@ -217,11 +226,11 @@
                 <x-ui.preview.frame
                     :src="$replayable ? 'about:blank' : $initialSource['url']"
                     x-bind:src="activeUrl"
-                    x-on:load="@js((bool) $loadingOverlay) && frameLoaded($event)"
+                    x-on:load="{{ $frameLoadExpression }}"
                     :title="'Vorschau: '.$title.' – '.$initialSource['label']"
                     x-bind:title="titlePrefix + (active?.label || 'Vorschau')"
                     class="pointer-events-none absolute left-1/2 top-1/2 max-w-none origin-center shadow-xl transition-opacity duration-200 motion-reduce:transition-none"
-                    x-bind:class="@js((bool) ($replayable && $loadingOverlay)) && !frameReady ? 'opacity-0' : 'opacity-100'"
+                    x-bind:class="{{ $frameClassExpression }}"
                     x-bind:style="active ? `width:${active.width}px;height:${active.height}px;transform:translate(-50%,-50%) scale(${scale})` : ''"
                     style="width: {{ $initialSource['width'] }}px; height: {{ $initialSource['height'] }}px; transform: translate(-50%, -50%) scale(.2);"
                     data-page-builder-preview-frame

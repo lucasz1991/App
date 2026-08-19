@@ -734,6 +734,8 @@ test('protected mail layers keep the regular train image visible and structural'
 
 test('train layer editor maps size desktop and mobile presets to mail-safe geometry', () => {
     const state = { left: '0', right: 'auto', margin: '0' };
+    const layerStyleOptions = [];
+    const imageStyleOptions = [];
     const attributes = {
         class: 'rt-sign-train-layer',
         'data-rt-layer-train': '',
@@ -751,12 +753,18 @@ test('train layer editor maps size desktop and mobile presets to mail-safe geome
         getAttributes: () => imageAttributes,
         getStyle: () => imageState,
         addAttributes: (next) => Object.assign(imageAttributes, next),
-        setStyle: (next) => Object.assign(imageState, next),
+        setStyle: (next, options) => {
+            imageStyleOptions.push(options);
+            Object.assign(imageState, next);
+        },
     };
     const component = {
         getAttributes: () => attributes,
         getStyle: () => state,
-        setStyle: (next) => Object.assign(state, next),
+        setStyle: (next, options) => {
+            layerStyleOptions.push(options);
+            Object.assign(state, next);
+        },
         components: () => ({ models: [image] }),
     };
 
@@ -792,6 +800,11 @@ test('train layer editor maps size desktop and mobile presets to mail-safe geome
     assert.equal(attributes['data-rt-layer-align'], 'left');
     assert.equal(attributes['data-rt-layer-mobile'], 'train');
     assert.equal(imageAttributes.width, '720');
+    assert.equal(layerStyleOptions.length > 0, true);
+    assert.equal(imageStyleOptions.length > 0, true);
+    [...layerStyleOptions, ...imageStyleOptions].forEach((options) => {
+        assert.deepEqual(options, { silent: true });
+    });
 });
 
 test('mail editor no longer offers misleading train background controls', () => {

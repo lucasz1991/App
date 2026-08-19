@@ -1839,7 +1839,7 @@ export function synchronizeMailTrainLayerAlignment(component) {
             width: size.width,
             'max-width': size.maxWidth,
             margin: '0',
-        });
+        }, { silent: true });
     }
 
     const children = component?.components?.();
@@ -1863,7 +1863,7 @@ export function synchronizeMailTrainLayerAlignment(component) {
             } else {
                 imageAttributes.width = '720';
             }
-            image.setStyle?.({ ...imageStyle, 'max-width': size.maxWidth });
+            image.setStyle?.({ ...imageStyle, 'max-width': size.maxWidth }, { silent: true });
         }
     }
 
