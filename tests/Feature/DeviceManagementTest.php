@@ -106,6 +106,51 @@ class DeviceManagementTest extends TestCase
         $this->actingAs($admin)->get(route('admin.devices'))->assertOk()->assertSee('Geräteverwaltung');
     }
 
+    public function test_manual_capture_and_csv_import_share_one_managed_modal(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'status' => true]);
+        $csv = implode("\n", [
+            'Inventarnummer;Seriennummer;Gerätename;Hostname;Plattform;Gerätetyp;Eigentum;Hersteller;Modell;Betriebssystem;Standort;Mitarbeiter_E-Mail',
+            'RT-MODAL-001;;Modal Notebook;RT-MODAL-NB-1;windows;laptop;corporate;Dell;Latitude;Windows 11;Hamburg;',
+        ]);
+
+        $component = Livewire::actingAs($admin)
+            ->test(DeviceManagement::class)
+            ->assertSeeHtml('id="device-capture-modal"')
+            ->assertSee('Einzelgerät')
+            ->assertSee('CSV-Bestand')
+            ->assertSet('showCreateForm', false)
+            ->assertSet('captureMode', 'manual')
+            ->call('openCreate')
+            ->assertSet('showCreateForm', true)
+            ->set('deviceForm.display_name', 'Gerät ohne Inventarkennung')
+            ->set('deviceForm.asset_tag', '')
+            ->set('deviceForm.serial_number', '')
+            ->call('createDevice')
+            ->assertHasErrors(['deviceForm.asset_tag'])
+            ->assertSet('showCreateForm', true)
+            ->call('setCaptureMode', 'import')
+            ->assertHasNoErrors()
+            ->assertSet('captureMode', 'import')
+            ->assertSee('Bestehende Geräteflotte importieren')
+            ->set('inventoryImport', UploadedFile::fake()->createWithContent('devices.csv', $csv))
+            ->call('importInventory')
+            ->assertHasNoErrors()
+            ->assertSet('showCreateForm', true)
+            ->assertSet('lastImportSummary.rows', 1)
+            ->assertSee('Import erfolgreich abgeschlossen')
+            ->call('closeCreate')
+            ->assertSet('showCreateForm', false)
+            ->assertSet('captureMode', 'manual')
+            ->assertSet('inventoryImport', null)
+            ->assertSet('lastImportSummary', []);
+
+        $this->assertDatabaseHas('devices', [
+            'asset_tag' => 'RT-MODAL-001',
+            'display_name' => 'Modal Notebook',
+        ]);
+    }
+
     public function test_inventory_assignment_identity_profiles_and_sensitive_fields_are_persisted_safely(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'status' => true]);
