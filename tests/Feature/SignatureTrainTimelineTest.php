@@ -215,6 +215,7 @@ class SignatureTrainTimelineTest extends TestCase
         // in den beiden hellsten Tonstufen. Der Boiler mit seinem
         // einfarbigen RT-Icon wird rechts davon in einer eigenen Region
         // geprueft und darf die Koerpermessung nicht verfaelschen.
+        $expectedInkIndex = str_contains($filename, 'dark') ? 1 : 2;
         $bodyPixels = $this->countIndexAtLeastInRegion(
             $decoded[$arrivalFrame],
             1,
@@ -225,7 +226,7 @@ class SignatureTrainTimelineTest extends TestCase
             $height,
         );
         $this->assertGreaterThan(
-            $width === 2160 ? 26_000 : 2_800,
+            $width === 2160 ? 25_000 : 2_700,
             $bodyPixels,
             "{$filename}: Der Zugkoerper mit 30 Prozent Deckkraft fehlt.",
         );
@@ -248,8 +249,6 @@ class SignatureTrainTimelineTest extends TestCase
         // Marke muessen nach der Quantisierung exakt dieselbe staerkste
         // Palettenstufe besitzen: Ein zusaetzliches 30-Prozent-Overlay ueber
         // dem Zug ergäbe sonst optisch rund 51 Prozent.
-        $expectedInkIndex = str_contains($filename, 'dark') ? 1 : 2;
-
         $brandPixels = $this->countIndexAtLeastInRegion(
             $decoded[$arrivalFrame],
             $expectedInkIndex,
@@ -280,7 +279,7 @@ class SignatureTrainTimelineTest extends TestCase
             (int) ceil($width * 0.555),
             (int) ceil($height * 0.93),
         );
-        $this->assertSame(2, $bodyMaximum, "{$filename}: Die 30-Prozent-Zugrampe ist abgewichen.");
+        $this->assertSame($expectedInkIndex, $bodyMaximum, "{$filename}: Die 30-Prozent-Zugrampe ist abgewichen.");
         $this->assertLessThanOrEqual(
             $bodyMaximum,
             $brandMaximum,

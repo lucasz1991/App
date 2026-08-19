@@ -170,7 +170,9 @@ for (const v of VARIANTEN) {
     }
 
     // --- Farbtabelle: durchsichtig plus eine Rampe zur Rauchfarbe -------
-    const STUFEN = 7;
+    // Muss dieselbe Sechs-Stufen-Rampe wie das Haupt-GIF verwenden, damit
+    // der nach 13 Sekunden eingeblendete Rauch ohne Palettensprung uebergeht.
+    const STUFEN = 6;
     const tabelle = [v.grund.slice()];
     for (let k = 1; k <= STUFEN; k += 1) tabelle.push(v.rauch.slice());
     const durchsichtig = 0;

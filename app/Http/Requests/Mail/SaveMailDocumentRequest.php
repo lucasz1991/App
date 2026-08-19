@@ -36,7 +36,12 @@ final class SaveMailDocumentRequest extends FormRequest
             // base64-kodiert; der Controller prueft Inhalt, MIME und Hash,
             // bevor er sie als oeffentliche, inhaltsadressierte Mailassets
             // ablegt und die Quelladressen im Entwurf ersetzt.
-            'portable_media' => ['sometimes', 'array', 'max:32'],
+            // 28 feste Systemmedien gehoeren bereits zum vollstaendigen
+            // RailTime-Bundle. Die Anzahl darf deshalb eigene, im Dokument
+            // referenzierte Bilder nicht auf nur vier Eintraege begrenzen.
+            // Die eigentliche Last bleibt durch 2 MiB je Medium und 16 MiB
+            // fuer das gesamte Paket strikt gedeckelt.
+            'portable_media' => ['sometimes', 'array', 'max:256'],
             'portable_media.*' => ['required', 'array'],
             'portable_media.*.id' => ['required', 'string', 'max:160'],
             'portable_media.*.name' => ['required', 'string', 'max:200'],
