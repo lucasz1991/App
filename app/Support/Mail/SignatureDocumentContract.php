@@ -86,12 +86,11 @@ final class SignatureDocumentContract
     /**
      * Laufzeitvertrag fuer bereits veroeffentlichte Signaturen.
      *
-     * Neue Editor-/Publish-Staende muessen immer Schema 7 besitzen. Bis der
-     * autoritative Seeder nach dem Deployment gelaufen ist, darf der Versand
-     * jedoch noch genau die alte Schema-6-Topologie lesen. Sie wird bewusst
-     * nicht per Regex umgebaut: ein solcher Umbau waere bei verschachtelten
-     * Mailtabellen nicht positionssicher. Jede andere Zwischenform bricht
-     * fail-closed ab.
+     * Neue Editor-/Publish-Staende muessen immer den Schema-13-Vertrag
+     * besitzen. Bis der autoritative Seeder nach dem Deployment gelaufen ist,
+     * darf der Versand nur die einzeln beschriebenen Altformen lesen:
+     * Schema 6 (Padding), Schema 9 (Background) und Schema 12 (direkter
+     * Bild-Layer). Jede andere Zwischenform bricht fail-closed ab.
      */
     public static function assertRuntimeValid(string $html): void
     {
@@ -112,6 +111,9 @@ final class SignatureDocumentContract
         bool $allowLegacyDirectImage,
     ): void {
         $decodedHtml = CssSemantic::decodeHtmlEntitiesOnce($html);
+        if (preg_match('/\brt-sign-train-mso\b/i', $decodedHtml) === 1) {
+            throw new RuntimeException('Der serverseitige Outlook-Zugfallback darf nicht im Signaturentwurf gespeichert werden.');
+        }
         if (preg_match('/<style\b/i', $decodedHtml) === 1) {
             throw new RuntimeException('Das Signaturfragment darf keinen eigenen style-Block enthalten.');
         }
@@ -129,9 +131,9 @@ final class SignatureDocumentContract
             SignatureTrainCarrier::assertCanonicalImage($html, $allowLegacyDirectImage);
         } elseif ($allowLegacyTrainCarrier) {
             // Bereits publizierte Schema-9-Staende bleiben bis zum expliziten
-            // Seeder-Lauf lesbar und werden beim Rendern in das Bildformat
-            // projiziert. Neue Saves duerfen den Background nicht erneut
-            // veroeffentlichen.
+            // Seeder-Lauf lesbar und werden beim Rendern in die heutige
+            // Bild-Buehne projiziert. Neue Saves duerfen den Background nicht
+            // erneut veroeffentlichen.
             SignatureTrainCarrier::normalize($html);
         } else {
             throw new RuntimeException('Der Zug muss als regulaeres Bild und nicht als Hintergrund gespeichert werden.');
@@ -454,10 +456,19 @@ final class SignatureDocumentContract
             && $contentTable?->parentNode?->isSameNode($stage)
             && self::firstElementChild($carrier)?->isSameNode($stage)
             && self::firstElementChild($stage)?->isSameNode($contentTable);
+        $hasStageDescendant = false;
+        foreach ($carrier->getElementsByTagName('div') as $candidate) {
+            if ($candidate instanceof DOMElement
+                && self::hasExactClasses(self::classes($candidate), ['rt-sign-stage'])) {
+                $hasStageDescendant = true;
+                break;
+            }
+        }
         // Runtime-Kompatibilitaet fuer den unmittelbar vor Schema 13
         // veroeffentlichten Bild-Layer. Neue Saves scheitern bereits am
         // strengeren Zugbildvertrag, bevor sie diese Strukturpruefung erreichen.
-        $usesLegacyDirectCell = $contentTable instanceof DOMElement
+        $usesLegacyDirectCell = ! $hasStageDescendant
+            && $contentTable instanceof DOMElement
             && $contentTable->parentNode?->isSameNode($carrier)
             && self::firstElementChild($carrier)?->isSameNode($contentTable);
         if (! $contentRow instanceof DOMElement

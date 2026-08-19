@@ -31,6 +31,7 @@ final class CssSemantic
         'rt-sign-cell',
         'rt-sign-train',
         'rt-sign-train-layer',
+        'rt-sign-train-mso',
         'rt-sign-stage',
         'rt-train-main-layer',
         'rt-train-main-image',

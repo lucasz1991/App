@@ -1266,6 +1266,19 @@ export function normalizeMailProject(project) {
  * @param {{builderData?: object, css?: string}} draft
  * @param {(css: string) => Array} parseCss
  */
+function hardenEditorTrainImage(trainLayer, trainImage) {
+    if (!trainLayer || !trainImage) return;
+    const withMsoHide = (element) => {
+        const declarations = String(element.getAttribute('style') || '').trim();
+        if (!/(?:^|;)\s*mso-hide\s*:\s*all\s*(?:;|$)/i.test(declarations)) {
+            element.setAttribute('style', `${declarations.replace(/;+$/, '')};mso-hide:all;`);
+        }
+    };
+    withMsoHide(trainLayer);
+    withMsoHide(trainImage);
+    trainImage.setAttribute('width', '720');
+}
+
 export function projectForMailDocument(draft, parseCss = () => [], options = {}) {
     const project = normalizeMailProject(structuredClone(draft?.builderData || {}));
 
@@ -1335,11 +1348,29 @@ export function projectForMailDocument(draft, parseCss = () => [], options = {})
         const rows = Array.from(body?.children || []);
         const trainImages = wrapper?.querySelectorAll?.(`img[data-rt-train][${MAIL_PREVIEW_IMAGE_ATTRIBUTE}="TRAIN_SRC"]`) || [];
         const trainImage = trainImages[0];
+        const trainLayer = trainImage?.closest?.('div.rt-sign-train-layer[data-rt-layer-train]');
         const trainCarrier = trainImage?.closest?.('td.rt-sign-cell');
+        let trainStage = trainLayer?.closest?.('div.rt-sign-stage');
+        // Schema 12 hatte den absoluten Layer direkt an die Tabellenzelle
+        // gebunden. Beim Laden wird ausschliesslich diese exakte Altform in
+        // den sicheren Block-Kontext ueberfuehrt; Speichern publiziert danach
+        // nur noch die neue Struktur.
+        if (!trainStage && trainLayer?.parentElement === trainCarrier && trainCarrier) {
+            trainStage = parsed.createElement('div');
+            trainStage.setAttribute('class', 'rt-sign-stage');
+            trainStage.setAttribute('style', 'position:relative;overflow:hidden;');
+            while (trainCarrier.firstChild) trainStage.appendChild(trainCarrier.firstChild);
+            trainCarrier.appendChild(trainStage);
+        }
+        hardenEditorTrainImage(trainLayer, trainImage);
         if (!wrapper || !body || rows.length !== 2
             || rows.some((row) => row.tagName !== 'TR')
             || trainImages.length !== 1
             || trainImage?.tagName !== 'IMG'
+            || trainLayer?.parentElement !== trainStage
+            || trainStage?.parentElement !== trainCarrier
+            || trainStage?.lastElementChild !== trainLayer
+            || trainCarrier?.lastElementChild !== trainStage
             || trainCarrier?.tagName !== 'TD'
             || trainCarrier.parentElement !== rows[0]) {
             throw new Error('Die Signatur benoetigt zwei Tabellenzeilen und genau ein regulaeres Zugbild in ihrer Hauptflaeche.');
@@ -1475,17 +1506,31 @@ export function serializeMailDocumentForSave({
     const trainImages = wrapper?.querySelectorAll?.(`img[data-rt-train][${MAIL_PREVIEW_IMAGE_ATTRIBUTE}="TRAIN_SRC"]`) || [];
     const trainImage = trainImages[0];
     const trainLayer = trainImage?.closest?.('div.rt-sign-train-layer[data-rt-layer-train]');
-    const trainCarrier = trainLayer?.parentElement;
+    const directTrainCarrier = trainLayer?.closest?.('td.rt-sign-cell');
+    let trainStage = trainLayer?.closest?.('div.rt-sign-stage');
+    if (!trainStage && trainLayer?.parentElement === directTrainCarrier && directTrainCarrier) {
+        trainStage = parsed.createElement('div');
+        trainStage.setAttribute('class', 'rt-sign-stage');
+        trainStage.setAttribute('style', 'position:relative;overflow:hidden;');
+        while (directTrainCarrier.firstChild) trainStage.appendChild(directTrainCarrier.firstChild);
+        directTrainCarrier.appendChild(trainStage);
+    }
+    hardenEditorTrainImage(trainLayer, trainImage);
+    const trainCarrier = trainStage?.parentElement;
     if (wrappers.length !== 1 || !wrapper || !body
         || rows.length !== 2 || rows.some((row) => row.tagName !== 'TR')
         || trainImages.length !== 1
         || trainImage?.tagName !== 'IMG'
         || trainLayer?.tagName !== 'DIV'
+        || trainStage?.tagName !== 'DIV'
+        || !trainStage.classList.contains('rt-sign-stage')
         || trainCarrier?.tagName !== 'TD'
         || !trainCarrier.classList.contains('rt-sign-cell')
         || trainImage.parentElement !== trainLayer
-        || trainLayer.parentElement !== trainCarrier
-        || trainCarrier.lastElementChild !== trainLayer
+        || trainLayer.parentElement !== trainStage
+        || trainStage.lastElementChild !== trainLayer
+        || trainStage.parentElement !== trainCarrier
+        || trainCarrier.lastElementChild !== trainStage
         || trainCarrier.parentElement !== rows[0]) {
         throw new Error('Die sichere Tabellenstruktur des Signatur-Editors fehlt.');
     }
@@ -1756,10 +1801,10 @@ export function synchronizeMailTrainLayerAlignment(component) {
         ? attributes['data-rt-layer-mobile']
         : 'train';
     const size = {
-        100: { width: '100%', maxWidth: '1815px', imageWidth: '1815', centerLeft: '0' },
-        125: { width: '125%', maxWidth: '2269px', imageWidth: '2269', centerLeft: '-12.5%' },
-        150: { width: '150%', maxWidth: '2723px', imageWidth: '2723', centerLeft: '-25%' },
-        200: { width: '200%', maxWidth: '3630px', imageWidth: '3630', centerLeft: '-50%' },
+        100: { width: '100%', maxWidth: '1815px', centerLeft: '0' },
+        125: { width: '125%', maxWidth: '2269px', centerLeft: '-12.5%' },
+        150: { width: '150%', maxWidth: '2723px', centerLeft: '-25%' },
+        200: { width: '200%', maxWidth: '3630px', centerLeft: '-50%' },
     }[sizeName];
     const horizontal = {
         left: { left: '0', right: 'auto' },
@@ -1810,13 +1855,13 @@ export function synchronizeMailTrainLayerAlignment(component) {
     if (image) {
         const imageAttributes = image.getAttributes?.() || image.get?.('attributes') || {};
         const imageStyle = image.getStyle?.() || {};
-        imageChanged = String(imageAttributes.width || '') !== size.imageWidth
+        imageChanged = String(imageAttributes.width || '') !== '720'
             || imageStyle['max-width'] !== size.maxWidth;
         if (imageChanged) {
             if (typeof image.addAttributes === 'function') {
-                image.addAttributes({ width: size.imageWidth }, { silent: true });
+                image.addAttributes({ width: '720' }, { silent: true });
             } else {
-                imageAttributes.width = size.imageWidth;
+                imageAttributes.width = '720';
             }
             image.setStyle?.({ ...imageStyle, 'max-width': size.maxWidth });
         }
@@ -1947,6 +1992,7 @@ export function protectMailSystemComponents(editor) {
         if (token?.startsWith?.('ICON_')) return 'Kontakt-Icon (geschützt)';
         if (classes.includes('rt-shell')) return 'Nachrichtenschale';
         if (classes.includes('rt-sign-content')) return 'Signatur-Inhalt';
+        if (classes.includes('rt-sign-stage')) return 'Signatur-Bühne (geschützt)';
         if (classes.includes('rt-sign-train-layer')) return 'Zug-Hintergrundebene (geschützt)';
         if (classes.includes('rt-sign-identity')) return 'Personendaten';
         if (classes.includes('rt-sign-logo')) return 'Firmendaten';
@@ -2013,6 +2059,9 @@ export function protectMailSystemComponents(editor) {
             }
         }
         if (attributes[MAIL_PREVIEW_IMAGE_ATTRIBUTE] === 'TRAIN_SRC') {
+            protect(component, { layerable: true });
+        }
+        if (classNames(attributes).includes('rt-sign-stage')) {
             protect(component, { layerable: true });
         }
         if (attributes['data-rt-layer-train'] !== undefined

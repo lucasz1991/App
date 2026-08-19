@@ -14,12 +14,16 @@ namespace Illuminate\Support {
 
 namespace {
     use App\Support\EmailTemplateBuilder;
+    use App\Support\Mail\CssSemantic;
+    use App\Support\Mail\SignatureTrainCarrier;
 
     function resource_path(string $path = ''): string
     {
         return dirname(__DIR__, 2).'/resources'.($path === '' ? '' : '/'.$path);
     }
 
+    require dirname(__DIR__, 2).'/app/Support/Mail/CssSemantic.php';
+    require dirname(__DIR__, 2).'/app/Support/Mail/SignatureTrainCarrier.php';
     require dirname(__DIR__, 2).'/app/Support/EmailTemplateBuilder.php';
 
     final class IsolatedEmailTemplateBuilder extends EmailTemplateBuilder
@@ -53,7 +57,7 @@ namespace {
             }
 
             return '<img src="cid:railtime-logo"><img src="cid:railtime-logo-still">'
-                .'<img src="cid:railtime-train">';
+                .'<img src="cid:railtime-train"><img src="cid:railtime-train-still">';
         }
 
         public function eml(string $theme): string
@@ -123,7 +127,7 @@ namespace {
     }
 
     $eml = (new IsolatedEmailTemplateBuilder)->eml('light');
-    foreach (['railtime-logo', 'railtime-logo-still', 'railtime-train'] as $contentId) {
+    foreach (['railtime-logo', 'railtime-logo-still', 'railtime-train', 'railtime-train-still'] as $contentId) {
         if (substr_count($eml, "Content-ID: <{$contentId}>\r\n") !== 1) {
             fwrite(STDERR, "CID part is missing or duplicated: {$contentId}\n");
             exit(1);
@@ -134,20 +138,66 @@ namespace {
         fwrite(STDERR, "Train GIF MIME part is missing.\n");
         exit(1);
     }
+    if (! str_contains($eml, 'Content-Type: image/png; name="zug-dampf-light.png"')) {
+        fwrite(STDERR, "Train still MIME part is missing.\n");
+        exit(1);
+    }
+    if (preg_match(
+        '/Content-Type: text\/html; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n(.*?)\r\n--=_rt_rel_/s',
+        $eml,
+        $emlHtmlMatch,
+    ) !== 1) {
+        fwrite(STDERR, "EML HTML part is missing.\n");
+        exit(1);
+    }
+    $emlHtml = base64_decode((string) preg_replace('/\s+/', '', $emlHtmlMatch[1]), true);
+    if (! is_string($emlHtml)
+        || substr_count($emlHtml, 'src="cid:railtime-train"') !== 1
+        || substr_count($emlHtml, 'src="cid:railtime-train-still"') !== 1) {
+        fwrite(STDERR, "EML HTML does not reference both train CID parts exactly once.\n");
+        exit(1);
+    }
 
     $browserTrainMethod = $reflection->getMethod('placeBrowserCopyTrainBehindContent');
     $browserTrainMethod->setAccessible(true);
     $browserTrainFixture = <<<'HTML'
 <!doctype html><html><body><table role="presentation" style="border-top:5px solid #e4002b;">
-<tr><td class="rt-sign-cell" style="position:relative;overflow:hidden;background-image:url(https://app.rail-time.de/mail-assets/signatur-raster-light.png),url(https://app.rail-time.de/mail-assets/signatur-marke-light.png),linear-gradient(rgba(0,0,0,0),rgba(0,0,0,0));background-repeat:repeat,no-repeat,no-repeat;background-position:left top,right center,center center;background-size:64px 64px,auto 100%,100% 100%;"><table><tr><td class="rt-sign-identity"><img src="https://app.rail-time.de/mail-assets/contact-email.png"></td><td class="rt-sign-logo"><img src="https://app.rail-time.de/mail-assets/logo.gif"></td></tr></table><div class="rt-sign-train-layer" data-rt-layer-train style="position:absolute;left:0;bottom:0;"><img class="rt-sign-train" data-rt-train src="https://app.rail-time.de/mail-assets/zug-dampf-light.gif" width="100%" style="position:absolute;left:0;bottom:0;"></div></td></tr><!-- RT_SIGNATURE_MAIN_END --><tr><td>Legal</td></tr>
+<tr><td class="rt-sign-cell" style="overflow:hidden;background-image:url(https://app.rail-time.de/mail-assets/signatur-raster-light.png),url(https://app.rail-time.de/mail-assets/signatur-marke-light.png),linear-gradient(rgba(0,0,0,0),rgba(0,0,0,0));background-repeat:repeat,no-repeat,no-repeat;background-position:left top,right center,center center;background-size:64px 64px,auto 100%,100% 100%;"><div class="rt-sign-stage" style="position:relative;overflow:hidden;"><table><tr><td class="rt-sign-identity"><img src="https://app.rail-time.de/mail-assets/contact-email.png"></td><td class="rt-sign-logo"><img src="https://app.rail-time.de/mail-assets/logo.gif"></td></tr></table><div class="rt-sign-train-layer" data-rt-layer-train style="position:absolute;left:0;bottom:0;mso-hide:all;"><img class="rt-sign-train" data-rt-train src="https://app.rail-time.de/mail-assets/zug-dampf-light.gif" width="720" style="position:absolute;left:0;bottom:0;mso-hide:all;"></div></div></td></tr><!--[if mso]><tr><td class="rt-sign-train-mso" width="100%" style="padding:0;font-size:0;line-height:0;mso-line-height-rule:exactly;"><img src="https://app.rail-time.de/mail-assets/zug-dampf-light.png" width="720" alt="" style="display:block;width:100%;max-width:720px;height:auto;margin:0;border:0;outline:none;text-decoration:none;"></td></tr><![endif]--><!-- RT_SIGNATURE_MAIN_END --><tr><td>Legal</td></tr>
 </table></body></html>
 HTML;
     $browserTrainSource = 'https://app.rail-time.de/mail-assets/zug-dampf-light.gif';
     $browserTrain = $browserTrainMethod->invoke(null, $browserTrainFixture, $browserTrainSource);
     if ($browserTrain !== $browserTrainFixture
-        || substr_count($browserTrain, 'data-rt-train') !== 1
-        || substr_count($browserTrain, 'src="'.$browserTrainSource.'"') !== 1) {
-        fwrite(STDERR, "Browser copy train was not preserved as the single HTTPS image.\n");
+        || substr_count($browserTrain, 'class="rt-sign-train"') !== 1
+        || substr_count($browserTrain, 'class="rt-sign-train-mso"') !== 1
+        || substr_count($browserTrain, 'class="rt-sign-stage"') !== 1
+        || substr_count($browserTrain, 'src="'.$browserTrainSource.'"') !== 1
+        || substr_count($browserTrain, 'src="https://app.rail-time.de/mail-assets/zug-dampf-light.png"') !== 1
+        || preg_match('/<img\b(?=[^>]*class="[^"]*\brt-sign-train\b[^"]*")(?=[^>]*width="720")(?=[^>]*position:absolute)(?=[^>]*mso-hide:all)[^>]*>/', $browserTrain) !== 1
+        || preg_match('/class="rt-sign-train-mso"[^>]*>\s*<img\b[^>]*zug-dampf-light\.png[^>]*width="720"[^>]*max-width:720px/', $browserTrain) !== 1) {
+        fwrite(STDERR, "Browser copy train did not preserve the modern image plus MSO still contract.\n");
+        exit(1);
+    }
+
+    // Schema 12 wird vor dem Seeder nur laufzeitlokal in die Stage gehoben.
+    // Erlaubte data-* Decoys duerfen dabei weder das echte class/style/width-
+    // Attribut treffen noch den alten background-Entferner umlenken.
+    $legacyTrainFixture = <<<'HTML'
+<tr><td data-class="rt-sign-cell" data-background="decoy" class="rt-sign-cell" background="{{TRAIN_STILL_SRC}}" style="padding:0;"><div data-class="rt-sign-train-layer" data-style="decoy">Decoy</div><img data-class="rt-sign-train" src="decoy.gif" alt=""><table><tr><td>Inhalt</td></tr></table><div data-style="decoy" class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:absolute;left:0;right:auto;top:0;bottom:0;width:100%;max-width:1815px;height:100%;margin:0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;"><img data-width="decoy" data-style="decoy" class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}" width="1815" alt="" style="position:absolute;left:0;right:auto;bottom:0;display:block;width:100%;max-width:1815px;height:auto;margin:0;border:0;outline:none;text-decoration:none;"></div></td></tr><!-- RT_SIGNATURE_MAIN_END --><tr><td>Legal</td></tr>
+HTML;
+    $legacyTrain = SignatureTrainCarrier::projectAsImage(
+        $legacyTrainFixture,
+        'https://app.rail-time.de/mail-assets/zug-dampf-light.gif',
+    );
+    $legacyTrain = SignatureTrainCarrier::withoutLegacyBackgroundAttribute($legacyTrain);
+    if (substr_count($legacyTrain, 'class="rt-sign-stage"') !== 1
+        || substr_count($legacyTrain, 'mso-hide:all;') !== 2
+        || substr_count($legacyTrain, 'width="720"') !== 1
+        || ! str_contains($legacyTrain, 'data-style="decoy"')
+        || ! str_contains($legacyTrain, 'data-width="decoy"')
+        || ! str_contains($legacyTrain, 'data-background="decoy"')
+        || str_contains($legacyTrain, ' background=')) {
+        fwrite(STDERR, "Legacy train hardening changed a decoy instead of the real attribute.\n");
         exit(1);
     }
 

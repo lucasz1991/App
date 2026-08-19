@@ -156,8 +156,9 @@ class MailSignature
                         $this->staticAssets ? false : $this->animated,
                     ),
                 ),
-                // Nur als Legacy-Wert fuer alte Dokumente vorhanden. Neue
-                // Ausgaben transportieren ausschliesslich das kombinierte GIF.
+                // Statischer MSO-/Word-Fallback fuer Clients, die das
+                // absolut positionierte kombinierte GIF nicht darstellen.
+                // Moderne Clients sehen weiterhin nur das Haupt-GIF.
                 'TRAIN_STILL_SRC' => EmailTemplateBuilder::signatureTrainStillUrl($this->theme),
                 // Einfahrt, Idle-Rauch und sichtbarer Schlusszustand stecken
                 // gemeinsam im Haupt-GIF. Eine zweite Rauchquelle wuerde den
@@ -322,10 +323,9 @@ class MailSignature
         }
 
         // Alle Ausgabewege projizieren den streng validierten Zug-Token in
-        // genau ein regulaeres IMG in einem absoluten Carrier-Layer. Damit
-        // wird das GIF wie Logo und RT-Icon beim Kopieren, Antworten und
-        // Weiterleiten als echtes Bildelement uebernommen, liegt aber ohne
-        // zusaetzliche Tabellenhoehe hinter den Kontaktdaten.
+        // ein regulaeres GIF innerhalb der sicheren Stage. Moderne Clients
+        // behalten es beim Kopieren, Antworten und Weiterleiten hinter den
+        // Kontaktdaten; Word/MSO erhaelt spaeter den bedingten PNG-Fallback.
         if ($published !== null) {
             SignatureDocumentContract::assertRuntimeValid($published);
 
@@ -430,29 +430,14 @@ class MailSignature
      */
     private function removeLegacyTrainBackground(string $html): string
     {
-        $replacements = 0;
-        $rendered = preg_replace_callback(
-            '/<td\b[^>]*class=(["\'])[^"\']*\brt-sign-cell\b[^"\']*\1[^>]*>/i',
-            static function (array $match): string {
-                return preg_replace('/\s+background=(["\'])[^"\']*\1/i', '', $match[0]) ?? $match[0];
-            },
-            $html,
-            1,
-            $replacements,
-        );
-
-        if (! is_string($rendered) || $replacements !== 1) {
-            throw new \RuntimeException('Die veroeffentlichte Signatur besitzt keinen eindeutigen Zug-Carrier.');
-        }
-
-        return $rendered;
+        return SignatureTrainCarrier::withoutLegacyBackgroundAttribute($html);
     }
 
     /**
      * Jede ausgelieferte Fassung bekommt den Zug wie Logo und RT-Icon als
-     * regulaeres Bild. Neue Editorstaende tragen bereits den absoluten
-     * Bild-Layer; alte Background-Staende werden atomar daraus geloest und
-     * in genau denselben Layer innerhalb des Carriers ueberfuehrt.
+     * regulaeres Bild. Neue Editorstaende tragen bereits die sichere Stage;
+     * alte Background- und Direkt-Layer werden atomar in dieselbe Struktur
+     * innerhalb des Carriers ueberfuehrt.
      *
      * @param  array<string, string>  $layout
      */

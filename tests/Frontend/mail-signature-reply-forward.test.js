@@ -62,9 +62,14 @@ test('mobile rules restyle the same signature nodes without hide-and-show copies
     assert.match(mobile, /\.rt-company-contact td\.rt-company-contact-text\s*\{\s*text-align:\s*left !important;/);
     assert.doesNotMatch(css, /\.rt-firma-(?:breit|schmal)/);
     assert.doesNotMatch(css, /rt-marke-mobil|\.rt-sign-logo img\.rt-logo\s*\{[^}]*display:\s*none/);
+    assert.match(mobile, /\.rt-sign-train-layer\s*\{[\s\S]*?left:\s*0 !important;[\s\S]*?width:\s*100% !important;/);
+    assert.match(mobile, /data-rt-layer-mobile="train"[^}]*left:\s*0 !important;[^}]*width:\s*100% !important;/);
+    for (const crop of ['left', 'center', 'right']) {
+        assert.match(mobile, new RegExp(`data-rt-layer-mobile="${crop}"[^}]*width:\\s*200% !important`));
+    }
 });
 
-test('all delivered HTML uses one regular train image like logo and RT icon', async () => {
+test('each mail client sees one train image through the modern stage or the single MSO fallback', async () => {
     const [signature, runtime, carrier, preview] = await Promise.all([
         source('../../resources/views/emails/parts/signature.blade.php'),
         source('../../app/Support/MailSignature.php'),
@@ -73,21 +78,27 @@ test('all delivered HTML uses one regular train image like logo and RT icon', as
     ]);
 
     assert.match(signature, /\$trainSrc = \$outlookTrainSrc !== ''/);
-    assert.match(signature, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:absolute;/);
-    assert.match(signature, /<img class="rt-sign-train" data-rt-train src="\{\{ \$trainSrc \}\}" width="1815"[^>]*style="[^"]*position:absolute;[^\"]*display:block;width:100%;max-width:1815px;height:auto;/);
+    assert.match(signature, /<div class="rt-sign-stage" style="position:relative;overflow:hidden;">/);
+    assert.match(signature, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:absolute;[^"\r\n]*mso-hide:all;/);
+    assert.match(signature, /<img class="rt-sign-train" data-rt-train src="\{\{ \$trainSrc \}\}" width="720"[^>]*style="[^"]*position:absolute;[^\"]*display:block;width:100%;max-width:1815px;height:auto;[^\"]*mso-hide:all;/);
     assert.doesNotMatch(signature, /url\(\{\$values\['TRAIN_SRC'\]\}\)/);
-    assert.doesNotMatch(signature, /data-rt-outlook-train|outlookTrainFallbackSrc/);
+    assert.doesNotMatch(signature, /data-rt-outlook-train/);
     assert.doesNotMatch(signature, /<td[^>]+background="\{\{[^}]*TRAIN/);
 
     assert.doesNotMatch(runtime, /data-rt-train-main-(?:image|layer)/);
     assert.doesNotMatch(runtime, /projectPublishedTrainAsRuntimeImage/);
     assert.match(runtime, /usesTokenizedTrainCarrier/);
     assert.match(runtime, /SignatureTrainCarrier::projectAsImage\(/);
+    assert.equal(occurrences(runtime, /SignatureTrainCarrier::withMsoFallback\(/g), 1);
+    assert.match(runtime, /outlookTrainFallbackSrc[\s\S]*?TRAIN_STILL_SRC/);
     assert.doesNotMatch(runtime, /appendClassicOutlookTrainFallback/);
-    assert.doesNotMatch(runtime, /<!--\[if mso\]><tr><td align="left"/);
     assert.match(carrier, /public static function projectAsImage/);
+    assert.match(carrier, /public static function withMsoFallback/);
+    assert.equal(occurrences(carrier, /<!--\[if mso\]><tr><td class="rt-sign-train-mso"/g), 1);
+    assert.match(carrier, /<div class="rt-sign-stage" style="position:relative;overflow:hidden;">/);
     assert.match(carrier, /<div class="rt-sign-train-layer" data-rt-layer-train/);
-    assert.match(carrier, /<img class="rt-sign-train" data-rt-train src="'\.\$source\.'" width="1815"/);
+    assert.match(carrier, /<img class="rt-sign-train" data-rt-train src="'\.\$source\.'" width="720"/);
+    assert.match(carrier, /<img src="'\.\$escapedSource\.'" width="720"/);
     assert.match(preview, /SignatureTrainCarrier::projectAsImage\(/);
     assert.doesNotMatch(runtime, /injectDelayedIdleOverlay|data-rt-train-idle/);
     assert.doesNotMatch(runtime, /rt-classic-outlook-train/);

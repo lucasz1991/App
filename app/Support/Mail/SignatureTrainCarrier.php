@@ -198,6 +198,7 @@ final class SignatureTrainCarrier
 
             if ($legacyDirectLayer) {
                 $projected = self::hardenLegacyDirectLayer($projected);
+                $projected = self::wrapLegacyDirectCarrierInStage($projected);
             }
 
             return self::compactDefaultContentPadding($projected);
@@ -254,7 +255,10 @@ final class SignatureTrainCarrier
 
         $marker = '<!-- RT_SIGNATURE_MAIN_END -->';
         if (substr_count($html, $marker) !== 1
-            || str_contains($html, 'data-rt-train-mso')) {
+            || preg_match(
+                '/<!--\s*\[if\s+mso\]\s*>.*?\brt-sign-train-mso\b.*?<!\s*\[endif\]\s*-->/is',
+                $html,
+            ) === 1) {
             throw new RuntimeException('Der Outlook-Zugfallback kann nicht eindeutig verankert werden.');
         }
 
@@ -263,12 +267,39 @@ final class SignatureTrainCarrier
             ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5,
             'UTF-8',
         );
-        $fallback = '<!--[if mso]><tr><td data-rt-train-mso width="100%" style="padding:0;font-size:0;line-height:0;mso-line-height-rule:exactly;">'
+        $fallback = '<!--[if mso]><tr><td class="rt-sign-train-mso" width="100%" style="padding:0;font-size:0;line-height:0;mso-line-height-rule:exactly;">'
             .'<img src="'.$escapedSource.'" width="720" alt="" '
             .'style="display:block;width:100%;max-width:720px;height:auto;margin:0;border:0;outline:none;text-decoration:none;">'
             .'</td></tr><![endif]-->';
 
         return str_replace($marker, $fallback."\n".$marker, $html);
+    }
+
+    /**
+     * Entfernt ein altes HTML-background-Attribut ausschliesslich am zuvor
+     * DOM- und quellseitig korrelierten Carrier. Aehnlich benannte data-*
+     * Attribute oder Attributtexte koennen den positionssicheren Scanner
+     * nicht umlenken.
+     */
+    public static function withoutLegacyBackgroundAttribute(string $html): string
+    {
+        $carrier = self::inspectCarrier($html);
+        $attributes = $carrier['attributes']['background'] ?? [];
+        if ($attributes === []) {
+            return $html;
+        }
+        if (count($attributes) !== 1) {
+            throw new RuntimeException('Der Zug-Carrier besitzt das background-Attribut mehrfach.');
+        }
+
+        $attribute = $attributes[0];
+
+        return substr_replace(
+            $html,
+            '',
+            $attribute['attributeOffset'],
+            $attribute['attributeLength'],
+        );
     }
 
     public static function hasCanonicalImage(string $html): bool
@@ -374,7 +405,10 @@ final class SignatureTrainCarrier
         $alignment = strtolower(trim($layer->getAttribute('data-rt-layer-align')));
         $sizeName = strtolower(trim($layer->getAttribute('data-rt-layer-size')));
         $mobileCrop = strtolower(trim($layer->getAttribute('data-rt-layer-mobile')));
-        $legacyGeometry = $sizeName === '' && $mobileCrop === '';
+        if (($sizeName === '') !== ($mobileCrop === '')
+            || (! $legacyDirectLayer && ($sizeName === '' || $mobileCrop === ''))) {
+            throw new RuntimeException('Der Zug-Layer besitzt nicht alle mail-sicheren Geometrieangaben.');
+        }
         $sizeName = $sizeName === '' ? '100' : $sizeName;
         $mobileCrop = $mobileCrop === '' ? 'train' : $mobileCrop;
         $size = self::CANONICAL_LAYER_SIZE[$sizeName] ?? null;
@@ -429,8 +463,7 @@ final class SignatureTrainCarrier
         $widthAttribute = strtolower(trim($image->getAttribute('width')));
         $legacyPixelWidth = preg_replace('/px$/', '', $size['maxWidth']) ?? '';
         if ($widthAttribute !== '720'
-            && ! ($allowLegacyDirectLayer && in_array($widthAttribute, ['100%', $legacyPixelWidth], true))
-            && ! ($legacyGeometry && $widthAttribute === '100%')) {
+            && ! ($legacyDirectLayer && in_array($widthAttribute, ['100%', $legacyPixelWidth], true))) {
             throw new RuntimeException('Das Zugbild muss als mail-sicherer 720-Pixel-Fallback begrenzt sein.');
         }
     }
@@ -453,45 +486,82 @@ final class SignatureTrainCarrier
 
     private static function hardenLegacyDirectLayer(string $html): string
     {
-        $layerCount = 0;
-        $imageCount = 0;
-        $html = preg_replace_callback(
-            '/<div\b(?=[^>]*\bclass=(?:"[^"]*\brt-sign-train-layer\b[^"]*"|\'[^\']*\brt-sign-train-layer\b[^\']*\'))[^>]*>/i',
-            static function (array $match) use (&$layerCount): string {
-                $layerCount++;
-
-                return preg_replace(
-                    '/\bstyle=(["\'])(.*?)\1/i',
-                    static fn (array $style): string => 'style='.$style[1].rtrim($style[2], ';').';mso-hide:all;'.$style[1],
-                    $match[0],
-                    1,
-                ) ?? $match[0];
-            },
-            $html,
-            1,
-        ) ?? $html;
-        $html = preg_replace_callback(
-            '/<img\b(?=[^>]*\bclass=(?:"[^"]*\brt-sign-train\b[^"]*"|\'[^\']*\brt-sign-train\b[^\']*\'))[^>]*>/i',
-            static function (array $match) use (&$imageCount): string {
-                $imageCount++;
-                $tag = preg_replace('/\bwidth=(["\'])[^"\']*\1/i', 'width="720"', $match[0], 1) ?? $match[0];
-
-                return preg_replace(
-                    '/\bstyle=(["\'])(.*?)\1/i',
-                    static fn (array $style): string => 'style='.$style[1].rtrim($style[2], ';').';mso-hide:all;'.$style[1],
-                    $tag,
-                    1,
-                ) ?? $tag;
-            },
-            $html,
-            1,
-        ) ?? $html;
-
-        if ($layerCount !== 1 || $imageCount !== 1) {
+        $layers = [];
+        $images = [];
+        foreach (self::scanStartTags($html) as $tag) {
+            if ($tag['name'] === 'div' && self::sourceTagHasClass($tag, 'rt-sign-train-layer')) {
+                $layers[] = $tag;
+            }
+            if ($tag['name'] === 'img' && self::sourceTagHasClass($tag, 'rt-sign-train')) {
+                $images[] = $tag;
+            }
+        }
+        if (count($layers) !== 1 || count($images) !== 1) {
             throw new RuntimeException('Der bestehende Zug-Layer konnte nicht sicher gehaertet werden.');
         }
 
+        $layerStyles = $layers[0]['attributes']['style'] ?? [];
+        $imageStyles = $images[0]['attributes']['style'] ?? [];
+        $imageWidths = $images[0]['attributes']['width'] ?? [];
+        if (count($layerStyles) !== 1 || count($imageStyles) !== 1 || count($imageWidths) !== 1
+            || $layerStyles[0]['valueOffset'] === null
+            || $imageStyles[0]['valueOffset'] === null
+            || $imageWidths[0]['valueOffset'] === null) {
+            throw new RuntimeException('Der bestehende Zug-Layer besitzt keine eindeutigen Bildattribute.');
+        }
+
+        $hardenStyle = static fn (array $attribute): string => htmlspecialchars(
+            rtrim(CssSemantic::decodeHtmlEntitiesOnce($attribute['raw']), ';').';mso-hide:all;',
+            ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5,
+            'UTF-8',
+        );
+        $replacements = [
+            [$layerStyles[0]['valueOffset'], $layerStyles[0]['valueLength'], $hardenStyle($layerStyles[0])],
+            [$imageStyles[0]['valueOffset'], $imageStyles[0]['valueLength'], $hardenStyle($imageStyles[0])],
+            [$imageWidths[0]['valueOffset'], $imageWidths[0]['valueLength'], '720'],
+        ];
+        usort($replacements, static fn (array $left, array $right): int => $right[0] <=> $left[0]);
+        foreach ($replacements as [$offset, $length, $replacement]) {
+            $html = substr_replace($html, $replacement, $offset, $length);
+        }
+
         return $html;
+    }
+
+    /**
+     * Hebt den zuvor streng als Schema-12-Topologie validierten direkten
+     * Bild-Layer zur Laufzeit in denselben Block-Kontext wie Schema 13. So
+     * greift der Fix auch vor dem autoritativen Seeder-Lauf; der gespeicherte
+     * veroeffentlichte Snapshot wird dabei nicht veraendert.
+     */
+    private static function wrapLegacyDirectCarrierInStage(string $html): string
+    {
+        $marker = '<!-- RT_SIGNATURE_MAIN_END -->';
+        if (substr_count($html, $marker) !== 1) {
+            throw new RuntimeException('Der bestehende Zug-Layer besitzt keinen eindeutigen Hauptanker.');
+        }
+
+        $markerOffset = strpos($html, $marker);
+        $beforeMarker = substr($html, 0, $markerOffset);
+        if (preg_match('/<\/td>[ \t\r\n\f]*<\/tr>[ \t\r\n\f]*$/i', $beforeMarker, $match, PREG_OFFSET_CAPTURE) !== 1) {
+            throw new RuntimeException('Der bestehende Zug-Layer kann nicht sicher in eine Buehne gehoben werden.');
+        }
+
+        $carrierCloseOffset = $match[0][1];
+        $carrier = self::inspectCarrier($html);
+        $contentOffset = $carrier['tagEnd'] + 1;
+        if ($contentOffset <= 0 || $contentOffset > $carrierCloseOffset) {
+            throw new RuntimeException('Der bestehende Zug-Carrier besitzt keinen sicheren Inhaltsbereich.');
+        }
+
+        $content = substr($html, $contentOffset, $carrierCloseOffset - $contentOffset);
+
+        return substr_replace(
+            $html,
+            '<div class="rt-sign-stage" style="position:relative;overflow:hidden;">'.$content.'</div>',
+            $contentOffset,
+            $carrierCloseOffset - $contentOffset,
+        );
     }
 
     /** @param array<string, string> $expected */
@@ -541,6 +611,27 @@ final class SignatureTrainCarrier
         return preg_split('/\s+/', trim($element->getAttribute('class')), -1, PREG_SPLIT_NO_EMPTY) ?: [];
     }
 
+    /** @param array{name:string,attributes:array<string,list<array<string,mixed>>>} $tag */
+    private static function sourceTagHasClass(array $tag, string $class): bool
+    {
+        $attributes = $tag['attributes']['class'] ?? [];
+        if (count($attributes) > 1) {
+            throw new RuntimeException('Ein Zug-Element besitzt das class-Attribut mehrfach.');
+        }
+        if ($attributes === []) {
+            return false;
+        }
+
+        $classes = preg_split(
+            '/\s+/',
+            trim($attributes[0]['decoded']),
+            -1,
+            PREG_SPLIT_NO_EMPTY,
+        ) ?: [];
+
+        return in_array($class, $classes, true);
+    }
+
     /**
      * Entfernt nur die bekannten alten Starterabstaende direkt vor der
      * regulaeren Zugzeile. Dadurch werden bereits publizierte Signaturen und
@@ -549,15 +640,35 @@ final class SignatureTrainCarrier
      */
     private static function compactDefaultContentPadding(string $html): string
     {
-        return preg_replace_callback(
-            '/<td\b[^>]*class=(["\'])[^"\']*\brt-sign-content\b[^"\']*\1[^>]*>/i',
-            static fn (array $match): string => strtr($match[0], [
-                'padding:18px 36px 20px;' => 'padding:18px 36px 0;',
-                'padding:16px 28px 18px;' => 'padding:16px 28px 0;',
-            ]),
+        $contentCells = [];
+        foreach (self::scanStartTags($html) as $tag) {
+            if ($tag['name'] === 'td' && self::sourceTagHasClass($tag, 'rt-sign-content')) {
+                $contentCells[] = $tag;
+            }
+        }
+        if (count($contentCells) !== 1) {
+            return $html;
+        }
+
+        $styles = $contentCells[0]['attributes']['style'] ?? [];
+        if (count($styles) !== 1 || $styles[0]['valueOffset'] === null) {
+            throw new RuntimeException('Der Signatur-Inhalt besitzt kein eindeutiges style-Attribut.');
+        }
+        $style = CssSemantic::decodeHtmlEntitiesOnce($styles[0]['raw']);
+        $compacted = strtr($style, [
+            'padding:18px 36px 20px;' => 'padding:18px 36px 0;',
+            'padding:16px 28px 18px;' => 'padding:16px 28px 0;',
+        ]);
+        if ($compacted === $style) {
+            return $html;
+        }
+
+        return substr_replace(
             $html,
-            1,
-        ) ?? $html;
+            htmlspecialchars($compacted, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8'),
+            $styles[0]['valueOffset'],
+            $styles[0]['valueLength'],
+        );
     }
 
     /**
@@ -594,7 +705,9 @@ final class SignatureTrainCarrier
      *     decoded:string,
      *     quote:?string,
      *     valueOffset:?int,
-     *     valueLength:int
+     *     valueLength:int,
+     *     attributeOffset:int,
+     *     attributeLength:int
      *   }>>
      * }
      */
@@ -712,7 +825,9 @@ final class SignatureTrainCarrier
      *     decoded:string,
      *     quote:?string,
      *     valueOffset:?int,
-     *     valueLength:int
+     *     valueLength:int,
+     *     attributeOffset:int,
+     *     attributeLength:int
      *   }>>
      * }>
      */
@@ -806,6 +921,7 @@ final class SignatureTrainCarrier
         $attributes = [];
         $cursor = $start;
         while ($cursor < $tagEnd) {
+            $attributeOffset = $cursor;
             while ($cursor < $tagEnd && str_contains(" \t\r\n\f", $html[$cursor])) {
                 $cursor++;
             }
@@ -874,6 +990,8 @@ final class SignatureTrainCarrier
                 'quote' => $quote,
                 'valueOffset' => $valueOffset,
                 'valueLength' => $valueLength,
+                'attributeOffset' => $attributeOffset,
+                'attributeLength' => $cursor - $attributeOffset,
             ];
         }
 

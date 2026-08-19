@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Support\CompanyData;
 use App\Support\EmailTemplateBuilder;
 use App\Support\Mail\EmailHtmlReport;
 use App\Support\Mail\EmailHtmlSanitizer;
@@ -17,7 +18,7 @@ use Tests\TestCase;
  * Die Pruefung hat zwei Seiten, die gleich wichtig sind: kein verbotenes
  * Konstrukt darf durchkommen, und kein erlaubtes darf verlorengehen. Der
  * zweite Teil ist der schwerere — deshalb laufen die drei echten Master
- * und die echte gerenderte Signatur hier durch den Sanitizer.
+ * und die echte editierbare Signaturquelle hier durch den Sanitizer.
  */
 class EmailHtmlSanitizerTest extends TestCase
 {
@@ -84,74 +85,32 @@ class EmailHtmlSanitizerTest extends TestCase
         }
     }
 
-    /**
-     * Die Master enthalten nur Rahmen und Platzhalter. Der Inhalt, an dem
-     * sich ein Sanitizer wirklich verschluckt — Data-URIs, verschachtelte
-     * Tabellen, RT_-Marker, position:relative — steckt in der gerenderten
-     * Signatur.
-     */
-    public function test_die_echte_gerenderte_signatur_kommt_zeichengleich_durch(): void
+    /** Der editierbare Schema-13-Tokenstand muss bytegleich speicherbar sein. */
+    public function test_die_echte_editierbare_signaturquelle_kommt_zeichengleich_durch(): void
     {
-        $signature = MailSignature::forCompany()->render();
+        $tokens = [];
+        foreach (array_keys(MailSignature::forCompany()->values([], CompanyData::defaults())) as $key) {
+            $tokens[$key] = '{{'.$key.'}}';
+        }
+        $signature = view('emails.parts.signature', ['values' => $tokens])->render();
 
-        // Die firmenweite Signatur ist der Weg der VERSENDETEN Mail und
-        // VERLINKT ihre Bilder seit dem Umbau. Eingebettet erschienen sie
-        // bei vielen Empfaengern nie: Outlook-Desktop kennt keine data:-URIs,
-        // Gmail entfernt sie in Hintergrundangaben und kappt Nachrichten ab
-        // 102 kB — allein die Bilder waren 104,6 kB.
-        //
-        // Wichtig fuer diesen Test: der Sanitizer laesst eigene Hosts zu
-        // (isOwnHost), die verlinkte Fassung muss also unveraendert
-        // durchkommen. Genau das wird unten geprueft.
-        $this->assertStringContainsString('mail-assets/', $signature);
+        // Der gespeicherte Editorstand enthaelt nur Tokens und den modernen
+        // Hauptlayer. Der MSO-Still wird erst nach der Runtime-Projektion
+        // hinzugefuegt und ist deshalb kein Sanitizer-Eingabevertrag.
+        $this->assertSame(1, substr_count($signature, 'src="{{TRAIN_SRC}}"'));
+        $this->assertStringNotContainsString('mail-assets/', $signature);
         $this->assertStringNotContainsString('data:image', $signature);
-        $this->assertStringContainsString('position:relative', $signature);
-        $this->assertSame(
-            1,
-            preg_match_all('/zug-dampf-light\.gif\?v=\d+&amp;p=[a-f0-9]{32}/', $signature),
-        );
-        $this->assertSame(
-            0,
-            preg_match_all('/zug-dampf-idle-light\.gif\?v=\d+&amp;p=[a-f0-9]{32}/', $signature),
-        );
-        $this->assertStringNotContainsString('data-rt-train-main-image', $signature);
-        $this->assertStringNotContainsString('data-rt-train-main-layer', $signature);
-        $this->assertStringNotContainsString('rt-classic-outlook-train', $signature);
-        $this->assertSame(
-            1,
-            preg_match('/<td\b[^>]*class="[^"]*\brt-sign-cell\b[^"]*"[^>]*>/', $signature, $trainCarrier),
-        );
-        $this->assertStringContainsString('padding:0;', $trainCarrier[0]);
-        $this->assertStringNotContainsString('zug-dampf-light.gif', $trainCarrier[0]);
-        $this->assertStringContainsString(
-            'background-repeat:repeat,no-repeat,no-repeat;',
-            $trainCarrier[0],
-        );
-        $this->assertStringContainsString(
-            'background-position:left top,right center,center center;',
-            $trainCarrier[0],
-        );
-        $this->assertStringContainsString(
-            'background-size:64px 64px,auto 100%,100% 100%;',
-            $trainCarrier[0],
-        );
+        $this->assertStringNotContainsString('class="rt-sign-train-mso"', $signature);
+        $this->assertSame(1, substr_count($signature, 'class="rt-sign-stage"'));
+        $this->assertSame(1, substr_count($signature, 'class="rt-sign-train"'));
+        $this->assertSame(1, substr_count($signature, 'data-rt-layer-train'));
         $this->assertSame(
             1,
             preg_match_all(
-                '/<img\b(?=[^>]*class="[^"]*\brt-sign-train\b[^"]*")(?=[^>]*\bdata-rt-train(?:\s|=|>))[^>]*zug-dampf-light\.gif[^>]*>/i',
+                '/<img\b(?=[^>]*class="[^"]*\brt-sign-train\b[^"]*")(?=[^>]*\bdata-rt-train(?:\s|=|>))(?=[^>]*\bwidth="720")(?=[^>]*position:absolute)(?=[^>]*\bmso-hide:all)[^>]*src="\{\{TRAIN_SRC\}\}"[^>]*>/i',
                 $signature,
             ),
         );
-        $this->assertSame(1, substr_count($signature, 'class="rt-pad rt-sign-content"'));
-        $this->assertSame(1, substr_count($signature, 'data-rt-train'));
-        $this->assertSame(1, substr_count($signature, 'class="rt-sign-train"'));
-        $this->assertStringNotContainsString('<!--[if mso]><tr><td', $signature);
-        $this->assertStringNotContainsString('zug-dampf-idle-light.gif', $signature);
-        $this->assertStringNotContainsString('data-rt-train-idle-overlay', $signature);
-        $this->assertStringNotContainsString('data-rt-train-idle-image', $signature);
-
-        // Das kombinierte GIF ist in jedem Client genau ein regulaeres IMG;
-        // ein zweiter Background- oder Idle-Zug existiert nicht.
         $report = $this->sanitizer()->clean($signature);
 
         $this->assertSame(

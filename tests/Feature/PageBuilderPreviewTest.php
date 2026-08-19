@@ -167,14 +167,20 @@ class PageBuilderPreviewTest extends TestCase
         $this->assertStringContainsString('data-preview-document="template"', $html);
         $this->assertStringContainsString('data-preview-theme="dark"', $html);
         $this->assertStringContainsString('data-preview-animation="static"', $html);
-        $this->assertSame(1, substr_count($html, 'data-rt-train'));
+        $this->assertSame(1, substr_count($html, 'class="rt-sign-train"'));
+        $this->assertSame(1, substr_count($html, 'class="rt-sign-train-mso"'));
+        $this->assertSame(1, substr_count($html, 'class="rt-sign-stage"'));
         $this->assertSame(
             1,
             preg_match('/<td\b[^>]*class="[^"]*\brt-sign-cell\b[^"]*"[^>]*>/', $html, $staticCarrier),
         );
         $this->assertStringNotContainsString('url(data:image/png;base64,', $staticCarrier[0]);
         $this->assertMatchesRegularExpression(
-            '/<img\b[^>]*\bdata-rt-train\b[^>]*src="data:image\/png;base64,/',
+            '/<img\b(?=[^>]*\bdata-rt-train(?:\s|=|>))(?=[^>]*\bwidth="720")(?=[^>]*\bmso-hide:all)[^>]*src="data:image\/png;base64,/',
+            $html,
+        );
+        $this->assertMatchesRegularExpression(
+            '/class="rt-sign-train-mso"[^>]*>\s*<img\b[^>]*src="data:image\/png;base64,[^"]+"[^>]*width="720"[^>]*max-width:720px/',
             $html,
         );
         $this->assertStringContainsString(
@@ -195,14 +201,20 @@ class PageBuilderPreviewTest extends TestCase
         $animatedHtml = (string) $animatedA->getContent();
 
         $this->assertStringContainsString('data-preview-animation="animated"', $animatedHtml);
-        $this->assertSame(1, substr_count($animatedHtml, 'data-rt-train'));
+        $this->assertSame(1, substr_count($animatedHtml, 'class="rt-sign-train"'));
+        $this->assertSame(1, substr_count($animatedHtml, 'class="rt-sign-train-mso"'));
+        $this->assertSame(1, substr_count($animatedHtml, 'class="rt-sign-stage"'));
         $this->assertSame(
             1,
             preg_match('/<td\b[^>]*class="[^"]*\brt-sign-cell\b[^"]*"[^>]*>/', $animatedHtml, $animatedCarrier),
         );
         $this->assertStringNotContainsString('url(data:image/gif;base64,', $animatedCarrier[0]);
         $this->assertMatchesRegularExpression(
-            '/<img\b[^>]*\bdata-rt-train\b[^>]*src="data:image\/gif;base64,/',
+            '/<img\b(?=[^>]*\bdata-rt-train(?:\s|=|>))(?=[^>]*\bwidth="720")(?=[^>]*\bmso-hide:all)[^>]*src="data:image\/gif;base64,/',
+            $animatedHtml,
+        );
+        $this->assertMatchesRegularExpression(
+            '/class="rt-sign-train-mso"[^>]*>\s*<img\b[^>]*src="data:image\/png;base64,[^"]+"[^>]*width="720"[^>]*max-width:720px/',
             $animatedHtml,
         );
         $this->assertStringContainsString(

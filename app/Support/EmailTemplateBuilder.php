@@ -458,10 +458,10 @@ class EmailTemplateBuilder
         $values = $signature->values();
         $values['RESPONSIVE_CSS'] = self::responsiveCss($values['SIGNATURE_BORDER'] ?? null);
         // Der serverseitige Signatur-Render validiert den editierbaren
-        // CSS-Carrier und projiziert den kombinierten Hauptzug danach genau
-        // einmal als regulaeres IMG im absoluten Carrier-Layer. Der
-        // alte Background- und Idle-Sonderpfad kann dadurch weder doppeln
-        // noch in Outlook als Nullhoehenbild verschwinden.
+        // CSS-Carrier und projiziert den kombinierten Hauptzug danach als
+        // regulaeres IMG in die sichere Stage. Moderne Clients sehen das GIF,
+        // Word/MSO genau den bedingten PNG-Fallback; pro Client bleibt es ein
+        // Zug. Der alte Background- und Idle-Sonderpfad kann nicht doppeln.
         $values['SIGNATURE_BLOCK'] = $signature->render();
         $values['APPLICATION_CONTENT'] = '';
 
@@ -703,11 +703,9 @@ class EmailTemplateBuilder
     }
 
     /**
-     * Legacy-Standbildadresse fuer alte Dokumentstaende.
-     *
-     * Neue Ausgaben verwenden bewusst nur das kombinierte Haupt-GIF. Die
-     * Adresse bleibt waehrend der Kompatibilitaetsphase fuer bereits
-     * gespeicherte Token erhalten.
+     * Statisches Standbild fuer Word-/MSO-Clients. Moderne Mailclients sehen
+     * ausschliesslich das kombinierte Haupt-GIF; Outlook Desktop erhaelt
+     * diese Quelle in seinem bedingten Tabellenfallback.
      */
     public static function signatureTrainStillUrl(string $theme): string
     {
@@ -907,8 +905,8 @@ class EmailTemplateBuilder
         if ($cidOutlookImages) {
             // Eine heruntergeladene EML muss ihre fuer Outlook notwendigen
             // Bilder als echte MIME-Teile mitbringen. Data-URIs werden von
-            // Outlook nicht verlaesslich dargestellt, und einen Zug nur als
-            // CSS-Hintergrund verliert der Client beim Oeffnen oder Zitieren.
+            // Outlook nicht verlaesslich dargestellt. GIF und MSO-Standbild
+            // werden deshalb als getrennte CID-Teile mitgeliefert.
             $signatureOverrides = array_merge($signatureOverrides, [
                 'LOGO_STILL_SRC' => 'cid:railtime-logo-still',
                 'GRUND_RASTER_SRC' => 'cid:railtime-signature-grid',
@@ -1123,9 +1121,9 @@ class EmailTemplateBuilder
      * Die Classic-Payload verwendet absichtlich lokale Begleitdateien. Beim
      * Einfuegen in eine cloudgespeicherte Signatur waeren file:-Quellen aber
      * nach dem Schliessen des Browsers unbrauchbar. Diese Fassung rendert
-     * deshalb dieselbe Signatur mit absoluten HTTPS-Mailassets. Das einzelne
-     * Zug-GIF ist wie Logo und RT-Icon ein regulaeres IMG und bleibt dadurch
-     * auch beim Kopieren in neues Outlook erhalten.
+     * deshalb dieselbe Signatur mit absoluten HTTPS-Mailassets. Das Zug-GIF
+     * ist wie Logo und RT-Icon ein regulaeres IMG; der bedingte PNG-Fallback
+     * bleibt fuer einen spaeteren Word-/MSO-Empfaenger im kopierten Markup.
      */
     protected function buildOutlookBrowserCopySignatureHtml(string $theme): string
     {
@@ -1208,7 +1206,8 @@ class EmailTemplateBuilder
     /**
      * Prueft die eigenstaendige New-Outlook-/Web-Kopierfassung nach der
      * Runtime-Projektion. Der kombinierte Zug muss dort genau einmal als
-     * regulaeres HTTPS-IMG im absoluten Carrier-Layer vorliegen.
+     * regulaeres HTTPS-IMG im absoluten Layer der sicheren Block-Buehne
+     * vorliegen.
      */
     private static function placeBrowserCopyTrainBehindContent(
         string $html,
@@ -1245,6 +1244,19 @@ class EmailTemplateBuilder
             throw new RuntimeException('Der Zug-Carrier der Browser-Kopiervorlage ist unlesbar.');
         }
 
+        $stages = $xpath->query(
+            '//*[contains(concat(" ", normalize-space(@class), " "), " rt-sign-stage ")]',
+        );
+        $stage = $stages !== false ? $stages->item(0) : null;
+        if ($stages === false
+            || $stages->length !== 1
+            || ! $stage instanceof \DOMElement
+            || ! $stage->parentNode?->isSameNode($carrier)
+            || ! str_contains(strtolower($stage->getAttribute('style')), 'position:relative')
+            || ! str_contains(strtolower($stage->getAttribute('style')), 'overflow:hidden')) {
+            throw new RuntimeException('Die Browser-Kopiervorlage besitzt keine sichere Zug-Buehne.');
+        }
+
         $trainImages = $xpath->query('//*[@data-rt-train]');
         if ($trainImages === false || $trainImages->length !== 1) {
             throw new RuntimeException('Die Browser-Kopiervorlage besitzt kein eindeutiges Zugbild.');
@@ -1262,7 +1274,7 @@ class EmailTemplateBuilder
         if ($trainLayers === false
             || $trainLayers->length !== 1
             || ! $trainLayer instanceof \DOMElement
-            || ! $trainLayer->parentNode?->isSameNode($carrier)
+            || ! $trainLayer->parentNode?->isSameNode($stage)
             || ! $trainImage->parentNode?->isSameNode($trainLayer)
             || ! str_contains(strtolower($trainLayer->getAttribute('style')), 'position:absolute')
             || ! str_contains(strtolower($trainImage->getAttribute('style')), 'position:absolute')) {

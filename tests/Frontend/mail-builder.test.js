@@ -168,6 +168,18 @@ test('signature preview hydrates the train image and roundtrips two canonical ro
     assert.doesNotMatch(outgoing.html, /data-rt-mail-/);
     assert.match(outgoing.html, /class="rt-sign-train"[^>]*data-rt-train[^>]*src="\{\{TRAIN_SRC\}\}"/);
     assert.doesNotMatch(outgoing.html, /data:image\//);
+    const outgoingDocument = new DOMParser().parseFromString(
+        `<table><tbody>${outgoing.html}</tbody></table>`,
+        'text/html',
+    );
+    const outgoingStage = outgoingDocument.querySelector('td.rt-sign-cell > div.rt-sign-stage');
+    const outgoingLayer = outgoingStage?.querySelector(':scope > div.rt-sign-train-layer[data-rt-layer-train]');
+    const outgoingTrain = outgoingLayer?.querySelector(':scope > img.rt-sign-train[data-rt-train]');
+    assert.ok(outgoingStage, 'legacy direct layers must save inside the canonical relative stage');
+    assert.equal(outgoingStage.getAttribute('style'), 'position:relative;overflow:hidden;');
+    assert.ok(outgoingLayer.getAttribute('style').includes('mso-hide:all'));
+    assert.equal(outgoingTrain.getAttribute('width'), '720');
+    assert.ok(outgoingTrain.getAttribute('style').includes('mso-hide:all'));
     assert.equal(outgoing.project.pages[0].component, outgoing.html);
 
     // GrapesJS-/DOM-Serialisierer duerfen Kommentare verlieren. Genau dieser
@@ -675,7 +687,8 @@ test('protected mail layers keep the regular train image visible and structural'
     const train = component({ 'data-rt-mail-preview-token': 'TRAIN_SRC', 'data-rt-train': '' }, 'img');
     const trainLayer = component({ class: 'rt-sign-train-layer', 'data-rt-layer-train': '', 'data-rt-layer-align': 'left' }, 'div', [train]);
     const carrierContent = component({}, 'table');
-    const carrier = component({ class: 'rt-sign-cell' }, 'td', [carrierContent, trainLayer]);
+    const trainStage = component({ class: 'rt-sign-stage' }, 'div', [carrierContent, trainLayer]);
+    const carrier = component({ class: 'rt-sign-cell' }, 'td', [trainStage]);
     const applicationNote = component({}, 'div');
     const applicationCell = component({}, 'td', [applicationNote]);
     const applicationRow = component({ 'data-rt-mail-preview-only': 'application' }, 'tr', [applicationCell]);
@@ -683,7 +696,7 @@ test('protected mail layers keep the regular train image visible and structural'
     const ordinaryImage = component({ src: 'https://app.rail-time.test/mail-assets/content.png', alt: 'Teambild' }, 'img');
     const root = component({}, 'body', [markRow, carrier, applicationRow, ordinary, ordinaryImage]);
 
-    assert.equal(protectMailSystemComponents({ getWrapper: () => root }), 7);
+    assert.equal(protectMailSystemComponents({ getWrapper: () => root }), 8);
     [mark, markCell, applicationRow, applicationCell, applicationNote].forEach((protectedComponent) => {
         assert.equal(protectedComponent.state.stylable, false);
         assert.equal(protectedComponent.state.editable, false);
@@ -696,6 +709,8 @@ test('protected mail layers keep the regular train image visible and structural'
     assert.equal(train.state['custom-name'], 'Zugbild (geschützt)');
     assert.equal(trainLayer.state['custom-name'], 'Zug-Hintergrundebene (geschützt)');
     assert.equal(trainLayer.state.layerable, true);
+    assert.equal(trainStage.state['custom-name'], 'Signatur-Bühne (geschützt)');
+    assert.equal(trainStage.state.layerable, true);
     assert.deepEqual(
         trainLayer.state.traits.map((trait) => trait.label),
         ['Desktop-Ausschnitt', 'Zugbreite', 'Mobil-Ausschnitt'],
@@ -726,10 +741,23 @@ test('train layer editor maps size desktop and mobile presets to mail-safe geome
         'data-rt-layer-size': '125',
         'data-rt-layer-mobile': 'center',
     };
+    const imageAttributes = {
+        class: 'rt-sign-train',
+        'data-rt-train': '',
+        width: '1815',
+    };
+    const imageState = { 'max-width': '1815px' };
+    const image = {
+        getAttributes: () => imageAttributes,
+        getStyle: () => imageState,
+        addAttributes: (next) => Object.assign(imageAttributes, next),
+        setStyle: (next) => Object.assign(imageState, next),
+    };
     const component = {
         getAttributes: () => attributes,
         getStyle: () => state,
         setStyle: (next) => Object.assign(state, next),
+        components: () => ({ models: [image] }),
     };
 
     assert.equal(synchronizeMailTrainLayerAlignment(component), true);
@@ -740,6 +768,8 @@ test('train layer editor maps size desktop and mobile presets to mail-safe geome
         width: '125%',
         'max-width': '2269px',
     });
+    assert.equal(imageAttributes.width, '720');
+    assert.equal(imageState['max-width'], '2269px');
     attributes['data-rt-layer-align'] = 'right';
     assert.equal(synchronizeMailTrainLayerAlignment(component), true);
     assert.deepEqual(state, {
@@ -761,6 +791,7 @@ test('train layer editor maps size desktop and mobile presets to mail-safe geome
     });
     assert.equal(attributes['data-rt-layer-align'], 'left');
     assert.equal(attributes['data-rt-layer-mobile'], 'train');
+    assert.equal(imageAttributes.width, '720');
 });
 
 test('mail editor no longer offers misleading train background controls', () => {
@@ -1128,16 +1159,20 @@ test('mail toolbar keeps documents, preview and publishing in non-overlapping re
     assert.match(mobile, /\.rt-mail-studio-toolbar__action-buttons[\s\S]*?grid-column:\s*2[\s\S]*?grid-row:\s*2/);
 });
 
-test('signature source uses one absolute train image layer and no CSS image background', async () => {
+test('signature source uses the relative stage, one modern train layer and one MSO fallback', async () => {
     const { readFile } = await import('node:fs/promises');
-    const [css, signatureSource, trainAsset] = await Promise.all([
+    const [css, signatureSource, trainAsset, carrier, runtime] = await Promise.all([
         readFile(new URL('../../resources/views/emails/parts/responsive-css.blade.php', import.meta.url), 'utf8'),
         readFile(new URL('../../resources/views/emails/parts/signature.blade.php', import.meta.url), 'utf8'),
         readFile(new URL('../../resources/mail-templates/assets/zug-dampf-light.png', import.meta.url)),
+        readFile(new URL('../../app/Support/Mail/SignatureTrainCarrier.php', import.meta.url), 'utf8'),
+        readFile(new URL('../../app/Support/MailSignature.php', import.meta.url), 'utf8'),
     ]);
+    assert.match(signatureSource, /<div class="rt-sign-stage" style="position:relative;overflow:hidden;">/);
+    assert.doesNotMatch(signatureSource, /<td class="rt-sign-cell"[^>]*position:relative/);
     assert.match(signatureSource, /<img class="rt-sign-train" data-rt-train src="\{\{ \$trainSrc \}\}"/);
-    assert.match(signatureSource, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:absolute;/);
-    assert.match(signatureSource, /<img class="rt-sign-train"[^>]*style="position:absolute;/);
+    assert.match(signatureSource, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:absolute;[^"\r\n]*mso-hide:all;/);
+    assert.match(signatureSource, /<img class="rt-sign-train"[^>]*width="720"[^>]*style="position:absolute;[^"\r\n]*mso-hide:all;/);
     assert.doesNotMatch(signatureSource, /url\(\{\$values\['TRAIN_SRC'\]\}\)/);
     assert.doesNotMatch(css, /left top, right center, center center, (?:left|75%) bottom/);
     assert.doesNotMatch(css, /rt-train-idle/);
@@ -1147,6 +1182,14 @@ test('signature source uses one absolute train image layer and no CSS image back
     const assetHeight = trainAsset.readUInt32BE(20);
     assert.deepEqual([assetWidth, assetHeight], [2880, 292]);
 
-    assert.match(signatureSource, /width="1815"[^>]*display:block;width:100%;max-width:1815px;height:auto/);
-    assert.match(css, /data-rt-layer-mobile="center"[^}]+left: -50% !important/);
+    assert.equal((carrier.match(/<!--\[if mso\]><tr><td class="rt-sign-train-mso"/g) || []).length, 1);
+    assert.equal((runtime.match(/SignatureTrainCarrier::withMsoFallback\(/g) || []).length, 1);
+    assert.match(carrier, /<img src="'\.\$escapedSource\.'" width="720"/);
+
+    const mobile = css.slice(css.indexOf('@media only screen and (max-width: 860px)'));
+    assert.match(mobile, /\.rt-sign-train-layer\s*\{[\s\S]*?left: 0 !important;[\s\S]*?width: 100% !important;/);
+    assert.match(mobile, /data-rt-layer-mobile="train"[^}]+left: 0 !important;[^}]+width: 100% !important/);
+    assert.match(mobile, /data-rt-layer-mobile="left"[^}]+width: 200% !important/);
+    assert.match(mobile, /data-rt-layer-mobile="center"[^}]+left: -50% !important;[^}]+width: 200% !important/);
+    assert.match(mobile, /data-rt-layer-mobile="right"[^}]+width: 200% !important/);
 });
