@@ -127,8 +127,10 @@ function mailPreviewAssetSources(previewAssets = {}) {
     return [
         MAIL_PREVIEW_TRANSPARENT_PIXEL,
         previewAssets?.light?.logo,
+        previewAssets?.light?.mark,
         previewAssets?.light?.train,
         previewAssets?.dark?.logo,
+        previewAssets?.dark?.mark,
         previewAssets?.dark?.train,
         previewAssets?.icons?.phone,
         previewAssets?.icons?.mobile,

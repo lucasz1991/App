@@ -95,7 +95,6 @@ class MailDocumentEditor extends Component
     private function editorConfig(array $documents): array
     {
         $payload = [];
-        $contactIcons = EmailTemplateBuilder::contactIconSources(true);
         $contactIconUrls = EmailTemplateBuilder::contactIconUrls();
         $mailAssets = [
             ['src' => EmailTemplateBuilder::mailAssetUrl('wortmarke-signature-light.gif'), 'name' => 'RailTime Wortmarke hell', 'type' => 'image', 'mime_type' => 'image/gif', 'animated' => true, 'width' => 504, 'height' => 86, 'category' => 'RailTime Marke'],
@@ -168,25 +167,26 @@ class MailDocumentEditor extends Component
             // Nur fuer das isolierte Editor-iframe: Die gespeicherten
             // {{...}}-Tokens bleiben unangetastet, waehrend Logo, Zug und
             // Kontakticons in Hell und Dunkel trotzdem real dargestellt
-            // werden. So kann die Vorschau niemals versehentlich eine
-            // lokale data:-URL in die spaetere E-Mail uebernehmen.
+            // werden. Oeffentliche, gleich-originige Mailasset-URLs halten
+            // den Livewire-DOM klein; Base64-GIFs wuerden die Konfiguration
+            // schon vor dem GrapesJS-Start um mehrere MiB vergroessern.
             'previewAssets' => [
                 'light' => [
-                    'logo' => EmailTemplateBuilder::inlineImage('wortmarke-signature-light.gif', 'image/gif'),
-                    'mark' => EmailTemplateBuilder::inlineImage('icon-rt-light.gif', 'image/gif'),
-                    'train' => EmailTemplateBuilder::inlineImage('zug-dampf-light.gif', 'image/gif'),
+                    'logo' => EmailTemplateBuilder::mailAssetUrl('wortmarke-signature-light.gif'),
+                    'mark' => EmailTemplateBuilder::mailAssetUrl('icon-rt-light.gif'),
+                    'train' => EmailTemplateBuilder::mailAssetUrl('zug-dampf-light.gif'),
                 ],
                 'dark' => [
-                    'logo' => EmailTemplateBuilder::inlineImage('wortmarke-mail-dark.gif', 'image/gif'),
-                    'mark' => EmailTemplateBuilder::inlineImage('icon-rt-dark.gif', 'image/gif'),
-                    'train' => EmailTemplateBuilder::inlineImage('zug-dampf-dark.gif', 'image/gif'),
+                    'logo' => EmailTemplateBuilder::mailAssetUrl('wortmarke-mail-dark.gif'),
+                    'mark' => EmailTemplateBuilder::mailAssetUrl('icon-rt-dark.gif'),
+                    'train' => EmailTemplateBuilder::mailAssetUrl('zug-dampf-dark.gif'),
                 ],
                 'icons' => [
-                    'location' => $contactIcons['ICON_LOCATION_SRC'] ?? '',
-                    'phone' => $contactIcons['ICON_PHONE_SRC'] ?? '',
-                    'mobile' => $contactIcons['ICON_MOBILE_SRC'] ?? '',
-                    'email' => $contactIcons['ICON_EMAIL_SRC'] ?? '',
-                    'web' => $contactIcons['ICON_WEB_SRC'] ?? '',
+                    'location' => $contactIconUrls['ICON_LOCATION_SRC'] ?? '',
+                    'phone' => $contactIconUrls['ICON_PHONE_SRC'] ?? '',
+                    'mobile' => $contactIconUrls['ICON_MOBILE_SRC'] ?? '',
+                    'email' => $contactIconUrls['ICON_EMAIL_SRC'] ?? '',
+                    'web' => $contactIconUrls['ICON_WEB_SRC'] ?? '',
                 ],
             ],
             'vendor' => [

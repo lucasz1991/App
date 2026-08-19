@@ -1357,13 +1357,8 @@ HTML;
             ->get(route('admin.mail-documents.editor'))
             ->assertOk();
 
-        // [^<]* STATT (.*?): Der Lazy-Quantor lief ueber diesen Inhalt ins
-        // Backtrack-Limit von PCRE und lieferte dann false — nicht "nicht
-        // gefunden", sondern einen Abbruch. Die Vorschau-Assets stecken als
-        // Base64 im Konfigurationsblock, und seit die Zugeinfahrt in
-        // 1640 x 412 vorliegt, sind das mehrere hundert Kilobyte.
         // JSON in einem <script> darf kein rohes < enthalten (Blade escaped
-        // es), deshalb ist [^<]* hier sicher UND laeuft linear.
+        // es), deshalb ist [^<]* hier sicher und laeuft linear.
         $this->assertSame(1, preg_match(
             '/<script[^>]*data-mail-document-config[^>]*>([^<]*)<\/script>/',
             (string) $response->getContent(),
@@ -1371,30 +1366,22 @@ HTML;
         ));
         $config = json_decode($match[1], true, flags: JSON_THROW_ON_ERROR);
 
-        // Wortmarke und Zeichen sind bewegt, siehe render-marken-animation.
-        foreach (['light.logo', 'dark.logo', 'light.mark', 'dark.mark'] as $asset) {
-            $this->assertStringStartsWith(
-                'data:image/gif;base64,',
-                (string) data_get($config, 'previewAssets.'.$asset),
-                $asset,
-            );
-        }
-
-        foreach (['light.train', 'dark.train'] as $asset) {
-            $this->assertStringStartsWith(
-                'data:image/gif;base64,',
-                (string) data_get($config, 'previewAssets.'.$asset),
-                $asset,
-            );
+        // Alle Vorschauquellen sind gleich-originige Mailassets. Dadurch
+        // bleiben GIFs animiert, ohne den Livewire-DOM mit mehreren MiB
+        // Base64 zu blockieren.
+        foreach (['light.logo', 'dark.logo', 'light.mark', 'dark.mark', 'light.train', 'dark.train'] as $asset) {
+            $source = (string) data_get($config, 'previewAssets.'.$asset);
+            $this->assertStringContainsString('/mail-assets/', $source, $asset);
+            $this->assertStringNotContainsString('data:', $source, $asset);
         }
 
         foreach (['location', 'phone', 'mobile', 'email', 'web'] as $icon) {
-            $this->assertStringStartsWith(
-                'data:image/png;base64,',
-                (string) data_get($config, 'previewAssets.icons.'.$icon),
-                $icon,
-            );
+            $source = (string) data_get($config, 'previewAssets.icons.'.$icon);
+            $this->assertStringContainsString('/mail-assets/', $source, $icon);
+            $this->assertStringNotContainsString('data:', $source, $icon);
         }
+
+        $this->assertLessThan(100_000, strlen((string) $match[1]));
 
         $mailAssets = data_get($config, 'mailAssets');
         $this->assertIsArray($mailAssets);

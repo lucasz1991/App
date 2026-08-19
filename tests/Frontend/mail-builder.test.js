@@ -67,22 +67,24 @@ test('LMZ traits and mail protection do not recurse through component updates', 
     assert.doesNotMatch(masterLayoutSource.slice(bodyStart), /resources\/js\/app\.js/);
 });
 
-test('mail canvas renders real local token assets in light and dark without mutating config', () => {
+test('mail canvas renders lightweight same-origin token assets in light and dark without mutating config', () => {
     const previewAssets = {
         light: {
-            logo: 'data:image/png;base64,light-logo',
-            train: 'data:image/png;base64,light-train',
+            logo: 'https://app.rail-time.test/mail-assets/light-logo.gif',
+            mark: 'https://app.rail-time.test/mail-assets/light-mark.gif',
+            train: 'https://app.rail-time.test/mail-assets/light-train.gif',
         },
         dark: {
-            logo: 'data:image/png;base64,dark-logo',
-            train: 'data:image/png;base64,dark-train',
+            logo: 'https://app.rail-time.test/mail-assets/dark-logo.gif',
+            mark: 'https://app.rail-time.test/mail-assets/dark-mark.gif',
+            train: 'https://app.rail-time.test/mail-assets/dark-train.gif',
         },
         icons: {
-            phone: 'data:image/png;base64,phone-icon',
-            mobile: 'data:image/png;base64,mobile-icon',
-            email: 'data:image/png;base64,email-icon',
-            web: 'data:image/png;base64,web-icon',
-            location: 'data:image/png;base64,location-icon',
+            phone: 'https://app.rail-time.test/mail-assets/phone-icon.png',
+            mobile: 'https://app.rail-time.test/mail-assets/mobile-icon.png',
+            email: 'https://app.rail-time.test/mail-assets/email-icon.png',
+            web: 'https://app.rail-time.test/mail-assets/web-icon.png',
+            location: 'https://app.rail-time.test/mail-assets/location-icon.png',
         },
     };
     const snapshot = structuredClone(previewAssets);
@@ -92,13 +94,13 @@ test('mail canvas renders real local token assets in light and dark without muta
 
     assert.match(light, /\[bgcolor="\{\{PAGE_BG\}\}"\]/);
     assert.match(light, /#e7eaed/);
-    assert.match(light, /data:image\/png;base64,light-logo/);
-    assert.doesNotMatch(light, /data:image\/png;base64,light-train/);
-    assert.match(light, /data:image\/png;base64,phone-icon/);
-    assert.match(light, /data:image\/png;base64,location-icon/);
+    assert.match(light, /mail-assets\/light-logo\.gif/);
+    assert.doesNotMatch(light, /mail-assets\/light-train\.gif/);
+    assert.match(light, /mail-assets\/phone-icon\.png/);
+    assert.match(light, /mail-assets\/location-icon\.png/);
     assert.match(dark, /#070a0e/);
-    assert.match(dark, /data:image\/png;base64,dark-logo/);
-    assert.doesNotMatch(dark, /data:image\/png;base64,dark-train/);
+    assert.match(dark, /mail-assets\/dark-logo\.gif/);
+    assert.doesNotMatch(dark, /mail-assets\/dark-train\.gif/);
     assert.doesNotMatch(dark, /light-logo/);
     assert.deepEqual(previewAssets, snapshot);
 });
