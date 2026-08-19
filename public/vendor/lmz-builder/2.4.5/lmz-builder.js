@@ -2059,9 +2059,14 @@
             return;
         }
 
+        const traits = component.get?.('traits');
         MOTION_TRAITS.forEach((definition, index) => {
-            const existing = component.getTrait?.(definition.name)
-                || component.get?.('traits')?.findWhere?.({ name: definition.name });
+            // getTrait() initialisiert die Trait-Collection lazy und loest
+            // dabei selbst ein component:update aus. Innerhalb des frueheren
+            // update-Listeners entstand dadurch eine rekursive Renderkette.
+            const existing = Array.isArray(traits)
+                ? traits.some((trait) => trait?.name === definition.name || trait?.get?.('name') === definition.name)
+                : traits?.findWhere?.({ name: definition.name });
             if (!existing) {
                 component.addTrait?.({ ...definition }, { at: index, silent: true });
             }
@@ -2222,14 +2227,12 @@
 
         editor.on('component:create', onCreate);
         editor.on('component:selected', onSelected);
-        editor.on('component:update', onSelected);
         editor.on('load', refreshAll);
         refreshAll();
 
         return () => {
             editor.off('component:create', onCreate);
             editor.off('component:selected', onSelected);
-            editor.off('component:update', onSelected);
             editor.off('load', refreshAll);
         };
     }

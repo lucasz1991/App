@@ -25,6 +25,48 @@ import { createMailBlocks, mailCanvasStyles } from '../../resources/js/mail-buil
 
 const canonicalTrain = '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}"></div>';
 
+test('LMZ traits and mail protection do not recurse through component updates', () => {
+    const lmzBuilderSource = readFileSync(
+        new URL('../../public/vendor/lmz-builder/2.4.5/lmz-builder.js', import.meta.url),
+        'utf8',
+    );
+    const mailBuilderSource = readFileSync(
+        new URL('../../resources/js/mail-builder.js', import.meta.url),
+        'utf8',
+    );
+    const masterLayoutSource = readFileSync(
+        new URL('../../resources/views/layouts/master.blade.php', import.meta.url),
+        'utf8',
+    );
+    const motionTraitSource = lmzBuilderSource.slice(
+        lmzBuilderSource.indexOf('function addMotionTraits'),
+        lmzBuilderSource.indexOf('function getEmbedCatalogItems'),
+    );
+    const motionSetupSource = lmzBuilderSource.slice(
+        lmzBuilderSource.indexOf('function setupMotionTraits'),
+        lmzBuilderSource.indexOf('function setupSharedElementPreview'),
+    );
+    const mailUpdateSource = mailBuilderSource.slice(
+        mailBuilderSource.indexOf('const onComponentUpdate ='),
+        mailBuilderSource.indexOf("editor.on?.('component:add'"),
+    );
+
+    assert.match(motionTraitSource, /component\.get\?\.\('traits'\)/);
+    assert.doesNotMatch(motionTraitSource, /component\.getTrait\?/);
+    assert.doesNotMatch(motionSetupSource, /component:update/);
+    assert.match(mailUpdateSource, /synchronizeMailTrainLayerAlignment\(component\)/);
+    assert.match(mailUpdateSource, /synchronizeMailContentImage\(component\)/);
+    assert.doesNotMatch(mailUpdateSource, /protectMailSystemComponents/);
+    assert.equal(masterLayoutSource.split("'resources/js/app.js'").length - 1, 1);
+    assert.equal(
+        masterLayoutSource.indexOf("'resources/js/app.js'") < masterLayoutSource.indexOf('</head>'),
+        true,
+    );
+    const bodyStart = masterLayoutSource.search(/<body\s/);
+    assert.notEqual(bodyStart, -1);
+    assert.doesNotMatch(masterLayoutSource.slice(bodyStart), /resources\/js\/app\.js/);
+});
+
 test('mail canvas renders real local token assets in light and dark without mutating config', () => {
     const previewAssets = {
         light: {

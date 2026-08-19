@@ -2548,7 +2548,7 @@ export async function createMailBuilder({
     };
     const onComponentUpdate = (component) => {
         synchronizeMailTrainLayerAlignment(component);
-        protectMailSystemComponents(editor);
+        synchronizeMailContentImage(component);
     };
     editor.on?.('component:add', onComponentAdd);
     editor.on?.('component:update', onComponentUpdate);

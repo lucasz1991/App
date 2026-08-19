@@ -51,7 +51,11 @@
     </script>
     <!-- css files -->
     @include('layouts.head-css')
-    @vite(['resources/css/app.css', 'resources/css/shell-redesign.css', 'resources/css/tabs-redesign.css', 'resources/css/chat-redesign.css'])
+    {{-- Das globale Modul muss im <head> liegen. Livewire kann Vite-Assets dort
+         bei wire:navigate verfolgen und bei einem neuen Build vollstaendig
+         neu laden. Im ersetzten <body> wuerde eine neue Hash-Datei sonst eine
+         zweite Alpine-/Livewire-Instanz starten. --}}
+    @vite(['resources/css/app.css', 'resources/css/shell-redesign.css', 'resources/css/tabs-redesign.css', 'resources/css/chat-redesign.css', 'resources/js/app.js'])
     @livewireStyles
     {{-- Seitenbezogene Styles muessen nach den globalen Bundles kommen, damit
          sie die gemeinsame UI gezielt erweitern koennen. --}}
@@ -152,7 +156,6 @@
 
         @include('layouts.vendor-scripts')
         <!-- Scripts -->
-        @vite(['resources/js/app.js'])
         @livewireScriptConfig
         @yield('js')
     </body>
