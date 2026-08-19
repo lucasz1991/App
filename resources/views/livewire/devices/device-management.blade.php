@@ -1,98 +1,202 @@
 <x-ui.page
-    title="Geräteverwaltung"
+    title="Geräte"
     eyebrow="IT & Betrieb"
     description="Virtuelles Lager, Mitarbeiterzuweisung, sichere Bereitstellung und capability-basierte Fernverwaltung."
     :count="number_format($stats['total'], 0, ',', '.')"
     page-key="device-management"
 >
     <x-slot:actions>
+        <button
+            type="button"
+            wire:click="openProviderReadiness"
+            class="relative inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-rt-border bg-white px-3 py-2 text-sm font-semibold text-rt-text shadow-rt-xs transition duration-200 hover:border-rt-accent/30 hover:bg-rt-surface-muted active:scale-[0.98] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-accent/15 dark:border-rt-dark-border dark:bg-rt-dark-surface dark:text-white dark:hover:bg-rt-dark-surface-muted sm:px-4"
+            aria-haspopup="dialog"
+            aria-controls="device-provider-readiness-modal"
+            aria-label="Systemstatus öffnen"
+            title="Systemstatus"
+        >
+            <i data-feather="activity" class="h-4 w-4" aria-hidden="true"></i>
+            <span @class([
+                'absolute right-1.5 top-1.5 h-2 w-2 rounded-full ring-2 ring-white dark:ring-rt-dark-surface',
+                'bg-emerald-500' => $productionCommandsEnabled,
+                'bg-amber-500' => ! $productionCommandsEnabled,
+            ]) aria-hidden="true"></span>
+            <span class="hidden sm:inline">Systemstatus</span>
+            <span class="sr-only sm:hidden">Systemstatus öffnen</span>
+        </button>
+
         @can('devices.manage')
             <button
                 type="button"
                 wire:click="openCreate"
-                class="inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-3 py-2 text-sm font-semibold text-white shadow-rt-sm transition hover:bg-rt-red-dark focus:outline-none focus:ring-2 focus:ring-rt-red/30 min-[430px]:px-4"
+                class="inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-xl bg-rt-red px-3 py-2 text-sm font-semibold text-white shadow-rt-sm transition hover:bg-rt-red-dark focus:outline-none focus:ring-2 focus:ring-rt-red/30 sm:px-4"
                 aria-label="Gerät erfassen"
                 title="Gerät erfassen"
             >
                 <i data-feather="plus" class="h-4 w-4" aria-hidden="true"></i>
-                <span class="hidden min-[430px]:inline">Gerät erfassen</span>
+                <span class="hidden sm:inline">Gerät erfassen</span>
             </button>
         @endcan
     </x-slot:actions>
 
-    <div class="space-y-5" data-device-management>
-        <div class="rounded-2xl border border-sky-200 bg-sky-50/90 p-4 text-sm text-sky-950 shadow-rt-xs dark:border-sky-900/70 dark:bg-sky-950/30 dark:text-sky-100">
-            <div class="flex items-start gap-3">
-                <span class="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-sky-100 text-sky-700 dark:bg-sky-900/70 dark:text-sky-200">
-                    <i data-feather="shield" class="h-4 w-4" aria-hidden="true"></i>
-                </span>
-                <div>
-                    <p class="font-semibold">Sichere Startklar-Bereitstellung ohne Passwortspeicher</p>
-                    <p class="mt-1 leading-6 text-sky-800 dark:text-sky-200/80">
-                        RailTime bereitet Microsoft 365/Outlook, Google Workspace, Apple-SSO, Apps und Profile vor. Mitarbeitende bestätigen einmal den offiziellen OAuth-/SSO-/MFA-Dialog. Nicht belegte Providerfunktionen bleiben gesperrt.
-                    </p>
+    <div class="space-y-4" data-device-management>
+        <section class="flex min-w-0 items-center gap-3 rounded-xl border border-sky-200/80 bg-sky-50/75 px-3 py-2.5 text-sky-950 dark:border-sky-900/70 dark:bg-sky-950/25 dark:text-sky-100" aria-label="Sichere Bereitstellung">
+            <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-sky-100 text-sky-700 dark:bg-sky-900/70 dark:text-sky-200">
+                <i data-feather="shield" class="h-4 w-4" aria-hidden="true"></i>
+            </span>
+            <div class="min-w-0 flex-1">
+                <p class="truncate text-sm font-semibold">Startklar-Bereitstellung ohne Passwortspeicher</p>
+                <p class="hidden truncate text-xs text-sky-800/80 md:block dark:text-sky-200/75">Microsoft 365, Google Workspace und Apple-SSO werden vorbereitet; die Anmeldung bleibt im offiziellen OAuth-/MFA-Dialog.</p>
+            </div>
+            <span class="hidden shrink-0 rounded-lg bg-white/70 px-2.5 py-1 text-[11px] font-semibold text-sky-800 shadow-rt-xs lg:inline dark:bg-sky-900/45 dark:text-sky-100">OAuth / SSO</span>
+        </section>
+
+        @php
+            $activeFilterCount = collect([$locationFilter, $lifecycleFilter, $platformFilter, $complianceFilter])
+                ->filter(fn ($value) => $value !== '')
+                ->count();
+        @endphp
+        <section class="rounded-xl border border-rt-border/80 bg-white p-2.5 shadow-rt-xs dark:border-rt-dark-border dark:bg-rt-dark-surface" aria-label="Geräte suchen und filtern">
+            <div class="flex items-center gap-2">
+                <label class="relative min-w-0 flex-1">
+                    <span class="sr-only">Geräte suchen</span>
+                    <i data-feather="search" class="pointer-events-none absolute left-3 top-3 h-4 w-4 text-rt-muted" aria-hidden="true"></i>
+                    <input type="search" wire:model.live.debounce.350ms="search" placeholder="Gerät, Seriennummer oder Mitarbeiter …" class="min-h-10 w-full rounded-lg border border-rt-border bg-white pl-10 pr-3 text-sm dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white">
+                </label>
+
+                <div class="relative shrink-0" x-data="{ open: false }" @keydown.escape.window="open = false" @click.outside="open = false">
+                    <button
+                        type="button"
+                        @click="open = ! open"
+                        :aria-expanded="open ? 'true' : 'false'"
+                        aria-controls="device-filter-dropdown"
+                        aria-label="Gerätefilter öffnen"
+                        class="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-rt-border bg-white px-3 text-sm font-semibold text-rt-text transition duration-200 hover:border-rt-accent/30 hover:bg-rt-surface-muted active:scale-[0.98] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-accent/15 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white"
+                    >
+                        <i data-feather="sliders" class="h-4 w-4" aria-hidden="true"></i>
+                        <span class="hidden sm:inline">Filter</span>
+                        @if($activeFilterCount > 0)
+                            <span class="grid h-5 min-w-5 place-items-center rounded-md bg-rt-red px-1 text-[10px] font-bold tabular-nums text-white">{{ $activeFilterCount }}</span>
+                        @endif
+                        <span class="grid h-3.5 w-3.5 place-items-center transition-transform duration-200" :class="open ? 'rotate-180' : ''" aria-hidden="true">
+                            <i data-feather="chevron-down" class="h-3.5 w-3.5"></i>
+                        </span>
+                    </button>
+
+                    <div
+                        id="device-filter-dropdown"
+                        x-cloak
+                        x-show="open"
+                        x-transition:enter="transition ease-out duration-150"
+                        x-transition:enter-start="opacity-0 -translate-y-1 scale-[0.98]"
+                        x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+                        x-transition:leave="transition ease-in duration-100"
+                        x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+                        x-transition:leave-end="opacity-0 -translate-y-1 scale-[0.98]"
+                        class="absolute right-0 z-30 mt-2 w-[min(22rem,calc(100vw-2rem))] origin-top-right rounded-xl border border-rt-border bg-white p-3 shadow-rt-lg dark:border-rt-dark-border dark:bg-rt-dark-surface"
+                        role="group"
+                        aria-label="Gerätefilter"
+                    >
+                        <div class="flex items-center justify-between gap-3 border-b border-rt-border/70 pb-2.5 dark:border-rt-dark-border">
+                            <div>
+                                <p class="text-sm font-bold text-rt-text dark:text-white">Gerätefilter</p>
+                                <p class="mt-0.5 text-xs text-rt-muted dark:text-rt-dark-muted">Mehrere Kriterien kombinieren</p>
+                            </div>
+                            @if($activeFilterCount > 0 || $search !== '')
+                                <button type="button" wire:click="clearFilters" class="min-h-10 rounded-lg px-2 text-xs font-semibold text-rt-red transition hover:bg-rt-red/5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/15">Zurücksetzen</button>
+                            @endif
+                        </div>
+
+                        <div class="mt-3 grid gap-2">
+                            <label class="text-xs font-semibold text-rt-muted dark:text-rt-dark-muted">
+                                Standort
+                                <select wire:model.live="locationFilter" class="mt-1 min-h-10 w-full rounded-lg border border-rt-border bg-white px-3 text-sm font-normal text-rt-text dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white">
+                                    <option value="">Alle Standorte</option>@foreach($locations as $location)<option value="{{ $location }}">{{ $location }}</option>@endforeach
+                                </select>
+                            </label>
+                            <label class="text-xs font-semibold text-rt-muted dark:text-rt-dark-muted">
+                                Gerätezustand
+                                <select wire:model.live="lifecycleFilter" class="mt-1 min-h-10 w-full rounded-lg border border-rt-border bg-white px-3 text-sm font-normal text-rt-text dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white">
+                                    <option value="">Alle Gerätezustände</option>
+                                    <option value="inventory">Im Lager</option><option value="preparing">Vorbereitung</option><option value="assigned">Zugewiesen</option><option value="in_service">Im Einsatz</option><option value="repair">Reparatur</option><option value="lost">Verloren</option><option value="retired">Ausgemustert</option>
+                                </select>
+                            </label>
+                            <label class="text-xs font-semibold text-rt-muted dark:text-rt-dark-muted">
+                                Plattform
+                                <select wire:model.live="platformFilter" class="mt-1 min-h-10 w-full rounded-lg border border-rt-border bg-white px-3 text-sm font-normal text-rt-text dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white">
+                                    <option value="">Alle Plattformen</option>
+                                    @foreach(\App\Enums\DevicePlatform::cases() as $platform)<option value="{{ $platform->value }}">{{ ucfirst($platform->value) }}</option>@endforeach
+                                </select>
+                            </label>
+                            <label class="text-xs font-semibold text-rt-muted dark:text-rt-dark-muted">
+                                Compliance
+                                <select wire:model.live="complianceFilter" class="mt-1 min-h-10 w-full rounded-lg border border-rt-border bg-white px-3 text-sm font-normal text-rt-text dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white">
+                                    <option value="">Alle Compliance-Stati</option><option value="compliant">Konform</option><option value="warning">Warnung</option><option value="non_compliant">Nicht konform</option><option value="unknown">Unbekannt</option>
+                                </select>
+                            </label>
+                        </div>
+
+                        <button type="button" @click="open = false" class="mt-3 inline-flex min-h-10 w-full items-center justify-center rounded-lg bg-rt-text px-3 text-sm font-semibold text-white transition hover:bg-slate-700 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-500/20 dark:bg-white dark:text-rt-dark-canvas dark:hover:bg-slate-100">Filter übernehmen</button>
+                    </div>
                 </div>
             </div>
-        </div>
+        </section>
 
-        <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Gerätekennzahlen">
+        <section class="grid grid-cols-2 gap-2.5 lg:grid-cols-4" aria-label="Gerätekennzahlen">
             @foreach([
                 ['label' => 'Gesamt', 'value' => $stats['total'], 'hint' => 'Geräte', 'icon' => 'monitor', 'tone' => 'sky'],
                 ['label' => 'Zugewiesen', 'value' => $stats['assigned'], 'hint' => 'aktive Ausgaben', 'icon' => 'user-check', 'tone' => 'emerald'],
                 ['label' => 'Virtuelles Lager', 'value' => $stats['inventory'], 'hint' => 'nicht zugewiesener Bestand', 'icon' => 'package', 'tone' => 'cyan'],
                 ['label' => 'Handlungsbedarf', 'value' => $stats['attention'], 'hint' => 'Warnung oder Fehler', 'icon' => 'alert-triangle', 'tone' => 'amber'],
             ] as $stat)
-                <article class="rounded-2xl border border-rt-border/80 bg-white/90 p-4 shadow-rt-sm dark:border-rt-dark-border dark:bg-rt-dark-surface/90">
-                    <div class="flex items-center gap-3">
+                @php
+                    $share = $stats['total'] > 0 && $stat['label'] !== 'Gesamt'
+                        ? round(($stat['value'] / $stats['total']) * 100, 1)
+                        : null;
+                @endphp
+                <article class="rounded-xl border border-rt-border/80 bg-white/95 p-3 shadow-rt-xs dark:border-rt-dark-border dark:bg-rt-dark-surface/95 sm:p-3.5">
+                    <div class="flex min-w-0 items-center gap-2.5 sm:gap-3">
                         <span @class([
-                            'grid h-11 w-11 place-items-center rounded-2xl',
+                            'grid h-9 w-9 shrink-0 place-items-center rounded-full sm:h-10 sm:w-10',
                             'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300' => $stat['tone'] === 'sky',
                             'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' => $stat['tone'] === 'emerald',
                             'bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300' => $stat['tone'] === 'cyan',
                             'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300' => $stat['tone'] === 'amber',
                         ])>
-                            <i data-feather="{{ $stat['icon'] }}" class="h-5 w-5" aria-hidden="true"></i>
+                            <i data-feather="{{ $stat['icon'] }}" class="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true"></i>
                         </span>
-                        <div>
-                            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-rt-muted dark:text-rt-dark-muted">{{ $stat['label'] }}</p>
-                            <p class="mt-1 text-2xl font-bold tracking-tight text-rt-text dark:text-white">{{ number_format($stat['value'], 0, ',', '.') }}</p>
-                            <p class="text-xs text-rt-soft dark:text-rt-dark-soft">{{ $stat['hint'] }}</p>
+                        <div class="min-w-0">
+                            <p class="truncate text-xs font-medium text-rt-muted dark:text-rt-dark-muted">{{ $stat['label'] }}</p>
+                            <div class="mt-0.5 flex items-baseline gap-2">
+                                <p class="text-xl font-bold tabular-nums tracking-tight text-rt-text dark:text-white sm:text-2xl">{{ number_format($stat['value'], 0, ',', '.') }}</p>
+                                @if(! is_null($share))
+                                    <span class="hidden text-[11px] font-medium tabular-nums text-rt-soft sm:inline dark:text-rt-dark-soft">{{ number_format($share, 1, ',', '.') }} %</span>
+                                @endif
+                            </div>
+                            <p class="truncate text-[11px] text-rt-soft dark:text-rt-dark-soft">{{ $stat['hint'] }}</p>
                         </div>
                     </div>
                 </article>
             @endforeach
         </section>
 
-        <section class="overflow-hidden rounded-2xl border border-rt-border/80 bg-white shadow-rt-sm dark:border-rt-dark-border dark:bg-rt-dark-surface">
-            <div class="border-b border-rt-border/70 p-4 dark:border-rt-dark-border">
-                <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-                    <label class="relative xl:col-span-2">
-                        <span class="sr-only">Geräte suchen</span>
-                        <i data-feather="search" class="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-rt-muted" aria-hidden="true"></i>
-                        <input type="search" wire:model.live.debounce.350ms="search" placeholder="Gerät, Seriennummer oder Mitarbeiter …" class="min-h-11 w-full rounded-xl border border-rt-border bg-white pl-10 pr-3 text-sm dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white">
-                    </label>
-                    <select wire:model.live="platformFilter" aria-label="Plattform filtern" class="min-h-11 rounded-xl border border-rt-border bg-white px-3 text-sm dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white">
-                        <option value="">Alle Plattformen</option>
-                        @foreach(\App\Enums\DevicePlatform::cases() as $platform)<option value="{{ $platform->value }}">{{ ucfirst($platform->value) }}</option>@endforeach
-                    </select>
-                    <select wire:model.live="lifecycleFilter" aria-label="Lebenszyklus filtern" class="min-h-11 rounded-xl border border-rt-border bg-white px-3 text-sm dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white">
-                        <option value="">Alle Gerätezustände</option>
-                        <option value="inventory">Im Lager</option><option value="preparing">Vorbereitung</option><option value="assigned">Zugewiesen</option><option value="in_service">Im Einsatz</option><option value="repair">Reparatur</option><option value="lost">Verloren</option><option value="retired">Ausgemustert</option>
-                    </select>
-                    <select wire:model.live="complianceFilter" aria-label="Compliance filtern" class="min-h-11 rounded-xl border border-rt-border bg-white px-3 text-sm dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white">
-                        <option value="">Alle Compliance-Stati</option><option value="compliant">Konform</option><option value="warning">Warnung</option><option value="non_compliant">Nicht konform</option><option value="unknown">Unbekannt</option>
-                    </select>
-                    <select wire:model.live="locationFilter" aria-label="Standort filtern" class="min-h-11 rounded-xl border border-rt-border bg-white px-3 text-sm dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white">
-                        <option value="">Alle Standorte</option>@foreach($locations as $location)<option value="{{ $location }}">{{ $location }}</option>@endforeach
-                    </select>
+        <div class="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]">
+            <section class="min-w-0 overflow-hidden rounded-xl border border-rt-border/80 bg-white shadow-rt-xs dark:border-rt-dark-border dark:bg-rt-dark-surface" aria-labelledby="device-inventory-title">
+                <div class="flex items-center justify-between gap-3 border-b border-rt-border/70 px-4 py-3 dark:border-rt-dark-border">
+                    <div>
+                        <h2 id="device-inventory-title" class="text-sm font-bold text-rt-text dark:text-white">Gerätebestand</h2>
+                        <p class="mt-0.5 text-xs text-rt-muted dark:text-rt-dark-muted">{{ number_format($devices->total(), 0, ',', '.') }} Treffer in Inventar und Ausgabe</p>
+                    </div>
+                    @if($search !== '' || $platformFilter !== '' || $lifecycleFilter !== '' || $complianceFilter !== '' || $locationFilter !== '')
+                        <button type="button" wire:click="clearFilters" class="min-h-10 rounded-lg px-3 text-xs font-semibold text-rt-red transition hover:bg-rt-red/5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/15">Filter löschen</button>
+                    @endif
                 </div>
-            </div>
 
-            <div class="overflow-x-auto">
+                <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-rt-border/70 text-left text-sm dark:divide-rt-dark-border">
-                    <thead class="bg-rt-surface-muted/80 text-xs uppercase tracking-[0.08em] text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted">
+                    <thead class="bg-rt-surface-muted/70 text-[11px] uppercase tracking-[0.08em] text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted">
                         <tr>
-                            <th class="px-4 py-3 font-semibold">Gerät</th><th class="px-4 py-3 font-semibold">Mitarbeiter</th><th class="px-4 py-3 font-semibold">Plattform</th><th class="px-4 py-3 font-semibold">Standort</th><th class="px-4 py-3 font-semibold">Compliance</th><th class="px-4 py-3 font-semibold">Verwaltung</th><th class="px-4 py-3 font-semibold">Sync</th><th class="px-4 py-3"><span class="sr-only">Aktion</span></th>
+                            <th class="px-3 py-2.5 font-semibold sm:px-4">Gerät</th><th class="px-3 py-2.5 font-semibold">Mitarbeiter</th><th class="px-3 py-2.5 font-semibold">Plattform</th><th class="px-3 py-2.5 font-semibold">Standort</th><th class="px-3 py-2.5 font-semibold">Compliance</th><th class="hidden px-3 py-2.5 font-semibold 2xl:table-cell">Verwaltung</th><th class="hidden px-3 py-2.5 font-semibold xl:table-cell">Sync</th><th class="px-2 py-2.5"><span class="sr-only">Aktion</span></th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-rt-border/60 dark:divide-rt-dark-border/70">
@@ -102,17 +206,17 @@
                                 $compliance = $device->compliance_status->value;
                                 $management = $device->management_status->value;
                             @endphp
-                            <tr class="transition hover:bg-rt-surface-muted/60 dark:hover:bg-rt-dark-surface-muted/60">
-                                <td class="px-4 py-3">
+                            <tr class="transition duration-200 hover:bg-rt-surface-muted/60 dark:hover:bg-rt-dark-surface-muted/60">
+                                <td class="px-3 py-2.5 sm:px-4">
                                     <button type="button" wire:click="selectDevice('{{ $device->public_id }}')" class="text-left font-semibold text-rt-text hover:text-rt-red dark:text-white dark:hover:text-rt-red-light">
                                         {{ $device->display_name ?: $device->hostname ?: 'Unbenanntes Gerät' }}
                                         <span class="mt-0.5 block text-xs font-normal text-rt-muted dark:text-rt-dark-muted">{{ $device->asset_tag ?: $device->serial_number }}</span>
                                     </button>
                                 </td>
-                                <td class="px-4 py-3 text-rt-text dark:text-white">{{ $assignment?->user?->name ?? 'Im Lager' }}</td>
-                                <td class="px-4 py-3"><span class="rounded-lg border border-rt-border px-2 py-1 text-xs font-medium dark:border-rt-dark-border">{{ match($device->platform->value) {'macos' => 'macOS', 'ios' => 'iOS', 'ipados' => 'iPadOS', default => ucfirst($device->platform->value)} }}</span></td>
-                                <td class="px-4 py-3 text-rt-muted dark:text-rt-dark-muted">{{ $device->declared_location ?: 'Nicht gemeldet' }}</td>
-                                <td class="px-4 py-3">
+                                <td class="px-3 py-2.5 text-rt-text dark:text-white">{{ $assignment?->user?->name ?? 'Im Lager' }}</td>
+                                <td class="px-3 py-2.5"><span class="rounded-md border border-rt-border px-2 py-1 text-xs font-medium dark:border-rt-dark-border">{{ match($device->platform->value) {'macos' => 'macOS', 'ios' => 'iOS', 'ipados' => 'iPadOS', default => ucfirst($device->platform->value)} }}</span></td>
+                                <td class="px-3 py-2.5 text-rt-muted dark:text-rt-dark-muted">{{ $device->declared_location ?: 'Nicht gemeldet' }}</td>
+                                <td class="px-3 py-2.5">
                                     <span @class([
                                         'inline-flex rounded-full px-2.5 py-1 text-xs font-semibold',
                                         'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' => $compliance === 'compliant',
@@ -121,46 +225,64 @@
                                         'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300' => !in_array($compliance, ['compliant','warning','non_compliant'], true),
                                     ])>{{ match($compliance) {'compliant' => 'Konform', 'warning' => 'Warnung', 'non_compliant' => 'Nicht konform', 'exempt' => 'Ausgenommen', default => 'Unbekannt'} }}</span>
                                 </td>
-                                <td class="px-4 py-3 text-rt-muted dark:text-rt-dark-muted">{{ match($management) {'managed' => 'Verwaltet', 'limited' => 'Eingeschränkt', 'pending' => 'Einladung offen', 'error' => 'Fehler', default => 'Nicht verwaltet'} }}</td>
-                                <td class="whitespace-nowrap px-4 py-3 text-xs text-rt-muted dark:text-rt-dark-muted">{{ $device->last_synced_at?->diffForHumans() ?? 'Noch nie' }}</td>
-                                <td class="px-4 py-3 text-right"><button type="button" wire:click="selectDevice('{{ $device->public_id }}')" class="rounded-lg p-2 text-rt-muted hover:bg-rt-surface-muted hover:text-rt-red dark:hover:bg-rt-dark-surface-muted" aria-label="Details zu {{ $device->display_name }}"><i data-feather="chevron-right" class="h-4 w-4"></i></button></td>
+                                <td class="hidden px-3 py-2.5 text-rt-muted 2xl:table-cell dark:text-rt-dark-muted">{{ match($management) {'managed' => 'Verwaltet', 'limited' => 'Eingeschränkt', 'pending' => 'Einladung offen', 'error' => 'Fehler', default => 'Nicht verwaltet'} }}</td>
+                                <td class="hidden whitespace-nowrap px-3 py-2.5 text-xs text-rt-muted xl:table-cell dark:text-rt-dark-muted">{{ $device->last_synced_at?->diffForHumans() ?? 'Noch nie' }}</td>
+                                <td class="px-2 py-2.5 text-right"><button type="button" wire:click="selectDevice('{{ $device->public_id }}')" class="grid min-h-10 min-w-10 place-items-center rounded-lg text-rt-muted transition hover:bg-rt-surface-muted hover:text-rt-red active:scale-[0.96] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rt-red/15 dark:hover:bg-rt-dark-surface-muted" aria-label="Details zu {{ $device->display_name }}"><i data-feather="chevron-right" class="h-4 w-4"></i></button></td>
                             </tr>
                         @empty
-                            <tr><td colspan="8" class="px-4 py-12 text-center text-sm text-rt-muted dark:text-rt-dark-muted">Noch keine passenden Geräte gefunden.</td></tr>
+                            <tr>
+                                <td colspan="8" class="px-4 py-10 text-center">
+                                    <span class="mx-auto grid h-11 w-11 place-items-center rounded-xl bg-rt-surface-muted text-rt-muted dark:bg-rt-dark-surface-muted dark:text-rt-dark-muted"><i data-feather="monitor" class="h-5 w-5" aria-hidden="true"></i></span>
+                                    <p class="mt-3 text-sm font-semibold text-rt-text dark:text-white">Noch keine passenden Geräte gefunden</p>
+                                    <p class="mx-auto mt-1 max-w-sm text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Passe die Filter an oder erfasse das erste Gerät für das virtuelle Lager.</p>
+                                </td>
+                            </tr>
                         @endforelse
                     </tbody>
                 </table>
-            </div>
-            <div class="border-t border-rt-border/70 px-4 py-3 dark:border-rt-dark-border">{{ $devices->links() }}</div>
-        </section>
-
-        <section class="rounded-2xl border border-rt-border/80 bg-white p-4 shadow-rt-sm dark:border-rt-dark-border dark:bg-rt-dark-surface" aria-labelledby="provider-readiness-title">
-            <div class="flex items-center justify-between gap-3">
-                <div>
-                    <h2 id="provider-readiness-title" class="text-base font-bold text-rt-text dark:text-white">Provider- und Produktionsbereitschaft</h2>
-                    <p class="mt-1 text-sm text-rt-muted dark:text-rt-dark-muted">Konfiguration allein aktiviert keine Geräteaktion. Der globale Mutationsschalter und echte Connectorfähigkeiten bleiben zusätzliche Gates.</p>
                 </div>
-                <span @class([
-                    'rounded-full px-3 py-1 text-xs font-semibold',
-                    'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' => $productionCommandsEnabled,
-                    'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' => !$productionCommandsEnabled,
-                ])>{{ $productionCommandsEnabled ? 'Mutationen freigegeben' : 'Mutationen sicher gesperrt' }}</span>
-            </div>
-            <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-                @foreach($providerCards as $provider)
-                    <article class="rounded-xl border border-rt-border p-3 dark:border-rt-dark-border">
-                        <div class="flex items-start justify-between gap-2">
-                            <div><p class="text-sm font-semibold text-rt-text dark:text-white">{{ $provider['label'] }}</p><p class="mt-1 text-xs text-rt-muted dark:text-rt-dark-muted">{{ implode(', ', $provider['capabilities']['platforms'] ?? []) }}</p></div>
-                            <span class="mt-0.5 h-2.5 w-2.5 rounded-full {{ $provider['enabled'] ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600' }}" title="{{ $provider['enabled'] ? 'aktiviert' : 'deaktiviert' }}"></span>
-                        </div>
-                        <p class="mt-3 text-xs text-rt-muted dark:text-rt-dark-muted">{{ count($provider['capabilities']['commands'] ?? []) }} belegte Kommandotypen · {{ ($provider['capabilities']['remote_support'] ?? false) ? 'Remote-Support' : 'kein Remote-Support' }}</p>
-                        @if(auth()->user()?->isSuperAdmin())
-                            <a href="{{ route('admin.settings') }}" class="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-rt-border px-2 text-xs font-semibold text-rt-text hover:bg-rt-surface-muted dark:border-rt-dark-border dark:text-white dark:hover:bg-rt-dark-surface-muted">Im Geräte-Setup prüfen</a>
-                        @endif
-                    </article>
-                @endforeach
-            </div>
-        </section>
+                <div class="border-t border-rt-border/70 px-4 py-3 dark:border-rt-dark-border">{{ $devices->links() }}</div>
+            </section>
+
+            <aside class="overflow-hidden rounded-xl border border-rt-border/80 bg-white shadow-rt-xs dark:border-rt-dark-border dark:bg-rt-dark-surface" aria-labelledby="device-locations-title">
+                <div class="flex items-center justify-between gap-3 border-b border-rt-border/70 px-4 py-3 dark:border-rt-dark-border">
+                    <div>
+                        <h2 id="device-locations-title" class="text-sm font-bold text-rt-text dark:text-white">Gerätestandorte</h2>
+                        <p class="mt-0.5 text-xs text-rt-muted dark:text-rt-dark-muted">Deklarierte Einsatzorte</p>
+                    </div>
+                    <span class="grid h-9 w-9 place-items-center rounded-lg bg-sky-50 text-sky-700 dark:bg-sky-950/45 dark:text-sky-300"><i data-feather="map" class="h-4 w-4" aria-hidden="true"></i></span>
+                </div>
+
+                <div class="relative min-h-72 overflow-hidden bg-sky-50/45 px-3 py-3 dark:bg-sky-950/10">
+                    <svg class="pointer-events-none absolute inset-0 h-full w-full text-sky-200/70 dark:text-sky-900/60" viewBox="0 0 288 360" fill="none" aria-hidden="true">
+                        <path d="M-20 70C46 42 83 101 139 73C189 48 231 16 308 39M-16 168C48 124 106 197 168 151C218 114 256 127 309 105M-15 282C40 235 92 262 145 228C208 187 247 224 306 195" stroke="currentColor" stroke-width="2" stroke-dasharray="5 8" />
+                        <circle cx="42" cy="69" r="5" fill="currentColor"/><circle cx="140" cy="73" r="5" fill="currentColor"/><circle cx="168" cy="151" r="5" fill="currentColor"/><circle cx="145" cy="228" r="5" fill="currentColor"/>
+                    </svg>
+
+                    <div class="relative space-y-2">
+                        @forelse($locationStats as $location)
+                            <button type="button" wire:click="filterByLocation({{ \Illuminate\Support\Js::from($location->declared_location) }})" class="group flex min-h-11 w-full items-center gap-2.5 rounded-lg border border-white/90 bg-white/90 px-3 text-left shadow-rt-xs transition duration-200 hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-rt-sm active:translate-y-0 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-500/15 dark:border-rt-dark-border dark:bg-rt-dark-surface/90 dark:hover:border-sky-800">
+                                <span class="h-2.5 w-2.5 shrink-0 rounded-full bg-sky-600 ring-4 ring-sky-100 dark:bg-sky-400 dark:ring-sky-950" aria-hidden="true"></span>
+                                <span class="min-w-0 flex-1 truncate text-xs font-semibold text-rt-text dark:text-white">{{ $location->declared_location }}</span>
+                                <span class="tabular-nums text-[11px] font-semibold text-rt-muted dark:text-rt-dark-muted">{{ number_format($location->device_count, 0, ',', '.') }}</span>
+                            </button>
+                        @empty
+                            <div class="relative flex min-h-64 flex-col items-center justify-center rounded-xl border border-dashed border-sky-200 bg-white/70 px-5 text-center dark:border-sky-900 dark:bg-rt-dark-surface/70">
+                                <span class="grid h-11 w-11 place-items-center rounded-xl bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300"><i data-feather="map-pin" class="h-5 w-5" aria-hidden="true"></i></span>
+                                <p class="mt-3 text-sm font-semibold text-rt-text dark:text-white">Noch keine Standorte</p>
+                                <p class="mt-1 text-xs leading-5 text-rt-muted dark:text-rt-dark-muted">Standorte erscheinen hier, sobald Geräte erfasst oder zurückgegeben werden.</p>
+                            </div>
+                        @endforelse
+                    </div>
+                </div>
+
+                <div class="border-t border-rt-border/70 px-4 py-3 text-xs text-rt-muted dark:border-rt-dark-border dark:text-rt-dark-muted">
+                    Keine Live-Ortung · Angaben aus Inventar und Rückgabe
+                </div>
+            </aside>
+        </div>
+
+        @include('livewire.devices.partials.provider-readiness-modal')
 
         @if($selectedDevice)
             @php

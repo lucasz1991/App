@@ -54,6 +54,8 @@ class DeviceManagement extends Component
 
     public bool $showCreateForm = false;
 
+    public bool $showProviderReadiness = false;
+
     public string $captureMode = 'manual';
 
     /** @var array<string, mixed> */
@@ -116,6 +118,48 @@ class DeviceManagement extends Component
 
     public function updatedPlatformFilter(): void
     {
+        $this->resetPage();
+    }
+
+    public function updatedLifecycleFilter(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedComplianceFilter(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedLocationFilter(): void
+    {
+        $this->resetPage();
+    }
+
+    public function filterByLocation(string $location): void
+    {
+        Gate::authorize('devices.view');
+
+        $this->locationFilter = trim($location);
+        $this->resetPage();
+    }
+
+    public function openProviderReadiness(): void
+    {
+        Gate::authorize('devices.view');
+        $this->showProviderReadiness = true;
+    }
+
+    public function closeProviderReadiness(): void
+    {
+        $this->showProviderReadiness = false;
+    }
+
+    public function clearFilters(): void
+    {
+        Gate::authorize('devices.view');
+
+        $this->reset(['search', 'platformFilter', 'lifecycleFilter', 'complianceFilter', 'locationFilter']);
         $this->resetPage();
     }
 
@@ -549,6 +593,24 @@ class DeviceManagement extends Component
             ];
         })->values();
 
+        $locations = Device::query()
+            ->whereNotNull('declared_location')
+            ->where('declared_location', '!=', '')
+            ->distinct()
+            ->orderBy('declared_location')
+            ->pluck('declared_location');
+
+        $locationStats = Device::query()
+            ->select('declared_location')
+            ->selectRaw('COUNT(*) as device_count')
+            ->whereNotNull('declared_location')
+            ->where('declared_location', '!=', '')
+            ->groupBy('declared_location')
+            ->orderByDesc('device_count')
+            ->orderBy('declared_location')
+            ->limit(8)
+            ->get();
+
         return view('livewire.devices.device-management', [
             'devices' => $devices,
             'selectedDevice' => $selectedDevice,
@@ -560,7 +622,8 @@ class DeviceManagement extends Component
                 ->where('id', '!=', 1)
                 ->orderBy('name')
                 ->get(['id', 'name', 'email']),
-            'locations' => Device::query()->whereNotNull('declared_location')->distinct()->orderBy('declared_location')->pluck('declared_location'),
+            'locations' => $locations,
+            'locationStats' => $locationStats,
             'stats' => [
                 'total' => Device::query()->count(),
                 'assigned' => Device::query()->whereHas('activeAssignment')->count(),

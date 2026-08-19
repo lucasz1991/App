@@ -103,7 +103,7 @@ class DeviceManagementTest extends TestCase
         $this->assertTrue(Gate::forUser($admin)->allows('devices.wipe'));
 
         $this->actingAs($staff)->get(route('devices.index'))->assertForbidden();
-        $this->actingAs($admin)->get(route('admin.devices'))->assertOk()->assertSee('Geräteverwaltung');
+        $this->actingAs($admin)->get(route('admin.devices'))->assertOk()->assertSee('Geräte');
     }
 
     public function test_manual_capture_and_csv_import_share_one_managed_modal(): void
@@ -490,8 +490,28 @@ class DeviceManagementTest extends TestCase
         Livewire::test(DeviceManagement::class)
             ->assertOk()
             ->assertSee('Virtuelles Lager')
+            ->assertSee('Gerätestandorte')
+            ->assertSeeHtml('id="device-filter-dropdown"')
+            ->assertSeeHtml('aria-controls="device-filter-dropdown"')
+            ->assertSeeHtml('id="device-provider-readiness-modal"')
             ->assertSee('Provider- und Produktionsbereitschaft')
-            ->assertSee('Microsoft 365/Outlook');
+            ->assertSee('Microsoft 365')
+            ->assertSet('showProviderReadiness', false)
+            ->call('openProviderReadiness')
+            ->assertSet('showProviderReadiness', true)
+            ->call('closeProviderReadiness')
+            ->assertSet('showProviderReadiness', false)
+            ->set('search', 'Notebook')
+            ->set('platformFilter', 'windows')
+            ->set('lifecycleFilter', 'inventory')
+            ->set('complianceFilter', 'warning')
+            ->set('locationFilter', 'Köln Hbf')
+            ->call('clearFilters')
+            ->assertSet('search', '')
+            ->assertSet('platformFilter', '')
+            ->assertSet('lifecycleFilter', '')
+            ->assertSet('complianceFilter', '')
+            ->assertSet('locationFilter', '');
     }
 
     public function test_device_detail_tabs_expose_their_accessible_relationships(): void
