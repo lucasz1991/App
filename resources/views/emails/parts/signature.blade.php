@@ -35,9 +35,9 @@
     @param string $topRule  Akzentlinie oben (in der Signaturdatei leer)
 --}}
 @php
-    // Kein unterer Leerraum vor der regulaeren Zugzeile: Das GIF besitzt
-    // selbst den benoetigten Rauch-/Himmelsbereich. Zusaetzliches Padding
-    // vergroessert nur den sichtbaren Abstand und die Signaturhoehe.
+    // Kein unterer Leerraum am Zug-Carrier: Im normalen HTML-Pfad liegt das
+    // GIF bereits an dessen Unterkante hinter den Daten. Zusaetzliches
+    // Padding wuerde nur Abstand zum Pflichtangaben-Footer erzeugen.
     $padding = $padding ?? '18px 36px 0';
     $topRule = $topRule ?? 'border-top:5px solid #e4002b;';
     $legalPadding = $legalPadding ?? '14px 36px';

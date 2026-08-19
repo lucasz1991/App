@@ -601,6 +601,9 @@ export function enforceProtectedComponentModels(editor, { readOnly = false } = {
                     : Boolean(directProtectedComponent && !protectedAncestor && isMailSystemLayer(component)),
                 { silent: true },
             );
+            if (!readOnly && directProtectedComponent && isMailTrainCarrier(component)) {
+                component?.set?.('stylable', ['background-position'], { silent: true });
+            }
             locked += 1;
         }
         const protectChildren = protectedComponent && !isMailTrainCarrier(component);
@@ -804,7 +807,7 @@ export function componentAnimationContext(component) {
     return {
         source,
         token,
-        animated: ['LOGO_SRC', 'ICON_RT_SRC', 'TRAIN_SRC', 'TRAIN_IDLE_SRC'].includes(token)
+        animated: ['LOGO_SRC', 'ICON_RT_SRC', 'TRAIN_SRC'].includes(token)
             || attributes['data-rt-animated-media'] === 'gif'
             || isAnimatedImageSource(source, attributes.type || attributes['data-mime-type'] || ''),
     };

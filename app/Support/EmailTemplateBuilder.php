@@ -1208,8 +1208,7 @@ class EmailTemplateBuilder
     private static function placeBrowserCopyTrainBehindContent(
         string $html,
         string $expectedTrainSource,
-    ): string
-    {
+    ): string {
         $expectedTrainSource = self::forceHttpsUrl($expectedTrainSource);
         $dom = new \DOMDocument('1.0', 'UTF-8');
         $previous = libxml_use_internal_errors(true);

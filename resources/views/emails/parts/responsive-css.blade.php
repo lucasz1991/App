@@ -179,7 +179,7 @@ img.rt-logo { width: 138px !important; }
 
 tr.rt-stack > td + td { padding-top: 10px !important; }
 .rt-pad { padding-top: 14px !important; padding-bottom: 14px !important; }
-/* Die allgemeine Telefonverdichtung darf den gerade entfernten Leerraum
-   zwischen Signaturdaten und regulaerer Zugzeile nicht erneut einfuehren. */
+/* Die allgemeine Telefonverdichtung darf am unteren Zug-Carrier keinen
+   neuen Leerraum vor dem Pflichtangaben-Footer einfuehren. */
 .rt-sign-content { padding-bottom: 0 !important; }
 }

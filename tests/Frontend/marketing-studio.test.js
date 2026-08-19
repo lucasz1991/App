@@ -1974,13 +1974,13 @@ test('shared LMZ motion writes only the server-side allowlisted data contract', 
     });
 }));
 
-test('mail TRAIN_SRC preview restarts the regular GIF image without mutating persisted model data', () => coreWithDom(
-    '<img id="train" data-rt-mail-preview-token="TRAIN_SRC" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==">',
+test('mail logo preview restarts the regular GIF image without mutating persisted model data', () => coreWithDom(
+    '<img id="logo" data-rt-mail-preview-token="LOGO_SRC" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==">',
     async ({ document }) => {
-        const element = document.querySelector('#train');
+        const element = document.querySelector('#logo');
         const component = coreFakeComponent(element, {
             src: 'data:image/png;base64,neutral-model-pixel',
-            attributes: { 'data-rt-mail-preview-token': 'TRAIN_SRC' },
+            attributes: { 'data-rt-mail-preview-token': 'LOGO_SRC' },
         });
         const before = structuredClone(component.state);
         const capturedSources = [];
@@ -1997,23 +1997,23 @@ test('mail TRAIN_SRC preview restarts the regular GIF image without mutating per
         assert.deepEqual(component.state, before);
 
         hydrateMailCanvasAssets({ Canvas: { getDocument: () => document } }, 'dark', {
-            dark: { train: '/mail/dark-train.gif' },
+            dark: { logo: '/mail/dark-logo.gif' },
         });
         await new Promise((resolve) => setTimeout(resolve, 5));
         assert.equal(animatedPreviewIsPlaying(component), false);
         assert.match(element.getAttribute('src'), /^data:image\/png/);
-        assert.equal(capturedSources.at(-1), '/mail/dark-train.gif');
+        assert.equal(capturedSources.at(-1), '/mail/dark-logo.gif');
 
         assert.equal(setAnimatedPreviewPlayback(component, true), true);
         await new Promise((resolve) => setTimeout(resolve, 5));
         assert.equal(animatedPreviewIsPlaying(component), true);
-        assert.match(element.getAttribute('src'), /dark-train\.gif/);
+        assert.match(element.getAttribute('src'), /dark-logo\.gif/);
         assert.deepEqual(component.state, before);
 
         assert.equal(restartAnimatedPreview(component, { nonce: 7 }), true);
         await new Promise((resolve) => setTimeout(resolve, 5));
         assert.deepEqual(component.state, before);
-        assert.match(element.getAttribute('src'), /dark-train\.gif/);
+        assert.match(element.getAttribute('src'), /dark-logo\.gif/);
         delete globalThis.__rtLmzCaptureAnimatedFrame;
     },
 ));
@@ -2344,7 +2344,7 @@ test('protected mail carriers remain visible as locked layers without hiding edi
     assert.equal(carrier.state.draggable, false);
     assert.equal(carrier.state.removable, false);
     assert.equal(carrier.state.copyable, false);
-    assert.equal(carrier.state.stylable, false);
+    assert.deepEqual(carrier.state.stylable, ['background-position']);
     assert.equal(content.state.layerable, undefined);
     assert.equal(content.state.stylable, undefined);
     assert.equal(isProtectedEditorStructure(carrier), true);
