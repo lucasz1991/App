@@ -459,6 +459,23 @@ class MailDocumentEditorTest extends TestCase
         SignatureDocumentContract::assertValid($canonical);
         SignatureDocumentContract::assertRuntimeValid($canonical);
 
+        $legacyPercentHeight = preg_replace(
+            '/(<div class="rt-sign-train-layer"[^>]*style="[^"]*max-width:1815px;)/i',
+            '${1}height:100%;',
+            $canonical,
+            1,
+            $legacyPercentHeightCount,
+        );
+        $this->assertIsString($legacyPercentHeight);
+        $this->assertSame(1, $legacyPercentHeightCount);
+        SignatureDocumentContract::assertRuntimeValid($legacyPercentHeight);
+        try {
+            SignatureDocumentContract::assertValid($legacyPercentHeight);
+            $this->fail('Der Save-Vertrag akzeptierte die alte prozentuale Layer-Hoehe.');
+        } catch (\RuntimeException $exception) {
+            $this->assertStringContainsString('absolute Position', $exception->getMessage());
+        }
+
         $canonicalGeometryAttacks = [
             'fehlende Groessenangabe' => str_replace(
                 ' data-rt-layer-size="100"',

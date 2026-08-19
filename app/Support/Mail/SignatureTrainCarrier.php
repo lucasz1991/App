@@ -500,13 +500,20 @@ final class SignatureTrainCarrier
             'line-height' => '0',
             'text-align' => 'left',
         ];
-        if ($allowLegacyPercentHeight) {
-            $layerStyle['height'] = '100%';
-        }
         if (! $legacyDirectLayer) {
             $layerStyle['mso-hide'] = 'all';
         }
-        self::assertExactSimpleStyle($layer, $layerStyle, 'Zug-Layer');
+        if ($allowLegacyPercentHeight) {
+            try {
+                self::assertExactSimpleStyle($layer, $layerStyle, 'Zug-Layer');
+            } catch (RuntimeException) {
+                $legacyLayerStyle = $layerStyle;
+                $legacyLayerStyle['height'] = '100%';
+                self::assertExactSimpleStyle($layer, $legacyLayerStyle, 'Zug-Layer');
+            }
+        } else {
+            self::assertExactSimpleStyle($layer, $layerStyle, 'Zug-Layer');
+        }
         $imageStyle = [
             'position' => 'absolute',
             'left' => '0',
