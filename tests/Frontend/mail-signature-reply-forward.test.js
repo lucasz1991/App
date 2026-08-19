@@ -64,7 +64,7 @@ test('mobile rules restyle the same signature nodes without hide-and-show copies
     assert.doesNotMatch(css, /rt-marke-mobil|\.rt-sign-logo img\.rt-logo\s*\{[^}]*display:\s*none/);
 });
 
-test('normal HTML keeps the train behind content and only explicit Outlook exports use a flow image', async () => {
+test('all delivered HTML uses one regular train image like logo and RT icon', async () => {
     const [signature, runtime, carrier, preview] = await Promise.all([
         source('../../resources/views/emails/parts/signature.blade.php'),
         source('../../app/Support/MailSignature.php'),
@@ -80,14 +80,12 @@ test('normal HTML keeps the train behind content and only explicit Outlook expor
     assert.doesNotMatch(runtime, /data-rt-train-main-(?:image|layer)/);
     assert.doesNotMatch(runtime, /projectPublishedTrainAsRuntimeImage/);
     assert.match(runtime, /usesTokenizedTrainCarrier/);
-    assert.match(runtime, /normalizePublishedTrainCarrier/);
     assert.match(runtime, /SignatureTrainCarrier::projectAsImage\(/);
-    assert.match(runtime, /appendClassicOutlookTrainFallback/);
-    assert.match(runtime, /<!--\[if mso\]><tr><td align="left"/);
+    assert.doesNotMatch(runtime, /appendClassicOutlookTrainFallback/);
+    assert.doesNotMatch(runtime, /<!--\[if mso\]><tr><td align="left"/);
     assert.match(carrier, /public static function projectAsImage/);
     assert.match(carrier, /<img class="rt-sign-train" data-rt-train src="'\.\$source\.'" width="100%"/);
-    assert.match(preview, /SignatureTrainCarrier::normalize\(\(string\) \$signatureDocument->html\)/);
-    assert.doesNotMatch(preview, /SignatureTrainCarrier::projectAsImage/);
+    assert.match(preview, /SignatureTrainCarrier::projectAsImage\(/);
     assert.doesNotMatch(runtime, /injectDelayedIdleOverlay|data-rt-train-idle/);
     assert.doesNotMatch(runtime, /rt-classic-outlook-train/);
 });

@@ -99,11 +99,13 @@ final class PageBuilderPreviewService
         $signature = $signatureDocument === null
             ? ''
             : $this->renderTokenHtml(
-                // Die Livevorschau zeigt denselben normalisierten Carrier wie
-                // Browser, New Outlook und Webmail: ein Zug-Layer hinter den
-                // Daten, ohne zusaetzliche Bildzeile und damit ohne Extra-Hoehe.
-                SignatureTrainCarrier::normalize((string) $signatureDocument->html),
-                $values,
+                // Die Livevorschau nutzt denselben regulaeren Ein-GIF-Pfad
+                // wie Versand, Kopieransicht und Weiterleitung.
+                SignatureTrainCarrier::projectAsImage(
+                    (string) $signatureDocument->html,
+                    (string) ($values['TRAIN_SRC'] ?? ''),
+                ),
+                array_merge($values, ['TRAIN_SRC' => '']),
             );
 
         $html = $this->renderTokenHtml((string) $document->html, $values, [

@@ -139,9 +139,9 @@ final class SignatureTrainCarrier
     }
 
     /**
-     * Projiziert den streng validierten Carrier fuer explizite
-     * Outlook-/EML-/ZIP-Ausgaben in einen einfachen Ein-GIF-Vertrag. Normale
-     * HTML-, Browser- und Admin-Vorschauen behalten den Background-Carrier.
+     * Projiziert den streng validierten Carrier fuer alle Ausgaben in den
+     * einfachen Ein-GIF-Vertrag von Logo und RT-Icon. Das normale IMG bleibt
+     * beim Kopieren, Antworten und Weiterleiten erhalten.
      */
     public static function projectAsImage(string $html, string $source, string $padding = '0'): string
     {

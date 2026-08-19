@@ -55,7 +55,7 @@ function gifTimeline(bytes) {
     return delays;
 }
 
-test('normal mail outputs keep one train background while explicit Outlook uses one image', () => {
+test('all delivered mail outputs use one regular train image', () => {
     const signature = text('app/Support/MailSignature.php');
     const signatureView = text('resources/views/emails/parts/signature.blade.php');
     const carrier = text('app/Support/Mail/SignatureTrainCarrier.php');
@@ -67,16 +67,14 @@ test('normal mail outputs keep one train background while explicit Outlook uses 
     assert.match(signature, /SignatureTrainCarrier::projectAsImage\(/);
     assert.doesNotMatch(signature, /data-rt-train-idle|injectDelayedIdleOverlay|TRAIN_IDLE_SRC' => \([^\n]+zug-dampf-idle/);
     assert.match(signature, /\$tokenizedTrainCarrier = \$this->usesTokenizedTrainCarrier\(\$values, \$layout\);/);
-    assert.match(signature, /\$html = \$this->normalizePublishedTrainCarrier\(\$html\);/);
-    assert.match(signature, /function appendClassicOutlookTrainFallback/);
-    assert.match(signature, /\$this->remoteAssets && \$explicitTrainSource === ''/);
-    assert.match(signature, /<!--\[if mso\]><tr><td align="left"/);
+    assert.match(signature, /\$html = \$this->projectPublishedTrainAsImage\(\$html, \$singleTrainLayout\);/);
+    assert.doesNotMatch(signature, /function appendClassicOutlookTrainFallback/);
+    assert.doesNotMatch(signature, /<!--\[if mso\]><tr><td align="left"/);
     assert.doesNotMatch(signature, /class="rt-classic-outlook-train"/);
     assert.match(carrier, /public static function withoutMainLayer/);
     assert.match(carrier, /public static function projectAsImage/);
     assert.match(carrier, /<img class="rt-sign-train" data-rt-train src="'\.\$source\.'" width="100%"/);
-    assert.match(previewService, /SignatureTrainCarrier::normalize\(\(string\) \$signatureDocument->html\)/);
-    assert.doesNotMatch(previewService, /SignatureTrainCarrier::projectAsImage/);
+    assert.match(previewService, /SignatureTrainCarrier::projectAsImage\(/);
     assert.match(cssSemantic, /'data-rt-train-idle-overlay'/);
     assert.match(cssSemantic, /\$isProtectedAttribute = in_array\(/);
     assert.doesNotMatch(responsiveCss, /rt-train-idle|rt-train-idle-reveal/);

@@ -1117,9 +1117,8 @@ class EmailTemplateBuilder
      * Einfuegen in eine cloudgespeicherte Signatur waeren file:-Quellen aber
      * nach dem Schliessen des Browsers unbrauchbar. Diese Fassung rendert
      * deshalb dieselbe Signatur mit absoluten HTTPS-Mailassets. Das einzelne
-     * Zug-GIF liegt in dieser Web-Kopierfassung als normalisierter
-     * CSS-Background hinter den Daten; die technische Classic-Payload
-     * behaelt ihre robuste Flow-Zeile.
+     * Zug-GIF ist wie Logo und RT-Icon ein regulaeres IMG und bleibt dadurch
+     * auch beim Kopieren in neues Outlook erhalten.
      */
     protected function buildOutlookBrowserCopySignatureHtml(string $theme): string
     {
@@ -1201,9 +1200,8 @@ class EmailTemplateBuilder
 
     /**
      * Prueft die eigenstaendige New-Outlook-/Web-Kopierfassung nach der
-     * Runtime-Projektion. Der kombinierte Zug bleibt dort als ein HTTPS-
-     * Background im bereits validierten Carrier: hinter den Kontaktdaten,
-     * an der Unterkante und ohne zusaetzliche Bildzeile oder Layouthoehe.
+     * Runtime-Projektion. Der kombinierte Zug muss dort genau einmal als
+     * regulaeres HTTPS-IMG vorliegen.
      */
     private static function placeBrowserCopyTrainBehindContent(
         string $html,
@@ -1240,28 +1238,14 @@ class EmailTemplateBuilder
             throw new RuntimeException('Der Zug-Carrier der Browser-Kopiervorlage ist unlesbar.');
         }
 
-        $style = html_entity_decode(
-            $carrier->getAttribute('style'),
-            ENT_QUOTES | ENT_HTML5,
-            'UTF-8',
-        );
-        if (substr_count($style, 'url('.$expectedTrainSource.')') !== 1
-            || str_contains($style, '{{TRAIN_SRC}}')) {
-            throw new RuntimeException('Der HTTPS-Zug ist nicht eindeutig hinter den Signaturdaten gebunden.');
-        }
-
         $trainImages = $xpath->query('//*[@data-rt-train]');
-        if ($trainImages === false || $trainImages->length !== 0) {
-            throw new RuntimeException('Die Browser-Kopiervorlage darf keine zusaetzliche Zugbildzeile enthalten.');
+        if ($trainImages === false || $trainImages->length !== 1) {
+            throw new RuntimeException('Die Browser-Kopiervorlage besitzt kein eindeutiges Zugbild.');
         }
-
-        preg_match_all(
-            '~url\(\s*["\']?([^"\')]+)["\']?\s*\)~i',
-            $style,
-            $backgroundMatches,
-        );
-        foreach ($backgroundMatches[1] ?? [] as $backgroundSource) {
-            self::forceHttpsUrl($backgroundSource);
+        $trainImage = $trainImages->item(0);
+        if (! $trainImage instanceof \DOMElement
+            || self::forceHttpsUrl($trainImage->getAttribute('src')) !== $expectedTrainSource) {
+            throw new RuntimeException('Das Zugbild der Browser-Kopiervorlage besitzt nicht die erwartete HTTPS-Quelle.');
         }
 
         foreach (self::imageSources($html) as $imageSource) {

@@ -93,11 +93,10 @@
      * 75 Prozent der Carrierbreite — unabhaengig davon, wie breit das auf
      * `auto 100%` skalierte Bild gegenueber der Zelle ist.
      *
-     * IM EXPLIZITEN OUTLOOK-/EML-/ZIP-EXPORT entfallen Zug und
-     * Kompatibilitaetsebene: dort steht der Zug als eigene Bildzeile unter dem
-     * Inhalt. Versendete Remote-Mails behalten den Background; MailSignature
-     * ergaenzt fuer Classic Outlook nach der Validierung einen MSO-only
-     * Fallback mit demselben kombinierten GIF.
+     * Im gespeicherten Editorvertrag bleibt der Zug als streng gekoppelte
+     * vierte Ebene editierbar. MailSignature loest diese Ebene erst beim
+     * finalen Rendern in genau ein regulaeres IMG auf, damit Kopieren,
+     * Antworten und Weiterleiten genauso funktionieren wie bei Logo/Icon.
      */
     $zugMass = 'auto 100%';
     $ebenen = array_values(array_filter([
@@ -117,14 +116,13 @@
 <tr>
     {{-- Kein legacy background-Attribut: Classic Outlook/Word kachelt dessen
          Bild ungeachtet von background-repeat und background-size. Der
-         validierte Hauptzug bleibt deshalb genau einmal in den gekoppelten
-         CSS-Listen und liegt ohne eigene Layouthoehe hinter den Inhaltsdaten. --}}
+         Zugtoken bleibt hier nur als kanonischer Editorvertrag gebunden und
+         wird vor der Auslieferung atomar in ein regulaeres IMG projiziert. --}}
     <td class="rt-sign-cell" bgcolor="{{ $values['SIGNATURE_BG'] }}" style="padding:0;position:relative;overflow:hidden;background-color:{{ $values['SIGNATURE_BG'] }};background-image:{{ $backgroundImage }};background-repeat:{{ $backgroundRepeat }};background-position:{{ $backgroundPosition }};background-size:{{ $backgroundSize }};{{ $topRule }}">
-        {{-- Der aeussere Zug-Carrier bleibt absichtlich ohne Padding. So
-             endet die `bottom`-Ausrichtung des kombinierten Haupt-GIFs an der
-             echten unteren Carrierkante direkt auf dem grauen Legal-Footer.
-             Der mail-sichere innere Tabellenwrapper behaelt unabhaengig davon
-             dieselben Inhaltsabstaende und die kompakte Signaturhoehe. --}}
+        {{-- Der aeussere Carrier bleibt ohne Padding. Der mail-sichere innere
+             Tabellenwrapper behaelt seine Inhaltsabstaende; die regulaere
+             Zugzeile wird beim finalen Render direkt vor dem Legal-Footer
+             eingesetzt. --}}
         <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;position:relative;z-index:1;">
             <tr>
                 <td class="rt-pad rt-sign-content" style="padding:{{ $padding }};position:relative;z-index:1;">
