@@ -1,0 +1,17 @@
+- generic [ref=f1e2]:
+  - generic [ref=f1e3]:
+    - generic [ref=f1e4]:
+      - paragraph
+      - paragraph [ref=f1e5]: Automatische Nachricht
+    - link "04171 546803" [ref=f1e6] [cursor=pointer]:
+      - /url: tel:+494171546803
+    - link:
+      - /url: "tel:"
+    - link "info@rail-time.de" [ref=f1e7] [cursor=pointer]:
+      - /url: mailto:info@rail-time.de
+    - img "RT Rail Time GmbH" [ref=f1e8]
+    - generic [ref=f1e9]:
+      - text: Borsteler Weg 29–31 · 21423 Winsen (Luhe)
+      - link "rail-time.de" [ref=f1e10] [cursor=pointer]:
+        - /url: https://www.rail-time.de
+  - text: "Geschäftsführung: Durim Morina und Mazan Moslehe · Registergericht: Amtsgericht Tostedt · HRB 204604 · USt-IdNr. DE169651368 Diese E-Mail kann vertrauliche Informationen enthalten. Sollten Sie nicht der vorgesehene Empfänger sein, informieren Sie bitte den Absender und löschen Sie diese Nachricht."

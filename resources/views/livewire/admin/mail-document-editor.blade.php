@@ -43,7 +43,7 @@
                 <div class="rt-mail-studio-toolbar__preview" data-mail-toolbar-region="preview" data-mail-preview-toolbar>
                     <div class="rt-mail-preview-context">
                         <strong>Vorschau</strong>
-                        <small data-mail-preview-status aria-live="polite">Desktop · 1024 px · wird eingepasst</small>
+                        <small data-mail-preview-status aria-live="polite">Systemmail breit · 1920 px · wird eingepasst</small>
                     </div>
 
                     <div class="rt-mail-preview-toggle" role="group" aria-label="Farbschema der Vorschau">
@@ -58,7 +58,11 @@
                     </div>
 
                     <div class="rt-mail-preview-toggle" role="group" aria-label="Breite des Mailprogramms">
-                        <button type="button" data-mail-preview-device="desktop" aria-pressed="true" title="Desktop-Vorschau mit 1024 Pixeln">
+                        <button type="button" data-mail-preview-device="wide" aria-pressed="true" title="Breite Systemmail-Vorschau mit 1920 Pixeln">
+                            <i data-feather="maximize-2" class="h-4 w-4" aria-hidden="true"></i>
+                            <span>Breit</span>
+                        </button>
+                        <button type="button" data-mail-preview-device="desktop" aria-pressed="false" title="Desktop-Vorschau mit 1024 Pixeln">
                             <i data-feather="monitor" class="h-4 w-4" aria-hidden="true"></i>
                             <span>Desktop</span>
                         </button>
@@ -385,7 +389,7 @@
                     let instance = null;
                     let destroyed = false;
                     let selectedTheme = 'light';
-                    let selectedDevice = 'desktop';
+                    let selectedDevice = 'wide';
                     let unregisterNavigation = null;
                     let lastEditorSaveError = null;
                     let activeBaselineHtml = String(document_.html || '');
@@ -443,8 +447,8 @@
                     const updatePreviewStatus = (geometry = null) => {
                         if (!previewStatus) return;
 
-                        const widths = { desktop: 1024, tablet: 820, mobile: 375 };
-                        const labels = { desktop: 'Desktop', tablet: 'Tablet', mobile: 'Mobil' };
+                        const widths = { wide: 1920, desktop: 1024, tablet: 820, mobile: 375 };
+                        const labels = { wide: 'Systemmail breit', desktop: 'Desktop', tablet: 'Tablet', mobile: 'Mobil' };
                         const scale = geometry?.scale
                             ? ` · Fit ${Math.round(geometry.scale * 100)} %`
                             : '';
@@ -461,7 +465,7 @@
                     };
 
                     const selectDevice = (device) => {
-                        selectedDevice = ['desktop', 'tablet', 'mobile'].includes(device) ? device : 'desktop';
+                        selectedDevice = ['wide', 'desktop', 'tablet', 'mobile'].includes(device) ? device : 'wide';
                         deviceButtons.forEach((button) => {
                             button.setAttribute('aria-pressed', String(button.dataset.mailPreviewDevice === selectedDevice));
                         });

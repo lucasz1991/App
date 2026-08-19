@@ -338,52 +338,88 @@ class MailSignature
             );
         }
 
-        // Alle Ausgabewege projizieren den streng validierten Zug-Token in
-        // ein regulaeres GIF innerhalb der sicheren Stage. Moderne Clients
-        // behalten es beim Kopieren, Antworten und Weiterleiten hinter den
-        // Kontaktdaten; Word/MSO erhaelt spaeter den bedingten PNG-Fallback.
-        if ($published !== null) {
-            SignatureDocumentContract::assertRuntimeValid($published);
+        return $this->renderValidatedDocument(
+            $published,
+            $values,
+            $layout,
+            $singleTrainLayout,
+            $outlookFallbackSource,
+        );
+    }
 
-            $html = $this->applyPublishedLayout($published, $layout);
-            $html = $this->projectPublishedTrainAsImage($html, $singleTrainLayout);
-            // FRUEHER stand hier ein Rueckfall auf den Firmennamen, wenn
-            // keine Person sendet — er bildete eine gleichlautende Bedingung
-            // der Blade-Quelle nach. Diese Bedingung ist entfallen: Die
-            // Marke steht bereits als Wortmarke in der rechten Spalte, der
-            // Firmenname darunter war eine Doppelung. Ohne diese Streichung
-            // erschien er in jeder VEROEFFENTLICHTEN Fassung weiter, obwohl
-            // die Blade-Quelle ihn laengst nicht mehr setzte.
-            $escapedValues = array_map(
-                static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8'),
-                $values,
-            );
-            $tokens = [];
+    /**
+     * Rendert einen bereits geladenen Entwurf durch exakt dieselbe
+     * Signaturpipeline wie eine Systemmail. Die Adminvorschau darf dadurch
+     * den aktuellen Arbeitsstand zeigen, ohne Absender-, Kontakt- oder
+     * Zuglogik ein zweites Mal nachzubauen.
+     *
+     * @param  array<string, string>  $layout
+     * @param  array<string, string>  $overrides
+     */
+    public function renderDocument(string $documentHtml, array $layout = [], array $overrides = []): string
+    {
+        $values = $this->values($overrides);
+        $explicitTrainSource = trim((string) ($layout['outlookTrainSrc'] ?? ''));
+        $singleTrainSource = $explicitTrainSource !== ''
+            ? $explicitTrainSource
+            : trim((string) ($values['TRAIN_SRC'] ?? ''));
+        $singleTrainLayout = array_merge($layout, [
+            'outlookTrainSrc' => $singleTrainSource,
+            'outlookTrainPadding' => (string) ($layout['outlookTrainPadding'] ?? '0'),
+        ]);
+        $outlookFallbackSource = trim((string) (
+            $layout['outlookTrainFallbackSrc']
+                ?? $values['TRAIN_STILL_SRC']
+                ?? ''
+        ));
 
-            foreach ($escapedValues as $key => $value) {
-                $tokens['{{'.$key.'}}'] = $value;
-            }
+        return $this->renderValidatedDocument(
+            $documentHtml,
+            $values,
+            $layout,
+            $singleTrainLayout,
+            $outlookFallbackSource,
+        );
+    }
 
-            $html = strtr($html, $tokens);
-            // Alte publizierte Staende koennen bis zum erneuten Seedern noch
-            // den inzwischen entfernten Classic-Outlook-Fallback tragen.
-            // Leere Attribute verschwinden sofort; ein befuelltes Attribut
-            // wird im zentralen Train-Finalizer gezielt am Carrier entfernt.
-            $html = preg_replace('/\s+background=(["\'])\s*\1/i', '', $html) ?? $html;
+    /**
+     * @param  array<string, string>  $values
+     * @param  array<string, string>  $layout
+     * @param  array<string, string>  $singleTrainLayout
+     */
+    private function renderValidatedDocument(
+        string $documentHtml,
+        array $values,
+        array $layout,
+        array $singleTrainLayout,
+        string $outlookFallbackSource,
+    ): string {
+        SignatureDocumentContract::assertRuntimeValid($documentHtml);
 
-            $html = trim(EmailTemplateBuilder::stripEmptyContactRows(
-                $html,
-                $this->contactRowValues($values),
-            ));
+        $html = $this->applyPublishedLayout($documentHtml, $layout);
+        $html = $this->projectPublishedTrainAsImage($html, $singleTrainLayout);
+        $escapedValues = array_map(
+            static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8'),
+            $values,
+        );
+        $tokens = [];
 
-            return $this->finalizeTrainRendering(
-                $html,
-                $outlookFallbackSource,
-                (string) ($values['TRAIN_IDLE_SRC'] ?? ''),
-            );
+        foreach ($escapedValues as $key => $value) {
+            $tokens['{{'.$key.'}}'] = $value;
         }
 
-        throw new \RuntimeException('Die veröffentlichte Signatur konnte nicht gerendert werden.');
+        $html = strtr($html, $tokens);
+        $html = preg_replace('/\s+background=(["\'])\s*\1/i', '', $html) ?? $html;
+        $html = trim(EmailTemplateBuilder::stripEmptyContactRows(
+            $html,
+            $this->contactRowValues($values),
+        ));
+
+        return $this->finalizeTrainRendering(
+            $html,
+            $outlookFallbackSource,
+            (string) ($values['TRAIN_IDLE_SRC'] ?? ''),
+        );
     }
 
     /**

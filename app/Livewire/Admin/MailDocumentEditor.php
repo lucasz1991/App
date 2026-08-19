@@ -49,14 +49,14 @@ class MailDocumentEditor extends Component
                 'light' => [
                     'label' => 'Hell',
                     'url' => route('admin.mail-documents.preview', [$current, 'theme' => 'light', 'animate' => 1]),
-                    'width' => 1024,
-                    'height' => $current->kind === MailDocumentKind::Signature ? 620 : 820,
+                    'width' => 1920,
+                    'height' => $current->kind === MailDocumentKind::Signature ? 360 : 820,
                 ],
                 'dark' => [
                     'label' => 'Dunkel',
                     'url' => route('admin.mail-documents.preview', [$current, 'theme' => 'dark', 'animate' => 1]),
-                    'width' => 1024,
-                    'height' => $current->kind === MailDocumentKind::Signature ? 620 : 820,
+                    'width' => 1920,
+                    'height' => $current->kind === MailDocumentKind::Signature ? 360 : 820,
                 ],
             ],
         ])->layout('layouts.master', ['area' => 'admin']);

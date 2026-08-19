@@ -777,7 +777,7 @@ test('protected mail layers keep the regular train image visible and structural'
 });
 
 test('train layer editor maps size desktop and mobile presets to mail-safe geometry', () => {
-    const state = { left: '0', right: 'auto', margin: '0' };
+    const state = { left: '0', right: 'auto', margin: '0', height: '100%' };
     const layerStyleOptions = [];
     const imageStyleOptions = [];
     const attributes = {
@@ -1012,7 +1012,8 @@ test('mobile mail editor closes only visible initial LMZ popovers', () => {
     assert.equal(clicked, 1);
 });
 
-test('mail preview devices model real desktop, tablet and mobile client widths', () => {
+test('mail preview devices model wide system mail, desktop, tablet and mobile client widths', () => {
+    assert.deepEqual(MAIL_PREVIEW_DEVICES.wide, { id: 'wide', label: 'Systemmail breit', width: 1920 });
     assert.deepEqual(MAIL_PREVIEW_DEVICES.desktop, { id: 'desktop', label: 'Desktop', width: 1024 });
     assert.deepEqual(MAIL_PREVIEW_DEVICES.tablet, { id: 'tablet', label: 'Tablet', width: 820 });
     assert.deepEqual(MAIL_PREVIEW_DEVICES.mobile, { id: 'mobile', label: 'Mobil', width: 375 });
@@ -1032,6 +1033,19 @@ test('desktop mail stays 1024 logical pixels wide when fitted onto a phone', () 
     assert.ok(Math.abs(geometry.scale - (342 / 1024)) < 0.000001);
     assert.equal(geometry.displayHeight, 652);
     assert.equal(geometry.logicalHeight, 652 / geometry.scale);
+});
+
+test('wide system mail keeps a 1920 pixel layout while fitting into the editor', () => {
+    const geometry = calculateMailPreviewGeometry({
+        device: 'wide',
+        hostWidth: 1000,
+        hostHeight: 700,
+        inset: 24,
+    });
+
+    assert.equal(geometry.logicalWidth, 1920);
+    assert.equal(geometry.displayWidth, 952);
+    assert.ok(Math.abs(geometry.scale - (952 / 1920)) < 0.000001);
 });
 
 test('mail preview never upscales and mobile keeps an exact 375 pixel iframe', () => {
@@ -1086,6 +1100,7 @@ test('preview controller writes logical frame variables and cleans listeners', (
     });
 
     assert.equal(devices.get('rt-mail-desktop').width, '1024px');
+    assert.equal(devices.get('rt-mail-wide').width, '1920px');
     assert.equal(devices.get('rt-mail-tablet').width, '820px');
     assert.equal(devices.get('rt-mail-mobile').width, '375px');
     assert.equal(selectedDevices.at(-1), 'rt-mail-desktop');

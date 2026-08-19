@@ -178,7 +178,7 @@
                  bleiben als spaeteres z-index:1-Markup davor. Falls ein
                  Client Positionierung entfernt, steht der Layer als letztes
                  Carrier-Kind wenigstens unter statt ueber den Kontaktdaten. --}}
-            <div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:absolute;left:0;right:auto;top:0;bottom:0;width:100%;max-width:1815px;height:100%;margin:0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;mso-hide:all;">
+            <div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:absolute;left:0;right:auto;top:0;bottom:0;width:100%;max-width:1815px;margin:0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;mso-hide:all;">
                 <img class="rt-sign-train" data-rt-train src="{{ $trainSrc }}" width="720" alt="" style="position:absolute;left:0;right:auto;bottom:0;display:block;width:100%;max-width:1815px;height:auto;margin:0;border:0;outline:none;text-decoration:none;mso-hide:all;">
             </div>
         @endif

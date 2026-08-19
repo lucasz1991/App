@@ -100,7 +100,9 @@ test('each mail client sees one train image through the modern stage or the sing
     assert.match(carrier, /<div class="rt-sign-train-layer" data-rt-layer-train/);
     assert.match(carrier, /<img class="rt-sign-train" data-rt-train src="'\.\$source\.'" width="720"/);
     assert.match(carrier, /<img src="'\.\$escapedSource\.'" width="720"/);
-    assert.match(preview, /SignatureTrainCarrier::projectAsImage\(/);
+    assert.match(preview, /MailSignature::forCompany\(/);
+    assert.match(preview, /->renderDocument\(/);
+    assert.doesNotMatch(preview, /SignatureTrainCarrier::projectAsImage\(/);
     assert.match(runtime, /SignatureTrainCarrier::withIdleOverlay\(/);
     assert.match(carrier, /data-rt-train-idle-overlay/);
     assert.match(carrier, /data-rt-train-idle-image/);

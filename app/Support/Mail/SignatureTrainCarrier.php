@@ -175,12 +175,32 @@ final class SignatureTrainCarrier
 
         if (self::hasCanonicalImage($html)) {
             $legacyDirectLayer = false;
+            $legacyPercentHeight = false;
             try {
                 self::assertCanonicalImage($html);
             } catch (RuntimeException) {
-                self::assertCanonicalImage($html, allowLegacyDirectLayer: true);
-                $legacyDirectLayer = true;
+                try {
+                    self::assertCanonicalImage($html, allowLegacyPercentHeight: true);
+                    $legacyPercentHeight = true;
+                } catch (RuntimeException) {
+                    self::assertCanonicalImage(
+                        $html,
+                        allowLegacyDirectLayer: true,
+                        allowLegacyPercentHeight: true,
+                    );
+                    $legacyDirectLayer = true;
+                    $legacyPercentHeight = true;
+                }
             }
+            if ($legacyDirectLayer) {
+                $html = self::hardenLegacyDirectLayer($html);
+                $html = self::wrapLegacyDirectCarrierInStage($html);
+            }
+            if ($legacyPercentHeight) {
+                $html = self::withoutLegacyPercentHeight($html);
+            }
+            self::assertCanonicalImage($html);
+
             $escapedSource = htmlspecialchars($source, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
             $replacements = 0;
             $projected = preg_replace_callback(
@@ -194,11 +214,6 @@ final class SignatureTrainCarrier
             );
             if (! is_string($projected) || $replacements !== 1) {
                 throw new RuntimeException('Das kanonische Zugbild konnte nicht eindeutig befuellt werden.');
-            }
-
-            if ($legacyDirectLayer) {
-                $projected = self::hardenLegacyDirectLayer($projected);
-                $projected = self::wrapLegacyDirectCarrierInStage($projected);
             }
 
             return self::compactDefaultContentPadding($projected);
@@ -312,7 +327,7 @@ final class SignatureTrainCarrier
             'UTF-8',
         );
         $overlay = '<span class="rt-train-idle-overlay" data-rt-train-idle-overlay '
-            .'style="position:absolute;left:0;right:auto;top:0;bottom:0;display:block;width:100%;height:100%;margin:0;overflow:hidden;opacity:0;visibility:hidden;animation:rt-train-idle-reveal 1ms step-start 13s forwards;font-size:0;line-height:0;mso-hide:all;">'
+            .'style="position:absolute;left:0;right:auto;top:0;bottom:0;display:block;width:100%;margin:0;overflow:hidden;opacity:0;visibility:hidden;animation:rt-train-idle-reveal 1ms step-start 13s forwards;font-size:0;line-height:0;mso-hide:all;">'
             .'<img class="rt-train-idle-image" data-rt-train-idle-image src="'.$escapedSource.'" width="720" alt="" '
             .'style="position:absolute;left:0;right:auto;bottom:0;display:block;width:100%;max-width:100%;height:auto;margin:0;border:0;outline:none;text-decoration:none;mso-hide:all;">'
             .'</span>';
@@ -357,8 +372,11 @@ final class SignatureTrainCarrier
      * eines einzigen normalen Bildes in einem eindeutigen absoluten Layer
      * innerhalb des Carriers.
      */
-    public static function assertCanonicalImage(string $html, bool $allowLegacyDirectLayer = false): void
-    {
+    public static function assertCanonicalImage(
+        string $html,
+        bool $allowLegacyDirectLayer = false,
+        bool $allowLegacyPercentHeight = false,
+    ): void {
         if (substr_count($html, '{{TRAIN_SRC}}') !== 1
             || str_contains($html, '{{TRAIN_IDLE_SRC}}')) {
             throw new RuntimeException('Die Signatur benoetigt genau ein kanonisches Zugbild.');
@@ -475,7 +493,6 @@ final class SignatureTrainCarrier
             'bottom' => '0',
             'width' => $size['width'],
             'max-width' => $size['maxWidth'],
-            'height' => '100%',
             'margin' => '0',
             'overflow' => 'hidden',
             'z-index' => '0',
@@ -483,6 +500,9 @@ final class SignatureTrainCarrier
             'line-height' => '0',
             'text-align' => 'left',
         ];
+        if ($allowLegacyPercentHeight) {
+            $layerStyle['height'] = '100%';
+        }
         if (! $legacyDirectLayer) {
             $layerStyle['mso-hide'] = 'all';
         }
@@ -516,7 +536,7 @@ final class SignatureTrainCarrier
     private static function canonicalLayerMarkup(string $source): string
     {
         return '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" '
-            .'style="position:absolute;left:0;right:auto;top:0;bottom:0;width:100%;max-width:1815px;height:100%;margin:0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;mso-hide:all;">'
+            .'style="position:absolute;left:0;right:auto;top:0;bottom:0;width:100%;max-width:1815px;margin:0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;mso-hide:all;">'
             .'<img class="rt-sign-train" data-rt-train src="'.$source.'" width="720" alt="" '
             .'style="position:absolute;left:0;right:auto;bottom:0;display:block;width:100%;max-width:1815px;height:auto;margin:0;border:0;outline:none;text-decoration:none;mso-hide:all;">'
             .'</div>';
@@ -571,6 +591,60 @@ final class SignatureTrainCarrier
         }
 
         return $html;
+    }
+
+    /**
+     * Entfernt ausschliesslich die zuvor durch den alten kanonischen Vertrag
+     * validierte Prozenthoehe. Absolute Elemente mit top und bottom brauchen
+     * sie nicht; Outlook kann sie sonst auf die gesamte Mailflaeche dehnen.
+     */
+    private static function withoutLegacyPercentHeight(string $html): string
+    {
+        $layers = [];
+        foreach (self::scanStartTags($html) as $tag) {
+            if ($tag['name'] === 'div' && self::sourceTagHasClass($tag, 'rt-sign-train-layer')) {
+                $layers[] = $tag;
+            }
+        }
+        $styles = $layers[0]['attributes']['style'] ?? [];
+        if (count($layers) !== 1 || count($styles) !== 1 || $styles[0]['valueOffset'] === null) {
+            throw new RuntimeException('Die alte Zug-Layer-Hoehe konnte nicht eindeutig normalisiert werden.');
+        }
+
+        $segments = [];
+        $removed = 0;
+        foreach (explode(';', CssSemantic::decodeHtmlEntitiesOnce($styles[0]['raw'])) as $segment) {
+            $segment = trim($segment);
+            if ($segment === '') {
+                continue;
+            }
+            [$property, $value] = array_map('trim', explode(':', $segment, 2));
+            if (strtolower($property) === 'height') {
+                if (strtolower($value) !== '100%') {
+                    throw new RuntimeException('Die alte Zug-Layer-Hoehe ist nicht kanonisch.');
+                }
+                $removed++;
+
+                continue;
+            }
+            $segments[] = $property.':'.$value;
+        }
+        if ($removed !== 1) {
+            throw new RuntimeException('Die alte Zug-Layer-Hoehe ist nicht eindeutig.');
+        }
+
+        $replacement = htmlspecialchars(
+            implode(';', $segments).';',
+            ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5,
+            'UTF-8',
+        );
+
+        return substr_replace(
+            $html,
+            $replacement,
+            $styles[0]['valueOffset'],
+            $styles[0]['valueLength'],
+        );
     }
 
     /**

@@ -1,0 +1,10 @@
+[    2398ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:5000/mail-assets/signatur-raster-light.png?v=1786494465:0
+[    2399ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:5000/mail-assets/signatur-marke-light.png?v=1786494465:0
+[    2399ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:5000/mail-assets/wortmarke-signature-light.gif?v=1786562260:0
+[    2399ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:5000/mail-assets/zug-dampf-light.gif?v=1787161711&p=b6ba927df79c40b3fad8515fcfd742ac:0
+[    2399ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:5000/mail-assets/contact-phone.png?v=1786425683:0
+[    2399ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:5000/mail-assets/contact-mobile.png?v=1786425683:0
+[    4448ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:5000/mail-assets/contact-email.png?v=1786425683:0
+[    4448ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:5000/mail-assets/contact-location.png?v=1786425683:0
+[    4448ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:5000/mail-assets/contact-web.png?v=1786425683:0
+[    4452ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://127.0.0.1:41741/favicon.ico:0

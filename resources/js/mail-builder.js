@@ -1084,6 +1084,7 @@ function markAddedMailComponentStyles(editor, component) {
  * einem Telefon als vollstaendige, heruntergerechnete Arbeitsflaeche sichtbar.
  */
 export const MAIL_PREVIEW_DEVICES = Object.freeze({
+    wide: Object.freeze({ id: 'wide', label: 'Systemmail breit', width: 1920 }),
     desktop: Object.freeze({ id: 'desktop', label: 'Desktop', width: 1024 }),
     tablet: Object.freeze({ id: 'tablet', label: 'Tablet', width: 820 }),
     mobile: Object.freeze({ id: 'mobile', label: 'Mobil', width: 375 }),
@@ -1832,16 +1833,26 @@ export function synchronizeMailTrainLayerAlignment(component) {
         || current.right !== horizontal.right
         || current.width !== size.width
         || current['max-width'] !== size.maxWidth
-        || current.margin !== '0';
+        || current.margin !== '0'
+        || Object.prototype.hasOwnProperty.call(current, 'height');
     if (layerChanged) {
-        component?.setStyle?.({
+        const canonicalStyle = {
             ...current,
             left: horizontal.left,
             right: horizontal.right,
             width: size.width,
             'max-width': size.maxWidth,
             margin: '0',
-        }, { silent: true });
+        };
+        delete canonicalStyle.height;
+        // Manche GrapesJS-Adapter fuehren setStyle() mit dem vorhandenen
+        // Styleobjekt zusammen. Den alten Prozentwert deshalb auch an der
+        // Quelle entfernen, bevor die kanonischen Werte gesetzt werden.
+        if (Object.prototype.hasOwnProperty.call(current, 'height')) {
+            delete current.height;
+            component?.removeStyle?.('height', { silent: true });
+        }
+        component?.setStyle?.(canonicalStyle, { silent: true });
     }
 
     const children = component?.components?.();

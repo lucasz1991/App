@@ -80,6 +80,7 @@ final class SignatureDocumentContract
             allowLegacyPaddedCarrier: false,
             allowLegacyTrainCarrier: false,
             allowLegacyDirectImage: false,
+            allowLegacyPercentHeight: false,
         );
     }
 
@@ -100,6 +101,7 @@ final class SignatureDocumentContract
             allowLegacyPaddedCarrier: true,
             allowLegacyTrainCarrier: true,
             allowLegacyDirectImage: true,
+            allowLegacyPercentHeight: true,
         );
     }
 
@@ -109,6 +111,7 @@ final class SignatureDocumentContract
         bool $allowLegacyPaddedCarrier,
         bool $allowLegacyTrainCarrier,
         bool $allowLegacyDirectImage,
+        bool $allowLegacyPercentHeight,
     ): void {
         $decodedHtml = CssSemantic::decodeHtmlEntitiesOnce($html);
         if (preg_match('/\brt-sign-train-mso\b/i', $decodedHtml) === 1) {
@@ -128,7 +131,11 @@ final class SignatureDocumentContract
         self::assertLegacyTrainStill($html, $decodedHtml, $allowLegacyTrainStill);
 
         if (SignatureTrainCarrier::hasCanonicalImage($html)) {
-            SignatureTrainCarrier::assertCanonicalImage($html, $allowLegacyDirectImage);
+            SignatureTrainCarrier::assertCanonicalImage(
+                $html,
+                $allowLegacyDirectImage,
+                $allowLegacyPercentHeight,
+            );
         } elseif ($allowLegacyTrainCarrier) {
             // Bereits publizierte Schema-9-Staende bleiben bis zum expliziten
             // Seeder-Lauf lesbar und werden beim Rendern in die heutige

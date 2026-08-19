@@ -149,7 +149,7 @@ class PageBuilderPreviewTest extends TestCase
         $this->assertSame($hashes, $creative->fresh()->variants()->pluck('content_hash', 'format')->all());
     }
 
-    public function test_mail_preview_uses_current_draft_profile_and_local_assets_without_mutating_publish_state(): void
+    public function test_mail_preview_uses_current_draft_with_the_system_sender_and_local_assets_without_mutating_publish_state(): void
     {
         $admin = User::factory()->create([
             'role' => 'admin',
@@ -180,12 +180,13 @@ class PageBuilderPreviewTest extends TestCase
 
         $response = $this->actingAs($admin)->get($url)
             ->assertOk()
-            ->assertHeader('X-PageBuilder-Preview-Width', '1024')
+            ->assertHeader('X-PageBuilder-Preview-Width', '1920')
             ->assertHeader('X-PageBuilder-Preview-Height', '820');
         $html = (string) $response->getContent();
 
         $this->assertStringContainsString('Mara Vorschau', $html);
-        $this->assertStringContainsString('mara.vorschau@rail-time.test', $html);
+        $this->assertStringNotContainsString('mara.vorschau@rail-time.test', $html);
+        $this->assertStringContainsString('AUTOMATISCHE NACHRICHT', $html);
         $this->assertStringContainsString('data:image/png;base64,', $html);
         $this->assertStringContainsString('data-preview-document="template"', $html);
         $this->assertStringContainsString('data-preview-theme="dark"', $html);

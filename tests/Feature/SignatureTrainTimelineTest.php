@@ -30,6 +30,7 @@ class SignatureTrainTimelineTest extends TestCase
             'src="https://app.rail-time.test/mail-assets/zug-dampf-idle-light.gif"',
             $rendered,
         );
+        $this->assertDoesNotMatchRegularExpression('/rt-train-idle-overlay[^>]*height:100%/', $rendered);
     }
 
     /**

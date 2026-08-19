@@ -11,7 +11,6 @@ use App\Services\Marketing\MarketingHtmlSanitizer;
 use App\Services\Marketing\MarketingRenderAssetHydrator;
 use App\Support\EmailTemplateBuilder;
 use App\Support\Mail\EmailHtmlSanitizer;
-use App\Support\Mail\SignatureTrainCarrier;
 use App\Support\MailSignature;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
@@ -82,37 +81,32 @@ final class PageBuilderPreviewService
             ? $document
             : MailDocument::query()->where('kind', MailDocumentKind::Signature->value)->first();
 
-        $values = MailSignature::forUser(
-            $user,
+        // Vorschau und Editor zeigen den tatsaechlichen Absenderkontext der
+        // Systemnachrichten. Zuvor wurde hier das Profil des angemeldeten
+        // Administrators eingesetzt, waehrend der Versand forCompany()
+        // verwendet. Dadurch sah derselbe veroeffentlichte Signaturblock
+        // in der Vorschau personengebunden und in der Mail automatisiert aus.
+        $signatureRenderer = MailSignature::forCompany(
             $theme,
             animated: $animated,
             playbackNonce: $playbackNonce,
-        )->values();
-        $values = $animated
-            ? $this->uniquePreviewGifValues($values, $playbackNonce ?? bin2hex(random_bytes(12)))
-            : array_merge($values, [
-                'LOGO_SRC' => (string) ($values['LOGO_STILL_SRC'] ?? ''),
-                'ICON_RT_SRC' => (string) ($values['ICON_RT_STILL_SRC'] ?? ''),
-                'TRAIN_IDLE_SRC' => '',
-            ]);
+            remoteAssets: false,
+            staticAssets: ! $animated,
+        );
+        $values = $signatureRenderer->values();
+        if ($animated) {
+            $values = $this->uniquePreviewGifValues(
+                $values,
+                $playbackNonce ?? bin2hex(random_bytes(12)),
+            );
+        }
         $values = array_merge($values, $this->sampleMailValues($user));
         $signature = $signatureDocument === null
             ? ''
-            : $this->renderTokenHtml(
-                // Die Livevorschau nutzt denselben regulaeren Haupt-GIF-Pfad
-                // wie Versand, Kopieransicht und Weiterleitung.
-                SignatureTrainCarrier::projectAsImage(
-                    (string) $signatureDocument->html,
-                    (string) ($values['TRAIN_SRC'] ?? ''),
-                ),
-                array_merge($values, ['TRAIN_SRC' => '']),
+            : $signatureRenderer->renderDocument(
+                (string) $signatureDocument->html,
+                overrides: $values,
             );
-        if ($signature !== '' && $animated && trim((string) ($values['TRAIN_IDLE_SRC'] ?? '')) !== '') {
-            $signature = SignatureTrainCarrier::withIdleOverlay(
-                $signature,
-                (string) $values['TRAIN_IDLE_SRC'],
-            );
-        }
 
         $html = $this->renderTokenHtml((string) $document->html, $values, [
             'SIGNATURE_BLOCK' => $signature,
@@ -152,8 +146,8 @@ final class PageBuilderPreviewService
 
         return [
             'html' => $html,
-            'width' => 1024,
-            'height' => $document->kind === MailDocumentKind::Signature ? 620 : 820,
+            'width' => 1920,
+            'height' => $document->kind === MailDocumentKind::Signature ? 360 : 820,
         ];
     }
 
@@ -271,7 +265,7 @@ CSS, $width, $height);
     {
         $background = $theme === 'dark' ? '#070a0e' : '#e7eaed';
 
-        return "html,body{margin:0;min-width:1024px;width:1024px;min-height:620px;background:{$background};font-family:Arial,Helvetica,sans-serif}body{padding:28px;box-sizing:border-box}table{border-collapse:collapse}";
+        return "html,body{margin:0;min-width:1920px;width:1920px;min-height:360px;background:{$background};font-family:Arial,Helvetica,sans-serif}body{padding:28px;box-sizing:border-box}table{border-collapse:collapse}";
     }
 
     private function embedStyle(string $html, string $css, string $kind): string

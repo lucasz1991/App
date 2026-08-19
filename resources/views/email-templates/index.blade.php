@@ -225,7 +225,7 @@
                     <div class="grid gap-4 xl:grid-cols-2">
                         @foreach ([
                             \App\Enums\MailDocumentKind::Template->value => ['Nachrichtenschale', 'Vollständige E-Mail mit aktuellem Signatur-Arbeitsstand', 820],
-                            \App\Enums\MailDocumentKind::Signature->value => ['Signatur', 'Personalisierter Signaturblock mit lokalen RailTime-Markenelementen', 620],
+                            \App\Enums\MailDocumentKind::Signature->value => ['Signatur', 'Signaturblock der Systemnachrichten mit lokalen RailTime-Markenelementen', 360],
                         ] as $documentKind => [$documentTitle, $documentDescription, $previewHeight])
                             @if ($document = $adminMailDocuments->get($documentKind))
                                 @php
@@ -235,7 +235,7 @@
                                             'label' => $label,
                                             'url' => route('admin.mail-documents.preview', [$document, 'theme' => $theme, 'animate' => 1]),
                                             'editUrl' => $documentEditUrl,
-                                            'width' => 1024,
+                                            'width' => 1920,
                                             'height' => $previewHeight,
                                         ]])
                                         ->all();
