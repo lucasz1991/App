@@ -39,8 +39,9 @@ final class MailDocumentSeeder extends Seeder
      * 6  Vollständiges Outlook-Standbild für das animierte RT-Zeichen
      * 7  Zug-Carrier ohne Außenpadding für eine bündige Rad-/Footerkante
      * 8  Kontaktinhalt und reguläre Zugzeile ohne künstlichen Zwischenraum
+     * 9  Zug in jeder finalen Ausgabe als kopierbares reguläres GIF-Bild
      */
-    private const STARTER_SCHEMA = 8;
+    private const STARTER_SCHEMA = 9;
 
     public function run(): void
     {

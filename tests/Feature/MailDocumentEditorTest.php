@@ -106,6 +106,21 @@ class MailDocumentEditorTest extends TestCase
             $this->assertNotNull(EmailTemplateBuilder::publishedDocument($kind), $kind->value);
         }
 
+        $schemaNineSignature = MailSignature::forCompany(
+            playbackNonce: 'schema-nine-release',
+        )->render();
+        $this->assertSame(1, substr_count($schemaNineSignature, 'data-rt-train'));
+        $this->assertSame(1, substr_count($schemaNineSignature, 'class="rt-sign-train"'));
+        $this->assertSame(1, substr_count($schemaNineSignature, 'zug-dampf-light.gif'));
+        $this->assertMatchesRegularExpression(
+            '/<img\b(?=[^>]*class="[^"]*\brt-sign-train\b[^"]*")(?=[^>]*\bdata-rt-train(?:\s|=|>))[^>]*zug-dampf-light\.gif[^>]*>/i',
+            $schemaNineSignature,
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            '/<td\b[^>]*class="[^"]*\brt-sign-cell\b[^"]*"[^>]*zug-dampf-light\.gif/i',
+            $schemaNineSignature,
+        );
+
         // ZWEITER LAUF: Er ueberschreibt ohne Rueckfrage — auch Editor-Arbeit.
         // Genau dafuer ist der Aufruf am Ende eines Deployments gedacht.
         $signatur = $this->document(MailDocumentKind::Signature);
@@ -120,7 +135,7 @@ class MailDocumentEditorTest extends TestCase
         $this->assertStringNotContainsString('Von Hand geaendert', (string) $frisch->html);
         $this->assertSame(MailDocumentStatus::Published, $frisch->status);
         $this->assertSame(1, $frisch->version);
-        $this->assertSame(8, data_get($frisch->builder_data, 'railtime.schema'));
+        $this->assertSame(9, data_get($frisch->builder_data, 'railtime.schema'));
     }
 
     public function test_der_seeder_veroeffentlicht_vorlage_und_signatur_als_idempotenten_release(): void
@@ -140,7 +155,7 @@ class MailDocumentEditorTest extends TestCase
             $dokument = $this->document($kind);
             $this->assertSame(MailDocumentStatus::Published, $dokument->status, $kind->value);
             $this->assertSame(1, $dokument->version, $kind->value);
-            $this->assertSame(8, data_get($dokument->builder_data, 'railtime.schema'), $kind->value);
+            $this->assertSame(9, data_get($dokument->builder_data, 'railtime.schema'), $kind->value);
             $this->assertSame(trim((string) $dokument->html), trim((string) $dokument->published_html), $kind->value);
             $this->assertSame((string) data_get($dokument->builder_data, 'pages.0.component'), (string) $dokument->html, $kind->value);
             $this->assertSame(
@@ -183,7 +198,7 @@ class MailDocumentEditorTest extends TestCase
 
         foreach ([$template, $signatur] as $dokument) {
             $this->assertSame(MailDocumentStatus::Published, $dokument->status);
-            $this->assertSame(8, data_get($dokument->builder_data, 'railtime.schema'));
+            $this->assertSame(9, data_get($dokument->builder_data, 'railtime.schema'));
             $this->assertSame(trim((string) $dokument->html), trim((string) $dokument->published_html));
             $this->assertSame((string) data_get($dokument->builder_data, 'pages.0.component'), (string) $dokument->html);
         }
