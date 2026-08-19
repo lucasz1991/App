@@ -45,12 +45,6 @@
    Queries behalten fail-closed die normale 75-Prozent-
    Position aus dem Inline-Stil. Diese Regeln betreffen nur den geschuetzten
    Editor-Carrier; versendete Mails nutzen ein regulaeres IMG. */
-@media only screen and (min-width: 1820px) {
-.rt-sign-cell {
-  background-position: left top, right center, center center, left bottom !important;
-}
-}
-
 /* ---- Tablet quer: enger setzen, aber zweispaltig bleiben ---- */
 @media only screen and (max-width: 1000px) {
 .rt-pad { padding-left: 30px !important; padding-right: 30px !important; }
@@ -147,25 +141,11 @@ img.rt-logo { width: 150px !important; }
 /* Die Firmenliste sitzt gestapelt direkt unter der Wortmarke — der
    Vorsprung, den sie im Breitlayout ausgleicht, faellt hier weg. */
 
-/* Gestapelt stehen die Spalten untereinander — die rechten 30 % sind dann
-   nicht mehr fuer die Firmendaten reserviert und der Zug darf ueber die
-   ganze Breite laufen. Die Reihenfolge der Werte folgt der Ebenenliste in
-   signature.blade.php: Raster, Wasserzeichen, Schleier, Zug. Wer sie dort
-   aendert, muss sie HIER mitziehen — sonst treffen die Groessen die
-   falschen Ebenen. */
-/* AUF SCHMALEN SCHIRMEN AN DER BREITE AUSRICHTEN, NICHT AN DER HOEHE.
-   Im Breitlayout haengt der Zug an der Streifenhoehe (auto 100%). Das
-   passt dort, weil der Streifen flach ist. Auf dem Telefon ist er fast
-   quadratisch — dieselbe Regel vergroesserte den Zug so stark, dass ein
-   einziger Wagen die Breite fuellte und das Motiv nicht mehr als Zug
-   lesbar war. Ueber die Breite skaliert bleiben Lok und drei Wagen im
-   Bild.
-   Aus demselben Grund wird der Markenschein begrenzt: an der Hoehe
-   ausgerichtet legte er sich als breiter Schleier ueber die halbe Karte.
-   Er soll ein Schein in der Ecke sein, kein Farbfeld. */
+/* Raster, Wasserzeichen und Grundschleier bleiben mobil an ihre drei
+   kanonischen Ebenen gekoppelt. Der Zug ist ein normales IMG. */
 .rt-sign-cell {
-  background-position: left top, right center, center center, 75% bottom !important;
-  background-size: 64px 64px, auto 52%, 100% 100%, 200% auto !important;
+  background-position: left top, right center, center center !important;
+  background-size: 64px 64px, auto 52%, 100% 100% !important;
 }
 }
 

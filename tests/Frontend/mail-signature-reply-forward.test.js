@@ -72,8 +72,9 @@ test('all delivered HTML uses one regular train image like logo and RT icon', as
         source('../../app/Services/PageBuilder/PageBuilderPreviewService.php'),
     ]);
 
-    assert.match(signature, /\$isOutlookExport \? '' : "url\(\{\$values\['TRAIN_SRC'\]\}\)/);
-    assert.match(signature, /<img class="rt-sign-train" data-rt-train src="\{\{ \$outlookTrainSrc \}\}" width="100%"[^>]*style="[^"]*display:block;width:100%;max-width:1815px;height:auto;/);
+    assert.match(signature, /\$trainSrc = \$outlookTrainSrc !== ''/);
+    assert.match(signature, /<img class="rt-sign-train" data-rt-train src="\{\{ \$trainSrc \}\}" width="100%"[^>]*style="[^"]*display:block;width:100%;max-width:1815px;height:auto;/);
+    assert.doesNotMatch(signature, /url\(\{\$values\['TRAIN_SRC'\]\}\)/);
     assert.doesNotMatch(signature, /data-rt-outlook-train|outlookTrainFallbackSrc/);
     assert.doesNotMatch(signature, /<td[^>]+background="\{\{[^}]*TRAIN/);
 

@@ -233,9 +233,9 @@ final class EmailHtmlSanitizer
      * Wertebeschraenkungen — nur dort, wo ein falscher Wert das Layout
      * zerlegt.
      *
-     * position:relative wird gebraucht: es hebt die Personenspalte ueber
-     * das Zug-Hintergrundbild (emails/parts/signature.blade.php:63). Ein
-     * pauschales Verbot von position waere ein sichtbarer Schaden,
+     * position:relative wird weiterhin von der bestehenden Tabellenquelle
+     * fuer stabile Inhaltscontainer verwendet. Ein pauschales Verbot waere
+     * deshalb ein sichtbarer Schaden,
      * absolute/fixed/sticky brechen dagegen jede Mailansicht.
      *
      * @var array<string, list<string>>

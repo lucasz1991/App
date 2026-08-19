@@ -79,7 +79,8 @@ test('all delivered mail outputs use one regular train image', () => {
     assert.match(cssSemantic, /\$isProtectedAttribute = in_array\(/);
     assert.doesNotMatch(responsiveCss, /rt-train-idle|rt-train-idle-reveal/);
     assert.doesNotMatch(routes, /mail-animations\/train/);
-    assert.match(signatureView, /"url\(\{\$values\['TRAIN_SRC'\]\}\)\|75% bottom\|\{\$zugMass\}\|no-repeat"/);
+    assert.match(signatureView, /<img class="rt-sign-train" data-rt-train src="\{\{ \$trainSrc \}\}"/);
+    assert.doesNotMatch(signatureView, /url\(\{\$values\['TRAIN_SRC'\]\}\)/);
     assert.match(
         signatureView,
         /<td class="rt-sign-cell"[^>]+style="padding:0;position:relative;overflow:hidden;/,
@@ -97,15 +98,15 @@ test('all delivered mail outputs use one regular train image', () => {
     assert.match(responsiveCss, /\.rt-sign-content \{ padding-bottom: 0 !important; \}/);
 });
 
-test('editor carrier preserves train geometry while delivery has no second idle layer', () => {
+test('editor and delivery use the same regular train image without idle layer', () => {
     const signatureView = text('resources/views/emails/parts/signature.blade.php');
     const responsiveCss = text('resources/views/emails/parts/responsive-css.blade.php');
 
-    assert.match(signatureView, /\$zugMass = 'auto 100%';/);
-    assert.match(signatureView, /"url\(\{\$values\['TRAIN_SRC'\]\}\)\|75% bottom\|\{\$zugMass\}\|no-repeat"/);
-    assert.match(responsiveCss, /@media only screen and \(min-width: 1820px\)[\s\S]+?background-position: left top, right center, center center, left bottom !important;/);
+    assert.match(signatureView, /\$trainSrc = \$outlookTrainSrc !== ''/);
+    assert.match(signatureView, /display:block;width:100%;max-width:1815px;height:auto/);
+    assert.doesNotMatch(signatureView, /url\(\{\$values\['TRAIN_SRC'\]\}\)/);
     const mobile = responsiveCss.slice(responsiveCss.indexOf('@media only screen and (max-width: 860px)'));
-    assert.match(mobile, /\.rt-sign-cell\s*\{[\s\S]+?background-position: left top, right center, center center, 75% bottom !important;[\s\S]+?background-size: 64px 64px, auto 52%, 100% 100%, 200% auto !important;/);
+    assert.match(mobile, /\.rt-sign-cell\s*\{[\s\S]+?background-position: left top, right center, center center !important;[\s\S]+?background-size: 64px 64px, auto 52%, 100% 100% !important;/);
     assert.doesNotMatch(responsiveCss, /rt-train-idle/);
 });
 

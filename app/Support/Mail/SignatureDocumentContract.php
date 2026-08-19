@@ -78,6 +78,10 @@ final class SignatureDocumentContract
             $html,
             allowLegacyTrainStill: $allowLegacyTrainStill,
             allowLegacyPaddedCarrier: false,
+            // Bestehende Schema-9-Entwuerfe duerfen bis zum autoritativen
+            // Seeder-Lauf noch serverseitig validiert werden. Der neue
+            // Seeder und der Editor erzeugen ausschliesslich das IMG-Format.
+            allowLegacyTrainCarrier: true,
         );
     }
 
@@ -97,6 +101,7 @@ final class SignatureDocumentContract
             $html,
             allowLegacyTrainStill: true,
             allowLegacyPaddedCarrier: true,
+            allowLegacyTrainCarrier: true,
         );
     }
 
@@ -104,6 +109,7 @@ final class SignatureDocumentContract
         string $html,
         bool $allowLegacyTrainStill,
         bool $allowLegacyPaddedCarrier,
+        bool $allowLegacyTrainCarrier,
     ): void {
         $decodedHtml = CssSemantic::decodeHtmlEntitiesOnce($html);
         if (preg_match('/<style\b/i', $decodedHtml) === 1) {
@@ -119,10 +125,17 @@ final class SignatureDocumentContract
         self::assertExactMarkers($html);
         self::assertLegacyTrainStill($html, $decodedHtml, $allowLegacyTrainStill);
 
-        // Dieselbe kanonische Carrier-Semantik gilt auch vor der Outlook-
-        // Bildprojektion. Kein Ausgabezweig darf die Background-Pruefung
-        // umgehen.
-        SignatureTrainCarrier::normalize($html);
+        if (SignatureTrainCarrier::hasCanonicalImage($html)) {
+            SignatureTrainCarrier::assertCanonicalImage($html);
+        } elseif ($allowLegacyTrainCarrier) {
+            // Bereits publizierte Schema-9-Staende bleiben bis zum expliziten
+            // Seeder-Lauf lesbar und werden beim Rendern in das Bildformat
+            // projiziert. Neue Saves duerfen den Background nicht erneut
+            // veroeffentlichen.
+            SignatureTrainCarrier::normalize($html);
+        } else {
+            throw new RuntimeException('Der Zug muss als regulaeres Bild und nicht als Hintergrund gespeichert werden.');
+        }
         self::assertTableStructure($html, $allowLegacyPaddedCarrier);
     }
 

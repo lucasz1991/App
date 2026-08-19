@@ -113,10 +113,10 @@ test('global mail replay restarts every animated token without touching componen
     }
 });
 
-test('signature project gets a valid editor-only table and a reversible train background', () => {
+test('signature project gets a valid editor-only table and a reversible train image', () => {
     const source = {
         pages: [{
-            component: '<tr><td class="rt-pad rt-sign-cell" style="background-image:url(\'{{TRAIN_SRC}}\')"><img src="{{LOGO_SRC}}" alt="{{FIRMENNAME}}"><img src="{{ICON_EMAIL_SRC}}"><img src="{{ICON_LOCATION_SRC}}"></td></tr><tr><td style="color:{{SIGNATURE_LEGAL_TEXT}}">Rechtliches</td></tr>',
+            component: '<tr><td class="rt-pad rt-sign-cell"><img src="{{LOGO_SRC}}" alt="{{FIRMENNAME}}"><img src="{{ICON_EMAIL_SRC}}"><img src="{{ICON_LOCATION_SRC}}"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}"></td></tr><tr><td style="color:{{SIGNATURE_LEGAL_TEXT}}">Rechtliches</td></tr>',
         }],
         styles: [],
     };
@@ -131,23 +131,23 @@ test('signature project gets a valid editor-only table and a reversible train ba
     assert.match(component, /data-rt-mail-preview-token="LOGO_SRC"/);
     assert.match(component, /data-rt-mail-preview-token="ICON_EMAIL_SRC"/);
     assert.match(component, /data-rt-mail-preview-token="ICON_LOCATION_SRC"/);
-    assert.match(component, /data-rt-mail-preview-train="TRAIN_SRC"/);
-    assert.doesNotMatch(component, /data-rt-mail-preview-only="train"|data-rt-train/);
+    assert.match(component, /data-rt-mail-preview-token="TRAIN_SRC"/);
+    assert.match(component, /class="rt-sign-train"[^>]*data-rt-train/);
+    assert.doesNotMatch(component, /data-rt-mail-preview-only="train"/);
     assert.doesNotMatch(component, /src="\{\{LOGO_SRC\}\}"/);
     assert.doesNotMatch(component, /\{\{TRAIN_SRC\}\}/);
     assert.deepEqual(draft.builderData, source);
 });
 
-test('signature preview hydrates the train behind content and roundtrips two canonical rows', () => {
-    const original = '<tr><td class="rt-sign-cell" style="background-image:url(\'{{TRAIN_SRC}}\')"><span data-rt-mail-block="paragraph" data-rt-mail-text="secondary">Inhalt</span><img src="{{LOGO_SRC}}"></td></tr><!-- RT_SIGNATURE_MAIN_END --><tr><td style="color:{{SIGNATURE_LEGAL_TEXT}}"><img src="{{ICON_EMAIL_SRC}}"></td></tr>';
+test('signature preview hydrates the train image and roundtrips two canonical rows', () => {
+    const original = '<tr><td class="rt-sign-cell"><span data-rt-mail-block="paragraph" data-rt-mail-text="secondary">Inhalt</span><img src="{{LOGO_SRC}}"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}"></td></tr><!-- RT_SIGNATURE_MAIN_END --><tr><td style="color:{{SIGNATURE_LEGAL_TEXT}}"><img src="{{ICON_EMAIL_SRC}}"></td></tr>';
     const project = projectForMailDocument({
         builderData: { pages: [{ component: original }], styles: [] },
         css: '',
     }, () => [], { kind: 'signature', environment: { DOMParser } });
 
-    assert.equal((project.pages[0].component.match(/data-rt-mail-preview-train/g) || []).length, 1);
+    assert.equal((project.pages[0].component.match(/data-rt-mail-preview-token="TRAIN_SRC"/g) || []).length, 1);
     assert.equal((project.pages[0].component.match(/data-rt-mail-preview-only="train"/g) || []).length, 0);
-    assert.equal((project.pages[0].component.match(/data-rt-mail-preview-token="TRAIN_SRC"/g) || []).length, 0);
     assert.equal((project.pages[0].component.match(/RT_SIGNATURE_MAIN_END/g) || []).length, 1);
     const outgoing = serializeMailDocumentForSave({
         project,
@@ -163,7 +163,7 @@ test('signature preview hydrates the train behind content and roundtrips two can
     assert.match(outgoing.html, /class="rt-sign-cell"/);
     assert.match(outgoing.html, /<span>Inhalt<\/span>/);
     assert.doesNotMatch(outgoing.html, /data-rt-mail-/);
-    assert.doesNotMatch(outgoing.html, /class="rt-sign-train"|data-rt-train/);
+    assert.match(outgoing.html, /class="rt-sign-train"[^>]*data-rt-train[^>]*src="\{\{TRAIN_SRC\}\}"/);
     assert.doesNotMatch(outgoing.html, /data:image\//);
     assert.equal(outgoing.project.pages[0].component, outgoing.html);
 
@@ -181,7 +181,7 @@ test('signature preview hydrates the train behind content and roundtrips two can
 });
 
 test('signature contact rows survive the element-only GrapesJS roundtrip as exact marker siblings', () => {
-    const original = '<tr><td class="rt-sign-cell" style="background-image:url(\'{{TRAIN_SRC}}\')">'
+    const original = '<tr><td class="rt-sign-cell">'
         + '<table class="rt-contact">'
         + '<!-- RT_PHONE_START --><tr><td>{{DURCHWAHL}}</td></tr><!-- RT_PHONE_END -->'
         + '<!-- RT_MOBILE_START --><tr><td>{{MOBIL}}</td></tr><!-- RT_MOBILE_END -->'
@@ -190,7 +190,7 @@ test('signature contact rows survive the element-only GrapesJS roundtrip as exac
         + '<!-- RT_COMPANY_PHONE_START --><tr><td>{{FIRMEN_TELEFON}}</td></tr><!-- RT_COMPANY_PHONE_END -->'
         + '<!-- RT_COMPANY_EMAIL_START --><tr><td>{{FIRMEN_EMAIL}}</td></tr><!-- RT_COMPANY_EMAIL_END -->'
         + '<!-- RT_WEBSITE_START --><tr><td>{{FIRMEN_WEBSITE_LABEL}}</td></tr><!-- RT_WEBSITE_END -->'
-        + '</table><img src="{{LOGO_SRC}}"></td></tr>'
+        + '</table><img src="{{LOGO_SRC}}"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}"></td></tr>'
         + '<!-- RT_SIGNATURE_MAIN_END --><tr><td>Rechtliches</td></tr>';
     const project = projectForMailDocument({
         builderData: { pages: [{ component: original }], styles: [] },
@@ -326,13 +326,13 @@ test('signature contact rows survive the element-only GrapesJS roundtrip as exac
 });
 
 test('signature save fails closed when a preview marker is removed', () => {
-    const original = '<tr><td class="rt-sign-cell" style="background-image:url(\'{{TRAIN_SRC}}\')"><img src="{{LOGO_SRC}}"></td></tr><!-- RT_SIGNATURE_MAIN_END --><tr><td>Rechtliches</td></tr>';
+    const original = '<tr><td class="rt-sign-cell"><img src="{{LOGO_SRC}}"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}"></td></tr><!-- RT_SIGNATURE_MAIN_END --><tr><td>Rechtliches</td></tr>';
     const project = projectForMailDocument({
         builderData: { pages: [{ component: original }], styles: [] },
         css: '',
     }, () => [], { kind: 'signature', environment: { DOMParser } });
 
-    const withoutTrainMarker = project.pages[0].component.replace(' data-rt-mail-preview-train="TRAIN_SRC"', '');
+    const withoutTrainMarker = project.pages[0].component.replace(' data-rt-mail-preview-token="TRAIN_SRC"', '');
     assert.throws(() => serializeMailDocumentForSave({
         project,
         html: withoutTrainMarker,
@@ -357,7 +357,7 @@ test('signature save fails closed when a preview marker is removed', () => {
         html: withSecondTrainImage,
         kind: 'signature',
         environment: { DOMParser },
-    }), /zweite Zugbildzeile/);
+    }), /alte Zugvorschauzeile/);
 
     const duplicatedMainMarker = project.pages[0].component.replace(
         '<tr><td>Rechtliches</td></tr>',
@@ -394,8 +394,8 @@ test('signature save fails closed when a preview marker is removed', () => {
 });
 
 test('signature load fails closed for a second or displaced train binding', () => {
-    const duplicateTrain = '<tr><td class="rt-sign-cell" style="background-image:url(\'{{TRAIN_SRC}}\')"><span style="background:url(\'{{TRAIN_SRC}}\')">X</span></td></tr><tr><td>Rechtliches</td></tr>';
-    const displacedTrain = '<tr><td class="rt-sign-cell">Inhalt</td><td style="background:url(\'{{TRAIN_SRC}}\')">Zug</td></tr><tr><td>Rechtliches</td></tr>';
+    const duplicateTrain = '<tr><td class="rt-sign-cell"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}"></td></tr><tr><td>Rechtliches</td></tr>';
+    const displacedTrain = '<tr><td class="rt-sign-cell">Inhalt</td><td><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}"></td></tr><tr><td>Rechtliches</td></tr>';
 
     assert.throws(() => projectForMailDocument({
         builderData: { pages: [{ component: duplicateTrain }], styles: [] },
@@ -410,13 +410,13 @@ test('signature load fails closed for a second or displaced train binding', () =
 test('GrapesJS inline import rules are merged in cascade order without touching user CSS', () => {
     const transparent = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=';
     const html = '<table data-rt-mail-signature-canvas="true"><tbody>'
-        + '<tr><td class="rt-sign-cell c777 c101 c102" data-rt-mail-inline-source="s1" data-rt-mail-preview-train="TRAIN_SRC" style="padding:9px;">Inhalt</td></tr>'
+        + `<tr><td class="rt-sign-cell c777 c101 c102" data-rt-mail-inline-source="s1" style="padding:9px;">Inhalt<img class="rt-sign-train" data-rt-train data-rt-mail-preview-token="TRAIN_SRC" src="${transparent}"></td></tr>`
         + '<tr><td class="c777">Rechtliches</td></tr>'
         + '</tbody></table>';
     const project = {
         pages: [{ component: html }],
         styles: [
-            { selectors: ['c101'], style: { padding: '2px', color: '{{SIGNATURE_TEXT_PRIMARY}}', 'background-image': "url('about:blank#rt-mail-train-preview')" } },
+            { selectors: ['c101'], style: { padding: '2px', color: '{{SIGNATURE_TEXT_PRIMARY}}' } },
             { selectors: ['c102'], style: { color: '#123456', 'font-size': '12px' } },
             { selectors: ['c777'], style: { color: '#abcdef' } },
             { selectors: ['rt-user'], style: { color: '{{SIGNATURE_TEXT_MUTED}}' } },
@@ -437,7 +437,7 @@ test('GrapesJS inline import rules are merged in cascade order without touching 
     assert.match(outgoing.html, /padding:9px;/);
     assert.match(outgoing.html, /color:#123456;/);
     assert.match(outgoing.html, /font-size:12px;/);
-    assert.match(outgoing.html, /background-image:url\('\{\{TRAIN_SRC\}\}'\);/);
+    assert.match(outgoing.html, /class="rt-sign-train"[^>]*data-rt-train[^>]*src="\{\{TRAIN_SRC\}\}"/);
     assert.match(outgoing.html, /class="c777"/);
     assert.doesNotMatch(outgoing.html, /c101|c102|data-rt-mail|about:blank|data:image/);
     assert.match(outgoing.css, /\.c777\{color:#abcdef;\}/);
@@ -652,7 +652,7 @@ test('built-in mail blocks keep content and formatting without persisting editor
     }), /verlustfrei/);
 });
 
-test('protected mail layers stay named and structural while train position remains styleable', () => {
+test('protected mail layers keep the regular train image visible and structural', () => {
     const component = (attributes = {}, tagName = 'div', children = []) => {
         const state = { attributes, tagName };
         const item = {
@@ -669,8 +669,9 @@ test('protected mail layers stay named and structural while train position remai
     const mark = component({ 'data-rt-mail-preview-token': 'ICON_RT_SRC' }, 'img');
     const markCell = component({}, 'td', [mark]);
     const markRow = component({}, 'tr', [markCell]);
+    const train = component({ 'data-rt-mail-preview-token': 'TRAIN_SRC', 'data-rt-train': '' }, 'img');
     const carrierContent = component({}, 'table');
-    const carrier = component({ 'data-rt-mail-preview-train': 'TRAIN_SRC' }, 'td', [carrierContent]);
+    const carrier = component({ class: 'rt-sign-cell' }, 'td', [carrierContent, train]);
     const applicationNote = component({}, 'div');
     const applicationCell = component({}, 'td', [applicationNote]);
     const applicationRow = component({ 'data-rt-mail-preview-only': 'application' }, 'tr', [applicationCell]);
@@ -686,15 +687,15 @@ test('protected mail layers stay named and structural while train position remai
         assert.equal(protectedComponent.state.removable, false);
         assert.equal(protectedComponent.state.copyable, false);
     });
-    assert.deepEqual(carrier.state.stylable, ['background-position']);
-    assert.equal(carrier.state.layerable, true);
-    assert.equal(carrier.state['custom-name'], 'Zug-Hintergrund (geschützt)');
+    assert.equal(train.state.stylable, false);
+    assert.equal(train.state.layerable, true);
+    assert.equal(train.state['custom-name'], 'Zuganimation (geschützt)');
     assert.equal(markCell.state['custom-name'], 'RT-Zeichen (geschützt)');
     assert.equal(applicationRow.state['custom-name'], 'Anwendungsinhalt (geschützt)');
     for (const property of ['editable', 'draggable', 'removable', 'copyable', 'droppable']) {
-        assert.equal(carrier.state[property], false);
+        assert.equal(train.state[property], false);
     }
-    [markRow, carrierContent, ordinary].forEach((editableComponent) => {
+    [markRow, carrier, carrierContent, ordinary].forEach((editableComponent) => {
         assert.equal(editableComponent.state.stylable, undefined);
     });
     assert.equal(ordinaryImage.state['custom-name'], 'Teambild');
@@ -704,48 +705,26 @@ test('protected mail layers stay named and structural while train position remai
     );
 });
 
-test('mail-safe train controls expose only five bottom-aligned desktop positions', () => {
-    const sector = MAIL_STYLE_SECTORS.find((item) => item.id === 'rt-mail-train-background');
-    const position = sector?.properties?.find((item) => item.property === 'background-position');
-    assert.ok(position);
-    assert.equal(position.name, 'Position (Desktop)');
-    assert.deepEqual(position.options.map((item) => item.label), ['Links', '25 %', 'Mitte', '75 %', 'Rechts']);
-    position.options.forEach((item) => {
-        assert.match(item.id, /^left top,right center,center center,(?:left|25%|50%|75%|right) bottom$/);
-        assert.doesNotMatch(item.id, /calc\(|var\(|!important|\btop$/);
-    });
+test('mail editor no longer offers misleading train background controls', () => {
+    assert.equal(MAIL_STYLE_SECTORS.some((item) => item.id === 'rt-mail-train-background'), false);
 });
 
-test('canvas hydrates the train background without creating a second image or mutating its token model', () => {
+test('canvas hydrates exactly one regular train image without mutating its token model', () => {
     const project = projectForMailDocument({
-        builderData: { pages: [{ component: '<tr><td class="rt-sign-cell" style="background-image:url(\'{{TRAIN_SRC}}\')">Inhalt</td></tr><tr><td>Rechtliches</td></tr>' }], styles: [] },
+        builderData: { pages: [{ component: '<tr><td class="rt-sign-cell">Inhalt<img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}"></td></tr><tr><td>Rechtliches</td></tr>' }], styles: [] },
         css: '',
     }, () => [], { kind: 'signature', environment: { DOMParser } });
     const document_ = new DOMParser().parseFromString(project.pages[0].component, 'text/html');
-    const carrier = document_.querySelector('[data-rt-mail-preview-train="TRAIN_SRC"]');
-    const modelStyle = carrier.getAttribute('style');
+    const train = document_.querySelector('img[data-rt-train][data-rt-mail-preview-token="TRAIN_SRC"]');
+    const modelSource = train.getAttribute('src');
 
     assert.equal(hydrateMailCanvasAssets({ Canvas: { getDocument: () => document_ } }, 'light', {
         light: { train: 'https://app.rail-time.test/mail-assets/train.gif' },
     }), 1);
-    assert.match(carrier.getAttribute('style'), /https:\/\/app\.rail-time\.test\/mail-assets\/train\.gif/);
-    assert.equal(document_.querySelectorAll('[data-rt-train], img.rt-sign-train').length, 0);
-    assert.match(modelStyle, /about:blank#rt-mail-train-preview/);
+    assert.equal(train.getAttribute('src'), 'https://app.rail-time.test/mail-assets/train.gif');
+    assert.equal(document_.querySelectorAll('img[data-rt-train].rt-sign-train').length, 1);
+    assert.equal(modelSource.startsWith('data:image/png;base64,'), true);
     assert.equal(project.pages[0].component.includes('https://app.rail-time.test'), false);
-
-    // Ein Style-Update schreibt zunaechst wieder den tokenisierten Modellwert
-    // ins Canvas. Die erneute Hydrierung muss die neue Position sichtbar
-    // lassen, ohne die echte Asset-URL ins speicherbare Projekt zu uebernehmen.
-    carrier.setAttribute('style', modelStyle.replace(
-        'background-image:',
-        'background-position:50% bottom;background-image:',
-    ));
-    assert.equal(hydrateMailCanvasAssets({ Canvas: { getDocument: () => document_ } }, 'light', {
-        light: { train: 'https://app.rail-time.test/mail-assets/train.gif' },
-    }), 1);
-    assert.match(carrier.getAttribute('style'), /background-position:50% bottom/);
-    assert.match(carrier.getAttribute('style'), /https:\/\/app\.rail-time\.test\/mail-assets\/train\.gif/);
-    assert.doesNotMatch(project.pages[0].component, /background-position:50% bottom/);
 });
 
 test('template save never persists a detached or unknown image preview binding', () => {
@@ -1080,33 +1059,16 @@ test('mail toolbar keeps documents, preview and publishing in non-overlapping re
     assert.match(mobile, /\.rt-mail-studio-toolbar__action-buttons[\s\S]*?grid-column:\s*2[\s\S]*?grid-row:\s*2/);
 });
 
-test('very wide editor carriers anchor the train at the uncropped left edge', async () => {
+test('signature source uses one normal train image and no train background layer', async () => {
     const { readFile } = await import('node:fs/promises');
     const [css, signatureSource, trainAsset] = await Promise.all([
         readFile(new URL('../../resources/views/emails/parts/responsive-css.blade.php', import.meta.url), 'utf8'),
         readFile(new URL('../../resources/views/emails/parts/signature.blade.php', import.meta.url), 'utf8'),
         readFile(new URL('../../resources/mail-templates/assets/zug-dampf-light.png', import.meta.url)),
     ]);
-    const wideRule = css.match(
-        /@media only screen and \(min-width: (\d+)px\)\s*\{\s*\.rt-sign-cell\s*\{\s*background-position:\s*left top,\s*right center,\s*center center,\s*left bottom !important;\s*\}\s*\}/,
-    );
-
-    assert.ok(wideRule, 'the editor train needs a wide left-bottom contract');
-    const breakpoint = Number(wideRule[1]);
-    assert.equal(breakpoint, 1820);
-
-    for (const ordinaryWidth of [1440, 720, 390]) {
-        assert.ok(ordinaryWidth < breakpoint, `${ordinaryWidth}px must keep the 75% position`);
-    }
-    for (const wideWidth of [1920, 2560]) {
-        assert.ok(wideWidth >= breakpoint, `${wideWidth}px must use the wide left edge`);
-    }
-
-    assert.match(signatureSource, /\|75% bottom\|\{\$zugMass\}/);
-    assert.match(
-        css,
-        /background-position:\s*left top, right center, center center, 75% bottom !important;/,
-    );
+    assert.match(signatureSource, /<img class="rt-sign-train" data-rt-train src="\{\{ \$trainSrc \}\}"/);
+    assert.doesNotMatch(signatureSource, /url\(\{\$values\['TRAIN_SRC'\]\}\)/);
+    assert.doesNotMatch(css, /left top, right center, center center, (?:left|75%) bottom/);
     assert.doesNotMatch(css, /rt-train-idle/);
 
     assert.equal(trainAsset.toString('ascii', 1, 4), 'PNG');
@@ -1114,24 +1076,5 @@ test('very wide editor carriers anchor the train at the uncropped left edge', as
     const assetHeight = trainAsset.readUInt32BE(20);
     assert.deepEqual([assetWidth, assetHeight], [2880, 292]);
 
-    // Real Chromium geometry at 1440/1920/2560: the desktop carrier is
-    // 184px high, so `auto 100%` renders the train layer at 1814.8px.
-    const renderedAssetWidth = assetWidth * (184 / assetHeight);
-    assert.ok(renderedAssetWidth < breakpoint);
-
-    const ordinaryImageX = (1440 - renderedAssetWidth) * 0.75;
-    const ordinaryFrontX = ordinaryImageX + (renderedAssetWidth * 0.75);
-    assert.ok(Math.abs(ordinaryFrontX - (1440 * 0.75)) < 0.01);
-
-    const wideFrontRatios = [1920, 2560].map((wideWidth) => {
-        const wideImageX = 0; // `left bottom`: the complete tail starts at x=0.
-        const wideFrontX = wideImageX + (renderedAssetWidth * 0.75);
-
-        assert.equal(wideImageX, 0);
-        assert.ok(wideFrontX < wideWidth * 0.75);
-
-        return wideFrontX / wideWidth;
-    });
-
-    assert.ok(wideFrontRatios[1] < wideFrontRatios[0]);
+    assert.match(signatureSource, /display:block;width:100%;max-width:1815px;height:auto/);
 });

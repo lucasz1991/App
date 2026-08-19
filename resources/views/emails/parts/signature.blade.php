@@ -7,11 +7,10 @@
       - jeder Laravel-Mail und -Notification (vendor/mail/html/footer.blade.php)
 
     Der kanonische Editorstand besitzt zwei Tabellenzeilen: Signaturblock und
-    Pflichtangaben. Im normalen HTML-, Browser-, Vorschau- und Versandpfad
-    bleibt der streng gebundene Zug als Hintergrund im Signaturblock. Dadurch
-    liegt er ohne eigene Layouthoehe hinter den Daten. Nur explizite
-    Outlook-/EML-/ZIP-Exporte erhalten stattdessen eine normale Bildzeile; der
-    Aufrufer stellt jeweils die umgebende <table>.
+    Pflichtangaben. Der Zug ist in allen Pfaden genau ein regulaeres IMG wie
+    Logo und RT-Zeichen. Dadurch bleibt er beim Kopieren, Antworten und
+    Weiterleiten erhalten und der gespeicherte Seeder-Stand enthaelt keinen
+    versteckten Zug-Background mehr.
 
     AUFBAU: zwei gleich breite Spalten an einer Mittelachse. Links die
     Person, rechts die Firma. Die Firmenkontakte existieren genau einmal:
@@ -35,17 +34,14 @@
     @param string $topRule  Akzentlinie oben (in der Signaturdatei leer)
 --}}
 @php
-    // Kein unterer Leerraum am Zug-Carrier: Im normalen HTML-Pfad liegt das
-    // GIF bereits an dessen Unterkante hinter den Daten. Zusaetzliches
-    // Padding wuerde nur Abstand zum Pflichtangaben-Footer erzeugen.
+    // Kein unterer Leerraum zwischen Kontaktdaten, Zugbild und Pflichtfooter.
     $padding = $padding ?? '18px 36px 0';
     $topRule = $topRule ?? 'border-top:5px solid #e4002b;';
     $legalPadding = $legalPadding ?? '14px 36px';
     $outlookTrainSrc = trim((string) ($outlookTrainSrc ?? ''));
-    // Nur der explizite Outlook-/EML-/ZIP-Export transportiert den Zug als
-    // regulaere Bildzeile. Alle normalen HTML-Pfade behalten ihn als
-    // Hintergrund; ein zweites Stand- oder Idle-Bild gibt es weiterhin nicht.
-    $isOutlookExport = $outlookTrainSrc !== '';
+    $trainSrc = $outlookTrainSrc !== ''
+        ? $outlookTrainSrc
+        : trim((string) ($values['TRAIN_SRC'] ?? ''));
     $outlookTrainPadding = $outlookTrainPadding ?? '0';
     $hasPerson = trim((string) ($values['VORNAME_NACHNAME'] ?? '')) !== '';
     $pflichtangaben = implode(' · ', array_filter([
@@ -63,8 +59,7 @@
      *   1  Raster        feines technisches Netz, gekachelt, durchsichtig
      *   2  Wasserzeichen RT-Marke und roter Schimmer, EINMAL rechts
      *   3  Kompatibilitaetsebene (transparent; fuer alte DB-Dokumente)
-     *   4  Zug           Einfahrt und anschliessende Idle-Rauchphase
-     *   5  Grundfarbe    weiss beziehungsweise dunkel
+     *   4  Grundfarbe    weiss beziehungsweise dunkel
      *
      * RASTER UND MARKE LIEGEN OBEN, nicht unten. Die Zugassets tragen die
      * endgueltigen 30 Prozent Alpha bereits selbst. Die dritte Ebene bleibt
@@ -72,40 +67,16 @@
      * und ihre mobilen Positionslisten kompatibel bleiben; sie darf die
      * Deckkraft nicht ein zweites Mal reduzieren.
      *
-     * Der Text liegt in der Zelle und damit ueber allen Ebenen — die
-     * geforderte Reihenfolge Hintergrund < Zug < Daten ergibt sich daraus
-     * von selbst, ganz ohne z-index (den viele Mailclients ignorieren).
-     *
-     * DER ZUG FUELLT DIE HOEHE, NICHT DIE BREITE.
-     *
-     * Frueher war er auf 77 % der Breite gelegt und lag als flaches Band am
-     * unteren Rand — unter den Daten, nicht dahinter. Mit `auto 100 %`
-     * richtet er sich stattdessen an der Streifenhoehe aus und reicht damit
-     * hinter die Schrift.
-     *
-     * Das macht ihn zugleich von selbst BREITENABHAENGIG: Auf einem
-     * schmalen Schirm ist der Streifen niedriger, der Zug also kleiner und
-     * weniger davon zu sehen; auf einem breiten Schirm faehrt mehr ins
-     * Bild. Es braucht dafuer keine einzige zusaetzliche Umbruchregel.
-     *
-     * Die Zugfront liegt im Asset bei 75 Prozent seiner Breite. Mit derselben
-     * horizontalen background-position bleibt sie mathematisch bei exakt
-     * 75 Prozent der Carrierbreite — unabhaengig davon, wie breit das auf
-     * `auto 100%` skalierte Bild gegenueber der Zelle ist.
-     *
-     * Im gespeicherten Editorvertrag bleibt der Zug als streng gekoppelte
-     * vierte Ebene editierbar. MailSignature loest diese Ebene erst beim
-     * finalen Rendern in genau ein regulaeres IMG auf, damit Kopieren,
-     * Antworten und Weiterleiten genauso funktionieren wie bei Logo/Icon.
+     * Der Zug gehoert absichtlich nicht mehr zu diesen Listen. Er folgt als
+     * normales IMG direkt unter den Kontaktdaten und kann deshalb von
+     * Mailclients nicht als CSS-Hintergrund verworfen werden.
      */
-    $zugMass = 'auto 100%';
     $ebenen = array_values(array_filter([
         ($values['GRUND_RASTER_SRC'] ?? '') !== ''
             ? "url({$values['GRUND_RASTER_SRC']})|left top|64px 64px|repeat" : '',
         ($values['GRUND_MARKE_SRC'] ?? '') !== ''
             ? "url({$values['GRUND_MARKE_SRC']})|right center|auto 100%|no-repeat" : '',
-        $isOutlookExport ? '' : "linear-gradient({$values['SIGNATURE_TRAIN_WASH']},{$values['SIGNATURE_TRAIN_WASH']})|center center|100% 100%|no-repeat",
-        $isOutlookExport ? '' : "url({$values['TRAIN_SRC']})|75% bottom|{$zugMass}|no-repeat",
+        "linear-gradient({$values['SIGNATURE_TRAIN_WASH']},{$values['SIGNATURE_TRAIN_WASH']})|center center|100% 100%|no-repeat",
     ]));
     $teile = array_map(static fn (string $e): array => explode('|', $e), $ebenen);
     $backgroundImage = implode(',', array_column($teile, 0));
@@ -114,15 +85,11 @@
     $backgroundRepeat = implode(',', array_column($teile, 3));
 @endphp
 <tr>
-    {{-- Kein legacy background-Attribut: Classic Outlook/Word kachelt dessen
-         Bild ungeachtet von background-repeat und background-size. Der
-         Zugtoken bleibt hier nur als kanonischer Editorvertrag gebunden und
-         wird vor der Auslieferung atomar in ein regulaeres IMG projiziert. --}}
+    {{-- Kein legacy background-Attribut und kein Zug in background-image:
+         Classic Outlook/Word kann solche Bilder kacheln oder entfernen. --}}
     <td class="rt-sign-cell" bgcolor="{{ $values['SIGNATURE_BG'] }}" style="padding:0;position:relative;overflow:hidden;background-color:{{ $values['SIGNATURE_BG'] }};background-image:{{ $backgroundImage }};background-repeat:{{ $backgroundRepeat }};background-position:{{ $backgroundPosition }};background-size:{{ $backgroundSize }};{{ $topRule }}">
         {{-- Der aeussere Carrier bleibt ohne Padding. Der mail-sichere innere
-             Tabellenwrapper behaelt seine Inhaltsabstaende; die regulaere
-             Zugzeile wird beim finalen Render direkt vor dem Legal-Footer
-             eingesetzt. --}}
+             Tabellenwrapper behaelt seine Inhaltsabstaende. --}}
         <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;position:relative;z-index:1;">
             <tr>
                 <td class="rt-pad rt-sign-content" style="padding:{{ $padding }};position:relative;z-index:1;">
@@ -201,13 +168,13 @@
                 </td>
             </tr>
         </table>
-        @if($isOutlookExport)
-            {{-- Expliziter Outlook-/EML-/ZIP-Paketpfad: genau eine normale
-                 GIF-Zeile ohne zusaetzlichen Abstand direkt nach den Daten. --}}
+        @if($trainSrc !== '')
+            {{-- Genau derselbe normale Bildpfad fuer Seeder, Editor, Versand,
+                 Browserkopie, EML und Outlook. --}}
             <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">
                 <tr>
                     <td align="left" style="padding:{{ $outlookTrainPadding }};text-align:left;font-size:0;line-height:0;">
-                        <img class="rt-sign-train" data-rt-train src="{{ $outlookTrainSrc }}" width="100%" alt="" style="display:block;width:100%;max-width:1815px;height:auto;margin:0;border:0;outline:none;text-decoration:none;">
+                        <img class="rt-sign-train" data-rt-train src="{{ $trainSrc }}" width="100%" alt="" style="display:block;width:100%;max-width:1815px;height:auto;margin:0;border:0;outline:none;text-decoration:none;">
                     </td>
                 </tr>
             </table>

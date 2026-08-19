@@ -45,6 +45,12 @@ final class SignatureTrainCarrier
 
     public static function normalize(string $html): string
     {
+        if (self::hasCanonicalImage($html)) {
+            self::assertCanonicalImage($html);
+
+            return $html;
+        }
+
         if (substr_count($html, '{{TRAIN_SRC}}') !== 1) {
             throw new RuntimeException(
                 'Die veroeffentlichte Signatur besitzt keinen eindeutigen Zug-Platzhalter.'
@@ -150,6 +156,26 @@ final class SignatureTrainCarrier
             throw new RuntimeException('Die Zuganimation besitzt keine eindeutige Bildquelle.');
         }
 
+        if (self::hasCanonicalImage($html)) {
+            self::assertCanonicalImage($html);
+            $escapedSource = htmlspecialchars($source, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
+            $replacements = 0;
+            $projected = preg_replace_callback(
+                '/\bsrc\s*=\s*(["\'])\{\{TRAIN_SRC\}\}\1/i',
+                static function (array $match) use ($escapedSource, &$replacements): string {
+                    $replacements++;
+
+                    return 'src='.$match[1].$escapedSource.$match[1];
+                },
+                $html,
+            );
+            if (! is_string($projected) || $replacements !== 1) {
+                throw new RuntimeException('Das kanonische Zugbild konnte nicht eindeutig befuellt werden.');
+            }
+
+            return self::compactDefaultContentPadding($projected);
+        }
+
         $html = self::withoutMainLayer($html);
         $html = self::compactDefaultContentPadding($html);
         $marker = '<!-- RT_SIGNATURE_MAIN_END -->';
@@ -168,6 +194,76 @@ final class SignatureTrainCarrier
             .';text-align:left;font-size:0;line-height:0;">'.$image.'</td></tr>';
 
         return str_replace($marker, $marker.$row, $html);
+    }
+
+    public static function hasCanonicalImage(string $html): bool
+    {
+        return str_contains($html, 'data-rt-train') || str_contains($html, 'rt-sign-train');
+    }
+
+    /**
+     * Neuer Seeder-/Editorvertrag: TRAIN_SRC lebt ausschliesslich im src
+     * eines einzigen normalen Bildes innerhalb des eindeutigen Carriers.
+     */
+    public static function assertCanonicalImage(string $html): void
+    {
+        if (substr_count($html, '{{TRAIN_SRC}}') !== 1
+            || str_contains($html, '{{TRAIN_IDLE_SRC}}')) {
+            throw new RuntimeException('Die Signatur benoetigt genau ein kanonisches Zugbild.');
+        }
+
+        $previousErrors = libxml_use_internal_errors(true);
+        try {
+            $document = new DOMDocument('1.0', 'UTF-8');
+            $loaded = $document->loadHTML(
+                '<?xml encoding="UTF-8"><table id="rt-train-image-contract"><tbody>'.$html.'</tbody></table>',
+                LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING,
+            );
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previousErrors);
+        }
+
+        $wrapper = $loaded ? $document->getElementById('rt-train-image-contract') : null;
+        if (! $wrapper instanceof DOMElement) {
+            throw new RuntimeException('Das kanonische Zugbild konnte nicht gelesen werden.');
+        }
+
+        $carriers = [];
+        $images = [];
+        foreach ($wrapper->getElementsByTagName('*') as $element) {
+            if (! $element instanceof DOMElement) {
+                continue;
+            }
+            $classes = preg_split('/\s+/', trim($element->getAttribute('class')), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            if ($element->tagName === 'td' && in_array('rt-sign-cell', $classes, true)) {
+                $carriers[] = $element;
+            }
+            if ($element->tagName === 'img'
+                && ($element->hasAttribute('data-rt-train') || in_array('rt-sign-train', $classes, true))) {
+                $images[] = $element;
+            }
+        }
+
+        $image = $images[0] ?? null;
+        $carrier = $carriers[0] ?? null;
+        if (count($carriers) !== 1
+            || count($images) !== 1
+            || ! $image instanceof DOMElement
+            || ! $carrier instanceof DOMElement
+            || ! $image->hasAttribute('data-rt-train')
+            || ! in_array('rt-sign-train', preg_split('/\s+/', trim($image->getAttribute('class')), -1, PREG_SPLIT_NO_EMPTY) ?: [], true)
+            || $image->getAttribute('src') !== '{{TRAIN_SRC}}') {
+            throw new RuntimeException('Das Zugmotiv muss genau einmal als regulaeres kanonisches Bild vorliegen.');
+        }
+
+        for ($ancestor = $image->parentNode; $ancestor !== null; $ancestor = $ancestor->parentNode) {
+            if ($ancestor instanceof DOMElement && $ancestor->isSameNode($carrier)) {
+                return;
+            }
+        }
+
+        throw new RuntimeException('Das kanonische Zugbild muss innerhalb des Signatur-Carriers liegen.');
     }
 
     /**

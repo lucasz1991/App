@@ -40,8 +40,9 @@ final class MailDocumentSeeder extends Seeder
      * 7  Zug-Carrier ohne Außenpadding für eine bündige Rad-/Footerkante
      * 8  Kontaktinhalt und reguläre Zugzeile ohne künstlichen Zwischenraum
      * 9  Zug in jeder finalen Ausgabe als kopierbares reguläres GIF-Bild
+     * 10 Zug bereits im kanonischen Seeder-/Editorstand als regulaeres IMG
      */
-    private const STARTER_SCHEMA = 9;
+    private const STARTER_SCHEMA = 10;
 
     public function run(): void
     {
