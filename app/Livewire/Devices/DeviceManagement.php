@@ -54,6 +54,8 @@ class DeviceManagement extends Component
 
     public bool $showCreateForm = false;
 
+    public string $captureMode = 'manual';
+
     /** @var array<string, mixed> */
     public array $deviceForm = [
         'asset_tag' => '',
@@ -132,16 +134,48 @@ class DeviceManagement extends Component
         }
     }
 
-    public function openCreate(): void
+    public function openCreate(string $mode = 'manual'): void
     {
         Gate::authorize('devices.manage');
+        $this->setCaptureMode($mode);
+        $this->inventoryImport = null;
+        $this->lastImportSummary = [];
         $this->resetValidation();
         $this->showCreateForm = true;
+    }
+
+    public function setCaptureMode(string $mode): void
+    {
+        Gate::authorize('devices.manage');
+
+        if (! in_array($mode, ['manual', 'import'], true)) {
+            throw ValidationException::withMessages([
+                'captureMode' => 'Diese Erfassungsart ist nicht verfügbar.',
+            ]);
+        }
+
+        $this->captureMode = $mode;
+        $this->resetValidation();
     }
 
     public function closeCreate(): void
     {
         $this->showCreateForm = false;
+        $this->resetCaptureModalState();
+    }
+
+    public function updatedShowCreateForm(bool $visible): void
+    {
+        if (! $visible) {
+            $this->resetCaptureModalState();
+        }
+    }
+
+    private function resetCaptureModalState(): void
+    {
+        $this->captureMode = 'manual';
+        $this->inventoryImport = null;
+        $this->lastImportSummary = [];
         $this->resetValidation();
     }
 
@@ -149,9 +183,20 @@ class DeviceManagement extends Component
     {
         Gate::authorize('devices.manage');
 
-        $device = $inventory->create($this->deviceForm, auth()->user());
+        try {
+            $device = $inventory->create($this->deviceForm, auth()->user());
+        } catch (ValidationException $exception) {
+            $messages = [];
+            foreach ($exception->errors() as $field => $fieldMessages) {
+                $messages[str_starts_with($field, 'deviceForm.') ? $field : 'deviceForm.'.$field] = $fieldMessages;
+            }
+
+            throw ValidationException::withMessages($messages);
+        }
+
         $this->selectedDevicePublicId = $device->public_id;
         $this->showCreateForm = false;
+        $this->captureMode = 'manual';
         $this->deviceForm = [
             'asset_tag' => '',
             'serial_number' => '',

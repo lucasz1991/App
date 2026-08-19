@@ -63,99 +63,6 @@
             @endforeach
         </section>
 
-        @can('devices.manage')
-            <section class="rounded-2xl border border-rt-border/80 bg-white p-4 shadow-rt-sm dark:border-rt-dark-border dark:bg-rt-dark-surface" aria-labelledby="device-import-title">
-                <div class="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
-                    <div>
-                        <h2 id="device-import-title" class="text-base font-bold text-rt-text dark:text-white">Bestehende Geräteflotte importieren</h2>
-                        <p class="mt-1 text-sm leading-6 text-rt-muted dark:text-rt-dark-muted">Bis zu 500 vorhandene Geräte per CSV übernehmen und über die Mitarbeiter-E-Mail direkt zuordnen. Die Datei wird vollständig validiert; bei einem Fehler wird keine Teilmenge gespeichert.</p>
-                        <div class="mt-3 flex flex-wrap items-center gap-3">
-                            <input type="file" wire:model="inventoryImport" accept=".csv,text/csv,text/plain" class="block min-h-11 max-w-xl flex-1 rounded-xl border border-dashed border-rt-border p-2 text-sm dark:border-rt-dark-border">
-                            <a href="{{ route('devices.import-template') }}" class="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rt-border px-3 text-sm font-semibold text-rt-text hover:bg-rt-surface-muted dark:border-rt-dark-border dark:text-white dark:hover:bg-rt-dark-surface-muted"><i data-feather="download" class="h-4 w-4"></i>CSV-Vorlage</a>
-                        </div>
-                        @error('inventoryImport')<p class="mt-2 text-sm text-red-600">{{ $message }}</p>@enderror
-                        @if($lastImportSummary)
-                            <p class="mt-2 text-sm font-medium text-emerald-700 dark:text-emerald-300">{{ $lastImportSummary['created'] }} neu · {{ $lastImportSummary['updated'] }} aktualisiert · {{ $lastImportSummary['assigned'] }} zugewiesen</p>
-                        @endif
-                    </div>
-                    <button type="button" wire:click="importInventory" wire:loading.attr="disabled" @disabled(!$inventoryImport) class="min-h-11 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white dark:text-slate-950">Bestand prüfen & importieren</button>
-                </div>
-            </section>
-        @endcan
-
-        @if($showCreateForm)
-            <section class="rounded-2xl border border-rt-red/25 bg-white p-5 shadow-rt-md dark:border-rt-red/40 dark:bg-rt-dark-surface" aria-labelledby="device-create-title">
-                <div class="flex items-center justify-between gap-3">
-                    <div>
-                        <h2 id="device-create-title" class="text-lg font-bold text-rt-text dark:text-white">Gerät im virtuellen Lager erfassen</h2>
-                        <p class="mt-1 text-sm text-rt-muted dark:text-rt-dark-muted">Mindestens Inventar- oder Seriennummer ist erforderlich.</p>
-                    </div>
-                    <button type="button" wire:click="closeCreate" class="rounded-xl p-2 text-rt-muted hover:bg-rt-surface-muted dark:text-rt-dark-muted dark:hover:bg-rt-dark-surface-muted" aria-label="Formular schließen">
-                        <i data-feather="x" class="h-5 w-5" aria-hidden="true"></i>
-                    </button>
-                </div>
-
-                <div class="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                    @foreach([
-                        ['key' => 'asset_tag', 'label' => 'Inventarnummer', 'placeholder' => 'RT-WIN-0142'],
-                        ['key' => 'serial_number', 'label' => 'Seriennummer / IMEI', 'placeholder' => 'Hersteller-Seriennummer'],
-                        ['key' => 'display_name', 'label' => 'Gerätename', 'placeholder' => 'Dienstlaptop Windows'],
-                        ['key' => 'hostname', 'label' => 'Hostname', 'placeholder' => 'RT-NB-0142'],
-                        ['key' => 'manufacturer', 'label' => 'Hersteller', 'placeholder' => 'Dell, Apple, Samsung …'],
-                        ['key' => 'model', 'label' => 'Modell', 'placeholder' => 'Latitude 5440'],
-                        ['key' => 'os_version', 'label' => 'Betriebssystemstand', 'placeholder' => 'Windows 11 23H2'],
-                        ['key' => 'declared_location', 'label' => 'Deklarierter Standort', 'placeholder' => 'Köln Hbf / Hauptlager'],
-                    ] as $field)
-                        <label class="block text-sm font-medium text-rt-text dark:text-white">
-                            {{ $field['label'] }}
-                            <input
-                                type="text"
-                                wire:model="deviceForm.{{ $field['key'] }}"
-                                placeholder="{{ $field['placeholder'] }}"
-                                class="mt-1.5 min-h-11 w-full rounded-xl border border-rt-border bg-white px-3 text-sm text-rt-text outline-none transition focus:border-rt-red focus:ring-2 focus:ring-rt-red/15 dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white"
-                            >
-                            @error('deviceForm.'.$field['key']) <span class="mt-1 block text-xs text-red-600">{{ $message }}</span> @enderror
-                        </label>
-                    @endforeach
-
-                    <label class="block text-sm font-medium text-rt-text dark:text-white">
-                        Formfaktor
-                        <select wire:model="deviceForm.form_factor" class="mt-1.5 min-h-11 w-full rounded-xl border border-rt-border bg-white px-3 text-sm dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white">
-                            <option value="laptop">Laptop</option><option value="desktop">Desktop</option><option value="phone">Handy</option><option value="tablet">Tablet</option><option value="other">Sonstiges</option>
-                        </select>
-                    </label>
-                    <label class="block text-sm font-medium text-rt-text dark:text-white">
-                        Plattform
-                        <select wire:model="deviceForm.platform" class="mt-1.5 min-h-11 w-full rounded-xl border border-rt-border bg-white px-3 text-sm dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white">
-                            @foreach(\App\Enums\DevicePlatform::cases() as $platform)
-                                <option value="{{ $platform->value }}">{{ match($platform->value) {'macos' => 'macOS', 'ios' => 'iOS', 'ipados' => 'iPadOS', default => ucfirst($platform->value)} }}</option>
-                            @endforeach
-                        </select>
-                    </label>
-                    <label class="block text-sm font-medium text-rt-text dark:text-white">
-                        Eigentum
-                        <select wire:model="deviceForm.ownership" class="mt-1.5 min-h-11 w-full rounded-xl border border-rt-border bg-white px-3 text-sm dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white">
-                            <option value="corporate">Firmengerät</option><option value="byod">Privat / BYOD</option>
-                        </select>
-                    </label>
-                    <label class="block text-sm font-medium text-rt-text dark:text-white">
-                        Primärprovider (optional)
-                        <select wire:model="deviceForm.primary_provider" class="mt-1.5 min-h-11 w-full rounded-xl border border-rt-border bg-white px-3 text-sm dark:border-rt-dark-border dark:bg-rt-dark-surface-muted dark:text-white">
-                            <option value="">Noch nicht verbunden</option>
-                            @foreach($providerCards as $provider)
-                                @if($provider['key'] !== 'simulation')<option value="{{ $provider['key'] }}">{{ $provider['label'] }}</option>@endif
-                            @endforeach
-                        </select>
-                    </label>
-                </div>
-
-                <div class="mt-5 flex flex-wrap justify-end gap-2">
-                    <button type="button" wire:click="closeCreate" class="min-h-11 rounded-xl border border-rt-border px-4 text-sm font-semibold text-rt-text hover:bg-rt-surface-muted dark:border-rt-dark-border dark:text-white">Abbrechen</button>
-                    <button type="button" wire:click="createDevice" wire:loading.attr="disabled" class="min-h-11 rounded-xl bg-rt-red px-4 text-sm font-semibold text-white hover:bg-rt-red-dark disabled:opacity-50">Im Lager erfassen</button>
-                </div>
-            </section>
-        @endif
-
         <section class="overflow-hidden rounded-2xl border border-rt-border/80 bg-white shadow-rt-sm dark:border-rt-dark-border dark:bg-rt-dark-surface">
             <div class="border-b border-rt-border/70 p-4 dark:border-rt-dark-border">
                 <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
@@ -454,4 +361,6 @@
             </section>
         @endif
     </div>
+
+    @include('livewire.devices.partials.device-capture-modal')
 </x-ui.page>
