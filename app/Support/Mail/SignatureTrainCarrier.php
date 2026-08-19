@@ -317,7 +317,7 @@ final class SignatureTrainCarrier
             .'style="position:absolute;left:0;right:auto;bottom:0;display:block;width:100%;max-width:100%;height:auto;margin:0;border:0;outline:none;text-decoration:none;mso-hide:all;">'
             .'</span>';
 
-        return substr_replace($html, $overlay, $images[0]['tagEnd'] + 1, 0);
+        return substr_replace($html, $overlay, $images[0]['endOffset'] + 1, 0);
     }
 
     /**

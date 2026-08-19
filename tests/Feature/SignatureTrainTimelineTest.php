@@ -2,11 +2,36 @@
 
 namespace Tests\Feature;
 
+use App\Support\Mail\SignatureTrainCarrier;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class SignatureTrainTimelineTest extends TestCase
 {
+    public function test_idle_overlay_is_inserted_after_the_scanned_train_image_tag(): void
+    {
+        $html = '<td class="rt-sign-cell" style="padding:0">'
+            .'<div class="rt-sign-train-layer" data-rt-layer-train>'
+            .'<img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}" title="Zug > Footer">'
+            .'</div></td>';
+
+        $rendered = SignatureTrainCarrier::withIdleOverlay(
+            $html,
+            'https://app.rail-time.test/mail-assets/zug-dampf-idle-light.gif',
+        );
+
+        $this->assertSame(1, substr_count($rendered, 'data-rt-train-idle-overlay'));
+        $this->assertSame(1, substr_count($rendered, 'data-rt-train-idle-image'));
+        $this->assertStringContainsString(
+            'title="Zug > Footer"><span class="rt-train-idle-overlay"',
+            $rendered,
+        );
+        $this->assertStringContainsString(
+            'src="https://app.rail-time.test/mail-assets/zug-dampf-idle-light.gif"',
+            $rendered,
+        );
+    }
+
     /**
      * @return array<string, array{0: string, 1: int, 2: int, 3: int, 4: bool}>
      */
