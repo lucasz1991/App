@@ -388,7 +388,7 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertStringContainsString('<img class="rt-sign-train" data-rt-train', $html);
             $this->assertStringContainsString("src=\"{$assetFolder}/zug-dampf.gif\"", $html);
             $this->assertMatchesRegularExpression(
-                '/<img[^>]*data-rt-train\s[^>]*width="100%"[^>]*style="[^"]*width:100%;max-width:1815px;height:auto;[^"]*"/',
+                '/<img[^>]*data-rt-train\s[^>]*width="1815"[^>]*style="[^"]*width:100%;max-width:1815px;height:auto;[^"]*"/',
                 $html,
             );
             $this->assertStringNotContainsString('data-rt-outlook-train', $html);

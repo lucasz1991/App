@@ -350,6 +350,246 @@ body[data-mode='dark'] .rt-mail-builder-root {
     animation: rt-mail-editor-pulse 800ms ease-in-out infinite alternate;
 }
 
+.rt-mail-code-dialog {
+    width: min(72rem, calc(100vw - 2rem));
+    height: min(50rem, calc(100dvh - 2rem));
+    max-width: none;
+    max-height: none;
+    margin: auto;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid rgb(203 213 225);
+    border-radius: 1rem;
+    background: rgb(255 255 255);
+    color: rgb(17 24 32);
+    box-shadow: 0 1.5rem 4rem rgb(15 23 42 / 0.24);
+    font-family: 'Plus Jakarta Sans Variable', ui-sans-serif, system-ui, sans-serif;
+}
+
+.rt-mail-code-dialog::backdrop {
+    background: rgb(15 23 42 / 0.68);
+    backdrop-filter: blur(3px);
+}
+
+.rt-mail-code-dialog__surface {
+    display: grid;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+}
+
+.rt-mail-code-dialog__header,
+.rt-mail-code-dialog__footer {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.125rem;
+}
+
+.rt-mail-code-dialog__header {
+    border-bottom: 1px solid rgb(226 232 240);
+}
+
+.rt-mail-code-dialog__header > div {
+    min-width: 0;
+}
+
+.rt-mail-code-dialog__header h2 {
+    margin: 0.125rem 0 0;
+    font-size: 1.125rem;
+    font-weight: 800;
+    line-height: 1.3;
+}
+
+.rt-mail-code-dialog__header [data-mail-code-origin] {
+    margin: 0.25rem 0 0;
+    overflow: hidden;
+    color: rgb(99 113 136);
+    font-size: 0.75rem;
+    line-height: 1.45;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rt-mail-code-dialog__eyebrow {
+    margin: 0;
+    color: rgb(201 0 40);
+    font-size: 0.625rem;
+    font-weight: 850;
+    letter-spacing: 0.12em;
+    line-height: 1.2;
+    text-transform: uppercase;
+}
+
+.rt-mail-code-dialog__close {
+    display: inline-grid;
+    width: 2.75rem;
+    height: 2.75rem;
+    flex: 0 0 auto;
+    place-items: center;
+    border: 1px solid rgb(215 224 234);
+    border-radius: 0.7rem;
+    color: rgb(71 85 105);
+    transition: border-color 150ms ease, color 150ms ease, background-color 150ms ease;
+}
+
+.rt-mail-code-dialog__close:hover {
+    border-color: rgb(228 0 43 / 0.32);
+    background: rgb(255 236 240);
+    color: rgb(201 0 40);
+}
+
+.rt-mail-code-dialog__close:focus-visible,
+.rt-mail-code-dialog__field textarea:focus-visible {
+    outline: 0;
+    box-shadow: 0 0 0 3px rgb(228 0 43 / 0.2);
+}
+
+.rt-mail-code-dialog__notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.625rem;
+    margin: 0.875rem 1.125rem 0;
+    padding: 0.75rem 0.875rem;
+    border: 1px solid rgb(186 230 253);
+    border-radius: 0.75rem;
+    background: rgb(240 249 255);
+    color: rgb(12 74 110);
+    font-size: 0.75rem;
+    line-height: 1.55;
+}
+
+.rt-mail-code-dialog__notice > svg {
+    flex: 0 0 auto;
+    margin-top: 0.05rem;
+}
+
+.rt-mail-code-dialog__notice p {
+    margin: 0;
+}
+
+.rt-mail-code-dialog__editors {
+    display: grid;
+    min-width: 0;
+    min-height: 0;
+    grid-template-columns: minmax(0, 1.45fr) minmax(18rem, 0.8fr);
+    gap: 0.75rem;
+    padding: 0.875rem 1.125rem;
+}
+
+.rt-mail-code-dialog__field {
+    display: grid;
+    min-width: 0;
+    min-height: 0;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 0.4rem;
+}
+
+.rt-mail-code-dialog__field > span {
+    color: rgb(51 65 85);
+    font-size: 0.6875rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.rt-mail-code-dialog__field textarea {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 13rem;
+    resize: none;
+    padding: 0.875rem;
+    overflow: auto;
+    border: 1px solid rgb(203 213 225);
+    border-radius: 0.75rem;
+    background: rgb(248 250 252);
+    color: rgb(15 23 42);
+    font-family: 'Cascadia Code', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+    font-size: 0.75rem;
+    line-height: 1.6;
+    tab-size: 2;
+    white-space: pre;
+}
+
+.rt-mail-code-dialog__field textarea[readonly] {
+    cursor: wait;
+    opacity: 0.72;
+}
+
+.rt-mail-code-dialog__footer {
+    border-top: 1px solid rgb(226 232 240);
+}
+
+.rt-mail-code-dialog__footer > p {
+    margin: 0;
+    color: rgb(99 113 136);
+    font-size: 0.6875rem;
+    line-height: 1.4;
+}
+
+.rt-mail-code-dialog__footer > p[data-over-limit='true'] {
+    color: rgb(190 18 60);
+    font-weight: 750;
+}
+
+.rt-mail-code-dialog__footer-actions {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.dark .rt-mail-code-dialog,
+body[data-mode='dark'] .rt-mail-code-dialog {
+    border-color: rgb(42 57 77);
+    background: rgb(12 20 32);
+    color: rgb(241 245 249);
+    color-scheme: dark;
+}
+
+.dark :is(.rt-mail-code-dialog__header, .rt-mail-code-dialog__footer),
+body[data-mode='dark'] :is(.rt-mail-code-dialog__header, .rt-mail-code-dialog__footer) {
+    border-color: rgb(42 57 77);
+}
+
+.dark .rt-mail-code-dialog__header [data-mail-code-origin],
+.dark .rt-mail-code-dialog__footer > p,
+body[data-mode='dark'] .rt-mail-code-dialog__header [data-mail-code-origin],
+body[data-mode='dark'] .rt-mail-code-dialog__footer > p {
+    color: rgb(174 185 201);
+}
+
+.dark .rt-mail-code-dialog__close,
+body[data-mode='dark'] .rt-mail-code-dialog__close {
+    border-color: rgb(42 57 77);
+    color: rgb(203 213 225);
+}
+
+.dark .rt-mail-code-dialog__notice,
+body[data-mode='dark'] .rt-mail-code-dialog__notice {
+    border-color: rgb(14 116 144 / 0.55);
+    background: rgb(8 47 73 / 0.42);
+    color: rgb(186 230 253);
+}
+
+.dark .rt-mail-code-dialog__field > span,
+body[data-mode='dark'] .rt-mail-code-dialog__field > span {
+    color: rgb(203 213 225);
+}
+
+.dark .rt-mail-code-dialog__field textarea,
+body[data-mode='dark'] .rt-mail-code-dialog__field textarea {
+    border-color: rgb(51 65 85);
+    background: rgb(8 13 22);
+    color: rgb(226 232 240);
+}
+
 [data-mail-document-status][data-status='draft'],
 [data-mail-document-status][data-has-unpublished-changes='true'] {
     background: rgb(255 251 235) !important;
@@ -390,6 +630,18 @@ body[data-mode='dark'] [data-mail-document-status][data-status='published'][data
 @keyframes rt-mail-editor-pulse {
     from { opacity: 0.55; transform: scale(0.96); }
     to { opacity: 1; transform: scale(1); }
+}
+
+@media (max-width: 1599.98px) {
+    .rt-mail-studio-toolbar__utility-label {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+    }
 }
 
 /*
@@ -462,6 +714,16 @@ body[data-mode='dark'] [data-mail-document-status][data-status='published'][data
 }
 
 @media (max-width: 899.98px) {
+    .rt-mail-studio-toolbar__action-label {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+    }
+
     .rt-mail-builder-root .lmz-builder__topbar {
         display: flex;
         flex-wrap: nowrap;
@@ -556,6 +818,46 @@ body[data-mode='dark'] [data-mail-document-status][data-status='published'][data
 }
 
 @media (max-width: 639.98px) {
+    .rt-mail-code-dialog {
+        width: calc(100vw - 0.5rem);
+        height: calc(100dvh - 0.5rem);
+        border-radius: 0.75rem;
+    }
+
+    .rt-mail-code-dialog__header,
+    .rt-mail-code-dialog__footer {
+        padding: 0.75rem;
+    }
+
+    .rt-mail-code-dialog__notice {
+        margin: 0.625rem 0.75rem 0;
+    }
+
+    .rt-mail-code-dialog__editors {
+        grid-template-columns: minmax(0, 1fr);
+        grid-auto-rows: minmax(15rem, 1fr);
+        padding: 0.75rem;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+
+    .rt-mail-code-dialog__field textarea {
+        min-height: 15rem;
+    }
+
+    .rt-mail-code-dialog__footer {
+        flex-wrap: wrap;
+    }
+
+    .rt-mail-code-dialog__footer-actions {
+        width: 100%;
+    }
+
+    .rt-mail-code-dialog__footer-actions > .rt-ui-button {
+        min-width: 0;
+        flex: 1 1 0;
+    }
+
     .rt-mail-studio-toolbar {
         gap: 0.375rem;
     }

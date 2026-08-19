@@ -73,16 +73,16 @@ test('all delivered mail outputs use one regular train image', () => {
     assert.doesNotMatch(signature, /class="rt-classic-outlook-train"/);
     assert.match(carrier, /public static function withoutMainLayer/);
     assert.match(carrier, /public static function projectAsImage/);
-    assert.match(carrier, /<div class="rt-sign-train-layer" data-rt-layer-train/);
+    assert.match(carrier, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train"/);
     assert.match(carrier, /style="position:absolute;left:0;right:auto;top:0;bottom:0;/);
-    assert.match(carrier, /<img class="rt-sign-train" data-rt-train src="'\.\$source\.'" width="100%"/);
+    assert.match(carrier, /<img class="rt-sign-train" data-rt-train src="'\.\$source\.'" width="1815"/);
     assert.match(previewService, /SignatureTrainCarrier::projectAsImage\(/);
     assert.match(cssSemantic, /'data-rt-train-idle-overlay'/);
     assert.match(cssSemantic, /\$isProtectedAttribute = in_array\(/);
     assert.doesNotMatch(responsiveCss, /rt-train-idle|rt-train-idle-reveal/);
     assert.doesNotMatch(routes, /mail-animations\/train/);
     assert.match(signatureView, /<img class="rt-sign-train" data-rt-train src="\{\{ \$trainSrc \}\}"/);
-    assert.match(signatureView, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" style="position:absolute;/);
+    assert.match(signatureView, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:absolute;/);
     assert.doesNotMatch(signatureView, /url\(\{\$values\['TRAIN_SRC'\]\}\)/);
     assert.match(
         signatureView,

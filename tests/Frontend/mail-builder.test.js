@@ -696,7 +696,10 @@ test('protected mail layers keep the regular train image visible and structural'
     assert.equal(train.state['custom-name'], 'Zugbild (geschützt)');
     assert.equal(trainLayer.state['custom-name'], 'Zug-Hintergrundebene (geschützt)');
     assert.equal(trainLayer.state.layerable, true);
-    assert.equal(trainLayer.state.traits[0].label, 'Zugposition');
+    assert.deepEqual(
+        trainLayer.state.traits.map((trait) => trait.label),
+        ['Desktop-Ausschnitt', 'Zugbreite', 'Mobil-Ausschnitt'],
+    );
     assert.equal(markCell.state['custom-name'], 'RT-Zeichen (geschützt)');
     assert.equal(applicationRow.state['custom-name'], 'Anwendungsinhalt (geschützt)');
     for (const property of ['editable', 'draggable', 'removable', 'copyable', 'droppable']) {
@@ -708,16 +711,20 @@ test('protected mail layers keep the regular train image visible and structural'
     assert.equal(ordinaryImage.state['custom-name'], 'Teambild');
     assert.deepEqual(
         ordinaryImage.state.traits.map((trait) => trait.name),
-        ['alt', 'title', 'width', 'height'],
+        ['alt', 'title', 'width', 'data-rt-image-align'],
     );
+    assert.equal(ordinaryImage.getAttributes().width, '600');
+    assert.equal(ordinaryImage.getAttributes()['data-rt-image-align'], 'left');
 });
 
-test('train layer position editor is limited to mail-safe left center and right presets', () => {
+test('train layer editor maps size desktop and mobile presets to mail-safe geometry', () => {
     const state = { left: '0', right: 'auto', margin: '0' };
     const attributes = {
         class: 'rt-sign-train-layer',
         'data-rt-layer-train': '',
         'data-rt-layer-align': 'center',
+        'data-rt-layer-size': '125',
+        'data-rt-layer-mobile': 'center',
     };
     const component = {
         getAttributes: () => attributes,
@@ -726,13 +733,34 @@ test('train layer position editor is limited to mail-safe left center and right 
     };
 
     assert.equal(synchronizeMailTrainLayerAlignment(component), true);
-    assert.deepEqual(state, { left: '0', right: '0', margin: '0 auto' });
+    assert.deepEqual(state, {
+        left: '-12.5%',
+        right: 'auto',
+        margin: '0',
+        width: '125%',
+        'max-width': '2269px',
+    });
     attributes['data-rt-layer-align'] = 'right';
     assert.equal(synchronizeMailTrainLayerAlignment(component), true);
-    assert.deepEqual(state, { left: 'auto', right: '0', margin: '0' });
+    assert.deepEqual(state, {
+        left: 'auto',
+        right: '0',
+        margin: '0',
+        width: '125%',
+        'max-width': '2269px',
+    });
     attributes['data-rt-layer-align'] = 'calc(1px)';
+    attributes['data-rt-layer-mobile'] = 'calc(1px)';
     assert.equal(synchronizeMailTrainLayerAlignment(component), true);
-    assert.deepEqual(state, { left: '0', right: 'auto', margin: '0' });
+    assert.deepEqual(state, {
+        left: '0',
+        right: 'auto',
+        margin: '0',
+        width: '125%',
+        'max-width': '2269px',
+    });
+    assert.equal(attributes['data-rt-layer-align'], 'left');
+    assert.equal(attributes['data-rt-layer-mobile'], 'train');
 });
 
 test('mail editor no longer offers misleading train background controls', () => {
@@ -1097,7 +1125,7 @@ test('signature source uses one absolute train image layer and no CSS image back
         readFile(new URL('../../resources/mail-templates/assets/zug-dampf-light.png', import.meta.url)),
     ]);
     assert.match(signatureSource, /<img class="rt-sign-train" data-rt-train src="\{\{ \$trainSrc \}\}"/);
-    assert.match(signatureSource, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" style="position:absolute;/);
+    assert.match(signatureSource, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:absolute;/);
     assert.match(signatureSource, /<img class="rt-sign-train"[^>]*style="position:absolute;/);
     assert.doesNotMatch(signatureSource, /url\(\{\$values\['TRAIN_SRC'\]\}\)/);
     assert.doesNotMatch(css, /left top, right center, center center, (?:left|75%) bottom/);
@@ -1108,5 +1136,6 @@ test('signature source uses one absolute train image layer and no CSS image back
     const assetHeight = trainAsset.readUInt32BE(20);
     assert.deepEqual([assetWidth, assetHeight], [2880, 292]);
 
-    assert.match(signatureSource, /display:block;width:100%;max-width:1815px;height:auto/);
+    assert.match(signatureSource, /width="1815"[^>]*display:block;width:100%;max-width:1815px;height:auto/);
+    assert.match(css, /data-rt-layer-mobile="center"[^}]+left: -50% !important/);
 });

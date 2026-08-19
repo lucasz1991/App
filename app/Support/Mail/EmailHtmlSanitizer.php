@@ -1453,13 +1453,39 @@ final class EmailHtmlSanitizer
     private function allowsAbsoluteTrainPosition(DOMElement $element): bool
     {
         $classes = preg_split('/\s+/', trim($element->getAttribute('class')), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $tag = strtolower($element->tagName);
+        $layer = $tag === 'div' ? $element : $element->parentNode;
+        if (! $layer instanceof DOMElement
+            || strtolower($layer->tagName) !== 'div'
+            || ! $layer->hasAttribute('data-rt-layer-train')
+            || (preg_split('/\s+/', trim($layer->getAttribute('class')), -1, PREG_SPLIT_NO_EMPTY) ?: []) !== ['rt-sign-train-layer']) {
+            return false;
+        }
 
-        return (strtolower($element->tagName) === 'div'
-                && $element->hasAttribute('data-rt-layer-train')
-                && $classes === ['rt-sign-train-layer'])
-            || (strtolower($element->tagName) === 'img'
-                && $element->hasAttribute('data-rt-train')
-                && $classes === ['rt-sign-train']);
+        $carrier = $layer->parentNode;
+        if (! $carrier instanceof DOMElement
+            || strtolower($carrier->tagName) !== 'td'
+            || ! in_array('rt-sign-cell', preg_split('/\s+/', trim($carrier->getAttribute('class')), -1, PREG_SPLIT_NO_EMPTY) ?: [], true)) {
+            return false;
+        }
+
+        $images = [];
+        foreach ($layer->childNodes as $child) {
+            if ($child instanceof DOMElement) {
+                $images[] = $child;
+            }
+        }
+        $image = $images[0] ?? null;
+        if (count($images) !== 1
+            || ! $image instanceof DOMElement
+            || strtolower($image->tagName) !== 'img'
+            || ! $image->hasAttribute('data-rt-train')
+            || (preg_split('/\s+/', trim($image->getAttribute('class')), -1, PREG_SPLIT_NO_EMPTY) ?: []) !== ['rt-sign-train']
+            || trim($image->getAttribute('src')) !== '{{TRAIN_SRC}}') {
+            return false;
+        }
+
+        return $element->isSameNode($layer) || $element->isSameNode($image);
     }
 
     private function isAllowedProperty(string $property): bool

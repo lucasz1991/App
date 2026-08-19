@@ -1832,6 +1832,92 @@ export function synchronizeMailTrainLayerAlignment(component) {
     return true;
 }
 
+/**
+ * Haelt reguläre Inhaltsbilder in einem einzigen, Outlook-tauglichen
+ * Geometrievertrag. HTML-Breite und Inline-CSS duerfen sich nicht
+ * widersprechen; eine feste Hoehe wird bei responsiven Bildern bewusst
+ * entfernt, damit ein Medienwechsel kein verzerrtes Seitenverhaeltnis erbt.
+ */
+export function synchronizeMailContentImage(component) {
+    const attributes = component?.getAttributes?.() || component?.get?.('attributes') || {};
+    const tagName = String(component?.get?.('tagName') || '').toLowerCase();
+    const classes = String(attributes.class || '').split(/\s+/).filter(Boolean);
+    if (tagName !== 'img'
+        || attributes[MAIL_PREVIEW_IMAGE_ATTRIBUTE]
+        || attributes['data-rt-train'] !== undefined
+        || classes.includes('rt-sign-train')) {
+        return false;
+    }
+
+    const style = component?.getStyle?.() || {};
+    const styleWidth = String(style['max-width'] || '').match(/^(\d{1,4})px$/i)?.[1];
+    const requestedWidth = Number.parseInt(String(attributes.width || styleWidth || '600'), 10);
+    const width = Math.min(1200, Math.max(40, Number.isFinite(requestedWidth) ? requestedWidth : 600));
+    const alignment = ['left', 'center', 'right'].includes(attributes['data-rt-image-align'])
+        ? attributes['data-rt-image-align']
+        : (() => {
+            const parentAttributes = component?.parent?.()?.getAttributes?.() || {};
+            if (parentAttributes.align === 'center' || style.margin === '0 auto') return 'center';
+            if (parentAttributes.align === 'right' || style.margin === '0 0 0 auto') return 'right';
+            return 'left';
+        })();
+    const nextAttributes = {
+        width: String(width),
+        'data-rt-image-align': alignment,
+    };
+    const attributesChanged = String(attributes.width || '') !== nextAttributes.width
+        || attributes['data-rt-image-align'] !== alignment
+        || Object.prototype.hasOwnProperty.call(attributes, 'height');
+    if (attributesChanged) {
+        if (typeof component?.addAttributes === 'function') {
+            component.addAttributes(nextAttributes, { silent: true });
+            component.removeAttributes?.('height', { silent: true });
+        } else {
+            Object.assign(attributes, nextAttributes);
+            delete attributes.height;
+        }
+    }
+
+    const margin = {
+        left: '0',
+        center: '0 auto',
+        right: '0 0 0 auto',
+    }[alignment];
+    const nextStyle = {
+        ...style,
+        display: 'block',
+        width: '100%',
+        'max-width': `${width}px`,
+        height: 'auto',
+        margin,
+    };
+    const styleChanged = style.display !== nextStyle.display
+        || style.width !== nextStyle.width
+        || style['max-width'] !== nextStyle['max-width']
+        || style.height !== nextStyle.height
+        || style.margin !== nextStyle.margin;
+    if (styleChanged) component?.setStyle?.(nextStyle, { silent: true });
+
+    const parent = component?.parent?.();
+    const parentTag = String(parent?.get?.('tagName') || '').toLowerCase();
+    let parentChanged = false;
+    if (parentTag === 'td') {
+        const parentAttributes = parent?.getAttributes?.() || parent?.get?.('attributes') || {};
+        const parentStyle = parent?.getStyle?.() || {};
+        parentChanged = parentAttributes.align !== alignment || parentStyle['text-align'] !== alignment;
+        if (parentChanged) {
+            if (typeof parent?.addAttributes === 'function') {
+                parent.addAttributes({ align: alignment }, { silent: true });
+            } else {
+                parentAttributes.align = alignment;
+            }
+            parent?.setStyle?.({ ...parentStyle, 'text-align': alignment }, { silent: true });
+        }
+    }
+
+    return attributesChanged || styleChanged || parentChanged;
+}
+
 export function protectMailSystemComponents(editor) {
     const root = editor?.getWrapper?.();
     if (!root) return 0;
@@ -1891,13 +1977,23 @@ export function protectMailSystemComponents(editor) {
         setName(component, label(component, attributes));
         const tagName = String(component?.get?.('tagName') || '').toLowerCase();
         if (tagName === 'img' && !attributes[MAIL_PREVIEW_IMAGE_ATTRIBUTE]) {
+            synchronizeMailContentImage(component);
             setName(component, String(attributes.alt || '').trim() || 'Inhaltsbild');
             component.set?.({
                 traits: [
                     { type: 'text', name: 'alt', label: 'Alternativtext' },
                     { type: 'text', name: 'title', label: 'Beschreibung' },
-                    { type: 'number', name: 'width', label: 'Breite', min: 1 },
-                    { type: 'number', name: 'height', label: 'Höhe', min: 1 },
+                    { type: 'number', name: 'width', label: 'Breite in px', min: 40, max: 1200, step: 1 },
+                    {
+                        type: 'select',
+                        name: 'data-rt-image-align',
+                        label: 'Ausrichtung',
+                        options: [
+                            { id: 'left', name: 'Links' },
+                            { id: 'center', name: 'Mittig' },
+                            { id: 'right', name: 'Rechts' },
+                        ],
+                    },
                 ],
             }, { silent: true });
         }

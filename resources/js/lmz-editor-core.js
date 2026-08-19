@@ -699,6 +699,21 @@ export function createImageAssetSelection({
             if (isAnimatedImageSource(source, normalized.mime)) attributes['data-rt-animated-media'] = 'gif';
             image.set?.('src', source);
             image.addAttributes?.(attributes);
+            if (mode === 'mail') {
+                const currentAttributes = image.getAttributes?.() || image.get?.('attributes') || {};
+                const currentStyle = image.getStyle?.() || {};
+                const requestedWidth = Number(normalized.width || currentAttributes.width || 600);
+                const width = Math.min(1200, Math.max(40, Number.isFinite(requestedWidth) ? Math.round(requestedWidth) : 600));
+                image.addAttributes?.({ width: String(width) }, { silent: true });
+                image.removeAttributes?.('height', { silent: true });
+                image.setStyle?.({
+                    ...currentStyle,
+                    display: 'block',
+                    width: '100%',
+                    'max-width': `${width}px`,
+                    height: 'auto',
+                }, { silent: true });
+            }
             if (!isAnimatedImageSource(source, normalized.mime)) {
                 image.removeAttributes?.('data-rt-animated-media');
             }

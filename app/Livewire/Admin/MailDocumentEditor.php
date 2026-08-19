@@ -96,10 +96,10 @@ class MailDocumentEditor extends Component
         $contactIcons = EmailTemplateBuilder::contactIconSources(true);
         $contactIconUrls = EmailTemplateBuilder::contactIconUrls();
         $mailAssets = [
-            ['src' => EmailTemplateBuilder::mailAssetUrl('wortmarke-signature-light.gif'), 'name' => 'RailTime Wortmarke hell', 'type' => 'image', 'mime_type' => 'image/gif', 'animated' => true, 'category' => 'RailTime Marke'],
-            ['src' => EmailTemplateBuilder::mailAssetUrl('wortmarke-mail-dark.gif'), 'name' => 'RailTime Wortmarke dunkel', 'type' => 'image', 'mime_type' => 'image/gif', 'animated' => true, 'category' => 'RailTime Marke'],
-            ['src' => EmailTemplateBuilder::mailAssetUrl('icon-rt-light.gif'), 'name' => 'RT-Zeichen hell', 'type' => 'image', 'mime_type' => 'image/gif', 'animated' => true, 'category' => 'RailTime Marke'],
-            ['src' => EmailTemplateBuilder::mailAssetUrl('icon-rt-dark.gif'), 'name' => 'RT-Zeichen dunkel', 'type' => 'image', 'mime_type' => 'image/gif', 'animated' => true, 'category' => 'RailTime Marke'],
+            ['src' => EmailTemplateBuilder::mailAssetUrl('wortmarke-signature-light.gif'), 'name' => 'RailTime Wortmarke hell', 'type' => 'image', 'mime_type' => 'image/gif', 'animated' => true, 'width' => 504, 'height' => 86, 'category' => 'RailTime Marke'],
+            ['src' => EmailTemplateBuilder::mailAssetUrl('wortmarke-mail-dark.gif'), 'name' => 'RailTime Wortmarke dunkel', 'type' => 'image', 'mime_type' => 'image/gif', 'animated' => true, 'width' => 618, 'height' => 105, 'category' => 'RailTime Marke'],
+            ['src' => EmailTemplateBuilder::mailAssetUrl('icon-rt-light.gif'), 'name' => 'RT-Zeichen hell', 'type' => 'image', 'mime_type' => 'image/gif', 'animated' => true, 'width' => 132, 'height' => 132, 'category' => 'RailTime Marke'],
+            ['src' => EmailTemplateBuilder::mailAssetUrl('icon-rt-dark.gif'), 'name' => 'RT-Zeichen dunkel', 'type' => 'image', 'mime_type' => 'image/gif', 'animated' => true, 'width' => 132, 'height' => 132, 'category' => 'RailTime Marke'],
         ];
         foreach ([
             'LOCATION' => 'Standort-Icon',

@@ -356,8 +356,8 @@ export function createMailBlocks({
                 // font-size:0 in der Zelle gegen dieselbe Luecke in Outlook.
                 content: shell(
                     '<td class="rt-pad" align="left" style="padding:0 46px 24px;text-align:left;font-size:0;line-height:0;mso-line-height-rule:exactly;">'
-                    + `<img ${MAIL_BLOCK_ATTRIBUTE}="image" src="${imageSrc}" width="600" height="250" alt=""`
-                    + ' style="display:block;width:100%;max-width:600px;height:auto;border:0;outline:none;">'
+                    + `<img ${MAIL_BLOCK_ATTRIBUTE}="image" data-rt-image-align="left" src="${imageSrc}" width="600" alt=""`
+                    + ' style="display:block;width:100%;max-width:600px;height:auto;margin:0;border:0;outline:none;">'
                     + '</td>',
                 ),
             },

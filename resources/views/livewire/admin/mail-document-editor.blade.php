@@ -114,7 +114,7 @@
                             title="Kanonischen HTML- und CSS-Code ansehen oder bearbeiten"
                         >
                             <i data-feather="code" class="h-4 w-4" aria-hidden="true"></i>
-                            <span class="rt-mail-studio-toolbar__action-label">Code</span>
+                            <span class="rt-mail-studio-toolbar__action-label rt-mail-studio-toolbar__utility-label">Code</span>
                         </x-ui.buttons.button-basic>
 
                         <x-ui.buttons.button-basic
@@ -126,7 +126,7 @@
                             title="Kanonischen Entwurf als portables JSON-Bundle exportieren"
                         >
                             <i data-feather="download" class="h-4 w-4" aria-hidden="true"></i>
-                            <span class="rt-mail-studio-toolbar__action-label">Export</span>
+                            <span class="rt-mail-studio-toolbar__action-label rt-mail-studio-toolbar__utility-label">Export</span>
                         </x-ui.buttons.button-basic>
 
                         <x-ui.buttons.button-basic
@@ -138,7 +138,7 @@
                             title="JSON-Bundle, HTML- oder CSS-Datei als Entwurf importieren"
                         >
                             <i data-feather="file-plus" class="h-4 w-4" aria-hidden="true"></i>
-                            <span class="rt-mail-studio-toolbar__action-label">Import</span>
+                            <span class="rt-mail-studio-toolbar__action-label rt-mail-studio-toolbar__utility-label">Import</span>
                         </x-ui.buttons.button-basic>
 
                         <x-ui.buttons.button-basic
@@ -632,6 +632,186 @@
                         return payload;
                     };
 
+                    const utf8Size = (value) => new TextEncoder().encode(String(value || '')).byteLength;
+
+                    const sourceSize = ({ html = '', css = '' } = {}) => utf8Size(html) + utf8Size(css);
+
+                    const formatBytes = (bytes) => bytes < 1024
+                        ? `${bytes} Byte`
+                        : `${(bytes / 1024).toLocaleString('de-DE', { maximumFractionDigits: 1 })} KiB`;
+
+                    const assertPortableSource = ({ html, css }, { enforceLimit = true } = {}) => {
+                        if (typeof html !== 'string' || html.trim() === '') {
+                            throw new Error('Der HTML-Code darf nicht leer sein.');
+                        }
+                        if (typeof css !== 'string') {
+                            throw new Error('Der CSS-Code muss als Text vorliegen.');
+                        }
+
+                        const bytes = sourceSize({ html, css });
+                        if (enforceLimit && bytes > MAX_IMPORT_BYTES) {
+                            throw new Error(`HTML und CSS sind zusammen ${formatBytes(bytes)} groß. Erlaubt sind maximal 1 MiB.`);
+                        }
+
+                        const combined = `${html}\n${css}`;
+                        const hasDataAttribute = /\b(?:src|href)\s*=\s*(?:["']\s*)?data:/i.test(combined);
+                        const hasDataUrl = /url\s*\(\s*["']?\s*data:/i.test(combined);
+                        if (hasDataAttribute || hasDataUrl) {
+                            throw new Error('Eingebettete Data-Assets werden nicht importiert oder exportiert. Bitte eine öffentliche HTTPS-Bildquelle verwenden.');
+                        }
+
+                        return { html, css };
+                    };
+
+                    const currentCanonicalSource = () => {
+                        const editor = instance?.editor;
+                        if (!editor?.getProjectData || !editor?.getHtml || !editor?.getCss) {
+                            throw new Error('Der Editor ist noch nicht vollständig geladen.');
+                        }
+
+                        const outgoing = runtimeBridge.serializeForSave({
+                            project: editor.getProjectData(),
+                            html: editor.getHtml(),
+                            css: editor.getCss(),
+                            kind: config.currentDocument,
+                            baselineHtml: activeBaselineHtml,
+                            previewAssets: config.previewAssets || {},
+                            environment: editor.Canvas?.getWindow?.()
+                                || editor.Canvas?.getDocument?.()?.defaultView
+                                || window,
+                        });
+
+                        // Das Exportformat enthaelt absichtlich weder
+                        // builder_data noch Vorschau-/Asset-Konfiguration.
+                        return assertPortableSource({
+                            html: String(outgoing.html || ''),
+                            css: String(outgoing.css || ''),
+                        }, { enforceLimit: false });
+                    };
+
+                    const importProjectFor = ({ html, css }) => {
+                        const editor = instance?.editor;
+                        if (!editor?.Parser?.parseCss) {
+                            throw new Error('Der Editor ist noch nicht vollständig geladen.');
+                        }
+
+                        const existingMetadata = document_.builderData?.railtime;
+                        const railtime = { document: config.currentDocument };
+                        if (Number.isInteger(existingMetadata?.schema)) {
+                            railtime.schema = existingMetadata.schema;
+                        }
+
+                        return runtimeBridge.projectFor({
+                            html,
+                            css,
+                            builderData: {
+                                pages: [{
+                                    name: document_.label || (config.currentDocument === 'signature' ? 'Signaturblock' : 'Nachrichtenvorlage'),
+                                    component: html,
+                                }],
+                                styles: [],
+                                railtime,
+                            },
+                        }, (candidateCss) => editor.Parser.parseCss(candidateCss) || [], {
+                            kind: config.currentDocument,
+                            environment: window,
+                        });
+                    };
+
+                    const canonicalizeExternalSource = (source) => {
+                        const editor = instance?.editor;
+                        const checked = assertPortableSource(source);
+                        const project = importProjectFor(checked);
+                        const canvasHtml = project?.pages?.[0]?.component;
+                        if (typeof canvasHtml !== 'string' || canvasHtml.trim() === '') {
+                            throw new Error('Aus dem importierten Code konnte kein bearbeitbares Mailprojekt erstellt werden.');
+                        }
+
+                        return runtimeBridge.serializeForSave({
+                            project,
+                            html: canvasHtml,
+                            css: checked.css,
+                            kind: config.currentDocument,
+                            baselineHtml: checked.html,
+                            previewAssets: config.previewAssets || {},
+                            environment: editor.Canvas?.getWindow?.()
+                                || editor.Canvas?.getDocument?.()?.defaultView
+                                || window,
+                        });
+                    };
+
+                    const updateCodeSize = () => {
+                        if (!codeSize) return;
+
+                        const bytes = sourceSize({ html: codeHtml?.value || '', css: codeCss?.value || '' });
+                        codeSize.textContent = `${formatBytes(bytes)} von maximal 1 MiB`;
+                        codeSize.dataset.overLimit = String(bytes > MAX_IMPORT_BYTES);
+                    };
+
+                    const openCodeDialog = (source, origin, opener) => {
+                        if (!codeDialog?.showModal || !codeHtml || !codeCss) {
+                            throw new Error('Die Codeansicht wird von diesem Browser nicht unterstützt.');
+                        }
+
+                        codeHtml.value = source.html;
+                        codeCss.value = source.css;
+                        if (codeOrigin) codeOrigin.textContent = origin;
+                        codeDialogOpener = opener || window.document.activeElement;
+                        updateCodeSize();
+                        if (!codeDialog.open) codeDialog.showModal();
+                        window.requestAnimationFrame(() => codeHtml.focus());
+                    };
+
+                    const portableBundle = (source) => ({
+                        format: MAIL_SOURCE_FORMAT,
+                        version: MAIL_SOURCE_VERSION,
+                        kind: config.currentDocument,
+                        html: source.html,
+                        css: source.css,
+                    });
+
+                    const downloadPortableBundle = (source) => {
+                        const bundle = portableBundle(source);
+                        const blob = new Blob([`${JSON.stringify(bundle, null, 2)}\n`], {
+                            type: 'application/json;charset=utf-8',
+                        });
+                        const objectUrl = URL.createObjectURL(blob);
+                        const link = window.document.createElement('a');
+                        const documentName = config.currentDocument === 'signature' ? 'signatur' : 'nachrichtenvorlage';
+                        link.href = objectUrl;
+                        link.download = `railtime-${documentName}-v${MAIL_SOURCE_VERSION}.json`;
+                        link.hidden = true;
+                        window.document.body.appendChild(link);
+
+                        try {
+                            link.click();
+                        } finally {
+                            link.remove();
+                            window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+                        }
+                    };
+
+                    const parsePortableBundle = (text) => {
+                        let bundle;
+                        try {
+                            bundle = JSON.parse(String(text || '').replace(/^\uFEFF/, ''));
+                        } catch (_) {
+                            throw new Error('Die JSON-Datei ist nicht gültig.');
+                        }
+
+                        if (!bundle || Array.isArray(bundle) || typeof bundle !== 'object'
+                            || bundle.format !== MAIL_SOURCE_FORMAT
+                            || bundle.version !== MAIL_SOURCE_VERSION) {
+                            throw new Error(`Erwartet wird ein RailTime-Mail-Bundle in Version ${MAIL_SOURCE_VERSION}.`);
+                        }
+                        if (bundle.kind !== config.currentDocument) {
+                            const expected = config.currentDocument === 'signature' ? 'eine Signatur' : 'eine Nachrichtenvorlage';
+                            throw new Error(`Dieses Bundle gehört zu „${bundle.kind || 'unbekannt'}“. Geöffnet ist ${expected}.`);
+                        }
+
+                        return assertPortableSource({ html: bundle.html, css: bundle.css });
+                    };
+
                     const boot = async () => {
                         // Die Preview-Seite bleibt leichtgewichtig: Erst ein
                         // bewusster Vollbild-Start laedt LMZ/GrapesJS und CSS.
@@ -769,6 +949,205 @@
                         lastEditorSaveError = null;
                     };
 
+                    const canonicalDraftFromValidation = (payload) => {
+                        const canonical = payload?.document || payload?.canonical || null;
+                        const builderData = canonical?.builder_data || canonical?.builderData;
+                        if (!canonical
+                            || typeof canonical.html !== 'string'
+                            || typeof canonical.css !== 'string'
+                            || !builderData
+                            || typeof builderData !== 'object'
+                            || Array.isArray(builderData)) {
+                            throw new Error('Die serverseitige Prüfung hat keinen vollständigen kanonischen Entwurf zurückgegeben.');
+                        }
+
+                        return {
+                            html: canonical.html,
+                            css: canonical.css,
+                            builderData,
+                        };
+                    };
+
+                    const validateSourceOnServer = async (source) => {
+                        if (typeof document_.endpoints?.validate !== 'string' || document_.endpoints.validate.trim() === '') {
+                            throw new Error('Der sichere Prüf-Endpunkt für Codeimporte ist nicht verfügbar. Es wurde nichts übernommen.');
+                        }
+
+                        const candidate = canonicalizeExternalSource(source);
+                        const payload = await request(document_.endpoints.validate, 'POST', {
+                            builder_data: candidate.project,
+                            html: candidate.html,
+                            css: candidate.css,
+                            expected_hash: document_.contentHash || '',
+                        });
+
+                        return {
+                            draft: canonicalDraftFromValidation(payload),
+                            report: payload.report || null,
+                        };
+                    };
+
+                    const applyCodeAsDraft = async () => {
+                        if (!instance?.editor?.loadProjectData) {
+                            throw new Error('Der Editor ist noch nicht vollständig geladen.');
+                        }
+
+                        const source = assertPortableSource({
+                            html: codeHtml?.value || '',
+                            css: codeCss?.value || '',
+                        });
+
+                        // Bis hier wurde der laufende Editor nicht verändert.
+                        // Erst der serverseitig kanonisierte Stand darf auf die
+                        // Leinwand und danach durch den normalen Save-Request.
+                        setMessage('Code wird serverseitig geprüft …');
+                        const validated = await validateSourceOnServer(source);
+                        const editor = instance.editor;
+                        const previousProject = structuredClone(editor.getProjectData());
+                        const previousBaselineHtml = activeBaselineHtml;
+                        let editorWasReplaced = false;
+
+                        try {
+                            const validatedProject = runtimeBridge.projectFor(
+                                validated.draft,
+                                (canonicalCss) => editor.Parser?.parseCss?.(canonicalCss) || [],
+                                { kind: config.currentDocument, environment: window },
+                            );
+                            activeBaselineHtml = validated.draft.html;
+                            editorWasReplaced = true;
+                            await editor.loadProjectData(validatedProject);
+                            selectTheme(selectedTheme);
+                            selectDevice(selectedDevice);
+                            await saveCurrentDraft();
+
+                            if (Array.isArray(validated.report?.messages) && validated.report.messages.length > 0) {
+                                showFindings(validated.report);
+                            }
+
+                            const message = 'Code geprüft und als Entwurf gespeichert. Die veröffentlichte Fassung bleibt unverändert.';
+                            setMessage(message);
+                            toast('success', message, 'Import abgeschlossen');
+                            codeDialog?.close('saved');
+                        } catch (error) {
+                            activeBaselineHtml = previousBaselineHtml;
+
+                            if (editorWasReplaced) {
+                                try {
+                                    await editor.loadProjectData(previousProject);
+                                    selectTheme(selectedTheme);
+                                    selectDevice(selectedDevice);
+                                } catch (_) {
+                                    await runtimeBridge.rehydrateAuthoritative({
+                                        editor,
+                                        draft: document_,
+                                        sanitizationChanged: true,
+                                        parseCss: (canonicalCss) => editor.Parser?.parseCss?.(canonicalCss) || [],
+                                        projectOptions: { kind: config.currentDocument, environment: window },
+                                    });
+                                }
+                            }
+
+                            throw error;
+                        }
+                    };
+
+                    codeButton?.addEventListener('click', () => {
+                        try {
+                            openCodeDialog(
+                                currentCanonicalSource(),
+                                'Kanonischer Stand des aktuellen Editors',
+                                codeButton,
+                            );
+                        } catch (error) {
+                            const surfaced = showRequestError(error, 'Codeansicht nicht verfügbar');
+                            toast('error', surfaced.message, 'Codeansicht nicht verfügbar');
+                        }
+                    }, { signal: controlListeners.signal });
+
+                    exportButton?.addEventListener('click', () => {
+                        try {
+                            downloadPortableBundle(currentCanonicalSource());
+                            setMessage('Portables JSON-Bundle wurde exportiert.');
+                            toast('success', 'Das Bundle enthält nur kind, HTML und CSS — keine Vorschau- oder privaten Assetdaten.', 'Export erstellt');
+                        } catch (error) {
+                            const surfaced = showRequestError(error, 'Export nicht möglich');
+                            toast('error', surfaced.message, 'Export nicht möglich');
+                        }
+                    }, { signal: controlListeners.signal });
+
+                    importButton?.addEventListener('click', () => {
+                        if (!instance) {
+                            const error = new Error('Der Editor ist noch nicht vollständig geladen.');
+                            const surfaced = showRequestError(error, 'Import nicht möglich');
+                            toast('error', surfaced.message, 'Import nicht möglich');
+                            return;
+                        }
+
+                        codeDialogOpener = importButton;
+                        importFile?.click();
+                    }, { signal: controlListeners.signal });
+
+                    importFile?.addEventListener('change', async () => {
+                        const file = importFile.files?.[0] || null;
+                        importFile.value = '';
+                        if (!file) return;
+
+                        try {
+                            if (file.size > MAX_IMPORT_BYTES) {
+                                throw new Error(`„${file.name}“ ist größer als 1 MiB und wurde nicht gelesen.`);
+                            }
+
+                            const extension = file.name.toLowerCase().match(/\.[^.]+$/)?.[0] || '';
+                            if (!['.json', '.html', '.htm', '.css'].includes(extension)) {
+                                throw new Error('Unterstützt werden ausschließlich .json, .html, .htm und .css.');
+                            }
+
+                            const text = await file.text();
+                            if (destroyed) return;
+                            let source;
+                            if (extension === '.json') {
+                                source = parsePortableBundle(text);
+                            } else {
+                                const current = currentCanonicalSource();
+                                source = extension === '.css'
+                                    ? assertPortableSource({ html: current.html, css: text })
+                                    : assertPortableSource({ html: text, css: current.css });
+                            }
+
+                            openCodeDialog(source, `Importdatei: ${file.name} · Übernahme speichert einen Entwurf`, codeDialogOpener);
+                        } catch (error) {
+                            const surfaced = showRequestError(error, 'Import nicht möglich');
+                            toast('error', surfaced.message, 'Import nicht möglich');
+                        }
+                    }, { signal: controlListeners.signal });
+
+                    [codeHtml, codeCss].forEach((field) => {
+                        field?.addEventListener('input', updateCodeSize, { signal: controlListeners.signal });
+                    });
+
+                    codeDialog?.addEventListener('close', () => {
+                        const opener = codeDialogOpener;
+                        codeDialogOpener = null;
+                        if (!destroyed && opener?.isConnected) opener.focus();
+                    }, { signal: controlListeners.signal });
+
+                    codeApplyButton?.addEventListener('click', async () => {
+                        setActionsBusy(true);
+                        if (codeHtml) codeHtml.readOnly = true;
+                        if (codeCss) codeCss.readOnly = true;
+
+                        try {
+                            await applyCodeAsDraft();
+                        } catch (error) {
+                            const surfaced = showRequestError(error, 'Code konnte nicht übernommen werden');
+                            toast('error', surfaced.message, 'Nicht gespeichert');
+                        } finally {
+                            if (codeHtml) codeHtml.readOnly = false;
+                            if (codeCss) codeCss.readOnly = false;
+                            setActionsBusy(false);
+                        }
+                    }, { signal: controlListeners.signal });
+
                     saveButton?.addEventListener('click', async () => {
                         setActionsBusy(true);
 
@@ -829,6 +1208,9 @@
 
                     const teardown = () => {
                         destroyed = true;
+                        codeDialogOpener = null;
+                        if (codeDialog?.open) codeDialog.close('teardown');
+                        if (importFile) importFile.value = '';
                         controlListeners.abort();
                         unregisterNavigation?.();
                         unregisterNavigation = null;
