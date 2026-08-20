@@ -195,6 +195,7 @@ class PageBuilderPreviewTest extends TestCase
         SignatureTrainCarrier::assertRuntimeImages($html, expectedIdleSource: '');
         $this->assertSame(1, substr_count($html, 'class="rt-sign-train"'));
         $this->assertSame(1, substr_count($html, 'class="rt-sign-train-mso"'));
+        $this->assertSame(1, substr_count($html, 'data-rt-train-mso="1"'));
         $this->assertSame(1, substr_count($html, 'class="rt-sign-stage"'));
         $this->assertSame(
             1,
@@ -205,7 +206,7 @@ class PageBuilderPreviewTest extends TestCase
         $this->assertStringContainsString('data:image/png;base64,', $staticCarrier[0]);
         $this->assertMatchesRegularExpression('/<img\b[^>]*\bdata-rt-train(?:\s|=|>)[^>]*src="data:image\/png;base64,[^"]+"/i', $html);
         $this->assertMatchesRegularExpression(
-            '/<div\b[^>]*class="[^"]*\brt-sign-stage\b[^"]*"[^>]*>\s*<!--\[if mso\]><img\b[^>]*class="rt-sign-train-mso"[^>]*src="data:image\/png;base64,[^"]+"[^>]*><!\[endif\]-->/s',
+            '/<div\b[^>]*class="[^"]*\brt-sign-stage\b[^"]*"[^>]*>\s*<!--\[if mso\]><img\b[^>]*class="rt-sign-train-mso"[^>]*data-rt-train-mso="1"[^>]*src="data:image\/png;base64,[^"]+"[^>]*><!\[endif\]-->/s',
             $html,
         );
         $this->assertDoesNotMatchRegularExpression('/<v:(?:rect|fill)\b/i', $html);
@@ -231,6 +232,7 @@ class PageBuilderPreviewTest extends TestCase
         SignatureTrainCarrier::assertRuntimeImages($animatedHtml);
         $this->assertSame(1, substr_count($animatedHtml, 'class="rt-sign-train"'));
         $this->assertSame(1, substr_count($animatedHtml, 'class="rt-sign-train-mso"'));
+        $this->assertSame(1, substr_count($animatedHtml, 'data-rt-train-mso="1"'));
         $this->assertSame(1, substr_count($animatedHtml, 'class="rt-sign-stage"'));
         $this->assertSame(
             1,
@@ -241,7 +243,7 @@ class PageBuilderPreviewTest extends TestCase
         $this->assertStringNotContainsString('data:image/gif;base64,', $animatedCarrier[0]);
         $this->assertMatchesRegularExpression('/<img\b[^>]*\bdata-rt-train(?:\s|=|>)[^>]*src="data:image\/gif;base64,[^"]+"/i', $animatedHtml);
         $this->assertMatchesRegularExpression(
-            '/<div\b[^>]*class="[^"]*\brt-sign-stage\b[^"]*"[^>]*>\s*<!--\[if mso\]><img\b[^>]*class="rt-sign-train-mso"[^>]*src="data:image\/png;base64,[^"]+"[^>]*><!\[endif\]-->/s',
+            '/<div\b[^>]*class="[^"]*\brt-sign-stage\b[^"]*"[^>]*>\s*<!--\[if mso\]><img\b[^>]*class="rt-sign-train-mso"[^>]*data-rt-train-mso="1"[^>]*src="data:image\/png;base64,[^"]+"[^>]*><!\[endif\]-->/s',
             $animatedHtml,
         );
         $this->assertDoesNotMatchRegularExpression('/<v:(?:rect|fill)\b/i', $animatedHtml);

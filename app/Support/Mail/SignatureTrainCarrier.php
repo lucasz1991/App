@@ -290,7 +290,7 @@ final class SignatureTrainCarrier
             'UTF-8',
         );
         $fallback = '<!--[if mso]><img class="rt-sign-train-mso" data-rt-train-mso="1" src="'.$escapedSource.'" width="720" alt="" '
-            .'style="position:absolute;left:0;right:auto;bottom:0;display:block;width:720px;max-width:100%;height:auto;margin:0;border:0;outline:none;text-decoration:none;z-index:0;mso-position-horizontal:left;mso-position-horizontal-relative:text;mso-position-vertical:bottom;mso-position-vertical-relative:text;"><![endif]-->';
+            .'style="position:absolute;left:0;right:auto;bottom:0;display:block;width:100%;max-width:1815px;height:auto;margin:0;border:0;outline:none;text-decoration:none;z-index:0;mso-position-horizontal:left;mso-position-horizontal-relative:text;mso-position-vertical:bottom;mso-position-vertical-relative:text;"><![endif]-->';
 
         $html = substr_replace($html, $fallback, $stages[0]['endOffset'] + 1, 0);
         self::assertRuntimeImages($html, expectedMsoSource: $source);
@@ -489,6 +489,24 @@ final class SignatureTrainCarrier
                 'position' => 'relative',
                 'overflow' => 'hidden',
             ], 'Signatur-Buehne');
+
+            $stageElements = [];
+            foreach ($stage->childNodes as $child) {
+                if ($child instanceof DOMElement) {
+                    $stageElements[] = $child;
+                }
+            }
+            $contentTable = $stageElements[0] ?? null;
+            if (count($stageElements) !== 2
+                || ! $contentTable instanceof DOMElement
+                || strtolower($contentTable->tagName) !== 'table'
+                || ! $stageElements[1]->isSameNode($layer)) {
+                throw new RuntimeException('Die Signatur-Buehne muss genau Inhaltstabelle und Zug-Layer enthalten.');
+            }
+            self::assertRequiredSimpleStyle($contentTable, [
+                'position' => 'relative',
+                'z-index' => '1',
+            ], 'Signatur-Inhalt');
         }
 
         $alignment = strtolower(trim($layer->getAttribute('data-rt-layer-align')));
@@ -758,8 +776,49 @@ final class SignatureTrainCarrier
     /** @param array<string, string> $expected */
     private static function assertExactSimpleStyle(DOMElement $element, array $expected, string $label): void
     {
+        self::assertExactStyleValue($element->getAttribute('style'), $expected, $label);
+    }
+
+    /**
+     * @param  array{name:string,attributes:array<string,list<array<string,mixed>>>}  $tag
+     * @param  array<string, string>  $expected
+     */
+    private static function assertExactSourceTagStyle(array $tag, array $expected, string $label): void
+    {
+        self::assertExactStyleValue(self::singleTagAttributeValue($tag, 'style'), $expected, $label);
+    }
+
+    /** @param array<string, string> $expected */
+    private static function assertExactStyleValue(string $style, array $expected, string $label): void
+    {
+        $actual = self::simpleStyleValues($style, $label);
+
+        if (count($actual) !== count($expected)) {
+            throw new RuntimeException("Der {$label} muss seine mail-sichere absolute Position behalten.");
+        }
+        foreach ($expected as $property => $value) {
+            if (($actual[$property] ?? null) !== $value) {
+                throw new RuntimeException("Der {$label} muss seine mail-sichere absolute Position behalten.");
+            }
+        }
+    }
+
+    /** @param array<string, string> $required */
+    private static function assertRequiredSimpleStyle(DOMElement $element, array $required, string $label): void
+    {
+        $actual = self::simpleStyleValues($element->getAttribute('style'), $label);
+        foreach ($required as $property => $value) {
+            if (($actual[$property] ?? null) !== $value) {
+                throw new RuntimeException("Der {$label} muss vor dem Zug gestapelt bleiben.");
+            }
+        }
+    }
+
+    /** @return array<string, string> */
+    private static function simpleStyleValues(string $style, string $label): array
+    {
         $actual = [];
-        foreach (explode(';', $element->getAttribute('style')) as $segment) {
+        foreach (explode(';', $style) as $segment) {
             if (trim($segment) === '') {
                 continue;
             }
@@ -775,14 +834,7 @@ final class SignatureTrainCarrier
             $actual[$property] = $value;
         }
 
-        if (count($actual) !== count($expected)) {
-            throw new RuntimeException("Der {$label} muss seine mail-sichere absolute Position behalten.");
-        }
-        foreach ($expected as $property => $value) {
-            if (($actual[$property] ?? null) !== $value) {
-                throw new RuntimeException("Der {$label} muss seine mail-sichere absolute Position behalten.");
-            }
-        }
+        return $actual;
     }
 
     private static function lastElementChild(DOMElement $element): ?DOMElement
@@ -1091,15 +1143,30 @@ final class SignatureTrainCarrier
     /** @return list<string> */
     private static function msoTrainImageSources(string $html): array
     {
+        $stages = [];
+        foreach (self::scanStartTags($html) as $tag) {
+            if ($tag['name'] === 'div' && self::sourceTagHasClass($tag, 'rt-sign-stage')) {
+                $stages[] = $tag;
+            }
+        }
+        if (count($stages) !== 1) {
+            throw new RuntimeException('Der Outlook-Zugfallback besitzt keine eindeutige Signatur-Buehne.');
+        }
+
         preg_match_all(
             '/<!--\s*\[if\s+mso\]\s*>(.*?)<!\s*\[endif\]\s*-->/is',
             $html,
             $comments,
+            PREG_SET_ORDER | PREG_OFFSET_CAPTURE,
         );
         $sources = [];
-        foreach ($comments[1] ?? [] as $content) {
+        foreach ($comments as $comment) {
+            $content = (string) ($comment[1][0] ?? '');
             if (preg_match('/\brt-sign-train-mso\b/i', $content) !== 1) {
                 continue;
+            }
+            if (($comment[0][1] ?? -1) !== $stages[0]['endOffset'] + 1) {
+                throw new RuntimeException('Das Outlook-Zugfallback-IMG muss direkt am Anfang der Signatur-Buehne liegen.');
             }
             $tags = self::scanStartTags($content);
             if (count($tags) !== 1
@@ -1115,6 +1182,25 @@ final class SignatureTrainCarrier
                 || self::singleTagAttributeValue($tags[0], 'alt') !== '') {
                 throw new RuntimeException('Das Outlook-Zugfallback-IMG besitzt keine mail-sichere Quelle oder Breite.');
             }
+            self::assertExactSourceTagStyle($tags[0], [
+                'position' => 'absolute',
+                'left' => '0',
+                'right' => 'auto',
+                'bottom' => '0',
+                'display' => 'block',
+                'width' => '100%',
+                'max-width' => '1815px',
+                'height' => 'auto',
+                'margin' => '0',
+                'border' => '0',
+                'outline' => 'none',
+                'text-decoration' => 'none',
+                'z-index' => '0',
+                'mso-position-horizontal' => 'left',
+                'mso-position-horizontal-relative' => 'text',
+                'mso-position-vertical' => 'bottom',
+                'mso-position-vertical-relative' => 'text',
+            ], 'Outlook-Zugfallback');
             $sources[] = $source;
         }
 

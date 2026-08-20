@@ -1291,7 +1291,7 @@ test('signature source and delivery keep height-neutral train images plus an in-
     assert.equal((runtime.match(/SignatureTrainCarrier::withMsoFallback\(/g) || []).length, 1);
     assert.equal((runtime.match(/SignatureTrainCarrier::withIdleOverlay\(/g) || []).length, 1);
     assert.equal((runtime.match(/SignatureTrainCarrier::projectAsRuntimeBackground\(/g) || []).length, 0);
-    assert.match(carrier, /<img class="rt-sign-train-mso" src="'\.\$escapedSource\.'"/);
+    assert.match(carrier, /<img class="rt-sign-train-mso" data-rt-train-mso="1" src="'\.\$escapedSource\.'"/);
     assert.match(
         carrier.slice(
             carrier.indexOf('public static function withMsoFallback'),

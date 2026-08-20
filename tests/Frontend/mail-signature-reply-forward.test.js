@@ -102,11 +102,9 @@ test('delivery keeps all train media as non-flowing images inside the carrier', 
     assert.match(carrier, /public static function withMsoFallback/);
     assert.match(carrier, /public static function withIdleOverlay/);
     assert.equal(occurrences(carrier, /<!--\[if mso\]><tr><td class="rt-sign-train-mso"/g), 0);
-    assert.match(carrier, /<!--\[if (?:gte )?mso(?: 9)?\]><img class="rt-sign-train-mso" src="'\.\$escapedSource\.'"/);
+    assert.match(carrier, /<!--\[if (?:gte )?mso(?: 9)?\]><img class="rt-sign-train-mso" data-rt-train-mso="1" src="'\.\$escapedSource\.'"/);
     assert.doesNotMatch(carrier, /<v:(?:rect|fill)\b/);
     assert.match(msoFallback, /<img\b/);
-    assert.doesNotMatch(carrier, /data-rt-train-background/);
-    assert.doesNotMatch(carrier, /rt-sign-train-background/);
     assert.match(carrier, /<div class="rt-sign-stage" style="position:relative;overflow:hidden;">/);
     assert.match(carrier, /<div class="rt-sign-train-layer" data-rt-layer-train/);
     assert.match(carrier, /<img class="rt-sign-train" data-rt-train src="'\.\$source\.'" width="720"/);
@@ -115,7 +113,7 @@ test('delivery keeps all train media as non-flowing images inside the carrier', 
     assert.doesNotMatch(preview, /SignatureTrainCarrier::projectAsImage\(/);
     assert.match(runtime, /SignatureTrainCarrier::withIdleOverlay\(/);
     assert.match(carrier, /data-rt-train-idle-overlay/);
-    assert.match(carrier, /<img class="rt-train-idle-overlay rt-train-idle-image" data-rt-train-idle-overlay data-rt-train-idle-image src="'\.\$escapedSource\.'"/);
+    assert.match(carrier, /<img class="rt-train-idle-overlay rt-train-idle-image" data-rt-train-idle-overlay data-rt-train-idle-image[\s\S]*?src="'\.\$escapedSource\.'"/);
     assert.match(carrier, /data-rt-train-idle-overlay[^>]*position:absolute;[^>]*display:block;[^>]*height:auto;/);
     assert.doesNotMatch(carrier, /background-image:[^;]*(?:TRAIN|train|\.gif)/);
     assert.doesNotMatch(runtime, /rt-classic-outlook-train/);
