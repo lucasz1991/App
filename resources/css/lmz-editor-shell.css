@@ -340,6 +340,10 @@ body[data-mode='dark'] .rt-lmz-editor .lmz-builder {
 }
 
 .rt-lmz-editor .lmz-builder .lmzbjs-sm-properties {
+    /* Die Seitenleiste kann durch Split-View, Assistenzpanel und schmale
+       Fenster stufenlos schrumpfen. Feste zwei Spalten zerquetschen dann
+       insbesondere die vier Margin-/Padding-Felder. */
+    grid-template-columns: repeat(auto-fit, minmax(min(8.75rem, 100%), 1fr)) !important;
     gap: 0.5rem;
     padding: 0 0.625rem 0.625rem;
 }
@@ -350,11 +354,24 @@ body[data-mode='dark'] .rt-lmz-editor .lmz-builder {
 }
 
 .rt-lmz-editor .lmz-builder :is(.lmzbjs-sm-property, .lmzbjs-trt-trait) {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
     gap: 0.375rem;
     padding: 0.5rem;
     border: 1px solid var(--rt-lmz-border);
     border-radius: 0.55rem;
     background: var(--rt-lmz-control);
+}
+
+.rt-lmz-editor .lmz-builder :is(
+    .lmzbjs-sm-property > div,
+    .lmzbjs-sm-field,
+    .lmzbjs-field,
+    .lmzbjs-field-wrp
+) {
+    min-width: 0;
+    max-width: 100%;
 }
 
 .rt-lmz-editor .lmz-builder .lmzbjs-field:not(.lmzbjs-field-checkbox) {

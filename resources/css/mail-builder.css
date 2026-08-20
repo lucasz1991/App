@@ -310,6 +310,14 @@ body[data-mode='dark'] .rt-mail-builder-root {
     height: var(--rt-mail-logical-height) !important;
 }
 
+/* GrapesJS animiert Devicebreiten standardmaessig 350 ms. In dieser Zeit
+   hat das iframe Zwischenbreiten und Selection-/Spacing-Boxen folgen einem
+   anderen Layout als der sichtbare Inhalt. Mailclients kennen ebenfalls
+   keinen solchen Zwischenzustand: der Wechsel ist deshalb atomar. */
+.rt-mail-editor-frame .lmz-builder :is(.lmzbjs-frame-wrapper, .lmzbjs-frame) {
+    transition: none !important;
+}
+
 .rt-mail-editor-frame .lmz-builder .lmzbjs-cv-canvas__frames {
     top: max(0px, calc((100% - var(--rt-mail-display-height)) / 2)) !important;
     left: max(0px, calc((100% - var(--rt-mail-display-width)) / 2)) !important;

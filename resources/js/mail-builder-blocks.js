@@ -415,8 +415,9 @@ export function createMailBlocks({
  *
  * @param {'light'|'dark'} theme
  * @param {object} previewAssets Hell-/Dunkel-Logo, Zugbild und Kontakticons
+ * @param {string} responsiveCss Serverautoritatives Vorschau-CSS; wird nie gespeichert
  */
-export function mailCanvasStyles(theme = 'light', previewAssets = {}) {
+export function mailCanvasStyles(theme = 'light', previewAssets = {}, responsiveCss = '') {
     const palette = MAIL_CANVAS_PALETTE[theme] || MAIL_CANVAS_PALETTE.light;
     const themedAssets = previewAssets?.[theme] || {};
     const icons = previewAssets?.icons || {};
@@ -511,5 +512,8 @@ ${imageRule('ICON_LOCATION_SRC', icons.location)}
     outline: 1px dashed rgba(137, 147, 158, .5);
     outline-offset: -1px;
 }
+
+/* ---- Versandgleiche Umbrueche, nur innerhalb des Editor-Iframes ---- */
+${String(responsiveCss || '')}
 `.trim();
 }

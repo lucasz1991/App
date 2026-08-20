@@ -1025,6 +1025,7 @@
                             theme: selectedTheme,
                             assets: config.mailAssets || [],
                             previewAssets: config.previewAssets || {},
+                            previewResponsiveCss: config.previewResponsiveCss || {},
                             previewDevice: selectedDevice,
                             onPreviewChange: updatePreviewStatus,
                             assistantContext: {

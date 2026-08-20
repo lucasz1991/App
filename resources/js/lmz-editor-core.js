@@ -1332,6 +1332,9 @@ export function createSpacingOverlayController({
     const window_ = environment.window || globalThis.window;
     const requestFrame = environment.requestAnimationFrame || window_?.requestAnimationFrame?.bind(window_) || ((callback) => callback());
     const cancelFrame = environment.cancelAnimationFrame || window_?.cancelAnimationFrame?.bind(window_) || (() => {});
+    const ResizeObserverClass = Object.prototype.hasOwnProperty.call(environment, 'ResizeObserver')
+        ? environment.ResizeObserver
+        : (window_?.ResizeObserver || globalThis.ResizeObserver);
     const coarse = environment.coarsePointer ?? window_?.matchMedia?.('(pointer: coarse)')?.matches === true;
     let active = Boolean(enabled);
     let destroyed = false;
@@ -1340,8 +1343,31 @@ export function createSpacingOverlayController({
     let scheduled = null;
     let drag = null;
     let keyboardEdit = null;
+    let observedResizeTargets = [];
     const handles = new Map();
     const bindings = [];
+    const resizeObserver = typeof ResizeObserverClass === 'function'
+        ? new ResizeObserverClass(() => refresh())
+        : null;
+
+    const observeResizeTargets = (selectedElement = null) => {
+        if (!resizeObserver) return;
+        const frameElement = editor.Canvas.getFrameEl?.();
+        const frameDocument = editor.Canvas.getDocument?.();
+        const targets = [...new Set([
+            host,
+            frameElement,
+            frameDocument?.documentElement,
+            frameDocument?.body,
+            selectedElement,
+        ].filter(Boolean))];
+        if (targets.length === observedResizeTargets.length
+            && targets.every((target, index) => target === observedResizeTargets[index])) return;
+
+        resizeObserver.disconnect?.();
+        targets.forEach((target) => resizeObserver.observe?.(target));
+        observedResizeTargets = targets;
+    };
 
     const ensure = () => {
         const selectionTools = editor.Canvas.getToolsEl?.();
@@ -1391,6 +1417,7 @@ export function createSpacingOverlayController({
             return;
         }
         const element = selected.getEl?.();
+        observeResizeTargets(element);
         const position = element ? editor.Canvas.getElementPos?.(element) : null;
         const offsets = element ? editor.Canvas.getElementOffsets?.(element) : null;
         const geometry = calculateSpacingOverlayGeometry({ position, offsets, minimumBand: coarse ? 10 : 8 });
@@ -1553,7 +1580,7 @@ export function createSpacingOverlayController({
         });
     }
 
-    const events = ['load', 'component:selected', 'component:deselected', 'component:update', 'component:styleUpdate', 'canvas:coords', 'canvas:zoom', 'canvas:frame:load'];
+    const events = ['load', 'component:selected', 'component:deselected', 'component:update', 'component:styleUpdate', 'canvas:coords', 'canvas:zoom', 'canvas:frame:load', 'rt:mail:preview-resize'];
     events.forEach((event) => editor.on?.(event, refresh));
     window_?.addEventListener?.('resize', refresh);
     refresh();
@@ -1576,6 +1603,8 @@ export function createSpacingOverlayController({
             scheduled = null;
             events.forEach((event) => editor.off?.(event, refresh));
             window_?.removeEventListener?.('resize', refresh);
+            resizeObserver?.disconnect?.();
+            observedResizeTargets = [];
             overlay?.remove?.();
             overlay = null;
             host = null;

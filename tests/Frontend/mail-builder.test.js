@@ -10,6 +10,7 @@ import {
     createMailNavigationController,
     createMailPreviewController,
     hydrateMailCanvasAssets,
+    MAIL_GJS_OPTIONS,
     MAIL_STYLE_SECTORS,
     parseMailCssProjectStyles,
     protectMailSystemComponents,
@@ -89,7 +90,8 @@ test('mail canvas renders lightweight same-origin token assets in light and dark
     };
     const snapshot = structuredClone(previewAssets);
 
-    const light = mailCanvasStyles('light', previewAssets);
+    const responsiveCss = '@media only screen and (max-width: 860px) { tr.rt-stack > td { display:block !important; width:100% !important; } }';
+    const light = mailCanvasStyles('light', previewAssets, responsiveCss);
     const dark = mailCanvasStyles('dark', previewAssets);
 
     assert.match(light, /\[bgcolor="\{\{PAGE_BG\}\}"\]/);
@@ -98,6 +100,8 @@ test('mail canvas renders lightweight same-origin token assets in light and dark
     assert.doesNotMatch(light, /mail-assets\/light-train\.gif/);
     assert.match(light, /mail-assets\/phone-icon\.png/);
     assert.match(light, /mail-assets\/location-icon\.png/);
+    assert.match(light, /max-width:\s*860px/);
+    assert.match(light, /tr\.rt-stack > td/);
     assert.match(dark, /#070a0e/);
     assert.match(dark, /mail-assets\/dark-logo\.gif/);
     assert.doesNotMatch(dark, /mail-assets\/dark-train\.gif/);
@@ -1018,6 +1022,7 @@ test('mail preview devices model wide system mail, desktop, tablet and mobile cl
     assert.deepEqual(MAIL_PREVIEW_DEVICES.tablet, { id: 'tablet', label: 'Tablet', width: 820 });
     assert.deepEqual(MAIL_PREVIEW_DEVICES.mobile, { id: 'mobile', label: 'Mobil', width: 375 });
     assert.equal(resolveMailPreviewDevice('unknown'), MAIL_PREVIEW_DEVICES.desktop);
+    assert.equal(MAIL_GJS_OPTIONS.devicePreviewMode, true);
 });
 
 test('desktop mail stays 1024 logical pixels wide when fitted onto a phone', () => {
@@ -1067,12 +1072,25 @@ test('preview controller writes logical frame variables and cleans listeners', (
     const cssProperties = {};
     const selectedDevices = [];
     const zooms = [];
+    const refreshes = [];
+    const triggered = [];
+    const iframeAttributes = {};
+    const iframeStyles = {};
+    const canvasFrame = {
+        setAttribute(name, value) { iframeAttributes[name] = value; },
+        style: { setProperty(name, value, priority = '') { iframeStyles[name] = { value, priority }; } },
+    };
     const editor = {
         DeviceManager: {
             get: (id) => devices.get(id),
             add: (id, attributes) => devices.set(id, attributes),
         },
-        Canvas: { setZoom: (zoom) => zooms.push(zoom) },
+        Canvas: {
+            setZoom: (zoom) => zooms.push(zoom),
+            getFrameEl: () => canvasFrame,
+        },
+        refresh: (options) => refreshes.push(options),
+        trigger: (event, detail) => triggered.push([event, detail]),
         setDevice: (device) => selectedDevices.push(device),
         on: (event, handler) => handlers.set(event, handler),
         off: (event, handler) => {
@@ -1113,6 +1131,12 @@ test('preview controller writes logical frame variables and cleans listeners', (
     assert.equal(cssProperties['--rt-mail-logical-width'], '375px');
     assert.equal(frame.dataset.previewDevice, 'mobile');
     assert.equal(zooms.at(-1), 91.2);
+    assert.equal(iframeAttributes.width, '375');
+    assert.equal(iframeStyles.width.value, '375px');
+    assert.equal(iframeStyles.width.priority, 'important');
+    assert.deepEqual(refreshes.at(-1), { tools: true });
+    assert.equal(triggered.at(-1)[0], 'rt:mail:preview-resize');
+    assert.equal(triggered.at(-1)[1].logicalWidth, 375);
 
     handlers.get('canvas:frame:load')?.();
     assert.equal(changes.at(-1).device, 'mobile');

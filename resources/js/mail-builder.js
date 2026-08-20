@@ -1231,6 +1231,9 @@ export const MAIL_GJS_OPTIONS = Object.freeze({
     // fuegt danach drei reine Anzeigegeraete hinzu; die Umbrueche selbst
     // kommen ausschliesslich aus responsive-css.blade.php.
     deviceManager: { devices: [] },
+    // Die Geraete dienen ausschliesslich der Vorschau. Stil-Aenderungen auf
+    // Tablet/Mobil duerfen keine neuen GrapesJS-Media-Queries erzeugen.
+    devicePreviewMode: true,
     canvas: { styles: [], scripts: [], allowExternalDrop: false },
     assetManager: { upload: false, showUrlInput: false, dropzone: false },
     styleManager: { sectors: MAIL_STYLE_SECTORS },
@@ -2249,7 +2252,6 @@ export function createMailPreviewController({
 
         const logicalWidth = `${latestGeometry.logicalWidth}px`;
         const logicalHeight = `${latestGeometry.logicalHeight}px`;
-        editor.Canvas?.setZoom?.(latestGeometry.zoom);
         frame.dataset.previewDevice = latestGeometry.device;
         frame.dataset.previewScale = String(latestGeometry.scale);
         frame.dataset.logicalWidth = String(latestGeometry.logicalWidth);
@@ -2259,6 +2261,24 @@ export function createMailPreviewController({
         frame.style?.setProperty?.('--rt-mail-display-width', `${latestGeometry.displayWidth}px`);
         frame.style?.setProperty?.('--rt-mail-display-height', `${latestGeometry.displayHeight}px`);
         frame.style?.setProperty?.('--rt-mail-scale', String(latestGeometry.scale));
+
+        // Nicht nur die sichtbare Canvas-Huelle verkleinern: das echte iframe
+        // muss die logische Clientbreite besitzen, damit window.innerWidth und
+        // CSS-Media-Queries auf 375/820/1024/1920 px reagieren. GrapesJS setzt
+        // diese Werte beim Devicewechsel asynchron; die expliziten Attribute
+        // halten Wrapper und Layout-Viewport auch nach Resize/Frame-Reload
+        // deckungsgleich.
+        const canvasFrame = editor.Canvas?.getFrameEl?.();
+        if (canvasFrame) {
+            canvasFrame.setAttribute?.('width', String(latestGeometry.logicalWidth));
+            canvasFrame.setAttribute?.('height', String(Math.ceil(latestGeometry.logicalHeight)));
+            canvasFrame.style?.setProperty?.('width', logicalWidth, 'important');
+            canvasFrame.style?.setProperty?.('height', logicalHeight, 'important');
+        }
+
+        editor.Canvas?.setZoom?.(latestGeometry.zoom);
+        editor.refresh?.({ tools: true });
+        editor.trigger?.('rt:mail:preview-resize', latestGeometry);
         onChange?.(latestGeometry);
     };
 
@@ -2462,6 +2482,7 @@ export function createMailNavigationController({
  * @param {object}   options.blockOptions       Durchreichung an createMailBlocks
  * @param {'light'|'dark'} options.theme        Vorschaufarben der Leinwand
  * @param {object}   options.previewAssets      lokale Logo-/Zug-/Iconquellen nur fuer das iframe
+ * @param {object}   options.previewResponsiveCss zentrale responsive Regeln nur fuer das iframe
  * @param {'desktop'|'tablet'|'mobile'} options.previewDevice Vorschau-Mailclient
  * @param {Function|null} options.onPreviewChange Meldung neuer Vorschaugeometrie
  * @param {boolean}  options.readOnly           kein Speichern, kein Hochladen
@@ -2478,6 +2499,7 @@ export async function createMailBuilder({
     blockOptions = {},
     theme = 'light',
     previewAssets = {},
+    previewResponsiveCss = {},
     previewDevice = 'desktop',
     onPreviewChange = null,
     readOnly = false,
@@ -2500,7 +2522,10 @@ export async function createMailBuilder({
     await waitForPageBuilderActivation(root);
 
     let activeTheme = theme === 'dark' ? 'dark' : 'light';
-    let canvasCss = mailCanvasStyles(activeTheme, previewAssets);
+    const responsiveCssForTheme = (selectedTheme) => String(
+        previewResponsiveCss?.[selectedTheme === 'dark' ? 'dark' : 'light'] || '',
+    );
+    let canvasCss = mailCanvasStyles(activeTheme, previewAssets, responsiveCssForTheme(activeTheme));
 
     const instance = await runtime.create({
         root,
@@ -2675,7 +2700,7 @@ export async function createMailBuilder({
         /** Leinwandfarben wechseln; die Wahl wird nicht mitgespeichert. */
         setTheme(nextTheme = activeTheme) {
             activeTheme = nextTheme === 'dark' ? 'dark' : 'light';
-            canvasCss = mailCanvasStyles(activeTheme, previewAssets);
+            canvasCss = mailCanvasStyles(activeTheme, previewAssets, responsiveCssForTheme(activeTheme));
             const stylesApplied = applyMailCanvasStyles(editor, canvasCss);
             hydrateMailCanvasAssets(editor, activeTheme, previewAssets);
             return stylesApplied;

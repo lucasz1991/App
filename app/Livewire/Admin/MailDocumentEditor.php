@@ -189,6 +189,15 @@ class MailDocumentEditor extends Component
                     'web' => $contactIconUrls['ICON_WEB_SRC'] ?? '',
                 ],
             ],
+            // Ausschliesslich fuer das GrapesJS-iframe: dieselben zentralen
+            // Media Queries wie im spaeteren Versand. Sie werden nicht in
+            // builder_data, HTML oder die editierbare CSS-Spalte geschrieben.
+            // Dadurch ist Tablet/Mobil eine echte Layoutvorschau statt nur
+            // einer optisch verkleinerten Desktop-Leinwand.
+            'previewResponsiveCss' => [
+                'light' => EmailTemplateBuilder::responsiveCss('#dfe3e6'),
+                'dark' => EmailTemplateBuilder::responsiveCss('#313944'),
+            ],
             'vendor' => [
                 'builderJs' => asset('vendor/lmz-builder/2.4.5/lmz-builder.js'),
                 'builderCss' => asset('vendor/lmz-builder/2.4.5/lmz-builder.css'),

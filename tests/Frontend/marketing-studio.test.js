@@ -1709,6 +1709,63 @@ test('spacing overlay uses the canvas tools layer without doubling the positione
     });
 }));
 
+test('spacing overlay observes canvas and selection resizing and releases every observer target', () => coreWithDom(`
+    <div id="root"><div id="tools-layer"><div id="tools"></div></div><iframe id="frame"></iframe></div>
+`, ({ window, document }) => {
+    const selectedElement = document.createElement('div');
+    const selected = coreFakeComponent(selectedElement);
+    const editor = coreFakeEditor(document.querySelector('#root'), selected);
+    const frame = document.querySelector('#frame');
+    const tools = document.querySelector('#tools');
+    const observed = [];
+    let disconnected = 0;
+    let observerCallback = null;
+    const frames = [];
+    class FakeResizeObserver {
+        constructor(callback) { observerCallback = callback; }
+        observe(target) { observed.push(target); }
+        disconnect() { disconnected += 1; }
+    }
+    editor.Canvas.getToolsEl = () => tools;
+    editor.Canvas.getFrameEl = () => frame;
+    editor.Canvas.getDocument = () => document;
+    let positions = 0;
+    editor.Canvas.getElementPos = () => {
+        positions += 1;
+        return { left: 10, top: 20, width: 100, height: 80, zoom: 1 };
+    };
+    editor.Canvas.getElementOffsets = () => ({
+        marginTop: 0, marginRight: 0, marginBottom: 0, marginLeft: 0,
+        paddingTop: 8, paddingRight: 8, paddingBottom: 8, paddingLeft: 8,
+        borderTopWidth: 0, borderRightWidth: 0, borderBottomWidth: 0, borderLeftWidth: 0,
+    });
+
+    const controller = createSpacingOverlayController({
+        editor,
+        root: document.querySelector('#root'),
+        environment: {
+            document,
+            window,
+            ResizeObserver: FakeResizeObserver,
+            requestAnimationFrame: (callback) => { frames.push(callback); return frames.length; },
+            cancelAnimationFrame() {},
+        },
+    });
+    frames.shift()?.();
+
+    assert.ok(observed.includes(document.querySelector('#tools-layer')));
+    assert.ok(observed.includes(frame));
+    assert.ok(observed.includes(document.documentElement));
+    assert.ok(observed.includes(document.body));
+    assert.ok(observed.includes(selectedElement));
+    const beforeResize = positions;
+    observerCallback();
+    frames.shift()?.();
+    assert.ok(positions > beforeResize);
+    controller.destroy();
+    assert.ok(disconnected >= 1);
+}));
+
 test('scoped FilePool GIF metadata survives opaque admin URLs and is cleared by a static replacement', () => coreWithDom('<img id="target">', ({ document }) => {
     const element = document.querySelector('#target');
     const selected = coreFakeComponent(element, { attributes: {} });

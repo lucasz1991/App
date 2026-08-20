@@ -1398,6 +1398,12 @@ HTML;
             $this->assertStringNotContainsString('data:', $source, $icon);
         }
 
+        foreach (['light', 'dark'] as $theme) {
+            $responsiveCss = (string) data_get($config, 'previewResponsiveCss.'.$theme);
+            $this->assertStringContainsString('@media only screen and (max-width: 860px)', $responsiveCss);
+            $this->assertStringContainsString('tr.rt-stack > td', $responsiveCss);
+        }
+
         $this->assertLessThan(100_000, strlen((string) $match[1]));
 
         $mailAssets = data_get($config, 'mailAssets');
