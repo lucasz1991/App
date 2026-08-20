@@ -299,9 +299,11 @@ final class SignatureTrainCarrier
     }
 
     /**
-     * Legt die transparente Endlos-Rauchschleife als echtes IMG direkt in
-     * denselben absoluten Layer wie das Haupt-GIF. Dadurch erbt sie alle
-     * erlaubten Ausschnitte pixelgleich und erzeugt keine eigene Hoehe.
+     * Legt die transparente Endlos-Rauchschleife als echtes IMG in einen
+     * hoehenlosen Holder direkt vor das Haupt-GIF. Moderne Clients legen den
+     * Holder absolut ueber den Hauptzug. Entfernt ein Mailclient dagegen die
+     * absolute Positionierung, bleibt der Holder nullhoch und abgeschnitten;
+     * nur das danach folgende Haupt-IMG kann dann noch Flow-Hoehe belegen.
      */
     public static function withIdleOverlay(string $html, string $source): string
     {
@@ -343,11 +345,13 @@ final class SignatureTrainCarrier
         if (! is_array($size)) {
             throw new RuntimeException('Die Idle-Rauchebene besitzt keine kanonische Bildgroesse.');
         }
-        $overlay = '<img class="rt-train-idle-overlay rt-train-idle-image" data-rt-train-idle-overlay data-rt-train-idle-image '
-            .'src="'.$escapedSource.'" width="720" alt="" '
-            .'style="position:absolute;left:0;right:auto;bottom:0;display:block;width:100%;max-width:'.$size['maxWidth'].';height:auto;margin:0;border:0;outline:none;text-decoration:none;opacity:0;visibility:hidden;animation:rt-train-idle-reveal 1ms step-start 13s forwards;mso-hide:all;">';
+        $overlay = '<span class="rt-train-idle-overlay" data-rt-train-idle-overlay '
+            .'style="position:absolute;left:0;right:auto;bottom:0;display:block;width:100%;max-width:'.$size['maxWidth'].';height:0;max-height:0;margin:0;overflow:hidden;z-index:1;font-size:0;line-height:0;opacity:0;visibility:hidden;animation:rt-train-idle-reveal 1ms step-start 13s forwards;mso-hide:all;">'
+            .'<img class="rt-train-idle-image" data-rt-train-idle-image src="'.$escapedSource.'" width="720" alt="" '
+            .'style="position:absolute;left:0;right:auto;bottom:0;display:block;width:100%;max-width:'.$size['maxWidth'].';height:auto;margin:0;border:0;outline:none;text-decoration:none;z-index:1;mso-hide:all;">'
+            .'</span>';
 
-        $html = substr_replace($html, $overlay, $images[0]['endOffset'] + 1, 0);
+        $html = substr_replace($html, $overlay, $images[0]['startOffset'], 0);
         self::assertRuntimeImages($html, expectedIdleSource: $source);
 
         return $html;
@@ -976,6 +980,7 @@ final class SignatureTrainCarrier
         $layers = [];
         $stages = [];
         $mainImages = [];
+        $idleHolders = [];
         $idleImages = [];
         foreach (self::scanStartTags($html) as $tag) {
             if ($tag['name'] === 'div' && self::sourceTagHasClass($tag, 'rt-sign-train-layer')) {
@@ -983,6 +988,10 @@ final class SignatureTrainCarrier
             }
             if ($tag['name'] === 'div' && self::sourceTagHasClass($tag, 'rt-sign-stage')) {
                 $stages[] = $tag;
+            }
+            if (self::sourceTagHasClass($tag, 'rt-train-idle-overlay')
+                || isset($tag['attributes']['data-rt-train-idle-overlay'])) {
+                $idleHolders[] = $tag;
             }
             if ($tag['name'] !== 'img') {
                 continue;
@@ -1009,6 +1018,9 @@ final class SignatureTrainCarrier
         if (count($idleImages) > 1) {
             throw new RuntimeException('Das finale Idle-GIF darf nur einmal als IMG vorliegen.');
         }
+        if (count($idleHolders) !== count($idleImages)) {
+            throw new RuntimeException('Das finale Idle-IMG benoetigt genau einen hoehenlosen Holder.');
+        }
         if ($expectedIdleSource === '' && $idleImages !== []) {
             throw new RuntimeException('Die statische Signatur darf kein Idle-GIF enthalten.');
         }
@@ -1022,28 +1034,27 @@ final class SignatureTrainCarrier
             && ! self::isAllowedMailImageSource(self::singleTagAttributeValue($idleImages[0], 'src'))) {
             throw new RuntimeException('Das finale Idle-IMG besitzt keine mail-sichere Bildquelle.');
         }
+        $idleHolderRange = null;
         if ($idleImages !== []) {
             $idle = $idleImages[0];
             $sizeName = strtolower(self::singleTagAttributeValue($layers[0], 'data-rt-layer-size'));
             $size = self::CANONICAL_LAYER_SIZE[$sizeName] ?? null;
             if (! is_array($size)
-                || ! self::sourceTagHasClass($idle, 'rt-train-idle-overlay')
                 || ! self::sourceTagHasClass($idle, 'rt-train-idle-image')
-                || count($idle['attributes']['data-rt-train-idle-overlay'] ?? []) !== 1
                 || count($idle['attributes']['data-rt-train-idle-image'] ?? []) !== 1
                 || self::singleTagAttributeValue($idle, 'width') !== '720'
                 || self::singleTagAttributeValue($idle, 'alt') !== '') {
                 throw new RuntimeException('Das finale Idle-IMG besitzt nicht den kanonischen Bildvertrag.');
             }
-            self::assertRuntimeIdleDom($html, $size['maxWidth']);
+            $idleHolderRange = self::assertRuntimeIdleDom($html, $size['maxWidth']);
         }
 
         $canonical = $html;
         $replacements = [];
-        if ($idleImages !== []) {
+        if (is_array($idleHolderRange)) {
             $replacements[] = [
-                $idleImages[0]['startOffset'],
-                $idleImages[0]['endOffset'] - $idleImages[0]['startOffset'] + 1,
+                $idleHolderRange['startOffset'],
+                $idleHolderRange['length'],
                 '',
             ];
         }
@@ -1076,7 +1087,8 @@ final class SignatureTrainCarrier
         }
     }
 
-    private static function assertRuntimeIdleDom(string $html, string $maxWidth): void
+    /** @return array{startOffset:int,length:int} */
+    private static function assertRuntimeIdleDom(string $html, string $maxWidth): array
     {
         $previousErrors = libxml_use_internal_errors(true);
         try {
@@ -1096,6 +1108,8 @@ final class SignatureTrainCarrier
         }
 
         $layers = [];
+        $mainImages = [];
+        $idleHolders = [];
         $idleImages = [];
         foreach ($wrapper->getElementsByTagName('*') as $element) {
             if (! $element instanceof DOMElement) {
@@ -1105,21 +1119,91 @@ final class SignatureTrainCarrier
             if ($element->tagName === 'div' && in_array('rt-sign-train-layer', $classes, true)) {
                 $layers[] = $element;
             }
+            if ($element->hasAttribute('data-rt-train-idle-overlay')
+                || in_array('rt-train-idle-overlay', $classes, true)) {
+                $idleHolders[] = $element;
+            }
             if ($element->tagName === 'img'
-                && in_array('rt-train-idle-overlay', $classes, true)
-                && in_array('rt-train-idle-image', $classes, true)) {
+                && ($element->hasAttribute('data-rt-train')
+                    || in_array('rt-sign-train', $classes, true))) {
+                $mainImages[] = $element;
+            }
+            if ($element->tagName === 'img'
+                && ($element->hasAttribute('data-rt-train-idle-image')
+                    || in_array('rt-train-idle-image', $classes, true))) {
                 $idleImages[] = $element;
             }
         }
         $layer = $layers[0] ?? null;
+        $main = $mainImages[0] ?? null;
+        $holder = $idleHolders[0] ?? null;
         $idle = $idleImages[0] ?? null;
         if (count($layers) !== 1
+            || count($mainImages) !== 1
+            || count($idleHolders) !== 1
             || count($idleImages) !== 1
             || ! $layer instanceof DOMElement
+            || ! $main instanceof DOMElement
+            || ! $holder instanceof DOMElement
             || ! $idle instanceof DOMElement
-            || ! $idle->parentNode?->isSameNode($layer)) {
-            throw new RuntimeException('Das finale Idle-IMG muss direkt im absoluten Zug-Layer liegen.');
+            || strtolower($holder->tagName) !== 'span'
+            || self::elementClasses($holder) !== ['rt-train-idle-overlay']
+            || ! $holder->hasAttribute('data-rt-train-idle-overlay')
+            || self::elementClasses($idle) !== ['rt-train-idle-image']
+            || ! $idle->hasAttribute('data-rt-train-idle-image')
+            || ! $holder->parentNode?->isSameNode($layer)
+            || ! $idle->parentNode?->isSameNode($holder)
+            || ! $main->parentNode?->isSameNode($layer)) {
+            throw new RuntimeException('Das finale Idle-IMG muss allein im hoehenlosen Holder des Zug-Layers liegen.');
         }
+
+        $layerElements = [];
+        foreach ($layer->childNodes as $child) {
+            if ($child instanceof DOMElement) {
+                $layerElements[] = $child;
+            }
+        }
+        $holderElements = [];
+        $holderHasForeignContent = false;
+        foreach ($holder->childNodes as $child) {
+            if ($child instanceof DOMElement) {
+                $holderElements[] = $child;
+
+                continue;
+            }
+            if ($child->nodeType !== XML_TEXT_NODE || trim((string) $child->nodeValue) !== '') {
+                $holderHasForeignContent = true;
+            }
+        }
+        if (count($layerElements) !== 2
+            || ! $layerElements[0]->isSameNode($holder)
+            || ! $layerElements[1]->isSameNode($main)
+            || count($holderElements) !== 1
+            || ! $holderElements[0]->isSameNode($idle)
+            || $holderHasForeignContent) {
+            throw new RuntimeException('Idle-Holder und Hauptzug besitzen nicht die kanonische Reihenfolge.');
+        }
+
+        self::assertExactSimpleStyle($holder, [
+            'position' => 'absolute',
+            'left' => '0',
+            'right' => 'auto',
+            'bottom' => '0',
+            'display' => 'block',
+            'width' => '100%',
+            'max-width' => strtolower($maxWidth),
+            'height' => '0',
+            'max-height' => '0',
+            'margin' => '0',
+            'overflow' => 'hidden',
+            'z-index' => '1',
+            'font-size' => '0',
+            'line-height' => '0',
+            'opacity' => '0',
+            'visibility' => 'hidden',
+            'animation' => 'rt-train-idle-reveal 1ms step-start 13s forwards',
+            'mso-hide' => 'all',
+        ], 'Idle-Zugholder');
         self::assertExactSimpleStyle($idle, [
             'position' => 'absolute',
             'left' => '0',
@@ -1133,11 +1217,78 @@ final class SignatureTrainCarrier
             'border' => '0',
             'outline' => 'none',
             'text-decoration' => 'none',
-            'opacity' => '0',
-            'visibility' => 'hidden',
-            'animation' => 'rt-train-idle-reveal 1ms step-start 13s forwards',
+            'z-index' => '1',
             'mso-hide' => 'all',
         ], 'Idle-Zugbild');
+
+        $sourceHolders = [];
+        $sourceIdleImages = [];
+        $sourceMainImages = [];
+        foreach (self::scanStartTags($html) as $tag) {
+            if (self::sourceTagHasClass($tag, 'rt-train-idle-overlay')
+                || isset($tag['attributes']['data-rt-train-idle-overlay'])) {
+                $sourceHolders[] = $tag;
+            }
+            if ($tag['name'] === 'img'
+                && (self::sourceTagHasClass($tag, 'rt-train-idle-image')
+                    || isset($tag['attributes']['data-rt-train-idle-image']))) {
+                $sourceIdleImages[] = $tag;
+            }
+            if ($tag['name'] === 'img'
+                && (self::sourceTagHasClass($tag, 'rt-sign-train')
+                    || isset($tag['attributes']['data-rt-train']))) {
+                $sourceMainImages[] = $tag;
+            }
+        }
+        if (count($sourceHolders) !== 1
+            || count($sourceIdleImages) !== 1
+            || count($sourceMainImages) !== 1) {
+            throw new RuntimeException('Der Quellvertrag des Idle-Zugholders ist nicht eindeutig.');
+        }
+        $sourceHolder = $sourceHolders[0];
+        $sourceIdle = $sourceIdleImages[0];
+        $sourceMain = $sourceMainImages[0];
+        if ($sourceHolder['name'] !== 'span'
+            || self::singleTagAttributeValue($sourceHolder, 'class') !== 'rt-train-idle-overlay'
+            || self::singleTagAttributeValue($sourceHolder, 'data-rt-train-idle-overlay') !== ''
+            || ! hash_equals($holder->getAttribute('style'), self::singleTagAttributeValue($sourceHolder, 'style'))
+            || self::singleTagAttributeValue($sourceIdle, 'class') !== 'rt-train-idle-image'
+            || self::singleTagAttributeValue($sourceIdle, 'data-rt-train-idle-image') !== ''
+            || ! hash_equals($idle->getAttribute('style'), self::singleTagAttributeValue($sourceIdle, 'style'))
+            || $sourceHolder['endOffset'] >= $sourceIdle['startOffset']
+            || $sourceIdle['endOffset'] >= $sourceMain['startOffset']
+            || preg_match(
+                '/^[ \t\r\n\f]*$/D',
+                substr(
+                    $html,
+                    $sourceHolder['endOffset'] + 1,
+                    $sourceIdle['startOffset'] - $sourceHolder['endOffset'] - 1,
+                ),
+            ) !== 1) {
+            throw new RuntimeException('Der Quellvertrag des Idle-Zugholders ist manipuliert.');
+        }
+
+        $afterIdleOffset = $sourceIdle['endOffset'] + 1;
+        if (preg_match(
+            '/\A[ \t\r\n\f]*<\/span[ \t\r\n\f]*>/',
+            substr($html, $afterIdleOffset),
+            $closingHolder,
+        ) !== 1) {
+            throw new RuntimeException('Der Idle-Zugholder besitzt keinen eindeutigen Abschluss.');
+        }
+        $holderEndOffset = $afterIdleOffset + strlen($closingHolder[0]);
+        if ($holderEndOffset > $sourceMain['startOffset']
+            || preg_match(
+                '/^[ \t\r\n\f]*$/D',
+                substr($html, $holderEndOffset, $sourceMain['startOffset'] - $holderEndOffset),
+            ) !== 1) {
+            throw new RuntimeException('Das Hauptzug-IMG muss direkt nach dem hoehenlosen Idle-Holder folgen.');
+        }
+
+        return [
+            'startOffset' => $sourceHolder['startOffset'],
+            'length' => $holderEndOffset - $sourceHolder['startOffset'],
+        ];
     }
 
     /** @return list<string> */

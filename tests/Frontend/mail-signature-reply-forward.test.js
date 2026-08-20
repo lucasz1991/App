@@ -113,8 +113,8 @@ test('delivery keeps all train media as non-flowing images inside the carrier', 
     assert.doesNotMatch(preview, /SignatureTrainCarrier::projectAsImage\(/);
     assert.match(runtime, /SignatureTrainCarrier::withIdleOverlay\(/);
     assert.match(carrier, /data-rt-train-idle-overlay/);
-    assert.match(carrier, /<img class="rt-train-idle-overlay rt-train-idle-image" data-rt-train-idle-overlay data-rt-train-idle-image[\s\S]*?src="'\.\$escapedSource\.'"/);
-    assert.match(carrier, /data-rt-train-idle-overlay[^>]*position:absolute;[^>]*display:block;[^>]*height:auto;/);
+    assert.match(carrier, /<span class="rt-train-idle-overlay" data-rt-train-idle-overlay[\s\S]*?<img class="rt-train-idle-image" data-rt-train-idle-image src="'\.\$escapedSource\.'"[\s\S]*?<\/span>/);
+    assert.match(carrier, /data-rt-train-idle-overlay[^>]*position:absolute;[^>]*display:block;[^>]*height:0;max-height:0;[^>]*overflow:hidden;/);
     assert.doesNotMatch(carrier, /background-image:[^;]*(?:TRAIN|train|\.gif)/);
     assert.doesNotMatch(runtime, /rt-classic-outlook-train/);
 });

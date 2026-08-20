@@ -23,7 +23,13 @@ class SignatureTrainTimelineTest extends TestCase
         $this->assertSame(1, substr_count($rendered, 'data-rt-train-idle-overlay'));
         $this->assertSame(1, substr_count($rendered, 'data-rt-train-idle-image'));
         $this->assertStringContainsString(
-            'title="Zug > Footer"><img class="rt-train-idle-overlay rt-train-idle-image"',
+            '<span class="rt-train-idle-overlay"',
+            $rendered,
+        );
+        $this->assertMatchesRegularExpression(
+            '/<span class="rt-train-idle-overlay"[^>]*height:0;max-height:0;[^>]*overflow:hidden;[^>]*>'
+                .'<img class="rt-train-idle-image"[^>]*><\/span>'
+                .'<img class="rt-sign-train"[^>]*title="Zug > Footer">/',
             $rendered,
         );
         $this->assertStringContainsString(
@@ -32,7 +38,7 @@ class SignatureTrainTimelineTest extends TestCase
         );
         $this->assertStringNotContainsString('background-image:', $rendered);
         $this->assertDoesNotMatchRegularExpression('/rt-train-idle-overlay[^>]*height:100%/', $rendered);
-        $this->assertMatchesRegularExpression('/rt-train-idle-overlay[^>]*position:absolute[^>]*height:auto/', $rendered);
+        $this->assertMatchesRegularExpression('/rt-train-idle-overlay[^>]*position:absolute[^>]*height:0;max-height:0/', $rendered);
     }
 
     /**

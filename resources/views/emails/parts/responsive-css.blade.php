@@ -35,16 +35,60 @@
    Stabiler Einhaengepunkt fuer freigegebenes Signatur-CSS. Die Zug-Einfahrt
    laeuft einmalig im Haupt-GIF. Danach wird nur die transparente, kleine
    Rauchschleife sichtbar; der Zug selbst wird dadurch nicht dupliziert. */
+.rt-sign-train-layer {
+  position: absolute !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  overflow: hidden !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
+}
+.rt-sign-train {
+  position: absolute !important;
+  left: 0 !important;
+  right: auto !important;
+  bottom: 0 !important;
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
+  margin: 0 !important;
+  z-index: 0 !important;
+}
 @keyframes rt-train-idle-reveal {
   0% { opacity: 0; visibility: hidden; }
   100% { opacity: 1; visibility: visible; }
 }
 .rt-train-idle-overlay {
+  position: absolute !important;
+  left: 0 !important;
+  right: auto !important;
+  bottom: 0 !important;
+  display: block !important;
+  width: 100% !important;
+  height: 0 !important;
+  max-height: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  z-index: 1 !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
   opacity: 0;
   visibility: hidden;
 }
+.rt-train-idle-image {
+  position: absolute !important;
+  left: 0 !important;
+  right: auto !important;
+  bottom: 0 !important;
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
+  margin: 0 !important;
+  z-index: 1 !important;
+}
 @supports (animation-name: rt-train-idle-reveal) {
   .rt-train-idle-overlay {
+    overflow: visible !important;
     animation-name: rt-train-idle-reveal;
     animation-duration: 1ms;
     animation-timing-function: step-start;
@@ -56,6 +100,7 @@
 @media (prefers-reduced-motion: reduce) {
   .rt-train-idle-overlay {
     animation: none !important;
+    overflow: hidden !important;
     opacity: 0 !important;
     visibility: hidden !important;
   }

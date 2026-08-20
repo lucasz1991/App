@@ -84,7 +84,7 @@ test('all delivered mail outputs keep train GIFs as delayed non-flowing images w
     assert.doesNotMatch(carrier, /public static function projectAsRuntimeBackground/);
     assert.match(carrier, /public static function withMsoFallback/);
     assert.match(carrier, /public static function withIdleOverlay/);
-    assert.match(carrier, /<img class="rt-train-idle-overlay rt-train-idle-image" data-rt-train-idle-overlay data-rt-train-idle-image[\s\S]*?src="'\.\$escapedSource\.'"/);
+    assert.match(carrier, /<span class="rt-train-idle-overlay" data-rt-train-idle-overlay[\s\S]*?<img class="rt-train-idle-image" data-rt-train-idle-image src="'\.\$escapedSource\.'"[\s\S]*?<\/span>/);
     assert.doesNotMatch(carrier, /background-image:[^;]*(?:TRAIN|train|\.gif)/);
     assert.doesNotMatch(carrier, /<!--\[if mso\]><tr><td class="rt-sign-train-mso"/);
     assert.match(carrier, /<!--\[if (?:gte )?mso(?: 9)?\]><img class="rt-sign-train-mso" data-rt-train-mso="1" src="'\.\$escapedSource\.'"/);
@@ -114,6 +114,9 @@ test('all delivered mail outputs keep train GIFs as delayed non-flowing images w
     assert.match(cssSemantic, /\$isProtectedAttribute = in_array\(/);
     assert.match(responsiveCss, /@keyframes rt-train-idle-reveal/);
     assert.match(responsiveCss, /animation-delay:\s*13s/);
+    assert.match(responsiveCss, /\.rt-sign-train-layer\s*\{[^}]*position:\s*absolute !important;[^}]*bottom:\s*0 !important;/s);
+    assert.match(responsiveCss, /\.rt-sign-train\s*\{[^}]*position:\s*absolute !important;[^}]*bottom:\s*0 !important;/s);
+    assert.match(responsiveCss, /\.rt-train-idle-image\s*\{[^}]*position:\s*absolute !important;[^}]*bottom:\s*0 !important;/s);
     assert.match(responsiveCss, /prefers-reduced-motion:[^)]+\)[\s\S]*?\.rt-train-idle-overlay/);
     assert.doesNotMatch(routes, /mail-animations\/train/);
     assert.match(signatureView, /<div class="rt-sign-stage" style="position:relative;overflow:hidden;">/);
@@ -121,7 +124,7 @@ test('all delivered mail outputs keep train GIFs as delayed non-flowing images w
     assert.match(signatureView, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:absolute;[^"\r\n]*mso-hide:all;/);
     assert.doesNotMatch(signatureView, /rt-sign-train-layer[^>]*height:100%/);
     assert.doesNotMatch(carrier, /rt-train-idle-overlay[^>]*height:100%/);
-    assert.match(carrier, /rt-train-idle-overlay[^>]*position:absolute;[^>]*display:block;[^>]*height:auto;/);
+    assert.match(carrier, /rt-train-idle-overlay[^>]*position:absolute;[^>]*display:block;[^>]*height:0;max-height:0;[^>]*overflow:hidden;/);
     assert.doesNotMatch(signatureView, /url\(\{\$values\['TRAIN_SRC'\]\}\)/);
     assert.match(
         signatureView,
@@ -142,6 +145,32 @@ test('all delivered mail outputs keep train GIFs as delayed non-flowing images w
     const mobile = responsiveCss.slice(responsiveCss.indexOf('@media only screen and (max-width: 860px)'));
     assert.doesNotMatch(responsiveCss, /\.rt-sign-cell\.rt-sign-train-background/);
     assert.match(mobile, /\.rt-sign-cell\s*\{[\s\S]+?background-position:\s*left top,\s*right center,\s*center center !important;[\s\S]+?background-size:\s*64px 64px,\s*auto 52%,\s*100% 100% !important;/);
+});
+
+test('idle IMG degrades to one flow-height train while modern CSS reopens only the zero-height overlay', () => {
+    const carrier = text('app/Support/Mail/SignatureTrainCarrier.php');
+    const responsiveCss = text('resources/views/emails/parts/responsive-css.blade.php');
+    const idleMethod = carrier.slice(
+        carrier.indexOf('public static function withIdleOverlay'),
+        carrier.indexOf('public static function withoutLegacyBackgroundAttribute'),
+    );
+
+    assert.match(
+        idleMethod,
+        /<span class="rt-train-idle-overlay" data-rt-train-idle-overlay[^>]*height:0;max-height:0;[^>]*overflow:hidden;[^>]*>[\s\S]*?<img class="rt-train-idle-image" data-rt-train-idle-image[\s\S]*?<\/span>/,
+    );
+    assert.match(idleMethod, /substr_replace\(\$html, \$overlay, \$images\[0\]\['startOffset'\], 0\)/);
+    assert.match(carrier, /count\(\$layerElements\) !== 2[\s\S]*?\$layerElements\[0\]->isSameNode\(\$holder\)[\s\S]*?\$layerElements\[1\]->isSameNode\(\$main\)/);
+    assert.match(carrier, /\$idleHolderRange\['startOffset'\][\s\S]*?\$idleHolderRange\['length'\]/);
+    assert.match(
+        responsiveCss,
+        /\.rt-train-idle-overlay\s*\{[^}]*height:\s*0 !important;[^}]*max-height:\s*0 !important;[^}]*overflow:\s*hidden !important;/s,
+    );
+    assert.match(
+        responsiveCss,
+        /@supports \(animation-name: rt-train-idle-reveal\)\s*\{\s*\.rt-train-idle-overlay\s*\{[^}]*overflow:\s*visible !important;[^}]*animation-delay:\s*13s;/s,
+    );
+    assert.doesNotMatch(`${carrier}\n${responsiveCss}`, /background(?:-image)?\s*:[^;\r\n]*(?:TRAIN_(?:SRC|IDLE_SRC)|zug-dampf[^;\r\n]*\.gif)/i);
 });
 
 test('editor and delivery keep the default mobile train at 100 percent while explicit crops may zoom', () => {
