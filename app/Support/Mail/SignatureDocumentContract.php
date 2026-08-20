@@ -117,6 +117,12 @@ final class SignatureDocumentContract
         if (preg_match('/\brt-sign-train-mso\b/i', $decodedHtml) === 1) {
             throw new RuntimeException('Der serverseitige Outlook-Zugfallback darf nicht im Signaturentwurf gespeichert werden.');
         }
+        if (preg_match(
+            '/\b(?:rt-sign-train-background|data-rt-train-(?:background|align|size|mobile))\b/i',
+            $decodedHtml,
+        ) === 1) {
+            throw new RuntimeException('Der serverseitige Zug-Background darf nicht im Signaturentwurf gespeichert werden.');
+        }
         if (preg_match('/<style\b/i', $decodedHtml) === 1) {
             throw new RuntimeException('Das Signaturfragment darf keinen eigenen style-Block enthalten.');
         }
@@ -136,6 +142,7 @@ final class SignatureDocumentContract
                 $allowLegacyDirectImage,
                 $allowLegacyPercentHeight,
             );
+            SignatureTrainCarrier::assertCanonicalBaseBackground($html);
         } elseif ($allowLegacyTrainCarrier) {
             // Bereits publizierte Schema-9-Staende bleiben bis zum expliziten
             // Seeder-Lauf lesbar und werden beim Rendern in die heutige

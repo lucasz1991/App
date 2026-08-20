@@ -7,14 +7,12 @@
       - jeder Laravel-Mail und -Notification (vendor/mail/html/footer.blade.php)
 
     Der kanonische Editorstand besitzt zwei Tabellenzeilen: Signaturblock und
-    Pflichtangaben. Der Zug ist in allen Pfaden genau ein regulaeres IMG wie
-    Logo und RT-Zeichen. Sein eigener, absolut positionierter Layer liegt in
-    einer normalen Block-Buehne hinter den Kontaktdaten und beansprucht keine
-    zusaetzliche Tabellenhoehe. Die Tabellenzelle selbst ist bewusst nicht der
-    Positionierungskontext: das wird von Outlook-/Word-Engines uneinheitlich
-    interpretiert.
-    Dadurch bleibt er beim Kopieren, Antworten und Weiterleiten ein echtes
-    Bildelement; der Seeder-Stand enthaelt keinen CSS-Bildhintergrund.
+    Pflichtangaben. Im gespeicherten Editor-/Seederstand ist der Zug ein
+    regulaeres, editierbares IMG. Erst der gemeinsame finale Renderer hebt
+    dieses Bild in die vierte Background-Ebene des Carriers; damit kann es im
+    Mailclient nicht als eigene Zeile unter die Kontaktdaten fallen und
+    beansprucht keine zusaetzliche Tabellenhoehe. Word/MSO erhaelt innerhalb
+    derselben Stage ein bedingtes VML-Standbild statt einer Tabellenzeile.
 
     AUFBAU: zwei gleich breite Spalten an einer Mittelachse. Links die
     Person, rechts die Firma. Die Firmenkontakte existieren genau einmal:
@@ -71,8 +69,9 @@
      * und ihre mobilen Positionslisten kompatibel bleiben; sie darf die
      * Deckkraft nicht ein zweites Mal reduzieren.
      *
-     * Der Zug gehoert absichtlich nicht mehr zu diesen Listen. Er liegt als
-     * normales IMG in einem eigenen absoluten Layer hinter den Kontaktdaten.
+     * Der gespeicherte Editorstand haelt den Zug absichtlich noch ausserhalb
+     * dieser Listen als IMG. Der finale Renderer fuegt ihn serverkontrolliert
+     * als vierte Background-Ebene hinzu.
      */
     $ebenen = array_values(array_filter([
         ($values['GRUND_RASTER_SRC'] ?? '') !== ''

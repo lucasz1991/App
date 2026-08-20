@@ -69,13 +69,17 @@ test('mobile rules restyle the same signature nodes without hide-and-show copies
     }
 });
 
-test('each mail client sees one train image through the modern stage or the single MSO fallback', async () => {
+test('delivery projects the train into a non-flowing background and keeps the MSO fallback inside the carrier', async () => {
     const [signature, runtime, carrier, preview] = await Promise.all([
         source('../../resources/views/emails/parts/signature.blade.php'),
         source('../../app/Support/MailSignature.php'),
         source('../../app/Support/Mail/SignatureTrainCarrier.php'),
         source('../../app/Services/PageBuilder/PageBuilderPreviewService.php'),
     ]);
+    const msoFallback = carrier.slice(
+        carrier.indexOf('public static function withMsoFallback'),
+        carrier.indexOf('public static function withIdleOverlay'),
+    );
 
     assert.match(signature, /\$trainSrc = \$outlookTrainSrc !== ''/);
     assert.match(signature, /<div class="rt-sign-stage" style="position:relative;overflow:hidden;">/);
@@ -89,23 +93,30 @@ test('each mail client sees one train image through the modern stage or the sing
     assert.doesNotMatch(runtime, /projectPublishedTrainAsRuntimeImage/);
     assert.match(runtime, /usesTokenizedTrainCarrier/);
     assert.match(runtime, /SignatureTrainCarrier::projectAsImage\(/);
+    assert.match(runtime, /SignatureTrainCarrier::projectAsRuntimeBackground\(/);
     assert.equal(occurrences(runtime, /SignatureTrainCarrier::withMsoFallback\(/g), 1);
     assert.match(runtime, /outlookTrainFallbackSrc[\s\S]*?TRAIN_STILL_SRC/);
     assert.doesNotMatch(runtime, /appendClassicOutlookTrainFallback/);
     assert.match(carrier, /public static function projectAsImage/);
+    assert.match(carrier, /public static function projectAsRuntimeBackground/);
     assert.match(carrier, /public static function withMsoFallback/);
     assert.match(carrier, /public static function withIdleOverlay/);
-    assert.equal(occurrences(carrier, /<!--\[if mso\]><tr><td class="rt-sign-train-mso"/g), 1);
+    assert.equal(occurrences(carrier, /<!--\[if mso\]><tr><td class="rt-sign-train-mso"/g), 0);
+    assert.match(carrier, /<!--\[if (?:gte )?mso(?: 9)?\]><v:rect\b/);
+    assert.match(carrier, /<v:fill\b[^>]*src="'\.\$escapedSource\.'"/);
+    assert.doesNotMatch(msoFallback, /<img\b/);
+    assert.match(carrier, /data-rt-train-background/);
+    assert.match(carrier, /rt-sign-train-background/);
     assert.match(carrier, /<div class="rt-sign-stage" style="position:relative;overflow:hidden;">/);
     assert.match(carrier, /<div class="rt-sign-train-layer" data-rt-layer-train/);
     assert.match(carrier, /<img class="rt-sign-train" data-rt-train src="'\.\$source\.'" width="720"/);
-    assert.match(carrier, /<img src="'\.\$escapedSource\.'" width="720"/);
     assert.match(preview, /MailSignature::forCompany\(/);
     assert.match(preview, /->renderDocument\(/);
     assert.doesNotMatch(preview, /SignatureTrainCarrier::projectAsImage\(/);
     assert.match(runtime, /SignatureTrainCarrier::withIdleOverlay\(/);
     assert.match(carrier, /data-rt-train-idle-overlay/);
     assert.match(carrier, /background-image:url\(/);
+    assert.match(carrier, /data-rt-train-idle-overlay[^>]*position:absolute;[^>]*font-size:0;line-height:0;/);
     assert.doesNotMatch(carrier, /<img class="rt-train-idle-image"/);
     assert.doesNotMatch(runtime, /rt-classic-outlook-train/);
 });

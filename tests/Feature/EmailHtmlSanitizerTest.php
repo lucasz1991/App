@@ -85,7 +85,7 @@ class EmailHtmlSanitizerTest extends TestCase
         }
     }
 
-    /** Der editierbare Schema-13-Tokenstand muss bytegleich speicherbar sein. */
+    /** Der editierbare Schema-15-Tokenstand muss bytegleich speicherbar sein. */
     public function test_die_echte_editierbare_signaturquelle_kommt_zeichengleich_durch(): void
     {
         $tokens = [];
@@ -94,13 +94,21 @@ class EmailHtmlSanitizerTest extends TestCase
         }
         $signature = view('emails.parts.signature', ['values' => $tokens])->render();
 
-        // Der gespeicherte Editorstand enthaelt nur Tokens und den modernen
-        // Hauptlayer. Der MSO-Still wird erst nach der Runtime-Projektion
-        // hinzugefuegt und ist deshalb kein Sanitizer-Eingabevertrag.
+        // Der gespeicherte Editorstand enthaelt nur Tokens und das kanonische
+        // absolute Haupt-IMG. Background-Marker und MSO-VML entstehen erst
+        // nach der Runtime-Projektion und sind kein Sanitizer-Eingabevertrag.
         $this->assertSame(1, substr_count($signature, 'src="{{TRAIN_SRC}}"'));
+        $this->assertStringNotContainsString('url({{TRAIN_SRC}})', $signature);
         $this->assertStringNotContainsString('mail-assets/', $signature);
         $this->assertStringNotContainsString('data:image', $signature);
         $this->assertStringNotContainsString('class="rt-sign-train-mso"', $signature);
+        $this->assertStringNotContainsString('rt-sign-train-background', $signature);
+        $this->assertStringNotContainsString('data-rt-train-background', $signature);
+        $this->assertStringNotContainsString('data-rt-train-align', $signature);
+        $this->assertStringNotContainsString('data-rt-train-size', $signature);
+        $this->assertStringNotContainsString('data-rt-train-mobile', $signature);
+        $this->assertStringNotContainsString('<v:rect', $signature);
+        $this->assertStringNotContainsString('<v:fill', $signature);
         $this->assertSame(1, substr_count($signature, 'class="rt-sign-stage"'));
         $this->assertSame(1, substr_count($signature, 'class="rt-sign-train"'));
         $this->assertSame(1, substr_count($signature, 'data-rt-layer-train'));

@@ -94,6 +94,71 @@ class MailDocumentEditorTest extends TestCase
     }
 
     /**
+     * Baut ausschliesslich fuer die Runtime-Kompatibilitaetstests den vor
+     * Schema 15 veroeffentlichten Background-Vertrag aus dem heutigen,
+     * editierbaren IMG-Vertrag nach. Neue Seeder-/Editorstaende duerfen diese
+     * Form nicht mehr speichern.
+     */
+    private function legacyBackgroundSignature(string $canonicalHtml, bool $withIdle = false): string
+    {
+        $backgroundImage = 'background-image:url({{GRUND_RASTER_SRC}}),url({{GRUND_MARKE_SRC}}),'
+            .'linear-gradient({{SIGNATURE_TRAIN_WASH}},{{SIGNATURE_TRAIN_WASH}});';
+        $backgroundRepeat = 'background-repeat:repeat,no-repeat,no-repeat;';
+        $backgroundPosition = 'background-position:left top,right center,center center;';
+        $backgroundSize = 'background-size:64px 64px,auto 100%,100% 100%;';
+
+        $trainImages = $withIdle
+            ? 'url({{TRAIN_IDLE_SRC}}),url({{TRAIN_SRC}})'
+            : 'url({{TRAIN_SRC}})';
+        $trainRepeats = $withIdle ? 'no-repeat,no-repeat' : 'no-repeat';
+        $trainPositions = $withIdle ? 'right bottom,right bottom' : '75% bottom';
+        $trainSizes = $withIdle ? 'auto 100%,auto 100%' : 'auto 100%';
+
+        $html = str_replace(
+            $backgroundImage.$backgroundRepeat.$backgroundPosition.$backgroundSize,
+            rtrim($backgroundImage, ';').','.$trainImages.';'
+                .rtrim($backgroundRepeat, ';').','.$trainRepeats.';'
+                .rtrim($backgroundPosition, ';').','.$trainPositions.';'
+                .rtrim($backgroundSize, ';').','.$trainSizes.';',
+            $canonicalHtml,
+            $backgroundCount,
+        );
+        $this->assertSame(1, $backgroundCount);
+
+        $html = preg_replace(
+            '/<div\b(?=[^>]*class="rt-sign-train-layer")(?=[^>]*\bdata-rt-layer-train\b)[^>]*>\s*'
+                .'<img\b(?=[^>]*class="rt-sign-train")(?=[^>]*\bdata-rt-train\b)[^>]*>\s*<\/div>/i',
+            '',
+            $html,
+            1,
+            $imageLayerCount,
+        );
+        $this->assertIsString($html);
+        $this->assertSame(1, $imageLayerCount);
+
+        // Der alte Background-Vertrag besass noch keine sichere Stage. Sie
+        // wird beim Runtime-Upgrade gemeinsam mit dem neuen, leeren Zug-Layer
+        // genau einmal durch projectAsImage() erzeugt.
+        $html = str_replace(
+            '<div class="rt-sign-stage" style="position:relative;overflow:hidden;">',
+            '',
+            $html,
+            $stageOpenCount,
+        );
+        $html = preg_replace(
+            '/<\/div>(\s*<\/td>\s*<\/tr>\s*<!-- RT_SIGNATURE_MAIN_END -->)/i',
+            '$1',
+            $html,
+            1,
+            $stageCloseCount,
+        );
+        $this->assertIsString($html);
+        $this->assertSame([1, 1], [$stageOpenCount, $stageCloseCount]);
+
+        return $html;
+    }
+
+    /**
      * Die Zusage des Seeders fuer das Deployment: Er stellt den
      * ausgelieferten Stand her UND gibt ihn frei, damit unmittelbar danach
      * geprueft werden kann — ohne einen weiteren Handgriff im Editor.
@@ -127,27 +192,29 @@ class MailDocumentEditorTest extends TestCase
             $seededSignature,
         );
 
-        $schemaThirteenSignature = MailSignature::forCompany(
-            playbackNonce: 'schema-thirteen-release',
+        $runtimeSignature = MailSignature::forCompany(
+            playbackNonce: 'schema-fifteen-release',
         )->render();
-        $this->assertSame(1, substr_count($schemaThirteenSignature, 'data-rt-layer-train'));
-        $this->assertSame(1, substr_count($schemaThirteenSignature, 'class="rt-sign-stage"'));
-        $this->assertSame(1, substr_count($schemaThirteenSignature, 'class="rt-sign-train"'));
-        $this->assertSame(1, substr_count($schemaThirteenSignature, 'class="rt-sign-train-mso"'));
-        $this->assertSame(1, substr_count($schemaThirteenSignature, 'zug-dampf-light.gif'));
-        $this->assertSame(1, substr_count($schemaThirteenSignature, 'zug-dampf-light.png'));
-        $this->assertStringContainsString('class="rt-sign-train-layer"', $schemaThirteenSignature);
-        $this->assertStringContainsString('data-rt-layer-size="100"', $schemaThirteenSignature);
-        $this->assertStringContainsString('data-rt-layer-mobile="train"', $schemaThirteenSignature);
-        $this->assertStringContainsString('style="position:absolute;', $schemaThirteenSignature);
-        $this->assertMatchesRegularExpression(
-            '/<img\b(?=[^>]*class="[^"]*\brt-sign-train\b[^"]*")(?=[^>]*\bdata-rt-train(?:\s|=|>))(?=[^>]*\bwidth="720")(?=[^>]*mso-hide:all)[^>]*zug-dampf-light\.gif[^>]*>/i',
-            $schemaThirteenSignature,
-        );
+        $this->assertSame(1, substr_count($runtimeSignature, 'data-rt-layer-train'));
+        $this->assertSame(1, substr_count($runtimeSignature, 'class="rt-sign-stage"'));
+        $this->assertSame(0, substr_count($runtimeSignature, 'class="rt-sign-train"'));
+        $this->assertSame(1, substr_count($runtimeSignature, 'class="rt-sign-train-mso"'));
+        $this->assertSame(1, substr_count($runtimeSignature, 'data-rt-train-background'));
+        $this->assertSame(1, substr_count($runtimeSignature, 'rt-sign-train-background'));
+        $this->assertSame(1, substr_count($runtimeSignature, 'zug-dampf-light.gif'));
+        $this->assertSame(1, substr_count($runtimeSignature, 'zug-dampf-light.png'));
+        $this->assertStringContainsString('class="rt-sign-train-layer"', $runtimeSignature);
+        $this->assertStringContainsString('data-rt-train-size="100"', $runtimeSignature);
+        $this->assertStringContainsString('data-rt-train-mobile="train"', $runtimeSignature);
         $this->assertDoesNotMatchRegularExpression(
-            '/<td\b[^>]*class="[^"]*\brt-sign-cell\b[^"]*"[^>]*zug-dampf-light\.gif/i',
-            $schemaThirteenSignature,
+            '/<img\b(?=[^>]*class="[^"]*\brt-sign-train\b[^"]*")|<img\b(?=[^>]*\bdata-rt-train(?:\s|=|>))/i',
+            $runtimeSignature,
         );
+        $this->assertMatchesRegularExpression(
+            '/<div\b[^>]*class="rt-sign-stage"[^>]*>\s*<!--\[if mso\]><v:rect\b[^>]*class="rt-sign-train-mso"[^>]*>\s*<v:fill\b[^>]*zug-dampf-light\.png[^>]*>\s*<\/v:rect><!\[endif\]-->/i',
+            $runtimeSignature,
+        );
+        $this->assertStringNotContainsString('<!--[if mso]><tr><td class="rt-sign-train-mso"', $runtimeSignature);
 
         // ZWEITER LAUF: Er ueberschreibt ohne Rueckfrage — auch Editor-Arbeit.
         // Genau dafuer ist der Aufruf am Ende eines Deployments gedacht.
@@ -411,23 +478,25 @@ class MailDocumentEditorTest extends TestCase
         $this->assertStringNotContainsString('data-rt-train-main-image', $html);
         $this->assertStringNotContainsString('data-rt-train-main-layer', $html);
         $this->assertSame(0, substr_count($html, 'rt-classic-outlook-train'));
-        // Moderne Clients verwenden genau ein absolutes GIF; MSO bekommt
-        // genau ein statisches PNG mit derselben 720er Darstellungsbreite.
+        // Moderne Clients verwenden das GIF als vierte, hoehenneutrale
+        // Carrier-Ebene; MSO bekommt genau ein statisches VML-PNG innerhalb
+        // derselben Stage. Ein regulaeres Haupt-IMG existiert final nicht.
         $this->assertSame(1, substr_count($html, 'zug-dampf-light.gif'));
         $this->assertSame(1, substr_count($html, 'zug-dampf-light.png'));
         $this->assertSame(
-            1,
+            0,
             preg_match_all(
-                '/<img\b(?=[^>]*class="[^"]*\brt-sign-train\b[^"]*")(?=[^>]*\bdata-rt-train(?:\s|=|>))(?=[^>]*\bwidth="720")(?=[^>]*position:absolute)(?=[^>]*mso-hide:all)[^>]*zug-dampf-light\.gif[^>]*>/i',
+                '/<img\b(?=[^>]*class="[^"]*\brt-sign-train\b[^"]*")|<img\b(?=[^>]*\bdata-rt-train(?:\s|=|>))/i',
                 $html,
             ),
         );
         $this->assertSame(1, substr_count($html, 'class="rt-sign-stage"'));
-        $this->assertSame(1, substr_count($html, 'class="rt-sign-train"'));
+        $this->assertSame(0, substr_count($html, 'class="rt-sign-train"'));
         $this->assertSame(1, substr_count($html, 'class="rt-sign-train-mso"'));
-        $this->assertStringContainsString('<!--[if mso]><tr><td class="rt-sign-train-mso" width="100%"', $html);
+        $this->assertSame(1, substr_count($html, 'data-rt-train-background'));
+        $this->assertStringNotContainsString('<!--[if mso]><tr><td class="rt-sign-train-mso"', $html);
         $this->assertMatchesRegularExpression(
-            '/class="rt-sign-train-mso"[^>]*>\s*<img\b[^>]*zug-dampf-light\.png[^>]*width="720"[^>]*max-width:720px[^>]*>/i',
+            '/<div\b[^>]*class="rt-sign-stage"[^>]*>\s*<!--\[if mso\]><v:rect\b[^>]*class="rt-sign-train-mso"[^>]*>\s*<v:fill\b[^>]*zug-dampf-light\.png[^>]*>\s*<\/v:rect><!\[endif\]-->/i',
             $html,
         );
         $this->assertStringContainsString('zug-dampf-idle-light.gif', $html);
@@ -442,10 +511,12 @@ class MailDocumentEditorTest extends TestCase
             preg_match('/<td[^>]*class="[^"]*rt-sign-cell[^"]*"[^>]*>/', $html, $trainCarrier),
         );
         $this->assertStringContainsString('padding:0;', $trainCarrier[0]);
-        $this->assertStringNotContainsString('zug-dampf-light.gif', $trainCarrier[0]);
-        $this->assertStringContainsString('background-repeat:repeat,no-repeat,no-repeat;', $trainCarrier[0]);
-        $this->assertStringContainsString('background-position:left top,right center,center center;', $trainCarrier[0]);
-        $this->assertStringContainsString('background-size:64px 64px,auto 100%,100% 100%;', $trainCarrier[0]);
+        $this->assertStringContainsString('zug-dampf-light.gif', $trainCarrier[0]);
+        $this->assertStringContainsString('class="rt-sign-cell rt-sign-train-background"', $trainCarrier[0]);
+        $this->assertStringContainsString('data-rt-train-background', $trainCarrier[0]);
+        $this->assertStringContainsString('background-repeat:repeat,no-repeat,no-repeat,no-repeat;', $trainCarrier[0]);
+        $this->assertStringContainsString('background-position:left top,right center,center center,left bottom;', $trainCarrier[0]);
+        $this->assertStringContainsString('background-size:64px 64px,auto 100%,100% 100%,100% auto;', $trainCarrier[0]);
         $this->assertSame(1, substr_count($html, 'class="rt-pad rt-sign-content"'));
         $this->assertStringNotContainsString('data:image', $html);
         $this->assertLessThan(60 * 1024, strlen($html));
@@ -501,7 +572,7 @@ class MailDocumentEditorTest extends TestCase
             ] as $contract => $assertion) {
                 try {
                     $assertion();
-                    $this->fail("{$name}: {$contract} akzeptierte die unvollstaendige Schema-13-Geometrie.");
+                    $this->fail("{$name}: {$contract} akzeptierte die unvollstaendige Schema-15-Geometrie.");
                 } catch (\RuntimeException $exception) {
                     $this->assertMatchesRegularExpression(
                         '/Geometrieangaben|720-Pixel-Fallback/',
@@ -710,18 +781,10 @@ class MailDocumentEditorTest extends TestCase
     {
         (new MailDocumentSeeder)->run();
         $signature = $this->document(MailDocumentKind::Signature);
-        $legacy = str_replace(
-            'url({{TRAIN_SRC}});background-repeat:repeat,no-repeat,no-repeat,no-repeat;'
-                .'background-position:left top,right center,center center,75% bottom;'
-                .'background-size:64px 64px,auto 100%,100% 100%,auto 100%;',
-            'url(\'{{TRAIN_IDLE_SRC}}\'),url(&quot;{{TRAIN_SRC}}&quot;);'
-                .'background-repeat:repeat,no-repeat,no-repeat,no-repeat,no-repeat;'
-                .'background-position:left top,right center,center center,right bottom,right bottom;'
-                .'background-size:64px 64px,auto 100%,100% 100%,auto 100%,auto 100%;',
+        $legacy = $this->legacyBackgroundSignature(
             (string) $signature->published_html,
-            $legacyReplacementCount,
+            withIdle: true,
         );
-        $this->assertSame(1, $legacyReplacementCount);
         $signature->forceFill([
             'html' => $legacy,
             'published_html' => $legacy,
@@ -737,37 +800,43 @@ class MailDocumentEditorTest extends TestCase
         );
 
         // Der Legacy-Idle-Layer wird entfernt; das kombinierte Haupt-GIF
-        // wird genau einmal modern ausgegeben, plus genau ein MSO-Still.
+        // wird genau einmal als vierte Background-Ebene ausgegeben, plus
+        // genau ein innerhalb der Stage verankertes MSO-VML-Standbild.
         $this->assertSame(1, substr_count($html, 'zug-dampf-light.gif'));
         $this->assertSame(1, substr_count($html, 'zug-dampf-light.png'));
         $this->assertStringContainsString('zug-dampf-idle-light.gif', $html);
         $this->assertSame(1, substr_count($html, 'class="rt-sign-stage"'));
-        $this->assertSame(1, substr_count($html, 'class="rt-sign-train"'));
+        $this->assertSame(0, substr_count($html, 'class="rt-sign-train"'));
         $this->assertSame(1, substr_count($html, 'class="rt-sign-train-mso"'));
-        $this->assertStringContainsString('<!--[if mso]><tr><td class="rt-sign-train-mso" width="100%"', $html);
+        $this->assertSame(1, substr_count($html, 'data-rt-train-background'));
+        $this->assertStringNotContainsString('<!--[if mso]><tr><td class="rt-sign-train-mso"', $html);
+        $this->assertMatchesRegularExpression(
+            '/<div\b[^>]*class="rt-sign-stage"[^>]*>\s*<!--\[if mso\]><v:rect\b[^>]*class="rt-sign-train-mso"[^>]*>\s*<v:fill\b[^>]*zug-dampf-light\.png[^>]*>\s*<\/v:rect><!\[endif\]-->/i',
+            $html,
+        );
         $this->assertStringContainsString('data-rt-train-idle-overlay', $html);
         $this->assertStringNotContainsString('data-rt-train-main-image', $html);
         $this->assertStringNotContainsString('data-rt-train-main-layer', $html);
         $this->assertStringNotContainsString('data-rt-train-idle-image', $html);
         $this->assertStringNotContainsString('zug-dampf-idle-light.gif', $carrier[0]);
-        $this->assertStringNotContainsString('zug-dampf-light.gif', $carrier[0]);
+        $this->assertStringContainsString('zug-dampf-light.gif', $carrier[0]);
         $this->assertStringContainsString(
-            'background-repeat:repeat,no-repeat,no-repeat;',
+            'background-repeat:repeat,no-repeat,no-repeat,no-repeat;',
             $carrier[0],
         );
         $this->assertStringContainsString(
-            'background-position:left top,right center,center center;',
+            'background-position:left top,right center,center center,left bottom;',
             $carrier[0],
         );
         $this->assertStringContainsString(
-            'background-size:64px 64px,auto 100%,100% 100%;',
+            'background-size:64px 64px,auto 100%,100% 100%,100% auto;',
             $carrier[0],
         );
         $this->assertStringContainsString(
             'linear-gradient(rgba(255,255,255,0),rgba(255,255,255,0))',
             $carrier[0],
         );
-        $this->assertStringContainsString('right bottom', $carrier[0]);
+        $this->assertStringContainsString('left bottom', $carrier[0]);
         $this->assertStringContainsString(
             '&amp;p='.substr(hash('sha256', 'legacy-contract'), 0, 32),
             $carrier[0],
@@ -777,9 +846,10 @@ class MailDocumentEditorTest extends TestCase
             $html,
         );
 
-        $report = (new EmailHtmlSanitizer(['127.0.0.1', 'rail-time.de']))->clean($html);
-        $this->assertSame([], $report->findings, implode(' | ', $report->messages()));
-        $this->assertSame($html, $report->html);
+        // Das serverkontrollierte VML entsteht bewusst erst nach dem
+        // Editor-Sanitizer. Fuer die finale Ausgabe gilt deshalb der eigene
+        // Runtime-Background-Vertrag, nicht der Eingabevertrag des Editors.
+        SignatureTrainCarrier::assertRuntimeBackground($html);
     }
 
     public function test_aktuelle_zugstruktur_wird_bytegleich_idempotent_normalisiert(): void
@@ -801,17 +871,7 @@ class MailDocumentEditorTest extends TestCase
     {
         (new MailDocumentSeeder)->run();
         $published = (string) $this->document(MailDocumentKind::Signature)->published_html;
-        $legacy = str_replace(
-            'url({{TRAIN_SRC}});background-repeat:repeat,no-repeat,no-repeat,no-repeat;'
-                .'background-position:left top,right center,center center,75% bottom;'
-                .'background-size:64px 64px,auto 100%,100% 100%,auto 100%;',
-            'url({{TRAIN_IDLE_SRC}}),url({{TRAIN_SRC}});'
-                .'background-repeat:repeat,no-repeat,no-repeat,no-repeat,no-repeat;'
-                .'background-position:left top,right center,center center,right bottom,right bottom;'
-                .'background-size:64px 64px,auto 100%,100% 100%,auto 100%,auto 100%;',
-            $published,
-            $legacyCount,
-        );
+        $legacy = $this->legacyBackgroundSignature($published, withIdle: true);
         $decoy = <<<'HTML'
 data-decoy='<td class="rt-sign-cell" style="background:none">'
 HTML;
@@ -822,7 +882,6 @@ HTML;
             $carrierCount,
         );
 
-        $this->assertSame(1, $legacyCount);
         $this->assertSame(1, $carrierCount);
         $normalized = SignatureTrainCarrier::normalize($withDecoy);
 
@@ -834,7 +893,9 @@ HTML;
     public function test_mehrdeutige_oder_malformed_background_listen_brechen_fail_closed_ab(): void
     {
         (new MailDocumentSeeder)->run();
-        $published = (string) $this->document(MailDocumentKind::Signature)->published_html;
+        $published = $this->legacyBackgroundSignature(
+            (string) $this->document(MailDocumentKind::Signature)->published_html,
+        );
         $signature = MailSignature::forCompany(playbackNonce: 'malformed-contract');
         $normalizer = new \ReflectionMethod($signature, 'normalizePublishedTrainCarrier');
         $normalizer->setAccessible(true);
@@ -931,10 +992,11 @@ HTML;
     {
         (new MailDocumentSeeder)->run();
         $signature = $this->document(MailDocumentKind::Signature);
+        $legacy = $this->legacyBackgroundSignature((string) $signature->published_html);
         $malformedForBackgroundRuntime = str_replace(
             'background-repeat:repeat,no-repeat,no-repeat,no-repeat;',
             'background-repeat:repeat,no-repeat,no-repeat;',
-            (string) $signature->published_html,
+            $legacy,
             $replacementCount,
         );
         $this->assertSame(1, $replacementCount);
@@ -1153,8 +1215,8 @@ HTML;
         $this->assertLessThan(stripos($standalone, '</head>'), stripos($standalone, 'data-rt-mail-document-css="signature"'));
 
         // Vorlage, eigenstaendige Signatur und Systemmail verwenden denselben
-        // Schema-14-Pfad: absolutes Haupt-GIF, eine transparente
-        // Idle-Rauchschleife plus genau ein MSO-Still.
+        // Schema-15-Runtimepfad: Haupt-GIF als vierte Background-Ebene, eine
+        // transparente Idle-Rauchschleife plus genau ein MSO-VML-Standbild.
         foreach ([
             'Vorlage' => $template,
             'Signatur' => $standalone,
@@ -1162,7 +1224,7 @@ HTML;
         ] as $channel => $rendered) {
             $this->assertStringContainsString('data-rt-train-idle-overlay', $rendered, $channel);
             $this->assertStringNotContainsString('data-rt-train-idle-image', $rendered, $channel);
-            $this->assertStringContainsString('zug-dampf-idle-', $rendered, $channel);
+            $this->assertStringContainsString('rt-train-idle-reveal', $rendered, $channel);
             $this->assertSame(
                 1,
                 preg_match(
@@ -1173,15 +1235,21 @@ HTML;
                 $channel,
             );
             $this->assertStringContainsString(
-                'background-repeat:repeat,no-repeat,no-repeat;',
+                'background-repeat:repeat,no-repeat,no-repeat,no-repeat;',
                 $carrier[0],
                 $channel,
             );
+            $this->assertStringContainsString('data-rt-train-background', $carrier[0], $channel);
             $this->assertStringNotContainsString(',75% bottom;', $carrier[0], $channel);
             $this->assertSame(1, substr_count($rendered, 'class="rt-sign-stage"'), $channel);
-            $this->assertSame(1, substr_count($rendered, 'class="rt-sign-train"'), $channel);
+            $this->assertSame(0, substr_count($rendered, 'class="rt-sign-train"'), $channel);
             $this->assertSame(1, substr_count($rendered, 'class="rt-sign-train-mso"'), $channel);
-            $this->assertStringContainsString('width="720"', $rendered, $channel);
+            $this->assertMatchesRegularExpression(
+                '/<div\b[^>]*class="rt-sign-stage"[^>]*>\s*<!--\[if mso\]><v:rect\b[^>]*class="rt-sign-train-mso"[^>]*>\s*<v:fill\b[^>]*>\s*<\/v:rect><!\[endif\]-->/i',
+                $rendered,
+                $channel,
+            );
+            $this->assertStringNotContainsString('<!--[if mso]><tr><td class="rt-sign-train-mso"', $rendered, $channel);
         }
 
         $this->assertStringContainsString('.rt-sign-name{letter-spacing:0;}', $systemMail);
@@ -1192,7 +1260,7 @@ HTML;
         $this->assertStringNotContainsString('data-rt-train-main-layer', $systemMail);
         $this->assertStringNotContainsString('data-rt-train-idle-image', $systemMail);
         $this->assertSame(1, substr_count($systemMail, 'zug-dampf-light.gif'));
-        $this->assertSame(1, preg_match_all('/<img\b[^>]*zug-dampf-light\.gif[^>]*>/i', $systemMail));
+        $this->assertSame(0, preg_match_all('/<img\b[^>]*zug-dampf-light\.gif[^>]*>/i', $systemMail));
         $this->assertSame(0, substr_count($systemMail, 'rt-classic-outlook-train'));
         $this->assertDoesNotMatchRegularExpression(
             '/class="[^"]*rt-sign-cell[^"]*"[^>]*\sbackground=/',
@@ -1203,9 +1271,10 @@ HTML;
             preg_match('/<td\b[^>]*class="[^"]*\brt-sign-cell\b[^"]*"[^>]*>/', $systemMail, $systemTrainCarrier),
         );
         $this->assertStringContainsString('padding:0;', $systemTrainCarrier[0]);
-        $this->assertStringNotContainsString('zug-dampf-light.gif', $systemTrainCarrier[0]);
-        $this->assertStringContainsString('background-repeat:repeat,no-repeat,no-repeat;', $systemTrainCarrier[0]);
-        $this->assertStringContainsString('background-position:left top,right center,center center;', $systemTrainCarrier[0]);
+        $this->assertStringContainsString('zug-dampf-light.gif', $systemTrainCarrier[0]);
+        $this->assertStringContainsString('data-rt-train-background', $systemTrainCarrier[0]);
+        $this->assertStringContainsString('background-repeat:repeat,no-repeat,no-repeat,no-repeat;', $systemTrainCarrier[0]);
+        $this->assertStringContainsString('background-position:left top,right center,center center,left bottom;', $systemTrainCarrier[0]);
         $this->assertSame(1, substr_count($systemMail, 'class="rt-pad rt-sign-content"'));
         $this->assertSame(1, substr_count($systemMail, 'zug-dampf-light.png'));
 
@@ -1222,19 +1291,20 @@ HTML;
         $this->assertStringContainsString('RT-SIGNATUR Mara Beispiel', $outlook);
         $this->assertStringNotContainsString('data-rt-outlook-train', $outlook);
         $this->assertSame(1, substr_count($outlook, 'class="rt-sign-stage"'));
-        $this->assertSame(1, substr_count($outlook, 'class="rt-sign-train"'));
+        $this->assertSame(0, substr_count($outlook, 'class="rt-sign-train"'));
         $this->assertSame(1, substr_count($outlook, 'class="rt-sign-train-mso"'));
         $this->assertSame(
-            1,
-            preg_match('/<img\b(?=[^>]*class="[^"]*\brt-sign-train\b[^"]*")(?=[^>]*\bdata-rt-train(?:\s|=|>))[^>]*>/', $outlook, $outlookAnimatedTrain),
+            0,
+            preg_match_all('/<img\b(?=[^>]*class="[^"]*\brt-sign-train\b[^"]*")|<img\b(?=[^>]*\bdata-rt-train(?:\s|=|>))/', $outlook),
         );
-        $this->assertStringNotContainsString('opacity:', $outlookAnimatedTrain[0]);
-        $this->assertStringContainsString('width="720"', $outlookAnimatedTrain[0]);
-        $this->assertStringContainsString('style="position:absolute;', $outlookAnimatedTrain[0]);
-        $this->assertStringContainsString('max-width:1815px;', $outlookAnimatedTrain[0]);
-        $this->assertStringContainsString('mso-hide:all;', $outlookAnimatedTrain[0]);
+        $this->assertSame(
+            1,
+            preg_match('/<td\b[^>]*class="[^"]*\brt-sign-cell\b[^"]*"[^>]*>/', $outlook, $outlookTrainCarrier),
+        );
+        $this->assertStringContainsString('data-rt-train-background', $outlookTrainCarrier[0]);
+        $this->assertStringContainsString('RailTime_files/zug-dampf.gif', $outlookTrainCarrier[0]);
         $this->assertMatchesRegularExpression(
-            '/class="rt-sign-train-mso"[^>]*>\s*<img\b[^>]*src="RailTime_files\/zug-dampf\.png"[^>]*width="720"[^>]*max-width:720px[^>]*>/i',
+            '/<div\b[^>]*class="rt-sign-stage"[^>]*>\s*<!--\[if mso\]><v:rect\b[^>]*class="rt-sign-train-mso"[^>]*>\s*<v:fill\b[^>]*src="RailTime_files\/zug-dampf\.png"[^>]*>\s*<\/v:rect><!\[endif\]-->/i',
             $outlook,
         );
     }
@@ -1639,12 +1709,8 @@ HTML;
                 $canonicalHtml,
             ),
             'zweite zugquelle' => str_replace(
-                // OHNE Anfuehrungszeichen — so steht die Zugquelle im
-                // Markup, seit der Streifen mehrere Hintergrundebenen
-                // traegt. Blade escaped Anfuehrungszeichen im
-                // style-Attribut sonst zu &#039;.
-                'url({{TRAIN_SRC}})',
-                'url({{TRAIN_SRC}}),url({{TRAIN_SRC}})',
+                'src="{{TRAIN_SRC}}"',
+                'src="{{TRAIN_SRC}}{{TRAIN_SRC}}"',
                 $canonicalHtml,
             ),
             'frei erfundene traegerklasse' => str_replace(
@@ -1703,18 +1769,14 @@ HTML;
                 $validHtml,
             ),
             'mehrere train tokens' => str_replace(
-                // OHNE Anfuehrungszeichen — so steht die Zugquelle im
-                // Markup, seit der Streifen mehrere Hintergrundebenen
-                // traegt. Blade escaped Anfuehrungszeichen im
-                // style-Attribut sonst zu &#039;.
-                'url({{TRAIN_SRC}})',
-                'url({{TRAIN_SRC}}),url({{TRAIN_SRC}})',
+                'src="{{TRAIN_SRC}}"',
+                'src="{{TRAIN_SRC}}{{TRAIN_SRC}}"',
                 $validHtml,
             ),
             'serverseitiger MSO fallback im quell-html' => str_replace(
                 '<!-- RT_SIGNATURE_MAIN_END -->',
-                '<!--[if mso]><tr><td class="rt-sign-train-mso" width="100%">'
-                    .'<img src="{{TRAIN_STILL_SRC}}" width="720" alt=""></td></tr><![endif]-->'
+                '<!--[if mso]><v:rect class="rt-sign-train-mso" fill="true" stroke="false">'
+                    .'<v:fill src="{{TRAIN_STILL_SRC}}" /></v:rect><![endif]-->'
                     .'<!-- RT_SIGNATURE_MAIN_END -->',
                 $validHtml,
             ),
@@ -2161,26 +2223,26 @@ HTML;
 
         $extraLayer = function (string $image) use ($canonicalHtml): string {
             $html = str_replace(
-                'url({{TRAIN_SRC}})',
-                $image.',url({{TRAIN_SRC}})',
+                'linear-gradient({{SIGNATURE_TRAIN_WASH}},{{SIGNATURE_TRAIN_WASH}});',
+                'linear-gradient({{SIGNATURE_TRAIN_WASH}},{{SIGNATURE_TRAIN_WASH}}),'.$image.';',
                 $canonicalHtml,
                 $imageCount,
             );
             $html = str_replace(
+                'background-repeat:repeat,no-repeat,no-repeat;',
                 'background-repeat:repeat,no-repeat,no-repeat,no-repeat;',
-                'background-repeat:repeat,no-repeat,no-repeat,no-repeat,no-repeat;',
                 $html,
                 $repeatCount,
             );
             $html = str_replace(
-                'background-position:left top,right center,center center,75% bottom;',
-                'background-position:left top,right center,center center,right bottom,75% bottom;',
+                'background-position:left top,right center,center center;',
+                'background-position:left top,right center,center center,right bottom;',
                 $html,
                 $positionCount,
             );
             $html = str_replace(
+                'background-size:64px 64px,auto 100%,100% 100%;',
                 'background-size:64px 64px,auto 100%,100% 100%,auto 100%;',
-                'background-size:64px 64px,auto 100%,100% 100%,auto 100%,auto 100%;',
                 $html,
                 $sizeCount,
             );
@@ -2210,40 +2272,40 @@ HTML;
             ],
             'global repeat value' => [
                 str_replace(
-                    'background-repeat:repeat,no-repeat,no-repeat,no-repeat;',
-                    'background-repeat:inherit,no-repeat,no-repeat,no-repeat;',
+                    'background-repeat:repeat,no-repeat,no-repeat;',
+                    'background-repeat:inherit,no-repeat,no-repeat;',
                     $canonicalHtml,
                 ),
-                'Wiederholungswerte',
+                'Basis-Layer',
             ],
             'bogus position value' => [
                 str_replace(
-                    'background-position:left top,right center,center center,75% bottom;',
-                    'background-position:bogus,right center,center center,75% bottom;',
+                    'background-position:left top,right center,center center;',
+                    'background-position:bogus,right center,center center;',
                     $canonicalHtml,
                 ),
-                'Basispositionen',
+                'Basis-Layer',
             ],
             'bogus size value' => [
                 str_replace(
-                    'background-size:64px 64px,auto 100%,100% 100%,auto 100%;',
-                    'background-size:bogus,auto 100%,100% 100%,auto 100%;',
+                    'background-size:64px 64px,auto 100%,100% 100%;',
+                    'background-size:bogus,auto 100%,100% 100%;',
                     $canonicalHtml,
                 ),
-                'Basisgroessen',
+                'Basis-Layer',
             ],
             'foreign url layer' => [
                 $extraLayer('url(https://rail-time.de/foreign-train.gif)'),
-                'Legacy-Idle-Layer',
+                'Background-Layerzahl',
             ],
             'foreign data uri layer' => [
                 $extraLayer('url(data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==)'),
-                'Legacy-Idle-Layer',
+                'Background-Layerzahl',
             ],
-            'important background image' => [$importantLonghand('background-image'), '!important'],
-            'important background repeat' => [$importantLonghand('background-repeat'), '!important'],
-            'important background position' => [$importantLonghand('background-position'), '!important'],
-            'important background size' => [$importantLonghand('background-size'), '!important'],
+            'important background image' => [$importantLonghand('background-image'), 'Background-Listen'],
+            'important background repeat' => [$importantLonghand('background-repeat'), 'Background-Listen'],
+            'important background position' => [$importantLonghand('background-position'), 'Background-Listen'],
+            'important background size' => [$importantLonghand('background-size'), 'Background-Listen'],
         ];
 
         foreach ($attacks as $label => [$attackHtml, $runtimeMessage]) {
@@ -2328,8 +2390,8 @@ HTML;
             $duplicateImageCount,
         );
         $nonParallelHtml = str_replace(
-            'background-repeat:repeat,no-repeat,no-repeat,no-repeat;',
             'background-repeat:repeat,no-repeat,no-repeat;',
+            'background-repeat:repeat,no-repeat;',
             $canonicalHtml,
             $nonParallelCount,
         );
@@ -2605,8 +2667,8 @@ HTML;
             ),
             str_replace(
                 '<!-- RT_SIGNATURE_MAIN_END -->',
-                '<!--[if mso]><tr><td class="rt-sign-train-mso" width="100%">'
-                    .'<img src="{{TRAIN_STILL_SRC}}" width="720" alt=""></td></tr><![endif]-->'
+                '<!--[if mso]><v:rect class="rt-sign-train-mso" fill="true" stroke="false">'
+                    .'<v:fill src="{{TRAIN_STILL_SRC}}" /></v:rect><![endif]-->'
                     .'<!-- RT_SIGNATURE_MAIN_END -->',
                 $canonical,
             ),
@@ -2638,13 +2700,22 @@ HTML;
         $this->seedDocuments();
         $document = $this->document(MailDocumentKind::Signature);
         $canonical = (string) $document->html;
-        $spacedFallback = str_replace(
-            '<!-- RT_SIGNATURE_MAIN_END -->',
-            "<!--  [if   mso]   >\n<tr><td class=\"aux rt-sign-train-mso\"></td></tr>\n<!   [endif]   -->\n"
-                .'<!-- RT_SIGNATURE_MAIN_END -->',
+        $runtime = str_replace(
+            '{{TRAIN_SRC}}',
+            'https://rail-time.de/mail-assets/zug-dampf-light.gif',
             $canonical,
+            $runtimeSourceCount,
+        );
+        $this->assertSame(1, $runtimeSourceCount);
+        $runtime = SignatureTrainCarrier::projectAsRuntimeBackground($runtime);
+        $spacedFallback = preg_replace(
+            '/(<div class="rt-sign-stage"[^>]*>)/',
+            '$1'."<!--  [if   mso]   >\n<v:rect class=\"aux rt-sign-train-mso\"><v:fill src=\"https://rail-time.de/mail-assets/zug-dampf-light.png\" /></v:rect>\n<!   [endif]   -->\n",
+            $runtime,
+            1,
             $spacedFallbackCount,
         );
+        $this->assertIsString($spacedFallback);
         $this->assertSame(1, $spacedFallbackCount);
         try {
             SignatureTrainCarrier::withMsoFallback(
@@ -2661,8 +2732,8 @@ HTML;
 
         $storedFallback = str_replace(
             '<!-- RT_SIGNATURE_MAIN_END -->',
-            '<!--[if mso]><tr><td class="rt-sign-train-mso" width="100%">'
-                .'<img src="{{TRAIN_STILL_SRC}}" width="720" alt=""></td></tr><![endif]-->'
+            '<!--[if mso]><v:rect class="rt-sign-train-mso" fill="true" stroke="false">'
+                .'<v:fill src="{{TRAIN_STILL_SRC}}" /></v:rect><![endif]-->'
                 .'<!-- RT_SIGNATURE_MAIN_END -->',
             $canonical,
             $storedFallbackCount,
@@ -2796,7 +2867,7 @@ HTML;
         }
     }
 
-    public function test_runtime_bettet_editierbares_css_vor_trusted_regeln_ein_und_liefert_ein_regulaeres_zugbild(): void
+    public function test_runtime_bettet_editierbares_css_vor_trusted_regeln_ein_und_liefert_den_hoehenneutralen_zughintergrund(): void
     {
         $this->seedDocuments();
         $template = $this->document(MailDocumentKind::Template);
@@ -2825,17 +2896,27 @@ HTML;
         $this->assertLessThan($trusted, $templateCss);
         $this->assertLessThan($trusted, $signatureCss);
         $this->assertSame(1, substr_count($html, 'class="rt-sign-stage"'));
-        $this->assertSame(1, substr_count($html, 'class="rt-sign-train"'));
+        $this->assertSame(0, substr_count($html, 'class="rt-sign-train"'));
         $this->assertSame(1, substr_count($html, 'class="rt-sign-train-mso"'));
-        $this->assertStringContainsString('<!--[if mso]><tr><td class="rt-sign-train-mso" width="100%"', $html);
+        $this->assertSame(1, substr_count($html, 'data-rt-train-background'));
+        $this->assertStringNotContainsString('<!--[if mso]><tr><td class="rt-sign-train-mso"', $html);
+        $this->assertMatchesRegularExpression(
+            '/<div\b[^>]*class="rt-sign-stage"[^>]*>\s*<!--\[if mso\]><v:rect\b[^>]*class="rt-sign-train-mso"[^>]*>\s*<v:fill\b[^>]*>\s*<\/v:rect><!\[endif\]-->/i',
+            $html,
+        );
         $this->assertSame(
             1,
             preg_match('/<td\b[^>]*class="[^"]*\brt-sign-cell\b[^"]*"[^>]*>/', $html, $carrier),
         );
         $this->assertStringContainsString(
-            'background-repeat:repeat,no-repeat,no-repeat;',
+            'background-repeat:repeat,no-repeat,no-repeat,no-repeat;',
             $carrier[0],
         );
+        $this->assertStringContainsString(
+            'background-position:left top,right center,center center,left bottom;',
+            $carrier[0],
+        );
+        $this->assertStringContainsString('zug-dampf-light.gif', $carrier[0]);
         $this->assertStringNotContainsString(',75% bottom;', $carrier[0]);
         $this->assertStringContainsString('data-rt-train-idle-overlay', $html);
         $this->assertStringNotContainsString('data-rt-train-idle-image', $html);

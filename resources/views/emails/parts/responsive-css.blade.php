@@ -61,9 +61,9 @@
   }
 }
 
-/* Der Zug bleibt ein regulaeres IMG. Nur sein absoluter Layer wird auf
-   kleinen Flaechen breiter als der Carrier gesetzt; so endet die Lok wie im
-   Desktoplayout bei etwa 60 Prozent, ohne eine eigene Tabellenzeile. */
+/* Der Editorstand behaelt ein regulaeres IMG. Der finale Renderer verwendet
+   dieselben Presets fuer die vierte Background-Ebene; so endet die Lok auch
+   mobil bei etwa 60 Prozent, ohne eine eigene Tabellenzeile. */
 /* ---- Tablet quer: enger setzen, aber zweispaltig bleiben ---- */
 @media only screen and (max-width: 1000px) {
 .rt-pad { padding-left: 30px !important; padding-right: 30px !important; }
@@ -161,10 +161,34 @@ img.rt-logo { width: 150px !important; }
    Vorsprung, den sie im Breitlayout ausgleicht, faellt hier weg. */
 
 /* Raster, Wasserzeichen und Grundschleier bleiben mobil an ihre drei
-   kanonischen Ebenen gekoppelt. Der Zug ist ein normales IMG. */
+   kanonischen Ebenen gekoppelt. Im Editor folgt das Zug-IMG separat. */
 .rt-sign-cell {
   background-position: left top, right center, center center !important;
   background-size: 64px 64px, auto 52%, 100% 100% !important;
+}
+/* Die finale Mail-/Preview-Projektion besitzt eine vierte, hoehenneutrale
+   Ebene fuer den Hauptzug. Alle vier Listen werden explizit angegeben,
+   damit Mailclients den letzten Wert nicht zyklisch aus einer kuerzeren
+   Liste ableiten und den Zug dadurch verschieben oder kacheln. */
+.rt-sign-cell.rt-sign-train-background {
+  background-position: left top, right center, center center, left bottom !important;
+  background-size: 64px 64px, auto 52%, 100% 100%, 100% auto !important;
+}
+.rt-sign-cell.rt-sign-train-background[data-rt-train-mobile="left"] {
+  background-position: left top, right center, center center, left bottom !important;
+  background-size: 64px 64px, auto 52%, 100% 100%, 200% auto !important;
+}
+.rt-sign-cell.rt-sign-train-background[data-rt-train-mobile="center"] {
+  background-position: left top, right center, center center, center bottom !important;
+  background-size: 64px 64px, auto 52%, 100% 100%, 200% auto !important;
+}
+.rt-sign-cell.rt-sign-train-background[data-rt-train-mobile="train"] {
+  background-position: left top, right center, center center, left bottom !important;
+  background-size: 64px 64px, auto 52%, 100% 100%, 100% auto !important;
+}
+.rt-sign-cell.rt-sign-train-background[data-rt-train-mobile="right"] {
+  background-position: left top, right center, center center, right bottom !important;
+  background-size: 64px 64px, auto 52%, 100% 100%, 200% auto !important;
 }
 .rt-sign-train-layer {
   left: 0 !important;

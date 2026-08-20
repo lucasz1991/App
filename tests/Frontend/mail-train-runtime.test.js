@@ -55,16 +55,22 @@ function gifTimeline(bytes) {
     return delays;
 }
 
-test('all delivered mail outputs use one modern train image, one delayed smoke loop and one client-exclusive MSO fallback', () => {
+test('all delivered mail outputs project the train behind content with a delayed smoke loop and an in-carrier MSO fallback', () => {
     const signature = text('app/Support/MailSignature.php');
     const signatureView = text('resources/views/emails/parts/signature.blade.php');
     const carrier = text('app/Support/Mail/SignatureTrainCarrier.php');
     const previewService = text('app/Services/PageBuilder/PageBuilderPreviewService.php');
+    const builder = text('app/Support/EmailTemplateBuilder.php');
     const cssSemantic = text('app/Support/Mail/CssSemantic.php');
     const responsiveCss = text('resources/views/emails/parts/responsive-css.blade.php');
     const routes = text('routes/api.php');
+    const msoFallback = carrier.slice(
+        carrier.indexOf('public static function withMsoFallback'),
+        carrier.indexOf('public static function withIdleOverlay'),
+    );
 
     assert.match(signature, /SignatureTrainCarrier::projectAsImage\(/);
+    assert.match(signature, /SignatureTrainCarrier::projectAsRuntimeBackground\(/);
     assert.equal((signature.match(/SignatureTrainCarrier::withMsoFallback\(/g) || []).length, 1);
     assert.match(signature, /\$outlookFallbackSource = trim\(\(string\) \([\s\S]+?\$values\['TRAIN_STILL_SRC'\]/);
     assert.match(signature, /zug-dampf-idle-/);
@@ -75,13 +81,19 @@ test('all delivered mail outputs use one modern train image, one delayed smoke l
     assert.doesNotMatch(signature, /class="rt-classic-outlook-train"/);
     assert.match(carrier, /public static function withoutMainLayer/);
     assert.match(carrier, /public static function projectAsImage/);
+    assert.match(carrier, /public static function projectAsRuntimeBackground/);
     assert.match(carrier, /public static function withMsoFallback/);
     assert.match(carrier, /public static function withIdleOverlay/);
     assert.match(carrier, /class="rt-train-idle-overlay" data-rt-train-idle-overlay/);
     assert.match(carrier, /background-image:url\(\\''\.\$escapedCssSource\.'\\'\)/);
     assert.doesNotMatch(carrier, /<img class="rt-train-idle-image"/);
-    assert.equal((carrier.match(/<!--\[if mso\]><tr><td class="rt-sign-train-mso"/g) || []).length, 1);
-    assert.match(carrier, /<img src="'\.\$escapedSource\.'" width="720"/);
+    assert.doesNotMatch(carrier, /<!--\[if mso\]><tr><td class="rt-sign-train-mso"/);
+    assert.match(carrier, /<!--\[if (?:gte )?mso(?: 9)?\]><v:rect\b/);
+    assert.match(carrier, /<v:fill\b[^>]*src="'\.\$escapedSource\.'"/);
+    assert.match(carrier, /<\/v:rect><!\[endif\]-->/);
+    assert.doesNotMatch(msoFallback, /<img\b/);
+    assert.match(carrier, /data-rt-train-background/);
+    assert.match(carrier, /rt-sign-train-background/);
     assert.match(carrier, /<div class="rt-sign-stage" style="position:relative;overflow:hidden;">/);
     assert.match(carrier, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train"/);
     assert.match(carrier, /style="position:absolute;left:0;right:auto;top:0;bottom:0;[^"\r\n]*mso-hide:all;/);
@@ -89,6 +101,15 @@ test('all delivered mail outputs use one modern train image, one delayed smoke l
     assert.match(previewService, /MailSignature::forCompany\(/);
     assert.match(previewService, /\$signatureRenderer->renderDocument\(/);
     assert.doesNotMatch(previewService, /SignatureTrainCarrier::projectAsImage\(/);
+    assert.match(builder, /function placeBrowserCopyTrainBehindContent/);
+    assert.match(builder, /SignatureTrainCarrier::assertRuntimeBackground\(\$html, \$expectedTrainSource\)/);
+    assert.doesNotMatch(
+        builder.slice(
+            builder.indexOf('function placeBrowserCopyTrainBehindContent'),
+            builder.indexOf('private static function imageSources'),
+        ),
+        /\$trainImages|\$trainLayers|data-rt-layer-train/,
+    );
     assert.match(cssSemantic, /'data-rt-train-idle-overlay'/);
     assert.match(cssSemantic, /\$isProtectedAttribute = in_array\(/);
     assert.match(responsiveCss, /@keyframes rt-train-idle-reveal/);
@@ -100,6 +121,7 @@ test('all delivered mail outputs use one modern train image, one delayed smoke l
     assert.match(signatureView, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:absolute;[^"\r\n]*mso-hide:all;/);
     assert.doesNotMatch(signatureView, /rt-sign-train-layer[^>]*height:100%/);
     assert.doesNotMatch(carrier, /rt-train-idle-overlay[^>]*height:100%/);
+    assert.match(carrier, /rt-train-idle-overlay[^>]*position:absolute;[^>]*font-size:0;line-height:0;/);
     assert.match(carrier, /background-size:100% auto/);
     assert.doesNotMatch(signatureView, /url\(\{\$values\['TRAIN_SRC'\]\}\)/);
     assert.match(
@@ -118,6 +140,9 @@ test('all delivered mail outputs use one modern train image, one delayed smoke l
     assert.match(carrier, /compactDefaultContentPadding/);
     assert.match(carrier, /'padding:18px 36px 20px;' => 'padding:18px 36px 0;'/);
     assert.match(responsiveCss, /\.rt-sign-content \{ padding-bottom: 0 !important; \}/);
+    const mobile = responsiveCss.slice(responsiveCss.indexOf('@media only screen and (max-width: 860px)'));
+    assert.match(mobile, /\.rt-sign-cell\.rt-sign-train-background[\s\S]+?background-position:\s*left top,\s*right center,\s*center center,\s*left bottom !important;/);
+    assert.match(mobile, /\.rt-sign-cell\.rt-sign-train-background[\s\S]+?background-size:\s*64px 64px,\s*auto 52%,\s*100% 100%,\s*100% auto !important;/);
 });
 
 test('editor and delivery keep the default mobile train at 100 percent while explicit crops may zoom', () => {

@@ -255,26 +255,137 @@ final class SignatureTrainCarrier
     }
 
     /**
-     * Outlook-Desktop nutzt die Word-Engine und kann absolute Ebenen in
-     * Tabellenzellen verwerfen. Wie bei den animierten Marken bekommt nur
-     * dieser Client deshalb eine normale, auf 720 Pixel begrenzte Bildzeile.
-     * Moderne Clients sehen den bedingten Kommentar nicht und behalten den
-     * hoehenneutralen Layer hinter den Kontaktdaten.
+     * Projiziert das kanonische Runtime-IMG auf die vierte Background-Ebene
+     * des echten Signatur-Carriers. Das gespeicherte Editor-Dokument behaelt
+     * sein editierbares IMG; nur die fertige Vorschau beziehungsweise Mail
+     * erhaelt den hoehenneutralen Hintergrund. Der absolute Layer bleibt als
+     * sicherer Anker fuer die optionale Idle-Rauchebene bestehen.
+     */
+    public static function projectAsRuntimeBackground(string $html): string
+    {
+        $layers = [];
+        $images = [];
+        foreach (self::scanStartTags($html) as $tag) {
+            if ($tag['name'] === 'div' && self::sourceTagHasClass($tag, 'rt-sign-train-layer')) {
+                $layers[] = $tag;
+            }
+            if ($tag['name'] === 'img'
+                && (self::sourceTagHasClass($tag, 'rt-sign-train')
+                    || isset($tag['attributes']['data-rt-train']))) {
+                $images[] = $tag;
+            }
+        }
+        if (count($layers) !== 1 || count($images) !== 1) {
+            throw new RuntimeException('Das Runtime-Zugbild kann nicht eindeutig als Hintergrund projiziert werden.');
+        }
+
+        $source = self::singleTagAttributeValue($images[0], 'src');
+        $alignment = strtolower(self::singleTagAttributeValue($layers[0], 'data-rt-layer-align'));
+        $sizeName = strtolower(self::singleTagAttributeValue($layers[0], 'data-rt-layer-size'));
+        $mobileCrop = strtolower(self::singleTagAttributeValue($layers[0], 'data-rt-layer-mobile'));
+        if (! self::isAllowedMailImageSource($source)
+            || ! in_array($alignment, ['left', 'center', 'right'], true)
+            || ! isset(self::CANONICAL_LAYER_SIZE[$sizeName])
+            || ! in_array($mobileCrop, self::CANONICAL_MOBILE_CROPS, true)) {
+            throw new RuntimeException('Die Runtime-Zugprojektion besitzt keine mail-sichere Quelle oder Geometrie.');
+        }
+
+        $carrier = self::inspectCarrier($html);
+        if (isset($carrier['attributes']['data-rt-train-background'])) {
+            throw new RuntimeException('Der Runtime-Zughintergrund ist bereits vorhanden.');
+        }
+        $classAttributes = $carrier['attributes']['class'] ?? [];
+        $styleAttributes = $carrier['attributes']['style'] ?? [];
+        if (count($classAttributes) !== 1
+            || count($styleAttributes) !== 1
+            || $classAttributes[0]['valueOffset'] === null
+            || $styleAttributes[0]['valueOffset'] === null) {
+            throw new RuntimeException('Der Runtime-Zug-Carrier besitzt keine eindeutigen Attribute.');
+        }
+        $classes = preg_split('/\s+/', trim($classAttributes[0]['decoded']), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        if (in_array('rt-sign-train-background', $classes, true)) {
+            throw new RuntimeException('Der Runtime-Zughintergrund ist bereits markiert.');
+        }
+
+        $position = match ($alignment) {
+            'left' => 'left bottom',
+            'center' => 'center bottom',
+            'right' => 'right bottom',
+        };
+        $backgroundSize = $sizeName.'% auto';
+        $projectedStyle = self::appendRuntimeBackgroundLayer(
+            CssSemantic::decodeHtmlEntitiesOnce($styleAttributes[0]['raw']),
+            $source,
+            $position,
+            $backgroundSize,
+        );
+
+        $dataAttributes = ' data-rt-train-background'
+            .' data-rt-train-align="'.htmlspecialchars($alignment, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8').'"'
+            .' data-rt-train-size="'.htmlspecialchars($sizeName, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8').'"'
+            .' data-rt-train-mobile="'.htmlspecialchars($mobileCrop, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8').'"';
+        $replacements = [
+            [
+                $images[0]['startOffset'],
+                $images[0]['endOffset'] - $images[0]['startOffset'] + 1,
+                '',
+            ],
+            [$carrier['tagEnd'], 0, $dataAttributes],
+            [
+                $styleAttributes[0]['valueOffset'],
+                $styleAttributes[0]['valueLength'],
+                htmlspecialchars($projectedStyle, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8'),
+            ],
+            [
+                $classAttributes[0]['valueOffset'],
+                $classAttributes[0]['valueLength'],
+                htmlspecialchars(
+                    trim($classAttributes[0]['decoded']).' rt-sign-train-background',
+                    ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5,
+                    'UTF-8',
+                ),
+            ],
+        ];
+        usort($replacements, static fn (array $left, array $right): int => $right[0] <=> $left[0]);
+        foreach ($replacements as [$offset, $length, $replacement]) {
+            $html = substr_replace($html, $replacement, $offset, $length);
+        }
+
+        self::assertRuntimeBackground($html, $source);
+
+        return $html;
+    }
+
+    /**
+     * Outlook-Desktop nutzt die Word-Engine und ignoriert CSS-Hintergruende
+     * teilweise. Das serverkontrollierte Standbild wird deshalb als absolut
+     * positionierte VML-Flaeche innerhalb derselben Stage ausgegeben. Anders
+     * als die fruehere separate Tabellenzeile kann es keine eigene Hoehe
+     * erzeugen und bleibt hinter der Inhaltstabelle.
      */
     public static function withMsoFallback(string $html, string $source): string
     {
         $source = trim($source);
-        if ($source === '') {
+        if ($source === '' || ! self::isAllowedMailImageSource($source, staticOnly: true)) {
             throw new RuntimeException('Das Outlook-Standbild des Zuges besitzt keine Bildquelle.');
         }
 
-        $marker = '<!-- RT_SIGNATURE_MAIN_END -->';
-        if (substr_count($html, $marker) !== 1
-            || preg_match(
-                '/<!--\s*\[if\s+mso\]\s*>.*?\brt-sign-train-mso\b.*?<!\s*\[endif\]\s*-->/is',
-                $html,
-            ) === 1) {
+        self::assertRuntimeBackground($html);
+        if (preg_match(
+            '/<!--\s*\[if\s+mso\]\s*>.*?\brt-sign-train-mso\b.*?<!\s*\[endif\]\s*-->/is',
+            $html,
+        ) === 1) {
             throw new RuntimeException('Der Outlook-Zugfallback kann nicht eindeutig verankert werden.');
+        }
+
+        $stages = [];
+        foreach (self::scanStartTags($html) as $tag) {
+            if ($tag['name'] === 'div' && self::sourceTagHasClass($tag, 'rt-sign-stage')) {
+                $stages[] = $tag;
+            }
+        }
+        if (count($stages) !== 1) {
+            throw new RuntimeException('Der Outlook-Zugfallback besitzt keine eindeutige Signatur-Buehne.');
         }
 
         $escapedSource = htmlspecialchars(
@@ -282,12 +393,16 @@ final class SignatureTrainCarrier
             ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5,
             'UTF-8',
         );
-        $fallback = '<!--[if mso]><tr><td class="rt-sign-train-mso" width="100%" style="padding:0;font-size:0;line-height:0;mso-line-height-rule:exactly;">'
-            .'<img src="'.$escapedSource.'" width="720" alt="" '
-            .'style="display:block;width:100%;max-width:720px;height:auto;margin:0;border:0;outline:none;text-decoration:none;">'
-            .'</td></tr><![endif]-->';
+        // 720 x 53 entspricht dem Seitenverhaeltnis des kanonischen
+        // 2160-x-159-Standbilds. Die Word-relativen Angaben und allowincell
+        // halten die absolute Shape in der bestehenden TD/Stage verankert.
+        $fallback = '<!--[if mso]><v:rect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" '
+            .'class="rt-sign-train-mso" fill="true" stroke="false" o:allowincell="true" '
+            .'style="position:absolute;left:0;bottom:0;width:720px;height:53px;z-index:0;mso-position-horizontal:left;mso-position-horizontal-relative:text;mso-position-vertical:bottom;mso-position-vertical-relative:text;">'
+            .'<v:fill type="frame" src="'.$escapedSource.'" aspect="atmost" position="0,1" />'
+            .'</v:rect><![endif]-->';
 
-        return str_replace($marker, $fallback."\n".$marker, $html);
+        return substr_replace($html, $fallback, $stages[0]['endOffset'] + 1, 0);
     }
 
     /**
@@ -368,7 +483,15 @@ final class SignatureTrainCarrier
 
     public static function hasCanonicalImage(string $html): bool
     {
-        return str_contains($html, 'data-rt-train') || str_contains($html, 'rt-sign-train');
+        foreach (self::scanStartTags($html) as $tag) {
+            if ($tag['name'] === 'img'
+                && (isset($tag['attributes']['data-rt-train'])
+                    || self::sourceTagHasClass($tag, 'rt-sign-train'))) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -541,6 +664,46 @@ final class SignatureTrainCarrier
         if ($widthAttribute !== '720'
             && ! ($legacyDirectLayer && in_array($widthAttribute, ['100%', $legacyPixelWidth], true))) {
             throw new RuntimeException('Das Zugbild muss als mail-sicherer 720-Pixel-Fallback begrenzt sein.');
+        }
+    }
+
+    /**
+     * Prueft die drei serverkontrollierten Basis-Backgrounds des gespeicherten
+     * Editor-Dokuments. Der Zug selbst bleibt dort ein regulaeres IMG und wird
+     * erst im finalen Render als vierte Ebene angehaengt. Dadurch kann ein
+     * Entwurf mit manipulierten oder nicht parallelen Listen nicht erfolgreich
+     * gespeichert werden und erst spaeter beim Versand ausfallen.
+     */
+    public static function assertCanonicalBaseBackground(string $html): void
+    {
+        $carrier = self::inspectCarrier($html);
+        $styles = $carrier['attributes']['style'] ?? [];
+        if (count($styles) !== 1) {
+            throw new RuntimeException('Der Zug-Carrier besitzt kein eindeutiges style-Attribut.');
+        }
+
+        $style = CssSemantic::decodeHtmlEntitiesOnce((string) $styles[0]['raw']);
+        $styleWithoutAllowedTokens = str_replace([
+            '{{SIGNATURE_BG}}',
+            '{{GRUND_RASTER_SRC}}',
+            '{{GRUND_MARKE_SRC}}',
+            '{{SIGNATURE_TRAIN_WASH}}',
+        ], '', $style);
+        if (preg_match('/[{}]/', $styleWithoutAllowedTokens) !== 0) {
+            throw new RuntimeException('Der Zug-Carrier enthaelt einen fremden oder unvollstaendigen Platzhalter.');
+        }
+
+        $parsed = self::parseRuntimeBackgroundStyle(
+            $style,
+            allowStoredTokens: true,
+        );
+        self::assertRuntimeBaseBackgroundLists($parsed['lists'], expectedCount: 3);
+
+        $images = $parsed['lists']['background-image'];
+        if (! self::cssUrlTargetsToken($images[0], 'GRUND_RASTER_SRC')
+            || ! self::cssUrlTargetsToken($images[1], 'GRUND_MARKE_SRC')
+            || ! self::cssLinearGradientTargetsWash($images[2])) {
+            throw new RuntimeException('Die Basis-Layer des Zug-Carriers sind nicht kanonisch.');
         }
     }
 
@@ -760,6 +923,265 @@ final class SignatureTrainCarrier
         ) ?: [];
 
         return in_array($class, $classes, true);
+    }
+
+    /** @param array{name:string,attributes:array<string,list<array<string,mixed>>>} $tag */
+    private static function singleTagAttributeValue(array $tag, string $name): string
+    {
+        $attributes = $tag['attributes'][strtolower($name)] ?? [];
+        if (count($attributes) !== 1) {
+            throw new RuntimeException('Ein Runtime-Zugelement besitzt ein erforderliches Attribut nicht eindeutig.');
+        }
+
+        return trim((string) $attributes[0]['decoded']);
+    }
+
+    private static function isAllowedMailImageSource(string $source, bool $staticOnly = false): bool
+    {
+        $source = trim($source);
+        if ($source === ''
+            || preg_match('/[\x00-\x20\x7f\\<>"\'()]/', $source) === 1) {
+            return false;
+        }
+
+        if (preg_match('/^cid:[A-Za-z0-9._@+-]+$/i', $source) === 1) {
+            return true;
+        }
+
+        $dataMime = $staticOnly ? 'png' : '(?:gif|png)';
+        if (preg_match('/^data:image\/'.$dataMime.';base64,[A-Za-z0-9+\/=]+$/i', $source) === 1) {
+            return true;
+        }
+
+        if (str_starts_with(strtolower($source), 'https://')) {
+            if (preg_match('/^https:\/\/[^\s\\<>"\'()]+$/i', $source) !== 1) {
+                return false;
+            }
+            if (! $staticOnly) {
+                return true;
+            }
+
+            $path = parse_url($source, PHP_URL_PATH);
+
+            return is_string($path) && str_ends_with(strtolower($path), '.png');
+        }
+
+        // Ausschliesslich der servergenerierte Outlook-ZIP benutzt relative
+        // Begleitdateien. Keine Schemes, absoluten Pfade oder Traversals.
+        $extension = $staticOnly ? 'png' : '(?:gif|png)';
+
+        return preg_match(
+            '/^(?!.*(?:^|\/)\.\.(?:\/|$))(?:[A-Za-z0-9._-]+\/)*[A-Za-z0-9._-]+\.'.$extension.'$/i',
+            $source,
+        ) === 1;
+    }
+
+    private static function appendRuntimeBackgroundLayer(
+        string $style,
+        string $source,
+        string $position,
+        string $size,
+    ): string {
+        $parsed = self::parseRuntimeBackgroundStyle($style);
+        self::assertRuntimeBaseBackgroundLists($parsed['lists'], expectedCount: 3);
+
+        $parsed['lists']['background-image'][] = "url('{$source}')";
+        $parsed['lists']['background-repeat'][] = 'no-repeat';
+        $parsed['lists']['background-position'][] = $position;
+        $parsed['lists']['background-size'][] = $size;
+
+        foreach ($parsed['declarations'] as $property => $declaration) {
+            $parsed['segments'][$declaration['segment']] = $declaration['prefix']
+                .implode(',', $parsed['lists'][$property])
+                .$declaration['suffix'];
+        }
+
+        return implode(';', $parsed['segments']);
+    }
+
+    /**
+     * Prueft den ausschliesslich serverseitig erzeugten finalen Background-
+     * Vertrag. Aufrufer wie der Browser-Kopierexport koennen damit dieselbe
+     * Quelle und dieselben vier parallelen CSS-Listen verifizieren.
+     */
+    public static function assertRuntimeBackground(string $html, ?string $expectedSource = null): void
+    {
+        $carrier = self::inspectCarrier($html);
+        $classes = preg_split(
+            '/\s+/',
+            trim(self::singleCarrierAttributeValue($carrier, 'class')),
+            -1,
+            PREG_SPLIT_NO_EMPTY,
+        ) ?: [];
+        if (! in_array('rt-sign-train-background', $classes, true)
+            || count($carrier['attributes']['data-rt-train-background'] ?? []) !== 1) {
+            throw new RuntimeException('Der finale Zug-Carrier besitzt keinen eindeutigen Background-Marker.');
+        }
+
+        $alignment = strtolower(self::singleCarrierAttributeValue($carrier, 'data-rt-train-align'));
+        $sizeName = strtolower(self::singleCarrierAttributeValue($carrier, 'data-rt-train-size'));
+        $mobileCrop = strtolower(self::singleCarrierAttributeValue($carrier, 'data-rt-train-mobile'));
+        if (! in_array($alignment, ['left', 'center', 'right'], true)
+            || ! isset(self::CANONICAL_LAYER_SIZE[$sizeName])
+            || ! in_array($mobileCrop, self::CANONICAL_MOBILE_CROPS, true)) {
+            throw new RuntimeException('Der finale Zug-Carrier besitzt keine kanonische Background-Geometrie.');
+        }
+
+        $parsed = self::parseRuntimeBackgroundStyle(
+            CssSemantic::decodeHtmlEntitiesOnce(self::singleCarrierAttributeValue($carrier, 'style', raw: true)),
+        );
+        self::assertRuntimeBaseBackgroundLists($parsed['lists'], expectedCount: 4);
+
+        $position = match ($alignment) {
+            'left' => 'left bottom',
+            'center' => 'center bottom',
+            'right' => 'right bottom',
+        };
+        if (self::normalizedCssValue($parsed['lists']['background-repeat'][3]) !== 'no-repeat'
+            || self::normalizedCssValue($parsed['lists']['background-position'][3]) !== $position
+            || self::normalizedCssValue($parsed['lists']['background-size'][3]) !== $sizeName.'% auto') {
+            throw new RuntimeException('Die vierte Background-Ebene des Zuges besitzt keine kanonische Geometrie.');
+        }
+
+        $source = self::cssUrlSource($parsed['lists']['background-image'][3]);
+        if (! self::isAllowedMailImageSource($source)
+            || ($expectedSource !== null && ! hash_equals(trim($expectedSource), $source))) {
+            throw new RuntimeException('Die vierte Background-Ebene besitzt nicht die erwartete Zugquelle.');
+        }
+
+        $layers = [];
+        $stages = [];
+        $images = [];
+        foreach (self::scanStartTags($html) as $tag) {
+            if ($tag['name'] === 'div' && self::sourceTagHasClass($tag, 'rt-sign-train-layer')) {
+                $layers[] = $tag;
+            }
+            if ($tag['name'] === 'div' && self::sourceTagHasClass($tag, 'rt-sign-stage')) {
+                $stages[] = $tag;
+            }
+            if ($tag['name'] === 'img'
+                && (self::sourceTagHasClass($tag, 'rt-sign-train')
+                    || isset($tag['attributes']['data-rt-train']))) {
+                $images[] = $tag;
+            }
+        }
+        if (count($layers) !== 1 || count($stages) !== 1 || $images !== []) {
+            throw new RuntimeException('Der finale Zug darf kein regulaeres Haupt-IMG mehr enthalten.');
+        }
+    }
+
+    /**
+     * @param  array{attributes:array<string,list<array<string,mixed>>>}  $carrier
+     */
+    private static function singleCarrierAttributeValue(array $carrier, string $name, bool $raw = false): string
+    {
+        $attributes = $carrier['attributes'][strtolower($name)] ?? [];
+        if (count($attributes) !== 1) {
+            throw new RuntimeException('Der finale Zug-Carrier besitzt ein erforderliches Attribut nicht eindeutig.');
+        }
+
+        return (string) $attributes[0][$raw ? 'raw' : 'decoded'];
+    }
+
+    /**
+     * @return array{
+     *   segments:list<string>,
+     *   declarations:array<string,array{segment:int,prefix:string,suffix:string}>,
+     *   lists:array<string,list<string>>
+     * }
+     */
+    private static function parseRuntimeBackgroundStyle(
+        string $style,
+        bool $allowStoredTokens = false,
+    ): array {
+        if (preg_match('/[\x{0000}-\x{0008}\x{000B}\x{000E}-\x{001F}\x{007F}-\x{009F}]/u', $style) !== 0
+            || str_contains($style, '/*')
+            || str_contains($style, '*/')
+            || preg_match('/[\[\]]/', $style) !== 0
+            || (! $allowStoredTokens && preg_match('/[{}]/', $style) !== 0)) {
+            throw new RuntimeException('Der finale Zug-Carrier enthaelt unzulaessige CSS-Strukturzeichen.');
+        }
+
+        $required = ['background-image', 'background-repeat', 'background-position', 'background-size'];
+        $segments = self::splitCssAtTopLevel($style, ';');
+        $declarations = [];
+        foreach ($segments as $index => $segment) {
+            if (preg_match(
+                '/^([ \t\r\n\f]*)([a-z-]+)([ \t\r\n\f]*:[ \t\r\n\f]*)(.*?)([ \t\r\n\f]*)$/is',
+                $segment,
+                $match,
+            ) !== 1) {
+                continue;
+            }
+            $property = strtolower($match[2]);
+            if ($property === 'background') {
+                throw new RuntimeException('Der finale Zug-Carrier darf keine background-Kurzform enthalten.');
+            }
+            if (! in_array($property, $required, true)) {
+                continue;
+            }
+            if (isset($declarations[$property]) || preg_match('/!\s*important\s*$/i', $match[4]) === 1) {
+                throw new RuntimeException('Die Background-Listen des finalen Zug-Carriers sind nicht eindeutig.');
+            }
+            $declarations[$property] = [
+                'segment' => $index,
+                'prefix' => $match[1].$match[2].$match[3],
+                'suffix' => $match[5],
+                'value' => $match[4],
+            ];
+        }
+
+        $lists = [];
+        $count = null;
+        foreach ($required as $property) {
+            if (! isset($declarations[$property])) {
+                throw new RuntimeException('Der finale Zug-Carrier besitzt keine vollstaendigen Background-Listen.');
+            }
+            $items = self::splitCssAtTopLevel($declarations[$property]['value'], ',');
+            if ($items === [] || array_filter($items, static fn (string $item): bool => trim($item) === '') !== []) {
+                throw new RuntimeException('Der finale Zug-Carrier besitzt eine leere Background-Ebene.');
+            }
+            $count ??= count($items);
+            if (count($items) !== $count) {
+                throw new RuntimeException('Die Background-Listen des finalen Zug-Carriers sind nicht parallel.');
+            }
+            $lists[$property] = $items;
+        }
+
+        return compact('segments', 'declarations', 'lists');
+    }
+
+    /** @param array<string,list<string>> $lists */
+    private static function assertRuntimeBaseBackgroundLists(array $lists, int $expectedCount): void
+    {
+        if (count($lists['background-image'] ?? []) !== $expectedCount) {
+            throw new RuntimeException('Der finale Zug-Carrier besitzt nicht die erwartete Background-Layerzahl.');
+        }
+        $expected = [
+            'background-repeat' => ['repeat', 'no-repeat', 'no-repeat'],
+            'background-position' => ['left top', 'right center', 'center center'],
+            'background-size' => ['64px 64px', 'auto 100%', '100% 100%'],
+        ];
+        foreach ($expected as $property => $values) {
+            foreach ($values as $index => $value) {
+                if (self::normalizedCssValue($lists[$property][$index] ?? '') !== $value) {
+                    throw new RuntimeException('Die Basis-Layer des finalen Zug-Carriers sind nicht kanonisch.');
+                }
+            }
+        }
+    }
+
+    private static function cssUrlSource(string $entry): string
+    {
+        if (preg_match(
+            '/^[ \t\r\n\f]*url\([ \t\r\n\f]*(?:(["\'])(.*?)\1|([^"\'() \t\r\n\f]+))[ \t\r\n\f]*\)[ \t\r\n\f]*$/is',
+            $entry,
+            $match,
+        ) !== 1) {
+            throw new RuntimeException('Die Zugquelle ist keine eindeutige CSS-URL.');
+        }
+
+        return trim((string) (($match[1] ?? '') !== '' ? $match[2] : $match[3]));
     }
 
     /**

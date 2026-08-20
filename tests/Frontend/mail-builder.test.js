@@ -1262,7 +1262,7 @@ test('mail toolbar keeps documents, preview and publishing in non-overlapping re
     assert.match(mobile, /\.rt-mail-studio-toolbar__action-buttons[\s\S]*?grid-column:\s*2[\s\S]*?grid-row:\s*2/);
 });
 
-test('signature source uses the relative stage, one modern train layer and one MSO fallback', async () => {
+test('signature source keeps the editable train while delivery projects a background plus in-stage MSO fallback', async () => {
     const { readFile } = await import('node:fs/promises');
     const [css, signatureSource, trainAsset, carrier, runtime] = await Promise.all([
         readFile(new URL('../../resources/views/emails/parts/responsive-css.blade.php', import.meta.url), 'utf8'),
@@ -1277,7 +1277,8 @@ test('signature source uses the relative stage, one modern train layer and one M
     assert.match(signatureSource, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:absolute;[^"\r\n]*mso-hide:all;/);
     assert.match(signatureSource, /<img class="rt-sign-train"[^>]*width="720"[^>]*style="position:absolute;[^"\r\n]*mso-hide:all;/);
     assert.doesNotMatch(signatureSource, /url\(\{\$values\['TRAIN_SRC'\]\}\)/);
-    assert.doesNotMatch(css, /left top, right center, center center, (?:left|75%) bottom/);
+    assert.match(css, /\.rt-sign-cell\.rt-sign-train-background\s*\{[\s\S]*?background-position:\s*left top, right center, center center, left bottom !important;/);
+    assert.match(css, /\.rt-sign-cell\.rt-sign-train-background\s*\{[\s\S]*?background-size:\s*64px 64px, auto 52%, 100% 100%, 100% auto !important;/);
     assert.match(css, /@keyframes rt-train-idle-reveal/);
     assert.match(css, /animation-delay:\s*13s/);
 
@@ -1286,10 +1287,19 @@ test('signature source uses the relative stage, one modern train layer and one M
     const assetHeight = trainAsset.readUInt32BE(20);
     assert.deepEqual([assetWidth, assetHeight], [2160, 159]);
 
-    assert.equal((carrier.match(/<!--\[if mso\]><tr><td class="rt-sign-train-mso"/g) || []).length, 1);
+    assert.equal((carrier.match(/<!--\[if mso\]><tr><td class="rt-sign-train-mso"/g) || []).length, 0);
+    assert.equal((carrier.match(/<!--\[if mso\]><v:rect\b/g) || []).length, 1);
     assert.equal((runtime.match(/SignatureTrainCarrier::withMsoFallback\(/g) || []).length, 1);
     assert.equal((runtime.match(/SignatureTrainCarrier::withIdleOverlay\(/g) || []).length, 1);
-    assert.match(carrier, /<img src="'\.\$escapedSource\.'" width="720"/);
+    assert.equal((runtime.match(/SignatureTrainCarrier::projectAsRuntimeBackground\(/g) || []).length, 1);
+    assert.match(carrier, /<v:fill\b[^>]*src="'\.\$escapedSource\.'"/);
+    assert.doesNotMatch(
+        carrier.slice(
+            carrier.indexOf('public static function withMsoFallback'),
+            carrier.indexOf('public static function withIdleOverlay'),
+        ),
+        /<img\b/,
+    );
 
     const mobile = css.slice(css.indexOf('@media only screen and (max-width: 860px)'));
     assert.match(mobile, /\.rt-sign-train-layer\s*\{[\s\S]*?left: 0 !important;[\s\S]*?width: 100% !important;/);

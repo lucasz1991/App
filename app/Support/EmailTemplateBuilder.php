@@ -6,6 +6,7 @@ use App\Enums\MailDocumentKind;
 use App\Models\User;
 use App\Support\Mail\CssSemantic;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
+use App\Support\Mail\SignatureTrainCarrier;
 use App\Support\Mail\TemplateDocumentContract;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Facades\Schema;
@@ -457,11 +458,11 @@ class EmailTemplateBuilder
         );
         $values = $signature->values();
         $values['RESPONSIVE_CSS'] = self::responsiveCss($values['SIGNATURE_BORDER'] ?? null);
-        // Der serverseitige Signatur-Render validiert den editierbaren
-        // CSS-Carrier und projiziert den kombinierten Hauptzug danach als
-        // regulaeres IMG in die sichere Stage. Moderne Clients sehen das GIF,
-        // Word/MSO genau den bedingten PNG-Fallback; pro Client bleibt es ein
-        // Zug. Der alte Background- und Idle-Sonderpfad kann nicht doppeln.
+        // Der serverseitige Signatur-Render validiert das editierbare IMG und
+        // projiziert den Hauptzug danach als vierte Background-Ebene des
+        // Carriers. Moderne Clients sehen das GIF hoehenneutral hinter den
+        // Daten, Word/MSO genau den bedingten VML-PNG-Fallback in derselben
+        // Stage; eine separate Zugzeile kann nicht mehr entstehen.
         $values['SIGNATURE_BLOCK'] = $signature->render();
         $values['APPLICATION_CONTENT'] = '';
 
@@ -1122,8 +1123,9 @@ class EmailTemplateBuilder
      * Einfuegen in eine cloudgespeicherte Signatur waeren file:-Quellen aber
      * nach dem Schliessen des Browsers unbrauchbar. Diese Fassung rendert
      * deshalb dieselbe Signatur mit absoluten HTTPS-Mailassets. Das Zug-GIF
-     * ist wie Logo und RT-Icon ein regulaeres IMG; der bedingte PNG-Fallback
-     * bleibt fuer einen spaeteren Word-/MSO-Empfaenger im kopierten Markup.
+     * wird in der finalen Kopierfassung als vierte Carrier-Background-Ebene
+     * ausgegeben; der bedingte VML-PNG-Fallback bleibt fuer einen spaeteren
+     * Word-/MSO-Empfaenger im kopierten Markup.
      */
     protected function buildOutlookBrowserCopySignatureHtml(string $theme): string
     {
@@ -1206,8 +1208,8 @@ class EmailTemplateBuilder
     /**
      * Prueft die eigenstaendige New-Outlook-/Web-Kopierfassung nach der
      * Runtime-Projektion. Der kombinierte Zug muss dort genau einmal als
-     * regulaeres HTTPS-IMG im absoluten Layer der sicheren Block-Buehne
-     * vorliegen.
+     * vierte HTTPS-Background-Ebene des Carriers vorliegen; ein regulaeres
+     * Haupt-IMG darf in der finalen Fassung nicht mehr vorhanden sein.
      */
     private static function placeBrowserCopyTrainBehindContent(
         string $html,
@@ -1257,29 +1259,7 @@ class EmailTemplateBuilder
             throw new RuntimeException('Die Browser-Kopiervorlage besitzt keine sichere Zug-Buehne.');
         }
 
-        $trainImages = $xpath->query('//*[@data-rt-train]');
-        if ($trainImages === false || $trainImages->length !== 1) {
-            throw new RuntimeException('Die Browser-Kopiervorlage besitzt kein eindeutiges Zugbild.');
-        }
-        $trainImage = $trainImages->item(0);
-        if (! $trainImage instanceof \DOMElement
-            || self::forceHttpsUrl($trainImage->getAttribute('src')) !== $expectedTrainSource) {
-            throw new RuntimeException('Das Zugbild der Browser-Kopiervorlage besitzt nicht die erwartete HTTPS-Quelle.');
-        }
-
-        $trainLayers = $xpath->query(
-            '//*[@data-rt-layer-train and contains(concat(" ", normalize-space(@class), " "), " rt-sign-train-layer ")]',
-        );
-        $trainLayer = $trainLayers !== false ? $trainLayers->item(0) : null;
-        if ($trainLayers === false
-            || $trainLayers->length !== 1
-            || ! $trainLayer instanceof \DOMElement
-            || ! $trainLayer->parentNode?->isSameNode($stage)
-            || ! $trainImage->parentNode?->isSameNode($trainLayer)
-            || ! str_contains(strtolower($trainLayer->getAttribute('style')), 'position:absolute')
-            || ! str_contains(strtolower($trainImage->getAttribute('style')), 'position:absolute')) {
-            throw new RuntimeException('Das Zugbild der Browser-Kopiervorlage liegt nicht im sicheren absoluten Carrier-Layer.');
-        }
+        SignatureTrainCarrier::assertRuntimeBackground($html, $expectedTrainSource);
 
         foreach (self::imageSources($html) as $imageSource) {
             self::forceHttpsUrl($imageSource);
