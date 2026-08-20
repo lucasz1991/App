@@ -161,8 +161,9 @@ class EmailHtmlSanitizerTest extends TestCase
         $this->assertStringContainsString('animation-delay: 13s;', $css);
         $this->assertStringNotContainsString('.rt-train-main-image', $css);
         $this->assertStringNotContainsString('.rt-train-main-layer', $css);
-        $this->assertStringNotContainsString('.rt-train-idle-image', $css);
+        $this->assertStringContainsString('.rt-train-idle-image', $css);
         $this->assertStringNotContainsString('.rt-train-idle-runtime-layer', $css);
+        $this->assertDoesNotMatchRegularExpression('/background-image:[^;]*(?:TRAIN|train|\.gif)/i', $css);
 
         // Der serverkontrollierte Keyframe-Block darf unveraendert durch den
         // Sanitizer; frei editierbares CSS bleibt davon strikt getrennt.

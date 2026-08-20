@@ -114,8 +114,11 @@ final class SignatureDocumentContract
         bool $allowLegacyPercentHeight,
     ): void {
         $decodedHtml = CssSemantic::decodeHtmlEntitiesOnce($html);
-        if (preg_match('/\brt-sign-train-mso\b/i', $decodedHtml) === 1) {
+        if (preg_match('/\b(?:rt-sign-train-mso|data-rt-train-mso)\b/i', $decodedHtml) === 1) {
             throw new RuntimeException('Der serverseitige Outlook-Zugfallback darf nicht im Signaturentwurf gespeichert werden.');
+        }
+        if (preg_match('/\b(?:rt-train-idle-(?:overlay|image)|data-rt-train-idle-(?:overlay|image))\b/i', $decodedHtml) === 1) {
+            throw new RuntimeException('Die serverseitige Idle-Rauchebene darf nicht im Signaturentwurf gespeichert werden.');
         }
         if (preg_match(
             '/\b(?:rt-sign-train-background|data-rt-train-(?:background|align|size|mobile))\b/i',

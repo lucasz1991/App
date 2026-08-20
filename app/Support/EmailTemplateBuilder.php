@@ -458,11 +458,10 @@ class EmailTemplateBuilder
         );
         $values = $signature->values();
         $values['RESPONSIVE_CSS'] = self::responsiveCss($values['SIGNATURE_BORDER'] ?? null);
-        // Der serverseitige Signatur-Render validiert das editierbare IMG und
-        // projiziert den Hauptzug danach als vierte Background-Ebene des
-        // Carriers. Moderne Clients sehen das GIF hoehenneutral hinter den
-        // Daten, Word/MSO genau den bedingten VML-PNG-Fallback in derselben
-        // Stage; eine separate Zugzeile kann nicht mehr entstehen.
+        // Der serverseitige Signatur-Render validiert den absoluten IMG-Layer.
+        // Haupt-GIF, Idle-GIF und bedingtes Word/MSO-PNG bleiben echte Bilder
+        // innerhalb derselben Stage; keine Zugdatei wird per CSS geladen und
+        // eine separate Zugzeile kann nicht entstehen.
         $values['SIGNATURE_BLOCK'] = $signature->render();
         $values['APPLICATION_CONTENT'] = '';
 
@@ -1122,10 +1121,9 @@ class EmailTemplateBuilder
      * Die Classic-Payload verwendet absichtlich lokale Begleitdateien. Beim
      * Einfuegen in eine cloudgespeicherte Signatur waeren file:-Quellen aber
      * nach dem Schliessen des Browsers unbrauchbar. Diese Fassung rendert
-     * deshalb dieselbe Signatur mit absoluten HTTPS-Mailassets. Das Zug-GIF
-     * wird in der finalen Kopierfassung als vierte Carrier-Background-Ebene
-     * ausgegeben; der bedingte VML-PNG-Fallback bleibt fuer einen spaeteren
-     * Word-/MSO-Empfaenger im kopierten Markup.
+     * deshalb dieselbe Signatur mit absoluten HTTPS-Mailassets. Hauptzug und
+     * Idle-Rauch bleiben echte IMG; das bedingte PNG-IMG bleibt fuer einen
+     * spaeteren Word-/MSO-Empfaenger im kopierten Markup.
      */
     protected function buildOutlookBrowserCopySignatureHtml(string $theme): string
     {
@@ -1187,6 +1185,8 @@ class EmailTemplateBuilder
         return self::placeBrowserCopyTrainBehindContent(
             $html,
             $remoteSources['TRAIN_SRC'],
+            $remoteSources['TRAIN_IDLE_SRC'],
+            $remoteSources['TRAIN_STILL_SRC'],
         );
     }
 
@@ -1207,15 +1207,19 @@ class EmailTemplateBuilder
 
     /**
      * Prueft die eigenstaendige New-Outlook-/Web-Kopierfassung nach der
-     * Runtime-Projektion. Der kombinierte Zug muss dort genau einmal als
-     * vierte HTTPS-Background-Ebene des Carriers vorliegen; ein regulaeres
-     * Haupt-IMG darf in der finalen Fassung nicht mehr vorhanden sein.
+     * Runtime-Projektion. Hauptzug, Idle-Rauch und Outlook-Standbild muessen
+     * dort als echte IMG mit absoluten HTTPS-Quellen vorliegen. CSS darf keine
+     * der GIF-Dateien laden.
      */
     private static function placeBrowserCopyTrainBehindContent(
         string $html,
         string $expectedTrainSource,
+        string $expectedIdleSource,
+        string $expectedMsoSource,
     ): string {
         $expectedTrainSource = self::forceHttpsUrl($expectedTrainSource);
+        $expectedIdleSource = self::forceHttpsUrl($expectedIdleSource);
+        $expectedMsoSource = self::forceHttpsUrl($expectedMsoSource);
         $dom = new \DOMDocument('1.0', 'UTF-8');
         $previous = libxml_use_internal_errors(true);
 
@@ -1259,7 +1263,12 @@ class EmailTemplateBuilder
             throw new RuntimeException('Die Browser-Kopiervorlage besitzt keine sichere Zug-Buehne.');
         }
 
-        SignatureTrainCarrier::assertRuntimeBackground($html, $expectedTrainSource);
+        SignatureTrainCarrier::assertRuntimeImages(
+            $html,
+            $expectedTrainSource,
+            $expectedIdleSource,
+            $expectedMsoSource,
+        );
 
         foreach (self::imageSources($html) as $imageSource) {
             self::forceHttpsUrl($imageSource);

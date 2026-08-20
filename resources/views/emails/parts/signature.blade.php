@@ -8,11 +8,10 @@
 
     Der kanonische Editorstand besitzt zwei Tabellenzeilen: Signaturblock und
     Pflichtangaben. Im gespeicherten Editor-/Seederstand ist der Zug ein
-    regulaeres, editierbares IMG. Erst der gemeinsame finale Renderer hebt
-    dieses Bild in die vierte Background-Ebene des Carriers; damit kann es im
-    Mailclient nicht als eigene Zeile unter die Kontaktdaten fallen und
-    beansprucht keine zusaetzliche Tabellenhoehe. Word/MSO erhaelt innerhalb
-    derselben Stage ein bedingtes VML-Standbild statt einer Tabellenzeile.
+    regulaeres, editierbares IMG. Derselbe absolute IMG-Layer bleibt auch im
+    Versand hinter den Kontaktdaten bestehen und beansprucht keine eigene
+    Tabellenhoehe. Das Idle-GIF ist ein zweites IMG. Word/MSO erhaelt innerhalb
+    derselben Stage ein bedingtes PNG-IMG statt einer Tabellenzeile.
 
     AUFBAU: zwei gleich breite Spalten an einer Mittelachse. Links die
     Person, rechts die Firma. Die Firmenkontakte existieren genau einmal:
@@ -69,9 +68,8 @@
      * und ihre mobilen Positionslisten kompatibel bleiben; sie darf die
      * Deckkraft nicht ein zweites Mal reduzieren.
      *
-     * Der gespeicherte Editorstand haelt den Zug absichtlich noch ausserhalb
-     * dieser Listen als IMG. Der finale Renderer fuegt ihn serverkontrolliert
-     * als vierte Background-Ebene hinzu.
+     * Der Zug bleibt im gespeicherten Editorstand und im finalen Versand
+     * ausserhalb dieser Listen als IMG.
      */
     $ebenen = array_values(array_filter([
         ($values['GRUND_RASTER_SRC'] ?? '') !== ''

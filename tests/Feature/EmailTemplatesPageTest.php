@@ -198,9 +198,9 @@ class EmailTemplatesPageTest extends TestCase
 
     /**
      * Der Dampflok-Gueterzug steht in jeder fertigen HTML-Fassung genau
-     * einmal als vierte Background-Ebene des echten Signatur-Carriers hinter
-     * den Daten. Nach 13 Sekunden uebernimmt eine absolute Idle-Rauchebene;
-     * MSO erhaelt innerhalb derselben Stage genau eine statische VML-Flaeche.
+     * einmal als absolut positioniertes IMG hinter den Daten. Nach 13 Sekunden
+     * uebernimmt ein zweites absolutes Idle-IMG; MSO erhaelt innerhalb derselben
+     * Stage ebenfalls genau ein statisches IMG.
      */
     public function test_every_downloadable_html_variant_carries_the_themed_steam_train(): void
     {
@@ -229,15 +229,16 @@ class EmailTemplatesPageTest extends TestCase
             $html = $builder->build($template)['content'];
 
             $this->assertStringNotContainsString('{{TRAIN_SRC}}', $html, $template);
-            $carrier = $this->assertRuntimeTrainBackground($html, $train, $trainStill, $template);
+            $carrier = $this->assertRuntimeTrainImages($html, $train, $trainStill, $template);
             $this->assertStringContainsString($train, $carrier, $template);
             $this->assertSame(1, substr_count($html, $trainStill), $template);
             $this->assertSame(1, substr_count($html, $trainIdle), $template);
             $this->assertSame(1, substr_count($html, 'data-rt-train-idle-overlay'), $template);
-            $this->assertSame(0, substr_count($html, 'data-rt-train-idle-image'), $template);
+            $this->assertSame(1, substr_count($html, 'data-rt-train-idle-image'), $template);
             $this->assertStringContainsString('@keyframes rt-train-idle-reveal', $html, $template);
-            $this->assertStringContainsString('background-position:left top,right center,center center,left bottom', $carrier, $template);
-            $this->assertStringContainsString('background-size:64px 64px,auto 100%,100% 100%,100% auto', $carrier, $template);
+            $this->assertMatchesRegularExpression('/<img\b[^>]*\bdata-rt-train(?:\s|=|>)[^>]*src="'.preg_quote($train, '/').'"/i', $carrier, $template);
+            $this->assertStringContainsString('background-position:left top,right center,center center', $carrier, $template);
+            $this->assertStringContainsString('background-size:64px 64px,auto 100%,100% 100%', $carrier, $template);
 
             // Frueher stand hier die Kurzform background:, und die SETZT
             // background-image zurueck — stand sie danach, verschwand der Zug
@@ -252,22 +253,21 @@ class EmailTemplatesPageTest extends TestCase
             );
         }
 
-        // Auch die .eml-Fassungen tragen ihn. Das Haupt-CID ist dort die vierte
-        // Background-Ebene, das Standbild die VML-Flaeche derselben Stage.
+        // Auch die .eml-Fassungen tragen alle drei Zugmedien als CID-IMG.
         foreach (['vorlage-eml', 'vorlage-dunkel-eml'] as $template) {
             $eml = $builder->build($template)['content'];
             $this->assertStringContainsString('Content-ID: <railtime-train>', $eml, $template);
             $this->assertStringContainsString('Content-ID: <railtime-train-still>', $eml, $template);
             $this->assertStringContainsString('Content-ID: <railtime-train-idle>', $eml, $template);
             $html = $this->decodeEmlHtmlPart($eml);
-            $this->assertRuntimeTrainBackground(
+            $this->assertRuntimeTrainImages(
                 $html,
                 'cid:railtime-train',
                 'cid:railtime-train-still',
                 $template,
             );
             $this->assertStringContainsString('data-rt-train-idle-overlay', $html, $template);
-            $this->assertStringContainsString("background-image:url('cid:railtime-train-idle')", $html, $template);
+            $this->assertStringContainsString('src="cid:railtime-train-idle"', $html, $template);
             $this->assertStringContainsString('@keyframes rt-train-idle-reveal', $html, $template);
         }
 
@@ -314,9 +314,8 @@ class EmailTemplatesPageTest extends TestCase
             );
         }
 
-        // Das Haupt-GIF traegt Einfahrt und Schlusszustand als hoehenneutrale
-        // Carrier-Background-Ebene. Nach 13 Sekunden uebernimmt eine
-        // transparente Rauchschleife im leeren absoluten Layer.
+        // Das Haupt-GIF traegt Einfahrt und Schlusszustand als hoehenneutrales
+        // IMG. Nach 13 Sekunden uebernimmt das absolute Idle-IMG.
         $signatur = (new EmailTemplateBuilder(User::factory()->create()))->build('signatur-hell')['content'];
         $train = 'data:image/gif;base64,'.base64_encode(file_get_contents(
             resource_path('mail-templates/assets/zug-dampf-light.gif')
@@ -324,12 +323,12 @@ class EmailTemplatesPageTest extends TestCase
         $trainStill = 'data:image/png;base64,'.base64_encode(file_get_contents(
             resource_path('mail-templates/assets/zug-dampf-light.png')
         ));
-        $carrier = $this->assertRuntimeTrainBackground($signatur, $train, $trainStill);
+        $carrier = $this->assertRuntimeTrainImages($signatur, $train, $trainStill);
         $this->assertSame(1, substr_count($signatur, $train));
         $this->assertSame(1, substr_count($signatur, $trainStill));
         $this->assertStringContainsString($train, $carrier);
         $this->assertStringContainsString('data-rt-train-idle-overlay', $signatur);
-        $this->assertStringNotContainsString('data-rt-train-idle-image', $signatur);
+        $this->assertStringContainsString('data-rt-train-idle-image', $signatur);
         $this->assertStringContainsString('@keyframes rt-train-idle-reveal', $signatur);
         $this->assertStringContainsString('animation-delay: 13s;', $signatur);
         $this->assertStringNotContainsString('data-rt-outlook-train', $signatur);
@@ -381,7 +380,7 @@ class EmailTemplatesPageTest extends TestCase
 
             $html = $zip->getFromName("{$signatureName}.htm");
             $this->assertIsString($html);
-            $carrier = $this->assertRuntimeTrainBackground(
+            $carrier = $this->assertRuntimeTrainImages(
                 $html,
                 "{$assetFolder}/zug-dampf.gif",
                 "{$assetFolder}/zug-dampf.png",
@@ -392,11 +391,12 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertStringNotContainsString('width:70%', $html);
             $this->assertStringNotContainsString('max-width:620px', $html);
             // OHNE rt-pad an der aeusseren Zelle: die traegt padding:0, damit
-            // die Zug-Background-Ebene bis an die Kante reicht. Sass die Klasse dort,
+            // die absolute Zugbuehne bis an die Kante reicht. Sass die Klasse dort,
             // verkleinerten die Umbruchregeln die Null und der Innenabstand
             // der inneren Zelle blieb zusaetzlich stehen — der Block war auf
             // schmalen Schirmen doppelt eingerueckt (24+36 statt 24 px).
-            $this->assertStringContainsString('class="rt-sign-cell rt-sign-train-background"', $html);
+            $this->assertStringContainsString('class="rt-sign-cell"', $html);
+            $this->assertStringNotContainsString('rt-sign-train-background', $html);
             $this->assertStringNotContainsString('class="rt-pad rt-sign-cell"', $html);
             $this->assertStringContainsString('style="padding:0;overflow:hidden;background-color:', $html);
             $this->assertStringContainsString('<div class="rt-sign-stage" style="position:relative;overflow:hidden;">', $html);
@@ -670,19 +670,20 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertMatchesRegularExpression('/\bsrcdoc="([^"]*)"/s', $readme);
             preg_match('/\bsrcdoc="([^"]*)"/s', $readme, $srcdocMatch);
             $copyHtml = html_entity_decode($srcdocMatch[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
-            $copyCarrier = $this->assertRuntimeTrainBackground($copyHtml);
+            $copyCarrier = $this->assertRuntimeTrainImages($copyHtml);
             $this->assertStringContainsString('border-top:5px solid #e4002b;', $copyHtml);
             $this->assertStringNotContainsString('border-left:5px solid #e4002b;', $copyHtml);
             $this->assertStringContainsString('border-top:5px solid #e4002b;', $copyCarrier);
             $this->assertStringContainsString('zug-dampf-'.$theme.'.gif', $copyCarrier);
             $this->assertMatchesRegularExpression(
-                '/background-image:[^;]*url\([^;]*https:\/\/[^)"\']+zug-dampf-'.$theme.'\.gif[^)]*\)/',
+                '/<img\b[^>]*class="rt-sign-train"[^>]*src="https:\/\/[^">]+zug-dampf-'.$theme.'\.gif[^">]*"/',
                 $copyCarrier,
             );
             $this->assertMatchesRegularExpression(
-                '/<v:fill\b[^>]*src="https:\/\/[^">]+zug-dampf-'.$theme.'\.png[^">]*"[^>]*\/>/',
+                '/<!--\[if mso\]><img\b[^>]*class="rt-sign-train-mso"[^>]*src="https:\/\/[^">]+zug-dampf-'.$theme.'\.png[^">]*"[^>]*><!\[endif\]-->/',
                 $copyHtml,
             );
+            $this->assertDoesNotMatchRegularExpression('/<v:(?:rect|fill)\b/i', $copyHtml);
             $this->assertStringNotContainsString("{$assetFolder}/", $copyHtml);
             $this->assertStringNotContainsString('data:image/', $copyHtml);
             preg_match_all('/<img\b[^>]*\bsrc="([^"]+)"/i', $copyHtml, $copyImageMatches);
@@ -801,6 +802,7 @@ class EmailTemplatesPageTest extends TestCase
         );
         $this->assertStringContainsString('RT_SERVER_SIGNATURE_RUNTIME_START', $regeln);
         $this->assertStringContainsString('.rt-train-idle-overlay', $regeln);
+        $this->assertStringContainsString('.rt-sign-train', $regeln);
         $this->assertStringContainsString('@keyframes rt-train-idle-reveal', $regeln);
         // Die Trennlinie wandert NICHT mehr nach oben: Person und Firma stehen
         // auch gestapelt nebeneinander, die senkrechte Linie zwischen ihnen
@@ -889,7 +891,7 @@ class EmailTemplatesPageTest extends TestCase
         // Kein Beige mehr: die helle Fassung steht auf Weiss.
         $this->assertStringContainsString('background:#ffffff', $light);
         $this->assertStringContainsString(
-            '<td class="rt-sign-cell rt-sign-train-background" bgcolor="#ffffff" style="padding:0;overflow:hidden;background-color:#ffffff;',
+            '<td class="rt-sign-cell" bgcolor="#ffffff" style="padding:0;overflow:hidden;background-color:#ffffff;',
             $light
         );
         $this->assertStringContainsString('<div class="rt-sign-stage" style="position:relative;overflow:hidden;">', $light);
@@ -906,7 +908,7 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertStringContainsString('data-rt-theme="dark"', $dark);
         $this->assertStringContainsString('background:#111820', $dark);
         $this->assertStringContainsString(
-            '<td class="rt-sign-cell rt-sign-train-background" bgcolor="#0c1017" style="padding:0;overflow:hidden;background-color:#0c1017;',
+            '<td class="rt-sign-cell" bgcolor="#0c1017" style="padding:0;overflow:hidden;background-color:#0c1017;',
             $dark
         );
         $this->assertStringContainsString('<div class="rt-sign-stage" style="position:relative;overflow:hidden;">', $dark);
@@ -942,13 +944,13 @@ class EmailTemplatesPageTest extends TestCase
             // mehr als erste — geprueft wird seine Anwesenheit, nicht seine
             // Position.
             $this->assertMatchesRegularExpression('/rt-sign-cell[^>]*linear-gradient\(rgba\(/', $html);
-            $carrier = $this->assertRuntimeTrainBackground($html);
+            $carrier = $this->assertRuntimeTrainImages($html);
             $this->assertStringContainsString(
-                'background-size:64px 64px,auto 100%,100% 100%,100% auto',
+                'background-size:64px 64px,auto 100%,100% 100%',
                 $carrier,
             );
             $this->assertStringContainsString('data-rt-train-idle-overlay', $html);
-            $this->assertStringNotContainsString('data-rt-train-idle-image', $html);
+            $this->assertStringContainsString('data-rt-train-idle-image', $html);
             $this->assertStringContainsString('@keyframes rt-train-idle-reveal', $html);
             $this->assertStringContainsString(
                 'class="rt-sign-logo" width="50%" valign="top"',
@@ -1020,13 +1022,13 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertStringContainsString('src="cid:railtime-logo-still"', $html);
             $this->assertStringContainsString('src="cid:railtime-mark"', $html);
             $this->assertStringContainsString('src="cid:railtime-mark-still"', $html);
-            $this->assertRuntimeTrainBackground(
+            $this->assertRuntimeTrainImages(
                 $html,
                 'cid:railtime-train',
                 'cid:railtime-train-still',
             );
             $this->assertStringContainsString('data-rt-train-idle-overlay', $html);
-            $this->assertStringContainsString("background-image:url('cid:railtime-train-idle')", $html);
+            $this->assertStringContainsString('src="cid:railtime-train-idle"', $html);
             $this->assertStringContainsString('@keyframes rt-train-idle-reveal', $html);
             $this->assertStringContainsString('src="cid:railtime-icon-email"', $html);
             $this->assertStringNotContainsString('data:image/', $html);
@@ -1054,7 +1056,7 @@ class EmailTemplatesPageTest extends TestCase
         $html = (new EmailTemplateBuilder($user->fresh()))->build('signatur-hell')['content'];
 
         $this->assertStringContainsString(
-            '<td class="rt-sign-cell rt-sign-train-background" bgcolor="#ffffff" style="padding:0;overflow:hidden;',
+            '<td class="rt-sign-cell" bgcolor="#ffffff" style="padding:0;overflow:hidden;',
             $html,
         );
         $this->assertStringContainsString('<div class="rt-sign-stage" style="position:relative;overflow:hidden;">', $html);
@@ -1074,9 +1076,9 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertSame(11, substr_count($html, 'data:image/png;base64,'));
         // GIF: Hauptzug, eine transparente Idle-Rauchschleife und Wortmarke.
         $this->assertSame(3, substr_count($html, 'data:image/gif;base64,'));
-        $this->assertRuntimeTrainBackground($html);
+        $this->assertRuntimeTrainImages($html);
         $this->assertStringContainsString('data-rt-train-idle-overlay', $html);
-        $this->assertStringNotContainsString('data-rt-train-idle-image', $html);
+        $this->assertStringContainsString('data-rt-train-idle-image', $html);
         $this->assertStringContainsString('@keyframes rt-train-idle-reveal', $html);
         $this->assertStringNotContainsString('background=""', $html);
         $this->assertStringContainsString('class="rt-sign-logo"', $html);
@@ -1351,16 +1353,16 @@ class EmailTemplatesPageTest extends TestCase
             foreach ([$animatedA, $animatedB] as $animated) {
                 $animated->assertSee('data:image/gif;base64,', escape: false);
                 $animatedContent = (string) $animated->getContent();
-                $animatedCarrier = $this->assertRuntimeTrainBackground($animatedContent);
+                $animatedCarrier = $this->assertRuntimeTrainImages($animatedContent);
                 $this->assertStringContainsString('data:image/gif;base64,', $animatedCarrier);
                 $this->assertStringContainsString('data-rt-train-idle-overlay', $animatedContent);
-                $this->assertStringNotContainsString('data-rt-train-idle-image', $animatedContent);
+                $this->assertStringContainsString('data-rt-train-idle-image', $animatedContent);
                 $this->assertStringContainsString('@keyframes rt-train-idle-reveal', $animatedContent);
             }
             $this->assertNotSame($animatedA->getContent(), $animatedB->getContent());
             $response->assertSee('data:image/png;base64,', escape: false);
             $staticContent = (string) $response->getContent();
-            $staticCarrier = $this->assertRuntimeTrainBackground($staticContent);
+            $staticCarrier = $this->assertRuntimeTrainImages($staticContent);
             $this->assertStringContainsString('data:image/png;base64,', $staticCarrier);
             $this->assertStringNotContainsString('data-rt-train-idle-', $staticContent);
             $this->assertStringNotContainsString('@keyframes rt-train-idle-reveal', $staticContent);
@@ -1405,24 +1407,29 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertStringNotContainsString('EML', $englishPoints);
     }
 
-    private function assertRuntimeTrainBackground(
+    private function assertRuntimeTrainImages(
         string $html,
         ?string $expectedTrainSource = null,
         ?string $expectedStillSource = null,
         string $message = '',
     ): string {
-        SignatureTrainCarrier::assertRuntimeBackground($html, $expectedTrainSource);
+        SignatureTrainCarrier::assertRuntimeImages(
+            $html,
+            $expectedTrainSource,
+            expectedMsoSource: $expectedStillSource,
+        );
 
         $this->assertSame(1, substr_count($html, 'class="rt-sign-stage"'), $message);
-        $this->assertSame(0, substr_count($html, 'class="rt-sign-train"'), $message);
+        $this->assertSame(1, substr_count($html, 'class="rt-sign-train"'), $message);
         $this->assertSame(1, substr_count($html, 'class="rt-sign-train-mso"'), $message);
-        $this->assertDoesNotMatchRegularExpression('/<img\b[^>]*\bdata-rt-train(?:\s|=|>)/i', $html, $message);
-        $this->assertDoesNotMatchRegularExpression('/<(?:tr|td|img)\b[^>]*\brt-sign-train-mso\b/i', $html, $message);
+        $this->assertMatchesRegularExpression('/<img\b[^>]*class="rt-sign-train"[^>]*\bdata-rt-train(?:\s|=|>)[^>]*>/i', $html, $message);
+        $this->assertDoesNotMatchRegularExpression('/<(?:tr|td)\b[^>]*\brt-sign-train-mso\b/i', $html, $message);
         $this->assertMatchesRegularExpression(
-            '/<div\b[^>]*class="[^"]*\brt-sign-stage\b[^"]*"[^>]*>\s*<!--\[if mso\]><v:rect\b[^>]*class="rt-sign-train-mso"[^>]*>\s*<v:fill\b[^>]*\/>\s*<\/v:rect><!\[endif\]-->/s',
+            '/<div\b[^>]*class="[^"]*\brt-sign-stage\b[^"]*"[^>]*>\s*<!--\[if mso\]><img\b[^>]*class="rt-sign-train-mso"[^>]*data-rt-train-mso="1"[^>]*><!\[endif\]-->/s',
             $html,
             $message,
         );
+        $this->assertDoesNotMatchRegularExpression('/<v:(?:rect|fill)\b/i', $html, $message);
 
         if ($expectedStillSource !== null) {
             $escapedStillSource = htmlspecialchars(
@@ -1431,7 +1438,7 @@ class EmailTemplatesPageTest extends TestCase
                 'UTF-8',
             );
             $this->assertStringContainsString(
-                '<v:fill type="frame" src="'.$escapedStillSource.'" aspect="atmost" position="0,1" />',
+                'class="rt-sign-train-mso" data-rt-train-mso="1" src="'.$escapedStillSource.'"',
                 $html,
                 $message,
             );
@@ -1442,15 +1449,16 @@ class EmailTemplatesPageTest extends TestCase
             preg_match('/<td\b[^>]*class="[^"]*\brt-sign-cell\b[^"]*"[^>]*>/', $html, $carrier),
             $message,
         );
-        $this->assertStringContainsString('rt-sign-train-background', $carrier[0], $message);
-        $this->assertStringContainsString('data-rt-train-background', $carrier[0], $message);
+        $this->assertStringNotContainsString('rt-sign-train-background', $carrier[0], $message);
+        $this->assertStringNotContainsString('data-rt-train-background', $carrier[0], $message);
         $this->assertStringContainsString(
-            'background-repeat:repeat,no-repeat,no-repeat,no-repeat;',
+            'background-repeat:repeat,no-repeat,no-repeat;',
             $carrier[0],
             $message,
         );
+        $this->assertDoesNotMatchRegularExpression('/background-image:[^;]*(?:data:image\/gif|\.gif)/i', $carrier[0], $message);
 
-        return $carrier[0];
+        return $html;
     }
 
     /**

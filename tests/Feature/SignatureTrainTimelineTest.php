@@ -21,17 +21,18 @@ class SignatureTrainTimelineTest extends TestCase
         );
 
         $this->assertSame(1, substr_count($rendered, 'data-rt-train-idle-overlay'));
-        $this->assertSame(0, substr_count($rendered, 'data-rt-train-idle-image'));
+        $this->assertSame(1, substr_count($rendered, 'data-rt-train-idle-image'));
         $this->assertStringContainsString(
-            'title="Zug > Footer"><span class="rt-train-idle-overlay"',
+            'title="Zug > Footer"><img class="rt-train-idle-overlay rt-train-idle-image"',
             $rendered,
         );
         $this->assertStringContainsString(
-            "background-image:url('https://app.rail-time.test/mail-assets/zug-dampf-idle-light.gif')",
+            'src="https://app.rail-time.test/mail-assets/zug-dampf-idle-light.gif"',
             $rendered,
         );
-        $this->assertStringNotContainsString('<img class="rt-train-idle-image"', $rendered);
+        $this->assertStringNotContainsString('background-image:', $rendered);
         $this->assertDoesNotMatchRegularExpression('/rt-train-idle-overlay[^>]*height:100%/', $rendered);
+        $this->assertMatchesRegularExpression('/rt-train-idle-overlay[^>]*position:absolute[^>]*height:auto/', $rendered);
     }
 
     /**

@@ -464,12 +464,9 @@ class MailSignature
             $html = SignatureTrainCarrier::withIdleOverlay($html, $idleSource);
         }
 
-        // Das editierbare Schema bleibt ein normales IMG. Erst die finale
-        // Mail-/Preview-Fassung hebt es auf die vierte Carrier-Background-
-        // Ebene; so kann ein Client das Bild nie als eigene Zeile unter die
-        // Kontaktdaten fallen lassen.
-        $html = SignatureTrainCarrier::projectAsRuntimeBackground($html);
-
+        // Hauptzug und Idle-Rauch bleiben wie Logo und RT-Zeichen echte IMG.
+        // Ihre absolute Buehne liegt hinter der Inhaltstabelle und reserviert
+        // keine eigene Tabellenhoehe; GIF-Dateien werden nie per CSS geladen.
         return SignatureTrainCarrier::withMsoFallback($html, $outlookFallbackSource);
     }
 
@@ -504,8 +501,8 @@ class MailSignature
      * Die gespeicherte/editierbare Fassung bekommt den Zug zunaechst wie
      * Logo und RT-Icon als regulaeres Bild. Neue Editorstaende tragen bereits
      * die sichere Stage; alte Background- und Direkt-Layer werden atomar in
-     * dieselbe Zwischenstruktur ueberfuehrt. finalizeTrainRendering hebt das
-     * IMG danach ausschliesslich fuer die fertige Ausgabe in den Background.
+     * dieselbe Zwischenstruktur ueberfuehrt. finalizeTrainRendering ergaenzt
+     * nur Idle- und Outlook-IMG; das Haupt-GIF bleibt ein regulaeres IMG.
      *
      * @param  array<string, string>  $layout
      */

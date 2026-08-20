@@ -50,6 +50,7 @@ final class CssSemantic
         'data-rt-train-align',
         'data-rt-train-size',
         'data-rt-train-mobile',
+        'data-rt-train-mso',
         'data-rt-layer-train',
         'data-rt-layer-align',
         'data-rt-layer-size',
