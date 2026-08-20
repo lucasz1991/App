@@ -432,7 +432,7 @@ class MailDocumentEditorTest extends TestCase
         );
         $this->assertStringContainsString('zug-dampf-idle-light.gif', $html);
         $this->assertStringContainsString('data-rt-train-idle-overlay', $html);
-        $this->assertStringContainsString('data-rt-train-idle-image', $html);
+        $this->assertStringNotContainsString('data-rt-train-idle-image', $html);
         $this->assertStringNotContainsString('animation-delay: 13s;', $html);
         $this->assertStringContainsString('rt-train-idle-reveal', $html);
         $this->assertStringContainsString('rgba(255,255,255,0)', $html);
@@ -748,7 +748,7 @@ class MailDocumentEditorTest extends TestCase
         $this->assertStringContainsString('data-rt-train-idle-overlay', $html);
         $this->assertStringNotContainsString('data-rt-train-main-image', $html);
         $this->assertStringNotContainsString('data-rt-train-main-layer', $html);
-        $this->assertStringContainsString('data-rt-train-idle-image', $html);
+        $this->assertStringNotContainsString('data-rt-train-idle-image', $html);
         $this->assertStringNotContainsString('zug-dampf-idle-light.gif', $carrier[0]);
         $this->assertStringNotContainsString('zug-dampf-light.gif', $carrier[0]);
         $this->assertStringContainsString(
@@ -1161,7 +1161,7 @@ HTML;
             'Systemmail' => $systemMail,
         ] as $channel => $rendered) {
             $this->assertStringContainsString('data-rt-train-idle-overlay', $rendered, $channel);
-            $this->assertStringContainsString('data-rt-train-idle-image', $rendered, $channel);
+            $this->assertStringNotContainsString('data-rt-train-idle-image', $rendered, $channel);
             $this->assertStringContainsString('zug-dampf-idle-', $rendered, $channel);
             $this->assertSame(
                 1,
@@ -1190,7 +1190,7 @@ HTML;
         $this->assertStringContainsString('data-rt-train-idle-overlay', $systemMail);
         $this->assertStringNotContainsString('data-rt-train-main-image', $systemMail);
         $this->assertStringNotContainsString('data-rt-train-main-layer', $systemMail);
-        $this->assertStringContainsString('data-rt-train-idle-image', $systemMail);
+        $this->assertStringNotContainsString('data-rt-train-idle-image', $systemMail);
         $this->assertSame(1, substr_count($systemMail, 'zug-dampf-light.gif'));
         $this->assertSame(1, preg_match_all('/<img\b[^>]*zug-dampf-light\.gif[^>]*>/i', $systemMail));
         $this->assertSame(0, substr_count($systemMail, 'rt-classic-outlook-train'));
@@ -2832,7 +2832,7 @@ HTML;
         );
         $this->assertStringNotContainsString(',75% bottom;', $carrier[0]);
         $this->assertStringContainsString('data-rt-train-idle-overlay', $html);
-        $this->assertStringContainsString('data-rt-train-idle-image', $html);
+        $this->assertStringNotContainsString('data-rt-train-idle-image', $html);
         $this->assertStringContainsString('zug-dampf-idle-', $html);
         $this->assertStringContainsString('@keyframes rt-train-idle-reveal', $html);
     }

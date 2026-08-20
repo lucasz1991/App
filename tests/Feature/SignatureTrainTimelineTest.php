@@ -21,15 +21,16 @@ class SignatureTrainTimelineTest extends TestCase
         );
 
         $this->assertSame(1, substr_count($rendered, 'data-rt-train-idle-overlay'));
-        $this->assertSame(1, substr_count($rendered, 'data-rt-train-idle-image'));
+        $this->assertSame(0, substr_count($rendered, 'data-rt-train-idle-image'));
         $this->assertStringContainsString(
             'title="Zug > Footer"><span class="rt-train-idle-overlay"',
             $rendered,
         );
         $this->assertStringContainsString(
-            'src="https://app.rail-time.test/mail-assets/zug-dampf-idle-light.gif"',
+            "background-image:url('https://app.rail-time.test/mail-assets/zug-dampf-idle-light.gif')",
             $rendered,
         );
+        $this->assertStringNotContainsString('<img class="rt-train-idle-image"', $rendered);
         $this->assertDoesNotMatchRegularExpression('/rt-train-idle-overlay[^>]*height:100%/', $rendered);
     }
 
@@ -39,8 +40,8 @@ class SignatureTrainTimelineTest extends TestCase
     public static function trainAnimations(): array
     {
         return [
-            'mail light' => ['zug-dampf-light.gif', 2160, 219, 620 * 1024, true],
-            'mail dark' => ['zug-dampf-dark.gif', 2160, 219, 445 * 1024, true],
+            'mail light' => ['zug-dampf-light.gif', 2160, 159, 620 * 1024, true],
+            'mail dark' => ['zug-dampf-dark.gif', 2160, 159, 445 * 1024, true],
             'outlook light' => ['zug-dampf-outlook-light.gif', 720, 75, 200 * 1024, false],
             'outlook dark' => ['zug-dampf-outlook-dark.gif', 720, 75, 200 * 1024, false],
         ];
@@ -331,7 +332,7 @@ class SignatureTrainTimelineTest extends TestCase
         // Overlay trotz identischer Binaermaske auffallen.
         $assetScale = $width / 2160;
         $markLeft = 1152.0 * $assetScale;
-        $markTop = (165.0 * $assetScale) + ($width === 720 ? 2 : 0);
+        $markTop = (105.0 * $assetScale) + ($width === 720 ? 22 : 0);
         $markSize = 36.0 * $assetScale;
         $isolatedMarkRaster = '';
         for ($markRasterY = 0; $markRasterY < 12; $markRasterY++) {
@@ -384,7 +385,7 @@ class SignatureTrainTimelineTest extends TestCase
             $this->assertSame(file_get_contents($resource), file_get_contents($public));
             $size = getimagesize($resource);
             $this->assertIsArray($size);
-            $this->assertSame([2160, 219], [$size[0], $size[1]]);
+            $this->assertSame([2160, 159], [$size[0], $size[1]]);
 
             $image = imagecreatefrompng($resource);
             $this->assertInstanceOf(\GdImage::class, $image);
@@ -405,7 +406,7 @@ class SignatureTrainTimelineTest extends TestCase
             imagedestroy($image);
 
             $this->assertEqualsWithDelta(1296, $right, 12, "{$theme}: PNG-Zug endet nicht bei 60 Prozent.");
-            $this->assertSame(219, $bottom, "{$theme}: PNG-Radauflage endet nicht an der unteren Assetkante.");
+            $this->assertSame(159, $bottom, "{$theme}: PNG-Radauflage endet nicht an der unteren Assetkante.");
         }
     }
 
@@ -427,12 +428,12 @@ class SignatureTrainTimelineTest extends TestCase
                 $outlook['width'] * $outlook['height'],
             );
 
-            // 2160 x 219 wird mit Faktor 1/3 auf 720 x 73 skaliert und in
-            // der 75-px-Outlook-Leinwand um zwei Pixel nach unten gesetzt.
+            // 2160 x 159 wird mit Faktor 1/3 auf 720 x 53 skaliert und in
+            // der 75-px-Outlook-Leinwand um 22 Pixel nach unten gesetzt.
             // Der Vergleich umfasst die komplette sichtbare Ableitung und
             // damit auch die monochrome RT-Aufschrift.
             $sampledMain = '';
-            for ($y = 0; $y < 73; $y++) {
+            for ($y = 0; $y < 53; $y++) {
                 for ($x = 0; $x < 720; $x++) {
                     $sampledMain .= $mainPixels[(($y * 3) * 2160) + ($x * 3)];
                 }
@@ -440,7 +441,7 @@ class SignatureTrainTimelineTest extends TestCase
 
             $this->assertSame(
                 $sampledMain,
-                substr($outlookPixels, 2 * 720, 73 * 720),
+                substr($outlookPixels, 22 * 720, 53 * 720),
                 "{$theme}: Outlook ist nicht mehr die exakte 3:1-Ableitung des Hauptframes.",
             );
         }
@@ -461,7 +462,7 @@ class SignatureTrainTimelineTest extends TestCase
 
             $idle = $this->parseGif($resource);
             $this->assertSame(2160, $idle['width']);
-            $this->assertSame(219, $idle['height']);
+            $this->assertSame(159, $idle['height']);
             $this->assertCount(20, $idle['frames']);
             $this->assertSame(200, array_sum(array_column($idle['frames'], 'delayCs')));
 

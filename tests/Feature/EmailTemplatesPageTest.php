@@ -256,7 +256,7 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertSame(1, substr_count($html, $trainStill), $template);
             $this->assertSame(1, substr_count($html, $trainIdle), $template);
             $this->assertSame(1, substr_count($html, 'data-rt-train-idle-overlay'), $template);
-            $this->assertSame(1, substr_count($html, 'data-rt-train-idle-image'), $template);
+            $this->assertSame(0, substr_count($html, 'data-rt-train-idle-image'), $template);
             $this->assertStringContainsString('@keyframes rt-train-idle-reveal', $html, $template);
             $this->assertStringContainsString('background-repeat:repeat,no-repeat,no-repeat', $carrier[0], $template);
             $this->assertStringContainsString('background-position:left top,right center,center center', $carrier[0], $template);
@@ -294,7 +294,7 @@ class EmailTemplatesPageTest extends TestCase
             );
             $this->assertStringContainsString('src="cid:railtime-train-still" width="720"', $html, $template);
             $this->assertStringContainsString('data-rt-train-idle-overlay', $html, $template);
-            $this->assertStringContainsString('src="cid:railtime-train-idle"', $html, $template);
+            $this->assertStringContainsString("background-image:url('cid:railtime-train-idle')", $html, $template);
             $this->assertStringContainsString('@keyframes rt-train-idle-reveal', $html, $template);
         }
 
@@ -329,7 +329,7 @@ class EmailTemplatesPageTest extends TestCase
             // Idle-Rauchzyklen und ein kurzer End-Hold. Alles bleibt in genau
             // einem nicht-loopenden GIF, damit kein Rauch rechts vorauseilt.
             $this->assertSame(1300, array_sum($durations), "{$file}: 13 s Gesamtlaufzeit erwartet.");
-            // Das 1,5x-Retina-Asset (2160 x 219) bleibt selbst am maximalen
+            // Das 1,5x-Retina-Asset (2160 x 159) bleibt selbst am maximalen
             // 1815-px-Carrier scharf und ist gegenueber der vorherigen
             // 2x-Fassung etwa ein Drittel kleiner. Vertretbar, weil die
             // Datei in versendeten Mails VERLINKT ist — Gmails 102-kB-Schnitt
@@ -366,7 +366,7 @@ class EmailTemplatesPageTest extends TestCase
             $signatur,
         );
         $this->assertStringContainsString('data-rt-train-idle-overlay', $signatur);
-        $this->assertStringContainsString('data-rt-train-idle-image', $signatur);
+        $this->assertStringNotContainsString('data-rt-train-idle-image', $signatur);
         $this->assertStringContainsString('@keyframes rt-train-idle-reveal', $signatur);
         $this->assertStringContainsString('animation-delay: 13s;', $signatur);
         $this->assertStringNotContainsString('data-rt-outlook-train', $signatur);
@@ -835,13 +835,13 @@ class EmailTemplatesPageTest extends TestCase
     {
         [$width, $height] = getimagesize(resource_path('mail-templates/assets/zug-dampf-light.png'));
 
-        // Das Bild ist BREIT und FLACH (2160 x 219). Der Himmel darueber
+        // Das Bild ist BREIT und FLACH (2160 x 159). Der Himmel darueber
         // wurde bewusst knapp gehalten: die Zelle zeigt es mit auto 100%,
         // also an ihrer Hoehe ausgerichtet. Je mehr leerer Himmel im Bild
         // steckt, desto kleiner geriete der Zug darin — bei reichlich
         // Kopfraum lag er als flaches Band unter den Daten statt dahinter.
         $this->assertSame(2160, $width);
-        $this->assertSame(219, $height);
+        $this->assertSame(159, $height);
 
         // Die Umbruchregeln stehen in EINER Quelle. Vorher lagen sie
         // viermal im Projekt und waren bereits auseinandergelaufen: die
@@ -1006,7 +1006,7 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertSame(1, substr_count($html, 'class="rt-sign-train"'));
             $this->assertSame(1, substr_count($html, 'class="rt-sign-train-mso"'));
             $this->assertStringContainsString('data-rt-train-idle-overlay', $html);
-            $this->assertStringContainsString('data-rt-train-idle-image', $html);
+            $this->assertStringNotContainsString('data-rt-train-idle-image', $html);
             $this->assertStringContainsString('@keyframes rt-train-idle-reveal', $html);
             $this->assertStringContainsString(
                 'class="rt-sign-logo" width="50%" valign="top"',
@@ -1087,7 +1087,7 @@ class EmailTemplatesPageTest extends TestCase
             );
             $this->assertStringContainsString('src="cid:railtime-train-still" width="720"', $html);
             $this->assertStringContainsString('data-rt-train-idle-overlay', $html);
-            $this->assertStringContainsString('src="cid:railtime-train-idle"', $html);
+            $this->assertStringContainsString("background-image:url('cid:railtime-train-idle')", $html);
             $this->assertStringContainsString('@keyframes rt-train-idle-reveal', $html);
             $this->assertStringContainsString('src="cid:railtime-icon-email"', $html);
             $this->assertStringNotContainsString('data:image/', $html);
@@ -1139,7 +1139,7 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertSame(1, substr_count($html, 'class="rt-sign-train"'));
         $this->assertSame(1, substr_count($html, 'class="rt-sign-train-mso"'));
         $this->assertStringContainsString('data-rt-train-idle-overlay', $html);
-        $this->assertStringContainsString('data-rt-train-idle-image', $html);
+        $this->assertStringNotContainsString('data-rt-train-idle-image', $html);
         $this->assertStringContainsString('@keyframes rt-train-idle-reveal', $html);
         $this->assertStringNotContainsString('background=""', $html);
         $this->assertStringContainsString('class="rt-sign-logo"', $html);
@@ -1430,7 +1430,7 @@ class EmailTemplatesPageTest extends TestCase
                     $animated->getContent(),
                 );
                 $this->assertStringContainsString('data-rt-train-idle-overlay', $animated->getContent());
-                $this->assertStringContainsString('data-rt-train-idle-image', $animated->getContent());
+                $this->assertStringNotContainsString('data-rt-train-idle-image', $animated->getContent());
                 $this->assertStringContainsString('@keyframes rt-train-idle-reveal', $animated->getContent());
             }
             $this->assertNotSame($animatedA->getContent(), $animatedB->getContent());

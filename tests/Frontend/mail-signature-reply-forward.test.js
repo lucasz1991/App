@@ -105,6 +105,7 @@ test('each mail client sees one train image through the modern stage or the sing
     assert.doesNotMatch(preview, /SignatureTrainCarrier::projectAsImage\(/);
     assert.match(runtime, /SignatureTrainCarrier::withIdleOverlay\(/);
     assert.match(carrier, /data-rt-train-idle-overlay/);
-    assert.match(carrier, /data-rt-train-idle-image/);
+    assert.match(carrier, /background-image:url\(/);
+    assert.doesNotMatch(carrier, /<img class="rt-train-idle-image"/);
     assert.doesNotMatch(runtime, /rt-classic-outlook-train/);
 });

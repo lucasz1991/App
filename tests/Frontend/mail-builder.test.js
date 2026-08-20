@@ -1260,7 +1260,7 @@ test('signature source uses the relative stage, one modern train layer and one M
     assert.equal(trainAsset.toString('ascii', 1, 4), 'PNG');
     const assetWidth = trainAsset.readUInt32BE(16);
     const assetHeight = trainAsset.readUInt32BE(20);
-    assert.deepEqual([assetWidth, assetHeight], [2160, 219]);
+    assert.deepEqual([assetWidth, assetHeight], [2160, 159]);
 
     assert.equal((carrier.match(/<!--\[if mso\]><tr><td class="rt-sign-train-mso"/g) || []).length, 1);
     assert.equal((runtime.match(/SignatureTrainCarrier::withMsoFallback\(/g) || []).length, 1);

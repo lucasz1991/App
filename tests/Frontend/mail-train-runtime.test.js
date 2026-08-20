@@ -78,7 +78,8 @@ test('all delivered mail outputs use one modern train image, one delayed smoke l
     assert.match(carrier, /public static function withMsoFallback/);
     assert.match(carrier, /public static function withIdleOverlay/);
     assert.match(carrier, /class="rt-train-idle-overlay" data-rt-train-idle-overlay/);
-    assert.match(carrier, /class="rt-train-idle-image" data-rt-train-idle-image/);
+    assert.match(carrier, /background-image:url\(\\''\.\$escapedCssSource\.'\\'\)/);
+    assert.doesNotMatch(carrier, /<img class="rt-train-idle-image"/);
     assert.equal((carrier.match(/<!--\[if mso\]><tr><td class="rt-sign-train-mso"/g) || []).length, 1);
     assert.match(carrier, /<img src="'\.\$escapedSource\.'" width="720"/);
     assert.match(carrier, /<div class="rt-sign-stage" style="position:relative;overflow:hidden;">/);
@@ -99,6 +100,7 @@ test('all delivered mail outputs use one modern train image, one delayed smoke l
     assert.match(signatureView, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:absolute;[^"\r\n]*mso-hide:all;/);
     assert.doesNotMatch(signatureView, /rt-sign-train-layer[^>]*height:100%/);
     assert.doesNotMatch(carrier, /rt-train-idle-overlay[^>]*height:100%/);
+    assert.match(carrier, /background-size:100% auto/);
     assert.doesNotMatch(signatureView, /url\(\{\$values\['TRAIN_SRC'\]\}\)/);
     assert.match(
         signatureView,

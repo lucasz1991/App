@@ -321,16 +321,20 @@ final class SignatureTrainCarrier
             throw new RuntimeException('Die Idle-Rauchebene besitzt keinen eindeutigen Zugbild-Anker.');
         }
 
-        $escapedSource = htmlspecialchars(
-            $source,
+        if (preg_match('/^(?:https:\/\/[^\s"\'()]+|cid:[A-Za-z0-9._@+-]+|data:image\/gif;base64,[A-Za-z0-9+\/=]+)$/i', $source) !== 1) {
+            throw new RuntimeException('Die Idle-Rauchquelle ist fuer eine E-Mail-CSS-Ebene nicht zulaessig.');
+        }
+
+        $cssSource = str_replace(['\\', "'"], ['\\\\', "\\'"], $source);
+        $escapedCssSource = htmlspecialchars(
+            $cssSource,
             ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5,
             'UTF-8',
         );
         $overlay = '<span class="rt-train-idle-overlay" data-rt-train-idle-overlay '
-            .'style="position:absolute;left:0;right:auto;top:0;bottom:0;display:block;width:100%;margin:0;overflow:hidden;opacity:0;visibility:hidden;animation:rt-train-idle-reveal 1ms step-start 13s forwards;font-size:0;line-height:0;mso-hide:all;">'
-            .'<img class="rt-train-idle-image" data-rt-train-idle-image src="'.$escapedSource.'" width="720" alt="" '
-            .'style="position:absolute;left:0;right:auto;bottom:0;display:block;width:100%;max-width:100%;height:auto;margin:0;border:0;outline:none;text-decoration:none;mso-hide:all;">'
-            .'</span>';
+            .'style="position:absolute;left:0;right:auto;top:0;bottom:0;display:block;width:100%;margin:0;overflow:hidden;'
+            .'background-image:url(\''.$escapedCssSource.'\');background-repeat:no-repeat;background-position:left bottom;background-size:100% auto;'
+            .'opacity:0;visibility:hidden;animation:rt-train-idle-reveal 1ms step-start 13s forwards;font-size:0;line-height:0;mso-hide:all;"></span>';
 
         return substr_replace($html, $overlay, $images[0]['endOffset'] + 1, 0);
     }

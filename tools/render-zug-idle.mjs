@@ -47,7 +47,9 @@ const ZUG_FAKTOR = BASIS_ZUG_FAKTOR * ZUG_MASSSTAB;
 const ZUG_BREITE = BREITE * ZUG_FAKTOR;
 const ZUG_HOEHE = ZUG_BREITE * (151 / 2053);
 const BASIS_ZUG_HOEHE = (BREITE * BASIS_ZUG_FAKTOR) * (151 / 2053);
-const KOPFRAUM = 1.8;
+// Muss exakt dem Hauptasset entsprechen, damit die Rauchfahne beim
+// Hintergrund-Handoff pixelgleich auf dem Schornstein bleibt.
+const KOPFRAUM = Number(process.env.RT_KOPFRAUM || 1.31);
 const HOEHE = Math.round(BASIS_ZUG_HOEHE * KOPFRAUM);
 const ZUG_Y = HOEHE - ZUG_HOEHE;
 const ZIEL_RECHTS = 0.60;

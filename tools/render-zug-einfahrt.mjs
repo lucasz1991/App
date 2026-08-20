@@ -54,7 +54,7 @@ const ZUG_GRAU = '#737d89';
 
 // --- Leinwand ---------------------------------------------------------
 const BREITE = Number(process.env.RT_BREITE || 1440);
-const SKALA = Number(process.env.RT_SKALA || 1.5);                     // 2160 x 219 echte Bildpunkte
+const SKALA = Number(process.env.RT_SKALA || 1.5);                     // 2160 x 159 echte Bildpunkte
 
 // --- Zug --------------------------------------------------------------
 // Das Motiv ist 2053 : 151 breit zu hoch. Der Faktor sagt, wie viel
@@ -102,10 +102,10 @@ const BASIS_ZUG_HOEHE = (BREITE * BASIS_ZUG_FAKTOR) * (151 / 2053);
 // HOEHE = Zughoehe mal Kopfraum. Der Kopfraum ist der Himmel ueber dem
 // Zug, in dem die Rauchfahne aufsteigt — je groesser, desto hoeher darf
 // sie ziehen, bevor sie oben abgeschnitten wird.
-// Der Kopfraum ist jetzt ein VIELFACHES der Zughoehe, weil der Zug mit
-// sechs Wagen deutlich flacher im Bild steht. Ohne diese Entkopplung
-// schrumpfte der Himmel mit und die Fahne haette keinen Platz mehr.
-const KOPFRAUM = Number(process.env.RT_KOPFRAUM || 1.8);
+// 1,31 behaelt Zug und wesentlichen Rauch, entfernt aber den bislang
+// transparenten oberen Leerraum. Falls ein Mailclient absolute Positionen
+// entfernt, reserviert das normale IMG dadurch keine unnoetige Hoehe.
+const KOPFRAUM = Number(process.env.RT_KOPFRAUM || 1.31);
 // Die Leinwand bleibt gleich hoch. Nur das Motiv selbst wird um zehn
 // Prozent kleiner und weiterhin sauber am Boden ausgerichtet.
 const HOEHE = Math.round(BASIS_ZUG_HOEHE * KOPFRAUM);
@@ -559,7 +559,7 @@ function aufTabelle(rgba, tabelle) {
 
 /**
  * Leitet die Classic-/New-Outlook-Datei deterministisch aus exakt denselben
- * Einzelbildern ab. Die breite 2160×219-Fassung wird proportional auf 720 px
+ * Einzelbildern ab. Die breite 2160×159-Fassung wird proportional auf 720 px
  * Breite verkleinert und in der 75-px-Leinwand unten ausgerichtet.
  */
 function skaliereFuerOutlook(rgba, grund) {
