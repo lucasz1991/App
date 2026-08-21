@@ -204,11 +204,12 @@
                     id="mail-document-editor-{{ $currentDocument->public_id }}"
                     class="rt-mail-builder-root"
                     data-mail-document-root
+                    data-mail-editor-mode="mail"
                     wire:ignore
                 >
                     <div class="rt-mail-editor-loading" role="status">
                         <span class="rt-mail-editor-loading__mark">RT</span>
-                        <span>LMZ Page Builder wird geladen …</span>
+                        <span>LMZ Page Builder wird im Mailmodus geladen …</span>
                     </div>
                 </div>
             </div>

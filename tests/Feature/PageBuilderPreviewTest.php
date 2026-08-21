@@ -192,10 +192,10 @@ class PageBuilderPreviewTest extends TestCase
         $this->assertStringContainsString('data-preview-document="template"', $html);
         $this->assertStringContainsString('data-preview-theme="dark"', $html);
         $this->assertStringContainsString('data-preview-animation="static"', $html);
-        SignatureTrainCarrier::assertRuntimeImages($html, expectedIdleSource: '');
+        SignatureTrainCarrier::assertRuntimeImages($html, expectedIdleSource: '', expectedMsoSource: '');
         $this->assertSame(1, substr_count($html, 'class="rt-sign-train"'));
-        $this->assertSame(1, substr_count($html, 'class="rt-sign-train-mso"'));
-        $this->assertSame(1, substr_count($html, 'data-rt-train-mso="1"'));
+        $this->assertSame(0, substr_count($html, 'class="rt-sign-train-mso"'));
+        $this->assertSame(0, substr_count($html, 'data-rt-train-mso="1"'));
         $this->assertSame(1, substr_count($html, 'class="rt-sign-stage"'));
         $this->assertSame(
             1,
@@ -205,10 +205,7 @@ class PageBuilderPreviewTest extends TestCase
         $this->assertStringNotContainsString('data-rt-train-background', $staticCarrier[0]);
         $this->assertStringContainsString('data:image/png;base64,', $staticCarrier[0]);
         $this->assertMatchesRegularExpression('/<img\b[^>]*\bdata-rt-train(?:\s|=|>)[^>]*src="data:image\/png;base64,[^"]+"/i', $html);
-        $this->assertMatchesRegularExpression(
-            '/<div\b[^>]*class="[^"]*\brt-sign-train-layer\b[^"]*"[^>]*>\s*<!--\[if mso\]><img\b[^>]*class="rt-sign-train-mso"[^>]*data-rt-train-mso="1"[^>]*src="data:image\/png;base64,[^"]+"[^>]*><!\[endif\]-->/s',
-            $html,
-        );
+        $this->assertMatchesRegularExpression('/<div\b[^>]*class="[^"]*\brt-sign-train-layer\b[^"]*"[^>]*style="position:absolute;[^">]*top:0;bottom:0;[^">]*z-index:0;/s', $html);
         $this->assertDoesNotMatchRegularExpression('/<v:(?:rect|fill)\b/i', $html);
         $this->assertStringNotContainsString('<tr><td class="rt-sign-train-mso"', $html);
         $this->assertStringContainsString(
@@ -229,10 +226,10 @@ class PageBuilderPreviewTest extends TestCase
         $animatedHtml = (string) $animatedA->getContent();
 
         $this->assertStringContainsString('data-preview-animation="animated"', $animatedHtml);
-        SignatureTrainCarrier::assertRuntimeImages($animatedHtml);
+        SignatureTrainCarrier::assertRuntimeImages($animatedHtml, expectedMsoSource: '');
         $this->assertSame(1, substr_count($animatedHtml, 'class="rt-sign-train"'));
-        $this->assertSame(1, substr_count($animatedHtml, 'class="rt-sign-train-mso"'));
-        $this->assertSame(1, substr_count($animatedHtml, 'data-rt-train-mso="1"'));
+        $this->assertSame(0, substr_count($animatedHtml, 'class="rt-sign-train-mso"'));
+        $this->assertSame(0, substr_count($animatedHtml, 'data-rt-train-mso="1"'));
         $this->assertSame(1, substr_count($animatedHtml, 'class="rt-sign-stage"'));
         $this->assertSame(
             1,
@@ -242,10 +239,7 @@ class PageBuilderPreviewTest extends TestCase
         $this->assertStringNotContainsString('data-rt-train-background', $animatedCarrier[0]);
         $this->assertStringNotContainsString('data:image/gif;base64,', $animatedCarrier[0]);
         $this->assertMatchesRegularExpression('/<img\b[^>]*\bdata-rt-train(?:\s|=|>)[^>]*src="data:image\/gif;base64,[^"]+"/i', $animatedHtml);
-        $this->assertMatchesRegularExpression(
-            '/<div\b[^>]*class="[^"]*\brt-sign-train-layer\b[^"]*"[^>]*>\s*<!--\[if mso\]><img\b[^>]*class="rt-sign-train-mso"[^>]*data-rt-train-mso="1"[^>]*src="data:image\/png;base64,[^"]+"[^>]*><!\[endif\]-->/s',
-            $animatedHtml,
-        );
+        $this->assertMatchesRegularExpression('/<div\b[^>]*class="[^"]*\brt-sign-train-layer\b[^"]*"[^>]*style="position:absolute;[^">]*top:0;bottom:0;[^">]*z-index:0;/s', $animatedHtml);
         $this->assertDoesNotMatchRegularExpression('/<v:(?:rect|fill)\b/i', $animatedHtml);
         $this->assertStringNotContainsString('<tr><td class="rt-sign-train-mso"', $animatedHtml);
         $this->assertStringContainsString(
@@ -281,9 +275,9 @@ class PageBuilderPreviewTest extends TestCase
 
         $this->assertStringContainsString('data-preview-document="signature"', $signatureHtml);
         $this->assertStringContainsString('data-preview-animation="animated"', $signatureHtml);
-        SignatureTrainCarrier::assertRuntimeImages($signatureHtml);
+        SignatureTrainCarrier::assertRuntimeImages($signatureHtml, expectedMsoSource: '');
         $this->assertSame(1, substr_count($signatureHtml, 'class="rt-sign-train"'));
-        $this->assertSame(1, substr_count($signatureHtml, 'class="rt-sign-train-mso"'));
+        $this->assertSame(0, substr_count($signatureHtml, 'class="rt-sign-train-mso"'));
         $this->assertSame(1, substr_count($signatureHtml, 'data-rt-train-idle-overlay'));
         $this->assertSame(1, substr_count($signatureHtml, 'data-rt-train-idle-image'));
         $this->assertStringNotContainsString('RT_COMPANY_PHONE_START', $signatureHtml);

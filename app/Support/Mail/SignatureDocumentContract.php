@@ -88,11 +88,12 @@ final class SignatureDocumentContract
     /**
      * Laufzeitvertrag fuer bereits veroeffentlichte Signaturen.
      *
-     * Neue Editor-/Publish-Staende muessen immer den Schema-16-Vertrag
+     * Neue Editor-/Publish-Staende muessen immer den Schema-17-Vertrag
      * besitzen. Bis der autoritative Seeder nach dem Deployment gelaufen ist,
      * darf der Versand nur die einzeln beschriebenen Altformen lesen:
      * Schema 6 (Padding), Schema 9 (Background) sowie Schema 12-15
-     * (absolute Bild-Layer). Jede andere Zwischenform bricht fail-closed ab.
+     * (alte absolute Bild-Layer) und das exakte Schema 16 (Flow-Layer).
+     * Jede andere Zwischenform bricht fail-closed ab.
      */
     public static function assertRuntimeValid(string $html): void
     {
@@ -143,12 +144,14 @@ final class SignatureDocumentContract
         self::assertLegacyTrainStill($html, $decodedHtml, $allowLegacyTrainStill);
 
         if (SignatureTrainCarrier::hasCanonicalImage($html)) {
-            SignatureTrainCarrier::assertCanonicalImage(
-                $html,
-                $allowLegacyDirectImage,
-                $allowLegacyPercentHeight,
-                $allowLegacyAbsoluteImage,
-            );
+            if ($allowLegacyDirectImage || $allowLegacyPercentHeight || $allowLegacyAbsoluteImage) {
+                // Der Runtime-Einstieg akzeptiert nur die im Carrier selbst
+                // exakt beschriebenen Altvertraege und normalisiert sie ohne
+                // Persistenz in Schema 17. Neue Saves bleiben strikt.
+                SignatureTrainCarrier::normalize($html);
+            } else {
+                SignatureTrainCarrier::assertCanonicalImage($html);
+            }
             SignatureTrainCarrier::assertCanonicalBaseBackground($html);
         } elseif ($allowLegacyTrainCarrier) {
             // Bereits publizierte Schema-9-Staende bleiben bis zum expliziten

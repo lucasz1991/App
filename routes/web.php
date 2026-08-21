@@ -119,6 +119,13 @@ Route::view('/user/confirm-password', 'auth.confirm-password')
     ->middleware(['auth:sanctum', config('jetstream.auth_session')])
     ->name('password.confirm');
 
+// Die Auth-Views sind in Fortify bewusst deaktiviert. Verify- und Resend-
+// Endpunkt kommen aus Fortify; die bestehende Hinweisansicht registrieren wir
+// deshalb selbst und ohne `verified`, damit keine Redirect-Schleife entsteht.
+Route::view('/email/verify', 'auth.verify-email')
+    ->middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session')])
+    ->name('verification.notice');
+
 Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session'), 'verified'])->group(function () {
     Route::post('/assistant/audio-input/transcribe', AssistantAudioInputTranscriptionController::class)
         ->middleware(EnsureAssistantAccess::class.':assistant-stt')

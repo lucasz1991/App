@@ -35,12 +35,20 @@
    Stabiler Einhaengepunkt fuer freigegebenes Signatur-CSS. Die Zug-Einfahrt
    laeuft einmalig im Haupt-GIF. Danach wird nur die transparente, kleine
    Rauchschleife sichtbar; der Zug selbst wird dadurch nicht dupliziert. */
-.rt-sign-train-layer {
+.rt-sign-stage {
   position: relative !important;
+  overflow: hidden !important;
+}
+.rt-sign-stage > table {
+  position: relative !important;
+  z-index: 1 !important;
+}
+.rt-sign-train-layer {
+  position: absolute !important;
   left: 0 !important;
   right: auto !important;
-  top: auto !important;
-  bottom: auto !important;
+  top: 0 !important;
+  bottom: 0 !important;
   width: 100% !important;
   max-width: 1815px !important;
   margin-top: 0 !important;
@@ -50,25 +58,19 @@
   line-height: 0 !important;
   text-align: left !important;
 }
-.rt-sign-train,
-.rt-sign-train-mso {
-  position: static !important;
-  left: auto !important;
+.rt-sign-train {
+  position: absolute !important;
+  left: 0 !important;
   right: auto !important;
-  bottom: auto !important;
-  display: inline-block !important;
+  bottom: 0 !important;
+  display: block !important;
   max-width: none !important;
   height: auto !important;
   margin-top: 0 !important;
   margin-right: 0 !important;
   margin-bottom: 0 !important;
-  vertical-align: top !important;
+  vertical-align: bottom !important;
   z-index: 0 !important;
-}
-.rt-sign-train-mso {
-  width: 100% !important;
-  max-width: none !important;
-  margin: 0 !important;
 }
 @keyframes rt-train-idle-reveal {
   0% { opacity: 0; visibility: hidden; }
@@ -78,8 +80,8 @@
   position: absolute !important;
   left: 0 !important;
   right: auto !important;
-  top: 0 !important;
-  bottom: auto !important;
+  top: auto !important;
+  bottom: 0 !important;
   display: block !important;
   width: 100% !important;
   max-width: none !important;
@@ -94,22 +96,22 @@
   visibility: hidden;
 }
 .rt-train-idle-image {
-  position: static !important;
-  left: auto !important;
+  position: absolute !important;
+  left: 0 !important;
   right: auto !important;
-  bottom: auto !important;
-  display: inline-block !important;
+  bottom: 0 !important;
+  display: block !important;
   max-width: none !important;
   height: auto !important;
   margin-top: 0 !important;
   margin-right: 0 !important;
   margin-bottom: 0 !important;
-  vertical-align: top !important;
+  vertical-align: bottom !important;
   z-index: 1 !important;
 }
-.rt-sign-train-layer[data-rt-layer-align="left"] { margin-left: 0 !important; margin-right: auto !important; }
-.rt-sign-train-layer[data-rt-layer-align="center"] { margin-left: auto !important; margin-right: auto !important; }
-.rt-sign-train-layer[data-rt-layer-align="right"] { margin-left: auto !important; margin-right: 0 !important; }
+.rt-sign-train-layer[data-rt-layer-align="left"] { left: 0 !important; right: auto !important; margin-left: 0 !important; margin-right: auto !important; }
+.rt-sign-train-layer[data-rt-layer-align="center"] { left: 0 !important; right: 0 !important; margin-left: auto !important; margin-right: auto !important; }
+.rt-sign-train-layer[data-rt-layer-align="right"] { left: auto !important; right: 0 !important; margin-left: auto !important; margin-right: 0 !important; }
 .rt-sign-train-layer[data-rt-layer-size="100"] > .rt-sign-train,
 .rt-sign-train-layer[data-rt-layer-size="100"] > .rt-train-idle-overlay > .rt-train-idle-image { width: 100% !important; max-width: none !important; }
 .rt-sign-train-layer[data-rt-layer-size="125"] > .rt-sign-train,
@@ -157,8 +159,8 @@
 }
 
 /* Hauptzug und Idle-Rauch bleiben im Editor, in der Vorschau und im Versand
-   echte IMG. Das Hauptbild bleibt bewusst im Tabellenfluss; nur der optionale
-   Idle-Rauch liegt in faehigen Clients hoehenneutral darueber. */
+   echte IMG. Beide sind am unteren Stage-Rand absolut und hoehenneutral hinter
+   der normal fliessenden Kontakttabelle verankert. */
 /* ---- Tablet quer: enger setzen, aber zweispaltig bleiben ---- */
 @media only screen and (max-width: 1000px) {
 .rt-pad { padding-left: 30px !important; padding-right: 30px !important; }
@@ -262,8 +264,6 @@ img.rt-logo { width: 150px !important; }
   background-size: 64px 64px, auto 52%, 100% 100% !important;
 }
 .rt-sign-train-layer {
-  left: 0 !important;
-  right: auto !important;
   width: 100% !important;
   max-width: 1815px !important;
   margin-top: 0 !important;
@@ -273,9 +273,9 @@ img.rt-logo { width: 150px !important; }
    deren Mitte verankert. Nur die echten IMG werden fuer Detailausschnitte
    vergroessert und mit einer presetbasierten negativen Margin verschoben. */
 .rt-sign-train-layer[data-rt-layer-mobile="left"],
-.rt-sign-train-layer[data-rt-layer-mobile="train"] { margin-left: 0 !important; margin-right: auto !important; }
-.rt-sign-train-layer[data-rt-layer-mobile="center"] { margin-left: auto !important; margin-right: auto !important; }
-.rt-sign-train-layer[data-rt-layer-mobile="right"] { margin-left: auto !important; margin-right: 0 !important; }
+.rt-sign-train-layer[data-rt-layer-mobile="train"] { left: 0 !important; right: auto !important; margin-left: 0 !important; margin-right: auto !important; }
+.rt-sign-train-layer[data-rt-layer-mobile="center"] { left: 0 !important; right: 0 !important; margin-left: auto !important; margin-right: auto !important; }
+.rt-sign-train-layer[data-rt-layer-mobile="right"] { left: auto !important; right: 0 !important; margin-left: auto !important; margin-right: 0 !important; }
 .rt-sign-train-layer[data-rt-layer-mobile="left"][data-rt-layer-size] > .rt-sign-train,
 .rt-sign-train-layer[data-rt-layer-mobile="left"][data-rt-layer-size] > .rt-train-idle-overlay > .rt-train-idle-image { width: 200% !important; max-width: none !important; margin-left: 0 !important; }
 .rt-sign-train-layer[data-rt-layer-mobile="center"][data-rt-layer-size] > .rt-sign-train,

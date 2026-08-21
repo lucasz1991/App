@@ -17,11 +17,13 @@ import {
     installScopedAssetAccess,
     isProtectedEditorStructure,
     isProtectedEditorStructureTree,
+    LMZ_EDITOR_MODES,
     createLmzAssistantAdapter,
     createLmzEditorChrome,
     createPageBuilderLifecycleController,
     createPageBuilderNavigationController,
     normalizeLmzCapabilities,
+    resolveLmzEditorMode,
     restartAnimatedPreview,
     sanitizeAnimationStyles,
     sanitizeMotionSettings,
@@ -1518,16 +1520,56 @@ function coreFakeEditor(root, selected, vendorSelection = null) {
 }
 
 test('shared LMZ capabilities keep mail GIF preview separate from persistent marketing motion', () => {
-    const mail = normalizeLmzCapabilities('mail', { imageReplace: 'tokens-only', animation: true });
+    const mail = normalizeLmzCapabilities('mail', { animation: true, classes: true });
     const marketing = normalizeLmzCapabilities('marketing');
 
+    assert.equal(resolveLmzEditorMode('mail'), LMZ_EDITOR_MODES.mail);
+    assert.equal(resolveLmzEditorMode('marketing'), LMZ_EDITOR_MODES.marketing);
+    assert.equal(resolveLmzEditorMode('unsafe'), LMZ_EDITOR_MODES.marketing);
+    assert.equal(LMZ_EDITOR_MODES.mail.contentModel, 'email');
+    assert.equal(LMZ_EDITOR_MODES.mail.styleStrategy, 'inline');
     assert.equal(mail.animation, false);
     assert.equal(mail.imageReplace, 'tokens-only');
+    assert.equal(mail.classes, false);
     assert.equal(mail.gifControls, true);
     assert.equal(mail.mediaInsert, false);
     assert.equal(marketing.animation, true);
     assert.equal(marketing.imageReplace, true);
 });
+
+test('shared LMZ shell exposes the resolved mail profile and removes unsafe class controls', () => coreWithDom(`
+    <div id="root">
+        <div class="lmz-builder__topbar">
+            <div class="lmz-builder__actions"><button data-lmz-action="assets">Medien</button></div>
+            <div class="lmz-builder__panel-actions lmz-builder__panel-actions--left"></div>
+            <button data-lmz-panel-toggle="right:classes" data-lmz-panel-group="right">Klassen</button>
+        </div>
+        <div class="lmz-builder__viewport">
+            <section data-lmz-popover-panel="right:classes"><div data-lmz-mount="classes"></div></section>
+            <div data-tools><div data-toolbar></div></div>
+        </div>
+    </div>
+`, ({ document }) => {
+    const root = document.querySelector('#root');
+    const editor = coreFakeEditor(root, coreFakeComponent(document.createElement('p')));
+    const classesToggle = root.querySelector('[data-lmz-panel-toggle="right:classes"]');
+    const chrome = createLmzEditorChrome({ instance: { editor }, root, mode: LMZ_EDITOR_MODES.mail });
+    const indicator = root.querySelector('[data-rt-lmz-mode-indicator="mail"]');
+
+    assert.equal(chrome.mode, LMZ_EDITOR_MODES.mail);
+    assert.equal(root.dataset.rtLmzMode, 'mail');
+    assert.equal(root.dataset.rtLmzContentModel, 'email');
+    assert.equal(root.dataset.rtLmzStyleStrategy, 'inline');
+    assert.equal(indicator.getAttribute('role'), 'status');
+    assert.match(indicator.getAttribute('aria-label'), /Aktiver Editormodus: Mail/);
+    assert.match(indicator.textContent, /Mailclient-sichere Bausteine/);
+    assert.equal(classesToggle.hidden, true);
+    assert.equal(chrome.openPanel('classes'), false);
+
+    chrome.destroy();
+    assert.equal(root.querySelector('[data-rt-lmz-mode-indicator]'), null);
+    assert.equal(classesToggle.hidden, false);
+}));
 
 test('shared LMZ media inventory exposes missing sources without loading external previews', () => {
     const state = collectUsedMedia({

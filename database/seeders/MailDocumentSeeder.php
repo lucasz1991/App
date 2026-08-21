@@ -50,8 +50,9 @@ final class MailDocumentSeeder extends Seeder
      * 14 Zugmotiv bei 60 Prozent, kompakte 1,5x-Assets und dauerhafter Idle-Rauch
      * 15 Vorschau-/Outlook-Paritaet ohne Prozenthoehe am absoluten Zug-Layer
      * 16 Mail-sicherer IMG-Fluss fuer identische Editor-/Outlook-Geometrie
+     * 17 Hoehenneutraler absoluter IMG-Layer hinter den Kontaktdaten
      */
-    private const STARTER_SCHEMA = 16;
+    private const STARTER_SCHEMA = 17;
 
     public function run(): void
     {

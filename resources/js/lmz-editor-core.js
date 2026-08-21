@@ -209,6 +209,49 @@ export const DEFAULT_LMZ_CAPABILITIES = Object.freeze({
     writable: true,
 });
 
+/**
+ * Fachliche Arbeitsprofile des gemeinsamen LMZ-Editors.
+ *
+ * Ein Modus beschreibt den Dokumenttyp und ist deshalb kein frei
+ * umschaltbarer Ansichtsstatus. So kann ein Maildokument nicht beim Oeffnen
+ * oder durch einen UI-Wechsel mit Marketing-CSS serialisiert werden.
+ */
+export const LMZ_EDITOR_MODES = Object.freeze({
+    marketing: Object.freeze({
+        id: 'marketing',
+        label: 'Marketing',
+        description: 'Freie Artboards mit RailTime-Medien und Motion-Werkzeugen.',
+        contentModel: 'artboard',
+        styleStrategy: 'canvas',
+        capabilities: Object.freeze({
+            classes: true,
+            mediaInsert: true,
+            imageReplace: true,
+            animation: true,
+        }),
+    }),
+    mail: Object.freeze({
+        id: 'mail',
+        label: 'Mail',
+        description: 'Mailclient-sichere Bausteine, Inline-Stile und freigegebene Medien.',
+        contentModel: 'email',
+        styleStrategy: 'inline',
+        capabilities: Object.freeze({
+            classes: false,
+            mediaInsert: false,
+            imageReplace: 'tokens-only',
+            animation: false,
+            upload: false,
+            externalAssetUrl: false,
+        }),
+    }),
+});
+
+export function resolveLmzEditorMode(mode = 'marketing') {
+    const id = typeof mode === 'object' && mode !== null ? mode.id : mode;
+    return LMZ_EDITOR_MODES[String(id || '').toLowerCase()] || LMZ_EDITOR_MODES.marketing;
+}
+
 function number(value, fallback = 0) {
     const parsed = typeof value === 'number' ? value : Number.parseFloat(value);
     return Number.isFinite(parsed) ? parsed : fallback;
@@ -233,12 +276,11 @@ function dispatch(root, name, detail = {}) {
 }
 
 export function normalizeLmzCapabilities(mode = 'marketing', capabilities = {}) {
-    const normalizedMode = mode === 'mail' ? 'mail' : 'marketing';
+    const profile = resolveLmzEditorMode(mode);
+    const normalizedMode = profile.id;
     const merged = {
         ...DEFAULT_LMZ_CAPABILITIES,
-        mediaInsert: normalizedMode === 'marketing',
-        imageReplace: normalizedMode === 'marketing',
-        animation: normalizedMode === 'marketing',
+        ...profile.capabilities,
         ...capabilities,
     };
 
@@ -252,9 +294,10 @@ export function normalizeLmzCapabilities(mode = 'marketing', capabilities = {}) 
         merged.animation = false;
     }
     if (normalizedMode === 'mail') {
+        merged.classes = false;
         merged.mediaInsert = false;
         merged.animation = false;
-        merged.imageReplace = capabilities.imageReplace === 'tokens-only'
+        merged.imageReplace = capabilities.imageReplace === 'tokens-only' || capabilities.imageReplace === undefined
             ? 'tokens-only'
             : false;
     }
@@ -2987,12 +3030,17 @@ export function createLmzEditorChrome({
     const editor = instance?.editor;
     if (!rootElement || !editor) throw new TypeError('Der gemeinsame LMZ-Adapter benötigt Root und Editorinstanz.');
     rootElement.__rtLmzEditorChrome?.destroy?.();
-    const normalized = normalizeLmzCapabilities(mode, capabilities);
+    const profile = resolveLmzEditorMode(mode);
+    const normalizedMode = profile.id;
+    const normalized = normalizeLmzCapabilities(profile, capabilities);
     const abortController = new AbortController();
     let isOpen = Boolean(active);
     let destroyed = false;
     rootElement.classList.add('rt-lmz-editor');
-    rootElement.dataset.rtLmzMode = mode === 'mail' ? 'mail' : 'marketing';
+    rootElement.dataset.rtLmzMode = normalizedMode;
+    rootElement.dataset.rtLmzModeLabel = profile.label;
+    rootElement.dataset.rtLmzContentModel = profile.contentModel;
+    rootElement.dataset.rtLmzStyleStrategy = profile.styleStrategy;
     rootElement.dataset.rtLmzOpen = isOpen ? 'true' : 'false';
     rootElement.dataset.rtLmzReadOnly = normalized.writable ? 'false' : 'true';
     const readOnlyMounts = !normalized.writable
@@ -3001,6 +3049,35 @@ export function createLmzEditorChrome({
     readOnlyMounts.forEach((mount) => {
         mount.inert = true;
         mount.setAttribute('aria-disabled', 'true');
+    });
+    const capabilityByPanel = Object.freeze({
+        'left:blocks': 'blocks',
+        'left:layers': 'layers',
+        'right:styles': 'styles',
+        'right:traits': 'traits',
+        'right:classes': 'classes',
+    });
+    const unavailableCapabilityElements = [];
+    const disableCapabilityElement = (element, capability, { hide = false } = {}) => {
+        if (!element || unavailableCapabilityElements.some((entry) => entry.element === element)) return;
+        unavailableCapabilityElements.push({
+            element,
+            hidden: element.hidden,
+            inert: Boolean(element.inert),
+            ariaDisabled: element.getAttribute('aria-disabled'),
+        });
+        if (hide) element.hidden = true;
+        element.inert = true;
+        element.setAttribute('aria-disabled', 'true');
+        element.dataset.rtLmzCapability = capability;
+    };
+    Object.entries(capabilityByPanel).forEach(([panelId, capability]) => {
+        if (normalized[capability]) return;
+        const toggle = rootElement.querySelector(`[data-lmz-panel-toggle="${panelId}"]`);
+        const panel = rootElement.querySelector(`[data-lmz-popover-panel="${panelId}"]`);
+        disableCapabilityElement(toggle, capability, { hide: true });
+        disableCapabilityElement(panel, capability, { hide: true });
+        disableCapabilityElement(panel?.querySelector?.('[data-lmz-mount]'), capability);
     });
     enforceProtectedComponentModels(editor, { readOnly: !normalized.writable });
 
@@ -3012,7 +3089,22 @@ export function createLmzEditorChrome({
     }
     const labels = { undo: 'Rückgängig', redo: 'Wiederholen', preview: 'Vorschau', assets: 'Medien', save: 'Speichern' };
     Object.entries(labels).forEach(([action, label]) => addActionLabel(rootElement.querySelector(`[data-lmz-action="${action}"]`), label));
-    rootElement.querySelector('.lmz-builder__topbar')?.setAttribute('data-rt-lmz-toolbar', 'true');
+    const topbar = rootElement.querySelector('.lmz-builder__topbar');
+    topbar?.setAttribute('data-rt-lmz-toolbar', 'true');
+    const modeIndicator = rootElement.ownerDocument.createElement('div');
+    modeIndicator.className = 'rt-lmz-mode-indicator';
+    modeIndicator.dataset.rtLmzModeIndicator = normalizedMode;
+    modeIndicator.setAttribute('role', 'status');
+    modeIndicator.setAttribute('aria-label', `Aktiver Editormodus: ${profile.label}. ${profile.description}`);
+    const modeEyebrow = rootElement.ownerDocument.createElement('span');
+    modeEyebrow.className = 'rt-lmz-mode-indicator__eyebrow';
+    modeEyebrow.textContent = 'Modus';
+    const modeName = rootElement.ownerDocument.createElement('strong');
+    modeName.textContent = profile.label;
+    const modeDescription = rootElement.ownerDocument.createElement('small');
+    modeDescription.textContent = profile.description;
+    modeIndicator.append(modeEyebrow, modeName, modeDescription);
+    topbar?.insertBefore(modeIndicator, topbar.querySelector('.lmz-builder__panel-actions--left'));
     rootElement.querySelectorAll('[data-lmz-panel-toggle]').forEach((button) => button.classList.add('rt-lmz-drawer-trigger'));
     rootElement.querySelectorAll('[data-lmz-popover]').forEach((drawer) => drawer.setAttribute('data-rt-lmz-drawer', drawer.dataset.lmzPopover || ''));
     const onVendorPopoverEscape = (event) => {
@@ -3056,10 +3148,10 @@ export function createLmzEditorChrome({
     let mediaDrawer;
     let animationDrawer;
     const refreshAll = () => { spacing.refresh(); mediaDrawer?.refresh(); };
-    mediaDrawer = createMediaDrawer({ root: rootElement, editor, mode, media, capabilities: normalized, onChanged: refreshAll });
-    const detachScopedAssetAccess = installScopedAssetAccess({ editor, mediaDrawer, mode });
-    animationDrawer = createAnimationDrawer({ root: rootElement, editor, capabilities: normalized, mode, onChanged: refreshAll });
-    const menu = createInlineMenu({ root: rootElement, editor, capabilities: normalized, mode, mediaDrawer, animationDrawer });
+    mediaDrawer = createMediaDrawer({ root: rootElement, editor, mode: normalizedMode, media, capabilities: normalized, onChanged: refreshAll });
+    const detachScopedAssetAccess = installScopedAssetAccess({ editor, mediaDrawer, mode: normalizedMode });
+    animationDrawer = createAnimationDrawer({ root: rootElement, editor, capabilities: normalized, mode: normalizedMode, onChanged: refreshAll });
+    const menu = createInlineMenu({ root: rootElement, editor, capabilities: normalized, mode: normalizedMode, mediaDrawer, animationDrawer });
     const detachToolbar = addInlineEditToolbar(editor, rootElement, menu);
     const detachCanvasTabBoundary = installCanvasTabBoundary(editor, rootElement);
     const detachStructureActionGuard = installStructureActionGuard(editor, rootElement, normalized);
@@ -3115,6 +3207,7 @@ export function createLmzEditorChrome({
 
     const api = {
         editor,
+        mode: profile,
         capabilities: normalized,
         open(detail = {}) {
             if (destroyed) return false;
@@ -3122,7 +3215,7 @@ export function createLmzEditorChrome({
             rootElement.dataset.rtLmzOpen = 'true';
             spacing.setEnabled(normalized.spacing);
             refreshAll();
-            dispatch(rootElement, LMZ_EDITOR_EVENTS.opened, { mode, ...detail });
+            dispatch(rootElement, LMZ_EDITOR_EVENTS.opened, { mode: normalizedMode, ...detail });
             return true;
         },
         close(detail = {}) {
@@ -3133,7 +3226,7 @@ export function createLmzEditorChrome({
             mediaDrawer.close();
             animationDrawer.close();
             menu.close();
-            dispatch(rootElement, LMZ_EDITOR_EVENTS.closed, { mode, ...detail });
+            dispatch(rootElement, LMZ_EDITOR_EVENTS.closed, { mode: normalizedMode, ...detail });
             return true;
         },
         refresh: refreshAll,
@@ -3148,8 +3241,12 @@ export function createLmzEditorChrome({
             const mapping = {
                 blocks: 'left:blocks', layers: 'left:layers', styles: 'right:styles',
                 traits: 'right:traits', properties: 'right:traits', spacing: 'right:styles',
+                classes: 'right:classes',
             };
-            return Boolean(mapping[panel] && openPanel(rootElement, mapping[panel]));
+            const panelId = mapping[panel];
+            const capability = capabilityByPanel[panelId];
+            if (!panelId || (capability && !normalized[capability])) return false;
+            return Boolean(openPanel(rootElement, panelId));
         },
         restartGif(target = null) {
             return restartAnimatedPreview(resolveAnimatedComponent(target || editor.getSelected?.()) || target || editor.getSelected?.());
@@ -3176,14 +3273,25 @@ export function createLmzEditorChrome({
             spacing.destroy();
             rootElement.classList.remove('rt-lmz-editor');
             delete rootElement.dataset.rtLmzMode;
+            delete rootElement.dataset.rtLmzModeLabel;
+            delete rootElement.dataset.rtLmzContentModel;
+            delete rootElement.dataset.rtLmzStyleStrategy;
             delete rootElement.dataset.rtLmzOpen;
             delete rootElement.dataset.rtLmzReadOnly;
+            modeIndicator.remove();
+            unavailableCapabilityElements.forEach(({ element, hidden, inert, ariaDisabled }) => {
+                element.hidden = hidden;
+                element.inert = inert;
+                delete element.dataset.rtLmzCapability;
+                if (ariaDisabled === null) element.removeAttribute('aria-disabled');
+                else element.setAttribute('aria-disabled', ariaDisabled);
+            });
             readOnlyMounts.forEach((mount) => {
                 mount.inert = false;
                 mount.removeAttribute('aria-disabled');
             });
             if (rootElement.__rtLmzEditorChrome === api) delete rootElement.__rtLmzEditorChrome;
-            dispatch(rootElement, LMZ_EDITOR_EVENTS.destroyed, { mode });
+            dispatch(rootElement, LMZ_EDITOR_EVENTS.destroyed, { mode: normalizedMode });
         },
     };
 
@@ -3191,6 +3299,6 @@ export function createLmzEditorChrome({
     rootElement.addEventListener(LMZ_EDITOR_EVENTS.requestClose, (event) => api.close(event.detail), { signal: abortController.signal });
     rootElement.addEventListener(LMZ_EDITOR_EVENTS.requestRefresh, refreshAll, { signal: abortController.signal });
     rootElement.__rtLmzEditorChrome = api;
-    dispatch(rootElement, LMZ_EDITOR_EVENTS.ready, { mode, capabilities: normalized });
+    dispatch(rootElement, LMZ_EDITOR_EVENTS.ready, { mode: normalizedMode, profile, capabilities: normalized });
     return api;
 }

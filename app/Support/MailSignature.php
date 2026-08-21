@@ -156,9 +156,9 @@ class MailSignature
                         $this->staticAssets ? false : $this->animated,
                     ),
                 ),
-                // Statischer MSO-/Word-Fallback fuer Clients, die das
-                // absolut positionierte kombinierte GIF nicht darstellen.
-                // Moderne Clients sehen weiterhin nur das Haupt-GIF.
+                // Statische, weiter validierte Referenz. Schema 17 injiziert
+                // sie nicht mehr als MSO-Zugbild, weil Word absolute
+                // Positionierung ignoriert und sonst Flow-Hoehe erzeugt.
                 'TRAIN_STILL_SRC' => EmailTemplateBuilder::signatureTrainStillUrl($this->theme),
                 // Nur der Rauch loopt. Die einmalige Einfahrt bleibt im
                 // Haupt-GIF und wird nie erneut abgespielt; die transparente
@@ -191,9 +191,9 @@ class MailSignature
                     $this->staticAssets ? false : $this->animated,
                     $this->playbackNonce,
                 ),
-                // Outlook-/Word-Fallback fuer den absolut positionierten
-                // modernen Zug-Layer. In normalen Browsern bleibt dieses PNG
-                // durch den bedingten MSO-Kommentar unsichtbar.
+                // Statische, lokal paketierbare Referenz. Sie bleibt Teil des
+                // Wertevertrags, wird aber nicht als Classic-Outlook-Flowbild
+                // in den absoluten Schema-17-Layer injiziert.
                 'TRAIN_STILL_SRC' => EmailTemplateBuilder::signatureTrainAsset(
                     $this->theme,
                     animated: false,
@@ -465,9 +465,8 @@ class MailSignature
         }
 
         // Hauptzug und Idle-Rauch bleiben wie Logo und RT-Zeichen echte IMG.
-        // Das Hauptbild liegt Outlook-sicher im normalen Fluss unmittelbar
-        // vor der Legal-Zeile; nur die optionale Rauchschleife liegt in
-        // animationsfaehigen Clients hoehenneutral darueber.
+        // Beide liegen absolut und damit hoehenneutral hinter der normal
+        // fliessenden Kontakttabelle; kein GIF wird als CSS-Background geladen.
         return SignatureTrainCarrier::withMsoFallback($html, $outlookFallbackSource);
     }
 
@@ -499,11 +498,12 @@ class MailSignature
     }
 
     /**
-     * Die gespeicherte/editierbare Fassung bekommt den Zug zunaechst wie
-     * Logo und RT-Icon als regulaeres Bild. Neue Editorstaende tragen bereits
-     * die sichere Stage; alte Background- und Direkt-Layer werden atomar in
-     * dieselbe Zwischenstruktur ueberfuehrt. finalizeTrainRendering ergaenzt
-     * nur Idle- und Outlook-IMG; das Haupt-GIF bleibt ein regulaeres IMG.
+     * Die gespeicherte/editierbare Fassung bekommt den Zug wie Logo und
+     * RT-Icon als regulaeres Bild in einer sicheren Stage. Alte Background-,
+     * Direkt- und Schema-16-Flow-Layer werden atomar in den absoluten,
+     * hoehenneutralen Overlayvertrag ueberfuehrt. finalizeTrainRendering
+     * ergaenzt nur das Idle-IMG; ein Classic-Outlook-Flowbild wird bewusst
+     * nicht injiziert und das Haupt-GIF bleibt ein IMG.
      *
      * @param  array<string, string>  $layout
      */

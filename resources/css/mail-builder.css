@@ -676,12 +676,13 @@ body[data-mode='dark'] [data-mail-document-status][data-status='published'][data
 }
 
 /*
- * 1280-px-Studiovertrag: Die drei Zonen bleiben in einer Zeile, waehrend
+ * Kompakter Desktopvertrag bis 1600 px: Die drei Zonen bleiben in einer
+ * Zeile, waehrend
  * lange Hilfstexte und Buttonlabels visuell auf ihre Icons reduziert werden.
  * Ihre zugaenglichen Namen bleiben im DOM erhalten. So kann keine Zone in die
  * naechste malen, ohne dem Canvas eine weitere Desktop-Zeile zu nehmen.
  */
-@media (min-width: 1100px) and (max-width: 1399.98px) {
+@media (min-width: 1100px) and (max-width: 1599.98px) {
     .rt-mail-studio-toolbar__documents > .rt-mail-studio-document > small,
     .rt-mail-studio-toolbar__preview .rt-mail-preview-toggle > button > span,
     .rt-mail-studio-toolbar__action-label {

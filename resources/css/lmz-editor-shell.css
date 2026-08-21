@@ -84,6 +84,54 @@ body[data-mode='dark'] .rt-lmz-editor .lmz-builder {
     backdrop-filter: blur(14px);
 }
 
+.rt-lmz-mode-indicator {
+    display: grid;
+    min-width: 10.5rem;
+    max-width: 19rem;
+    min-height: 2.75rem;
+    flex: 0 1 19rem;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    align-content: center;
+    column-gap: 0.4rem;
+    padding: 0.35rem 0.65rem;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--rt-lmz-accent), transparent 72%);
+    border-radius: 0.65rem;
+    background: var(--rt-lmz-accent-soft);
+    color: var(--rt-lmz-text);
+}
+
+.rt-lmz-mode-indicator__eyebrow {
+    align-self: center;
+    color: var(--rt-lmz-accent);
+    font-size: 0.5625rem;
+    font-weight: 850;
+    letter-spacing: 0.08em;
+    line-height: 1.2;
+    text-transform: uppercase;
+}
+
+.rt-lmz-mode-indicator > strong {
+    align-self: center;
+    overflow: hidden;
+    font-size: 0.6875rem;
+    font-weight: 850;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rt-lmz-mode-indicator > small {
+    grid-column: 1 / -1;
+    overflow: hidden;
+    color: var(--rt-lmz-muted);
+    font-size: 0.5625rem;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .rt-lmz-editor :is(.lmz-builder__actions, .lmz-builder__panel-actions, .lmz-builder__meta) {
     gap: 0.25rem;
 }
@@ -1020,6 +1068,13 @@ body[data-mode='dark'] .rt-lmz-media-drawer__warning {
 }
 
 @media (max-width: 899.98px) {
+    .rt-lmz-mode-indicator {
+        min-width: 0;
+        max-width: none;
+        flex: 1 1 100%;
+        order: -1;
+    }
+
     .rt-lmz-editor .lmz-builder__actions {
         grid-template-columns: repeat(auto-fit, minmax(2.75rem, 1fr)) !important;
     }
@@ -1042,6 +1097,16 @@ body[data-mode='dark'] .rt-lmz-media-drawer__warning {
 }
 
 @media (max-width: 639.98px) {
+    .rt-lmz-mode-indicator > small {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+    }
+
     .rt-lmz-editor .lmz-builder__popover {
         inset: auto 0 0;
         width: 100%;

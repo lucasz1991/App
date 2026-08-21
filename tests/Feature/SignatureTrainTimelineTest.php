@@ -21,13 +21,13 @@ class SignatureTrainTimelineTest extends TestCase
             .'<table style="position:relative;z-index:1;"><tr><td title="Inhalt > Legal">Inhalt</td></tr></table>'
             .'<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" '
             .'data-rt-layer-size="100" data-rt-layer-mobile="train" '
-            .'style="position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;'
+            .'style="position:absolute;left:0;right:auto;top:0;bottom:0;width:100%;max-width:1815px;'
             .'margin:0 auto 0 0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;">'
             .'<img class="rt-sign-train" data-rt-train '
             .'src="https://app.rail-time.test/mail-assets/zug-dampf-light.gif" width="720" alt="" '
-            .'style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;'
+            .'style="position:absolute;left:0;right:auto;bottom:0;display:block;'
             .'width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;'
-            .'text-decoration:none;vertical-align:top;mso-hide:all;">'
+            .'text-decoration:none;vertical-align:bottom;mso-hide:all;">'
             .'</div></div></td></tr><!-- RT_SIGNATURE_MAIN_END --><tr><td>Legal</td></tr>';
 
         $rendered = SignatureTrainCarrier::withIdleOverlay(
@@ -52,7 +52,10 @@ class SignatureTrainTimelineTest extends TestCase
             'src="https://app.rail-time.test/mail-assets/zug-dampf-idle-light.gif"',
             $rendered,
         );
-        $this->assertStringNotContainsString('background-image:', $rendered);
+        $this->assertDoesNotMatchRegularExpression(
+            '/background-image:[^;]*(?:data:image\/gif|\.gif)/i',
+            $rendered,
+        );
         $this->assertDoesNotMatchRegularExpression('/rt-train-idle-overlay[^>]*height:100%/', $rendered);
         $this->assertMatchesRegularExpression('/rt-train-idle-overlay[^>]*position:absolute[^>]*height:0;max-height:0/', $rendered);
     }

@@ -115,6 +115,9 @@ function Get-PayloadRelativePaths {
     $paths += ($Name + '.rtf')
     $paths += ($Name + '.txt')
     $paths += (Join-Path $assetFolder 'zug-dampf.gif')
+    # Das Standbild bleibt als portables Exportmedium im Paket, auch wenn es
+    # nicht mehr als MSO-Flow-IMG in die Signatur eingefuegt wird.
+    $paths += (Join-Path $assetFolder 'zug-dampf.png')
     $paths += (Join-Path $assetFolder 'logo.gif')
     $paths += (Join-Path $assetFolder 'contact-location.png')
     $paths += (Join-Path $assetFolder 'contact-phone.png')

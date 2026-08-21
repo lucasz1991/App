@@ -91,7 +91,7 @@ final class SignatureTrainCarrier
                 }
             }
 
-            $html = self::normalizeLegacyAbsoluteImageToFlow($html);
+            $html = self::normalizeLegacyImageToAbsoluteOverlay($html);
             self::assertCanonicalImage($html);
 
             return $html;
@@ -192,8 +192,8 @@ final class SignatureTrainCarrier
 
     /**
      * Projiziert den streng validierten Carrier fuer alle Ausgaben in den
-     * Ein-GIF-Vertrag von Logo und RT-Icon. Der Bild-Layer folgt der
-     * Kontakttabelle im normalen Mailfluss und endet direkt an der Legal-Zeile.
+     * Ein-GIF-Vertrag von Logo und RT-Icon. Der echte IMG-Layer liegt absolut
+     * und damit hoehenneutral hinter der normal fliessenden Kontakttabelle.
      */
     public static function projectAsImage(string $html, string $source, string $padding = '0'): string
     {
@@ -260,9 +260,12 @@ final class SignatureTrainCarrier
     }
 
     /**
-     * Outlook-Desktop erhaelt dasselbe mail-sichere Bildprinzip wie Logo und
-     * RT-Zeichen: ein bedingtes, regulaeres IMG am Anfang des bereits normal
-     * fliessenden Zug-Layers. Es gibt weder VML noch eine Extra-Tabellenzeile.
+     * Classic Outlook/Word ignoriert absolute Bildpositionen und wuerde ein
+     * bedingtes Zug-IMG wieder als eigenen Flow-Block ausgeben. Schema 17
+     * injiziert deshalb bewusst kein MSO-Zugbild. Moderne Clients behalten das
+     * absolut positionierte Haupt-IMG; Classic erhaelt lieber keinen Zug als
+     * einen erneut aufgebrochenen Signaturblock. Die Quelle wird trotzdem
+     * validiert, damit der Aufrufervertrag fail-closed bleibt.
      */
     public static function withMsoFallback(string $html, string $source): string
     {
@@ -279,42 +282,16 @@ final class SignatureTrainCarrier
             throw new RuntimeException('Der Outlook-Zugfallback kann nicht eindeutig verankert werden.');
         }
 
-        $layers = [];
-        foreach (self::scanStartTags($html) as $tag) {
-            if ($tag['name'] === 'div' && self::sourceTagHasClass($tag, 'rt-sign-train-layer')) {
-                $layers[] = $tag;
-            }
-        }
-        if (count($layers) !== 1) {
-            throw new RuntimeException('Der Outlook-Zugfallback besitzt keinen eindeutigen Zug-Layer.');
-        }
-        $sizeName = strtolower(self::singleTagAttributeValue($layers[0], 'data-rt-layer-size'));
-        $alignment = strtolower(self::singleTagAttributeValue($layers[0], 'data-rt-layer-align'));
-        $size = self::CANONICAL_LAYER_SIZE[$sizeName] ?? null;
-        if (! is_array($size) || ! in_array($alignment, ['left', 'center', 'right'], true)) {
-            throw new RuntimeException('Der Outlook-Zugfallback besitzt keine kanonische Bildgroesse.');
-        }
-
-        $escapedSource = htmlspecialchars(
-            $source,
-            ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5,
-            'UTF-8',
-        );
-        $fallback = '<!--[if mso]><img class="rt-sign-train-mso" data-rt-train-mso="1" src="'.$escapedSource.'" width="720" alt="" '
-            .'style="display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;"><![endif]-->';
-
-        $html = substr_replace($html, $fallback, $layers[0]['endOffset'] + 1, 0);
-        self::assertRuntimeImages($html, expectedMsoSource: $source);
+        self::assertRuntimeImages($html, expectedMsoSource: '');
 
         return $html;
     }
 
     /**
-     * Legt die transparente Endlos-Rauchschleife als echtes IMG in einen
-     * hoehenlosen Holder direkt vor das Haupt-GIF. Moderne Clients legen den
-     * Holder absolut ueber den Hauptzug. Entfernt ein Mailclient dagegen die
-     * absolute Positionierung, bleibt der Holder nullhoch und abgeschnitten;
-     * nur das danach folgende Haupt-IMG kann dann noch Flow-Hoehe belegen.
+     * Legt die transparente Endlos-Rauchschleife als echtes IMG in einen am
+     * unteren Layer-Rand verankerten, hoehenlosen Holder. Haupt- und Idle-IMG
+     * bleiben dadurch ausserhalb des Dokumentflusses und koennen keinen
+     * eigenen Abstand vor der Legal-Zeile erzeugen.
      */
     public static function withIdleOverlay(string $html, string $source): string
     {
@@ -358,9 +335,9 @@ final class SignatureTrainCarrier
             throw new RuntimeException('Die Idle-Rauchebene besitzt keine kanonische Bildgroesse.');
         }
         $overlay = '<span class="rt-train-idle-overlay" data-rt-train-idle-overlay '
-            .'style="position:absolute;left:0;right:auto;top:0;bottom:auto;display:block;width:100%;max-width:none;height:0;max-height:0;margin:0;overflow:hidden;z-index:1;font-size:0;line-height:0;text-align:left;opacity:0;visibility:hidden;animation:rt-train-idle-reveal 1ms step-start 13s forwards;mso-hide:all;">'
+            .'style="position:absolute;left:0;right:auto;top:auto;bottom:0;display:block;width:100%;max-width:none;height:0;max-height:0;margin:0;overflow:hidden;z-index:1;font-size:0;line-height:0;text-align:left;opacity:0;visibility:hidden;animation:rt-train-idle-reveal 1ms step-start 13s forwards;mso-hide:all;">'
             .'<img class="rt-train-idle-image" data-rt-train-idle-image src="'.$escapedSource.'" width="720" alt="" '
-            .'style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:'.$size['width'].';max-width:none;height:auto;margin:'.self::imageMargin($alignment, $size).';border:0;outline:none;text-decoration:none;vertical-align:top;z-index:1;mso-hide:all;">'
+            .'style="position:absolute;left:0;right:auto;bottom:0;display:block;width:'.$size['width'].';max-width:none;height:auto;margin:'.self::imageMargin($alignment, $size).';border:0;outline:none;text-decoration:none;vertical-align:bottom;z-index:1;mso-hide:all;">'
             .'</span>';
 
         $html = substr_replace($html, $overlay, $images[0]['startOffset'], 0);
@@ -411,8 +388,9 @@ final class SignatureTrainCarrier
 
     /**
      * Neuer Seeder-/Editorvertrag: TRAIN_SRC lebt ausschliesslich im src
-     * eines einzigen normalen Bildes in einem eindeutigen Flow-Layer direkt
-     * vor der Legal-Zeile. Damit bleibt die Geometrie auch ohne Position-CSS.
+     * eines einzigen echten Bildes in einem absolut positionierten, durch die
+     * Inhaltsbuehne begrenzten Layer. Die Kontakttabelle bleibt im normalen
+     * Fluss mit z-index:1; der Zug erzeugt selbst keinerlei Dokumenthoehe.
      */
     public static function assertCanonicalImage(
         string $html,
@@ -610,12 +588,17 @@ final class SignatureTrainCarrier
         };
         $layerMargin = self::layerMargin($alignment);
         $imageMargin = self::imageMargin($alignment, $size);
+        $canonicalHorizontal = match ($alignment) {
+            'left' => ['left' => '0', 'right' => 'auto'],
+            'center' => ['left' => '0', 'right' => '0'],
+            'right' => ['left' => 'auto', 'right' => '0'],
+        };
         $layerStyle = [
-            'position' => 'relative',
-            'left' => '0',
-            'right' => 'auto',
-            'top' => 'auto',
-            'bottom' => 'auto',
+            'position' => 'absolute',
+            'left' => $canonicalHorizontal['left'],
+            'right' => $canonicalHorizontal['right'],
+            'top' => '0',
+            'bottom' => '0',
             'width' => '100%',
             'max-width' => '1815px',
             'margin' => $layerMargin,
@@ -626,11 +609,11 @@ final class SignatureTrainCarrier
             'text-align' => 'left',
         ];
         $imageStyle = [
-            'position' => 'static',
-            'left' => 'auto',
+            'position' => 'absolute',
+            'left' => '0',
             'right' => 'auto',
-            'bottom' => 'auto',
-            'display' => 'inline-block',
+            'bottom' => '0',
+            'display' => 'block',
             'width' => $size['width'],
             'max-width' => 'none',
             'height' => 'auto',
@@ -638,7 +621,7 @@ final class SignatureTrainCarrier
             'border' => '0',
             'outline' => 'none',
             'text-decoration' => 'none',
-            'vertical-align' => 'top',
+            'vertical-align' => 'bottom',
             'mso-hide' => 'all',
         ];
         try {
@@ -647,6 +630,48 @@ final class SignatureTrainCarrier
         } catch (RuntimeException $exception) {
             $expandedFlowAccepted = false;
             if ($allowLegacyExpandedFlowLayer) {
+                try {
+                    // Exakt der zuletzt publizierte Schema-16-Vertrag. Die
+                    // Kombination aus Viewport-Margins und IMG-Margins wird
+                    // bewusst vollstaendig verglichen; aehnliche freie
+                    // Relative-Layer duerfen nicht als Legacy durchrutschen.
+                    self::assertExactSimpleStyle($layer, [
+                        'position' => 'relative',
+                        'left' => '0',
+                        'right' => 'auto',
+                        'top' => 'auto',
+                        'bottom' => 'auto',
+                        'width' => '100%',
+                        'max-width' => '1815px',
+                        'margin' => $layerMargin,
+                        'overflow' => 'hidden',
+                        'z-index' => '0',
+                        'font-size' => '0',
+                        'line-height' => '0',
+                        'text-align' => 'left',
+                    ], 'Zug-Layer');
+                    self::assertExactSimpleStyle($image, [
+                        'position' => 'static',
+                        'left' => 'auto',
+                        'right' => 'auto',
+                        'bottom' => 'auto',
+                        'display' => 'inline-block',
+                        'width' => $size['width'],
+                        'max-width' => 'none',
+                        'height' => 'auto',
+                        'margin' => $imageMargin,
+                        'border' => '0',
+                        'outline' => 'none',
+                        'text-decoration' => 'none',
+                        'vertical-align' => 'top',
+                        'mso-hide' => 'all',
+                    ], 'Zugbild');
+                    $expandedFlowAccepted = true;
+                } catch (RuntimeException) {
+                    $expandedFlowAccepted = false;
+                }
+            }
+            if ($allowLegacyExpandedFlowLayer && ! $expandedFlowAccepted) {
                 try {
                     self::assertExactSimpleStyle($layer, [
                         'position' => 'relative',
@@ -722,9 +747,9 @@ final class SignatureTrainCarrier
                 }
             }
             if ($expandedFlowAccepted) {
-                // Schema 16 vor dem Viewport-Fix wird nur laufzeitlokal in
-                // den neuen Vertrag ueberfuehrt; gespeichert werden darf es
-                // weiterhin nicht.
+                // Schema 16 wird nur laufzeitlokal in den absoluten
+                // Schema-17-Vertrag ueberfuehrt; gespeichert werden darf die
+                // alte Flow-Form weiterhin nicht.
             } elseif (! $allowLegacyAbsoluteLayer) {
                 throw $exception;
             } else {
@@ -825,11 +850,11 @@ final class SignatureTrainCarrier
 
     /**
      * Hebt ausschliesslich einen zuvor validierten Altvertrag (Schema 12-15
-     * absolut bzw. fruehes Schema 16 mit expandiertem Flow-Layer) in den
-     * heutigen Clipping-Viewport-Vertrag. Bildquelle und Presets bleiben
-     * unveraendert.
+     * absolut bzw. Schema 16 im normalen Flow) in den heutigen absolut
+     * positionierten Clipping-Viewport. Bildquelle und Presets bleiben
+     * unveraendert; nur der bekannte Geometrievertrag wird ersetzt.
      */
-    private static function normalizeLegacyAbsoluteImageToFlow(string $html): string
+    private static function normalizeLegacyImageToAbsoluteOverlay(string $html): string
     {
         $layers = [];
         $images = [];
@@ -842,7 +867,7 @@ final class SignatureTrainCarrier
             }
         }
         if (count($layers) !== 1 || count($images) !== 1) {
-            throw new RuntimeException('Der alte Zug-Layer konnte nicht eindeutig in den Flow ueberfuehrt werden.');
+            throw new RuntimeException('Der alte Zug-Layer konnte nicht eindeutig in den absoluten Overlay ueberfuehrt werden.');
         }
 
         $layerStyles = $layers[0]['attributes']['style'] ?? [];
@@ -866,11 +891,16 @@ final class SignatureTrainCarrier
         if (! is_array($size) || ! in_array($alignment, ['left', 'center', 'right'], true)) {
             throw new RuntimeException('Der alte Zug-Layer besitzt keine normalisierbare Geometrie.');
         }
-        $layerStyle = 'position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;'
+        $canonicalHorizontal = match ($alignment) {
+            'left' => ['left' => '0', 'right' => 'auto'],
+            'center' => ['left' => '0', 'right' => '0'],
+            'right' => ['left' => 'auto', 'right' => '0'],
+        };
+        $layerStyle = 'position:absolute;left:'.$canonicalHorizontal['left'].';right:'.$canonicalHorizontal['right'].';top:0;bottom:0;width:100%;max-width:1815px;'
             .'margin:'.self::layerMargin($alignment).';overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;';
-        $imageStyle = 'position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:'.$size['width'].';'
+        $imageStyle = 'position:absolute;left:0;right:auto;bottom:0;display:block;width:'.$size['width'].';'
             .'max-width:none;height:auto;margin:'.self::imageMargin($alignment, $size).';border:0;outline:none;'
-            .'text-decoration:none;vertical-align:top;mso-hide:all;';
+            .'text-decoration:none;vertical-align:bottom;mso-hide:all;';
         $replacements = [
             [
                 $layerStyles[0]['valueOffset'],
@@ -895,9 +925,9 @@ final class SignatureTrainCarrier
     private static function canonicalLayerMarkup(string $source): string
     {
         return '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" '
-            .'style="position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;">'
+            .'style="position:absolute;left:0;right:auto;top:0;bottom:0;width:100%;max-width:1815px;margin:0 auto 0 0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;">'
             .'<img class="rt-sign-train" data-rt-train src="'.$source.'" width="720" alt="" '
-            .'style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all;">'
+            .'style="position:absolute;left:0;right:auto;bottom:0;display:block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:bottom;mso-hide:all;">'
             .'</div>';
     }
 
@@ -1137,6 +1167,25 @@ final class SignatureTrainCarrier
 
         if (str_starts_with(strtolower($source), 'https://')) {
             if (preg_match('/^https:\/\/[^\s\\<>"\'()]+$/i', $source) !== 1) {
+                return false;
+            }
+            if (! $staticOnly) {
+                return true;
+            }
+
+            $path = parse_url($source, PHP_URL_PATH);
+
+            return is_string($path) && str_ends_with(strtolower($path), '.png');
+        }
+
+        // Lokale Vorschau- und Testlaeufe besitzen nicht zwingend TLS. Nur
+        // echte Loopback-Ziele duerfen deshalb ausnahmsweise HTTP verwenden;
+        // externe Mailbilder bleiben weiterhin strikt HTTPS-gebunden.
+        if (str_starts_with(strtolower($source), 'http://')) {
+            if (preg_match(
+                '/^http:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::[1-9][0-9]{0,4})?\/[^\s\\<>"\'()]+$/i',
+                $source,
+            ) !== 1) {
                 return false;
             }
             if (! $staticOnly) {
@@ -1417,8 +1466,8 @@ final class SignatureTrainCarrier
             'position' => 'absolute',
             'left' => '0',
             'right' => 'auto',
-            'top' => '0',
-            'bottom' => 'auto',
+            'top' => 'auto',
+            'bottom' => '0',
             'display' => 'block',
             'width' => '100%',
             'max-width' => 'none',
@@ -1436,11 +1485,11 @@ final class SignatureTrainCarrier
             'mso-hide' => 'all',
         ], 'Idle-Zugholder');
         self::assertExactSimpleStyle($idle, [
-            'position' => 'static',
-            'left' => 'auto',
+            'position' => 'absolute',
+            'left' => '0',
             'right' => 'auto',
-            'bottom' => 'auto',
-            'display' => 'inline-block',
+            'bottom' => '0',
+            'display' => 'block',
             'width' => strtolower($size['width']),
             'max-width' => 'none',
             'height' => 'auto',
@@ -1448,7 +1497,7 @@ final class SignatureTrainCarrier
             'border' => '0',
             'outline' => 'none',
             'text-decoration' => 'none',
-            'vertical-align' => 'top',
+            'vertical-align' => 'bottom',
             'z-index' => '1',
             'mso-hide' => 'all',
         ], 'Idle-Zugbild');
@@ -1593,15 +1642,20 @@ final class SignatureTrainCarrier
                 throw new RuntimeException('Das Outlook-Zugfallback-IMG besitzt keine mail-sichere Quelle oder Breite.');
             }
             self::assertExactSourceTagStyle($tags[0], [
-                'display' => 'inline-block',
-                'width' => '100%',
+                'position' => 'absolute',
+                'left' => '0',
+                'right' => 'auto',
+                'bottom' => '0',
+                'display' => 'block',
+                'width' => $size['width'],
                 'max-width' => 'none',
                 'height' => 'auto',
-                'margin' => '0',
+                'margin' => self::imageMargin($alignment, $size),
                 'border' => '0',
                 'outline' => 'none',
                 'text-decoration' => 'none',
-                'vertical-align' => 'top',
+                'vertical-align' => 'bottom',
+                'z-index' => '0',
             ], 'Outlook-Zugfallback');
             $sources[] = $source;
         }

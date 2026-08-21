@@ -459,9 +459,9 @@ class EmailTemplateBuilder
         $values = $signature->values();
         $values['RESPONSIVE_CSS'] = self::responsiveCss($values['SIGNATURE_BORDER'] ?? null);
         // Der serverseitige Signatur-Render validiert den absoluten IMG-Layer.
-        // Haupt-GIF, Idle-GIF und bedingtes Word/MSO-PNG bleiben echte Bilder
+        // Haupt-GIF und Idle-GIF bleiben echte, absolut positionierte Bilder
         // innerhalb derselben Stage; keine Zugdatei wird per CSS geladen und
-        // eine separate Zugzeile kann nicht entstehen.
+        // ein MSO-Flow-Fallback oder eine separate Zugzeile kann nicht entstehen.
         $values['SIGNATURE_BLOCK'] = $signature->render();
         $values['APPLICATION_CONTENT'] = '';
 
@@ -703,9 +703,9 @@ class EmailTemplateBuilder
     }
 
     /**
-     * Statisches Standbild fuer Word-/MSO-Clients. Moderne Mailclients sehen
-     * ausschliesslich das kombinierte Haupt-GIF; Outlook Desktop erhaelt
-     * diese Quelle in seinem bedingten Tabellenfallback.
+     * Statisches, weiter exportierbares Standbild. Schema 17 injiziert es
+     * nicht als Word-/MSO-Flow-Fallback, weil Word dadurch erneut eine eigene
+     * Bildhoehe vor dem Rechtstext erzeugen wuerde.
      */
     public static function signatureTrainStillUrl(string $theme): string
     {
@@ -905,8 +905,9 @@ class EmailTemplateBuilder
         if ($cidOutlookImages) {
             // Eine heruntergeladene EML muss ihre fuer Outlook notwendigen
             // Bilder als echte MIME-Teile mitbringen. Data-URIs werden von
-            // Outlook nicht verlaesslich dargestellt. GIF und MSO-Standbild
-            // werden deshalb als getrennte CID-Teile mitgeliefert.
+            // Outlook nicht verlaesslich dargestellt. Das GIF und das portable
+            // Standbild werden als getrennte CID-Teile mitgeliefert; nur das
+            // absolut positionierte GIF wird in Schema 17 gerendert.
             $signatureOverrides = array_merge($signatureOverrides, [
                 'LOGO_STILL_SRC' => 'cid:railtime-logo-still',
                 'GRUND_RASTER_SRC' => 'cid:railtime-signature-grid',
@@ -1122,8 +1123,8 @@ class EmailTemplateBuilder
      * Einfuegen in eine cloudgespeicherte Signatur waeren file:-Quellen aber
      * nach dem Schliessen des Browsers unbrauchbar. Diese Fassung rendert
      * deshalb dieselbe Signatur mit absoluten HTTPS-Mailassets. Hauptzug und
-     * Idle-Rauch bleiben echte IMG; das bedingte PNG-IMG bleibt fuer einen
-     * spaeteren Word-/MSO-Empfaenger im kopierten Markup.
+     * Idle-Rauch bleiben echte, absolut positionierte IMG; ein bedingtes
+     * PNG-Flow-IMG wird bewusst nicht ins kopierte Markup aufgenommen.
      */
     protected function buildOutlookBrowserCopySignatureHtml(string $theme): string
     {
@@ -1186,7 +1187,6 @@ class EmailTemplateBuilder
             $html,
             $remoteSources['TRAIN_SRC'],
             $remoteSources['TRAIN_IDLE_SRC'],
-            $remoteSources['TRAIN_STILL_SRC'],
         );
     }
 
@@ -1207,19 +1207,19 @@ class EmailTemplateBuilder
 
     /**
      * Prueft die eigenstaendige New-Outlook-/Web-Kopierfassung nach der
-     * Runtime-Projektion. Hauptzug, Idle-Rauch und Outlook-Standbild muessen
-     * dort als echte IMG mit absoluten HTTPS-Quellen vorliegen. Das Hauptbild
-     * bleibt wie im Versand im normalen Flow; CSS darf keine GIF-Datei laden.
+     * Runtime-Projektion. Hauptzug und Idle-Rauch muessen dort als echte IMG
+     * mit absoluten HTTPS-Quellen vorliegen. Beide liegen absolut in derselben
+     * hoehenneutralen Buehne; CSS darf keine GIF-Datei laden. Ein separates
+     * MSO-Standbild wird absichtlich nicht ausgegeben, weil Word dessen absolute
+     * Position ignoriert und dadurch erneut eine sichtbare Leerhoehe erzeugt.
      */
     private static function validateBrowserCopyTrainImages(
         string $html,
         string $expectedTrainSource,
         string $expectedIdleSource,
-        string $expectedMsoSource,
     ): string {
         $expectedTrainSource = self::forceHttpsUrl($expectedTrainSource);
         $expectedIdleSource = self::forceHttpsUrl($expectedIdleSource);
-        $expectedMsoSource = self::forceHttpsUrl($expectedMsoSource);
         $dom = new \DOMDocument('1.0', 'UTF-8');
         $previous = libxml_use_internal_errors(true);
 
@@ -1267,7 +1267,7 @@ class EmailTemplateBuilder
             $html,
             $expectedTrainSource,
             $expectedIdleSource,
-            $expectedMsoSource,
+            '',
         );
 
         foreach (self::imageSources($html) as $imageSource) {
