@@ -703,7 +703,7 @@ class EmailTemplateBuilder
     }
 
     /**
-     * Statisches, weiter exportierbares Standbild. Schema 17 injiziert es
+     * Statisches, weiter exportierbares Standbild. Das aktuelle Schema injiziert es
      * nicht als Word-/MSO-Flow-Fallback, weil Word dadurch erneut eine eigene
      * Bildhoehe vor dem Rechtstext erzeugen wuerde.
      */
@@ -907,11 +907,9 @@ class EmailTemplateBuilder
             // Bilder als echte MIME-Teile mitbringen. Data-URIs werden von
             // Outlook nicht verlaesslich dargestellt. Das GIF und das portable
             // Standbild werden als getrennte CID-Teile mitgeliefert; nur das
-            // absolut positionierte GIF wird in Schema 17 gerendert.
+            // absolut positionierte GIF wird im aktuellen Schema gerendert.
             $signatureOverrides = array_merge($signatureOverrides, [
                 'LOGO_STILL_SRC' => 'cid:railtime-logo-still',
-                'GRUND_RASTER_SRC' => 'cid:railtime-signature-grid',
-                'GRUND_MARKE_SRC' => 'cid:railtime-signature-watermark',
                 'TRAIN_SRC' => '',
                 'TRAIN_STILL_SRC' => 'cid:railtime-train-still',
                 'TRAIN_IDLE_SRC' => 'cid:railtime-train-idle',
@@ -1157,8 +1155,6 @@ class EmailTemplateBuilder
             'TRAIN_SRC' => self::httpsMailAssetUrl("zug-dampf-{$variant}.gif"),
             'TRAIN_STILL_SRC' => self::httpsMailAssetUrl("zug-dampf-{$variant}.png"),
             'TRAIN_IDLE_SRC' => self::httpsMailAssetUrl("zug-dampf-idle-{$variant}.gif"),
-            'GRUND_RASTER_SRC' => self::httpsMailAssetUrl("signatur-raster-{$variant}.png"),
-            'GRUND_MARKE_SRC' => self::httpsMailAssetUrl("signatur-marke-{$variant}.png"),
         ], array_map(
             static fn (string $source): string => self::forceHttpsUrl($source),
             self::contactIconUrls(),
@@ -1837,8 +1833,6 @@ TEXT;
         $trainAsset = 'zug-dampf-'.($theme === 'dark' ? 'dark' : 'light').'.gif';
         $trainStillAsset = 'zug-dampf-'.($theme === 'dark' ? 'dark' : 'light').'.png';
         $trainIdleAsset = 'zug-dampf-idle-'.($theme === 'dark' ? 'dark' : 'light').'.gif';
-        $gridAsset = 'signatur-raster-'.($theme === 'dark' ? 'dark' : 'light').'.png';
-        $watermarkAsset = 'signatur-marke-'.($theme === 'dark' ? 'dark' : 'light').'.png';
         $inlineImages = [
             'railtime-logo' => [
                 'filename' => $logoAsset,
@@ -1867,14 +1861,6 @@ TEXT;
             'railtime-train-idle' => [
                 'filename' => $trainIdleAsset,
                 'content' => file_get_contents(self::masterPath('assets/'.$trainIdleAsset)),
-            ],
-            'railtime-signature-grid' => [
-                'filename' => $gridAsset,
-                'content' => file_get_contents(self::masterPath('assets/'.$gridAsset)),
-            ],
-            'railtime-signature-watermark' => [
-                'filename' => $watermarkAsset,
-                'content' => file_get_contents(self::masterPath('assets/'.$watermarkAsset)),
             ],
         ];
 

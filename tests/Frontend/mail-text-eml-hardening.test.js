@@ -19,11 +19,12 @@ test('downloaded EML projects Outlook-critical images into CID MIME parts', () =
         'railtime-mark',
         'railtime-mark-still',
         'railtime-train',
-        'railtime-signature-grid',
-        'railtime-signature-watermark',
     ]) {
         assert.match(builder, new RegExp(`'${contentId}'\\s*=>\\s*\\[`));
     }
+
+    assert.doesNotMatch(builder, /'railtime-signature-grid'\s*=>\s*\[/);
+    assert.doesNotMatch(builder, /'railtime-signature-watermark'\s*=>\s*\[/);
 });
 
 test('plain Laravel mail layout appends the canonical company signature', () => {

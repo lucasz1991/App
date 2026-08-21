@@ -240,8 +240,10 @@ class EmailTemplatesPageTest extends TestCase
             // positionssicher. Hier reicht eine begrenzte Stringpruefung; das
             // komplette Base64-GIF als Regex uebersteigt sonst PCREs Groessenlimit.
             $this->assertSame(1, substr_count($carrier, 'src="'.$train.'"'), $template);
-            $this->assertStringContainsString('background-position:left top,right center,center center', $carrier, $template);
-            $this->assertStringContainsString('background-size:64px 64px,auto 100%,100% 100%', $carrier, $template);
+            $this->assertStringContainsString('background-position:center center', $carrier, $template);
+            $this->assertStringContainsString('background-size:100% 100%', $carrier, $template);
+            $this->assertStringNotContainsString('signatur-raster-', $html, $template);
+            $this->assertStringNotContainsString('signatur-marke-', $html, $template);
 
             // Frueher stand hier die Kurzform background:, und die SETZT
             // background-image zurueck — stand sie danach, verschwand der Zug
@@ -406,7 +408,12 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertStringContainsString('<td class="rt-pad rt-sign-content" style="padding:16px 28px 0;position:relative;z-index:1;">', $html);
             $this->assertStringContainsString('height:auto;margin:0;border:0;outline:none;text-decoration:none;', $html);
             $this->assertStringNotContainsString('data:image/gif;base64,', $html);
-            $this->assertStringNotContainsString('background-image:linear-gradient(', $html);
+            $this->assertStringContainsString('background-image:linear-gradient(', $html);
+            $this->assertStringContainsString('background-repeat:no-repeat;', $html);
+            $this->assertStringContainsString('background-position:center center;', $html);
+            $this->assertStringContainsString('background-size:100% 100%;', $html);
+            $this->assertStringNotContainsString('signatur-raster-', $html);
+            $this->assertStringNotContainsString('signatur-marke-', $html);
             $this->assertSame(1, substr_count($html, '/zug-dampf.gif'));
             $this->assertSame(0, substr_count($html, '/zug-dampf.png'));
             $this->assertStringNotContainsString('?p=', $html);
@@ -793,14 +800,9 @@ class EmailTemplatesPageTest extends TestCase
 
         // Diese Regeln erhalten die geschuetzte Editoransicht des kanonischen
         // Carriers. Ausgelieferte Signaturen projizieren den Zug als IMG.
-        $this->assertStringContainsString(
-            'background-size: 64px 64px, auto 52%, 100% 100% !important;',
-            $regeln,
-        );
-        $this->assertStringContainsString(
-            'background-position: left top, right center, center center !important;',
-            $regeln,
-        );
+        $this->assertStringContainsString('background-size: 100% 100% !important;', $regeln);
+        $this->assertStringContainsString('background-position: center center !important;', $regeln);
+        $this->assertStringNotContainsString('64px 64px, auto 52%', $regeln);
         $this->assertStringContainsString('RT_SERVER_SIGNATURE_RUNTIME_START', $regeln);
         $this->assertStringContainsString('.rt-train-idle-overlay', $regeln);
         $this->assertStringContainsString('.rt-sign-train', $regeln);
@@ -941,15 +943,13 @@ class EmailTemplatesPageTest extends TestCase
                 $html
             );
             $this->assertStringContainsString('data:image/png;base64,', $html);
-            // Der Schleier liegt jetzt als dritte Ebene in der Liste, nicht
-            // mehr als erste — geprueft wird seine Anwesenheit, nicht seine
-            // Position.
+            // Nur der transparente, bildfreie Grundschleier bleibt bestehen.
+            // Raster und grosses RT-Wasserzeichen duerfen nicht mehr laden.
             $this->assertMatchesRegularExpression('/rt-sign-cell[^>]*linear-gradient\(rgba\(/', $html);
             $carrier = $this->assertRuntimeTrainImages($html);
-            $this->assertStringContainsString(
-                'background-size:64px 64px,auto 100%,100% 100%',
-                $carrier,
-            );
+            $this->assertStringContainsString('background-size:100% 100%', $carrier);
+            $this->assertStringNotContainsString('signatur-raster-', $html);
+            $this->assertStringNotContainsString('signatur-marke-', $html);
             $this->assertStringContainsString('data-rt-train-idle-overlay', $html);
             $this->assertStringContainsString('data-rt-train-idle-image', $html);
             $this->assertStringContainsString('@keyframes rt-train-idle-reveal', $html);
@@ -998,8 +998,8 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertStringContainsString('Content-ID: <railtime-mark>', $eml);
             $this->assertStringContainsString('Content-ID: <railtime-mark-still>', $eml);
             $this->assertStringContainsString('Content-ID: <railtime-train>', $eml);
-            $this->assertStringContainsString('Content-ID: <railtime-signature-grid>', $eml);
-            $this->assertStringContainsString('Content-ID: <railtime-signature-watermark>', $eml);
+            $this->assertStringNotContainsString('Content-ID: <railtime-signature-grid>', $eml);
+            $this->assertStringNotContainsString('Content-ID: <railtime-signature-watermark>', $eml);
             $this->assertStringContainsString('Content-ID: <railtime-train-still>', $eml);
             $this->assertStringContainsString('Content-ID: <railtime-train-idle>', $eml);
             $this->assertStringContainsString('Content-ID: <railtime-icon-location>', $eml);
@@ -1072,9 +1072,9 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertStringContainsString('href="mailto:mara@example.test"', $html);
         $this->assertStringContainsString('href="https://rail-time.example/leistungen"', $html);
         $this->assertStringContainsString('>rail-time.example/leistungen<', $html);
-        // PNG: drei Personenicons, vier einmalige Firmenicons, die beiden
-        // Hintergrundebenen und das Outlook-Standbild der Wortmarke.
-        $this->assertSame(10, substr_count($html, 'data:image/png;base64,'));
+        // PNG: drei Personenicons, vier einmalige Firmenicons und das
+        // Outlook-Standbild der Wortmarke. Raster und Wasserzeichen entfallen.
+        $this->assertSame(8, substr_count($html, 'data:image/png;base64,'));
         // GIF: Hauptzug, eine transparente Idle-Rauchschleife und Wortmarke.
         $this->assertSame(3, substr_count($html, 'data:image/gif;base64,'));
         $this->assertRuntimeTrainImages($html);
@@ -1085,10 +1085,11 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertStringContainsString('class="rt-sign-logo"', $html);
         $this->assertStringNotContainsString('RT_PHONE_START', $html);
         $this->assertStringNotContainsString('{{TRAIN_SRC}}', $html);
-        // Der Schleier ist die DRITTE Ebene, nicht mehr die erste: darueber
-        // liegen Raster und Wasserzeichen. Die Liste beginnt deshalb mit url().
+        // Der transparente Schleier ist die einzige bildfreie Grundebene.
         $this->assertMatchesRegularExpression('/rt-sign-cell[^>]*linear-gradient\(/', $html);
-        $this->assertStringContainsString('background-position:left top,right center,center center', $html);
+        $this->assertStringContainsString('background-position:center center', $html);
+        $this->assertStringNotContainsString('signatur-raster-', $html);
+        $this->assertStringNotContainsString('signatur-marke-', $html);
 
         // NATUERLICHE QUELLREIHENFOLGE seit dem symmetrischen Umbau: Person
         // links, Firma rechts. Vorher stand die Markenspalte zuerst und ein
@@ -1438,10 +1439,12 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertStringNotContainsString('rt-sign-train-background', $carrier[0], $message);
         $this->assertStringNotContainsString('data-rt-train-background', $carrier[0], $message);
         $this->assertStringContainsString(
-            'background-repeat:repeat,no-repeat,no-repeat;',
+            'background-repeat:no-repeat;',
             $carrier[0],
             $message,
         );
+        $this->assertStringNotContainsString('signatur-raster-', $html, $message);
+        $this->assertStringNotContainsString('signatur-marke-', $html, $message);
         $this->assertDoesNotMatchRegularExpression('/background-image:[^;]*(?:data:image\/gif|\.gif)/i', $carrier[0], $message);
 
         return $html;

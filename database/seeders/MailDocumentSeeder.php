@@ -51,8 +51,9 @@ final class MailDocumentSeeder extends Seeder
      * 15 Vorschau-/Outlook-Paritaet ohne Prozenthoehe am absoluten Zug-Layer
      * 16 Mail-sicherer IMG-Fluss fuer identische Editor-/Outlook-Geometrie
      * 17 Hoehenneutraler absoluter IMG-Layer hinter den Kontaktdaten
+     * 18 Signatur ohne Raster und grosses RT-Hintergrundwasserzeichen
      */
-    private const STARTER_SCHEMA = 17;
+    private const STARTER_SCHEMA = 18;
 
     public function run(): void
     {

@@ -127,13 +127,6 @@ class MailSignature
         $logoStill = str_replace('.gif', '.png', $logoAsset);
         $markStill = str_replace('.gif', '.png', $markAsset);
 
-        // Hintergrundgrafik des Streifens, Bildsprache vom Notfallbanner der
-        // Website: ein feines Raster (gekachelt) und ein grosses
-        // RT-Wasserzeichen mit rotem Schimmer (einmal, rechts).
-        $variante = $this->theme === 'dark' ? 'dark' : 'light';
-        $raster = "signatur-raster-{$variante}.png";
-        $marke = "signatur-marke-{$variante}.png";
-
         // ZWEI BETRIEBSARTEN, und die Unterscheidung ist wesentlich:
         //
         //   verlinkt   — fuer VERSENDETE Mails. Nur so erscheinen die Bilder
@@ -148,15 +141,13 @@ class MailSignature
                 'LOGO_STILL_SRC' => EmailTemplateBuilder::mailAssetUrl($logoStill),
                 'ICON_RT_SRC' => EmailTemplateBuilder::mailAssetUrl($markAsset),
                 'ICON_RT_STILL_SRC' => EmailTemplateBuilder::mailAssetUrl($markStill),
-                'GRUND_RASTER_SRC' => EmailTemplateBuilder::mailAssetUrl($raster),
-                'GRUND_MARKE_SRC' => EmailTemplateBuilder::mailAssetUrl($marke),
                 'TRAIN_SRC' => $this->withRemotePlaybackNonce(
                     EmailTemplateBuilder::signatureTrainUrl(
                         $this->theme,
                         $this->staticAssets ? false : $this->animated,
                     ),
                 ),
-                // Statische, weiter validierte Referenz. Schema 17 injiziert
+                // Statische, weiter validierte Referenz. Das aktuelle Schema injiziert
                 // sie nicht mehr als MSO-Zugbild, weil Word absolute
                 // Positionierung ignoriert und sonst Flow-Hoehe erzeugt.
                 'TRAIN_STILL_SRC' => EmailTemplateBuilder::signatureTrainStillUrl($this->theme),
@@ -184,8 +175,6 @@ class MailSignature
                     $this->playbackNonce,
                 ),
                 'ICON_RT_STILL_SRC' => EmailTemplateBuilder::inlineImage($markStill, 'image/png'),
-                'GRUND_RASTER_SRC' => EmailTemplateBuilder::inlineImage($raster, 'image/png'),
-                'GRUND_MARKE_SRC' => EmailTemplateBuilder::inlineImage($marke, 'image/png'),
                 'TRAIN_SRC' => EmailTemplateBuilder::signatureTrainAsset(
                     $this->theme,
                     $this->staticAssets ? false : $this->animated,
@@ -193,7 +182,7 @@ class MailSignature
                 ),
                 // Statische, lokal paketierbare Referenz. Sie bleibt Teil des
                 // Wertevertrags, wird aber nicht als Classic-Outlook-Flowbild
-                // in den absoluten Schema-17-Layer injiziert.
+                // in den absoluten Schema-18-Layer injiziert.
                 'TRAIN_STILL_SRC' => EmailTemplateBuilder::signatureTrainAsset(
                     $this->theme,
                     animated: false,
@@ -398,6 +387,10 @@ class MailSignature
 
         $html = $this->applyPublishedLayout($documentHtml, $layout);
         $html = $this->projectPublishedTrainAsImage($html, $singleTrainLayout);
+        // Bereits veroeffentlichte Schema-17-Dokumente verlieren Raster und
+        // grosses RT-Wasserzeichen schon vor der Tokenersetzung. Damit gilt
+        // die bildfreie Schema-18-Fassung sofort, auch vor einem Seeder-Lauf.
+        $html = SignatureTrainCarrier::withoutDecorativeBaseBackgrounds($html);
         $escapedValues = array_map(
             static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8'),
             $values,
@@ -548,7 +541,7 @@ class MailSignature
         $values = $this->values($overrides);
         $safeKeys = array_unique(array_merge(
             array_keys(EmailTemplateBuilder::emailThemeValues($this->theme)),
-            ['LOGO_SRC', 'LOGO_STILL_SRC', 'TRAIN_SRC', 'TRAIN_IDLE_SRC', 'ICON_RT_SRC', 'ICON_RT_STILL_SRC', 'GRUND_RASTER_SRC', 'GRUND_MARKE_SRC'],
+            ['LOGO_SRC', 'LOGO_STILL_SRC', 'TRAIN_SRC', 'TRAIN_IDLE_SRC', 'ICON_RT_SRC', 'ICON_RT_STILL_SRC'],
             array_values(array_filter(
                 array_keys($values),
                 static fn (string $key): bool => str_starts_with($key, 'ICON_'),

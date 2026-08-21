@@ -54,31 +54,15 @@
         ($values['STEUERNUMMER'] ?? '') !== '' ? 'Steuernummer '.$values['STEUERNUMMER'] : '',
     ]));
     /*
-     * DIE EBENEN DES STREIFENS, von oben nach unten.
-     *
-     * In CSS steht die ZUERST genannte Ebene ganz oben:
-     *
-     *   1  Raster        feines technisches Netz, gekachelt, durchsichtig
-     *   2  Wasserzeichen RT-Marke und roter Schimmer, EINMAL rechts
-     *   3  Kompatibilitaetsebene (transparent; fuer alte DB-Dokumente)
-     *   4  Grundfarbe    weiss beziehungsweise dunkel
-     *
-     * RASTER UND MARKE LIEGEN OBEN, nicht unten. Die Zugassets tragen die
-     * endgueltigen 30 Prozent Alpha bereits selbst. Die dritte Ebene bleibt
-     * nur transparent erhalten, damit alte publizierte Vier-Ebenen-Staende
-     * und ihre mobilen Positionslisten kompatibel bleiben; sie darf die
-     * Deckkraft nicht ein zweites Mal reduzieren.
-     *
-     * Der Zug bleibt im gespeicherten Editorstand und im finalen Versand
-     * ausserhalb dieser Listen als IMG.
+     * Die Signatur besitzt keine dekorativen Hintergrundbilder mehr. Das
+     * fruehere Raster und das grosse RT-Wasserzeichen werden weder geladen
+     * noch als EML-Medien mitgefuehrt. Die transparente Kompatibilitaetsebene
+     * bleibt als einzige, bildfreie Ebene bestehen; der Zug liegt weiterhin
+     * separat als echtes IMG hinter den Kontaktdaten.
      */
-    $ebenen = array_values(array_filter([
-        ($values['GRUND_RASTER_SRC'] ?? '') !== ''
-            ? "url({$values['GRUND_RASTER_SRC']})|left top|64px 64px|repeat" : '',
-        ($values['GRUND_MARKE_SRC'] ?? '') !== ''
-            ? "url({$values['GRUND_MARKE_SRC']})|right center|auto 100%|no-repeat" : '',
+    $ebenen = [
         "linear-gradient({$values['SIGNATURE_TRAIN_WASH']},{$values['SIGNATURE_TRAIN_WASH']})|center center|100% 100%|no-repeat",
-    ]));
+    ];
     $teile = array_map(static fn (string $e): array => explode('|', $e), $ebenen);
     $backgroundImage = implode(',', array_column($teile, 0));
     $backgroundPosition = implode(',', array_column($teile, 1));

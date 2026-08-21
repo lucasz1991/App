@@ -261,7 +261,7 @@ final class SignatureTrainCarrier
 
     /**
      * Classic Outlook/Word ignoriert absolute Bildpositionen und wuerde ein
-     * bedingtes Zug-IMG wieder als eigenen Flow-Block ausgeben. Schema 17
+     * bedingtes Zug-IMG wieder als eigenen Flow-Block ausgeben. Das aktuelle Schema
      * injiziert deshalb bewusst kein MSO-Zugbild. Moderne Clients behalten das
      * absolut positionierte Haupt-IMG; Classic erhaelt lieber keinen Zug als
      * einen erneut aufgebrochenen Signaturblock. Die Quelle wird trotzdem
@@ -748,7 +748,7 @@ final class SignatureTrainCarrier
             }
             if ($expandedFlowAccepted) {
                 // Schema 16 wird nur laufzeitlokal in den absoluten
-                // Schema-17-Vertrag ueberfuehrt; gespeichert werden darf die
+                // absoluten Legacy-Vertrag ueberfuehrt; gespeichert werden darf die
                 // alte Flow-Form weiterhin nicht.
             } elseif (! $allowLegacyAbsoluteLayer) {
                 throw $exception;
@@ -810,12 +810,45 @@ final class SignatureTrainCarrier
     }
 
     /**
-     * Prueft die drei serverkontrollierten Basis-Backgrounds des gespeicherten
-     * Editor-Dokuments. Der Zug selbst bleibt im Editor und im finalen Render
-     * ein regulaeres IMG. Dadurch kann ein Entwurf mit manipulierten oder nicht
-     * parallelen Basislisten nicht erst spaeter beim Versand ausfallen.
+     * Prueft die einzige bildfreie Basis-Backgroundebene des gespeicherten
+     * Editor-Dokuments. Raster und grosses RT-Wasserzeichen sind seit Schema 18
+     * nicht mehr Bestandteil der Signatur; der Zug bleibt ein regulaeres IMG.
      */
     public static function assertCanonicalBaseBackground(string $html): void
+    {
+        $carrier = self::inspectCarrier($html);
+        $styles = $carrier['attributes']['style'] ?? [];
+        if (count($styles) !== 1) {
+            throw new RuntimeException('Der Zug-Carrier besitzt kein eindeutiges style-Attribut.');
+        }
+
+        $style = CssSemantic::decodeHtmlEntitiesOnce((string) $styles[0]['raw']);
+        $styleWithoutAllowedTokens = str_replace([
+            '{{SIGNATURE_BG}}',
+            '{{SIGNATURE_TRAIN_WASH}}',
+        ], '', $style);
+        if (preg_match('/[{}]/', $styleWithoutAllowedTokens) !== 0) {
+            throw new RuntimeException('Der Zug-Carrier enthaelt einen fremden oder unvollstaendigen Platzhalter.');
+        }
+
+        $parsed = self::parseRuntimeBackgroundStyle(
+            $style,
+            allowStoredTokens: true,
+        );
+        self::assertRuntimeBaseBackgroundLists($parsed['lists'], expectedCount: 1);
+
+        $images = $parsed['lists']['background-image'];
+        if (! self::cssLinearGradientTargetsWash($images[0])) {
+            throw new RuntimeException('Die bildfreie Basis-Ebene des Zug-Carriers ist nicht kanonisch.');
+        }
+    }
+
+    /**
+     * Akzeptiert ausschliesslich den exakten Schema-17-Altstand, damit bereits
+     * veroeffentlichte Dokumente beim Rendern sicher auf die bildfreie
+     * Schema-18-Ebene reduziert werden koennen.
+     */
+    public static function assertLegacyCanonicalBaseBackground(string $html): void
     {
         $carrier = self::inspectCarrier($html);
         $styles = $carrier['attributes']['style'] ?? [];
@@ -844,8 +877,58 @@ final class SignatureTrainCarrier
         if (! self::cssUrlTargetsToken($images[0], 'GRUND_RASTER_SRC')
             || ! self::cssUrlTargetsToken($images[1], 'GRUND_MARKE_SRC')
             || ! self::cssLinearGradientTargetsWash($images[2])) {
-            throw new RuntimeException('Die Basis-Layer des Zug-Carriers sind nicht kanonisch.');
+            throw new RuntimeException('Die alten Basis-Layer des Zug-Carriers sind nicht kanonisch.');
         }
+    }
+
+    /**
+     * Entfernt Raster und grosses RT-Wasserzeichen atomar aus einem exakt
+     * validierten Schema-17-Carrier. Neue Schema-18-Dokumente werden
+     * unveraendert zurueckgegeben. Der transparente Wash bleibt als einzige
+     * bildfreie Kompatibilitaetsebene bestehen.
+     */
+    public static function withoutDecorativeBaseBackgrounds(string $html): string
+    {
+        try {
+            self::assertCanonicalBaseBackground($html);
+
+            return $html;
+        } catch (RuntimeException) {
+            self::assertLegacyCanonicalBaseBackground($html);
+        }
+
+        $carrier = self::inspectCarrier($html);
+        $styles = $carrier['attributes']['style'] ?? [];
+        if (count($styles) !== 1 || $styles[0]['valueOffset'] === null) {
+            throw new RuntimeException('Die dekorativen Signaturhintergruende koennen nicht eindeutig entfernt werden.');
+        }
+
+        $styleAttribute = $styles[0];
+        $parsed = self::parseRuntimeBackgroundStyle(
+            CssSemantic::decodeHtmlEntitiesOnce((string) $styleAttribute['raw']),
+            allowStoredTokens: true,
+        );
+        foreach (['background-image', 'background-repeat', 'background-position', 'background-size'] as $property) {
+            array_splice($parsed['lists'][$property], 0, 2);
+            $declaration = $parsed['declarations'][$property];
+            $parsed['segments'][$declaration['segment']] = $declaration['prefix']
+                .implode(',', $parsed['lists'][$property])
+                .$declaration['suffix'];
+        }
+
+        $projected = substr_replace(
+            $html,
+            htmlspecialchars(
+                implode(';', $parsed['segments']),
+                ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5,
+                'UTF-8',
+            ),
+            $styleAttribute['valueOffset'],
+            $styleAttribute['valueLength'],
+        );
+        self::assertCanonicalBaseBackground($projected);
+
+        return $projected;
     }
 
     /**
@@ -1209,8 +1292,8 @@ final class SignatureTrainCarrier
 
     /**
      * Prueft den finalen IMG-Vertrag. Zug- und Idle-GIF duerfen ausschliesslich
-     * als src eines echten IMG vorkommen; der Carrier behaelt genau seine drei
-     * dekorativen PNG-/Gradient-Basislayer.
+     * als src eines echten IMG vorkommen; Raster und grosses RT-Wasserzeichen
+     * duerfen im Carrier nicht mehr vorkommen.
      */
     public static function assertRuntimeImages(
         string $html,
@@ -1231,22 +1314,14 @@ final class SignatureTrainCarrier
             self::singleCarrierAttributeValue($carrier, 'style', raw: true),
         );
         $parsed = self::parseRuntimeBackgroundStyle($carrierStyle);
-        self::assertRuntimeBaseBackgroundLists($parsed['lists'], expectedCount: 3);
+        self::assertRuntimeBaseBackgroundLists($parsed['lists'], expectedCount: 1);
         $backgroundImages = $parsed['lists']['background-image'];
-        foreach ([0, 1] as $index) {
-            if (! self::isAllowedMailImageSource(
-                self::cssUrlSource($backgroundImages[$index]),
-                staticOnly: true,
-            )) {
-                throw new RuntimeException('Die CSS-Basislayer duerfen nur statische PNG-Bilder laden.');
-            }
-        }
         if (preg_match(
             '/^[ \t\r\n\f]*linear-gradient\((.*)\)[ \t\r\n\f]*$/is',
-            $backgroundImages[2],
+            $backgroundImages[0],
             $gradient,
         ) !== 1) {
-            throw new RuntimeException('Der dritte CSS-Basislayer muss der statische Grundschleier bleiben.');
+            throw new RuntimeException('Die einzige CSS-Basis-Ebene muss der bildfreie Grundschleier bleiben.');
         }
         $gradientStops = self::splitCssAtTopLevel($gradient[1], ',');
         if (count($gradientStops) !== 2
@@ -1750,11 +1825,19 @@ final class SignatureTrainCarrier
         if (count($lists['background-image'] ?? []) !== $expectedCount) {
             throw new RuntimeException('Der finale Zug-Carrier besitzt nicht die erwartete Background-Layerzahl.');
         }
-        $expected = [
-            'background-repeat' => ['repeat', 'no-repeat', 'no-repeat'],
-            'background-position' => ['left top', 'right center', 'center center'],
-            'background-size' => ['64px 64px', 'auto 100%', '100% 100%'],
-        ];
+        $expected = match ($expectedCount) {
+            1 => [
+                'background-repeat' => ['no-repeat'],
+                'background-position' => ['center center'],
+                'background-size' => ['100% 100%'],
+            ],
+            3 => [
+                'background-repeat' => ['repeat', 'no-repeat', 'no-repeat'],
+                'background-position' => ['left top', 'right center', 'center center'],
+                'background-size' => ['64px 64px', 'auto 100%', '100% 100%'],
+            ],
+            default => throw new RuntimeException('Der finale Zug-Carrier besitzt eine unbekannte Background-Layerzahl.'),
+        };
         foreach ($expected as $property => $values) {
             foreach ($values as $index => $value) {
                 if (self::normalizedCssValue($lists[$property][$index] ?? '') !== $value) {

@@ -203,15 +203,18 @@ class PageBuilderPreviewTest extends TestCase
         );
         $this->assertStringNotContainsString('rt-sign-train-background', $staticCarrier[0]);
         $this->assertStringNotContainsString('data-rt-train-background', $staticCarrier[0]);
-        $this->assertStringContainsString('data:image/png;base64,', $staticCarrier[0]);
+        $this->assertStringNotContainsString('data:image/', $staticCarrier[0]);
+        $this->assertStringContainsString('background-image:linear-gradient(', $staticCarrier[0]);
         $this->assertMatchesRegularExpression('/<img\b[^>]*\bdata-rt-train(?:\s|=|>)[^>]*src="data:image\/png;base64,[^"]+"/i', $html);
         $this->assertMatchesRegularExpression('/<div\b[^>]*class="[^"]*\brt-sign-train-layer\b[^"]*"[^>]*style="position:absolute;[^">]*top:0;bottom:0;[^">]*z-index:0;/s', $html);
         $this->assertDoesNotMatchRegularExpression('/<v:(?:rect|fill)\b/i', $html);
         $this->assertStringNotContainsString('<tr><td class="rt-sign-train-mso"', $html);
         $this->assertStringContainsString(
-            'background-repeat:repeat,no-repeat,no-repeat;',
+            'background-repeat:no-repeat;',
             $staticCarrier[0],
         );
+        $this->assertStringContainsString('background-position:center center;', $staticCarrier[0]);
+        $this->assertStringContainsString('background-size:100% 100%;', $staticCarrier[0]);
         $this->assertStringNotContainsString(',75% bottom;', $staticCarrier[0]);
         $this->assertStringNotContainsString('data-rt-train-idle', $html);
         $this->assertStringNotContainsString('{{APPLICATION_CONTENT}}', $html);
@@ -237,15 +240,18 @@ class PageBuilderPreviewTest extends TestCase
         );
         $this->assertStringNotContainsString('rt-sign-train-background', $animatedCarrier[0]);
         $this->assertStringNotContainsString('data-rt-train-background', $animatedCarrier[0]);
-        $this->assertStringNotContainsString('data:image/gif;base64,', $animatedCarrier[0]);
+        $this->assertStringNotContainsString('data:image/', $animatedCarrier[0]);
+        $this->assertStringContainsString('background-image:linear-gradient(', $animatedCarrier[0]);
         $this->assertMatchesRegularExpression('/<img\b[^>]*\bdata-rt-train(?:\s|=|>)[^>]*src="data:image\/gif;base64,[^"]+"/i', $animatedHtml);
         $this->assertMatchesRegularExpression('/<div\b[^>]*class="[^"]*\brt-sign-train-layer\b[^"]*"[^>]*style="position:absolute;[^">]*top:0;bottom:0;[^">]*z-index:0;/s', $animatedHtml);
         $this->assertDoesNotMatchRegularExpression('/<v:(?:rect|fill)\b/i', $animatedHtml);
         $this->assertStringNotContainsString('<tr><td class="rt-sign-train-mso"', $animatedHtml);
         $this->assertStringContainsString(
-            'background-repeat:repeat,no-repeat,no-repeat;',
+            'background-repeat:no-repeat;',
             $animatedCarrier[0],
         );
+        $this->assertStringContainsString('background-position:center center;', $animatedCarrier[0]);
+        $this->assertStringContainsString('background-size:100% 100%;', $animatedCarrier[0]);
         $this->assertStringContainsString('data-rt-train-idle-overlay', $animatedHtml);
         $this->assertStringContainsString('data-rt-train-idle-image', $animatedHtml);
         $this->assertMatchesRegularExpression('/<img\b[^>]*\bdata-rt-train-idle-image(?:\s|=|>)[^>]*src="data:image\/gif;base64,[^"]+"/i', $animatedHtml);

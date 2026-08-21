@@ -257,11 +257,11 @@ img.rt-logo { width: 150px !important; }
 /* Die Firmenliste sitzt gestapelt direkt unter der Wortmarke — der
    Vorsprung, den sie im Breitlayout ausgleicht, faellt hier weg. */
 
-/* Raster, Wasserzeichen und Grundschleier bleiben mobil an ihre drei
-   kanonischen Ebenen gekoppelt. Im Editor folgt das Zug-IMG separat. */
+/* Die bildfreie, transparente Grundebene bleibt mobil unveraendert. Raster
+   und grosses RT-Wasserzeichen gehoeren nicht mehr zur Signatur. */
 .rt-sign-cell {
-  background-position: left top, right center, center center !important;
-  background-size: 64px 64px, auto 52%, 100% 100% !important;
+  background-position: center center !important;
+  background-size: 100% 100% !important;
 }
 .rt-sign-train-layer {
   width: 100% !important;

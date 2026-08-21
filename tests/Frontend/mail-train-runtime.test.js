@@ -148,7 +148,8 @@ test('all delivered mail outputs keep absolute train IMGs without a Classic Outl
     assert.match(responsiveCss, /\.rt-sign-content \{ padding-bottom: 0 !important; \}/);
     const mobile = responsiveCss.slice(responsiveCss.indexOf('@media only screen and (max-width: 860px)'));
     assert.doesNotMatch(responsiveCss, /\.rt-sign-cell\.rt-sign-train-background/);
-    assert.match(mobile, /\.rt-sign-cell\s*\{[\s\S]+?background-position:\s*left top,\s*right center,\s*center center !important;[\s\S]+?background-size:\s*64px 64px,\s*auto 52%,\s*100% 100% !important;/);
+    assert.match(mobile, /\.rt-sign-cell\s*\{[\s\S]+?background-position:\s*center center !important;[\s\S]+?background-size:\s*100% 100% !important;/);
+    assert.doesNotMatch(signatureView, /signatur-(?:raster|marke)-/);
 });
 
 test('idle IMG remains a bottom-anchored zero-flow overlay when animation support is available', () => {
@@ -185,7 +186,7 @@ test('editor and delivery keep the default mobile train at 100 percent while exp
     assert.match(signatureView, /position:absolute;left:0;right:auto;bottom:0;display:block;width:100%;max-width:none;height:auto/);
     assert.doesNotMatch(signatureView, /url\(\{\$values\['TRAIN_SRC'\]\}\)/);
     const mobile = responsiveCss.slice(responsiveCss.indexOf('@media only screen and (max-width: 860px)'));
-    assert.match(mobile, /\.rt-sign-cell\s*\{[\s\S]+?background-position: left top, right center, center center !important;[\s\S]+?background-size: 64px 64px, auto 52%, 100% 100% !important;/);
+    assert.match(mobile, /\.rt-sign-cell\s*\{[\s\S]+?background-position: center center !important;[\s\S]+?background-size: 100% 100% !important;/);
     assert.match(mobile, /\.rt-sign-train-layer\s*\{[\s\S]+?left: 0 !important;[\s\S]+?width: 100% !important;/);
     assert.match(mobile, /data-rt-layer-mobile="train"\] \{ left: 0 !important; right: auto !important; margin-left: 0 !important; margin-right: auto !important;/);
     assert.match(mobile, /data-rt-layer-mobile="center"\] \{ left: 0 !important; right: 0 !important; margin-left: auto !important; margin-right: auto !important;/);

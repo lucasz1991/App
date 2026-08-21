@@ -11,12 +11,10 @@ class SignatureTrainTimelineTest extends TestCase
     public function test_idle_overlay_is_inserted_after_the_scanned_train_image_tag(): void
     {
         $html = '<tr><td class="rt-sign-cell" style="padding:0;overflow:hidden;'
-            .'background-image:url(https://app.rail-time.test/mail-assets/signatur-raster-light.png),'
-            .'url(https://app.rail-time.test/mail-assets/signatur-marke-light.png),'
-            .'linear-gradient(rgba(0,0,0,0),rgba(0,0,0,0));'
-            .'background-repeat:repeat,no-repeat,no-repeat;'
-            .'background-position:left top,right center,center center;'
-            .'background-size:64px 64px,auto 100%,100% 100%;">'
+            .'background-image:linear-gradient(rgba(0,0,0,0),rgba(0,0,0,0));'
+            .'background-repeat:no-repeat;'
+            .'background-position:center center;'
+            .'background-size:100% 100%;">'
             .'<div class="rt-sign-stage" style="position:relative;overflow:hidden;">'
             .'<table style="position:relative;z-index:1;"><tr><td title="Inhalt > Legal">Inhalt</td></tr></table>'
             .'<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" '

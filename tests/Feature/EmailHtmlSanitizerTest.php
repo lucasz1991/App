@@ -445,8 +445,10 @@ class EmailHtmlSanitizerTest extends TestCase
         $html = '<a href="javascript:{{CTA_URL}}">A</a>'
             .'<a href="{{SCHEME}}:alert(1)">B</a>'
             .'<img src="https://tracker.example/{{LOGO_SRC}}" alt="">'
+            .'<img src="{{GRUND_RASTER_SRC}}" alt="">'
             .'<td background="javascript:alert(1)">Outlook</td>'
-            .'<td style="background-image:url(https://tracker.example/{{TRAIN_SRC}});">Text</td>';
+            .'<td style="background-image:url(https://tracker.example/{{TRAIN_SRC}});">Text</td>'
+            .'<td style="background-image:url({{GRUND_MARKE_SRC}});">Alt</td>';
 
         $report = $this->sanitizer()->clean($html);
 
@@ -456,6 +458,8 @@ class EmailHtmlSanitizerTest extends TestCase
         $this->assertStringNotContainsString('javascript:', $report->html);
         $this->assertStringNotContainsString('tracker.example', $report->html);
         $this->assertStringNotContainsString('{{SCHEME}}', $report->html);
+        $this->assertStringNotContainsString('{{GRUND_RASTER_SRC}}', $report->html);
+        $this->assertStringNotContainsString('{{GRUND_MARKE_SRC}}', $report->html);
     }
 
     public function test_profilplatzhalter_duerfen_nie_zu_links_bildquellen_oder_css_werden(): void

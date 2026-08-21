@@ -88,7 +88,7 @@ final class SignatureDocumentContract
     /**
      * Laufzeitvertrag fuer bereits veroeffentlichte Signaturen.
      *
-     * Neue Editor-/Publish-Staende muessen immer den Schema-17-Vertrag
+     * Neue Editor-/Publish-Staende muessen immer den Schema-18-Vertrag
      * besitzen. Bis der autoritative Seeder nach dem Deployment gelaufen ist,
      * darf der Versand nur die einzeln beschriebenen Altformen lesen:
      * Schema 6 (Padding), Schema 9 (Background) sowie Schema 12-15
@@ -147,12 +147,24 @@ final class SignatureDocumentContract
             if ($allowLegacyDirectImage || $allowLegacyPercentHeight || $allowLegacyAbsoluteImage) {
                 // Der Runtime-Einstieg akzeptiert nur die im Carrier selbst
                 // exakt beschriebenen Altvertraege und normalisiert sie ohne
-                // Persistenz in Schema 17. Neue Saves bleiben strikt.
+                // Persistenz in Schema 18. Neue Saves bleiben strikt.
                 SignatureTrainCarrier::normalize($html);
             } else {
                 SignatureTrainCarrier::assertCanonicalImage($html);
             }
-            SignatureTrainCarrier::assertCanonicalBaseBackground($html);
+            if ($allowLegacyDirectImage || $allowLegacyPercentHeight || $allowLegacyAbsoluteImage) {
+                try {
+                    SignatureTrainCarrier::assertCanonicalBaseBackground($html);
+                } catch (RuntimeException $currentException) {
+                    try {
+                        SignatureTrainCarrier::assertLegacyCanonicalBaseBackground($html);
+                    } catch (RuntimeException) {
+                        throw $currentException;
+                    }
+                }
+            } else {
+                SignatureTrainCarrier::assertCanonicalBaseBackground($html);
+            }
         } elseif ($allowLegacyTrainCarrier) {
             // Bereits publizierte Schema-9-Staende bleiben bis zum expliziten
             // Seeder-Lauf lesbar und werden beim Rendern in die heutige
