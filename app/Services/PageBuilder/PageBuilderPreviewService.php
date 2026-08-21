@@ -108,18 +108,27 @@ final class PageBuilderPreviewService
                 overrides: $values,
             );
 
-        $html = $this->renderTokenHtml((string) $document->html, $values, [
-            'SIGNATURE_BLOCK' => $signature,
-            'RESPONSIVE_CSS' => EmailTemplateBuilder::responsiveCss($values['SIGNATURE_BORDER'] ?? null),
-            // Die Adminvorschau zeigt das im Entwurf vorhandene Muster. Der
-            // Slot selbst wird erst beim produktiven Versand durch echten
-            // Anwendungsinhalt ersetzt und darf hier nicht doppelt erscheinen.
-            'APPLICATION_CONTENT' => '',
-        ]);
+        // Das Signaturdokument muss denselben vollstaendigen Renderer wie die
+        // Systemmail verwenden. Zuvor wurde `$signature` zwar berechnet, hier
+        // aber wieder durch das rohe Dokument ersetzt. Dadurch blieben leere
+        // Kontaktzeilen und Runtime-Zugschichten allein in der Mail sichtbar.
+        $html = $document->kind === MailDocumentKind::Signature
+            ? $signature
+            : $this->renderTokenHtml((string) $document->html, $values, [
+                'SIGNATURE_BLOCK' => $signature,
+                'RESPONSIVE_CSS' => EmailTemplateBuilder::responsiveCss($values['SIGNATURE_BORDER'] ?? null),
+                // Die Adminvorschau zeigt das im Entwurf vorhandene Muster. Der
+                // Slot selbst wird erst beim produktiven Versand durch echten
+                // Anwendungsinhalt ersetzt und darf hier nicht doppelt erscheinen.
+                'APPLICATION_CONTENT' => '',
+            ]);
 
         $css = $this->mailCss((string) $document->css, $values);
         if ($document->kind === MailDocumentKind::Template && $signatureDocument !== null) {
             $css .= "\n".$this->mailCss((string) $signatureDocument->css, $values);
+        } elseif ($document->kind === MailDocumentKind::Signature) {
+            $css = EmailTemplateBuilder::responsiveCss($values['SIGNATURE_BORDER'] ?? null)
+                ."\n".$css;
         }
 
         if ($document->kind === MailDocumentKind::Signature) {
@@ -265,7 +274,7 @@ CSS, $width, $height);
     {
         $background = $theme === 'dark' ? '#070a0e' : '#e7eaed';
 
-        return "html,body{margin:0;min-width:1920px;width:1920px;min-height:360px;background:{$background};font-family:Arial,Helvetica,sans-serif}body{padding:28px;box-sizing:border-box}table{border-collapse:collapse}";
+        return "html,body{margin:0;min-width:0;width:100%;min-height:360px;background:{$background};font-family:Arial,Helvetica,sans-serif}body{padding:0;box-sizing:border-box}table{border-collapse:collapse}";
     }
 
     private function embedStyle(string $html, string $css, string $kind): string

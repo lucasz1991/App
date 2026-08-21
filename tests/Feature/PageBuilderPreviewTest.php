@@ -206,7 +206,7 @@ class PageBuilderPreviewTest extends TestCase
         $this->assertStringContainsString('data:image/png;base64,', $staticCarrier[0]);
         $this->assertMatchesRegularExpression('/<img\b[^>]*\bdata-rt-train(?:\s|=|>)[^>]*src="data:image\/png;base64,[^"]+"/i', $html);
         $this->assertMatchesRegularExpression(
-            '/<div\b[^>]*class="[^"]*\brt-sign-stage\b[^"]*"[^>]*>\s*<!--\[if mso\]><img\b[^>]*class="rt-sign-train-mso"[^>]*data-rt-train-mso="1"[^>]*src="data:image\/png;base64,[^"]+"[^>]*><!\[endif\]-->/s',
+            '/<div\b[^>]*class="[^"]*\brt-sign-train-layer\b[^"]*"[^>]*>\s*<!--\[if mso\]><img\b[^>]*class="rt-sign-train-mso"[^>]*data-rt-train-mso="1"[^>]*src="data:image\/png;base64,[^"]+"[^>]*><!\[endif\]-->/s',
             $html,
         );
         $this->assertDoesNotMatchRegularExpression('/<v:(?:rect|fill)\b/i', $html);
@@ -243,7 +243,7 @@ class PageBuilderPreviewTest extends TestCase
         $this->assertStringNotContainsString('data:image/gif;base64,', $animatedCarrier[0]);
         $this->assertMatchesRegularExpression('/<img\b[^>]*\bdata-rt-train(?:\s|=|>)[^>]*src="data:image\/gif;base64,[^"]+"/i', $animatedHtml);
         $this->assertMatchesRegularExpression(
-            '/<div\b[^>]*class="[^"]*\brt-sign-stage\b[^"]*"[^>]*>\s*<!--\[if mso\]><img\b[^>]*class="rt-sign-train-mso"[^>]*data-rt-train-mso="1"[^>]*src="data:image\/png;base64,[^"]+"[^>]*><!\[endif\]-->/s',
+            '/<div\b[^>]*class="[^"]*\brt-sign-train-layer\b[^"]*"[^>]*>\s*<!--\[if mso\]><img\b[^>]*class="rt-sign-train-mso"[^>]*data-rt-train-mso="1"[^>]*src="data:image\/png;base64,[^"]+"[^>]*><!\[endif\]-->/s',
             $animatedHtml,
         );
         $this->assertDoesNotMatchRegularExpression('/<v:(?:rect|fill)\b/i', $animatedHtml);
@@ -263,6 +263,39 @@ class PageBuilderPreviewTest extends TestCase
             $this->assertStringContainsString('RailTime-Preview:', base64_decode($encodedGif, true) ?: '');
         }
         $this->assertSame($before, $zustand($document->fresh()));
+
+        $signatureDocument = MailDocument::query()
+            ->where('kind', MailDocumentKind::Signature->value)
+            ->firstOrFail();
+        $signatureHtml = (string) $this->actingAs($admin)
+            ->get(route('admin.mail-documents.preview', [
+                $signatureDocument,
+                'theme' => 'dark',
+                'animate' => 1,
+                'play' => 'signature-parity',
+            ]))
+            ->assertOk()
+            ->assertHeader('X-PageBuilder-Preview-Width', '1920')
+            ->assertHeader('X-PageBuilder-Preview-Height', '360')
+            ->getContent();
+
+        $this->assertStringContainsString('data-preview-document="signature"', $signatureHtml);
+        $this->assertStringContainsString('data-preview-animation="animated"', $signatureHtml);
+        SignatureTrainCarrier::assertRuntimeImages($signatureHtml);
+        $this->assertSame(1, substr_count($signatureHtml, 'class="rt-sign-train"'));
+        $this->assertSame(1, substr_count($signatureHtml, 'class="rt-sign-train-mso"'));
+        $this->assertSame(1, substr_count($signatureHtml, 'data-rt-train-idle-overlay'));
+        $this->assertSame(1, substr_count($signatureHtml, 'data-rt-train-idle-image'));
+        $this->assertStringNotContainsString('RT_COMPANY_PHONE_START', $signatureHtml);
+        $this->assertStringNotContainsString('RT_COMPANY_PHONE_END', $signatureHtml);
+        $this->assertStringNotContainsString('RT_COMPANY_EMAIL_START', $signatureHtml);
+        $this->assertStringNotContainsString('RT_COMPANY_EMAIL_END', $signatureHtml);
+        $this->assertStringNotContainsString('{{FIRMEN_TELEFON}}', $signatureHtml);
+        $this->assertStringNotContainsString('{{FIRMEN_EMAIL}}', $signatureHtml);
+        $this->assertStringNotContainsString('{{TRAIN_SRC}}', $signatureHtml);
+        $this->assertStringContainsString('@media only screen and (max-width: 860px)', $signatureHtml);
+        $this->assertStringContainsString('html,body{margin:0;min-width:0;width:100%;', $signatureHtml);
+        $this->assertStringNotContainsString('min-width:1920px;width:1920px', $signatureHtml);
     }
 
     public function test_marketing_source_page_renders_sandboxed_format_cards(): void

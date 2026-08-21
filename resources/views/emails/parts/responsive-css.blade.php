@@ -36,23 +36,39 @@
    laeuft einmalig im Haupt-GIF. Danach wird nur die transparente, kleine
    Rauchschleife sichtbar; der Zug selbst wird dadurch nicht dupliziert. */
 .rt-sign-train-layer {
-  position: absolute !important;
-  top: 0 !important;
-  bottom: 0 !important;
+  position: relative !important;
+  left: 0 !important;
+  right: auto !important;
+  top: auto !important;
+  bottom: auto !important;
+  width: 100% !important;
+  max-width: 1815px !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
   overflow: hidden !important;
   font-size: 0 !important;
   line-height: 0 !important;
+  text-align: left !important;
 }
-.rt-sign-train {
-  position: absolute !important;
-  left: 0 !important;
+.rt-sign-train,
+.rt-sign-train-mso {
+  position: static !important;
+  left: auto !important;
   right: auto !important;
-  bottom: 0 !important;
-  display: block !important;
-  width: 100% !important;
+  bottom: auto !important;
+  display: inline-block !important;
+  max-width: none !important;
   height: auto !important;
-  margin: 0 !important;
+  margin-top: 0 !important;
+  margin-right: 0 !important;
+  margin-bottom: 0 !important;
+  vertical-align: top !important;
   z-index: 0 !important;
+}
+.rt-sign-train-mso {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
 }
 @keyframes rt-train-idle-reveal {
   0% { opacity: 0; visibility: hidden; }
@@ -62,9 +78,11 @@
   position: absolute !important;
   left: 0 !important;
   right: auto !important;
-  bottom: 0 !important;
+  top: 0 !important;
+  bottom: auto !important;
   display: block !important;
   width: 100% !important;
+  max-width: none !important;
   height: 0 !important;
   max-height: 0 !important;
   margin: 0 !important;
@@ -76,16 +94,48 @@
   visibility: hidden;
 }
 .rt-train-idle-image {
-  position: absolute !important;
-  left: 0 !important;
+  position: static !important;
+  left: auto !important;
   right: auto !important;
-  bottom: 0 !important;
-  display: block !important;
-  width: 100% !important;
+  bottom: auto !important;
+  display: inline-block !important;
+  max-width: none !important;
   height: auto !important;
-  margin: 0 !important;
+  margin-top: 0 !important;
+  margin-right: 0 !important;
+  margin-bottom: 0 !important;
+  vertical-align: top !important;
   z-index: 1 !important;
 }
+.rt-sign-train-layer[data-rt-layer-align="left"] { margin-left: 0 !important; margin-right: auto !important; }
+.rt-sign-train-layer[data-rt-layer-align="center"] { margin-left: auto !important; margin-right: auto !important; }
+.rt-sign-train-layer[data-rt-layer-align="right"] { margin-left: auto !important; margin-right: 0 !important; }
+.rt-sign-train-layer[data-rt-layer-size="100"] > .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-size="100"] > .rt-train-idle-overlay > .rt-train-idle-image { width: 100% !important; max-width: none !important; }
+.rt-sign-train-layer[data-rt-layer-size="125"] > .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-size="125"] > .rt-train-idle-overlay > .rt-train-idle-image { width: 125% !important; max-width: none !important; }
+.rt-sign-train-layer[data-rt-layer-size="150"] > .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-size="150"] > .rt-train-idle-overlay > .rt-train-idle-image { width: 150% !important; max-width: none !important; }
+.rt-sign-train-layer[data-rt-layer-size="200"] > .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-size="200"] > .rt-train-idle-overlay > .rt-train-idle-image { width: 200% !important; max-width: none !important; }
+.rt-sign-train-layer[data-rt-layer-align="left"] > .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-align="left"] > .rt-train-idle-overlay > .rt-train-idle-image,
+.rt-sign-train-layer[data-rt-layer-align="center"][data-rt-layer-size="100"] > .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-align="center"][data-rt-layer-size="100"] > .rt-train-idle-overlay > .rt-train-idle-image,
+.rt-sign-train-layer[data-rt-layer-align="right"][data-rt-layer-size="100"] > .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-align="right"][data-rt-layer-size="100"] > .rt-train-idle-overlay > .rt-train-idle-image { margin-left: 0 !important; }
+.rt-sign-train-layer[data-rt-layer-align="center"][data-rt-layer-size="125"] > .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-align="center"][data-rt-layer-size="125"] > .rt-train-idle-overlay > .rt-train-idle-image { margin-left: -12.5% !important; }
+.rt-sign-train-layer[data-rt-layer-align="center"][data-rt-layer-size="150"] > .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-align="center"][data-rt-layer-size="150"] > .rt-train-idle-overlay > .rt-train-idle-image { margin-left: -25% !important; }
+.rt-sign-train-layer[data-rt-layer-align="center"][data-rt-layer-size="200"] > .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-align="center"][data-rt-layer-size="200"] > .rt-train-idle-overlay > .rt-train-idle-image { margin-left: -50% !important; }
+.rt-sign-train-layer[data-rt-layer-align="right"][data-rt-layer-size="125"] > .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-align="right"][data-rt-layer-size="125"] > .rt-train-idle-overlay > .rt-train-idle-image { margin-left: -25% !important; }
+.rt-sign-train-layer[data-rt-layer-align="right"][data-rt-layer-size="150"] > .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-align="right"][data-rt-layer-size="150"] > .rt-train-idle-overlay > .rt-train-idle-image { margin-left: -50% !important; }
+.rt-sign-train-layer[data-rt-layer-align="right"][data-rt-layer-size="200"] > .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-align="right"][data-rt-layer-size="200"] > .rt-train-idle-overlay > .rt-train-idle-image { margin-left: -100% !important; }
 @supports (animation-name: rt-train-idle-reveal) {
   .rt-train-idle-overlay {
     overflow: visible !important;
@@ -107,7 +157,8 @@
 }
 
 /* Hauptzug und Idle-Rauch bleiben im Editor, in der Vorschau und im Versand
-   echte IMG. Die folgenden Regeln veraendern nur ihre absolute Geometrie. */
+   echte IMG. Das Hauptbild bleibt bewusst im Tabellenfluss; nur der optionale
+   Idle-Rauch liegt in faehigen Clients hoehenneutral darueber. */
 /* ---- Tablet quer: enger setzen, aber zweispaltig bleiben ---- */
 @media only screen and (max-width: 1000px) {
 .rt-pad { padding-left: 30px !important; padding-right: 30px !important; }
@@ -214,23 +265,25 @@ img.rt-logo { width: 150px !important; }
   left: 0 !important;
   right: auto !important;
   width: 100% !important;
-  max-width: none !important;
-  margin: 0 !important;
+  max-width: 1815px !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
 }
-/* Das Asset selbst endet bei rund 60 Prozent. Fuer den Standardausschnitt ist
-   deshalb keine 200-Prozent-Vergroesserung noetig; sie legte den kompletten
-   Zug ueber die unteren Kontaktzeilen. Nur die expliziten Detailausschnitte
-   vergroessern weiterhin. */
-.rt-sign-train-layer[data-rt-layer-mobile="left"] { left: 0 !important; width: 200% !important; }
-.rt-sign-train-layer[data-rt-layer-mobile="center"] { left: -50% !important; width: 200% !important; }
-.rt-sign-train-layer[data-rt-layer-mobile="train"] { left: 0 !important; width: 100% !important; }
-.rt-sign-train-layer[data-rt-layer-mobile="right"] { left: -100% !important; width: 200% !important; }
-.rt-sign-train {
-  left: 0 !important;
-  right: auto !important;
-  width: 100% !important;
-  max-width: none !important;
-}
+/* Der maximal 1815 px breite Clipping-Viewport wird am Stage-Rand bzw. in
+   deren Mitte verankert. Nur die echten IMG werden fuer Detailausschnitte
+   vergroessert und mit einer presetbasierten negativen Margin verschoben. */
+.rt-sign-train-layer[data-rt-layer-mobile="left"],
+.rt-sign-train-layer[data-rt-layer-mobile="train"] { margin-left: 0 !important; margin-right: auto !important; }
+.rt-sign-train-layer[data-rt-layer-mobile="center"] { margin-left: auto !important; margin-right: auto !important; }
+.rt-sign-train-layer[data-rt-layer-mobile="right"] { margin-left: auto !important; margin-right: 0 !important; }
+.rt-sign-train-layer[data-rt-layer-mobile="left"][data-rt-layer-size] > .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-mobile="left"][data-rt-layer-size] > .rt-train-idle-overlay > .rt-train-idle-image { width: 200% !important; max-width: none !important; margin-left: 0 !important; }
+.rt-sign-train-layer[data-rt-layer-mobile="center"][data-rt-layer-size] > .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-mobile="center"][data-rt-layer-size] > .rt-train-idle-overlay > .rt-train-idle-image { width: 200% !important; max-width: none !important; margin-left: -50% !important; }
+.rt-sign-train-layer[data-rt-layer-mobile="right"][data-rt-layer-size] > .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-mobile="right"][data-rt-layer-size] > .rt-train-idle-overlay > .rt-train-idle-image { width: 200% !important; max-width: none !important; margin-left: -100% !important; }
+.rt-sign-train-layer[data-rt-layer-mobile="train"][data-rt-layer-size] > .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-mobile="train"][data-rt-layer-size] > .rt-train-idle-overlay > .rt-train-idle-image { width: 100% !important; max-width: none !important; margin-left: 0 !important; }
 }
 
 /* ---- Telefon: Innenabstaende weiter zuruecknehmen ---- */

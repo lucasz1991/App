@@ -81,17 +81,18 @@ final class SignatureDocumentContract
             allowLegacyTrainCarrier: false,
             allowLegacyDirectImage: false,
             allowLegacyPercentHeight: false,
+            allowLegacyAbsoluteImage: false,
         );
     }
 
     /**
      * Laufzeitvertrag fuer bereits veroeffentlichte Signaturen.
      *
-     * Neue Editor-/Publish-Staende muessen immer den Schema-13-Vertrag
+     * Neue Editor-/Publish-Staende muessen immer den Schema-16-Vertrag
      * besitzen. Bis der autoritative Seeder nach dem Deployment gelaufen ist,
      * darf der Versand nur die einzeln beschriebenen Altformen lesen:
-     * Schema 6 (Padding), Schema 9 (Background) und Schema 12 (direkter
-     * Bild-Layer). Jede andere Zwischenform bricht fail-closed ab.
+     * Schema 6 (Padding), Schema 9 (Background) sowie Schema 12-15
+     * (absolute Bild-Layer). Jede andere Zwischenform bricht fail-closed ab.
      */
     public static function assertRuntimeValid(string $html): void
     {
@@ -102,6 +103,7 @@ final class SignatureDocumentContract
             allowLegacyTrainCarrier: true,
             allowLegacyDirectImage: true,
             allowLegacyPercentHeight: true,
+            allowLegacyAbsoluteImage: true,
         );
     }
 
@@ -112,6 +114,7 @@ final class SignatureDocumentContract
         bool $allowLegacyTrainCarrier,
         bool $allowLegacyDirectImage,
         bool $allowLegacyPercentHeight,
+        bool $allowLegacyAbsoluteImage,
     ): void {
         $decodedHtml = CssSemantic::decodeHtmlEntitiesOnce($html);
         if (preg_match('/\b(?:rt-sign-train-mso|data-rt-train-mso)\b/i', $decodedHtml) === 1) {
@@ -144,6 +147,7 @@ final class SignatureDocumentContract
                 $html,
                 $allowLegacyDirectImage,
                 $allowLegacyPercentHeight,
+                $allowLegacyAbsoluteImage,
             );
             SignatureTrainCarrier::assertCanonicalBaseBackground($html);
         } elseif ($allowLegacyTrainCarrier) {

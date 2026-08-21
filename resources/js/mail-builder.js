@@ -1280,7 +1280,15 @@ function hardenEditorTrainImage(trainLayer, trainImage) {
             element.setAttribute('style', `${declarations.replace(/;+$/, '')};mso-hide:all;`);
         }
     };
-    withMsoHide(trainLayer);
+    trainLayer.style?.setProperty?.('position', 'relative');
+    trainLayer.style?.setProperty?.('top', 'auto');
+    trainLayer.style?.setProperty?.('bottom', 'auto');
+    trainLayer.style?.removeProperty?.('height');
+    trainLayer.style?.removeProperty?.('mso-hide');
+    trainImage.style?.setProperty?.('position', 'static');
+    trainImage.style?.setProperty?.('left', 'auto');
+    trainImage.style?.setProperty?.('right', 'auto');
+    trainImage.style?.setProperty?.('bottom', 'auto');
     withMsoHide(trainImage);
     trainImage.setAttribute('width', '720');
 }
@@ -1807,16 +1815,20 @@ export function synchronizeMailTrainLayerAlignment(component) {
         ? attributes['data-rt-layer-mobile']
         : 'train';
     const size = {
-        100: { width: '100%', maxWidth: '1815px', centerLeft: '0' },
-        125: { width: '125%', maxWidth: '2269px', centerLeft: '-12.5%' },
-        150: { width: '150%', maxWidth: '2723px', centerLeft: '-25%' },
-        200: { width: '200%', maxWidth: '3630px', centerLeft: '-50%' },
+        100: { width: '100%', centerMargin: '0', rightMargin: '0' },
+        125: { width: '125%', centerMargin: '-12.5%', rightMargin: '-25%' },
+        150: { width: '150%', centerMargin: '-25%', rightMargin: '-50%' },
+        200: { width: '200%', centerMargin: '-50%', rightMargin: '-100%' },
     }[sizeName];
-    const horizontal = {
-        left: { left: '0', right: 'auto' },
-        center: { left: size.centerLeft, right: 'auto' },
-        right: { left: 'auto', right: '0' },
+    const layerMargin = {
+        left: '0 auto 0 0',
+        center: '0 auto',
+        right: '0 0 0 auto',
     }[alignment];
+    const imageOffset = alignment === 'center'
+        ? size.centerMargin
+        : (alignment === 'right' ? size.rightMargin : '0');
+    const imageMargin = imageOffset === '0' ? '0' : `0 0 0 ${imageOffset}`;
     const canonicalAttributes = {
         'data-rt-layer-align': alignment,
         'data-rt-layer-size': sizeName,
@@ -1832,20 +1844,28 @@ export function synchronizeMailTrainLayerAlignment(component) {
         }
     }
     const current = component?.getStyle?.() || {};
-    const layerChanged = current.left !== horizontal.left
-        || current.right !== horizontal.right
-        || current.width !== size.width
-        || current['max-width'] !== size.maxWidth
-        || current.margin !== '0'
+    const layerChanged = current.left !== '0'
+        || current.right !== 'auto'
+        || current.position !== 'relative'
+        || current.top !== 'auto'
+        || current.bottom !== 'auto'
+        || current.width !== '100%'
+        || current['max-width'] !== '1815px'
+        || current.margin !== layerMargin
+        || current['text-align'] !== 'left'
         || Object.prototype.hasOwnProperty.call(current, 'height');
     if (layerChanged) {
         const canonicalStyle = {
             ...current,
-            left: horizontal.left,
-            right: horizontal.right,
-            width: size.width,
-            'max-width': size.maxWidth,
-            margin: '0',
+            position: 'relative',
+            left: '0',
+            right: 'auto',
+            top: 'auto',
+            bottom: 'auto',
+            width: '100%',
+            'max-width': '1815px',
+            margin: layerMargin,
+            'text-align': 'left',
         };
         delete canonicalStyle.height;
         // Manche GrapesJS-Adapter fuehren setStyle() mit dem vorhandenen
@@ -1872,21 +1892,40 @@ export function synchronizeMailTrainLayerAlignment(component) {
         const imageAttributes = image.getAttributes?.() || image.get?.('attributes') || {};
         const imageStyle = image.getStyle?.() || {};
         imageChanged = String(imageAttributes.width || '') !== '720'
-            || imageStyle['max-width'] !== size.maxWidth;
+            || imageStyle.position !== 'static'
+            || imageStyle.left !== 'auto'
+            || imageStyle.right !== 'auto'
+            || imageStyle.bottom !== 'auto'
+            || imageStyle.display !== 'inline-block'
+            || imageStyle.width !== size.width
+            || imageStyle['vertical-align'] !== 'top'
+            || imageStyle['max-width'] !== 'none'
+            || imageStyle.margin !== imageMargin;
         if (imageChanged) {
             if (typeof image.addAttributes === 'function') {
                 image.addAttributes({ width: '720' }, { silent: true });
             } else {
                 imageAttributes.width = '720';
             }
-            image.setStyle?.({ ...imageStyle, 'max-width': size.maxWidth }, { silent: true });
+            image.setStyle?.({
+                ...imageStyle,
+                position: 'static',
+                left: 'auto',
+                right: 'auto',
+                bottom: 'auto',
+                display: 'inline-block',
+                width: size.width,
+                'max-width': 'none',
+                margin: imageMargin,
+                'vertical-align': 'top',
+            }, { silent: true });
         }
     }
 
     if (!attributesChanged && !layerChanged && !imageChanged
-        && current.left === horizontal.left
-        && current.right === horizontal.right
-        && current.margin === '0') {
+        && current.left === '0'
+        && current.right === 'auto'
+        && current.margin === layerMargin) {
         return false;
     }
 

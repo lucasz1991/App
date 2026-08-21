@@ -85,7 +85,7 @@ class EmailHtmlSanitizerTest extends TestCase
         }
     }
 
-    /** Der editierbare Schema-15-Tokenstand muss bytegleich speicherbar sein. */
+    /** Der editierbare Schema-16-Tokenstand muss bytegleich speicherbar sein. */
     public function test_die_echte_editierbare_signaturquelle_kommt_zeichengleich_durch(): void
     {
         $tokens = [];
@@ -95,7 +95,7 @@ class EmailHtmlSanitizerTest extends TestCase
         $signature = view('emails.parts.signature', ['values' => $tokens])->render();
 
         // Der gespeicherte Editorstand enthaelt nur Tokens und das kanonische
-        // absolute Haupt-IMG. Background-Marker und MSO-VML entstehen erst
+        // Haupt-IMG im normalen Mailfluss. Idle- und MSO-IMG entstehen erst
         // nach der Runtime-Projektion und sind kein Sanitizer-Eingabevertrag.
         $this->assertSame(1, substr_count($signature, 'src="{{TRAIN_SRC}}"'));
         $this->assertStringNotContainsString('url({{TRAIN_SRC}})', $signature);
@@ -115,7 +115,7 @@ class EmailHtmlSanitizerTest extends TestCase
         $this->assertSame(
             1,
             preg_match_all(
-                '/<img\b(?=[^>]*class="[^"]*\brt-sign-train\b[^"]*")(?=[^>]*\bdata-rt-train(?:\s|=|>))(?=[^>]*\bwidth="720")(?=[^>]*position:absolute)(?=[^>]*\bmso-hide:all)[^>]*src="\{\{TRAIN_SRC\}\}"[^>]*>/i',
+                '/<img\b(?=[^>]*class="[^"]*\brt-sign-train\b[^"]*")(?=[^>]*\bdata-rt-train(?:\s|=|>))(?=[^>]*\bwidth="720")(?=[^>]*position:static)(?=[^>]*\bmso-hide:all)[^>]*src="\{\{TRAIN_SRC\}\}"[^>]*>/i',
                 $signature,
             ),
         );

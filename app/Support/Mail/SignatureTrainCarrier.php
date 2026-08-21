@@ -13,12 +13,12 @@ use RuntimeException;
  */
 final class SignatureTrainCarrier
 {
-    /** @var array<string, array{width:string,maxWidth:string,centerLeft:string}> */
+    /** @var array<string, array{width:string,maxWidth:string,centerLeft:string,rightLeft:string}> */
     private const CANONICAL_LAYER_SIZE = [
-        '100' => ['width' => '100%', 'maxWidth' => '1815px', 'centerLeft' => '0'],
-        '125' => ['width' => '125%', 'maxWidth' => '2269px', 'centerLeft' => '-12.5%'],
-        '150' => ['width' => '150%', 'maxWidth' => '2723px', 'centerLeft' => '-25%'],
-        '200' => ['width' => '200%', 'maxWidth' => '3630px', 'centerLeft' => '-50%'],
+        '100' => ['width' => '100%', 'maxWidth' => '1815px', 'centerLeft' => '0', 'rightLeft' => '0'],
+        '125' => ['width' => '125%', 'maxWidth' => '2269px', 'centerLeft' => '-12.5%', 'rightLeft' => '-25%'],
+        '150' => ['width' => '150%', 'maxWidth' => '2723px', 'centerLeft' => '-25%', 'rightLeft' => '-50%'],
+        '200' => ['width' => '200%', 'maxWidth' => '3630px', 'centerLeft' => '-50%', 'rightLeft' => '-100%'],
     ];
 
     /** @var list<string> */
@@ -62,6 +62,36 @@ final class SignatureTrainCarrier
     public static function normalize(string $html): string
     {
         if (self::hasCanonicalImage($html)) {
+            try {
+                self::assertCanonicalImage($html);
+
+                return $html;
+            } catch (RuntimeException) {
+                try {
+                    self::assertCanonicalImage(
+                        $html,
+                        allowLegacyExpandedFlowLayer: true,
+                    );
+                } catch (RuntimeException) {
+                    try {
+                        self::assertCanonicalImage(
+                            $html,
+                            allowLegacyPercentHeight: true,
+                            allowLegacyAbsoluteLayer: true,
+                        );
+                    } catch (RuntimeException) {
+                        self::assertCanonicalImage(
+                            $html,
+                            allowLegacyDirectLayer: true,
+                            allowLegacyPercentHeight: true,
+                            allowLegacyAbsoluteLayer: true,
+                        );
+                        $html = self::wrapLegacyDirectCarrierInStage($html);
+                    }
+                }
+            }
+
+            $html = self::normalizeLegacyAbsoluteImageToFlow($html);
             self::assertCanonicalImage($html);
 
             return $html;
@@ -162,9 +192,8 @@ final class SignatureTrainCarrier
 
     /**
      * Projiziert den streng validierten Carrier fuer alle Ausgaben in den
-     * Ein-GIF-Vertrag von Logo und RT-Icon. Der absolute Bild-Layer bleibt
-     * innerhalb einer normalen Block-Buehne hinter dem Inhalt und erzeugt
-     * keine eigene Tabellenhoehe.
+     * Ein-GIF-Vertrag von Logo und RT-Icon. Der Bild-Layer folgt der
+     * Kontakttabelle im normalen Mailfluss und endet direkt an der Legal-Zeile.
      */
     public static function projectAsImage(string $html, string $source, string $padding = '0'): string
     {
@@ -174,31 +203,7 @@ final class SignatureTrainCarrier
         }
 
         if (self::hasCanonicalImage($html)) {
-            $legacyDirectLayer = false;
-            $legacyPercentHeight = false;
-            try {
-                self::assertCanonicalImage($html);
-            } catch (RuntimeException) {
-                try {
-                    self::assertCanonicalImage($html, allowLegacyPercentHeight: true);
-                    $legacyPercentHeight = true;
-                } catch (RuntimeException) {
-                    self::assertCanonicalImage(
-                        $html,
-                        allowLegacyDirectLayer: true,
-                        allowLegacyPercentHeight: true,
-                    );
-                    $legacyDirectLayer = true;
-                    $legacyPercentHeight = true;
-                }
-            }
-            if ($legacyDirectLayer) {
-                $html = self::hardenLegacyDirectLayer($html);
-                $html = self::wrapLegacyDirectCarrierInStage($html);
-            }
-            if ($legacyPercentHeight) {
-                $html = self::withoutLegacyPercentHeight($html);
-            }
+            $html = self::normalize($html);
             self::assertCanonicalImage($html);
 
             $escapedSource = htmlspecialchars($source, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
@@ -256,8 +261,8 @@ final class SignatureTrainCarrier
 
     /**
      * Outlook-Desktop erhaelt dasselbe mail-sichere Bildprinzip wie Logo und
-     * RT-Zeichen: ein bedingtes, absolut positioniertes IMG innerhalb der
-     * vorhandenen Stage. Es gibt weder VML noch eine zusaetzliche Tabellenzeile.
+     * RT-Zeichen: ein bedingtes, regulaeres IMG am Anfang des bereits normal
+     * fliessenden Zug-Layers. Es gibt weder VML noch eine Extra-Tabellenzeile.
      */
     public static function withMsoFallback(string $html, string $source): string
     {
@@ -274,14 +279,20 @@ final class SignatureTrainCarrier
             throw new RuntimeException('Der Outlook-Zugfallback kann nicht eindeutig verankert werden.');
         }
 
-        $stages = [];
+        $layers = [];
         foreach (self::scanStartTags($html) as $tag) {
-            if ($tag['name'] === 'div' && self::sourceTagHasClass($tag, 'rt-sign-stage')) {
-                $stages[] = $tag;
+            if ($tag['name'] === 'div' && self::sourceTagHasClass($tag, 'rt-sign-train-layer')) {
+                $layers[] = $tag;
             }
         }
-        if (count($stages) !== 1) {
-            throw new RuntimeException('Der Outlook-Zugfallback besitzt keine eindeutige Signatur-Buehne.');
+        if (count($layers) !== 1) {
+            throw new RuntimeException('Der Outlook-Zugfallback besitzt keinen eindeutigen Zug-Layer.');
+        }
+        $sizeName = strtolower(self::singleTagAttributeValue($layers[0], 'data-rt-layer-size'));
+        $alignment = strtolower(self::singleTagAttributeValue($layers[0], 'data-rt-layer-align'));
+        $size = self::CANONICAL_LAYER_SIZE[$sizeName] ?? null;
+        if (! is_array($size) || ! in_array($alignment, ['left', 'center', 'right'], true)) {
+            throw new RuntimeException('Der Outlook-Zugfallback besitzt keine kanonische Bildgroesse.');
         }
 
         $escapedSource = htmlspecialchars(
@@ -290,9 +301,9 @@ final class SignatureTrainCarrier
             'UTF-8',
         );
         $fallback = '<!--[if mso]><img class="rt-sign-train-mso" data-rt-train-mso="1" src="'.$escapedSource.'" width="720" alt="" '
-            .'style="position:absolute;left:0;right:auto;bottom:0;display:block;width:100%;max-width:1815px;height:auto;margin:0;border:0;outline:none;text-decoration:none;z-index:0;mso-position-horizontal:left;mso-position-horizontal-relative:text;mso-position-vertical:bottom;mso-position-vertical-relative:text;"><![endif]-->';
+            .'style="display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;"><![endif]-->';
 
-        $html = substr_replace($html, $fallback, $stages[0]['endOffset'] + 1, 0);
+        $html = substr_replace($html, $fallback, $layers[0]['endOffset'] + 1, 0);
         self::assertRuntimeImages($html, expectedMsoSource: $source);
 
         return $html;
@@ -341,14 +352,15 @@ final class SignatureTrainCarrier
             'UTF-8',
         );
         $sizeName = strtolower(self::singleTagAttributeValue($layers[0], 'data-rt-layer-size'));
+        $alignment = strtolower(self::singleTagAttributeValue($layers[0], 'data-rt-layer-align'));
         $size = self::CANONICAL_LAYER_SIZE[$sizeName] ?? null;
-        if (! is_array($size)) {
+        if (! is_array($size) || ! in_array($alignment, ['left', 'center', 'right'], true)) {
             throw new RuntimeException('Die Idle-Rauchebene besitzt keine kanonische Bildgroesse.');
         }
         $overlay = '<span class="rt-train-idle-overlay" data-rt-train-idle-overlay '
-            .'style="position:absolute;left:0;right:auto;bottom:0;display:block;width:100%;max-width:'.$size['maxWidth'].';height:0;max-height:0;margin:0;overflow:hidden;z-index:1;font-size:0;line-height:0;opacity:0;visibility:hidden;animation:rt-train-idle-reveal 1ms step-start 13s forwards;mso-hide:all;">'
+            .'style="position:absolute;left:0;right:auto;top:0;bottom:auto;display:block;width:100%;max-width:none;height:0;max-height:0;margin:0;overflow:hidden;z-index:1;font-size:0;line-height:0;text-align:left;opacity:0;visibility:hidden;animation:rt-train-idle-reveal 1ms step-start 13s forwards;mso-hide:all;">'
             .'<img class="rt-train-idle-image" data-rt-train-idle-image src="'.$escapedSource.'" width="720" alt="" '
-            .'style="position:absolute;left:0;right:auto;bottom:0;display:block;width:100%;max-width:'.$size['maxWidth'].';height:auto;margin:0;border:0;outline:none;text-decoration:none;z-index:1;mso-hide:all;">'
+            .'style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:'.$size['width'].';max-width:none;height:auto;margin:'.self::imageMargin($alignment, $size).';border:0;outline:none;text-decoration:none;vertical-align:top;z-index:1;mso-hide:all;">'
             .'</span>';
 
         $html = substr_replace($html, $overlay, $images[0]['startOffset'], 0);
@@ -399,13 +411,15 @@ final class SignatureTrainCarrier
 
     /**
      * Neuer Seeder-/Editorvertrag: TRAIN_SRC lebt ausschliesslich im src
-     * eines einzigen normalen Bildes in einem eindeutigen absoluten Layer
-     * innerhalb des Carriers.
+     * eines einzigen normalen Bildes in einem eindeutigen Flow-Layer direkt
+     * vor der Legal-Zeile. Damit bleibt die Geometrie auch ohne Position-CSS.
      */
     public static function assertCanonicalImage(
         string $html,
         bool $allowLegacyDirectLayer = false,
         bool $allowLegacyPercentHeight = false,
+        bool $allowLegacyAbsoluteLayer = false,
+        bool $allowLegacyExpandedFlowLayer = false,
     ): void {
         if (substr_count($html, '{{TRAIN_SRC}}') !== 1
             || str_contains($html, '{{TRAIN_IDLE_SRC}}')) {
@@ -488,6 +502,62 @@ final class SignatureTrainCarrier
             throw new RuntimeException('Der Zug-Layer muss in der letzten sicheren Buehne des Signatur-Carriers liegen.');
         }
 
+        self::assertExactElementAttributeNames($layer, [
+            'class',
+            'data-rt-layer-train',
+            'data-rt-layer-align',
+            'data-rt-layer-size',
+            'data-rt-layer-mobile',
+            'style',
+        ], 'Zug-Layer');
+        self::assertExactElementAttributeNames($image, [
+            'class',
+            'data-rt-train',
+            'src',
+            'width',
+            'alt',
+            'style',
+        ], 'Zugbild');
+        if ($layer->getAttribute('data-rt-layer-train') !== ''
+            || $image->getAttribute('data-rt-train') !== ''
+            || $image->getAttribute('alt') !== '') {
+            throw new RuntimeException('Der Zug-Layer besitzt fremde oder ungueltige Bildattribute.');
+        }
+
+        $sourceLayers = [];
+        $sourceImages = [];
+        foreach (self::scanStartTags($html) as $tag) {
+            if ($tag['name'] === 'div'
+                && (self::sourceTagHasClass($tag, 'rt-sign-train-layer')
+                    || isset($tag['attributes']['data-rt-layer-train']))) {
+                $sourceLayers[] = $tag;
+            }
+            if ($tag['name'] === 'img'
+                && (self::sourceTagHasClass($tag, 'rt-sign-train')
+                    || isset($tag['attributes']['data-rt-train']))) {
+                $sourceImages[] = $tag;
+            }
+        }
+        if (count($sourceLayers) !== 1 || count($sourceImages) !== 1) {
+            throw new RuntimeException('Der Quellvertrag des Zugbildes ist nicht eindeutig.');
+        }
+        self::assertExactSourceTagAttributeNames($sourceLayers[0], [
+            'class',
+            'data-rt-layer-train',
+            'data-rt-layer-align',
+            'data-rt-layer-size',
+            'data-rt-layer-mobile',
+            'style',
+        ], 'Zug-Layer');
+        self::assertExactSourceTagAttributeNames($sourceImages[0], [
+            'class',
+            'data-rt-train',
+            'src',
+            'width',
+            'alt',
+            'style',
+        ], 'Zugbild');
+
         if (! $legacyDirectLayer && $stage instanceof DOMElement) {
             self::assertExactSimpleStyle($stage, [
                 'position' => 'relative',
@@ -528,58 +598,184 @@ final class SignatureTrainCarrier
             || ! in_array($mobileCrop, self::CANONICAL_MOBILE_CROPS, true)) {
             throw new RuntimeException('Der Zug-Layer besitzt keine erlaubte horizontale Position.');
         }
-        $horizontal = match ($alignment) {
+        $expandedFlowHorizontal = match ($alignment) {
+            'left' => ['left' => '0', 'right' => 'auto'],
+            'center' => ['left' => $size['centerLeft'], 'right' => 'auto'],
+            'right' => ['left' => $size['rightLeft'], 'right' => 'auto'],
+        };
+        $legacyHorizontal = match ($alignment) {
             'left' => ['left' => '0', 'right' => 'auto'],
             'center' => ['left' => $size['centerLeft'], 'right' => 'auto'],
             'right' => ['left' => 'auto', 'right' => '0'],
         };
+        $layerMargin = self::layerMargin($alignment);
+        $imageMargin = self::imageMargin($alignment, $size);
         $layerStyle = [
-            'position' => 'absolute',
-            'left' => $horizontal['left'],
-            'right' => $horizontal['right'],
-            'top' => '0',
-            'bottom' => '0',
-            'width' => $size['width'],
-            'max-width' => $size['maxWidth'],
-            'margin' => '0',
+            'position' => 'relative',
+            'left' => '0',
+            'right' => 'auto',
+            'top' => 'auto',
+            'bottom' => 'auto',
+            'width' => '100%',
+            'max-width' => '1815px',
+            'margin' => $layerMargin,
             'overflow' => 'hidden',
             'z-index' => '0',
             'font-size' => '0',
             'line-height' => '0',
             'text-align' => 'left',
         ];
-        if (! $legacyDirectLayer) {
-            $layerStyle['mso-hide'] = 'all';
-        }
-        if ($allowLegacyPercentHeight) {
-            try {
-                self::assertExactSimpleStyle($layer, $layerStyle, 'Zug-Layer');
-            } catch (RuntimeException) {
-                $legacyLayerStyle = $layerStyle;
-                $legacyLayerStyle['height'] = '100%';
-                self::assertExactSimpleStyle($layer, $legacyLayerStyle, 'Zug-Layer');
-            }
-        } else {
-            self::assertExactSimpleStyle($layer, $layerStyle, 'Zug-Layer');
-        }
         $imageStyle = [
-            'position' => 'absolute',
-            'left' => '0',
+            'position' => 'static',
+            'left' => 'auto',
             'right' => 'auto',
-            'bottom' => '0',
-            'display' => 'block',
-            'width' => '100%',
-            'max-width' => $size['maxWidth'],
+            'bottom' => 'auto',
+            'display' => 'inline-block',
+            'width' => $size['width'],
+            'max-width' => 'none',
             'height' => 'auto',
-            'margin' => '0',
+            'margin' => $imageMargin,
             'border' => '0',
             'outline' => 'none',
             'text-decoration' => 'none',
+            'vertical-align' => 'top',
+            'mso-hide' => 'all',
         ];
-        if (! $legacyDirectLayer) {
-            $imageStyle['mso-hide'] = 'all';
+        try {
+            self::assertExactSimpleStyle($layer, $layerStyle, 'Zug-Layer');
+            self::assertExactSimpleStyle($image, $imageStyle, 'Zugbild');
+        } catch (RuntimeException $exception) {
+            $expandedFlowAccepted = false;
+            if ($allowLegacyExpandedFlowLayer) {
+                try {
+                    self::assertExactSimpleStyle($layer, [
+                        'position' => 'relative',
+                        'left' => '0',
+                        'right' => 'auto',
+                        'top' => 'auto',
+                        'bottom' => 'auto',
+                        'width' => '100%',
+                        'max-width' => 'none',
+                        'margin' => '0',
+                        'overflow' => 'hidden',
+                        'z-index' => '0',
+                        'font-size' => '0',
+                        'line-height' => '0',
+                        'text-align' => $alignment,
+                    ], 'Zug-Layer');
+                    self::assertExactSimpleStyle($image, [
+                        'position' => 'static',
+                        'left' => 'auto',
+                        'right' => 'auto',
+                        'bottom' => 'auto',
+                        'display' => 'inline-block',
+                        'width' => $size['width'],
+                        'max-width' => $size['maxWidth'],
+                        'height' => 'auto',
+                        'margin' => '0',
+                        'border' => '0',
+                        'outline' => 'none',
+                        'text-decoration' => 'none',
+                        'vertical-align' => 'top',
+                        'mso-hide' => 'all',
+                    ], 'Zugbild');
+                    $expandedFlowAccepted = true;
+                } catch (RuntimeException) {
+                    $expandedFlowAccepted = false;
+                }
+            }
+            if ($allowLegacyExpandedFlowLayer && ! $expandedFlowAccepted) {
+                try {
+                    self::assertExactSimpleStyle($layer, [
+                        'position' => 'relative',
+                        'left' => $expandedFlowHorizontal['left'],
+                        'right' => $expandedFlowHorizontal['right'],
+                        'top' => 'auto',
+                        'bottom' => 'auto',
+                        'width' => $size['width'],
+                        'max-width' => $size['maxWidth'],
+                        'margin' => '0',
+                        'overflow' => 'hidden',
+                        'z-index' => '0',
+                        'font-size' => '0',
+                        'line-height' => '0',
+                        'text-align' => 'left',
+                    ], 'Zug-Layer');
+                    self::assertExactSimpleStyle($image, [
+                        'position' => 'static',
+                        'left' => 'auto',
+                        'right' => 'auto',
+                        'bottom' => 'auto',
+                        'display' => 'block',
+                        'width' => '100%',
+                        'max-width' => $size['maxWidth'],
+                        'height' => 'auto',
+                        'margin' => '0',
+                        'border' => '0',
+                        'outline' => 'none',
+                        'text-decoration' => 'none',
+                        'mso-hide' => 'all',
+                    ], 'Zugbild');
+                    $expandedFlowAccepted = true;
+                } catch (RuntimeException) {
+                    $expandedFlowAccepted = false;
+                }
+            }
+            if ($expandedFlowAccepted) {
+                // Schema 16 vor dem Viewport-Fix wird nur laufzeitlokal in
+                // den neuen Vertrag ueberfuehrt; gespeichert werden darf es
+                // weiterhin nicht.
+            } elseif (! $allowLegacyAbsoluteLayer) {
+                throw $exception;
+            } else {
+                $legacyLayerStyle = [
+                    'position' => 'absolute',
+                    'left' => $legacyHorizontal['left'],
+                    'right' => $legacyHorizontal['right'],
+                    'top' => '0',
+                    'bottom' => '0',
+                    'width' => $size['width'],
+                    'max-width' => $size['maxWidth'],
+                    'margin' => '0',
+                    'overflow' => 'hidden',
+                    'z-index' => '0',
+                    'font-size' => '0',
+                    'line-height' => '0',
+                    'text-align' => 'left',
+                ];
+                if (! $legacyDirectLayer) {
+                    $legacyLayerStyle['mso-hide'] = 'all';
+                }
+                try {
+                    self::assertExactSimpleStyle($layer, $legacyLayerStyle, 'Zug-Layer');
+                } catch (RuntimeException) {
+                    if (! $allowLegacyPercentHeight) {
+                        throw $exception;
+                    }
+                    $legacyPercentLayerStyle = $legacyLayerStyle;
+                    $legacyPercentLayerStyle['height'] = '100%';
+                    self::assertExactSimpleStyle($layer, $legacyPercentLayerStyle, 'Zug-Layer');
+                }
+                $legacyImageStyle = [
+                    'position' => 'absolute',
+                    'left' => '0',
+                    'right' => 'auto',
+                    'bottom' => '0',
+                    'display' => 'block',
+                    'width' => '100%',
+                    'max-width' => $size['maxWidth'],
+                    'height' => 'auto',
+                    'margin' => '0',
+                    'border' => '0',
+                    'outline' => 'none',
+                    'text-decoration' => 'none',
+                ];
+                if (! $legacyDirectLayer) {
+                    $legacyImageStyle['mso-hide'] = 'all';
+                }
+                self::assertExactSimpleStyle($image, $legacyImageStyle, 'Zugbild');
+            }
         }
-        self::assertExactSimpleStyle($image, $imageStyle, 'Zugbild');
         $widthAttribute = strtolower(trim($image->getAttribute('width')));
         $legacyPixelWidth = preg_replace('/px$/', '', $size['maxWidth']) ?? '';
         if ($widthAttribute !== '720'
@@ -627,23 +823,13 @@ final class SignatureTrainCarrier
         }
     }
 
-    private static function canonicalLayerMarkup(string $source): string
-    {
-        return '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" '
-            .'style="position:absolute;left:0;right:auto;top:0;bottom:0;width:100%;max-width:1815px;margin:0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;mso-hide:all;">'
-            .'<img class="rt-sign-train" data-rt-train src="'.$source.'" width="720" alt="" '
-            .'style="position:absolute;left:0;right:auto;bottom:0;display:block;width:100%;max-width:1815px;height:auto;margin:0;border:0;outline:none;text-decoration:none;mso-hide:all;">'
-            .'</div>';
-    }
-
-    private static function canonicalStageMarkup(string $content, string $layer): string
-    {
-        return '<div class="rt-sign-stage" style="position:relative;overflow:hidden;">'
-            .$content.$layer
-            .'</div>';
-    }
-
-    private static function hardenLegacyDirectLayer(string $html): string
+    /**
+     * Hebt ausschliesslich einen zuvor validierten Altvertrag (Schema 12-15
+     * absolut bzw. fruehes Schema 16 mit expandiertem Flow-Layer) in den
+     * heutigen Clipping-Viewport-Vertrag. Bildquelle und Presets bleiben
+     * unveraendert.
+     */
+    private static function normalizeLegacyAbsoluteImageToFlow(string $html): string
     {
         $layers = [];
         $images = [];
@@ -656,27 +842,46 @@ final class SignatureTrainCarrier
             }
         }
         if (count($layers) !== 1 || count($images) !== 1) {
-            throw new RuntimeException('Der bestehende Zug-Layer konnte nicht sicher gehaertet werden.');
+            throw new RuntimeException('Der alte Zug-Layer konnte nicht eindeutig in den Flow ueberfuehrt werden.');
         }
 
         $layerStyles = $layers[0]['attributes']['style'] ?? [];
         $imageStyles = $images[0]['attributes']['style'] ?? [];
         $imageWidths = $images[0]['attributes']['width'] ?? [];
-        if (count($layerStyles) !== 1 || count($imageStyles) !== 1 || count($imageWidths) !== 1
+        if (count($layerStyles) !== 1
+            || count($imageStyles) !== 1
+            || count($imageWidths) !== 1
             || $layerStyles[0]['valueOffset'] === null
             || $imageStyles[0]['valueOffset'] === null
             || $imageWidths[0]['valueOffset'] === null) {
-            throw new RuntimeException('Der bestehende Zug-Layer besitzt keine eindeutigen Bildattribute.');
+            throw new RuntimeException('Der alte Zug-Layer besitzt keine eindeutigen Bildattribute.');
         }
 
-        $hardenStyle = static fn (array $attribute): string => htmlspecialchars(
-            rtrim(CssSemantic::decodeHtmlEntitiesOnce($attribute['raw']), ';').';mso-hide:all;',
-            ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5,
-            'UTF-8',
-        );
+        $alignment = strtolower(self::singleTagAttributeValue($layers[0], 'data-rt-layer-align'));
+        $sizeAttributes = $layers[0]['attributes']['data-rt-layer-size'] ?? [];
+        $sizeName = $sizeAttributes === []
+            ? '100'
+            : strtolower(self::singleTagAttributeValue($layers[0], 'data-rt-layer-size'));
+        $size = self::CANONICAL_LAYER_SIZE[$sizeName] ?? null;
+        if (! is_array($size) || ! in_array($alignment, ['left', 'center', 'right'], true)) {
+            throw new RuntimeException('Der alte Zug-Layer besitzt keine normalisierbare Geometrie.');
+        }
+        $layerStyle = 'position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;'
+            .'margin:'.self::layerMargin($alignment).';overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;';
+        $imageStyle = 'position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:'.$size['width'].';'
+            .'max-width:none;height:auto;margin:'.self::imageMargin($alignment, $size).';border:0;outline:none;'
+            .'text-decoration:none;vertical-align:top;mso-hide:all;';
         $replacements = [
-            [$layerStyles[0]['valueOffset'], $layerStyles[0]['valueLength'], $hardenStyle($layerStyles[0])],
-            [$imageStyles[0]['valueOffset'], $imageStyles[0]['valueLength'], $hardenStyle($imageStyles[0])],
+            [
+                $layerStyles[0]['valueOffset'],
+                $layerStyles[0]['valueLength'],
+                htmlspecialchars($layerStyle, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8'),
+            ],
+            [
+                $imageStyles[0]['valueOffset'],
+                $imageStyles[0]['valueLength'],
+                htmlspecialchars($imageStyle, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8'),
+            ],
             [$imageWidths[0]['valueOffset'], $imageWidths[0]['valueLength'], '720'],
         ];
         usort($replacements, static fn (array $left, array $right): int => $right[0] <=> $left[0]);
@@ -687,58 +892,43 @@ final class SignatureTrainCarrier
         return $html;
     }
 
-    /**
-     * Entfernt ausschliesslich die zuvor durch den alten kanonischen Vertrag
-     * validierte Prozenthoehe. Absolute Elemente mit top und bottom brauchen
-     * sie nicht; Outlook kann sie sonst auf die gesamte Mailflaeche dehnen.
-     */
-    private static function withoutLegacyPercentHeight(string $html): string
+    private static function canonicalLayerMarkup(string $source): string
     {
-        $layers = [];
-        foreach (self::scanStartTags($html) as $tag) {
-            if ($tag['name'] === 'div' && self::sourceTagHasClass($tag, 'rt-sign-train-layer')) {
-                $layers[] = $tag;
-            }
-        }
-        $styles = $layers[0]['attributes']['style'] ?? [];
-        if (count($layers) !== 1 || count($styles) !== 1 || $styles[0]['valueOffset'] === null) {
-            throw new RuntimeException('Die alte Zug-Layer-Hoehe konnte nicht eindeutig normalisiert werden.');
-        }
+        return '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" '
+            .'style="position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;">'
+            .'<img class="rt-sign-train" data-rt-train src="'.$source.'" width="720" alt="" '
+            .'style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all;">'
+            .'</div>';
+    }
 
-        $segments = [];
-        $removed = 0;
-        foreach (explode(';', CssSemantic::decodeHtmlEntitiesOnce($styles[0]['raw'])) as $segment) {
-            $segment = trim($segment);
-            if ($segment === '') {
-                continue;
-            }
-            [$property, $value] = array_map('trim', explode(':', $segment, 2));
-            if (strtolower($property) === 'height') {
-                if (strtolower($value) !== '100%') {
-                    throw new RuntimeException('Die alte Zug-Layer-Hoehe ist nicht kanonisch.');
-                }
-                $removed++;
+    private static function layerMargin(string $alignment): string
+    {
+        return match ($alignment) {
+            'left' => '0 auto 0 0',
+            'center' => '0 auto',
+            'right' => '0 0 0 auto',
+            default => throw new RuntimeException('Der Zug-Layer besitzt keine kanonische Ausrichtung.'),
+        };
+    }
 
-                continue;
-            }
-            $segments[] = $property.':'.$value;
-        }
-        if ($removed !== 1) {
-            throw new RuntimeException('Die alte Zug-Layer-Hoehe ist nicht eindeutig.');
-        }
+    /** @param array{width:string,maxWidth:string,centerLeft:string,rightLeft:string} $size */
+    private static function imageMargin(string $alignment, array $size): string
+    {
+        $offset = match ($alignment) {
+            'left' => '0',
+            'center' => $size['centerLeft'],
+            'right' => $size['rightLeft'],
+            default => throw new RuntimeException('Das Zugbild besitzt keine kanonische Ausrichtung.'),
+        };
 
-        $replacement = htmlspecialchars(
-            implode(';', $segments).';',
-            ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5,
-            'UTF-8',
-        );
+        return $offset === '0' ? '0' : '0 0 0 '.$offset;
+    }
 
-        return substr_replace(
-            $html,
-            $replacement,
-            $styles[0]['valueOffset'],
-            $styles[0]['valueLength'],
-        );
+    private static function canonicalStageMarkup(string $content, string $layer): string
+    {
+        return '<div class="rt-sign-stage" style="position:relative;overflow:hidden;">'
+            .$content.$layer
+            .'</div>';
     }
 
     /**
@@ -798,11 +988,11 @@ final class SignatureTrainCarrier
         $actual = self::simpleStyleValues($style, $label);
 
         if (count($actual) !== count($expected)) {
-            throw new RuntimeException("Der {$label} muss seine mail-sichere absolute Position behalten.");
+            throw new RuntimeException("Der {$label} muss seine mail-sichere Geometrie behalten.");
         }
         foreach ($expected as $property => $value) {
             if (($actual[$property] ?? null) !== $value) {
-                throw new RuntimeException("Der {$label} muss seine mail-sichere absolute Position behalten.");
+                throw new RuntimeException("Der {$label} muss seine mail-sichere Geometrie behalten.");
             }
         }
     }
@@ -856,6 +1046,44 @@ final class SignatureTrainCarrier
     private static function elementClasses(DOMElement $element): array
     {
         return preg_split('/\s+/', trim($element->getAttribute('class')), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    }
+
+    /** @param list<string> $expected */
+    private static function assertExactElementAttributeNames(
+        DOMElement $element,
+        array $expected,
+        string $label,
+    ): void {
+        $actual = [];
+        foreach ($element->attributes as $attribute) {
+            $actual[] = strtolower($attribute->nodeName);
+        }
+        sort($actual);
+        sort($expected);
+        if ($actual !== $expected) {
+            throw new RuntimeException("Der {$label} besitzt fremde oder fehlende Attribute.");
+        }
+    }
+
+    /**
+     * @param  array{name:string,attributes:array<string,list<array<string,mixed>>>}  $tag
+     * @param  list<string>  $expected
+     */
+    private static function assertExactSourceTagAttributeNames(
+        array $tag,
+        array $expected,
+        string $label,
+    ): void {
+        $actual = array_map('strtolower', array_keys($tag['attributes']));
+        sort($actual);
+        sort($expected);
+        $duplicates = array_filter(
+            $tag['attributes'],
+            static fn (array $attributes): bool => count($attributes) !== 1,
+        );
+        if ($actual !== $expected || $duplicates !== []) {
+            throw new RuntimeException("Der {$label} besitzt fremde oder fehlende Attribute.");
+        }
     }
 
     /** @param array{name:string,attributes:array<string,list<array<string,mixed>>>} $tag */
@@ -1006,7 +1234,7 @@ final class SignatureTrainCarrier
             }
         }
         if (count($layers) !== 1 || count($stages) !== 1 || count($mainImages) !== 1) {
-            throw new RuntimeException('Der finale Zug muss genau einmal als IMG in seiner absoluten Buehne vorliegen.');
+            throw new RuntimeException('Der finale Zug muss genau einmal als IMG in seinem kanonischen Layer vorliegen.');
         }
 
         $mainSource = self::singleTagAttributeValue($mainImages[0], 'src');
@@ -1046,7 +1274,8 @@ final class SignatureTrainCarrier
                 || self::singleTagAttributeValue($idle, 'alt') !== '') {
                 throw new RuntimeException('Das finale Idle-IMG besitzt nicht den kanonischen Bildvertrag.');
             }
-            $idleHolderRange = self::assertRuntimeIdleDom($html, $size['maxWidth']);
+            $alignment = strtolower(self::singleTagAttributeValue($layers[0], 'data-rt-layer-align'));
+            $idleHolderRange = self::assertRuntimeIdleDom($html, $size, $alignment);
         }
 
         $canonical = $html;
@@ -1088,7 +1317,7 @@ final class SignatureTrainCarrier
     }
 
     /** @return array{startOffset:int,length:int} */
-    private static function assertRuntimeIdleDom(string $html, string $maxWidth): array
+    private static function assertRuntimeIdleDom(string $html, array $size, string $alignment): array
     {
         $previousErrors = libxml_use_internal_errors(true);
         try {
@@ -1188,10 +1417,11 @@ final class SignatureTrainCarrier
             'position' => 'absolute',
             'left' => '0',
             'right' => 'auto',
-            'bottom' => '0',
+            'top' => '0',
+            'bottom' => 'auto',
             'display' => 'block',
             'width' => '100%',
-            'max-width' => strtolower($maxWidth),
+            'max-width' => 'none',
             'height' => '0',
             'max-height' => '0',
             'margin' => '0',
@@ -1199,24 +1429,26 @@ final class SignatureTrainCarrier
             'z-index' => '1',
             'font-size' => '0',
             'line-height' => '0',
+            'text-align' => 'left',
             'opacity' => '0',
             'visibility' => 'hidden',
             'animation' => 'rt-train-idle-reveal 1ms step-start 13s forwards',
             'mso-hide' => 'all',
         ], 'Idle-Zugholder');
         self::assertExactSimpleStyle($idle, [
-            'position' => 'absolute',
-            'left' => '0',
+            'position' => 'static',
+            'left' => 'auto',
             'right' => 'auto',
-            'bottom' => '0',
-            'display' => 'block',
-            'width' => '100%',
-            'max-width' => strtolower($maxWidth),
+            'bottom' => 'auto',
+            'display' => 'inline-block',
+            'width' => strtolower($size['width']),
+            'max-width' => 'none',
             'height' => 'auto',
-            'margin' => '0',
+            'margin' => self::imageMargin($alignment, $size),
             'border' => '0',
             'outline' => 'none',
             'text-decoration' => 'none',
+            'vertical-align' => 'top',
             'z-index' => '1',
             'mso-hide' => 'all',
         ], 'Idle-Zugbild');
@@ -1248,6 +1480,19 @@ final class SignatureTrainCarrier
         $sourceHolder = $sourceHolders[0];
         $sourceIdle = $sourceIdleImages[0];
         $sourceMain = $sourceMainImages[0];
+        self::assertExactSourceTagAttributeNames($sourceHolder, [
+            'class',
+            'data-rt-train-idle-overlay',
+            'style',
+        ], 'Idle-Zugholder');
+        self::assertExactSourceTagAttributeNames($sourceIdle, [
+            'class',
+            'data-rt-train-idle-image',
+            'src',
+            'width',
+            'alt',
+            'style',
+        ], 'Idle-Zugbild');
         if ($sourceHolder['name'] !== 'span'
             || self::singleTagAttributeValue($sourceHolder, 'class') !== 'rt-train-idle-overlay'
             || self::singleTagAttributeValue($sourceHolder, 'data-rt-train-idle-overlay') !== ''
@@ -1294,14 +1539,20 @@ final class SignatureTrainCarrier
     /** @return list<string> */
     private static function msoTrainImageSources(string $html): array
     {
-        $stages = [];
+        $layers = [];
         foreach (self::scanStartTags($html) as $tag) {
-            if ($tag['name'] === 'div' && self::sourceTagHasClass($tag, 'rt-sign-stage')) {
-                $stages[] = $tag;
+            if ($tag['name'] === 'div' && self::sourceTagHasClass($tag, 'rt-sign-train-layer')) {
+                $layers[] = $tag;
             }
         }
-        if (count($stages) !== 1) {
-            throw new RuntimeException('Der Outlook-Zugfallback besitzt keine eindeutige Signatur-Buehne.');
+        if (count($layers) !== 1) {
+            throw new RuntimeException('Der Outlook-Zugfallback besitzt keinen eindeutigen Zug-Layer.');
+        }
+        $sizeName = strtolower(self::singleTagAttributeValue($layers[0], 'data-rt-layer-size'));
+        $alignment = strtolower(self::singleTagAttributeValue($layers[0], 'data-rt-layer-align'));
+        $size = self::CANONICAL_LAYER_SIZE[$sizeName] ?? null;
+        if (! is_array($size) || ! in_array($alignment, ['left', 'center', 'right'], true)) {
+            throw new RuntimeException('Der Outlook-Zugfallback besitzt keine kanonische Bildgroesse.');
         }
 
         preg_match_all(
@@ -1316,8 +1567,8 @@ final class SignatureTrainCarrier
             if (preg_match('/\brt-sign-train-mso\b/i', $content) !== 1) {
                 continue;
             }
-            if (($comment[0][1] ?? -1) !== $stages[0]['endOffset'] + 1) {
-                throw new RuntimeException('Das Outlook-Zugfallback-IMG muss direkt am Anfang der Signatur-Buehne liegen.');
+            if (($comment[0][1] ?? -1) !== $layers[0]['endOffset'] + 1) {
+                throw new RuntimeException('Das Outlook-Zugfallback-IMG muss direkt am Anfang des Zug-Layers liegen.');
             }
             $tags = self::scanStartTags($content);
             if (count($tags) !== 1
@@ -1325,6 +1576,14 @@ final class SignatureTrainCarrier
                 || ! self::sourceTagHasClass($tags[0], 'rt-sign-train-mso')) {
                 throw new RuntimeException('Der Outlook-Zugfallback muss genau ein IMG enthalten.');
             }
+            self::assertExactSourceTagAttributeNames($tags[0], [
+                'class',
+                'data-rt-train-mso',
+                'src',
+                'width',
+                'alt',
+                'style',
+            ], 'Outlook-Zugfallback');
             $source = self::singleTagAttributeValue($tags[0], 'src');
             if (! self::isAllowedMailImageSource($source, staticOnly: true)
                 || self::singleTagAttributeValue($tags[0], 'class') !== 'rt-sign-train-mso'
@@ -1334,23 +1593,15 @@ final class SignatureTrainCarrier
                 throw new RuntimeException('Das Outlook-Zugfallback-IMG besitzt keine mail-sichere Quelle oder Breite.');
             }
             self::assertExactSourceTagStyle($tags[0], [
-                'position' => 'absolute',
-                'left' => '0',
-                'right' => 'auto',
-                'bottom' => '0',
-                'display' => 'block',
+                'display' => 'inline-block',
                 'width' => '100%',
-                'max-width' => '1815px',
+                'max-width' => 'none',
                 'height' => 'auto',
                 'margin' => '0',
                 'border' => '0',
                 'outline' => 'none',
                 'text-decoration' => 'none',
-                'z-index' => '0',
-                'mso-position-horizontal' => 'left',
-                'mso-position-horizontal-relative' => 'text',
-                'mso-position-vertical' => 'bottom',
-                'mso-position-vertical-relative' => 'text',
+                'vertical-align' => 'top',
             ], 'Outlook-Zugfallback');
             $sources[] = $source;
         }

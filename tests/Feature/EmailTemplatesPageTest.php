@@ -198,9 +198,9 @@ class EmailTemplatesPageTest extends TestCase
 
     /**
      * Der Dampflok-Gueterzug steht in jeder fertigen HTML-Fassung genau
-     * einmal als absolut positioniertes IMG hinter den Daten. Nach 13 Sekunden
-     * uebernimmt ein zweites absolutes Idle-IMG; MSO erhaelt innerhalb derselben
-     * Stage ebenfalls genau ein statisches IMG.
+     * einmal als normales IMG direkt vor den Rechtstexten. Nach 13 Sekunden
+     * uebernimmt ein zweites, nullhoch ueberlagertes Idle-IMG; MSO erhaelt im
+     * selben Flow-Layer ebenfalls genau ein statisches IMG.
      */
     public function test_every_downloadable_html_variant_carries_the_themed_steam_train(): void
     {
@@ -314,8 +314,8 @@ class EmailTemplatesPageTest extends TestCase
             );
         }
 
-        // Das Haupt-GIF traegt Einfahrt und Schlusszustand als hoehenneutrales
-        // IMG. Nach 13 Sekunden uebernimmt das absolute Idle-IMG.
+        // Das Haupt-GIF traegt Einfahrt und Schlusszustand als normales
+        // Flow-IMG. Nach 13 Sekunden uebernimmt das nullhohe Idle-IMG.
         $signatur = (new EmailTemplateBuilder(User::factory()->create()))->build('signatur-hell')['content'];
         $train = 'data:image/gif;base64,'.base64_encode(file_get_contents(
             resource_path('mail-templates/assets/zug-dampf-light.gif')
@@ -391,7 +391,7 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertStringNotContainsString('width:70%', $html);
             $this->assertStringNotContainsString('max-width:620px', $html);
             // OHNE rt-pad an der aeusseren Zelle: die traegt padding:0, damit
-            // die absolute Zugbuehne bis an die Kante reicht. Sass die Klasse dort,
+            // das fliessende Zugbild bis an die Kante reicht. Sass die Klasse dort,
             // verkleinerten die Umbruchregeln die Null und der Innenabstand
             // der inneren Zelle blieb zusaetzlich stehen — der Block war auf
             // schmalen Schirmen doppelt eingerueckt (24+36 statt 24 px).
@@ -1425,7 +1425,17 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertMatchesRegularExpression('/<img\b[^>]*class="rt-sign-train"[^>]*\bdata-rt-train(?:\s|=|>)[^>]*>/i', $html, $message);
         $this->assertDoesNotMatchRegularExpression('/<(?:tr|td)\b[^>]*\brt-sign-train-mso\b/i', $html, $message);
         $this->assertMatchesRegularExpression(
-            '/<div\b[^>]*class="[^"]*\brt-sign-stage\b[^"]*"[^>]*>\s*<!--\[if mso\]><img\b[^>]*class="rt-sign-train-mso"[^>]*data-rt-train-mso="1"[^>]*><!\[endif\]-->/s',
+            '/<div\b[^>]*class="[^"]*\brt-sign-train-layer\b[^"]*"[^>]*>\s*<!--\[if mso\]><img\b[^>]*class="rt-sign-train-mso"[^>]*data-rt-train-mso="1"[^>]*><!\[endif\]-->/s',
+            $html,
+            $message,
+        );
+        $this->assertMatchesRegularExpression(
+            '/<div\b[^>]*class="[^"]*\brt-sign-train-layer\b[^"]*"[^>]*style="position:relative;[^">]*>\s*'
+                .'<!--\[if mso\]><img\b[^>]*class="rt-sign-train-mso"[^>]*><!\[endif\]-->\s*'
+                .'(?:<span\b[^>]*data-rt-train-idle-overlay[^>]*height:0;max-height:0;[^>]*>\s*'
+                .'<img\b[^>]*data-rt-train-idle-image[^>]*>\s*<\/span>\s*)?'
+                .'<img\b[^>]*class="rt-sign-train"[^>]*style="position:static;[^">]*>\s*'
+                .'<\/div>\s*<\/div>\s*<\/td>\s*<\/tr>\s*<!-- RT_SIGNATURE_MAIN_END -->\s*<tr\b/is',
             $html,
             $message,
         );

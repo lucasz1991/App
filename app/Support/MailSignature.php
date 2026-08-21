@@ -465,8 +465,9 @@ class MailSignature
         }
 
         // Hauptzug und Idle-Rauch bleiben wie Logo und RT-Zeichen echte IMG.
-        // Ihre absolute Buehne liegt hinter der Inhaltstabelle und reserviert
-        // keine eigene Tabellenhoehe; GIF-Dateien werden nie per CSS geladen.
+        // Das Hauptbild liegt Outlook-sicher im normalen Fluss unmittelbar
+        // vor der Legal-Zeile; nur die optionale Rauchschleife liegt in
+        // animationsfaehigen Clients hoehenneutral darueber.
         return SignatureTrainCarrier::withMsoFallback($html, $outlookFallbackSource);
     }
 

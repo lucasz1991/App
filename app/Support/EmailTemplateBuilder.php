@@ -1182,7 +1182,7 @@ class EmailTemplateBuilder
             MailDocumentKind::Signature,
         );
 
-        return self::placeBrowserCopyTrainBehindContent(
+        return self::validateBrowserCopyTrainImages(
             $html,
             $remoteSources['TRAIN_SRC'],
             $remoteSources['TRAIN_IDLE_SRC'],
@@ -1208,10 +1208,10 @@ class EmailTemplateBuilder
     /**
      * Prueft die eigenstaendige New-Outlook-/Web-Kopierfassung nach der
      * Runtime-Projektion. Hauptzug, Idle-Rauch und Outlook-Standbild muessen
-     * dort als echte IMG mit absoluten HTTPS-Quellen vorliegen. CSS darf keine
-     * der GIF-Dateien laden.
+     * dort als echte IMG mit absoluten HTTPS-Quellen vorliegen. Das Hauptbild
+     * bleibt wie im Versand im normalen Flow; CSS darf keine GIF-Datei laden.
      */
-    private static function placeBrowserCopyTrainBehindContent(
+    private static function validateBrowserCopyTrainImages(
         string $html,
         string $expectedTrainSource,
         string $expectedIdleSource,

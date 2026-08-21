@@ -8,10 +8,11 @@
 
     Der kanonische Editorstand besitzt zwei Tabellenzeilen: Signaturblock und
     Pflichtangaben. Im gespeicherten Editor-/Seederstand ist der Zug ein
-    regulaeres, editierbares IMG. Derselbe absolute IMG-Layer bleibt auch im
-    Versand hinter den Kontaktdaten bestehen und beansprucht keine eigene
-    Tabellenhoehe. Das Idle-GIF ist ein zweites IMG. Word/MSO erhaelt innerhalb
-    derselben Stage ein bedingtes PNG-IMG statt einer Tabellenzeile.
+    regulaeres, editierbares IMG. Derselbe Flow-Layer steht im Editor und im
+    Versand direkt vor den Pflichtangaben, damit Outlook keine absolute Ebene
+    in einen abweichenden Bildstreifen umwandeln kann. Das Idle-GIF ist ein
+    zweites, hoehenlos ueberlagertes IMG. Word/MSO erhaelt innerhalb desselben
+    Layers ein bedingtes PNG-IMG statt einer zusaetzlichen Tabellenzeile.
 
     AUFBAU: zwei gleich breite Spalten an einer Mittelachse. Links die
     Person, rechts die Firma. Die Firmenkontakte existieren genau einmal:
@@ -170,13 +171,13 @@
             </tr>
         </table>
         @if($trainSrc !== '')
-            {{-- Nur HTM-/Mail-Grundelemente: ein DIV und ein echtes IMG.
-                 Beide sind absolut unten verankert; die Tabelleninhalte
-                 bleiben als spaeteres z-index:1-Markup davor. Falls ein
-                 Client Positionierung entfernt, steht der Layer als letztes
-                 Carrier-Kind wenigstens unter statt ueber den Kontaktdaten. --}}
-            <div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:absolute;left:0;right:auto;top:0;bottom:0;width:100%;max-width:1815px;margin:0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;mso-hide:all;">
-                <img class="rt-sign-train" data-rt-train src="{{ $trainSrc }}" width="720" alt="" style="position:absolute;left:0;right:auto;bottom:0;display:block;width:100%;max-width:1815px;height:auto;margin:0;border:0;outline:none;text-decoration:none;mso-hide:all;">
+            {{-- Outlook darf die Zuggeometrie nicht mehr von absoluter
+                 Positionierung abhaengig machen. Der Layer folgt deshalb im
+                 normalen Mailfluss direkt auf die Kontakttabelle. Das echte
+                 IMG endet ohne Zwischenraum an der folgenden Legal-Zeile;
+                 GIF-Dateien werden weiterhin nie als CSS-Background geladen. --}}
+            <div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;">
+                <img class="rt-sign-train" data-rt-train src="{{ $trainSrc }}" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all;">
             </div>
         @endif
         </div>

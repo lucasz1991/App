@@ -24,7 +24,7 @@ import {
 } from '../../resources/js/mail-builder.js';
 import { createMailBlocks, mailCanvasStyles } from '../../resources/js/mail-builder-blocks.js';
 
-const canonicalTrain = '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}"></div>';
+const canonicalTrain = '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all;"></div>';
 
 test('LMZ traits and mail protection do not recurse through component updates', () => {
     const lmzBuilderSource = readFileSync(
@@ -225,9 +225,18 @@ test('signature preview hydrates the train image and roundtrips two canonical ro
     const outgoingTrain = outgoingLayer?.querySelector(':scope > img.rt-sign-train[data-rt-train]');
     assert.ok(outgoingStage, 'legacy direct layers must save inside the canonical relative stage');
     assert.equal(outgoingStage.getAttribute('style'), 'position:relative;overflow:hidden;');
-    assert.ok(outgoingLayer.getAttribute('style').includes('mso-hide:all'));
+    assert.equal(
+        outgoingLayer.getAttribute('style'),
+        'position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left',
+    );
     assert.equal(outgoingTrain.getAttribute('width'), '720');
-    assert.ok(outgoingTrain.getAttribute('style').includes('mso-hide:all'));
+    assert.equal(
+        outgoingTrain.getAttribute('style'),
+        'position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all',
+    );
+    assert.equal(outgoingStage.lastElementChild, outgoingLayer);
+    assert.equal(outgoingLayer.lastElementChild, outgoingTrain);
+    assert.match(outgoing.html, /<\/div><\/div><\/td><\/tr>\n<!-- RT_SIGNATURE_MAIN_END -->\n<tr>/);
     assert.equal(outgoing.project.pages[0].component, outgoing.html);
 
     // GrapesJS-/DOM-Serialisierer duerfen Kommentare verlieren. Genau dieser
@@ -818,32 +827,59 @@ test('train layer editor maps size desktop and mobile presets to mail-safe geome
 
     assert.equal(synchronizeMailTrainLayerAlignment(component), true);
     assert.deepEqual(state, {
-        left: '-12.5%',
+        position: 'relative',
+        left: '0',
         right: 'auto',
-        margin: '0',
-        width: '125%',
-        'max-width': '2269px',
+        top: 'auto',
+        bottom: 'auto',
+        margin: '0 auto',
+        width: '100%',
+        'max-width': '1815px',
+        'text-align': 'left',
     });
     assert.equal(imageAttributes.width, '720');
-    assert.equal(imageState['max-width'], '2269px');
+    assert.equal(imageState.position, 'static');
+    assert.equal(imageState.left, 'auto');
+    assert.equal(imageState.right, 'auto');
+    assert.equal(imageState.bottom, 'auto');
+    assert.equal(imageState.display, 'inline-block');
+    assert.equal(imageState.width, '125%');
+    assert.equal(imageState['max-width'], 'none');
+    assert.equal(imageState.margin, '0 0 0 -12.5%');
+    assert.equal(imageState['vertical-align'], 'top');
     attributes['data-rt-layer-align'] = 'right';
-    assert.equal(synchronizeMailTrainLayerAlignment(component), true);
-    assert.deepEqual(state, {
-        left: 'auto',
-        right: '0',
-        margin: '0',
-        width: '125%',
-        'max-width': '2269px',
-    });
+    for (const [sizeName, geometry] of Object.entries({
+        100: ['100%', '0'],
+        125: ['125%', '0 0 0 -25%'],
+        150: ['150%', '0 0 0 -50%'],
+        200: ['200%', '0 0 0 -100%'],
+    })) {
+        attributes['data-rt-layer-size'] = sizeName;
+        assert.equal(synchronizeMailTrainLayerAlignment(component), true);
+        assert.equal(state.left, '0');
+        assert.equal(state.right, 'auto');
+        assert.equal(state.margin, '0 0 0 auto');
+        assert.equal(state.width, '100%');
+        assert.equal(state['max-width'], '1815px');
+        assert.equal(state['text-align'], 'left');
+        assert.equal(imageState.width, geometry[0]);
+        assert.equal(imageState['max-width'], 'none');
+        assert.equal(imageState.margin, geometry[1]);
+    }
+    attributes['data-rt-layer-size'] = '125';
     attributes['data-rt-layer-align'] = 'calc(1px)';
     attributes['data-rt-layer-mobile'] = 'calc(1px)';
     assert.equal(synchronizeMailTrainLayerAlignment(component), true);
     assert.deepEqual(state, {
+        position: 'relative',
         left: '0',
         right: 'auto',
-        margin: '0',
-        width: '125%',
-        'max-width': '2269px',
+        top: 'auto',
+        bottom: 'auto',
+        margin: '0 auto 0 0',
+        width: '100%',
+        'max-width': '1815px',
+        'text-align': 'left',
     });
     assert.equal(attributes['data-rt-layer-align'], 'left');
     assert.equal(attributes['data-rt-layer-mobile'], 'train');
@@ -1262,7 +1298,7 @@ test('mail toolbar keeps documents, preview and publishing in non-overlapping re
     assert.match(mobile, /\.rt-mail-studio-toolbar__action-buttons[\s\S]*?grid-column:\s*2[\s\S]*?grid-row:\s*2/);
 });
 
-test('signature source and delivery keep height-neutral train images plus an in-stage MSO image fallback', async () => {
+test('signature source and delivery keep one flow train image plus an in-layer MSO image fallback', async () => {
     const { readFile } = await import('node:fs/promises');
     const [css, signatureSource, trainAsset, carrier, runtime] = await Promise.all([
         readFile(new URL('../../resources/views/emails/parts/responsive-css.blade.php', import.meta.url), 'utf8'),
@@ -1274,8 +1310,9 @@ test('signature source and delivery keep height-neutral train images plus an in-
     assert.match(signatureSource, /<div class="rt-sign-stage" style="position:relative;overflow:hidden;">/);
     assert.doesNotMatch(signatureSource, /<td class="rt-sign-cell"[^>]*position:relative/);
     assert.match(signatureSource, /<img class="rt-sign-train" data-rt-train src="\{\{ \$trainSrc \}\}"/);
-    assert.match(signatureSource, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:absolute;[^"\r\n]*mso-hide:all;/);
-    assert.match(signatureSource, /<img class="rt-sign-train"[^>]*width="720"[^>]*style="position:absolute;[^"\r\n]*mso-hide:all;/);
+    assert.match(signatureSource, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:relative;[^"\r\n]*overflow:hidden;/);
+    assert.doesNotMatch(signatureSource, /rt-sign-train-layer[^>]*mso-hide:all/);
+    assert.match(signatureSource, /<img class="rt-sign-train"[^>]*width="720"[^>]*style="position:static;[^"\r\n]*mso-hide:all;/);
     assert.doesNotMatch(signatureSource, /url\(\{\$values\['TRAIN_SRC'\]\}\)/);
     assert.doesNotMatch(css, /\.rt-sign-cell\.rt-sign-train-background/);
     assert.match(css, /@keyframes rt-train-idle-reveal/);
@@ -1303,8 +1340,10 @@ test('signature source and delivery keep height-neutral train images plus an in-
 
     const mobile = css.slice(css.indexOf('@media only screen and (max-width: 860px)'));
     assert.match(mobile, /\.rt-sign-train-layer\s*\{[\s\S]*?left: 0 !important;[\s\S]*?width: 100% !important;/);
-    assert.match(mobile, /data-rt-layer-mobile="train"[^}]+left: 0 !important;[^}]+width: 100% !important/);
-    assert.match(mobile, /data-rt-layer-mobile="left"[^}]+width: 200% !important/);
-    assert.match(mobile, /data-rt-layer-mobile="center"[^}]+left: -50% !important;[^}]+width: 200% !important/);
-    assert.match(mobile, /data-rt-layer-mobile="right"[^}]+width: 200% !important/);
+    assert.match(mobile, /data-rt-layer-mobile="train"\] \{ margin-left: 0 !important; margin-right: auto !important/);
+    assert.match(mobile, /data-rt-layer-mobile="train"\]\[data-rt-layer-size\][^}]+width: 100% !important; max-width: none !important; margin-left: 0 !important/);
+    assert.match(mobile, /data-rt-layer-mobile="left"[^}]+margin-left: 0 !important; margin-right: auto !important/);
+    assert.match(mobile, /data-rt-layer-mobile="center"\] \{ margin-left: auto !important; margin-right: auto !important/);
+    assert.match(mobile, /data-rt-layer-mobile="right"\] \{ margin-left: auto !important; margin-right: 0 !important/);
+    assert.match(mobile, /data-rt-layer-mobile="right"\]\[data-rt-layer-size\][^}]+width: 200% !important; max-width: none !important; margin-left: -100% !important/);
 });
