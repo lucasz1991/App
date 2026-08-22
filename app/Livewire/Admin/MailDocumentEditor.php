@@ -147,7 +147,26 @@ class MailDocumentEditor extends Component
                     'update' => route('admin.mail-documents.update', $document),
                     'validate' => route('admin.mail-documents.validate-code', $document),
                     'publish' => route('admin.mail-documents.publish', $document),
+                    'testMail' => route('admin.mail-documents.test-mail', $document),
                 ],
+                'versions' => Schema::hasTable('mail_document_versions')
+                    ? $document->versions()->with('creator:id,name')->limit(40)->get()->map(
+                        static fn ($version): array => [
+                            'id' => $version->public_id,
+                            'revision' => (int) $version->revision,
+                            'action_label' => match ($version->action) {
+                                'imported' => 'Importiert',
+                                'published' => 'Veröffentlicht',
+                                'restored' => 'Wiederhergestellt',
+                                default => 'Gespeichert',
+                            },
+                            'created_label' => $version->created_at?->translatedFormat('d.m.Y H:i'),
+                            'creator' => $version->creator?->name,
+                            'was_published' => (bool) $version->was_published,
+                            'restore_url' => route('admin.mail-documents.versions.restore', [$document, $version]),
+                        ],
+                    )->all()
+                    : [],
             ];
         }
 

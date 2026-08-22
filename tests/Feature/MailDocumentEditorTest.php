@@ -54,6 +54,7 @@ class MailDocumentEditorTest extends TestCase
         // Die Tabelle gehoert nicht zum Minimalschema — hier kommt sie aus
         // der echten Migration, damit Spalten und Test nicht auseinanderlaufen.
         (include database_path('migrations/2026_08_09_000100_create_mail_documents_table.php'))->up();
+        (include database_path('migrations/2026_08_22_000200_create_mail_document_versions_table.php'))->up();
 
         // LogActivity haengt an jeder schreibenden Anfrage.
         Schema::create('activity_log', function (Blueprint $table): void {

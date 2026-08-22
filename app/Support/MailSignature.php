@@ -312,6 +312,11 @@ class MailSignature
 
             if ($tokenizedTrainCarrier) {
                 $html = $this->projectPublishedTrainAsImage($html, $singleTrainLayout);
+                $html = str_replace(
+                    '{{TRAIN_SRC}}',
+                    htmlspecialchars($singleTrainSource, ENT_QUOTES, 'UTF-8'),
+                    $html,
+                );
             }
 
             $html = trim(EmailTemplateBuilder::stripEmptyContactRows(
@@ -453,6 +458,9 @@ class MailSignature
         string $idleSource,
     ): string {
         $html = $this->removeLegacyTrainBackground($html);
+        if (SignatureTrainCarrier::hasCanonicalBackground($html)) {
+            return $html;
+        }
         if ($this->animated && ! $this->staticAssets && trim($idleSource) !== '') {
             $html = SignatureTrainCarrier::withIdleOverlay($html, $idleSource);
         }
@@ -500,6 +508,10 @@ class MailSignature
      */
     private function projectPublishedTrainAsImage(string $html, array $layout): string
     {
+        if (SignatureTrainCarrier::hasCanonicalBackground($html)) {
+            return $html;
+        }
+
         $rawSource = trim((string) ($layout['outlookTrainSrc'] ?? ''));
         $padding = (string) ($layout['outlookTrainPadding'] ?? '0');
 

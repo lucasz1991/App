@@ -272,6 +272,14 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
                 ->whereUuid('document')
                 ->middleware('throttle:30,1')
                 ->name('mail-documents.publish');
+            Route::post('/mail-vorlagen/{document}/testmail', [MailDocumentController::class, 'testMail'])
+                ->whereUuid('document')
+                ->middleware('throttle:10,1')
+                ->name('mail-documents.test-mail');
+            Route::post('/mail-vorlagen/{document}/versionen/{version}/wiederherstellen', [MailDocumentController::class, 'restoreVersion'])
+                ->whereUuid(['document', 'version'])
+                ->middleware('throttle:30,1')
+                ->name('mail-documents.versions.restore');
         });
         Route::withoutMiddleware('role:admin')->group(function (): void {
             Route::get('/marketing/motive', MarketingCreativesIndex::class)

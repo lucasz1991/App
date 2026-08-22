@@ -40,6 +40,12 @@ final class PublishedMailDocumentSnapshotStore
         unset($this->snapshots[$kind->value]);
     }
 
+    /** Setzt fuer genau diesen synchronen Request einen geprueften Entwurf ein. */
+    public function useSnapshot(MailDocumentKind $kind, string $html, string $css): void
+    {
+        $this->snapshots[$kind->value] = ['html' => $html, 'css' => $css];
+    }
+
     /** @return array{html: string, css: string}|null */
     private function read(MailDocumentKind $kind): ?array
     {

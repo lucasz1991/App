@@ -7,6 +7,7 @@ use App\Enums\MailDocumentStatus;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 use JsonException;
 use RuntimeException;
@@ -67,6 +68,11 @@ class MailDocument extends Model
     public function updater(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    public function versions(): HasMany
+    {
+        return $this->hasMany(MailDocumentVersion::class)->orderByDesc('revision');
     }
 
     /**

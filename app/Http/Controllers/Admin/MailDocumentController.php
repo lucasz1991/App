@@ -8,16 +8,22 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Mail\ImportMailDocumentRequest;
 use App\Http\Requests\Mail\SaveMailDocumentRequest;
 use App\Models\MailDocument;
+use App\Models\MailDocumentVersion;
+use App\Models\Setting;
 use App\Models\User;
+use App\Notifications\MailDocumentTestNotification;
 use App\Support\Mail\CssSemantic;
 use App\Support\Mail\EmailHtmlReport;
 use App\Support\Mail\EmailHtmlSanitizer;
+use App\Support\Mail\MailDocumentVersionStore;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\Mail\SignatureDocumentContract;
 use App\Support\Mail\TemplateDocumentContract;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Validation\ValidationException;
@@ -45,6 +51,7 @@ final class MailDocumentController extends Controller
     public function import(
         ImportMailDocumentRequest $request,
         EmailHtmlSanitizer $sanitizer,
+        MailDocumentVersionStore $versions,
     ): JsonResponse {
         $actor = $this->mailAdmin($request);
         $validated = $request->validated();
@@ -85,6 +92,7 @@ final class MailDocumentController extends Controller
             $htmlReport,
             $cssReport,
             $contentHash,
+            $versions,
         ): MailDocument {
             if (MailDocument::query()->where('kind', $kind->value)->lockForUpdate()->exists()) {
                 throw ValidationException::withMessages([
@@ -94,7 +102,7 @@ final class MailDocumentController extends Controller
 
             $this->storePortableMedia($portableFiles);
 
-            return MailDocument::query()->create([
+            $document = MailDocument::query()->create([
                 'kind' => $kind,
                 'status' => MailDocumentStatus::Draft,
                 'builder_data' => $builderData,
@@ -108,6 +116,9 @@ final class MailDocumentController extends Controller
                 'created_by' => $actor->getKey(),
                 'updated_by' => $actor->getKey(),
             ]);
+            $versions->capture($document, $actor, 'imported');
+
+            return $document;
         });
 
         return response()->json([
@@ -323,11 +334,12 @@ final class MailDocumentController extends Controller
         SaveMailDocumentRequest $request,
         MailDocument $document,
         EmailHtmlSanitizer $sanitizer,
+        MailDocumentVersionStore $versions,
     ): JsonResponse {
         $actor = $this->mailAdmin($request);
         $validated = $request->validated();
 
-        [$saved, $htmlReport, $cssReport] = DB::transaction(function () use ($document, $validated, $actor, $sanitizer): array {
+        [$saved, $htmlReport, $cssReport] = DB::transaction(function () use ($document, $validated, $actor, $sanitizer, $versions): array {
             $locked = $this->lock($document);
 
             // Der Hashvergleich ist ohne Sperre wertlos: zwei parallele
@@ -374,6 +386,7 @@ final class MailDocumentController extends Controller
                     'version' => $locked->version + 1,
                     'updated_by' => $actor->getKey(),
                 ])->save();
+                $versions->capture($locked, $actor, 'saved');
             }
 
             return [$locked, $htmlReport, $cssReport];
@@ -390,13 +403,14 @@ final class MailDocumentController extends Controller
         MailDocument $document,
         EmailHtmlSanitizer $sanitizer,
         PublishedMailDocumentSnapshotStore $publishedDocuments,
+        MailDocumentVersionStore $versions,
     ): JsonResponse {
         $actor = $this->mailAdmin($request);
         $validated = $request->validate([
             'expected_hash' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/i'],
         ]);
 
-        [$published, $htmlReport, $cssReport] = DB::transaction(function () use ($document, $actor, $sanitizer, $validated): array {
+        [$published, $htmlReport, $cssReport] = DB::transaction(function () use ($document, $actor, $sanitizer, $validated, $versions): array {
             $locked = $this->lock($document);
 
             // Auch die Freigabe ist ein Schreibvorgang. Ohne denselben
@@ -460,6 +474,7 @@ final class MailDocumentController extends Controller
             }
 
             $locked->forceFill($attributes)->save();
+            $versions->capture($locked, $actor, 'published');
 
             return [$locked, $htmlReport, $cssReport];
         });
@@ -469,6 +484,101 @@ final class MailDocumentController extends Controller
         return response()->json([
             'document' => $this->payload($published),
             'report' => $this->reportPayload($htmlReport, $cssReport),
+        ]);
+    }
+
+    public function restoreVersion(
+        Request $request,
+        MailDocument $document,
+        MailDocumentVersion $version,
+        EmailHtmlSanitizer $sanitizer,
+        MailDocumentVersionStore $versions,
+    ): JsonResponse {
+        $actor = $this->mailAdmin($request);
+        $validated = $request->validate([
+            'expected_hash' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/i'],
+        ]);
+        abort_unless($version->mail_document_id === $document->getKey(), 404);
+
+        $restored = DB::transaction(function () use ($document, $version, $validated, $actor, $sanitizer, $versions): MailDocument {
+            $locked = $this->lock($document);
+            if (! $locked->matchesContentHash((string) $validated['expected_hash'])) {
+                throw ValidationException::withMessages([
+                    'expected_hash' => 'Das Dokument wurde zwischenzeitlich geändert. Bitte lade die Seite neu.',
+                ]);
+            }
+            if (hash_equals((string) $locked->content_hash, (string) $version->content_hash)) {
+                throw ValidationException::withMessages(['version' => 'Diese Version ist bereits der aktuelle Entwurf.']);
+            }
+
+            $htmlReport = $sanitizer->assertClean((string) $version->html);
+            $cssReport = $this->cleanStyleSheet($sanitizer, (string) $version->css);
+            if ($cssReport->hasViolations()) {
+                throw ValidationException::withMessages(['css' => $cssReport->violationMessages()]);
+            }
+            $this->assertDocumentStructure($locked, $htmlReport->html, $cssReport->html);
+            $builderData = $this->syncBuilderData($locked, $version->builder_data ?: [], $htmlReport->html);
+            $hash = MailDocument::contentHashFor($builderData, $htmlReport->html, $cssReport->html);
+
+            $locked->forceFill([
+                'builder_data' => $builderData,
+                'html' => $htmlReport->html,
+                'css' => $cssReport->html,
+                'content_hash' => $hash,
+                'version' => $locked->version + 1,
+                'updated_by' => $actor->getKey(),
+            ])->save();
+            $versions->capture($locked, $actor, 'restored');
+
+            return $locked;
+        });
+
+        return response()->json(['document' => $this->payload($restored)]);
+    }
+
+    public function testMail(
+        Request $request,
+        MailDocument $document,
+        EmailHtmlSanitizer $sanitizer,
+        PublishedMailDocumentSnapshotStore $snapshots,
+    ): JsonResponse {
+        $this->mailAdmin($request);
+        $validated = $request->validate([
+            'expected_hash' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/i'],
+        ]);
+        $document->refresh();
+        if (! $document->matchesContentHash((string) $validated['expected_hash'])) {
+            throw ValidationException::withMessages([
+                'expected_hash' => 'Der Testmail-Entwurf ist nicht mehr aktuell. Bitte speichere erneut.',
+            ]);
+        }
+
+        $recipient = trim((string) Setting::getValueUncached('mails', 'admin_email'));
+        if (filter_var($recipient, FILTER_VALIDATE_EMAIL) === false) {
+            throw ValidationException::withMessages([
+                'recipient' => 'In den Systemeinstellungen ist keine gültige Admin-E-Mail-Adresse hinterlegt.',
+            ]);
+        }
+
+        $html = $sanitizer->assertClean((string) $document->html)->html;
+        $cssReport = $this->cleanStyleSheet($sanitizer, (string) $document->css);
+        if ($cssReport->hasViolations()) {
+            throw ValidationException::withMessages(['css' => $cssReport->violationMessages()]);
+        }
+        $this->assertDocumentStructure($document, $html, $cssReport->html);
+        $snapshots->useSnapshot($document->kind, $html, $cssReport->html);
+
+        try {
+            Notification::route('mail', $recipient)->notify(
+                new MailDocumentTestNotification($document->kind, (int) $document->version),
+            );
+        } finally {
+            $snapshots->forget($document->kind);
+        }
+
+        return response()->json([
+            'message' => 'Testmail wurde an '.$recipient.' gesendet.',
+            'recipient' => $recipient,
         ]);
     }
 
@@ -652,7 +762,34 @@ final class MailDocumentController extends Controller
             // Der veroeffentlichte Abzug bleibt in Kraft, waehrend am Entwurf
             // weitergearbeitet wird — genau das muss der Editor anzeigen.
             'has_unpublished_changes' => $document->hasUnpublishedChanges(),
+            'versions' => $this->versionPayload($document),
         ];
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function versionPayload(MailDocument $document): array
+    {
+        if (! Schema::hasTable('mail_document_versions')) {
+            return [];
+        }
+
+        return $document->versions()->with('creator:id,name')->limit(40)->get()->map(
+            static fn (MailDocumentVersion $version): array => [
+                'id' => $version->public_id,
+                'revision' => (int) $version->revision,
+                'action' => $version->action,
+                'action_label' => match ($version->action) {
+                    'imported' => 'Importiert',
+                    'published' => 'Veröffentlicht',
+                    'restored' => 'Wiederhergestellt',
+                    default => 'Gespeichert',
+                },
+                'created_label' => $version->created_at?->translatedFormat('d.m.Y H:i'),
+                'creator' => $version->creator?->name,
+                'was_published' => (bool) $version->was_published,
+                'restore_url' => route('admin.mail-documents.versions.restore', [$document, $version]),
+            ],
+        )->all();
     }
 
     /**

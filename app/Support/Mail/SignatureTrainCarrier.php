@@ -409,6 +409,47 @@ final class SignatureTrainCarrier
         return false;
     }
 
+    public static function hasCanonicalBackground(string $html): bool
+    {
+        return preg_match('/<td\b[^>]*\bdata-rt-train-background\s*=\s*(["\'])1\1/i', $html) === 1;
+    }
+
+    /** Schema 20: genau zwei Zellen-Backgrounds, Zug zuerst und Wash darunter. */
+    public static function assertCanonicalBackground(string $html): void
+    {
+        if (substr_count($html, '{{TRAIN_SRC}}') !== 1
+            || str_contains($html, '{{TRAIN_IDLE_SRC}}')
+            || self::hasCanonicalImage($html)) {
+            throw new RuntimeException('Der CSS-Zughintergrund muss genau einmal und ohne zusaetzliches Zug-IMG vorliegen.');
+        }
+
+        $carrier = self::inspectCarrier($html);
+        if (count($carrier['attributes']['data-rt-train-background'] ?? []) !== 1
+            || self::singleCarrierAttributeValue($carrier, 'data-rt-train-background') !== '1') {
+            throw new RuntimeException('Der Zug-Carrier besitzt nicht den kanonischen Background-Marker.');
+        }
+        $styles = $carrier['attributes']['style'] ?? [];
+        if (count($styles) !== 1) {
+            throw new RuntimeException('Der Zug-Carrier besitzt kein eindeutiges style-Attribut.');
+        }
+        $style = CssSemantic::decodeHtmlEntitiesOnce((string) $styles[0]['raw']);
+        $allowed = str_replace(['{{TRAIN_SRC}}', '{{SIGNATURE_BG}}', '{{SIGNATURE_TRAIN_WASH}}'], '', $style);
+        if (preg_match('/[{}]/', $allowed) === 1) {
+            throw new RuntimeException('Der CSS-Zughintergrund enthaelt einen fremden Platzhalter.');
+        }
+        foreach ([
+            'background-image' => "url('{{TRAIN_SRC}}'),linear-gradient({{SIGNATURE_TRAIN_WASH}},{{SIGNATURE_TRAIN_WASH}})",
+            'background-repeat' => 'no-repeat,no-repeat',
+            'background-position' => 'left bottom,center center',
+            'background-size' => '100% auto,100% 100%',
+        ] as $property => $expected) {
+            if (preg_match('/(?:^|;)\s*'.preg_quote($property, '/').'\s*:\s*([^;]+)/i', $style, $match) !== 1
+                || self::normalizedCssValue($match[1]) !== self::normalizedCssValue($expected)) {
+                throw new RuntimeException('Der CSS-Zughintergrund besitzt keine kanonische '.$property.'-Angabe.');
+            }
+        }
+    }
+
     /**
      * Neuer Import-/Editorvertrag: TRAIN_SRC lebt ausschliesslich im src
      * eines einzigen normalen Bildes in einem eindeutigen Flow-Layer direkt
@@ -905,6 +946,11 @@ final class SignatureTrainCarrier
      */
     public static function withoutDecorativeBaseBackgrounds(string $html): string
     {
+        if (self::hasCanonicalBackground($html)) {
+            self::assertCanonicalBackground($html);
+
+            return $html;
+        }
         try {
             self::assertCanonicalBaseBackground($html);
 

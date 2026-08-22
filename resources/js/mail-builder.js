@@ -39,6 +39,7 @@ const MAIL_CANVAS_STYLE_ID = 'rt-mail-canvas-style';
 const MAIL_CANVAS_BODY_CLASS = 'rt-mail-canvas';
 const MAIL_SIGNATURE_CANVAS_ATTRIBUTE = 'data-rt-mail-signature-canvas';
 const MAIL_PREVIEW_IMAGE_ATTRIBUTE = 'data-rt-mail-preview-token';
+const MAIL_PREVIEW_BACKGROUND_ATTRIBUTE = 'data-rt-mail-preview-background-token';
 const MAIL_IMPORTED_INLINE_ATTRIBUTE = 'data-rt-mail-inline-source';
 const MAIL_TEMPLATE_MARK_START_NAME = 'RT_TEMPLATE_MARK_START';
 const MAIL_TEMPLATE_MARK_END_NAME = 'RT_TEMPLATE_MARK_END';
@@ -1356,6 +1357,10 @@ export function projectForMailDocument(draft, parseCss = () => [], options = {})
         const signatureParser = domParserFor(options.environment || globalThis);
         const contactProjection = bindSignatureContactMarkerRows(page.component, signatureParser);
         let signature = contactProjection.html;
+        if ((signature.split('{{TRAIN_SRC}}').length - 1) !== 1) {
+            throw new Error('Die Signatur benötigt genau einen CSS-Zughintergrund.');
+        }
+        signature = signature.replace('{{TRAIN_SRC}}', MAIL_PREVIEW_TRANSPARENT_PIXEL);
         MAIL_PREVIEW_IMAGE_TOKENS.forEach((token) => {
             const source = new RegExp(`src=(["'])\\{\\{${token}\\}\\}\\1`, 'gi');
             signature = signature.replace(
@@ -1370,34 +1375,15 @@ export function projectForMailDocument(draft, parseCss = () => [], options = {})
         const wrapper = parsed.querySelector(`table[${MAIL_SIGNATURE_CANVAS_ATTRIBUTE}]`);
         const body = wrapper?.tBodies?.[0] || wrapper?.querySelector('tbody');
         const rows = Array.from(body?.children || []);
-        const trainImages = wrapper?.querySelectorAll?.(`img[data-rt-train][${MAIL_PREVIEW_IMAGE_ATTRIBUTE}="TRAIN_SRC"]`) || [];
-        const trainImage = trainImages[0];
-        const trainLayer = trainImage?.closest?.('div.rt-sign-train-layer[data-rt-layer-train]');
-        const trainCarrier = trainImage?.closest?.('td.rt-sign-cell');
-        let trainStage = trainLayer?.closest?.('div.rt-sign-stage');
-        // Schema 12 hatte den absoluten Layer direkt an die Tabellenzelle
-        // gebunden. Beim Laden wird ausschliesslich diese exakte Altform in
-        // den sicheren Block-Kontext ueberfuehrt; Speichern publiziert danach
-        // nur noch die neue Struktur.
-        if (!trainStage && trainLayer?.parentElement === trainCarrier && trainCarrier) {
-            trainStage = parsed.createElement('div');
-            trainStage.setAttribute('class', 'rt-sign-stage');
-            trainStage.setAttribute('style', 'position:relative;overflow:hidden;');
-            while (trainCarrier.firstChild) trainStage.appendChild(trainCarrier.firstChild);
-            trainCarrier.appendChild(trainStage);
-        }
-        hardenEditorTrainImage(trainLayer, trainImage);
+        const trainCarriers = wrapper?.querySelectorAll?.('td.rt-sign-cell[data-rt-train-background="1"]') || [];
+        const trainCarrier = trainCarriers[0];
+        trainCarrier?.setAttribute(MAIL_PREVIEW_BACKGROUND_ATTRIBUTE, 'TRAIN_SRC');
         if (!wrapper || !body || rows.length !== 2
             || rows.some((row) => row.tagName !== 'TR')
-            || trainImages.length !== 1
-            || trainImage?.tagName !== 'IMG'
-            || trainLayer?.parentElement !== trainStage
-            || trainStage?.parentElement !== trainCarrier
-            || trainStage?.lastElementChild !== trainLayer
-            || trainCarrier?.lastElementChild !== trainStage
+            || trainCarriers.length !== 1
             || trainCarrier?.tagName !== 'TD'
             || trainCarrier.parentElement !== rows[0]) {
-            throw new Error('Die Signatur benoetigt zwei Tabellenzeilen und genau ein regulaeres Zugbild in ihrer Hauptflaeche.');
+            throw new Error('Die Signatur benoetigt zwei Tabellenzeilen und genau einen CSS-Zughintergrund.');
         }
         assertSignatureContactMarkerBindings(wrapper, contactProjection.hasMarkers);
 
@@ -1527,37 +1513,26 @@ export function serializeMailDocumentForSave({
         throw new Error('Der Signatur-Editor darf keine alte Zugvorschauzeile enthalten.');
     }
     const rows = Array.from(body?.children || []);
-    const trainImages = wrapper?.querySelectorAll?.(`img[data-rt-train][${MAIL_PREVIEW_IMAGE_ATTRIBUTE}="TRAIN_SRC"]`) || [];
-    const trainImage = trainImages[0];
-    const trainLayer = trainImage?.closest?.('div.rt-sign-train-layer[data-rt-layer-train]');
-    const directTrainCarrier = trainLayer?.closest?.('td.rt-sign-cell');
-    let trainStage = trainLayer?.closest?.('div.rt-sign-stage');
-    if (!trainStage && trainLayer?.parentElement === directTrainCarrier && directTrainCarrier) {
-        trainStage = parsed.createElement('div');
-        trainStage.setAttribute('class', 'rt-sign-stage');
-        trainStage.setAttribute('style', 'position:relative;overflow:hidden;');
-        while (directTrainCarrier.firstChild) trainStage.appendChild(directTrainCarrier.firstChild);
-        directTrainCarrier.appendChild(trainStage);
-    }
-    hardenEditorTrainImage(trainLayer, trainImage);
-    const trainCarrier = trainStage?.parentElement;
+    const trainCarriers = wrapper?.querySelectorAll?.(`td.rt-sign-cell[data-rt-train-background="1"][${MAIL_PREVIEW_BACKGROUND_ATTRIBUTE}="TRAIN_SRC"]`) || [];
+    const trainCarrier = trainCarriers[0];
     if (wrappers.length !== 1 || !wrapper || !body
         || rows.length !== 2 || rows.some((row) => row.tagName !== 'TR')
-        || trainImages.length !== 1
-        || trainImage?.tagName !== 'IMG'
-        || trainLayer?.tagName !== 'DIV'
-        || trainStage?.tagName !== 'DIV'
-        || !trainStage.classList.contains('rt-sign-stage')
+        || trainCarriers.length !== 1
         || trainCarrier?.tagName !== 'TD'
         || !trainCarrier.classList.contains('rt-sign-cell')
-        || trainImage.parentElement !== trainLayer
-        || trainLayer.parentElement !== trainStage
-        || trainStage.lastElementChild !== trainLayer
-        || trainStage.parentElement !== trainCarrier
-        || trainCarrier.lastElementChild !== trainStage
         || trainCarrier.parentElement !== rows[0]) {
         throw new Error('Die sichere Tabellenstruktur des Signatur-Editors fehlt.');
     }
+
+    const carrierStyle = String(trainCarrier.getAttribute('style') || '');
+    if (!carrierStyle.includes(MAIL_PREVIEW_TRANSPARENT_PIXEL)) {
+        throw new Error('Die Vorschau-Bindung des CSS-Zughintergrunds fehlt.');
+    }
+    trainCarrier.setAttribute('style', carrierStyle.replace(
+        MAIL_PREVIEW_TRANSPARENT_PIXEL,
+        '{{TRAIN_SRC}}',
+    ));
+    trainCarrier.removeAttribute(MAIL_PREVIEW_BACKGROUND_ATTRIBUTE);
 
     const baselineContactProjection = bindSignatureContactMarkerRows(baselineHtml, parser);
     restoreSignatureContactMarkers(wrapper, baselineContactProjection.hasMarkers);
@@ -1571,14 +1546,9 @@ export function serializeMailDocumentForSave({
         image.removeAttribute(MAIL_PREVIEW_IMAGE_ATTRIBUTE);
     });
 
-    const restoredTrainImages = wrapper.querySelectorAll('img[data-rt-train]');
-    const restoredTrainLayers = wrapper.querySelectorAll('div.rt-sign-train-layer[data-rt-layer-train]');
-    if (restoredTrainImages.length !== 1
-        || restoredTrainLayers.length !== 1
-        || restoredTrainImages[0].parentElement !== restoredTrainLayers[0]
-        || !restoredTrainImages[0].classList.contains('rt-sign-train')
-        || restoredTrainImages[0].getAttribute('src') !== '{{TRAIN_SRC}}') {
-        throw new Error('Die Bindung des RailTime-Zugbildes wurde im Editor beschädigt.');
+    if (!String(trainCarrier.getAttribute('style') || '').includes('{{TRAIN_SRC}}')
+        || wrapper.querySelectorAll('img[data-rt-train], div.rt-sign-train-layer[data-rt-layer-train]').length !== 0) {
+        throw new Error('Die Bindung des RailTime-CSS-Zughintergrunds wurde im Editor beschädigt.');
     }
 
     assertRestorableSignatureMainMarker(body, rows);
@@ -1770,6 +1740,13 @@ export function hydrateMailCanvasAssets(editor, theme = 'light', previewAssets =
         hydrated += 1;
     });
 
+    canvasDocument.querySelectorAll(`[${MAIL_PREVIEW_BACKGROUND_ATTRIBUTE}="TRAIN_SRC"]`).forEach((carrier) => {
+        if (!sources.TRAIN_SRC) return;
+        const current = String(carrier.style.backgroundImage || '');
+        carrier.style.backgroundImage = current.replace(MAIL_PREVIEW_TRANSPARENT_PIXEL, sources.TRAIN_SRC);
+        hydrated += 1;
+    });
+
     return hydrated;
 }
 
@@ -1799,6 +1776,21 @@ export function restartMailCanvasAnimations(editor, { nonce = Date.now() } = {})
     };
 
     visit(root);
+    const canvasDocument = editor?.Canvas?.getDocument?.();
+    canvasDocument?.querySelectorAll?.(`[${MAIL_PREVIEW_BACKGROUND_ATTRIBUTE}="TRAIN_SRC"]`).forEach((carrier) => {
+        const current = String(carrier.style.backgroundImage || '');
+        const restartedBackground = current.replace(
+            /url\((["']?)([^)"']+)\1\)/i,
+            (_match, quote, source) => {
+                const clean = source.replace(/#_rt_preview_restart=[^#]*/g, '');
+                return `url(${quote}${clean}#_rt_preview_restart=${nonce}-${restarted}${quote})`;
+            },
+        );
+        if (restartedBackground !== current) {
+            carrier.style.backgroundImage = restartedBackground;
+            restarted += 1;
+        }
+    });
     return restarted;
 }
 
@@ -2049,16 +2041,17 @@ export function protectMailSystemComponents(editor) {
         const token = attributes[MAIL_PREVIEW_IMAGE_ATTRIBUTE];
         const preview = attributes['data-rt-mail-preview-only'];
         const block = attributes[MAIL_BLOCK_ATTRIBUTE];
-        if (token === 'TRAIN_SRC') return 'Zugbild (geschützt)';
+        if (attributes[MAIL_PREVIEW_BACKGROUND_ATTRIBUTE] === 'TRAIN_SRC') return 'Zug-Hintergrund';
+        if (token === 'TRAIN_SRC') return 'Zugbild';
         if (preview === 'application') return 'Anwendungsinhalt (geschützt)';
         if (preview === 'signature') return 'Signatur-Platzhalter (geschützt)';
         if (token === 'ICON_RT_SRC') return 'RT-Zeichen (geschützt)';
-        if (token === 'LOGO_SRC') return 'Firmenlogo (geschützt)';
+        if (token === 'LOGO_SRC') return 'Firmenlogo';
         if (token?.startsWith?.('ICON_')) return 'Kontakt-Icon (geschützt)';
         if (classes.includes('rt-shell')) return 'Nachrichtenschale';
         if (classes.includes('rt-sign-content')) return 'Signatur-Inhalt';
-        if (classes.includes('rt-sign-stage')) return 'Signatur-Bühne (geschützt)';
-        if (classes.includes('rt-sign-train-layer')) return 'Zug-Hintergrundebene (geschützt)';
+        if (classes.includes('rt-sign-stage')) return 'Signatur-Bühne';
+        if (classes.includes('rt-sign-train-layer')) return 'Zug-Hintergrundebene';
         if (classes.includes('rt-sign-identity')) return 'Personendaten';
         if (classes.includes('rt-sign-logo')) return 'Firmendaten';
         if (classes.includes('rt-company-contact')) return 'Firmenkontakte';
@@ -2123,11 +2116,17 @@ export function protectMailSystemComponents(editor) {
                 ancestor = ancestor?.parent?.();
             }
         }
-        if (attributes[MAIL_PREVIEW_IMAGE_ATTRIBUTE] === 'TRAIN_SRC') {
-            protect(component, { layerable: true });
-        }
-        if (classNames(attributes).includes('rt-sign-stage')) {
-            protect(component, { layerable: true });
+        if ([MAIL_PREVIEW_IMAGE_ATTRIBUTE, MAIL_PREVIEW_BACKGROUND_ATTRIBUTE]
+            .some((attribute) => attributes[attribute] === 'TRAIN_SRC')
+            || attributes[MAIL_PREVIEW_IMAGE_ATTRIBUTE] === 'LOGO_SRC') {
+            component.set?.({
+                stylable: true,
+                selectable: true,
+                hoverable: true,
+                layerable: true,
+                removable: false,
+                copyable: false,
+            }, { silent: true });
         }
         if (attributes['data-rt-layer-train'] !== undefined
             || classNames(attributes).includes('rt-sign-train-layer')) {
@@ -2168,7 +2167,7 @@ export function protectMailSystemComponents(editor) {
                 ],
             }, { silent: true });
             synchronizeMailTrainLayerAlignment(component);
-            protect(component, { layerable: true });
+            component.set?.({ stylable: true, selectable: true, layerable: true }, { silent: true });
         }
         children(component).forEach(visit);
     };

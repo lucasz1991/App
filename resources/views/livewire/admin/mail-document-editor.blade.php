@@ -109,6 +109,41 @@
                     </p>
 
                     <div class="rt-mail-studio-toolbar__action-buttons" role="group" aria-label="Code, Import, Export, Entwurf und Veröffentlichung">
+                        <details class="relative" data-mail-more-actions>
+                            <summary class="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:border-rt-accent/40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                                <i data-feather="more-horizontal" class="h-4 w-4" aria-hidden="true"></i>
+                                <span>Werkzeuge</span>
+                            </summary>
+                            <div class="absolute right-0 z-50 mt-2 grid min-w-72 gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                        <label class="sr-only" for="mail-document-version-select">Gespeicherte Version</label>
+                        <select id="mail-document-version-select" data-mail-document-version class="min-h-11 max-w-52 rounded-lg border border-slate-200 bg-white px-2 text-xs dark:border-slate-700 dark:bg-slate-900" title="Gespeicherte Version auswählen">
+                            <option value="">Version auswählen</option>
+                        </select>
+
+                        <x-ui.buttons.button-basic
+                            type="button"
+                            mode="secondary"
+                            size="sm"
+                            class="min-h-11 shrink-0 rounded-lg px-3"
+                            data-mail-document-version-restore
+                            title="Ausgewählte Version als neuen Entwurf wiederherstellen"
+                        >
+                            <i data-feather="clock" class="h-4 w-4" aria-hidden="true"></i>
+                            <span class="rt-mail-studio-toolbar__utility-label">Wiederherstellen</span>
+                        </x-ui.buttons.button-basic>
+
+                        <x-ui.buttons.button-basic
+                            type="button"
+                            mode="secondary"
+                            size="sm"
+                            class="min-h-11 shrink-0 rounded-lg px-3"
+                            data-mail-document-test-mail
+                            title="Testmail an die Admin-E-Mail-Adresse der Systemeinstellungen senden"
+                        >
+                            <i data-feather="send" class="h-4 w-4" aria-hidden="true"></i>
+                            <span class="rt-mail-studio-toolbar__utility-label">Testmail</span>
+                        </x-ui.buttons.button-basic>
+
                         <x-ui.buttons.button-basic
                             type="button"
                             mode="secondary"
@@ -144,6 +179,9 @@
                             <i data-feather="file-plus" class="h-4 w-4" aria-hidden="true"></i>
                             <span class="rt-mail-studio-toolbar__action-label rt-mail-studio-toolbar__utility-label">Import</span>
                         </x-ui.buttons.button-basic>
+
+                            </div>
+                        </details>
 
                         <x-ui.buttons.button-basic
                             type="button"
@@ -465,6 +503,9 @@
                     const document_ = config.documents?.[config.currentDocument];
                     const saveButton = studioRoot.querySelector('[data-mail-document-save]');
                     const publishButton = studioRoot.querySelector('[data-mail-document-publish]');
+                    const testMailButton = studioRoot.querySelector('[data-mail-document-test-mail]');
+                    const versionSelect = studioRoot.querySelector('[data-mail-document-version]');
+                    const restoreVersionButton = studioRoot.querySelector('[data-mail-document-version-restore]');
                     const messageNode = studioRoot.querySelector('[data-mail-document-message]');
                     const findingsBox = studioRoot.querySelector('[data-mail-document-findings]');
                     const findingsList = studioRoot.querySelector('[data-mail-document-findings-list]');
@@ -524,6 +565,9 @@
                             exportButton,
                             importButton,
                             codeApplyButton,
+                            testMailButton,
+                            versionSelect,
+                            restoreVersionButton,
                             ...codeCancelButtons,
                         ].forEach((button) => {
                             if (!button) return;
@@ -640,6 +684,21 @@
                         return normalized;
                     };
 
+                    const renderVersions = (versions = document_.versions || []) => {
+                        if (!versionSelect) return;
+                        const selected = versionSelect.value;
+                        versionSelect.replaceChildren(new Option('Version auswählen', ''));
+                        versions.forEach((version) => {
+                            const published = version.was_published ? ' · veröffentlicht' : '';
+                            const creator = version.creator ? ` · ${version.creator}` : '';
+                            versionSelect.appendChild(new Option(
+                                `#${version.revision} · ${version.action_label} · ${version.created_label || ''}${creator}${published}`,
+                                version.id,
+                            ));
+                        });
+                        if (versions.some((version) => version.id === selected)) versionSelect.value = selected;
+                    };
+
                     const applyDocumentState = (payload) => {
                         if (!payload) return;
 
@@ -649,6 +708,11 @@
                         document_.version = payload.version ?? document_.version;
                         document_.status = payload.status || document_.status;
                         document_.hasUnpublishedChanges = Boolean(payload.has_unpublished_changes);
+                        if (typeof payload.html === 'string') document_.html = payload.html;
+                        if (typeof payload.css === 'string') document_.css = payload.css;
+                        if (payload.builder_data) document_.builderData = payload.builder_data;
+                        if (Array.isArray(payload.versions)) document_.versions = payload.versions;
+                        renderVersions();
 
                         if (statusBadge) {
                             statusBadge.dataset.status = document_.status;
@@ -659,6 +723,7 @@
                                 : statusBadge.dataset.statusLabel;
                         }
                     };
+                    renderVersions();
 
                     const loadOnce = (tag, attributes) => new Promise((resolve, reject) => {
                         const selector = tag === 'link'
@@ -1499,6 +1564,58 @@
                         } catch (error) {
                             const surfaced = showRequestError(error, 'Speichern nicht möglich');
                             toast('error', surfaced.message, 'Nicht gespeichert');
+                        } finally {
+                            setActionsBusy(false);
+                        }
+                    }, { signal: controlListeners.signal });
+
+                    testMailButton?.addEventListener('click', async () => {
+                        setActionsBusy(true);
+                        try {
+                            await saveCurrentDraft();
+                            const payload = await request(document_.endpoints.testMail, 'POST', {
+                                expected_hash: document_.contentHash || '',
+                            });
+                            setMessage(payload.message || 'Testmail wurde gesendet.');
+                            toast('success', payload.message || 'Testmail wurde gesendet.', 'Testmail gesendet');
+                        } catch (error) {
+                            const surfaced = showRequestError(error, 'Testmail nicht möglich');
+                            toast('error', surfaced.message, 'Testmail nicht gesendet');
+                        } finally {
+                            setActionsBusy(false);
+                        }
+                    }, { signal: controlListeners.signal });
+
+                    restoreVersionButton?.addEventListener('click', async () => {
+                        const selected = (document_.versions || []).find((version) => version.id === versionSelect?.value);
+                        if (!selected) {
+                            toast('warning', 'Bitte zuerst eine gespeicherte Version auswählen.', 'Keine Version gewählt');
+                            return;
+                        }
+                        if (!window.confirm(`Version #${selected.revision} als neuen Entwurf wiederherstellen? Die veröffentlichte Fassung bleibt aktiv.`)) return;
+
+                        setActionsBusy(true);
+                        try {
+                            await saveCurrentDraft();
+                            const payload = await request(selected.restore_url, 'POST', {
+                                expected_hash: document_.contentHash || '',
+                            });
+                            applyDocumentState(payload.document);
+                            activeBaselineHtml = String(document_.html || '');
+                            await runtimeBridge.rehydrateAuthoritative({
+                                editor: instance.editor,
+                                draft: document_,
+                                sanitizationChanged: true,
+                                parseCss: (canonicalCss) => instance.editor.Parser?.parseCss?.(canonicalCss) || [],
+                                projectOptions: { kind: config.currentDocument, environment: window },
+                            });
+                            selectTheme(selectedTheme);
+                            selectDevice(selectedDevice);
+                            setMessage(`Version #${selected.revision} wurde als neuer Entwurf wiederhergestellt.`);
+                            toast('success', 'Die Veröffentlichung wurde nicht verändert.', 'Version wiederhergestellt');
+                        } catch (error) {
+                            const surfaced = showRequestError(error, 'Version konnte nicht wiederhergestellt werden');
+                            toast('error', surfaced.message, 'Wiederherstellung fehlgeschlagen');
                         } finally {
                             setActionsBusy(false);
                         }

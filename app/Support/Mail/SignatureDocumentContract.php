@@ -13,8 +13,8 @@ use RuntimeException;
 /** Gemeinsamer Save-/Publish-/Web-/Outlook-Vertrag der Signaturquelle. */
 final class SignatureDocumentContract
 {
-    /** Aktueller gespeicherter Vertrag: bildfreie Signatur mit Flow-Zug-IMG. */
-    public const SCHEMA = 19;
+    /** Aktueller gespeicherter Vertrag: Zug als CSS-Hintergrund der Signaturzelle. */
+    public const SCHEMA = 20;
 
     /** @var list<string> */
     private const REQUIRED_TOKENS = [
@@ -126,12 +126,6 @@ final class SignatureDocumentContract
         if (preg_match('/\b(?:rt-train-idle-(?:overlay|image)|data-rt-train-idle-(?:overlay|image))\b/i', $decodedHtml) === 1) {
             throw new RuntimeException('Die serverseitige Idle-Rauchebene darf nicht im Signaturentwurf gespeichert werden.');
         }
-        if (preg_match(
-            '/\b(?:rt-sign-train-background|data-rt-train-(?:background|align|size|mobile))\b/i',
-            $decodedHtml,
-        ) === 1) {
-            throw new RuntimeException('Der serverseitige Zug-Background darf nicht im Signaturentwurf gespeichert werden.');
-        }
         if (preg_match('/<style\b/i', $decodedHtml) === 1) {
             throw new RuntimeException('Das Signaturfragment darf keinen eigenen style-Block enthalten.');
         }
@@ -145,7 +139,9 @@ final class SignatureDocumentContract
         self::assertExactMarkers($html);
         self::assertLegacyTrainStill($html, $decodedHtml, $allowLegacyTrainStill);
 
-        if (SignatureTrainCarrier::hasCanonicalImage($html)) {
+        if (SignatureTrainCarrier::hasCanonicalBackground($html)) {
+            SignatureTrainCarrier::assertCanonicalBackground($html);
+        } elseif (SignatureTrainCarrier::hasCanonicalImage($html)) {
             if ($allowLegacyDirectImage || $allowLegacyPercentHeight || $allowLegacyAbsoluteImage) {
                 // Der Runtime-Einstieg akzeptiert nur die im Carrier selbst
                 // exakt beschriebenen Altvertraege und normalisiert sie ohne
@@ -174,7 +170,7 @@ final class SignatureDocumentContract
             // erneut veroeffentlichen.
             SignatureTrainCarrier::normalize($html);
         } else {
-            throw new RuntimeException('Der Zug muss als regulaeres Bild und nicht als Hintergrund gespeichert werden.');
+            throw new RuntimeException('Der Zug muss als kanonischer CSS-Hintergrund der Signaturzelle gespeichert werden.');
         }
         self::assertTableStructure($html, $allowLegacyPaddedCarrier);
     }
