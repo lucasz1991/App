@@ -109,79 +109,142 @@
                     </p>
 
                     <div class="rt-mail-studio-toolbar__action-buttons" role="group" aria-label="Code, Import, Export, Entwurf und Veröffentlichung">
-                        <details class="relative" data-mail-more-actions>
-                            <summary class="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:border-rt-accent/40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
-                                <i data-feather="more-horizontal" class="h-4 w-4" aria-hidden="true"></i>
-                                <span>Werkzeuge</span>
-                            </summary>
-                            <div class="absolute right-0 z-50 mt-2 grid min-w-72 gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-xl dark:border-slate-700 dark:bg-slate-900">
-                        <label class="sr-only" for="mail-document-version-select">Gespeicherte Version</label>
-                        <select id="mail-document-version-select" data-mail-document-version class="min-h-11 max-w-52 rounded-lg border border-slate-200 bg-white px-2 text-xs dark:border-slate-700 dark:bg-slate-900" title="Gespeicherte Version auswählen">
-                            <option value="">Version auswählen</option>
-                        </select>
-
-                        <x-ui.buttons.button-basic
-                            type="button"
-                            mode="secondary"
-                            size="sm"
-                            class="min-h-11 shrink-0 rounded-lg px-3"
-                            data-mail-document-version-restore
-                            title="Ausgewählte Version als neuen Entwurf wiederherstellen"
+                        <x-ui.dropdown.anchor-dropdown
+                            align="right"
+                            width="96"
+                            :offset="8"
+                            dropdown-id="mail-document-versions-{{ $currentDocument->kind->value }}"
+                            layer-group="mail-document-editor"
+                            content-role="dialog"
+                            content-label="Gespeicherte Versionen"
+                            content-classes="bg-rt-surface p-1.5 text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text"
+                            dropdown-classes="shadow-xl"
+                            data-mail-document-version
                         >
-                            <i data-feather="clock" class="h-4 w-4" aria-hidden="true"></i>
-                            <span class="rt-mail-studio-toolbar__utility-label">Wiederherstellen</span>
-                        </x-ui.buttons.button-basic>
+                            <x-slot:trigger>
+                                <x-ui.buttons.button-basic
+                                    type="button"
+                                    mode="secondary"
+                                    size="sm"
+                                    class="min-h-11 min-w-0 shrink-0 rounded-lg px-3"
+                                    data-mail-document-version-trigger
+                                    title="Gespeicherte Version auswählen"
+                                >
+                                    <i data-feather="history" class="h-4 w-4 shrink-0" aria-hidden="true"></i>
+                                    <span data-mail-document-version-trigger-label class="max-w-40 truncate">Versionen</span>
+                                    <i data-feather="chevron-down" class="h-3.5 w-3.5 shrink-0 transition-transform" :class="open && 'rotate-180'" aria-hidden="true"></i>
+                                </x-ui.buttons.button-basic>
+                            </x-slot:trigger>
 
-                        <x-ui.buttons.button-basic
-                            type="button"
-                            mode="secondary"
-                            size="sm"
-                            class="min-h-11 shrink-0 rounded-lg px-3"
-                            data-mail-document-test-mail
-                            title="Testmail an die Admin-E-Mail-Adresse der Systemeinstellungen senden"
+                            <x-slot:content>
+                                <div class="grid gap-1.5">
+                                    <span id="mail-document-version-label" class="px-3 pb-1 pt-2 text-xs font-semibold text-rt-muted dark:text-rt-dark-muted">
+                                        Gespeicherte Version
+                                    </span>
+                                    <div
+                                        id="mail-document-version-listbox"
+                                        role="listbox"
+                                        aria-labelledby="mail-document-version-label"
+                                        class="max-h-72 space-y-1 overflow-y-auto"
+                                        data-mail-document-version-list
+                                    ></div>
+                                    <div class="border-t border-rt-border px-1.5 pt-1.5 dark:border-rt-dark-border">
+                                        <x-ui.buttons.button-basic
+                                            type="button"
+                                            mode="secondary"
+                                            size="sm"
+                                            class="min-h-11 w-full justify-start rounded-lg px-3"
+                                            data-mail-document-version-restore
+                                            disabled
+                                            title="Ausgewählte Version als neuen Entwurf wiederherstellen"
+                                        >
+                                            <i data-feather="clock" class="h-4 w-4" aria-hidden="true"></i>
+                                            <span class="rt-mail-studio-toolbar__utility-label">Wiederherstellen</span>
+                                        </x-ui.buttons.button-basic>
+                                    </div>
+                                </div>
+                            </x-slot:content>
+                        </x-ui.dropdown.anchor-dropdown>
+
+                        <x-ui.dropdown.anchor-dropdown
+                            align="right"
+                            width="80"
+                            :offset="8"
+                            dropdown-id="mail-document-tools-{{ $currentDocument->kind->value }}"
+                            layer-group="mail-document-editor"
+                            content-role="dialog"
+                            content-label="Werkzeuge des E-Mail-Editors"
+                            content-classes="bg-rt-surface p-3 text-rt-text dark:bg-rt-dark-surface dark:text-rt-dark-text"
+                            dropdown-classes="shadow-xl"
+                            data-mail-more-actions
                         >
-                            <i data-feather="send" class="h-4 w-4" aria-hidden="true"></i>
-                            <span class="rt-mail-studio-toolbar__utility-label">Testmail</span>
-                        </x-ui.buttons.button-basic>
+                            <x-slot:trigger>
+                                <x-ui.buttons.button-basic
+                                    type="button"
+                                    mode="secondary"
+                                    size="sm"
+                                    class="min-h-11 shrink-0 rounded-lg px-3"
+                                    title="Weitere Werkzeuge des E-Mail-Editors öffnen"
+                                >
+                                    <i data-feather="more-horizontal" class="h-4 w-4" aria-hidden="true"></i>
+                                    <span>Werkzeuge</span>
+                                    <i data-feather="chevron-down" class="h-3.5 w-3.5 transition-transform" :class="open && 'rotate-180'" aria-hidden="true"></i>
+                                </x-ui.buttons.button-basic>
+                            </x-slot:trigger>
 
-                        <x-ui.buttons.button-basic
-                            type="button"
-                            mode="secondary"
-                            size="sm"
-                            class="min-h-11 shrink-0 rounded-lg px-3"
-                            data-mail-code-open
-                            title="Kanonischen HTML- und CSS-Code ansehen oder bearbeiten"
-                        >
-                            <i data-feather="code" class="h-4 w-4" aria-hidden="true"></i>
-                            <span class="rt-mail-studio-toolbar__action-label rt-mail-studio-toolbar__utility-label">Code</span>
-                        </x-ui.buttons.button-basic>
+                            <x-slot:content>
+                                <div class="grid gap-2">
+                                    <x-ui.buttons.button-basic
+                                        type="button"
+                                        mode="secondary"
+                                        size="sm"
+                                        class="min-h-11 w-full justify-start rounded-lg px-3"
+                                        data-mail-document-test-mail
+                                        title="Testmail an die Admin-E-Mail-Adresse der Systemeinstellungen senden"
+                                    >
+                                        <i data-feather="send" class="h-4 w-4" aria-hidden="true"></i>
+                                        <span class="rt-mail-studio-toolbar__utility-label">Testmail</span>
+                                    </x-ui.buttons.button-basic>
 
-                        <x-ui.buttons.button-basic
-                            type="button"
-                            mode="secondary"
-                            size="sm"
-                            class="min-h-11 shrink-0 rounded-lg px-3"
-                            data-mail-code-export
-                            title="Kanonischen Entwurf als portables JSON-Bundle exportieren"
-                        >
-                            <i data-feather="download" class="h-4 w-4" aria-hidden="true"></i>
-                            <span class="rt-mail-studio-toolbar__action-label rt-mail-studio-toolbar__utility-label">Export</span>
-                        </x-ui.buttons.button-basic>
+                                    <x-ui.buttons.button-basic
+                                        type="button"
+                                        mode="secondary"
+                                        size="sm"
+                                        class="min-h-11 w-full justify-start rounded-lg px-3"
+                                        data-mail-code-open
+                                        title="Kanonischen HTML- und CSS-Code ansehen oder bearbeiten"
+                                    >
+                                        <i data-feather="code" class="h-4 w-4" aria-hidden="true"></i>
+                                        <span class="rt-mail-studio-toolbar__action-label rt-mail-studio-toolbar__utility-label">Code</span>
+                                    </x-ui.buttons.button-basic>
 
-                        <x-ui.buttons.button-basic
-                            type="button"
-                            mode="secondary"
-                            size="sm"
-                            class="min-h-11 shrink-0 rounded-lg px-3"
-                            data-mail-code-import
-                            title="JSON-Bundle, HTML- oder CSS-Datei als Entwurf importieren"
-                        >
-                            <i data-feather="file-plus" class="h-4 w-4" aria-hidden="true"></i>
-                            <span class="rt-mail-studio-toolbar__action-label rt-mail-studio-toolbar__utility-label">Import</span>
-                        </x-ui.buttons.button-basic>
+                                    <x-ui.buttons.button-basic
+                                        type="button"
+                                        mode="secondary"
+                                        size="sm"
+                                        class="min-h-11 w-full justify-start rounded-lg px-3"
+                                        data-mail-code-export
+                                        title="Kanonischen Entwurf als portables JSON-Bundle exportieren"
+                                    >
+                                        <i data-feather="download" class="h-4 w-4" aria-hidden="true"></i>
+                                        <span class="rt-mail-studio-toolbar__action-label rt-mail-studio-toolbar__utility-label">Export</span>
+                                    </x-ui.buttons.button-basic>
 
-                            </div>
-                        </details>
+                                    <x-ui.buttons.button-basic
+                                        type="button"
+                                        mode="secondary"
+                                        size="sm"
+                                        class="min-h-11 w-full justify-start rounded-lg px-3"
+                                        data-mail-code-import
+                                        title="JSON-Bundle, HTML- oder CSS-Datei als Entwurf importieren"
+                                    >
+                                        <i data-feather="file-plus" class="h-4 w-4" aria-hidden="true"></i>
+                                        <span class="rt-mail-studio-toolbar__action-label rt-mail-studio-toolbar__utility-label">Import</span>
+                                    </x-ui.buttons.button-basic>
+
+                                </div>
+                            </x-slot:content>
+                        </x-ui.dropdown.anchor-dropdown>
 
                         <x-ui.buttons.button-basic
                             type="button"
@@ -503,9 +566,6 @@
                     const document_ = config.documents?.[config.currentDocument];
                     const saveButton = studioRoot.querySelector('[data-mail-document-save]');
                     const publishButton = studioRoot.querySelector('[data-mail-document-publish]');
-                    const testMailButton = studioRoot.querySelector('[data-mail-document-test-mail]');
-                    const versionSelect = studioRoot.querySelector('[data-mail-document-version]');
-                    const restoreVersionButton = studioRoot.querySelector('[data-mail-document-version-restore]');
                     const messageNode = studioRoot.querySelector('[data-mail-document-message]');
                     const findingsBox = studioRoot.querySelector('[data-mail-document-findings]');
                     const findingsList = studioRoot.querySelector('[data-mail-document-findings-list]');
@@ -516,9 +576,6 @@
                     const themeButtons = Array.from(studioRoot.querySelectorAll('[data-mail-theme-button]'));
                     const deviceButtons = Array.from(studioRoot.querySelectorAll('[data-mail-preview-device]'));
                     const replayButton = studioRoot.querySelector('[data-mail-preview-replay]');
-                    const codeButton = studioRoot.querySelector('[data-mail-code-open]');
-                    const exportButton = studioRoot.querySelector('[data-mail-code-export]');
-                    const importButton = studioRoot.querySelector('[data-mail-code-import]');
                     const importFile = studioRoot.querySelector('[data-mail-code-import-file]');
                     const codeDialog = studioRoot.querySelector('[data-mail-code-dialog]');
                     const codeHtml = studioRoot.querySelector('[data-mail-code-html]');
@@ -542,12 +599,52 @@
                     let activeBaselineHtml = String(document_.html || '');
                     let codeDialogOpener = null;
                     let pendingPortableMedia = [];
+                    let selectedVersionId = '';
                     const controlListeners = new AbortController();
                     const MAIL_SOURCE_FORMAT = 'railtime-mail-document';
                     const MAIL_SOURCE_VERSION = 2;
                     const MAX_SOURCE_BYTES = 1024 * 1024;
                     const MAX_BUNDLE_BYTES = 16 * 1024 * 1024;
                     const MAX_MEDIA_BYTES = 2 * 1024 * 1024;
+                    const toolsPanelId = `rt-dropdown-mail-document-tools-${config.currentDocument}-content`;
+                    const versionsPanelId = `rt-dropdown-mail-document-versions-${config.currentDocument}-content`;
+                    const queryToolControl = (selector) => window.document
+                        .getElementById(toolsPanelId)
+                        ?.querySelector(selector) || null;
+                    const queryVersionControl = (selector) => studioRoot
+                        .querySelector(`[data-mail-document-version] ${selector}`)
+                        || window.document.getElementById(versionsPanelId)?.querySelector(selector)
+                        || null;
+                    const bindTeleportedControl = (queryControl, selector, listener, attempt = 0) => {
+                        const control = queryControl(selector);
+                        if (control) {
+                            control.addEventListener('click', listener, { signal: controlListeners.signal });
+                            return;
+                        }
+
+                        // anchor-dropdown teleportiert seinen Inhalt nach body.
+                        // Livewire @script kann einen Frame vor Alpine laufen;
+                        // deshalb wird nur die Bindung kurz nachgeholt, niemals
+                        // eine zweite Editorinstanz erzeugt.
+                        if (!destroyed && attempt < 60) {
+                            window.requestAnimationFrame(() => bindTeleportedControl(
+                                queryControl,
+                                selector,
+                                listener,
+                                attempt + 1,
+                            ));
+                        }
+                    };
+                    const bindToolControl = (selector, listener) => bindTeleportedControl(
+                        queryToolControl,
+                        selector,
+                        listener,
+                    );
+                    const bindVersionControl = (selector, listener) => bindTeleportedControl(
+                        queryVersionControl,
+                        selector,
+                        listener,
+                    );
 
                     const toast = (type, text, title) => window.dispatchEvent(new CustomEvent('swal:toast', {
                         detail: { type, text, title: title || undefined },
@@ -558,21 +655,22 @@
                     };
 
                     const setActionsBusy = (busy) => {
+                        const restoreButton = queryVersionControl('[data-mail-document-version-restore]');
                         [
                             saveButton,
                             publishButton,
-                            codeButton,
-                            exportButton,
-                            importButton,
                             codeApplyButton,
-                            testMailButton,
-                            versionSelect,
-                            restoreVersionButton,
+                            queryToolControl('[data-mail-code-open]'),
+                            queryToolControl('[data-mail-code-export]'),
+                            queryToolControl('[data-mail-code-import]'),
+                            queryToolControl('[data-mail-document-test-mail]'),
+                            queryVersionControl('[data-mail-document-version-trigger]'),
+                            restoreButton,
                             ...codeCancelButtons,
                         ].forEach((button) => {
                             if (!button) return;
 
-                            button.disabled = busy;
+                            button.disabled = busy || (button === restoreButton && selectedVersionId === '');
                             button.setAttribute('aria-busy', String(busy));
                         });
                     };
@@ -684,19 +782,49 @@
                         return normalized;
                     };
 
-                    const renderVersions = (versions = document_.versions || []) => {
-                        if (!versionSelect) return;
-                        const selected = versionSelect.value;
-                        versionSelect.replaceChildren(new Option('Version auswählen', ''));
+                    const renderVersions = (versions = document_.versions || [], attempt = 0) => {
+                        const list = queryVersionControl('[data-mail-document-version-list]');
+                        const triggerLabel = queryVersionControl('[data-mail-document-version-trigger-label]');
+                        const restoreButton = queryVersionControl('[data-mail-document-version-restore]');
+                        if (!list || !triggerLabel || !restoreButton) {
+                            if (!destroyed && attempt < 60) {
+                                window.requestAnimationFrame(() => renderVersions(versions, attempt + 1));
+                            }
+                            return;
+                        }
+
+                        const selected = versions.find((version) => String(version.id) === selectedVersionId) || null;
+                        if (!selected) selectedVersionId = '';
+                        triggerLabel.textContent = selected
+                            ? `#${selected.revision} · ${selected.action_label}`
+                            : 'Versionen';
+                        restoreButton.disabled = !selected;
+                        list.replaceChildren();
+
+                        if (versions.length === 0) {
+                            const empty = window.document.createElement('p');
+                            empty.className = 'px-3 py-2 text-sm text-rt-muted dark:text-rt-dark-muted';
+                            empty.textContent = 'Noch keine gespeicherte Version vorhanden.';
+                            list.appendChild(empty);
+                            return;
+                        }
+
                         versions.forEach((version) => {
                             const published = version.was_published ? ' · veröffentlicht' : '';
                             const creator = version.creator ? ` · ${version.creator}` : '';
-                            versionSelect.appendChild(new Option(
-                                `#${version.revision} · ${version.action_label} · ${version.created_label || ''}${creator}${published}`,
-                                version.id,
-                            ));
+                            const option = window.document.createElement('button');
+                            option.type = 'button';
+                            option.setAttribute('role', 'option');
+                            option.setAttribute('aria-selected', String(String(version.id) === selectedVersionId));
+                            option.dataset.mailDocumentVersionOption = String(version.id);
+                            option.className = 'flex min-h-11 w-full items-start gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium text-rt-text outline-none transition hover:bg-rt-surface-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rt-accent/35 dark:text-rt-dark-text dark:hover:bg-rt-dark-surface-muted dark:focus-visible:ring-rt-dark-accent/40';
+                            option.textContent = `#${version.revision} · ${version.action_label} · ${version.created_label || ''}${creator}${published}`;
+                            option.addEventListener('click', () => {
+                                selectedVersionId = String(version.id);
+                                renderVersions(versions);
+                            }, { signal: controlListeners.signal });
+                            list.appendChild(option);
                         });
-                        if (versions.some((version) => version.id === selected)) versionSelect.value = selected;
                     };
 
                     const applyDocumentState = (payload) => {
@@ -882,7 +1010,9 @@
 
                         const existingMetadata = document_.builderData?.railtime;
                         const railtime = { document: config.currentDocument };
-                        if (Number.isInteger(existingMetadata?.schema)) {
+                        if (config.currentDocument === 'signature') {
+                            railtime.schema = runtimeBridge.signatureSchema;
+                        } else if (Number.isInteger(existingMetadata?.schema)) {
                             railtime.schema = existingMetadata.schema;
                         }
 
@@ -1428,7 +1558,8 @@
                         }
                     };
 
-                    codeButton?.addEventListener('click', () => {
+                    bindToolControl('[data-mail-code-open]', (event) => {
+                        const codeButton = event.currentTarget;
                         try {
                             openCodeDialog(
                                 currentCanonicalSource(),
@@ -1439,9 +1570,10 @@
                             const surfaced = showRequestError(error, 'Codeansicht nicht verfügbar');
                             toast('error', surfaced.message, 'Codeansicht nicht verfügbar');
                         }
-                    }, { signal: controlListeners.signal });
+                    });
 
-                    exportButton?.addEventListener('click', async () => {
+                    bindToolControl('[data-mail-code-export]', async (event) => {
+                        const exportButton = event.currentTarget;
                         try {
                             exportButton.disabled = true;
                             exportButton.setAttribute('aria-busy', 'true');
@@ -1456,9 +1588,10 @@
                             exportButton.disabled = false;
                             exportButton.setAttribute('aria-busy', 'false');
                         }
-                    }, { signal: controlListeners.signal });
+                    });
 
-                    importButton?.addEventListener('click', () => {
+                    bindToolControl('[data-mail-code-import]', (event) => {
+                        const importButton = event.currentTarget;
                         if (!instance) {
                             const error = new Error('Der Editor ist noch nicht vollständig geladen.');
                             const surfaced = showRequestError(error, 'Import nicht möglich');
@@ -1468,7 +1601,7 @@
 
                         codeDialogOpener = importButton;
                         importFile?.click();
-                    }, { signal: controlListeners.signal });
+                    });
 
                     importFile?.addEventListener('change', async () => {
                         const file = importFile.files?.[0] || null;
@@ -1569,7 +1702,7 @@
                         }
                     }, { signal: controlListeners.signal });
 
-                    testMailButton?.addEventListener('click', async () => {
+                    bindToolControl('[data-mail-document-test-mail]', async () => {
                         setActionsBusy(true);
                         try {
                             await saveCurrentDraft();
@@ -1584,10 +1717,12 @@
                         } finally {
                             setActionsBusy(false);
                         }
-                    }, { signal: controlListeners.signal });
+                    });
 
-                    restoreVersionButton?.addEventListener('click', async () => {
-                        const selected = (document_.versions || []).find((version) => version.id === versionSelect?.value);
+                    bindVersionControl('[data-mail-document-version-restore]', async () => {
+                        const selected = (document_.versions || []).find(
+                            (version) => String(version.id) === selectedVersionId,
+                        );
                         if (!selected) {
                             toast('warning', 'Bitte zuerst eine gespeicherte Version auswählen.', 'Keine Version gewählt');
                             return;
@@ -1619,7 +1754,7 @@
                         } finally {
                             setActionsBusy(false);
                         }
-                    }, { signal: controlListeners.signal });
+                    });
 
                     publishButton?.addEventListener('click', async () => {
                         setActionsBusy(true);

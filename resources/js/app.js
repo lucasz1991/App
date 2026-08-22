@@ -68,6 +68,7 @@ import { filePreview } from './file-preview';
 import { filePoolDropzone, filePoolExternalDrop } from './filepool-upload';
 import { registerRailtimeLiveLocation } from './live-location';
 import {
+    MAIL_SIGNATURE_SCHEMA,
     createMailBuilder,
     createMailNavigationController,
     projectForMailDocument,
@@ -651,6 +652,7 @@ window.RailTimeWagonMotion = createWagonListMotion();
 // Modul bewusst KEINEN eigenen Startvorgang mit (es haengt an keinem
 // Livewire-Ereignis); eingehaengt wird es von der Editorseite selbst.
 window.RailTimeMailBuilder = {
+    signatureSchema: MAIL_SIGNATURE_SCHEMA,
     create: createMailBuilder,
     createNavigationController: createMailNavigationController,
     projectFor: projectForMailDocument,
