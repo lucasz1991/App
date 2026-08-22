@@ -13,8 +13,8 @@ use RuntimeException;
 /** Gemeinsamer Save-/Publish-/Web-/Outlook-Vertrag der Signaturquelle. */
 final class SignatureDocumentContract
 {
-    /** Aktueller Vertrag: fliessender Zug-Layer zuerst, Inhalt danach. */
-    public const SCHEMA = 24;
+    /** Aktueller Vertrag: feste 200-Pixel-Buehne, Zug-Layer zuerst, Inhalt danach. */
+    public const SCHEMA = 25;
 
     /** @var list<string> */
     private const REQUIRED_TOKENS = [
@@ -91,7 +91,7 @@ final class SignatureDocumentContract
     /**
      * Laufzeitvertrag fuer bereits veroeffentlichte Signaturen.
      *
-     * Neue Editor-/Publish-Staende muessen immer den Schema-24-IMG-Vertrag
+     * Neue Editor-/Publish-Staende muessen immer den Schema-25-IMG-Vertrag
      * besitzen. Der Versand darf daneben nur die einzeln beschriebenen
      * Altformen lesen: Schema 6 (Padding), Schema 9/20 (Background), Schema
      * 12-19 (Bild-Layer) und bekannte Flow-Zwischenstaende.
@@ -143,7 +143,7 @@ final class SignatureDocumentContract
             if ($allowLegacyDirectImage || $allowLegacyPercentHeight || $allowLegacyAbsoluteImage) {
                 // Der Runtime-Einstieg akzeptiert nur die im Carrier selbst
                 // exakt beschriebenen Altvertraege und normalisiert sie ohne
-                // Persistenz in Schema 24. Neue Saves bleiben strikt.
+                // Persistenz in Schema 25. Neue Saves bleiben strikt.
                 SignatureTrainCarrier::normalize($html);
             } else {
                 SignatureTrainCarrier::assertCanonicalImage($html);
@@ -163,7 +163,7 @@ final class SignatureDocumentContract
             }
         } elseif ($allowLegacyTrainCarrier && SignatureTrainCarrier::hasCanonicalBackground($html)) {
             // Schema 20 bleibt ausschliesslich als veroeffentlichter Altstand
-            // lesbar. Die Ausgabe projiziert ihn ohne DB-Mutation zu Schema 24.
+            // lesbar. Die Ausgabe projiziert ihn ohne DB-Mutation zu Schema 25.
             SignatureTrainCarrier::assertCanonicalBackground($html);
         } elseif ($allowLegacyTrainCarrier) {
             // Bereits publizierte Schema-9-Staende bleiben bis zum expliziten
@@ -468,8 +468,7 @@ final class SignatureDocumentContract
     ): bool {
         if (! self::hasExactClasses($carrierClasses, ['rt-sign-cell'])
             || ! self::hasExactPadding($carrier, 'zero')
-            || count($contentCells) !== 1
-            || substr_count($html, 'rt-sign-content') !== 1) {
+            || count($contentCells) !== 1) {
             return false;
         }
 

@@ -76,7 +76,7 @@ test('mobile rules restyle the same signature nodes without hide-and-show copies
     assert.match(mobile, /data-rt-layer-mobile="right"\]\[data-rt-layer-size\][\s\S]*?width:\s*200% !important;\s*max-width:\s*none !important;\s*margin-left:\s*-100% !important;/);
 });
 
-test('delivery keeps the train-first flow overlap and its MSO fallback inside the layer', async () => {
+test('delivery keeps the fixed train pixel frame and its MSO fallback inside the bottom slot', async () => {
     const [signature, runtime, carrier, preview] = await Promise.all([
         source('../../resources/views/emails/parts/signature.blade.php'),
         source('../../app/Support/MailSignature.php'),
@@ -89,9 +89,12 @@ test('delivery keeps the train-first flow overlap and its MSO fallback inside th
     );
 
     assert.match(signature, /\$trainSrc = \$outlookTrainSrc !== ''/);
-    assert.match(signature, /<div class="rt-sign-stage" style="position:relative;overflow:hidden;">/);
-    assert.match(signature, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="display:block;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-7\.3611%;[^"\r\n]*overflow:hidden;[^"\r\n]*text-align:left;">/);
-    assert.match(signature, /<img class="rt-sign-train" data-rt-train src="\{\{ \$trainSrc \}\}" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;[^\"]*vertical-align:top;[^\"]*mso-hide:all;">/);
+    assert.match(signature, /<div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;">/);
+    assert.match(signature, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto 0 0;margin-bottom:-200px;[^"\r\n]*overflow:hidden;[^"\r\n]*text-align:left;">/);
+    assert.match(signature, /<table class="rt-sign-train-frame" role="presentation" width="100%" height="200"/);
+    assert.match(signature, /<td class="rt-sign-train-slot" height="200" valign="bottom"/);
+    assert.match(signature, /<table class="rt-sign-content-frame" role="presentation" width="100%" height="200"/);
+    assert.match(signature, /<img class="rt-sign-train" data-rt-train src="\{\{ \$trainSrc \}\}" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;[^\"]*vertical-align:bottom;[^\"]*mso-hide:all;">/);
     assert.doesNotMatch(signature, /url\(\{\$values\['TRAIN_SRC'\]\}\)/);
     assert.doesNotMatch(signature, /data-rt-outlook-train/);
     assert.doesNotMatch(signature, /<td[^>]+background="\{\{[^}]*TRAIN/);
@@ -110,12 +113,12 @@ test('delivery keeps the train-first flow overlap and its MSO fallback inside th
     assert.match(carrier, /public static function withIdleOverlay/);
     assert.equal(occurrences(carrier, /<!--\[if mso\]><tr><td class="rt-sign-train-mso"/g), 0);
     assert.match(carrier, /<!--\[if mso\]><img class="rt-sign-train-mso"/);
-    assert.match(msoFallback, /<img class="rt-sign-train-mso"[^>]*display:inline-block;[^>]*vertical-align:top;/);
+    assert.match(msoFallback, /<img class="rt-sign-train-mso"[^>]*display:inline-block;[^>]*vertical-align:bottom;/);
     assert.match(msoFallback, /self::assertRuntimeImages\(\$html, expectedMsoSource: \$source\);[\s\S]*?return \$html;/);
     assert.doesNotMatch(carrier, /<v:(?:rect|fill)\b/);
-    assert.match(carrier, /<div class="rt-sign-stage" style="position:relative;overflow:hidden;">/);
-    assert.match(carrier, /<div class="rt-sign-train-layer" data-rt-layer-train[^>]*style="display:block;[^"\r\n]*margin-bottom:-7\.3611%;/);
-    assert.match(msoFallback, /substr_replace\(\$html, \$fallback, \$layers\[0\]\['endOffset'\] \+ 1, 0\)/);
+    assert.match(carrier, /<div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;">/);
+    assert.match(carrier, /<div class="rt-sign-train-layer" data-rt-layer-train[^>]*style="display:block;[^"\r\n]*height:200px;max-height:200px;[^"\r\n]*margin-bottom:-200px;/);
+    assert.match(msoFallback, /substr_replace\(\$html, \$fallback, \$slots\[0\]\['endOffset'\] \+ 1, 0\)/);
     assert.match(carrier, /<img class="rt-sign-train" data-rt-train src="'\.\$source\.'" width="720"[^>]*style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;/);
     assert.match(preview, /MailSignature::forCompany\(/);
     assert.match(preview, /->renderDocument\(/);
@@ -124,8 +127,8 @@ test('delivery keeps the train-first flow overlap and its MSO fallback inside th
     assert.match(carrier, /data-rt-train-idle-overlay/);
     assert.match(carrier, /<span class="rt-train-idle-overlay" data-rt-train-idle-overlay[\s\S]*?<img class="rt-train-idle-image" data-rt-train-idle-image src="'\.\$escapedSource\.'"[\s\S]*?<\/span>/);
     assert.match(carrier, /data-rt-train-idle-overlay[^>]*position:absolute;[^>]*display:block;[^>]*height:0;max-height:0;[^>]*overflow:hidden;/);
-    assert.match(carrier, /data-rt-train-idle-overlay[^>]*top:0;bottom:auto;[^>]*max-width:none;[^>]*text-align:left/);
-    assert.match(carrier, /rt-train-idle-image[^>]*position:static;[^>]*bottom:auto;[^>]*display:inline-block;[^>]*vertical-align:top;/);
+    assert.match(carrier, /data-rt-train-idle-overlay[^>]*top:auto;bottom:0;[^>]*max-width:none;[^>]*text-align:left/);
+    assert.match(carrier, /rt-train-idle-image[^>]*position:absolute;[^>]*bottom:0;[^>]*display:inline-block;[^>]*vertical-align:bottom;/);
     assert.doesNotMatch(carrier, /background-image:[^;]*(?:TRAIN|train|\.gif)/);
     assert.doesNotMatch(runtime, /rt-classic-outlook-train/);
 });

@@ -21,14 +21,15 @@ import {
     resolveMailPreviewDevice,
     serializeMailDocumentForSave,
     serializeMailProjectStyles,
+    synchronizeMailSignatureFixedGeometry,
     synchronizeMailTrainLayerAlignment,
 } from '../../resources/js/mail-builder.js';
 import { createMailBlocks, mailCanvasStyles } from '../../resources/js/mail-builder-blocks.js';
 
-const canonicalTrain = '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="display:block;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-7.3611%;overflow:hidden;font-size:0;line-height:0;text-align:left;"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all;"></div>';
-const canonicalSignatureStage = (content = '') => '<div class="rt-sign-stage" style="position:relative;overflow:hidden;">'
+const canonicalTrain = '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto 0 0;margin-bottom:-200px;overflow:hidden;font-size:0;line-height:0;text-align:left;"><table class="rt-sign-train-frame" role="presentation" width="100%" height="200" border="0" cellspacing="0" cellpadding="0" style="width:100%;height:200px;border-collapse:collapse;"><tbody><tr><td class="rt-sign-train-slot" height="200" valign="bottom" style="height:200px;padding:0;text-align:left;vertical-align:bottom;font-size:0;line-height:0;"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:bottom;mso-hide:all;"></td></tr></tbody></table></div>';
+const canonicalSignatureStage = (content = '') => '<div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;">'
     + canonicalTrain
-    + '<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">'
+    + '<table class="rt-sign-content-frame" role="presentation" width="100%" height="200" border="0" cellspacing="0" cellpadding="0" style="width:100%;height:200px;border-collapse:collapse;">'
     + `<tbody><tr><td>${content}</td></tr></tbody></table>`
     + '</div>';
 
@@ -196,11 +197,8 @@ test('signature project gets a valid editor-only table and a reversible train im
     assert.deepEqual(draft.builderData, source);
 });
 
-test('schema 22 train overlaps migrate to the schema 24 flow layer', () => {
-    const legacyTrain = canonicalTrain.replace(
-        'display:block;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-7.3611%;overflow:hidden;font-size:0;line-height:0;text-align:left;',
-        'position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-150px;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;',
-    );
+test('schema 22 train overlaps migrate deterministically to the schema 25 pixel frame', () => {
+    const legacyTrain = '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-150px;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all;"></div>';
     const legacyStage = (train) => canonicalSignatureStage('Inhalt').replace(canonicalTrain, train);
     const variants = [
         {
@@ -213,7 +211,7 @@ test('schema 22 train overlaps migrate to the schema 24 flow layer', () => {
         },
     ];
 
-    variants.forEach(({ label, stage }, index) => {
+    variants.forEach(({ label, stage }) => {
         const original = `<tr><td class="rt-sign-cell">${stage}</td></tr>`
             + '<!-- RT_SIGNATURE_MAIN_END --><tr><td>Rechtliches</td></tr>';
         const project = projectForMailDocument({
@@ -240,8 +238,12 @@ test('schema 22 train overlaps migrate to the schema 24 flow layer', () => {
         assert.equal(trainLayer.style.position || '', '', label);
         assert.equal(trainLayer.style.bottom || '', '', label);
         assert.equal(trainLayer.style.margin, '0 auto 0 0', label);
-        assert.equal(trainLayer.style.marginBottom, index === 0 ? '-7.3611%' : '-72px', label);
-        assert.equal(outgoing.project.railtime.schema, 24, label);
+        assert.equal(trainLayer.style.height, '200px', label);
+        assert.equal(trainLayer.style.maxHeight, '200px', label);
+        assert.equal(trainLayer.style.marginBottom, '-200px', label);
+        assert.equal(trainLayer.querySelector('table.rt-sign-train-frame')?.getAttribute('height'), '200', label);
+        assert.equal(trainLayer.querySelector('td.rt-sign-train-slot')?.getAttribute('valign'), 'bottom', label);
+        assert.equal(outgoing.project.railtime.schema, 25, label);
     });
 });
 
@@ -277,23 +279,30 @@ test('signature preview hydrates the train image and roundtrips two canonical ro
     );
     const outgoingStage = outgoingDocument.querySelector('td.rt-sign-cell > div.rt-sign-stage');
     const outgoingLayer = outgoingStage?.querySelector(':scope > div.rt-sign-train-layer[data-rt-layer-train]');
-    const outgoingTrain = outgoingLayer?.querySelector(':scope > img.rt-sign-train[data-rt-train]');
-    const outgoingContent = outgoingStage?.querySelector(':scope > table');
+    const outgoingFrame = outgoingLayer?.querySelector(':scope > table.rt-sign-train-frame');
+    const outgoingSlot = outgoingFrame?.querySelector('td.rt-sign-train-slot');
+    const outgoingTrain = outgoingSlot?.querySelector(':scope > img.rt-sign-train[data-rt-train]');
+    const outgoingContent = outgoingStage?.querySelector(':scope > table.rt-sign-content-frame');
     assert.ok(outgoingStage, 'the signature must retain its canonical relative stage');
-    assert.equal(outgoingStage.getAttribute('style'), 'position:relative;overflow:hidden;');
+    assert.equal(outgoingStage.getAttribute('style'), 'position:relative;height:200px;max-height:200px;overflow:hidden;');
     assert.equal(outgoingContent.style.marginBottom || '', '');
     assert.equal(outgoingStage.firstElementChild, outgoingLayer);
     assert.equal(
         outgoingLayer.getAttribute('style'),
-        'display:block;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-7.3611%;overflow:hidden;font-size:0;line-height:0;text-align:left;',
+        'display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto 0 0;margin-bottom:-200px;overflow:hidden;font-size:0;line-height:0;text-align:left;',
     );
+    assert.equal(outgoingFrame.getAttribute('height'), '200');
+    assert.equal(outgoingFrame.getAttribute('style'), 'width:100%;height:200px;border-collapse:collapse;');
+    assert.equal(outgoingSlot.getAttribute('height'), '200');
+    assert.equal(outgoingSlot.getAttribute('valign'), 'bottom');
     assert.equal(outgoingTrain.getAttribute('width'), '720');
     assert.equal(
         outgoingTrain.getAttribute('style'),
-        'position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all;',
+        'position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:bottom;mso-hide:all;',
     );
     assert.equal(outgoingStage.lastElementChild, outgoingContent);
-    assert.equal(outgoingLayer.lastElementChild, outgoingTrain);
+    assert.equal(outgoingLayer.lastElementChild, outgoingFrame);
+    assert.equal(outgoingSlot.lastElementChild, outgoingTrain);
     assert.match(outgoing.html, /<\/table><\/div><\/td><\/tr>\n<!-- RT_SIGNATURE_MAIN_END -->\n<tr>/);
     assert.equal(outgoing.project.pages[0].component, outgoing.html);
 
@@ -525,9 +534,10 @@ test('signature save fails closed when a preview marker is removed', () => {
 });
 
 test('signature load fails closed for a second or displaced train binding', () => {
-    const duplicateTrain = `<tr><td class="rt-sign-cell"><div class="rt-sign-stage" style="position:relative;overflow:hidden;">${canonicalTrain}${canonicalTrain}<table style="position:relative;z-index:1;"><tbody><tr><td>Inhalt</td></tr></tbody></table></div></td></tr><tr><td>Rechtliches</td></tr>`;
-    const displacedTrain = '<tr><td class="rt-sign-cell"><div class="rt-sign-stage" style="position:relative;overflow:hidden;">'
-        + '<table style="position:relative;z-index:1;"><tbody><tr><td>Inhalt</td></tr></tbody></table></div>'
+    const duplicateStage = canonicalSignatureStage('Inhalt').replace(canonicalTrain, canonicalTrain + canonicalTrain);
+    const duplicateTrain = `<tr><td class="rt-sign-cell">${duplicateStage}</td></tr><tr><td>Rechtliches</td></tr>`;
+    const displacedTrain = '<tr><td class="rt-sign-cell"><div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;">'
+        + '<table class="rt-sign-content-frame" role="presentation" width="100%" height="200" border="0" cellspacing="0" cellpadding="0" style="width:100%;height:200px;border-collapse:collapse;"><tbody><tr><td>Inhalt</td></tr></tbody></table></div>'
         + `</td><td>${canonicalTrain}</td></tr><tr><td>Rechtliches</td></tr>`;
 
     assert.throws(() => projectForMailDocument({
@@ -546,9 +556,10 @@ test('GrapesJS inline import rules are merged in cascade order without touching 
         'src="{{TRAIN_SRC}}"',
         `data-rt-mail-preview-token="TRAIN_SRC" src="${transparent}"`,
     );
+    const editorStage = canonicalSignatureStage('<span class="c777 c101 c102" data-rt-mail-inline-source="s1" style="padding:9px;">Inhalt</span>')
+        .replace(canonicalTrain, editorTrain);
     const html = '<table data-rt-mail-signature-canvas="true"><tbody>'
-        + '<tr><td class="rt-sign-cell"><div class="rt-sign-stage" style="position:relative;overflow:hidden;">'
-        + `${editorTrain}<table style="position:relative;z-index:1;"><tbody><tr><td class="c777 c101 c102" data-rt-mail-inline-source="s1" style="padding:9px;">Inhalt</td></tr></tbody></table></div></td></tr>`
+        + `<tr><td class="rt-sign-cell">${editorStage}</td></tr>`
         + '<tr><td class="c777">Rechtliches</td></tr>'
         + '</tbody></table>';
     const project = {
@@ -791,12 +802,19 @@ test('built-in mail blocks keep content and formatting without persisting editor
 });
 
 test('protected mail layers keep the regular train image visible and structural', () => {
-    const component = (attributes = {}, tagName = 'div', children = []) => {
-        const state = { attributes, tagName };
+    const component = (attributes = {}, tagName = 'div', children = [], style = {}) => {
+        const state = { attributes, tagName, style };
         const item = {
             components: () => ({ models: children }),
             get: (key) => state[key],
             getAttributes: () => attributes,
+            getStyle: () => style,
+            addAttributes: (next) => Object.assign(attributes, next),
+            setStyle: (next) => {
+                Object.keys(style).forEach((name) => delete style[name]);
+                Object.assign(style, next);
+            },
+            removeStyle: (name) => { delete style[name]; },
             parent: () => item.parentComponent || null,
             set: (values) => Object.assign(state, values),
             state,
@@ -809,9 +827,13 @@ test('protected mail layers keep the regular train image visible and structural'
     const markRow = component({}, 'tr', [markCell]);
     const logo = component({ 'data-rt-mail-preview-token': 'LOGO_SRC' }, 'img');
     const train = component({ 'data-rt-mail-preview-token': 'TRAIN_SRC', 'data-rt-train': '' }, 'img');
-    const trainLayer = component({ class: 'rt-sign-train-layer', 'data-rt-layer-train': '', 'data-rt-layer-align': 'left' }, 'div', [train]);
-    const carrierContent = component({}, 'table');
-    const trainStage = component({ class: 'rt-sign-stage' }, 'div', [carrierContent, trainLayer]);
+    const trainSlot = component({ class: 'rt-sign-train-slot' }, 'td', [train]);
+    const trainFrameRow = component({}, 'tr', [trainSlot]);
+    const trainFrameBody = component({}, 'tbody', [trainFrameRow]);
+    const trainFrame = component({ class: 'rt-sign-train-frame' }, 'table', [trainFrameBody]);
+    const trainLayer = component({ class: 'rt-sign-train-layer', 'data-rt-layer-train': '', 'data-rt-layer-align': 'left' }, 'div', [trainFrame]);
+    const carrierContent = component({ class: 'rt-sign-content-frame' }, 'table');
+    const trainStage = component({ class: 'rt-sign-stage' }, 'div', [trainLayer, carrierContent]);
     const carrier = component({ class: 'rt-sign-cell' }, 'td', [trainStage]);
     const applicationNote = component({}, 'div');
     const applicationCell = component({}, 'td', [applicationNote]);
@@ -820,8 +842,8 @@ test('protected mail layers keep the regular train image visible and structural'
     const ordinaryImage = component({ src: 'https://app.rail-time.test/mail-assets/content.png', alt: 'Teambild' }, 'img');
     const root = component({}, 'body', [markRow, logo, carrier, applicationRow, ordinary, ordinaryImage]);
 
-    assert.equal(protectMailSystemComponents({ getWrapper: () => root }), 5);
-    [mark, markCell, applicationRow, applicationCell, applicationNote].forEach((protectedComponent) => {
+    assert.equal(protectMailSystemComponents({ getWrapper: () => root }), 9);
+    [mark, markCell, applicationRow, applicationCell, applicationNote, trainStage, trainFrame, trainSlot, carrierContent].forEach((protectedComponent) => {
         assert.equal(protectedComponent.state.stylable, false);
         assert.equal(protectedComponent.state.editable, false);
         assert.equal(protectedComponent.state.draggable, false);
@@ -844,16 +866,19 @@ test('protected mail layers keep the regular train image visible and structural'
     assert.equal(logo.state['custom-name'], 'Firmenlogo');
     assert.equal(trainLayer.state['custom-name'], 'Zug-Bildebene');
     assert.equal(trainLayer.state.layerable, true);
-    assert.equal(trainLayer.state.stylable, true);
+    assert.equal(trainLayer.state.stylable, false);
     assert.equal(trainStage.state['custom-name'], 'Signatur-Bühne');
-    assert.equal(trainStage.state.layerable, undefined);
+    assert.equal(trainStage.state.layerable, true);
+    assert.equal(trainFrame.state['custom-name'], 'Fester Zugrahmen');
+    assert.equal(trainSlot.state['custom-name'], 'Zugposition unten');
+    assert.equal(carrierContent.state['custom-name'], 'Fester Signatur-Inhaltsrahmen');
     assert.deepEqual(
         trainLayer.state.traits.map((trait) => trait.label),
         ['Desktop-Ausschnitt', 'Zugbreite', 'Mobil-Ausschnitt'],
     );
     assert.equal(markCell.state['custom-name'], 'RT-Zeichen (geschützt)');
     assert.equal(applicationRow.state['custom-name'], 'Anwendungsinhalt (geschützt)');
-    [markRow, carrier, carrierContent, ordinary].forEach((editableComponent) => {
+    [markRow, carrier, ordinary].forEach((editableComponent) => {
         assert.equal(editableComponent.state.stylable, undefined);
     });
     assert.equal(ordinaryImage.state['custom-name'], 'Teambild');
@@ -865,7 +890,7 @@ test('protected mail layers keep the regular train image visible and structural'
     assert.equal(ordinaryImage.getAttributes()['data-rt-image-align'], 'left');
 });
 
-test('train layer editor maps presets onto the flow overlap contract', () => {
+test('train layer editor maps presets onto the fixed schema 25 pixel contract', () => {
     const state = { left: '0', right: 'auto', margin: '0', 'margin-bottom': '-150px', height: '100%' };
     const layerStyleOptions = [];
     const imageStyleOptions = [];
@@ -891,6 +916,25 @@ test('train layer editor maps presets onto the flow overlap contract', () => {
             Object.assign(imageState, next);
         },
     };
+    const fixedModel = (attributes, style, children = []) => ({
+        getAttributes: () => attributes,
+        getStyle: () => style,
+        addAttributes: (next) => Object.assign(attributes, next),
+        setStyle: (next) => {
+            Object.keys(style).forEach((name) => delete style[name]);
+            Object.assign(style, next);
+        },
+        removeStyle: (name) => { delete style[name]; },
+        components: () => ({ models: children }),
+    });
+    const slotAttributes = { class: 'rt-sign-train-slot' };
+    const slotState = {};
+    const slot = fixedModel(slotAttributes, slotState, [image]);
+    const row = fixedModel({}, {}, [slot]);
+    const body = fixedModel({}, {}, [row]);
+    const frameAttributes = { class: 'rt-sign-train-frame' };
+    const frameState = {};
+    const frame = fixedModel(frameAttributes, frameState, [body]);
     const component = {
         getAttributes: () => attributes,
         getStyle: () => state,
@@ -898,18 +942,29 @@ test('train layer editor maps presets onto the flow overlap contract', () => {
             layerStyleOptions.push(options);
             Object.assign(state, next);
         },
-        components: () => ({ models: [image] }),
+        removeStyle: (name) => { delete state[name]; },
+        components: () => ({ models: [frame] }),
     };
 
     assert.equal(synchronizeMailTrainLayerAlignment(component), true);
     assert.deepEqual(state, {
         display: 'block',
+        height: '200px',
+        'max-height': '200px',
         margin: '0 auto',
-        'margin-bottom': '-150px',
+        'margin-bottom': '-200px',
         width: '100%',
         'max-width': '1815px',
+        overflow: 'hidden',
+        'font-size': '0',
+        'line-height': '0',
         'text-align': 'left',
     });
+    assert.equal(frameAttributes.height, '200');
+    assert.equal(frameState.height, '200px');
+    assert.equal(slotAttributes.height, '200');
+    assert.equal(slotAttributes.valign, 'bottom');
+    assert.equal(slotState['vertical-align'], 'bottom');
     assert.equal(imageAttributes.width, '720');
     assert.equal(imageState.position, 'static');
     assert.equal(imageState.left, 'auto');
@@ -919,7 +974,7 @@ test('train layer editor maps presets onto the flow overlap contract', () => {
     assert.equal(imageState.width, '125%');
     assert.equal(imageState['max-width'], 'none');
     assert.equal(imageState.margin, '0 0 0 -12.5%');
-    assert.equal(imageState['vertical-align'], 'top');
+    assert.equal(imageState['vertical-align'], 'bottom');
     attributes['data-rt-layer-align'] = 'right';
     for (const [sizeName, geometry] of Object.entries({
         100: ['100%', '0'],
@@ -933,7 +988,7 @@ test('train layer editor maps presets onto the flow overlap contract', () => {
         assert.equal(state.left, undefined);
         assert.equal(state.right, undefined);
         assert.equal(state.margin, '0 0 0 auto');
-        assert.equal(state['margin-bottom'], '-150px');
+        assert.equal(state['margin-bottom'], '-200px');
         assert.equal(state.width, '100%');
         assert.equal(state['max-width'], '1815px');
         assert.equal(state['text-align'], 'left');
@@ -948,10 +1003,15 @@ test('train layer editor maps presets onto the flow overlap contract', () => {
     assert.equal(synchronizeMailTrainLayerAlignment(component), true);
     assert.deepEqual(state, {
         display: 'block',
+        height: '200px',
+        'max-height': '200px',
         margin: '0 auto 0 0',
-        'margin-bottom': '-72px',
+        'margin-bottom': '-200px',
         width: '100%',
         'max-width': '1815px',
+        overflow: 'hidden',
+        'font-size': '0',
+        'line-height': '0',
         'text-align': 'left',
     });
     assert.equal(attributes['data-rt-layer-align'], 'left');
@@ -961,6 +1021,40 @@ test('train layer editor maps presets onto the flow overlap contract', () => {
     assert.equal(imageStyleOptions.length > 0, true);
     [...layerStyleOptions, ...imageStyleOptions].forEach((options) => {
         assert.deepEqual(options, { silent: true });
+    });
+});
+
+test('fixed signature geometry resets stage and content frame directly to pixels', () => {
+    const create = (className, attributes, style) => ({
+        getAttributes: () => attributes,
+        getStyle: () => style,
+        addAttributes: (next) => Object.assign(attributes, next),
+        removeStyle: (name) => { delete style[name]; },
+        setStyle: (next) => {
+            Object.keys(style).forEach((name) => delete style[name]);
+            Object.assign(style, next);
+        },
+    });
+    const stageAttributes = { class: 'rt-sign-stage' };
+    const stageStyle = { position: 'relative', height: '37%', 'max-height': '800px', overflow: 'visible' };
+    const stage = create('rt-sign-stage', stageAttributes, stageStyle);
+    const contentAttributes = { class: 'rt-sign-content-frame', height: '73%' };
+    const contentStyle = { width: '100%', height: '73%', 'border-collapse': 'collapse', 'margin-bottom': '-73%' };
+    const content = create('rt-sign-content-frame', contentAttributes, contentStyle);
+
+    assert.equal(synchronizeMailSignatureFixedGeometry(stage), true);
+    assert.deepEqual(stageStyle, {
+        position: 'relative',
+        height: '200px',
+        'max-height': '200px',
+        overflow: 'hidden',
+    });
+    assert.equal(synchronizeMailSignatureFixedGeometry(content), true);
+    assert.equal(contentAttributes.height, '200');
+    assert.deepEqual(contentStyle, {
+        width: '100%',
+        height: '200px',
+        'border-collapse': 'collapse',
     });
 });
 
@@ -1379,7 +1473,7 @@ test('mail toolbar keeps documents, preview and publishing in non-overlapping re
     assert.match(mobile, /\.rt-mail-studio-toolbar__action-buttons[\s\S]*?grid-column:\s*2[\s\S]*?grid-row:\s*2/);
 });
 
-test('signature source uses a train-first flow overlap with a Classic Outlook still', async () => {
+test('signature source uses a fixed schema 25 pixel frame with a Classic Outlook still', async () => {
     const { readFile } = await import('node:fs/promises');
     const [css, signatureSource, trainAsset, carrier, runtime] = await Promise.all([
         readFile(new URL('../../resources/views/emails/parts/responsive-css.blade.php', import.meta.url), 'utf8'),
@@ -1388,21 +1482,23 @@ test('signature source uses a train-first flow overlap with a Classic Outlook st
         readFile(new URL('../../app/Support/Mail/SignatureTrainCarrier.php', import.meta.url), 'utf8'),
         readFile(new URL('../../app/Support/MailSignature.php', import.meta.url), 'utf8'),
     ]);
-    assert.match(signatureSource, /<div class="rt-sign-stage" style="position:relative;overflow:hidden;">/);
-    assert.match(signatureSource, /<table role="presentation"[^>]*style="width:100%;border-collapse:collapse;">/);
+    assert.match(signatureSource, /<div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;">/);
+    assert.match(signatureSource, /<table class="rt-sign-content-frame" role="presentation"[^>]*height="200"[^>]*style="width:100%;height:200px;border-collapse:collapse;">/);
     assert.doesNotMatch(signatureSource, /<td class="rt-sign-cell"[^>]*position:relative/);
     assert.match(signatureSource, /<img class="rt-sign-train" data-rt-train src="\{\{ \$trainSrc \}\}"/);
-    assert.match(signatureSource, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="display:block;[^"\r\n]*margin:0 auto 0 0;margin-bottom:-7\.3611%;[^"\r\n]*overflow:hidden;/);
+    assert.match(signatureSource, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto 0 0;margin-bottom:-200px;[^"\r\n]*overflow:hidden;/);
+    assert.match(signatureSource, /<table class="rt-sign-train-frame" role="presentation" width="100%" height="200"[^>]*style="width:100%;height:200px;border-collapse:collapse;">/);
+    assert.match(signatureSource, /<td class="rt-sign-train-slot" height="200" valign="bottom" style="height:200px;[^"\r\n]*vertical-align:bottom;/);
     assert.doesNotMatch(signatureSource, /rt-sign-train-layer[^>]*position:absolute/);
-    assert.ok(signatureSource.indexOf('class="rt-sign-train-layer"') < signatureSource.indexOf('<table role="presentation" width="100%"'));
-    assert.match(signatureSource, /<img class="rt-sign-train"[^>]*width="720"[^>]*style="position:static;[^"\r\n]*bottom:auto;display:inline-block;[^"\r\n]*vertical-align:top;[^"\r\n]*mso-hide:all;/);
+    assert.ok(signatureSource.indexOf('class="rt-sign-train-layer"') < signatureSource.indexOf('class="rt-sign-content-frame"'));
+    assert.match(signatureSource, /<img class="rt-sign-train"[^>]*width="720"[^>]*style="position:static;[^"\r\n]*bottom:auto;display:inline-block;[^"\r\n]*vertical-align:bottom;[^"\r\n]*mso-hide:all;/);
     assert.doesNotMatch(signatureSource, /url\(\{\$values\['TRAIN_SRC'\]\}\)/);
     assert.doesNotMatch(css, /\.rt-sign-cell\.rt-sign-train-background/);
     assert.match(css, /\.rt-sign-train-layer\s*\{[^}]*display:\s*block !important;[^}]*margin-top:\s*0 !important;/s);
     assert.doesNotMatch(css, /\.rt-sign-train-layer\s*\{[^}]*position:\s*absolute !important;/s);
     assert.doesNotMatch(css, /\.rt-sign-train-layer\s*\{[^}]*margin-bottom:\s*0 !important;/s);
-    assert.match(css, /\.rt-sign-train,\s*\.rt-sign-train-mso\s*\{[^}]*position:\s*static !important;[^}]*display:\s*inline-block !important;[^}]*vertical-align:\s*top !important;/s);
-    assert.match(css, /\.rt-train-idle-overlay\s*\{[^}]*position:\s*absolute !important;[^}]*top:\s*0 !important;[^}]*height:\s*0 !important;/s);
+    assert.match(css, /\.rt-sign-train,\s*\.rt-sign-train-mso\s*\{[^}]*position:\s*static !important;[^}]*display:\s*inline-block !important;[^}]*vertical-align:\s*bottom !important;/s);
+    assert.match(css, /\.rt-train-idle-overlay\s*\{[^}]*position:\s*absolute !important;[^}]*bottom:\s*0 !important;[^}]*height:\s*0 !important;/s);
     assert.match(css, /@keyframes rt-train-idle-reveal/);
     assert.match(css, /animation-delay:\s*13s/);
 
@@ -1421,7 +1517,7 @@ test('signature source uses a train-first flow overlap with a Classic Outlook st
             carrier.indexOf('public static function withMsoFallback'),
             carrier.indexOf('public static function withIdleOverlay'),
         ),
-        /<img class="rt-sign-train-mso"[^>]*display:inline-block;[^>]*vertical-align:top;/,
+        /<img class="rt-sign-train-mso"[^>]*display:inline-block;[^>]*vertical-align:bottom;/,
     );
     assert.doesNotMatch(carrier, /<v:(?:rect|fill)\b/);
 

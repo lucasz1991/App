@@ -388,6 +388,7 @@ final class EmailHtmlSanitizer
         'rt-sign-top-row', 'rt-sign-company-row',
         'rt-sign-logo', 'rt-sign-identity', 'rt-sign-company', 'rt-sign-name',
         'rt-sign-stage', 'rt-sign-train', 'rt-sign-train-layer',
+        'rt-sign-train-frame', 'rt-sign-train-slot', 'rt-sign-content-frame',
         'rt-train-idle-overlay', 'rt-train-idle-runtime-layer', 'rt-train-idle-surface',
         'rt-train-idle-image',
         // Die Anschrift steht seit dem symmetrischen Umbau nur noch einmal
@@ -1455,12 +1456,18 @@ final class EmailHtmlSanitizer
     private function allowsAbsoluteTrainPosition(DOMElement $element): bool
     {
         $classes = preg_split('/\s+/', trim($element->getAttribute('class')), -1, PREG_SPLIT_NO_EMPTY) ?: [];
-        $tag = strtolower($element->tagName);
-        $layer = $tag === 'div' ? $element : $element->parentNode;
+        $layer = null;
+        for ($candidate = $element; $candidate instanceof DOMElement; $candidate = $candidate->parentNode) {
+            $candidateClasses = preg_split('/\s+/', trim($candidate->getAttribute('class')), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            if (strtolower($candidate->tagName) === 'div'
+                && $candidate->hasAttribute('data-rt-layer-train')
+                && $candidateClasses === ['rt-sign-train-layer']) {
+                $layer = $candidate;
+                break;
+            }
+        }
         if (! $layer instanceof DOMElement
-            || strtolower($layer->tagName) !== 'div'
-            || ! $layer->hasAttribute('data-rt-layer-train')
-            || (preg_split('/\s+/', trim($layer->getAttribute('class')), -1, PREG_SPLIT_NO_EMPTY) ?: []) !== ['rt-sign-train-layer']) {
+            || strtolower($layer->tagName) !== 'div') {
             return false;
         }
 
@@ -1477,9 +1484,11 @@ final class EmailHtmlSanitizer
         }
 
         $images = [];
-        foreach ($layer->childNodes as $child) {
-            if ($child instanceof DOMElement) {
-                $images[] = $child;
+        foreach ($layer->getElementsByTagName('img') as $image) {
+            if ($image instanceof DOMElement
+                && ($image->hasAttribute('data-rt-train')
+                    || (preg_split('/\s+/', trim($image->getAttribute('class')), -1, PREG_SPLIT_NO_EMPTY) ?: []) === ['rt-sign-train'])) {
+                $images[] = $image;
             }
         }
         $image = $images[0] ?? null;
@@ -1492,7 +1501,20 @@ final class EmailHtmlSanitizer
             return false;
         }
 
-        return $element->isSameNode($layer) || $element->isSameNode($image);
+        if ($element->isSameNode($layer) || $element->isSameNode($image)) {
+            return true;
+        }
+
+        if ($classes === ['rt-train-idle-overlay']
+            && $element->hasAttribute('data-rt-train-idle-overlay')) {
+            return true;
+        }
+
+        return strtolower($element->tagName) === 'img'
+            && $classes === ['rt-train-idle-image']
+            && $element->hasAttribute('data-rt-train-idle-image')
+            && $element->parentNode instanceof DOMElement
+            && (preg_split('/\s+/', trim($element->parentNode->getAttribute('class')), -1, PREG_SPLIT_NO_EMPTY) ?: []) === ['rt-train-idle-overlay'];
     }
 
     private function isAllowedProperty(string $property): bool

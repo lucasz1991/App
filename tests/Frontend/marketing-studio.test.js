@@ -15,6 +15,7 @@ import {
     enforceProtectedComponentModels,
     handleScopedRtePaste,
     installScopedAssetAccess,
+    isFixedMailSignatureGeometry,
     isProtectedEditorStructure,
     isProtectedEditorStructureTree,
     LMZ_EDITOR_MODES,
@@ -1737,6 +1738,39 @@ test('shared LMZ spacing geometry applies zoom once and converts drag deltas bac
     assert.equal(calculateSpacingDragValue({ startValue: 2, deltaY: -10, zoom: 0.5, side: 'bottom', type: 'margin' }), -18);
     assert.equal(calculateSpacingDragValue({ startValue: 4, deltaY: -10, zoom: 0.5, side: 'bottom', type: 'padding' }), 0);
 });
+
+test('shared spacing overlay stays inactive on every fixed mail signature geometry node', () => coreWithDom(`
+    <div id="root"><div data-tools></div></div>
+`, ({ window, document }) => {
+    const fixedClasses = [
+        'rt-sign-stage',
+        'rt-sign-train-layer',
+        'rt-sign-train-frame',
+        'rt-sign-train-slot',
+        'rt-sign-content-frame',
+    ];
+
+    fixedClasses.forEach((className) => {
+        const element = document.createElement(className.includes('frame') ? 'table' : 'div');
+        const selected = coreFakeComponent(element, { attributes: { class: className } });
+        const editor = coreFakeEditor(document.querySelector('#root'), selected);
+        assert.equal(isFixedMailSignatureGeometry(selected), true, className);
+        const controller = createSpacingOverlayController({
+            editor,
+            root: document.querySelector('#root'),
+            environment: {
+                document,
+                window,
+                requestAnimationFrame: (callback) => { callback(); return 1; },
+                cancelAnimationFrame() {},
+            },
+        });
+        assert.equal(document.querySelector('.rt-lmz-spacing-overlay')?.hidden, true, className);
+        controller.destroy();
+    });
+
+    assert.equal(isFixedMailSignatureGeometry(coreFakeComponent(document.createElement('p'))), false);
+}));
 
 test('spacing overlay uses the canvas tools layer without doubling the positioned selection offset', () => coreWithDom(`
     <div id="root"><div id="canvas"><div id="tools-layer" class="lmzbjs-cv-canvas__tools"><div id="tools" data-tools></div></div></div></div>

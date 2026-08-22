@@ -7,10 +7,12 @@
       - jeder Laravel-Mail und -Notification (vendor/mail/html/footer.blade.php)
 
     Der kanonische Editorstand besitzt zwei Tabellenzeilen: Signaturblock und
-    Pflichtangaben. Im Schema-24-Editorstand ist der Zug wie Logo und Icons ein
-    regulaeres IMG. Sein Flow-Layer steht im DOM vor dem Inhaltswrapper; eine
-    negative untere Margin zieht den danach folgenden Inhalt ueber das Motiv.
-    Diese Quellreihenfolge bleibt auch in Outlook ohne z-index eindeutig.
+    Pflichtangaben. Im Schema-25-Editorstand ist der Zug wie Logo und Icons ein
+    regulaeres IMG. Sein 200-Pixel-Flow-Layer steht im DOM vor dem ebenfalls
+    200 Pixel hohen Inhaltswrapper. Die feste -200px-Margin legt beide Flaechen
+    exakt uebereinander; eine mail-sichere Tabellenzelle richtet das Zugbild
+    direkt an der Oberkante des Pflichtfooters aus. Es gibt keine Umrechnung
+    aus einer Prozent-Margin und keine vom Editor-Viewport abhaengige Hoehe.
 
     AUFBAU: zwei gleich breite Spalten an einer Mittelachse. Links die
     Person, rechts die Firma. Logo und Firmenkontakte existieren jeweils
@@ -64,17 +66,23 @@
 @endphp
 <tr>
     <td class="rt-sign-cell" bgcolor="{{ $values['SIGNATURE_BG'] }}" style="padding:0;overflow:hidden;background-color:{{ $values['SIGNATURE_BG'] }};background-image:{{ $backgroundImage }};background-repeat:{{ $backgroundRepeat }};background-position:{{ $backgroundPosition }};background-size:{{ $backgroundSize }};{{ $topRule }}">
-        <div class="rt-sign-stage" style="position:relative;overflow:hidden;">
+        <div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;">
         @if($trainSrc !== '')
-        <div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="display:block;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-7.3611%;overflow:hidden;font-size:0;line-height:0;text-align:left;">
-            <img class="rt-sign-train" data-rt-train src="{{ $trainSrc }}" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all;">
+        <div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto 0 0;margin-bottom:-200px;overflow:hidden;font-size:0;line-height:0;text-align:left;">
+            <table class="rt-sign-train-frame" role="presentation" width="100%" height="200" border="0" cellspacing="0" cellpadding="0" style="width:100%;height:200px;border-collapse:collapse;">
+                <tr>
+                    <td class="rt-sign-train-slot" height="200" valign="bottom" style="height:200px;padding:0;text-align:left;vertical-align:bottom;font-size:0;line-height:0;">
+                        <img class="rt-sign-train" data-rt-train src="{{ $trainSrc }}" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:bottom;mso-hide:all;">
+                    </td>
+                </tr>
+            </table>
         </div>
         @endif
         {{-- Der aeussere Carrier bleibt ohne Padding. Der mail-sichere innere
-             Tabellenwrapper folgt im DOM auf den Zug-Layer. Die negative
-             Layer-Margin erzeugt den Overlap; die spaetere Quellreihenfolge
+             Tabellenwrapper folgt im DOM auf den Zug-Layer. Seine feste Hoehe
+             entspricht dem festen Pixel-Overlap; die spaetere Quellreihenfolge
              haelt die Daten auch ohne z-index vor dem Motiv. --}}
-        <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">
+        <table class="rt-sign-content-frame" role="presentation" width="100%" height="200" border="0" cellspacing="0" cellpadding="0" style="width:100%;height:200px;border-collapse:collapse;">
             <tr>
                 <td class="rt-pad rt-sign-content" style="padding:{{ $padding }};position:relative;z-index:1;">
                     {{-- Einmaliges, Outlook-taugliches Reverse-Stacking:

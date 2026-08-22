@@ -34,22 +34,42 @@
 @endphp
 /* RT_SERVER_SIGNATURE_RUNTIME_START
    Stabiler Einhaengepunkt fuer freigegebenes Signatur-CSS. Der echte
-   IMG-Layer steht im normalen Mailfluss vor den Daten. Seine negative untere
-   Margin zieht den nachfolgenden Inhalt ueber das Motiv; dadurch ist weder
-   absolute Positionierung noch z-index fuer die Hauptdarstellung noetig. */
+   IMG-Layer steht im normalen Mailfluss vor den Daten. Layer und Inhalt
+   besitzen je Breakpoint dieselbe feste Pixelhoehe; die identische negative
+   Pixel-Margin legt beide Flaechen ohne Viewport-Berechnung uebereinander.
+   Eine Presentation-Tabellenzelle richtet das Zug-IMG unten aus. */
 .rt-sign-stage {
   position: relative !important;
+  height: 200px !important;
+  max-height: 200px !important;
   overflow: hidden !important;
 }
 .rt-sign-train-layer {
   display: block !important;
   width: 100% !important;
+  height: 200px !important;
+  max-height: 200px !important;
   max-width: 1815px !important;
   margin-top: 0 !important;
+  margin-bottom: -200px !important;
   overflow: hidden !important;
   font-size: 0 !important;
   line-height: 0 !important;
   text-align: left !important;
+}
+.rt-sign-train-frame,
+.rt-sign-content-frame {
+  width: 100% !important;
+  height: 200px !important;
+  border-collapse: collapse !important;
+}
+.rt-sign-train-slot {
+  height: 200px !important;
+  padding: 0 !important;
+  text-align: left !important;
+  vertical-align: bottom !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
 }
 .rt-sign-train,
 .rt-sign-train-mso {
@@ -63,7 +83,7 @@
   margin-top: 0 !important;
   margin-right: 0 !important;
   margin-bottom: 0 !important;
-  vertical-align: top !important;
+  vertical-align: bottom !important;
   z-index: 0 !important;
 }
 .rt-sign-train-mso {
@@ -79,8 +99,8 @@
   position: absolute !important;
   left: 0 !important;
   right: auto !important;
-  top: 0 !important;
-  bottom: auto !important;
+  top: auto !important;
+  bottom: 0 !important;
   display: block !important;
   width: 100% !important;
   max-width: none !important;
@@ -95,48 +115,48 @@
   visibility: hidden;
 }
 .rt-train-idle-image {
-  position: static !important;
-  left: auto !important;
+  position: absolute !important;
+  left: 0 !important;
   right: auto !important;
-  bottom: auto !important;
+  bottom: 0 !important;
   display: inline-block !important;
   max-width: none !important;
   height: auto !important;
   margin-top: 0 !important;
   margin-right: 0 !important;
   margin-bottom: 0 !important;
-  vertical-align: top !important;
+  vertical-align: bottom !important;
   z-index: 1 !important;
 }
 .rt-sign-train-layer[data-rt-layer-align="left"] { margin-left: 0 !important; margin-right: auto !important; }
 .rt-sign-train-layer[data-rt-layer-align="center"] { margin-left: auto !important; margin-right: auto !important; }
 .rt-sign-train-layer[data-rt-layer-align="right"] { margin-left: auto !important; margin-right: 0 !important; }
-.rt-sign-train-layer[data-rt-layer-size="100"] > .rt-sign-train,
-.rt-sign-train-layer[data-rt-layer-size="100"] > .rt-train-idle-overlay > .rt-train-idle-image { width: 100% !important; max-width: none !important; }
-.rt-sign-train-layer[data-rt-layer-size="125"] > .rt-sign-train,
-.rt-sign-train-layer[data-rt-layer-size="125"] > .rt-train-idle-overlay > .rt-train-idle-image { width: 125% !important; max-width: none !important; }
-.rt-sign-train-layer[data-rt-layer-size="150"] > .rt-sign-train,
-.rt-sign-train-layer[data-rt-layer-size="150"] > .rt-train-idle-overlay > .rt-train-idle-image { width: 150% !important; max-width: none !important; }
-.rt-sign-train-layer[data-rt-layer-size="200"] > .rt-sign-train,
-.rt-sign-train-layer[data-rt-layer-size="200"] > .rt-train-idle-overlay > .rt-train-idle-image { width: 200% !important; max-width: none !important; }
-.rt-sign-train-layer[data-rt-layer-align="left"] > .rt-sign-train,
-.rt-sign-train-layer[data-rt-layer-align="left"] > .rt-train-idle-overlay > .rt-train-idle-image,
-.rt-sign-train-layer[data-rt-layer-align="center"][data-rt-layer-size="100"] > .rt-sign-train,
-.rt-sign-train-layer[data-rt-layer-align="center"][data-rt-layer-size="100"] > .rt-train-idle-overlay > .rt-train-idle-image,
-.rt-sign-train-layer[data-rt-layer-align="right"][data-rt-layer-size="100"] > .rt-sign-train,
-.rt-sign-train-layer[data-rt-layer-align="right"][data-rt-layer-size="100"] > .rt-train-idle-overlay > .rt-train-idle-image { margin-left: 0 !important; }
-.rt-sign-train-layer[data-rt-layer-align="center"][data-rt-layer-size="125"] > .rt-sign-train,
-.rt-sign-train-layer[data-rt-layer-align="center"][data-rt-layer-size="125"] > .rt-train-idle-overlay > .rt-train-idle-image { margin-left: -12.5% !important; }
-.rt-sign-train-layer[data-rt-layer-align="center"][data-rt-layer-size="150"] > .rt-sign-train,
-.rt-sign-train-layer[data-rt-layer-align="center"][data-rt-layer-size="150"] > .rt-train-idle-overlay > .rt-train-idle-image { margin-left: -25% !important; }
-.rt-sign-train-layer[data-rt-layer-align="center"][data-rt-layer-size="200"] > .rt-sign-train,
-.rt-sign-train-layer[data-rt-layer-align="center"][data-rt-layer-size="200"] > .rt-train-idle-overlay > .rt-train-idle-image { margin-left: -50% !important; }
-.rt-sign-train-layer[data-rt-layer-align="right"][data-rt-layer-size="125"] > .rt-sign-train,
-.rt-sign-train-layer[data-rt-layer-align="right"][data-rt-layer-size="125"] > .rt-train-idle-overlay > .rt-train-idle-image { margin-left: -25% !important; }
-.rt-sign-train-layer[data-rt-layer-align="right"][data-rt-layer-size="150"] > .rt-sign-train,
-.rt-sign-train-layer[data-rt-layer-align="right"][data-rt-layer-size="150"] > .rt-train-idle-overlay > .rt-train-idle-image { margin-left: -50% !important; }
-.rt-sign-train-layer[data-rt-layer-align="right"][data-rt-layer-size="200"] > .rt-sign-train,
-.rt-sign-train-layer[data-rt-layer-align="right"][data-rt-layer-size="200"] > .rt-train-idle-overlay > .rt-train-idle-image { margin-left: -100% !important; }
+.rt-sign-train-layer[data-rt-layer-size="100"] .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-size="100"] .rt-train-idle-image { width: 100% !important; max-width: none !important; }
+.rt-sign-train-layer[data-rt-layer-size="125"] .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-size="125"] .rt-train-idle-image { width: 125% !important; max-width: none !important; }
+.rt-sign-train-layer[data-rt-layer-size="150"] .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-size="150"] .rt-train-idle-image { width: 150% !important; max-width: none !important; }
+.rt-sign-train-layer[data-rt-layer-size="200"] .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-size="200"] .rt-train-idle-image { width: 200% !important; max-width: none !important; }
+.rt-sign-train-layer[data-rt-layer-align="left"] .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-align="left"] .rt-train-idle-image,
+.rt-sign-train-layer[data-rt-layer-align="center"][data-rt-layer-size="100"] .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-align="center"][data-rt-layer-size="100"] .rt-train-idle-image,
+.rt-sign-train-layer[data-rt-layer-align="right"][data-rt-layer-size="100"] .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-align="right"][data-rt-layer-size="100"] .rt-train-idle-image { margin-left: 0 !important; }
+.rt-sign-train-layer[data-rt-layer-align="center"][data-rt-layer-size="125"] .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-align="center"][data-rt-layer-size="125"] .rt-train-idle-image { margin-left: -12.5% !important; }
+.rt-sign-train-layer[data-rt-layer-align="center"][data-rt-layer-size="150"] .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-align="center"][data-rt-layer-size="150"] .rt-train-idle-image { margin-left: -25% !important; }
+.rt-sign-train-layer[data-rt-layer-align="center"][data-rt-layer-size="200"] .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-align="center"][data-rt-layer-size="200"] .rt-train-idle-image { margin-left: -50% !important; }
+.rt-sign-train-layer[data-rt-layer-align="right"][data-rt-layer-size="125"] .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-align="right"][data-rt-layer-size="125"] .rt-train-idle-image { margin-left: -25% !important; }
+.rt-sign-train-layer[data-rt-layer-align="right"][data-rt-layer-size="150"] .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-align="right"][data-rt-layer-size="150"] .rt-train-idle-image { margin-left: -50% !important; }
+.rt-sign-train-layer[data-rt-layer-align="right"][data-rt-layer-size="200"] .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-align="right"][data-rt-layer-size="200"] .rt-train-idle-image { margin-left: -100% !important; }
 @supports (animation-name: rt-train-idle-reveal) {
   .rt-train-idle-overlay {
     overflow: visible !important;
@@ -181,6 +201,18 @@ tr.rt-stack > td.rt-card-cell, tr.rt-stack > td.rt-card-cell + td { padding-left
 
 /* ---- Tablet hoch und kleiner: stapeln ---- */
 @media only screen and (max-width: 860px) {
+.rt-sign-stage {
+  height: 292px !important;
+  max-height: 292px !important;
+}
+.rt-sign-train-layer {
+  height: 292px !important;
+  max-height: 292px !important;
+  margin-bottom: -292px !important;
+}
+.rt-sign-train-frame,
+.rt-sign-train-slot,
+.rt-sign-content-frame { height: 292px !important; }
 .rt-pad { padding-left: 24px !important; padding-right: 24px !important; }
 .rt-title { font-size: 27px !important; line-height: 32px !important; }
 {{-- Nur DIREKTE Zellen der markierten Zeile umbrechen: ein Nachfahren-
@@ -281,21 +313,33 @@ img.rt-logo { width: 150px !important; }
   max-width: 1815px !important;
   margin-top: 0 !important;
 }
-/* Der fliessende Clipping-Viewport bleibt vollbreit. Seine gespeicherte
-   negative margin-bottom bleibt auch mobil erhalten; nur der Bildausschnitt
-   wird hier je Preset vergroessert und verschoben. */
-.rt-sign-train-layer[data-rt-layer-mobile="left"][data-rt-layer-size] > .rt-sign-train,
-.rt-sign-train-layer[data-rt-layer-mobile="left"][data-rt-layer-size] > .rt-train-idle-overlay > .rt-train-idle-image { width: 200% !important; max-width: none !important; margin-left: 0 !important; }
-.rt-sign-train-layer[data-rt-layer-mobile="center"][data-rt-layer-size] > .rt-sign-train,
-.rt-sign-train-layer[data-rt-layer-mobile="center"][data-rt-layer-size] > .rt-train-idle-overlay > .rt-train-idle-image { width: 200% !important; max-width: none !important; margin-left: -50% !important; }
-.rt-sign-train-layer[data-rt-layer-mobile="right"][data-rt-layer-size] > .rt-sign-train,
-.rt-sign-train-layer[data-rt-layer-mobile="right"][data-rt-layer-size] > .rt-train-idle-overlay > .rt-train-idle-image { width: 200% !important; max-width: none !important; margin-left: -100% !important; }
-.rt-sign-train-layer[data-rt-layer-mobile="train"][data-rt-layer-size] > .rt-sign-train,
-.rt-sign-train-layer[data-rt-layer-mobile="train"][data-rt-layer-size] > .rt-train-idle-overlay > .rt-train-idle-image { width: 100% !important; max-width: none !important; margin-left: 0 !important; }
+/* Der fliessende Clipping-Viewport bleibt vollbreit. Seine vertikale
+   Geometrie ist direkt auf 292px festgelegt; nur der horizontale
+   Bildausschnitt wird weiterhin ueber die erlaubten Presets gewaehlt. */
+.rt-sign-train-layer[data-rt-layer-mobile="left"][data-rt-layer-size] .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-mobile="left"][data-rt-layer-size] .rt-train-idle-image { width: 200% !important; max-width: none !important; margin-left: 0 !important; }
+.rt-sign-train-layer[data-rt-layer-mobile="center"][data-rt-layer-size] .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-mobile="center"][data-rt-layer-size] .rt-train-idle-image { width: 200% !important; max-width: none !important; margin-left: -50% !important; }
+.rt-sign-train-layer[data-rt-layer-mobile="right"][data-rt-layer-size] .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-mobile="right"][data-rt-layer-size] .rt-train-idle-image { width: 200% !important; max-width: none !important; margin-left: -100% !important; }
+.rt-sign-train-layer[data-rt-layer-mobile="train"][data-rt-layer-size] .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-mobile="train"][data-rt-layer-size] .rt-train-idle-image { width: 100% !important; max-width: none !important; margin-left: 0 !important; }
 }
 
 /* ---- Telefon: Innenabstaende weiter zuruecknehmen ---- */
 @media only screen and (max-width: 480px) {
+.rt-sign-stage {
+  height: 280px !important;
+  max-height: 280px !important;
+}
+.rt-sign-train-layer {
+  height: 280px !important;
+  max-height: 280px !important;
+  margin-bottom: -280px !important;
+}
+.rt-sign-train-frame,
+.rt-sign-train-slot,
+.rt-sign-content-frame { height: 280px !important; }
 .rt-pad { padding-left: 18px !important; padding-right: 18px !important; }
 .rt-title { font-size: 24px !important; line-height: 29px !important; }
 .rt-sign-name { font-size: 17px !important; line-height: 21px !important; }

@@ -572,6 +572,19 @@ function isMailSystemLayer(component) {
     );
 }
 
+const FIXED_MAIL_SIGNATURE_GEOMETRY_CLASSES = Object.freeze(new Set([
+    'rt-sign-stage',
+    'rt-sign-train-layer',
+    'rt-sign-train-frame',
+    'rt-sign-train-slot',
+    'rt-sign-content-frame',
+]));
+
+export function isFixedMailSignatureGeometry(component) {
+    const classes = String(componentAttributes(component).class || '').split(/\s+/).filter(Boolean);
+    return classes.some((name) => FIXED_MAIL_SIGNATURE_GEOMETRY_CLASSES.has(name));
+}
+
 export function isProtectedEditorImage(component) {
     if (!component) return true;
 
@@ -1488,7 +1501,8 @@ export function createSpacingOverlayController({
         if (destroyed) return;
         const node = ensure();
         const selected = editor.getSelected?.();
-        if (!node || !active || !selected || editor.Commands?.isActive?.('core:preview')) {
+        if (!node || !active || !selected || isFixedMailSignatureGeometry(selected)
+            || editor.Commands?.isActive?.('core:preview')) {
             if (node) node.hidden = true;
             return;
         }
@@ -1564,6 +1578,7 @@ export function createSpacingOverlayController({
         }
         if (!(event.key in arrows) || !active || editor.Commands?.isActive?.('core:preview')) return;
         const component = editor.getSelected?.();
+        if (isFixedMailSignatureGeometry(component)) return;
         const element = component?.getEl?.();
         const position = element ? editor.Canvas.getElementPos?.(element) : null;
         const offsets = element ? editor.Canvas.getElementOffsets?.(element) : null;
@@ -1628,6 +1643,7 @@ export function createSpacingOverlayController({
         if (!active || editor.Commands?.isActive?.('core:preview')) return;
         commitKeyboardEdit();
         const component = editor.getSelected?.();
+        if (isFixedMailSignatureGeometry(component)) return;
         const element = component?.getEl?.();
         const position = element ? editor.Canvas.getElementPos?.(element) : null;
         const offsets = element ? editor.Canvas.getElementOffsets?.(element) : null;
@@ -3039,7 +3055,7 @@ function createInlineMenu({ root, editor, capabilities, mode, mediaDrawer, anima
             { id: 'content', label: 'Inhalt', group: 'edit', enabled: capabilities.writable && !protectedStructure },
             { id: 'traits', label: 'Eigenschaften', group: 'edit', panel: 'right:traits', enabled: capabilities.writable && capabilities.traits && !protectedStructure },
             { id: 'styles', label: 'Stile', group: 'edit', panel: 'right:styles', enabled: capabilities.writable && capabilities.styles && (!protectedStructure || protectedStyleAllowed) },
-            { id: 'spacing', label: 'Abstände', group: 'edit', panel: 'right:styles', enabled: capabilities.writable && capabilities.spacing && !protectedStructure },
+            { id: 'spacing', label: 'Abstände', group: 'edit', panel: 'right:styles', enabled: capabilities.writable && capabilities.spacing && !protectedStructure && !isFixedMailSignatureGeometry(component) },
             { id: 'media', label: 'Medien', group: 'edit', enabled: capabilities.media && (image || mode === 'mail') },
             { id: 'replace', label: 'Bild ersetzen', group: 'edit', enabled: Boolean(image) && mediaDrawer.canReplace?.(component) === true },
             {
