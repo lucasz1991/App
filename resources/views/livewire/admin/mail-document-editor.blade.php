@@ -175,19 +175,124 @@
     @endif
 
     @if ($currentDocument === null)
-        <div class="h-full overflow-y-auto p-3 sm:p-5">
-            <div class="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-500/10 dark:text-amber-200" role="status">
-                <i data-feather="alert-triangle" class="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true"></i>
-                <div>
-                    <p><strong>Die Maildokumente sind noch nicht eingerichtet.</strong></p>
-                    <p class="mt-1 leading-6">
-                        Ohne die beiden veröffentlichten Dokumente sind Downloads und Systemmails bewusst gesperrt.
-                        Zum autoritativen Einrichten <code class="rounded bg-black/5 px-1 py-0.5 dark:bg-white/10">php artisan migrate --force</code>
-                        und danach <code class="rounded bg-black/5 px-1 py-0.5 dark:bg-white/10">php artisan db:seed --class=MailDocumentSeeder --force</code> ausführen.
-                    </p>
+        <div class="h-full overflow-y-auto p-3 sm:p-5" data-mail-document-bootstrap data-kind="{{ $currentKind }}" data-endpoint="{{ route('admin.mail-documents.import') }}">
+            <div class="mx-auto max-w-3xl space-y-4">
+                <nav class="grid gap-2 sm:grid-cols-2" aria-label="Maildokument auswählen">
+                    @foreach ($kinds as $kindValue => [$kindLabel, $kindHint])
+                        <a
+                            href="{{ route('admin.mail-documents.editor', ['dokument' => $kindValue, 'open' => 1]) }}"
+                            wire:navigate
+                            aria-current="{{ $currentKind === $kindValue ? 'page' : 'false' }}"
+                            class="rounded-xl border px-4 py-3 text-sm transition {{ $currentKind === $kindValue ? 'border-rt-accent bg-rt-accent-soft text-rt-accent' : 'border-slate-200 bg-white text-slate-700 hover:border-rt-accent/40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200' }}"
+                        >
+                            <strong class="block">{{ $kindLabel }}</strong>
+                            <span class="mt-1 block text-xs opacity-75">{{ $kindHint }}</span>
+                        </a>
+                    @endforeach
+                </nav>
+
+                <div class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-500/10 dark:text-amber-100">
+                    <div class="flex items-start gap-3">
+                        <i data-feather="upload" class="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true"></i>
+                        <div class="min-w-0 flex-1">
+                            <h2 class="font-semibold">{{ $kinds[$currentKind][0] }} per Exportdatei einrichten</h2>
+                            <p class="mt-1 leading-6">
+                                Dieses Dokument fehlt noch. Wähle ein vollständiges RailTime-JSON-Bundle aus; es wird geprüft und ausschließlich als Entwurf angelegt. Vorhandene Dokumente werden nie überschrieben. Systemmails bleiben bis zur ausdrücklichen Veröffentlichung gesperrt.
+                            </p>
+                            <div class="mt-4 flex flex-wrap items-center gap-3">
+                                <button type="button" class="inline-flex min-h-11 items-center gap-2 rounded-lg bg-rt-accent px-4 py-2 font-semibold text-white transition hover:bg-rt-accent/90 disabled:cursor-wait disabled:opacity-60" data-mail-document-bootstrap-button>
+                                    <i data-feather="file-plus" class="h-4 w-4" aria-hidden="true"></i>
+                                    JSON-Bundle importieren
+                                </button>
+                                <span class="text-xs" data-mail-document-bootstrap-status aria-live="polite">Format v2 · maximal 16 MiB</span>
+                            </div>
+                            <p class="mt-3 hidden rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200" data-mail-document-bootstrap-error role="alert" hidden></p>
+                            <input type="file" class="hidden" accept="application/json,.json" data-mail-document-bootstrap-file tabindex="-1" aria-hidden="true">
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
+
+        @script
+            <script>
+                (() => {
+                    const root = $wire.$el.querySelector('[data-mail-document-bootstrap]');
+                    const button = root?.querySelector('[data-mail-document-bootstrap-button]');
+                    const input = root?.querySelector('[data-mail-document-bootstrap-file]');
+                    const status = root?.querySelector('[data-mail-document-bootstrap-status]');
+                    const errorBox = root?.querySelector('[data-mail-document-bootstrap-error]');
+                    if (!root || !button || !input || !status || !errorBox) return;
+
+                    const listeners = new AbortController();
+                    const setError = (message = '') => {
+                        errorBox.textContent = message;
+                        errorBox.hidden = message === '';
+                        errorBox.classList.toggle('hidden', message === '');
+                    };
+                    const requestError = async (response) => {
+                        let payload = null;
+                        try { payload = await response.json(); } catch (_) {}
+                        const messages = Object.values(payload?.errors || {}).flat().filter(Boolean);
+                        return new Error(messages[0] || payload?.message || `Import fehlgeschlagen (HTTP ${response.status}).`);
+                    };
+
+                    button.addEventListener('click', () => input.click(), { signal: listeners.signal });
+                    input.addEventListener('change', async () => {
+                        const file = input.files?.[0] || null;
+                        input.value = '';
+                        if (!file) return;
+
+                        button.disabled = true;
+                        button.setAttribute('aria-busy', 'true');
+                        setError();
+                        status.textContent = 'Bundle wird lokal gelesen und serverseitig geprüft …';
+
+                        try {
+                            if (file.size < 1 || file.size > 16 * 1024 * 1024) {
+                                throw new Error('Das JSON-Bundle muss zwischen 1 Byte und 16 MiB groß sein.');
+                            }
+                            const bundle = JSON.parse((await file.text()).replace(/^\uFEFF/, ''));
+                            if (!bundle || Array.isArray(bundle)
+                                || bundle.format !== 'railtime-mail-document'
+                                || bundle.version !== 2
+                                || bundle.kind !== root.dataset.kind
+                                || typeof bundle.html !== 'string'
+                                || typeof bundle.css !== 'string'
+                                || !Array.isArray(bundle.media)) {
+                                throw new Error('Die Datei ist kein passendes RailTime-Mail-Bundle in Version 2.');
+                            }
+
+                            const response = await fetch(root.dataset.endpoint, {
+                                method: 'POST',
+                                credentials: 'same-origin',
+                                headers: {
+                                    'Accept': 'application/json',
+                                    'Content-Type': 'application/json',
+                                    'X-CSRF-TOKEN': window.document.querySelector('meta[name="csrf-token"]')?.content || '',
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                },
+                                body: JSON.stringify(bundle),
+                            });
+                            if (!response.ok) throw await requestError(response);
+                            const payload = await response.json();
+                            status.textContent = 'Entwurf angelegt. Editor wird geöffnet …';
+                            window.location.assign(payload.redirect);
+                        } catch (error) {
+                            setError(error instanceof Error ? error.message : 'Das Bundle konnte nicht importiert werden.');
+                            status.textContent = 'Nicht importiert.';
+                            button.disabled = false;
+                            button.removeAttribute('aria-busy');
+                        }
+                    }, { signal: listeners.signal });
+
+                    window.document.addEventListener('livewire:navigating', () => listeners.abort(), {
+                        once: true,
+                        signal: listeners.signal,
+                    });
+                })();
+            </script>
+        @endscript
     @else
         <script type="application/json" data-mail-document-config>{!! json_encode($editorConfig, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}</script>
 
@@ -849,6 +954,7 @@
                                 bytes,
                                 sha256: digest,
                                 required: Boolean(asset?.required),
+                                included: asset?.included !== false,
                             };
                         });
                     };
@@ -857,7 +963,7 @@
                         const exported = [];
                         let totalBytes = 0;
 
-                        for (const asset of portableMediaCatalog()) {
+                        for (const asset of portableMediaCatalog().filter((entry) => entry.included)) {
                             const response = await fetch(asset.source, {
                                 credentials: 'same-origin',
                                 cache: 'no-store',

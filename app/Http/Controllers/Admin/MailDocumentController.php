@@ -6,6 +6,7 @@ use App\Enums\MailDocumentKind;
 use App\Enums\MailDocumentStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Mail\SaveMailDocumentRequest;
+use App\Http\Requests\Mail\ImportMailDocumentRequest;
 use App\Models\MailDocument;
 use App\Models\User;
 use App\Support\Mail\CssSemantic;
@@ -36,6 +37,89 @@ use Illuminate\Validation\ValidationException;
  */
 final class MailDocumentController extends Controller
 {
+    /**
+     * Legt ein noch fehlendes Maildokument ausschliesslich aus einem zuvor
+     * exportierten v2-Bundle an. Dieser explizite Erstimport ersetzt den
+     * autoritativen Seeder und ueberschreibt niemals vorhandene Inhalte.
+     */
+    public function import(
+        ImportMailDocumentRequest $request,
+        EmailHtmlSanitizer $sanitizer,
+    ): JsonResponse {
+        $actor = $this->mailAdmin($request);
+        $validated = $request->validated();
+        $kind = MailDocumentKind::from((string) $validated['kind']);
+
+        [$html, $css, $portableFiles] = $this->preparePortableMedia(
+            (string) $validated['html'],
+            (string) $validated['css'],
+            (array) $validated['media'],
+        );
+        $this->assertEditableCssSource($css);
+
+        $prototype = new MailDocument(['kind' => $kind->value]);
+        $this->assertDocumentStructure($prototype, $html, $css);
+        $htmlReport = $sanitizer->assertClean($html);
+        $cssReport = $this->cleanStyleSheet($sanitizer, $css);
+        if ($cssReport->hasViolations()) {
+            throw ValidationException::withMessages([
+                'css' => array_merge(
+                    ['Die Stilregeln enthalten Syntax, die in E-Mails nicht erlaubt ist.'],
+                    $cssReport->violationMessages(),
+                ),
+            ]);
+        }
+        $this->assertDocumentStructure($prototype, $htmlReport->html, $cssReport->html);
+        $builderData = $this->syncBuilderData($prototype, [], $htmlReport->html);
+        $contentHash = MailDocument::contentHashFor(
+            $builderData,
+            $htmlReport->html,
+            $cssReport->html,
+        );
+
+        $document = DB::transaction(function () use (
+            $kind,
+            $actor,
+            $portableFiles,
+            $builderData,
+            $htmlReport,
+            $cssReport,
+            $contentHash,
+        ): MailDocument {
+            if (MailDocument::query()->where('kind', $kind->value)->lockForUpdate()->exists()) {
+                throw ValidationException::withMessages([
+                    'kind' => 'Dieses Maildokument ist bereits eingerichtet. Bitte importiere es im geöffneten Editor.',
+                ]);
+            }
+
+            $this->storePortableMedia($portableFiles);
+
+            return MailDocument::query()->create([
+                'kind' => $kind,
+                'status' => MailDocumentStatus::Draft,
+                'builder_data' => $builderData,
+                'html' => $htmlReport->html,
+                'css' => $cssReport->html,
+                'published_html' => null,
+                'published_css' => null,
+                'published_at' => null,
+                'content_hash' => $contentHash,
+                'version' => 1,
+                'created_by' => $actor->getKey(),
+                'updated_by' => $actor->getKey(),
+            ]);
+        });
+
+        return response()->json([
+            'document' => $this->payload($document),
+            'redirect' => route('admin.mail-documents.editor', [
+                'dokument' => $kind->value,
+                'open' => 1,
+            ]),
+            'report' => $this->reportPayload($htmlReport, $cssReport),
+        ], 201);
+    }
+
     /**
      * Prueft importierten HTML-/CSS-Code mit exakt denselben Vertraegen wie
      * ein Save, schreibt aber kein einziges Feld. Erst diese autoritative
@@ -471,7 +555,11 @@ final class MailDocumentController extends Controller
         $schema = $metadata['schema'] ?? null;
 
         $railtime = ['document' => $document->kind->value];
-        if (is_int($schema) && $schema > 0 && $schema <= 1000) {
+        if ($document->kind === MailDocumentKind::Signature) {
+            // Der Serververtrag ist autoritativ. Ein importiertes Bundle
+            // enthaelt absichtlich keine vertrauenswuerdigen Builderdaten.
+            $railtime['schema'] = SignatureDocumentContract::SCHEMA;
+        } elseif (is_int($schema) && $schema > 0 && $schema <= 1000) {
             $railtime['schema'] = $schema;
         }
 

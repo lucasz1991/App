@@ -148,8 +148,7 @@ class MailSignature
                     ),
                 ),
                 // Statische, weiter validierte Referenz. Das aktuelle Schema injiziert
-                // sie nicht mehr als MSO-Zugbild, weil Word absolute
-                // Positionierung ignoriert und sonst Flow-Hoehe erzeugt.
+                // sie als MSO-Zugbild im selben mail-sicheren Flow-Layer.
                 'TRAIN_STILL_SRC' => EmailTemplateBuilder::signatureTrainStillUrl($this->theme),
                 // Nur der Rauch loopt. Die einmalige Einfahrt bleibt im
                 // Haupt-GIF und wird nie erneut abgespielt; die transparente
@@ -181,8 +180,8 @@ class MailSignature
                     $this->playbackNonce,
                 ),
                 // Statische, lokal paketierbare Referenz. Sie bleibt Teil des
-                // Wertevertrags, wird aber nicht als Classic-Outlook-Flowbild
-                // in den absoluten Schema-18-Layer injiziert.
+                // Wertevertrags und wird als Classic-Outlook-Standbild im
+                // selben Flow-Layer injiziert.
                 'TRAIN_STILL_SRC' => EmailTemplateBuilder::signatureTrainAsset(
                     $this->theme,
                     animated: false,
@@ -387,9 +386,9 @@ class MailSignature
 
         $html = $this->applyPublishedLayout($documentHtml, $layout);
         $html = $this->projectPublishedTrainAsImage($html, $singleTrainLayout);
-        // Bereits veroeffentlichte Schema-17-Dokumente verlieren Raster und
-        // grosses RT-Wasserzeichen schon vor der Tokenersetzung. Damit gilt
-        // die bildfreie Schema-18-Fassung sofort, auch vor einem Seeder-Lauf.
+        // Bereits veroeffentlichte Altstaende verlieren Raster und grosses
+        // RT-Wasserzeichen vor der Tokenersetzung. Die bildfreie Fassung gilt
+        // dadurch sofort, auch ohne einen spaeteren Initialisierungsjob.
         $html = SignatureTrainCarrier::withoutDecorativeBaseBackgrounds($html);
         $escapedValues = array_map(
             static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8'),
@@ -458,8 +457,8 @@ class MailSignature
         }
 
         // Hauptzug und Idle-Rauch bleiben wie Logo und RT-Zeichen echte IMG.
-        // Beide liegen absolut und damit hoehenneutral hinter der normal
-        // fliessenden Kontakttabelle; kein GIF wird als CSS-Background geladen.
+        // Das Hauptbild liegt mailclient-sicher im normalen Fluss direkt vor
+        // der Legal-Zeile; nur der Idle-Holder bleibt hoehenneutral darueber.
         return SignatureTrainCarrier::withMsoFallback($html, $outlookFallbackSource);
     }
 
@@ -492,11 +491,9 @@ class MailSignature
 
     /**
      * Die gespeicherte/editierbare Fassung bekommt den Zug wie Logo und
-     * RT-Icon als regulaeres Bild in einer sicheren Stage. Alte Background-,
-     * Direkt- und Schema-16-Flow-Layer werden atomar in den absoluten,
-     * hoehenneutralen Overlayvertrag ueberfuehrt. finalizeTrainRendering
-     * ergaenzt nur das Idle-IMG; ein Classic-Outlook-Flowbild wird bewusst
-     * nicht injiziert und das Haupt-GIF bleibt ein IMG.
+     * RT-Icon als regulaeres Bild in einer sicheren Stage. Alte Background-
+     * und absolute Direkt-Layer werden atomar in denselben Flowvertrag
+     * ueberfuehrt. finalizeTrainRendering ergaenzt nur Idle- und Outlook-IMG.
      *
      * @param  array<string, string>  $layout
      */

@@ -253,6 +253,9 @@ Route::middleware(['auth:sanctum', 'auth.status', config('jetstream.auth_session
         // HTML-Seite als vermeintliche JSON-Antwort an. Die Pruefung steht
         // stattdessen ausdruecklich im Controller.
         Route::withoutMiddleware('role:admin')->group(function (): void {
+            Route::post('/mail-vorlagen/importieren', [MailDocumentController::class, 'import'])
+                ->middleware('throttle:20,1')
+                ->name('mail-documents.import');
             Route::get('/mail-vorlagen/{document}/vorschau', [PageBuilderPreviewController::class, 'mail'])
                 ->whereUuid('document')
                 ->middleware('throttle:180,1')

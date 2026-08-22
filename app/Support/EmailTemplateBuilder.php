@@ -421,7 +421,7 @@ class EmailTemplateBuilder
         }
 
         throw new RuntimeException(
-            "Das veröffentlichte Maildokument \"{$kind->label()}\" fehlt. Bitte den MailDocumentSeeder ausführen."
+            "Das veröffentlichte Maildokument \"{$kind->label()}\" fehlt. Bitte im Mail- & Signatur-Editor ein geprüftes JSON-Bundle importieren und veröffentlichen."
         );
     }
 
@@ -458,10 +458,9 @@ class EmailTemplateBuilder
         );
         $values = $signature->values();
         $values['RESPONSIVE_CSS'] = self::responsiveCss($values['SIGNATURE_BORDER'] ?? null);
-        // Der serverseitige Signatur-Render validiert den absoluten IMG-Layer.
-        // Haupt-GIF und Idle-GIF bleiben echte, absolut positionierte Bilder
-        // innerhalb derselben Stage; keine Zugdatei wird per CSS geladen und
-        // ein MSO-Flow-Fallback oder eine separate Zugzeile kann nicht entstehen.
+        // Der serverseitige Signatur-Render validiert den Flow-IMG-Layer.
+        // Haupt-GIF, Idle-GIF und MSO-Standbild bleiben echte Bilder innerhalb
+        // derselben Stage; keine Zugdatei wird per CSS geladen.
         $values['SIGNATURE_BLOCK'] = $signature->render();
         $values['APPLICATION_CONTENT'] = '';
 
@@ -906,8 +905,8 @@ class EmailTemplateBuilder
             // Eine heruntergeladene EML muss ihre fuer Outlook notwendigen
             // Bilder als echte MIME-Teile mitbringen. Data-URIs werden von
             // Outlook nicht verlaesslich dargestellt. Das GIF und das portable
-            // Standbild werden als getrennte CID-Teile mitgeliefert; nur das
-            // absolut positionierte GIF wird im aktuellen Schema gerendert.
+            // Standbild werden als getrennte CID-Teile mitgeliefert. Moderne
+            // Clients sehen das GIF, Word/MSO das bedingte PNG im selben Flow.
             $signatureOverrides = array_merge($signatureOverrides, [
                 'LOGO_STILL_SRC' => 'cid:railtime-logo-still',
                 'TRAIN_SRC' => '',
@@ -1120,9 +1119,8 @@ class EmailTemplateBuilder
      * Die Classic-Payload verwendet absichtlich lokale Begleitdateien. Beim
      * Einfuegen in eine cloudgespeicherte Signatur waeren file:-Quellen aber
      * nach dem Schliessen des Browsers unbrauchbar. Diese Fassung rendert
-     * deshalb dieselbe Signatur mit absoluten HTTPS-Mailassets. Hauptzug und
-     * Idle-Rauch bleiben echte, absolut positionierte IMG; ein bedingtes
-     * PNG-Flow-IMG wird bewusst nicht ins kopierte Markup aufgenommen.
+     * deshalb dieselbe Signatur mit absoluten HTTPS-Mailassets. Hauptzug,
+     * Idle-Rauch und das bedingte Outlook-Standbild bleiben echte IMG.
      */
     protected function buildOutlookBrowserCopySignatureHtml(string $theme): string
     {
@@ -1183,6 +1181,7 @@ class EmailTemplateBuilder
             $html,
             $remoteSources['TRAIN_SRC'],
             $remoteSources['TRAIN_IDLE_SRC'],
+            $remoteSources['TRAIN_STILL_SRC'],
         );
     }
 
@@ -1203,19 +1202,19 @@ class EmailTemplateBuilder
 
     /**
      * Prueft die eigenstaendige New-Outlook-/Web-Kopierfassung nach der
-     * Runtime-Projektion. Hauptzug und Idle-Rauch muessen dort als echte IMG
-     * mit absoluten HTTPS-Quellen vorliegen. Beide liegen absolut in derselben
-     * hoehenneutralen Buehne; CSS darf keine GIF-Datei laden. Ein separates
-     * MSO-Standbild wird absichtlich nicht ausgegeben, weil Word dessen absolute
-     * Position ignoriert und dadurch erneut eine sichtbare Leerhoehe erzeugt.
+     * Runtime-Projektion. Hauptzug, Idle-Rauch und Outlook-Standbild muessen
+     * dort als echte IMG mit absoluten HTTPS-Quellen vorliegen. Das Hauptbild
+     * bleibt wie im Versand im normalen Flow; CSS darf keine GIF-Datei laden.
      */
     private static function validateBrowserCopyTrainImages(
         string $html,
         string $expectedTrainSource,
         string $expectedIdleSource,
+        string $expectedMsoSource,
     ): string {
         $expectedTrainSource = self::forceHttpsUrl($expectedTrainSource);
         $expectedIdleSource = self::forceHttpsUrl($expectedIdleSource);
+        $expectedMsoSource = self::forceHttpsUrl($expectedMsoSource);
         $dom = new \DOMDocument('1.0', 'UTF-8');
         $previous = libxml_use_internal_errors(true);
 
@@ -1263,7 +1262,7 @@ class EmailTemplateBuilder
             $html,
             $expectedTrainSource,
             $expectedIdleSource,
-            '',
+            $expectedMsoSource,
         );
 
         foreach (self::imageSources($html) as $imageSource) {

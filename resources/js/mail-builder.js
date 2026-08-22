@@ -1288,70 +1288,19 @@ function hardenEditorTrainImage(trainLayer, trainImage) {
             element.setAttribute('style', `${declarations.replace(/;+$/, '')};mso-hide:all;`);
         }
     };
-    const alignment = ['left', 'center', 'right'].includes(trainLayer.getAttribute('data-rt-layer-align'))
-        ? trainLayer.getAttribute('data-rt-layer-align')
-        : 'left';
-    const sizeName = ['100', '125', '150', '200'].includes(trainLayer.getAttribute('data-rt-layer-size'))
-        ? trainLayer.getAttribute('data-rt-layer-size')
-        : '100';
-    const size = {
-        100: { width: '100%', centerMargin: '0', rightMargin: '0' },
-        125: { width: '125%', centerMargin: '-12.5%', rightMargin: '-25%' },
-        150: { width: '150%', centerMargin: '-25%', rightMargin: '-50%' },
-        200: { width: '200%', centerMargin: '-50%', rightMargin: '-100%' },
-    }[sizeName];
-    const horizontal = {
-        left: { left: '0', right: 'auto', margin: '0 auto 0 0' },
-        center: { left: '0', right: '0', margin: '0 auto' },
-        right: { left: 'auto', right: '0', margin: '0 0 0 auto' },
-    }[alignment];
-    const imageOffset = alignment === 'center'
-        ? size.centerMargin
-        : (alignment === 'right' ? size.rightMargin : '0');
-    const imageMargin = imageOffset === '0' ? '0' : `0 0 0 ${imageOffset}`;
-    trainLayer.setAttribute('data-rt-layer-align', alignment);
-    trainLayer.setAttribute('data-rt-layer-size', sizeName);
-    trainLayer.style?.setProperty?.('position', 'absolute');
-    trainLayer.style?.setProperty?.('left', horizontal.left);
-    trainLayer.style?.setProperty?.('right', horizontal.right);
-    trainLayer.style?.setProperty?.('top', '0');
-    trainLayer.style?.setProperty?.('bottom', '0');
-    trainLayer.style?.setProperty?.('width', '100%');
-    trainLayer.style?.setProperty?.('max-width', '1815px');
-    trainLayer.style?.setProperty?.('margin', horizontal.margin);
-    trainLayer.style?.setProperty?.('overflow', 'hidden');
-    trainLayer.style?.setProperty?.('z-index', '0');
-    trainLayer.style?.setProperty?.('font-size', '0');
-    trainLayer.style?.setProperty?.('line-height', '0');
-    trainLayer.style?.setProperty?.('text-align', 'left');
+    trainLayer.style?.setProperty?.('position', 'relative');
+    trainLayer.style?.setProperty?.('left', '0');
+    trainLayer.style?.setProperty?.('right', 'auto');
+    trainLayer.style?.setProperty?.('top', 'auto');
+    trainLayer.style?.setProperty?.('bottom', 'auto');
     trainLayer.style?.removeProperty?.('height');
     trainLayer.style?.removeProperty?.('mso-hide');
-    trainImage.style?.setProperty?.('position', 'absolute');
-    trainImage.style?.setProperty?.('left', '0');
+    trainImage.style?.setProperty?.('position', 'static');
+    trainImage.style?.setProperty?.('left', 'auto');
     trainImage.style?.setProperty?.('right', 'auto');
-    trainImage.style?.setProperty?.('bottom', '0');
-    trainImage.style?.setProperty?.('display', 'block');
-    trainImage.style?.setProperty?.('width', size.width);
-    trainImage.style?.setProperty?.('max-width', 'none');
-    trainImage.style?.setProperty?.('height', 'auto');
-    trainImage.style?.setProperty?.('margin', imageMargin);
-    trainImage.style?.setProperty?.('border', '0');
-    trainImage.style?.setProperty?.('outline', 'none');
-    trainImage.style?.setProperty?.('text-decoration', 'none');
-    trainImage.style?.setProperty?.('vertical-align', 'bottom');
+    trainImage.style?.setProperty?.('bottom', 'auto');
     withMsoHide(trainImage);
     trainImage.setAttribute('width', '720');
-
-    const stage = trainLayer.parentElement?.classList?.contains('rt-sign-stage')
-        ? trainLayer.parentElement
-        : null;
-    if (stage) {
-        stage.style?.setProperty?.('position', 'relative');
-        stage.style?.setProperty?.('overflow', 'hidden');
-        const contentTable = Array.from(stage.children || []).find((child) => child.tagName === 'TABLE');
-        contentTable?.style?.setProperty?.('position', 'relative');
-        contentTable?.style?.setProperty?.('z-index', '1');
-    }
 }
 
 export function projectForMailDocument(draft, parseCss = () => [], options = {}) {
@@ -1886,11 +1835,6 @@ export function synchronizeMailTrainLayerAlignment(component) {
         center: '0 auto',
         right: '0 0 0 auto',
     }[alignment];
-    const layerHorizontal = {
-        left: { left: '0', right: 'auto' },
-        center: { left: '0', right: '0' },
-        right: { left: 'auto', right: '0' },
-    }[alignment];
     const imageOffset = alignment === 'center'
         ? size.centerMargin
         : (alignment === 'right' ? size.rightMargin : '0');
@@ -1910,11 +1854,11 @@ export function synchronizeMailTrainLayerAlignment(component) {
         }
     }
     const current = component?.getStyle?.() || {};
-    const layerChanged = current.left !== layerHorizontal.left
-        || current.right !== layerHorizontal.right
-        || current.position !== 'absolute'
-        || current.top !== '0'
-        || current.bottom !== '0'
+    const layerChanged = current.left !== '0'
+        || current.right !== 'auto'
+        || current.position !== 'relative'
+        || current.top !== 'auto'
+        || current.bottom !== 'auto'
         || current.width !== '100%'
         || current['max-width'] !== '1815px'
         || current.margin !== layerMargin
@@ -1923,11 +1867,11 @@ export function synchronizeMailTrainLayerAlignment(component) {
     if (layerChanged) {
         const canonicalStyle = {
             ...current,
-            position: 'absolute',
-            left: layerHorizontal.left,
-            right: layerHorizontal.right,
-            top: '0',
-            bottom: '0',
+            position: 'relative',
+            left: '0',
+            right: 'auto',
+            top: 'auto',
+            bottom: 'auto',
             width: '100%',
             'max-width': '1815px',
             margin: layerMargin,
@@ -1958,13 +1902,13 @@ export function synchronizeMailTrainLayerAlignment(component) {
         const imageAttributes = image.getAttributes?.() || image.get?.('attributes') || {};
         const imageStyle = image.getStyle?.() || {};
         imageChanged = String(imageAttributes.width || '') !== '720'
-            || imageStyle.position !== 'absolute'
-            || imageStyle.left !== '0'
+            || imageStyle.position !== 'static'
+            || imageStyle.left !== 'auto'
             || imageStyle.right !== 'auto'
-            || imageStyle.bottom !== '0'
-            || imageStyle.display !== 'block'
+            || imageStyle.bottom !== 'auto'
+            || imageStyle.display !== 'inline-block'
             || imageStyle.width !== size.width
-            || imageStyle['vertical-align'] !== 'bottom'
+            || imageStyle['vertical-align'] !== 'top'
             || imageStyle['max-width'] !== 'none'
             || imageStyle.margin !== imageMargin;
         if (imageChanged) {
@@ -1975,20 +1919,27 @@ export function synchronizeMailTrainLayerAlignment(component) {
             }
             image.setStyle?.({
                 ...imageStyle,
-                position: 'absolute',
-                left: '0',
+                position: 'static',
+                left: 'auto',
                 right: 'auto',
-                bottom: '0',
-                display: 'block',
+                bottom: 'auto',
+                display: 'inline-block',
                 width: size.width,
                 'max-width': 'none',
                 margin: imageMargin,
-                'vertical-align': 'bottom',
+                'vertical-align': 'top',
             }, { silent: true });
         }
     }
 
-    return attributesChanged || layerChanged || imageChanged;
+    if (!attributesChanged && !layerChanged && !imageChanged
+        && current.left === '0'
+        && current.right === 'auto'
+        && current.margin === layerMargin) {
+        return false;
+    }
+
+    return true;
 }
 
 /**

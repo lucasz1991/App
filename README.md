@@ -236,14 +236,11 @@ Ohne diese Angabe verwendet der Seeder den ersten Administrator. Bestehende oder
 gelöschte Startmotive werden nicht überschrieben und nicht doppelt angelegt.
 
 Der administrative **Mail- & Signatur-Editor** verwendet exakt zwei
-kanonische Dokumente. Nach der Migration stellt der folgende autoritative
-Deployment-Schritt Vorlage und Signatur atomar als veröffentlichte Version 1
-her. Vorhandene Entwürfe, Zwischenstände und unbekannte Maildokument-Zeilen
-werden dabei bewusst verworfen:
-
-```bash
-php artisan db:seed --class=MailDocumentSeeder --force
-```
+kanonische Dokumente. Sie werden nicht mehr durch einen autoritativen Seeder
+angelegt oder überschrieben. Fehlt eine Nachrichtenvorlage oder Signatur, kann
+das jeweilige portable JSON-Bundle direkt im Editor als Entwurf importiert,
+geprüft und anschließend bewusst veröffentlicht werden. Vorhandene Entwürfe
+und Veröffentlichungen bleiben bei Deployments unverändert.
 
 Nach vorhandener `mail_documents`-Migration versenden Laravel-Mails und
 Notifications ausschließlich diese veröffentlichten Datenbankstände. Fehlt

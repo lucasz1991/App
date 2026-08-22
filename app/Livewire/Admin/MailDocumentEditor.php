@@ -215,13 +215,39 @@ class MailDocumentEditor extends Component
      */
     private function portableMediaAssets(array $documents): array
     {
+        $includedSystemAssets = match ($this->kind) {
+            MailDocumentKind::Signature->value => [
+                'contact-email.png',
+                'contact-location.png',
+                'contact-mobile.png',
+                'contact-phone.png',
+                'contact-web.png',
+                'wortmarke-signature-light.gif',
+                'wortmarke-signature-light.png',
+                'wortmarke-mail-dark.gif',
+                'wortmarke-mail-dark.png',
+                'zug-dampf-light.gif',
+                'zug-dampf-light.png',
+                'zug-dampf-dark.gif',
+                'zug-dampf-dark.png',
+                'zug-dampf-idle-light.gif',
+                'zug-dampf-idle-dark.gif',
+            ],
+            default => [
+                'icon-rt-light.gif',
+                'icon-rt-light.png',
+                'icon-rt-dark.gif',
+                'icon-rt-dark.png',
+            ],
+        };
+        $includedSystemAssets = array_fill_keys($includedSystemAssets, true);
         $assets = array_map(
             static fn (string $path): string => basename($path),
             glob(public_path('mail-assets/*.{gif,png,jpg,jpeg,webp}'), GLOB_BRACE) ?: [],
         );
         sort($assets, SORT_NATURAL | SORT_FLAG_CASE);
 
-        $portable = array_values(array_filter(array_map(static function (string $asset): ?array {
+        $portable = array_values(array_filter(array_map(static function (string $asset) use ($includedSystemAssets): ?array {
             $path = public_path('mail-assets/'.$asset);
             if (! is_file($path)) {
                 return null;
@@ -245,7 +271,11 @@ class MailDocumentEditor extends Component
                 'sha256' => hash_file('sha256', $path),
                 'width' => (int) ($dimensions[0] ?? 0),
                 'height' => (int) ($dimensions[1] ?? 0),
-                'required' => true,
+                // Alle vorhandenen System-IDs bleiben fuer alte Bundles
+                // bekannt. Exportiert und fuer neue Bundles verlangt werden
+                // aber nur die Medien des aktuell geoeffneten Dokuments.
+                'required' => isset($includedSystemAssets[$asset]),
+                'included' => isset($includedSystemAssets[$asset]),
             ];
         }, $assets)));
 
@@ -254,10 +284,14 @@ class MailDocumentEditor extends Component
         // mitkommen, sonst waere ein einmal transportierter Entwurf nicht
         // mehr vollstaendig portabel. Eingesammelt werden nur Dateien, die
         // in einem der beiden aktuellen Dokumente tatsaechlich vorkommen.
-        $source = html_entity_decode(implode("\n", array_map(
-            static fn (MailDocument $document): string => (string) $document->html."\n".(string) $document->css,
-            $documents,
-        )), ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
+        $current = $documents[$this->kind] ?? null;
+        $source = $current instanceof MailDocument
+            ? html_entity_decode(
+                (string) $current->html."\n".(string) $current->css,
+                ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5,
+                'UTF-8',
+            )
+            : '';
         preg_match_all(
             '~/storage/mail-imports/([a-f0-9]{64}\.(?:gif|png|jpe?g|webp))(?:\?[^\s"\'()<>]*)?~i',
             $source,
@@ -297,7 +331,8 @@ class MailDocumentEditor extends Component
                 'sha256' => hash_file('sha256', $path),
                 'width' => (int) ($dimensions[0] ?? 0),
                 'height' => (int) ($dimensions[1] ?? 0),
-                'required' => false,
+                'required' => true,
+                'included' => true,
             ];
         }
 

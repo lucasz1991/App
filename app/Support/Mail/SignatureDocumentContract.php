@@ -13,6 +13,9 @@ use RuntimeException;
 /** Gemeinsamer Save-/Publish-/Web-/Outlook-Vertrag der Signaturquelle. */
 final class SignatureDocumentContract
 {
+    /** Aktueller gespeicherter Vertrag: bildfreie Signatur mit Flow-Zug-IMG. */
+    public const SCHEMA = 19;
+
     /** @var list<string> */
     private const REQUIRED_TOKENS = [
         '{{LOGO_SRC}}',
@@ -88,11 +91,10 @@ final class SignatureDocumentContract
     /**
      * Laufzeitvertrag fuer bereits veroeffentlichte Signaturen.
      *
-     * Neue Editor-/Publish-Staende muessen immer den Schema-18-Vertrag
-     * besitzen. Bis der autoritative Seeder nach dem Deployment gelaufen ist,
-     * darf der Versand nur die einzeln beschriebenen Altformen lesen:
-     * Schema 6 (Padding), Schema 9 (Background) sowie Schema 12-15
-     * (alte absolute Bild-Layer) und das exakte Schema 16 (Flow-Layer).
+     * Neue Editor-/Publish-Staende muessen immer den Schema-19-Flowvertrag
+     * besitzen. Der Versand darf daneben nur die einzeln beschriebenen
+     * Altformen lesen: Schema 6 (Padding), Schema 9 (Background), Schema
+     * 12-15/17-18 (absolute Bild-Layer) und bekannte Flow-Zwischenstaende.
      * Jede andere Zwischenform bricht fail-closed ab.
      */
     public static function assertRuntimeValid(string $html): void
@@ -147,7 +149,7 @@ final class SignatureDocumentContract
             if ($allowLegacyDirectImage || $allowLegacyPercentHeight || $allowLegacyAbsoluteImage) {
                 // Der Runtime-Einstieg akzeptiert nur die im Carrier selbst
                 // exakt beschriebenen Altvertraege und normalisiert sie ohne
-                // Persistenz in Schema 18. Neue Saves bleiben strikt.
+                // Persistenz in Schema 19. Neue Saves bleiben strikt.
                 SignatureTrainCarrier::normalize($html);
             } else {
                 SignatureTrainCarrier::assertCanonicalImage($html);
@@ -167,7 +169,7 @@ final class SignatureDocumentContract
             }
         } elseif ($allowLegacyTrainCarrier) {
             // Bereits publizierte Schema-9-Staende bleiben bis zum expliziten
-            // Seeder-Lauf lesbar und werden beim Rendern in die heutige
+            // Import/Freigabe lesbar und werden beim Rendern in die heutige
             // Bild-Buehne projiziert. Neue Saves duerfen den Background nicht
             // erneut veroeffentlichen.
             SignatureTrainCarrier::normalize($html);
@@ -525,7 +527,7 @@ final class SignatureDocumentContract
      * Exakt die bis Schema 6 ausgelieferte Form: das Inhaltspadding liegt auf
      * dem aeusseren rt-pad/rt-sign-cell, die erste direkte Tabelle enthaelt
      * unmittelbar die zweispaltige rt-stack-Zeile. Diese Ausnahme existiert
-     * ausschliesslich im Runtime-Einstieg und verschwindet nach dem Seeder.
+     * ausschliesslich im Runtime-Einstieg und verschwindet nach dem Import.
      *
      * @param  list<string>  $carrierClasses
      * @param  list<DOMElement>  $contentCells

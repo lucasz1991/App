@@ -16,7 +16,6 @@ use App\Support\Mail\EmailHtmlSanitizer;
 use App\Support\Mail\SignatureDocumentContract;
 use App\Support\Mail\SignatureTrainCarrier;
 use App\Support\MailSignature;
-use Database\Seeders\MailDocumentSeeder;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Mail\Markdown;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -71,26 +70,68 @@ class MailDocumentEditorTest extends TestCase
     }
 
     /**
-     * Geseedete Dokumente ALS ENTWURF.
-     *
-     * Der Seeder selbst gibt frei — das ist seine Zusage fuer das
-     * Deployment (siehe test_der_seeder_ueberschreibt_und_gibt_sofort_frei).
-     * Die Faelle hier pruefen aber den Editor: sein Speichern, seine
-     * Freigabe, seine Ablehnungen. Dafuer braucht es einen Ausgangszustand
-     * OHNE Freigabe, sonst pruefte man gegen ein bereits fertiges Ergebnis.
+     * Kanonische Dokumente ALS ENTWURF fuer die Editorfaelle.
      */
     private function seedDocuments(): void
     {
-        (new MailDocumentSeeder)->run();
-
-        MailDocument::query()->update([
-            'status' => MailDocumentStatus::Draft,
-            'published_html' => null,
-            'published_css' => null,
-            'published_at' => null,
-        ]);
+        $this->createCanonicalMailDocuments(published: false);
 
         app()->forgetScopedInstances();
+    }
+
+    private function createCanonicalMailDocuments(bool $published = true): void
+    {
+        foreach (MailDocumentKind::cases() as $kind) {
+            $this->createCanonicalMailDocument($kind, $published);
+        }
+    }
+
+    private function createCanonicalMailDocument(
+        MailDocumentKind $kind,
+        bool $published = true,
+    ): MailDocument {
+        $html = $this->canonicalMailDocumentHtml($kind);
+        $css = '';
+        $builderData = [
+            'pages' => [[
+                'name' => $kind->label(),
+                'component' => $html,
+            ]],
+            'styles' => [],
+            'railtime' => [
+                'document' => $kind->value,
+                'schema' => 18,
+            ],
+        ];
+
+        return MailDocument::query()->create([
+            'kind' => $kind,
+            'status' => $published ? MailDocumentStatus::Published : MailDocumentStatus::Draft,
+            'builder_data' => $builderData,
+            'html' => $html,
+            'css' => $css,
+            'published_html' => $published ? $html : null,
+            'published_css' => $published ? $css : null,
+            'published_at' => $published ? now() : null,
+            'content_hash' => MailDocument::contentHashFor($builderData, $html, $css),
+            'version' => 1,
+        ]);
+    }
+
+    private function canonicalMailDocumentHtml(MailDocumentKind $kind): string
+    {
+        if ($kind === MailDocumentKind::Template) {
+            $html = (string) file_get_contents(EmailTemplateBuilder::masterPath('email-master.html'));
+        } else {
+            $tokens = [];
+            foreach (array_keys(MailSignature::forCompany()->values([], CompanyData::defaults())) as $key) {
+                $tokens[$key] = '{{'.$key.'}}';
+            }
+
+            $html = view('emails.parts.signature', ['values' => $tokens])->render();
+        }
+
+        return trim(app(EmailHtmlSanitizer::class)->assertClean(trim($html))->html);
     }
 
     /**

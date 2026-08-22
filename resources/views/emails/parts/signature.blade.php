@@ -8,11 +8,11 @@
 
     Der kanonische Editorstand besitzt zwei Tabellenzeilen: Signaturblock und
     Pflichtangaben. Im gespeicherten Editor-/Seederstand ist der Zug ein
-    regulaeres, editierbares IMG. Derselbe absolute, hoehenneutrale Layer liegt
-    im Editor und im Versand hinter der normal fliessenden Kontakttabelle. Das
-    Idle-GIF ist ein zweites, hoehenlos ueberlagertes IMG. Word/MSO erhaelt
-    bewusst kein Zug-Flowbild, weil es sonst den entfernten Abstand erneut
-    erzeugen wuerde; Logo und RT-Zeichen behalten ihre eigenen Standbilder.
+    regulaeres, editierbares IMG. Derselbe Flow-Layer steht im Editor und im
+    Versand direkt vor den Pflichtangaben. Damit zeigt der Editor absichtlich
+    dieselbe Geometrie wie Outlook, auch wenn ein Mailclient Positionierungs-
+    CSS entfernt. Das Idle-GIF bleibt ein zweites, hoehenlos ueberlagertes IMG;
+    Word/MSO erhaelt im selben Layer ein bedingtes PNG-Standbild.
 
     AUFBAU: zwei gleich breite Spalten an einer Mittelachse. Links die
     Person, rechts die Firma. Die Firmenkontakte existieren genau einmal:
@@ -58,7 +58,7 @@
      * fruehere Raster und das grosse RT-Wasserzeichen werden weder geladen
      * noch als EML-Medien mitgefuehrt. Die transparente Kompatibilitaetsebene
      * bleibt als einzige, bildfreie Ebene bestehen; der Zug liegt weiterhin
-     * separat als echtes IMG hinter den Kontaktdaten.
+     * separat als echtes IMG direkt unter den Kontaktdaten.
      */
     $ebenen = [
         "linear-gradient({$values['SIGNATURE_TRAIN_WASH']},{$values['SIGNATURE_TRAIN_WASH']})|center center|100% 100%|no-repeat",
@@ -155,13 +155,13 @@
             </tr>
         </table>
         @if($trainSrc !== '')
-            {{-- Der Zug bleibt wie Logo und RT-Zeichen ein echtes IMG, liegt
-                 aber als absoluter, hoehenneutraler Layer hinter der mit
-                 z-index:1 geschuetzten Kontakttabelle. So entsteht weder vor
-                 noch nach dem Zug eigener Platz; GIFs werden nie ueber eine
-                 CSS-background-image-Regel geladen. --}}
-            <div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:absolute;left:0;right:auto;top:0;bottom:0;width:100%;max-width:1815px;margin:0 auto 0 0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;">
-                <img class="rt-sign-train" data-rt-train src="{{ $trainSrc }}" width="720" alt="" style="position:absolute;left:0;right:auto;bottom:0;display:block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:bottom;mso-hide:all;">
+            {{-- Der Zug bleibt wie Logo und RT-Zeichen ein echtes IMG. Er
+                 folgt im normalen Mailfluss direkt auf die Kontakttabelle
+                 und endet ohne Zwischenraum an der Legal-Zeile. Dadurch
+                 stimmen Editor und Mailclient auch ohne Position-CSS ueberein;
+                 GIFs werden nie ueber background-image geladen. --}}
+            <div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;">
+                <img class="rt-sign-train" data-rt-train src="{{ $trainSrc }}" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all;">
             </div>
         @endif
         </div>
