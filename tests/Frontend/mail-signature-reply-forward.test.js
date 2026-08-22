@@ -62,15 +62,15 @@ test('mobile rules restyle the same signature nodes without hide-and-show copies
     assert.match(mobile, /\.rt-company-contact td\.rt-company-contact-text\s*\{\s*text-align:\s*left !important;/);
     assert.doesNotMatch(css, /\.rt-firma-(?:breit|schmal)/);
     assert.doesNotMatch(css, /rt-marke-mobil|\.rt-sign-logo img\.rt-logo\s*\{[^}]*display:\s*none/);
-    assert.match(mobile, /\.rt-sign-train-layer\s*\{[\s\S]*?left:\s*0 !important;[\s\S]*?width:\s*100% !important;/);
-    assert.match(mobile, /data-rt-layer-mobile="train"\] \{ left:\s*0 !important; right:\s*auto !important; margin-left:\s*0 !important; margin-right:\s*auto !important;/);
-    assert.match(mobile, /data-rt-layer-mobile="center"\] \{ left:\s*0 !important; right:\s*0 !important; margin-left:\s*auto !important; margin-right:\s*auto !important;/);
-    assert.match(mobile, /data-rt-layer-mobile="right"\] \{ left:\s*auto !important; right:\s*0 !important; margin-left:\s*auto !important; margin-right:\s*0 !important;/);
+    assert.match(mobile, /\.rt-sign-train-layer\s*\{[^}]*width:\s*100% !important;[^}]*max-width:\s*1815px !important;[^}]*margin-bottom:\s*0 !important;/s);
+    assert.match(mobile, /data-rt-layer-mobile="train"\] \{ margin-left:\s*0 !important; margin-right:\s*auto !important;/);
+    assert.match(mobile, /data-rt-layer-mobile="center"\] \{ margin-left:\s*auto !important; margin-right:\s*auto !important;/);
+    assert.match(mobile, /data-rt-layer-mobile="right"\] \{ margin-left:\s*auto !important; margin-right:\s*0 !important;/);
     assert.match(mobile, /data-rt-layer-mobile="train"\]\[data-rt-layer-size\][\s\S]*?width:\s*100% !important;\s*max-width:\s*none !important;\s*margin-left:\s*0 !important;/);
     assert.match(mobile, /data-rt-layer-mobile="right"\]\[data-rt-layer-size\][\s\S]*?width:\s*200% !important;\s*max-width:\s*none !important;\s*margin-left:\s*-100% !important;/);
 });
 
-test('delivery keeps the main and idle train images as zero-flow absolute layers inside the carrier', async () => {
+test('delivery keeps the main train in flow and overlays only the zero-height idle holder', async () => {
     const [signature, runtime, carrier, preview] = await Promise.all([
         source('../../resources/views/emails/parts/signature.blade.php'),
         source('../../app/Support/MailSignature.php'),
@@ -84,9 +84,9 @@ test('delivery keeps the main and idle train images as zero-flow absolute layers
 
     assert.match(signature, /\$trainSrc = \$outlookTrainSrc !== ''/);
     assert.match(signature, /<div class="rt-sign-stage" style="position:relative;overflow:hidden;">/);
-    assert.match(signature, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:absolute;left:0;right:auto;top:0;bottom:0;width:100%;max-width:1815px;margin:0 auto 0 0;[^"\r\n]*overflow:hidden;[^"\r\n]*z-index:0;[^"\r\n]*text-align:left;">/);
+    assert.match(signature, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;[^"\r\n]*overflow:hidden;[^"\r\n]*z-index:0;[^"\r\n]*text-align:left;">/);
     assert.doesNotMatch(signature, /rt-sign-train-layer[^>]*mso-hide:all/);
-    assert.match(signature, /<img class="rt-sign-train" data-rt-train src="\{\{ \$trainSrc \}\}" width="720" alt="" style="position:absolute;left:0;right:auto;bottom:0;display:block;width:100%;max-width:none;height:auto;margin:0;[^\"]*vertical-align:bottom;[^\"]*mso-hide:all;">/);
+    assert.match(signature, /<img class="rt-sign-train" data-rt-train src="\{\{ \$trainSrc \}\}" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;[^\"]*vertical-align:top;[^\"]*mso-hide:all;">/);
     assert.doesNotMatch(signature, /url\(\{\$values\['TRAIN_SRC'\]\}\)/);
     assert.doesNotMatch(signature, /data-rt-outlook-train/);
     assert.doesNotMatch(signature, /<td[^>]+background="\{\{[^}]*TRAIN/);
@@ -104,13 +104,13 @@ test('delivery keeps the main and idle train images as zero-flow absolute layers
     assert.match(carrier, /public static function withMsoFallback/);
     assert.match(carrier, /public static function withIdleOverlay/);
     assert.equal(occurrences(carrier, /<!--\[if mso\]><tr><td class="rt-sign-train-mso"/g), 0);
-    assert.doesNotMatch(carrier, /<!--\[if (?:gte )?mso(?: 9)?\]><img class="rt-sign-train-mso"/);
-    assert.doesNotMatch(msoFallback, /<img\b/);
-    assert.match(msoFallback, /self::assertRuntimeImages\(\$html, expectedMsoSource: ''\);[\s\S]*?return \$html;/);
+    assert.match(carrier, /<!--\[if mso\]><img class="rt-sign-train-mso"/);
+    assert.match(msoFallback, /<img class="rt-sign-train-mso"[^>]*display:inline-block;[^>]*vertical-align:top;/);
+    assert.match(msoFallback, /self::assertRuntimeImages\(\$html, expectedMsoSource: \$source\);[\s\S]*?return \$html;/);
     assert.doesNotMatch(carrier, /<v:(?:rect|fill)\b/);
     assert.match(carrier, /<div class="rt-sign-stage" style="position:relative;overflow:hidden;">/);
-    assert.match(carrier, /<div class="rt-sign-train-layer" data-rt-layer-train[^>]*style="position:absolute;[^"\r\n]*top:0;bottom:0;[^"\r\n]*z-index:0;/);
-    assert.match(carrier, /<img class="rt-sign-train" data-rt-train src="'\.\$source\.'" width="720"[^>]*style="position:absolute;left:0;right:auto;bottom:0;display:block;/);
+    assert.match(carrier, /<div class="rt-sign-train-layer" data-rt-layer-train[^>]*style="position:relative;[^"\r\n]*top:auto;bottom:auto;[^"\r\n]*z-index:0;/);
+    assert.match(carrier, /<img class="rt-sign-train" data-rt-train src="'\.\$source\.'" width="720"[^>]*style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;/);
     assert.match(preview, /MailSignature::forCompany\(/);
     assert.match(preview, /->renderDocument\(/);
     assert.doesNotMatch(preview, /SignatureTrainCarrier::projectAsImage\(/);
@@ -118,8 +118,8 @@ test('delivery keeps the main and idle train images as zero-flow absolute layers
     assert.match(carrier, /data-rt-train-idle-overlay/);
     assert.match(carrier, /<span class="rt-train-idle-overlay" data-rt-train-idle-overlay[\s\S]*?<img class="rt-train-idle-image" data-rt-train-idle-image src="'\.\$escapedSource\.'"[\s\S]*?<\/span>/);
     assert.match(carrier, /data-rt-train-idle-overlay[^>]*position:absolute;[^>]*display:block;[^>]*height:0;max-height:0;[^>]*overflow:hidden;/);
-    assert.match(carrier, /data-rt-train-idle-overlay[^>]*top:auto;bottom:0;[^>]*max-width:none;[^>]*text-align:left/);
-    assert.match(carrier, /rt-train-idle-image[^>]*position:absolute;[^>]*bottom:0;[^>]*display:block;[^>]*vertical-align:bottom;/);
+    assert.match(carrier, /data-rt-train-idle-overlay[^>]*top:0;bottom:auto;[^>]*max-width:none;[^>]*text-align:left/);
+    assert.match(carrier, /rt-train-idle-image[^>]*position:static;[^>]*bottom:auto;[^>]*display:inline-block;[^>]*vertical-align:top;/);
     assert.doesNotMatch(carrier, /background-image:[^;]*(?:TRAIN|train|\.gif)/);
     assert.doesNotMatch(runtime, /rt-classic-outlook-train/);
 });

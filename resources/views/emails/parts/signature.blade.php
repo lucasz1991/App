@@ -7,7 +7,7 @@
       - jeder Laravel-Mail und -Notification (vendor/mail/html/footer.blade.php)
 
     Der kanonische Editorstand besitzt zwei Tabellenzeilen: Signaturblock und
-    Pflichtangaben. Im gespeicherten Editor-/Seederstand ist der Zug ein
+    Pflichtangaben. Im gespeicherten Editorstand ist der Zug ein
     regulaeres, editierbares IMG. Derselbe Flow-Layer steht im Editor und im
     Versand direkt vor den Pflichtangaben. Damit zeigt der Editor absichtlich
     dieselbe Geometrie wie Outlook, auch wenn ein Mailclient Positionierungs-

@@ -5,6 +5,7 @@ namespace App\Livewire\Admin;
 use App\Enums\MailDocumentKind;
 use App\Models\MailDocument;
 use App\Support\EmailTemplateBuilder;
+use App\Support\Mail\PortableMediaCatalog;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
@@ -215,32 +216,10 @@ class MailDocumentEditor extends Component
      */
     private function portableMediaAssets(array $documents): array
     {
-        $includedSystemAssets = match ($this->kind) {
-            MailDocumentKind::Signature->value => [
-                'contact-email.png',
-                'contact-location.png',
-                'contact-mobile.png',
-                'contact-phone.png',
-                'contact-web.png',
-                'wortmarke-signature-light.gif',
-                'wortmarke-signature-light.png',
-                'wortmarke-mail-dark.gif',
-                'wortmarke-mail-dark.png',
-                'zug-dampf-light.gif',
-                'zug-dampf-light.png',
-                'zug-dampf-dark.gif',
-                'zug-dampf-dark.png',
-                'zug-dampf-idle-light.gif',
-                'zug-dampf-idle-dark.gif',
-            ],
-            default => [
-                'icon-rt-light.gif',
-                'icon-rt-light.png',
-                'icon-rt-dark.gif',
-                'icon-rt-dark.png',
-            ],
-        };
-        $includedSystemAssets = array_fill_keys($includedSystemAssets, true);
+        $includedSystemAssets = array_fill_keys(
+            PortableMediaCatalog::requiredSystemAssetIds($this->kind),
+            true,
+        );
         $assets = array_map(
             static fn (string $path): string => basename($path),
             glob(public_path('mail-assets/*.{gif,png,jpg,jpeg,webp}'), GLOB_BRACE) ?: [],

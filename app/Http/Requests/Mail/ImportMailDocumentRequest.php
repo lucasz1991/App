@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Mail;
 
 use App\Enums\MailDocumentKind;
+use App\Support\Mail\PortableMediaCatalog;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -60,6 +61,33 @@ final class ImportMailDocumentRequest extends FormRequest
                 ));
                 if ($encodedBytes > 16 * 1024 * 1024) {
                     $validator->errors()->add('media', 'Das Medienpaket ist groesser als 16 MiB.');
+                }
+
+                $ids = array_map(
+                    static fn ($entry): string => is_array($entry)
+                        ? trim((string) ($entry['id'] ?? ''))
+                        : '',
+                    $media,
+                );
+                $counts = array_count_values(array_filter($ids, static fn (string $id): bool => $id !== ''));
+                if (array_filter($counts, static fn (int $count): bool => $count !== 1) !== []) {
+                    $validator->errors()->add('media', 'Jede Medienkennung darf nur einmal vorkommen.');
+                }
+
+                $kind = MailDocumentKind::tryFrom((string) $this->input('kind'));
+                if ($kind === null) {
+                    return;
+                }
+
+                $missing = array_values(array_diff(
+                    PortableMediaCatalog::requiredSystemAssetIds($kind),
+                    array_keys($counts),
+                ));
+                if ($missing !== []) {
+                    $validator->errors()->add(
+                        'media',
+                        'Im Bundle fehlen erforderliche Medien: '.implode(', ', $missing).'.',
+                    );
                 }
             },
         ];

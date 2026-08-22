@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\MailDocumentKind;
+use App\Enums\MailDocumentStatus;
 use App\Enums\MarketingCreativeFormat;
 use App\Enums\MarketingCreativeType;
 use App\Livewire\Tools\Chatbot;
@@ -17,8 +18,11 @@ use App\Services\Ai\AssistantPageBuilderTools;
 use App\Services\Ai\AssistantPendingActionStore;
 use App\Services\Marketing\MarketingFileSourceService;
 use App\Services\Marketing\MarketingStudioService;
+use App\Support\CompanyData;
+use App\Support\Mail\EmailHtmlSanitizer;
+use App\Support\Mail\SignatureDocumentContract;
+use App\Support\MailSignature;
 use App\Support\PageHelpCatalog;
-use Database\Seeders\MailDocumentSeeder;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\Storage;
 use ReflectionMethod;
@@ -237,8 +241,7 @@ class AssistantPageBuilderToolsTest extends TestCase
     public function test_mail_tokens_signature_structure_and_image_scope_are_immutable(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        (new MailDocumentSeeder)->run();
-        $document = MailDocument::query()->where('kind', MailDocumentKind::Signature->value)->firstOrFail();
+        $document = $this->createCanonicalSignatureDocument();
         $tools = app(AssistantPageBuilderTools::class);
         $context = $this->mailContext($document);
         $context['selection']['gif'] = true;
@@ -721,6 +724,39 @@ class AssistantPageBuilderToolsTest extends TestCase
         $variant = $creative->variants->firstWhere('format', MarketingCreativeFormat::Story);
 
         return [$admin, $creative, $variant];
+    }
+
+    private function createCanonicalSignatureDocument(): MailDocument
+    {
+        $tokens = [];
+        foreach (array_keys(MailSignature::forCompany()->values([], CompanyData::defaults())) as $key) {
+            $tokens[$key] = '{{'.$key.'}}';
+        }
+
+        $html = trim(app(EmailHtmlSanitizer::class)->assertClean(
+            trim(view('emails.parts.signature', ['values' => $tokens])->render()),
+        )->html);
+        $builderData = [
+            'pages' => [[
+                'name' => MailDocumentKind::Signature->label(),
+                'component' => $html,
+            ]],
+            'styles' => [],
+            'railtime' => [
+                'document' => MailDocumentKind::Signature->value,
+                'schema' => SignatureDocumentContract::SCHEMA,
+            ],
+        ];
+
+        return MailDocument::query()->create([
+            'kind' => MailDocumentKind::Signature,
+            'status' => MailDocumentStatus::Draft,
+            'builder_data' => $builderData,
+            'html' => $html,
+            'css' => '',
+            'content_hash' => MailDocument::contentHashFor($builderData, $html, ''),
+            'version' => 1,
+        ]);
     }
 
     /** @return array<string, mixed> */

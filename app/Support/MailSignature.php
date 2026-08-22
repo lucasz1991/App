@@ -418,7 +418,8 @@ class MailSignature
      * Sichtbarkeitswerte fuer die markergebundenen Kontaktzeilen.
      *
      * Der kanonische Signaturentwurf wird mit Platzhaltern gespeichert. Beim
-     * Seed-Zeitpunkt ist {{VORNAME_NACHNAME}} technisch nicht leer; deshalb
+     * gespeicherten Quellstand ist {{VORNAME_NACHNAME}} technisch nicht leer;
+     * deshalb
      * enthaelt er auch die Firmen-Telefonzeile der persoenlichen Fassung.
      * Automatische Nachrichten zeigen Anschluss und Firmenmail bereits links
      * als Absenderkontakte. Die rechten Wiederholungen werden hier beim
@@ -444,7 +445,7 @@ class MailSignature
      * Finalisiert die clientgetrennten Zugpfade erst nach dem autoritativen
      * Dokument-Render. Dadurch werden auch bereits publizierte Signaturen mit
      * dem fehlerhaften legacy background-Attribut sofort sicher ausgeliefert,
-     * ohne auf einen Seeder-Lauf angewiesen zu sein.
+     * ohne auf eine erneute Veröffentlichung angewiesen zu sein.
      */
     private function finalizeTrainRendering(
         string $html,

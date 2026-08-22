@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Admin;
 use App\Enums\MailDocumentKind;
 use App\Enums\MailDocumentStatus;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Mail\SaveMailDocumentRequest;
 use App\Http\Requests\Mail\ImportMailDocumentRequest;
+use App\Http\Requests\Mail\SaveMailDocumentRequest;
 use App\Models\MailDocument;
 use App\Models\User;
 use App\Support\Mail\CssSemantic;
@@ -39,8 +39,8 @@ final class MailDocumentController extends Controller
 {
     /**
      * Legt ein noch fehlendes Maildokument ausschliesslich aus einem zuvor
-     * exportierten v2-Bundle an. Dieser explizite Erstimport ersetzt den
-     * autoritativen Seeder und ueberschreibt niemals vorhandene Inhalte.
+     * exportierten v2-Bundle an. Dieser explizite Erstimport ersetzt die
+     * fruehere Initialisierung und ueberschreibt niemals vorhandene Inhalte.
      */
     public function import(
         ImportMailDocumentRequest $request,
@@ -275,13 +275,27 @@ final class MailDocumentController extends Controller
 
             $path = 'mail-imports/'.$sha256.'.'.$extensions[$mime];
             $target = URL::to(Storage::disk('public')->url($path));
+            $escapedSource = htmlspecialchars(
+                $source,
+                ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5,
+                'UTF-8',
+            );
+            // System-Tokens wie {{TRAIN_SRC}} binden weiterhin das
+            // versionierte RailTime-Asset der Installation. Deren im Bundle
+            // mitgefuehrte Bytes werden vollstaendig validiert, aber nicht als
+            // unreferenzierte Dublette in storage/mail-imports abgelegt.
+            $isReferenced = str_contains($html, $source)
+                || str_contains($html, $escapedSource)
+                || str_contains($css, $source);
             $html = str_replace(
-                [$source, htmlspecialchars($source, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8')],
+                [$source, $escapedSource],
                 [$target, htmlspecialchars($target, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8')],
                 $html,
             );
             $css = str_replace($source, $target, $css);
-            $files[] = ['path' => $path, 'binary' => $binary];
+            if ($isReferenced) {
+                $files[] = ['path' => $path, 'binary' => $binary];
+            }
             $sources[$source] = true;
         }
 

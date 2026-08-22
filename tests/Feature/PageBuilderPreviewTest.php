@@ -3,13 +3,18 @@
 namespace Tests\Feature;
 
 use App\Enums\MailDocumentKind;
+use App\Enums\MailDocumentStatus;
 use App\Enums\MarketingCreativeType;
 use App\Http\Responses\PageBuilderPreviewResponse;
 use App\Models\MailDocument;
 use App\Models\User;
 use App\Services\Marketing\MarketingStudioService;
+use App\Support\CompanyData;
+use App\Support\EmailTemplateBuilder;
+use App\Support\Mail\EmailHtmlSanitizer;
+use App\Support\Mail\SignatureDocumentContract;
 use App\Support\Mail\SignatureTrainCarrier;
-use Database\Seeders\MailDocumentSeeder;
+use App\Support\MailSignature;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Storage;
@@ -158,7 +163,7 @@ class PageBuilderPreviewTest extends TestCase
             'email' => 'mara.vorschau@rail-time.test',
         ]);
         User::factory()->create(['role' => 'staff']);
-        (new MailDocumentSeeder)->run();
+        $this->createCanonicalMailDocuments();
         $document = MailDocument::query()->where('kind', MailDocumentKind::Template->value)->firstOrFail();
         // Zeitstempel als Zeichenkette vergleichen: published_at ist ein
         // Carbon-Objekt, und zwei Abfragen liefern zwei INSTANZEN. Ein
@@ -187,15 +192,15 @@ class PageBuilderPreviewTest extends TestCase
 
         $this->assertStringContainsString('Mara Vorschau', $html);
         $this->assertStringNotContainsString('mara.vorschau@rail-time.test', $html);
-        $this->assertStringContainsString('AUTOMATISCHE NACHRICHT', $html);
+        $this->assertStringContainsString((string) __('app.mail_signature_company_role'), $html);
         $this->assertStringContainsString('data:image/png;base64,', $html);
         $this->assertStringContainsString('data-preview-document="template"', $html);
         $this->assertStringContainsString('data-preview-theme="dark"', $html);
         $this->assertStringContainsString('data-preview-animation="static"', $html);
-        SignatureTrainCarrier::assertRuntimeImages($html, expectedIdleSource: '', expectedMsoSource: '');
+        SignatureTrainCarrier::assertRuntimeImages($html, expectedIdleSource: '');
         $this->assertSame(1, substr_count($html, 'class="rt-sign-train"'));
-        $this->assertSame(0, substr_count($html, 'class="rt-sign-train-mso"'));
-        $this->assertSame(0, substr_count($html, 'data-rt-train-mso="1"'));
+        $this->assertSame(1, substr_count($html, 'class="rt-sign-train-mso"'));
+        $this->assertSame(1, substr_count($html, 'data-rt-train-mso="1"'));
         $this->assertSame(1, substr_count($html, 'class="rt-sign-stage"'));
         $this->assertSame(
             1,
@@ -206,7 +211,8 @@ class PageBuilderPreviewTest extends TestCase
         $this->assertStringNotContainsString('data:image/', $staticCarrier[0]);
         $this->assertStringContainsString('background-image:linear-gradient(', $staticCarrier[0]);
         $this->assertMatchesRegularExpression('/<img\b[^>]*\bdata-rt-train(?:\s|=|>)[^>]*src="data:image\/png;base64,[^"]+"/i', $html);
-        $this->assertMatchesRegularExpression('/<div\b[^>]*class="[^"]*\brt-sign-train-layer\b[^"]*"[^>]*style="position:absolute;[^">]*top:0;bottom:0;[^">]*z-index:0;/s', $html);
+        $this->assertMatchesRegularExpression('/<div\b[^>]*class="[^"]*\brt-sign-train-layer\b[^"]*"[^>]*style="position:relative;[^">]*top:auto;bottom:auto;[^">]*z-index:0;/s', $html);
+        $this->assertMatchesRegularExpression('/<img\b[^>]*class="rt-sign-train-mso"[^>]*\bdata-rt-train-mso="1"[^>]*src="data:image\/png;base64,[^"]+"/i', $html);
         $this->assertDoesNotMatchRegularExpression('/<v:(?:rect|fill)\b/i', $html);
         $this->assertStringNotContainsString('<tr><td class="rt-sign-train-mso"', $html);
         $this->assertStringContainsString(
@@ -229,10 +235,10 @@ class PageBuilderPreviewTest extends TestCase
         $animatedHtml = (string) $animatedA->getContent();
 
         $this->assertStringContainsString('data-preview-animation="animated"', $animatedHtml);
-        SignatureTrainCarrier::assertRuntimeImages($animatedHtml, expectedMsoSource: '');
+        SignatureTrainCarrier::assertRuntimeImages($animatedHtml);
         $this->assertSame(1, substr_count($animatedHtml, 'class="rt-sign-train"'));
-        $this->assertSame(0, substr_count($animatedHtml, 'class="rt-sign-train-mso"'));
-        $this->assertSame(0, substr_count($animatedHtml, 'data-rt-train-mso="1"'));
+        $this->assertSame(1, substr_count($animatedHtml, 'class="rt-sign-train-mso"'));
+        $this->assertSame(1, substr_count($animatedHtml, 'data-rt-train-mso="1"'));
         $this->assertSame(1, substr_count($animatedHtml, 'class="rt-sign-stage"'));
         $this->assertSame(
             1,
@@ -243,7 +249,8 @@ class PageBuilderPreviewTest extends TestCase
         $this->assertStringNotContainsString('data:image/', $animatedCarrier[0]);
         $this->assertStringContainsString('background-image:linear-gradient(', $animatedCarrier[0]);
         $this->assertMatchesRegularExpression('/<img\b[^>]*\bdata-rt-train(?:\s|=|>)[^>]*src="data:image\/gif;base64,[^"]+"/i', $animatedHtml);
-        $this->assertMatchesRegularExpression('/<div\b[^>]*class="[^"]*\brt-sign-train-layer\b[^"]*"[^>]*style="position:absolute;[^">]*top:0;bottom:0;[^">]*z-index:0;/s', $animatedHtml);
+        $this->assertMatchesRegularExpression('/<div\b[^>]*class="[^"]*\brt-sign-train-layer\b[^"]*"[^>]*style="position:relative;[^">]*top:auto;bottom:auto;[^">]*z-index:0;/s', $animatedHtml);
+        $this->assertMatchesRegularExpression('/<img\b[^>]*class="rt-sign-train-mso"[^>]*\bdata-rt-train-mso="1"[^>]*src="data:image\/png;base64,[^"]+"/i', $animatedHtml);
         $this->assertDoesNotMatchRegularExpression('/<v:(?:rect|fill)\b/i', $animatedHtml);
         $this->assertStringNotContainsString('<tr><td class="rt-sign-train-mso"', $animatedHtml);
         $this->assertStringContainsString(
@@ -258,10 +265,19 @@ class PageBuilderPreviewTest extends TestCase
         $this->assertStringContainsString('@keyframes rt-train-idle-reveal', $animatedHtml);
         $this->assertNotSame($animatedHtml, (string) $animatedB->getContent());
         preg_match_all('/data:image\/gif;base64,([A-Za-z0-9+\/=]+)/', $animatedHtml, $gifMatches);
-        $this->assertGreaterThanOrEqual(3, count(array_unique($gifMatches[1] ?? [])));
-        foreach (array_unique($gifMatches[1] ?? []) as $encodedGif) {
-            $this->assertStringContainsString('RailTime-Preview:', base64_decode($encodedGif, true) ?: '');
-        }
+        $uniqueGifs = array_unique($gifMatches[1] ?? []);
+        $this->assertGreaterThanOrEqual(3, count($uniqueGifs));
+        $previewNonceGifs = array_filter(
+            $uniqueGifs,
+            static fn (string $encodedGif): bool => str_contains(
+                base64_decode($encodedGif, true) ?: '',
+                'RailTime-Preview:',
+            ),
+        );
+        // Logo, RT-Zeichen und Hauptzug erhalten einen eigenen Replay-Nonce.
+        // Das separate Idle-GIF bleibt ein regulaeres Medienasset und darf
+        // deshalb nicht pauschal denselben Preview-Kommentar tragen.
+        $this->assertCount(3, $previewNonceGifs);
         $this->assertSame($before, $zustand($document->fresh()));
 
         $signatureDocument = MailDocument::query()
@@ -281,9 +297,10 @@ class PageBuilderPreviewTest extends TestCase
 
         $this->assertStringContainsString('data-preview-document="signature"', $signatureHtml);
         $this->assertStringContainsString('data-preview-animation="animated"', $signatureHtml);
-        SignatureTrainCarrier::assertRuntimeImages($signatureHtml, expectedMsoSource: '');
+        SignatureTrainCarrier::assertRuntimeImages($signatureHtml);
         $this->assertSame(1, substr_count($signatureHtml, 'class="rt-sign-train"'));
-        $this->assertSame(0, substr_count($signatureHtml, 'class="rt-sign-train-mso"'));
+        $this->assertSame(1, substr_count($signatureHtml, 'class="rt-sign-train-mso"'));
+        $this->assertSame(1, substr_count($signatureHtml, 'data-rt-train-mso="1"'));
         $this->assertSame(1, substr_count($signatureHtml, 'data-rt-train-idle-overlay'));
         $this->assertSame(1, substr_count($signatureHtml, 'data-rt-train-idle-image'));
         $this->assertStringNotContainsString('RT_COMPANY_PHONE_START', $signatureHtml);
@@ -326,7 +343,7 @@ class PageBuilderPreviewTest extends TestCase
     public function test_email_source_page_renders_two_admin_preview_cards(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        (new MailDocumentSeeder)->run();
+        $this->createCanonicalMailDocuments();
 
         $response = $this->actingAs($admin)
             ->get(route('email-templates.index'))
@@ -399,5 +416,52 @@ class PageBuilderPreviewTest extends TestCase
         $this->assertStringContainsString('pageBuilderOpen: true', $editorHtml);
         $this->assertStringContainsString('this.sync(this.pageBuilderOpen)', $editorHtml);
         $this->assertStringContainsString("this.\$root?.querySelector?.('[data-page-builder-open]')", $editorHtml);
+    }
+
+    private function createCanonicalMailDocuments(): void
+    {
+        foreach (MailDocumentKind::cases() as $kind) {
+            $html = $this->canonicalMailDocumentHtml($kind);
+            $builderData = [
+                'pages' => [[
+                    'name' => $kind->label(),
+                    'component' => $html,
+                ]],
+                'styles' => [],
+                'railtime' => [
+                    'document' => $kind->value,
+                    'schema' => SignatureDocumentContract::SCHEMA,
+                ],
+            ];
+
+            MailDocument::query()->create([
+                'kind' => $kind,
+                'status' => MailDocumentStatus::Published,
+                'builder_data' => $builderData,
+                'html' => $html,
+                'css' => '',
+                'published_html' => $html,
+                'published_css' => '',
+                'published_at' => now(),
+                'content_hash' => MailDocument::contentHashFor($builderData, $html, ''),
+                'version' => 1,
+            ]);
+        }
+    }
+
+    private function canonicalMailDocumentHtml(MailDocumentKind $kind): string
+    {
+        if ($kind === MailDocumentKind::Template) {
+            $html = (string) file_get_contents(EmailTemplateBuilder::masterPath('email-master.html'));
+        } else {
+            $tokens = [];
+            foreach (array_keys(MailSignature::forCompany()->values([], CompanyData::defaults())) as $key) {
+                $tokens[$key] = '{{'.$key.'}}';
+            }
+
+            $html = view('emails.parts.signature', ['values' => $tokens])->render();
+        }
+
+        return trim(app(EmailHtmlSanitizer::class)->assertClean(trim($html))->html);
     }
 }

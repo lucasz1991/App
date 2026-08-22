@@ -170,6 +170,19 @@ function Get-TextSha256 {
     }
 }
 
+function Get-FileSha256 {
+    param([Parameter(Mandatory = $true)][string] $LiteralPath)
+
+    $stream = [System.IO.File]::OpenRead($LiteralPath)
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return ([BitConverter]::ToString($sha256.ComputeHash($stream))).Replace('-', '').ToLowerInvariant()
+    } finally {
+        $sha256.Dispose()
+        $stream.Dispose()
+    }
+}
+
 function Test-Package {
     param(
         [string] $Name,
@@ -223,7 +236,7 @@ function Test-Package {
             Throw-InstallerError -ExitCode 11 -Message ('Eine Installationsdatei ist leer: {0}' -f $relativePath)
         }
 
-        $actualHash = (Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash.ToLowerInvariant()
+        $actualHash = Get-FileSha256 -LiteralPath $sourcePath
         $expectedHash = ([string] $entry.sha256).ToLowerInvariant()
         if ($sourceItem.Length -ne [long] $entry.bytes -or $actualHash -cne $expectedHash) {
             Throw-InstallerError -ExitCode 11 -Message ('Die Paketprüfung ist fehlgeschlagen: {0}. Bitte das ZIP erneut herunterladen.' -f $relativePath)
@@ -615,8 +628,8 @@ function Copy-AndVerifyPayload {
 
         Copy-Item -LiteralPath $sourcePath -Destination $destinationPath -Force
 
-        $sourceHash = (Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash.ToLowerInvariant()
-        $destinationHash = (Get-FileHash -LiteralPath $destinationPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        $sourceHash = Get-FileSha256 -LiteralPath $sourcePath
+        $destinationHash = Get-FileSha256 -LiteralPath $destinationPath
         $portablePath = Convert-ToPortablePath -Path $relativePath
         $manifestEntry = $Context.Package.Files | Where-Object { [string] $_.Path -ceq $portablePath } | Select-Object -First 1
         if ($null -eq $manifestEntry -or $sourceHash -cne $destinationHash -or $destinationHash -cne [string] $manifestEntry.Sha256) {
