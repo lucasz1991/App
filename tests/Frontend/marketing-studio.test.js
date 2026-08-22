@@ -1634,8 +1634,10 @@ test('shared LMZ spacing geometry applies zoom once and converts drag deltas bac
     assert.equal(geometry.margin.top.top, 50);
     assert.equal(geometry.spacing.padding.left, 4);
     assert.equal(spacingCssSnapshot({ marginTop: 10, paddingLeft: 4 }, 0.5).margin.top, 20);
+    assert.equal(spacingCssSnapshot({ marginBottom: -10 }, 0.5).margin.bottom, -20);
     assert.equal(spacingCssSnapshot({ marginTop: 10, paddingLeft: 4 }, 0.5).padding.left, 8);
     assert.equal(calculateSpacingDragValue({ startValue: 12, deltaX: 10, zoom: 0.5, side: 'right', type: 'margin' }), 32);
+    assert.equal(calculateSpacingDragValue({ startValue: 2, deltaY: -10, zoom: 0.5, side: 'bottom', type: 'margin' }), -18);
     assert.equal(calculateSpacingDragValue({ startValue: 4, deltaY: -10, zoom: 0.5, side: 'bottom', type: 'padding' }), 0);
 });
 

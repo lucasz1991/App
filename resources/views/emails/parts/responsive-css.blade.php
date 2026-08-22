@@ -17,14 +17,15 @@
                                  auf einem 700-px-Schirm weiter im vollen
                                  Breitlayout (zwei halbe Spalten plus 24 px
                                  Steg) und war deshalb gequetscht.
-      <=  860 px  Tablet hoch  — stapeln: Person oben, Firma darunter, Karten
-                                 der Vorlage einspaltig.
+      <=  860 px  Tablet hoch  — stapeln: Firmenlogo, Person und Firmendaten,
+                                 Karten der Vorlage einspaltig.
       <=  480 px  Telefon      — Innenabstaende weiter zuruecknehmen.
 
-    GESTAPELT BLEIBT DIE QUELLREIHENFOLGE ERHALTEN: erst die Person, dann
-    dieselbe Firmenspalte. Wortmarke und Firmendaten werden nicht fuer Mobil
-    gedoppelt oder per CSS umsortiert. Dadurch bleibt auch ein Reply- oder
-    Forward-Zitat korrekt, wenn ein Mailclient Media-Queries entfernt.
+    GESTAPELT BLEIBT DIE QUELLREIHENFOLGE ERHALTEN: erst die einmalige
+    Wortmarke, dann die Person, dann die einmaligen Firmendaten. Der
+    zweizeilige RTL-Tabellenaufbau stellt auf Desktop trotzdem Person links
+    und Firma rechts dar. Dadurch braucht Mobil keine versteckte Kopie, die
+    ein Reply-/Forward-Client versehentlich zusaetzlich anzeigen koennte.
 
     @param string $border  Farbwert der Trennlinie (SIGNATURE_BORDER)
 --}}
@@ -44,7 +45,8 @@
   width: 100% !important;
   max-width: 1815px !important;
   margin-top: 0 !important;
-  margin-bottom: 0 !important;
+  /* margin-bottom bleibt absichtlich beim editierbaren Inline-Stil. Auch
+     negative Werte muessen im Canvas und in der echten Mail wirken. */
   overflow: hidden !important;
   font-size: 0 !important;
   line-height: 0 !important;
@@ -163,7 +165,7 @@
 @media only screen and (max-width: 1000px) {
 .rt-pad { padding-left: 30px !important; padding-right: 30px !important; }
 .rt-title { font-size: 30px !important; line-height: 35px !important; }
-.rt-sign-logo { padding-left: 18px !important; }
+.rt-sign-logo, .rt-sign-company { padding-left: 18px !important; }
 {{-- Nur die Wortmarke, nicht jedes Bild der Spalte: seit die Firmenliste
      dort steht, traf ein `.rt-sign-logo img` auch die Kontaktsymbole und
      zog sie auf Logobreite auseinander. --}}
@@ -187,6 +189,16 @@ tr.rt-stack > td.rt-card-cell, tr.rt-stack > td.rt-card-cell + td { padding-left
      Symbol und Text untereinander werfen. --}}
 tr.rt-stack > td { box-sizing: border-box !important; display: block !important; width: 100% !important; }
 tr.rt-stack > td + td { padding-top: 12px !important; }
+.rt-sign-layout, .rt-sign-layout > tbody,
+.rt-sign-top-row, .rt-sign-company-row {
+  display: block !important;
+  width: 100% !important;
+}
+.rt-sign-company {
+  box-sizing: border-box !important;
+  display: block !important;
+  width: 100% !important;
+}
 /* Gestapelte Kartenzellen brauchen keine Trennlinie zur Seite mehr. */
 .rt-card-cell { border-right: 0 !important; }
 /* Schutzregel: Symbol und Kontaktzeile bleiben nebeneinander, auch wenn
@@ -196,15 +208,19 @@ tr.rt-stack > td + td { padding-top: 12px !important; }
 .rt-contact td.rt-contact-icon { width: 22px !important; }
 .rt-contact td.rt-contact-text { width: auto !important; font-size: 13px !important; line-height: 19px !important; }
 .rt-sign-name { font-size: 21px !important; line-height: 25px !important; }
-/* SIGNATUR OHNE RESPONSIVE DOM-DOPPELUNGEN. Person und Firma werden in
-   ihrer Quellreihenfolge gestapelt. Dieselbe Wortmarke und dieselben
-   Firmendaten bleiben sichtbar; es gibt keine versteckte Mobilfassung, die
-   ein Reply-/Forward-Client versehentlich zusaetzlich einblenden koennte. */
-.rt-sign-identity { padding: 0 !important; }
+/* SIGNATUR OHNE RESPONSIVE DOM-DOPPELUNGEN. Logo, Person und Firmendaten
+   werden in ihrer Quellreihenfolge gestapelt. Es gibt keine versteckte
+   Mobilfassung, die ein Reply-/Forward-Client zusaetzlich einblenden kann. */
+.rt-sign-identity { padding: 14px 0 0 !important; }
 .rt-sign-logo {
-  padding: 14px 0 0 !important;
+  padding: 0 0 14px !important;
   border-left: 0 !important;
-  border-top: 1px solid {{ $border }} !important;
+  border-bottom: 1px solid {{ $border }} !important;
+  text-align: left !important;
+}
+.rt-sign-company {
+  padding: 12px 0 0 !important;
+  border-left: 0 !important;
   text-align: left !important;
 }
 img.rt-logo {
@@ -265,7 +281,6 @@ img.rt-logo { width: 150px !important; }
   width: 100% !important;
   max-width: 1815px !important;
   margin-top: 0 !important;
-  margin-bottom: 0 !important;
 }
 /* Der maximal 1815 px breite Clipping-Viewport wird am Stage-Rand bzw. in
    deren Mitte verankert. Nur die echten IMG werden fuer Detailausschnitte
@@ -293,6 +308,7 @@ img.rt-logo { width: 138px !important; }
 
 
 tr.rt-stack > td + td { padding-top: 10px !important; }
+.rt-sign-company { padding-top: 10px !important; }
 .rt-pad { padding-top: 14px !important; padding-bottom: 14px !important; }
 /* Die allgemeine Telefonverdichtung darf am unteren Zug-Carrier keinen
    neuen Leerraum vor dem Pflichtangaben-Footer einfuehren. */

@@ -11,7 +11,8 @@ use Illuminate\Support\Facades\Config;
 class SetLocale
 {
     /**
-     * Set the locale for the incoming request based on session value.
+     * Set the locale from the authenticated user's durable preference or,
+     * for guests, from the current session.
      */
     public function handle(Request $request, Closure $next)
     {
@@ -19,15 +20,16 @@ class SetLocale
         $defaultLocale = Config::get('app.locale');
         $fallbackLocale = Config::get('app.fallback_locale', $defaultLocale);
 
-        $locale = session('locale', $defaultLocale);
+        $locale = $request->user()?->preferredLocale()
+            ?? session('locale', $defaultLocale);
 
-        if (!in_array($locale, $supportedLocales, true)) {
+        if (! in_array($locale, $supportedLocales, true)) {
             $locale = in_array($fallbackLocale, $supportedLocales, true)
                 ? $fallbackLocale
                 : $defaultLocale;
-
-            session(['locale' => $locale]);
         }
+
+        session(['locale' => $locale]);
 
         App::setLocale($locale);
         Carbon::setLocale($locale);

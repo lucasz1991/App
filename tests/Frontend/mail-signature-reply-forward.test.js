@@ -49,6 +49,12 @@ test('reply and forward markup has one company contact DOM and one responsive wo
         1,
         'Classic Outlook keeps one conditional still-image fallback',
     );
+    const logo = signature.indexOf('class="rt-sign-logo"');
+    const identity = signature.indexOf('class="rt-sign-identity"');
+    const company = signature.indexOf('class="rt-sign-company"');
+    assert.ok(logo >= 0 && identity > logo && company > identity, 'mobile source order is logo, person, company');
+    assert.match(signature, /<table class="rt-sign-layout" role="presentation" dir="rtl"/);
+    assert.match(signature, /class="rt-sign-identity" dir="ltr" rowspan="2"/);
 });
 
 test('mobile rules restyle the same signature nodes without hide-and-show copies', async () => {
@@ -56,13 +62,16 @@ test('mobile rules restyle the same signature nodes without hide-and-show copies
     const mobile = css.slice(css.indexOf('@media only screen and (max-width: 860px)'));
 
     assert.match(mobile, /tr\.rt-stack > td\s*\{[\s\S]*?display:\s*block !important;[\s\S]*?width:\s*100% !important;/);
-    assert.match(mobile, /\.rt-sign-logo\s*\{[\s\S]*?border-left:\s*0 !important;[\s\S]*?text-align:\s*left !important;/);
+    assert.match(mobile, /\.rt-sign-logo\s*\{[\s\S]*?padding:\s*0 0 14px !important;[\s\S]*?border-bottom:\s*1px solid \{\{ \$border \}\} !important;[\s\S]*?text-align:\s*left !important;/);
+    assert.match(mobile, /\.rt-sign-identity\s*\{\s*padding:\s*14px 0 0 !important;/);
+    assert.match(mobile, /\.rt-sign-company\s*\{[\s\S]*?padding:\s*12px 0 0 !important;[\s\S]*?border-left:\s*0 !important;/);
     assert.match(mobile, /img\.rt-logo\s*\{[\s\S]*?margin-left:\s*0 !important;/);
     assert.match(mobile, /\.rt-company-contact\s*\{[\s\S]*?float:\s*none !important;[\s\S]*?display:\s*table !important;[\s\S]*?width:\s*100% !important;/);
     assert.match(mobile, /\.rt-company-contact td\.rt-company-contact-text\s*\{\s*text-align:\s*left !important;/);
     assert.doesNotMatch(css, /\.rt-firma-(?:breit|schmal)/);
     assert.doesNotMatch(css, /rt-marke-mobil|\.rt-sign-logo img\.rt-logo\s*\{[^}]*display:\s*none/);
-    assert.match(mobile, /\.rt-sign-train-layer\s*\{[^}]*width:\s*100% !important;[^}]*max-width:\s*1815px !important;[^}]*margin-bottom:\s*0 !important;/s);
+    assert.match(mobile, /\.rt-sign-train-layer\s*\{[^}]*width:\s*100% !important;[^}]*max-width:\s*1815px !important;/s);
+    assert.doesNotMatch(css, /\.rt-sign-train-layer\s*\{[^}]*margin-bottom:\s*0 !important;/s);
     assert.match(mobile, /data-rt-layer-mobile="train"\] \{ margin-left:\s*0 !important; margin-right:\s*auto !important;/);
     assert.match(mobile, /data-rt-layer-mobile="center"\] \{ margin-left:\s*auto !important; margin-right:\s*auto !important;/);
     assert.match(mobile, /data-rt-layer-mobile="right"\] \{ margin-left:\s*auto !important; margin-right:\s*0 !important;/);

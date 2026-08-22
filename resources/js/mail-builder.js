@@ -2400,7 +2400,8 @@ export function protectMailSystemComponents(editor) {
         if (classes.includes('rt-sign-stage')) return 'Signatur-Bühne';
         if (classes.includes('rt-sign-train-layer')) return 'Zug-Bildebene';
         if (classes.includes('rt-sign-identity')) return 'Personendaten';
-        if (classes.includes('rt-sign-logo')) return 'Firmendaten';
+        if (classes.includes('rt-sign-logo')) return 'Firmenlogo';
+        if (classes.includes('rt-sign-company')) return 'Firmendaten';
         if (classes.includes('rt-company-contact')) return 'Firmenkontakte';
         if (classes.includes('rt-contact')) return 'Personenkontakte';
         if (block) return `Inhalt: ${String(block).replaceAll('-', ' ')}`;

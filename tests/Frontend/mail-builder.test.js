@@ -858,8 +858,8 @@ test('protected mail layers keep the regular train image visible and structural'
     assert.equal(ordinaryImage.getAttributes()['data-rt-image-align'], 'left');
 });
 
-test('train layer editor maps size desktop and mobile presets to mail-safe geometry', () => {
-    const state = { left: '0', right: 'auto', margin: '0', height: '100%' };
+test('train layer editor maps size desktop and mobile presets without erasing negative overlap', () => {
+    const state = { left: '0', right: 'auto', margin: '0', 'margin-bottom': '-150px', height: '100%' };
     const layerStyleOptions = [];
     const imageStyleOptions = [];
     const attributes = {
@@ -902,6 +902,7 @@ test('train layer editor maps size desktop and mobile presets to mail-safe geome
         top: 'auto',
         bottom: 'auto',
         margin: '0 auto',
+        'margin-bottom': '-150px',
         width: '100%',
         'max-width': '1815px',
         'text-align': 'left',
@@ -936,6 +937,7 @@ test('train layer editor maps size desktop and mobile presets to mail-safe geome
         assert.equal(imageState.margin, geometry[1]);
     }
     attributes['data-rt-layer-size'] = '125';
+    state['margin-bottom'] = '-72px';
     attributes['data-rt-layer-align'] = 'calc(1px)';
     attributes['data-rt-layer-mobile'] = 'calc(1px)';
     assert.equal(synchronizeMailTrainLayerAlignment(component), true);
@@ -946,6 +948,7 @@ test('train layer editor maps size desktop and mobile presets to mail-safe geome
         top: 'auto',
         bottom: 'auto',
         margin: '0 auto 0 0',
+        'margin-bottom': '-72px',
         width: '100%',
         'max-width': '1815px',
         'text-align': 'left',
@@ -964,6 +967,7 @@ test('mail editor no longer offers misleading train background controls', () => 
     assert.equal(MAIL_STYLE_SECTORS.some((item) => item.id === 'rt-mail-train-background'), false);
     assert.equal(MAIL_STYLE_SECTORS.some((item) => item.buildProps?.includes('position')), false);
     assert.equal(MAIL_STYLE_SECTORS.some((item) => item.buildProps?.includes('z-index')), false);
+    assert.equal(MAIL_STYLE_SECTORS.some((item) => item.buildProps?.includes('margin-bottom')), true);
     assert.equal(MAIL_EDITOR_MODE.id, 'mail');
     assert.equal(MAIL_EDITOR_MODE.contentModel, 'email');
     assert.equal(MAIL_EDITOR_MODE.styleStrategy, 'inline');

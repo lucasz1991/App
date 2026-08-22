@@ -6,9 +6,12 @@ use App\Models\Mail;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Support\Traits\Localizable;
 
 class EmployeeWelcomeService
 {
+    use Localizable;
+
     public function send(User $user): ?Mail
     {
         try {
@@ -37,27 +40,29 @@ class EmployeeWelcomeService
      */
     public function contentFor(User $user): array
     {
-        $user->loadMissing('currentTeam');
+        return $this->withLocale($user->preferredLocale(), function () use ($user): array {
+            $user->loadMissing('currentTeam');
 
-        $teamName = trim((string) ($user->currentTeam?->name ?? ''));
-        $displayTeamName = $teamName !== '' ? $teamName : __('app.welcome_team_fallback_name');
-        $teamText = __($this->teamTranslationKey($teamName));
-        $lines = [
-            __('app.welcome_message_intro', ['app' => config('app.name')]),
-            __('app.welcome_message_team_intro', ['team' => $displayTeamName]),
-            $teamText,
-            __('app.welcome_message_next_steps'),
-        ];
+            $teamName = trim((string) ($user->currentTeam?->name ?? ''));
+            $displayTeamName = $teamName !== '' ? $teamName : __('app.welcome_team_fallback_name');
+            $teamText = __($this->teamTranslationKey($teamName));
+            $lines = [
+                __('app.welcome_message_intro', ['app' => config('app.name')]),
+                __('app.welcome_message_team_intro', ['team' => $displayTeamName]),
+                $teamText,
+                __('app.welcome_message_next_steps'),
+            ];
 
-        return [
-            'subject' => __('app.welcome_message_subject', ['app' => config('app.name')]),
-            'header' => __('app.welcome_message_header', ['name' => $user->name]),
-            'body' => implode("\n\n", $lines),
-            'lines' => $lines,
-            'link' => route($user->isAdmin() ? 'admin.login' : 'login'),
-            'system_key' => 'employee_welcome',
-            'team' => $displayTeamName,
-        ];
+            return [
+                'subject' => __('app.welcome_message_subject', ['app' => config('app.name')]),
+                'header' => __('app.welcome_message_header', ['name' => $user->name]),
+                'body' => implode("\n\n", $lines),
+                'lines' => $lines,
+                'link' => route($user->isAdmin() ? 'admin.login' : 'login'),
+                'system_key' => 'employee_welcome',
+                'team' => $displayTeamName,
+            ];
+        });
     }
 
     private function teamTranslationKey(string $teamName): string

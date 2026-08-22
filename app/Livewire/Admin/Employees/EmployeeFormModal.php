@@ -167,6 +167,7 @@ class EmployeeFormModal extends Component
         $user->current_team_id = $this->primary_team_id;
         if (! $this->userId) {
             $user->role = 'staff';
+            $user->locale = app()->getLocale();
         }
         if (! $this->userId || $this->password) {
             $user->password = Hash::make((string) $this->password);

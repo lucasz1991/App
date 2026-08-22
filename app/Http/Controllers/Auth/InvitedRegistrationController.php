@@ -44,6 +44,7 @@ class InvitedRegistrationController extends Controller
             $user = User::create([
                 'name' => $validated['name'],
                 'email' => $invitation->email,
+                'locale' => app()->getLocale(),
                 'password' => Hash::make($validated['password']),
                 'role' => 'staff',
                 'status' => true,

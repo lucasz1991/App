@@ -80,9 +80,13 @@ Route::get('/', function () {
     return redirect()->route('login');
 })->name('home');
 
-Route::get('/locale/{locale}', function (string $locale) {
+Route::get('/locale/{locale}', function (Request $request, string $locale) {
     if (in_array($locale, config('app.supported_locales', []), true)) {
         session(['locale' => $locale]);
+
+        if ($user = $request->user()) {
+            $user->forceFill(['locale' => $locale])->save();
+        }
     }
 
     return redirect()->back();

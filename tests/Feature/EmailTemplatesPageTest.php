@@ -813,13 +813,15 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertStringContainsString('.rt-train-idle-overlay', $regeln);
         $this->assertStringContainsString('.rt-sign-train', $regeln);
         $this->assertStringContainsString('@keyframes rt-train-idle-reveal', $regeln);
-        // Tablet hoch und kleiner stapelt die beiden Hauptzellen. Die
-        // Firmenspalte verschiebt ihre Trennlinie dabei nach oben.
+        // Tablet hoch und kleiner stapelt Logo, Person und Firmendaten ohne
+        // eine zweite mobile Logo- oder Kontaktkopie.
         $this->assertStringContainsString('tr.rt-stack > td { box-sizing: border-box !important; display: block !important; width: 100% !important; }', $regeln);
-        $this->assertStringContainsString('.rt-sign-identity { padding: 0 !important; }', $regeln);
+        $this->assertStringContainsString('.rt-sign-identity { padding: 14px 0 0 !important; }', $regeln);
         $this->assertStringContainsString('border-left: 0 !important;', $regeln);
-        $this->assertStringContainsString('border-top: 1px solid {{ $border }} !important;', $regeln);
+        $this->assertStringContainsString('border-bottom: 1px solid {{ $border }} !important;', $regeln);
+        $this->assertStringContainsString('.rt-sign-company {', $regeln);
         $this->assertStringContainsString('tr.rt-stack > td + td { padding-top: 12px !important; }', $regeln);
+        $this->assertDoesNotMatchRegularExpression('/\.rt-sign-train-layer\s*\{[^}]*margin-bottom:\s*0\s*!important;/s', $regeln);
 
         // Und jede Ausgabestelle zieht daraus, statt eine eigene Kopie zu halten.
         foreach ([
@@ -958,14 +960,15 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertStringContainsString('data-rt-train-idle-image', $html);
             $this->assertStringContainsString('@keyframes rt-train-idle-reveal', $html);
             $this->assertStringContainsString(
-                'class="rt-sign-logo" width="50%" valign="top"',
+                'class="rt-sign-logo" dir="ltr" width="50%" valign="top"',
                 $html,
             );
             $this->assertStringContainsString('text-align:right;vertical-align:top;', $html);
             $this->assertStringContainsString(
-                'class="rt-sign-identity" width="50%" valign="top"',
+                'class="rt-sign-identity" dir="ltr" rowspan="2" width="50%" valign="top"',
                 $html,
             );
+            $this->assertStringContainsString('class="rt-sign-company" dir="ltr" width="50%"', $html);
             $this->assertStringContainsString('padding:0 24px 0 0;position:relative;z-index:1;', $html);
             $this->assertStringContainsString('text-align:left;vertical-align:top;', $html);
             $this->assertStringNotContainsString('{{THEME', $html);
@@ -1096,24 +1099,26 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertStringNotContainsString('signatur-raster-', $html);
         $this->assertStringNotContainsString('signatur-marke-', $html);
 
-        // NATUERLICHE QUELLREIHENFOLGE seit dem symmetrischen Umbau: Person
-        // links, Firma rechts. Vorher stand die Markenspalte zuerst und ein
-        // dir="rtl" an der Wrappertabelle drehte die Spaltenfolge zurueck —
-        // nur damit die Marke beim Stapeln oben landet. Gestapelt gehoert
-        // aber die Person nach oben, deshalb ist der Kunstgriff entfallen.
-        $this->assertStringNotContainsString('dir="rtl"', $html);
-        $this->assertStringContainsString('<td class="rt-sign-identity" width="50%"', $html);
-        $this->assertStringContainsString('<td class="rt-sign-logo" width="50%"', $html);
+        // EIN Reverse-Stacking-Wrapper: Desktop bleibt Person links/Firma
+        // rechts. Mobil gilt die sichere DOM-Reihenfolge Logo, Person,
+        // Firmendaten; keine dieser drei Gruppen wird dupliziert.
+        $this->assertSame(1, substr_count($html, '<table class="rt-sign-layout" role="presentation" dir="rtl"'));
+        $this->assertStringContainsString('<td class="rt-sign-logo" dir="ltr" width="50%"', $html);
+        $this->assertStringContainsString('<td class="rt-sign-identity" dir="ltr" rowspan="2" width="50%"', $html);
+        $this->assertStringContainsString('<td class="rt-sign-company" dir="ltr" width="50%"', $html);
 
         $namePosition = strpos($html, 'Mara Beispiel');
         $phonePosition = strpos($html, 'href="tel:+49417112345"');
         $logoPosition = strpos($html, 'class="rt-sign-logo"');
+        $companyPosition = strpos($html, 'class="rt-sign-company"');
 
         $this->assertIsInt($logoPosition);
         $this->assertIsInt($namePosition);
         $this->assertIsInt($phonePosition);
+        $this->assertIsInt($companyPosition);
+        $this->assertLessThan($namePosition, $logoPosition);
         $this->assertLessThan($phonePosition, $namePosition);
-        $this->assertLessThan($logoPosition, $phonePosition);
+        $this->assertLessThan($companyPosition, $phonePosition);
     }
 
     public function test_all_html_variants_center_contact_icons_in_mail_client_safe_cells(): void
@@ -1228,7 +1233,10 @@ class EmailTemplatesPageTest extends TestCase
             // fest. Ein Client mit geerbtem rtl wuerde die schrumpfende
             // Tabelle sonst an die falsche Kante schieben — und mit ihr die
             // Symbole auf die falsche Seite.
-            $this->assertStringNotContainsString('dir="rtl"', $html, $key);
+            $this->assertSame(1, substr_count($html, '<table class="rt-sign-layout" role="presentation" dir="rtl"'), $key);
+            $this->assertStringContainsString('class="rt-sign-logo" dir="ltr"', $html, $key);
+            $this->assertStringContainsString('class="rt-sign-identity" dir="ltr"', $html, $key);
+            $this->assertStringContainsString('class="rt-sign-company" dir="ltr"', $html, $key);
             $this->assertStringContainsString(
                 '<table class="rt-contact" role="presentation" dir="ltr" border="0" cellspacing="0" cellpadding="0" style="direction:ltr;margin-left:0;margin-right:auto;',
                 $html,

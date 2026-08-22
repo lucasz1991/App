@@ -1935,7 +1935,8 @@ let imagePropertiesPanelSequence = 0;
  * Quelle steuert damit die Canvas-Vorschau beziehungsweise den bestehenden
  * Medienpfad, waehrend der Serializer den kanonischen Slot weiter speichern
  * kann. Zugbreite und -ausrichtung werden auf dessen vorhandene Preset-
- * Attribute geschrieben statt beliebige CSS-Geometrie zu erzeugen.
+ * Attribute geschrieben. Die vertikale Ueberlappung bleibt dagegen ein
+ * normaler, editierbarer Pixel-Margin und darf ausdruecklich negativ sein.
  */
 function createImagePropertiesPanel({ root, editor, capabilities, media = {}, onChanged }) {
     const document_ = root.ownerDocument;
@@ -1986,6 +1987,11 @@ function createImagePropertiesPanel({ root, editor, capabilities, media = {}, on
                     <option value="200">200 %</option>
                 </select>
             </label>
+            <label class="rt-lmz-image-properties__field" data-rt-lmz-image-train-overlap hidden>
+                <span>Überlappung (px)</span>
+                <input type="number" name="trainOverlap" min="-600" max="600" step="1" inputmode="numeric">
+                <small>Negativ zieht den folgenden Inhalt über das Zugbild.</small>
+            </label>
             <label class="rt-lmz-image-properties__field">
                 <span>Ausrichtung</span>
                 <select name="alignment">
@@ -2005,6 +2011,7 @@ function createImagePropertiesPanel({ root, editor, capabilities, media = {}, on
     const message = panel.querySelector('[data-rt-lmz-image-message]');
     const pixelWidthField = panel.querySelector('[data-rt-lmz-image-width-pixels]');
     const presetWidthField = panel.querySelector('[data-rt-lmz-image-width-preset]');
+    const trainOverlapField = panel.querySelector('[data-rt-lmz-image-train-overlap]');
     let target = null;
     let trainLayer = null;
     let targetIsTrain = false;
@@ -2038,9 +2045,20 @@ function createImagePropertiesPanel({ root, editor, capabilities, media = {}, on
         form.elements.trainWidth.value = ['100', '125', '150', '200'].includes(String(layerAttributes['data-rt-layer-size']))
             ? String(layerAttributes['data-rt-layer-size'])
             : '100';
+        const trainStyle = trainLayer?.getStyle?.() || {};
+        const trainElement = trainLayer?.getEl?.();
+        const computedOverlap = trainElement?.ownerDocument?.defaultView
+            ?.getComputedStyle?.(trainElement)?.marginBottom;
+        const inlineOverlap = String(trainStyle['margin-bottom'] || '').trim();
+        const overlapSource = /px$/i.test(inlineOverlap) ? inlineOverlap : computedOverlap;
+        const overlapPixels = Number.parseFloat(String(overlapSource || '-150'));
+        form.elements.trainOverlap.value = String(Math.round(
+            Math.min(600, Math.max(-600, Number.isFinite(overlapPixels) ? overlapPixels : -150)),
+        ));
         form.elements.alignment.value = inferredImageAlignment(target, trainLayer);
         pixelWidthField.hidden = targetIsTrain;
         presetWidthField.hidden = !targetIsTrain;
+        trainOverlapField.hidden = !targetIsTrain;
         form.toggleAttribute('data-system-medium', Boolean(token));
         kind.textContent = token
             ? `Systemmedium · ${token}${animated ? ' · GIF' : ''}`
@@ -2089,10 +2107,17 @@ function createImagePropertiesPanel({ root, editor, capabilities, media = {}, on
             const size = ['100', '125', '150', '200'].includes(form.elements.trainWidth.value)
                 ? form.elements.trainWidth.value
                 : '100';
+            const requestedOverlap = Number.parseFloat(String(form.elements.trainOverlap.value || ''));
+            const overlap = Math.round(Math.min(
+                600,
+                Math.max(-600, Number.isFinite(requestedOverlap) ? requestedOverlap : -150),
+            ));
             trainLayer.addAttributes?.({
                 'data-rt-layer-align': alignment,
                 'data-rt-layer-size': size,
             });
+            trainLayer.addStyle?.({ 'margin-bottom': `${overlap}px` });
+            form.elements.trainOverlap.value = String(overlap);
             // Der Mail-Adapter lauscht auf genau dieses Ereignis und setzt
             // daraus die kanonischen Layer-/IMG-Inline-Stile. Das explizite
             // Triggern stellt die Synchronisierung auch bei Adapterversionen

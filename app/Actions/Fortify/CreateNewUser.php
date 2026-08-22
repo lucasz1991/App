@@ -27,6 +27,7 @@ class CreateNewUser implements CreatesNewUsers
         return User::create([
             'name' => $input['name'],
             'email' => $input['email'],
+            'locale' => app()->getLocale(),
             'password' => Hash::make($input['password']),
             'role' => User::query()->exists() ? 'editor' : 'admin',
             'status' => 1,

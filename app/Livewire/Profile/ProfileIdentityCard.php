@@ -3,9 +3,11 @@
 namespace App\Livewire\Profile;
 
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Laravel\Fortify\Contracts\UpdatesUserProfileInformation;
 use Livewire\Component;
 use Livewire\WithFileUploads;
+use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 
 class ProfileIdentityCard extends Component
 {
@@ -83,7 +85,21 @@ class ProfileIdentityCard extends Component
             return;
         }
 
-        $user->sendEmailVerificationNotification();
+        $this->resetErrorBag('email');
+
+        try {
+            $user->sendEmailVerificationNotification();
+        } catch (TransportExceptionInterface $exception) {
+            Log::warning('E-Mail-Verifizierung konnte nicht erneut versendet werden.', [
+                'user_id' => (int) $user->getKey(),
+                'exception_type' => $exception::class,
+            ]);
+
+            $this->addError('email', __('app.email_verification_delivery_failed'));
+
+            return;
+        }
+
         $this->verificationLinkSent = true;
     }
 

@@ -15,6 +15,7 @@ trait BuildsMinimalRailTimeSchema
             $table->id();
             $table->string('name');
             $table->string('email')->unique();
+            $table->string('locale', 10)->default('de');
             $table->string('role')->default('guest');
             $table->boolean('status')->default(true);
             $table->timestamp('email_verified_at')->nullable();

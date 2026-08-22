@@ -75,12 +75,30 @@
         <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;position:relative;z-index:1;">
             <tr>
                 <td class="rt-pad rt-sign-content" style="padding:{{ $padding }};position:relative;z-index:1;">
-                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;position:relative;z-index:1;">
-                        <tr class="rt-stack">
+                    {{-- Einmaliges, Outlook-taugliches Reverse-Stacking:
+                         Desktop ordnet die RTL-Tabellenspalten als Person
+                         links und Firma rechts an. Mobil werden die Zellen
+                         in ihrer DOM-Reihenfolge Logo, Person, Firmendaten
+                         gestapelt. Weder Logo noch Kontakte werden kopiert. --}}
+                    <table class="rt-sign-layout" role="presentation" dir="rtl" width="100%" border="0" cellspacing="0" cellpadding="0" style="direction:rtl;width:100%;border-collapse:collapse;position:relative;z-index:1;">
+                        <tr class="rt-stack rt-sign-top-row">
+                <td class="rt-sign-logo" dir="ltr" width="50%" valign="top" align="right" style="direction:ltr;width:50%;padding-left:24px;border-left:1px solid {{ $values['SIGNATURE_BORDER'] }};text-align:right;vertical-align:top;">
+                    {{-- OUTLOOK BEKOMMT DAS STANDBILD. Die bewegte Marke baut
+                         sich Zeichen fuer Zeichen auf; ihr erstes Einzelbild
+                         ist deshalb fast leer — und genau dieses eine zeigt
+                         Outlook-Desktop. Ohne diese Verzweigung stuende dort
+                         eine leere Flaeche statt der Marke.
+
+                         Bewusst mso-hide plus EIN geschlossener bedingter
+                         Kommentar: die aufgebrochene, zweiteilige Form laesst
+                         der EmailHtmlSanitizer nicht durch. --}}
+                    <img class="rt-logo" src="{{ $values['LOGO_SRC'] }}" width="210" alt="{{ $values['FIRMENNAME'] }}" style="display:block;width:210px;max-width:100%;height:auto;margin-left:auto;mso-hide:all;">
+                    <!--[if mso]><img class="rt-logo" src="{{ $values['LOGO_STILL_SRC'] ?? $values['LOGO_SRC'] }}" width="210" alt="{{ $values['FIRMENNAME'] }}" style="display:block;width:210px;height:auto;margin-left:auto;"><![endif]-->
+                </td>
                 {{-- Ohne Person bleibt die Namenszeile LEER: Die Marke steht
                      bereits als Wortmarke in der rechten Spalte, der
                      Firmenname darunter waere eine Doppelung. --}}
-                <td class="rt-sign-identity" width="50%" valign="top" align="left" style="width:50%;padding:0 24px 0 0;position:relative;z-index:1;text-align:left;vertical-align:top;">
+                <td class="rt-sign-identity" dir="ltr" rowspan="2" width="50%" valign="top" align="left" style="direction:ltr;width:50%;padding:0 24px 0 0;position:relative;z-index:1;text-align:left;vertical-align:top;">
                     {{-- Eigener Behaelter, damit Name und Funktion gestapelt
                          NEBEN die Kontaktliste ruecken koennen statt darueber
                          (siehe responsive-css: inline-block). --}}
@@ -110,20 +128,12 @@
                         </tbody>
                     </table>
                 </td>
-                {{-- Die Trennlinie sitzt an der Firmenspalte. Beim Stapeln
-                     wandert sie nach oben (siehe responsive-css). --}}
-                <td class="rt-sign-logo" width="50%" valign="top" align="right" style="width:50%;padding-left:24px;border-left:1px solid {{ $values['SIGNATURE_BORDER'] }};text-align:right;vertical-align:top;">
-                    {{-- OUTLOOK BEKOMMT DAS STANDBILD. Die bewegte Marke baut
-                         sich Zeichen fuer Zeichen auf; ihr erstes Einzelbild
-                         ist deshalb fast leer — und genau dieses eine zeigt
-                         Outlook-Desktop. Ohne diese Verzweigung stuende dort
-                         eine leere Flaeche statt der Marke.
-
-                         Bewusst mso-hide plus EIN geschlossener bedingter
-                         Kommentar: die aufgebrochene, zweiteilige Form laesst
-                         der EmailHtmlSanitizer nicht durch. --}}
-                    <img class="rt-logo" src="{{ $values['LOGO_SRC'] }}" width="210" alt="{{ $values['FIRMENNAME'] }}" style="display:block;width:210px;max-width:100%;height:auto;margin-left:auto;mso-hide:all;">
-                    <!--[if mso]><img class="rt-logo" src="{{ $values['LOGO_STILL_SRC'] ?? $values['LOGO_SRC'] }}" width="210" alt="{{ $values['FIRMENNAME'] }}" style="display:block;width:210px;height:auto;margin-left:auto;"><![endif]-->
+                        </tr>
+                        <tr class="rt-sign-company-row">
+                {{-- Die rechte Trennlinie wird auf Desktop ueber beide
+                     Firmenzeilen fortgesetzt. Mobil verschwindet sie und
+                     derselbe einzelne Kontaktblock folgt der Person. --}}
+                <td class="rt-sign-company" dir="ltr" width="50%" valign="top" align="right" style="direction:ltr;width:50%;padding:14px 0 0 24px;border-left:1px solid {{ $values['SIGNATURE_BORDER'] }};text-align:right;vertical-align:top;">
                     {{-- Im unpersoenlichen Fall stehen Firmentelefon und
                          Firmen-E-Mail bereits links an der Stelle von
                          Durchwahl und Mailadresse. Rechts blieben sie eine

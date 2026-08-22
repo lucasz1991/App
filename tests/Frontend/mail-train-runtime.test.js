@@ -187,7 +187,8 @@ test('editor and delivery keep the default mobile train at 100 percent while exp
     assert.doesNotMatch(signatureView, /url\(\{\$values\['TRAIN_SRC'\]\}\)/);
     const mobile = responsiveCss.slice(responsiveCss.indexOf('@media only screen and (max-width: 860px)'));
     assert.match(mobile, /\.rt-sign-cell\s*\{[\s\S]+?background-position: center center !important;[\s\S]+?background-size: 100% 100% !important;/);
-    assert.match(mobile, /\.rt-sign-train-layer\s*\{[^}]*width: 100% !important;[^}]*max-width: 1815px !important;[^}]*margin-bottom: 0 !important;/s);
+    assert.match(mobile, /\.rt-sign-train-layer\s*\{[^}]*width: 100% !important;[^}]*max-width: 1815px !important;/s);
+    assert.doesNotMatch(responsiveCss, /\.rt-sign-train-layer\s*\{[^}]*margin-bottom:\s*0 !important;/s);
     assert.match(mobile, /data-rt-layer-mobile="train"\] \{ margin-left: 0 !important; margin-right: auto !important;/);
     assert.match(mobile, /data-rt-layer-mobile="center"\] \{ margin-left: auto !important; margin-right: auto !important;/);
     assert.match(mobile, /data-rt-layer-mobile="right"\] \{ margin-left: auto !important; margin-right: 0 !important;/);

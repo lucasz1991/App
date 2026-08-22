@@ -28,22 +28,25 @@ class DeviceEnrollmentInvitation extends Notification
         $device = $this->enrollment->device;
         $expiresAt = $this->enrollment->expires_at?->timezone(config('app.timezone'));
         $url = route('devices.enrollment', ['token' => $this->plainToken]);
+        $deviceName = $device->display_name ?: $device->hostname ?: __('app.device_enrollment_default_device');
+
+        if ($device->asset_tag) {
+            $deviceName .= __('app.device_enrollment_asset_suffix', ['asset_tag' => $device->asset_tag]);
+        }
 
         return (new MailMessage)
-            ->subject('Ihr RailTime-Gerät sicher einrichten')
-            ->greeting('Hallo '.trim((string) $notifiable->name).',')
-            ->line('Ihr bereits ausgegebenes Gerät wird jetzt der zentralen RailTime-Geräteverwaltung zugeordnet.')
-            ->line(sprintf(
-                'Gerät: %s%s',
-                $device->display_name ?: $device->hostname ?: 'Firmen-Gerät',
-                $device->asset_tag ? ' · Inventarnummer '.$device->asset_tag : '',
-            ))
-            ->line('Die Einrichtung dauert in der Regel 5 bis 15 Minuten. Sie sehen vor jedem Schritt, welche geschäftlichen Daten verwaltet werden. Private Zugangsdaten werden nicht an RailTime übertragen.')
-            ->line('Microsoft-, Google- oder Apple-Zugangsdaten geben Sie ausschließlich in den offiziellen Anmeldefenstern des jeweiligen Anbieters ein. RailTime fragt niemals nach Ihrem Passwort.')
-            ->action('Gerät jetzt in RailTime einrichten', $url)
+            ->subject(__('app.device_enrollment_mail_subject'))
+            ->greeting(__('app.device_enrollment_mail_greeting', ['name' => trim((string) $notifiable->name)]))
+            ->line(__('app.device_enrollment_mail_intro'))
+            ->line(__('app.device_enrollment_mail_device', ['device' => $deviceName]))
+            ->line(__('app.device_enrollment_mail_duration'))
+            ->line(__('app.device_enrollment_mail_credentials'))
+            ->action(__('app.device_enrollment_mail_action'), $url)
             ->line($expiresAt
-                ? 'Der persönliche Einmal-Link ist bis '.$expiresAt->format('d.m.Y, H:i').' Uhr gültig.'
-                : 'Der persönliche Einmal-Link ist nur kurzzeitig gültig.')
-            ->line('Bei Fragen nutzen Sie bitte den IT-Support in der RailTime-App.');
+                ? __('app.device_enrollment_mail_expires', [
+                    'date' => $expiresAt->locale(app()->getLocale())->translatedFormat(__('app.device_enrollment_mail_date_format')),
+                ])
+                : __('app.device_enrollment_mail_expires_soon'))
+            ->line(__('app.device_enrollment_mail_support'));
     }
 }

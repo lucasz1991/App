@@ -7,6 +7,7 @@ use App\Notifications\RailtimeWebPushNotification;
 use App\Support\Push\PushCategory;
 use App\Support\Push\PushDelivery;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Contracts\Translation\HasLocalePreference;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -25,7 +26,7 @@ use Laravel\Sanctum\HasApiTokens;
 use NotificationChannels\WebPush\HasPushSubscriptions;
 use Spatie\Activitylog\Models\Activity;
 
-class User extends Authenticatable implements MustVerifyEmail
+class User extends Authenticatable implements HasLocalePreference, MustVerifyEmail
 {
     use HasApiTokens;
     use HasFactory;
@@ -43,6 +44,7 @@ class User extends Authenticatable implements MustVerifyEmail
     protected $fillable = [
         'name',
         'email',
+        'locale',
         'password',
         'role',
         'status',
@@ -89,6 +91,21 @@ class User extends Authenticatable implements MustVerifyEmail
     public function isAdmin(): bool
     {
         return $this->role === 'admin';
+    }
+
+    public function preferredLocale(): string
+    {
+        $supportedLocales = (array) config('app.supported_locales', []);
+        $defaultLocale = (string) config('app.locale', 'de');
+        $locale = (string) ($this->locale ?? '');
+
+        if (in_array($locale, $supportedLocales, true)) {
+            return $locale;
+        }
+
+        return in_array($defaultLocale, $supportedLocales, true)
+            ? $defaultLocale
+            : (string) ($supportedLocales[0] ?? $defaultLocale);
     }
 
     /**
