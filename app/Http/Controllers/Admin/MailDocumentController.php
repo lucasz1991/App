@@ -66,7 +66,7 @@ final class MailDocumentController extends Controller
 
         $prototype = new MailDocument(['kind' => $kind->value]);
         $this->assertDocumentStructure($prototype, $html, $css);
-        $htmlReport = $sanitizer->assertClean($html);
+        $htmlReport = $this->assertCleanHtml($sanitizer, $html);
         $cssReport = $this->cleanStyleSheet($sanitizer, $css);
         if ($cssReport->hasViolations()) {
             throw ValidationException::withMessages([
@@ -157,7 +157,7 @@ final class MailDocumentController extends Controller
         );
         $this->assertEditableCssSource($css);
         $this->assertDocumentStructure($document, $html, $css);
-        $htmlReport = $sanitizer->assertClean($html);
+        $htmlReport = $this->assertCleanHtml($sanitizer, $html);
         $cssReport = $this->cleanStyleSheet($sanitizer, $css);
         if ($cssReport->hasViolations()) {
             throw ValidationException::withMessages([
@@ -435,7 +435,7 @@ final class MailDocumentController extends Controller
             // echte Empfaenger zu schicken.
             $this->assertEditableCssSource((string) $locked->css);
             $this->assertDocumentStructure($locked, $html, (string) $locked->css);
-            $htmlReport = $sanitizer->assertClean($html);
+            $htmlReport = $this->assertCleanHtml($sanitizer, $html);
             $cssReport = $this->cleanStyleSheet($sanitizer, (string) $locked->css);
 
             if ($cssReport->hasViolations()) {
@@ -512,7 +512,7 @@ final class MailDocumentController extends Controller
                 throw ValidationException::withMessages(['version' => 'Diese Version ist bereits der aktuelle Entwurf.']);
             }
 
-            $htmlReport = $sanitizer->assertClean((string) $version->html);
+            $htmlReport = $this->assertCleanHtml($sanitizer, (string) $version->html);
             $cssReport = $this->cleanStyleSheet($sanitizer, (string) $version->css);
             if ($cssReport->hasViolations()) {
                 throw ValidationException::withMessages(['css' => $cssReport->violationMessages()]);
@@ -561,7 +561,7 @@ final class MailDocumentController extends Controller
             ]);
         }
 
-        $html = $sanitizer->assertClean((string) $document->html)->html;
+        $html = $this->assertCleanHtml($sanitizer, (string) $document->html)->html;
         $cssReport = $this->cleanStyleSheet($sanitizer, (string) $document->css);
         if ($cssReport->hasViolations()) {
             throw ValidationException::withMessages(['css' => $cssReport->violationMessages()]);
@@ -696,6 +696,20 @@ final class MailDocumentController extends Controller
             'styles' => [],
             'railtime' => $railtime,
         ];
+    }
+
+    /**
+     * Fragment-HTML bleibt ueber Import, Save, Version und Testmail
+     * byte-stabil. libxml fuegt bei bestimmten gueltigen Tabellenformen
+     * (etwa rowspan im responsiven Signaturlayout) am Dokumentrand einen
+     * Zeilenumbruch an; fuer eine Mail ist er bedeutungslos, fuer Hash und
+     * Versionsvergleich aber nicht.
+     */
+    private function assertCleanHtml(EmailHtmlSanitizer $sanitizer, string $html): EmailHtmlReport
+    {
+        $report = $sanitizer->assertClean(trim($html));
+
+        return new EmailHtmlReport(trim($report->html), $report->findings);
     }
 
     /**
