@@ -1010,9 +1010,13 @@
 
                         const existingMetadata = document_.builderData?.railtime;
                         const railtime = { document: config.currentDocument };
-                        if (config.currentDocument === 'signature') {
-                            railtime.schema = runtimeBridge.signatureSchema;
-                        } else if (Number.isInteger(existingMetadata?.schema)) {
+                        // Portable Signatur-Exporte enthalten absichtlich
+                        // keine Builder-Metadaten. Erst die strikt erfolgreiche
+                        // Projektion darf sie auf das aktuelle Schema heben;
+                        // andernfalls wuerde ein alter IMG-/Background-Stand
+                        // faelschlich schon als aktueller Vertrag gelten.
+                        if (config.currentDocument !== 'signature'
+                            && Number.isInteger(existingMetadata?.schema)) {
                             railtime.schema = existingMetadata.schema;
                         }
 

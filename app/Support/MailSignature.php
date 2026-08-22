@@ -458,9 +458,6 @@ class MailSignature
         string $idleSource,
     ): string {
         $html = $this->removeLegacyTrainBackground($html);
-        if (SignatureTrainCarrier::hasCanonicalBackground($html)) {
-            return $html;
-        }
         if ($this->animated && ! $this->staticAssets && trim($idleSource) !== '') {
             $html = SignatureTrainCarrier::withIdleOverlay($html, $idleSource);
         }
@@ -508,10 +505,6 @@ class MailSignature
      */
     private function projectPublishedTrainAsImage(string $html, array $layout): string
     {
-        if (SignatureTrainCarrier::hasCanonicalBackground($html)) {
-            return $html;
-        }
-
         $rawSource = trim((string) ($layout['outlookTrainSrc'] ?? ''));
         $padding = (string) ($layout['outlookTrainPadding'] ?? '0');
 

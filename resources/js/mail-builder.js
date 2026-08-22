@@ -39,7 +39,6 @@ const MAIL_CANVAS_STYLE_ID = 'rt-mail-canvas-style';
 const MAIL_CANVAS_BODY_CLASS = 'rt-mail-canvas';
 const MAIL_SIGNATURE_CANVAS_ATTRIBUTE = 'data-rt-mail-signature-canvas';
 const MAIL_PREVIEW_IMAGE_ATTRIBUTE = 'data-rt-mail-preview-token';
-const MAIL_PREVIEW_BACKGROUND_ATTRIBUTE = 'data-rt-mail-preview-background-token';
 const MAIL_IMPORTED_INLINE_ATTRIBUTE = 'data-rt-mail-inline-source';
 const MAIL_TEMPLATE_MARK_START_NAME = 'RT_TEMPLATE_MARK_START';
 const MAIL_TEMPLATE_MARK_END_NAME = 'RT_TEMPLATE_MARK_END';
@@ -51,7 +50,8 @@ const MAIL_TEMPLATE_APPLICATION_START = `<!-- ${MAIL_TEMPLATE_APPLICATION_START_
 const MAIL_TEMPLATE_APPLICATION_END = `<!-- ${MAIL_TEMPLATE_APPLICATION_END_NAME} -->`;
 const MAIL_TEMPLATE_APPLICATION_PLACEHOLDER = '{{APPLICATION_CONTENT}}';
 const MAIL_PREVIEW_TRANSPARENT_PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=';
-export const MAIL_SIGNATURE_SCHEMA = 20;
+export const MAIL_SIGNATURE_SCHEMA = 21;
+const MAIL_SIGNATURE_CONTENT_OVERLAP = '-150px';
 const MAIL_SIGNATURE_MAIN_MARKER_NAME = 'RT_SIGNATURE_MAIN_END';
 const MAIL_SIGNATURE_MAIN_MARKER = `<!-- ${MAIL_SIGNATURE_MAIN_MARKER_NAME} -->`;
 const MAIL_SIGNATURE_CONTACT_MARKER_ATTRIBUTE = 'data-rt-mail-contact-marker';
@@ -1282,29 +1282,6 @@ export function normalizeMailProject(project) {
  * @param {{builderData?: object, css?: string}} draft
  * @param {(css: string) => Array} parseCss
  */
-function hardenEditorTrainImage(trainLayer, trainImage) {
-    if (!trainLayer || !trainImage) return;
-    const withMsoHide = (element) => {
-        const declarations = String(element.getAttribute('style') || '').trim();
-        if (!/(?:^|;)\s*mso-hide\s*:\s*all\s*(?:;|$)/i.test(declarations)) {
-            element.setAttribute('style', `${declarations.replace(/;+$/, '')};mso-hide:all;`);
-        }
-    };
-    trainLayer.style?.setProperty?.('position', 'relative');
-    trainLayer.style?.setProperty?.('left', '0');
-    trainLayer.style?.setProperty?.('right', 'auto');
-    trainLayer.style?.setProperty?.('top', 'auto');
-    trainLayer.style?.setProperty?.('bottom', 'auto');
-    trainLayer.style?.removeProperty?.('height');
-    trainLayer.style?.removeProperty?.('mso-hide');
-    trainImage.style?.setProperty?.('position', 'static');
-    trainImage.style?.setProperty?.('left', 'auto');
-    trainImage.style?.setProperty?.('right', 'auto');
-    trainImage.style?.setProperty?.('bottom', 'auto');
-    withMsoHide(trainImage);
-    trainImage.setAttribute('width', '720');
-}
-
 function inlineStyleDeclaration(style, property) {
     const escapedProperty = String(property || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const matches = Array.from(String(style || '').matchAll(
@@ -1335,97 +1312,315 @@ function replaceInlineStyleDeclaration(style, property, value) {
 }
 
 /**
- * Bereits gespeicherte Schema-19-Signaturen bleiben bearbeitbar, ohne den
- * aktuellen Save-/Publish-Vertrag zu lockern. Nur der exakte alte Flow-Layer
- * wird im geklonten Editorprojekt in den Schema-20-Background ueberfuehrt.
- * Beliebige IMG-, Layer- oder Background-Mischformen bleiben harte Fehler.
+ * Der Editor verwendet fuer den Zug denselben Tokenpfad wie Logo und Icons.
+ * Schema 19 (Flow-IMG ohne Ueberlappung) und Schema 20 (CSS-Background) werden
+ * nur bei exakt erkannter Altstruktur in Schema 21 projiziert. Mischformen
+ * oder frei manipulierte Layer bleiben harte Fehler.
  */
-function projectLegacySignatureTrainBackground(wrapper, rows, project) {
-    const currentCarriers = Array.from(
-        wrapper?.querySelectorAll?.('td.rt-sign-cell[data-rt-train-background="1"]') || [],
-    );
-    if (currentCarriers.length > 0) {
-        if (currentCarriers.length !== 1
-            || wrapper.querySelectorAll('img[data-rt-train], div.rt-sign-train-layer[data-rt-layer-train]').length !== 0) {
-            throw new Error('Die Signatur mischt den aktuellen CSS-Zughintergrund mit einem alten Zugbild.');
+const MAIL_SIGNATURE_BASE_BACKGROUND = Object.freeze({
+    'background-image': 'linear-gradient({{SIGNATURE_TRAIN_WASH}},{{SIGNATURE_TRAIN_WASH}})',
+    'background-repeat': 'no-repeat',
+    'background-position': 'center center',
+    'background-size': '100% 100%',
+});
+const MAIL_SIGNATURE_SCHEMA_20_BACKGROUND = Object.freeze({
+    'background-image': "url('{{TRAIN_SRC}}'),linear-gradient({{SIGNATURE_TRAIN_WASH}},{{SIGNATURE_TRAIN_WASH}})",
+    'background-repeat': 'no-repeat,no-repeat',
+    'background-position': 'left bottom,center center',
+    'background-size': '100% auto,100% 100%',
+});
+const MAIL_SIGNATURE_TRAIN_SIZES = Object.freeze({
+    100: Object.freeze({ width: '100%', centerMargin: '0', rightMargin: '0' }),
+    125: Object.freeze({ width: '125%', centerMargin: '-12.5%', rightMargin: '-25%' }),
+    150: Object.freeze({ width: '150%', centerMargin: '-25%', rightMargin: '-50%' }),
+    200: Object.freeze({ width: '200%', centerMargin: '-50%', rightMargin: '-100%' }),
+});
+
+function elementClassNames(element) {
+    return String(element?.getAttribute?.('class') || '').split(/\s+/).filter(Boolean);
+}
+
+function assertExactElementAttributes(element, expected, label) {
+    const names = typeof element?.getAttributeNames === 'function'
+        ? element.getAttributeNames()
+        : Array.from(element?.attributes || []).map((attribute) => attribute.name);
+    const actual = names.map((name) => String(name).toLowerCase()).sort();
+    const canonical = [...expected].map((name) => String(name).toLowerCase()).sort();
+    if (actual.length !== canonical.length
+        || actual.some((name, index) => name !== canonical[index])) {
+        throw new Error(`${label} besitzt fremde oder fehlende Attribute.`);
+    }
+}
+
+function assertInlineStyles(element, expected, label, { exact = false } = {}) {
+    const style = String(element?.getAttribute?.('style') || '').trim();
+    if (!style) throw new Error(`${label} besitzt kein eindeutiges style-Attribut.`);
+
+    Object.entries(expected).forEach(([property, value]) => {
+        if (normalizedInlineStyleValue(inlineStyleDeclaration(style, property))
+            !== normalizedInlineStyleValue(value)) {
+            throw new Error(`${label} besitzt keine kanonische ${property}-Angabe.`);
         }
-        project.railtime = {
-            ...(project.railtime && typeof project.railtime === 'object' ? project.railtime : {}),
-            document: 'signature',
-            schema: MAIL_SIGNATURE_SCHEMA,
-        };
-
-        return currentCarriers[0];
-    }
-
-    const declaredSchema = project?.railtime?.schema;
-    if (Number.isInteger(declaredSchema) && declaredSchema !== 19) {
-        return null;
-    }
-
-    const carriers = Array.from(wrapper?.querySelectorAll?.('td.rt-sign-cell') || []);
-    const stages = Array.from(wrapper?.querySelectorAll?.('div.rt-sign-stage') || []);
-    const layers = Array.from(wrapper?.querySelectorAll?.('div.rt-sign-train-layer[data-rt-layer-train]') || []);
-    const images = Array.from(wrapper?.querySelectorAll?.('img.rt-sign-train[data-rt-train]') || []);
-    const carrier = carriers[0];
-    const stage = stages[0];
-    const layer = layers[0];
-    const image = images[0];
-    const layerChildren = Array.from(layer?.children || []);
-
-    if (rows.length !== 2
-        || rows.some((row) => row.tagName !== 'TR')
-        || carriers.length !== 1
-        || stages.length !== 1
-        || layers.length !== 1
-        || images.length !== 1
-        || carrier?.parentElement !== rows[0]
-        || stage?.parentElement !== carrier
-        || layer?.parentElement !== stage
-        || stage?.lastElementChild !== layer
-        || layerChildren.length !== 1
-        || layerChildren[0] !== image
-        || image.getAttribute('src') !== '{{TRAIN_SRC}}'
-        || image.getAttribute('width') !== '720'
-        || layer.getAttribute('data-rt-layer-align') !== 'left'
-        || layer.getAttribute('data-rt-layer-size') !== '100'
-        || layer.getAttribute('data-rt-layer-mobile') !== 'train') {
-        return null;
-    }
-
-    const carrierStyle = String(carrier.getAttribute('style') || '');
-    const expectedLegacyBackground = {
-        'background-image': 'linear-gradient({{SIGNATURE_TRAIN_WASH}},{{SIGNATURE_TRAIN_WASH}})',
-        'background-repeat': 'no-repeat',
-        'background-position': 'center center',
-        'background-size': '100% 100%',
-    };
-    const hasExactLegacyBackground = Object.entries(expectedLegacyBackground).every(([property, expected]) => (
-        normalizedInlineStyleValue(inlineStyleDeclaration(carrierStyle, property))
-            === normalizedInlineStyleValue(expected)
-    ));
-    if (!hasExactLegacyBackground) return null;
-
-    let projectedStyle = carrierStyle;
-    Object.entries({
-        'background-image': "url('{{TRAIN_SRC}}'),linear-gradient({{SIGNATURE_TRAIN_WASH}},{{SIGNATURE_TRAIN_WASH}})",
-        'background-repeat': 'no-repeat,no-repeat',
-        'background-position': 'left bottom,center center',
-        'background-size': '100% auto,100% 100%',
-    }).forEach(([property, value]) => {
-        projectedStyle = replaceInlineStyleDeclaration(projectedStyle, property, value);
     });
 
-    layer.remove();
-    carrier.setAttribute('data-rt-train-background', '1');
-    carrier.setAttribute('style', projectedStyle);
+    if (!exact) return;
+    const properties = style.split(';')
+        .map((declaration) => declaration.trim())
+        .filter(Boolean)
+        .map((declaration) => declaration.split(':', 1)[0].trim().toLowerCase());
+    const expectedProperties = Object.keys(expected).sort();
+    if (new Set(properties).size !== properties.length
+        || properties.length !== expectedProperties.length
+        || properties.sort().some((property, index) => property !== expectedProperties[index])) {
+        throw new Error(`${label} besitzt fremde oder doppelte Style-Angaben.`);
+    }
+}
+
+function assertSignatureBaseStructure(wrapper, rows) {
+    const carriers = Array.from(wrapper?.querySelectorAll?.('td.rt-sign-cell') || []);
+    const stages = Array.from(wrapper?.querySelectorAll?.('div.rt-sign-stage') || []);
+    const carrier = carriers[0];
+    const stage = stages[0];
+    const stageElements = Array.from(stage?.children || []);
+    const contentTable = stageElements[0];
+
+    if (!wrapper || rows.length !== 2 || rows.some((row) => row.tagName !== 'TR')
+        || carriers.length !== 1 || stages.length !== 1
+        || elementClassNames(carrier).length !== 1
+        || carrier?.parentElement !== rows[0]
+        || stage?.parentElement !== carrier
+        || carrier?.lastElementChild !== stage
+        || contentTable?.tagName !== 'TABLE') {
+        throw new Error('Die Signatur besitzt keine eindeutige IMG-Buehne in ihrer ersten Tabellenzeile.');
+    }
+    assertExactElementAttributes(stage, ['class', 'style'], 'Die Signatur-Buehne');
+    assertInlineStyles(stage, {
+        position: 'relative',
+        overflow: 'hidden',
+    }, 'Die Signatur-Buehne', { exact: true });
+    assertInlineStyles(contentTable, {
+        position: 'relative',
+        'z-index': '1',
+    }, 'Der Signatur-Inhaltsblock');
+
+    return { carrier, stage, stageElements, contentTable };
+}
+
+function assertSignatureBackground(carrier, expected, label) {
+    if (carrier.hasAttribute('background')) {
+        throw new Error('Der Zug-Carrier darf kein HTML-background-Attribut besitzen.');
+    }
+    assertInlineStyles(carrier, expected, label);
+}
+
+function signatureTrainGeometry(layer) {
+    const alignment = String(layer?.getAttribute?.('data-rt-layer-align') || '').toLowerCase();
+    const sizeName = String(layer?.getAttribute?.('data-rt-layer-size') || '');
+    const mobileCrop = String(layer?.getAttribute?.('data-rt-layer-mobile') || '').toLowerCase();
+    const size = MAIL_SIGNATURE_TRAIN_SIZES[sizeName];
+    if (!['left', 'center', 'right'].includes(alignment)
+        || !size
+        || !['left', 'center', 'train', 'right'].includes(mobileCrop)) {
+        throw new Error('Der Zug-Layer besitzt keine erlaubte mail-sichere Geometrie.');
+    }
+    const layerMargin = {
+        left: '0 auto 0 0',
+        center: '0 auto',
+        right: '0 0 0 auto',
+    }[alignment];
+    const imageOffset = alignment === 'center'
+        ? size.centerMargin
+        : (alignment === 'right' ? size.rightMargin : '0');
+
+    return {
+        size,
+        layerMargin,
+        imageMargin: imageOffset === '0' ? '0' : `0 0 0 ${imageOffset}`,
+    };
+}
+
+function assertCanonicalSignatureTrainLayer(layer, image) {
+    if (!layer || !image
+        || elementClassNames(layer).join(' ') !== 'rt-sign-train-layer'
+        || elementClassNames(image).join(' ') !== 'rt-sign-train'
+        || layer.getAttribute('data-rt-layer-train') !== ''
+        || image.getAttribute('data-rt-train') !== ''
+        || image.getAttribute('src') !== '{{TRAIN_SRC}}'
+        || image.getAttribute('width') !== '720'
+        || image.getAttribute('alt') !== ''
+        || layer.children.length !== 1
+        || layer.firstElementChild !== image) {
+        throw new Error('Das Zugmotiv muss genau einmal im kanonischen IMG-Layer vorliegen.');
+    }
+    assertExactElementAttributes(layer, [
+        'class',
+        'data-rt-layer-train',
+        'data-rt-layer-align',
+        'data-rt-layer-size',
+        'data-rt-layer-mobile',
+        'style',
+    ], 'Der Zug-Layer');
+    assertExactElementAttributes(image, [
+        'class',
+        'data-rt-train',
+        'src',
+        'width',
+        'alt',
+        'style',
+    ], 'Das Zugbild');
+
+    const geometry = signatureTrainGeometry(layer);
+    assertInlineStyles(layer, {
+        position: 'relative',
+        left: '0',
+        right: 'auto',
+        top: 'auto',
+        bottom: 'auto',
+        width: '100%',
+        'max-width': '1815px',
+        margin: geometry.layerMargin,
+        overflow: 'hidden',
+        'z-index': '0',
+        'font-size': '0',
+        'line-height': '0',
+        'text-align': 'left',
+    }, 'Der Zug-Layer', { exact: true });
+    assertInlineStyles(image, {
+        position: 'static',
+        left: 'auto',
+        right: 'auto',
+        bottom: 'auto',
+        display: 'inline-block',
+        width: geometry.size.width,
+        'max-width': 'none',
+        height: 'auto',
+        margin: geometry.imageMargin,
+        border: '0',
+        outline: 'none',
+        'text-decoration': 'none',
+        'vertical-align': 'top',
+        'mso-hide': 'all',
+    }, 'Das Zugbild', { exact: true });
+}
+
+function assertCanonicalSignatureTrainImage(wrapper, rows, { allowMissingOverlap = false } = {}) {
+    const structure = assertSignatureBaseStructure(wrapper, rows);
+    const layers = Array.from(wrapper.querySelectorAll(
+        'div[data-rt-layer-train], div.rt-sign-train-layer',
+    ));
+    const images = Array.from(wrapper.querySelectorAll(
+        'img[data-rt-train], img.rt-sign-train',
+    ));
+    const layer = layers[0];
+    const image = images[0];
+    const overlap = inlineStyleDeclaration(
+        String(structure.contentTable.getAttribute('style') || ''),
+        'margin-bottom',
+    );
+
+    if (structure.stageElements.length !== 2
+        || layers.length !== 1 || images.length !== 1
+        || layer?.parentElement !== structure.stage
+        || structure.stageElements[1] !== layer
+        || structure.stage.lastElementChild !== layer
+        || wrapper.querySelectorAll('[data-rt-train-background]').length !== 0
+        || (wrapper.outerHTML.split('{{TRAIN_SRC}}').length - 1) !== 1) {
+        throw new Error('Die Signatur benoetigt genau einen IMG-Zug direkt nach ihrem Inhaltsblock.');
+    }
+    if (overlap === null && !allowMissingOverlap) {
+        throw new Error('Der Signatur-Inhaltsblock besitzt nicht die kanonische Zug-Ueberlappung.');
+    }
+    if (overlap !== null
+        && normalizedInlineStyleValue(overlap) !== normalizedInlineStyleValue(MAIL_SIGNATURE_CONTENT_OVERLAP)) {
+        throw new Error('Der Signatur-Inhaltsblock besitzt eine fremde Zug-Ueberlappung.');
+    }
+    if (structure.carrier.hasAttribute('background')) {
+        throw new Error('Der Zug-Carrier darf kein HTML-background-Attribut besitzen.');
+    }
+    assertCanonicalSignatureTrainLayer(layer, image);
+
+    return { ...structure, layer, image, overlap };
+}
+
+function createCanonicalSignatureTrainLayer(document_) {
+    const layer = document_.createElement('div');
+    layer.setAttribute('class', 'rt-sign-train-layer');
+    layer.setAttribute('data-rt-layer-train', '');
+    layer.setAttribute('data-rt-layer-align', 'left');
+    layer.setAttribute('data-rt-layer-size', '100');
+    layer.setAttribute('data-rt-layer-mobile', 'train');
+    layer.setAttribute('style', 'position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;');
+
+    const image = document_.createElement('img');
+    image.setAttribute('class', 'rt-sign-train');
+    image.setAttribute('data-rt-train', '');
+    image.setAttribute('src', '{{TRAIN_SRC}}');
+    image.setAttribute('width', '720');
+    image.setAttribute('alt', '');
+    image.setAttribute('style', 'position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all;');
+    layer.append(image);
+
+    return layer;
+}
+
+function applySignatureContentOverlap(contentTable) {
+    contentTable.setAttribute('style', replaceInlineStyleDeclaration(
+        String(contentTable.getAttribute('style') || ''),
+        'margin-bottom',
+        MAIL_SIGNATURE_CONTENT_OVERLAP,
+    ));
+}
+
+function projectSignatureTrainImage(wrapper, rows, project) {
+    const declaredSchema = project?.railtime?.schema;
+    if (Number.isInteger(declaredSchema) && ![19, 20, MAIL_SIGNATURE_SCHEMA].includes(declaredSchema)) {
+        throw new Error('Die Signatur besitzt einen nicht unterstuetzten Zugvertrag.');
+    }
+
+    const backgroundCarriers = Array.from(
+        wrapper?.querySelectorAll?.('td.rt-sign-cell[data-rt-train-background]') || [],
+    );
+    if (backgroundCarriers.length > 0) {
+        if (declaredSchema === 19 || declaredSchema === MAIL_SIGNATURE_SCHEMA
+            || backgroundCarriers.length !== 1
+            || backgroundCarriers[0].getAttribute('data-rt-train-background') !== '1') {
+            throw new Error('Die Signatur besitzt keinen eindeutigen Schema-20-Zughintergrund.');
+        }
+        const structure = assertSignatureBaseStructure(wrapper, rows);
+        if (backgroundCarriers[0] !== structure.carrier
+            || structure.stageElements.length !== 1
+            || wrapper.querySelectorAll('img[data-rt-train], img.rt-sign-train, div[data-rt-layer-train], div.rt-sign-train-layer').length !== 0
+            || (wrapper.outerHTML.split('{{TRAIN_SRC}}').length - 1) !== 1) {
+            throw new Error('Die Signatur mischt den Schema-20-Zughintergrund mit einem Zugbild.');
+        }
+        assertSignatureBackground(structure.carrier, MAIL_SIGNATURE_SCHEMA_20_BACKGROUND, 'Der Schema-20-Zug-Carrier');
+
+        let projectedStyle = String(structure.carrier.getAttribute('style') || '');
+        Object.entries(MAIL_SIGNATURE_BASE_BACKGROUND).forEach(([property, value]) => {
+            projectedStyle = replaceInlineStyleDeclaration(projectedStyle, property, value);
+        });
+        structure.carrier.setAttribute('style', projectedStyle);
+        structure.carrier.removeAttribute('data-rt-train-background');
+        applySignatureContentOverlap(structure.contentTable);
+        structure.stage.append(createCanonicalSignatureTrainLayer(wrapper.ownerDocument));
+    } else {
+        if (declaredSchema === 20) {
+            throw new Error('Der deklarierte Schema-20-Zughintergrund fehlt.');
+        }
+        const current = assertCanonicalSignatureTrainImage(wrapper, rows, {
+            allowMissingOverlap: declaredSchema !== MAIL_SIGNATURE_SCHEMA,
+        });
+        if (current.overlap === null) applySignatureContentOverlap(current.contentTable);
+    }
+
+    const canonical = assertCanonicalSignatureTrainImage(wrapper, rows);
     project.railtime = {
         ...(project.railtime && typeof project.railtime === 'object' ? project.railtime : {}),
         document: 'signature',
         schema: MAIL_SIGNATURE_SCHEMA,
     };
 
-    return carrier;
+    return canonical;
 }
 
 export function projectForMailDocument(draft, parseCss = () => [], options = {}) {
@@ -1486,7 +1681,7 @@ export function projectForMailDocument(draft, parseCss = () => [], options = {})
         const contactProjection = bindSignatureContactMarkerRows(page.component, signatureParser);
         const signature = contactProjection.html;
         if ((signature.split('{{TRAIN_SRC}}').length - 1) !== 1) {
-            throw new Error('Die Signatur benötigt genau einen CSS-Zughintergrund.');
+            throw new Error('Die Signatur benötigt genau ein gebundenes Zugbild.');
         }
         const parsed = parseMailFragment(
             signatureParser,
@@ -1495,21 +1690,15 @@ export function projectForMailDocument(draft, parseCss = () => [], options = {})
         const wrapper = parsed.querySelector(`table[${MAIL_SIGNATURE_CANVAS_ATTRIBUTE}]`);
         const body = wrapper?.tBodies?.[0] || wrapper?.querySelector('tbody');
         const rows = Array.from(body?.children || []);
-        const trainCarrier = projectLegacySignatureTrainBackground(wrapper, rows, project);
-        const trainCarriers = wrapper?.querySelectorAll?.('td.rt-sign-cell[data-rt-train-background="1"]') || [];
-        const carrierStyle = String(trainCarrier?.getAttribute('style') || '');
-        if ((carrierStyle.split('{{TRAIN_SRC}}').length - 1) !== 1) {
-            throw new Error('Die Signatur besitzt keinen eindeutigen CSS-Zughintergrund.');
-        }
-        trainCarrier.setAttribute('style', carrierStyle.replace('{{TRAIN_SRC}}', MAIL_PREVIEW_TRANSPARENT_PIXEL));
-        trainCarrier?.setAttribute(MAIL_PREVIEW_BACKGROUND_ATTRIBUTE, 'TRAIN_SRC');
+        const trainContract = projectSignatureTrainImage(wrapper, rows, project);
         markMailPreviewImageTokens(wrapper);
         if (!wrapper || !body || rows.length !== 2
             || rows.some((row) => row.tagName !== 'TR')
-            || trainCarriers.length !== 1
-            || trainCarrier?.tagName !== 'TD'
-            || trainCarrier.parentElement !== rows[0]) {
-            throw new Error('Die Signatur benoetigt zwei Tabellenzeilen und genau einen CSS-Zughintergrund.');
+            || trainContract.carrier?.tagName !== 'TD'
+            || trainContract.carrier.parentElement !== rows[0]
+            || trainContract.image.getAttribute(MAIL_PREVIEW_IMAGE_ATTRIBUTE) !== 'TRAIN_SRC'
+            || trainContract.image.getAttribute('src') !== MAIL_PREVIEW_TRANSPARENT_PIXEL) {
+            throw new Error('Die Signatur benoetigt zwei Tabellenzeilen und genau einen gebundenen IMG-Zug.');
         }
         assertSignatureContactMarkerBindings(wrapper, contactProjection.hasMarkers);
 
@@ -1639,42 +1828,22 @@ export function serializeMailDocumentForSave({
         throw new Error('Der Signatur-Editor darf keine alte Zugvorschauzeile enthalten.');
     }
     const rows = Array.from(body?.children || []);
-    const trainCarriers = wrapper?.querySelectorAll?.(`td.rt-sign-cell[data-rt-train-background="1"][${MAIL_PREVIEW_BACKGROUND_ATTRIBUTE}="TRAIN_SRC"]`) || [];
-    const trainCarrier = trainCarriers[0];
+    const trainPreviewImages = wrapper?.querySelectorAll?.(
+        `img.rt-sign-train[data-rt-train][${MAIL_PREVIEW_IMAGE_ATTRIBUTE}="TRAIN_SRC"]`,
+    ) || [];
     if (wrappers.length !== 1 || !wrapper || !body
         || rows.length !== 2 || rows.some((row) => row.tagName !== 'TR')
-        || trainCarriers.length !== 1
-        || trainCarrier?.tagName !== 'TD'
-        || !trainCarrier.classList.contains('rt-sign-cell')
-        || trainCarrier.parentElement !== rows[0]) {
+        || trainPreviewImages.length !== 1) {
         throw new Error('Die sichere Tabellenstruktur des Signatur-Editors fehlt.');
     }
-
-    const carrierStyle = String(trainCarrier.getAttribute('style') || '');
-    if (!carrierStyle.includes(MAIL_PREVIEW_TRANSPARENT_PIXEL)) {
-        throw new Error('Die Vorschau-Bindung des CSS-Zughintergrunds fehlt.');
-    }
-    trainCarrier.setAttribute('style', carrierStyle.replace(
-        MAIL_PREVIEW_TRANSPARENT_PIXEL,
-        '{{TRAIN_SRC}}',
-    ));
-    trainCarrier.removeAttribute(MAIL_PREVIEW_BACKGROUND_ATTRIBUTE);
+    restoreMailPreviewImageTokens(wrapper);
 
     const baselineContactProjection = bindSignatureContactMarkerRows(baselineHtml, parser);
     restoreSignatureContactMarkers(wrapper, baselineContactProjection.hasMarkers);
-
-    wrapper.querySelectorAll(`[${MAIL_PREVIEW_IMAGE_ATTRIBUTE}]`).forEach((image) => {
-        const token = image.getAttribute(MAIL_PREVIEW_IMAGE_ATTRIBUTE);
-        if (image.tagName !== 'IMG' || !MAIL_PREVIEW_IMAGE_TOKENS.includes(token)) {
-            throw new Error('Der Signatur-Editor enthält einen unbekannten Bildplatzhalter.');
-        }
-        image.setAttribute('src', `{{${token}}}`);
-        image.removeAttribute(MAIL_PREVIEW_IMAGE_ATTRIBUTE);
-    });
-
-    if (!String(trainCarrier.getAttribute('style') || '').includes('{{TRAIN_SRC}}')
-        || wrapper.querySelectorAll('img[data-rt-train], div.rt-sign-train-layer[data-rt-layer-train]').length !== 0) {
-        throw new Error('Die Bindung des RailTime-CSS-Zughintergrunds wurde im Editor beschädigt.');
+    const trainContract = assertCanonicalSignatureTrainImage(wrapper, rows);
+    if (trainContract.image.getAttribute('src') !== '{{TRAIN_SRC}}'
+        || wrapper.querySelectorAll('[data-rt-train-background]').length !== 0) {
+        throw new Error('Die IMG-Bindung des RailTime-Zugmotivs wurde im Editor beschädigt.');
     }
 
     assertRestorableSignatureMainMarker(body, rows);
@@ -1707,6 +1876,13 @@ export function serializeMailDocumentForSave({
     }
     canonicalProject.pages[0].component = canonicalHtml;
     canonicalProject.styles = normalizedCanvas.styles;
+    canonicalProject.railtime = {
+        ...(canonicalProject.railtime && typeof canonicalProject.railtime === 'object'
+            ? canonicalProject.railtime
+            : {}),
+        document: 'signature',
+        schema: MAIL_SIGNATURE_SCHEMA,
+    };
 
     return { project: canonicalProject, html: canonicalHtml, css: canonicalCss };
 }
@@ -1866,13 +2042,6 @@ export function hydrateMailCanvasAssets(editor, theme = 'light', previewAssets =
         hydrated += 1;
     });
 
-    canvasDocument.querySelectorAll(`[${MAIL_PREVIEW_BACKGROUND_ATTRIBUTE}="TRAIN_SRC"]`).forEach((carrier) => {
-        if (!sources.TRAIN_SRC) return;
-        const current = String(carrier.style.backgroundImage || '');
-        carrier.style.backgroundImage = current.replace(MAIL_PREVIEW_TRANSPARENT_PIXEL, sources.TRAIN_SRC);
-        hydrated += 1;
-    });
-
     return hydrated;
 }
 
@@ -1902,21 +2071,6 @@ export function restartMailCanvasAnimations(editor, { nonce = Date.now() } = {})
     };
 
     visit(root);
-    const canvasDocument = editor?.Canvas?.getDocument?.();
-    canvasDocument?.querySelectorAll?.(`[${MAIL_PREVIEW_BACKGROUND_ATTRIBUTE}="TRAIN_SRC"]`).forEach((carrier) => {
-        const current = String(carrier.style.backgroundImage || '');
-        const restartedBackground = current.replace(
-            /url\((["']?)([^)"']+)\1\)/i,
-            (_match, quote, source) => {
-                const clean = source.replace(/#_rt_preview_restart=[^#]*/g, '');
-                return `url(${quote}${clean}#_rt_preview_restart=${nonce}-${restarted}${quote})`;
-            },
-        );
-        if (restartedBackground !== current) {
-            carrier.style.backgroundImage = restartedBackground;
-            restarted += 1;
-        }
-    });
     return restarted;
 }
 
@@ -2167,7 +2321,6 @@ export function protectMailSystemComponents(editor) {
         const token = attributes[MAIL_PREVIEW_IMAGE_ATTRIBUTE];
         const preview = attributes['data-rt-mail-preview-only'];
         const block = attributes[MAIL_BLOCK_ATTRIBUTE];
-        if (attributes[MAIL_PREVIEW_BACKGROUND_ATTRIBUTE] === 'TRAIN_SRC') return 'Zug-Hintergrund';
         if (token === 'TRAIN_SRC') return 'Zugbild';
         if (preview === 'application') return 'Anwendungsinhalt (geschützt)';
         if (preview === 'signature') return 'Signatur-Platzhalter (geschützt)';
@@ -2177,7 +2330,7 @@ export function protectMailSystemComponents(editor) {
         if (classes.includes('rt-shell')) return 'Nachrichtenschale';
         if (classes.includes('rt-sign-content')) return 'Signatur-Inhalt';
         if (classes.includes('rt-sign-stage')) return 'Signatur-Bühne';
-        if (classes.includes('rt-sign-train-layer')) return 'Zug-Hintergrundebene';
+        if (classes.includes('rt-sign-train-layer')) return 'Zug-Bildebene';
         if (classes.includes('rt-sign-identity')) return 'Personendaten';
         if (classes.includes('rt-sign-logo')) return 'Firmendaten';
         if (classes.includes('rt-company-contact')) return 'Firmenkontakte';
@@ -2242,8 +2395,7 @@ export function protectMailSystemComponents(editor) {
                 ancestor = ancestor?.parent?.();
             }
         }
-        if ([MAIL_PREVIEW_IMAGE_ATTRIBUTE, MAIL_PREVIEW_BACKGROUND_ATTRIBUTE]
-            .some((attribute) => attributes[attribute] === 'TRAIN_SRC')
+        if (attributes[MAIL_PREVIEW_IMAGE_ATTRIBUTE] === 'TRAIN_SRC'
             || attributes[MAIL_PREVIEW_IMAGE_ATTRIBUTE] === 'LOGO_SRC') {
             component.set?.({
                 stylable: true,
