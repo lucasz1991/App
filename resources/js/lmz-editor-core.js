@@ -540,6 +540,12 @@ function isImageComponent(component) {
     return type === 'image' || tag === 'img';
 }
 
+function isEditableBrandPreviewImage(component) {
+    if (!isImageComponent(component)) return false;
+    const previewToken = String(componentAttributes(component)['data-rt-mail-preview-token'] || '');
+    return ['TRAIN_SRC', 'LOGO_SRC'].includes(previewToken);
+}
+
 function hasProtectedEditorMarker(component) {
     const attributes = componentAttributes(component);
     const block = String(attributes['data-rt-block'] || '');
@@ -580,6 +586,12 @@ export function isProtectedEditorStructure(component) {
 
     while (current && guard < 30) {
         if (hasProtectedEditorMarker(current)) {
+            if (isSelectedComponent && isEditableBrandPreviewImage(current)) {
+                current = typeof current.parent === 'function' ? current.parent() : null;
+                isSelectedComponent = false;
+                guard += 1;
+                continue;
+            }
             // Der Zug-Carrier schuetzt seine eigene mailkritische Geometrie,
             // ist aber kein Schloss fuer die darin liegenden Kontakt- und
             // Inhaltsbloecke. Diese bleiben im Ebenenpanel einzeln erreichbar.
@@ -631,8 +643,15 @@ export function enforceProtectedComponentModels(editor, { readOnly = false } = {
     if (!wrapper) return 0;
     let locked = 0;
     const visit = (component, protectedAncestor = false) => {
-        const directProtectedComponent = hasProtectedEditorMarker(component);
-        const protectedComponent = protectedAncestor || directProtectedComponent;
+        const editableBrandImage = isEditableBrandPreviewImage(component);
+        const directProtectedComponent = hasProtectedEditorMarker(component)
+            && !editableBrandImage;
+        // Der umgebende Marken-/Carrierblock bleibt strukturell gesperrt. Das
+        // eigentliche TRAIN_SRC-/LOGO_SRC-Bild darf jedoch weiterhin direkt
+        // ausgewaehlt und ueber den mail-sicheren Bildinspector bearbeitet
+        // werden; im Nur-Lesen-Modus gilt die Ausnahme ausdruecklich nicht.
+        const protectedComponent = directProtectedComponent
+            || (protectedAncestor && !editableBrandImage);
         if (readOnly || protectedComponent) {
             Object.entries(IMMUTABLE_COMPONENT_PROPERTIES).forEach(([property, value]) => {
                 component?.set?.(property, value, { silent: true });
@@ -695,6 +714,19 @@ export function createScopedAssetCallbackSelection({
 }
 
 export function resolveEditableImageComponent(editor, selected = null, { mode = 'marketing' } = {}) {
+    const image = resolveInspectableImageComponent(editor, selected);
+    if (!image || isProtectedEditorImage(image, mode)) return null;
+
+    return image;
+}
+
+/**
+ * Liefert genau ein Bild aus der aktuellen Auswahl, ohne dabei bereits eine
+ * Aussage ueber dessen strukturellen Schutz zu treffen. Der Inspector darf
+ * dadurch auch den Zustand eines Markenbildes erklaeren, waehrend die
+ * Schreibrechte weiterhin separat und fail-closed entschieden werden.
+ */
+function resolveInspectableImageComponent(editor, selected = null) {
     const candidate = selected || editor?.getSelected?.();
     if (!candidate) return null;
     const found = [];
@@ -703,7 +735,8 @@ export function resolveEditableImageComponent(editor, selected = null, { mode = 
         componentChildren(component).forEach(visit);
     };
     visit(candidate);
-    if (found.length !== 1 || isProtectedEditorImage(found[0], mode)) return null;
+    if (found.length !== 1) return null;
+
     return found[0];
 }
 
@@ -1821,6 +1854,285 @@ function markMoveHandleReady(handle) {
 function scopedImageReplacementEnabled(capabilities, mode) {
     return capabilities.imageReplace === true
         || (mode === 'mail' && capabilities.imageReplace === 'tokens-only');
+}
+
+function imageParentByAttribute(component, attribute, maximumDepth = 12) {
+    let current = component;
+    let depth = 0;
+
+    while (current && depth < maximumDepth) {
+        if (Object.prototype.hasOwnProperty.call(componentAttributes(current), attribute)) return current;
+        current = current.parent?.() || null;
+        depth += 1;
+    }
+
+    return null;
+}
+
+function imageParentCell(component, maximumDepth = 12) {
+    let current = component?.parent?.() || null;
+    let depth = 0;
+
+    while (current && depth < maximumDepth) {
+        if (String(current.get?.('tagName') || current.tagName || '').toLowerCase() === 'td') return current;
+        current = current.parent?.() || null;
+        depth += 1;
+    }
+
+    return null;
+}
+
+function imageSourceIsSafe(source) {
+    const normalized = String(source || '').trim();
+    if (!normalized || /[\u0000-\u001f\u007f]/.test(normalized)) return false;
+    if (/^\{\{[A-Z][A-Z0-9_]{1,63}\}\}$/.test(normalized)) return true;
+    if (/^(?:https?:\/\/|\/|\.\.\/|\.\/|cid:)/i.test(normalized)) return true;
+    return /^data:image\/(?:png|jpe?g|gif|webp);base64,[a-z0-9+/=\s]+$/i.test(normalized);
+}
+
+function inferredImageAlignment(image, layer = null) {
+    const attributes = componentAttributes(layer || image);
+    const imageAttributes = componentAttributes(image);
+    const cell = imageParentCell(image);
+    const cellAttributes = componentAttributes(cell);
+    const style = image?.getStyle?.() || {};
+    const requested = attributes['data-rt-layer-align']
+        || imageAttributes['data-rt-image-align']
+        || cellAttributes.align;
+
+    if (['left', 'center', 'right'].includes(requested)) return requested;
+    if (style.margin === '0 auto') return 'center';
+    if (style.margin === '0 0 0 auto') return 'right';
+    return 'left';
+}
+
+function numericImageWidth(image, fallback = 600) {
+    const attributes = componentAttributes(image);
+    const style = image?.getStyle?.() || {};
+    const candidate = String(attributes.width || style['max-width'] || '').match(/\d{1,4}/)?.[0];
+    const width = Number.parseInt(candidate || String(fallback), 10);
+
+    return Math.min(2400, Math.max(16, Number.isFinite(width) ? width : fallback));
+}
+
+let imagePropertiesPanelSequence = 0;
+
+/**
+ * Kompakter, mail-sicherer Bildinspector im Eigenschaften-Panel.
+ *
+ * Systemmedien behalten ihren data-rt-mail-preview-token. Eine geaenderte
+ * Quelle steuert damit die Canvas-Vorschau beziehungsweise den bestehenden
+ * Medienpfad, waehrend der Serializer den kanonischen Slot weiter speichern
+ * kann. Zugbreite und -ausrichtung werden auf dessen vorhandene Preset-
+ * Attribute geschrieben statt beliebige CSS-Geometrie zu erzeugen.
+ */
+function createImagePropertiesPanel({ root, editor, capabilities, media = {}, onChanged }) {
+    const document_ = root.ownerDocument;
+    imagePropertiesPanelSequence += 1;
+    const sourceHintId = `rt-lmz-image-source-hint-${imagePropertiesPanelSequence}`;
+    const traitsPanel = root.querySelector('[data-lmz-popover-panel="right:traits"]');
+    const traitsMount = traitsPanel?.querySelector?.('[data-lmz-mount="traits"]');
+    const traitsBody = traitsMount?.parentElement || null;
+    if (!traitsBody) {
+        return {
+            refresh() {},
+            hasTarget: () => false,
+            destroy() {},
+        };
+    }
+
+    const panel = document_.createElement('section');
+    panel.className = 'rt-lmz-image-properties';
+    panel.hidden = true;
+    panel.setAttribute('aria-label', 'Bildeigenschaften');
+    panel.innerHTML = `
+        <header class="rt-lmz-image-properties__header">
+            <span class="rt-lmz-image-properties__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m5 18 5-5 3 3 2-2 4 4"/></svg>
+            </span>
+            <span><strong>Bild</strong><small data-rt-lmz-image-kind>Mail-sichere Darstellung</small></span>
+        </header>
+        <form class="rt-lmz-image-properties__form" data-rt-lmz-image-form>
+            <label class="rt-lmz-image-properties__field rt-lmz-image-properties__field--wide">
+                <span>Quelle</span>
+                <input type="text" name="source" inputmode="url" autocomplete="off" spellcheck="false" aria-describedby="${sourceHintId}">
+            </label>
+            <p class="rt-lmz-image-properties__hint" id="${sourceHintId}" data-rt-lmz-image-source-hint>HTTPS-, lokale, CID-, Daten- oder Vorlagenquelle.</p>
+            <label class="rt-lmz-image-properties__field rt-lmz-image-properties__field--wide">
+                <span>Alternativtext</span>
+                <input type="text" name="alt" autocomplete="off" maxlength="240" placeholder="Bildinhalt kurz beschreiben">
+            </label>
+            <label class="rt-lmz-image-properties__field" data-rt-lmz-image-width-pixels>
+                <span>Breite (px)</span>
+                <input type="number" name="width" min="16" max="2400" step="1" inputmode="numeric">
+            </label>
+            <label class="rt-lmz-image-properties__field" data-rt-lmz-image-width-preset hidden>
+                <span>Zugbreite</span>
+                <select name="trainWidth">
+                    <option value="100">100 %</option>
+                    <option value="125">125 %</option>
+                    <option value="150">150 %</option>
+                    <option value="200">200 %</option>
+                </select>
+            </label>
+            <label class="rt-lmz-image-properties__field">
+                <span>Ausrichtung</span>
+                <select name="alignment">
+                    <option value="left">Links</option>
+                    <option value="center">Mittig</option>
+                    <option value="right">Rechts</option>
+                </select>
+            </label>
+            <p class="rt-lmz-image-properties__message" data-rt-lmz-image-message aria-live="polite"></p>
+            <button type="submit" class="rt-lmz-image-properties__apply">Übernehmen</button>
+        </form>`;
+    traitsBody.insertBefore(panel, traitsMount);
+
+    const form = panel.querySelector('[data-rt-lmz-image-form]');
+    const kind = panel.querySelector('[data-rt-lmz-image-kind]');
+    const sourceHint = panel.querySelector('[data-rt-lmz-image-source-hint]');
+    const message = panel.querySelector('[data-rt-lmz-image-message]');
+    const pixelWidthField = panel.querySelector('[data-rt-lmz-image-width-pixels]');
+    const presetWidthField = panel.querySelector('[data-rt-lmz-image-width-preset]');
+    let target = null;
+    let trainLayer = null;
+    let targetIsTrain = false;
+    let editable = false;
+
+    const refresh = (selection = editor.getSelected?.()) => {
+        target = resolveInspectableImageComponent(editor, selection);
+        trainLayer = target ? imageParentByAttribute(target, 'data-rt-layer-train') : null;
+        targetIsTrain = false;
+        editable = false;
+        panel.hidden = !target;
+        if (!target) return false;
+
+        const attributes = componentAttributes(target);
+        const token = String(attributes['data-rt-mail-preview-token'] || '').trim();
+        const tokenMedia = typeof media.tokenMedia === 'function' ? media.tokenMedia() : media.tokenMedia;
+        const systemSource = (Array.isArray(tokenMedia) ? tokenMedia : [])
+            .find((item) => normalizedToken(item?.token) === normalizedToken(token))?.src;
+        const renderedSource = target.getEl?.()?.getAttribute?.('src');
+        const source = String(renderedSource || systemSource || attributes.src || target.get?.('src') || '').trim();
+        const animated = isAnimatedImageSource(source, attributes['data-mime-type']);
+        targetIsTrain = Boolean(trainLayer || attributes['data-rt-train'] !== undefined);
+        editable = Boolean(
+            capabilities.writable
+            && (!isProtectedEditorStructure(target) || ['TRAIN_SRC', 'LOGO_SRC'].includes(token))
+        );
+        const layerAttributes = componentAttributes(trainLayer);
+        form.elements.source.value = source;
+        form.elements.alt.value = String(attributes.alt || '');
+        form.elements.width.value = String(numericImageWidth(target));
+        form.elements.trainWidth.value = ['100', '125', '150', '200'].includes(String(layerAttributes['data-rt-layer-size']))
+            ? String(layerAttributes['data-rt-layer-size'])
+            : '100';
+        form.elements.alignment.value = inferredImageAlignment(target, trainLayer);
+        pixelWidthField.hidden = targetIsTrain;
+        presetWidthField.hidden = !targetIsTrain;
+        form.toggleAttribute('data-system-medium', Boolean(token));
+        kind.textContent = token
+            ? `Systemmedium · ${token}${animated ? ' · GIF' : ''}`
+            : (animated ? 'Animiertes GIF' : 'Mail-sicheres Bild');
+        sourceHint.textContent = token
+            ? 'Die Quelle ändert die Vorschau; der Systemmedien-Slot bleibt beim Speichern erhalten.'
+            : 'HTTPS-, lokale, CID-, Daten- oder Vorlagenquelle. Unsichere Protokolle werden abgewiesen.';
+        message.textContent = '';
+        form.querySelectorAll('input, select, button').forEach((control) => {
+            control.disabled = !editable;
+        });
+        form.elements.alt.disabled = !editable || targetIsTrain;
+        if (targetIsTrain) {
+            form.elements.alt.value = '';
+            form.elements.alt.title = 'Der dekorative Zug bleibt für Mailclients mit leerem Alternativtext ausgeblendet.';
+        } else {
+            form.elements.alt.removeAttribute('title');
+        }
+        if (!editable) {
+            message.dataset.state = 'muted';
+            message.textContent = 'Dieses Systemmedium ist strukturell gebunden und wird über seinen System-Slot verwaltet.';
+        }
+        return editable;
+    };
+
+    const onSubmit = (event) => {
+        event.preventDefault();
+        if (!target || !editable) return;
+
+        const source = String(form.elements.source.value || '').trim();
+        if (!imageSourceIsSafe(source)) {
+            message.dataset.state = 'error';
+            message.textContent = 'Bitte eine sichere HTTPS-, lokale, CID-, Daten- oder Vorlagenquelle verwenden.';
+            form.elements.source.focus();
+            return;
+        }
+
+        const alt = targetIsTrain ? '' : String(form.elements.alt.value || '').trim().slice(0, 240);
+        const alignment = ['left', 'center', 'right'].includes(form.elements.alignment.value)
+            ? form.elements.alignment.value
+            : 'left';
+        target.set?.('src', source);
+        target.addAttributes?.({ src: source, alt });
+
+        if (trainLayer) {
+            const size = ['100', '125', '150', '200'].includes(form.elements.trainWidth.value)
+                ? form.elements.trainWidth.value
+                : '100';
+            trainLayer.addAttributes?.({
+                'data-rt-layer-align': alignment,
+                'data-rt-layer-size': size,
+            });
+            // Der Mail-Adapter lauscht auf genau dieses Ereignis und setzt
+            // daraus die kanonischen Layer-/IMG-Inline-Stile. Das explizite
+            // Triggern stellt die Synchronisierung auch bei Adapterversionen
+            // sicher, deren addAttributes-Aufruf gebuendelt wird.
+            editor.trigger?.('component:update', trainLayer);
+        } else {
+            const requestedWidth = Number.parseInt(String(form.elements.width.value || ''), 10);
+            const width = Math.min(2400, Math.max(16, Number.isFinite(requestedWidth) ? requestedWidth : 600));
+            const margin = { left: '0', center: '0 auto', right: '0 0 0 auto' }[alignment];
+            target.addAttributes?.({ width: String(width), 'data-rt-image-align': alignment });
+            target.removeAttributes?.('height');
+            target.addStyle?.({
+                display: 'block',
+                width: '100%',
+                'max-width': `${width}px`,
+                height: 'auto',
+                margin,
+                border: '0',
+                outline: 'none',
+                'vertical-align': 'top',
+            });
+            const cell = imageParentCell(target);
+            if (cell) {
+                cell.addAttributes?.({ align: alignment });
+                cell.addStyle?.({ 'text-align': alignment });
+            }
+            form.elements.width.value = String(width);
+        }
+
+        onChanged?.();
+        message.dataset.state = 'success';
+        message.textContent = 'Bildeigenschaften übernommen.';
+        editor.select?.(target);
+    };
+
+    form.addEventListener('submit', onSubmit);
+    refresh();
+
+    return {
+        refresh,
+        hasTarget: () => Boolean(target),
+        canEdit: () => editable,
+        destroy() {
+            form.removeEventListener('submit', onSubmit);
+            panel.remove();
+            target = null;
+            trainLayer = null;
+            targetIsTrain = false;
+            editable = false;
+        },
+    };
 }
 
 function createMediaDrawer({ root, editor, mode, media, capabilities, onChanged }) {
@@ -3147,8 +3459,82 @@ export function createLmzEditorChrome({
     const spacing = createSpacingOverlayController({ editor, root: rootElement, enabled: isOpen && normalized.spacing });
     let mediaDrawer;
     let animationDrawer;
-    const refreshAll = () => { spacing.refresh(); mediaDrawer?.refresh(); };
+    let imagePropertiesPanel;
+    const contextualElementState = new Map();
+    const traitCount = (component) => {
+        const traits = component?.get?.('traits');
+        if (Array.isArray(traits)) return traits.length;
+        if (Array.isArray(traits?.models)) return traits.models.length;
+        if (typeof traits?.length === 'number') return traits.length;
+        return 0;
+    };
+    const canStyleSelection = (component) => {
+        if (!component) return false;
+        const stylable = component.get?.('stylable');
+        if (stylable === false || (Array.isArray(stylable) && stylable.length === 0)) return false;
+        if (!isProtectedEditorStructure(component)) return true;
+        return stylable === true || (Array.isArray(stylable) && stylable.length > 0);
+    };
+    const setContextPanelAvailable = (panelId, available) => {
+        const toggle = rootElement.querySelector(`[data-lmz-panel-toggle="${panelId}"]`);
+        if (!toggle || !normalized[capabilityByPanel[panelId]]) return;
+        if (!contextualElementState.has(toggle)) {
+            contextualElementState.set(toggle, {
+                hidden: toggle.hidden,
+                inert: Boolean(toggle.inert),
+                ariaDisabled: toggle.getAttribute('aria-disabled'),
+            });
+        }
+        if (!available && toggle.getAttribute('aria-expanded') === 'true') {
+            closeVendorPopover(rootElement, rootElement.querySelector('[data-lmz-popover="right"]'));
+        }
+        toggle.hidden = !available;
+        toggle.inert = !available;
+        toggle.toggleAttribute('data-rt-lmz-context-unavailable', !available);
+        toggle.setAttribute('aria-disabled', available ? 'false' : 'true');
+    };
+    const syncContextControls = () => {
+        const selected = editor.getSelected?.() || null;
+        const hasImage = imagePropertiesPanel?.refresh(selected) || false;
+        const protectedSelection = isProtectedEditorStructure(selected);
+        const traitsAvailable = Boolean(
+            selected
+            && normalized.writable
+            && normalized.traits
+            && (hasImage || (!protectedSelection && traitCount(selected) > 0))
+        );
+        const stylesAvailable = Boolean(
+            selected
+            && normalized.writable
+            && normalized.styles
+            && canStyleSelection(selected)
+        );
+        const classesAvailable = Boolean(
+            selected
+            && normalized.writable
+            && normalized.classes
+            && !protectedSelection
+        );
+
+        rootElement.dataset.rtLmzHasSelection = selected ? 'true' : 'false';
+        rootElement.dataset.rtLmzHasContextActions = traitsAvailable || stylesAvailable || classesAvailable ? 'true' : 'false';
+        setContextPanelAvailable('right:traits', traitsAvailable);
+        setContextPanelAvailable('right:styles', stylesAvailable);
+        setContextPanelAvailable('right:classes', classesAvailable);
+    };
+    const refreshAll = () => {
+        spacing.refresh();
+        mediaDrawer?.refresh();
+        syncContextControls();
+    };
     mediaDrawer = createMediaDrawer({ root: rootElement, editor, mode: normalizedMode, media, capabilities: normalized, onChanged: refreshAll });
+    imagePropertiesPanel = createImagePropertiesPanel({
+        root: rootElement,
+        editor,
+        capabilities: normalized,
+        media,
+        onChanged: refreshAll,
+    });
     const detachScopedAssetAccess = installScopedAssetAccess({ editor, mediaDrawer, mode: normalizedMode });
     animationDrawer = createAnimationDrawer({ root: rootElement, editor, capabilities: normalized, mode: normalizedMode, onChanged: refreshAll });
     const menu = createInlineMenu({ root: rootElement, editor, capabilities: normalized, mode: normalizedMode, mediaDrawer, animationDrawer });
@@ -3201,9 +3587,13 @@ export function createLmzEditorChrome({
             }, { readOnly: !normalized.writable });
         }
     };
-    const onLoad = () => enforceProtectedComponentModels(editor, { readOnly: !normalized.writable });
+    const onLoad = () => {
+        enforceProtectedComponentModels(editor, { readOnly: !normalized.writable });
+        syncContextControls();
+    };
     editor.on?.('component:add', onComponentAdded);
     editor.on?.('load', onLoad);
+    syncContextControls();
 
     const api = {
         editor,
@@ -3246,6 +3636,8 @@ export function createLmzEditorChrome({
             const panelId = mapping[panel];
             const capability = capabilityByPanel[panelId];
             if (!panelId || (capability && !normalized[capability])) return false;
+            const toggle = rootElement.querySelector(`[data-lmz-panel-toggle="${panelId}"]`);
+            if (!toggle || toggle.hidden || toggle.inert || toggle.getAttribute('aria-disabled') === 'true') return false;
             return Boolean(openPanel(rootElement, panelId));
         },
         restartGif(target = null) {
@@ -3270,6 +3662,7 @@ export function createLmzEditorChrome({
             menu.destroy();
             mediaDrawer.destroy();
             animationDrawer.destroy();
+            imagePropertiesPanel.destroy();
             spacing.destroy();
             rootElement.classList.remove('rt-lmz-editor');
             delete rootElement.dataset.rtLmzMode;
@@ -3278,6 +3671,8 @@ export function createLmzEditorChrome({
             delete rootElement.dataset.rtLmzStyleStrategy;
             delete rootElement.dataset.rtLmzOpen;
             delete rootElement.dataset.rtLmzReadOnly;
+            delete rootElement.dataset.rtLmzHasSelection;
+            delete rootElement.dataset.rtLmzHasContextActions;
             modeIndicator.remove();
             unavailableCapabilityElements.forEach(({ element, hidden, inert, ariaDisabled }) => {
                 element.hidden = hidden;
@@ -3286,6 +3681,14 @@ export function createLmzEditorChrome({
                 if (ariaDisabled === null) element.removeAttribute('aria-disabled');
                 else element.setAttribute('aria-disabled', ariaDisabled);
             });
+            contextualElementState.forEach(({ hidden, inert, ariaDisabled }, element) => {
+                element.hidden = hidden;
+                element.inert = inert;
+                element.removeAttribute('data-rt-lmz-context-unavailable');
+                if (ariaDisabled === null) element.removeAttribute('aria-disabled');
+                else element.setAttribute('aria-disabled', ariaDisabled);
+            });
+            contextualElementState.clear();
             readOnlyMounts.forEach((mount) => {
                 mount.inert = false;
                 mount.removeAttribute('aria-disabled');

@@ -26,6 +26,11 @@ import {
 import { createMailBlocks, mailCanvasStyles } from '../../resources/js/mail-builder-blocks.js';
 
 const canonicalTrain = '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all;"></div>';
+const canonicalSignatureStage = (content = '') => '<div class="rt-sign-stage" style="position:relative;overflow:hidden;">'
+    + '<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;position:relative;z-index:1;margin-bottom:-150px;">'
+    + `<tbody><tr><td>${content}</td></tr></tbody></table>`
+    + canonicalTrain
+    + '</div>';
 
 test('LMZ traits and mail protection do not recurse through component updates', () => {
     const lmzBuilderSource = readFileSync(
@@ -168,7 +173,7 @@ test('global mail replay restarts every animated token without touching componen
 test('signature project gets a valid editor-only table and a reversible train image', () => {
     const source = {
         pages: [{
-            component: `<tr><td class="rt-pad rt-sign-cell"><img src="{{LOGO_SRC}}" alt="{{FIRMENNAME}}"><img src="{{ICON_EMAIL_SRC}}"><img src="{{ICON_LOCATION_SRC}}">${canonicalTrain}</td></tr><tr><td style="color:{{SIGNATURE_LEGAL_TEXT}}">Rechtliches</td></tr>`,
+            component: `<tr><td class="rt-sign-cell">${canonicalSignatureStage('<img src="{{LOGO_SRC}}" alt="{{FIRMENNAME}}"><img src="{{ICON_EMAIL_SRC}}"><img src="{{ICON_LOCATION_SRC}}">')}</td></tr><tr><td style="color:{{SIGNATURE_LEGAL_TEXT}}">Rechtliches</td></tr>`,
         }],
         styles: [],
     };
@@ -192,7 +197,7 @@ test('signature project gets a valid editor-only table and a reversible train im
 });
 
 test('signature preview hydrates the train image and roundtrips two canonical rows', () => {
-    const original = `<tr><td class="rt-sign-cell"><span data-rt-mail-block="paragraph" data-rt-mail-text="secondary">Inhalt</span><img src="{{LOGO_SRC}}">${canonicalTrain}</td></tr><!-- RT_SIGNATURE_MAIN_END --><tr><td style="color:{{SIGNATURE_LEGAL_TEXT}}"><img src="{{ICON_EMAIL_SRC}}"></td></tr>`;
+    const original = `<tr><td class="rt-sign-cell">${canonicalSignatureStage('<span data-rt-mail-block="paragraph" data-rt-mail-text="secondary">Inhalt</span><img src="{{LOGO_SRC}}">')}</td></tr><!-- RT_SIGNATURE_MAIN_END --><tr><td style="color:{{SIGNATURE_LEGAL_TEXT}}"><img src="{{ICON_EMAIL_SRC}}"></td></tr>`;
     const project = projectForMailDocument({
         builderData: { pages: [{ component: original }], styles: [] },
         css: '',
@@ -224,16 +229,19 @@ test('signature preview hydrates the train image and roundtrips two canonical ro
     const outgoingStage = outgoingDocument.querySelector('td.rt-sign-cell > div.rt-sign-stage');
     const outgoingLayer = outgoingStage?.querySelector(':scope > div.rt-sign-train-layer[data-rt-layer-train]');
     const outgoingTrain = outgoingLayer?.querySelector(':scope > img.rt-sign-train[data-rt-train]');
-    assert.ok(outgoingStage, 'legacy direct layers must save inside the canonical relative stage');
+    const outgoingContent = outgoingStage?.querySelector(':scope > table');
+    assert.ok(outgoingStage, 'the signature must retain its canonical relative stage');
     assert.equal(outgoingStage.getAttribute('style'), 'position:relative;overflow:hidden;');
+    assert.equal(outgoingContent.style.marginBottom, '-150px');
+    assert.equal(outgoingStage.firstElementChild, outgoingContent);
     assert.equal(
         outgoingLayer.getAttribute('style'),
-        'position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left',
+        'position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;',
     );
     assert.equal(outgoingTrain.getAttribute('width'), '720');
     assert.equal(
         outgoingTrain.getAttribute('style'),
-        'position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all',
+        'position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all;',
     );
     assert.equal(outgoingStage.lastElementChild, outgoingLayer);
     assert.equal(outgoingLayer.lastElementChild, outgoingTrain);
@@ -254,7 +262,7 @@ test('signature preview hydrates the train image and roundtrips two canonical ro
 });
 
 test('signature contact rows survive the element-only GrapesJS roundtrip as exact marker siblings', () => {
-    const original = '<tr><td class="rt-sign-cell">'
+    const content = ''
         + '<table class="rt-contact">'
         + '<!-- RT_PHONE_START --><tr><td>{{DURCHWAHL}}</td></tr><!-- RT_PHONE_END -->'
         + '<!-- RT_MOBILE_START --><tr><td>{{MOBIL}}</td></tr><!-- RT_MOBILE_END -->'
@@ -263,7 +271,8 @@ test('signature contact rows survive the element-only GrapesJS roundtrip as exac
         + '<!-- RT_COMPANY_PHONE_START --><tr><td>{{FIRMEN_TELEFON}}</td></tr><!-- RT_COMPANY_PHONE_END -->'
         + '<!-- RT_COMPANY_EMAIL_START --><tr><td>{{FIRMEN_EMAIL}}</td></tr><!-- RT_COMPANY_EMAIL_END -->'
         + '<!-- RT_WEBSITE_START --><tr><td>{{FIRMEN_WEBSITE_LABEL}}</td></tr><!-- RT_WEBSITE_END -->'
-        + `</table><img src="{{LOGO_SRC}}">${canonicalTrain}</td></tr>`
+        + '</table><img src="{{LOGO_SRC}}">';
+    const original = `<tr><td class="rt-sign-cell">${canonicalSignatureStage(content)}</td></tr>`
         + '<!-- RT_SIGNATURE_MAIN_END --><tr><td>Rechtliches</td></tr>';
     const project = projectForMailDocument({
         builderData: { pages: [{ component: original }], styles: [] },
@@ -399,7 +408,7 @@ test('signature contact rows survive the element-only GrapesJS roundtrip as exac
 });
 
 test('signature save fails closed when a preview marker is removed', () => {
-    const original = `<tr><td class="rt-sign-cell"><img src="{{LOGO_SRC}}">${canonicalTrain}</td></tr><!-- RT_SIGNATURE_MAIN_END --><tr><td>Rechtliches</td></tr>`;
+    const original = `<tr><td class="rt-sign-cell">${canonicalSignatureStage('<img src="{{LOGO_SRC}}">')}</td></tr><!-- RT_SIGNATURE_MAIN_END --><tr><td>Rechtliches</td></tr>`;
     const project = projectForMailDocument({
         builderData: { pages: [{ component: original }], styles: [] },
         css: '',
@@ -467,8 +476,10 @@ test('signature save fails closed when a preview marker is removed', () => {
 });
 
 test('signature load fails closed for a second or displaced train binding', () => {
-    const duplicateTrain = `<tr><td class="rt-sign-cell">${canonicalTrain}${canonicalTrain}</td></tr><tr><td>Rechtliches</td></tr>`;
-    const displacedTrain = `<tr><td class="rt-sign-cell">Inhalt</td><td>${canonicalTrain}</td></tr><tr><td>Rechtliches</td></tr>`;
+    const duplicateTrain = `<tr><td class="rt-sign-cell"><div class="rt-sign-stage" style="position:relative;overflow:hidden;"><table style="position:relative;z-index:1;margin-bottom:-150px;"><tbody><tr><td>Inhalt</td></tr></tbody></table>${canonicalTrain}${canonicalTrain}</div></td></tr><tr><td>Rechtliches</td></tr>`;
+    const displacedTrain = '<tr><td class="rt-sign-cell"><div class="rt-sign-stage" style="position:relative;overflow:hidden;">'
+        + '<table style="position:relative;z-index:1;margin-bottom:-150px;"><tbody><tr><td>Inhalt</td></tr></tbody></table></div>'
+        + `</td><td>${canonicalTrain}</td></tr><tr><td>Rechtliches</td></tr>`;
 
     assert.throws(() => projectForMailDocument({
         builderData: { pages: [{ component: duplicateTrain }], styles: [] },
@@ -477,13 +488,18 @@ test('signature load fails closed for a second or displaced train binding', () =
     assert.throws(() => projectForMailDocument({
         builderData: { pages: [{ component: displacedTrain }], styles: [] },
         css: '',
-    }, () => [], { kind: 'signature', environment: { DOMParser } }), /zwei Tabellenzeilen/);
+    }, () => [], { kind: 'signature', environment: { DOMParser } }), /IMG-Zug/);
 });
 
 test('GrapesJS inline import rules are merged in cascade order without touching user CSS', () => {
     const transparent = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=';
+    const editorTrain = canonicalTrain.replace(
+        'src="{{TRAIN_SRC}}"',
+        `data-rt-mail-preview-token="TRAIN_SRC" src="${transparent}"`,
+    );
     const html = '<table data-rt-mail-signature-canvas="true"><tbody>'
-        + `<tr><td class="rt-sign-cell c777 c101 c102" data-rt-mail-inline-source="s1" style="padding:9px;">Inhalt<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left"><img class="rt-sign-train" data-rt-train data-rt-mail-preview-token="TRAIN_SRC" src="${transparent}"></div></td></tr>`
+        + '<tr><td class="rt-sign-cell"><div class="rt-sign-stage" style="position:relative;overflow:hidden;">'
+        + `<table style="position:relative;z-index:1;margin-bottom:-150px;"><tbody><tr><td class="c777 c101 c102" data-rt-mail-inline-source="s1" style="padding:9px;">Inhalt</td></tr></tbody></table>${editorTrain}</div></td></tr>`
         + '<tr><td class="c777">Rechtliches</td></tr>'
         + '</tbody></table>';
     const project = {
@@ -506,7 +522,7 @@ test('GrapesJS inline import rules are merged in cascade order without touching 
         environment: { DOMParser },
     });
 
-    assert.match(outgoing.html, /class="rt-sign-cell c777"/);
+    assert.match(outgoing.html, /class="c777"/);
     assert.match(outgoing.html, /padding:9px;/);
     assert.match(outgoing.html, /color:#123456;/);
     assert.match(outgoing.html, /font-size:12px;/);
@@ -742,6 +758,7 @@ test('protected mail layers keep the regular train image visible and structural'
     const mark = component({ 'data-rt-mail-preview-token': 'ICON_RT_SRC' }, 'img');
     const markCell = component({}, 'td', [mark]);
     const markRow = component({}, 'tr', [markCell]);
+    const logo = component({ 'data-rt-mail-preview-token': 'LOGO_SRC' }, 'img');
     const train = component({ 'data-rt-mail-preview-token': 'TRAIN_SRC', 'data-rt-train': '' }, 'img');
     const trainLayer = component({ class: 'rt-sign-train-layer', 'data-rt-layer-train': '', 'data-rt-layer-align': 'left' }, 'div', [train]);
     const carrierContent = component({}, 'table');
@@ -752,9 +769,9 @@ test('protected mail layers keep the regular train image visible and structural'
     const applicationRow = component({ 'data-rt-mail-preview-only': 'application' }, 'tr', [applicationCell]);
     const ordinary = component({}, 'p');
     const ordinaryImage = component({ src: 'https://app.rail-time.test/mail-assets/content.png', alt: 'Teambild' }, 'img');
-    const root = component({}, 'body', [markRow, carrier, applicationRow, ordinary, ordinaryImage]);
+    const root = component({}, 'body', [markRow, logo, carrier, applicationRow, ordinary, ordinaryImage]);
 
-    assert.equal(protectMailSystemComponents({ getWrapper: () => root }), 8);
+    assert.equal(protectMailSystemComponents({ getWrapper: () => root }), 5);
     [mark, markCell, applicationRow, applicationCell, applicationNote].forEach((protectedComponent) => {
         assert.equal(protectedComponent.state.stylable, false);
         assert.equal(protectedComponent.state.editable, false);
@@ -762,22 +779,31 @@ test('protected mail layers keep the regular train image visible and structural'
         assert.equal(protectedComponent.state.removable, false);
         assert.equal(protectedComponent.state.copyable, false);
     });
-    assert.equal(train.state.stylable, false);
+    [train, logo].forEach((editableBrandImage) => {
+        assert.equal(editableBrandImage.state.stylable, true);
+        assert.equal(editableBrandImage.state.selectable, true);
+        assert.equal(editableBrandImage.state.hoverable, true);
+        assert.equal(editableBrandImage.state.layerable, true);
+        assert.equal(editableBrandImage.state.removable, false);
+        assert.equal(editableBrandImage.state.copyable, false);
+        assert.equal(editableBrandImage.state.editable, undefined);
+        assert.equal(editableBrandImage.state.draggable, undefined);
+        assert.equal(editableBrandImage.state.droppable, undefined);
+    });
     assert.equal(train.state.layerable, true);
-    assert.equal(train.state['custom-name'], 'Zugbild (geschützt)');
-    assert.equal(trainLayer.state['custom-name'], 'Zug-Hintergrundebene (geschützt)');
+    assert.equal(train.state['custom-name'], 'Zugbild');
+    assert.equal(logo.state['custom-name'], 'Firmenlogo');
+    assert.equal(trainLayer.state['custom-name'], 'Zug-Bildebene');
     assert.equal(trainLayer.state.layerable, true);
-    assert.equal(trainStage.state['custom-name'], 'Signatur-Bühne (geschützt)');
-    assert.equal(trainStage.state.layerable, true);
+    assert.equal(trainLayer.state.stylable, true);
+    assert.equal(trainStage.state['custom-name'], 'Signatur-Bühne');
+    assert.equal(trainStage.state.layerable, undefined);
     assert.deepEqual(
         trainLayer.state.traits.map((trait) => trait.label),
         ['Desktop-Ausschnitt', 'Zugbreite', 'Mobil-Ausschnitt'],
     );
     assert.equal(markCell.state['custom-name'], 'RT-Zeichen (geschützt)');
     assert.equal(applicationRow.state['custom-name'], 'Anwendungsinhalt (geschützt)');
-    for (const property of ['editable', 'draggable', 'removable', 'copyable', 'droppable']) {
-        assert.equal(train.state[property], false);
-    }
     [markRow, carrier, carrierContent, ordinary].forEach((editableComponent) => {
         assert.equal(editableComponent.state.stylable, undefined);
     });
@@ -903,7 +929,7 @@ test('mail editor no longer offers misleading train background controls', () => 
 
 test('canvas hydrates exactly one regular train image without mutating its token model', () => {
     const project = projectForMailDocument({
-        builderData: { pages: [{ component: `<tr><td class="rt-sign-cell">Inhalt${canonicalTrain}</td></tr><tr><td>Rechtliches</td></tr>` }], styles: [] },
+        builderData: { pages: [{ component: `<tr><td class="rt-sign-cell">${canonicalSignatureStage('Inhalt')}</td></tr><tr><td>Rechtliches</td></tr>` }], styles: [] },
         css: '',
     }, () => [], { kind: 'signature', environment: { DOMParser } });
     const document_ = new DOMParser().parseFromString(project.pages[0].component, 'text/html');
@@ -1316,6 +1342,7 @@ test('signature source and delivery keep one mail-safe IMG flow with a Classic O
         readFile(new URL('../../app/Support/MailSignature.php', import.meta.url), 'utf8'),
     ]);
     assert.match(signatureSource, /<div class="rt-sign-stage" style="position:relative;overflow:hidden;">/);
+    assert.match(signatureSource, /<table role="presentation"[^>]*style="[^"]*position:relative;z-index:1;margin-bottom:-150px;">/);
     assert.doesNotMatch(signatureSource, /<td class="rt-sign-cell"[^>]*position:relative/);
     assert.match(signatureSource, /<img class="rt-sign-train" data-rt-train src="\{\{ \$trainSrc \}\}"/);
     assert.match(signatureSource, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:relative;[^"\r\n]*top:auto;bottom:auto;[^"\r\n]*overflow:hidden;/);

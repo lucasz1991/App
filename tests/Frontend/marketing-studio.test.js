@@ -1837,7 +1837,7 @@ test('scoped FilePool GIF metadata survives opaque admin URLs and is cleared by 
     assert.equal(componentAnimationContext(selected).animated, false);
 }));
 
-test('mail content images use only scoped replacement assets while system-token images stay immutable', () => coreWithDom('<img id="content"><img id="token">', ({ document }) => {
+test('mail content images and editable brand tokens use only scoped replacement assets', () => coreWithDom('<img id="content"><img id="token">', ({ document }) => {
     const contentImage = coreFakeComponent(document.querySelector('#content'), {
         type: 'image',
         attributes: { src: 'data:image/png;base64,b2xk' },
@@ -1866,10 +1866,10 @@ test('mail content images use only scoped replacement assets while system-token 
     assert.equal(selection.select(allowed, false), allowed.src);
     assert.equal(contentImage.state.src, allowed.src);
     assert.equal(contentImage.state.attributes['data-rt-animated-media'], 'gif');
-    assert.throws(
-        () => createImageAssetSelection({ editor, target: tokenImage, assets: [allowed], mode: 'mail' }),
-        /Mail-Tokens sind geschuetzt|Mail-Tokens sind geschützt/,
-    );
+    const tokenSelection = createImageAssetSelection({ editor, target: tokenImage, assets: [allowed], mode: 'mail' });
+    assert.equal(tokenSelection.select(allowed, false), allowed.src);
+    assert.equal(tokenImage.state.src, allowed.src);
+    assert.equal(tokenImage.state.attributes['data-rt-mail-preview-token'], 'LOGO_SRC');
     assert.throws(
         () => selection.select({ src: 'https://evil.example/frei.png' }, false),
         /freigegebenen Dateibibliothek/,

@@ -434,6 +434,7 @@ final class MailDocumentController extends Controller
             // durchgeht, statt eine stillschweigend beschnittene Fassung an
             // echte Empfaenger zu schicken.
             $this->assertEditableCssSource((string) $locked->css);
+            $this->assertDocumentStructure($locked, $html, (string) $locked->css);
             $htmlReport = $sanitizer->assertClean($html);
             $cssReport = $this->cleanStyleSheet($sanitizer, (string) $locked->css);
 

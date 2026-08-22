@@ -882,6 +882,43 @@ final class SignatureTrainCarrier
     }
 
     /**
+     * Der CSS-Grundschleier ist eine optionale Darstellungshilfe. Fehlen alle
+     * vier Background-Longhands, bleibt der regulaere IMG-Zug voll gueltig.
+     * Ist der Schleier vorhanden, muss er weiterhin exakt kanonisch sein;
+     * eine versteckte zweite Bildquelle darf dadurch nicht zurueckkehren.
+     */
+    public static function assertOptionalCanonicalBaseBackground(string $html): void
+    {
+        $carrier = self::inspectCarrier($html);
+        $styles = $carrier['attributes']['style'] ?? [];
+        if (count($styles) !== 1) {
+            throw new RuntimeException('Der Zug-Carrier besitzt kein eindeutiges style-Attribut.');
+        }
+
+        $style = CssSemantic::decodeHtmlEntitiesOnce((string) $styles[0]['raw']);
+        $present = 0;
+        foreach (['background-image', 'background-repeat', 'background-position', 'background-size'] as $property) {
+            if (preg_match('/(?:^|;)\s*'.preg_quote($property, '/').'\s*:/i', $style) === 1) {
+                $present++;
+            }
+        }
+        if ($present === 0) {
+            if (preg_match('/(?:^|;)\s*background\s*:/i', $style) === 1
+                || str_contains($style, '{{TRAIN_SRC}}')
+                || str_contains($style, '{{TRAIN_IDLE_SRC}}')) {
+                throw new RuntimeException('Der optionale Signaturhintergrund darf keine Zugquelle oder Kurzform enthalten.');
+            }
+
+            return;
+        }
+        if ($present !== 4) {
+            throw new RuntimeException('Der optionale Signaturhintergrund besitzt unvollstaendige Background-Listen.');
+        }
+
+        self::assertCanonicalBaseBackground($html);
+    }
+
+    /**
      * Prueft die einzige bildfreie Basis-Backgroundebene des gespeicherten
      * Editor-Dokuments. Raster und grosses RT-Wasserzeichen sind seit Schema 18
      * nicht mehr Bestandteil der Signatur; der Zug bleibt ein regulaeres IMG.
@@ -967,7 +1004,7 @@ final class SignatureTrainCarrier
             return $html;
         }
         try {
-            self::assertCanonicalBaseBackground($html);
+            self::assertOptionalCanonicalBaseBackground($html);
 
             return $html;
         } catch (RuntimeException) {
@@ -1003,7 +1040,7 @@ final class SignatureTrainCarrier
             $styleAttribute['valueOffset'],
             $styleAttribute['valueLength'],
         );
-        self::assertCanonicalBaseBackground($projected);
+        self::assertOptionalCanonicalBaseBackground($projected);
 
         return $projected;
     }
@@ -1130,7 +1167,7 @@ final class SignatureTrainCarrier
             $html = substr_replace($html, $replacement, $offset, $length);
         }
 
-        self::assertCanonicalBaseBackground($html);
+        self::assertOptionalCanonicalBaseBackground($html);
         $html = self::withCanonicalContentOverlap($html);
 
         $marker = '<!-- RT_SIGNATURE_MAIN_END -->';
@@ -1522,20 +1559,36 @@ final class SignatureTrainCarrier
         $carrierStyle = CssSemantic::decodeHtmlEntitiesOnce(
             self::singleCarrierAttributeValue($carrier, 'style', raw: true),
         );
-        $parsed = self::parseRuntimeBackgroundStyle($carrierStyle);
-        self::assertRuntimeBaseBackgroundLists($parsed['lists'], expectedCount: 1);
-        $backgroundImages = $parsed['lists']['background-image'];
-        if (preg_match(
-            '/^[ \t\r\n\f]*linear-gradient\((.*)\)[ \t\r\n\f]*$/is',
-            $backgroundImages[0],
-            $gradient,
-        ) !== 1) {
-            throw new RuntimeException('Die einzige CSS-Basis-Ebene muss der bildfreie Grundschleier bleiben.');
+        $backgroundLonghands = 0;
+        foreach (['background-image', 'background-repeat', 'background-position', 'background-size'] as $property) {
+            if (preg_match('/(?:^|;)\s*'.preg_quote($property, '/').'\s*:/i', $carrierStyle) === 1) {
+                $backgroundLonghands++;
+            }
         }
-        $gradientStops = self::splitCssAtTopLevel($gradient[1], ',');
-        if (count($gradientStops) !== 2
-            || self::normalizedCssValue($gradientStops[0]) !== self::normalizedCssValue($gradientStops[1])) {
-            throw new RuntimeException('Der Grundschleier des Zug-Carriers ist nicht kanonisch.');
+        if ($backgroundLonghands === 0) {
+            if (preg_match('/(?:^|;)\s*background\s*:/i', $carrierStyle) === 1
+                || preg_match('/url\s*\(/i', $carrierStyle) === 1) {
+                throw new RuntimeException('Der optionale finale Signaturhintergrund ist nicht mail-sicher.');
+            }
+        } else {
+            if ($backgroundLonghands !== 4) {
+                throw new RuntimeException('Der optionale finale Signaturhintergrund ist unvollstaendig.');
+            }
+            $parsed = self::parseRuntimeBackgroundStyle($carrierStyle);
+            self::assertRuntimeBaseBackgroundLists($parsed['lists'], expectedCount: 1);
+            $backgroundImages = $parsed['lists']['background-image'];
+            if (preg_match(
+                '/^[ \t\r\n\f]*linear-gradient\((.*)\)[ \t\r\n\f]*$/is',
+                $backgroundImages[0],
+                $gradient,
+            ) !== 1) {
+                throw new RuntimeException('Die einzige CSS-Basis-Ebene muss der bildfreie Grundschleier bleiben.');
+            }
+            $gradientStops = self::splitCssAtTopLevel($gradient[1], ',');
+            if (count($gradientStops) !== 2
+                || self::normalizedCssValue($gradientStops[0]) !== self::normalizedCssValue($gradientStops[1])) {
+                throw new RuntimeException('Der Grundschleier des Zug-Carriers ist nicht kanonisch.');
+            }
         }
 
         $layers = [];

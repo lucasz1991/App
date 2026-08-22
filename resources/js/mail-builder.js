@@ -1413,6 +1413,28 @@ function assertSignatureBackground(carrier, expected, label) {
     assertInlineStyles(carrier, expected, label);
 }
 
+function assertOptionalSignatureBackground(carrier) {
+    if (carrier.hasAttribute('background')) {
+        throw new Error('Der Zug-Carrier darf kein HTML-background-Attribut besitzen.');
+    }
+    const style = String(carrier.getAttribute('style') || '');
+    const properties = Object.keys(MAIL_SIGNATURE_BASE_BACKGROUND);
+    const present = properties.filter((property) => inlineStyleDeclaration(style, property) !== null);
+    if (present.length === 0) {
+        if (inlineStyleDeclaration(style, 'background') !== null
+            || style.includes('{{TRAIN_SRC}}')
+            || style.includes('{{TRAIN_IDLE_SRC}}')) {
+            throw new Error('Der optionale Signaturhintergrund darf keine Zugquelle oder Kurzform enthalten.');
+        }
+
+        return;
+    }
+    if (present.length !== properties.length) {
+        throw new Error('Der optionale Signaturhintergrund besitzt unvollstaendige Background-Listen.');
+    }
+    assertSignatureBackground(carrier, MAIL_SIGNATURE_BASE_BACKGROUND, 'Der optionale Signaturhintergrund');
+}
+
 function signatureTrainGeometry(layer) {
     const alignment = String(layer?.getAttribute?.('data-rt-layer-align') || '').toLowerCase();
     const sizeName = String(layer?.getAttribute?.('data-rt-layer-size') || '');
@@ -1534,9 +1556,7 @@ function assertCanonicalSignatureTrainImage(wrapper, rows, { allowMissingOverlap
         && normalizedInlineStyleValue(overlap) !== normalizedInlineStyleValue(MAIL_SIGNATURE_CONTENT_OVERLAP)) {
         throw new Error('Der Signatur-Inhaltsblock besitzt eine fremde Zug-Ueberlappung.');
     }
-    if (structure.carrier.hasAttribute('background')) {
-        throw new Error('Der Zug-Carrier darf kein HTML-background-Attribut besitzen.');
-    }
+    assertOptionalSignatureBackground(structure.carrier);
     assertCanonicalSignatureTrainLayer(layer, image);
 
     return { ...structure, layer, image, overlap };
