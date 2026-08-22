@@ -1525,7 +1525,7 @@ function assertCanonicalSignatureTrainLayer(layer, image) {
     }, 'Das Zugbild', { exact: true });
 }
 
-function assertCanonicalSignatureTrainImage(wrapper, rows, { allowMissingOverlap = false } = {}) {
+function assertCanonicalSignatureTrainImage(wrapper, rows) {
     const structure = assertSignatureBaseStructure(wrapper, rows);
     const layers = Array.from(wrapper.querySelectorAll(
         'div[data-rt-layer-train], div.rt-sign-train-layer',
@@ -1548,13 +1548,6 @@ function assertCanonicalSignatureTrainImage(wrapper, rows, { allowMissingOverlap
         || wrapper.querySelectorAll('[data-rt-train-background]').length !== 0
         || (wrapper.outerHTML.split('{{TRAIN_SRC}}').length - 1) !== 1) {
         throw new Error('Die Signatur benoetigt genau einen IMG-Zug direkt nach ihrem Inhaltsblock.');
-    }
-    if (overlap === null && !allowMissingOverlap) {
-        throw new Error('Der Signatur-Inhaltsblock besitzt nicht die kanonische Zug-Ueberlappung.');
-    }
-    if (overlap !== null
-        && normalizedInlineStyleValue(overlap) !== normalizedInlineStyleValue(MAIL_SIGNATURE_CONTENT_OVERLAP)) {
-        throw new Error('Der Signatur-Inhaltsblock besitzt eine fremde Zug-Ueberlappung.');
     }
     assertOptionalSignatureBackground(structure.carrier);
     assertCanonicalSignatureTrainLayer(layer, image);
@@ -1627,10 +1620,10 @@ function projectSignatureTrainImage(wrapper, rows, project) {
         if (declaredSchema === 20) {
             throw new Error('Der deklarierte Schema-20-Zughintergrund fehlt.');
         }
-        const current = assertCanonicalSignatureTrainImage(wrapper, rows, {
-            allowMissingOverlap: declaredSchema !== MAIL_SIGNATURE_SCHEMA,
-        });
-        if (current.overlap === null) applySignatureContentOverlap(current.contentTable);
+        const current = assertCanonicalSignatureTrainImage(wrapper, rows);
+        if (current.overlap === null && declaredSchema !== MAIL_SIGNATURE_SCHEMA) {
+            applySignatureContentOverlap(current.contentTable);
+        }
     }
 
     const canonical = assertCanonicalSignatureTrainImage(wrapper, rows);

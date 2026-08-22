@@ -71,7 +71,6 @@ final class SignatureTrainCarrier
                     self::assertCanonicalImage(
                         $html,
                         allowLegacyExpandedFlowLayer: true,
-                        allowLegacyContentOverlap: true,
                     );
                 } catch (RuntimeException) {
                     try {
@@ -79,7 +78,6 @@ final class SignatureTrainCarrier
                             $html,
                             allowLegacyPercentHeight: true,
                             allowLegacyAbsoluteLayer: true,
-                            allowLegacyContentOverlap: true,
                         );
                     } catch (RuntimeException) {
                         self::assertCanonicalImage(
@@ -87,7 +85,6 @@ final class SignatureTrainCarrier
                             allowLegacyDirectLayer: true,
                             allowLegacyPercentHeight: true,
                             allowLegacyAbsoluteLayer: true,
-                            allowLegacyContentOverlap: true,
                         );
                         $html = self::wrapLegacyDirectCarrierInStage($html);
                     }
@@ -465,7 +462,6 @@ final class SignatureTrainCarrier
         bool $allowLegacyPercentHeight = false,
         bool $allowLegacyAbsoluteLayer = false,
         bool $allowLegacyExpandedFlowLayer = false,
-        bool $allowLegacyContentOverlap = false,
     ): void {
         if (substr_count($html, '{{TRAIN_SRC}}') !== 1
             || str_contains($html, '{{TRAIN_IDLE_SRC}}')) {
@@ -627,16 +623,7 @@ final class SignatureTrainCarrier
                 'position' => 'relative',
                 'z-index' => '1',
             ];
-            if (! $allowLegacyContentOverlap) {
-                $requiredContentStyle['margin-bottom'] = '-150px';
-            }
             self::assertRequiredSimpleStyle($contentTable, $requiredContentStyle, 'Signatur-Inhalt');
-            if ($allowLegacyContentOverlap) {
-                $contentStyle = self::simpleStyleValues($contentTable->getAttribute('style'), 'Signatur-Inhalt');
-                if (isset($contentStyle['margin-bottom']) && $contentStyle['margin-bottom'] !== '-150px') {
-                    throw new RuntimeException('Der Signatur-Inhalt besitzt keinen erlaubten Zug-Ueberlappungsabstand.');
-                }
-            }
         }
 
         $alignment = strtolower(trim($layer->getAttribute('data-rt-layer-align')));
@@ -1198,9 +1185,9 @@ final class SignatureTrainCarrier
     }
 
     /**
-     * Ergaenzt ausschliesslich dem direkten Inhalts-Table der bereits
-     * validierten Signatur-Buehne den festen 150-Pixel-Ueberlappungsvertrag.
-     * Fremde Margin-Werte werden nicht stillschweigend ueberschrieben.
+     * Ergaenzt ausschliesslich dem direkten Inhalts-Table einer alten,
+     * bereits validierten Signatur-Buehne den bisherigen Standardabstand.
+     * Aktuelle oder individuell gesetzte Margin-Werte bleiben unveraendert.
      */
     private static function withCanonicalContentOverlap(string $html): string
     {
@@ -1231,12 +1218,18 @@ final class SignatureTrainCarrier
             throw new RuntimeException('Der Signatur-Inhalt besitzt kein eindeutiges style-Attribut.');
         }
         $style = CssSemantic::decodeHtmlEntitiesOnce((string) $styles[0]['raw']);
-        $values = self::simpleStyleValues($style, 'Signatur-Inhalt');
-        if (isset($values['margin-bottom'])) {
-            if ($values['margin-bottom'] !== '-150px') {
-                throw new RuntimeException('Der Signatur-Inhalt besitzt keinen erlaubten Zug-Ueberlappungsabstand.');
-            }
-
+        $styleWithoutOverlap = preg_replace(
+            '/(?:^|;)\s*margin-bottom\s*:[^;]*/i',
+            '',
+            $style,
+            -1,
+            $overlapCount,
+        );
+        if (! is_string($styleWithoutOverlap)) {
+            throw new RuntimeException('Der Signatur-Inhalt besitzt keinen lesbaren Stil.');
+        }
+        self::simpleStyleValues($styleWithoutOverlap, 'Signatur-Inhalt');
+        if ($overlapCount > 0) {
             return $html;
         }
 
@@ -1359,7 +1352,22 @@ final class SignatureTrainCarrier
     /** @param array<string, string> $required */
     private static function assertRequiredSimpleStyle(DOMElement $element, array $required, string $label): void
     {
-        $actual = self::simpleStyleValues($element->getAttribute('style'), $label);
+        $actual = [];
+        foreach (explode(';', $element->getAttribute('style')) as $segment) {
+            if (trim($segment) === '' || substr_count($segment, ':') !== 1) {
+                continue;
+            }
+            [$property, $value] = array_map('trim', explode(':', $segment, 2));
+            $property = strtolower($property);
+            if (! array_key_exists($property, $required)) {
+                continue;
+            }
+            $value = strtolower(preg_replace('/[ \t\r\n\f]+/', ' ', $value) ?? $value);
+            if (isset($actual[$property]) || str_contains($value, '!important')) {
+                throw new RuntimeException("Der {$label}-Stil ist nicht eindeutig.");
+            }
+            $actual[$property] = $value;
+        }
         foreach ($required as $property => $value) {
             if (($actual[$property] ?? null) !== $value) {
                 throw new RuntimeException("Der {$label} muss vor dem Zug gestapelt bleiben.");

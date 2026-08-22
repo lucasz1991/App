@@ -196,6 +196,48 @@ test('signature project gets a valid editor-only table and a reversible train im
     assert.deepEqual(draft.builderData, source);
 });
 
+test('signature train overlap is optional and custom values roundtrip unchanged', () => {
+    const variants = [
+        {
+            label: 'without overlap',
+            stage: canonicalSignatureStage('Inhalt').replace('margin-bottom:-150px;', ''),
+            expected: null,
+        },
+        {
+            label: 'custom overlap',
+            stage: canonicalSignatureStage('Inhalt').replace('margin-bottom:-150px;', 'margin-bottom:-72px;'),
+            expected: '-72px',
+        },
+    ];
+
+    variants.forEach(({ label, stage, expected }) => {
+        const original = `<tr><td class="rt-sign-cell">${stage}</td></tr>`
+            + '<!-- RT_SIGNATURE_MAIN_END --><tr><td>Rechtliches</td></tr>';
+        const project = projectForMailDocument({
+            builderData: {
+                pages: [{ component: original }],
+                styles: [],
+                railtime: { document: 'signature', schema: 21 },
+            },
+            css: '',
+        }, () => [], { kind: 'signature', environment: { DOMParser } });
+        const outgoing = serializeMailDocumentForSave({
+            project,
+            html: project.pages[0].component,
+            kind: 'signature',
+            environment: { DOMParser },
+        });
+        const document_ = new DOMParser().parseFromString(
+            `<table><tbody>${outgoing.html}</tbody></table>`,
+            'text/html',
+        );
+        const contentTable = document_.querySelector('td.rt-sign-cell > div.rt-sign-stage > table');
+
+        assert.ok(contentTable, label);
+        assert.equal(contentTable.style.marginBottom || null, expected, label);
+    });
+});
+
 test('signature preview hydrates the train image and roundtrips two canonical rows', () => {
     const original = `<tr><td class="rt-sign-cell">${canonicalSignatureStage('<span data-rt-mail-block="paragraph" data-rt-mail-text="secondary">Inhalt</span><img src="{{LOGO_SRC}}">')}</td></tr><!-- RT_SIGNATURE_MAIN_END --><tr><td style="color:{{SIGNATURE_LEGAL_TEXT}}"><img src="{{ICON_EMAIL_SRC}}"></td></tr>`;
     const project = projectForMailDocument({

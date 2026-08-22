@@ -437,6 +437,22 @@ class MailDocumentEditorTest extends TestCase
         SignatureDocumentContract::assertValid($canonical);
         SignatureDocumentContract::assertRuntimeValid($canonical);
 
+        foreach ([
+            'ohne Ueberlappungswert' => '',
+            'mit individuellem Ueberlappungswert' => 'margin-bottom:-72px!important;',
+        ] as $label => $overlapStyle) {
+            $variant = str_replace(
+                'margin-bottom:-150px;',
+                $overlapStyle,
+                $canonical,
+                $overlapReplacementCount,
+            );
+            $this->assertSame(1, $overlapReplacementCount, $label);
+            SignatureDocumentContract::assertValid($variant);
+            SignatureDocumentContract::assertRuntimeValid($variant);
+            $this->assertSame($variant, SignatureTrainCarrier::normalize($variant), $label);
+        }
+
         $legacyFlow = str_replace(
             'style="position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;"',
             'style="position:absolute;left:0;right:auto;top:0;bottom:0;width:100%;max-width:1815px;margin:0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;mso-hide:all;"',
@@ -1739,6 +1755,7 @@ HTML;
         $document = $this->document(MailDocumentKind::Signature);
         $admin = $this->admin();
         $validHtml = (string) $document->html;
+        $validBuilderData = $document->builder_data;
         $attacks = [
             'preview attribut' => preg_replace(
                 '/<td class="rt-sign-cell"/',
@@ -1806,6 +1823,38 @@ HTML;
             ->assertJsonValidationErrors('css');
 
         $this->assertNull($document->fresh()->published_at);
+
+        $customOverlapHtml = str_replace(
+            'margin-bottom:-150px;',
+            'margin-bottom:-72px!important;',
+            $validHtml,
+            $overlapReplacementCount,
+        );
+        $this->assertSame(1, $overlapReplacementCount);
+        $customBuilderData = $validBuilderData;
+        data_set($customBuilderData, 'pages.0.component', $customOverlapHtml);
+        $document->forceFill([
+            'builder_data' => $customBuilderData,
+            'html' => $customOverlapHtml,
+            'css' => '',
+            'content_hash' => MailDocument::contentHashFor($customBuilderData, $customOverlapHtml, ''),
+            'published_html' => null,
+            'published_css' => null,
+            'published_at' => null,
+            'status' => MailDocumentStatus::Draft,
+        ])->save();
+
+        $this->actingAs($admin)
+            ->postJson(route('admin.mail-documents.publish', $document), [
+                'expected_hash' => $document->content_hash,
+            ])
+            ->assertOk()
+            ->assertJsonPath('document.status', MailDocumentStatus::Published->value);
+
+        $this->assertStringContainsString(
+            'margin-bottom:-72px!important;',
+            (string) $document->fresh()->published_html,
+        );
     }
 
     public function test_signatur_save_und_publish_lehnen_background_kurzform_am_zugcarrier_ab(): void
