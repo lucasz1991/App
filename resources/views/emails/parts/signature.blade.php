@@ -7,10 +7,11 @@
       - jeder Laravel-Mail und -Notification (vendor/mail/html/footer.blade.php)
 
     Der kanonische Editorstand besitzt zwei Tabellenzeilen: Signaturblock und
-    Pflichtangaben. Im Schema-22-Editorstand ist der Zug wie Logo und Icons ein
-    regulaeres IMG. Der Bild-Layer steht vor dem Inhaltswrapper; sein
-    editierbarer negativer Unterrand zieht den folgenden Inhalt darueber,
-    sodass das Motiv ohne CSS-Hintergrundbild hinter den Daten sichtbar ist.
+    Pflichtangaben. Im Schema-23-Editorstand ist der Zug wie Logo und Icons ein
+    regulaeres IMG. Sein Layer steht im DOM vor dem Inhaltswrapper und ist an
+    der Unterkante der relativen Buehne verankert. Der spaetere Inhalt bleibt
+    damit davor, ohne dass der Zug eigene Flow-Hoehe erzeugt. Outlook-Desktop
+    erhaelt beim Versand davor ein bedingtes normales Standbild im Mailfluss.
 
     AUFBAU: zwei gleich breite Spalten an einer Mittelachse. Links die
     Person, rechts die Firma. Logo und Firmenkontakte existieren jeweils
@@ -66,13 +67,14 @@
     <td class="rt-sign-cell" bgcolor="{{ $values['SIGNATURE_BG'] }}" style="padding:0;overflow:hidden;background-color:{{ $values['SIGNATURE_BG'] }};background-image:{{ $backgroundImage }};background-repeat:{{ $backgroundRepeat }};background-position:{{ $backgroundPosition }};background-size:{{ $backgroundSize }};{{ $topRule }}">
         <div class="rt-sign-stage" style="position:relative;overflow:hidden;">
         @if($trainSrc !== '')
-        <div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-150px;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;">
+        <div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:absolute;left:0;right:auto;top:auto;bottom:0;width:100%;max-width:1815px;margin:0;overflow:hidden;font-size:0;line-height:0;text-align:left;mso-hide:all;">
             <img class="rt-sign-train" data-rt-train src="{{ $trainSrc }}" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all;">
         </div>
         @endif
         {{-- Der aeussere Carrier bleibt ohne Padding. Der mail-sichere innere
-             Tabellenwrapper folgt dem Zug-Layer und liegt dadurch auch in
-             einfacher HTML-Reihenfolge ueber dem Hintergrundmotiv. --}}
+             Tabellenwrapper folgt im DOM auf den Zug-Layer. Seine vorhandene
+             Positionsangabe verbessert die Darstellung, die sichere
+             Quellreihenfolge bleibt davon unabhaengig erhalten. --}}
         <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;position:relative;z-index:1;">
             <tr>
                 <td class="rt-pad rt-sign-content" style="padding:{{ $padding }};position:relative;z-index:1;">

@@ -33,24 +33,28 @@
     $border = $border ?? '#e6e8ec';
 @endphp
 /* RT_SERVER_SIGNATURE_RUNTIME_START
-   Stabiler Einhaengepunkt fuer freigegebenes Signatur-CSS. Die Zug-Einfahrt
-   laeuft einmalig im Haupt-GIF. Danach wird nur die transparente, kleine
-   Rauchschleife sichtbar; der Zug selbst wird dadurch nicht dupliziert. */
-.rt-sign-train-layer {
+   Stabiler Einhaengepunkt fuer freigegebenes Signatur-CSS. Der echte
+   IMG-Layer steht in der Quelle vor den Daten und ist unten an der relativen
+   Buehne verankert. Outlook-Desktop erhaelt stattdessen ein bedingtes normales
+   IMG im Mailfluss. */
+.rt-sign-stage {
   position: relative !important;
+  overflow: hidden !important;
+}
+.rt-sign-train-layer {
+  position: absolute !important;
   left: 0 !important;
   right: auto !important;
   top: auto !important;
-  bottom: auto !important;
+  bottom: 0 !important;
   width: 100% !important;
   max-width: 1815px !important;
-  margin-top: 0 !important;
-  /* margin-bottom bleibt absichtlich beim editierbaren Inline-Stil. Auch
-     negative Werte muessen im Canvas und in der echten Mail wirken. */
+  margin: 0 !important;
   overflow: hidden !important;
   font-size: 0 !important;
   line-height: 0 !important;
   text-align: left !important;
+  mso-hide: all !important;
 }
 .rt-sign-train,
 .rt-sign-train-mso {
@@ -159,8 +163,8 @@
 }
 
 /* Hauptzug und Idle-Rauch bleiben im Editor, in der Vorschau und im Versand
-   echte IMG. Das Hauptbild bleibt bewusst im Tabellenfluss; nur der optionale
-   Idle-Rauch liegt in faehigen Clients hoehenneutral darueber. */
+   echte IMG. Der moderne Hauptzug steht vor dem Inhalt und ist absolut an der
+   unteren Buehnenkante verankert; nur Classic Outlook nutzt das Flow-Standbild. */
 /* ---- Tablet quer: enger setzen, aber zweispaltig bleiben ---- */
 @media only screen and (max-width: 1000px) {
 .rt-pad { padding-left: 30px !important; padding-right: 30px !important; }
@@ -280,15 +284,10 @@ img.rt-logo { width: 150px !important; }
 .rt-sign-train-layer {
   width: 100% !important;
   max-width: 1815px !important;
-  margin-top: 0 !important;
+  margin: 0 !important;
 }
-/* Der maximal 1815 px breite Clipping-Viewport wird am Stage-Rand bzw. in
-   deren Mitte verankert. Nur die echten IMG werden fuer Detailausschnitte
-   vergroessert und mit einer presetbasierten negativen Margin verschoben. */
-.rt-sign-train-layer[data-rt-layer-mobile="left"],
-.rt-sign-train-layer[data-rt-layer-mobile="train"] { margin-left: 0 !important; margin-right: auto !important; }
-.rt-sign-train-layer[data-rt-layer-mobile="center"] { margin-left: auto !important; margin-right: auto !important; }
-.rt-sign-train-layer[data-rt-layer-mobile="right"] { margin-left: auto !important; margin-right: 0 !important; }
+/* Der absolut unten verankerte Clipping-Viewport bleibt vollbreit. Nur die
+   echten IMG werden fuer Detailausschnitte vergroessert und verschoben. */
 .rt-sign-train-layer[data-rt-layer-mobile="left"][data-rt-layer-size] > .rt-sign-train,
 .rt-sign-train-layer[data-rt-layer-mobile="left"][data-rt-layer-size] > .rt-train-idle-overlay > .rt-train-idle-image { width: 200% !important; max-width: none !important; margin-left: 0 !important; }
 .rt-sign-train-layer[data-rt-layer-mobile="center"][data-rt-layer-size] > .rt-sign-train,

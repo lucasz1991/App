@@ -25,7 +25,7 @@ import {
 } from '../../resources/js/mail-builder.js';
 import { createMailBlocks, mailCanvasStyles } from '../../resources/js/mail-builder-blocks.js';
 
-const canonicalTrain = '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-150px;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all;"></div>';
+const canonicalTrain = '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:absolute;left:0;right:auto;top:auto;bottom:0;width:100%;max-width:1815px;margin:0;overflow:hidden;font-size:0;line-height:0;text-align:left;mso-hide:all;"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all;"></div>';
 const canonicalSignatureStage = (content = '') => '<div class="rt-sign-stage" style="position:relative;overflow:hidden;">'
     + canonicalTrain
     + '<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;position:relative;z-index:1;">'
@@ -196,21 +196,24 @@ test('signature project gets a valid editor-only table and a reversible train im
     assert.deepEqual(draft.builderData, source);
 });
 
-test('signature train overlap is optional and custom values roundtrip unchanged', () => {
+test('schema 22 train overlaps migrate to the schema 23 bottom layer', () => {
+    const legacyTrain = canonicalTrain.replace(
+        'position:absolute;left:0;right:auto;top:auto;bottom:0;width:100%;max-width:1815px;margin:0;overflow:hidden;font-size:0;line-height:0;text-align:left;mso-hide:all;',
+        'position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-150px;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;',
+    );
+    const legacyStage = (train) => canonicalSignatureStage('Inhalt').replace(canonicalTrain, train);
     const variants = [
         {
             label: 'without overlap',
-            stage: canonicalSignatureStage('Inhalt').replace('margin-bottom:-150px;', ''),
-            expected: null,
+            stage: legacyStage(legacyTrain.replace('margin-bottom:-150px;', '')),
         },
         {
             label: 'custom overlap',
-            stage: canonicalSignatureStage('Inhalt').replace('margin-bottom:-150px;', 'margin-bottom:-72px;'),
-            expected: '-72px',
+            stage: legacyStage(legacyTrain.replace('margin-bottom:-150px;', 'margin-bottom:-72px;')),
         },
     ];
 
-    variants.forEach(({ label, stage, expected }) => {
+    variants.forEach(({ label, stage }) => {
         const original = `<tr><td class="rt-sign-cell">${stage}</td></tr>`
             + '<!-- RT_SIGNATURE_MAIN_END --><tr><td>Rechtliches</td></tr>';
         const project = projectForMailDocument({
@@ -234,7 +237,11 @@ test('signature train overlap is optional and custom values roundtrip unchanged'
         const trainLayer = document_.querySelector('td.rt-sign-cell > div.rt-sign-stage > div.rt-sign-train-layer');
 
         assert.ok(trainLayer, label);
-        assert.equal(trainLayer.style.marginBottom || null, expected, label);
+        assert.equal(trainLayer.style.position, 'absolute', label);
+        assert.equal(trainLayer.style.bottom, '0', label);
+        assert.equal(trainLayer.style.margin, '0', label);
+        assert.equal(trainLayer.style.marginBottom || '', '', label);
+        assert.equal(outgoing.project.railtime.schema, 23, label);
     });
 });
 
@@ -278,7 +285,7 @@ test('signature preview hydrates the train image and roundtrips two canonical ro
     assert.equal(outgoingStage.firstElementChild, outgoingLayer);
     assert.equal(
         outgoingLayer.getAttribute('style'),
-        'position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-150px;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;',
+        'position:absolute;left:0;right:auto;top:auto;bottom:0;width:100%;max-width:1815px;margin:0;overflow:hidden;font-size:0;line-height:0;text-align:left;mso-hide:all;',
     );
     assert.equal(outgoingTrain.getAttribute('width'), '720');
     assert.equal(
@@ -530,7 +537,7 @@ test('signature load fails closed for a second or displaced train binding', () =
     assert.throws(() => projectForMailDocument({
         builderData: { pages: [{ component: displacedTrain }], styles: [] },
         css: '',
-    }, () => [], { kind: 'signature', environment: { DOMParser } }), /IMG-Zug|Inhalt-vor-Zug/);
+    }, () => [], { kind: 'signature', environment: { DOMParser } }), /IMG-Zug|Zug-\/Inhaltsreihenfolge/);
 });
 
 test('GrapesJS inline import rules are merged in cascade order without touching user CSS', () => {
@@ -858,7 +865,7 @@ test('protected mail layers keep the regular train image visible and structural'
     assert.equal(ordinaryImage.getAttributes()['data-rt-image-align'], 'left');
 });
 
-test('train layer editor maps size desktop and mobile presets without erasing negative overlap', () => {
+test('train layer editor maps presets onto the absolute bottom contract', () => {
     const state = { left: '0', right: 'auto', margin: '0', 'margin-bottom': '-150px', height: '100%' };
     const layerStyleOptions = [];
     const imageStyleOptions = [];
@@ -896,16 +903,16 @@ test('train layer editor maps size desktop and mobile presets without erasing ne
 
     assert.equal(synchronizeMailTrainLayerAlignment(component), true);
     assert.deepEqual(state, {
-        position: 'relative',
+        position: 'absolute',
         left: '0',
         right: 'auto',
         top: 'auto',
-        bottom: 'auto',
-        margin: '0 auto',
-        'margin-bottom': '-150px',
+        bottom: '0',
+        margin: '0',
         width: '100%',
         'max-width': '1815px',
         'text-align': 'left',
+        'mso-hide': 'all',
     });
     assert.equal(imageAttributes.width, '720');
     assert.equal(imageState.position, 'static');
@@ -928,7 +935,7 @@ test('train layer editor maps size desktop and mobile presets without erasing ne
         assert.equal(synchronizeMailTrainLayerAlignment(component), true);
         assert.equal(state.left, '0');
         assert.equal(state.right, 'auto');
-        assert.equal(state.margin, '0 0 0 auto');
+        assert.equal(state.margin, '0');
         assert.equal(state.width, '100%');
         assert.equal(state['max-width'], '1815px');
         assert.equal(state['text-align'], 'left');
@@ -942,16 +949,16 @@ test('train layer editor maps size desktop and mobile presets without erasing ne
     attributes['data-rt-layer-mobile'] = 'calc(1px)';
     assert.equal(synchronizeMailTrainLayerAlignment(component), true);
     assert.deepEqual(state, {
-        position: 'relative',
+        position: 'absolute',
         left: '0',
         right: 'auto',
         top: 'auto',
-        bottom: 'auto',
-        margin: '0 auto 0 0',
-        'margin-bottom': '-72px',
+        bottom: '0',
+        margin: '0',
         width: '100%',
         'max-width': '1815px',
         'text-align': 'left',
+        'mso-hide': 'all',
     });
     assert.equal(attributes['data-rt-layer-align'], 'left');
     assert.equal(attributes['data-rt-layer-mobile'], 'train');
@@ -1378,7 +1385,7 @@ test('mail toolbar keeps documents, preview and publishing in non-overlapping re
     assert.match(mobile, /\.rt-mail-studio-toolbar__action-buttons[\s\S]*?grid-column:\s*2[\s\S]*?grid-row:\s*2/);
 });
 
-test('signature source and delivery keep one mail-safe IMG flow with a Classic Outlook still', async () => {
+test('signature source uses a bottom-anchored IMG layer with a Classic Outlook flow still', async () => {
     const { readFile } = await import('node:fs/promises');
     const [css, signatureSource, trainAsset, carrier, runtime] = await Promise.all([
         readFile(new URL('../../resources/views/emails/parts/responsive-css.blade.php', import.meta.url), 'utf8'),
@@ -1391,12 +1398,12 @@ test('signature source and delivery keep one mail-safe IMG flow with a Classic O
     assert.match(signatureSource, /<table role="presentation"[^>]*style="[^"]*position:relative;z-index:1;">/);
     assert.doesNotMatch(signatureSource, /<td class="rt-sign-cell"[^>]*position:relative/);
     assert.match(signatureSource, /<img class="rt-sign-train" data-rt-train src="\{\{ \$trainSrc \}\}"/);
-    assert.match(signatureSource, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:relative;[^"\r\n]*top:auto;bottom:auto;[^"\r\n]*margin-bottom:-150px;[^"\r\n]*overflow:hidden;/);
-    assert.doesNotMatch(signatureSource, /rt-sign-train-layer[^>]*mso-hide:all/);
+    assert.match(signatureSource, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:absolute;[^"\r\n]*top:auto;bottom:0;[^"\r\n]*margin:0;[^"\r\n]*overflow:hidden;[^"\r\n]*mso-hide:all;/);
+    assert.ok(signatureSource.indexOf('class="rt-sign-train-layer"') < signatureSource.indexOf('<table role="presentation" width="100%"'));
     assert.match(signatureSource, /<img class="rt-sign-train"[^>]*width="720"[^>]*style="position:static;[^"\r\n]*bottom:auto;display:inline-block;[^"\r\n]*vertical-align:top;[^"\r\n]*mso-hide:all;/);
     assert.doesNotMatch(signatureSource, /url\(\{\$values\['TRAIN_SRC'\]\}\)/);
     assert.doesNotMatch(css, /\.rt-sign-cell\.rt-sign-train-background/);
-    assert.match(css, /\.rt-sign-train-layer\s*\{[^}]*position:\s*relative !important;[^}]*top:\s*auto !important;[^}]*bottom:\s*auto !important;/s);
+    assert.match(css, /\.rt-sign-train-layer\s*\{[^}]*position:\s*absolute !important;[^}]*top:\s*auto !important;[^}]*bottom:\s*0 !important;/s);
     assert.match(css, /\.rt-sign-train,\s*\.rt-sign-train-mso\s*\{[^}]*position:\s*static !important;[^}]*display:\s*inline-block !important;[^}]*vertical-align:\s*top !important;/s);
     assert.match(css, /\.rt-train-idle-overlay\s*\{[^}]*position:\s*absolute !important;[^}]*top:\s*0 !important;[^}]*height:\s*0 !important;/s);
     assert.match(css, /@keyframes rt-train-idle-reveal/);
@@ -1423,10 +1430,6 @@ test('signature source and delivery keep one mail-safe IMG flow with a Classic O
 
     const mobile = css.slice(css.indexOf('@media only screen and (max-width: 860px)'));
     assert.match(mobile, /\.rt-sign-train-layer\s*\{[\s\S]*?width: 100% !important;/);
-    assert.match(mobile, /data-rt-layer-mobile="train"\] \{ margin-left: 0 !important; margin-right: auto !important/);
     assert.match(mobile, /data-rt-layer-mobile="train"\]\[data-rt-layer-size\][^}]+width: 100% !important; max-width: none !important; margin-left: 0 !important/);
-    assert.match(mobile, /data-rt-layer-mobile="left"[^}]+margin-left: 0 !important; margin-right: auto !important/);
-    assert.match(mobile, /data-rt-layer-mobile="center"\] \{ margin-left: auto !important; margin-right: auto !important/);
-    assert.match(mobile, /data-rt-layer-mobile="right"\] \{ margin-left: auto !important; margin-right: 0 !important/);
     assert.match(mobile, /data-rt-layer-mobile="right"\]\[data-rt-layer-size\][^}]+width: 200% !important; max-width: none !important; margin-left: -100% !important/);
 });

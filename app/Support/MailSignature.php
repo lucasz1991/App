@@ -148,7 +148,7 @@ class MailSignature
                     ),
                 ),
                 // Statische, weiter validierte Referenz. Das aktuelle Schema injiziert
-                // sie als MSO-Zugbild im selben mail-sicheren Flow-Layer.
+                // sie als MSO-Zugbild direkt vor dem modernen Zug-Layer.
                 'TRAIN_STILL_SRC' => EmailTemplateBuilder::signatureTrainStillUrl($this->theme),
                 // Nur der Rauch loopt. Die einmalige Einfahrt bleibt im
                 // Haupt-GIF und wird nie erneut abgespielt; die transparente
@@ -181,7 +181,7 @@ class MailSignature
                 ),
                 // Statische, lokal paketierbare Referenz. Sie bleibt Teil des
                 // Wertevertrags und wird als Classic-Outlook-Standbild im
-                // selben Flow-Layer injiziert.
+                // direkt vor dem modernen Zug-Layer injiziert.
                 'TRAIN_STILL_SRC' => EmailTemplateBuilder::signatureTrainAsset(
                     $this->theme,
                     animated: false,
@@ -463,8 +463,8 @@ class MailSignature
         }
 
         // Hauptzug und Idle-Rauch bleiben wie Logo und RT-Zeichen echte IMG.
-        // Das Hauptbild liegt mailclient-sicher im normalen Fluss direkt vor
-        // der Legal-Zeile; nur der Idle-Holder bleibt hoehenneutral darueber.
+        // Der moderne Hauptzug steht vor dem Inhalt und ist an der unteren
+        // Buehnenkante verankert; nur der Idle-Holder bleibt hoehenneutral.
         return SignatureTrainCarrier::withMsoFallback($html, $outlookFallbackSource);
     }
 
@@ -498,7 +498,7 @@ class MailSignature
     /**
      * Die gespeicherte/editierbare Fassung bekommt den Zug wie Logo und
      * RT-Icon als regulaeres Bild in einer sicheren Stage. Alte Background-
-     * und absolute Direkt-Layer werden atomar in denselben Flowvertrag
+     * und absolute Direkt-Layer werden atomar in den aktuellen Bottom-Vertrag
      * ueberfuehrt. finalizeTrainRendering ergaenzt nur Idle- und Outlook-IMG.
      *
      * @param  array<string, string>  $layout

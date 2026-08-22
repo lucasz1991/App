@@ -1382,6 +1382,7 @@ test('adapter explicitly disables Joomla web defaults and fallback projects', as
     assert.match(source, /showUrlInput:\s*false/);
     assert.match(source, /navigationCoordinator\?\.register\?\.\(navigationController\)/);
     assert.match(mailSource, /showUrlInput:\s*false/);
+    assert.match(mailSource, /mode:\s*MAIL_EDITOR_MODE,\s*layout:\s*'elementor'/);
     assert.match(coreSource, /import '\.\/lmz-editor-assistant\.js';/);
     assert.match(source, /media:\s*\{\s*assets:\s*config\.assets \|\| \[\]/);
     assert.match(source, /request\.expected_hashes = Object\.fromEntries/);
@@ -1569,6 +1570,102 @@ test('shared LMZ shell exposes the resolved mail profile and removes unsafe clas
     chrome.destroy();
     assert.equal(root.querySelector('[data-rt-lmz-mode-indicator]'), null);
     assert.equal(classesToggle.hidden, false);
+}));
+
+test('mail chrome turns the vendor panels into one accessible Elementor-style control dock', () => coreWithDom(`
+    <div id="root">
+        <div class="lmz-builder__topbar">
+            <div class="lmz-builder__actions"><button data-lmz-action="save">Save</button></div>
+            <div class="lmz-builder__panel-actions lmz-builder__panel-actions--left">
+                <button data-lmz-panel-toggle="left:blocks" data-lmz-panel-group="left" aria-haspopup="dialog" aria-expanded="false"><span class="lmz-builder__action-label">Bausteine</span></button>
+                <button data-lmz-panel-toggle="left:layers" data-lmz-panel-group="left" aria-haspopup="dialog" aria-expanded="false"><span class="lmz-builder__action-label">Ebenen</span></button>
+            </div>
+            <div class="lmz-builder__panel-actions lmz-builder__panel-actions--right">
+                <button data-lmz-panel-toggle="right:styles" data-lmz-panel-group="right" aria-haspopup="dialog" aria-expanded="false"><span class="lmz-builder__action-label">Stile</span></button>
+                <button data-lmz-panel-toggle="right:traits" data-lmz-panel-group="right" aria-haspopup="dialog" aria-expanded="false"><span class="lmz-builder__action-label">Eigenschaften</span></button>
+                <button data-lmz-panel-toggle="right:classes" data-lmz-panel-group="right" aria-haspopup="dialog" aria-expanded="false"><span class="lmz-builder__action-label">Klassen</span></button>
+            </div>
+            <div class="lmz-builder__meta"><button data-lmz-action="selection">Auswahl</button><div data-lmz-status>Status</div></div>
+        </div>
+        <div class="lmz-builder__viewport">
+            <main class="lmz-builder__main"><div data-tools><div data-toolbar></div></div></main>
+            <aside class="lmz-builder__popover" data-lmz-popover="left" hidden>
+                <section data-lmz-popover-panel="left:blocks" hidden><button data-lmz-panel-close="left">Schliessen</button><div data-lmz-mount="blocks"></div></section>
+                <section data-lmz-popover-panel="left:layers" hidden><button data-lmz-panel-close="left">Schliessen</button><div data-lmz-mount="layers"></div></section>
+            </aside>
+            <aside class="lmz-builder__popover" data-lmz-popover="right" hidden>
+                <section data-lmz-popover-panel="right:styles" hidden><button data-lmz-panel-close="right">Schliessen</button><div data-lmz-mount="styles"></div></section>
+                <section data-lmz-popover-panel="right:traits" hidden><button data-lmz-panel-close="right">Schliessen</button><div data-lmz-mount="traits"></div></section>
+                <section data-lmz-popover-panel="right:classes" hidden><button data-lmz-panel-close="right">Schliessen</button><div data-lmz-mount="classes"></div></section>
+            </aside>
+        </div>
+    </div>
+`, async ({ document }) => {
+    const root = document.querySelector('#root');
+    const state = { left: null, right: null };
+    const render = (group) => {
+        root.querySelectorAll(`[data-lmz-panel-group="${group}"]`).forEach((toggle) => {
+            const active = toggle.dataset.lmzPanelToggle === state[group];
+            toggle.classList.toggle('is-active', active);
+            toggle.setAttribute('aria-expanded', active ? 'true' : 'false');
+        });
+        root.querySelectorAll(`[data-lmz-popover-panel^="${group}:"]`).forEach((panel) => {
+            const active = panel.dataset.lmzPopoverPanel === state[group];
+            panel.classList.toggle('is-active', active);
+            panel.hidden = !active;
+        });
+        const popover = root.querySelector(`[data-lmz-popover="${group}"]`);
+        popover.classList.toggle('is-open', Boolean(state[group]));
+        popover.hidden = !state[group];
+    };
+    root.querySelectorAll('[data-lmz-panel-toggle]').forEach((toggle) => {
+        toggle.addEventListener('click', () => {
+            const group = toggle.dataset.lmzPanelGroup;
+            state[group] = state[group] === toggle.dataset.lmzPanelToggle ? null : toggle.dataset.lmzPanelToggle;
+            render(group);
+        });
+    });
+    root.querySelectorAll('[data-lmz-panel-close]').forEach((close) => {
+        close.addEventListener('click', () => {
+            state[close.dataset.lmzPanelClose] = null;
+            render(close.dataset.lmzPanelClose);
+        });
+    });
+
+    const selected = coreFakeComponent(document.createElement('p'));
+    selected.state.traits = [{ name: 'title' }];
+    const editor = coreFakeEditor(root, selected);
+    const chrome = createLmzEditorChrome({ instance: { editor }, root, mode: 'mail', layout: 'elementor' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const dock = root.querySelector('[data-rt-lmz-control-dock]');
+    const tabButtons = [...dock.querySelectorAll('[role="tab"]')];
+    assert.equal(chrome.layout, 'elementor');
+    assert.equal(root.dataset.rtLmzLayout, 'elementor');
+    assert.equal(dock.parentElement, root.querySelector('.lmz-builder__viewport'));
+    assert.equal(dock.nextElementSibling, root.querySelector('.lmz-builder__main'));
+    assert.equal(root.querySelector('[data-rt-lmz-mode-indicator]').parentElement.className, 'rt-lmz-control-dock__header');
+    assert.deepEqual(tabButtons.slice(0, 4).map((button) => button.textContent), ['Bausteine', 'Ebenen', 'Inhalt', 'Stil']);
+    assert.equal(dock.querySelector('.rt-lmz-control-dock__panels [data-lmz-popover="left"]') !== null, true);
+    assert.equal(dock.querySelector('.rt-lmz-control-dock__footer .lmz-builder__meta') !== null, true);
+    assert.equal(root.querySelector('[data-lmz-panel-toggle="right:traits"]').getAttribute('aria-selected'), 'true');
+    assert.equal(root.querySelector('[data-lmz-popover-panel="right:traits"]').getAttribute('role'), 'tabpanel');
+    assert.equal(root.querySelectorAll('[data-lmz-popover].is-open').length, 1);
+
+    root.querySelector('[data-lmz-panel-toggle="left:layers"]').click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(root.querySelector('[data-lmz-panel-toggle="left:layers"]').getAttribute('aria-selected'), 'true');
+    assert.equal(root.querySelector('[data-lmz-panel-toggle="right:traits"]').getAttribute('aria-selected'), 'false');
+    assert.equal(root.querySelectorAll('[data-lmz-popover].is-open').length, 1);
+
+    chrome.destroy();
+    assert.equal(root.querySelector('[data-rt-lmz-control-dock]'), null);
+    assert.equal(root.hasAttribute('data-rt-lmz-layout'), false);
+    assert.equal(root.querySelector('.lmz-builder__topbar > .lmz-builder__panel-actions--left') !== null, true);
+    assert.equal(root.querySelector('.lmz-builder__viewport > [data-lmz-popover="left"]') !== null, true);
+    assert.equal(root.querySelector('[data-lmz-panel-toggle="right:traits"] .lmz-builder__action-label').textContent, 'Eigenschaften');
+    assert.equal(root.querySelector('[data-lmz-panel-toggle="right:traits"]').getAttribute('role'), null);
+    assert.equal(root.querySelector('[data-lmz-panel-toggle="right:traits"]').getAttribute('aria-haspopup'), 'dialog');
 }));
 
 test('shared LMZ media inventory exposes missing sources without loading external previews', () => {
@@ -2310,6 +2407,7 @@ test('shared LMZ shell styles real layer rows, grouped inline actions and respon
     assert.match(css, /\.lmzbjs-field \.lmzbjs-sel-arrow\s*\{[\s\S]*?z-index:\s*2;/);
     assert.match(css, /@media \(max-width: 639\.98px\)[\s\S]*?\.lmzbjs-trt-trait textarea[\s\S]*?font-size:\s*1rem;/);
     assert.match(css, /data-page-builder-shell-toolbar[\s\S]*?margin-inline-end:\s*24\.5rem;/);
+    assert.match(css, /data-rt-lmz-layout='elementor'[\s\S]*?data-rt-lmz-mode='mail'[\s\S]*?data-lmz-action='save'[\s\S]*?display:\s*none\s*!important/);
 });
 
 test('shared LMZ closes vendor auto-styles after selection but preserves explicit style intent', () => coreWithDom(`

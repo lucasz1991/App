@@ -1821,6 +1821,234 @@ function closeVendorPopover(root, popover) {
     return true;
 }
 
+let lmzElementorLayoutSequence = 0;
+
+function captureNodePosition(node) {
+    return node ? { node, parent: node.parentNode, nextSibling: node.nextSibling } : null;
+}
+
+function restoreNodePosition(position) {
+    const { node, parent, nextSibling } = position || {};
+    if (!node || !parent) return;
+    parent.insertBefore(node, nextSibling?.parentNode === parent ? nextSibling : null);
+}
+
+/**
+ * Baut aus den bereits vom Vendor verdrahteten Bedienelementen ein dauerhaftes
+ * Elementor-artiges Kontroll-Dock. Die Knoten werden bewusst nur umgehaengt:
+ * GrapesJS-Manager, Listener und Mounts bleiben dadurch dieselben Instanzen.
+ */
+function installElementorEditorLayout({ root, modeIndicator }) {
+    const viewport = root.querySelector('.lmz-builder__viewport');
+    const main = viewport?.querySelector(':scope > .lmz-builder__main')
+        || viewport?.querySelector('.lmz-builder__main');
+    const leftActions = root.querySelector('.lmz-builder__panel-actions--left');
+    const rightActions = root.querySelector('.lmz-builder__panel-actions--right');
+    const meta = root.querySelector('.lmz-builder__meta');
+    const leftPopover = root.querySelector('[data-lmz-popover="left"]');
+    const rightPopover = root.querySelector('[data-lmz-popover="right"]');
+    if (!viewport || !main || (!leftActions && !rightActions)) return null;
+
+    const document_ = root.ownerDocument;
+    const layoutId = ++lmzElementorLayoutSequence;
+    const previousLayout = root.hasAttribute('data-rt-lmz-layout')
+        ? root.getAttribute('data-rt-lmz-layout')
+        : null;
+    const toolbarPositions = [leftActions, rightActions, meta].map(captureNodePosition).filter(Boolean);
+    const popoverPositions = [leftPopover, rightPopover].map(captureNodePosition).filter(Boolean);
+    const rightActionOrder = [...(rightActions?.children || [])];
+
+    const dock = document_.createElement('aside');
+    dock.className = 'rt-lmz-control-dock';
+    dock.dataset.rtLmzControlDock = '';
+    dock.setAttribute('aria-label', 'Editor-Werkzeuge');
+    const header = document_.createElement('header');
+    header.className = 'rt-lmz-control-dock__header';
+    const tabs = document_.createElement('div');
+    tabs.className = 'rt-lmz-control-dock__tabs';
+    tabs.setAttribute('role', 'tablist');
+    tabs.setAttribute('aria-label', 'Editor-Bereiche');
+    const panels = document_.createElement('div');
+    panels.className = 'rt-lmz-control-dock__panels';
+    const footer = document_.createElement('footer');
+    footer.className = 'rt-lmz-control-dock__footer';
+    dock.append(header, tabs, panels, footer);
+
+    if (modeIndicator) header.append(modeIndicator);
+    if (leftActions) tabs.append(leftActions);
+    if (rightActions) {
+        // Die Bedienreihenfolge folgt dem Arbeitsfluss: Inhalt vor Gestaltung.
+        const traits = rightActions.querySelector('[data-lmz-panel-toggle="right:traits"]');
+        const styles = rightActions.querySelector('[data-lmz-panel-toggle="right:styles"]');
+        if (traits && styles) rightActions.insertBefore(traits, styles);
+        tabs.append(rightActions);
+    }
+    if (leftPopover) panels.append(leftPopover);
+    if (rightPopover) panels.append(rightPopover);
+    if (meta) footer.append(meta);
+    viewport.insertBefore(dock, main);
+    root.dataset.rtLmzLayout = 'elementor';
+
+    const labels = Object.freeze({
+        'left:blocks': 'Bausteine',
+        'left:layers': 'Ebenen',
+        'right:traits': 'Inhalt',
+        'right:styles': 'Stil',
+        'right:classes': 'Klassen',
+    });
+    const toggles = [...tabs.querySelectorAll('[data-lmz-panel-toggle]')];
+    const tabSnapshots = toggles.map((toggle) => ({
+        toggle,
+        role: toggle.getAttribute('role'),
+        ariaSelected: toggle.getAttribute('aria-selected'),
+        ariaControls: toggle.getAttribute('aria-controls'),
+        ariaHaspopup: toggle.getAttribute('aria-haspopup'),
+        tabindex: toggle.getAttribute('tabindex'),
+        id: toggle.getAttribute('id'),
+        label: toggle.querySelector('.lmz-builder__action-label')?.textContent ?? null,
+    }));
+    const panelSnapshots = [];
+
+    toggles.forEach((toggle) => {
+        const panelId = toggle.dataset.lmzPanelToggle;
+        const panel = root.querySelector(`[data-lmz-popover-panel="${panelId}"]`);
+        const domId = `rt-lmz-elementor-${layoutId}-${String(panelId).replace(/[^a-z0-9]+/gi, '-')}`;
+        toggle.setAttribute('role', 'tab');
+        toggle.removeAttribute('aria-haspopup');
+        toggle.setAttribute('aria-controls', domId);
+        const label = toggle.querySelector('.lmz-builder__action-label');
+        if (label && labels[panelId]) label.textContent = labels[panelId];
+        if (!panel) return;
+        panelSnapshots.push({
+            panel,
+            id: panel.getAttribute('id'),
+            role: panel.getAttribute('role'),
+            ariaLabelledby: panel.getAttribute('aria-labelledby'),
+            ariaHidden: panel.getAttribute('aria-hidden'),
+        });
+        panel.id = domId;
+        panel.setAttribute('role', 'tabpanel');
+        if (!toggle.id) toggle.id = `${domId}-tab`;
+        panel.setAttribute('aria-labelledby', toggle.id);
+    });
+
+    const availableTabs = () => toggles.filter((toggle) => (
+        !toggle.hidden
+        && !toggle.inert
+        && toggle.getAttribute('aria-disabled') !== 'true'
+    ));
+    const syncTabs = () => {
+        const available = availableTabs();
+        const selected = available.find((toggle) => toggle.getAttribute('aria-expanded') === 'true') || available[0] || null;
+        toggles.forEach((toggle) => {
+            const active = toggle === selected && toggle.getAttribute('aria-expanded') === 'true';
+            toggle.setAttribute('aria-selected', active ? 'true' : 'false');
+            toggle.setAttribute('tabindex', toggle === selected ? '0' : '-1');
+            const controlled = toggle.getAttribute('aria-controls');
+            const panel = controlled ? document_.getElementById(controlled) : null;
+            panel?.setAttribute('aria-hidden', active && panel.classList.contains('is-active') ? 'false' : 'true');
+        });
+    };
+    const closeOtherPanelGroups = (targetGroup) => {
+        [...panels.querySelectorAll('[data-lmz-popover].is-open')].forEach((popover) => {
+            if (popover.dataset.lmzPopover !== targetGroup) closeVendorPopover(root, popover);
+        });
+    };
+    const closeOppositePanelBeforeOpen = (event) => {
+        const toggle = event.target?.closest?.('[data-lmz-panel-toggle]');
+        if (!toggle || !tabs.contains(toggle) || toggle.getAttribute('aria-expanded') === 'true') return;
+        closeOtherPanelGroups(toggle.dataset.lmzPanelGroup);
+    };
+    const enforceSinglePanelAfterOpen = (event) => {
+        const toggle = event.currentTarget;
+        if (toggle.getAttribute('aria-expanded') === 'true') closeOtherPanelGroups(toggle.dataset.lmzPanelGroup);
+        syncTabs();
+    };
+    const scheduleTabSync = () => {
+        if (typeof globalThis.queueMicrotask === 'function') globalThis.queueMicrotask(syncTabs);
+        else Promise.resolve().then(syncTabs);
+    };
+    const handleTabKeys = (event) => {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        const current = event.target?.closest?.('[role="tab"]');
+        const available = availableTabs();
+        const index = available.indexOf(current);
+        if (index < 0 || available.length === 0) return;
+        event.preventDefault();
+        let nextIndex = index;
+        if (event.key === 'Home') nextIndex = 0;
+        else if (event.key === 'End') nextIndex = available.length - 1;
+        else nextIndex = (index + (event.key === 'ArrowRight' ? 1 : -1) + available.length) % available.length;
+        available[nextIndex].click?.();
+        available[nextIndex].focus?.();
+    };
+    tabs.addEventListener('click', closeOppositePanelBeforeOpen, true);
+    tabs.addEventListener('click', scheduleTabSync);
+    tabs.addEventListener('keydown', handleTabKeys);
+    toggles.forEach((toggle) => toggle.addEventListener('click', enforceSinglePanelAfterOpen));
+    root.addEventListener('pointerdown', scheduleTabSync);
+    const MutationObserverClass = document_.defaultView?.MutationObserver || globalThis.MutationObserver;
+    const observer = typeof MutationObserverClass === 'function'
+        ? new MutationObserverClass(syncTabs)
+        : null;
+    observer?.observe(root, {
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['aria-expanded', 'hidden', 'class'],
+    });
+
+    const firstTab = availableTabs().find((toggle) => toggle.dataset.lmzPanelToggle === 'left:blocks')
+        || availableTabs()[0];
+    if (!toggles.some((toggle) => toggle.getAttribute('aria-expanded') === 'true')) firstTab?.click?.();
+    syncTabs();
+
+    return {
+        syncTabs,
+        openContextPanel() {
+            const preferred = ['right:traits', 'right:styles']
+                .map((panelId) => panelToggle(root, panelId))
+                .find((toggle) => toggle && !toggle.hidden && !toggle.inert && toggle.getAttribute('aria-disabled') !== 'true');
+            if (!preferred) return false;
+            closeOtherPanelGroups(preferred.dataset.lmzPanelGroup);
+            const opened = openPanel(root, preferred.dataset.lmzPanelToggle);
+            syncTabs();
+            return opened;
+        },
+        destroy() {
+            observer?.disconnect?.();
+            tabs.removeEventListener('click', closeOppositePanelBeforeOpen, true);
+            tabs.removeEventListener('click', scheduleTabSync);
+            tabs.removeEventListener('keydown', handleTabKeys);
+            toggles.forEach((toggle) => toggle.removeEventListener('click', enforceSinglePanelAfterOpen));
+            root.removeEventListener('pointerdown', scheduleTabSync);
+            tabSnapshots.forEach(({ toggle, role, ariaSelected, ariaControls, ariaHaspopup, tabindex, id, label }) => {
+                const restore = (name, value) => value === null ? toggle.removeAttribute(name) : toggle.setAttribute(name, value);
+                restore('role', role);
+                restore('aria-selected', ariaSelected);
+                restore('aria-controls', ariaControls);
+                restore('aria-haspopup', ariaHaspopup);
+                restore('tabindex', tabindex);
+                restore('id', id);
+                const labelElement = toggle.querySelector('.lmz-builder__action-label');
+                if (labelElement && label !== null) labelElement.textContent = label;
+            });
+            panelSnapshots.forEach(({ panel, id, role, ariaLabelledby, ariaHidden }) => {
+                const restore = (name, value) => value === null ? panel.removeAttribute(name) : panel.setAttribute(name, value);
+                restore('id', id);
+                restore('role', role);
+                restore('aria-labelledby', ariaLabelledby);
+                restore('aria-hidden', ariaHidden);
+            });
+            rightActionOrder.forEach((button) => rightActions?.append(button));
+            [...popoverPositions].reverse().forEach(restoreNodePosition);
+            [...toolbarPositions].reverse().forEach(restoreNodePosition);
+            dock.remove();
+            if (previousLayout === null) delete root.dataset.rtLmzLayout;
+            else root.setAttribute('data-rt-lmz-layout', previousLayout);
+        },
+    };
+}
+
 function markMoveHandleReady(handle) {
     if (!handle) return false;
     const marker = `${Date.now()}-${Math.random()}`;
@@ -1987,11 +2215,6 @@ function createImagePropertiesPanel({ root, editor, capabilities, media = {}, on
                     <option value="200">200 %</option>
                 </select>
             </label>
-            <label class="rt-lmz-image-properties__field" data-rt-lmz-image-train-overlap hidden>
-                <span>Überlappung (px)</span>
-                <input type="number" name="trainOverlap" min="-600" max="600" step="1" inputmode="numeric">
-                <small>Negativ zieht den folgenden Inhalt über das Zugbild.</small>
-            </label>
             <label class="rt-lmz-image-properties__field">
                 <span>Ausrichtung</span>
                 <select name="alignment">
@@ -2011,7 +2234,6 @@ function createImagePropertiesPanel({ root, editor, capabilities, media = {}, on
     const message = panel.querySelector('[data-rt-lmz-image-message]');
     const pixelWidthField = panel.querySelector('[data-rt-lmz-image-width-pixels]');
     const presetWidthField = panel.querySelector('[data-rt-lmz-image-width-preset]');
-    const trainOverlapField = panel.querySelector('[data-rt-lmz-image-train-overlap]');
     let target = null;
     let trainLayer = null;
     let targetIsTrain = false;
@@ -2045,20 +2267,9 @@ function createImagePropertiesPanel({ root, editor, capabilities, media = {}, on
         form.elements.trainWidth.value = ['100', '125', '150', '200'].includes(String(layerAttributes['data-rt-layer-size']))
             ? String(layerAttributes['data-rt-layer-size'])
             : '100';
-        const trainStyle = trainLayer?.getStyle?.() || {};
-        const trainElement = trainLayer?.getEl?.();
-        const computedOverlap = trainElement?.ownerDocument?.defaultView
-            ?.getComputedStyle?.(trainElement)?.marginBottom;
-        const inlineOverlap = String(trainStyle['margin-bottom'] || '').trim();
-        const overlapSource = /px$/i.test(inlineOverlap) ? inlineOverlap : computedOverlap;
-        const overlapPixels = Number.parseFloat(String(overlapSource || '-150'));
-        form.elements.trainOverlap.value = String(Math.round(
-            Math.min(600, Math.max(-600, Number.isFinite(overlapPixels) ? overlapPixels : -150)),
-        ));
         form.elements.alignment.value = inferredImageAlignment(target, trainLayer);
         pixelWidthField.hidden = targetIsTrain;
         presetWidthField.hidden = !targetIsTrain;
-        trainOverlapField.hidden = !targetIsTrain;
         form.toggleAttribute('data-system-medium', Boolean(token));
         kind.textContent = token
             ? `Systemmedium · ${token}${animated ? ' · GIF' : ''}`
@@ -2107,17 +2318,10 @@ function createImagePropertiesPanel({ root, editor, capabilities, media = {}, on
             const size = ['100', '125', '150', '200'].includes(form.elements.trainWidth.value)
                 ? form.elements.trainWidth.value
                 : '100';
-            const requestedOverlap = Number.parseFloat(String(form.elements.trainOverlap.value || ''));
-            const overlap = Math.round(Math.min(
-                600,
-                Math.max(-600, Number.isFinite(requestedOverlap) ? requestedOverlap : -150),
-            ));
             trainLayer.addAttributes?.({
                 'data-rt-layer-align': alignment,
                 'data-rt-layer-size': size,
             });
-            trainLayer.addStyle?.({ 'margin-bottom': `${overlap}px` });
-            form.elements.trainOverlap.value = String(overlap);
             // Der Mail-Adapter lauscht auf genau dieses Ereignis und setzt
             // daraus die kanonischen Layer-/IMG-Inline-Stile. Das explizite
             // Triggern stellt die Synchronisierung auch bei Adapterversionen
@@ -3370,6 +3574,7 @@ export function createLmzEditorChrome({
     instance,
     root,
     mode = 'marketing',
+    layout = 'default',
     capabilities = {},
     media = {},
     active = true,
@@ -3380,6 +3585,7 @@ export function createLmzEditorChrome({
     rootElement.__rtLmzEditorChrome?.destroy?.();
     const profile = resolveLmzEditorMode(mode);
     const normalizedMode = profile.id;
+    const normalizedLayout = layout === 'elementor' ? 'elementor' : 'default';
     const normalized = normalizeLmzCapabilities(profile, capabilities);
     const abortController = new AbortController();
     let isOpen = Boolean(active);
@@ -3453,6 +3659,9 @@ export function createLmzEditorChrome({
     modeDescription.textContent = profile.description;
     modeIndicator.append(modeEyebrow, modeName, modeDescription);
     topbar?.insertBefore(modeIndicator, topbar.querySelector('.lmz-builder__panel-actions--left'));
+    const elementorLayout = normalizedLayout === 'elementor'
+        ? installElementorEditorLayout({ root: rootElement, modeIndicator })
+        : null;
     rootElement.querySelectorAll('[data-lmz-panel-toggle]').forEach((button) => button.classList.add('rt-lmz-drawer-trigger'));
     rootElement.querySelectorAll('[data-lmz-popover]').forEach((drawer) => drawer.setAttribute('data-rt-lmz-drawer', drawer.dataset.lmzPopover || ''));
     const onVendorPopoverEscape = (event) => {
@@ -3496,6 +3705,7 @@ export function createLmzEditorChrome({
     let mediaDrawer;
     let animationDrawer;
     let imagePropertiesPanel;
+    let lastContextSelection = null;
     const contextualElementState = new Map();
     const traitCount = (component) => {
         const traits = component?.get?.('traits');
@@ -3557,6 +3767,11 @@ export function createLmzEditorChrome({
         setContextPanelAvailable('right:traits', traitsAvailable);
         setContextPanelAvailable('right:styles', stylesAvailable);
         setContextPanelAvailable('right:classes', classesAvailable);
+        if (elementorLayout && selected !== lastContextSelection) {
+            lastContextSelection = selected;
+            if (selected) elementorLayout.openContextPanel();
+        }
+        elementorLayout?.syncTabs();
     };
     const refreshAll = () => {
         spacing.refresh();
@@ -3634,6 +3849,7 @@ export function createLmzEditorChrome({
     const api = {
         editor,
         mode: profile,
+        layout: normalizedLayout,
         capabilities: normalized,
         open(detail = {}) {
             if (destroyed) return false;
@@ -3700,6 +3916,7 @@ export function createLmzEditorChrome({
             animationDrawer.destroy();
             imagePropertiesPanel.destroy();
             spacing.destroy();
+            elementorLayout?.destroy();
             rootElement.classList.remove('rt-lmz-editor');
             delete rootElement.dataset.rtLmzMode;
             delete rootElement.dataset.rtLmzModeLabel;

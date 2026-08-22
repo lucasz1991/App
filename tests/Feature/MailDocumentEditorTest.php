@@ -385,8 +385,8 @@ class MailDocumentEditorTest extends TestCase
         $this->assertStringNotContainsString('data-rt-train-main-image', $html);
         $this->assertStringNotContainsString('data-rt-train-main-layer', $html);
         $this->assertSame(0, substr_count($html, 'rt-classic-outlook-train'));
-        // Moderne Clients erhalten genau ein fliessendes GIF. Classic Outlook
-        // erhaelt an derselben Stelle genau ein statisches PNG als IMG.
+        // Moderne Clients erhalten genau ein unten verankertes GIF. Classic
+        // Outlook erhaelt direkt davor genau ein statisches PNG als Flow-IMG.
         $this->assertSame(1, substr_count($html, 'zug-dampf-light.gif'));
         $this->assertSame(1, substr_count($html, 'zug-dampf-light.png'));
         $this->assertSame(
@@ -429,7 +429,7 @@ class MailDocumentEditorTest extends TestCase
         $this->assertLessThan(60 * 1024, strlen($html));
     }
 
-    public function test_schema_7_schuetzt_den_paddingfreien_carrier_und_den_inneren_inhaltswrapper(): void
+    public function test_schema_23_schuetzt_den_paddingfreien_carrier_und_den_unteren_zuglayer(): void
     {
         $this->createCanonicalMailDocuments();
         $canonical = (string) $this->document(MailDocumentKind::Signature)->published_html;
@@ -437,24 +437,39 @@ class MailDocumentEditorTest extends TestCase
         SignatureDocumentContract::assertValid($canonical);
         SignatureDocumentContract::assertRuntimeValid($canonical);
 
+        $canonicalLayerStyle = 'style="position:absolute;left:0;right:auto;top:auto;bottom:0;width:100%;max-width:1815px;margin:0;overflow:hidden;font-size:0;line-height:0;text-align:left;mso-hide:all;"';
+        $this->assertStringContainsString($canonicalLayerStyle, $canonical);
+        $this->assertSame($canonical, SignatureTrainCarrier::normalize($canonical));
+
         foreach ([
             'ohne Ueberlappungswert' => '',
             'mit individuellem Ueberlappungswert' => 'margin-bottom:-72px!important;',
         ] as $label => $overlapStyle) {
+            $legacyLayerStyle = 'style="position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;'
+                .'margin:0 auto 0 0;'.$overlapStyle.'overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;"';
             $variant = str_replace(
-                'margin-bottom:-150px;',
-                $overlapStyle,
+                $canonicalLayerStyle,
+                $legacyLayerStyle,
                 $canonical,
                 $overlapReplacementCount,
             );
             $this->assertSame(1, $overlapReplacementCount, $label);
-            SignatureDocumentContract::assertValid($variant);
             SignatureDocumentContract::assertRuntimeValid($variant);
-            $this->assertSame($variant, SignatureTrainCarrier::normalize($variant), $label);
+            $this->assertSame($canonical, SignatureTrainCarrier::normalize($variant), $label);
+            try {
+                SignatureDocumentContract::assertValid($variant);
+                $this->fail("Der Save-Vertrag akzeptierte den alten Flow-Layer: {$label}.");
+            } catch (\RuntimeException $exception) {
+                $this->assertMatchesRegularExpression(
+                    '/(?:mail-sichere Geometrie|Zug-Layer-Stil)/',
+                    $exception->getMessage(),
+                    $label,
+                );
+            }
         }
 
         $legacyFlow = str_replace(
-            'style="position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-150px;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;"',
+            $canonicalLayerStyle,
             'style="position:absolute;left:0;right:auto;top:0;bottom:0;width:100%;max-width:1815px;margin:0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;mso-hide:all;"',
             $canonical,
             $legacyFlowLayerCount,
@@ -476,7 +491,7 @@ class MailDocumentEditorTest extends TestCase
         }
 
         $legacyPercentHeight = str_replace(
-            'style="position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-150px;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;"',
+            $canonicalLayerStyle,
             'style="position:absolute;left:0;right:auto;top:0;bottom:0;width:100%;max-width:1815px;height:100%;margin:0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;mso-hide:all;"',
             $canonical,
             $legacyPercentHeightCount,
@@ -1203,9 +1218,9 @@ HTML;
         $this->assertLessThan(stripos($standalone, '</head>'), stripos($standalone, 'data-rt-mail-document-css="signature"'));
 
         // Vorlage, eigenstaendige Signatur und Systemmail verwenden denselben
-        // Schema-19-Runtimepfad: Hauptzug und MSO-Standbild liegen im
-        // Tabellenfluss direkt vor den Pflichtangaben; nur der Idle-Holder
-        // ist hoehenneutral darueber positioniert.
+        // Schema-23-Runtimepfad: Der moderne IMG-Layer steht vor dem Inhalt
+        // und ist absolut an der unteren Buehnenkante verankert. Das bedingte
+        // Outlook-Standbild steht ebenfalls davor, dort aber im normalen Flow.
         foreach ([
             'Vorlage' => $template,
             'Signatur' => $standalone,
@@ -1825,8 +1840,8 @@ HTML;
         $this->assertNull($document->fresh()->published_at);
 
         $customOverlapHtml = str_replace(
-            'margin-bottom:-150px;',
-            'margin-bottom:-72px!important;',
+            'style="position:absolute;left:0;right:auto;top:auto;bottom:0;width:100%;max-width:1815px;margin:0;overflow:hidden;font-size:0;line-height:0;text-align:left;mso-hide:all;"',
+            'style="position:absolute;left:0;right:auto;top:auto;bottom:0;width:100%;max-width:1815px;margin:0;margin-bottom:-72px!important;overflow:hidden;font-size:0;line-height:0;text-align:left;mso-hide:all;"',
             $validHtml,
             $overlapReplacementCount,
         );
@@ -1848,13 +1863,10 @@ HTML;
             ->postJson(route('admin.mail-documents.publish', $document), [
                 'expected_hash' => $document->content_hash,
             ])
-            ->assertOk()
-            ->assertJsonPath('document.status', MailDocumentStatus::Published->value);
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('html');
 
-        $this->assertStringContainsString(
-            'margin-bottom:-72px!important;',
-            (string) $document->fresh()->published_html,
-        );
+        $this->assertNull($document->fresh()->published_at);
     }
 
     public function test_signatur_save_und_publish_lehnen_background_kurzform_am_zugcarrier_ab(): void
@@ -2905,7 +2917,7 @@ HTML;
         }
     }
 
-    public function test_runtime_bettet_editierbares_css_vor_trusted_regeln_ein_und_liefert_ein_fliessendes_zugbild(): void
+    public function test_runtime_bettet_editierbares_css_vor_trusted_regeln_ein_und_liefert_ein_unten_verankertes_zugbild(): void
     {
         $this->createCanonicalMailDocuments();
         $template = $this->document(MailDocumentKind::Template);

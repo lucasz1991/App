@@ -8,7 +8,7 @@ use Tests\TestCase;
 
 class SignatureTrainTimelineTest extends TestCase
 {
-    public function test_idle_overlay_is_inserted_after_the_scanned_train_image_tag(): void
+    public function test_idle_overlay_is_inserted_directly_before_the_scanned_train_image_tag(): void
     {
         $html = '<tr><td class="rt-sign-cell" style="padding:0;overflow:hidden;'
             .'background-image:linear-gradient(rgba(0,0,0,0),rgba(0,0,0,0));'
@@ -16,17 +16,17 @@ class SignatureTrainTimelineTest extends TestCase
             .'background-position:center center;'
             .'background-size:100% 100%;">'
             .'<div class="rt-sign-stage" style="position:relative;overflow:hidden;">'
-            .'<table style="position:relative;z-index:1;"><tr><td title="Inhalt > Legal">Inhalt</td></tr></table>'
             .'<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" '
             .'data-rt-layer-size="100" data-rt-layer-mobile="train" '
-            .'style="position:absolute;left:0;right:auto;top:0;bottom:0;width:100%;max-width:1815px;'
-            .'margin:0 auto 0 0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;">'
+            .'style="position:absolute;left:0;right:auto;top:auto;bottom:0;width:100%;max-width:1815px;'
+            .'margin:0;overflow:hidden;font-size:0;line-height:0;text-align:left;mso-hide:all;">'
             .'<img class="rt-sign-train" data-rt-train '
             .'src="https://app.rail-time.test/mail-assets/zug-dampf-light.gif" width="720" alt="" '
-            .'style="position:absolute;left:0;right:auto;bottom:0;display:block;'
+            .'style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;'
             .'width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;'
-            .'text-decoration:none;vertical-align:bottom;mso-hide:all;">'
-            .'</div></div></td></tr><!-- RT_SIGNATURE_MAIN_END --><tr><td>Legal</td></tr>';
+            .'text-decoration:none;vertical-align:top;mso-hide:all;">'
+            .'</div><table style="position:relative;z-index:1;"><tr><td title="Inhalt > Legal">Inhalt</td></tr></table>'
+            .'</div></td></tr><!-- RT_SIGNATURE_MAIN_END --><tr><td>Legal</td></tr>';
 
         $rendered = SignatureTrainCarrier::withIdleOverlay(
             $html,

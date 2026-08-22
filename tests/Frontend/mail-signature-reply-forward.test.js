@@ -72,14 +72,11 @@ test('mobile rules restyle the same signature nodes without hide-and-show copies
     assert.doesNotMatch(css, /rt-marke-mobil|\.rt-sign-logo img\.rt-logo\s*\{[^}]*display:\s*none/);
     assert.match(mobile, /\.rt-sign-train-layer\s*\{[^}]*width:\s*100% !important;[^}]*max-width:\s*1815px !important;/s);
     assert.doesNotMatch(css, /\.rt-sign-train-layer\s*\{[^}]*margin-bottom:\s*0 !important;/s);
-    assert.match(mobile, /data-rt-layer-mobile="train"\] \{ margin-left:\s*0 !important; margin-right:\s*auto !important;/);
-    assert.match(mobile, /data-rt-layer-mobile="center"\] \{ margin-left:\s*auto !important; margin-right:\s*auto !important;/);
-    assert.match(mobile, /data-rt-layer-mobile="right"\] \{ margin-left:\s*auto !important; margin-right:\s*0 !important;/);
     assert.match(mobile, /data-rt-layer-mobile="train"\]\[data-rt-layer-size\][\s\S]*?width:\s*100% !important;\s*max-width:\s*none !important;\s*margin-left:\s*0 !important;/);
     assert.match(mobile, /data-rt-layer-mobile="right"\]\[data-rt-layer-size\][\s\S]*?width:\s*200% !important;\s*max-width:\s*none !important;\s*margin-left:\s*-100% !important;/);
 });
 
-test('delivery keeps the main train in flow and overlays only the zero-height idle holder', async () => {
+test('delivery bottom-anchors the modern train and keeps an MSO flow fallback before content', async () => {
     const [signature, runtime, carrier, preview] = await Promise.all([
         source('../../resources/views/emails/parts/signature.blade.php'),
         source('../../app/Support/MailSignature.php'),
@@ -93,8 +90,7 @@ test('delivery keeps the main train in flow and overlays only the zero-height id
 
     assert.match(signature, /\$trainSrc = \$outlookTrainSrc !== ''/);
     assert.match(signature, /<div class="rt-sign-stage" style="position:relative;overflow:hidden;">/);
-    assert.match(signature, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;[^"\r\n]*overflow:hidden;[^"\r\n]*z-index:0;[^"\r\n]*text-align:left;">/);
-    assert.doesNotMatch(signature, /rt-sign-train-layer[^>]*mso-hide:all/);
+    assert.match(signature, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:absolute;left:0;right:auto;top:auto;bottom:0;width:100%;max-width:1815px;margin:0;[^"\r\n]*overflow:hidden;[^"\r\n]*text-align:left;mso-hide:all;">/);
     assert.match(signature, /<img class="rt-sign-train" data-rt-train src="\{\{ \$trainSrc \}\}" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;[^\"]*vertical-align:top;[^\"]*mso-hide:all;">/);
     assert.doesNotMatch(signature, /url\(\{\$values\['TRAIN_SRC'\]\}\)/);
     assert.doesNotMatch(signature, /data-rt-outlook-train/);
@@ -118,7 +114,8 @@ test('delivery keeps the main train in flow and overlays only the zero-height id
     assert.match(msoFallback, /self::assertRuntimeImages\(\$html, expectedMsoSource: \$source\);[\s\S]*?return \$html;/);
     assert.doesNotMatch(carrier, /<v:(?:rect|fill)\b/);
     assert.match(carrier, /<div class="rt-sign-stage" style="position:relative;overflow:hidden;">/);
-    assert.match(carrier, /<div class="rt-sign-train-layer" data-rt-layer-train[^>]*style="position:relative;[^"\r\n]*top:auto;bottom:auto;[^"\r\n]*z-index:0;/);
+    assert.match(carrier, /<div class="rt-sign-train-layer" data-rt-layer-train[^>]*style="position:absolute;[^"\r\n]*top:auto;bottom:0;[^"\r\n]*mso-hide:all;/);
+    assert.match(msoFallback, /substr_replace\(\$html, \$fallback, \$layers\[0\]\['startOffset'\], 0\)/);
     assert.match(carrier, /<img class="rt-sign-train" data-rt-train src="'\.\$source\.'" width="720"[^>]*style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;/);
     assert.match(preview, /MailSignature::forCompany\(/);
     assert.match(preview, /->renderDocument\(/);

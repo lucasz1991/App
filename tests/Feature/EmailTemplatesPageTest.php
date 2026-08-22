@@ -203,9 +203,9 @@ class EmailTemplatesPageTest extends TestCase
 
     /**
      * Der Dampflok-Gueterzug steht in jeder fertigen HTML-Fassung genau
-     * einmal als statisches IMG im relativen Flow-Layer. Nach 13 Sekunden
-     * uebernimmt ein zweites, nullhoch ueberlagertes Idle-IMG; Classic
-     * Outlook erhaelt genau ein PNG-Standbild im selben Layer.
+     * einmal als statisches IMG im absolut unten verankerten Layer. Nach
+     * 13 Sekunden uebernimmt ein zweites, nullhoch ueberlagertes Idle-IMG;
+     * Classic Outlook erhaelt davor genau ein PNG-Standbild im normalen Flow.
      */
     public function test_every_downloadable_html_variant_carries_the_themed_steam_train(): void
     {
@@ -401,7 +401,7 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertStringNotContainsString('width:70%', $html);
             $this->assertStringNotContainsString('max-width:620px', $html);
             // OHNE rt-pad an der aeusseren Zelle: die traegt padding:0, damit
-            // das fliessende Zugbild bis an die Kante reicht. Sass die Klasse dort,
+            // der unten verankerte Zug-Layer bis an die Kante reicht. Waere die Klasse dort,
             // verkleinerten die Umbruchregeln die Null und der Innenabstand
             // der inneren Zelle blieb zusaetzlich stehen — der Block war auf
             // schmalen Schirmen doppelt eingerueckt (24+36 statt 24 px).
@@ -1439,7 +1439,7 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertSame(1, substr_count($html, 'data-rt-train-mso="1"'), $message);
         $this->assertMatchesRegularExpression('/<img\b[^>]*class="rt-sign-train"[^>]*\bdata-rt-train(?:\s|=|>)[^>]*>/i', $html, $message);
         $this->assertMatchesRegularExpression('/<img\b[^>]*class="rt-sign-train-mso"[^>]*\bdata-rt-train-mso="1"[^>]*>/i', $html, $message);
-        $this->assertMatchesRegularExpression('/<div\b[^>]*class="[^"]*\brt-sign-train-layer\b[^"]*"[^>]*style="position:relative;[^">]*top:auto;bottom:auto;[^">]*z-index:0;/s', $html, $message);
+        $this->assertMatchesRegularExpression('/<div\b[^>]*class="[^"]*\brt-sign-train-layer\b[^"]*"[^>]*style="position:absolute;[^">]*top:auto;bottom:0;[^">]*margin:0;[^">]*mso-hide:all;/s', $html, $message);
         $this->assertMatchesRegularExpression('/<img\b[^>]*class="rt-sign-train"[^>]*style="position:static;[^">]*bottom:auto;[^">]*display:inline-block;[^">]*vertical-align:top;/s', $html, $message);
         $this->assertDoesNotMatchRegularExpression('/<v:(?:rect|fill)\b/i', $html, $message);
         $this->assertStringNotContainsString('<!--[if mso]><tr><td class="rt-sign-train-mso"', $html, $message);

@@ -50,8 +50,7 @@ const MAIL_TEMPLATE_APPLICATION_START = `<!-- ${MAIL_TEMPLATE_APPLICATION_START_
 const MAIL_TEMPLATE_APPLICATION_END = `<!-- ${MAIL_TEMPLATE_APPLICATION_END_NAME} -->`;
 const MAIL_TEMPLATE_APPLICATION_PLACEHOLDER = '{{APPLICATION_CONTENT}}';
 const MAIL_PREVIEW_TRANSPARENT_PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=';
-export const MAIL_SIGNATURE_SCHEMA = 22;
-const MAIL_SIGNATURE_TRAIN_OVERLAP = '-150px';
+export const MAIL_SIGNATURE_SCHEMA = 23;
 const MAIL_SIGNATURE_MAIN_MARKER_NAME = 'RT_SIGNATURE_MAIN_END';
 const MAIL_SIGNATURE_MAIN_MARKER = `<!-- ${MAIL_SIGNATURE_MAIN_MARKER_NAME} -->`;
 const MAIL_SIGNATURE_CONTACT_MARKER_ATTRIBUTE = 'data-rt-mail-contact-marker';
@@ -1325,10 +1324,10 @@ function removeInlineStyleDeclaration(style, property) {
 
 /**
  * Der Editor verwendet fuer den Zug denselben Tokenpfad wie Logo und Icons.
- * Schema 19 (Flow-IMG ohne Ueberlappung), Schema 20 (CSS-Background) und
- * Schema 21 (Inhalt vor Zug) werden nur bei exakt erkannter Altstruktur in
- * Schema 22 projiziert. Mischformen
- * oder frei manipulierte Layer bleiben harte Fehler.
+ * Schema 19 (Flow-IMG ohne Ueberlappung), Schema 20 (CSS-Background),
+ * Schema 21 (Inhalt vor Zug) und Schema 22 (Zug vor Inhalt mit negativer
+ * Margin) werden nur bei exakt erkannter Altstruktur in Schema 23 projiziert.
+ * Mischformen oder frei manipulierte Layer bleiben harte Fehler.
  */
 const MAIL_SIGNATURE_BASE_BACKGROUND = Object.freeze({
     'background-image': 'linear-gradient({{SIGNATURE_TRAIN_WASH}},{{SIGNATURE_TRAIN_WASH}})',
@@ -1476,7 +1475,7 @@ function signatureTrainGeometry(layer) {
     };
 }
 
-function assertCanonicalSignatureTrainLayer(layer, image) {
+function assertLegacyFlowSignatureTrainLayer(layer, image) {
     if (!layer || !image
         || elementClassNames(layer).join(' ') !== 'rt-sign-train-layer'
         || elementClassNames(image).join(' ') !== 'rt-sign-train'
@@ -1540,6 +1539,70 @@ function assertCanonicalSignatureTrainLayer(layer, image) {
     }, 'Das Zugbild', { exact: true });
 }
 
+function assertCanonicalSignatureTrainLayer(layer, image) {
+    if (!layer || !image
+        || elementClassNames(layer).join(' ') !== 'rt-sign-train-layer'
+        || elementClassNames(image).join(' ') !== 'rt-sign-train'
+        || layer.getAttribute('data-rt-layer-train') !== ''
+        || image.getAttribute('data-rt-train') !== ''
+        || image.getAttribute('src') !== '{{TRAIN_SRC}}'
+        || image.getAttribute('width') !== '720'
+        || image.getAttribute('alt') !== ''
+        || layer.children.length !== 1
+        || layer.firstElementChild !== image) {
+        throw new Error('Das Zugmotiv muss genau einmal im kanonischen IMG-Layer vorliegen.');
+    }
+    assertExactElementAttributes(layer, [
+        'class',
+        'data-rt-layer-train',
+        'data-rt-layer-align',
+        'data-rt-layer-size',
+        'data-rt-layer-mobile',
+        'style',
+    ], 'Der Zug-Layer');
+    assertExactElementAttributes(image, [
+        'class',
+        'data-rt-train',
+        'src',
+        'width',
+        'alt',
+        'style',
+    ], 'Das Zugbild');
+
+    const geometry = signatureTrainGeometry(layer);
+    assertInlineStyles(layer, {
+        position: 'absolute',
+        left: '0',
+        right: 'auto',
+        top: 'auto',
+        bottom: '0',
+        width: '100%',
+        'max-width': '1815px',
+        margin: '0',
+        overflow: 'hidden',
+        'font-size': '0',
+        'line-height': '0',
+        'text-align': 'left',
+        'mso-hide': 'all',
+    }, 'Der Zug-Layer', { exact: true });
+    assertInlineStyles(image, {
+        position: 'static',
+        left: 'auto',
+        right: 'auto',
+        bottom: 'auto',
+        display: 'inline-block',
+        width: geometry.size.width,
+        'max-width': 'none',
+        height: 'auto',
+        margin: geometry.imageMargin,
+        border: '0',
+        outline: 'none',
+        'text-decoration': 'none',
+        'vertical-align': 'top',
+        'mso-hide': 'all',
+    }, 'Das Zugbild', { exact: true });
+}
+
 function assertCanonicalSignatureTrainImage(wrapper, rows) {
     const structure = assertSignatureBaseStructure(wrapper, rows);
     const layers = Array.from(wrapper.querySelectorAll(
@@ -1550,11 +1613,6 @@ function assertCanonicalSignatureTrainImage(wrapper, rows) {
     ));
     const layer = layers[0];
     const image = images[0];
-    const overlap = inlineStyleDeclaration(
-        String(layer?.getAttribute('style') || ''),
-        'margin-bottom',
-    );
-
     if (structure.stageElements.length !== 2
         || layers.length !== 1 || images.length !== 1
         || layer?.parentElement !== structure.stage
@@ -1568,7 +1626,7 @@ function assertCanonicalSignatureTrainImage(wrapper, rows) {
     assertOptionalSignatureBackground(structure.carrier);
     assertCanonicalSignatureTrainLayer(layer, image);
 
-    return { ...structure, layer, image, overlap };
+    return { ...structure, layer, image };
 }
 
 function createCanonicalSignatureTrainLayer(document_) {
@@ -1578,7 +1636,7 @@ function createCanonicalSignatureTrainLayer(document_) {
     layer.setAttribute('data-rt-layer-align', 'left');
     layer.setAttribute('data-rt-layer-size', '100');
     layer.setAttribute('data-rt-layer-mobile', 'train');
-    layer.setAttribute('style', 'position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-150px;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;');
+    layer.setAttribute('style', 'position:absolute;left:0;right:auto;top:auto;bottom:0;width:100%;max-width:1815px;margin:0;overflow:hidden;font-size:0;line-height:0;text-align:left;mso-hide:all;');
 
     const image = document_.createElement('img');
     image.setAttribute('class', 'rt-sign-train');
@@ -1592,15 +1650,14 @@ function createCanonicalSignatureTrainLayer(document_) {
     return layer;
 }
 
-function applySignatureTrainOverlap(layer, overlap = MAIL_SIGNATURE_TRAIN_OVERLAP) {
-    layer.setAttribute('style', replaceInlineStyleDeclaration(
-        String(layer.getAttribute('style') || ''),
-        'margin-bottom',
-        overlap,
-    ));
+function applyCanonicalSignatureTrainGeometry(layer, image) {
+    const geometry = signatureTrainGeometry(layer);
+    layer.setAttribute('style', 'position:absolute;left:0;right:auto;top:auto;bottom:0;width:100%;max-width:1815px;margin:0;overflow:hidden;font-size:0;line-height:0;text-align:left;mso-hide:all;');
+    image.setAttribute('width', '720');
+    image.setAttribute('style', `position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:${geometry.size.width};max-width:none;height:auto;margin:${geometry.imageMargin};border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all;`);
 }
 
-function projectLegacySignatureTrainOrder(wrapper, rows) {
+function projectLegacySignatureTrainLayer(wrapper, rows) {
     const structure = assertSignatureBaseStructure(wrapper, rows);
     const layers = Array.from(wrapper.querySelectorAll(
         'div[data-rt-layer-train], div.rt-sign-train-layer',
@@ -1610,31 +1667,32 @@ function projectLegacySignatureTrainOrder(wrapper, rows) {
     ));
     const layer = layers[0];
     const image = images[0];
+    const trainFirst = structure.stageElements[0] === layer
+        && structure.stageElements[1] === structure.contentTable;
+    const contentFirst = structure.stageElements[0] === structure.contentTable
+        && structure.stageElements[1] === layer;
     if (structure.stageElements.length !== 2
         || layers.length !== 1 || images.length !== 1
-        || structure.stageElements[0] !== structure.contentTable
-        || structure.stageElements[1] !== layer
-        || structure.stage.lastElementChild !== layer) {
-        throw new Error('Die alte Signatur besitzt keine eindeutige Inhalt-vor-Zug-Reihenfolge.');
+        || (!trainFirst && !contentFirst)) {
+        throw new Error('Die alte Signatur besitzt keine eindeutige Zug-/Inhaltsreihenfolge.');
     }
     assertOptionalSignatureBackground(structure.carrier);
-    assertCanonicalSignatureTrainLayer(layer, image);
+    assertLegacyFlowSignatureTrainLayer(layer, image);
 
     const contentStyle = String(structure.contentTable.getAttribute('style') || '');
-    const overlap = inlineStyleDeclaration(contentStyle, 'margin-bottom') || MAIL_SIGNATURE_TRAIN_OVERLAP;
     structure.contentTable.setAttribute(
         'style',
         removeInlineStyleDeclaration(contentStyle, 'margin-bottom'),
     );
-    applySignatureTrainOverlap(layer, overlap);
-    structure.stage.insertBefore(layer, structure.contentTable);
+    if (contentFirst) structure.stage.insertBefore(layer, structure.contentTable);
+    applyCanonicalSignatureTrainGeometry(layer, image);
 
     return assertCanonicalSignatureTrainImage(wrapper, rows);
 }
 
 function projectSignatureTrainImage(wrapper, rows, project) {
     const declaredSchema = project?.railtime?.schema;
-    if (Number.isInteger(declaredSchema) && ![19, 20, 21, MAIL_SIGNATURE_SCHEMA].includes(declaredSchema)) {
+    if (Number.isInteger(declaredSchema) && ![19, 20, 21, 22, MAIL_SIGNATURE_SCHEMA].includes(declaredSchema)) {
         throw new Error('Die Signatur besitzt einen nicht unterstuetzten Zugvertrag.');
     }
 
@@ -1642,7 +1700,8 @@ function projectSignatureTrainImage(wrapper, rows, project) {
         wrapper?.querySelectorAll?.('td.rt-sign-cell[data-rt-train-background]') || [],
     );
     if (backgroundCarriers.length > 0) {
-        if (declaredSchema === 19 || declaredSchema === 21 || declaredSchema === MAIL_SIGNATURE_SCHEMA
+        if (declaredSchema === 19 || declaredSchema === 21 || declaredSchema === 22
+            || declaredSchema === MAIL_SIGNATURE_SCHEMA
             || backgroundCarriers.length !== 1
             || backgroundCarriers[0].getAttribute('data-rt-train-background') !== '1') {
             throw new Error('Die Signatur besitzt keinen eindeutigen Schema-20-Zughintergrund.');
@@ -1670,11 +1729,11 @@ function projectSignatureTrainImage(wrapper, rows, project) {
         if (declaredSchema === 20) {
             throw new Error('Der deklarierte Schema-20-Zughintergrund fehlt.');
         }
-        if (declaredSchema === 19 || declaredSchema === 21 || declaredSchema === undefined) {
+        if ([19, 21, 22, undefined].includes(declaredSchema)) {
             try {
                 assertCanonicalSignatureTrainImage(wrapper, rows);
             } catch {
-                projectLegacySignatureTrainOrder(wrapper, rows);
+                projectLegacySignatureTrainLayer(wrapper, rows);
             }
         } else {
             assertCanonicalSignatureTrainImage(wrapper, rows);
@@ -2170,11 +2229,6 @@ export function synchronizeMailTrainLayerAlignment(component) {
         150: { width: '150%', centerMargin: '-25%', rightMargin: '-50%' },
         200: { width: '200%', centerMargin: '-50%', rightMargin: '-100%' },
     }[sizeName];
-    const layerMargin = {
-        left: '0 auto 0 0',
-        center: '0 auto',
-        right: '0 0 0 auto',
-    }[alignment];
     const imageOffset = alignment === 'center'
         ? size.centerMargin
         : (alignment === 'right' ? size.rightMargin : '0');
@@ -2196,28 +2250,34 @@ export function synchronizeMailTrainLayerAlignment(component) {
     const current = component?.getStyle?.() || {};
     const layerChanged = current.left !== '0'
         || current.right !== 'auto'
-        || current.position !== 'relative'
+        || current.position !== 'absolute'
         || current.top !== 'auto'
-        || current.bottom !== 'auto'
+        || current.bottom !== '0'
         || current.width !== '100%'
         || current['max-width'] !== '1815px'
-        || current.margin !== layerMargin
+        || current.margin !== '0'
         || current['text-align'] !== 'left'
-        || Object.prototype.hasOwnProperty.call(current, 'height');
+        || current['mso-hide'] !== 'all'
+        || Object.prototype.hasOwnProperty.call(current, 'height')
+        || Object.prototype.hasOwnProperty.call(current, 'z-index')
+        || Object.prototype.hasOwnProperty.call(current, 'margin-bottom');
     if (layerChanged) {
         const canonicalStyle = {
             ...current,
-            position: 'relative',
+            position: 'absolute',
             left: '0',
             right: 'auto',
             top: 'auto',
-            bottom: 'auto',
+            bottom: '0',
             width: '100%',
             'max-width': '1815px',
-            margin: layerMargin,
+            margin: '0',
             'text-align': 'left',
+            'mso-hide': 'all',
         };
         delete canonicalStyle.height;
+        delete canonicalStyle['z-index'];
+        delete canonicalStyle['margin-bottom'];
         // Manche GrapesJS-Adapter fuehren setStyle() mit dem vorhandenen
         // Styleobjekt zusammen. Den alten Prozentwert deshalb auch an der
         // Quelle entfernen, bevor die kanonischen Werte gesetzt werden.
@@ -2225,6 +2285,12 @@ export function synchronizeMailTrainLayerAlignment(component) {
             delete current.height;
             component?.removeStyle?.('height', { silent: true });
         }
+        ['z-index', 'margin-bottom'].forEach((property) => {
+            if (Object.prototype.hasOwnProperty.call(current, property)) {
+                delete current[property];
+                component?.removeStyle?.(property, { silent: true });
+            }
+        });
         component?.setStyle?.(canonicalStyle, { silent: true });
     }
 
@@ -2275,7 +2341,7 @@ export function synchronizeMailTrainLayerAlignment(component) {
     if (!attributesChanged && !layerChanged && !imageChanged
         && current.left === '0'
         && current.right === 'auto'
-        && current.margin === layerMargin) {
+        && current.margin === '0') {
         return false;
     }
 
@@ -3034,6 +3100,7 @@ export async function createMailBuilder({
         instance,
         root: rootElement,
         mode: MAIL_EDITOR_MODE,
+        layout: 'elementor',
         active: pageBuilderWorkspaceIsActive(rootElement),
         capabilities: {
             writable: !readOnly,
