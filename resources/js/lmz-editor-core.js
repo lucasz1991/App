@@ -1882,12 +1882,23 @@ function imageParentCell(component, maximumDepth = 12) {
     return null;
 }
 
-function imageSourceIsSafe(source) {
+function imageSourceIsSafe(source, baseUrl = globalThis.location?.href || 'http://localhost/') {
     const normalized = String(source || '').trim();
     if (!normalized || /[\u0000-\u001f\u007f]/.test(normalized)) return false;
     if (/^\{\{[A-Z][A-Z0-9_]{1,63}\}\}$/.test(normalized)) return true;
-    if (/^(?:https?:\/\/|\/|\.\.\/|\.\/|cid:)/i.test(normalized)) return true;
-    return /^data:image\/(?:png|jpe?g|gif|webp);base64,[a-z0-9+/=\s]+$/i.test(normalized);
+    if (/^\/\//.test(normalized)) return false;
+    if (/^cid:/i.test(normalized)) return true;
+    const dataImage = normalized.match(/^data:image\/(?:png|jpe?g|gif|webp);base64,([a-z0-9+/]*={0,2})$/i);
+    if (dataImage) return dataImage[1].length > 0 && dataImage[1].length % 4 === 0;
+    if (!/^[a-z][a-z0-9+.\-]*:/i.test(normalized)) return true;
+
+    try {
+        const base = new URL(baseUrl, globalThis.location?.href || 'http://localhost/');
+        const candidate = new URL(normalized, base);
+        return ['http:', 'https:'].includes(candidate.protocol) && candidate.host === base.host;
+    } catch (_) {
+        return false;
+    }
 }
 
 function inferredImageAlignment(image, layer = null) {
@@ -1912,7 +1923,7 @@ function numericImageWidth(image, fallback = 600) {
     const candidate = String(attributes.width || style['max-width'] || '').match(/\d{1,4}/)?.[0];
     const width = Number.parseInt(candidate || String(fallback), 10);
 
-    return Math.min(2400, Math.max(16, Number.isFinite(width) ? width : fallback));
+    return Math.min(1200, Math.max(40, Number.isFinite(width) ? width : fallback));
 }
 
 let imagePropertiesPanelSequence = 0;
@@ -1964,7 +1975,7 @@ function createImagePropertiesPanel({ root, editor, capabilities, media = {}, on
             </label>
             <label class="rt-lmz-image-properties__field" data-rt-lmz-image-width-pixels>
                 <span>Breite (px)</span>
-                <input type="number" name="width" min="16" max="2400" step="1" inputmode="numeric">
+                <input type="number" name="width" min="40" max="1200" step="1" inputmode="numeric">
             </label>
             <label class="rt-lmz-image-properties__field" data-rt-lmz-image-width-preset hidden>
                 <span>Zugbreite</span>
@@ -2060,7 +2071,7 @@ function createImagePropertiesPanel({ root, editor, capabilities, media = {}, on
         if (!target || !editable) return;
 
         const source = String(form.elements.source.value || '').trim();
-        if (!imageSourceIsSafe(source)) {
+        if (!imageSourceIsSafe(source, document_.baseURI)) {
             message.dataset.state = 'error';
             message.textContent = 'Bitte eine sichere HTTPS-, lokale, CID-, Daten- oder Vorlagenquelle verwenden.';
             form.elements.source.focus();
@@ -2089,7 +2100,7 @@ function createImagePropertiesPanel({ root, editor, capabilities, media = {}, on
             editor.trigger?.('component:update', trainLayer);
         } else {
             const requestedWidth = Number.parseInt(String(form.elements.width.value || ''), 10);
-            const width = Math.min(2400, Math.max(16, Number.isFinite(requestedWidth) ? requestedWidth : 600));
+            const width = Math.min(1200, Math.max(40, Number.isFinite(requestedWidth) ? requestedWidth : 600));
             const margin = { left: '0', center: '0 auto', right: '0 0 0 auto' }[alignment];
             target.addAttributes?.({ width: String(width), 'data-rt-image-align': alignment });
             target.removeAttributes?.('height');
