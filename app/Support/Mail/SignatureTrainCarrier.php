@@ -70,12 +70,14 @@ final class SignatureTrainCarrier
                 try {
                     self::assertCanonicalImage(
                         $html,
+                        allowLegacyContentFirst: true,
                         allowLegacyExpandedFlowLayer: true,
                     );
                 } catch (RuntimeException) {
                     try {
                         self::assertCanonicalImage(
                             $html,
+                            allowLegacyContentFirst: true,
                             allowLegacyPercentHeight: true,
                             allowLegacyAbsoluteLayer: true,
                         );
@@ -93,6 +95,7 @@ final class SignatureTrainCarrier
 
             $html = self::normalizeLegacyAbsoluteImageToFlow($html);
             $html = self::withCanonicalContentOverlap($html);
+            $html = self::withCanonicalTrainFirstStage($html);
             self::assertCanonicalImage($html);
 
             return $html;
@@ -238,7 +241,6 @@ final class SignatureTrainCarrier
                 $contentOffset,
                 $carrierCloseOffset - $contentOffset,
             );
-            $html = self::withCanonicalContentOverlap($html);
         }
 
         self::assertCanonicalImage($html);
@@ -459,6 +461,7 @@ final class SignatureTrainCarrier
     public static function assertCanonicalImage(
         string $html,
         bool $allowLegacyDirectLayer = false,
+        bool $allowLegacyContentFirst = false,
         bool $allowLegacyPercentHeight = false,
         bool $allowLegacyAbsoluteLayer = false,
         bool $allowLegacyExpandedFlowLayer = false,
@@ -532,16 +535,27 @@ final class SignatureTrainCarrier
             throw new RuntimeException('Das Zugmotiv muss genau einmal im kanonischen Bild-Layer vorliegen.');
         }
 
+        $legacyCarrierElements = [];
+        if ($legacyDirectLayer) {
+            foreach ($carrier->childNodes as $child) {
+                if ($child instanceof DOMElement) {
+                    $legacyCarrierElements[] = $child;
+                }
+            }
+        }
+        $validLegacyDirectOrder = count($legacyCarrierElements) === 2
+            && (($legacyCarrierElements[0]->isSameNode($layer)
+                    && strtolower($legacyCarrierElements[1]->tagName) === 'table')
+                || (strtolower($legacyCarrierElements[0]->tagName) === 'table'
+                    && $legacyCarrierElements[1]->isSameNode($layer)));
         $validStructure = $legacyDirectLayer
-            ? $layer->parentNode?->isSameNode($carrier)
-                && self::lastElementChild($carrier)?->isSameNode($layer)
+            ? $layer->parentNode?->isSameNode($carrier) && $validLegacyDirectOrder
             : $stage instanceof DOMElement
                 && $layer->parentNode?->isSameNode($stage)
                 && $stage->parentNode?->isSameNode($carrier)
-                && self::lastElementChild($stage)?->isSameNode($layer)
                 && self::lastElementChild($carrier)?->isSameNode($stage);
         if (! $image->parentNode?->isSameNode($layer) || ! $validStructure) {
-            throw new RuntimeException('Der Zug-Layer muss in der letzten sicheren Buehne des Signatur-Carriers liegen.');
+            throw new RuntimeException('Der Zug-Layer muss in der sicheren Buehne des Signatur-Carriers liegen.');
         }
 
         self::assertExactElementAttributeNames($layer, [
@@ -612,13 +626,17 @@ final class SignatureTrainCarrier
                     $stageElements[] = $child;
                 }
             }
-            $contentTable = $stageElements[0] ?? null;
-            if (count($stageElements) !== 2
-                || ! $contentTable instanceof DOMElement
-                || strtolower($contentTable->tagName) !== 'table'
-                || ! $stageElements[1]->isSameNode($layer)) {
-                throw new RuntimeException('Die Signatur-Buehne muss genau Inhaltstabelle und Zug-Layer enthalten.');
+            $usesCurrentOrder = count($stageElements) === 2
+                && $stageElements[0]->isSameNode($layer)
+                && strtolower($stageElements[1]->tagName) === 'table';
+            $usesLegacyContentFirst = $allowLegacyContentFirst
+                && count($stageElements) === 2
+                && strtolower($stageElements[0]->tagName) === 'table'
+                && $stageElements[1]->isSameNode($layer);
+            if (! $usesCurrentOrder && ! $usesLegacyContentFirst) {
+                throw new RuntimeException('Die Signatur-Buehne muss Zug-Layer und Inhaltstabelle in eindeutiger Reihenfolge enthalten.');
             }
+            $contentTable = $usesCurrentOrder ? $stageElements[1] : $stageElements[0];
             $requiredContentStyle = [
                 'position' => 'relative',
                 'z-index' => '1',
@@ -685,7 +703,12 @@ final class SignatureTrainCarrier
             'mso-hide' => 'all',
         ];
         try {
-            self::assertExactSimpleStyle($layer, $layerStyle, 'Zug-Layer');
+            self::assertExactStyleWithOptionalProperties(
+                $layer->getAttribute('style'),
+                $layerStyle,
+                ['margin-bottom'],
+                'Zug-Layer',
+            );
             self::assertExactSimpleStyle($image, $imageStyle, 'Zugbild');
         } catch (RuntimeException $exception) {
             $expandedFlowAccepted = false;
@@ -1155,27 +1178,19 @@ final class SignatureTrainCarrier
         }
 
         self::assertOptionalCanonicalBaseBackground($html);
-        $html = self::withCanonicalContentOverlap($html);
-
-        $marker = '<!-- RT_SIGNATURE_MAIN_END -->';
-        if (substr_count($html, $marker) !== 1) {
-            throw new RuntimeException('Der CSS-Zughintergrund besitzt keinen eindeutigen Hauptanker.');
+        $html = self::withoutCanonicalContentOverlap($html);
+        $stages = array_values(array_filter(
+            self::scanStartTags($html),
+            static fn (array $tag): bool => $tag['name'] === 'div'
+                && self::sourceTagHasClass($tag, 'rt-sign-stage'),
+        ));
+        if (count($stages) !== 1) {
+            throw new RuntimeException('Der CSS-Zughintergrund besitzt keine eindeutige Signatur-Buehne.');
         }
-        $markerOffset = strpos($html, $marker);
-        $beforeMarker = substr($html, 0, $markerOffset);
-        if (preg_match(
-            '/<\/div>[ \t\r\n\f]*<\/td>[ \t\r\n\f]*<\/tr>[ \t\r\n\f]*$/i',
-            $beforeMarker,
-            $match,
-            PREG_OFFSET_CAPTURE,
-        ) !== 1) {
-            throw new RuntimeException('Der CSS-Zughintergrund besitzt keine eindeutig schliessende Signatur-Buehne.');
-        }
-        $stageCloseOffset = $match[0][1];
         $html = substr_replace(
             $html,
             self::canonicalLayerMarkup('{{TRAIN_SRC}}'),
-            $stageCloseOffset,
+            $stages[0]['endOffset'] + 1,
             0,
         );
 
@@ -1244,10 +1259,196 @@ final class SignatureTrainCarrier
         );
     }
 
+    /**
+     * Ueberfuehrt den bis Schema 21 verwendeten Inhalt-vor-Zug-Aufbau in die
+     * echte Hintergrundreihenfolge von Schema 22. Der individuelle Abstand
+     * wandert dabei von der Inhaltstabelle auf den davorstehenden Zug-Layer.
+     */
+    private static function withCanonicalTrainFirstStage(string $html): string
+    {
+        $stage = null;
+        $layer = null;
+        $contentTable = null;
+        foreach (self::scanStartTags($html) as $tag) {
+            if ($tag['name'] === 'div' && self::sourceTagHasClass($tag, 'rt-sign-stage')) {
+                if ($stage !== null) {
+                    throw new RuntimeException('Die Signatur besitzt mehrere Zug-Buehnen.');
+                }
+                $stage = $tag;
+
+                continue;
+            }
+            if ($stage === null || $tag['startOffset'] <= $stage['endOffset']) {
+                continue;
+            }
+            if ($layer === null
+                && $tag['name'] === 'div'
+                && self::sourceTagHasClass($tag, 'rt-sign-train-layer')) {
+                $layer = $tag;
+            }
+            if ($contentTable === null && $tag['name'] === 'table') {
+                $contentTable = $tag;
+            }
+        }
+        if ($stage === null || $layer === null || $contentTable === null) {
+            throw new RuntimeException('Die Signatur-Buehne besitzt keine eindeutigen Zug- und Inhaltsbereiche.');
+        }
+
+        $contentStyles = $contentTable['attributes']['style'] ?? [];
+        $layerStyles = $layer['attributes']['style'] ?? [];
+        if (count($contentStyles) !== 1 || $contentStyles[0]['valueOffset'] === null
+            || count($layerStyles) !== 1 || $layerStyles[0]['valueOffset'] === null) {
+            throw new RuntimeException('Zug und Signatur-Inhalt besitzen keine eindeutigen style-Attribute.');
+        }
+
+        $contentStyle = CssSemantic::decodeHtmlEntitiesOnce((string) $contentStyles[0]['raw']);
+        $layerStyle = CssSemantic::decodeHtmlEntitiesOnce((string) $layerStyles[0]['raw']);
+        $contentOverlap = null;
+        $contentStyle = preg_replace_callback(
+            '/(?:^|;)\s*margin-bottom\s*:\s*([^;]*)/i',
+            static function (array $match) use (&$contentOverlap): string {
+                if ($contentOverlap !== null) {
+                    throw new RuntimeException('Der Signatur-Inhalt besitzt mehrere Ueberlappungswerte.');
+                }
+                $contentOverlap = trim((string) $match[1]);
+
+                return '';
+            },
+            $contentStyle,
+        );
+        $layerOverlap = null;
+        $layerStyle = preg_replace_callback(
+            '/(?:^|;)\s*margin-bottom\s*:\s*([^;]*)/i',
+            static function (array $match) use (&$layerOverlap): string {
+                if ($layerOverlap !== null) {
+                    throw new RuntimeException('Der Zug-Layer besitzt mehrere Ueberlappungswerte.');
+                }
+                $layerOverlap = trim((string) $match[1]);
+
+                return '';
+            },
+            $layerStyle,
+        );
+        if (! is_string($contentStyle) || ! is_string($layerStyle)) {
+            throw new RuntimeException('Die Zug-Ueberlappung konnte nicht eindeutig gelesen werden.');
+        }
+        $overlap = $layerOverlap ?? $contentOverlap ?? '-150px';
+        if ($overlap === '') {
+            throw new RuntimeException('Die Zug-Ueberlappung darf nicht leer sein.');
+        }
+        $layerStyle = preg_replace(
+            '/((?:^|;)\s*margin\s*:[^;]*)(;|$)/i',
+            '$1;margin-bottom:'.$overlap.'$2',
+            $layerStyle,
+            1,
+            $marginCount,
+        );
+        if (! is_string($layerStyle) || $marginCount !== 1) {
+            throw new RuntimeException('Der Zug-Layer besitzt keine eindeutige Margin-Geometrie.');
+        }
+
+        $replacements = [
+            [
+                $contentStyles[0]['valueOffset'],
+                $contentStyles[0]['valueLength'],
+                htmlspecialchars(trim($contentStyle, "; \t\r\n\f").';', ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8'),
+            ],
+            [
+                $layerStyles[0]['valueOffset'],
+                $layerStyles[0]['valueLength'],
+                htmlspecialchars(trim($layerStyle, "; \t\r\n\f").';', ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8'),
+            ],
+        ];
+        usort($replacements, static fn (array $left, array $right): int => $right[0] <=> $left[0]);
+        foreach ($replacements as [$offset, $length, $replacement]) {
+            $html = substr_replace($html, $replacement, $offset, $length);
+        }
+
+        $stage = null;
+        $layer = null;
+        $contentTable = null;
+        foreach (self::scanStartTags($html) as $tag) {
+            if ($tag['name'] === 'div' && self::sourceTagHasClass($tag, 'rt-sign-stage')) {
+                $stage = $tag;
+            } elseif ($tag['name'] === 'div' && self::sourceTagHasClass($tag, 'rt-sign-train-layer')) {
+                $layer = $tag;
+            } elseif ($stage !== null
+                && $contentTable === null
+                && $tag['startOffset'] > $stage['endOffset']
+                && $tag['name'] === 'table') {
+                $contentTable = $tag;
+            }
+        }
+        if ($stage === null || $layer === null || $contentTable === null) {
+            throw new RuntimeException('Die umgestellte Signatur-Buehne ist nicht eindeutig lesbar.');
+        }
+        if ($layer['startOffset'] < $contentTable['startOffset']) {
+            return $html;
+        }
+        if (preg_match('/<\/div\s*>/i', $html, $layerClose, PREG_OFFSET_CAPTURE, $layer['endOffset'] + 1) !== 1) {
+            throw new RuntimeException('Der Zug-Layer besitzt keinen eindeutigen Abschluss.');
+        }
+        $layerEnd = $layerClose[0][1] + strlen($layerClose[0][0]);
+        $layerMarkup = substr($html, $layer['startOffset'], $layerEnd - $layer['startOffset']);
+        $html = substr_replace($html, '', $layer['startOffset'], $layerEnd - $layer['startOffset']);
+
+        return substr_replace($html, $layerMarkup, $stage['endOffset'] + 1, 0);
+    }
+
+    /** Entfernt den alten Inhaltstabellen-Overlap bei der Schema-20-Projektion. */
+    private static function withoutCanonicalContentOverlap(string $html): string
+    {
+        $stage = null;
+        $contentTable = null;
+        foreach (self::scanStartTags($html) as $tag) {
+            if ($tag['name'] === 'div' && self::sourceTagHasClass($tag, 'rt-sign-stage')) {
+                if ($stage !== null) {
+                    throw new RuntimeException('Die Signatur besitzt mehrere Zug-Buehnen.');
+                }
+                $stage = $tag;
+
+                continue;
+            }
+            if ($stage !== null
+                && $contentTable === null
+                && $tag['startOffset'] > $stage['endOffset']
+                && $tag['name'] === 'table') {
+                $contentTable = $tag;
+            }
+        }
+        if ($stage === null || $contentTable === null) {
+            throw new RuntimeException('Die Signatur-Buehne besitzt keinen eindeutigen Inhaltswrapper.');
+        }
+
+        $styles = $contentTable['attributes']['style'] ?? [];
+        if (count($styles) !== 1 || $styles[0]['valueOffset'] === null) {
+            throw new RuntimeException('Der Signatur-Inhalt besitzt kein eindeutiges style-Attribut.');
+        }
+        $style = CssSemantic::decodeHtmlEntitiesOnce((string) $styles[0]['raw']);
+        $style = preg_replace(
+            '/(?:^|;)\s*margin-bottom\s*:[^;]*/i',
+            '',
+            $style,
+            -1,
+            $overlapCount,
+        );
+        if (! is_string($style) || $overlapCount > 1) {
+            throw new RuntimeException('Der Signatur-Inhalt besitzt keinen eindeutigen Ueberlappungswert.');
+        }
+        self::simpleStyleValues($style, 'Signatur-Inhalt');
+
+        return substr_replace(
+            $html,
+            htmlspecialchars(trim($style, "; \t\r\n\f").';', ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8'),
+            $styles[0]['valueOffset'],
+            $styles[0]['valueLength'],
+        );
+    }
+
     private static function canonicalLayerMarkup(string $source): string
     {
         return '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" '
-            .'style="position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;">'
+            .'style="position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-150px;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;">'
             .'<img class="rt-sign-train" data-rt-train src="'.$source.'" width="720" alt="" '
             .'style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all;">'
             .'</div>';
@@ -1279,7 +1480,7 @@ final class SignatureTrainCarrier
     private static function canonicalStageMarkup(string $content, string $layer): string
     {
         return '<div class="rt-sign-stage" style="position:relative;overflow:hidden;">'
-            .$content.$layer
+            .$layer.$content
             .'</div>';
     }
 
@@ -1347,6 +1548,32 @@ final class SignatureTrainCarrier
                 throw new RuntimeException("Der {$label} muss seine mail-sichere Geometrie behalten.");
             }
         }
+    }
+
+    /**
+     * @param  array<string, string>  $expected
+     * @param  list<string>  $optional
+     */
+    private static function assertExactStyleWithOptionalProperties(
+        string $style,
+        array $expected,
+        array $optional,
+        string $label,
+    ): void {
+        foreach ($optional as $property) {
+            $style = preg_replace(
+                '/(?:^|;)\s*'.preg_quote($property, '/').'\s*:[^;]*/i',
+                '',
+                $style,
+                -1,
+                $count,
+            );
+            if (! is_string($style) || $count > 1) {
+                throw new RuntimeException("Der {$label}-Stil ist nicht eindeutig.");
+            }
+        }
+
+        self::assertExactStyleValue(trim($style, "; \t\r\n\f"), $expected, $label);
     }
 
     /** @param array<string, string> $required */

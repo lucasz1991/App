@@ -13,8 +13,8 @@ use RuntimeException;
 /** Gemeinsamer Save-/Publish-/Web-/Outlook-Vertrag der Signaturquelle. */
 final class SignatureDocumentContract
 {
-    /** Aktueller Vertrag: Zug als regulaeres IMG hinter dem Inhaltswrapper. */
-    public const SCHEMA = 21;
+    /** Aktueller Vertrag: Zug-Layer zuerst, Inhaltswrapper danach darueber. */
+    public const SCHEMA = 22;
 
     /** @var list<string> */
     private const REQUIRED_TOKENS = [
@@ -91,7 +91,7 @@ final class SignatureDocumentContract
     /**
      * Laufzeitvertrag fuer bereits veroeffentlichte Signaturen.
      *
-     * Neue Editor-/Publish-Staende muessen immer den Schema-21-IMG-Vertrag
+     * Neue Editor-/Publish-Staende muessen immer den Schema-22-IMG-Vertrag
      * besitzen. Der Versand darf daneben nur die einzeln beschriebenen
      * Altformen lesen: Schema 6 (Padding), Schema 9/20 (Background), Schema
      * 12-19 (Bild-Layer) und bekannte Flow-Zwischenstaende.
@@ -143,7 +143,7 @@ final class SignatureDocumentContract
             if ($allowLegacyDirectImage || $allowLegacyPercentHeight || $allowLegacyAbsoluteImage) {
                 // Der Runtime-Einstieg akzeptiert nur die im Carrier selbst
                 // exakt beschriebenen Altvertraege und normalisiert sie ohne
-                // Persistenz in Schema 21. Neue Saves bleiben strikt.
+                // Persistenz in Schema 22. Neue Saves bleiben strikt.
                 SignatureTrainCarrier::normalize($html);
             } else {
                 SignatureTrainCarrier::assertCanonicalImage($html);
@@ -163,7 +163,7 @@ final class SignatureDocumentContract
             }
         } elseif ($allowLegacyTrainCarrier && SignatureTrainCarrier::hasCanonicalBackground($html)) {
             // Schema 20 bleibt ausschliesslich als veroeffentlichter Altstand
-            // lesbar. Die Ausgabe projiziert ihn ohne DB-Mutation zu Schema 21.
+            // lesbar. Die Ausgabe projiziert ihn ohne DB-Mutation zu Schema 22.
             SignatureTrainCarrier::assertCanonicalBackground($html);
         } elseif ($allowLegacyTrainCarrier) {
             // Bereits publizierte Schema-9-Staende bleiben bis zum expliziten
@@ -490,8 +490,7 @@ final class SignatureDocumentContract
             && self::hasExactClasses(self::classes($stage), ['rt-sign-stage'])
             && $stage->parentNode?->isSameNode($carrier)
             && $contentTable?->parentNode?->isSameNode($stage)
-            && self::firstElementChild($carrier)?->isSameNode($stage)
-            && self::firstElementChild($stage)?->isSameNode($contentTable);
+            && self::firstElementChild($carrier)?->isSameNode($stage);
         $hasStageDescendant = false;
         foreach ($carrier->getElementsByTagName('div') as $candidate) {
             if ($candidate instanceof DOMElement
@@ -543,9 +542,22 @@ final class SignatureDocumentContract
             return false;
         }
 
-        $contentTable = self::firstElementChild($carrier);
+        $carrierElements = self::elementChildren($carrier);
+        if (count($carrierElements) !== 2) {
+            return false;
+        }
+        $contentTable = null;
+        $trainLayer = null;
+        foreach ($carrierElements as $element) {
+            if (strtolower($element->tagName) === 'table') {
+                $contentTable = $element;
+            } elseif (strtolower($element->tagName) === 'div'
+                && self::hasExactClasses(self::classes($element), ['rt-sign-train-layer'])) {
+                $trainLayer = $element;
+            }
+        }
         if (! $contentTable instanceof DOMElement
-            || strtolower($contentTable->tagName) !== 'table'
+            || ! $trainLayer instanceof DOMElement
             || ! self::isMailSafeWrapperTable($contentTable)) {
             return false;
         }

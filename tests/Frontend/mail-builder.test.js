@@ -25,11 +25,11 @@ import {
 } from '../../resources/js/mail-builder.js';
 import { createMailBlocks, mailCanvasStyles } from '../../resources/js/mail-builder-blocks.js';
 
-const canonicalTrain = '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all;"></div>';
+const canonicalTrain = '<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-150px;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;"><img class="rt-sign-train" data-rt-train src="{{TRAIN_SRC}}" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all;"></div>';
 const canonicalSignatureStage = (content = '') => '<div class="rt-sign-stage" style="position:relative;overflow:hidden;">'
-    + '<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;position:relative;z-index:1;margin-bottom:-150px;">'
-    + `<tbody><tr><td>${content}</td></tr></tbody></table>`
     + canonicalTrain
+    + '<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;position:relative;z-index:1;">'
+    + `<tbody><tr><td>${content}</td></tr></tbody></table>`
     + '</div>';
 
 test('LMZ traits and mail protection do not recurse through component updates', () => {
@@ -217,7 +217,7 @@ test('signature train overlap is optional and custom values roundtrip unchanged'
             builderData: {
                 pages: [{ component: original }],
                 styles: [],
-                railtime: { document: 'signature', schema: 21 },
+                railtime: { document: 'signature', schema: 22 },
             },
             css: '',
         }, () => [], { kind: 'signature', environment: { DOMParser } });
@@ -231,10 +231,10 @@ test('signature train overlap is optional and custom values roundtrip unchanged'
             `<table><tbody>${outgoing.html}</tbody></table>`,
             'text/html',
         );
-        const contentTable = document_.querySelector('td.rt-sign-cell > div.rt-sign-stage > table');
+        const trainLayer = document_.querySelector('td.rt-sign-cell > div.rt-sign-stage > div.rt-sign-train-layer');
 
-        assert.ok(contentTable, label);
-        assert.equal(contentTable.style.marginBottom || null, expected, label);
+        assert.ok(trainLayer, label);
+        assert.equal(trainLayer.style.marginBottom || null, expected, label);
     });
 });
 
@@ -274,20 +274,20 @@ test('signature preview hydrates the train image and roundtrips two canonical ro
     const outgoingContent = outgoingStage?.querySelector(':scope > table');
     assert.ok(outgoingStage, 'the signature must retain its canonical relative stage');
     assert.equal(outgoingStage.getAttribute('style'), 'position:relative;overflow:hidden;');
-    assert.equal(outgoingContent.style.marginBottom, '-150px');
-    assert.equal(outgoingStage.firstElementChild, outgoingContent);
+    assert.equal(outgoingContent.style.marginBottom || '', '');
+    assert.equal(outgoingStage.firstElementChild, outgoingLayer);
     assert.equal(
         outgoingLayer.getAttribute('style'),
-        'position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;',
+        'position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-150px;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;',
     );
     assert.equal(outgoingTrain.getAttribute('width'), '720');
     assert.equal(
         outgoingTrain.getAttribute('style'),
         'position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all;',
     );
-    assert.equal(outgoingStage.lastElementChild, outgoingLayer);
+    assert.equal(outgoingStage.lastElementChild, outgoingContent);
     assert.equal(outgoingLayer.lastElementChild, outgoingTrain);
-    assert.match(outgoing.html, /<\/div><\/div><\/td><\/tr>\n<!-- RT_SIGNATURE_MAIN_END -->\n<tr>/);
+    assert.match(outgoing.html, /<\/table><\/div><\/td><\/tr>\n<!-- RT_SIGNATURE_MAIN_END -->\n<tr>/);
     assert.equal(outgoing.project.pages[0].component, outgoing.html);
 
     // GrapesJS-/DOM-Serialisierer duerfen Kommentare verlieren. Genau dieser
@@ -518,9 +518,9 @@ test('signature save fails closed when a preview marker is removed', () => {
 });
 
 test('signature load fails closed for a second or displaced train binding', () => {
-    const duplicateTrain = `<tr><td class="rt-sign-cell"><div class="rt-sign-stage" style="position:relative;overflow:hidden;"><table style="position:relative;z-index:1;margin-bottom:-150px;"><tbody><tr><td>Inhalt</td></tr></tbody></table>${canonicalTrain}${canonicalTrain}</div></td></tr><tr><td>Rechtliches</td></tr>`;
+    const duplicateTrain = `<tr><td class="rt-sign-cell"><div class="rt-sign-stage" style="position:relative;overflow:hidden;">${canonicalTrain}${canonicalTrain}<table style="position:relative;z-index:1;"><tbody><tr><td>Inhalt</td></tr></tbody></table></div></td></tr><tr><td>Rechtliches</td></tr>`;
     const displacedTrain = '<tr><td class="rt-sign-cell"><div class="rt-sign-stage" style="position:relative;overflow:hidden;">'
-        + '<table style="position:relative;z-index:1;margin-bottom:-150px;"><tbody><tr><td>Inhalt</td></tr></tbody></table></div>'
+        + '<table style="position:relative;z-index:1;"><tbody><tr><td>Inhalt</td></tr></tbody></table></div>'
         + `</td><td>${canonicalTrain}</td></tr><tr><td>Rechtliches</td></tr>`;
 
     assert.throws(() => projectForMailDocument({
@@ -530,7 +530,7 @@ test('signature load fails closed for a second or displaced train binding', () =
     assert.throws(() => projectForMailDocument({
         builderData: { pages: [{ component: displacedTrain }], styles: [] },
         css: '',
-    }, () => [], { kind: 'signature', environment: { DOMParser } }), /IMG-Zug/);
+    }, () => [], { kind: 'signature', environment: { DOMParser } }), /IMG-Zug|Inhalt-vor-Zug/);
 });
 
 test('GrapesJS inline import rules are merged in cascade order without touching user CSS', () => {
@@ -541,7 +541,7 @@ test('GrapesJS inline import rules are merged in cascade order without touching 
     );
     const html = '<table data-rt-mail-signature-canvas="true"><tbody>'
         + '<tr><td class="rt-sign-cell"><div class="rt-sign-stage" style="position:relative;overflow:hidden;">'
-        + `<table style="position:relative;z-index:1;margin-bottom:-150px;"><tbody><tr><td class="c777 c101 c102" data-rt-mail-inline-source="s1" style="padding:9px;">Inhalt</td></tr></tbody></table>${editorTrain}</div></td></tr>`
+        + `${editorTrain}<table style="position:relative;z-index:1;"><tbody><tr><td class="c777 c101 c102" data-rt-mail-inline-source="s1" style="padding:9px;">Inhalt</td></tr></tbody></table></div></td></tr>`
         + '<tr><td class="c777">Rechtliches</td></tr>'
         + '</tbody></table>';
     const project = {
@@ -1384,10 +1384,10 @@ test('signature source and delivery keep one mail-safe IMG flow with a Classic O
         readFile(new URL('../../app/Support/MailSignature.php', import.meta.url), 'utf8'),
     ]);
     assert.match(signatureSource, /<div class="rt-sign-stage" style="position:relative;overflow:hidden;">/);
-    assert.match(signatureSource, /<table role="presentation"[^>]*style="[^"]*position:relative;z-index:1;margin-bottom:-150px;">/);
+    assert.match(signatureSource, /<table role="presentation"[^>]*style="[^"]*position:relative;z-index:1;">/);
     assert.doesNotMatch(signatureSource, /<td class="rt-sign-cell"[^>]*position:relative/);
     assert.match(signatureSource, /<img class="rt-sign-train" data-rt-train src="\{\{ \$trainSrc \}\}"/);
-    assert.match(signatureSource, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:relative;[^"\r\n]*top:auto;bottom:auto;[^"\r\n]*overflow:hidden;/);
+    assert.match(signatureSource, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:relative;[^"\r\n]*top:auto;bottom:auto;[^"\r\n]*margin-bottom:-150px;[^"\r\n]*overflow:hidden;/);
     assert.doesNotMatch(signatureSource, /rt-sign-train-layer[^>]*mso-hide:all/);
     assert.match(signatureSource, /<img class="rt-sign-train"[^>]*width="720"[^>]*style="position:static;[^"\r\n]*bottom:auto;display:inline-block;[^"\r\n]*vertical-align:top;[^"\r\n]*mso-hide:all;/);
     assert.doesNotMatch(signatureSource, /url\(\{\$values\['TRAIN_SRC'\]\}\)/);

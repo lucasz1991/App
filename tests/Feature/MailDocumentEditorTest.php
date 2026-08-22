@@ -454,7 +454,7 @@ class MailDocumentEditorTest extends TestCase
         }
 
         $legacyFlow = str_replace(
-            'style="position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;"',
+            'style="position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-150px;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;"',
             'style="position:absolute;left:0;right:auto;top:0;bottom:0;width:100%;max-width:1815px;margin:0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;mso-hide:all;"',
             $canonical,
             $legacyFlowLayerCount,
@@ -476,7 +476,7 @@ class MailDocumentEditorTest extends TestCase
         }
 
         $legacyPercentHeight = str_replace(
-            'style="position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;"',
+            'style="position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-150px;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;"',
             'style="position:absolute;left:0;right:auto;top:0;bottom:0;width:100%;max-width:1815px;height:100%;margin:0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;mso-hide:all;"',
             $canonical,
             $legacyPercentHeightCount,
@@ -723,7 +723,7 @@ class MailDocumentEditorTest extends TestCase
         preg_match('/rt-pad rt-sign-content" style="padding:([^;]+);/', $canonical, $paddingMatch);
         $this->assertArrayHasKey(1, $paddingMatch);
         $legacy = preg_replace(
-            '~</td>\s*</tr>\s*</table>\s*(?=<div\b[^>]*class="rt-sign-train-layer")~i',
+            '~</td>\s*</tr>\s*</table>\s*(?=</div>\s*</td>\s*</tr>\s*<!-- RT_SIGNATURE_MAIN_END -->)~i',
             '',
             $legacy,
             1,

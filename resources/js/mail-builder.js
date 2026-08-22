@@ -50,8 +50,8 @@ const MAIL_TEMPLATE_APPLICATION_START = `<!-- ${MAIL_TEMPLATE_APPLICATION_START_
 const MAIL_TEMPLATE_APPLICATION_END = `<!-- ${MAIL_TEMPLATE_APPLICATION_END_NAME} -->`;
 const MAIL_TEMPLATE_APPLICATION_PLACEHOLDER = '{{APPLICATION_CONTENT}}';
 const MAIL_PREVIEW_TRANSPARENT_PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=';
-export const MAIL_SIGNATURE_SCHEMA = 21;
-const MAIL_SIGNATURE_CONTENT_OVERLAP = '-150px';
+export const MAIL_SIGNATURE_SCHEMA = 22;
+const MAIL_SIGNATURE_TRAIN_OVERLAP = '-150px';
 const MAIL_SIGNATURE_MAIN_MARKER_NAME = 'RT_SIGNATURE_MAIN_END';
 const MAIL_SIGNATURE_MAIN_MARKER = `<!-- ${MAIL_SIGNATURE_MAIN_MARKER_NAME} -->`;
 const MAIL_SIGNATURE_CONTACT_MARKER_ATTRIBUTE = 'data-rt-mail-contact-marker';
@@ -1311,10 +1311,23 @@ function replaceInlineStyleDeclaration(style, property, value) {
     return `${source.replace(/;+$/, '')};${property}:${value};`;
 }
 
+function removeInlineStyleDeclaration(style, property) {
+    const source = String(style || '').trim();
+    const escapedProperty = String(property || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const matcher = new RegExp(`(^|;)\\s*${escapedProperty}\\s*:[^;]*`, 'gi');
+    const matches = Array.from(source.matchAll(matcher));
+    if (matches.length > 1) {
+        throw new Error(`Der alte Zug-Carrier enthaelt ${property} mehrfach.`);
+    }
+
+    return source.replace(matcher, '$1').replace(/;;+/g, ';').replace(/^;+|;+$/g, '');
+}
+
 /**
  * Der Editor verwendet fuer den Zug denselben Tokenpfad wie Logo und Icons.
- * Schema 19 (Flow-IMG ohne Ueberlappung) und Schema 20 (CSS-Background) werden
- * nur bei exakt erkannter Altstruktur in Schema 21 projiziert. Mischformen
+ * Schema 19 (Flow-IMG ohne Ueberlappung), Schema 20 (CSS-Background) und
+ * Schema 21 (Inhalt vor Zug) werden nur bei exakt erkannter Altstruktur in
+ * Schema 22 projiziert. Mischformen
  * oder frei manipulierte Layer bleiben harte Fehler.
  */
 const MAIL_SIGNATURE_BASE_BACKGROUND = Object.freeze({
@@ -1352,7 +1365,7 @@ function assertExactElementAttributes(element, expected, label) {
     }
 }
 
-function assertInlineStyles(element, expected, label, { exact = false } = {}) {
+function assertInlineStyles(element, expected, label, { exact = false, optional = [] } = {}) {
     const style = String(element?.getAttribute?.('style') || '').trim();
     if (!style) throw new Error(`${label} besitzt kein eindeutiges style-Attribut.`);
 
@@ -1368,10 +1381,11 @@ function assertInlineStyles(element, expected, label, { exact = false } = {}) {
         .map((declaration) => declaration.trim())
         .filter(Boolean)
         .map((declaration) => declaration.split(':', 1)[0].trim().toLowerCase());
-    const expectedProperties = Object.keys(expected).sort();
+    const expectedProperties = [...Object.keys(expected), ...optional]
+        .filter((property, index, all) => all.indexOf(property) === index)
+        .sort();
     if (new Set(properties).size !== properties.length
-        || properties.length !== expectedProperties.length
-        || properties.sort().some((property, index) => property !== expectedProperties[index])) {
+        || properties.some((property) => !expectedProperties.includes(property))) {
         throw new Error(`${label} besitzt fremde oder doppelte Style-Angaben.`);
     }
 }
@@ -1382,7 +1396,8 @@ function assertSignatureBaseStructure(wrapper, rows) {
     const carrier = carriers[0];
     const stage = stages[0];
     const stageElements = Array.from(stage?.children || []);
-    const contentTable = stageElements[0];
+    const contentTables = stageElements.filter((element) => element.tagName === 'TABLE');
+    const contentTable = contentTables[0];
 
     if (!wrapper || rows.length !== 2 || rows.some((row) => row.tagName !== 'TR')
         || carriers.length !== 1 || stages.length !== 1
@@ -1390,7 +1405,7 @@ function assertSignatureBaseStructure(wrapper, rows) {
         || carrier?.parentElement !== rows[0]
         || stage?.parentElement !== carrier
         || carrier?.lastElementChild !== stage
-        || contentTable?.tagName !== 'TABLE') {
+        || contentTables.length !== 1) {
         throw new Error('Die Signatur besitzt keine eindeutige IMG-Buehne in ihrer ersten Tabellenzeile.');
     }
     assertExactElementAttributes(stage, ['class', 'style'], 'Die Signatur-Buehne');
@@ -1506,7 +1521,7 @@ function assertCanonicalSignatureTrainLayer(layer, image) {
         'font-size': '0',
         'line-height': '0',
         'text-align': 'left',
-    }, 'Der Zug-Layer', { exact: true });
+    }, 'Der Zug-Layer', { exact: true, optional: ['margin-bottom'] });
     assertInlineStyles(image, {
         position: 'static',
         left: 'auto',
@@ -1536,18 +1551,19 @@ function assertCanonicalSignatureTrainImage(wrapper, rows) {
     const layer = layers[0];
     const image = images[0];
     const overlap = inlineStyleDeclaration(
-        String(structure.contentTable.getAttribute('style') || ''),
+        String(layer?.getAttribute('style') || ''),
         'margin-bottom',
     );
 
     if (structure.stageElements.length !== 2
         || layers.length !== 1 || images.length !== 1
         || layer?.parentElement !== structure.stage
-        || structure.stageElements[1] !== layer
-        || structure.stage.lastElementChild !== layer
+        || structure.stageElements[0] !== layer
+        || structure.stage.firstElementChild !== layer
+        || structure.stageElements[1] !== structure.contentTable
         || wrapper.querySelectorAll('[data-rt-train-background]').length !== 0
         || (wrapper.outerHTML.split('{{TRAIN_SRC}}').length - 1) !== 1) {
-        throw new Error('Die Signatur benoetigt genau einen IMG-Zug direkt nach ihrem Inhaltsblock.');
+        throw new Error('Die Signatur benoetigt genau einen IMG-Zug direkt vor ihrem Inhaltsblock.');
     }
     assertOptionalSignatureBackground(structure.carrier);
     assertCanonicalSignatureTrainLayer(layer, image);
@@ -1562,7 +1578,7 @@ function createCanonicalSignatureTrainLayer(document_) {
     layer.setAttribute('data-rt-layer-align', 'left');
     layer.setAttribute('data-rt-layer-size', '100');
     layer.setAttribute('data-rt-layer-mobile', 'train');
-    layer.setAttribute('style', 'position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;');
+    layer.setAttribute('style', 'position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-150px;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;');
 
     const image = document_.createElement('img');
     image.setAttribute('class', 'rt-sign-train');
@@ -1576,17 +1592,49 @@ function createCanonicalSignatureTrainLayer(document_) {
     return layer;
 }
 
-function applySignatureContentOverlap(contentTable) {
-    contentTable.setAttribute('style', replaceInlineStyleDeclaration(
-        String(contentTable.getAttribute('style') || ''),
+function applySignatureTrainOverlap(layer, overlap = MAIL_SIGNATURE_TRAIN_OVERLAP) {
+    layer.setAttribute('style', replaceInlineStyleDeclaration(
+        String(layer.getAttribute('style') || ''),
         'margin-bottom',
-        MAIL_SIGNATURE_CONTENT_OVERLAP,
+        overlap,
     ));
+}
+
+function projectLegacySignatureTrainOrder(wrapper, rows) {
+    const structure = assertSignatureBaseStructure(wrapper, rows);
+    const layers = Array.from(wrapper.querySelectorAll(
+        'div[data-rt-layer-train], div.rt-sign-train-layer',
+    ));
+    const images = Array.from(wrapper.querySelectorAll(
+        'img[data-rt-train], img.rt-sign-train',
+    ));
+    const layer = layers[0];
+    const image = images[0];
+    if (structure.stageElements.length !== 2
+        || layers.length !== 1 || images.length !== 1
+        || structure.stageElements[0] !== structure.contentTable
+        || structure.stageElements[1] !== layer
+        || structure.stage.lastElementChild !== layer) {
+        throw new Error('Die alte Signatur besitzt keine eindeutige Inhalt-vor-Zug-Reihenfolge.');
+    }
+    assertOptionalSignatureBackground(structure.carrier);
+    assertCanonicalSignatureTrainLayer(layer, image);
+
+    const contentStyle = String(structure.contentTable.getAttribute('style') || '');
+    const overlap = inlineStyleDeclaration(contentStyle, 'margin-bottom') || MAIL_SIGNATURE_TRAIN_OVERLAP;
+    structure.contentTable.setAttribute(
+        'style',
+        removeInlineStyleDeclaration(contentStyle, 'margin-bottom'),
+    );
+    applySignatureTrainOverlap(layer, overlap);
+    structure.stage.insertBefore(layer, structure.contentTable);
+
+    return assertCanonicalSignatureTrainImage(wrapper, rows);
 }
 
 function projectSignatureTrainImage(wrapper, rows, project) {
     const declaredSchema = project?.railtime?.schema;
-    if (Number.isInteger(declaredSchema) && ![19, 20, MAIL_SIGNATURE_SCHEMA].includes(declaredSchema)) {
+    if (Number.isInteger(declaredSchema) && ![19, 20, 21, MAIL_SIGNATURE_SCHEMA].includes(declaredSchema)) {
         throw new Error('Die Signatur besitzt einen nicht unterstuetzten Zugvertrag.');
     }
 
@@ -1594,7 +1642,7 @@ function projectSignatureTrainImage(wrapper, rows, project) {
         wrapper?.querySelectorAll?.('td.rt-sign-cell[data-rt-train-background]') || [],
     );
     if (backgroundCarriers.length > 0) {
-        if (declaredSchema === 19 || declaredSchema === MAIL_SIGNATURE_SCHEMA
+        if (declaredSchema === 19 || declaredSchema === 21 || declaredSchema === MAIL_SIGNATURE_SCHEMA
             || backgroundCarriers.length !== 1
             || backgroundCarriers[0].getAttribute('data-rt-train-background') !== '1') {
             throw new Error('Die Signatur besitzt keinen eindeutigen Schema-20-Zughintergrund.');
@@ -1614,15 +1662,22 @@ function projectSignatureTrainImage(wrapper, rows, project) {
         });
         structure.carrier.setAttribute('style', projectedStyle);
         structure.carrier.removeAttribute('data-rt-train-background');
-        applySignatureContentOverlap(structure.contentTable);
-        structure.stage.append(createCanonicalSignatureTrainLayer(wrapper.ownerDocument));
+        structure.stage.insertBefore(
+            createCanonicalSignatureTrainLayer(wrapper.ownerDocument),
+            structure.contentTable,
+        );
     } else {
         if (declaredSchema === 20) {
             throw new Error('Der deklarierte Schema-20-Zughintergrund fehlt.');
         }
-        const current = assertCanonicalSignatureTrainImage(wrapper, rows);
-        if (current.overlap === null && declaredSchema !== MAIL_SIGNATURE_SCHEMA) {
-            applySignatureContentOverlap(current.contentTable);
+        if (declaredSchema === 19 || declaredSchema === 21 || declaredSchema === undefined) {
+            try {
+                assertCanonicalSignatureTrainImage(wrapper, rows);
+            } catch {
+                projectLegacySignatureTrainOrder(wrapper, rows);
+            }
+        } else {
+            assertCanonicalSignatureTrainImage(wrapper, rows);
         }
     }
 
