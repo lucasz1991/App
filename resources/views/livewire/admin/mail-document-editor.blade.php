@@ -623,7 +623,7 @@
                         }
 
                         // anchor-dropdown teleportiert seinen Inhalt nach body.
-                        // Livewire @script kann einen Frame vor Alpine laufen;
+                        // Das Livewire-Skript kann einen Frame vor Alpine laufen;
                         // deshalb wird nur die Bindung kurz nachgeholt, niemals
                         // eine zweite Editorinstanz erzeugt.
                         if (!destroyed && attempt < 60) {
