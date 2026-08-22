@@ -409,7 +409,7 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertStringNotContainsString('rt-sign-train-background', $html);
             $this->assertStringNotContainsString('class="rt-pad rt-sign-cell"', $html);
             $this->assertStringContainsString('style="padding:0;overflow:hidden;background-color:', $html);
-            $this->assertStringContainsString('<div class="rt-sign-stage" style="position:relative;overflow:hidden;">', $html);
+            $this->assertStringContainsString('<div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;">', $html);
             $this->assertStringContainsString('<td class="rt-pad rt-sign-content" style="padding:16px 28px 0;position:relative;z-index:1;">', $html);
             $this->assertStringContainsString('height:auto;margin:0;border:0;outline:none;text-decoration:none;', $html);
             $this->assertStringNotContainsString('data:image/gif;base64,', $html);
@@ -903,7 +903,7 @@ class EmailTemplatesPageTest extends TestCase
             '<td class="rt-sign-cell" bgcolor="#ffffff" style="padding:0;overflow:hidden;background-color:#ffffff;',
             $light
         );
-        $this->assertStringContainsString('<div class="rt-sign-stage" style="position:relative;overflow:hidden;">', $light);
+        $this->assertStringContainsString('<div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;">', $light);
         $this->assertStringContainsString(
             '<td class="rt-pad rt-sign-content" style="padding:18px 36px 0;position:relative;z-index:1;">',
             $light
@@ -920,7 +920,7 @@ class EmailTemplatesPageTest extends TestCase
             '<td class="rt-sign-cell" bgcolor="#0c1017" style="padding:0;overflow:hidden;background-color:#0c1017;',
             $dark
         );
-        $this->assertStringContainsString('<div class="rt-sign-stage" style="position:relative;overflow:hidden;">', $dark);
+        $this->assertStringContainsString('<div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;">', $dark);
         $this->assertStringContainsString(
             '<td class="rt-pad rt-sign-content" style="padding:18px 36px 0;position:relative;z-index:1;">',
             $dark
@@ -1067,7 +1067,7 @@ class EmailTemplatesPageTest extends TestCase
             '<td class="rt-sign-cell" bgcolor="#ffffff" style="padding:0;overflow:hidden;',
             $html,
         );
-        $this->assertStringContainsString('<div class="rt-sign-stage" style="position:relative;overflow:hidden;">', $html);
+        $this->assertStringContainsString('<div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;">', $html);
         $this->assertStringContainsString(
             '<td class="rt-pad rt-sign-content" style="padding:16px 28px 0;position:relative;z-index:1;">',
             $html,
@@ -1439,8 +1439,11 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertSame(1, substr_count($html, 'data-rt-train-mso="1"'), $message);
         $this->assertMatchesRegularExpression('/<img\b[^>]*class="rt-sign-train"[^>]*\bdata-rt-train(?:\s|=|>)[^>]*>/i', $html, $message);
         $this->assertMatchesRegularExpression('/<img\b[^>]*class="rt-sign-train-mso"[^>]*\bdata-rt-train-mso="1"[^>]*>/i', $html, $message);
-        $this->assertMatchesRegularExpression('/<div\b[^>]*class="[^"]*\brt-sign-train-layer\b[^"]*"[^>]*style="display:block;[^">]*margin-bottom:-[0-9.]+(?:px|%);[^">]*overflow:hidden;/s', $html, $message);
-        $this->assertMatchesRegularExpression('/<img\b[^>]*class="rt-sign-train"[^>]*style="position:static;[^">]*bottom:auto;[^">]*display:inline-block;[^">]*vertical-align:top;/s', $html, $message);
+        $this->assertMatchesRegularExpression('/<div\b[^>]*class="[^"]*\brt-sign-train-layer\b[^"]*"[^>]*style="display:block;[^">]*height:200px;[^">]*max-height:200px;[^">]*margin-bottom:-200px;[^">]*overflow:hidden;/s', $html, $message);
+        $this->assertMatchesRegularExpression('/<table\b[^>]*class="rt-sign-train-frame"[^>]*height="200"[^>]*>/i', $html, $message);
+        $this->assertMatchesRegularExpression('/<td\b[^>]*class="rt-sign-train-slot"[^>]*height="200"[^>]*valign="bottom"[^>]*>/i', $html, $message);
+        $this->assertMatchesRegularExpression('/<table\b[^>]*class="rt-sign-content-frame"[^>]*height="200"[^>]*>/i', $html, $message);
+        $this->assertMatchesRegularExpression('/<img\b[^>]*class="rt-sign-train"[^>]*style="position:static;[^">]*bottom:auto;[^">]*display:inline-block;[^">]*vertical-align:bottom;/s', $html, $message);
         $this->assertDoesNotMatchRegularExpression('/<v:(?:rect|fill)\b/i', $html, $message);
         $this->assertStringNotContainsString('<!--[if mso]><tr><td class="rt-sign-train-mso"', $html, $message);
 

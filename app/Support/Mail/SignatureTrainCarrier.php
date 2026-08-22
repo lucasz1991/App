@@ -845,212 +845,212 @@ final class SignatureTrainCarrier
             $fixedImageStyle['vertical-align'] = 'bottom';
             self::assertExactSimpleStyle($image, $fixedImageStyle, 'Zugbild');
         } else {
-        try {
-            self::assertExactStyleWithOptionalProperties(
-                $layer->getAttribute('style'),
-                $layerStyle,
-                ['margin-bottom'],
-                'Zug-Layer',
-            );
-            self::assertTrainOverlap($layer->getAttribute('style'));
-            self::assertExactSimpleStyle($image, $imageStyle, 'Zugbild');
-        } catch (RuntimeException $exception) {
-            $expandedFlowAccepted = false;
-            if ($allowLegacyExpandedFlowLayer) {
-                try {
-                    // Exakt der zuletzt publizierte Schema-16-Vertrag. Die
-                    // Kombination aus Viewport-Margins und IMG-Margins wird
-                    // bewusst vollstaendig verglichen; aehnliche freie
-                    // Relative-Layer duerfen nicht als Legacy durchrutschen.
-                    self::assertExactStyleWithOptionalProperties($layer->getAttribute('style'), [
-                        'position' => 'relative',
-                        'left' => '0',
-                        'right' => 'auto',
-                        'top' => 'auto',
-                        'bottom' => 'auto',
-                        'width' => '100%',
-                        'max-width' => '1815px',
-                        'margin' => $layerMargin,
-                        'overflow' => 'hidden',
-                        'z-index' => '0',
-                        'font-size' => '0',
-                        'line-height' => '0',
-                        'text-align' => 'left',
-                    ], ['margin-bottom'], 'Zug-Layer');
-                    self::assertExactSimpleStyle($image, [
-                        'position' => 'static',
-                        'left' => 'auto',
-                        'right' => 'auto',
-                        'bottom' => 'auto',
-                        'display' => 'inline-block',
-                        'width' => $size['width'],
-                        'max-width' => 'none',
-                        'height' => 'auto',
-                        'margin' => $imageMargin,
-                        'border' => '0',
-                        'outline' => 'none',
-                        'text-decoration' => 'none',
-                        'vertical-align' => 'top',
-                        'mso-hide' => 'all',
-                    ], 'Zugbild');
-                    $expandedFlowAccepted = true;
-                } catch (RuntimeException) {
-                    $expandedFlowAccepted = false;
-                }
-            }
-            if ($allowLegacyExpandedFlowLayer && ! $expandedFlowAccepted) {
-                try {
-                    self::assertExactSimpleStyle($layer, [
-                        'position' => 'relative',
-                        'left' => '0',
-                        'right' => 'auto',
-                        'top' => 'auto',
-                        'bottom' => 'auto',
-                        'width' => '100%',
-                        'max-width' => 'none',
-                        'margin' => '0',
-                        'overflow' => 'hidden',
-                        'z-index' => '0',
-                        'font-size' => '0',
-                        'line-height' => '0',
-                        'text-align' => $alignment,
-                    ], 'Zug-Layer');
-                    self::assertExactSimpleStyle($image, [
-                        'position' => 'static',
-                        'left' => 'auto',
-                        'right' => 'auto',
-                        'bottom' => 'auto',
-                        'display' => 'inline-block',
-                        'width' => $size['width'],
-                        'max-width' => $size['maxWidth'],
-                        'height' => 'auto',
-                        'margin' => '0',
-                        'border' => '0',
-                        'outline' => 'none',
-                        'text-decoration' => 'none',
-                        'vertical-align' => 'top',
-                        'mso-hide' => 'all',
-                    ], 'Zugbild');
-                    $expandedFlowAccepted = true;
-                } catch (RuntimeException) {
-                    $expandedFlowAccepted = false;
-                }
-            }
-            if ($allowLegacyExpandedFlowLayer && ! $expandedFlowAccepted) {
-                try {
-                    self::assertExactSimpleStyle($layer, [
-                        'position' => 'relative',
-                        'left' => $expandedFlowHorizontal['left'],
-                        'right' => $expandedFlowHorizontal['right'],
-                        'top' => 'auto',
-                        'bottom' => 'auto',
-                        'width' => $size['width'],
-                        'max-width' => $size['maxWidth'],
-                        'margin' => '0',
-                        'overflow' => 'hidden',
-                        'z-index' => '0',
-                        'font-size' => '0',
-                        'line-height' => '0',
-                        'text-align' => 'left',
-                    ], 'Zug-Layer');
-                    self::assertExactSimpleStyle($image, [
-                        'position' => 'static',
-                        'left' => 'auto',
-                        'right' => 'auto',
-                        'bottom' => 'auto',
-                        'display' => 'block',
-                        'width' => '100%',
-                        'max-width' => $size['maxWidth'],
-                        'height' => 'auto',
-                        'margin' => '0',
-                        'border' => '0',
-                        'outline' => 'none',
-                        'text-decoration' => 'none',
-                        'mso-hide' => 'all',
-                    ], 'Zugbild');
-                    $expandedFlowAccepted = true;
-                } catch (RuntimeException) {
-                    $expandedFlowAccepted = false;
-                }
-            }
-            if ($expandedFlowAccepted) {
-                // Eine bekannte Flow-Form wird nur laufzeitlokal in den
-                // aktuellen Flow-Vertrag ueberfuehrt.
-            } elseif (! $allowLegacyAbsoluteLayer) {
-                throw $exception;
-            } else {
-                $schema23Accepted = false;
-                try {
-                    self::assertExactSimpleStyle($layer, [
-                        'position' => 'absolute',
-                        'left' => '0',
-                        'right' => 'auto',
-                        'top' => 'auto',
-                        'bottom' => '0',
-                        'width' => '100%',
-                        'max-width' => '1815px',
-                        'margin' => '0',
-                        'overflow' => 'hidden',
-                        'font-size' => '0',
-                        'line-height' => '0',
-                        'text-align' => 'left',
-                        'mso-hide' => 'all',
-                    ], 'Zug-Layer');
-                    self::assertExactSimpleStyle($image, $imageStyle, 'Zugbild');
-                    $schema23Accepted = true;
-                } catch (RuntimeException) {
-                    $schema23Accepted = false;
-                }
-                if (! $schema23Accepted) {
-                    $legacyLayerStyle = [
-                        'position' => 'absolute',
-                        'left' => $legacyHorizontal['left'],
-                        'right' => $legacyHorizontal['right'],
-                        'top' => '0',
-                        'bottom' => '0',
-                        'width' => $size['width'],
-                        'max-width' => $size['maxWidth'],
-                        'margin' => '0',
-                        'overflow' => 'hidden',
-                        'z-index' => '0',
-                        'font-size' => '0',
-                        'line-height' => '0',
-                        'text-align' => 'left',
-                    ];
-                    if (! $legacyDirectLayer) {
-                        $legacyLayerStyle['mso-hide'] = 'all';
-                    }
+            try {
+                self::assertExactStyleWithOptionalProperties(
+                    $layer->getAttribute('style'),
+                    $layerStyle,
+                    ['margin-bottom'],
+                    'Zug-Layer',
+                );
+                self::assertTrainOverlap($layer->getAttribute('style'));
+                self::assertExactSimpleStyle($image, $imageStyle, 'Zugbild');
+            } catch (RuntimeException $exception) {
+                $expandedFlowAccepted = false;
+                if ($allowLegacyExpandedFlowLayer) {
                     try {
-                        self::assertExactSimpleStyle($layer, $legacyLayerStyle, 'Zug-Layer');
+                        // Exakt der zuletzt publizierte Schema-16-Vertrag. Die
+                        // Kombination aus Viewport-Margins und IMG-Margins wird
+                        // bewusst vollstaendig verglichen; aehnliche freie
+                        // Relative-Layer duerfen nicht als Legacy durchrutschen.
+                        self::assertExactStyleWithOptionalProperties($layer->getAttribute('style'), [
+                            'position' => 'relative',
+                            'left' => '0',
+                            'right' => 'auto',
+                            'top' => 'auto',
+                            'bottom' => 'auto',
+                            'width' => '100%',
+                            'max-width' => '1815px',
+                            'margin' => $layerMargin,
+                            'overflow' => 'hidden',
+                            'z-index' => '0',
+                            'font-size' => '0',
+                            'line-height' => '0',
+                            'text-align' => 'left',
+                        ], ['margin-bottom'], 'Zug-Layer');
+                        self::assertExactSimpleStyle($image, [
+                            'position' => 'static',
+                            'left' => 'auto',
+                            'right' => 'auto',
+                            'bottom' => 'auto',
+                            'display' => 'inline-block',
+                            'width' => $size['width'],
+                            'max-width' => 'none',
+                            'height' => 'auto',
+                            'margin' => $imageMargin,
+                            'border' => '0',
+                            'outline' => 'none',
+                            'text-decoration' => 'none',
+                            'vertical-align' => 'top',
+                            'mso-hide' => 'all',
+                        ], 'Zugbild');
+                        $expandedFlowAccepted = true;
                     } catch (RuntimeException) {
-                        if (! $allowLegacyPercentHeight) {
-                            throw $exception;
+                        $expandedFlowAccepted = false;
+                    }
+                }
+                if ($allowLegacyExpandedFlowLayer && ! $expandedFlowAccepted) {
+                    try {
+                        self::assertExactSimpleStyle($layer, [
+                            'position' => 'relative',
+                            'left' => '0',
+                            'right' => 'auto',
+                            'top' => 'auto',
+                            'bottom' => 'auto',
+                            'width' => '100%',
+                            'max-width' => 'none',
+                            'margin' => '0',
+                            'overflow' => 'hidden',
+                            'z-index' => '0',
+                            'font-size' => '0',
+                            'line-height' => '0',
+                            'text-align' => $alignment,
+                        ], 'Zug-Layer');
+                        self::assertExactSimpleStyle($image, [
+                            'position' => 'static',
+                            'left' => 'auto',
+                            'right' => 'auto',
+                            'bottom' => 'auto',
+                            'display' => 'inline-block',
+                            'width' => $size['width'],
+                            'max-width' => $size['maxWidth'],
+                            'height' => 'auto',
+                            'margin' => '0',
+                            'border' => '0',
+                            'outline' => 'none',
+                            'text-decoration' => 'none',
+                            'vertical-align' => 'top',
+                            'mso-hide' => 'all',
+                        ], 'Zugbild');
+                        $expandedFlowAccepted = true;
+                    } catch (RuntimeException) {
+                        $expandedFlowAccepted = false;
+                    }
+                }
+                if ($allowLegacyExpandedFlowLayer && ! $expandedFlowAccepted) {
+                    try {
+                        self::assertExactSimpleStyle($layer, [
+                            'position' => 'relative',
+                            'left' => $expandedFlowHorizontal['left'],
+                            'right' => $expandedFlowHorizontal['right'],
+                            'top' => 'auto',
+                            'bottom' => 'auto',
+                            'width' => $size['width'],
+                            'max-width' => $size['maxWidth'],
+                            'margin' => '0',
+                            'overflow' => 'hidden',
+                            'z-index' => '0',
+                            'font-size' => '0',
+                            'line-height' => '0',
+                            'text-align' => 'left',
+                        ], 'Zug-Layer');
+                        self::assertExactSimpleStyle($image, [
+                            'position' => 'static',
+                            'left' => 'auto',
+                            'right' => 'auto',
+                            'bottom' => 'auto',
+                            'display' => 'block',
+                            'width' => '100%',
+                            'max-width' => $size['maxWidth'],
+                            'height' => 'auto',
+                            'margin' => '0',
+                            'border' => '0',
+                            'outline' => 'none',
+                            'text-decoration' => 'none',
+                            'mso-hide' => 'all',
+                        ], 'Zugbild');
+                        $expandedFlowAccepted = true;
+                    } catch (RuntimeException) {
+                        $expandedFlowAccepted = false;
+                    }
+                }
+                if ($expandedFlowAccepted) {
+                    // Eine bekannte Flow-Form wird nur laufzeitlokal in den
+                    // aktuellen Flow-Vertrag ueberfuehrt.
+                } elseif (! $allowLegacyAbsoluteLayer) {
+                    throw $exception;
+                } else {
+                    $schema23Accepted = false;
+                    try {
+                        self::assertExactSimpleStyle($layer, [
+                            'position' => 'absolute',
+                            'left' => '0',
+                            'right' => 'auto',
+                            'top' => 'auto',
+                            'bottom' => '0',
+                            'width' => '100%',
+                            'max-width' => '1815px',
+                            'margin' => '0',
+                            'overflow' => 'hidden',
+                            'font-size' => '0',
+                            'line-height' => '0',
+                            'text-align' => 'left',
+                            'mso-hide' => 'all',
+                        ], 'Zug-Layer');
+                        self::assertExactSimpleStyle($image, $imageStyle, 'Zugbild');
+                        $schema23Accepted = true;
+                    } catch (RuntimeException) {
+                        $schema23Accepted = false;
+                    }
+                    if (! $schema23Accepted) {
+                        $legacyLayerStyle = [
+                            'position' => 'absolute',
+                            'left' => $legacyHorizontal['left'],
+                            'right' => $legacyHorizontal['right'],
+                            'top' => '0',
+                            'bottom' => '0',
+                            'width' => $size['width'],
+                            'max-width' => $size['maxWidth'],
+                            'margin' => '0',
+                            'overflow' => 'hidden',
+                            'z-index' => '0',
+                            'font-size' => '0',
+                            'line-height' => '0',
+                            'text-align' => 'left',
+                        ];
+                        if (! $legacyDirectLayer) {
+                            $legacyLayerStyle['mso-hide'] = 'all';
                         }
-                        $legacyPercentLayerStyle = $legacyLayerStyle;
-                        $legacyPercentLayerStyle['height'] = '100%';
-                        self::assertExactSimpleStyle($layer, $legacyPercentLayerStyle, 'Zug-Layer');
+                        try {
+                            self::assertExactSimpleStyle($layer, $legacyLayerStyle, 'Zug-Layer');
+                        } catch (RuntimeException) {
+                            if (! $allowLegacyPercentHeight) {
+                                throw $exception;
+                            }
+                            $legacyPercentLayerStyle = $legacyLayerStyle;
+                            $legacyPercentLayerStyle['height'] = '100%';
+                            self::assertExactSimpleStyle($layer, $legacyPercentLayerStyle, 'Zug-Layer');
+                        }
+                        $legacyImageStyle = [
+                            'position' => 'absolute',
+                            'left' => '0',
+                            'right' => 'auto',
+                            'bottom' => '0',
+                            'display' => 'block',
+                            'width' => '100%',
+                            'max-width' => $size['maxWidth'],
+                            'height' => 'auto',
+                            'margin' => '0',
+                            'border' => '0',
+                            'outline' => 'none',
+                            'text-decoration' => 'none',
+                        ];
+                        if (! $legacyDirectLayer) {
+                            $legacyImageStyle['mso-hide'] = 'all';
+                        }
+                        self::assertExactSimpleStyle($image, $legacyImageStyle, 'Zugbild');
                     }
-                    $legacyImageStyle = [
-                        'position' => 'absolute',
-                        'left' => '0',
-                        'right' => 'auto',
-                        'bottom' => '0',
-                        'display' => 'block',
-                        'width' => '100%',
-                        'max-width' => $size['maxWidth'],
-                        'height' => 'auto',
-                        'margin' => '0',
-                        'border' => '0',
-                        'outline' => 'none',
-                        'text-decoration' => 'none',
-                    ];
-                    if (! $legacyDirectLayer) {
-                        $legacyImageStyle['mso-hide'] = 'all';
-                    }
-                    self::assertExactSimpleStyle($image, $legacyImageStyle, 'Zugbild');
                 }
             }
-        }
         }
         $widthAttribute = strtolower(trim($image->getAttribute('width')));
         $legacyPixelWidth = preg_replace('/px$/', '', $size['maxWidth']) ?? '';
@@ -1576,8 +1576,7 @@ final class SignatureTrainCarrier
         string $alignment = 'left',
         string $sizeName = '100',
         string $mobileCrop = 'train',
-    ): string
-    {
+    ): string {
         $size = self::CANONICAL_LAYER_SIZE[$sizeName] ?? null;
         if (! is_array($size)
             || ! in_array($alignment, ['left', 'center', 'right'], true)

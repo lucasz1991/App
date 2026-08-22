@@ -198,8 +198,7 @@ class MailDocumentEditorTest extends TestCase
         $this->assertSame(1, $backgroundCount);
 
         $html = preg_replace(
-            '/<div\b(?=[^>]*class="rt-sign-train-layer")(?=[^>]*\bdata-rt-layer-train\b)[^>]*>\s*'
-                .'<img\b(?=[^>]*class="rt-sign-train")(?=[^>]*\bdata-rt-train\b)[^>]*>\s*<\/div>/i',
+            '/<div\b(?=[^>]*class="rt-sign-train-layer")(?=[^>]*\bdata-rt-layer-train\b)[^>]*>[\s\S]*?<\/div>/i',
             '',
             $html,
             1,
@@ -212,10 +211,16 @@ class MailDocumentEditorTest extends TestCase
         // wird beim Runtime-Upgrade gemeinsam mit dem neuen, leeren Zug-Layer
         // genau einmal durch projectAsImage() erzeugt.
         $html = str_replace(
-            '<div class="rt-sign-stage" style="position:relative;overflow:hidden;">',
+            '<div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;">',
             '',
             $html,
             $stageOpenCount,
+        );
+        $html = str_replace(
+            '<table class="rt-sign-content-frame" role="presentation" width="100%" height="200" border="0" cellspacing="0" cellpadding="0" style="width:100%;height:200px;border-collapse:collapse;">',
+            '<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">',
+            $html,
+            $contentFrameCount,
         );
         $html = preg_replace(
             '/<\/div>(\s*<\/td>\s*<\/tr>\s*<!-- RT_SIGNATURE_MAIN_END -->)/i',
@@ -225,7 +230,7 @@ class MailDocumentEditorTest extends TestCase
             $stageCloseCount,
         );
         $this->assertIsString($html);
-        $this->assertSame([1, 1], [$stageOpenCount, $stageCloseCount]);
+        $this->assertSame([1, 1, 1], [$stageOpenCount, $stageCloseCount, $contentFrameCount]);
 
         return $html;
     }
@@ -429,7 +434,7 @@ class MailDocumentEditorTest extends TestCase
         $this->assertLessThan(60 * 1024, strlen($html));
     }
 
-    public function test_schema_24_schuetzt_den_paddingfreien_carrier_und_den_fliessenden_zuglayer(): void
+    public function test_schema_25_schuetzt_den_paddingfreien_carrier_und_die_feste_pixelbuehne(): void
     {
         $this->createCanonicalMailDocuments();
         $canonical = (string) $this->document(MailDocumentKind::Signature)->published_html;
@@ -437,83 +442,87 @@ class MailDocumentEditorTest extends TestCase
         SignatureDocumentContract::assertValid($canonical);
         SignatureDocumentContract::assertRuntimeValid($canonical);
 
-        $canonicalLayerStyle = 'style="display:block;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-7.3611%;overflow:hidden;font-size:0;line-height:0;text-align:left;"';
+        $canonicalLayerStyle = 'style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto 0 0;margin-bottom:-200px;overflow:hidden;font-size:0;line-height:0;text-align:left;"';
         $this->assertStringContainsString($canonicalLayerStyle, $canonical);
+        $this->assertStringContainsString('class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;"', $canonical);
+        $this->assertStringContainsString('class="rt-sign-train-frame" role="presentation" width="100%" height="200"', $canonical);
+        $this->assertStringContainsString('class="rt-sign-train-slot" height="200" valign="bottom"', $canonical);
+        $this->assertStringContainsString('class="rt-sign-content-frame" role="presentation" width="100%" height="200"', $canonical);
         $this->assertSame($canonical, SignatureTrainCarrier::normalize($canonical));
 
-        foreach ([
-            'ohne Ueberlappungswert' => '',
-            'mit individuellem Ueberlappungswert' => 'margin-bottom:-72px;',
-        ] as $label => $overlapStyle) {
-            $legacyLayerStyle = 'style="position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;'
-                .'margin:0 auto 0 0;'.$overlapStyle.'overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;"';
-            $variant = str_replace(
-                $canonicalLayerStyle,
-                $legacyLayerStyle,
+        $legacySchema24 = function (string $overlap) use ($canonical, $canonicalLayerStyle): string {
+            $legacy = str_replace(
+                '<div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;">',
+                '<div class="rt-sign-stage" style="position:relative;overflow:hidden;">',
                 $canonical,
-                $overlapReplacementCount,
+                $stageCount,
             );
-            $this->assertSame(1, $overlapReplacementCount, $label);
-            SignatureDocumentContract::assertRuntimeValid($variant);
-            $expected = $label === 'mit individuellem Ueberlappungswert'
-                ? str_replace('margin-bottom:-7.3611%', 'margin-bottom:-72px', $canonical)
-                : $canonical;
-            $this->assertSame($expected, SignatureTrainCarrier::normalize($variant), $label);
+            $legacy = str_replace(
+                $canonicalLayerStyle,
+                'style="display:block;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:'.$overlap.';overflow:hidden;font-size:0;line-height:0;text-align:left;"',
+                $legacy,
+                $layerCount,
+            );
+            $legacy = preg_replace(
+                '~<table class="rt-sign-train-frame"[^>]*>\s*<tr>\s*<td class="rt-sign-train-slot"[^>]*>\s*~i',
+                '',
+                $legacy,
+                1,
+                $frameOpenCount,
+            );
+            $legacy = preg_replace(
+                '~\s*</td>\s*</tr>\s*</table>\s*(?=</div>)~i',
+                '',
+                $legacy,
+                1,
+                $frameCloseCount,
+            );
+            $legacy = str_replace(
+                '<table class="rt-sign-content-frame" role="presentation" width="100%" height="200" border="0" cellspacing="0" cellpadding="0" style="width:100%;height:200px;border-collapse:collapse;">',
+                '<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">',
+                $legacy,
+                $contentFrameCount,
+            );
+            $legacy = str_replace(
+                'text-decoration:none;vertical-align:bottom;mso-hide:all;',
+                'text-decoration:none;vertical-align:top;mso-hide:all;',
+                $legacy,
+                $imageAlignmentCount,
+            );
+            $this->assertIsString($legacy);
+            $this->assertSame([1, 1, 1, 1, 1, 1], [
+                $stageCount,
+                $layerCount,
+                $frameOpenCount,
+                $frameCloseCount,
+                $contentFrameCount,
+                $imageAlignmentCount,
+            ]);
+
+            return $legacy;
+        };
+
+        foreach ([
+            'prozentualer Schema-24-Overlap' => '-7.3611%',
+            'individueller alter Pixel-Overlap' => '-72px',
+        ] as $label => $legacyOverlap) {
+            $legacy = $legacySchema24($legacyOverlap);
+            SignatureDocumentContract::assertRuntimeValid($legacy);
+            $normalized = SignatureTrainCarrier::normalize($legacy);
+            SignatureDocumentContract::assertValid($normalized);
+            $this->assertStringContainsString($canonicalLayerStyle, $normalized, $label);
+            $this->assertStringNotContainsString('margin-bottom:'.$legacyOverlap, $normalized, $label);
+            $this->assertSame($normalized, SignatureTrainCarrier::normalize($normalized), $label);
             try {
-                SignatureDocumentContract::assertValid($variant);
-                $this->fail("Der Save-Vertrag akzeptierte den alten Flow-Layer: {$label}.");
+                SignatureDocumentContract::assertValid($legacy);
+                $this->fail("Der Save-Vertrag akzeptierte die alte variable Geometrie: {$label}.");
             } catch (\RuntimeException $exception) {
                 $this->assertMatchesRegularExpression(
-                    '/(?:mail-sichere Geometrie|Zug-Layer-Stil)/',
+                    '/(?:mail-sichere Geometrie|feste Pixelstruktur|Zug-Layer-Stil|kanonischen Bild-Layer)/',
                     $exception->getMessage(),
                     $label,
                 );
             }
-        }
-
-        $legacyFlow = str_replace(
-            $canonicalLayerStyle,
-            'style="position:absolute;left:0;right:auto;top:0;bottom:0;width:100%;max-width:1815px;margin:0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;mso-hide:all;"',
-            $canonical,
-            $legacyFlowLayerCount,
-        );
-        $legacyFlow = str_replace(
-            'style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all;"',
-            'style="position:absolute;left:0;right:auto;bottom:0;display:block;width:100%;max-width:1815px;height:auto;margin:0;border:0;outline:none;text-decoration:none;mso-hide:all;"',
-            $legacyFlow,
-            $legacyFlowImageCount,
-        );
-        $this->assertSame([1, 1], [$legacyFlowLayerCount, $legacyFlowImageCount]);
-        SignatureDocumentContract::assertRuntimeValid($legacyFlow);
-        $this->assertSame($canonical, SignatureTrainCarrier::normalize($legacyFlow));
-        try {
-            SignatureDocumentContract::assertValid($legacyFlow);
-            $this->fail('Der Save-Vertrag akzeptierte den alten Schema-16-Flow-Layer.');
-        } catch (\RuntimeException $exception) {
-            $this->assertStringContainsString('mail-sichere Geometrie', $exception->getMessage());
-        }
-
-        $legacyPercentHeight = str_replace(
-            $canonicalLayerStyle,
-            'style="position:absolute;left:0;right:auto;top:0;bottom:0;width:100%;max-width:1815px;height:100%;margin:0;overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;mso-hide:all;"',
-            $canonical,
-            $legacyPercentHeightCount,
-        );
-        $this->assertIsString($legacyPercentHeight);
-        $this->assertSame(1, $legacyPercentHeightCount);
-        $legacyPercentHeight = str_replace(
-            'style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all;"',
-            'style="position:absolute;left:0;right:auto;bottom:0;display:block;width:100%;max-width:1815px;height:auto;margin:0;border:0;outline:none;text-decoration:none;mso-hide:all;"',
-            $legacyPercentHeight,
-            $legacyImageCount,
-        );
-        $this->assertSame(1, $legacyImageCount);
-        SignatureDocumentContract::assertRuntimeValid($legacyPercentHeight);
-        try {
-            SignatureDocumentContract::assertValid($legacyPercentHeight);
-            $this->fail('Der Save-Vertrag akzeptierte die alte prozentuale Layer-Hoehe.');
-        } catch (\RuntimeException $exception) {
-            $this->assertStringContainsString('mail-sichere Geometrie', $exception->getMessage());
         }
 
         $canonicalGeometryAttacks = [
@@ -750,7 +759,38 @@ class MailDocumentEditorTest extends TestCase
         $this->assertIsString($legacy);
         $this->assertSame(1, $wrapperCloseCount);
         $legacy = str_replace(
-            '<div class="rt-sign-stage" style="position:relative;overflow:hidden;">',
+            'style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto 0 0;margin-bottom:-200px;overflow:hidden;font-size:0;line-height:0;text-align:left;"',
+            'style="display:block;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-7.3611%;overflow:hidden;font-size:0;line-height:0;text-align:left;"',
+            $legacy,
+            $legacyLayerCount,
+        );
+        $legacy = preg_replace(
+            '~<table class="rt-sign-train-frame"[^>]*>\s*<tr>\s*<td class="rt-sign-train-slot"[^>]*>\s*~i',
+            '',
+            $legacy,
+            1,
+            $legacyFrameOpenCount,
+        );
+        $legacy = preg_replace(
+            '~\s*</td>\s*</tr>\s*</table>\s*(?=</div>)~i',
+            '',
+            $legacy,
+            1,
+            $legacyFrameCloseCount,
+        );
+        $legacy = str_replace(
+            'text-decoration:none;vertical-align:bottom;mso-hide:all;',
+            'text-decoration:none;vertical-align:top;mso-hide:all;',
+            $legacy,
+            $legacyImageCount,
+        );
+        $this->assertIsString($legacy);
+        $this->assertSame(
+            [1, 1, 1, 1],
+            [$legacyLayerCount, $legacyFrameOpenCount, $legacyFrameCloseCount, $legacyImageCount],
+        );
+        $legacy = str_replace(
+            '<div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;">',
             '',
             $legacy,
             $legacyStageOpenCount,
@@ -1843,8 +1883,8 @@ HTML;
         $this->assertNull($document->fresh()->published_at);
 
         $customOverlapHtml = str_replace(
-            'style="display:block;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-7.3611%;overflow:hidden;font-size:0;line-height:0;text-align:left;"',
-            'style="display:block;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-72px!important;overflow:hidden;font-size:0;line-height:0;text-align:left;"',
+            'style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto 0 0;margin-bottom:-200px;overflow:hidden;font-size:0;line-height:0;text-align:left;"',
+            'style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto 0 0;margin-bottom:-72px!important;overflow:hidden;font-size:0;line-height:0;text-align:left;"',
             $validHtml,
             $overlapReplacementCount,
         );

@@ -163,7 +163,7 @@ namespace {
     $browserTrainMethod->setAccessible(true);
     $browserTrainFixture = <<<'HTML'
     <!doctype html><html><body><table role="presentation" style="border-top:5px solid #e4002b;">
-    <tr><td class="rt-sign-cell" style="padding:0;overflow:hidden;background-image:linear-gradient(rgba(0,0,0,0),rgba(0,0,0,0));background-repeat:no-repeat;background-position:center center;background-size:100% 100%;"><div class="rt-sign-stage" style="position:relative;overflow:hidden;"><div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="display:block;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-7.3611%;overflow:hidden;font-size:0;line-height:0;text-align:left;"><!--[if mso]><img class="rt-sign-train-mso" data-rt-train-mso="1" src="https://app.rail-time.de/mail-assets/zug-dampf-light.png" width="720" alt="" style="display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;"><![endif]--><span class="rt-train-idle-overlay" data-rt-train-idle-overlay style="position:absolute;left:0;right:auto;top:0;bottom:auto;display:block;width:100%;max-width:none;height:0;max-height:0;margin:0;overflow:hidden;z-index:1;font-size:0;line-height:0;text-align:left;opacity:0;visibility:hidden;animation:rt-train-idle-reveal 1ms step-start 13s forwards;mso-hide:all;"><img class="rt-train-idle-image" data-rt-train-idle-image src="https://app.rail-time.de/mail-assets/zug-dampf-idle-light.gif" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;z-index:1;mso-hide:all;"></span><img class="rt-sign-train" data-rt-train src="https://app.rail-time.de/mail-assets/zug-dampf-light.gif" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all;"></div><table><tr><td class="rt-sign-identity"><img src="https://app.rail-time.de/mail-assets/contact-email.png"></td><td class="rt-sign-logo"><img src="https://app.rail-time.de/mail-assets/logo.gif"></td></tr></table></div></td></tr><!-- RT_SIGNATURE_MAIN_END --><tr><td>Legal</td></tr>
+    <tr><td class="rt-sign-cell" style="padding:0;overflow:hidden;background-image:linear-gradient(rgba(0,0,0,0),rgba(0,0,0,0));background-repeat:no-repeat;background-position:center center;background-size:100% 100%;"><div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;"><div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto 0 0;margin-bottom:-200px;overflow:hidden;font-size:0;line-height:0;text-align:left;"><table class="rt-sign-train-frame" role="presentation" width="100%" height="200" border="0" cellspacing="0" cellpadding="0" style="width:100%;height:200px;border-collapse:collapse;"><tr><td class="rt-sign-train-slot" height="200" valign="bottom" style="height:200px;padding:0;text-align:left;vertical-align:bottom;font-size:0;line-height:0;"><!--[if mso]><img class="rt-sign-train-mso" data-rt-train-mso="1" src="https://app.rail-time.de/mail-assets/zug-dampf-light.png" width="720" alt="" style="display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:bottom;"><![endif]--><span class="rt-train-idle-overlay" data-rt-train-idle-overlay style="position:absolute;left:0;right:auto;top:auto;bottom:0;display:block;width:100%;max-width:none;height:0;max-height:0;margin:0;overflow:hidden;z-index:1;font-size:0;line-height:0;text-align:left;opacity:0;visibility:hidden;animation:rt-train-idle-reveal 1ms step-start 13s forwards;mso-hide:all;"><img class="rt-train-idle-image" data-rt-train-idle-image src="https://app.rail-time.de/mail-assets/zug-dampf-idle-light.gif" width="720" alt="" style="position:absolute;left:0;right:auto;bottom:0;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:bottom;z-index:1;mso-hide:all;"></span><img class="rt-sign-train" data-rt-train src="https://app.rail-time.de/mail-assets/zug-dampf-light.gif" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:bottom;mso-hide:all;"></td></tr></table></div><table class="rt-sign-content-frame" role="presentation" width="100%" height="200" border="0" cellspacing="0" cellpadding="0" style="width:100%;height:200px;border-collapse:collapse;"><tr><td class="rt-sign-identity"><img src="https://app.rail-time.de/mail-assets/contact-email.png"></td><td class="rt-sign-logo"><img src="https://app.rail-time.de/mail-assets/logo.gif"></td></tr></table></div></td></tr><!-- RT_SIGNATURE_MAIN_END --><tr><td>Legal</td></tr>
     </table></body></html>
     HTML;
     $browserTrainSource = 'https://app.rail-time.de/mail-assets/zug-dampf-light.gif';
@@ -186,7 +186,10 @@ namespace {
         || substr_count($browserTrain, 'src="'.$browserMsoSource.'"') !== 1
         || substr_count($browserTrain, 'data-rt-train ') !== 1
         || substr_count($browserTrain, 'data-rt-train-idle-image') !== 1
-        || ! str_contains($browserTrain, 'style="display:block;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-7.3611%;')
+        || ! str_contains($browserTrain, 'style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto 0 0;margin-bottom:-200px;')
+        || substr_count($browserTrain, 'class="rt-sign-train-frame"') !== 1
+        || substr_count($browserTrain, 'class="rt-sign-train-slot"') !== 1
+        || substr_count($browserTrain, 'class="rt-sign-content-frame"') !== 1
         || ! str_contains($browserTrain, 'style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;')
         || preg_match('/<v:(?:rect|fill)\b/i', $browserTrain) === 1
         || preg_match('/<!--\[if mso\]><tr><td\b[^>]*rt-sign-train-mso/', $browserTrain) === 1) {
@@ -218,7 +221,7 @@ HTML;
     // negativer Ueberlappung. Outlook-Desktop erhaelt innerhalb desselben
     // Layers ein Standbild; GIF-Background und VML sind nicht erlaubt.
     $runtimeTrainFixture = <<<'HTML'
-<tr><td class="rt-sign-cell" style="padding:0;overflow:hidden;background-image:linear-gradient(rgba(0,0,0,0),rgba(0,0,0,0));background-repeat:no-repeat;background-position:center center;background-size:100% 100%;"><div class="rt-sign-stage" style="position:relative;overflow:hidden;"><div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="display:block;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-7.3611%;overflow:hidden;font-size:0;line-height:0;text-align:left;"><img class="rt-sign-train" data-rt-train src="https://app.rail-time.de/mail-assets/zug-dampf-light.gif" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all;"></div><table><tr><td>Inhalt</td></tr></table></div></td></tr><!-- RT_SIGNATURE_MAIN_END -->
+<tr><td class="rt-sign-cell" style="padding:0;overflow:hidden;background-image:linear-gradient(rgba(0,0,0,0),rgba(0,0,0,0));background-repeat:no-repeat;background-position:center center;background-size:100% 100%;"><div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;"><div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto 0 0;margin-bottom:-200px;overflow:hidden;font-size:0;line-height:0;text-align:left;"><table class="rt-sign-train-frame" role="presentation" width="100%" height="200" border="0" cellspacing="0" cellpadding="0" style="width:100%;height:200px;border-collapse:collapse;"><tr><td class="rt-sign-train-slot" height="200" valign="bottom" style="height:200px;padding:0;text-align:left;vertical-align:bottom;font-size:0;line-height:0;"><img class="rt-sign-train" data-rt-train src="https://app.rail-time.de/mail-assets/zug-dampf-light.gif" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:bottom;mso-hide:all;"></td></tr></table></div><table class="rt-sign-content-frame" role="presentation" width="100%" height="200" border="0" cellspacing="0" cellpadding="0" style="width:100%;height:200px;border-collapse:collapse;"><tr><td>Inhalt</td></tr></table></div></td></tr><!-- RT_SIGNATURE_MAIN_END -->
 HTML;
     $runtimeImages = SignatureTrainCarrier::withIdleOverlay(
         $runtimeTrainFixture,
@@ -270,10 +273,10 @@ HTML;
         'main image marker' => substr_count($runtimeTrain, 'data-rt-train ') === 1,
         'one MSO image' => substr_count($runtimeTrain, 'class="rt-sign-train-mso"') === 1,
         'one MSO image marker' => substr_count($runtimeTrain, 'data-rt-train-mso="1"') === 1,
-        'flow overlap layer' => str_contains($runtimeTrain, 'style="display:block;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-7.3611%;'),
+        'fixed pixel overlap layer' => str_contains($runtimeTrain, 'style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto 0 0;margin-bottom:-200px;'),
         'static main image' => str_contains($runtimeTrain, 'style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;'),
-        'top idle holder' => str_contains($runtimeTrain, 'style="position:absolute;left:0;right:auto;top:0;bottom:auto;display:block;width:100%;max-width:none;height:0;'),
-        'static idle image' => str_contains($runtimeTrain, 'style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;'),
+        'bottom idle holder' => str_contains($runtimeTrain, 'style="position:absolute;left:0;right:auto;top:auto;bottom:0;display:block;width:100%;max-width:none;height:0;'),
+        'bottom idle image' => str_contains($runtimeTrain, 'style="position:absolute;left:0;right:auto;bottom:0;display:inline-block;width:100%;max-width:none;'),
         'static MSO image' => str_contains($runtimeTrain, 'style="display:inline-block;width:100%;max-width:none;height:auto;margin:0;'),
         'no VML' => preg_match('/<v:(?:rect|fill)\b/i', $runtimeTrain) !== 1,
         'no GIF CSS background' => preg_match('/background-image:[^;]*(?:data:image\/gif|\.gif)/i', $runtimeTrain) !== 1,
@@ -290,13 +293,13 @@ HTML;
         [
             'data-rt-layer-size="100"',
             'data-rt-layer-align="left"',
-            'display:block;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-7.3611%;',
+            'display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto 0 0;margin-bottom:-200px;',
             'position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;',
         ],
         [
             'data-rt-layer-size="125"',
             'data-rt-layer-align="right"',
-            'display:block;width:100%;max-width:1815px;margin:0 0 0 auto;margin-bottom:-7.3611%;',
+            'display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 0 0 auto;margin-bottom:-200px;',
             'position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:125%;max-width:none;height:auto;margin:0 0 0 -25%;',
         ],
         $runtimeTrainFixture,
@@ -317,7 +320,7 @@ HTML;
     }
 
     if (! str_contains($size125Train, 'rt-sign-train-mso')
-        || ! str_contains($size125Train, 'display:block;width:100%;max-width:1815px;margin:0 0 0 auto;margin-bottom:-7.3611%;')
+        || ! str_contains($size125Train, 'display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 0 0 auto;margin-bottom:-200px;')
         || ! str_contains($size125Train, 'position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:125%;')) {
         fwrite(STDERR, "Right-aligned 125-percent IMG lost its flow-overlap geometry.\n");
         exit(1);
