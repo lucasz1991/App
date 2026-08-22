@@ -8,20 +8,21 @@
 
     Der kanonische Editorstand besitzt zwei Tabellenzeilen: Signaturblock und
     Pflichtangaben. Im Schema-22-Editorstand ist der Zug wie Logo und Icons ein
-    regulaeres IMG. Der Inhaltswrapper ueberlappt den nachfolgenden Bild-Layer
-    um 150 Pixel, sodass das Motiv hinter den Kontaktdaten sichtbar bleibt.
+    regulaeres IMG. Der Bild-Layer steht vor dem Inhaltswrapper; sein
+    editierbarer negativer Unterrand zieht den folgenden Inhalt darueber,
+    sodass das Motiv ohne CSS-Hintergrundbild hinter den Daten sichtbar ist.
 
     AUFBAU: zwei gleich breite Spalten an einer Mittelachse. Links die
-    Person, rechts die Firma. Die Firmenkontakte existieren genau einmal:
-    Der gemeinsame Tabellenblock sitzt im Breitlayout rechts und wird auf
-    schmalen Ansichten linksbuendig dargestellt. Damit koennen Mailclients
-    beim Antworten oder Weiterleiten niemals eine versteckte zweite Fassung
-    zusaetzlich sichtbar machen.
+    Person, rechts die Firma. Logo und Firmenkontakte existieren jeweils
+    genau einmal: Im Breitlayout sitzen beide rechts. Auf schmalen Ansichten
+    stapelt die Quellreihenfolge erst das Logo, dann die Person und danach
+    die Firmendaten. Damit koennen Mailclients beim Antworten oder
+    Weiterleiten niemals eine versteckte zweite Fassung zusaetzlich zeigen.
 
     Die Markenspalte zeigt bewusst NUR den Schriftzug: das RT-Zeichen davor
     doppelte die Marke auf engem Raum, und der Claim darunter kostete eine
     Zeile, ohne etwas zu sagen. Auch die Wortmarke existiert nur einmal im
-    DOM; mobil wird dieselbe Firmenspalte unter die Person gesetzt.
+    DOM; mobil wird dieselbe Marke oberhalb der Person gesetzt.
 
     Alle Werte kommen bereits HTML-escaped aus App\Support\MailSignature.
     Optionale Zeilen (Durchwahl, Mobil, Website, Firmentelefon) tragen die
