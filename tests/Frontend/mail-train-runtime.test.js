@@ -55,7 +55,7 @@ function gifTimeline(bytes) {
     return delays;
 }
 
-test('all delivered mail outputs bottom-anchor the modern train and keep a Classic Outlook flow IMG', () => {
+test('all delivered mail outputs keep the train-first flow overlap and a Classic Outlook IMG', () => {
     const signature = text('app/Support/MailSignature.php');
     const signatureView = text('resources/views/emails/parts/signature.blade.php');
     const carrier = text('app/Support/Mail/SignatureTrainCarrier.php');
@@ -94,9 +94,9 @@ test('all delivered mail outputs bottom-anchor the modern train and keep a Class
     assert.doesNotMatch(carrier, /<v:(?:rect|fill)\b/);
     assert.match(carrier, /<div class="rt-sign-stage" style="position:relative;overflow:hidden;">/);
     assert.match(carrier, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train"/);
-    assert.match(carrier, /style="position:absolute;left:0;right:auto;top:auto;bottom:0;width:100%;max-width:1815px;margin:0;[^"\r\n]*overflow:hidden;[^"\r\n]*text-align:left;mso-hide:all;/);
+    assert.match(carrier, /style="display:block;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-7\.3611%;[^"\r\n]*overflow:hidden;[^"\r\n]*text-align:left;/);
     assert.match(carrier, /<img class="rt-sign-train" data-rt-train src="'\.\$source\.'" width="720"[^>]*style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;[^"\r\n]*mso-hide:all;/);
-    assert.match(msoFallback, /substr_replace\(\$html, \$fallback, \$layers\[0\]\['startOffset'\], 0\)/);
+    assert.match(msoFallback, /substr_replace\(\$html, \$fallback, \$layers\[0\]\['endOffset'\] \+ 1, 0\)/);
     assert.match(previewService, /MailSignature::forCompany\(/);
     assert.match(previewService, /\$signatureRenderer->renderDocument\(/);
     assert.doesNotMatch(previewService, /SignatureTrainCarrier::projectAsImage\(/);
@@ -114,7 +114,8 @@ test('all delivered mail outputs bottom-anchor the modern train and keep a Class
     assert.match(cssSemantic, /\$isProtectedAttribute = in_array\(/);
     assert.match(responsiveCss, /@keyframes rt-train-idle-reveal/);
     assert.match(responsiveCss, /animation-delay:\s*13s/);
-    assert.match(responsiveCss, /\.rt-sign-train-layer\s*\{[^}]*position:\s*absolute !important;[^}]*top:\s*auto !important;[^}]*bottom:\s*0 !important;/s);
+    assert.match(responsiveCss, /\.rt-sign-train-layer\s*\{[^}]*display:\s*block !important;[^}]*margin-top:\s*0 !important;/s);
+    assert.doesNotMatch(responsiveCss, /\.rt-sign-train-layer\s*\{[^}]*position:\s*absolute !important;/s);
     assert.match(responsiveCss, /\.rt-sign-train,\s*\.rt-sign-train-mso\s*\{[^}]*position:\s*static !important;[^}]*bottom:\s*auto !important;[^}]*display:\s*inline-block !important;[^}]*vertical-align:\s*top !important;/s);
     assert.match(responsiveCss, /\.rt-sign-train-mso\s*\{[^}]*width:\s*100% !important;[^}]*margin:\s*0 !important;/s);
     assert.match(responsiveCss, /\.rt-train-idle-overlay\s*\{[^}]*top:\s*0 !important;[^}]*bottom:\s*auto !important;[^}]*max-width:\s*none !important;/s);
@@ -123,7 +124,7 @@ test('all delivered mail outputs bottom-anchor the modern train and keep a Class
     assert.doesNotMatch(routes, /mail-animations\/train/);
     assert.match(signatureView, /<div class="rt-sign-stage" style="position:relative;overflow:hidden;">/);
     assert.match(signatureView, /<img class="rt-sign-train" data-rt-train src="\{\{ \$trainSrc \}\}" width="720"[^>]*position:static;[^>]*bottom:auto;[^>]*display:inline-block;[^>]*mso-hide:all;/);
-    assert.match(signatureView, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:absolute;[^">]*bottom:0;[^">]*mso-hide:all;/);
+    assert.match(signatureView, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="display:block;[^">]*margin-bottom:-7\.3611%;/);
     assert.doesNotMatch(signatureView, /rt-sign-train-layer[^>]*height:100%/);
     assert.doesNotMatch(carrier, /rt-train-idle-overlay[^>]*height:100%/);
     assert.match(carrier, /rt-train-idle-overlay[^>]*position:absolute;[^>]*display:block;[^>]*height:0;max-height:0;[^>]*overflow:hidden;/);

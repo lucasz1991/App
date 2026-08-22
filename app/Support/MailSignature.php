@@ -463,8 +463,9 @@ class MailSignature
         }
 
         // Hauptzug und Idle-Rauch bleiben wie Logo und RT-Zeichen echte IMG.
-        // Der moderne Hauptzug steht vor dem Inhalt und ist an der unteren
-        // Buehnenkante verankert; nur der Idle-Holder bleibt hoehenneutral.
+        // Der Hauptzug steht im normalen Fluss vor dem Inhalt. Seine negative
+        // Margin erzeugt denselben Overlap in Editor, Browser und Outlook;
+        // nur der Idle-Holder bleibt hoehenneutral.
         return SignatureTrainCarrier::withMsoFallback($html, $outlookFallbackSource);
     }
 
@@ -498,7 +499,7 @@ class MailSignature
     /**
      * Die gespeicherte/editierbare Fassung bekommt den Zug wie Logo und
      * RT-Icon als regulaeres Bild in einer sicheren Stage. Alte Background-
-     * und absolute Direkt-Layer werden atomar in den aktuellen Bottom-Vertrag
+     * und absolute Direkt-Layer werden atomar in den aktuellen Flow-Vertrag
      * ueberfuehrt. finalizeTrainRendering ergaenzt nur Idle- und Outlook-IMG.
      *
      * @param  array<string, string>  $layout

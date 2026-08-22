@@ -429,7 +429,7 @@ class MailDocumentEditorTest extends TestCase
         $this->assertLessThan(60 * 1024, strlen($html));
     }
 
-    public function test_schema_23_schuetzt_den_paddingfreien_carrier_und_den_unteren_zuglayer(): void
+    public function test_schema_24_schuetzt_den_paddingfreien_carrier_und_den_fliessenden_zuglayer(): void
     {
         $this->createCanonicalMailDocuments();
         $canonical = (string) $this->document(MailDocumentKind::Signature)->published_html;
@@ -437,13 +437,13 @@ class MailDocumentEditorTest extends TestCase
         SignatureDocumentContract::assertValid($canonical);
         SignatureDocumentContract::assertRuntimeValid($canonical);
 
-        $canonicalLayerStyle = 'style="position:absolute;left:0;right:auto;top:auto;bottom:0;width:100%;max-width:1815px;margin:0;overflow:hidden;font-size:0;line-height:0;text-align:left;mso-hide:all;"';
+        $canonicalLayerStyle = 'style="display:block;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-7.3611%;overflow:hidden;font-size:0;line-height:0;text-align:left;"';
         $this->assertStringContainsString($canonicalLayerStyle, $canonical);
         $this->assertSame($canonical, SignatureTrainCarrier::normalize($canonical));
 
         foreach ([
             'ohne Ueberlappungswert' => '',
-            'mit individuellem Ueberlappungswert' => 'margin-bottom:-72px!important;',
+            'mit individuellem Ueberlappungswert' => 'margin-bottom:-72px;',
         ] as $label => $overlapStyle) {
             $legacyLayerStyle = 'style="position:relative;left:0;right:auto;top:auto;bottom:auto;width:100%;max-width:1815px;'
                 .'margin:0 auto 0 0;'.$overlapStyle.'overflow:hidden;z-index:0;font-size:0;line-height:0;text-align:left;"';
@@ -455,7 +455,10 @@ class MailDocumentEditorTest extends TestCase
             );
             $this->assertSame(1, $overlapReplacementCount, $label);
             SignatureDocumentContract::assertRuntimeValid($variant);
-            $this->assertSame($canonical, SignatureTrainCarrier::normalize($variant), $label);
+            $expected = $label === 'mit individuellem Ueberlappungswert'
+                ? str_replace('margin-bottom:-7.3611%', 'margin-bottom:-72px', $canonical)
+                : $canonical;
+            $this->assertSame($expected, SignatureTrainCarrier::normalize($variant), $label);
             try {
                 SignatureDocumentContract::assertValid($variant);
                 $this->fail("Der Save-Vertrag akzeptierte den alten Flow-Layer: {$label}.");
@@ -1840,8 +1843,8 @@ HTML;
         $this->assertNull($document->fresh()->published_at);
 
         $customOverlapHtml = str_replace(
-            'style="position:absolute;left:0;right:auto;top:auto;bottom:0;width:100%;max-width:1815px;margin:0;overflow:hidden;font-size:0;line-height:0;text-align:left;mso-hide:all;"',
-            'style="position:absolute;left:0;right:auto;top:auto;bottom:0;width:100%;max-width:1815px;margin:0;margin-bottom:-72px!important;overflow:hidden;font-size:0;line-height:0;text-align:left;mso-hide:all;"',
+            'style="display:block;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-7.3611%;overflow:hidden;font-size:0;line-height:0;text-align:left;"',
+            'style="display:block;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-72px!important;overflow:hidden;font-size:0;line-height:0;text-align:left;"',
             $validHtml,
             $overlapReplacementCount,
         );

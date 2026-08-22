@@ -1439,7 +1439,7 @@ class EmailTemplatesPageTest extends TestCase
         $this->assertSame(1, substr_count($html, 'data-rt-train-mso="1"'), $message);
         $this->assertMatchesRegularExpression('/<img\b[^>]*class="rt-sign-train"[^>]*\bdata-rt-train(?:\s|=|>)[^>]*>/i', $html, $message);
         $this->assertMatchesRegularExpression('/<img\b[^>]*class="rt-sign-train-mso"[^>]*\bdata-rt-train-mso="1"[^>]*>/i', $html, $message);
-        $this->assertMatchesRegularExpression('/<div\b[^>]*class="[^"]*\brt-sign-train-layer\b[^"]*"[^>]*style="position:absolute;[^">]*top:auto;bottom:0;[^">]*margin:0;[^">]*mso-hide:all;/s', $html, $message);
+        $this->assertMatchesRegularExpression('/<div\b[^>]*class="[^"]*\brt-sign-train-layer\b[^"]*"[^>]*style="display:block;[^">]*margin-bottom:-[0-9.]+(?:px|%);[^">]*overflow:hidden;/s', $html, $message);
         $this->assertMatchesRegularExpression('/<img\b[^>]*class="rt-sign-train"[^>]*style="position:static;[^">]*bottom:auto;[^">]*display:inline-block;[^">]*vertical-align:top;/s', $html, $message);
         $this->assertDoesNotMatchRegularExpression('/<v:(?:rect|fill)\b/i', $html, $message);
         $this->assertStringNotContainsString('<!--[if mso]><tr><td class="rt-sign-train-mso"', $html, $message);

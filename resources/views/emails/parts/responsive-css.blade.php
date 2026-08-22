@@ -34,27 +34,22 @@
 @endphp
 /* RT_SERVER_SIGNATURE_RUNTIME_START
    Stabiler Einhaengepunkt fuer freigegebenes Signatur-CSS. Der echte
-   IMG-Layer steht in der Quelle vor den Daten und ist unten an der relativen
-   Buehne verankert. Outlook-Desktop erhaelt stattdessen ein bedingtes normales
-   IMG im Mailfluss. */
+   IMG-Layer steht im normalen Mailfluss vor den Daten. Seine negative untere
+   Margin zieht den nachfolgenden Inhalt ueber das Motiv; dadurch ist weder
+   absolute Positionierung noch z-index fuer die Hauptdarstellung noetig. */
 .rt-sign-stage {
   position: relative !important;
   overflow: hidden !important;
 }
 .rt-sign-train-layer {
-  position: absolute !important;
-  left: 0 !important;
-  right: auto !important;
-  top: auto !important;
-  bottom: 0 !important;
+  display: block !important;
   width: 100% !important;
   max-width: 1815px !important;
-  margin: 0 !important;
+  margin-top: 0 !important;
   overflow: hidden !important;
   font-size: 0 !important;
   line-height: 0 !important;
   text-align: left !important;
-  mso-hide: all !important;
 }
 .rt-sign-train,
 .rt-sign-train-mso {
@@ -162,9 +157,9 @@
   }
 }
 
-/* Hauptzug und Idle-Rauch bleiben im Editor, in der Vorschau und im Versand
-   echte IMG. Der moderne Hauptzug steht vor dem Inhalt und ist absolut an der
-   unteren Buehnenkante verankert; nur Classic Outlook nutzt das Flow-Standbild. */
+/* Hauptzug, Idle-Rauch und Outlook-Standbild bleiben echte IMG im selben
+   Flow-Layer. Die negative Layer-Margin ueberlappt den danach folgenden
+   Inhalt in allen Ausgabepfaden. */
 /* ---- Tablet quer: enger setzen, aber zweispaltig bleiben ---- */
 @media only screen and (max-width: 1000px) {
 .rt-pad { padding-left: 30px !important; padding-right: 30px !important; }
@@ -284,10 +279,11 @@ img.rt-logo { width: 150px !important; }
 .rt-sign-train-layer {
   width: 100% !important;
   max-width: 1815px !important;
-  margin: 0 !important;
+  margin-top: 0 !important;
 }
-/* Der absolut unten verankerte Clipping-Viewport bleibt vollbreit. Nur die
-   echten IMG werden fuer Detailausschnitte vergroessert und verschoben. */
+/* Der fliessende Clipping-Viewport bleibt vollbreit. Seine gespeicherte
+   negative margin-bottom bleibt auch mobil erhalten; nur der Bildausschnitt
+   wird hier je Preset vergroessert und verschoben. */
 .rt-sign-train-layer[data-rt-layer-mobile="left"][data-rt-layer-size] > .rt-sign-train,
 .rt-sign-train-layer[data-rt-layer-mobile="left"][data-rt-layer-size] > .rt-train-idle-overlay > .rt-train-idle-image { width: 200% !important; max-width: none !important; margin-left: 0 !important; }
 .rt-sign-train-layer[data-rt-layer-mobile="center"][data-rt-layer-size] > .rt-sign-train,

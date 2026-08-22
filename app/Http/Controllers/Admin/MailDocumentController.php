@@ -18,6 +18,7 @@ use App\Support\Mail\EmailHtmlSanitizer;
 use App\Support\Mail\MailDocumentVersionStore;
 use App\Support\Mail\PublishedMailDocumentSnapshotStore;
 use App\Support\Mail\SignatureDocumentContract;
+use App\Support\Mail\SignatureTrainCarrier;
 use App\Support\Mail\TemplateDocumentContract;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -62,6 +63,7 @@ final class MailDocumentController extends Controller
             (string) $validated['css'],
             (array) $validated['media'],
         );
+        $html = $this->normalizeImportedSignature($kind, $html);
         $this->assertEditableCssSource($css);
 
         $prototype = new MailDocument(['kind' => $kind->value]);
@@ -155,6 +157,7 @@ final class MailDocumentController extends Controller
             (string) $validated['css'],
             (array) ($validated['portable_media'] ?? []),
         );
+        $html = $this->normalizeImportedSignature($document->kind, $html);
         $this->assertEditableCssSource($css);
         $this->assertDocumentStructure($document, $html, $css);
         $htmlReport = $this->assertCleanHtml($sanitizer, $html);
@@ -654,6 +657,27 @@ final class MailDocumentController extends Controller
             ]);
         }
 
+    }
+
+    /**
+     * Nur die beiden ausdruecklichen Importpfade duerfen bekannte alte
+     * Signaturvertraege in das aktuelle Schema heben. Normale Saves und
+     * Freigaben bleiben strikt und koennen dadurch keinen manipulierten
+     * Zwischenstand stillschweigend reparieren.
+     */
+    private function normalizeImportedSignature(MailDocumentKind $kind, string $html): string
+    {
+        if ($kind !== MailDocumentKind::Signature) {
+            return $html;
+        }
+
+        try {
+            return SignatureTrainCarrier::normalize($html);
+        } catch (\RuntimeException) {
+            // Die autoritative Strukturpruefung unten liefert weiterhin die
+            // konkrete, nutzerlesbare Validierungsmeldung des Originaltexts.
+            return $html;
+        }
     }
 
     /**

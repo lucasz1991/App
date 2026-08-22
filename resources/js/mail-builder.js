@@ -50,7 +50,8 @@ const MAIL_TEMPLATE_APPLICATION_START = `<!-- ${MAIL_TEMPLATE_APPLICATION_START_
 const MAIL_TEMPLATE_APPLICATION_END = `<!-- ${MAIL_TEMPLATE_APPLICATION_END_NAME} -->`;
 const MAIL_TEMPLATE_APPLICATION_PLACEHOLDER = '{{APPLICATION_CONTENT}}';
 const MAIL_PREVIEW_TRANSPARENT_PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=';
-export const MAIL_SIGNATURE_SCHEMA = 23;
+export const MAIL_SIGNATURE_SCHEMA = 24;
+const MAIL_SIGNATURE_TRAIN_OVERLAP = '-7.3611%';
 const MAIL_SIGNATURE_MAIN_MARKER_NAME = 'RT_SIGNATURE_MAIN_END';
 const MAIL_SIGNATURE_MAIN_MARKER = `<!-- ${MAIL_SIGNATURE_MAIN_MARKER_NAME} -->`;
 const MAIL_SIGNATURE_CONTACT_MARKER_ATTRIBUTE = 'data-rt-mail-contact-marker';
@@ -1325,8 +1326,8 @@ function removeInlineStyleDeclaration(style, property) {
 /**
  * Der Editor verwendet fuer den Zug denselben Tokenpfad wie Logo und Icons.
  * Schema 19 (Flow-IMG ohne Ueberlappung), Schema 20 (CSS-Background),
- * Schema 21 (Inhalt vor Zug) und Schema 22 (Zug vor Inhalt mit negativer
- * Margin) werden nur bei exakt erkannter Altstruktur in Schema 23 projiziert.
+ * Schema 21/22 (fruehere Flow-Reihenfolgen) und Schema 23 (absoluter Layer)
+ * werden nur bei exakt erkannter Altstruktur in Schema 24 projiziert.
  * Mischformen oder frei manipulierte Layer bleiben harte Fehler.
  */
 const MAIL_SIGNATURE_BASE_BACKGROUND = Object.freeze({
@@ -1412,10 +1413,8 @@ function assertSignatureBaseStructure(wrapper, rows) {
         position: 'relative',
         overflow: 'hidden',
     }, 'Die Signatur-Buehne', { exact: true });
-    assertInlineStyles(contentTable, {
-        position: 'relative',
-        'z-index': '1',
-    }, 'Der Signatur-Inhaltsblock');
+    // Die Daten folgen dem Zug im normalen Dokumentfluss. Ihre sichtbare
+    // Vordergrundposition darf nicht von position oder z-index abhaengen.
 
     return { carrier, stage, stageElements, contentTable };
 }
@@ -1473,6 +1472,34 @@ function signatureTrainGeometry(layer) {
         layerMargin,
         imageMargin: imageOffset === '0' ? '0' : `0 0 0 ${imageOffset}`,
     };
+}
+
+function assertMailSafeTrainOverlap(value) {
+    const match = String(value || '').trim().toLowerCase()
+        .match(/^-((?:\d+(?:\.\d+)?)|(?:\.\d+))(px|%)$/);
+    if (!match) {
+        throw new Error('Die Zug-Ueberlappung muss als negativer px- oder Prozentwert angegeben sein.');
+    }
+    const amount = Number.parseFloat(match[1]);
+    const maximum = match[2] === '%' ? 100 : 1000;
+    if (!Number.isFinite(amount) || amount <= 0 || amount > maximum) {
+        throw new Error('Die Zug-Ueberlappung liegt ausserhalb des mail-sicheren Bereichs.');
+    }
+
+    return String(value).trim();
+}
+
+function signatureTrainOverlap(layer, fallback = null) {
+    const value = inlineStyleDeclaration(String(layer?.getAttribute?.('style') || ''), 'margin-bottom');
+    if (value === null || String(value).trim() === '') {
+        if (fallback === null) {
+            throw new Error('Der Zug-Layer benoetigt einen eindeutigen negativen Ueberlappungswert.');
+        }
+
+        return assertMailSafeTrainOverlap(fallback);
+    }
+
+    return assertMailSafeTrainOverlap(value);
 }
 
 function assertLegacyFlowSignatureTrainLayer(layer, image) {
@@ -1539,7 +1566,7 @@ function assertLegacyFlowSignatureTrainLayer(layer, image) {
     }, 'Das Zugbild', { exact: true });
 }
 
-function assertCanonicalSignatureTrainLayer(layer, image) {
+function assertLegacyAbsoluteSignatureTrainLayer(layer, image) {
     if (!layer || !image
         || elementClassNames(layer).join(' ') !== 'rt-sign-train-layer'
         || elementClassNames(image).join(' ') !== 'rt-sign-train'
@@ -1603,6 +1630,66 @@ function assertCanonicalSignatureTrainLayer(layer, image) {
     }, 'Das Zugbild', { exact: true });
 }
 
+function assertCanonicalSignatureTrainLayer(layer, image) {
+    if (!layer || !image
+        || elementClassNames(layer).join(' ') !== 'rt-sign-train-layer'
+        || elementClassNames(image).join(' ') !== 'rt-sign-train'
+        || layer.getAttribute('data-rt-layer-train') !== ''
+        || image.getAttribute('data-rt-train') !== ''
+        || image.getAttribute('src') !== '{{TRAIN_SRC}}'
+        || image.getAttribute('width') !== '720'
+        || image.getAttribute('alt') !== ''
+        || layer.children.length !== 1
+        || layer.firstElementChild !== image) {
+        throw new Error('Das Zugmotiv muss genau einmal im kanonischen IMG-Layer vorliegen.');
+    }
+    assertExactElementAttributes(layer, [
+        'class',
+        'data-rt-layer-train',
+        'data-rt-layer-align',
+        'data-rt-layer-size',
+        'data-rt-layer-mobile',
+        'style',
+    ], 'Der Zug-Layer');
+    assertExactElementAttributes(image, [
+        'class',
+        'data-rt-train',
+        'src',
+        'width',
+        'alt',
+        'style',
+    ], 'Das Zugbild');
+
+    const geometry = signatureTrainGeometry(layer);
+    assertInlineStyles(layer, {
+        display: 'block',
+        width: '100%',
+        'max-width': '1815px',
+        margin: geometry.layerMargin,
+        overflow: 'hidden',
+        'font-size': '0',
+        'line-height': '0',
+        'text-align': 'left',
+    }, 'Der Zug-Layer', { exact: true, optional: ['margin-bottom'] });
+    signatureTrainOverlap(layer);
+    assertInlineStyles(image, {
+        position: 'static',
+        left: 'auto',
+        right: 'auto',
+        bottom: 'auto',
+        display: 'inline-block',
+        width: geometry.size.width,
+        'max-width': 'none',
+        height: 'auto',
+        margin: geometry.imageMargin,
+        border: '0',
+        outline: 'none',
+        'text-decoration': 'none',
+        'vertical-align': 'top',
+        'mso-hide': 'all',
+    }, 'Das Zugbild', { exact: true });
+}
+
 function assertCanonicalSignatureTrainImage(wrapper, rows) {
     const structure = assertSignatureBaseStructure(wrapper, rows);
     const layers = Array.from(wrapper.querySelectorAll(
@@ -1626,7 +1713,7 @@ function assertCanonicalSignatureTrainImage(wrapper, rows) {
     assertOptionalSignatureBackground(structure.carrier);
     assertCanonicalSignatureTrainLayer(layer, image);
 
-    return { ...structure, layer, image };
+    return { ...structure, layer, image, overlap: signatureTrainOverlap(layer) };
 }
 
 function createCanonicalSignatureTrainLayer(document_) {
@@ -1636,7 +1723,7 @@ function createCanonicalSignatureTrainLayer(document_) {
     layer.setAttribute('data-rt-layer-align', 'left');
     layer.setAttribute('data-rt-layer-size', '100');
     layer.setAttribute('data-rt-layer-mobile', 'train');
-    layer.setAttribute('style', 'position:absolute;left:0;right:auto;top:auto;bottom:0;width:100%;max-width:1815px;margin:0;overflow:hidden;font-size:0;line-height:0;text-align:left;mso-hide:all;');
+    layer.setAttribute('style', `display:block;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:${MAIL_SIGNATURE_TRAIN_OVERLAP};overflow:hidden;font-size:0;line-height:0;text-align:left;`);
 
     const image = document_.createElement('img');
     image.setAttribute('class', 'rt-sign-train');
@@ -1650,9 +1737,10 @@ function createCanonicalSignatureTrainLayer(document_) {
     return layer;
 }
 
-function applyCanonicalSignatureTrainGeometry(layer, image) {
+function applyCanonicalSignatureTrainGeometry(layer, image, overlap = MAIL_SIGNATURE_TRAIN_OVERLAP) {
     const geometry = signatureTrainGeometry(layer);
-    layer.setAttribute('style', 'position:absolute;left:0;right:auto;top:auto;bottom:0;width:100%;max-width:1815px;margin:0;overflow:hidden;font-size:0;line-height:0;text-align:left;mso-hide:all;');
+    const safeOverlap = assertMailSafeTrainOverlap(overlap);
+    layer.setAttribute('style', `display:block;width:100%;max-width:1815px;margin:${geometry.layerMargin};margin-bottom:${safeOverlap};overflow:hidden;font-size:0;line-height:0;text-align:left;`);
     image.setAttribute('width', '720');
     image.setAttribute('style', `position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:${geometry.size.width};max-width:none;height:auto;margin:${geometry.imageMargin};border:0;outline:none;text-decoration:none;vertical-align:top;mso-hide:all;`);
 }
@@ -1677,22 +1765,30 @@ function projectLegacySignatureTrainLayer(wrapper, rows) {
         throw new Error('Die alte Signatur besitzt keine eindeutige Zug-/Inhaltsreihenfolge.');
     }
     assertOptionalSignatureBackground(structure.carrier);
-    assertLegacyFlowSignatureTrainLayer(layer, image);
+    try {
+        assertLegacyFlowSignatureTrainLayer(layer, image);
+    } catch {
+        assertLegacyAbsoluteSignatureTrainLayer(layer, image);
+    }
 
     const contentStyle = String(structure.contentTable.getAttribute('style') || '');
+    const overlap = inlineStyleDeclaration(String(layer.getAttribute('style') || ''), 'margin-bottom')
+        || inlineStyleDeclaration(contentStyle, 'margin-bottom')
+        || MAIL_SIGNATURE_TRAIN_OVERLAP;
+    assertMailSafeTrainOverlap(overlap);
     structure.contentTable.setAttribute(
         'style',
         removeInlineStyleDeclaration(contentStyle, 'margin-bottom'),
     );
     if (contentFirst) structure.stage.insertBefore(layer, structure.contentTable);
-    applyCanonicalSignatureTrainGeometry(layer, image);
+    applyCanonicalSignatureTrainGeometry(layer, image, overlap);
 
     return assertCanonicalSignatureTrainImage(wrapper, rows);
 }
 
 function projectSignatureTrainImage(wrapper, rows, project) {
     const declaredSchema = project?.railtime?.schema;
-    if (Number.isInteger(declaredSchema) && ![19, 20, 21, 22, MAIL_SIGNATURE_SCHEMA].includes(declaredSchema)) {
+    if (Number.isInteger(declaredSchema) && ![19, 20, 21, 22, 23, MAIL_SIGNATURE_SCHEMA].includes(declaredSchema)) {
         throw new Error('Die Signatur besitzt einen nicht unterstuetzten Zugvertrag.');
     }
 
@@ -1700,7 +1796,7 @@ function projectSignatureTrainImage(wrapper, rows, project) {
         wrapper?.querySelectorAll?.('td.rt-sign-cell[data-rt-train-background]') || [],
     );
     if (backgroundCarriers.length > 0) {
-        if (declaredSchema === 19 || declaredSchema === 21 || declaredSchema === 22
+        if (declaredSchema === 19 || declaredSchema === 21 || declaredSchema === 22 || declaredSchema === 23
             || declaredSchema === MAIL_SIGNATURE_SCHEMA
             || backgroundCarriers.length !== 1
             || backgroundCarriers[0].getAttribute('data-rt-train-background') !== '1') {
@@ -1729,7 +1825,7 @@ function projectSignatureTrainImage(wrapper, rows, project) {
         if (declaredSchema === 20) {
             throw new Error('Der deklarierte Schema-20-Zughintergrund fehlt.');
         }
-        if ([19, 21, 22, undefined].includes(declaredSchema)) {
+        if ([19, 21, 22, 23, undefined].includes(declaredSchema)) {
             try {
                 assertCanonicalSignatureTrainImage(wrapper, rows);
             } catch {
@@ -2229,6 +2325,11 @@ export function synchronizeMailTrainLayerAlignment(component) {
         150: { width: '150%', centerMargin: '-25%', rightMargin: '-50%' },
         200: { width: '200%', centerMargin: '-50%', rightMargin: '-100%' },
     }[sizeName];
+    const layerMargin = {
+        left: '0 auto 0 0',
+        center: '0 auto',
+        right: '0 0 0 auto',
+    }[alignment];
     const imageOffset = alignment === 'center'
         ? size.centerMargin
         : (alignment === 'right' ? size.rightMargin : '0');
@@ -2248,48 +2349,38 @@ export function synchronizeMailTrainLayerAlignment(component) {
         }
     }
     const current = component?.getStyle?.() || {};
-    const layerChanged = current.left !== '0'
-        || current.right !== 'auto'
-        || current.position !== 'absolute'
-        || current.top !== 'auto'
-        || current.bottom !== '0'
+    let overlap = current['margin-bottom'];
+    try {
+        overlap = assertMailSafeTrainOverlap(overlap || MAIL_SIGNATURE_TRAIN_OVERLAP);
+    } catch {
+        overlap = MAIL_SIGNATURE_TRAIN_OVERLAP;
+    }
+    const legacyProperties = ['position', 'left', 'right', 'top', 'bottom', 'height', 'z-index', 'mso-hide'];
+    const layerChanged = current.display !== 'block'
         || current.width !== '100%'
         || current['max-width'] !== '1815px'
-        || current.margin !== '0'
+        || current.margin !== layerMargin
+        || current['margin-bottom'] !== overlap
         || current['text-align'] !== 'left'
-        || current['mso-hide'] !== 'all'
-        || Object.prototype.hasOwnProperty.call(current, 'height')
-        || Object.prototype.hasOwnProperty.call(current, 'z-index')
-        || Object.prototype.hasOwnProperty.call(current, 'margin-bottom');
+        || legacyProperties.some((property) => Object.prototype.hasOwnProperty.call(current, property));
     if (layerChanged) {
         const canonicalStyle = {
             ...current,
-            position: 'absolute',
-            left: '0',
-            right: 'auto',
-            top: 'auto',
-            bottom: '0',
+            display: 'block',
             width: '100%',
             'max-width': '1815px',
-            margin: '0',
+            margin: layerMargin,
+            'margin-bottom': overlap,
             'text-align': 'left',
-            'mso-hide': 'all',
         };
-        delete canonicalStyle.height;
-        delete canonicalStyle['z-index'];
-        delete canonicalStyle['margin-bottom'];
-        // Manche GrapesJS-Adapter fuehren setStyle() mit dem vorhandenen
-        // Styleobjekt zusammen. Den alten Prozentwert deshalb auch an der
-        // Quelle entfernen, bevor die kanonischen Werte gesetzt werden.
-        if (Object.prototype.hasOwnProperty.call(current, 'height')) {
-            delete current.height;
-            component?.removeStyle?.('height', { silent: true });
-        }
-        ['z-index', 'margin-bottom'].forEach((property) => {
+        // Absolute Altwerte muessen auch am vorhandenen GrapesJS-Styleobjekt
+        // verschwinden, weil einige Adapter setStyle() nur zusammenfuehren.
+        legacyProperties.forEach((property) => {
             if (Object.prototype.hasOwnProperty.call(current, property)) {
                 delete current[property];
                 component?.removeStyle?.(property, { silent: true });
             }
+            delete canonicalStyle[property];
         });
         component?.setStyle?.(canonicalStyle, { silent: true });
     }
@@ -2339,9 +2430,8 @@ export function synchronizeMailTrainLayerAlignment(component) {
     }
 
     if (!attributesChanged && !layerChanged && !imageChanged
-        && current.left === '0'
-        && current.right === 'auto'
-        && current.margin === '0') {
+        && current.margin === layerMargin
+        && current['margin-bottom'] === overlap) {
         return false;
     }
 

@@ -211,7 +211,7 @@ class PageBuilderPreviewTest extends TestCase
         $this->assertStringNotContainsString('data:image/', $staticCarrier[0]);
         $this->assertStringContainsString('background-image:linear-gradient(', $staticCarrier[0]);
         $this->assertMatchesRegularExpression('/<img\b[^>]*\bdata-rt-train(?:\s|=|>)[^>]*src="data:image\/png;base64,[^"]+"/i', $html);
-        $this->assertMatchesRegularExpression('/<div\b[^>]*class="[^"]*\brt-sign-train-layer\b[^"]*"[^>]*style="position:absolute;[^">]*top:auto;bottom:0;[^">]*margin:0;[^">]*mso-hide:all;/s', $html);
+        $this->assertMatchesRegularExpression('/<div\b[^>]*class="[^"]*\brt-sign-train-layer\b[^"]*"[^>]*style="display:block;[^">]*margin-bottom:-[0-9.]+(?:px|%);[^">]*overflow:hidden;/s', $html);
         $this->assertMatchesRegularExpression('/<img\b[^>]*class="rt-sign-train-mso"[^>]*\bdata-rt-train-mso="1"[^>]*src="data:image\/png;base64,[^"]+"/i', $html);
         $this->assertDoesNotMatchRegularExpression('/<v:(?:rect|fill)\b/i', $html);
         $this->assertStringNotContainsString('<tr><td class="rt-sign-train-mso"', $html);
@@ -249,7 +249,7 @@ class PageBuilderPreviewTest extends TestCase
         $this->assertStringNotContainsString('data:image/', $animatedCarrier[0]);
         $this->assertStringContainsString('background-image:linear-gradient(', $animatedCarrier[0]);
         $this->assertMatchesRegularExpression('/<img\b[^>]*\bdata-rt-train(?:\s|=|>)[^>]*src="data:image\/gif;base64,[^"]+"/i', $animatedHtml);
-        $this->assertMatchesRegularExpression('/<div\b[^>]*class="[^"]*\brt-sign-train-layer\b[^"]*"[^>]*style="position:absolute;[^">]*top:auto;bottom:0;[^">]*margin:0;[^">]*mso-hide:all;/s', $animatedHtml);
+        $this->assertMatchesRegularExpression('/<div\b[^>]*class="[^"]*\brt-sign-train-layer\b[^"]*"[^>]*style="display:block;[^">]*margin-bottom:-[0-9.]+(?:px|%);[^">]*overflow:hidden;/s', $animatedHtml);
         $this->assertMatchesRegularExpression('/<img\b[^>]*class="rt-sign-train-mso"[^>]*\bdata-rt-train-mso="1"[^>]*src="data:image\/png;base64,[^"]+"/i', $animatedHtml);
         $this->assertDoesNotMatchRegularExpression('/<v:(?:rect|fill)\b/i', $animatedHtml);
         $this->assertStringNotContainsString('<tr><td class="rt-sign-train-mso"', $animatedHtml);

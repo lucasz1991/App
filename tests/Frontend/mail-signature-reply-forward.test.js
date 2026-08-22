@@ -76,7 +76,7 @@ test('mobile rules restyle the same signature nodes without hide-and-show copies
     assert.match(mobile, /data-rt-layer-mobile="right"\]\[data-rt-layer-size\][\s\S]*?width:\s*200% !important;\s*max-width:\s*none !important;\s*margin-left:\s*-100% !important;/);
 });
 
-test('delivery bottom-anchors the modern train and keeps an MSO flow fallback before content', async () => {
+test('delivery keeps the train-first flow overlap and its MSO fallback inside the layer', async () => {
     const [signature, runtime, carrier, preview] = await Promise.all([
         source('../../resources/views/emails/parts/signature.blade.php'),
         source('../../app/Support/MailSignature.php'),
@@ -90,7 +90,7 @@ test('delivery bottom-anchors the modern train and keeps an MSO flow fallback be
 
     assert.match(signature, /\$trainSrc = \$outlookTrainSrc !== ''/);
     assert.match(signature, /<div class="rt-sign-stage" style="position:relative;overflow:hidden;">/);
-    assert.match(signature, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="position:absolute;left:0;right:auto;top:auto;bottom:0;width:100%;max-width:1815px;margin:0;[^"\r\n]*overflow:hidden;[^"\r\n]*text-align:left;mso-hide:all;">/);
+    assert.match(signature, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="display:block;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-7\.3611%;[^"\r\n]*overflow:hidden;[^"\r\n]*text-align:left;">/);
     assert.match(signature, /<img class="rt-sign-train" data-rt-train src="\{\{ \$trainSrc \}\}" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;[^\"]*vertical-align:top;[^\"]*mso-hide:all;">/);
     assert.doesNotMatch(signature, /url\(\{\$values\['TRAIN_SRC'\]\}\)/);
     assert.doesNotMatch(signature, /data-rt-outlook-train/);
@@ -114,8 +114,8 @@ test('delivery bottom-anchors the modern train and keeps an MSO flow fallback be
     assert.match(msoFallback, /self::assertRuntimeImages\(\$html, expectedMsoSource: \$source\);[\s\S]*?return \$html;/);
     assert.doesNotMatch(carrier, /<v:(?:rect|fill)\b/);
     assert.match(carrier, /<div class="rt-sign-stage" style="position:relative;overflow:hidden;">/);
-    assert.match(carrier, /<div class="rt-sign-train-layer" data-rt-layer-train[^>]*style="position:absolute;[^"\r\n]*top:auto;bottom:0;[^"\r\n]*mso-hide:all;/);
-    assert.match(msoFallback, /substr_replace\(\$html, \$fallback, \$layers\[0\]\['startOffset'\], 0\)/);
+    assert.match(carrier, /<div class="rt-sign-train-layer" data-rt-layer-train[^>]*style="display:block;[^"\r\n]*margin-bottom:-7\.3611%;/);
+    assert.match(msoFallback, /substr_replace\(\$html, \$fallback, \$layers\[0\]\['endOffset'\] \+ 1, 0\)/);
     assert.match(carrier, /<img class="rt-sign-train" data-rt-train src="'\.\$source\.'" width="720"[^>]*style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;/);
     assert.match(preview, /MailSignature::forCompany\(/);
     assert.match(preview, /->renderDocument\(/);
