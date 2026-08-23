@@ -1573,8 +1573,8 @@ final class SignatureTrainCarrier
 
     private static function canonicalLayerMarkup(
         string $source,
-        string $alignment = 'left',
-        string $sizeName = '100',
+        string $alignment = 'center',
+        string $sizeName = '125',
         string $mobileCrop = 'train',
     ): string {
         $size = self::CANONICAL_LAYER_SIZE[$sizeName] ?? null;
@@ -2584,10 +2584,10 @@ final class SignatureTrainCarrier
     }
 
     /**
-     * Entfernt nur die bekannten alten Starterabstaende direkt vor der
-     * regulaeren Zugzeile. Dadurch werden bereits publizierte Signaturen und
-     * Editorvorschauen sofort kompakt, waehrend individuell gesetzte
-     * Innenabstaende unveraendert bleiben.
+     * Normalisiert nur die bekannten alten Starterabstaende direkt vor der
+     * regulaeren Zugzeile auf 15px Abstand zum Pflichtfooter. Dadurch werden
+     * bereits publizierte Signaturen und Editorvorschauen sofort einheitlich,
+     * waehrend individuell gesetzte Innenabstaende unveraendert bleiben.
      */
     private static function compactDefaultContentPadding(string $html): string
     {
@@ -2607,18 +2607,62 @@ final class SignatureTrainCarrier
         }
         $style = CssSemantic::decodeHtmlEntitiesOnce($styles[0]['raw']);
         $compacted = strtr($style, [
-            'padding:18px 36px 20px;' => 'padding:18px 36px 0;',
-            'padding:16px 28px 18px;' => 'padding:16px 28px 0;',
+            'padding:18px 36px 20px;' => 'padding:0 36px 15px;',
+            'padding:18px 36px 15px;' => 'padding:0 36px 15px;',
+            'padding:18px 36px 0;' => 'padding:0 36px 15px;',
+            'padding:16px 28px 18px;' => 'padding:0 28px 15px;',
+            'padding:16px 28px 15px;' => 'padding:0 28px 15px;',
+            'padding:16px 28px 0;' => 'padding:0 28px 15px;',
         ]);
-        if ($compacted === $style) {
+        $knownDefault = $compacted !== $style
+            || str_contains($style, 'padding:0 36px 15px;')
+            || str_contains($style, 'padding:0 28px 15px;');
+        if (! $knownDefault) {
             return $html;
         }
 
-        return substr_replace(
+        $verticalPattern = '/(^|;)\s*vertical-align\s*:[^;]*(?=;|$)/i';
+        if (preg_match($verticalPattern, $compacted) === 1) {
+            $compacted = preg_replace($verticalPattern, '$1vertical-align:bottom', $compacted) ?? $compacted;
+        } else {
+            $compacted = rtrim($compacted);
+            $compacted .= str_ends_with($compacted, ';') ? '' : ';';
+            $compacted .= 'vertical-align:bottom;';
+        }
+
+        $normalized = substr_replace(
             $html,
             htmlspecialchars($compacted, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8'),
             $styles[0]['valueOffset'],
             $styles[0]['valueLength'],
+        );
+
+        $normalizedCells = [];
+        foreach (self::scanStartTags($normalized) as $tag) {
+            if ($tag['name'] === 'td' && self::sourceTagHasClass($tag, 'rt-sign-content')) {
+                $normalizedCells[] = $tag;
+            }
+        }
+        if (count($normalizedCells) !== 1) {
+            throw new RuntimeException('Der normalisierte Signatur-Inhalt ist nicht eindeutig.');
+        }
+
+        $valign = $normalizedCells[0]['attributes']['valign'] ?? [];
+        if (count($valign) > 1) {
+            throw new RuntimeException('Der Signatur-Inhalt besitzt das valign-Attribut mehrfach.');
+        }
+        if ($valign === []) {
+            return substr_replace($normalized, ' valign="bottom"', $normalizedCells[0]['endOffset'], 0);
+        }
+        if ($valign[0]['valueOffset'] === null) {
+            throw new RuntimeException('Der Signatur-Inhalt besitzt kein lesbares valign-Attribut.');
+        }
+
+        return substr_replace(
+            $normalized,
+            'bottom',
+            $valign[0]['valueOffset'],
+            $valign[0]['valueLength'],
         );
     }
 

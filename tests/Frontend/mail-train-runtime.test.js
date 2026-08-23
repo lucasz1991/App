@@ -118,14 +118,14 @@ test('all delivered mail outputs keep the train-first flow overlap and a Classic
     assert.match(responsiveCss, /\.rt-sign-train-layer\s*\{[^}]*display:\s*block !important;[^}]*margin-top:\s*0 !important;/s);
     assert.doesNotMatch(responsiveCss, /\.rt-sign-train-layer\s*\{[^}]*position:\s*absolute !important;/s);
     assert.match(responsiveCss, /\.rt-sign-train,\s*\.rt-sign-train-mso\s*\{[^}]*position:\s*static !important;[^}]*bottom:\s*auto !important;[^}]*display:\s*inline-block !important;[^}]*vertical-align:\s*bottom !important;/s);
-    assert.match(responsiveCss, /\.rt-sign-train-mso\s*\{[^}]*width:\s*100% !important;[^}]*margin:\s*0 !important;/s);
+    assert.doesNotMatch(responsiveCss, /\.rt-sign-train-mso\s*\{[^}]*width:\s*100% !important;[^}]*margin:\s*0 !important;/s);
     assert.match(responsiveCss, /\.rt-train-idle-overlay\s*\{[^}]*top:\s*auto !important;[^}]*bottom:\s*0 !important;[^}]*max-width:\s*none !important;/s);
     assert.match(responsiveCss, /\.rt-train-idle-image\s*\{[^}]*position:\s*absolute !important;[^}]*bottom:\s*0 !important;[^}]*display:\s*inline-block !important;[^}]*vertical-align:\s*bottom !important;/s);
     assert.match(responsiveCss, /prefers-reduced-motion:[^)]+\)[\s\S]*?\.rt-train-idle-overlay/);
     assert.doesNotMatch(routes, /mail-animations\/train/);
     assert.match(signatureView, /<div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;">/);
     assert.match(signatureView, /<img class="rt-sign-train" data-rt-train src="\{\{ \$trainSrc \}\}" width="720"[^>]*position:static;[^>]*bottom:auto;[^>]*display:inline-block;[^>]*vertical-align:bottom;[^>]*mso-hide:all;/);
-    assert.match(signatureView, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="display:block;[^">]*height:200px;max-height:200px;[^">]*margin-bottom:-200px;/);
+    assert.match(signatureView, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="center" data-rt-layer-size="125" data-rt-layer-mobile="train" style="display:block;[^">]*height:200px;max-height:200px;[^">]*margin:0 auto;margin-bottom:-200px;/);
     assert.match(signatureView, /<table class="rt-sign-train-frame" role="presentation" width="100%" height="200"/);
     assert.match(signatureView, /<td class="rt-sign-train-slot" height="200" valign="bottom"/);
     assert.match(signatureView, /<table class="rt-sign-content-frame" role="presentation" width="100%" height="200"/);
@@ -140,15 +140,16 @@ test('all delivered mail outputs keep the train-first flow overlap and a Classic
     assert.doesNotMatch(signatureView, /<td class="rt-sign-cell"[^>]+position:relative/);
     assert.match(
         signatureView,
-        /<td class="rt-pad rt-sign-content" style="padding:\{\{ \$padding \}\};position:relative;z-index:1;">/,
+        /<td class="rt-pad rt-sign-content" valign="bottom" style="padding:\{\{ \$padding \}\};position:relative;z-index:1;vertical-align:bottom;">/,
     );
     assert.doesNotMatch(signatureView, /class="rt-pad rt-sign-cell"/);
     assert.doesNotMatch(signatureView, /\$cellPadding/);
-    assert.match(signatureView, /\$padding = \$padding \?\? '18px 36px 0';/);
+    assert.match(signatureView, /\$padding = \$padding \?\? '0 36px 15px';/);
     assert.match(signatureView, /\$outlookTrainPadding = \$outlookTrainPadding \?\? '0';/);
     assert.match(carrier, /compactDefaultContentPadding/);
-    assert.match(carrier, /'padding:18px 36px 20px;' => 'padding:18px 36px 0;'/);
-    assert.match(responsiveCss, /\.rt-sign-content \{ padding-bottom: 0 !important; \}/);
+    assert.match(carrier, /'padding:18px 36px 20px;' => 'padding:0 36px 15px;'/);
+    assert.match(carrier, /' valign="bottom"'/);
+    assert.match(responsiveCss, /\.rt-sign-content \{ padding-top: 0 !important; padding-bottom: 15px !important; \}/);
     const mobile = responsiveCss.slice(responsiveCss.indexOf('@media only screen and (max-width: 860px)'));
     assert.doesNotMatch(responsiveCss, /\.rt-sign-cell\.rt-sign-train-background/);
     assert.match(mobile, /\.rt-sign-cell\s*\{[\s\S]+?background-position:\s*center center !important;[\s\S]+?background-size:\s*100% 100% !important;/);
@@ -181,18 +182,20 @@ test('idle IMG remains a bottom-anchored zero-height overlay when animation supp
     assert.doesNotMatch(`${carrier}\n${responsiveCss}`, /background(?:-image)?\s*:[^;\r\n]*(?:TRAIN_(?:SRC|IDLE_SRC)|zug-dampf[^;\r\n]*\.gif)/i);
 });
 
-test('editor and delivery keep the default mobile train at 100 percent while explicit crops may zoom', () => {
+test('editor and delivery enlarge the default train progressively while keeping the fixed stage', () => {
     const signatureView = text('resources/views/emails/parts/signature.blade.php');
     const responsiveCss = text('resources/views/emails/parts/responsive-css.blade.php');
 
     assert.match(signatureView, /\$trainSrc = \$outlookTrainSrc !== ''/);
-    assert.match(signatureView, /position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto/);
+    assert.match(signatureView, /position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:125%;max-width:none;height:auto;margin:0 0 0 -12\.5%/);
     assert.doesNotMatch(signatureView, /url\(\{\$values\['TRAIN_SRC'\]\}\)/);
     const mobile = responsiveCss.slice(responsiveCss.indexOf('@media only screen and (max-width: 860px)'));
     assert.match(mobile, /\.rt-sign-cell\s*\{[\s\S]+?background-position: center center !important;[\s\S]+?background-size: 100% 100% !important;/);
     assert.match(mobile, /\.rt-sign-train-layer\s*\{[^}]*width: 100% !important;[^}]*max-width: 1815px !important;/s);
     assert.doesNotMatch(responsiveCss, /\.rt-sign-train-layer\s*\{[^}]*margin-bottom:\s*0 !important;/s);
-    assert.match(mobile, /data-rt-layer-mobile="train"\]\[data-rt-layer-size\][\s\S]+?width: 100% !important; max-width: none !important; margin-left: 0 !important;/);
+    assert.match(mobile, /data-rt-layer-mobile="train"\]\[data-rt-layer-size\][\s\S]+?width: 150% !important; max-width: none !important; margin-left: 0 !important;/);
+    const phone = responsiveCss.slice(responsiveCss.indexOf('@media only screen and (max-width: 480px)'));
+    assert.match(phone, /data-rt-layer-mobile="train"\]\[data-rt-layer-size\][\s\S]+?width: 175% !important;[\s\S]+?margin-left: 0 !important;/);
     assert.match(mobile, /data-rt-layer-mobile="right"\]\[data-rt-layer-size\][\s\S]+?width: 200% !important; max-width: none !important; margin-left: -100% !important;/);
     assert.match(responsiveCss, /rt-train-idle-reveal/);
 });

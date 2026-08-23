@@ -72,7 +72,9 @@ test('mobile rules restyle the same signature nodes without hide-and-show copies
     assert.doesNotMatch(css, /rt-marke-mobil|\.rt-sign-logo img\.rt-logo\s*\{[^}]*display:\s*none/);
     assert.match(mobile, /\.rt-sign-train-layer\s*\{[^}]*width:\s*100% !important;[^}]*max-width:\s*1815px !important;/s);
     assert.doesNotMatch(css, /\.rt-sign-train-layer\s*\{[^}]*margin-bottom:\s*0 !important;/s);
-    assert.match(mobile, /data-rt-layer-mobile="train"\]\[data-rt-layer-size\][\s\S]*?width:\s*100% !important;\s*max-width:\s*none !important;\s*margin-left:\s*0 !important;/);
+    assert.match(mobile, /data-rt-layer-mobile="train"\]\[data-rt-layer-size\][\s\S]*?width:\s*150% !important;\s*max-width:\s*none !important;\s*margin-left:\s*0 !important;/);
+    const phone = css.slice(css.indexOf('@media only screen and (max-width: 480px)'));
+    assert.match(phone, /data-rt-layer-mobile="train"\]\[data-rt-layer-size\][\s\S]*?width:\s*175% !important;[\s\S]*?margin-left:\s*0 !important;/);
     assert.match(mobile, /data-rt-layer-mobile="right"\]\[data-rt-layer-size\][\s\S]*?width:\s*200% !important;\s*max-width:\s*none !important;\s*margin-left:\s*-100% !important;/);
 });
 
@@ -90,11 +92,11 @@ test('delivery keeps the fixed train pixel frame and its MSO fallback inside the
 
     assert.match(signature, /\$trainSrc = \$outlookTrainSrc !== ''/);
     assert.match(signature, /<div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;">/);
-    assert.match(signature, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto 0 0;margin-bottom:-200px;[^"\r\n]*overflow:hidden;[^"\r\n]*text-align:left;">/);
+    assert.match(signature, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="center" data-rt-layer-size="125" data-rt-layer-mobile="train" style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto;margin-bottom:-200px;[^"\r\n]*overflow:hidden;[^"\r\n]*text-align:left;">/);
     assert.match(signature, /<table class="rt-sign-train-frame" role="presentation" width="100%" height="200"/);
     assert.match(signature, /<td class="rt-sign-train-slot" height="200" valign="bottom"/);
     assert.match(signature, /<table class="rt-sign-content-frame" role="presentation" width="100%" height="200"/);
-    assert.match(signature, /<img class="rt-sign-train" data-rt-train src="\{\{ \$trainSrc \}\}" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;[^\"]*vertical-align:bottom;[^\"]*mso-hide:all;">/);
+    assert.match(signature, /<img class="rt-sign-train" data-rt-train src="\{\{ \$trainSrc \}\}" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:125%;max-width:none;height:auto;margin:0 0 0 -12\.5%;[^\"]*vertical-align:bottom;[^\"]*mso-hide:all;">/);
     assert.doesNotMatch(signature, /url\(\{\$values\['TRAIN_SRC'\]\}\)/);
     assert.doesNotMatch(signature, /data-rt-outlook-train/);
     assert.doesNotMatch(signature, /<td[^>]+background="\{\{[^}]*TRAIN/);

@@ -86,11 +86,6 @@
   vertical-align: bottom !important;
   z-index: 0 !important;
 }
-.rt-sign-train-mso {
-  width: 100% !important;
-  max-width: none !important;
-  margin: 0 !important;
-}
 @keyframes rt-train-idle-reveal {
   0% { opacity: 0; visibility: hidden; }
   100% { opacity: 1; visibility: visible; }
@@ -202,17 +197,17 @@ tr.rt-stack > td.rt-card-cell, tr.rt-stack > td.rt-card-cell + td { padding-left
 /* ---- Tablet hoch und kleiner: stapeln ---- */
 @media only screen and (max-width: 860px) {
 .rt-sign-stage {
-  height: 292px !important;
-  max-height: 292px !important;
+  height: 296px !important;
+  max-height: 296px !important;
 }
 .rt-sign-train-layer {
-  height: 292px !important;
-  max-height: 292px !important;
-  margin-bottom: -292px !important;
+  height: 296px !important;
+  max-height: 296px !important;
+  margin-bottom: -296px !important;
 }
 .rt-sign-train-frame,
 .rt-sign-train-slot,
-.rt-sign-content-frame { height: 292px !important; }
+.rt-sign-content-frame { height: 296px !important; }
 .rt-pad { padding-left: 24px !important; padding-right: 24px !important; }
 .rt-title { font-size: 27px !important; line-height: 32px !important; }
 {{-- Nur DIREKTE Zellen der markierten Zeile umbrechen: ein Nachfahren-
@@ -314,8 +309,9 @@ img.rt-logo { width: 150px !important; }
   margin-top: 0 !important;
 }
 /* Der fliessende Clipping-Viewport bleibt vollbreit. Seine vertikale
-   Geometrie ist direkt auf 292px festgelegt; nur der horizontale
-   Bildausschnitt wird weiterhin ueber die erlaubten Presets gewaehlt. */
+   Geometrie ist direkt auf 296px festgelegt. Das Standardmotiv wird auf
+   Tablets bereits vergroessert; nur der horizontale Bildausschnitt wird
+   weiterhin ueber die erlaubten Presets gewaehlt. */
 .rt-sign-train-layer[data-rt-layer-mobile="left"][data-rt-layer-size] .rt-sign-train,
 .rt-sign-train-layer[data-rt-layer-mobile="left"][data-rt-layer-size] .rt-train-idle-image { width: 200% !important; max-width: none !important; margin-left: 0 !important; }
 .rt-sign-train-layer[data-rt-layer-mobile="center"][data-rt-layer-size] .rt-sign-train,
@@ -323,27 +319,37 @@ img.rt-logo { width: 150px !important; }
 .rt-sign-train-layer[data-rt-layer-mobile="right"][data-rt-layer-size] .rt-sign-train,
 .rt-sign-train-layer[data-rt-layer-mobile="right"][data-rt-layer-size] .rt-train-idle-image { width: 200% !important; max-width: none !important; margin-left: -100% !important; }
 .rt-sign-train-layer[data-rt-layer-mobile="train"][data-rt-layer-size] .rt-sign-train,
-.rt-sign-train-layer[data-rt-layer-mobile="train"][data-rt-layer-size] .rt-train-idle-image { width: 100% !important; max-width: none !important; margin-left: 0 !important; }
+.rt-sign-train-layer[data-rt-layer-mobile="train"][data-rt-layer-size] .rt-train-idle-image { width: 150% !important; max-width: none !important; margin-left: 0 !important; }
 }
 
 /* ---- Telefon: Innenabstaende weiter zuruecknehmen ---- */
 @media only screen and (max-width: 480px) {
 .rt-sign-stage {
-  height: 280px !important;
-  max-height: 280px !important;
+  height: 296px !important;
+  max-height: 296px !important;
 }
 .rt-sign-train-layer {
-  height: 280px !important;
-  max-height: 280px !important;
-  margin-bottom: -280px !important;
+  height: 296px !important;
+  max-height: 296px !important;
+  margin-bottom: -296px !important;
 }
 .rt-sign-train-frame,
 .rt-sign-train-slot,
-.rt-sign-content-frame { height: 280px !important; }
+.rt-sign-content-frame { height: 296px !important; }
 .rt-pad { padding-left: 18px !important; padding-right: 18px !important; }
 .rt-title { font-size: 24px !important; line-height: 29px !important; }
 .rt-sign-name { font-size: 17px !important; line-height: 21px !important; }
 img.rt-logo { width: 138px !important; }
+
+/* Auf Telefonbreite ist der Zug 75 Prozent groesser als der Viewport. Sein
+   sichtbares Motiv endet dadurch knapp ausserhalb der rechten Kante: Die Lok
+   bleibt praesent, der lange Zug faehrt bewusst nicht vollstaendig ein. */
+.rt-sign-train-layer[data-rt-layer-mobile="train"][data-rt-layer-size] .rt-sign-train,
+.rt-sign-train-layer[data-rt-layer-mobile="train"][data-rt-layer-size] .rt-train-idle-image {
+  width: 175% !important;
+  max-width: none !important;
+  margin-left: 0 !important;
+}
 
 
 tr.rt-stack > td + td { padding-top: 10px !important; }
@@ -351,5 +357,5 @@ tr.rt-stack > td + td { padding-top: 10px !important; }
 .rt-pad { padding-top: 14px !important; padding-bottom: 14px !important; }
 /* Die allgemeine Telefonverdichtung darf am unteren Zug-Carrier keinen
    neuen Leerraum vor dem Pflichtangaben-Footer einfuehren. */
-.rt-sign-content { padding-bottom: 0 !important; }
+.rt-sign-content { padding-top: 0 !important; padding-bottom: 15px !important; }
 }

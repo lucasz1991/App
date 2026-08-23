@@ -1022,7 +1022,7 @@ test('train layer editor maps presets onto the fixed schema 25 pixel contract', 
         display: 'block',
         height: '200px',
         'max-height': '200px',
-        margin: '0 auto 0 0',
+        margin: '0 auto',
         'margin-bottom': '-200px',
         width: '100%',
         'max-width': '1815px',
@@ -1031,7 +1031,7 @@ test('train layer editor maps presets onto the fixed schema 25 pixel contract', 
         'line-height': '0',
         'text-align': 'left',
     });
-    assert.equal(attributes['data-rt-layer-align'], 'left');
+    assert.equal(attributes['data-rt-layer-align'], 'center');
     assert.equal(attributes['data-rt-layer-mobile'], 'train');
     assert.equal(imageAttributes.width, '720');
     assert.equal(layerStyleOptions.length > 0, true);
@@ -1079,7 +1079,11 @@ test('mail editor no longer offers misleading train background controls', () => 
     assert.equal(MAIL_STYLE_SECTORS.some((item) => item.id === 'rt-mail-train-background'), false);
     assert.equal(MAIL_STYLE_SECTORS.some((item) => item.buildProps?.includes('position')), false);
     assert.equal(MAIL_STYLE_SECTORS.some((item) => item.buildProps?.includes('z-index')), false);
-    assert.equal(MAIL_STYLE_SECTORS.some((item) => item.buildProps?.includes('margin-bottom')), true);
+    const spacingSector = MAIL_STYLE_SECTORS.find((item) => item.id === 'rt-mail-spacing');
+    assert.equal(spacingSector?.buildProps?.includes('padding'), true);
+    assert.equal(spacingSector?.buildProps?.includes('margin'), true);
+    assert.equal(spacingSector?.buildProps?.some((property) => /^padding-/.test(property)), false);
+    assert.equal(spacingSector?.buildProps?.some((property) => /^margin-/.test(property)), false);
     assert.equal(MAIL_EDITOR_MODE.id, 'mail');
     assert.equal(MAIL_EDITOR_MODE.contentModel, 'email');
     assert.equal(MAIL_EDITOR_MODE.styleStrategy, 'inline');
@@ -1503,7 +1507,8 @@ test('signature source uses a fixed schema 25 pixel frame with a Classic Outlook
     assert.match(signatureSource, /<table class="rt-sign-content-frame" role="presentation"[^>]*height="200"[^>]*style="width:100%;height:200px;border-collapse:collapse;">/);
     assert.doesNotMatch(signatureSource, /<td class="rt-sign-cell"[^>]*position:relative/);
     assert.match(signatureSource, /<img class="rt-sign-train" data-rt-train src="\{\{ \$trainSrc \}\}"/);
-    assert.match(signatureSource, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto 0 0;margin-bottom:-200px;[^"\r\n]*overflow:hidden;/);
+    assert.match(signatureSource, /<div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="center" data-rt-layer-size="125" data-rt-layer-mobile="train" style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto;margin-bottom:-200px;[^"\r\n]*overflow:hidden;/);
+    assert.match(signatureSource, /<img class="rt-sign-train"[^>]*width="720"[^>]*width:125%;[^"\r\n]*margin:0 0 0 -12\.5%;/);
     assert.match(signatureSource, /<table class="rt-sign-train-frame" role="presentation" width="100%" height="200"[^>]*style="width:100%;height:200px;border-collapse:collapse;">/);
     assert.match(signatureSource, /<td class="rt-sign-train-slot" height="200" valign="bottom" style="height:200px;[^"\r\n]*vertical-align:bottom;/);
     assert.doesNotMatch(signatureSource, /rt-sign-train-layer[^>]*position:absolute/);
@@ -1540,6 +1545,8 @@ test('signature source uses a fixed schema 25 pixel frame with a Classic Outlook
 
     const mobile = css.slice(css.indexOf('@media only screen and (max-width: 860px)'));
     assert.match(mobile, /\.rt-sign-train-layer\s*\{[\s\S]*?width: 100% !important;/);
-    assert.match(mobile, /data-rt-layer-mobile="train"\]\[data-rt-layer-size\][^}]+width: 100% !important; max-width: none !important; margin-left: 0 !important/);
+    assert.match(mobile, /data-rt-layer-mobile="train"\]\[data-rt-layer-size\][^}]+width: 150% !important; max-width: none !important; margin-left: 0 !important/);
+    const phone = css.slice(css.indexOf('@media only screen and (max-width: 480px)'));
+    assert.match(phone, /data-rt-layer-mobile="train"\]\[data-rt-layer-size\][\s\S]*?width: 175% !important;[\s\S]*?margin-left: 0 !important;/);
     assert.match(mobile, /data-rt-layer-mobile="right"\]\[data-rt-layer-size\][^}]+width: 200% !important; max-width: none !important; margin-left: -100% !important/);
 });

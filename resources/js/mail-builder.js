@@ -1161,15 +1161,7 @@ export const MAIL_STYLE_SECTORS = Object.freeze([
         open: true,
         buildProps: [
             'padding',
-            'padding-top',
-            'padding-right',
-            'padding-bottom',
-            'padding-left',
             'margin',
-            'margin-top',
-            'margin-right',
-            'margin-bottom',
-            'margin-left',
             'width',
             'max-width',
             'height',
@@ -1826,10 +1818,10 @@ function createCanonicalSignatureTrainLayer(document_) {
     const layer = document_.createElement('div');
     layer.setAttribute('class', 'rt-sign-train-layer');
     layer.setAttribute('data-rt-layer-train', '');
-    layer.setAttribute('data-rt-layer-align', 'left');
-    layer.setAttribute('data-rt-layer-size', '100');
+    layer.setAttribute('data-rt-layer-align', 'center');
+    layer.setAttribute('data-rt-layer-size', '125');
     layer.setAttribute('data-rt-layer-mobile', 'train');
-    layer.setAttribute('style', `display:block;width:100%;height:${MAIL_SIGNATURE_FIXED_HEIGHT};max-height:${MAIL_SIGNATURE_FIXED_HEIGHT};max-width:1815px;margin:0 auto 0 0;margin-bottom:${MAIL_SIGNATURE_TRAIN_OVERLAP};overflow:hidden;font-size:0;line-height:0;text-align:left;`);
+    layer.setAttribute('style', `display:block;width:100%;height:${MAIL_SIGNATURE_FIXED_HEIGHT};max-height:${MAIL_SIGNATURE_FIXED_HEIGHT};max-width:1815px;margin:0 auto;margin-bottom:${MAIL_SIGNATURE_TRAIN_OVERLAP};overflow:hidden;font-size:0;line-height:0;text-align:left;`);
 
     const frame = document_.createElement('table');
     frame.setAttribute('class', 'rt-sign-train-frame');
@@ -1854,7 +1846,7 @@ function createCanonicalSignatureTrainLayer(document_) {
     image.setAttribute('src', '{{TRAIN_SRC}}');
     image.setAttribute('width', '720');
     image.setAttribute('alt', '');
-    image.setAttribute('style', 'position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:bottom;mso-hide:all;');
+    image.setAttribute('style', 'position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:125%;max-width:none;height:auto;margin:0 0 0 -12.5%;border:0;outline:none;text-decoration:none;vertical-align:bottom;mso-hide:all;');
     slot.append(image);
     row.append(slot);
     body.append(row);
@@ -2542,10 +2534,10 @@ export function synchronizeMailTrainLayerAlignment(component) {
 
     const alignment = ['left', 'center', 'right'].includes(attributes['data-rt-layer-align'])
         ? attributes['data-rt-layer-align']
-        : 'left';
+        : 'center';
     const sizeName = ['100', '125', '150', '200'].includes(String(attributes['data-rt-layer-size']))
         ? String(attributes['data-rt-layer-size'])
-        : '100';
+        : '125';
     const mobileCrop = ['left', 'center', 'train', 'right'].includes(attributes['data-rt-layer-mobile'])
         ? attributes['data-rt-layer-mobile']
         : 'train';
@@ -2866,8 +2858,8 @@ export function protectMailSystemComponents(editor) {
                         name: 'data-rt-layer-size',
                         label: 'Zugbreite',
                         options: [
-                            { id: '100', name: '100 % · Standard' },
-                            { id: '125', name: '125 %' },
+                            { id: '100', name: '100 %' },
+                            { id: '125', name: '125 % · Standard' },
                             { id: '150', name: '150 %' },
                             { id: '200', name: '200 %' },
                         ],
@@ -2879,7 +2871,7 @@ export function protectMailSystemComponents(editor) {
                         options: [
                             { id: 'left', name: 'Links' },
                             { id: 'center', name: 'Mittig' },
-                            { id: 'train', name: 'Lok bei 60 %' },
+                            { id: 'train', name: 'Groß · mobil angeschnitten' },
                             { id: 'right', name: 'Rechts' },
                         ],
                     },

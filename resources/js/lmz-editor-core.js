@@ -1877,7 +1877,8 @@ function installElementorEditorLayout({ root, modeIndicator }) {
     const dock = document_.createElement('aside');
     dock.className = 'rt-lmz-control-dock';
     dock.dataset.rtLmzControlDock = '';
-    dock.setAttribute('aria-label', 'Editor-Werkzeuge');
+    dock.dataset.rtLmzSide = 'right';
+    dock.setAttribute('aria-label', 'Editor-Einstellungen');
     const header = document_.createElement('header');
     header.className = 'rt-lmz-control-dock__header';
     const tabs = document_.createElement('div');
@@ -1908,8 +1909,8 @@ function installElementorEditorLayout({ root, modeIndicator }) {
     const labels = Object.freeze({
         'left:blocks': 'Bausteine',
         'left:layers': 'Ebenen',
-        'right:traits': 'Inhalt',
-        'right:styles': 'Stil',
+        'right:traits': 'Eigenschaften',
+        'right:styles': 'Stile',
         'right:classes': 'Klassen',
     });
     const toggles = [...tabs.querySelectorAll('[data-lmz-panel-toggle]')];
@@ -2226,7 +2227,7 @@ function createImagePropertiesPanel({ root, editor, capabilities, media = {}, on
                 <span>Zugbreite</span>
                 <select name="trainWidth">
                     <option value="100">100 %</option>
-                    <option value="125">125 %</option>
+                    <option value="125">125 % · Standard</option>
                     <option value="150">150 %</option>
                     <option value="200">200 %</option>
                 </select>
@@ -2282,7 +2283,7 @@ function createImagePropertiesPanel({ root, editor, capabilities, media = {}, on
         form.elements.width.value = String(numericImageWidth(target));
         form.elements.trainWidth.value = ['100', '125', '150', '200'].includes(String(layerAttributes['data-rt-layer-size']))
             ? String(layerAttributes['data-rt-layer-size'])
-            : '100';
+            : '125';
         form.elements.alignment.value = inferredImageAlignment(target, trainLayer);
         pixelWidthField.hidden = targetIsTrain;
         presetWidthField.hidden = !targetIsTrain;
@@ -2333,7 +2334,7 @@ function createImagePropertiesPanel({ root, editor, capabilities, media = {}, on
         if (trainLayer) {
             const size = ['100', '125', '150', '200'].includes(form.elements.trainWidth.value)
                 ? form.elements.trainWidth.value
-                : '100';
+                : '125';
             trainLayer.addAttributes?.({
                 'data-rt-layer-align': alignment,
                 'data-rt-layer-size': size,

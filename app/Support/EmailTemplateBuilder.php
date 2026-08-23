@@ -979,7 +979,7 @@ class EmailTemplateBuilder
             'SIGNATURE_BLOCK' => $this->signatureBlock(
                 $signature,
                 layout: [
-                    'padding' => '16px 28px 0',
+                    'padding' => '0 28px 15px',
                     'topRule' => '',
                     'legalPadding' => '11px 28px',
                 ],
@@ -1097,7 +1097,7 @@ class EmailTemplateBuilder
             'SIGNATURE_BLOCK' => $this->signatureBlock(
                 MailSignature::forUser($this->user, $theme),
                 layout: [
-                    'padding' => '16px 28px 0',
+                    'padding' => '0 28px 15px',
                     'topRule' => '',
                     'legalPadding' => '11px 28px',
                     'outlookTrainSrc' => "{$assetFolder}/zug-dampf.gif",
@@ -1163,7 +1163,7 @@ class EmailTemplateBuilder
             'SIGNATURE_BLOCK' => $this->signatureBlock(
                 $signature,
                 layout: [
-                    'padding' => '16px 28px 0',
+                    'padding' => '0 28px 15px',
                     'topRule' => 'border-top:5px solid #e4002b;',
                     'legalPadding' => '11px 28px',
                 ],

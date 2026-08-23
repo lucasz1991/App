@@ -143,7 +143,7 @@ class MailDocumentEditorTest extends TestCase
     /** Baut den echten Schema-24-IMG-Stand ohne Layer-position nach. */
     private function legacySchema24Signature(string $canonical, string $overlap = '-7.3611%'): string
     {
-        $canonicalLayerStyle = 'style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto 0 0;margin-bottom:-200px;overflow:hidden;font-size:0;line-height:0;text-align:left;"';
+        $canonicalLayerStyle = 'style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto;margin-bottom:-200px;overflow:hidden;font-size:0;line-height:0;text-align:left;"';
         $legacy = str_replace(
             '<div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;">',
             '<div class="rt-sign-stage" style="position:relative;overflow:hidden;">',
@@ -152,7 +152,7 @@ class MailDocumentEditorTest extends TestCase
         );
         $legacy = str_replace(
             $canonicalLayerStyle,
-            'style="display:block;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:'.$overlap.';overflow:hidden;font-size:0;line-height:0;text-align:left;"',
+            'style="display:block;width:100%;max-width:1815px;margin:0 auto;margin-bottom:'.$overlap.';overflow:hidden;font-size:0;line-height:0;text-align:left;"',
             $legacy,
             $layerCount,
         );
@@ -497,7 +497,7 @@ class MailDocumentEditorTest extends TestCase
         SignatureDocumentContract::assertValid($canonical);
         SignatureDocumentContract::assertRuntimeValid($canonical);
 
-        $canonicalLayerStyle = 'style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto 0 0;margin-bottom:-200px;overflow:hidden;font-size:0;line-height:0;text-align:left;"';
+        $canonicalLayerStyle = 'style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto;margin-bottom:-200px;overflow:hidden;font-size:0;line-height:0;text-align:left;"';
         $this->assertStringContainsString($canonicalLayerStyle, $canonical);
         $this->assertStringContainsString('class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;"', $canonical);
         $this->assertStringContainsString('class="rt-sign-train-frame" role="presentation" width="100%" height="200"', $canonical);
@@ -530,7 +530,7 @@ class MailDocumentEditorTest extends TestCase
 
         $canonicalGeometryAttacks = [
             'fehlende Groessenangabe' => str_replace(
-                ' data-rt-layer-size="100"',
+                ' data-rt-layer-size="125"',
                 '',
                 $canonical,
             ),
@@ -599,7 +599,7 @@ class MailDocumentEditorTest extends TestCase
         };
         $innerPadding = function (string $declarations) use ($canonical): string {
             $html = preg_replace(
-                '/(<td class="rt-pad rt-sign-content" style=")padding:[^;]+;/i',
+                '/(<td class="rt-pad rt-sign-content"[^>]*style=")padding:[^;]+;/i',
                 '${1}'.$declarations,
                 $canonical,
                 1,
@@ -671,7 +671,7 @@ class MailDocumentEditorTest extends TestCase
                 $duplicateMsoPaddingCount,
             ),
             'inneres MSO-Padding' => preg_replace(
-                '/(<td class="rt-pad rt-sign-content" style="padding:[^;]+;)/i',
+                '/(<td class="rt-pad rt-sign-content"[^>]*style="padding:[^;]+;)/i',
                 '${1}mso-padding-alt:20px;',
                 $canonical,
                 1,
@@ -693,7 +693,7 @@ class MailDocumentEditorTest extends TestCase
             ),
             'fehlende Contentklasse' => str_replace('rt-pad rt-sign-content', 'rt-pad', $canonical, $missingClassCount),
             'inneres Nullpadding' => preg_replace(
-                '/(<td class="rt-pad rt-sign-content" style=")padding:[^;]+;/i',
+                '/(<td class="rt-pad rt-sign-content"[^>]*style=")padding:[^;]+;/i',
                 '${1}padding:0;',
                 $canonical,
                 1,
@@ -742,7 +742,7 @@ class MailDocumentEditorTest extends TestCase
         $this->createCanonicalMailDocuments();
         $canonical = (string) $this->document(MailDocumentKind::Signature)->published_html;
         $legacy = preg_replace(
-            '~<table\b[^>]*>\s*<tr>\s*<td class="rt-pad rt-sign-content" style="padding:([^;]+);position:relative;z-index:1;">~i',
+            '~<table\b[^>]*>\s*<tr>\s*<td class="rt-pad rt-sign-content"[^>]*style="padding:([^;]+);position:relative;z-index:1;vertical-align:bottom;">~i',
             '',
             $canonical,
             1,
@@ -750,7 +750,7 @@ class MailDocumentEditorTest extends TestCase
         );
         $this->assertIsString($legacy);
         $this->assertSame(1, $wrapperOpenCount);
-        preg_match('/rt-pad rt-sign-content" style="padding:([^;]+);/', $canonical, $paddingMatch);
+        preg_match('/rt-pad rt-sign-content"[^>]*style="padding:([^;]+);/', $canonical, $paddingMatch);
         $this->assertArrayHasKey(1, $paddingMatch);
         $legacy = preg_replace(
             '~</td>\s*</tr>\s*</table>\s*(?=</div>\s*</td>\s*</tr>\s*<!-- RT_SIGNATURE_MAIN_END -->)~i',
@@ -762,8 +762,8 @@ class MailDocumentEditorTest extends TestCase
         $this->assertIsString($legacy);
         $this->assertSame(1, $wrapperCloseCount);
         $legacy = str_replace(
-            'style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto 0 0;margin-bottom:-200px;overflow:hidden;font-size:0;line-height:0;text-align:left;"',
-            'style="display:block;width:100%;max-width:1815px;margin:0 auto 0 0;margin-bottom:-7.3611%;overflow:hidden;font-size:0;line-height:0;text-align:left;"',
+            'style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto;margin-bottom:-200px;overflow:hidden;font-size:0;line-height:0;text-align:left;"',
+            'style="display:block;width:100%;max-width:1815px;margin:0 auto;margin-bottom:-7.3611%;overflow:hidden;font-size:0;line-height:0;text-align:left;"',
             $legacy,
             $legacyLayerCount,
         );
@@ -1330,7 +1330,7 @@ HTML;
 
         // Nur die bekannten Starterabstaende werden fuer den eigenstaendigen
         // Download auf den kompakten Vertrag abgebildet.
-        $this->assertStringContainsString('padding:16px 28px 0;', $standalone);
+        $this->assertStringContainsString('padding:0 28px 15px;', $standalone);
         $this->assertStringContainsString('padding:11px 28px;', $standalone);
         $this->assertStringNotContainsString('border-top:5px solid #e4002b;', $standalone);
 
@@ -1409,7 +1409,7 @@ HTML;
         $this->seedDocuments();
         $signature = $this->document(MailDocumentKind::Signature);
         $custom = strtr((string) $signature->html, [
-            'padding:18px 36px 0;' => 'padding:21px 41px 29px;',
+            'padding:0 36px 15px;' => 'padding:21px 41px 29px;',
             'border-top:5px solid #e4002b;' => 'border-top:7px solid #123456;',
             'padding:14px 36px;' => 'padding:19px 41px;',
         ]);
@@ -1961,8 +1961,8 @@ HTML;
         $this->assertNull($document->fresh()->published_at);
 
         $customOverlapHtml = str_replace(
-            'style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto 0 0;margin-bottom:-200px;overflow:hidden;font-size:0;line-height:0;text-align:left;"',
-            'style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto 0 0;margin-bottom:-72px!important;overflow:hidden;font-size:0;line-height:0;text-align:left;"',
+            'style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto;margin-bottom:-200px;overflow:hidden;font-size:0;line-height:0;text-align:left;"',
+            'style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto;margin-bottom:-72px!important;overflow:hidden;font-size:0;line-height:0;text-align:left;"',
             $validHtml,
             $overlapReplacementCount,
         );

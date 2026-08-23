@@ -707,7 +707,7 @@ body[data-mode='dark'] .rt-lmz-editor .lmz-builder__status[data-state='error'] {
     position: relative;
 }
 
-/* Elementor-artiger Arbeitsbereich fuer dokumentorientierte Editoren.
+/* Dokumentorientierter Arbeitsbereich mit fester rechter Inspector-Seitenleiste.
    Der Vendor bleibt unveraendert: Der RailTime-Adapter haengt seine bereits
    verdrahteten Panelknoten lediglich in dieses stabile Kontroll-Dock um. */
 .rt-lmz-editor[data-rt-lmz-layout='elementor'] .lmz-builder__viewport {
@@ -829,7 +829,7 @@ body[data-mode='dark'] .rt-lmz-editor .lmz-builder__status[data-state='error'] {
 
 @media (min-width: 1100px) {
     .rt-lmz-editor[data-rt-lmz-layout='elementor'] .lmz-builder__viewport {
-        grid-template-columns: clamp(18rem, 20vw, 21rem) minmax(0, 1fr);
+        grid-template-columns: minmax(0, 1fr) clamp(18rem, 20vw, 21rem);
         grid-template-rows: minmax(0, 1fr);
     }
 
@@ -837,13 +837,14 @@ body[data-mode='dark'] .rt-lmz-editor .lmz-builder__status[data-state='error'] {
         position: relative;
         z-index: 25;
         height: 100%;
-        grid-column: 1;
+        grid-column: 2;
         grid-row: 1;
         grid-template-rows: auto auto minmax(0, 1fr) auto;
         overflow: hidden;
-        border-right: 1px solid var(--rt-lmz-border);
+        border-right: 0;
+        border-left: 1px solid var(--rt-lmz-border);
         border-bottom: 0;
-        box-shadow: 8px 0 22px -24px rgb(15 23 42 / 0.42);
+        box-shadow: -8px 0 22px -24px rgb(15 23 42 / 0.42);
     }
 
     .rt-lmz-editor[data-rt-lmz-layout='elementor'] .rt-lmz-control-dock__header {
@@ -863,7 +864,7 @@ body[data-mode='dark'] .rt-lmz-editor .lmz-builder__status[data-state='error'] {
 
     .rt-lmz-editor[data-rt-lmz-layout='elementor'] .rt-lmz-control-dock__tabs {
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(5, minmax(0, 1fr));
         overflow: visible;
         border-bottom: 1px solid var(--rt-lmz-border);
     }
@@ -932,7 +933,7 @@ body[data-mode='dark'] .rt-lmz-editor .lmz-builder__status[data-state='error'] {
     }
 
     .rt-lmz-editor[data-rt-lmz-layout='elementor'] .lmz-builder__main {
-        grid-column: 2;
+        grid-column: 1;
         grid-row: 1;
     }
 }

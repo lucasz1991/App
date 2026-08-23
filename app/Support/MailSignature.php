@@ -576,12 +576,14 @@ class MailSignature
 
         if (array_key_exists('padding', $layout)) {
             $targetPadding = 'padding:'.$layout['padding'].';';
-            // Schema-7-Publikationen koennen noch den frueheren unteren
-            // 20-px-Starterabstand enthalten. Beide exakten Starterwerte
-            // werden abgebildet; individuell editierte Abstaende bleiben
-            // unangetastet.
+            // Aeltere Publikationen koennen noch den frueheren unteren
+            // 20-px- oder 0-px-Starterabstand enthalten. Nur diese exakten
+            // Starterwerte werden abgebildet; individuell editierte Abstaende
+            // bleiben unangetastet.
             $replacements['padding:18px 36px 20px;'] = $targetPadding;
             $replacements['padding:18px 36px 0;'] = $targetPadding;
+            $replacements['padding:18px 36px 15px;'] = $targetPadding;
+            $replacements['padding:0 36px 15px;'] = $targetPadding;
         }
 
         if (array_key_exists('topRule', $layout)) {

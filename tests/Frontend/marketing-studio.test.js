@@ -1573,7 +1573,7 @@ test('shared LMZ shell exposes the resolved mail profile and removes unsafe clas
     assert.equal(classesToggle.hidden, false);
 }));
 
-test('mail chrome turns the vendor panels into one accessible Elementor-style control dock', () => coreWithDom(`
+test('mail chrome turns the vendor panels into one accessible right-side inspector dock', () => coreWithDom(`
     <div id="root">
         <div class="lmz-builder__topbar">
             <div class="lmz-builder__actions"><button data-lmz-action="save">Save</button></div>
@@ -1645,8 +1645,10 @@ test('mail chrome turns the vendor panels into one accessible Elementor-style co
     assert.equal(root.dataset.rtLmzLayout, 'elementor');
     assert.equal(dock.parentElement, root.querySelector('.lmz-builder__viewport'));
     assert.equal(dock.nextElementSibling, root.querySelector('.lmz-builder__main'));
+    assert.equal(dock.dataset.rtLmzSide, 'right');
+    assert.equal(dock.getAttribute('aria-label'), 'Editor-Einstellungen');
     assert.equal(root.querySelector('[data-rt-lmz-mode-indicator]').parentElement.className, 'rt-lmz-control-dock__header');
-    assert.deepEqual(tabButtons.slice(0, 4).map((button) => button.textContent), ['Bausteine', 'Ebenen', 'Inhalt', 'Stil']);
+    assert.deepEqual(tabButtons.slice(0, 4).map((button) => button.textContent), ['Bausteine', 'Ebenen', 'Eigenschaften', 'Stile']);
     assert.equal(dock.querySelector('.rt-lmz-control-dock__panels [data-lmz-popover="left"]') !== null, true);
     assert.equal(dock.querySelector('.rt-lmz-control-dock__footer .lmz-builder__meta') !== null, true);
     assert.equal(root.querySelector('[data-lmz-panel-toggle="right:traits"]').getAttribute('aria-selected'), 'true');

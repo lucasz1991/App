@@ -410,8 +410,8 @@ class EmailTemplatesPageTest extends TestCase
             $this->assertStringNotContainsString('class="rt-pad rt-sign-cell"', $html);
             $this->assertStringContainsString('style="padding:0;overflow:hidden;background-color:', $html);
             $this->assertStringContainsString('<div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;">', $html);
-            $this->assertStringContainsString('<td class="rt-pad rt-sign-content" style="padding:16px 28px 0;position:relative;z-index:1;">', $html);
-            $this->assertStringContainsString('height:auto;margin:0;border:0;outline:none;text-decoration:none;', $html);
+            $this->assertStringContainsString('<td class="rt-pad rt-sign-content" valign="bottom" style="padding:0 28px 15px;position:relative;z-index:1;vertical-align:bottom;">', $html);
+            $this->assertStringContainsString('height:auto;margin:0 0 0 -12.5%;border:0;outline:none;text-decoration:none;', $html);
             $this->assertStringNotContainsString('data:image/gif;base64,', $html);
             $this->assertStringContainsString('background-image:linear-gradient(', $html);
             $this->assertStringContainsString('background-repeat:no-repeat;', $html);
@@ -905,7 +905,7 @@ class EmailTemplatesPageTest extends TestCase
         );
         $this->assertStringContainsString('<div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;">', $light);
         $this->assertStringContainsString(
-            '<td class="rt-pad rt-sign-content" style="padding:18px 36px 0;position:relative;z-index:1;">',
+            '<td class="rt-pad rt-sign-content" valign="bottom" style="padding:0 36px 15px;position:relative;z-index:1;vertical-align:bottom;">',
             $light
         );
         $this->assertStringContainsString('color:#111820;font-size:23px;', $light);
@@ -922,7 +922,7 @@ class EmailTemplatesPageTest extends TestCase
         );
         $this->assertStringContainsString('<div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;">', $dark);
         $this->assertStringContainsString(
-            '<td class="rt-pad rt-sign-content" style="padding:18px 36px 0;position:relative;z-index:1;">',
+            '<td class="rt-pad rt-sign-content" valign="bottom" style="padding:0 36px 15px;position:relative;z-index:1;vertical-align:bottom;">',
             $dark
         );
         $this->assertStringContainsString('color:#ffffff;font-size:23px;', $dark);
@@ -1069,7 +1069,7 @@ class EmailTemplatesPageTest extends TestCase
         );
         $this->assertStringContainsString('<div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;">', $html);
         $this->assertStringContainsString(
-            '<td class="rt-pad rt-sign-content" style="padding:16px 28px 0;position:relative;z-index:1;">',
+            '<td class="rt-pad rt-sign-content" valign="bottom" style="padding:0 28px 15px;position:relative;z-index:1;vertical-align:bottom;">',
             $html,
         );
         $this->assertStringContainsString('Mara Beispiel', $html);

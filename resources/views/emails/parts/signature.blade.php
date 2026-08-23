@@ -11,8 +11,10 @@
     regulaeres IMG. Sein 200-Pixel-Flow-Layer steht im DOM vor dem ebenfalls
     200 Pixel hohen Inhaltswrapper. Die feste -200px-Margin legt beide Flaechen
     exakt uebereinander; eine mail-sichere Tabellenzelle richtet das Zugbild
-    direkt an der Oberkante des Pflichtfooters aus. Es gibt keine Umrechnung
-    aus einer Prozent-Margin und keine vom Editor-Viewport abhaengige Hoehe.
+    direkt an der Oberkante des Pflichtfooters aus. Das Motiv ist auf Desktop
+    moderat auf 125 Prozent vergroessert und mittig beschnitten, damit die Lok
+    weiterhin ungefaehr bei 60 Prozent endet. Es gibt keine Umrechnung aus
+    einer Prozent-Margin und keine vom Editor-Viewport abhaengige Hoehe.
 
     AUFBAU: zwei gleich breite Spalten an einer Mittelachse. Links die
     Person, rechts die Firma. Logo und Firmenkontakte existieren jeweils
@@ -36,8 +38,9 @@
     @param string $topRule  Akzentlinie oben (in der Signaturdatei leer)
 --}}
 @php
-    // Kein unterer Leerraum zwischen Kontaktdaten, Zugbild und Pflichtfooter.
-    $padding = $padding ?? '18px 36px 0';
+    // Die Daten behalten 15px Luft zur Oberkante des Pflichtfooters. Der Zug
+    // bleibt davon unberuehrt am unteren Rand seiner festen 200px-Buehne.
+    $padding = $padding ?? '0 36px 15px';
     $topRule = $topRule ?? 'border-top:5px solid #e4002b;';
     $legalPadding = $legalPadding ?? '14px 36px';
     $outlookTrainSrc = trim((string) ($outlookTrainSrc ?? ''));
@@ -68,11 +71,11 @@
     <td class="rt-sign-cell" bgcolor="{{ $values['SIGNATURE_BG'] }}" style="padding:0;overflow:hidden;background-color:{{ $values['SIGNATURE_BG'] }};background-image:{{ $backgroundImage }};background-repeat:{{ $backgroundRepeat }};background-position:{{ $backgroundPosition }};background-size:{{ $backgroundSize }};{{ $topRule }}">
         <div class="rt-sign-stage" style="position:relative;height:200px;max-height:200px;overflow:hidden;">
         @if($trainSrc !== '')
-        <div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="left" data-rt-layer-size="100" data-rt-layer-mobile="train" style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto 0 0;margin-bottom:-200px;overflow:hidden;font-size:0;line-height:0;text-align:left;">
+        <div class="rt-sign-train-layer" data-rt-layer-train data-rt-layer-align="center" data-rt-layer-size="125" data-rt-layer-mobile="train" style="display:block;width:100%;height:200px;max-height:200px;max-width:1815px;margin:0 auto;margin-bottom:-200px;overflow:hidden;font-size:0;line-height:0;text-align:left;">
             <table class="rt-sign-train-frame" role="presentation" width="100%" height="200" border="0" cellspacing="0" cellpadding="0" style="width:100%;height:200px;border-collapse:collapse;">
                 <tr>
                     <td class="rt-sign-train-slot" height="200" valign="bottom" style="height:200px;padding:0;text-align:left;vertical-align:bottom;font-size:0;line-height:0;">
-                        <img class="rt-sign-train" data-rt-train src="{{ $trainSrc }}" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:100%;max-width:none;height:auto;margin:0;border:0;outline:none;text-decoration:none;vertical-align:bottom;mso-hide:all;">
+                        <img class="rt-sign-train" data-rt-train src="{{ $trainSrc }}" width="720" alt="" style="position:static;left:auto;right:auto;bottom:auto;display:inline-block;width:125%;max-width:none;height:auto;margin:0 0 0 -12.5%;border:0;outline:none;text-decoration:none;vertical-align:bottom;mso-hide:all;">
                     </td>
                 </tr>
             </table>
@@ -84,7 +87,7 @@
              haelt die Daten auch ohne z-index vor dem Motiv. --}}
         <table class="rt-sign-content-frame" role="presentation" width="100%" height="200" border="0" cellspacing="0" cellpadding="0" style="width:100%;height:200px;border-collapse:collapse;">
             <tr>
-                <td class="rt-pad rt-sign-content" style="padding:{{ $padding }};position:relative;z-index:1;">
+                <td class="rt-pad rt-sign-content" valign="bottom" style="padding:{{ $padding }};position:relative;z-index:1;vertical-align:bottom;">
                     {{-- Einmaliges, Outlook-taugliches Reverse-Stacking:
                          Desktop ordnet die RTL-Tabellenspalten als Person
                          links und Firma rechts an. Mobil werden die Zellen
